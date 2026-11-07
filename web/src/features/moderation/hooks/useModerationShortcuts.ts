@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 
 /**
  * The single-key shortcuts that make a hundred-photo queue survivable.
@@ -91,7 +91,11 @@ export const useModerationShortcuts = (
    * console re-registers a `keydown` listener each time a photo arrives.
    */
   const current = useRef(handlers)
-  useEffect(() => {
+  // A layout effect, not a passive one: it runs inside the commit, so a key that arrives
+  // the moment the DOM shows a message reaches the handlers of that render. A passive
+  // effect runs a task later, and on a slow WebKit frame a J or a P pressed in that gap
+  // ran the previous handlers and was dropped in silence.
+  useLayoutEffect(() => {
     current.current = handlers
   }, [handlers])
 
