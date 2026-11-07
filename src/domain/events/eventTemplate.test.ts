@@ -30,7 +30,8 @@ const settingsOf = (key: EventTemplateKey): EventSettingsProps =>
 
 describe('the template catalogue', () => {
   it.each(EVENT_TEMPLATE_KEYS)('%s produces settings the domain accepts', (key) => {
-    // The same rules a host's own settings pass through, applied to the preset as a patch.
+    // The same rules a host's own settings pass through, applied to the preset as a patch. The
+    // real guard is load-time compilation of every preset; this restates it per key.
     expect(EventSettings.default().with(eventTemplatePatch(key)).ok).toBe(true)
   })
 

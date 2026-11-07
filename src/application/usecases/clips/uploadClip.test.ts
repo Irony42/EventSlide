@@ -477,6 +477,27 @@ describe('uploadClip', () => {
       expect(again.ok && again.value.duplicate).toBe(false)
     })
 
+    it('sends the clip again when the photo of its finished job belongs to another event', async () => {
+      // A `done` job only blocks the dedupe while its photo is on *this* event's wall. A photo
+      // that resolves to another event is not the guest's clip here, so the bytes are staged anew.
+      seedEvent()
+      const bytes = aClipFile()
+      await upload(bytes)
+      const job = firstOf(clips.all, 'staged clip job')
+      const claimed = job.claim(clock.now())
+      expect(claimed.ok).toBe(true)
+      if (!claimed.ok) return
+      const done = claimed.value.succeed(clock.now())
+      expect(done.ok).toBe(true)
+      if (!done.ok) return
+      await clips.save(done.value)
+      photos.seed(aPhoto({ id: job.photoId, eventId: 'event-2', clip: {} }))
+
+      const again = await upload(bytes)
+
+      expect(again.ok && again.value.duplicate).toBe(false)
+    })
+
     it('announces nothing for a retry, so the worker is not woken for no work', async () => {
       seedEvent()
       const bytes = aClipFile()
