@@ -214,6 +214,8 @@ jobs:
           sudo rm -f /etc/apt/apt.conf.d/docker-clean
           if [ -d ~/apt-archives ]; then sudo cp ~/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true; fi
           engine="${PROJECT%%-*}"
+          # perf has no engine in its name: it is Chromium (playwright.config.ts).
+          if [ "$engine" = perf ]; then engine=chromium; fi
           npx playwright install-deps "$engine"
           mkdir -p ~/apt-archives && cp /var/cache/apt/archives/*.deb ~/apt-archives/ 2>/dev/null || true
           timeout 6m npx playwright install "$engine" || timeout 6m npx playwright install "$engine"
