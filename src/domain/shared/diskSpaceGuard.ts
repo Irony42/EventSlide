@@ -47,7 +47,8 @@ export const evaluateDiskSpace = (
   minFreeBytes: number,
 ): DiskSpaceStatus => {
   const readable = freeBytesByPath.filter((bytes): bytes is number => bytes !== null)
-  if (readable.length !== freeBytesByPath.length) {
+  // No path means nothing was measured: as unreadable as a failed probe, never `Infinity` of room.
+  if (freeBytesByPath.length === 0 || readable.length !== freeBytesByPath.length) {
     return { sufficient: false, freeBytes: null }
   }
 
