@@ -53,7 +53,11 @@ const aMomentLater = async (): Promise<void> => {
   await Promise.resolve()
 }
 
-/** Call it from a `beforeEach`; the `afterEach` of the describe hands the real clock back. */
+/**
+ * Call it from a `beforeEach`; the `afterEach` of the describe hands the real clock back. `Date` is
+ * frozen for every test of those describes, so a test that needs real elapsed time (an expiry, a
+ * rate window) must step it with `aMomentLater` instead of waiting.
+ */
 const freezeTheClock = (): void => {
   vi.useFakeTimers({ toFake: ['Date'] })
 }
