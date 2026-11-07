@@ -15,6 +15,7 @@ import type { GuestRepository } from '../../ports/guestRepository'
 import type { PhotoQuery, PhotoRepository } from '../../ports/photoRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { requireEventRole, requireReadable } from '../shared/eventRole'
+import { authorNamesOf } from '../guests/authorNamesOf'
 
 /**
  * The moderation console's one read: the queue, plus the badge count.
@@ -120,31 +121,6 @@ const toRow = (photo: Photo, names: ReadonlyMap<GuestId, string>): ModerationQue
   highlighted: photo.isHighlighted,
 })
 
-/**
- * Every sender's name, in **one** repository read.
- *
- * A queue is many photos by few guests, so the shape is batch-then-join: collect the
- * distinct senders, ask once, map the answer back onto the rows. A `findById` inside the
- * loop would be an N+1 on the screen that refetches on every arriving photo — the
- * console is a laptop at a party, and the queue reloads over SSE all evening.
- *
- * Deduplicated by guest, so the request grows with the guests in the room rather than
- * with the photos on the screen. Scoped by `eventId` before anything else: a name read
- * that could reach another event's guest list would be a leak, not a missing feature.
- */
-const resolveAuthorNames = async (
-  guests: GuestRepository,
-  eventId: EventId,
-  photos: readonly Photo[],
-): Promise<ReadonlyMap<GuestId, string>> => {
-  const senders = new Set<GuestId>()
-  for (const photo of photos) {
-    if (photo.author.kind === 'guest') senders.add(photo.author.guestId)
-  }
-
-  return guests.findNamesByIds(eventId, [...senders])
-}
-
 export const makeGetModerationQueue =
   ({ events, photos, guests, memberships }: GetModerationQueueDeps): GetModerationQueue =>
   async ({ eventId, filter, order, limit, actor }) => {
@@ -168,7 +144,7 @@ export const makeGetModerationQueue =
     const query: PhotoQuery = filter === 'all' ? {} : { statuses: [filter] }
     const page = await photos.list(eventId, query)
     const counts = await photos.countsByStatus(eventId)
-    const names = await resolveAuthorNames(guests, eventId, page.items)
+    const names = await authorNamesOf(guests, eventId, page.items)
 
     // The rows are assembled before the domain orders them, and `buildQueue` hands back
     // the very rows it was given — so the caption and the sender travel with the row
