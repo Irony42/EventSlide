@@ -23,6 +23,7 @@ import { CURSOR_IDLE_MS } from './hooks/useIdleCursor'
 import { OUTAGE_DOT_AFTER_MS, OUTAGE_TEXT_AFTER_MS } from './hooks/useOutageStage'
 import { QR_HIDDEN_MS, WallPage } from './WallPage'
 import styles from './WallPage.module.css'
+import { FakeEventSource } from '../../testing/fakeEventSource'
 
 /**
  * The projected surface: a screen nobody touches for eight hours.
@@ -44,34 +45,11 @@ const ROUTE = '/e/camille-et-sacha/display'
 const PATH = '/e/:slug/display'
 
 /**
- * A controllable `EventSource`.
- *
- * jsdom has none, and the harness installs a stand-in that never opens and never
- * delivers. The wall's whole resilience story is about the stream opening, dropping
- * and delivering, so a test has to be able to drive those three. This stubs a browser
- * API and nothing else: `useEventStream` under it is the real one.
+ * The wall's whole resilience story is about the stream opening, dropping and delivering,
+ * so a test drives those three through the shared `EventSource` stand-in
+ * (`web/src/testing/fakeEventSource.ts`); `useEventStream` under it is the real one.
  */
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = []
-
-  readonly readyState = 1
-  closed = false
-
-  constructor(readonly url: string) {
-    super()
-    FakeEventSource.instances.push(this)
-  }
-
-  close(): void {
-    this.closed = true
-  }
-}
-
-const theStream = (): FakeEventSource => {
-  const instance = FakeEventSource.instances.at(-1)
-  if (instance === undefined) throw new Error('the wall opened no stream')
-  return instance
-}
+const theStream = (): FakeEventSource => FakeEventSource.latest('the wall')
 
 /**
  * The wall element, which names the layout the room is looking at.
@@ -227,7 +205,7 @@ describe('WallPage', () => {
   let nativeExitFullscreen: () => Promise<void>
 
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     window.EventSource = FakeEventSource as unknown as typeof window.EventSource
     nativeRequestFullscreen = document.documentElement.requestFullscreen
     nativeExitFullscreen = document.exitFullscreen
