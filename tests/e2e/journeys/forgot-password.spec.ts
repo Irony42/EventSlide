@@ -128,7 +128,16 @@ test('a box with no mail relay offers no way to ask, and says so if the page is 
     await expect(page.getByLabel(fr.auth.email)).toBeVisible()
     // Let `/api/about` answer before asserting an absence: an absence checked first is true of
     // every version of this page.
-    const about = (await (await answered).json()) as { features: { forgotPassword: boolean } }
+    await answered
+    // What the server says, read on its own request: `waitForResponse(...).json()` loses the body
+    // on webkit once the page has moved on (`Network.getResponseBody: Missing content of resource`).
+    const served = await page.request.get(app.url('/api/about'))
+    expect(served.ok()).toBe(true)
+    const about = (await served.json()) as {
+      features: { forgotPassword: boolean }
+      operator?: unknown
+      links?: unknown
+    }
     // The premise, read off the wire: this box says it cannot mail.
     expect(about.features.forgotPassword).toBe(false)
     // The response arrives before React has drawn what it says; two frames let it commit, so
