@@ -148,13 +148,6 @@ const WEB_FEATURES = [
 ]
 
 /**
- * Files that still import another feature, and the reason each is not fixed yet. It is empty:
- * every feature is held, and a new file never joins this list, so the rule is a ratchet.
- */
-/** @type {readonly string[]} */
-const FEATURE_BOUNDARY_LEGACY = []
-
-/**
  * Scope: static imports only. A dynamic `import()` (router.tsx lazy-loads every page from `app/`,
  * legitimately) and `vi.mock` paths are not seen by `no-restricted-imports`.
  * Known and accepted: `app/` is outside the zones on purpose, and `app/AmbiancePreview.tsx`
@@ -458,9 +451,9 @@ export default tseslint.config(
   },
 
   /* ------------------------------------------------- web feature boundary -- */
+  // Every feature is held and no file is excused: a new violation is fixed, not listed.
   ...WEB_FEATURES.map((feature) => ({
     files: [`web/src/features/${feature}/**/*.{ts,tsx}`],
-    ignores: FEATURE_BOUNDARY_LEGACY,
     rules: {
       'no-restricted-imports': webBoundary(WEB_FEATURES.filter((other) => other !== feature)),
     },
