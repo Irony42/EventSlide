@@ -10,13 +10,20 @@ import { describe, expect, it } from 'vitest'
  */
 
 const SRC = path.resolve(__dirname, '../../..')
+const ROOT = path.resolve(SRC, '..')
 const HELPER = path.join(SRC, 'interface/http/testing/request.ts')
+
+/** Where a test may live: the server, the scripts' own tests and the end-to-end suite. */
+const SCANNED = [SRC, path.join(ROOT, 'scripts'), path.join(ROOT, 'tests')]
+
+/** A TypeScript source in any of the spellings this repository uses. */
+const isTypeScriptSource = (name: string): boolean => /\.(?:ts|tsx|mts)$/.test(name)
 
 const sourcesUnder = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(directory, entry.name)
     if (entry.isDirectory()) return sourcesUnder(full)
-    return entry.name.endsWith('.ts') ? [full] : []
+    return isTypeScriptSource(entry.name) ? [full] : []
   })
 
 /**
@@ -28,13 +35,27 @@ const importsSupertestForItsValue = (text: string): boolean =>
   /\b(?:require|import)\(\s*['"]supertest['"]\s*\)/.test(text)
 
 describe('how a test reaches supertest', () => {
-  const offenders = sourcesUnder(SRC)
+  const files = SCANNED.flatMap(sourcesUnder)
+  const offenders = files
     .filter((file) => file !== HELPER && file !== __filename)
     .filter((file) => importsSupertestForItsValue(readFileSync(file, 'utf8')))
-    .map((file) => path.relative(SRC, file).split(path.sep).join('/'))
+    .map((file) => path.relative(ROOT, file).split(path.sep).join('/'))
 
   it('is through the shared helper, which holds one server per app', () => {
     expect(offenders).toEqual([])
+  })
+
+  it('reads the server, the scripts and the end-to-end suite, in every TypeScript spelling', () => {
+    const relative = files.map((file) => path.relative(ROOT, file).split(path.sep).join('/'))
+
+    expect(relative.some((file) => file.startsWith('src/'))).toBe(true)
+    expect(relative.some((file) => file.startsWith('scripts/'))).toBe(true)
+    expect(relative.some((file) => file.startsWith('tests/'))).toBe(true)
+    expect(isTypeScriptSource('a.ts')).toBe(true)
+    expect(isTypeScriptSource('a.tsx')).toBe(true)
+    expect(isTypeScriptSource('a.mts')).toBe(true)
+    expect(isTypeScriptSource('a.js')).toBe(false)
+    expect(isTypeScriptSource('a.ts.snap')).toBe(false)
   })
 
   it('recognises the shapes an import takes', () => {
