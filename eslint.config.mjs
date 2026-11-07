@@ -159,11 +159,23 @@ const FEATURE_BOUNDARY_LEGACY = [
   'web/src/features/join/**',
 ]
 
-const featureImportRule = (otherFeatures) => ({
-  regex: `^(\.\./)+(features/)?(${otherFeatures.join('|')})(/|$)`,
+/** @param {readonly string[]} forbidden The feature folders this file may not import. */
+const featureImportRule = (forbidden) => ({
+  // A relative path of ../ steps, then a feature folder (the dots are literal: String.raw).
+  regex: String.raw`^(\.\./)+(features/)?(${forbidden.join('|')})(/|$)`,
   message:
     'A feature never imports another feature. Move what both need to web/src/lib/, web/src/design-system/ or web/src/app/.',
 })
+
+/**
+ * The web import rule for files that may not reach `forbidden` features.
+ * @param {readonly string[]} forbidden
+ * @returns {['error', { patterns: object[] }]}
+ */
+const webBoundary = (forbidden) => [
+  'error',
+  { patterns: [WEB_NO_SERVER_SOURCE, featureImportRule(forbidden)] },
+]
 
 const ENV_MESSAGE =
   'process.env is read only by src/infrastructure/config/env.ts. Take the value as configuration instead.'
@@ -448,15 +460,7 @@ export default tseslint.config(
     files: [`web/src/features/${feature}/**/*.{ts,tsx}`],
     ignores: FEATURE_BOUNDARY_LEGACY,
     rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            WEB_NO_SERVER_SOURCE,
-            featureImportRule(WEB_FEATURES.filter((other) => other !== feature)),
-          ],
-        },
-      ],
+      'no-restricted-imports': webBoundary(WEB_FEATURES.filter((other) => other !== feature)),
     },
   })),
   {
@@ -465,12 +469,7 @@ export default tseslint.config(
     files: ['web/src/lib/**/*.{ts,tsx}', 'web/src/design-system/**/*.{ts,tsx}'],
     ignores: ['**/*.test.{ts,tsx}'],
     rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [WEB_NO_SERVER_SOURCE, featureImportRule(WEB_FEATURES)],
-        },
-      ],
+      'no-restricted-imports': webBoundary(WEB_FEATURES),
     },
   },
 
