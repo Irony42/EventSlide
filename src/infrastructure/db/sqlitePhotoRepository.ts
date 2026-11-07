@@ -592,25 +592,6 @@ export class SqlitePhotoRepository implements PhotoRepository {
     }
   }
 
-  async listIdsByStatus(
-    eventId: EventId,
-    status: PhotoStatus,
-    limit: number,
-  ): Promise<readonly PhotoId[]> {
-    requirePositiveLimit(limit, 'listIdsByStatus')
-
-    return this.db
-      .prepare<[string, string, number], { readonly id: string }>(
-        `SELECT id
-           FROM photos
-          WHERE event_id = ? AND status = ? AND taken_down_at IS NULL
-          ORDER BY created_at DESC, id DESC
-          LIMIT ?`,
-      )
-      .all(eventId, status, limit)
-      .map((row) => asPhotoId(row.id))
-  }
-
   async countsByStatus(eventId: EventId): Promise<PhotoStatusCounts> {
     const counts: Record<PhotoStatus, number> = { ...ZERO_COUNTS }
 

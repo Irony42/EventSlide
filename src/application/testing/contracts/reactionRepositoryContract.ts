@@ -238,54 +238,6 @@ export const reactionRepositoryContract = (
       expect((await repo.countsForEvent(WEDDING)).size).toBe(0)
     })
 
-    // ----------------------------------------------------------- guest views --
-
-    it('lists what a guest has already sent, newest first', async () => {
-      await repo.save(
-        aReaction({
-          id: 'r1',
-          eventId: WEDDING,
-          photoId: P1,
-          guestId: LEA,
-          kind: 'love',
-          createdAt: atPlus(0),
-        }),
-      )
-      await repo.save(
-        aReaction({
-          id: 'r2',
-          eventId: WEDDING,
-          photoId: P2,
-          guestId: LEA,
-          kind: 'clap',
-          createdAt: atPlus(1_000),
-        }),
-      )
-
-      const entries = await repo.listByGuest(WEDDING, LEA)
-
-      expect(entries).toEqual([
-        { kind: 'clap', guestId: LEA },
-        { kind: 'love', guestId: LEA },
-      ])
-    })
-
-    it('never lists another guest reactions', async () => {
-      await repo.save(
-        aReaction({ id: 'r1', eventId: WEDDING, photoId: P1, guestId: NILS, kind: 'love' }),
-      )
-
-      expect(await repo.listByGuest(WEDDING, LEA)).toEqual([])
-    })
-
-    it('lists a guest reactions for one event only', async () => {
-      await repo.save(
-        aReaction({ id: 'r1', eventId: GALA, photoId: P9, guestId: LEA, kind: 'love' }),
-      )
-
-      expect(await repo.listByGuest(WEDDING, LEA)).toEqual([])
-    })
-
     // -------------------------------------------------------------- anti-spam --
 
     it('counts the reactions a guest sent inside the window', async () => {
@@ -417,7 +369,7 @@ export const reactionRepositoryContract = (
 
         await repo.deleteByGuest(WEDDING, LEA)
 
-        expect(await repo.listByGuest(WEDDING, LEA)).toEqual([])
+        expect(await repo.countByGuestSince(WEDDING, LEA, new Date(0))).toBe(0)
         expect(await repo.countsFor(WEDDING, P1)).toEqual({ ...noReactions, love: 1 })
         expect(await repo.countsFor(WEDDING, P2)).toEqual(noReactions)
       })

@@ -1,6 +1,6 @@
 import type { Reaction } from '../../domain/reactions/reaction'
 import type { ReactionKind } from '../../domain/reactions/reactionKind'
-import type { ReactionCounts, TallyEntry } from '../../domain/reactions/reactionTally'
+import type { ReactionCounts } from '../../domain/reactions/reactionTally'
 import type { EventId, GuestId, PhotoId } from '../../domain/shared/ids'
 
 export interface ReactionRepository {
@@ -34,9 +34,6 @@ export interface ReactionRepository {
 
   /** Powers the "photo of the night" panel and the end-of-event recap. */
   countsForEvent(eventId: EventId): Promise<ReadonlyMap<PhotoId, ReactionCounts>>
-
-  /** What a guest has already reacted to, so their phone can show it as pressed. */
-  listByGuest(eventId: EventId, guestId: GuestId): Promise<readonly TallyEntry[]>
 
   /** Feeds the pure anti-spam arithmetic in `domain/reactions/reactionBudget.ts`. */
   countByGuestSince(eventId: EventId, guestId: GuestId, since: Date): Promise<number>

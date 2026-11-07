@@ -9,7 +9,7 @@ import type { Migration } from '../migrator'
  *   machine (pending, published, rejected, hidden) and a host can move a photograph through it
  *   in either direction, so a takedown folded into it would be undone by the next click. This is
  *   a second, independent fact that only the operator's routes write, and the photo repository's
- *   reads (`findById`, `list`, `listIdsByStatus`, `countsByStatus`) leave the row out, so no
+ *   reads (`findById`, `list`, `countsByStatus`) leave the row out, so no
  *   surface that reads a photograph through the port can serve it: the wall, the guest's feed,
  *   a gallery link, the host's grid and the media route all go through it.
  * - **`events.taken_down_at`**: the same for a whole event. Every surface that serves an event
