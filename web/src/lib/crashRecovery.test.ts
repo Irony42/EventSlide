@@ -193,3 +193,29 @@ describe('reloadForStaleBundle while the user is leaving', () => {
     expect(reload).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('reloadForStaleBundle after an in-app navigation', () => {
+  afterEach(() => {
+    window.history.pushState({}, '', '/')
+  })
+
+  it('does not reload when the address is no longer the one the failing load started at', () => {
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+    window.history.pushState({}, '', '/admin/events')
+    const startedAt = window.location.href
+    window.history.pushState({}, '', '/admin/events/mariage')
+
+    expect(reloadForStaleBundle(NOW, startedAt)).toBe(false)
+
+    expect(reload).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem(STALE_BUNDLE_MARKER)).toBeNull()
+  })
+
+  it('reloads when the address is still the one the failing load started at', () => {
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+    window.history.pushState({}, '', '/admin/events')
+
+    expect(reloadForStaleBundle(NOW, window.location.href)).toBe(true)
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+})

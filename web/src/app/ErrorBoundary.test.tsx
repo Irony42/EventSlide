@@ -179,6 +179,38 @@ describe('ErrorBoundary: a chunk that failed to load after a deploy', () => {
     },
   )
 
+  it('does not reload over an in-app navigation: a preload cancelled with no unload event', () => {
+    const log = silenceReactErrorLog()
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+    const before = window.location.href
+    // The router moved on (history.pushState fires no unload event) while the failing load was
+    // still pending, and the cancelled stylesheet then reports as a stale bundle.
+    const Page = ({ stale }: { readonly stale: boolean }): null => {
+      if (!stale) return null
+      window.history.pushState({}, '', '/admin/elsewhere')
+      return StalePreload()
+    }
+
+    try {
+      const { rerender } = render(
+        <ErrorBoundary surface="host">
+          <Page stale={false} />
+        </ErrorBoundary>,
+      )
+      rerender(
+        <ErrorBoundary surface="host">
+          <Page stale />
+        </ErrorBoundary>,
+      )
+
+      expect(reload).not.toHaveBeenCalled()
+      expect(sessionStorage.getItem(STALE_BUNDLE_MARKER)).toBeNull()
+    } finally {
+      window.history.pushState({}, '', before)
+      log.mockRestore()
+    }
+  })
+
   it('does not reload for an ordinary render error', () => {
     const log = silenceReactErrorLog()
     const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})

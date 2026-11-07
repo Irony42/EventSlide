@@ -45,7 +45,10 @@ const CHUNK_FAILURE = [
 export const isChunkLoadError = (error: Error): boolean =>
   error.name === 'ChunkLoadError' || CHUNK_FAILURE.some((pattern) => pattern.test(error.message))
 
-/** The `sessionStorage` key holding the time of the last reload this module asked for. */
+/**
+ * The `sessionStorage` key holding the time of the last reload this module asked for.
+ * Exported as a test seam (the tests read and seed the marker); no other module imports it.
+ */
 export const STALE_BUNDLE_MARKER = 'eventslide.staleBundleReload'
 
 /**
@@ -53,7 +56,7 @@ export const STALE_BUNDLE_MARKER = 'eventslide.staleBundleReload'
  *
  * A reload that cured the problem never meets the marker again; one that did not (the new
  * build is broken too, or the server is down) must not turn into a reload loop, so a second
- * chunk failure inside this window shows the crash screen instead.
+ * chunk failure inside this window shows the crash screen instead. Exported as a test seam.
  */
 export const STALE_BUNDLE_WINDOW_MS = 60_000
 
@@ -111,9 +114,20 @@ if (typeof window !== 'undefined') {
  * `sessionStorage` cannot be written (no marker means no loop guard), and nothing when the
  * browser says it is offline (a reload would swap the crash screen for the browser's own error
  * page, which is worse), and nothing while the user is leaving the page (see above).
+ *
+ * `startedAtHref` is the address the failing load started at. An in-app navigation fires no unload
+ * event, yet it can cancel a lazy preload just the same; when the address has moved on since, the
+ * user is already somewhere else and reloading would only throw that away, so nothing is done.
  */
-export const reloadForStaleBundle = (now: number = Date.now()): boolean => {
+export const reloadForStaleBundle = (now: number = Date.now(), startedAtHref?: string): boolean => {
   if (leaving) return false
+  if (
+    startedAtHref !== undefined &&
+    typeof window !== 'undefined' &&
+    window.location.href !== startedAtHref
+  ) {
+    return false
+  }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
   try {
     const previous = Number(sessionStorage.getItem(STALE_BUNDLE_MARKER))
