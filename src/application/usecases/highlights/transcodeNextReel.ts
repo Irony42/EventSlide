@@ -72,8 +72,7 @@ export type TranscodeNextReelOutcome =
 
 export type TranscodeNextReel = () => Promise<Result<TranscodeNextReelOutcome, DomainError>>
 
-const unavailable = (event: Event): boolean =>
-  event.isTakenDown() || event.isClientSuspended() || !event.allowsModeration()
+const unavailable = (event: Event): boolean => !event.isReachable() || !event.allowsModeration()
 
 export const makeTranscodeNextReel = ({
   events,

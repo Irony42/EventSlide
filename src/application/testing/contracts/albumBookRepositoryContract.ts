@@ -198,6 +198,87 @@ export const albumBookRepositoryContract = (
       expect(await repo.recoverRunning()).toBe(0)
     })
 
+    // -------------------------------------------------------------- finish --
+    const RESULT = {
+      photoCount: 3,
+      skippedCount: 1,
+      pageCount: 6,
+      byteSize: 900,
+      expiresAt: at(60 * 24 * 7),
+    }
+
+    const makeRunning = async (eventId = WEDDING): Promise<AlbumBook> => {
+      await request(eventId)
+      const running = await repo.claimNext(at(1))
+      if (running === null) throw new Error('arrange: claim failed')
+      return running
+    }
+
+    it('finishes a running book as done, with the measures of the render', async () => {
+      await makeRunning()
+
+      expect(await repo.finish(WEDDING, { kind: 'finished', result: RESULT }, at(2))).toBe('done')
+
+      expect(await repo.find(WEDDING)).toMatchObject({ status: 'done', doneAt: at(2), ...RESULT })
+    })
+
+    it('lets a fact stamped while the book rendered win: stale, never done', async () => {
+      await makeRunning()
+      await repo.invalidate(WEDDING, 'photoRemoved', at(2))
+
+      expect(await repo.finish(WEDDING, { kind: 'finished', result: RESULT }, at(3))).toBe('stale')
+
+      expect(await repo.find(WEDDING)).toMatchObject({
+        status: 'stale',
+        staleReason: 'photoRemoved',
+      })
+    })
+
+    it('records a failure code on a running book', async () => {
+      await makeRunning()
+
+      expect(await repo.finish(WEDDING, { kind: 'failed', code: 'tooLarge' }, at(2))).toBe('failed')
+
+      expect(await repo.find(WEDDING)).toMatchObject({ status: 'failed', failureCode: 'tooLarge' })
+    })
+
+    it('answers superseded and writes nothing when the host re-requested the book meanwhile', async () => {
+      await makeRunning()
+      const replacement = requestBook(WEDDING, { ...OPTIONS, title: 'Autre' }, at(5))
+      await repo.saveRequest(replacement)
+
+      expect(await repo.finish(WEDDING, { kind: 'finished', result: RESULT }, at(6))).toBe(
+        'superseded',
+      )
+      expect(await repo.finish(WEDDING, { kind: 'failed', code: 'unexpected' }, at(6))).toBe(
+        'superseded',
+      )
+
+      expect(await repo.find(WEDDING)).toEqual(replacement)
+    })
+
+    it('answers superseded when the host deleted the book meanwhile, and creates no row', async () => {
+      await makeRunning()
+      await repo.delete(WEDDING)
+
+      expect(await repo.finish(WEDDING, { kind: 'finished', result: RESULT }, at(2))).toBe(
+        'superseded',
+      )
+
+      expect(await repo.find(WEDDING)).toBeNull()
+    })
+
+    it('takes a verdict once: a second finish finds a book that is no longer running', async () => {
+      await makeRunning()
+      await repo.finish(WEDDING, { kind: 'finished', result: RESULT }, at(2))
+
+      expect(await repo.finish(WEDDING, { kind: 'failed', code: 'unexpected' }, at(3))).toBe(
+        'superseded',
+      )
+
+      expect(await repo.find(WEDDING)).toMatchObject({ status: 'done' })
+    })
+
     // ---------------------------------------------------------- invalidate --
     it('turns a done book stale, with the reason and the instant', async () => {
       await makeDone()

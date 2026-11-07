@@ -1,5 +1,13 @@
 import type { AlbumBookRepository } from '../ports/albumBookRepository'
-import { invalidateBook, startBook, type AlbumBook } from '../../domain/book/albumBook'
+import {
+  finishOf,
+  invalidateBook,
+  settleBook,
+  startBook,
+  type AlbumBook,
+  type BookFinish,
+  type BookVerdict,
+} from '../../domain/book/albumBook'
 import { hasFile, isActive, type BookStaleReason } from '../../domain/book/albumBookStatus'
 import type { EventId } from '../../domain/shared/ids'
 
@@ -25,6 +33,15 @@ export class FakeAlbumBookRepository implements AlbumBookRepository {
       throw new Error('AlbumBookRepository.save: no book was requested for this event')
     }
     this.books.set(book.eventId, book)
+  }
+
+  async finish(eventId: EventId, verdict: BookVerdict, now: Date): Promise<BookFinish> {
+    const book = this.books.get(eventId)
+    if (book === undefined) return 'superseded'
+    const settled = settleBook(book, verdict, now)
+    if (!settled.ok) return 'superseded'
+    this.books.set(eventId, settled.value)
+    return finishOf(settled.value)
   }
 
   async findNextQueued(): Promise<AlbumBook | null> {

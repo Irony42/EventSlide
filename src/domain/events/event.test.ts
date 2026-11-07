@@ -352,6 +352,27 @@ describe('Event capabilities', () => {
   })
 })
 
+describe('Event reachability', () => {
+  const cases: ReadonlyArray<
+    readonly [takenDown: boolean, suspended: boolean, reachable: boolean]
+  > = [
+    [false, false, true],
+    [true, false, false],
+    [false, true, false],
+    [true, true, false],
+  ]
+  it.each(cases)(
+    'taken down %s, client suspended %s: reachable %s',
+    (takenDown, suspended, reachable) => {
+      const event = anEvent({
+        takenDownAt: takenDown ? new Date(0) : null,
+        clientSuspendedAt: suspended ? new Date(0) : null,
+      })
+      expect(event.isReachable()).toBe(reachable)
+    },
+  )
+})
+
 describe('Event quota', () => {
   it('accepts a photo that fills the quota exactly', () => {
     const event = anEvent()

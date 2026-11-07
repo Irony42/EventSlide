@@ -1,5 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
+import { addDays } from '../shared/time'
 
 /**
  * How long a shared gallery link stays open (docs/ROADMAP.md §4.1).
@@ -15,8 +16,6 @@ import { err, ok, type Result } from '../shared/result'
  * guest could notice. The instant is computed once, at creation, from the clock the use
  * case was handed; it is stored, never re-derived.
  */
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 /** The weeks after a wedding in which "can you send me the photos" actually arrives. */
 export const SHARE_LINK_DEFAULT_DAYS = 30
@@ -56,6 +55,6 @@ export class ShareLinkLifetime {
 
   /** The instant the link stops opening, for a link created at `now`. */
   expiresAfter(now: Date): Date {
-    return new Date(now.getTime() + this.days * MS_PER_DAY)
+    return addDays(now, this.days)
   }
 }

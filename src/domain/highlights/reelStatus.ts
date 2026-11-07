@@ -35,10 +35,3 @@ export const isActive = (status: ReelStatus): boolean => status === 'queued' || 
 
 /** A photograph leaving the reel makes it stale only while there is something to spoil. */
 export const canGoStale = (status: ReelStatus): boolean => canTransition(status, 'stale')
-
-/**
- * Whether a row holds a file that counts against the event's quota: a finished montage, and a
- * stale one whose file the invalidation has not yet deleted.
- */
-export const holdsOutputBytes = (status: ReelStatus): boolean =>
-  status === 'done' || status === 'stale'

@@ -5,7 +5,6 @@ import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
-import { isReachableByGuests } from './createGuestbookEntry'
 
 /**
  * A guest takes back one of their own messages (spec 01).
@@ -44,7 +43,7 @@ export const makeDeleteGuestbookEntry =
   ({ events, guestbook, bus, clock }: DeleteGuestbookEntryDeps): DeleteGuestbookEntry =>
   async ({ eventId, entryId, guestId }) => {
     const event = await events.findById(eventId)
-    if (event === null || !isReachableByGuests(event)) {
+    if (event === null || !event.isReachable()) {
       return err(DomainError.notFound('event.notFound'))
     }
 

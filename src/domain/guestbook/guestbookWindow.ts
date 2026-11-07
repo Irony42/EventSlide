@@ -1,4 +1,5 @@
 import type { EventStatus } from '../events/eventStatus'
+import { MS_PER_DAY } from '../shared/time'
 
 /**
  * When a guest may still write a message (spec 01, decision Q4).
@@ -15,13 +16,11 @@ import type { EventStatus } from '../events/eventStatus'
 
 export const GUESTBOOK_CLOSED_WINDOW_DAYS = 7
 
-const DAY_MS = 24 * 60 * 60 * 1_000
-
 export const acceptsGuestbookEntries = (
   event: { readonly status: EventStatus; readonly closedAt: Date | null },
   now: Date,
 ): boolean => {
   if (event.status === 'live') return true
   if (event.status !== 'closed' || event.closedAt === null) return false
-  return now.getTime() - event.closedAt.getTime() < GUESTBOOK_CLOSED_WINDOW_DAYS * DAY_MS
+  return now.getTime() - event.closedAt.getTime() < GUESTBOOK_CLOSED_WINDOW_DAYS * MS_PER_DAY
 }

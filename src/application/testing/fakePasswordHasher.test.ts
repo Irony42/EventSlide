@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Password } from '../../domain/users/password'
+import { passwordHasherContract } from './contracts/passwordHasherContract'
 import { FakePasswordHasher } from './fakePasswordHasher'
 
 const passwordOf = (value: string): Password => {
@@ -145,3 +146,5 @@ describe('FakePasswordHasher', () => {
     })
   })
 })
+
+passwordHasherContract('fake', () => new FakePasswordHasher())
