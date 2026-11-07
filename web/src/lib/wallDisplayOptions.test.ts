@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { eventSettings } from '../../testing/renderWithProviders'
+import { eventSettings } from '../testing/renderWithProviders'
 import { wallChanges } from './wallDisplayOptions'
 
 type Wall = ReturnType<typeof eventSettings>['wall']

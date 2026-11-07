@@ -1,5 +1,5 @@
-import { isEventLogoUrl } from '../../../lib/brand'
-import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { isEventLogoUrl } from '../../lib/brand'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './HostLogo.module.css'
 
 export interface HostLogoProps {

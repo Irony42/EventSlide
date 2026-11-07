@@ -1,13 +1,13 @@
 import { useId } from 'react'
 import type { EventSettingsDto } from '../../../../lib/api/dto'
-import { CheckboxField } from '../../../admin/components/CheckboxField'
+import { CheckboxField } from '../../../../design-system/components/CheckboxField'
 import {
   QR_CORNERS,
   QR_SCALE_MARKS,
   QR_SCALE_MAX,
   QR_SCALE_MIN,
   QR_SCALE_STEP,
-} from '../../../admin/wallDisplayOptions'
+} from '../../../../lib/wallDisplayOptions'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
 import styles from './controls.module.css'
 

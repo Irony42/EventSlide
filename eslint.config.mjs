@@ -148,16 +148,10 @@ const WEB_FEATURES = [
 ]
 
 /**
- * Files that still import another feature, and the reason each is not fixed yet. This list
- * only shrinks: a new file never joins it, so the rule is a ratchet. Each entry belongs to a
- * feature outside the host-structure lot (WEB-HOST-04), which could not edit it.
+ * Files that still import another feature, and the reason each is not fixed yet. It is empty:
+ * every feature is held, and a new file never joins this list, so the rule is a ratchet.
  */
-const FEATURE_BOUNDARY_LEGACY = [
-  // The wall's host panel reuses the host console's pieces (and the join page reuses the guest
-  // upload's greeting and logo); both folders have their own structure lot.
-  'web/src/features/wall/**',
-  'web/src/features/join/**',
-]
+const FEATURE_BOUNDARY_LEGACY = []
 
 /**
  * Scope: static imports only. A dynamic `import()` (router.tsx lazy-loads every page from `app/`,
