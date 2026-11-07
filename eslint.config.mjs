@@ -148,18 +148,6 @@ const WEB_FEATURES = [
 ]
 
 /**
- * Files that still import another feature, and the reason each is not fixed yet. This list
- * only shrinks: a new file never joins it, so the rule is a ratchet. Each entry belongs to a
- * feature outside the host-structure lot (WEB-HOST-04), which could not edit it.
- */
-const FEATURE_BOUNDARY_LEGACY = [
-  // The wall's host panel reuses the host console's pieces (and the join page reuses the guest
-  // upload's greeting and logo); both folders have their own structure lot.
-  'web/src/features/wall/**',
-  'web/src/features/join/**',
-]
-
-/**
  * Scope: static imports only. A dynamic `import()` (router.tsx lazy-loads every page from `app/`,
  * legitimately) and `vi.mock` paths are not seen by `no-restricted-imports`.
  * Known and accepted: `app/` is outside the zones on purpose, and `app/AmbiancePreview.tsx`
@@ -463,9 +451,9 @@ export default tseslint.config(
   },
 
   /* ------------------------------------------------- web feature boundary -- */
+  // Every feature is held and no file is excused: a new violation is fixed, not listed.
   ...WEB_FEATURES.map((feature) => ({
     files: [`web/src/features/${feature}/**/*.{ts,tsx}`],
-    ignores: FEATURE_BOUNDARY_LEGACY,
     rules: {
       'no-restricted-imports': webBoundary(WEB_FEATURES.filter((other) => other !== feature)),
     },

@@ -1,9 +1,9 @@
 import { useCallback } from 'react'
 import { useAbout } from './useAbout'
 import { useApi } from './useApi'
-import type { ClientLimitsDto } from '../lib/api/dto'
-import { contactActionOf, type ContactAction } from '../lib/ceilingLevels'
-import { useLoader } from '../lib/useLoader'
+import type { ClientLimitsDto } from './api/dto'
+import { contactActionOf, type ContactAction } from './ceilingLevels'
+import { useLoader } from './useLoader'
 
 export interface ClientLimits {
   /** The caller's own clients, and none on a box with no client space or for an account in none. */

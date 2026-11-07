@@ -86,8 +86,6 @@ const pickPhotos = async (...files: readonly File[]): Promise<void> => {
 
 describe('GuestUploadPage', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     // jsdom implements no IndexedDB, so the outbox falls back to memory and says so
     // once per render. That fallback is the real production path on a phone in private
     // browsing and has its own tests; here it is only noise.
@@ -659,8 +657,6 @@ describe('an event that no longer takes photos', () => {
 
 describe('sending a video', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
@@ -1321,8 +1317,6 @@ describe('sending a video', () => {
 
 describe('the privacy notice', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
@@ -1521,8 +1515,6 @@ describe('the privacy notice', () => {
 
 describe('the privacy notice, as the page changes around it', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
@@ -1629,8 +1621,6 @@ describe('the privacy notice, as the page changes around it', () => {
 
 describe('a gallery the server no longer serves (A3)', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     havingJoined()
   })
@@ -1691,8 +1681,6 @@ describe('a gallery the server no longer serves (A3)', () => {
 
 describe('a guest the server does not recognise any more (A1, A2)', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     havingJoined()
   })
@@ -1718,8 +1706,6 @@ describe('a guest the server does not recognise any more (A1, A2)', () => {
 
 describe('a guest who comes back to the page after the tab was closed (A1, A2)', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
@@ -1754,8 +1740,6 @@ describe('a guest who comes back to the page after the tab was closed (A1, A2)',
 
 describe('leaving the event from the header (A10)', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     havingJoined()
   })
@@ -1796,11 +1780,6 @@ describe('leaving the event from the header (A10)', () => {
 })
 
 describe('GuestUploadPage: delete everything I sent (roadmap §5.2)', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
-  })
-
   const openDialog = async () => {
     await userEvent.click(await screen.findByRole('button', { name: fr.upload.eraseOpen }))
     return screen.findByRole('dialog', { name: fr.upload.eraseTitle })
@@ -1878,11 +1857,6 @@ describe('GuestUploadPage: delete everything I sent (roadmap §5.2)', () => {
 })
 
 describe('GuestUploadPage: a guest the host removed can still erase what they sent', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
-  })
-
   const revokedApi = (overrides: Partial<Api> = {}) =>
     fakeApi({
       myPhotos: vi.fn(async () => {
@@ -1936,8 +1910,6 @@ describe('GuestUploadPage: a guest the host removed can still erase what they se
 
 describe('leaving for the feed while photos are on their way (INV-1)', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     havingJoined()
   })
@@ -2036,8 +2008,6 @@ describe('leaving for the feed while photos are on their way (INV-1)', () => {
 
 describe('the caption once a batch has been sent (INV-5)', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
@@ -2140,8 +2110,6 @@ describe('the caption once a batch has been sent (INV-5)', () => {
 
 describe('"you can close this page" (INV-8)', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     havingJoined()
   })

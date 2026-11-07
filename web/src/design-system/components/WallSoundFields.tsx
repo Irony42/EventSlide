@@ -1,16 +1,16 @@
 import { useEffect, useId, useRef } from 'react'
-import { Icon } from '../../../design-system/components/Icon'
-import { IconButton } from '../../../design-system/components/IconButton'
-import { Button } from '../../../design-system/components/Button'
-import type { EventSettingsDto } from '../../../lib/api/dto'
-import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { Icon } from './Icon'
+import { IconButton } from './IconButton'
+import { Button } from './Button'
+import type { EventSettingsDto } from '../../lib/api/dto'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import {
   createWallSoundPlayer,
   WALL_SOUND_TONES,
   type WallSoundPlayer,
   type WallSoundTone,
-} from '../../../lib/wallSoundPlayer'
-import { CheckboxField } from '../../../design-system/components/CheckboxField'
+} from '../../lib/wallSoundPlayer'
+import { CheckboxField } from './CheckboxField'
 import styles from './WallSoundFields.module.css'
 
 type WallSettings = EventSettingsDto['wall']

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { useToast } from '../../../design-system/components/useToast'
 import { ApiError, asError, isAbortError } from '../../../lib/http'
 import { messageForCode, type UiText } from '../../../lib/i18n/translations'

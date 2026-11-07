@@ -182,6 +182,10 @@ describe('loadConfig', () => {
           galleryUnlockPerClient: 10,
           galleryUnlockPerLink: 50,
           eventCreationPerHour: 20,
+          invitationsPerHour: 30,
+          venuePhotosPerHour: 10,
+          bookRequestsPerHour: 20,
+          logosPerHour: 10,
         },
         crypto: { bcryptCost: 12 },
         bootstrap: { ownerEmail: null, ownerPassword: null },
@@ -468,6 +472,10 @@ describe('loadConfig', () => {
           galleryUnlockPerClient: 107,
           galleryUnlockPerLink: 108,
           eventCreationPerHour: 109,
+          invitationsPerHour: 30,
+          venuePhotosPerHour: 10,
+          bookRequestsPerHour: 20,
+          logosPerHour: 10,
         },
         crypto: { bcryptCost: 14 },
         events: { joinCodeLength: 9 },
@@ -2595,6 +2603,30 @@ describe('loadConfig', () => {
         const config = loadConfig({ ...DEV, EVENT_CREATION_RATE_LIMIT_PER_HOUR: '42' })
 
         expect(config.rateLimits.eventCreationPerHour).toBe(42)
+      })
+    })
+
+    describe.each([
+      ['INVITATION_RATE_LIMIT_PER_HOUR', 'invitationsPerHour', 30],
+      ['VENUE_PHOTO_RATE_LIMIT_PER_HOUR', 'venuePhotosPerHour', 10],
+      ['BOOK_REQUEST_RATE_LIMIT_PER_HOUR', 'bookRequestsPerHour', 20],
+      ['LOGO_RATE_LIMIT_PER_HOUR', 'logosPerHour', 10],
+    ] as const)('%s', (name, field, fallback) => {
+      it(`is ${fallback} on a box that never mentions it`, () => {
+        expect(loadConfig({ ...DEV }).rateLimits[field]).toBe(fallback)
+      })
+
+      it('reaches its own field and no other limit', () => {
+        const before = loadConfig({ ...DEV }).rateLimits
+        const after = loadConfig({ ...DEV, [name]: '77' }).rateLimits
+
+        expect({ ...after, [field]: before[field] }).toEqual(before)
+        expect(after[field]).toBe(77)
+      })
+
+      it('refuses zero and a value above a thousand', () => {
+        expect(() => loadConfig({ ...DEV, [name]: '0' })).toThrow(name)
+        expect(() => loadConfig({ ...DEV, [name]: '1001' })).toThrow(name)
       })
     })
   })

@@ -1,10 +1,11 @@
 import request from '../testing/request'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { bookRoutes } from './bookRoutes'
-import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
+import { buildHarness, signInAs, testHttpConfig, type Harness } from '../testing/middlewareHarness'
 import { notWiredUseCases } from '../testing/serverHarness'
 import { GUEST_COOKIE } from '../middleware/authz'
 import type { PresenterContext } from '../presenters/presenters'
+import type { HttpConfig } from '../types'
 import type { HttpUseCases } from '../useCases'
 import { AT, aGuest, anEvent, aPhoto } from '../../../application/testing/builders'
 import { FakeAlbumBookRepository } from '../../../application/testing/fakeAlbumBookRepository'
@@ -51,13 +52,14 @@ interface World extends Harness {
   readonly state: { enabled: boolean }
 }
 
-const world = (): World => {
+const world = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World => {
   const books = new FakeAlbumBookRepository()
   const bookFiles = new FakeBookFileStore()
   const photos = new FakePhotoRepository()
   const state = { enabled: true }
 
   const harness = buildHarness({
+    config: { rateLimits: { ...testHttpConfig().rateLimits, ...rateLimits } },
     routes: (app, deps, base) => {
       app.post('/sign-in/owner', signInAs({ userId: OWNER, email: 'hote@example.test' }))
       app.post(
@@ -281,6 +283,17 @@ describe('POST /api/events/:eventSlug/book', () => {
     expect(response.status).toBe(429)
     expect(response.body.error.code).toBe('book.dailyLimitReached')
     expect(Number(response.headers['retry-after'])).toBeGreaterThan(0)
+  })
+
+  it('takes the requests an account may send in an hour from the configuration', async () => {
+    const narrow = world({ bookRequestsPerHour: 1 })
+    const agent = await signedIn(narrow, 'owner')
+
+    await agent.post('/api/events/mariage/book').send(BODY).expect(202)
+    const refused = await agent.post('/api/events/mariage/book').send(BODY)
+
+    expect(refused.status).toBe(429)
+    expect(refused.body.error.code).toBe('rate.limited')
   })
 
   it('answers 503 book.unavailable when the box switched the function off', async () => {

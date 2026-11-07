@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import type { EventSettingsPatch } from '../../../lib/api/client'
 import type { EventDto, EventSettingsDto } from '../../../lib/api/dto'
 import { ApiError } from '../../../lib/http'

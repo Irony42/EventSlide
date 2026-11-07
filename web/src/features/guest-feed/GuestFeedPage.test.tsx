@@ -68,11 +68,6 @@ const manyPhotos = (count: number): readonly WallItemDto[] =>
   Array.from({ length: count }, (_unused, index) => photo(`photo-${index + 1}`))
 
 describe('GuestFeedPage', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
-  })
-
   it('shows the photographs the wall shows, in the wall’s order, whole and described', async () => {
     havingJoined()
     renderFeed(withWall([photo('b', { caption: 'Les confettis' }), photo('a', { caption: null })]))
@@ -371,8 +366,6 @@ describe('GuestFeedPage', () => {
 
 describe('a gallery the server no longer serves (A3)', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     havingJoined()
   })
 
@@ -439,11 +432,6 @@ describe('a gallery the server no longer serves (A3)', () => {
 })
 
 describe('a guest with no session on the feed (A2)', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
-  })
-
   it('asks for the code (where the code then leads is the router journey’s test)', () => {
     renderFeed(fakeApi())
 
@@ -475,8 +463,6 @@ describe('a guest with no session on the feed (A2)', () => {
 
 describe('a guest the server does not recognise any more, on the feed', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     havingJoined()
   })
 

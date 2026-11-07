@@ -1,5 +1,5 @@
 import { useCallback, useId, useState, type ReactNode } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { useToast } from '../../../design-system/components/useToast'

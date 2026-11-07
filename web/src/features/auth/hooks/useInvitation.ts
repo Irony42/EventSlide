@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import type { InvitationAcceptance } from '../../../lib/api/client'
 import type { InvitationAcceptedDto, InvitationPreviewDto } from '../../../lib/api/dto'
 import { ApiError } from '../../../lib/http'

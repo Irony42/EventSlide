@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { ApiError } from '../../../lib/http'
 import type { GalleryDto, GalleryPhotoDto } from '../../../lib/api/dto'
 

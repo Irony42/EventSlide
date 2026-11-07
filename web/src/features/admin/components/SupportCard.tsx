@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NewTabLink } from '../../../app/NewTabLink'
+import { NewTabLink } from '../../../design-system/components/NewTabLink'
 import { CloseIcon } from '../../../design-system/components/CloseIcon'
 import { IconButton } from '../../../design-system/components/IconButton'
 import { useTranslations } from '../../../lib/i18n/useTranslations'

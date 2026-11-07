@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
@@ -32,10 +32,6 @@ const renderJoin = (route: string, api: Api) =>
   )
 
 describe('JoinPage', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-  })
-
   it('resolves a scanned code without the guest pressing anything', async () => {
     const api = fakeApi({
       join: vi.fn(async () => aJoinResponse({ event: aPublicEvent({ name: 'Kermesse' }) })),
@@ -287,10 +283,6 @@ const havingJoined = (slug: string): void => {
 }
 
 describe('JoinPage: the installed app reopens the event (A1)', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-  })
-
   it('goes straight back to the event the phone joined last, asking the server nothing', async () => {
     havingJoined('kermesse')
     asInstalledApp()
@@ -334,10 +326,6 @@ describe('JoinPage: the installed app reopens the event (A1)', () => {
 })
 
 describe('JoinPage: a way out of the wrong event (A10)', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-  })
-
   it('goes back to an empty code entry and forgets the event it had just resolved', async () => {
     const api = fakeApi({
       join: vi.fn(async () => aJoinResponse({ event: aPublicEvent({ name: 'Kermesse' }) })),

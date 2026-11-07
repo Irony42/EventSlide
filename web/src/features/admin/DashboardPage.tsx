@@ -21,7 +21,7 @@ import {
 import { useEvent, useEventList } from './hooks/useEventData'
 import { AmbianceMarker } from '../../design-system/components/AmbianceMarker'
 import { useLifecycleTransition } from './hooks/useLifecycleTransition'
-import { useClientLimits } from '../../app/useClientLimits'
+import { useClientLimits } from '../../lib/useClientLimits'
 import styles from './DashboardPage.module.css'
 
 const NEW_EVENT_PATH = '/admin/events/new'

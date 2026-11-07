@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { FakeClock } from '../../application/testing/fakeClock'
 import { closeDatabase, openDatabase, type Db } from './connection'
@@ -206,6 +209,56 @@ describe('migrator', () => {
     expect(report.pending.map((row) => row.name)).toEqual(['two'])
     expect(report.applied[0]?.appliedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
     closeDatabase(db)
+  })
+
+  describe('status of a database with no ledger table yet', () => {
+    const list: Migration[] = [
+      { id: 1, name: 'one', sql: `SELECT 1` },
+      { id: 2, name: 'two', sql: `SELECT 1` },
+    ]
+
+    /** A real file: a database that exists, holds a table of its own and has never been migrated. */
+    const withBareDatabase = (use: (path: string) => void): void => {
+      const directory = mkdtempSync(join(tmpdir(), 'eventslide-ledger-'))
+      try {
+        const path = join(directory, 'bare.sqlite')
+        const bare = openDatabase({ path })
+        bare.exec('CREATE TABLE restored (id INTEGER)')
+        closeDatabase(bare)
+        use(path)
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+      }
+    }
+
+    it('lists every migration as pending on a read-only connection', () => {
+      withBareDatabase((path) => {
+        const db = openDatabase({ path, readonly: true })
+        try {
+          expect(status(db, list)).toEqual({
+            applied: [],
+            pending: [
+              { id: 1, name: 'one' },
+              { id: 2, name: 'two' },
+            ],
+          })
+        } finally {
+          closeDatabase(db)
+        }
+      })
+    })
+
+    it('does not create the ledger table, even on a connection that could', () => {
+      withBareDatabase((path) => {
+        const db = openDatabase({ path })
+        try {
+          status(db, list)
+          expect(tableNames(db)).not.toContain('schema_migrations')
+        } finally {
+          closeDatabase(db)
+        }
+      })
+    })
   })
 })
 

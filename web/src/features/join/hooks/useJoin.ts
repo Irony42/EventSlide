@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { forgetGuestSession, rememberGuestSession } from '../../../lib/guestSession'
 import { ApiError } from '../../../lib/http'
 import { messageForError } from '../../../lib/i18n/translations'

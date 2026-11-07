@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { RHYTHM_STEPS_SECONDS } from '../../../admin/wallDisplayOptions'
+import { RHYTHM_STEPS_SECONDS } from '../../../../lib/wallDisplayOptions'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
 import styles from './controls.module.css'
 

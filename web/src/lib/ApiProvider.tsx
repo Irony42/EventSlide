@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Api } from '../lib/api/client'
+import type { Api } from './api/client'
 import { ApiContext } from './apiContext'
 
 export interface ApiProviderProps {

@@ -2,7 +2,6 @@ import { Router } from 'express'
 import { requireRole } from '../middleware/authz'
 import {
   BOOK_DOWNLOADS_PER_ACCOUNT_PER_MINUTE,
-  BOOK_REQUESTS_PER_ACCOUNT_PER_HOUR,
   bookDownloadLimiter,
   bookRequestLimiter,
 } from '../middleware/rateLimit'
@@ -30,7 +29,7 @@ import type { RouteDeps } from '../useCases'
 
 export const bookRoutes = ({ deps, usecases }: RouteDeps): Router => {
   const router = Router()
-  const requestLimiter = bookRequestLimiter(BOOK_REQUESTS_PER_ACCOUNT_PER_HOUR)
+  const requestLimiter = bookRequestLimiter(deps.config.rateLimits.bookRequestsPerHour)
   const downloadLimiter = bookDownloadLimiter(BOOK_DOWNLOADS_PER_ACCOUNT_PER_MINUTE)
 
   router.post(
