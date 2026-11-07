@@ -33,7 +33,22 @@ const execute = (argv: readonly string[], env: NodeJS.ProcessEnv | undefined): n
   const db = openDatabase({ path, readonly: wantsStatus })
   try {
     if (wantsStatus) {
-      const report = status(db, migrations)
+      // A database with no ledger table yet (restored or pre-ledger) has applied nothing: the
+      // ledger reader would try to create the table, which a read-only handle refuses.
+      const hasLedger =
+        db
+          .prepare(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'",
+          )
+          .get() !== undefined
+      const report = hasLedger
+        ? status(db, migrations)
+        : {
+            applied: [],
+            pending: [...migrations]
+              .sort((a, b) => a.id - b.id)
+              .map((migration) => ({ id: migration.id, name: migration.name })),
+          }
       console.log(`Database: ${path}`)
       console.log(`Applied (${report.applied.length}):`)
       for (const row of report.applied) {

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -114,6 +114,17 @@ describe('npm run db:migrate', () => {
       expect(out).toContain('Pending (1):')
       expect(readFileSync(databasePath).equals(before)).toBe(true)
       expect(existsSync(`${databasePath}-wal`)).toBe(false)
+    })
+
+    it('lists every migration as pending for an existing database that has no ledger table yet', () => {
+      mkdirSync(join(root, 'data'), { recursive: true })
+      new Database(databasePath).close()
+
+      const { code, out } = capture(() => run(['--status'], env()))
+
+      expect(code).toBe(0)
+      expect(out).toContain('Applied (0):')
+      expect(out).toContain(`Pending (${migrations.length}):`)
     })
 
     it('refuses a database path that does not exist, exits 1 and creates nothing', () => {

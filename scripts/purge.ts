@@ -21,7 +21,7 @@
  *
  * **Export before you purge.** This deletes; there is no undo and no second take on a
  * wedding album. `--dry-run` lists exactly what a real run would remove, and answers
- * nothing else: it opens the database read-only, so it touches no file and no row, and a
+ * nothing else: it opens the database read-only, so it changes no row and no byte of the database file (a WAL database may still get empty -wal/-shm side files), and a
  * path that does not exist is refused rather than created.
  *
  * Safe to run while the server is up. The deletions are per-event and
@@ -96,7 +96,7 @@ const execute = async (
     return 1
   }
 
-  // A dry run opens the database read-only: "touches no file and no row" is then enforced by
+  // A dry run opens the database read-only: "changes no row" is then enforced by
   // SQLite and not only promised.
   const db = openDatabase({ path: databasePath, readonly: dryRun })
   try {
