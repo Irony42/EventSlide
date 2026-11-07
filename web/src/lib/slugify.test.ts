@@ -4,9 +4,10 @@ import { SLUG_MAX_LENGTH, slugify } from './slugify'
 /**
  * These cases are copied from `src/domain/shared/slug.test.ts` on purpose.
  *
- * The web app cannot import the domain, so this file is the only thing standing
- * between the previewed slug and the one the server actually creates. If the server's
- * rules move, this suite is what has to fail.
+ * The web app cannot import the domain, so these cases are a local copy. The cross-check that runs
+ * the web and the server slug on one table lives in
+ * `src/interface/http/presenters/webMirrorsContract.test.ts`; if the server's rules move, that
+ * contract is what has to fail.
  */
 describe('slugify', () => {
   it('folds accents to their base letters, as the server does', () => {
