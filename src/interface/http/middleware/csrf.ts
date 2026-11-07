@@ -166,7 +166,11 @@ export const requireCsrfToken: RequestHandler = (req, res, next) => {
     return
   }
   if (!constantTimeEqual(cookie, header)) {
-    sendError(res, DomainError.forbidden('request.csrfMismatch'))
+    // The token the gate compared against. A client whose `document.cookie` fell behind the
+    // cookie jar (WebKit, after a service-worker fetch) cannot read it any other way, and the
+    // caller sent this very cookie: nothing is disclosed that it did not already hold. A page
+    // on another origin cannot read this body (no CORS, see `rotateCsrfToken`).
+    sendError(res, DomainError.forbidden('request.csrfMismatch', { csrfToken: cookie }))
     return
   }
   next()
