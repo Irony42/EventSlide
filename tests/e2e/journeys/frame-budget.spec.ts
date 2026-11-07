@@ -112,10 +112,40 @@ const record = (testInfo: TestInfo, what: string, cadence: Cadence): void => {
  */
 const REFERENCE_FRAME_WORK = 30_000
 
-/** A cadence being taken in a second tab, until `stop` is called. */
-interface Reference {
-  readonly stop: () => Promise<Cadence>
+/** The blurred layer the reference repaints every frame, in CSS pixels wide (16:9). */
+const REFERENCE_LAYER_WIDTH = 480
+
+/**
+ * What the reference saw: over the whole life of its tab, and over the same stretch the wall
+ * was sampled for. Two numbers because the wall's monitor watches from the moment it mounts,
+ * while the cadence assertion reads one window; a stall covering only one of them would be
+ * diluted in a single mean.
+ */
+interface ReferenceReading {
+  readonly life: Cadence
+  readonly window: Cadence
 }
+
+/** A known-cost animation running beside the wall, until `stop` is called. */
+interface Reference {
+  /** Marks the start of the window the wall is about to be sampled over. */
+  readonly begin: () => Promise<void>
+  readonly stop: () => Promise<ReferenceReading>
+}
+
+/** The reference's own state, kept on its page so nothing crosses the wire until `stop`. */
+type ReferenceHolder = typeof window & {
+  __intervals: number[]
+  __windowFrom: number
+  __running: boolean
+  __sink: number
+}
+
+const cadenceOf = (intervals: readonly number[]): Cadence => ({
+  frames: intervals.length,
+  framesPerSecond: Number(frameRateOf(intervals).toFixed(1)),
+  worstMs: Number(Math.max(...intervals, 0).toFixed(2)),
+})
 
 /**
  * A known-cost animation running beside the wall, on the same browser and the same runner.
@@ -124,60 +154,69 @@ interface Reference {
  *
  * The wall's monitor is *meant* to shed when its machine cannot hold the floor, so "nothing
  * was shed" is a statement about the runner as much as about the wall. On 7 November the
- * same commit failed that assertion on both tries of a CI attempt and passed on the next
- * attempt: nothing in the wall had changed, the runner had been starved, and the monitor did
- * what it ships to do. A test that cannot tell "the wall regressed" from "the machine could
- * not hold anything" fails on a bad afternoon and says nothing about the code.
+ * same commit failed that assertion on all three tries of a CI attempt and passed on the next
+ * attempt, with nothing in the wall changed. Which of "the runner was starved" and "something
+ * got heavier" that was is **not established**: it was not reproduced, and CPU throttling
+ * does not stand in for whatever that runner did (the wall holds 47 frames a second at
+ * thirty times slower). What is certain is that a test which cannot tell the two apart fails
+ * on a bad afternoon and says nothing about the code.
  *
  * So the machine is measured at the same moment, with the same instrument and the same
- * floor: a second tab drawing frames that cost it a fixed amount of work each. If even
- * that cannot reach `MIN_FRAMES_PER_SECOND`, no wall could, and a shed wall is correct. If
- * the reference holds and the wall shed, the wall is the thing that got heavier, and the
- * test fails as before.
+ * floor: a second tab drawing frames that cost it a fixed amount of work each, **of both
+ * kinds a frame can be starved of**: script (arithmetic) and paint (a large blurred layer
+ * repainted every frame, which software rendering pays for on the CPU and a raster-bound
+ * runner pays for dearly). If even that cannot reach `MIN_FRAMES_PER_SECOND`, no wall
+ * could, and a shed wall is the monitor working. If the reference holds and the wall shed,
+ * the wall is the thing that got heavier, and the test fails as before.
  *
- * Started before the wall loads and stopped after the measured window, so that it covers the
- * whole life of the page the monitor was watching, not only the seconds sampled.
+ * Started before the wall loads, so that it covers the whole life of the page the monitor was
+ * watching, and read again over the sampled window alone.
  */
 const startReference = async (context: BrowserContext): Promise<Reference> => {
   const page = await context.newPage()
-  await page.evaluate((work: number) => {
-    const holder = window as typeof window & {
-      __intervals: number[]
-      __running: boolean
-      __sink: number
-    }
-    holder.__intervals = []
-    holder.__running = true
-    let previous: number | null = null
-    const onPaint = (now: number): void => {
-      if (!holder.__running) return
-      if (previous !== null) holder.__intervals.push(now - previous)
-      previous = now
-      let sum = 0
-      for (let step = 0; step < work; step += 1) sum += Math.sin(step)
-      holder.__sink = sum
+  await page.evaluate(
+    ({ work, size }: { work: number; size: number }) => {
+      const holder = window as ReferenceHolder
+      holder.__intervals = []
+      holder.__windowFrom = 0
+      holder.__running = true
+
+      const layer = document.createElement('div')
+      layer.style.cssText = `position:fixed;left:0;top:0;width:${size}px;height:${Math.round((size * 9) / 16)}px;filter:blur(6px);background:linear-gradient(90deg,#c33,#36c,#3c6,#c33) 0 0/200% 100%`
+      document.body.append(layer)
+
+      let previous: number | null = null
+      const onPaint = (now: number): void => {
+        if (!holder.__running) return
+        if (previous !== null) holder.__intervals.push(now - previous)
+        previous = now
+        // Script, then paint: the background moves, so the blurred layer is repainted.
+        let sum = 0
+        for (let step = 0; step < work; step += 1) sum += Math.sin(step)
+        holder.__sink = sum
+        layer.style.backgroundPositionX = `${(now / 10) % 200}%`
+        requestAnimationFrame(onPaint)
+      }
       requestAnimationFrame(onPaint)
-    }
-    requestAnimationFrame(onPaint)
-  }, REFERENCE_FRAME_WORK)
+    },
+    { work: REFERENCE_FRAME_WORK, size: REFERENCE_LAYER_WIDTH },
+  )
 
   return {
+    begin: async () => {
+      await page.evaluate(() => {
+        const holder = window as ReferenceHolder
+        holder.__windowFrom = holder.__intervals.length
+      })
+    },
     stop: async () => {
-      const intervals = await page.evaluate((): number[] => {
-        const holder = window as typeof window & {
-          __intervals: number[]
-          __running: boolean
-          __sink: number
-        }
+      const { all, from } = await page.evaluate(() => {
+        const holder = window as ReferenceHolder
         holder.__running = false
-        return holder.__intervals
+        return { all: holder.__intervals, from: holder.__windowFrom }
       })
       await page.close()
-      return {
-        frames: intervals.length,
-        framesPerSecond: Number(frameRateOf(intervals).toFixed(1)),
-        worstMs: Number(Math.max(...intervals, 0).toFixed(2)),
-      }
+      return { life: cadenceOf(all), window: cadenceOf(all.slice(from)) }
     },
   }
 }
@@ -186,23 +225,27 @@ const startReference = async (context: BrowserContext): Promise<Reference> => {
  * The wall's verdict and the floor, unless the machine itself could not hold the floor.
  *
  * The assertions are the same two as before. The only thing added is a way out that has to be
- * earned: the wall must have missed *and* the reference must have missed too. A wall that
- * sheds, or runs under the floor, on a machine that held the reference fails as it always did.
+ * earned: the wall must have missed *and* the reference must have missed too, over its whole
+ * life or over the sampled window. A wall that sheds, or runs under the floor, on a machine
+ * that held the reference fails as it always did.
  */
 const expectWallHeld = async (
   projector: Page,
   cadence: Cadence,
-  reference: Cadence,
+  reference: ReferenceReading,
   testInfo: TestInfo,
 ): Promise<void> => {
-  record(testInfo, 'the reference tab beside it', reference)
+  record(testInfo, 'the reference tab beside it, over its whole life', reference.life)
+  record(testInfo, 'the reference tab beside it, over the same window', reference.window)
 
   const shed = await projector.locator('[data-wall-budget]').count()
   const missed = shed > 0 || cadence.framesPerSecond < MIN_FRAMES_PER_SECOND
-  const starved = reference.framesPerSecond < MIN_FRAMES_PER_SECOND
+  const starved =
+    reference.life.framesPerSecond < MIN_FRAMES_PER_SECOND ||
+    reference.window.framesPerSecond < MIN_FRAMES_PER_SECOND
   test.skip(
     missed && starved,
-    `the runner was starved: a tab doing ${REFERENCE_FRAME_WORK} iterations a frame reached ${reference.framesPerSecond} frames/second against a floor of ${MIN_FRAMES_PER_SECOND}, so a wall that missed it is the monitor working`,
+    `the runner was starved: the reference tab reached ${reference.life.framesPerSecond} frames/second over its life and ${reference.window.framesPerSecond} over the window against a floor of ${MIN_FRAMES_PER_SECOND}, so a wall that missed it is the monitor working`,
   )
 
   await expect(projector.locator('[data-wall-budget]')).toHaveCount(0)
@@ -334,6 +377,7 @@ test.describe('the wall, while it is running', () => {
 
     // Twelve seconds at 1.2 s a slide: ten changes, which is the number §13's human check
     // asks a person to sit through with the frame counter open.
+    await reference.begin()
     const cadence = await sampleCadence(projector, 12_000)
     record(testInfo, 'the wall as shipped', cadence)
     const beside = await reference.stop()
@@ -372,6 +416,7 @@ test.describe('the wall, while it is running', () => {
     )
     await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
 
+    await reference.begin()
     const cadence = await sampleCadence(projector, 12_000)
     record(testInfo, 'the wall with a clip in the playlist', cadence)
 
