@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
   JSON_REQUEST_TIMEOUT_MS,
+  MULTIPART_REQUEST_TIMEOUT_MS,
   UPLOAD_RESPONSE_WAIT_MS,
   UPLOAD_STALL_MS,
   asError,
@@ -1062,6 +1063,43 @@ describe('a request that goes quiet', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     expect(state.reason).toBeInstanceOf(DOMException)
+  })
+
+  it('does not cut a multipart PUT at the JSON deadline: a photo on a slow uplink may take longer', async () => {
+    // `fetch` reports no upload progress, so no stall guard is possible here; an absolute 30 s
+    // ceiling aborted every venue photo or logo sent over a slow uplink.
+    const SLOW_UPLOAD_MS = 45_000
+    stubFetch(
+      (_url, init) =>
+        new Promise<Response>((resolve, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          )
+          setTimeout(() => resolve(jsonBody(200, { ok: true })), SLOW_UPLOAD_MS)
+        }),
+    )
+    const form = new FormData()
+    form.append('photo', new Blob(['x']), 'v.jpg')
+    const state = outcomeOf(http.put('/api/events/gala/venue-photo', form))
+
+    await vi.advanceTimersByTimeAsync(SLOW_UPLOAD_MS)
+
+    expect(state.settled).toBe(true)
+    expect(state.reason).toBeUndefined()
+  })
+
+  it('still ends a multipart PUT that never answers, at its own, much longer ceiling', async () => {
+    stubFetch(hangUntilAborted)
+    const form = new FormData()
+    form.append('photo', new Blob(['x']), 'v.jpg')
+    const state = outcomeOf(http.put('/api/events/gala/venue-photo', form))
+
+    await vi.advanceTimersByTimeAsync(MULTIPART_REQUEST_TIMEOUT_MS - 1)
+    expect(state.settled).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(state.settled).toBe(true)
+    expect(asApiError(state.reason).isNetwork).toBe(true)
   })
 
   it('does not abort an answer that arrived in time, nor leave its timer behind', async () => {

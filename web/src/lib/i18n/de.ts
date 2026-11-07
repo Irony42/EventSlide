@@ -494,6 +494,8 @@ export const de: UiText = {
     'image.animated': 'Animierte Bilder werden nicht angenommen.',
     'image.renderFailed':
       'Dieses Foto konnte nicht verarbeitet werden. Versuchen Sie es mit einem anderen.',
+    'image.renderUnavailable':
+      'Dieses Foto konnte gerade nicht verarbeitet werden: Der Server ist vorübergehend nicht verfügbar. Versuchen Sie es gleich noch einmal.',
     'upload.tooLarge': 'Dieses Foto überschreitet die maximale Größe.',
     'upload.tooManyFiles': 'Zu viele Fotos auf einmal. Senden Sie sie in mehreren Schritten.',
 

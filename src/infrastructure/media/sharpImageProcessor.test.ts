@@ -445,11 +445,11 @@ describe('renderFailureOf', () => {
     ['an I/O fault', errno('EIO', 'EIO: i/o error, read')],
     ['an allocation failure', errno('ENOMEM', 'Cannot allocate memory')],
     ['sharp running out of memory', new Error('Vips: out of memory')],
-  ])('blames the server, not the guest file, for %s', (_name, cause) => {
+  ])('blames the server, with a code of its own, not the guest file, for %s', (_name, cause) => {
     const failure = renderFailureOf(cause)
 
     expect(failure.kind).toBe('unexpected')
-    expect(failure.code).toBe('image.renderFailed')
+    expect(failure.code).toBe('image.renderUnavailable')
   })
 
   it.each([
