@@ -193,6 +193,39 @@ describe('ErrorBoundary: a chunk that failed to load after a deploy', () => {
 
     try {
       const { rerender } = render(
+        <ErrorBoundary surface="host" resetKey="/admin">
+          <Page stale={false} />
+        </ErrorBoundary>,
+      )
+      rerender(
+        <ErrorBoundary surface="host" resetKey="/admin">
+          <Page stale />
+        </ErrorBoundary>,
+      )
+
+      expect(reload).not.toHaveBeenCalled()
+      expect(sessionStorage.getItem(STALE_BUNDLE_MARKER)).toBeNull()
+    } finally {
+      window.history.pushState({}, '', before)
+      log.mockRestore()
+    }
+  })
+
+  it('still reloads a stale chunk reached by in-app navigation under a boundary nothing resets', () => {
+    const log = silenceReactErrorLog()
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+    const before = window.location.href
+    // The root boundary has no resetKey and is never told the router moved on; the address it
+    // saw at the first load must not disarm the reload for a lazy page reached afterwards. The router moved on (history.pushState fires no unload event) while the failing load was
+    // still pending, and the cancelled stylesheet then reports as a stale bundle.
+    const Page = ({ stale }: { readonly stale: boolean }): null => {
+      if (!stale) return null
+      window.history.pushState({}, '', '/admin/elsewhere')
+      return StalePreload()
+    }
+
+    try {
+      const { rerender } = render(
         <ErrorBoundary surface="host">
           <Page stale={false} />
         </ErrorBoundary>,
@@ -203,8 +236,7 @@ describe('ErrorBoundary: a chunk that failed to load after a deploy', () => {
         </ErrorBoundary>,
       )
 
-      expect(reload).not.toHaveBeenCalled()
-      expect(sessionStorage.getItem(STALE_BUNDLE_MARKER)).toBeNull()
+      expect(reload).toHaveBeenCalledTimes(1)
     } finally {
       window.history.pushState({}, '', before)
       log.mockRestore()
@@ -459,6 +491,35 @@ describe('ErrorBoundary: the wall tries again by itself', () => {
     })
     expect(reload).toHaveBeenCalledTimes(1)
     log.mockRestore()
+  })
+
+  it('does not reload a wall over an in-app navigation that happened before the timed retry', async () => {
+    const log = silenceReactErrorLog()
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+    const before = window.location.href
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 200 })),
+    )
+    // The guard refuses the immediate reload, so the wall schedules its timed retry.
+    sessionStorage.setItem(STALE_BUNDLE_MARKER, String(Date.now()))
+    try {
+      render(
+        <ErrorBoundary surface="wall" resetKey="/e/party/display">
+          <StaleChunk />
+        </ErrorBoundary>,
+      )
+      window.history.pushState({}, '', '/e/party/elsewhere')
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(STALE_BUNDLE_WINDOW_MS + WALL_RETRY_DELAY_MS)
+      })
+
+      expect(reload).not.toHaveBeenCalled()
+    } finally {
+      window.history.pushState({}, '', before)
+      log.mockRestore()
+    }
   })
 
   it('does not reload a wall while the server cannot be reached, and keeps asking', async () => {

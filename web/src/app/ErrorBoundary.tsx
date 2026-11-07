@@ -13,6 +13,9 @@ import {
 import { localeContext, type LocaleState } from '../lib/i18n/localeContext'
 import styles from './ErrorBoundary.module.css'
 
+const hrefFor = (resetKey: string | undefined): string | undefined =>
+  resetKey === undefined ? undefined : window.location.href
+
 export interface ErrorBoundaryProps {
   readonly children: ReactNode
   /** Ran alongside the internal reset, for a caller that must also refetch. */
@@ -38,8 +41,13 @@ interface ErrorBoundaryState {
   readonly error: Error | null
   /** The `resetKey` this state was last reconciled with. */
   readonly trackedKey: string | undefined
-  /** The address when the tree was last (re)rendered for `trackedKey`: where a failing load started. */
-  readonly trackedHref: string
+  /**
+   * The address when the tree was last (re)rendered for `trackedKey`: where a failing load started.
+   * Undefined without a `resetKey`: a boundary nothing resets (the root one) is never told about
+   * a navigation, so its address would stay frozen at the first load and disarm the reload for
+   * every lazy page reached afterwards.
+   */
+  readonly trackedHref: string | undefined
 }
 
 /**
@@ -68,7 +76,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   constructor(props: ErrorBoundaryProps) {
     super(props)
-    this.state = { error: null, trackedKey: props.resetKey, trackedHref: window.location.href }
+    this.state = { error: null, trackedKey: props.resetKey, trackedHref: hrefFor(props.resetKey) }
   }
 
   private retryTimer: ReturnType<typeof setTimeout> | null = null
@@ -84,7 +92,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     state: ErrorBoundaryState,
   ): Partial<ErrorBoundaryState> | null {
     if (props.resetKey === state.trackedKey) return null
-    return { error: null, trackedKey: props.resetKey, trackedHref: window.location.href }
+    return { error: null, trackedKey: props.resetKey, trackedHref: hrefFor(props.resetKey) }
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
