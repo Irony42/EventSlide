@@ -15,6 +15,9 @@ export interface ServerCountdown {
   readonly over: boolean
 }
 
+/** This machine's clock. A named read, as `WallPage` keeps its own: the hook decides when to ask. */
+const localNow = (): number => Date.now()
+
 /**
  * Counts a challenge down against the server's clock, one render a second, and nothing once it
  * is over: the interval exists only while it counts and is cleared on unmount, so an eight-hour
@@ -28,11 +31,11 @@ export const useServerCountdown = (
   challenge: CountdownChallenge,
   offsetMs: number,
 ): ServerCountdown => {
-  const [clock, setClock] = useState(() => ({ id: challenge.id, now: Date.now() }))
+  const [clock, setClock] = useState(() => ({ id: challenge.id, now: localNow() }))
   let now = clock.now
   if (clock.id !== challenge.id) {
-    // A new challenge: adjust state during render (one extra render, only on the change).
-    now = Date.now()
+    // A new challenge: adjust state while rendering (one extra render, only on the change).
+    now = localNow()
     setClock({ id: challenge.id, now })
   }
 
@@ -41,7 +44,7 @@ export const useServerCountdown = (
 
   useEffect(() => {
     if (over) return undefined
-    const timer = setInterval(() => setClock((c) => ({ id: c.id, now: Date.now() })), 1000)
+    const timer = setInterval(() => setClock((c) => ({ id: c.id, now: localNow() })), 1000)
     return () => clearInterval(timer)
   }, [over])
 
