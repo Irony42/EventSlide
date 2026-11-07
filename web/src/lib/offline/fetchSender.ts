@@ -1,3 +1,4 @@
+import { CSRF_HEADER } from './names'
 import { outcomeForFailure, outcomeForResults } from './sendOutcome'
 import type { OutboxEntry, OutboxSendOutcome, OutboxSender } from './outbox'
 import type { RawUploadResult } from './sendOutcome'
@@ -20,8 +21,6 @@ import type { RawUploadResult } from './sendOutcome'
 
 /** How the caller finds the current CSRF token, if it can. */
 export type CsrfReader = () => Promise<string | null>
-
-const CSRF_HEADER = 'x-csrf-token'
 
 /** As loosely as a client should read a response it did not write. */
 interface UploadResponseBody {

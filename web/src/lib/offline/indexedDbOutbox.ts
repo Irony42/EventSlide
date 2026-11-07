@@ -1,3 +1,4 @@
+import { OUTBOX_DB_NAME } from './names'
 import { newOutboxId } from './outboxId'
 import { MAX_ENTRIES_PER_EVENT } from './outboxPolicy'
 import type { NewOutboxEntry, OutboxAddition, OutboxEntry, OutboxStore } from './outbox'
@@ -16,7 +17,6 @@ import type { NewOutboxEntry, OutboxAddition, OutboxEntry, OutboxStore } from '.
  * storage area the browser is entitled to evict under pressure.
  */
 
-const DB_NAME = 'eventslide-outbox'
 const DB_VERSION = 1
 const STORE = 'entries'
 const BY_SLUG = 'bySlug'
@@ -42,7 +42,7 @@ const openOutboxDb = (): Promise<IDBDatabase> =>
       reject(new Error('this browser has no IndexedDB'))
       return
     }
-    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    const request = indexedDB.open(OUTBOX_DB_NAME, DB_VERSION)
     request.onupgradeneeded = () => {
       const db = request.result
       if (db.objectStoreNames.contains(STORE)) return
@@ -204,7 +204,7 @@ export const deleteOutboxDb = (): Promise<void> =>
       resolve()
       return
     }
-    const request = indexedDB.deleteDatabase(DB_NAME)
+    const request = indexedDB.deleteDatabase(OUTBOX_DB_NAME)
     // Resolved on every outcome on purpose: a deletion blocked by another tab must not
     // stop the page from loading, and the next load tries again.
     request.onsuccess = () => resolve()

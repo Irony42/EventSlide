@@ -11,6 +11,7 @@
  * service worker.
  */
 
+import { CSRF_COOKIE, CSRF_HEADER } from './offline/names'
 import { announceSessionExpired, AUTH_REQUIRED_CODE } from './sessionExpiry'
 
 export interface ApiErrorBody {
@@ -123,9 +124,6 @@ const isApiErrorBody = (value: unknown): value is ApiErrorBody => {
  * cookie holds at the moment a request is built is what goes in the header. See
  * {@link isStaleCsrf} for the one interleaving that still needs handling.
  */
-const CSRF_COOKIE = 'es_csrf'
-const CSRF_HEADER = 'x-csrf-token'
-
 /** The two codes the server's CSRF gate answers with. */
 const CSRF_REFUSALS = new Set(['request.csrfMissing', 'request.csrfMismatch'])
 
