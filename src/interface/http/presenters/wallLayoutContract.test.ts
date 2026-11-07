@@ -22,7 +22,7 @@ import { WALL_LAYOUTS, wallLayoutSpec } from '../../../domain/slideshow/wallLayo
  * The difference is the direction — that one compares two spellings of the same *wire*,
  * this one compares a domain rule against the mirror the wire made necessary.
  *
- * `WallLayouts.tsx` mirrors `slotCount` the same way and says, accurately, that nothing
+ * `wallLayoutMath.ts` mirrors `slotCount` the same way and says, accurately, that nothing
  * catches it when the two drift. This is what catching it looks like.
  *
  * Reading a path is not an import: nothing here couples the server's build to the web

@@ -22,7 +22,7 @@
 /**
  * The five, in the order the guest's picker shows them.
  *
- * Declared again in `web/src/lib/api/dto.ts` and `web/src/lib/i18n/locale.ts` because the
+ * Declared again in `web/src/lib/api/dto/` and `web/src/lib/i18n/locale.ts` because the
  * web app may not import from `src/`. `eventLanguageContract.test.ts` pins all three:
  * the failure when they drift is silent — the server accepts a tag the client has no table
  * for, and the wall renders the fallback with nothing saying why.
