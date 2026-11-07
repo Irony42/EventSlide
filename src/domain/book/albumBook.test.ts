@@ -4,7 +4,6 @@ import {
   failBook,
   finishBook,
   invalidateBook,
-  recoverBook,
   requestBook,
   startBook,
   type AlbumBook,
@@ -81,10 +80,6 @@ describe('album book moves', () => {
       failureCode: 'tooLarge',
     })
     expect(failBook(queued, 'unexpected').ok).toBe(false)
-  })
-  it('recovers a running book to the queue and refuses any other', () => {
-    expect(unwrap(recoverBook(running))).toMatchObject({ status: 'queued', startedAt: null })
-    expect(recoverBook(queued).ok).toBe(false)
   })
 })
 

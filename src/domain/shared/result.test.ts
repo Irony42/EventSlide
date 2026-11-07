@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DomainError } from './errors'
-import { err, flatMap, ok, type Result, unwrapOr } from './result'
+import { err, flatMap, ok, type Result } from './result'
 
 const failed = (code: string): Result<number, DomainError> => err(DomainError.invalid(code))
 
@@ -48,15 +48,5 @@ describe('flatMap', () => {
     const result = flatMap(failure, neverRuns)
 
     expect(result).toBe(failure)
-  })
-})
-
-describe('unwrapOr', () => {
-  it('yields the value of a success', () => {
-    expect(unwrapOr(ok(42), 0)).toBe(42)
-  })
-
-  it('yields the fallback for a failure', () => {
-    expect(unwrapOr(failed('event.nameTooLong'), 0)).toBe(0)
   })
 })

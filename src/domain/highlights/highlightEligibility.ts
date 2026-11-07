@@ -12,9 +12,6 @@ import type { PhotoStatus } from '../photos/photoStatus'
  */
 export const isHighlightable = (status: PhotoStatus): boolean => status === 'published'
 
-/** How many photographs "pre-select the most liked" stars when the host does not say. */
-export const DEFAULT_PRESELECT_LIMIT = 20
-
 /** The most the host may ask to pre-select at once. */
 export const MAX_PRESELECT_LIMIT = 120
 

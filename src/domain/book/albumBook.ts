@@ -111,12 +111,6 @@ export const failBook = (book: AlbumBook, code: BookFailureCode): Result<AlbumBo
     ? ok({ ...book, status: 'failed', failureCode: code })
     : err(illegal(book.status, 'failed'))
 
-/** After a crash: a book that was rendering goes back in the queue. */
-export const recoverBook = (book: AlbumBook): Result<AlbumBook, DomainError> =>
-  book.status === 'running'
-    ? ok({ ...book, status: 'queued', startedAt: null })
-    : err(illegal(book.status, 'queued'))
-
 /**
  * A fact voids the book. Idempotent: a book already `stale`, `failed` or not yet started
  * only records the instant; `done` becomes `stale` (the caller deletes the file);
