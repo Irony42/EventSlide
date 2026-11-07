@@ -107,7 +107,7 @@ const handRolledReads = (source: string): number =>
  */
 const BESPOKE: ReadonlyMap<string, { readonly count: number; readonly reason: string }> = new Map([
   [
-    'app/SessionProvider.tsx',
+    'lib/SessionProvider.tsx',
     {
       count: 1,
       reason:

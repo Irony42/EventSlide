@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { asError, isAbortError } from '../lib/http'
-import { onSessionExpired } from '../lib/sessionExpiry'
+import { asError, isAbortError } from './http'
+import { onSessionExpired } from './sessionExpiry'
 import { SessionContext, type SessionData } from './sessionContext'
 import { useApi } from './useApi'
 

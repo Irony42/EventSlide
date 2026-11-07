@@ -5,7 +5,7 @@ import { AboutProvider } from './AboutProvider'
 import { ApiProvider } from './ApiProvider'
 import { useAbout } from './useAbout'
 import { anAbout, fakeApi } from '../testing/renderWithProviders'
-import type { About } from '../lib/api/dto'
+import type { About } from './api/dto'
 
 const aboutAnswering = (answer: unknown) => {
   const api = fakeApi({ about: async () => answer as About })

@@ -20,7 +20,6 @@ export interface ChallengeControlsProps {
   readonly visual?: boolean
 }
 
-
 /** A challenge's text is a mission's: one line of sixty characters (the domain's `MissionPrompt`). */
 const PROMPT_MAX_LENGTH = 60
 

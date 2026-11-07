@@ -1,5 +1,5 @@
 import { useCallback, type ReactNode } from 'react'
-import { useLoader } from '../lib/useLoader'
+import { useLoader } from './useLoader'
 import { AboutAnsweredContext, AboutContext, AboutHeardContext } from './aboutContext'
 import { BUILD_ABOUT, laidOver, saidItsFeatures } from './aboutAnswer'
 import { useApi } from './useApi'

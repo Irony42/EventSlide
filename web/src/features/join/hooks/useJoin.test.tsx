@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { ApiProvider } from '../../../app/ApiProvider'
+import { ApiProvider } from '../../../lib/ApiProvider'
 import { readGuestSession } from '../../../lib/guestSession'
 import { aJoinResponse, fakeApi } from '../../../testing/renderWithProviders'
 import { destinationAfterJoin, useJoin } from './useJoin'

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 import { useLoader, type LoaderState } from '../../../lib/useLoader'
 import type { GuestbookQueueDto } from '../../../lib/api/dto'

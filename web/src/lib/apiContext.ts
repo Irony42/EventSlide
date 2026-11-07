@@ -1,5 +1,5 @@
 import { createContext } from 'react'
-import type { Api } from '../lib/api/client'
+import type { Api } from './api/client'
 
 /**
  * The typed API, injected.

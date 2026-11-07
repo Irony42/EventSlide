@@ -5,7 +5,7 @@ import { EmptyState } from '../design-system/components/EmptyState'
 import { Spinner } from '../design-system/components/Spinner'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { hereAsFrom } from '../lib/landing'
-import { useSession } from './useSession'
+import { useSession } from '../lib/useSession'
 import styles from './RequireAuth.module.css'
 
 export interface RequireAuthProps {

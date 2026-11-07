@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import type { EventStatsResponse } from '../../../lib/api/dto'
 import { ApiError } from '../../../lib/http'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'

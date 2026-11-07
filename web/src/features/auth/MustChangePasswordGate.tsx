@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Spinner } from '../../design-system/components/Spinner'
-import { useSession } from '../../app/useSession'
+import { useSession } from '../../lib/useSession'
 import { hereAsFrom } from '../../lib/landing'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './MustChangePasswordGate.module.css'

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { readEventTheme } from '../../../design-system/eventTheme'
 import { rememberEventTheme } from '../../../lib/guestSession'
 import { ApiError } from '../../../lib/http'

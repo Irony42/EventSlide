@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import type { GuestChallengeDto } from '../../lib/api/dto'
-import { useServerCountdown } from '../../app/useServerCountdown'
+import { useServerCountdown } from '../../lib/useServerCountdown'
 import { isChallengeRunning } from './challengeRunning'
 
 /**

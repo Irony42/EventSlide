@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { ApiProvider } from '../../../app/ApiProvider'
+import { ApiProvider } from '../../../lib/ApiProvider'
 import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
 import { fakeApi } from '../../../testing/renderWithProviders'

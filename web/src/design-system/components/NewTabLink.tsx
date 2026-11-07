@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { VisuallyHidden } from '../design-system/components/VisuallyHidden'
-import { useTranslations } from '../lib/i18n/useTranslations'
+import { VisuallyHidden } from './VisuallyHidden'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 
 export interface NewTabLinkProps {
   readonly href: string

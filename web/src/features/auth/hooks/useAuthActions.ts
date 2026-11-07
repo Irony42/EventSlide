@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
-import { useForgetSession } from '../../../app/useSession'
-import { useApi } from '../../../app/useApi'
+import { useForgetSession } from '../../../lib/useSession'
+import { useApi } from '../../../lib/useApi'
 import type { SecondFactorProof } from '../../../lib/api/dto'
 import { ApiError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
