@@ -9,8 +9,8 @@ import { useToast } from '../../design-system/components/useToast'
 import { useApi } from '../../app/useApi'
 import { formatBytes, formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
-import { CheckboxField } from './components/CheckboxField'
-import { SelectField } from './components/SelectField'
+import { CheckboxField } from '../../design-system/components/CheckboxField'
+import { SelectField } from '../../design-system/components/SelectField'
 import {
   useAlbumBook,
   useDeleteAlbumBook,

@@ -1,6 +1,6 @@
 import { ConfirmDialog } from '../../../design-system/components/ConfirmDialog'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { confirmationFor } from '../eventLifecycle'
+import { confirmationFor } from '../../../lib/eventLifecycle'
 import type { TransitionRequest } from '../hooks/useLifecycleTransition'
 
 export interface LifecycleConfirmDialogProps {

@@ -202,12 +202,12 @@ describe('the messages docs/UPGRADING.md says to expect', () => {
     // What `restore --dry-run` says of an archive older than the build.
     {
       phrase: 'the archive predates this build',
-      where: ['src', 'infrastructure', 'db', 'backupArchive.ts'],
+      where: ['src', 'infrastructure', 'db', 'backup', 'verifyBackup.ts'],
     },
     // What a build says of an archive a newer one took.
     {
       phrase: 'Restore it with the version that produced it',
-      where: ['src', 'infrastructure', 'db', 'backupArchive.ts'],
+      where: ['src', 'infrastructure', 'db', 'backup', 'verifyBackup.ts'],
     },
     // The exit code of a refused configuration.
     { phrase: 'code 78', where: ['src', 'main', 'index.ts'] },

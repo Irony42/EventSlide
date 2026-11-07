@@ -92,6 +92,9 @@ export const createShutdownHandler = (deps: ShutdownDeps): ((signal: string) => 
     // The backstop: an SSE stream is open for hours by design and will not close on
     // its own, so waiting for every connection would mean never exiting.
     setBackgroundTimeout(() => {
+      // Exit 0 on purpose, even though a stream was cut: the signal asked for a stop and the stop
+      // happened, and a non-zero code would make an orchestrator treat a routine `docker stop`
+      // of a box with an open projector as a crash. The warning below is the record.
       deps.container.logger.warn('shutdown grace elapsed, forcing exit')
       void deps.container.dispose().finally(() => exit(0))
     }, grace)

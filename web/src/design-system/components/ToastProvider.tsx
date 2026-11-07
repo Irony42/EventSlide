@@ -89,6 +89,16 @@ export function ToastProvider({ children }: ToastProviderProps) {
   const failures = toasts.filter(isFailure)
   const notices = toasts.filter((toast) => !isFailure(toast))
 
+  const renderToast = (toast: ToastRecord) => (
+    <Toast
+      key={toast.id}
+      tone={toast.tone}
+      message={toast.message}
+      {...(toast.action === undefined ? {} : { action: toast.action })}
+      onDismiss={() => dismiss(toast.id)}
+    />
+  )
+
   return (
     <ToastContext.Provider value={api}>
       {children}
@@ -101,15 +111,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
         */}
         {failures.length === 0 ? null : (
           <div className={styles['stack']} role="alert">
-            {failures.map((toast) => (
-              <Toast
-                key={toast.id}
-                tone={toast.tone}
-                message={toast.message}
-                {...(toast.action === undefined ? {} : { action: toast.action })}
-                onDismiss={() => dismiss(toast.id)}
-              />
-            ))}
+            {failures.map(renderToast)}
           </div>
         )}
         {/*
@@ -117,15 +119,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
           content changes, or the first announcement is swallowed.
         */}
         <div className={styles['stack']} aria-live="polite" aria-relevant="additions text">
-          {notices.map((toast) => (
-            <Toast
-              key={toast.id}
-              tone={toast.tone}
-              message={toast.message}
-              {...(toast.action === undefined ? {} : { action: toast.action })}
-              onDismiss={() => dismiss(toast.id)}
-            />
-          ))}
+          {notices.map(renderToast)}
         </div>
       </div>
     </ToastContext.Provider>

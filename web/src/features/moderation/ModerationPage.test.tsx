@@ -13,6 +13,7 @@ import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import type { Api } from '../../lib/api/client'
 import type { ModerationPhotoDto, ModerationQueueResponse } from '../../lib/api/dto'
+import { FakeEventSource } from '../../testing/fakeEventSource'
 
 /**
  * The console, from the host's side of the laptop.
@@ -22,37 +23,18 @@ import type { ModerationPhotoDto, ModerationQueueResponse } from '../../lib/api/
  * not that a socket can be opened. `useEventStream` owns the transport and has its own
  * test.
  */
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = []
-
-  readyState = 0
-
-  constructor(readonly url: string) {
-    super()
-    FakeEventSource.instances.push(this)
-  }
-
-  close(): void {
-    this.readyState = 2
-  }
-}
-
-const stream = (): FakeEventSource => {
-  const instance = FakeEventSource.instances[FakeEventSource.instances.length - 1]
-  if (instance === undefined) throw new Error('the console opened no stream')
-  return instance
-}
+const stream = (): FakeEventSource => FakeEventSource.latest('the console')
 
 /** What the server sends when something in the event changed. Never data. */
 const emitSignal = (type: string): void => {
   act(() => {
-    stream().dispatchEvent(new MessageEvent('change', { data: JSON.stringify({ type }) }))
+    stream().emitSignal(type)
   })
 }
 
 const emitConnected = (): void => {
   act(() => {
-    stream().dispatchEvent(new Event('open'))
+    stream().emitOpen()
   })
 }
 
@@ -86,7 +68,7 @@ const cardOf = (author: string): HTMLElement =>
 
 describe('ModerationPage', () => {
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
   })
 
@@ -1370,7 +1352,7 @@ describe('ModerationPage', () => {
  */
 describe('a clip in the queue', () => {
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
   })
 
@@ -1464,7 +1446,7 @@ describe('a clip in the queue', () => {
 
 describe('the console favourites (spec 08)', () => {
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
   })
 

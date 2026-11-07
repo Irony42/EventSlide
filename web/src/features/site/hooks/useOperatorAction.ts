@@ -14,11 +14,18 @@ export type OperatorResult<R> =
 export interface OperatorAction<A extends readonly unknown[], R> {
   /** `key` names the row that is busy, so a list disables the one button that was pressed. */
   readonly run: (key: string, ...args: A) => Promise<OperatorResult<R>>
-  readonly pending: string | null
+  /** Whether the write started under `key` has not answered yet. Rows are independent. */
+  readonly isPending: (key: string) => boolean
   readonly busy: boolean
 }
 
 const STEP_UP_REQUIRED = 'auth.stepUpRequired'
+
+/** The list without the first occurrence of `key` (the run that just answered). */
+const withoutOne = (keys: readonly string[], key: string): readonly string[] => {
+  const at = keys.indexOf(key)
+  return at < 0 ? keys : [...keys.slice(0, at), ...keys.slice(at + 1)]
+}
 
 /**
  * One write of the operator's console, with the confirmation built in.
@@ -37,11 +44,12 @@ export const useOperatorAction = <A extends readonly unknown[], R>(
 ): OperatorAction<A, R> => {
   const t = useTranslations()
   const { confirm } = useStepUp()
-  const [pending, setPending] = useState<string | null>(null)
+  // One entry per run still going, so two rows pressed together stay independent.
+  const [pending, setPending] = useState<readonly string[]>([])
 
   const run = useCallback(
     async (key: string, ...args: A): Promise<OperatorResult<R>> => {
-      setPending(key)
+      setPending((current) => [...current, key])
       try {
         try {
           return { ok: true, value: await action(...args) }
@@ -53,11 +61,13 @@ export const useOperatorAction = <A extends readonly unknown[], R>(
       } catch (cause) {
         return { ok: false, message: messageForError(cause, t) }
       } finally {
-        setPending(null)
+        setPending((current) => withoutOne(current, key))
       }
     },
     [action, confirm, t],
   )
 
-  return { run, pending, busy: pending !== null }
+  const isPending = useCallback((key: string) => pending.includes(key), [pending])
+
+  return { run, isPending, busy: pending.length > 0 }
 }

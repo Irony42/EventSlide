@@ -16,6 +16,7 @@ import {
 } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
 import type { EventDto } from '../../lib/api/dto'
+import { flushPromises } from '../../testing/flushPromises'
 
 const JOIN_URL = 'https://app.eventslide.fr/join/H7K2QM'
 
@@ -223,7 +224,7 @@ describe('PrintKitPage', () => {
     await user.click(screen.getByRole('button', { name: fr.admin.printKitPrint }))
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await flushPromises()
     expect(print).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: fr.app.retry })).toBeInTheDocument()
   })
@@ -357,7 +358,7 @@ describe('PrintKitPage', () => {
       await screen.findByRole('heading', { name: fr.admin.printKitTitle })
 
       await user.click(screen.getByRole('button', { name: fr.admin.printKitPrint }))
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await flushPromises()
       expect(print).not.toHaveBeenCalled()
 
       arrive()

@@ -6,7 +6,9 @@ import { messageForCode, type UiText } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 import type { ModerationDecision, ModerationPhotoDto, PhotoStatus } from '../../../lib/api/dto'
+import { expiredIds, NOTHING_TO_UNDO_MS } from '../lib/optimisticOverlay'
 import { restoringDecision, TARGET_STATUS } from '../lib/restoringDecision'
+import { useOptimisticDecisions } from './useOptimisticDecisions'
 
 /**
  * The moderation queue as view-state: what is loaded, what a decision looks like
@@ -40,15 +42,6 @@ const withDecisions = (row: ModerationPhotoDto): ModerationPhotoDto =>
     ? { ...row, allowedDecisions: [] }
     : row
 
-/** Forget a decision, unless a later one on the same photo has taken its place. */
-const forgetDecision = (
-  inFlight: Map<string, InFlightDecision>,
-  id: string,
-  decision: InFlightDecision,
-): void => {
-  if (inFlight.get(id) === decision) inFlight.delete(id)
-}
-
 /**
  * What to say once a decision has landed, for a count of photos.
  *
@@ -65,9 +58,6 @@ const appliedMessage = (decision: ModerationDecision, count: number, text: UiTex
   return phrase[decision](count)
 }
 
-/** A one-line answer, gone before the host has looked up from the projector. */
-const NOTHING_TO_UNDO_MS = 2_500
-
 interface UndoEntry {
   readonly id: string
   /** What the decision made of it, so a failed undo can roll forward again. */
@@ -80,31 +70,6 @@ interface UndoEntry {
   readonly restoreWith: ModerationDecision | null
   /** Whether that decision is a restoration or a second decision. See `Restore`. */
   readonly exact: boolean
-}
-
-/**
- * A decision whose request has not come back, as far as a read response is concerned.
- *
- * A read can be on the wire while the host decides: it was asked before the decision
- * existed, so its answer describes the photo as it was. The optimistic status lives in
- * state, and a response that replaced the rows wholesale would put the old status back
- * under the host's thumb, with the old buttons - and a second press on a photo that was
- * already decided. So the console remembers what it is still waiting to hear about and
- * writes it over every response (`readRows`).
- *
- * Over a response that starts after the decision was sent, and not only before, because
- * the server may answer that read first: two requests in flight are in no order.
- */
-interface InFlightDecision {
-  readonly status: PhotoStatus
-  /**
-   * `null` while the request is out. Once it has answered, the number of reads that had
-   * started by then: a read that started later asked after the decision landed, so its
-   * answer is the server's own and replaces the optimistic row. Earlier ones are still
-   * stale, even when they arrive after the request did (a response can overtake the
-   * render that would have aborted its read).
-   */
-  settledAfterRead: number | null
 }
 
 interface QueueState {
@@ -191,7 +156,18 @@ export const useModerationQueue = (
 
   const [filter, setFilterState] = useState<StatusFilter>('pending')
   const [attempt, setAttempt] = useState(0)
-  const [busy, setBusy] = useState(false)
+  // Decisions sent and not yet answered, and the written-over rows they cause (WEB-HOST-05).
+  const {
+    busy,
+    startRead,
+    readsStarted,
+    send: sendDecisions,
+    answer: answerDecisions,
+    fail: failDecisions,
+    overlay,
+    beginBusy,
+    endBusy,
+  } = useOptimisticDecisions()
   const [state, setState] = useState<QueueState>({
     items: [],
     onScreen: null,
@@ -226,10 +202,10 @@ export const useModerationQueue = (
     ReadonlyMap<string, { status: PhotoStatus; allowedDecisions: readonly ModerationDecision[] }>
   >(new Map())
 
-  /** Decisions sent and not yet answered, by photo. See `InFlightDecision`. */
-  const inFlightRef = useRef(new Map<string, InFlightDecision>())
-  /** How many queue reads have started, to tell a read that predates an answer from one that follows it. */
-  const readsStartedRef = useRef(0)
+  /** Highlight toggles sent and not yet answered, written over reads that predate their answer. */
+  const highlightsRef = useRef(
+    new Map<string, { value: boolean; settledAfterRead: number | null }>(),
+  )
   /** An explicit refresh asked for the next read, which is allowed to show its failure. */
   const loudRef = useRef(false)
   /** The queue (event and tab) whose first read has landed, so a later failure has something to keep. */
@@ -253,8 +229,7 @@ export const useModerationQueue = (
       serverRef.current = next
     }
 
-    const startedAt = readsStartedRef.current + 1
-    readsStartedRef.current = startedAt
+    const startedAt = startRead()
     const queueKey = `${slug}/${filter}`
     // Only the first read of a queue, a tab change and an explicit retry may show a
     // failure. Any other read was nobody's request (a decision landed, a signal came), and
@@ -270,23 +245,16 @@ export const useModerationQueue = (
     const readRows = (
       rows: readonly ModerationPhotoDto[],
     ): { readonly rows: readonly ModerationPhotoDto[]; readonly pendingDelta: number } => {
-      const safe = rows.map(withDecisions)
+      for (const id of expiredIds(highlightsRef.current, startedAt))
+        highlightsRef.current.delete(id)
+
+      const safe = rows.map(withDecisions).map((row) => {
+        const toggle = highlightsRef.current.get(row.id)
+        return toggle === undefined ? row : { ...row, highlighted: toggle.value }
+      })
       remember(safe)
 
-      for (const [id, decision] of inFlightRef.current) {
-        if (decision.settledAfterRead !== null && startedAt > decision.settledAfterRead) {
-          inFlightRef.current.delete(id)
-        }
-      }
-
-      let pendingDelta = 0
-      const shown = safe.map((row) => {
-        const decision = inFlightRef.current.get(row.id)
-        if (decision === undefined) return row
-        if (row.status === 'pending' && decision.status !== 'pending') pendingDelta -= 1
-        if (row.status !== 'pending' && decision.status === 'pending') pendingDelta += 1
-        return { ...row, status: decision.status, allowedDecisions: [] }
-      })
+      const { rows: shown, pendingDelta } = overlay(safe, startedAt)
       return { rows: shown, pendingDelta }
     }
 
@@ -329,7 +297,12 @@ export const useModerationQueue = (
         // decision or signal reads again. A refused session or access is not a blip: it
         // will refuse every read after it, so it is said even then.
         const refused = cause instanceof ApiError && (cause.status === 401 || cause.status === 403)
-        if (quiet && !refused) return
+        if (quiet && !refused) {
+          // A refresh the host pressed may have been superseded by this read (a signal bumped
+          // `attempt` first), so its spinner is still up and no other read will clear it.
+          setState((previous) => (previous.loading ? { ...previous, loading: false } : previous))
+          return
+        }
         // The items already on screen are kept: a refetch that failed while the host
         // was working through a screenful must not empty the grid under them.
         setState((previous) => ({ ...previous, loading: false, error: asError(cause) }))
@@ -340,7 +313,7 @@ export const useModerationQueue = (
       live = false
       controller.abort()
     }
-  }, [api, slug, filter, attempt, onScreenLimit])
+  }, [api, slug, filter, attempt, onScreenLimit, startRead, overlay])
 
   /** A host asked for fresh data and should see that something is happening. */
   const refresh = useCallback(() => {
@@ -409,37 +382,6 @@ export const useModerationQueue = (
     })
   }, [])
 
-  /** Start remembering decisions that are about to be sent. */
-  const sendDecisions = useCallback((statuses: ReadonlyMap<string, PhotoStatus>) => {
-    const sent = new Map<string, InFlightDecision>()
-    for (const [id, status] of statuses) {
-      const decision: InFlightDecision = { status, settledAfterRead: null }
-      inFlightRef.current.set(id, decision)
-      sent.set(id, decision)
-    }
-    return sent
-  }, [])
-
-  /**
-   * The server answered. The decision stays written over the reads that started before
-   * this point, and the photo gets its decisions back from the one that follows (every
-   * caller revalidates). `refused` photos were put back by hand and are forgotten now.
-   */
-  const answerDecisions = useCallback(
-    (sent: ReadonlyMap<string, InFlightDecision>, refused: readonly string[] = []) => {
-      for (const [id, decision] of sent) {
-        if (refused.includes(id)) forgetDecision(inFlightRef.current, id, decision)
-        else decision.settledAfterRead = readsStartedRef.current
-      }
-    },
-    [],
-  )
-
-  /** The request failed and the photos went back to where they were: nothing to write over. */
-  const failDecisions = useCallback((sent: ReadonlyMap<string, InFlightDecision>) => {
-    for (const [id, decision] of sent) forgetDecision(inFlightRef.current, id, decision)
-  }, [])
-
   /**
    * Drop the offer, and take it off the screen with it.
    *
@@ -500,7 +442,7 @@ export const useModerationQueue = (
 
     const sent = sendDecisions(restored)
     setStatuses(restored)
-    setBusy(true)
+    beginBusy()
     try {
       const skipped: string[] = []
       const applied = new Set<string>()
@@ -568,7 +510,7 @@ export const useModerationQueue = (
       setStatuses(new Map(entries.map((entry) => [entry.id, entry.currentStatus])))
       toast.show(failureMessage(cause, text.moderation.undoFailed, text), { tone: 'danger' })
     } finally {
-      setBusy(false)
+      endBusy()
     }
   }, [
     api,
@@ -581,6 +523,8 @@ export const useModerationQueue = (
     sendDecisions,
     answerDecisions,
     failDecisions,
+    beginBusy,
+    endBusy,
   ])
 
   /**
@@ -671,7 +615,7 @@ export const useModerationQueue = (
 
       const sent = sendDecisions(new Map([[photoId, target]]))
       setStatuses(new Map([[photoId, target]]))
-      setBusy(true)
+      beginBusy()
       try {
         await api.moderate(slug, photoId, decision)
         answerDecisions(sent)
@@ -683,7 +627,7 @@ export const useModerationQueue = (
         forgetUndo()
         toast.show(failureMessage(cause, text.moderation.decisionFailed, text), { tone: 'danger' })
       } finally {
-        setBusy(false)
+        endBusy()
       }
     },
     [
@@ -698,6 +642,8 @@ export const useModerationQueue = (
       sendDecisions,
       answerDecisions,
       failDecisions,
+      beginBusy,
+      endBusy,
     ],
   )
 
@@ -712,7 +658,7 @@ export const useModerationQueue = (
 
       const sent = sendDecisions(new Map(chosen.map((id) => [id, target])))
       setStatuses(new Map(chosen.map((id) => [id, target])))
-      setBusy(true)
+      beginBusy()
       try {
         const response = await api.moderateBulk(slug, chosen, decision)
         answerDecisions(sent, response.skipped)
@@ -754,7 +700,7 @@ export const useModerationQueue = (
         forgetUndo()
         toast.show(failureMessage(cause, text.moderation.decisionFailed, text), { tone: 'danger' })
       } finally {
-        setBusy(false)
+        endBusy()
       }
     },
     [
@@ -769,6 +715,8 @@ export const useModerationQueue = (
       sendDecisions,
       answerDecisions,
       failDecisions,
+      beginBusy,
+      endBusy,
     ],
   )
 
@@ -779,6 +727,10 @@ export const useModerationQueue = (
       // Only a published photograph can be a favourite: the tile offers nothing else, and
       // the server would answer `highlight.notPublished`.
       if (photo === undefined || photo.status !== 'published') return
+
+      // One toggle per photo at a time: a double click would send highlight and
+      // unhighlight with no order between them.
+      if (highlightsRef.current.get(photoId)?.settledAfterRead === null) return
 
       const next = photo.highlighted !== true
       const apply = (value: boolean): void => {
@@ -791,15 +743,19 @@ export const useModerationQueue = (
         }))
       }
 
+      const toggle = { value: next, settledAfterRead: null as number | null }
+      highlightsRef.current.set(photoId, toggle)
       apply(next)
       try {
         await (next ? api.highlightPhoto(slug, photoId) : api.unhighlightPhoto(slug, photoId))
+        toggle.settledAfterRead = readsStarted()
       } catch (cause) {
+        highlightsRef.current.delete(photoId)
         apply(!next)
         toast.show(failureMessage(cause, text.moderation.decisionFailed, text), { tone: 'danger' })
       }
     },
-    [api, slug, text, toast],
+    [api, slug, text, toast, readsStarted],
   )
 
   const onSignal = useCallback(

@@ -73,16 +73,6 @@ export interface OutboxEntry {
    * mid-flight does not strand the entry for the rest of the evening.
    */
   readonly claimedAt: number | null
-  /**
-   * The double-submit CSRF token as it stood when the photo was queued.
-   *
-   * The service worker has no `document.cookie`. It reads the live cookie through
-   * `cookieStore` where that exists — which is every browser that implements
-   * Background Sync — and falls back to this. Safe to capture here in a way it would
-   * not be on the host surface: the token is rotated only by a login or a logout, and
-   * a guest does neither. See the note on `upload` in `web/src/lib/http.ts`.
-   */
-  readonly csrfToken: string | null
 }
 
 /** What a caller hands over; the store fills in the rest. */
@@ -94,7 +84,6 @@ export interface NewOutboxEntry {
   readonly caption: string | null
   readonly missionId: string | null
   readonly challengeId?: string | null
-  readonly csrfToken: string | null
 }
 
 /**

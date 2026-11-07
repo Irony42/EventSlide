@@ -30,6 +30,8 @@
          screen to buy legibility for text that is not on it. ---- */
   --surface-scrim: oklch(0% 0 0 / 0.83); /* behind wall captions, over photos */
   --surface-dim: oklch(0% 0 0 / 0.55); /* behind a Dialog, over the page */
+  /* the letterbox of a video player: black, whatever the ambiance */
+  --player-ground: oklch(0% 0 0);
   /* ---- Print. A material, not a panel: the paper the polaroid layout mounts a photo
          on. It is the one light ground in a dark palette, so it gets its own ink token
          rather than borrowing a text colour that was chosen against a dark surface. ---- */
@@ -60,14 +62,28 @@
      glows in the violet, indigo and lavender family over the slate base, static, painted on
      `html::before` and behind the wall like every other ground. It is a colour field and not a picture: each glow's peak is a
      token below, held by tokens.contrast.test.ts to the bars text has on the base itself, because
-     text sits on it directly. */
+     text sits on it directly. Each glow reaches the gradient through `color-mix(in srgb, …)`: a
+     software rasteriser converts a bare oklch stop per pixel (WebKit: the page ran at 2-3 frames a
+     second at 1440x900), and the mix hands it a colour already in sRGB, same value. */
   --aurora-violet: oklch(24.5% 0.12 305);
   --aurora-indigo: oklch(24% 0.11 275);
   --aurora-lavender: oklch(24.5% 0.09 325);
   --ambiance-ground:
-    radial-gradient(70% 55% at 12% 6%, var(--aurora-violet), transparent 70%),
-    radial-gradient(60% 50% at 92% 28%, var(--aurora-indigo), transparent 70%),
-    radial-gradient(80% 55% at 42% 104%, var(--aurora-lavender), transparent 72%);
+    radial-gradient(
+      70% 55% at 12% 6%,
+      color-mix(in srgb, var(--aurora-violet), transparent 0%),
+      transparent 70%
+    ),
+    radial-gradient(
+      60% 50% at 92% 28%,
+      color-mix(in srgb, var(--aurora-indigo), transparent 0%),
+      transparent 70%
+    ),
+    radial-gradient(
+      80% 55% at 42% 104%,
+      color-mix(in srgb, var(--aurora-lavender), transparent 0%),
+      transparent 72%
+    );
   /* No grade over the aurora: it is dark enough to carry text. It stays a (clear) gradient so a
      host's own photograph, which replaces the ground, is covered by the coat below. */
   --ambiance-grade: linear-gradient(oklch(16% 0.02 265 / 0), oklch(16% 0.02 265 / 0));
@@ -223,6 +239,8 @@
   --duration-fast: 140ms; /* press feedback, focus */
   --duration-base: 240ms; /* dialogs, toasts, tile state */
   --duration-slow: 520ms; /* wall crossfade */
+  --duration-spin: 700ms; /* one turn of a Spinner */
+  --duration-pulse: 1.2s; /* a Spinner's opacity pulse under reduced motion */
   /* The clothesline's sway: a print swinging on its pin, ±1.5°. Slow is calm, and calm is the
      point on a wall that runs for eight hours. Never timed from the slide interval: it is not
      a slide. */
@@ -263,6 +281,12 @@
 
   /* ---- Targets. 44 px is the floor, not the aspiration. ---- */
   --touch-min: 2.75rem;
+
+  /* ---- Spinner. Three sizes and the ring's thickness at the largest. ---- */
+  --spinner-sm: 0.875rem;
+  --spinner-md: 1.25rem;
+  --spinner-lg: 2rem;
+  --spinner-ring-lg: 3px;
 
   /* ---- Switch. A pill twice as wide as tall: the 44 px target is the label around it, never the
          track. The on track is the ambiance's accent re-lit to a fixed lightness so the near-white knob

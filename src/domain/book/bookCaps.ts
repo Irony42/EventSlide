@@ -1,5 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
+import { MS_PER_DAY } from '../shared/time'
 
 /**
  * May a book of this many photographs be made?
@@ -27,7 +28,7 @@ export const checkBookBytes = (totalBytes: number, maxBytes: number): Result<voi
     : ok(undefined)
 
 /** The rolling day over which an event's book requests are counted (decision of 01/11/2026). */
-export const BOOK_WINDOW_MS = 24 * 60 * 60 * 1000
+export const BOOK_WINDOW_MS = MS_PER_DAY
 
 /** The start of the rolling day that ends at `now`. */
 export const bookWindowStart = (now: Date): Date => new Date(now.getTime() - BOOK_WINDOW_MS)

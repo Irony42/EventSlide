@@ -20,6 +20,10 @@ describe('evaluateDiskSpace', () => {
     expect(status.freeBytes).toBe(1_000)
   })
 
+  it('treats no path at all as unreadable: nothing was measured, so there is no room to assume', () => {
+    expect(evaluateDiskSpace([], 100)).toEqual({ sufficient: false, freeBytes: null })
+  })
+
   it('treats a single unreadable path as insufficient, never as room to assume', () => {
     const status = evaluateDiskSpace([9_000, null], 500)
 

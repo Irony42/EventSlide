@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
+import { webApiFiles } from '../testing/webApiSources'
 import {
   NOTICE_ACKNOWLEDGEMENTS,
   NOTICE_AUDIENCES,
@@ -22,16 +22,22 @@ import {
  * projects and the architecture forbids the import.
  */
 
-const CLIENT = join(process.cwd(), 'web/src/lib/api/dto.ts')
-
 /** The string literals a union type alias in the client's DTO file is made of. */
 const clientUnion = (name: string): readonly string[] => {
-  const source = ts.createSourceFile(
-    CLIENT,
-    readFileSync(CLIENT, 'utf8'),
-    ts.ScriptTarget.ES2022,
-    true,
-  )
+  for (const path of webApiFiles.dto()) {
+    const source = ts.createSourceFile(
+      path,
+      readFileSync(path, 'utf8'),
+      ts.ScriptTarget.ES2022,
+      true,
+    )
+    const found = unionIn(source, name)
+    if (found !== null) return found
+  }
+  throw new Error(`web/src/lib/api/dto/ declares no type ${name}`)
+}
+
+const unionIn = (source: ts.SourceFile, name: string): readonly string[] | null => {
   for (const statement of source.statements) {
     if (!ts.isTypeAliasDeclaration(statement) || statement.name.text !== name) continue
     const members = ts.isUnionTypeNode(statement.type) ? statement.type.types : [statement.type]
@@ -42,7 +48,7 @@ const clientUnion = (name: string): readonly string[] => {
       return member.literal.text
     })
   }
-  throw new Error(`web/src/lib/api/dto.ts declares no type ${name}`)
+  return null
 }
 
 describe('the privacy notice vocabulary', () => {

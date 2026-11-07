@@ -232,7 +232,16 @@ export interface RunningProcess {
   kill(): void
 }
 
-export const startProcess = ({
+/**
+ * What `startProcess` borrows from the outside world. A seam for tests only: production
+ * passes nothing, and the real `spawn` is used.
+ */
+export interface StartProcessDeps {
+  readonly spawn?: typeof spawn
+}
+
+export const startProcess = (
+  {
   binary,
   args,
   env,
@@ -241,7 +250,10 @@ export const startProcess = ({
   killGraceMs = DEFAULT_KILL_GRACE_MS,
   stdoutBytes = DEFAULT_STDOUT_BYTES,
   stderrBytes = DEFAULT_STDERR_BYTES,
-}: RunProcessOptions): RunningProcess => {
+}: RunProcessOptions,
+  deps: StartProcessDeps = {},
+): RunningProcess => {
+  const spawnChild = deps.spawn ?? spawn
   const stdout = new Tail(stdoutBytes)
   const stderr = new Tail(stderrBytes)
 
@@ -304,7 +316,7 @@ export const startProcess = ({
   }
 
   try {
-    child = spawn(binary, [...args], {
+    child = spawnChild(binary, [...args], {
       // stdin ignored, both output streams piped and read. Never `shell`.
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,

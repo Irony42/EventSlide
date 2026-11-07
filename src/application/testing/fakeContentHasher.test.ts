@@ -30,4 +30,12 @@ describe('FakeContentHasher', () => {
 
     expect(ContentHash.create(digest).ok).toBe(false)
   })
+
+  it('can be broken after a number of good answers, so a failure can land on a later file', () => {
+    const hasher = new FakeContentHasher().returnGarbageAfter(2)
+
+    expect(ContentHash.create(hasher.sha256Hex(bytes(1))).ok).toBe(true)
+    expect(ContentHash.create(hasher.sha256Hex(bytes(2))).ok).toBe(true)
+    expect(ContentHash.create(hasher.sha256Hex(bytes(3))).ok).toBe(false)
+  })
 })

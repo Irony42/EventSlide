@@ -10,7 +10,7 @@ import {
   type WallSoundPlayer,
   type WallSoundTone,
 } from '../../../lib/wallSoundPlayer'
-import { CheckboxField } from './CheckboxField'
+import { CheckboxField } from '../../../design-system/components/CheckboxField'
 import styles from './WallSoundFields.module.css'
 
 type WallSettings = EventSettingsDto['wall']

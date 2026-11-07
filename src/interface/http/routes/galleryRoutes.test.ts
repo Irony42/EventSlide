@@ -1,4 +1,4 @@
-import request from 'supertest'
+import request from '../testing/request'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ArchiveWriter } from '../../../application/ports/archiveWriter'
 import { AT, aPhoto, aUser } from '../../../application/testing/builders'

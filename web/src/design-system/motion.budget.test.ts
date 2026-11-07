@@ -56,6 +56,9 @@ const COMPONENTS = import.meta.glob<string>('../**/*.tsx', {
   eager: true,
 })
 
+const WALL_LAYOUTS_CSS = 'features/wall/components/WallLayouts.module.css'
+const LAYOUTS_DIR = 'features/wall/components/layouts/'
+
 const components = new Map(
   Object.entries(COMPONENTS).map(([path, source]) => [named(path), source]),
 )
@@ -364,7 +367,14 @@ describe('every animation states what it does under prefers-reduced-motion', () 
     // is read. `usePrefersReducedMotion` is the hook; a component that does not import it
     // cannot be declining anything.
     const owner = path.replace(/\.module\.css$/, '.tsx')
-    const source = components.get(owner)
+    // The layouts' stylesheet is shared by one component per layout (`components/layouts/`).
+    const source =
+      path === WALL_LAYOUTS_CSS
+        ? [...components]
+            .filter(([name]) => name.startsWith(LAYOUTS_DIR))
+            .map(([, text]) => text)
+            .join('\n')
+        : components.get(owner)
 
     expect(source, `${path} claims a component at ${owner}, which does not exist`).toBeDefined()
     expect(source ?? '', `${owner} does not read usePrefersReducedMotion`).toContain(
@@ -534,7 +544,7 @@ describe('every wall animation says what it gives up when the machine runs out',
 describe('the clothesline sways within its budget', () => {
   const css =
     entries.find(([path]) => path === 'features/wall/components/WallLayouts.module.css')?.[1] ?? ''
-  const component = components.get('features/wall/components/WallLayouts.tsx') ?? ''
+  const component = components.get('features/wall/components/layouts/ClotheslineLayout.tsx') ?? ''
   const sway = [...css.matchAll(/[^{}]*\{[^{}]*animation:\s*line-sway[^{}]*\}/g)].map(
     ([rule]) => rule,
   )

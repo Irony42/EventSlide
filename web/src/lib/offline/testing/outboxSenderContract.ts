@@ -38,7 +38,6 @@ const anEntry = (): OutboxEntry => ({
   attempts: 0,
   lastAttemptAt: null,
   claimedAt: null,
-  csrfToken: 'csrf-1',
 })
 
 export const outboxSenderContract = (name: string, harness: SenderHarness): void => {

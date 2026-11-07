@@ -1,8 +1,4 @@
-import { Router, type Request, type Response } from 'express'
-import { Readable } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
-import type { Logger } from '../../../application/ports/logger'
-import type { ByteRange } from '../../../application/ports/mediaStore'
+import { Router } from 'express'
 import type { PhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
 import { DomainError } from '../../../domain/shared/errors'
 import { ContentHash } from '../../../domain/photos/contentHash'
@@ -11,8 +7,8 @@ import { Slug } from '../../../domain/shared/slug'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { guestTokenOf, requireRole, resolvePublicEvent } from '../middleware/authz'
 import { publicEventOf } from '../middleware/scope'
-import { contentRange, parseByteRange, unsatisfiedRange } from '../presenters/byteRange'
-import { errorBody, sendError } from '../presenters/send'
+import { sendError } from '../presenters/send'
+import { serveRanged, streamOrAbandon, type RangedHeaders } from '../presenters/serveRanged'
 import { photoVariantParams, venuePhotoDigest } from '../schemas/requestSchemas'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
@@ -71,109 +67,17 @@ const IMMUTABLE_CACHE = 'private, max-age=31536000, immutable'
 const etagFor = (media: PhotoMedia): string => `"${media.contentHash.value}-${media.variant}"`
 
 /**
- * What `sendMedia` needs of an object: the three facts it writes and the one function that
- * opens its bytes. A photo's and a venue photograph's both satisfy it, so the two routes share
- * the one place that decides 304, 206, 416 and when a descriptor is opened.
+ * The representation headers of a stored photo, clip or published file: inline (the wall, the
+ * moderation grid and the guest's own view render these in an `<img>` or a `<video>`, never as
+ * a download), cached for a year under the content-addressed ETag.
  */
-type ServedObject = Pick<PhotoMedia, 'byteSize' | 'contentType' | 'open'>
-
-/**
- * Streams an iterable to the response, and abandons the connection if it fails.
- *
- * `pipeline`, never `pipe`: `pipe` leaves the response open when the source errors, so
- * the client would receive a truncated body under the 200 it has every reason to trust.
- * A half-written ZIP looks exactly like a complete album, and a host who then deletes
- * their photos believing they hold a copy has lost them. By the time bytes are flowing
- * the status line is long gone, so destroying the socket is the only signal left that
- * the body is incomplete.
- *
- * The failure is caught here rather than forwarded to the error handler because
- * `pipeline` has already destroyed the response: handing it on would have the error
- * handler write a JSON body to a dead socket.
- */
-export const streamOrAbandon = async (
-  res: Response,
-  logger: Logger,
-  message: string,
-  chunks: AsyncIterable<Uint8Array>,
-): Promise<void> => {
-  try {
-    await pipeline(Readable.from(chunks), res)
-  } catch (error) {
-    logger.error(message, { error: error instanceof Error ? error.message : String(error) })
-    res.destroy()
-  }
-}
-
-/**
- * Everything decided before a single byte is opened, then exactly one stream.
- *
- * **The order here is the fix for a descriptor leak, not a preference.** `openRead`
- * opens the file when the stream is *constructed*, so any answer that opens bytes it
- * does not write costs a descriptor until the garbage collector happens to run — and
- * three of this route's four answers send no bytes. A `<video>` issues a `Range` request
- * per seek and a projector revalidates every slide it already holds, so the count climbs
- * for as long as the party lasts and ends in `EMFILE`, which takes the wall down.
- *
- * So: headers, then the freshness check, then the range verdict, and only then `open`.
- * A `304` and a `416` leave this function having opened nothing at all.
- */
-export const sendMedia = async (
-  req: Request,
-  res: Response,
-  media: ServedObject,
-  etag: string,
-  range: ByteRange | null,
-  cacheControl: string = IMMUTABLE_CACHE,
-  contentDisposition = 'inline',
-): Promise<void> => {
-  // Set before the freshness check: a 304 must still carry the validator and the caching
-  // policy, or a projector revalidates every slide for the rest of the night.
-  res.setHeader('ETag', etag)
-  res.setHeader('Cache-Control', cacheControl)
-  // Never `attachment`: the wall, the moderation grid and the guest's own view all
-  // render these in an `<img>` or a `<video>`.
-  res.setHeader('Content-Disposition', contentDisposition)
-  // **Advertised on every response, not only on a clip.** A media element decides whether
-  // it can seek from this header, and it asks about the object before it plays it — so a
-  // response that omits it is one a player treats as unseekable.
-  res.setHeader('Accept-Ranges', 'bytes')
-
-  // `req.fresh` compares `If-None-Match` weakly, as RFC 9110 requires, handles a list of
-  // validators and honours a client's own `Cache-Control: no-cache`. A projector
-  // re-requesting the same slide across an eight-hour run must not re-download it.
-  if (req.fresh) {
-    // No body, and deliberately no `Content-Length`: a 304 that declares a length is a
-    // response some proxies wait on.
-    res.status(304).end()
-    return
-  }
-
-  // The one open, for the bytes this response is now committed to writing. `null` here
-  // is not the range being outside the object — that was answered above, against the
-  // size this same read reported — so it is a row pointing at a file that is gone.
-  const bytes = await media.open(range ?? undefined)
-  if (bytes === null) {
-    sendError(res, DomainError.notFound('photo.mediaMissing'))
-    return
-  }
-
-  res.setHeader('Content-Type', media.contentType)
-
-  if (range === null) {
-    // From the store's own metadata, so the declared length is the length that will be
-    // written. 1.0 had no length at all and every image arrived chunked.
-    res.setHeader('Content-Length', String(media.byteSize))
-  } else {
-    // A `206` declares the length of the **part**, and `Content-Range` the whole. Getting
-    // the two the wrong way round is how a player stalls at the end of the first chunk.
-    res.status(206)
-    res.setHeader('Content-Range', contentRange(range, media.byteSize))
-    res.setHeader('Content-Length', String(range.end - range.start + 1))
-  }
-
-  await streamOrAbandon(res, req.context.logger, 'photo media failed mid-stream', bytes)
-}
+const mediaHeaders = (media: Pick<PhotoMedia, 'contentType'>, etag: string): RangedHeaders => ({
+  contentType: media.contentType,
+  cacheControl: IMMUTABLE_CACHE,
+  contentDisposition: 'inline',
+  etag,
+  failureMessage: 'photo media failed mid-stream',
+})
 
 export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
   const router = Router()
@@ -235,32 +139,10 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
       // **On every answer this route can give, the `416`'s JSON body included.** The
       // stored bytes are always re-encoded, but a browser that sniffs its way to
       // something executable is how an upload becomes stored XSS — and the refusal that
-      // bypasses `sendMedia` was the one response going out without it.
+      // `serveRanged` writes itself was the one response going out without it.
       res.setHeader('X-Content-Type-Options', 'nosniff')
 
-      const verdict = parseByteRange(req.get('range'), media.value.byteSize)
-      const etag = etagFor(media.value)
-      if (verdict.kind === 'whole') return sendMedia(req, res, media.value, etag, null)
-
-      if (verdict.kind === 'unsatisfiable') {
-        /**
-         * **416, written here rather than through the kind table.**
-         *
-         * `DomainErrorKind` has no member for it and should not grow one: it is a
-         * property of this one representation and of the header that asked for it, not a
-         * class of business failure — and the taxonomy's value is that it is small
-         * enough to hold in your head. This is the same call `streamRoutes` makes when it
-         * answers `503` for an error whose kind maps to `500`.
-         *
-         * The `Content-Range` is what lets a player correct itself instead of retrying
-         * the same impossible range for the rest of the evening.
-         */
-        res.setHeader('Accept-Ranges', 'bytes')
-        res.setHeader('Content-Range', unsatisfiedRange(media.value.byteSize))
-        return res.status(416).json(errorBody(DomainError.invalid('photo.rangeNotSatisfiable')))
-      }
-
-      return sendMedia(req, res, media.value, etag, verdict.range)
+      return serveRanged(req, res, media.value, mediaHeaders(media.value, etagFor(media.value)))
     }),
   )
 
@@ -312,15 +194,8 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
 
         res.setHeader('X-Content-Type-Options', 'nosniff')
 
-        const verdict = parseByteRange(req.get('range'), media.value.byteSize)
         const etag = `"${media.value.contentHash.value}-${etagSuffix}"`
-        if (verdict.kind === 'whole') return sendMedia(req, res, media.value, etag, null)
-        if (verdict.kind === 'unsatisfiable') {
-          res.setHeader('Accept-Ranges', 'bytes')
-          res.setHeader('Content-Range', unsatisfiedRange(media.value.byteSize))
-          return res.status(416).json(errorBody(DomainError.invalid('photo.rangeNotSatisfiable')))
-        }
-        return sendMedia(req, res, media.value, etag, verdict.range)
+        return serveRanged(req, res, media.value, mediaHeaders(media.value, etag))
       }),
     )
   }

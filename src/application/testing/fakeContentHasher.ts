@@ -10,6 +10,7 @@ import type { ContentHasher } from '../ports/contentHasher'
  */
 export class FakeContentHasher implements ContentHasher {
   private malformed = false
+  private goodAnswersLeft = Number.POSITIVE_INFINITY
 
   /** A broken adapter — the one hash failure that is not the guest's photo's fault. */
   returnGarbage(): this {
@@ -17,8 +18,15 @@ export class FakeContentHasher implements ContentHasher {
     return this
   }
 
+  /** A hasher that works for `count` calls, then breaks: the failure that lands after something was written. */
+  returnGarbageAfter(count: number): this {
+    this.goodAnswersLeft = count
+    return this
+  }
+
   sha256Hex(bytes: Uint8Array): string {
-    if (this.malformed) return 'not-a-digest'
+    if (this.malformed || this.goodAnswersLeft <= 0) return 'not-a-digest'
+    this.goodAnswersLeft -= 1
 
     let state = 2166136261
     let digest = ''

@@ -1,7 +1,7 @@
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { Express } from 'express'
-import request from 'supertest'
+import request from './request'
 import { aPhoto, atPlus, anEvent, AT, aUser } from '../../../application/testing/builders'
 import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'

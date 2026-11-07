@@ -1,82 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useEventStream, type StreamSignal } from './useEventStream'
+import { FakeEventSource } from '../../testing/fakeEventSource'
 
-/**
- * A controllable stand-in for `EventSource`.
- *
- * jsdom implements no `EventSource`, and a real one would need a server. This is the
- * same category of double as the `IntersectionObserver` stub in
- * `web/src/testing/setup.ts`: it stands in for a browser API and stubs no application
- * code, so what is under test — one connection, backoff, cleanup, frame parsing —
- * stays real.
- *
- * It extends `EventTarget`, so `addEventListener` and `dispatchEvent` are the
- * platform's own rather than a hand-rolled registry that could disagree with them.
- */
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = []
-
-  readyState = 0
-  closeCount = 0
-
-  constructor(
-    readonly url: string,
-    readonly init?: EventSourceInit,
-  ) {
-    super()
-    FakeEventSource.instances.push(this)
-  }
-
-  close(): void {
-    this.closeCount += 1
-    this.readyState = 2
-  }
-
-  /** The server answered and the stream is live. */
-  emitOpen(): void {
-    this.readyState = 1
-    this.dispatchEvent(new Event('open'))
-  }
-
-  emitFrame(data: string): void {
-    this.dispatchEvent(new MessageEvent('change', { data }))
-  }
-
-  emitSignal(type: string): void {
-    this.emitFrame(JSON.stringify({ type }))
-  }
-
-  /** The server's named heartbeat: the pipe is alive and nothing has happened. */
-  emitHeartbeat(): void {
-    this.dispatchEvent(new MessageEvent('ping', { data: '{}' }))
-  }
-
-  /** A dropped connection the browser is already retrying by itself. */
-  emitDrop(): void {
-    this.readyState = 0
-    this.dispatchEvent(new Event('error'))
-  }
-
-  /** A refusal the browser will not retry: a 500, or the wrong content type. */
-  emitRefusal(): void {
-    this.readyState = 2
-    this.dispatchEvent(new Event('error'))
-  }
-}
-
-const latest = (): FakeEventSource => {
-  const instance = FakeEventSource.instances[FakeEventSource.instances.length - 1]
-  if (instance === undefined) throw new Error('no connection was opened')
-  return instance
-}
+/** The shared `EventSource` stand-in; what is under test here is one connection, backoff, cleanup, frame parsing. */
+const latest = (): FakeEventSource => FakeEventSource.latest('the hook')
 
 const URL_A = '/api/events/camille-et-sacha/stream'
 const URL_B = '/api/events/gala/stream'
 
 describe('useEventStream', () => {
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
   })
 
@@ -419,6 +354,50 @@ describe('useEventStream', () => {
     expect(FakeEventSource.instances).toHaveLength(1)
     expect(first).not.toHaveBeenCalled()
     expect(second).toHaveBeenCalledTimes(1)
+  })
+
+  describe('a browser retry that never answers', () => {
+    // The hook leaves a CONNECTING stream to the browser so `Last-Event-ID` survives. If that
+    // retry then stalls (a proxy that accepts and never answers) neither `open` nor `error`
+    // comes again and, with nothing armed, an unattended wall stays "not connected" all evening.
+    const RECONNECT_STALL_MS = 90_000
+
+    it('is replaced by a fresh connection once the long watchdog runs out', () => {
+      vi.useFakeTimers()
+      const onDrop = vi.fn()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), onDrop }))
+      act(() => latest().emitOpen())
+      const stalled = latest()
+      act(() => stalled.emitDrop())
+
+      act(() => void vi.advanceTimersByTime(RECONNECT_STALL_MS - 1))
+      expect(stalled.closeCount).toBe(0)
+
+      act(() => void vi.advanceTimersByTime(1))
+      expect(stalled.closeCount).toBe(1)
+      act(() => void vi.advanceTimersByTime(1_000))
+      expect(FakeEventSource.instances).toHaveLength(2)
+      expect(onDrop).toHaveBeenCalledTimes(1)
+    })
+
+    it('stands down when the browser’s own retry opens', () => {
+      vi.useFakeTimers()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn() }))
+      act(() => latest().emitOpen())
+      const stream = latest()
+      act(() => stream.emitDrop())
+
+      act(() => void vi.advanceTimersByTime(RECONNECT_STALL_MS - 1))
+      act(() => stream.emitOpen())
+      // The open re-arms the ordinary silence watchdog (45 s) and cancels the long one.
+      for (let beat = 0; beat < 8; beat += 1) {
+        act(() => void vi.advanceTimersByTime(15_000))
+        act(() => stream.emitHeartbeat())
+      }
+
+      expect(stream.closeCount).toBe(0)
+      expect(FakeEventSource.instances).toHaveLength(1)
+    })
   })
 
   describe('telling the page that a connection it had was lost', () => {

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   isChunkLoadError,
+  LEAVING_WINDOW_MS,
   pageReload,
   reloadForStaleBundle,
   serverReachable,
@@ -17,6 +18,10 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  // The leaving flag is module state: a restored page is the way it is cleared. Done before the
+  // real timers return, so its pending expiry is cleared on the fake clock that created it.
+  window.dispatchEvent(new Event('pageshow'))
+  vi.useRealTimers()
 })
 
 describe('isChunkLoadError', () => {
@@ -153,5 +158,42 @@ describe('serverReachable', () => {
     )
 
     expect(await serverReachable()).toBe(false)
+  })
+})
+
+describe('reloadForStaleBundle while the user is leaving', () => {
+  it.each(['beforeunload', 'pagehide'])(
+    'does not reload the old address once %s has fired',
+    (type) => {
+      const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+      window.dispatchEvent(new Event(type))
+
+      expect(reloadForStaleBundle(NOW)).toBe(false)
+
+      expect(reload).not.toHaveBeenCalled()
+      expect(sessionStorage.getItem(STALE_BUNDLE_MARKER)).toBeNull()
+    },
+  )
+
+  it('reloads again once the page is shown again', () => {
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+    window.dispatchEvent(new Event('pagehide'))
+    window.dispatchEvent(new Event('pageshow'))
+
+    expect(reloadForStaleBundle(NOW)).toBe(true)
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('reloads again after a leave that was cancelled', () => {
+    // A "leave this page?" prompt answered with "stay" fires beforeunload and nothing after it.
+    vi.useFakeTimers()
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+    window.dispatchEvent(new Event('beforeunload'))
+
+    vi.advanceTimersByTime(LEAVING_WINDOW_MS - 1)
+    expect(reloadForStaleBundle(NOW)).toBe(false)
+    vi.advanceTimersByTime(1)
+    expect(reloadForStaleBundle(NOW)).toBe(true)
+    expect(reload).toHaveBeenCalledTimes(1)
   })
 })

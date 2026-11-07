@@ -8,14 +8,15 @@ import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
-import { PASSWORD_MIN_LENGTH } from '../auth/passwordPolicy'
+import { PASSWORD_MIN_LENGTH } from '../../lib/passwordPolicy'
 import { Async } from '../../design-system/components/Async'
-import { SelectField } from './components/SelectField'
+import { SelectField } from '../../design-system/components/SelectField'
 import { useShareLink } from './hooks/useEventData'
 import { useCreateShareLink, useRevokeShareLink } from './hooks/useEventActions'
 import { useLeaveWarning } from './hooks/useLeaveWarning'
 import styles from './ShareLinkPanel.module.css'
 import type { ShareLinkCreated } from '../../lib/api/dto'
+import { copyToClipboard } from '../../lib/clipboard'
 
 export interface ShareLinkPanelProps {
   readonly slug: string
@@ -93,23 +94,19 @@ export function ShareLinkPanel({ slug, titleRef }: ShareLinkPanelProps) {
 
   const copy = () => {
     if (created === null) return
-    const refused = () => {
+    void copyToClipboard(created.url).then((copied) => {
+      if (copied) {
+        setCopied(true)
+        setCopyFailed(false)
+        toast.show(t.admin.shareLinkCopied, { tone: 'success' })
+        return
+      }
       // The address is in the field beside this button: selected, so the host's own Ctrl+C (or a
       // long-press) finishes what the browser would not, and the failure is said out loud.
       setCopyFailed(true)
       urlField.current?.focus()
       urlField.current?.select()
-    }
-    // No clipboard at all (an insecure origin, an old browser) is the same failure as a refusal.
-    if (navigator.clipboard === undefined) {
-      refused()
-      return
-    }
-    void navigator.clipboard.writeText(created.url).then(() => {
-      setCopied(true)
-      setCopyFailed(false)
-      toast.show(t.admin.shareLinkCopied, { tone: 'success' })
-    }, refused)
+    })
   }
 
   const confirmRevoke = () => {

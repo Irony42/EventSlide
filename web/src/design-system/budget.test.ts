@@ -5,11 +5,8 @@ import {
   frameRateOf,
   FRAME_WINDOW,
   frameIntervalOf,
-  STOPPED_PAINTING_MS,
   MIN_FRAMES_PER_SECOND,
   SHED_ORDER,
-  shedOne,
-  STRIKES_BEFORE_SHEDDING,
   wallBudgetProps,
   windowHolds,
   type BudgetLevel,
@@ -47,11 +44,11 @@ describe('the order things are given up in', () => {
   })
 
   it('sheds one rung at a time and stops at the bottom', () => {
-    expect(shedOne(0)).toBe(1)
-    expect(shedOne(1)).toBe(2)
+    expect(afterVerdict({ level: 0, strikes: 1 }, false).level).toBe(1)
+    expect(afterVerdict({ level: 1, strikes: 1 }, false).level).toBe(2)
     // There is nothing under the last rung: what is left is the photograph, which is the
     // product. A ladder that ran off its own end would be one that could switch the wall off.
-    expect(shedOne(2)).toBe(2)
+    expect(afterVerdict({ level: 2, strikes: 1 }, false).level).toBe(2)
   })
 })
 
@@ -110,8 +107,11 @@ describe('how a verdict turns into a rung', () => {
     expect(afterVerdict({ level: 2, strikes: 0 }, false)).toEqual({ level: 2, strikes: 0 })
   })
 
-  it('takes two strikes, and the number is the one the constant says', () => {
-    expect(STRIKES_BEFORE_SHEDDING).toBe(2)
+  it('takes two strikes before it gives anything up', () => {
+    const once = afterVerdict({ level: 0, strikes: 0 }, false)
+
+    expect(once).toEqual({ level: 0, strikes: 1 })
+    expect(afterVerdict(once, false)).toEqual({ level: 1, strikes: 0 })
   })
 })
 
@@ -194,7 +194,7 @@ describe('whether a window of frames held', () => {
     // degraded — the wall that needed the budget most was the one guaranteed not to get it.
     expect(frameIntervalOf(16.7)).toBeCloseTo(16.7, 5)
     expect(frameIntervalOf(400)).toBeCloseTo(400, 5)
-    expect(frameIntervalOf(600_000)).toBe(STOPPED_PAINTING_MS)
+    expect(frameIntervalOf(600_000)).toBe(1_000)
     expect(frameIntervalOf(0)).toBeNull()
   })
 

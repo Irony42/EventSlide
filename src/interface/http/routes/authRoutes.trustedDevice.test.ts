@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import request from 'supertest'
+import request from '../testing/request'
 import { afterAll, describe, expect, it } from 'vitest'
 import { authRoutes } from './authRoutes'
 import {

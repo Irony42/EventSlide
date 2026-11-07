@@ -30,6 +30,8 @@ const STORAGE_KEY = 'eventslide.locale'
  * Parsed rather than cast: what comes back is a string this build did not necessarily
  * write — an older bundle, another tab, a hand-edited entry. `parseLocale` is the guard,
  * and it says at its own definition why it is a membership test and not a schema.
+ *
+ * Also read by tests as the observer of what `storeLocale` and the picker persisted.
  */
 export const readStoredLocale = (): Locale | null => {
   try {

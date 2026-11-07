@@ -5,7 +5,8 @@ import type { ReelRenderer, ReelSpec, RenderedReel } from '../../application/por
 import { DomainError } from '../../domain/shared/errors'
 import { err, ok, type Result } from '../../domain/shared/result'
 import type { FfmpegPaths } from './ffmpegBinaries'
-import { startProcess, type RunProcessOptions, type RunResult } from './runProcess'
+import { createChildRunner } from './childRunner'
+import type { RunProcessOptions, RunResult } from './runProcess'
 
 /**
  * The highlight reel's encoder: ffmpeg, one segment per photograph, then a copy-join (spec 08).
@@ -97,20 +98,12 @@ export const createFfmpegReelRenderer = ({
   segmentTimeoutMs = SEGMENT_TIMEOUT_MS,
   joinTimeoutMs = JOIN_TIMEOUT_MS,
 }: FfmpegReelRendererOptions): FfmpegReelRenderer => {
-  const running = new Set<{ kill: () => void }>()
+  const children = createChildRunner(env)
 
-  const run = async (
+  const run = (
     args: readonly string[],
     bounds: Pick<RunProcessOptions, 'timeoutMs' | 'stallMs'>,
-  ): Promise<RunResult> => {
-    const child = startProcess({ binary: paths.ffmpeg, args, env, ...bounds })
-    running.add(child)
-    try {
-      return await child.finished
-    } finally {
-      running.delete(child)
-    }
-  }
+  ): Promise<RunResult> => children.run(paths.ffmpeg, args, bounds)
 
   const render = async (
     frames: readonly Uint8Array[],
@@ -295,7 +288,7 @@ export const createFfmpegReelRenderer = ({
     available: () => true,
     render,
     close: () => {
-      for (const child of [...running]) child.kill()
+      children.close()
     },
   }
 }

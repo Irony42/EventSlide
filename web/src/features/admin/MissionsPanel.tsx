@@ -9,7 +9,7 @@ import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { Async } from '../../design-system/components/Async'
-import { SelectField } from './components/SelectField'
+import { SelectField } from '../../design-system/components/SelectField'
 import { useMissions } from './hooks/useEventData'
 import { useCreateMission, useDeleteMission, useUpdateMission } from './hooks/useEventActions'
 import styles from './MissionsPanel.module.css'
@@ -167,7 +167,7 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
                 <Button
                   variant="danger"
                   size="sm"
-                  loading={remove.pending === mission.id}
+                  loading={remove.isPending(mission.id)}
                   disabled={remove.busy}
                   aria-label={t.admin.missionDelete(mission.prompt)}
                   onClick={() => setSelected(mission)}

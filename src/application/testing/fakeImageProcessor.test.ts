@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../domain/shared/errors'
 import { MEDIA_VARIANTS } from '../ports/mediaStore'
+import { imageProcessorContract } from './contracts/imageProcessorContract'
 import { VARIANT_SPECS } from '../usecases/photos/uploadPhotos'
 import {
   DEFAULT_RENDERED_BYTE_SIZES,
@@ -149,4 +150,19 @@ describe('FakeImageProcessor', () => {
       ).rejects.toThrow('no variant renders at 17px')
     })
   })
+})
+
+imageProcessorContract('fake', async () => {
+  const processor = new FakeImageProcessor().script('corrupt', {
+    probeError: DomainError.invalid('image.corrupt'),
+  })
+  return {
+    processor,
+    image: async (width, height) => {
+      const tag = `image-${width}x${height}`
+      processor.script(tag, { width, height })
+      return tagBytes(tag)
+    },
+    corrupt: async () => tagBytes('corrupt'),
+  }
 })

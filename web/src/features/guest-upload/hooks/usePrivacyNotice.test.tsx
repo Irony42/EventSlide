@@ -13,20 +13,12 @@ import { usePrivacyNotice } from './usePrivacyNotice'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
 import type { PrivacyNoticeState } from '../../../lib/api/dto'
+import { deferred } from '../../../testing/deferred'
 
 const SLUG = 'camille-et-sacha'
 
 const UNREAD = aPrivacyNoticeState({ acknowledgement: 'none' })
 const READ = aPrivacyNoticeState({ acknowledgement: 'current' })
-
-/** A promise a test settles by hand, to order a read against a tap. */
-const deferred = <T,>() => {
-  let settle: (value: T) => void = () => {}
-  const promise = new Promise<T>((resolve) => {
-    settle = resolve
-  })
-  return { promise, settle }
-}
 
 const mount = (api: Api, initial: PrivacyNoticeState | null) =>
   renderHook(() => usePrivacyNotice(SLUG, initial), {
@@ -106,7 +98,7 @@ describe('usePrivacyNotice', () => {
 
     act(() => result.current.acknowledge())
     await act(async () => {
-      read.settle(UNREAD)
+      read.resolve(UNREAD)
       await read.promise
     })
 

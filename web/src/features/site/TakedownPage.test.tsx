@@ -12,6 +12,7 @@ import {
   openConsole,
   stepUpRequired,
 } from '../../testing/siteConsole'
+import { flushPromises } from '../../testing/flushPromises'
 
 /**
  * The operator's "remove without viewing" screen (launch review S5), ring 5 and through the route
@@ -297,7 +298,7 @@ describe('acting on an event', () => {
 
     // The earlier read answers last, with a state from before the hold.
     releaseFirst(anEvent({ takenDownAt: AT }))
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await flushPromises()
 
     expect(screen.getByText(fr.site.takedownStateHeld)).toBeVisible()
     expect(screen.queryByText(fr.site.takedownStateFree)).toBeNull()

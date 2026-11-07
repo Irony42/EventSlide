@@ -33,8 +33,8 @@ import { createRepeater } from './repeater'
  * is logged and never changes the outcome of the purge it follows, and an event purge that
  * throws never stops the audit prune, because neither depends on the other. Which rows are
  * old enough is `pruneAuditLog`'s business; this only calls it. The consequence an
- * operator has to know: with `RETENTION_SWEEP_INTERVAL_MINUTES=off` this timer never runs,
- * and so nothing prunes the audit log — `npm run purge` does not yet.
+ * operator has to know: with `RETENTION_SWEEP_INTERVAL_MINUTES=off` this timer never runs;
+ * `npm run purge` then runs the same follow-up steps (`makeRetentionFollowUp`) itself.
  */
 
 export interface RetentionSweeperDeps {
@@ -65,14 +65,25 @@ export interface RetentionSweeper {
   runOnce(): Promise<SweepOutcome>
 }
 
-export const createRetentionSweeper = ({
-  purge,
-  pruneAuditLog,
+export interface RetentionFollowUpDeps {
+  readonly finalizeOffboardedClients: FinalizeOffboardedClients
+  readonly pruneAuditLog: PruneAuditLog
+  readonly logger: Logger
+}
+
+/**
+ * **The steps that follow a purge, in one place for the timer and for `npm run purge`.**
+ *
+ * The offboarded clients are finalised, then the audit log is pruned. The timer
+ * (`createRetentionSweeper`) and the command (`scripts/purge.ts`) both call exactly this, so the
+ * CLI documented for `RETENTION_SWEEP_INTERVAL_MINUTES=off` cannot do less than the timer. Never
+ * rejects: each step catches its own failure.
+ */
+export const makeRetentionFollowUp = ({
   finalizeOffboardedClients,
+  pruneAuditLog,
   logger,
-  clock,
-  intervalMs,
-}: RetentionSweeperDeps): RetentionSweeper => {
+}: RetentionFollowUpDeps): (() => Promise<void>) => {
   /**
    * The offboarded clients' half of a sweep. Never throws, for the reason `pruneAudit` gives, and
    * run before it: a finalisation writes audit lines, and those should be in the log the prune reads.
@@ -126,6 +137,23 @@ export const createRetentionSweeper = ({
     }
   }
 
+  return async () => {
+    // The offboarded clients first, whose audit lines the prune should then see.
+    await finalizeClients()
+    await pruneAudit()
+  }
+}
+
+export const createRetentionSweeper = ({
+  purge,
+  pruneAuditLog,
+  finalizeOffboardedClients,
+  logger,
+  clock,
+  intervalMs,
+}: RetentionSweeperDeps): RetentionSweeper => {
+  const followUp = makeRetentionFollowUp({ finalizeOffboardedClients, pruneAuditLog, logger })
+
   /**
    * A sweep is a series of recursive directory removals. Two of them over the same event
    * is how you get half a media root and a report that contradicts itself — one run
@@ -143,11 +171,7 @@ export const createRetentionSweeper = ({
     logger,
     clock,
     run: purge,
-    // The offboarded clients first, whose audit lines the prune should then see.
-    afterwards: async () => {
-      await finalizeClients()
-      await pruneAudit()
-    },
+    afterwards: followUp,
     // Worth a warning rather than silence: it means the sweep no longer fits in its
     // interval, which an operator can fix by lengthening it.
     onSkipped: () => logger.warn('retention sweep skipped, the previous one is still running'),

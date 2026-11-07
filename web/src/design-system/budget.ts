@@ -34,7 +34,10 @@
  * unreviewed look — it is a reviewed one, arrived at for a second reason.
  */
 
-/** The order, and the whole of the rule. Everything below is derived from it. */
+/**
+ * The order, and the whole of the rule. Everything below is derived from it. Exported as a
+ * deliberate test seam: the ladder tests walk the real list and pin its order.
+ */
 export const SHED_ORDER = ['ken-burns', 'crossfade'] as const
 
 export type Cost = (typeof SHED_ORDER)[number]
@@ -53,7 +56,7 @@ export const affords = (level: BudgetLevel, cost: Cost): boolean =>
   SHED_ORDER.indexOf(cost) >= level
 
 /** One more rung down, and never past the last one: what is left is the photograph. */
-export const shedOne = (level: BudgetLevel): BudgetLevel =>
+const shedOne = (level: BudgetLevel): BudgetLevel =>
   level >= SHED_ORDER.length ? level : ((level + 1) as BudgetLevel)
 
 /** What the wall has given up, for the stylesheets that have to know. */
@@ -83,7 +86,7 @@ export const wallBudgetProps = (level: BudgetLevel): WallBudgetProps => {
  * Burns in front of a hundred people because of one of them would be a worse bug than the
  * one this exists to prevent.
  */
-export const STRIKES_BEFORE_SHEDDING = 2
+const STRIKES_BEFORE_SHEDDING = 2
 
 export interface BudgetState {
   readonly level: BudgetLevel
@@ -157,7 +160,7 @@ export const MIN_FRAMES_PER_SECOND = 24
  * anybody waited for, and letting it into the average would degrade a wall that had simply
  * been asleep.
  */
-export const STOPPED_PAINTING_MS = 1_000
+const STOPPED_PAINTING_MS = 1_000
 
 /**
  * One interval, as it counts — clamped, not discarded.
@@ -176,7 +179,10 @@ export const STOPPED_PAINTING_MS = 1_000
 export const frameIntervalOf = (ms: number): number | null =>
   ms > 0 ? Math.min(ms, STOPPED_PAINTING_MS) : null
 
-/** How many frames a second this stretch of intervals actually put on the screen. */
+/**
+ * How many frames a second this stretch of intervals actually put on the screen. Exported as a
+ * deliberate test seam: `windowHolds` only says yes or no, and the figures are what the tests pin.
+ */
 export const frameRateOf = (intervals: readonly number[]): number => {
   const elapsed = intervals.reduce((total, ms) => total + ms, 0)
   if (elapsed === 0) return Number.POSITIVE_INFINITY

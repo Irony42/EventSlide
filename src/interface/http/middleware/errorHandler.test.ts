@@ -1,4 +1,4 @@
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import type { LogContext, Logger } from '../../../application/ports/logger'

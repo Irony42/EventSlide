@@ -133,6 +133,28 @@ describe('AlbumBookPanel', () => {
     expect(albumBook).toHaveBeenCalledTimes(calls)
   })
 
+  it('does not ask again while the tab is hidden, and asks on the next beat once it is visible (WEB-HOST-13)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const albumBook = vi.fn(async () => book('running'))
+    render(fakeApi({ albumBook }))
+    await screen.findByText(fr.admin.bookWorking)
+    const calls = albumBook.mock.calls.length
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BOOK_POLL_MS * 3)
+      })
+      expect(albumBook).toHaveBeenCalledTimes(calls)
+    } finally {
+      Reflect.deleteProperty(document, 'visibilityState')
+    }
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BOOK_POLL_MS + 100)
+    })
+    expect(albumBook.mock.calls.length).toBeGreaterThan(calls)
+  })
+
   it('links the finished PDF, says what it holds, and offers to make it again', async () => {
     render(fakeApi({ albumBook: vi.fn(async () => DONE) }))
 

@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { GuestChallengeDto } from '../../../lib/api/dto'
-import { isChallengeRunning } from '../challengeRunning'
+import { useServerCountdown } from '../../../app/useServerCountdown'
 import styles from './ParticipateBox.module.css'
 
 export interface ParticipateBoxProps {
@@ -23,16 +22,9 @@ export interface ParticipateBoxProps {
  */
 export function ParticipateBox({ challenge, offsetMs, checked, onChange }: ParticipateBoxProps) {
   const t = useTranslations()
-  const [now, setNow] = useState(() => Date.now())
-  const running = isChallengeRunning(challenge, offsetMs, now)
+  const { over } = useServerCountdown(challenge, offsetMs)
 
-  useEffect(() => {
-    if (!running) return undefined
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [running])
-
-  if (!running) return null
+  if (over) return null
 
   return (
     <label className={styles['row']}>

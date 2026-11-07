@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { isAbortError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { useSwipeDecision } from '../hooks/useSwipeDecision'
+import { photoLabels } from '../photoLabels'
 import type { SwipeIntent } from '../swipe/swipeGesture'
 import type { ModerationPhotoDto } from '../../../lib/api/dto'
 import styles from './SwipeCard.module.css'
@@ -135,16 +136,7 @@ export function SwipeCard({
     })
   }, [playing])
 
-  const authorInName = photo.authorName ?? t.moderation.anonymousInName
-  const authorLine =
-    photo.authorName === null ? t.moderation.byAnonymous : t.moderation.by(photo.authorName)
-  const alt = isClip
-    ? photo.caption === null
-      ? t.moderation.videoAlt(authorInName)
-      : t.moderation.videoAltWithCaption(photo.caption, authorInName)
-    : photo.caption === null
-      ? t.moderation.photoAlt(authorInName)
-      : t.moderation.photoAltWithCaption(photo.caption, authorInName)
+  const { authorInName, authorLine, alt } = photoLabels(photo, isClip, t)
 
   /**
    * What the card says it is about to do.

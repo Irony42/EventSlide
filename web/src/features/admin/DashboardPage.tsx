@@ -12,11 +12,16 @@ import { CeilingBanner } from './components/CeilingBanner'
 import { LifecycleConfirmDialog } from './components/LifecycleConfirmDialog'
 import { StorageMeter } from './components/StorageMeter'
 import { SuspensionScreen } from './components/SuspensionScreen'
-import { allowsModeration, canManageEvent, lifecycleActions, linksToWall } from './eventLifecycle'
+import {
+  allowsModeration,
+  canManageEvent,
+  lifecycleActions,
+  linksToWall,
+} from '../../lib/eventLifecycle'
 import { useEvent, useEventList } from './hooks/useEventData'
 import { AmbianceMarker } from '../../design-system/components/AmbianceMarker'
 import { useLifecycleTransition } from './hooks/useLifecycleTransition'
-import { useClientLimits } from './hooks/useClientLimits'
+import { useClientLimits } from '../../app/useClientLimits'
 import styles from './DashboardPage.module.css'
 
 const NEW_EVENT_PATH = '/admin/events/new'
@@ -146,7 +151,7 @@ export function DashboardPage() {
                               key={action.to}
                               variant={action.primary ? 'primary' : 'secondary'}
                               size="sm"
-                              loading={transition.pending === `${event.slug}:${action.to}`}
+                              loading={transition.isPending(`${event.slug}:${action.to}`)}
                               disabled={transition.busy}
                               onClick={() =>
                                 transition.request({

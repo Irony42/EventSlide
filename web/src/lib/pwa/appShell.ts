@@ -73,7 +73,10 @@ export interface ShellHandlerOptions {
  *
  * A navigation that fails falls back to the cached document rather than to nothing:
  * `/e/:slug/upload` is a client route the server answers with `index.html`, so the shell
- * entry is the right answer for any address inside the app.
+ * entry is the right answer for any address inside the app. Only a navigation, though: a
+ * script or stylesheet that was never cached (every lazy chunk) answered with `index.html`
+ * makes the browser report a MIME error, which crash recovery reads as a stale bundle. Those
+ * get the exact cached copy if there is one, and otherwise the plain network failure.
  */
 export const respondFromShell = async (
   request: Request,
@@ -87,7 +90,8 @@ export const respondFromShell = async (
     // resolve it against, so the plain form threw everywhere else — including in every
     // test of this function, which is how it was found.
     const shell = new Request(new URL('/', request.url).href)
-    const cached = (await match(request)) ?? (await match(shell))
+    const cached =
+      (await match(request)) ?? (request.mode === 'navigate' ? await match(shell) : undefined)
     if (cached !== undefined) return cached
     // Nothing cached and no network. Rethrowing gives the browser its own offline page,
     // which is a better answer than a synthesised one this app cannot style anyway.

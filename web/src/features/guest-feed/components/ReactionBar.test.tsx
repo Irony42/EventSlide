@@ -8,6 +8,7 @@ import { fakeApi, renderWithProviders } from '../../../testing/renderWithProvide
 import { ReactionBar } from './ReactionBar'
 import type { Api } from '../../../lib/api/client'
 import type { ReactionKind, ReactionsResponse } from '../../../lib/api/dto'
+import { deferred } from '../../../testing/deferred'
 
 const SLUG = 'camille-et-sacha'
 const PHOTO = 'photo-1'
@@ -22,17 +23,6 @@ const holding = (...mine: readonly ReactionKind[]): ReactionsResponse => ({
   counts: { love: 0, laugh: 0, wow: 0, cheers: 0, clap: 0 },
   mine,
 })
-
-/** One promise a test settles by hand, so the moment *before* the server answers is observable. */
-const deferred = <T,>() => {
-  let resolve: (value: T) => void = () => {}
-  let reject: (cause: unknown) => void = () => {}
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve
-    reject = onReject
-  })
-  return { promise, resolve, reject }
-}
 
 const bar = (overrides: Partial<Api> = {}): Api =>
   fakeApi({ reactions: vi.fn(async () => holding()), ...overrides })

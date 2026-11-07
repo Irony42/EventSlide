@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { useToast } from '../../../design-system/components/useToast'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { EventDto, EventStatus } from '../../../lib/api/dto'
-import { confirmationFor, transitionNotice } from '../eventLifecycle'
+import { confirmationFor, transitionNotice } from '../../../lib/eventLifecycle'
 import { useStatusChange } from './useEventActions'
 
 /** One press on a lifecycle button: which event, from where, to where. */
@@ -67,7 +67,7 @@ export const useLifecycleTransition = (onChanged: (event: EventDto) => void) => 
       if (!statusChange.busy) setAsking(null)
     },
     busy: statusChange.busy,
-    /** `slug:status` of the move in flight, to put a spinner on the one button pressed. */
-    pending: statusChange.pending,
+    /** Whether the `slug:status` move is in flight, to put a spinner on the one button pressed. */
+    isPending: statusChange.isPending,
   }
 }

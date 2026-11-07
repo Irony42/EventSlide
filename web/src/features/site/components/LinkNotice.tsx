@@ -4,6 +4,7 @@ import { Card } from '../../../design-system/components/Card'
 import { useToast } from '../../../design-system/components/useToast'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './LinkNotice.module.css'
+import { copyToClipboard } from '../../../lib/clipboard'
 
 export interface LinkNoticeProps {
   readonly title: string
@@ -36,14 +37,12 @@ export function LinkNotice({ title, body, label, link, onDismiss }: LinkNoticePr
   const toast = useToast()
 
   const copy = () => {
-    // Some browsers ship no clipboard in an insecure context; a guard is cheaper than a click that
-    // throws, and the link is on screen to be selected either way.
-    if (typeof navigator.clipboard?.writeText !== 'function') return
-    void navigator.clipboard
-      .writeText(link)
-      .then(() => toast.show(t.site.linkCopied, { tone: 'success' }))
-      // Refused (a permission, a document that is not focused): the link is on screen to be selected.
-      .catch(() => undefined)
+    // The link is on screen to be selected when the copy cannot be done.
+    void copyToClipboard(link).then((copied) =>
+      copied
+        ? toast.show(t.site.linkCopied, { tone: 'success' })
+        : toast.show(t.site.linkCopyFailed, { tone: 'danger' }),
+    )
   }
 
   return (
