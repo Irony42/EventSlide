@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach, beforeAll, vi } from 'vitest'
 
 /**
@@ -14,17 +14,32 @@ import { afterEach, beforeAll, vi } from 'vitest'
  * alternative is pulling in a polyfill package for four no-op classes.
  */
 
+/**
+ * How long `findBy*` and `waitFor` wait before they give up. Testing Library's default is
+ * 1000 ms, which a *passing* test can exceed: the router tests render pages that are
+ * `lazy()` chunks, and the first test of a cold worker pays to transform and import the
+ * chunk (about 1030 ms locally, more on a loaded 2-core runner; the flake of #330). 5 s is
+ * five times that cost and half of the 10 s `testTimeout`, so a real failure still reports
+ * Testing Library's own message and DOM dump, not a bare test timeout. A passing wait
+ * returns as soon as it can: this only lengthens how long a failure takes to show.
+ */
+configure({ asyncUtilTimeout: 5_000 })
+
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
-  // jsdom keeps one `localStorage` for a whole file, so a test that picks a language
-  // would otherwise decide the starting language of every test after it. The guest's
-  // language preference is the only thing in there today; clearing all of it is the
-  // rule that stays true when something else is added.
-  try {
-    localStorage.clear()
-  } catch {
-    // A browser with site data blocked throws. Nothing to clean up in that case.
+  // jsdom keeps one `localStorage` and one `sessionStorage` for a whole file, so what one
+  // test writes would otherwise leak into every test after it: a test that picks a
+  // language would decide the starting language of the next, and a guest session or the
+  // stale-bundle marker (both live in `sessionStorage`) would be found by a test that
+  // expects a fresh visitor. Clearing all of it is the rule that stays true when
+  // something else is added.
+  for (const area of ['localStorage', 'sessionStorage'] as const) {
+    try {
+      window[area].clear()
+    } catch {
+      // A browser with site data blocked throws. Nothing to clean up in that case.
+    }
   }
 })
 
