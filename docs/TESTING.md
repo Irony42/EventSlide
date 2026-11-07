@@ -74,9 +74,7 @@ requests also share one keep-alive `http.Agent`. A bare `supertest(app)` binds a
 per request, and on Windows every closed socket sits in TIME_WAIT for two minutes, so a full run
 exhausted the 16 384-port range (`listen EADDRINUSE`, a thousand unrelated tests red) while Linux CI
 never noticed. `src/interface/http/testing/supertestGuard.test.ts` fails on any file under `src/`
-that imports `supertest` for its value (a type-only import is allowed); the few files not migrated yet
-are named in its `NOT_MIGRATED_YET` list, which can only shrink: it also fails when a listed file no
-longer needs to be on it.
+that imports `supertest` for its value (a type-only import is allowed); every test goes through the helper and the guard accepts no exception.
 
 **Ring 5 starts from `web/src/testing/setup.ts`** (the vitest `web` project's `setupFiles`), which
 does three things so no test has to:

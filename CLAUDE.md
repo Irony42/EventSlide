@@ -67,8 +67,7 @@ The web app has one more boundary of the same kind: **a feature never imports an
 (`web/src/features/<a>` may not reach `web/src/features/<b>`). What two features need lives in
 `web/src/lib/`, `web/src/design-system/` or `web/src/app/`, and `lib/` and `design-system/` may not
 import a feature at all. It is the `WEB_FEATURES` / `featureImportRule` block of `eslint.config.mjs`,
-pinned by `scripts/lintBoundaries.test.ts`. `FEATURE_BOUNDARY_LEGACY` there names the folders still
-exempt (`wall`, `join`); it only shrinks, a new file never joins it.
+pinned by `scripts/lintBoundaries.test.ts`. Every feature folder is held and no file is excused: a new violation is fixed, never listed.
 
 If you need domain code to do I/O, you have modelled it wrong — define a **port** in
 `src/application/ports/` instead.

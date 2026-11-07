@@ -35,8 +35,8 @@ the leak. Regression tests go in the cheapest ring that would have caught it.
 
 - **Ring 4:** `import request from '../testing/request'` (`src/interface/http/testing/request.ts`), never
   `supertest`. One listening server per app instead of a port per request (Windows runs out of
-  ephemeral ports otherwise). `supertestGuard.test.ts` fails on a value import of `supertest`; its
-  `NOT_MIGRATED_YET` list only shrinks.
+  ephemeral ports otherwise). `supertestGuard.test.ts` fails on a value import of `supertest`; it
+  accepts no exception.
 - **Ring 5:** `web/src/testing/setup.ts` clears `localStorage` and `sessionStorage` after every test and
   sets `findBy*` / `waitFor` to 5 s. `web/src/testing/` has `FakeEventSource`, `deferred()` and
   `flushPromises()`: use them, do not sleep for real to assert that nothing happened.

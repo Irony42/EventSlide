@@ -135,9 +135,7 @@ feature**. `web/src/features/` holds one folder per user journey (`about`, `admi
 and `web/src/design-system/` may not import a feature (tests excepted: a contrast check reads a feature's
 stylesheet). It is one `no-restricted-imports` block per feature in `eslint.config.mjs`
 (`WEB_FEATURES`, `featureImportRule`) and `scripts/lintBoundaries.test.ts` pins it. It sees static
-imports only: the router's `lazy()` imports from `app/` are outside it on purpose. `FEATURE_BOUNDARY_LEGACY`
-lists the folders that still import another feature (`wall` and `join`); the list is a ratchet that only
-shrinks.
+imports only: the router's `lazy()` imports from `app/` are outside it on purpose. Every feature folder is held and no file is excused: a new violation is fixed, never listed.
 
 Never suppressed with `eslint-disable`. If domain code appears to need I/O the model is
 wrong: declare a port in `src/application/ports/`, implement it in `src/infrastructure/`.
