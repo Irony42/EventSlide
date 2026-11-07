@@ -1122,5 +1122,32 @@ describe('useModerationQueue', () => {
       // The photos stay under it: a retry that failed does not empty the grid.
       expect(result.current.items).toHaveLength(1)
     })
+
+    it('stops the spinner of a refresh whose read a signal superseded and that then fails (WEB-HOST-01)', async () => {
+      // "Actualiser" arms the loud read and shows the spinner; a signal then starts a new
+      // read before that one answers. The superseded read is aborted, the new one is a
+      // quiet read, and when it fails nothing used to clear the spinner: an emptied phone
+      // queue sat on "chargement" with nothing to retry from.
+      const superseded = deferred<ModerationQueueResponse>()
+      let reads = 0
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => {
+          reads += 1
+          if (reads === 1) return queueOf([aModerationPhoto({ id: 'photo-1' })])
+          if (reads === 2) return superseded.promise
+          throw ApiError.network()
+        }),
+      })
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+      act(() => result.current.refresh())
+      expect(result.current.loading).toBe(true)
+
+      emitSignal('photo.uploaded')
+
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      expect(api.moderationQueue).toHaveBeenCalledTimes(3)
+      expect(result.current.items).toHaveLength(1)
+    })
   })
 })

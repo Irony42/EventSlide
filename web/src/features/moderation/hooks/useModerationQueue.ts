@@ -329,7 +329,12 @@ export const useModerationQueue = (
         // decision or signal reads again. A refused session or access is not a blip: it
         // will refuse every read after it, so it is said even then.
         const refused = cause instanceof ApiError && (cause.status === 401 || cause.status === 403)
-        if (quiet && !refused) return
+        if (quiet && !refused) {
+          // A refresh the host pressed may have been superseded by this read (a signal bumped
+          // `attempt` first), so its spinner is still up and no other read will clear it.
+          setState((previous) => (previous.loading ? { ...previous, loading: false } : previous))
+          return
+        }
         // The items already on screen are kept: a refetch that failed while the host
         // was working through a screenful must not empty the grid under them.
         setState((previous) => ({ ...previous, loading: false, error: asError(cause) }))
