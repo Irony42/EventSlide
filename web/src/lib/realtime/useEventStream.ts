@@ -61,6 +61,17 @@ const SILENCE_TIMEOUT_MS = 45_000
  */
 const READY_STATE_CLOSED = 2
 
+/**
+ * How long the browser's own retry of a dropped stream may stay silent before the hook steps in.
+ *
+ * Armed only after an `error` that left the stream CONNECTING, which is when the hook stands
+ * back so the browser can resend `Last-Event-ID`. A retry that then neither opens nor errors
+ * (a proxy that accepts the connection and never answers) would leave nothing armed and the
+ * wall "not connected" for the rest of the evening. Much longer than the silence budget: the
+ * browser's retry delay is its own, and cutting it short would throw away the cursor it keeps.
+ */
+const RECONNECT_STALL_MS = 90_000
+
 const BASE_DELAY_MS = 1_000
 
 /**
@@ -227,12 +238,22 @@ export const useEventStream = ({
          * Reconnecting by hand is for the case it gives up on: a non-2xx response or a
          * wrong content type, which leaves the stream CLOSED for good.
          *
-         * The watchdog stands down for the same reason: a browser that is retrying has
+         * The silence watchdog stands down for the same reason: a browser that is retrying has
          * already noticed, and stepping in would replace its reconnect — the one that
-         * still carries the cursor — with a fresh connection that does not.
+         * still carries the cursor — with a fresh connection that does not. A longer one
+         * takes over, for a retry that stalls.
          */
         stopWatchdog()
-        if (stream.readyState !== READY_STATE_CLOSED) return
+        if (stream.readyState !== READY_STATE_CLOSED) {
+          // Cleared by `open` or any frame (`heard` replaces it with the silence watchdog).
+          watchdog = setTimeout(() => {
+            setOpen(false)
+            lost()
+            stream.close()
+            scheduleReconnect()
+          }, RECONNECT_STALL_MS)
+          return
+        }
         stream.close()
         scheduleReconnect()
       })
