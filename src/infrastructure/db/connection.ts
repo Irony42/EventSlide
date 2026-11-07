@@ -21,9 +21,10 @@ export interface ConnectionOptions {
  * database.
  */
 export const openDatabase = ({ path, readonly = false }: ConnectionOptions): Db => {
-  if (path !== ':memory:') {
+  if (path !== ':memory:' && !readonly) {
     // A first run on a fresh box has no ./data directory, and better-sqlite3 will not
-    // create one.
+    // create one. Never for a read-only open: it must not change the disk, and a path that
+    // does not exist is an error to report, not a directory to make.
     mkdirSync(dirname(path), { recursive: true })
   }
 

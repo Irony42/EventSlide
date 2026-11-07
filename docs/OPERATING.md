@@ -104,8 +104,11 @@ Three settings worth a thought before you start:
   `npm run purge:dry-run` and `npm run purge` from a source checkout. Both are safe with
   the server running. `RETENTION_SWEEP_INTERVAL_MINUTES=off` hands the schedule to your
   own cron; with Docker it goes in your `.env`, which `compose.yaml` passes to the
-  container. The audit log of a box run for other people (`SITE_ADMIN=on`) is pruned only by
-  the in-process sweep, so turning it off also stops that.
+  container. The purge command does the whole sweep, not only the purge: it also ends the
+  offboarding of clients whose albums are gone and prunes the audit log of a box run for
+  other people (`SITE_ADMIN=on`), so a cron running it loses nothing the timer did.
+  `--dry-run` opens the database read-only, and a `DATABASE_PATH` that does not exist is
+  refused rather than created.
 - **Opening and closing on their own.** The settings page takes an opening time and a
   closing time; leave either empty and you do that one yourself. The times are read on
   your own computer's clock, so 18:00 means 18:00 where the party is. If the server was
