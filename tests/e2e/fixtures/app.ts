@@ -185,6 +185,35 @@ const isArtifactCleanupFailure = (cause: unknown): boolean =>
   cause.message.includes('ENOENT') &&
   cause.message.includes('playwright-artifacts')
 
+/**
+ * The context of a projected wall: a 1080p screen, drawn at one device pixel per CSS pixel.
+ *
+ * `deviceScaleFactor` is stated, not inherited. A manual `newContext()` keeps the *device* of the
+ * project it runs under (user agent, touch, scale factor), so under `webkit-mobile` a 1920x1080
+ * "projector" was painted at the iPhone's 3x: a 5760x3240 surface, 18.7 million pixels, for
+ * a screen no phone has and a room never shows. WebKit paints those in software on a CI runner,
+ * and the wall is the page that never stops animating (the aurora, the Ken Burns, the
+ * crossfade). A second wall page, as `mixed-wall.spec.ts` opens, doubled it, and the next
+ * navigation of any fresh context in that browser then waited for a `load` that did not come
+ * until the 60 s test timeout. Measured on that journey at 12 workers with `--retries=0`, with
+ * the machine loaded by a second copy of the same run: 3 hangs in 96 runs before, none in 144
+ * after. The laptop's context gets the same, for the same reason; the guest's stays the phone
+ * it is. No visual snapshot is affected: they run on `chromium-desktop`, which is already 1x.
+ *
+ * Shared with the journeys that open a second screen, so that the second screen is the same
+ * kind of screen as the first.
+ */
+export const projectorContextOptions = (app: TestApp) =>
+  ({
+    viewport: { width: 1920, height: 1080 },
+    deviceScaleFactor: 1,
+    baseURL: app.baseUrl,
+    locale: SUITE_LOCALE,
+    // The wall runs unattended; reduced motion is off so the crossfade and Ken Burns
+    // are exercised as a room would see them.
+    reducedMotion: 'no-preference',
+  }) as const
+
 export const openSurfaces = async (browser: Browser, app: TestApp): Promise<Surfaces> => {
   const guestContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -196,17 +225,11 @@ export const openSurfaces = async (browser: Browser, app: TestApp): Promise<Surf
   })
   const hostContext = await browser.newContext({
     viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 1,
     baseURL: app.baseUrl,
     locale: SUITE_LOCALE,
   })
-  const projectorContext = await browser.newContext({
-    viewport: { width: 1920, height: 1080 },
-    baseURL: app.baseUrl,
-    locale: SUITE_LOCALE,
-    // The wall runs unattended; reduced motion is off so the crossfade and Ken Burns
-    // are exercised as a room would see them.
-    reducedMotion: 'no-preference',
-  })
+  const projectorContext = await browser.newContext(projectorContextOptions(app))
 
   const guest = await guestContext.newPage()
   const host = await hostContext.newPage()
@@ -282,7 +305,23 @@ export const signInAsHost = async (page: Page, app: TestApp): Promise<void> => {
   const open = await page.request.get(app.url('/api/auth/me'))
   const alreadyIn =
     open.ok() && ((await open.json()) as { authenticated?: boolean }).authenticated === true
-  await page.goto(app.url('/login'))
+  try {
+    await page.goto(app.url('/login'))
+  } catch (cause) {
+    // A session that is still good is sent on to the admin area (H13), and Playwright rejects
+    // a `goto` that another navigation overtakes: "Navigation to /login is interrupted by
+    // another navigation to /admin". That is the destination this call is after, reached a
+    // little early: the host page was already there and its own router was still settling when
+    // `/login` was asked for (seen in 2 of 240 loaded runs of `mixed-wall.spec.ts`, even with
+    // `waitUntil: 'commit'`, so the overtaking happens before the commit). Only that one message
+    // is let through, and only when the session is known to be good; the wait and the render
+    // check below still decide whether the host arrived. A navigation that never came, or one
+    // to anywhere else, still throws.
+    const interruptedByAdmin = /interrupted by another navigation to "[^"]*\/admin/u.test(
+      cause instanceof Error ? cause.message : '',
+    )
+    if (!alreadyIn || !interruptedByAdmin) throw cause
+  }
   if (alreadyIn) {
     await page.waitForURL(ADMIN_AREA)
     await adminPageHasRendered(page)
