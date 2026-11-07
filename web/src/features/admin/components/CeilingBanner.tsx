@@ -3,7 +3,7 @@ import { cx } from '../../../design-system/classNames'
 import { formatBytes } from '../../../lib/format'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import type { CeilingMeterDto, ClientLimitsDto } from '../../../lib/api/dto'
-import { bannerLevel, noticeableMeters, type ContactAction } from '../ceilingLevels'
+import { bannerLevel, noticeableMeters, type ContactAction } from '../../../lib/ceilingLevels'
 import styles from './CeilingBanner.module.css'
 
 export interface CeilingBannerProps {

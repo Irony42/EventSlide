@@ -15,7 +15,7 @@ import { Async, LoadFailure, Pending } from '../../design-system/components/Asyn
 import { SuspensionScreen } from './components/SuspensionScreen'
 import { useAction } from './hooks/useAction'
 import { useAbout } from '../../app/useAbout'
-import { contactActionOf } from './ceilingLevels'
+import { contactActionOf } from '../../lib/ceilingLevels'
 import { useLoader } from '../../lib/useLoader'
 import styles from './ClientSpacePage.module.css'
 import type {

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { VisuallyHidden } from '../../../design-system/components/VisuallyHidden'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { EventRole, EventStatus } from '../../../lib/api/dto'
-import { allowsModeration, canManageEvent, linksToWall } from '../eventLifecycle'
+import { allowsModeration, canManageEvent, linksToWall } from '../../../lib/eventLifecycle'
 import { EventActionIcon, type EventActionGlyph } from './EventActionIcon'
 import styles from './EventActionLinks.module.css'
 

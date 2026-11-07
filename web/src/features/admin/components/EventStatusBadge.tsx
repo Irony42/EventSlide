@@ -1,6 +1,6 @@
 import { Badge } from '../../../design-system/components/Badge'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { statusLabel, statusTone } from '../eventLifecycle'
+import { statusLabel, statusTone } from '../../../lib/eventLifecycle'
 import type { EventStatus } from '../../../lib/api/dto'
 
 export interface EventStatusBadgeProps {

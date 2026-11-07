@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useApi } from '../../../app/useApi'
-import { useLoader } from '../adminShared'
+import { useLoader } from '../../../lib/useLoader'
 
 /**
  * The names of the box's clients, by id, read from the listing (`GET /api/site/clients`).

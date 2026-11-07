@@ -1,6 +1,6 @@
-import type { BadgeTone } from '../../design-system/components/Badge'
-import type { EventRole, EventStatus } from '../../lib/api/dto'
-import type { UiText } from '../../lib/i18n/translations'
+import type { BadgeTone } from '../design-system/components/Badge'
+import type { EventRole, EventStatus } from './api/dto'
+import type { UiText } from './i18n/translations'
 
 /**
  * How the event lifecycle is presented, and nothing more.
