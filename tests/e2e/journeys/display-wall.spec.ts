@@ -267,11 +267,13 @@ test('the Ken Burns duration comes from the server, not a constant', async ({ ap
   const event = await anEventWithPublishedPhotos(app, surfaces, 2, 'kenburns')
   const { projector } = surfaces
 
-  const answered = projector.waitForResponse((response) =>
-    response.url().includes(`/api/events/${event.slug}/wall`),
-  )
   await projector.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
-  const { slideIntervalMs, kenBurnsDurationMs } = wallTimings(await (await answered).json())
+  // What the server answers, read on its own request. `waitForResponse(...).json()` loses the
+  // body on webkit once the page has moved on (`Network.getResponseBody: Missing content of
+  // resource`, CI), and the page's own copy of that answer is what the DOM is compared with.
+  const served = await projector.request.get(app.url(`/api/events/${event.slug}/wall`))
+  expect(served.ok()).toBe(true)
+  const { slideIntervalMs, kenBurnsDurationMs } = wallTimings(await served.json())
 
   const slide = projector.getByTestId('wall-slide').first()
   await expect(slide).toBeVisible()
