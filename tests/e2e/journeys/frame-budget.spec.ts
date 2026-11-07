@@ -3,7 +3,7 @@ import { joinAndUpload } from '../fixtures/guest'
 import { aClip, aPhoto, hasEncoder } from '../fixtures/media'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import { frameRateOf, MIN_FRAMES_PER_SECOND } from '../../../web/src/design-system/budget'
-import type { Page, TestInfo } from '@playwright/test'
+import type { BrowserContext, Page, TestInfo } from '@playwright/test'
 import type { TestApp } from '../fixtures/startTestApp'
 
 /**
@@ -93,6 +93,163 @@ const record = (testInfo: TestInfo, what: string, cadence: Cadence): void => {
     type: 'measured',
     description: `${what}: ${cadence.frames} frames, ${cadence.framesPerSecond} frames/second (floor ${MIN_FRAMES_PER_SECOND}), worst frame ${cadence.worstMs} ms`,
   })
+}
+
+/**
+ * What it costs the reference tab to make one frame: a fixed amount of arithmetic, about a
+ * millisecond on a developer machine.
+ *
+ * **Work, not time.** A loop that spins until a deadline costs the same however slow the
+ * machine is, so it measures nothing about the machine: a first version did exactly that and
+ * held 58 frames a second beside a wall that had stopped holding anything. A fixed count of
+ * iterations takes as long as the machine makes it take.
+ *
+ * Small on purpose: the reference has to keep delivering frames on every machine that can run
+ * the wall at all, and stop delivering them only on one so starved that the wall's own monitor
+ * is *right* to shed. At this size it falls under `MIN_FRAMES_PER_SECOND` once the machine is
+ * about forty times slower than a laptop, which is where the shipped wall measured as giving
+ * things up as well.
+ */
+const REFERENCE_FRAME_WORK = 30_000
+
+/** The blurred layer the reference repaints every frame, in CSS pixels wide (16:9). */
+const REFERENCE_LAYER_WIDTH = 480
+
+/**
+ * What the reference saw: over the whole life of its tab, and over the same stretch the wall
+ * was sampled for. Two numbers because the wall's monitor watches from the moment it mounts,
+ * while the cadence assertion reads one window; a stall covering only one of them would be
+ * diluted in a single mean.
+ */
+interface ReferenceReading {
+  readonly life: Cadence
+  readonly window: Cadence
+}
+
+/** A known-cost animation running beside the wall, until `stop` is called. */
+interface Reference {
+  /** Marks the start of the window the wall is about to be sampled over. */
+  readonly begin: () => Promise<void>
+  readonly stop: () => Promise<ReferenceReading>
+}
+
+/** The reference's own state, kept on its page so nothing crosses the wire until `stop`. */
+type ReferenceHolder = typeof window & {
+  __intervals: number[]
+  __windowFrom: number
+  __running: boolean
+  __sink: number
+}
+
+const cadenceOf = (intervals: readonly number[]): Cadence => ({
+  frames: intervals.length,
+  framesPerSecond: Number(frameRateOf(intervals).toFixed(1)),
+  worstMs: Number(Math.max(...intervals, 0).toFixed(2)),
+})
+
+/**
+ * A known-cost animation running beside the wall, on the same browser and the same runner.
+ *
+ * ## Why this is here
+ *
+ * The wall's monitor is *meant* to shed when its machine cannot hold the floor, so "nothing
+ * was shed" is a statement about the runner as much as about the wall. On 7 November the
+ * same commit failed that assertion on all three tries of a CI attempt and passed on the next
+ * attempt, with nothing in the wall changed. Which of "the runner was starved" and "something
+ * got heavier" that was is **not established**: it was not reproduced, and CPU throttling
+ * does not stand in for whatever that runner did (the wall holds 47 frames a second at
+ * thirty times slower). What is certain is that a test which cannot tell the two apart fails
+ * on a bad afternoon and says nothing about the code.
+ *
+ * So the machine is measured at the same moment, with the same instrument and the same
+ * floor: a second tab drawing frames that cost it a fixed amount of work each, **of both
+ * kinds a frame can be starved of**: script (arithmetic) and paint (a large blurred layer
+ * repainted every frame, which software rendering pays for on the CPU and a raster-bound
+ * runner pays for dearly). If even that cannot reach `MIN_FRAMES_PER_SECOND`, no wall
+ * could, and a shed wall is the monitor working. If the reference holds and the wall shed,
+ * the wall is the thing that got heavier, and the test fails as before.
+ *
+ * Started before the wall loads, so that it covers the whole life of the page the monitor was
+ * watching, and read again over the sampled window alone.
+ */
+const startReference = async (context: BrowserContext): Promise<Reference> => {
+  const page = await context.newPage()
+  await page.evaluate(
+    ({ work, size }: { work: number; size: number }) => {
+      const holder = window as ReferenceHolder
+      holder.__intervals = []
+      holder.__windowFrom = 0
+      holder.__running = true
+
+      const layer = document.createElement('div')
+      layer.style.cssText = `position:fixed;left:0;top:0;width:${size}px;height:${Math.round((size * 9) / 16)}px;filter:blur(6px);background:linear-gradient(90deg,#c33,#36c,#3c6,#c33) 0 0/200% 100%`
+      document.body.append(layer)
+
+      let previous: number | null = null
+      const onPaint = (now: number): void => {
+        if (!holder.__running) return
+        if (previous !== null) holder.__intervals.push(now - previous)
+        previous = now
+        // Script, then paint: the background moves, so the blurred layer is repainted.
+        let sum = 0
+        for (let step = 0; step < work; step += 1) sum += Math.sin(step)
+        holder.__sink = sum
+        layer.style.backgroundPositionX = `${(now / 10) % 200}%`
+        requestAnimationFrame(onPaint)
+      }
+      requestAnimationFrame(onPaint)
+    },
+    { work: REFERENCE_FRAME_WORK, size: REFERENCE_LAYER_WIDTH },
+  )
+
+  return {
+    begin: async () => {
+      await page.evaluate(() => {
+        const holder = window as ReferenceHolder
+        holder.__windowFrom = holder.__intervals.length
+      })
+    },
+    stop: async () => {
+      const { all, from } = await page.evaluate(() => {
+        const holder = window as ReferenceHolder
+        holder.__running = false
+        return { all: holder.__intervals, from: holder.__windowFrom }
+      })
+      await page.close()
+      return { life: cadenceOf(all), window: cadenceOf(all.slice(from)) }
+    },
+  }
+}
+
+/**
+ * The wall's verdict and the floor, unless the machine itself could not hold the floor.
+ *
+ * The assertions are the same two as before. The only thing added is a way out that has to be
+ * earned: the wall must have missed *and* the reference must have missed too, over its whole
+ * life or over the sampled window. A wall that sheds, or runs under the floor, on a machine
+ * that held the reference fails as it always did.
+ */
+const expectWallHeld = async (
+  projector: Page,
+  cadence: Cadence,
+  reference: ReferenceReading,
+  testInfo: TestInfo,
+): Promise<void> => {
+  record(testInfo, 'the reference tab beside it, over its whole life', reference.life)
+  record(testInfo, 'the reference tab beside it, over the same window', reference.window)
+
+  const shed = await projector.locator('[data-wall-budget]').count()
+  const missed = shed > 0 || cadence.framesPerSecond < MIN_FRAMES_PER_SECOND
+  const starved =
+    reference.life.framesPerSecond < MIN_FRAMES_PER_SECOND ||
+    reference.window.framesPerSecond < MIN_FRAMES_PER_SECOND
+  test.skip(
+    missed && starved,
+    `the runner was starved: the reference tab reached ${reference.life.framesPerSecond} frames/second over its life and ${reference.window.framesPerSecond} over the window against a floor of ${MIN_FRAMES_PER_SECOND}, so a wall that missed it is the monitor working`,
+  )
+
+  await expect(projector.locator('[data-wall-budget]')).toHaveCount(0)
+  expect(cadence.framesPerSecond).toBeGreaterThanOrEqual(MIN_FRAMES_PER_SECOND)
 }
 
 /**
@@ -211,6 +368,8 @@ test.describe('the wall, while it is running', () => {
     const { guest, host, projector } = surfaces
     const event = await seedPlaylist(app, { guest, host }, 'salle-dix-photos')
 
+    const reference = await startReference(projector.context())
+
     // A real crossfade rather than the suite's usual cut: the transition is the expensive
     // moment and measuring the wall with it switched off would be measuring a still.
     await projector.goto(wallUrl(app, event.slug, { intervalMs: 1_200, transitionMs: 600 }))
@@ -218,19 +377,20 @@ test.describe('the wall, while it is running', () => {
 
     // Twelve seconds at 1.2 s a slide: ten changes, which is the number §13's human check
     // asks a person to sit through with the frame counter open.
+    await reference.begin()
     const cadence = await sampleCadence(projector, 12_000)
     record(testInfo, 'the wall as shipped', cadence)
+    const beside = await reference.stop()
 
     // The wall's own verdict, which is the only frame-rate floor that means the same thing
     // on a venue mini-PC and on a CI runner. Nothing shed means the monitor watched ten
-    // crossfades on this machine and found nothing it had to take away.
-    await expect(projector.locator('[data-wall-budget]')).toHaveCount(0)
-
-    // And the instrument agrees, at the two bounds the rule is written in. These are the
-    // product's own thresholds rather than numbers invented here, and the margin between
-    // the measurement and them is what the annotation above puts in the report.
+    // crossfades on this machine and found nothing it had to take away; unless the machine
+    // could not hold the floor for anything at all, which the reference tab says (see
+    // `startReference`). The instrument agrees at the two bounds the rule is written in. These
+    // are the product's own thresholds rather than numbers invented here, and the margin
+    // between the measurement and them is what the annotation above puts in the report.
+    await expectWallHeld(projector, cadence, beside, testInfo)
     expect(cadence.frames).toBeGreaterThan(100)
-    expect(cadence.framesPerSecond).toBeGreaterThanOrEqual(MIN_FRAMES_PER_SECOND)
   })
 
   test('holds it with a clip decoding under the crossfade @slow', async ({
@@ -249,16 +409,18 @@ test.describe('the wall, while it is running', () => {
     const { guest, host, projector } = surfaces
     const event = await seedPlaylist(app, { guest, host }, 'salle-avec-clip', { withClip: true })
 
+    const reference = await startReference(projector.context())
+
     await projector.goto(
       wallUrl(app, event.slug, { layout: 'spotlight', intervalMs: 1_200, transitionMs: 600 }),
     )
     await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
 
+    await reference.begin()
     const cadence = await sampleCadence(projector, 12_000)
     record(testInfo, 'the wall with a clip in the playlist', cadence)
 
-    await expect(projector.locator('[data-wall-budget]')).toHaveCount(0)
-    expect(cadence.framesPerSecond).toBeGreaterThanOrEqual(MIN_FRAMES_PER_SECOND)
+    await expectWallHeld(projector, cadence, await reference.stop(), testInfo)
   })
 
   test('gives up the zoom, and then the fade, on a machine that cannot keep up', async ({
