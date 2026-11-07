@@ -24,7 +24,7 @@ const OFFLINE_JOURNEYS = '**/offline/**'
  * one still runs exactly once in gating, and alone: a frame rate measured while another browser
  * renders on the same machine is a number about the neighbour. Same glob reasoning as above.
  */
-const PERF_SPECS = '**/perf/**'
+const PERF_SPECS = '**/perf/**/*.spec.ts'
 
 /** What every journey project leaves out: the offline specs and the frame-rate specs. */
 const NOT_A_JOURNEY = [OFFLINE_JOURNEYS, PERF_SPECS]

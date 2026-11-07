@@ -607,6 +607,9 @@ tests/e2e/
   A spec that measures timing or cadence goes in that folder; one that merely waits for animation
   frames to settle does not. For a trustworthy number locally, run it by itself:
   `npm run test:e2e -- --project=perf`.
+- **The CI matrices are guarded.** `scripts/ciShards.test.ts` checks that the `e2e-shard` and `e2e` matrices of
+  `ci.yml` carry the same projects and shard counts (shards numbered 1..n) and that every project of
+  `playwright.config.ts` is in them: a project in neither is a project nothing gates.
 - **`page.waitForTimeout()` is banned** and lint rejects it; use
   `await expect(locator).toBeVisible({ timeout: 10_000 })`. A fixed sleep in an
   SSE-driven app is both flaky and slow — the single largest source of e2e flake here.
