@@ -17,6 +17,9 @@ import { afterAll } from 'vitest'
  * the `Test` / `Response` types), so a test file changes only its import. A target that is not an
  * Express app (an already-listening server, a URL) goes through untouched.
  *
+ * Servers close only at the end of the file, so a file that builds a new app in `beforeEach` keeps
+ * one listener per test open until then: bounded by the file, not a leak across files.
+ *
  * `supertestGuard.test.ts` fails on any test that imports `supertest` for its value instead.
  */
 

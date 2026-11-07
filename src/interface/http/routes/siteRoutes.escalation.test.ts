@@ -366,6 +366,10 @@ describe('the operator and the accounts it brought in, on the events of a client
     },
   ]
 
+  // One fresh box per mutation: each case is a short test of its own instead of one cumulative sweep
+  // that outgrew its time budget. The trade-off is that interactions between mutations on one box
+  // (offboarding after a deletion, a reset after a disable) are no longer replayed here; each
+  // mutation is still checked against a stranger's view on its own.
   it.each(mutations)(
     'tells them what it tells a stranger after the operator $name',
     async ({ name, run }) => {

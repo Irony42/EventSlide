@@ -35,10 +35,13 @@ const sourcesUnder = (directory: string): string[] =>
     return entry.name.endsWith('.ts') ? [full] : []
   })
 
-/** A value import of `supertest` (`import x from`, `import x, { type T } from`, `require`). */
+/**
+ * A value import of `supertest`: `import x from`, `import x, { type T } from`, `export ... from`,
+ * `require(...)` and a dynamic `import(...)`.
+ */
 const importsSupertestForItsValue = (text: string): boolean =>
-  /^import\s+(?!type\b)[^;\n]*from\s+['"]supertest['"]/m.test(text) ||
-  /require\(\s*['"]supertest['"]\s*\)/.test(text)
+  /^\s*(?:import|export)\s+(?!type\b)[^;'"]*?from\s+['"]supertest['"]/m.test(text) ||
+  /\b(?:require|import)\(\s*['"]supertest['"]\s*\)/.test(text)
 
 describe('how a test reaches supertest', () => {
   const offenders = sourcesUnder(SRC)
@@ -59,6 +62,11 @@ describe('how a test reaches supertest', () => {
     expect(importsSupertestForItsValue("import request, { type Agent } from 'supertest'")).toBe(
       true,
     )
+    expect(importsSupertestForItsValue("const request = require('supertest')")).toBe(true)
+    expect(importsSupertestForItsValue("const m = await import('supertest')")).toBe(true)
+    expect(importsSupertestForItsValue("export { default } from 'supertest'")).toBe(true)
+    expect(importsSupertestForItsValue("import {\n  agent,\n} from 'supertest'")).toBe(true)
+    expect(importsSupertestForItsValue("import type {\n  Test,\n} from 'supertest'")).toBe(false)
     expect(importsSupertestForItsValue("import type request from 'supertest'")).toBe(false)
     expect(importsSupertestForItsValue("import request from '../testing/request'")).toBe(false)
   })

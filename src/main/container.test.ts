@@ -41,7 +41,6 @@ import { captureDescriptorOutputWhile } from '../infrastructure/logging/testing/
  * them — so nothing runs behind the requests and the ledger reads.
  */
 
-/** Under the namespace, and reserved by its spelling: no route will ever claim it. */
 /**
  * Returns once the wall clock has moved on by two whole milliseconds. The credentials epoch has the
  * resolution of a millisecond, and a person does not sign in and change a password inside one; a
@@ -53,6 +52,7 @@ const aMomentLater = async (): Promise<void> => {
   while (Date.now() - since < 2) await new Promise((resolve) => setImmediate(resolve))
 }
 
+/** Under the namespace, and reserved by its spelling: no route will ever claim it. */
 const NEVER_A_SITE_ROUTE = '/api/site/__never-a-route__'
 
 let workDir: string | null = null
