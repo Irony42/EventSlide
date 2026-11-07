@@ -180,6 +180,7 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
     {
       // The browser the largest share of guests actually use.
       name: 'webkit-mobile',
+      ...selection(),
       testIgnore: NOT_A_JOURNEY,
       use: {
         ...devices['iPhone 14'],

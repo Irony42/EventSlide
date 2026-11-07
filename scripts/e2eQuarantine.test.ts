@@ -127,8 +127,8 @@ describe('ci.yml quarantine wiring', () => {
   it('repeats the changed specs five times with no retry, on a pull request only', () => {
     const repeat = job('repeat-changed-specs')
     expect(repeat).toContain("github.event_name == 'pull_request'")
-    expect(repeat).toContain('--repeat-each=5')
-    expect(repeat).toContain('--retries=0')
+    // On the command line that runs the tests, not in a comment about it.
+    expect(repeat).toMatch(/npm run test:e2e .*--repeat-each=5 --retries=0 /)
     expect(repeat).toContain('scripts/changedSpecs.ts')
   })
 
