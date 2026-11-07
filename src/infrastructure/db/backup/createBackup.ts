@@ -5,7 +5,7 @@ import {
   MEDIA_VARIANTS,
   STAGED_SOURCE,
   VENUE_GROUND,
-} from '../../../application/ports/mediaStore'
+} from '../../../domain/photos/mediaVariant'
 import { mediaObjectPath } from '../../media/mediaLayout'
 import { statfsDiskSpaceChecker } from '../../system/statfsDiskSpaceChecker'
 import { HOLDING_BYTES_SQL } from '../clipJobStatusSql'

@@ -22,9 +22,7 @@ import type {
   PhotoAdmissionLimits,
   PhotoRefusal,
 } from '../../ports/photoRepository'
-import {
-  MEDIA_VARIANTS,
-} from '../../ports/mediaStore'
+import { MEDIA_VARIANTS } from '../../../domain/photos/mediaVariant'
 import { aClient, aMission, anEvent, aPhoto, type EventInput } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeChallengeRepository } from '../../testing/fakeChallengeRepository'

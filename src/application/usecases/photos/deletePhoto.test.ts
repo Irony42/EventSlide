@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import { asClipJobId, asEventId, asGuestId, asPhotoId, asUserId } from '../../../domain/shared/ids'
-import { MEDIA_VARIANTS } from '../../ports/mediaStore'
+import { MEDIA_VARIANTS } from '../../../domain/photos/mediaVariant'
 import {
   anEvent,
   aClip,

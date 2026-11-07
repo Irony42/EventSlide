@@ -19,7 +19,8 @@ import type { ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imag
 import type { Logger } from '../../ports/logger'
 import type { ChallengeRepository } from '../../ports/challengeRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
-import { MEDIA_VARIANTS, type MediaStore, type PhotoVariant } from '../../ports/mediaStore'
+import { type MediaStore } from '../../ports/mediaStore'
+import { MEDIA_VARIANTS, type PhotoVariant } from '../../../domain/photos/mediaVariant'
 import type {
   PhotoAdmission,
   PhotoAdmissionLimits,

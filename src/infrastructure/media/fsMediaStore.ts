@@ -2,14 +2,9 @@ import { createReadStream } from 'node:fs'
 import { mkdir, rename, rm, stat, unlink, writeFile, readFile } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type {
-  ByteRange,
-  MediaMetadata,
-  MediaStore,
-  MediaVariant,
-  StoredObject,
-} from '../../application/ports/mediaStore'
-import { ALL_MEDIA_VARIANTS } from '../../application/ports/mediaStore'
+import type { ByteRange, MediaMetadata, MediaStore, StoredObject } from '../../application/ports/mediaStore'
+import type { MediaVariant } from '../../domain/photos/mediaVariant'
+import { ALL_MEDIA_VARIANTS } from '../../domain/photos/mediaVariant'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { asEventId, type EventId } from '../../domain/shared/ids'
 import { isMissing, readdirOrEmpty } from '../system/fsErrors'

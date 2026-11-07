@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../domain/shared/errors'
-import { MEDIA_VARIANTS } from '../ports/mediaStore'
+import { MEDIA_VARIANTS } from '../../domain/photos/mediaVariant'
 import { imageProcessorContract } from './contracts/imageProcessorContract'
 import { VARIANT_SPECS } from '../usecases/photos/uploadPhotos'
 import {

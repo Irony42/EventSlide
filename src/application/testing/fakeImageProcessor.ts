@@ -8,7 +8,7 @@ import type {
   RenderSpec,
   RenderedImage,
 } from '../ports/imageProcessor'
-import { MEDIA_VARIANTS, type PhotoVariant } from '../ports/mediaStore'
+import { MEDIA_VARIANTS, type PhotoVariant } from '../../domain/photos/mediaVariant'
 import { VARIANT_SPECS } from '../usecases/photos/uploadPhotos'
 import { LOGO_SPEC } from '../usecases/brand/setEventLogo'
 import { VENUE_GROUND_SPEC } from '../usecases/venue/setVenuePhoto'

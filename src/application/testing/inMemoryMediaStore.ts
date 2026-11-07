@@ -1,11 +1,6 @@
-import { ALL_MEDIA_VARIANTS } from '../ports/mediaStore'
-import type {
-  ByteRange,
-  MediaMetadata,
-  MediaStore,
-  MediaVariant,
-  StoredObject,
-} from '../ports/mediaStore'
+import { ALL_MEDIA_VARIANTS } from '../../domain/photos/mediaVariant'
+import type { ByteRange, MediaMetadata, MediaStore, StoredObject } from '../ports/mediaStore'
+import type { MediaVariant } from '../../domain/photos/mediaVariant'
 import type { Clock } from '../ports/clock'
 import type { ContentHash } from '../../domain/photos/contentHash'
 import type { EventId } from '../../domain/shared/ids'

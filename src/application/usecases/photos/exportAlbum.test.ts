@@ -3,10 +3,7 @@ import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestbookEntryId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
-import {
-  MEDIA_VARIANTS,
-  type PhotoVariant,
-} from '../../ports/mediaStore'
+import { MEDIA_VARIANTS, type PhotoVariant } from '../../../domain/photos/mediaVariant'
 import { Event } from '../../../domain/events/event'
 import {
   AT,
