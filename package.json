@@ -86,9 +86,14 @@
     "zod": "^4.6.7"
   },
   "overrides": {
-    "readdir-glob": {
-      "minimatch": "^11.0.1"
-    }
+    "minimatch": "^11.0.1"
+  },
+  "allowScripts": {
+    "bcrypt": true,
+    "esbuild": true,
+    "ffmpeg-static": true,
+    "fsevents": true,
+    "better-sqlite3": false
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
