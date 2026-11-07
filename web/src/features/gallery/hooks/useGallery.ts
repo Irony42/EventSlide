@@ -66,14 +66,55 @@ const classify = (cause: unknown): Answer => {
   return { phase: 'failed', failure: cause }
 }
 
+/**
+ * Calls `read` every `everyMs`, one at a time: a tick that finds the previous read still
+ * running asks nothing. The stop function aborts the read in flight and silences its answer.
+ */
+const startRefreshLoop = ({
+  everyMs,
+  read,
+  onFresh,
+  onFailure,
+}: {
+  readonly everyMs: number
+  readonly read: (signal: AbortSignal) => Promise<Loaded>
+  readonly onFresh: (fresh: Loaded) => void
+  readonly onFailure: (cause: unknown) => void
+}): (() => void) => {
+  const stop = new AbortController()
+  let reading = false
+  const timer = setInterval(() => {
+    if (reading) return
+    reading = true
+    read(stop.signal).then(
+      (fresh) => {
+        reading = false
+        if (!stop.signal.aborted) onFresh(fresh)
+      },
+      (cause: unknown) => {
+        reading = false
+        if (!stop.signal.aborted) onFailure(cause)
+      },
+    )
+  }, everyMs)
+  return () => {
+    clearInterval(timer)
+    stop.abort()
+  }
+}
+
 export const useGallery = (
   token: string,
   { refreshEveryMs = GALLERY_REFRESH_MS }: { readonly refreshEveryMs?: number } = {},
 ): GalleryState => {
   const api = useApi()
   const [attempt, setAttempt] = useState(0)
-  /** Tagged with the attempt that produced it, so `loading` is derived rather than stored. */
-  const [answer, setAnswer] = useState<{ readonly attempt: number; readonly value: Answer } | null>(
+  const epoch = `${attempt}:${token}`
+  /**
+   * Tagged with the attempt and the album that produced it, so `loading` is derived rather than
+   * stored, and an answer about one album is never shown under another link.
+   */
+  const [answer, setAnswer] = useState<{ readonly epoch: string; readonly value: Answer } | null>(
     null,
   )
   const [loadingMore, setLoadingMore] = useState(false)
@@ -113,15 +154,15 @@ export const useGallery = (
   useEffect(() => {
     const controller = new AbortController()
     read(1, controller.signal).then(
-      (loaded) => setAnswer({ attempt, value: { phase: 'ready', loaded } }),
+      (loaded) => setAnswer({ epoch, value: { phase: 'ready', loaded } }),
       (cause: unknown) => {
-        if (!controller.signal.aborted) setAnswer({ attempt, value: classify(cause) })
+        if (!controller.signal.aborted) setAnswer({ epoch, value: classify(cause) })
       },
     )
     return () => controller.abort()
-  }, [read, attempt])
+  }, [read, epoch])
 
-  const current = answer !== null && answer.attempt === attempt ? answer.value : null
+  const current = answer !== null && answer.epoch === epoch ? answer.value : null
   const loaded = current?.phase === 'ready' ? current.loaded : null
   const shown = loaded?.items.length ?? 0
   const ready = loaded !== null
@@ -144,23 +185,22 @@ export const useGallery = (
   // fresh first read resets. See the file comment.
   useEffect(() => {
     if (!ready) return
-    const timer = setInterval(() => {
-      read(shownRef.current).then(
-        (fresh) => {
-          if (alive.current) setAnswer({ attempt, value: { phase: 'ready', loaded: fresh } })
-        },
-        (cause: unknown) => {
-          // A link that died while the page was open says so; a network blip does not
-          // take the album off the screen — the next tick tries again.
-          const classified = classify(cause)
-          if (alive.current && classified.phase !== 'failed') {
-            setAnswer({ attempt, value: classified })
-          }
-        },
-      )
-    }, refreshEveryMs)
-    return () => clearInterval(timer)
-  }, [ready, read, attempt, refreshEveryMs])
+    return startRefreshLoop({
+      everyMs: refreshEveryMs,
+      read: (signal) => read(shownRef.current, signal),
+      onFresh: (fresh) => {
+        if (alive.current) setAnswer({ epoch, value: { phase: 'ready', loaded: fresh } })
+      },
+      onFailure: (cause) => {
+        // A link that died while the page was open says so; a network blip does not
+        // take the album off the screen — the next tick tries again.
+        const classified = classify(cause)
+        if (alive.current && classified.phase !== 'failed') {
+          setAnswer({ epoch, value: classified })
+        }
+      },
+    })
+  }, [ready, read, epoch, refreshEveryMs])
 
   const loadMore = useCallback(async () => {
     if (loaded === null || loaded.cursor === null || loadingMore) return
@@ -174,13 +214,13 @@ export const useGallery = (
       // asked for: a refresh that landed in between re-signed every URL, and writing the
       // old list back would undo it. Dropped if the album has moved past this cursor.
       setAnswer((previous) => {
-        if (previous === null || previous.attempt !== attempt) return previous
+        if (previous === null || previous.epoch !== epoch) return previous
         if (previous.value.phase !== 'ready' || previous.value.loaded.cursor !== after) {
           return previous
         }
         const onScreen = previous.value.loaded
         return {
-          attempt,
+          epoch,
           value: {
             phase: 'ready',
             loaded: {
@@ -195,11 +235,11 @@ export const useGallery = (
       if (!alive.current) return
       const classified = classify(cause)
       if (classified.phase === 'failed') setMoreFailure(cause)
-      else setAnswer({ attempt, value: classified })
+      else setAnswer({ epoch, value: classified })
     } finally {
       if (alive.current) setLoadingMore(false)
     }
-  }, [api, token, loaded, loadingMore, attempt])
+  }, [api, token, loaded, loadingMore, epoch])
 
   const unlock = useCallback(
     async (password: string) => {
@@ -213,7 +253,7 @@ export const useGallery = (
         if (!alive.current) return
         // A link that died while the password form was open is not a wrong password.
         if (cause instanceof ApiError && cause.code === 'gallery.notAvailable') {
-          setAnswer({ attempt, value: { phase: 'unavailable', failure: null } })
+          setAnswer({ epoch, value: { phase: 'unavailable', failure: null } })
         } else {
           setUnlockFailure(cause)
         }
@@ -221,7 +261,7 @@ export const useGallery = (
         if (alive.current) setUnlocking(false)
       }
     },
-    [api, token, attempt],
+    [api, token, epoch],
   )
 
   const retry = useCallback(() => {
