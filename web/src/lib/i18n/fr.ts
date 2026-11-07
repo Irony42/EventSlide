@@ -2083,6 +2083,8 @@ export const fr = {
     'image.corrupt': 'Cette photo semble abîmée. Essayez-en une autre.',
     'image.animated': 'Les images animées ne sont pas acceptées.',
     'image.renderFailed': 'Cette photo n’a pas pu être traitée. Essayez-en une autre.',
+    'image.renderUnavailable':
+      'Cette photo n’a pas pu être traitée pour l’instant : le serveur est momentanément indisponible. Réessayez dans un instant.',
     'upload.tooLarge': 'Cette photo dépasse la taille maximale.',
     'upload.tooManyFiles': 'Trop de photos en une fois. Envoyez-les en plusieurs lots.',
 
