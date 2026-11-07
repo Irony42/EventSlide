@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { createSharpImageProcessor } from './sharpImageProcessor'
+import { createSharpImageProcessor, renderFailureOf } from './sharpImageProcessor'
 import { PAYLOADS, asFileBytes } from './testPayloads'
 import type { ImageProcessor, RenderSpec } from '../../application/ports/imageProcessor'
 
@@ -455,5 +455,34 @@ describe('sharpImageProcessor', () => {
       expect(!result.ok && result.error.code).toBe('image.renderFailed')
       expect(!result.ok && typeof result.error.details['reason']).toBe('string')
     })
+  })
+})
+
+describe('renderFailureOf', () => {
+  const errno = (code: string, message: string): Error => Object.assign(new Error(message), { code })
+
+  it.each([
+    ['a full disk', errno('ENOSPC', 'ENOSPC: no space left on device, write')],
+    ['an I/O fault', errno('EIO', 'EIO: i/o error, read')],
+    ['an allocation failure', errno('ENOMEM', 'Cannot allocate memory')],
+    ['sharp running out of memory', new Error('Vips: out of memory')],
+  ])('blames the server, not the guest file, for %s', (_name, cause) => {
+    const failure = renderFailureOf(cause)
+
+    expect(failure.kind).toBe('unexpected')
+    expect(failure.code).toBe('image.renderFailed')
+  })
+
+  it.each([
+    ['a decode error', new Error('Input buffer contains unsupported image format')],
+    ['the pixel limit', new Error('Input image exceeds pixel limit')],
+    ['a truncated file', new Error('VipsJpeg: premature end of JPEG image')],
+    ['something that is not an Error', 'boom'],
+    ['an error nobody classified', errno('EPERM', 'operation not permitted')],
+  ])('keeps blaming the file for %s', (_name, cause) => {
+    const failure = renderFailureOf(cause)
+
+    expect(failure.kind).toBe('invalid')
+    expect(failure.code).toBe('image.renderFailed')
   })
 })

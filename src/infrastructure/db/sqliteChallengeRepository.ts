@@ -58,35 +58,37 @@ export class SqliteChallengeRepository implements ChallengeRepository {
     const props = challenge.toProps()
     // Synchronous driver: nothing can run between the reads and the insert, and the
     // transaction keeps it that way if the driver ever changes.
-    return this.db.transaction((): StartOutcome => {
-      const latest = this.latestRow(props.eventId)
-      if (latest !== undefined && toChallenge(latest).isRunning(now)) return 'alreadyRunning'
+    return this.db
+      .transaction((): StartOutcome => {
+        const latest = this.latestRow(props.eventId)
+        if (latest !== undefined && toChallenge(latest).isRunning(now)) return 'alreadyRunning'
 
-      const held = this.db
-        .prepare<[string], { readonly n: number }>(
-          `SELECT COUNT(*) AS n FROM event_challenges WHERE event_id = ?`,
-        )
-        .get(props.eventId)
-      if (!hasRoomForChallenge(held?.n ?? 0)) return 'limitReached'
+        const held = this.db
+          .prepare<[string], { readonly n: number }>(
+            `SELECT COUNT(*) AS n FROM event_challenges WHERE event_id = ?`,
+          )
+          .get(props.eventId)
+        if (!hasRoomForChallenge(held?.n ?? 0)) return 'limitReached'
 
-      this.db
-        .prepare(
-          `INSERT INTO event_challenges (${COLUMNS})
+        this.db
+          .prepare(
+            `INSERT INTO event_challenges (${COLUMNS})
                 VALUES (@id, @event_id, @mission_id, @prompt, @started_at, @ends_at, @ended_at,
                         @created_by)`,
-        )
-        .run({
-          id: props.id,
-          event_id: props.eventId,
-          mission_id: props.missionId,
-          prompt: props.prompt.value,
-          started_at: toIsoText(props.startedAt),
-          ends_at: toIsoText(props.endsAt),
-          ended_at: null,
-          created_by: props.createdBy,
-        })
-      return 'started'
-    })()
+          )
+          .run({
+            id: props.id,
+            event_id: props.eventId,
+            mission_id: props.missionId,
+            prompt: props.prompt.value,
+            started_at: toIsoText(props.startedAt),
+            ends_at: toIsoText(props.endsAt),
+            ended_at: null,
+            created_by: props.createdBy,
+          })
+        return 'started'
+      })
+      .immediate()
   }
 
   private latestRow(eventId: EventId): ChallengeRow | undefined {

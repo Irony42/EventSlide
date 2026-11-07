@@ -109,8 +109,10 @@ describe('the host’s album with the real archiver, filesystem and database', (
     // statement is open for the whole download and the connection refuses every write.
     const chunks = (await download())[Symbol.asyncIterator]()
     await chunks.next()
-    // The client has stopped reading; the writer is blocked on it, mid-album.
-    await new Promise<void>((resolve) => setTimeout(resolve, 100))
+    // The client has stopped reading; the writer is blocked on it, mid-album. That is a
+    // state to observe rather than a delay to wait out: the first photograph is open and the
+    // writer has not asked for a second, so whatever it holds in the database is held now.
+    expect(rig.files.opened).toBe(1)
 
     await expect(
       rig.photos.save(

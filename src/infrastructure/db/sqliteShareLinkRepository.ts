@@ -95,19 +95,21 @@ export class SqliteShareLinkRepository implements ShareLinkRepository {
     // One transaction: a refused insert — a digest collision, a vanished event — rolls the
     // revocation back with it, so the host who pressed "new link" still has the old one
     // rather than none at all.
-    this.db.transaction(() => {
-      revoke.run(toIsoText(revokedAt), props.eventId)
-      insert.run({
-        id: props.id,
-        event_id: props.eventId,
-        token_digest: props.tokenDigest,
-        password_hash: props.passwordHash,
-        created_by: props.createdBy,
-        created_at: toIsoText(props.createdAt),
-        expires_at: toIsoText(props.expiresAt),
-        revoked_at: props.revokedAt === null ? null : toIsoText(props.revokedAt),
+    this.db
+      .transaction(() => {
+        revoke.run(toIsoText(revokedAt), props.eventId)
+        insert.run({
+          id: props.id,
+          event_id: props.eventId,
+          token_digest: props.tokenDigest,
+          password_hash: props.passwordHash,
+          created_by: props.createdBy,
+          created_at: toIsoText(props.createdAt),
+          expires_at: toIsoText(props.expiresAt),
+          revoked_at: props.revokedAt === null ? null : toIsoText(props.revokedAt),
+        })
       })
-    })()
+      .immediate()
   }
 
   async revokeCurrent(eventId: EventId, at: Date): Promise<ShareLink | null> {

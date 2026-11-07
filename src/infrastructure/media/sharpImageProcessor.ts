@@ -95,6 +95,28 @@ const FORMAT_BY_SHARP: Readonly<Record<string, ImageFormat>> = {
   gif: 'gif',
 }
 
+const SERVER_SIDE_ERRNO = new Set(['ENOSPC', 'EIO', 'ENOMEM'])
+const OUT_OF_MEMORY = /out of memory|cannot allocate memory/i
+
+/**
+ * What a failed `render` is blamed on.
+ *
+ * A full disk, an I/O fault or an allocation failure is the box's fault, not the guest's
+ * file, and must not tell the guest to try another photo: those are `unexpected` (a
+ * server failure). Everything else, including anything ambiguous, keeps the old verdict
+ * `invalid`: a decode error, the pixel limit and a truncated file are all the file.
+ */
+export const renderFailureOf = (cause: unknown): DomainError => {
+  const reason = cause instanceof Error ? cause.message.slice(0, 200) : 'unknown'
+  const code = (cause as { code?: unknown } | null)?.code
+  const serverSide =
+    (typeof code === 'string' && SERVER_SIDE_ERRNO.has(code)) ||
+    (cause instanceof Error && OUT_OF_MEMORY.test(cause.message))
+  return serverSide
+    ? DomainError.unexpected('image.renderFailed', { reason })
+    : DomainError.invalid('image.renderFailed', { reason })
+}
+
 export const createSharpImageProcessor = ({
   maxPixels,
   maxFrames = DEFAULT_MAX_FRAMES,
@@ -224,11 +246,7 @@ export const createSharpImageProcessor = ({
         // Nothing has been written to the media store or the database at this point.
         // That ordering — render, then verify, then persist — is what stops 1.0's
         // orphaned rows pointing at files that were never created.
-        return err(
-          DomainError.invalid('image.renderFailed', {
-            reason: cause instanceof Error ? cause.message.slice(0, 200) : 'unknown',
-          }),
-        )
+        return err(renderFailureOf(cause))
       }
     },
   }
