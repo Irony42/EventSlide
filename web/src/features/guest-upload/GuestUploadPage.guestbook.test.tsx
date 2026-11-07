@@ -63,8 +63,6 @@ const openCard = async (): Promise<void> => {
 
 describe('GuestUploadPage, the guestbook', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 

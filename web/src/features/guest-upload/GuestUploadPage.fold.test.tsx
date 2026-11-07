@@ -44,8 +44,6 @@ const runningChallenge = () => ({
 
 describe('GuestUploadPage: folding the pane', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     Object.defineProperty(document.documentElement, 'scrollHeight', {
       configurable: true,

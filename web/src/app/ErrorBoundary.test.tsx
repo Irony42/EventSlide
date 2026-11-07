@@ -110,10 +110,6 @@ const StalePreload = (): never => {
 }
 
 describe('ErrorBoundary: a chunk that failed to load after a deploy', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-  })
-
   it('reloads the page once by itself, because only a new document can fetch the new chunks', () => {
     const log = silenceReactErrorLog()
     const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
@@ -298,7 +294,6 @@ describe('ErrorBoundary: a crash does not outlive the page it happened on', () =
 describe('ErrorBoundary: the wall tries again by itself', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    sessionStorage.clear()
   })
 
   afterEach(() => {

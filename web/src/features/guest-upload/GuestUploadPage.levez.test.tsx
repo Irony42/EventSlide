@@ -26,8 +26,6 @@ let visibility: 'visible' | 'hidden' = 'visible'
 
 describe('the upload screen when the host publishes a waiting photo', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     visibility = 'visible'
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     Object.defineProperty(document, 'visibilityState', {

@@ -68,13 +68,11 @@ const mount = (api: Api, options: MountOptions = {}) => {
 }
 
 beforeEach(() => {
-  localStorage.clear()
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
-  localStorage.clear()
 })
 
 describe('useOutbox', () => {

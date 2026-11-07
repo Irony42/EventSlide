@@ -39,13 +39,11 @@ const displayMode = (standalone: boolean): void => {
 
 beforeEach(() => {
   notIos()
-  localStorage.clear()
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
   notIos()
-  localStorage.clear()
 })
 
 describe('isInstalled', () => {

@@ -35,7 +35,6 @@ const comeBackIntoView = (): void => {
 
 describe('usePrivacyNotice', () => {
   beforeEach(() => {
-    sessionStorage.clear()
     rememberGuestSession({ event: aPublicEvent(), displayName: 'Léa', privacyNotice: UNREAD })
   })
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   isChunkLoadError,
   LEAVING_WINDOW_MS,
@@ -11,10 +11,6 @@ import {
 } from './crashRecovery'
 
 const NOW = 1_800_000_000_000
-
-beforeEach(() => {
-  sessionStorage.clear()
-})
 
 afterEach(() => {
   vi.unstubAllGlobals()
