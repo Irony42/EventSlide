@@ -214,3 +214,21 @@ Off by default, for every event. The host turns it on in the event settings ("Af
 A browser only plays a sound on a page where someone has clicked or pressed a key, so **each screen that should ring must be activated once** (the speaker icon that shows when the pointer moves, or the `S` key). A wall that reloads comes back silent until the next click or key: that is the browser, not a fault. The sound files are the four synthesised, CC0 sounds in `web/public/sounds/` (see `web/public/licenses/SOUNDS.txt`).
 
 **Kiosk screens.** On a dedicated machine nobody touches, start Chrome with `--autoplay-policy=no-user-gesture-required` so that the wall can ring after a reload. It is a setting of that computer; EventSlide never asks for it. The first sound after a long silence may lose its start if the HDMI output goes to sleep: test on the real hardware.
+
+## Hourly limits per account
+
+A few things a host does from the console are limited per **account** and per **hour**, not per address, so an
+office behind one connection is not throttled as one person. The counters are separate: sending invitations
+never uses up the allowance for logos. They are a brake on a script, well above what anyone does by hand, and
+they can be set in `.env` (each takes a whole number from 1 to 1000):
+
+| Variable                             | Default | What it limits                                                                                 |
+| ------------------------------------ | ------- | ---------------------------------------------------------------------------------------------- |
+| `EVENT_CREATION_RATE_LIMIT_PER_HOUR` | 20      | Events created.                                                                                |
+| `INVITATION_RATE_LIMIT_PER_HOUR`     | 30      | Invitations sent to helpers, to any address.                                                   |
+| `VENUE_PHOTO_RATE_LIMIT_PER_HOUR`    | 10      | Venue photographs uploaded.                                                                    |
+| `BOOK_REQUEST_RATE_LIMIT_PER_HOUR`   | 20      | Photo-book requests, whatever the answer (the event's own limit of three a day still applies). |
+| `LOGO_RATE_LIMIT_PER_HOUR`           | 10      | Event logos uploaded.                                                                          |
+
+A host who goes past one gets a "too many requests" answer and the time to wait. Raise a limit only if a
+real workflow reaches it, for example a booking office that signs in as one account for every event.

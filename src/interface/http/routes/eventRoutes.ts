@@ -9,14 +9,7 @@ import { asyncHandler } from '../middleware/asyncHandler'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
 import { requireRole, requireUser } from '../middleware/authz'
 import { hostScopeOf, userOf } from '../middleware/scope'
-import {
-  INVITATIONS_PER_ACCOUNT_PER_HOUR,
-  LOGOS_PER_ACCOUNT_PER_HOUR,
-  VENUE_PHOTOS_PER_ACCOUNT_PER_HOUR,
-  invitationIssueLimiter,
-  logoLimiter,
-  venuePhotoLimiter,
-} from '../middleware/rateLimit'
+import { invitationIssueLimiter, logoLimiter, venuePhotoLimiter } from '../middleware/rateLimit'
 import {
   toEventDto,
   toEventSummaryDto,
@@ -388,7 +381,7 @@ export const eventRoutes = ({
     storage: multer.memoryStorage(),
     limits: { fileSize: deps.config.uploads.maxBytes, files: 1, fields: 0 },
   })
-  const venuePhotoRateLimiter = venuePhotoLimiter(VENUE_PHOTOS_PER_ACCOUNT_PER_HOUR)
+  const venuePhotoRateLimiter = venuePhotoLimiter(deps.config.rateLimits.venuePhotosPerHour)
   const venuePhotoDiskGuard = createDiskSpaceGuard({
     checker: deps.diskSpaceChecker,
     paths: deps.config.storage.diskSpacePaths,
@@ -462,7 +455,7 @@ export const eventRoutes = ({
     storage: multer.memoryStorage(),
     limits: { fileSize: LOGO_UPLOAD_MAX_BYTES, files: 1, fields: 0 },
   })
-  const logoRateLimiter = logoLimiter(LOGOS_PER_ACCOUNT_PER_HOUR)
+  const logoRateLimiter = logoLimiter(deps.config.rateLimits.logosPerHour)
 
   /**
    * Send, or replace, the event's logo. Owner only, and **authorised before a byte is buffered**:
@@ -622,7 +615,7 @@ export const eventRoutes = ({
 
   // Built once for the mount, like every limiter: `express-rate-limit` gives each call its own
   // store.
-  const inviteLimiter = invitationIssueLimiter(INVITATIONS_PER_ACCOUNT_PER_HOUR)
+  const inviteLimiter = invitationIssueLimiter(deps.config.rateLimits.invitationsPerHour)
 
   router.post(
     '/events/:eventSlug/moderators',

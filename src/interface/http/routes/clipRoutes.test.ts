@@ -452,6 +452,10 @@ describe('POST /api/events/:eventSlug/clips', () => {
           galleryUnlockPerClient: 10,
           galleryUnlockPerLink: 50,
           eventCreationPerHour: 20,
+          invitationsPerHour: 30,
+          venuePhotosPerHour: 10,
+          bookRequestsPerHour: 20,
+          logosPerHour: 10,
         },
       },
     })

@@ -297,14 +297,8 @@ export const eventCreationLimiter = (perHour: number): RateLimitRequestHandler =
  * nothing about **how many inboxes** a host can reach, and every invitation is a mail from the
  * box's own sender address that names the host's event. This bounds that: thirty an hour is
  * three events' worth of helpers, and a host does not write thirty a minute.
+ * Thirty an hour by default, `INVITATION_RATE_LIMIT_PER_HOUR`.
  *
- * Fixed rather than an environment setting, deliberately. Nobody has needed to move it, and a
- * variable is a thing to document, validate and keep: if an operator turns out to, it becomes
- * one then.
- */
-export const INVITATIONS_PER_ACCOUNT_PER_HOUR = 30
-
-/**
  * Keyed by account, for the reason {@link eventCreationLimiter} gives: an office behind one
  * address is the legitimate case, and a colleague's burst must not lock a host out. After
  * `requireRole`, which is what puts the account on the request.
@@ -340,11 +334,9 @@ export const siteLookupAddressLimiter = (perMinute: number): RateLimitRequestHan
  * Each one is a decode and a re-encode on the box that may be projecting a live event, and
  * a host choosing their ground tries a few and settles: ten an hour is generous for that and
  * nothing for a script. Keyed by account for `eventCreationLimiter`'s reason, and placed after
- * `requireRole`, which is what puts the account on the request. Fixed rather than an
- * environment setting, for `INVITATIONS_PER_ACCOUNT_PER_HOUR`'s.
+ * `requireRole`, which is what puts the account on the request. Ten an hour by default,
+ * `VENUE_PHOTO_RATE_LIMIT_PER_HOUR`.
  */
-export const VENUE_PHOTOS_PER_ACCOUNT_PER_HOUR = 10
-
 export const venuePhotoLimiter = (perHour: number): RateLimitRequestHandler =>
   windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
 
@@ -354,10 +346,8 @@ export const venuePhotoLimiter = (perHour: number): RateLimitRequestHandler =>
  * How many book requests one **account** may send per hour, whatever the answer. The real ceiling
  * is the event's three a day, counted in the database; this one only stops a script from
  * hammering a route that reads and writes rows. Keyed by account for `eventCreationLimiter`'s
- * reason, and placed after `requireRole`.
+ * reason, and placed after `requireRole`. Twenty an hour by default, `BOOK_REQUEST_RATE_LIMIT_PER_HOUR`.
  */
-export const BOOK_REQUESTS_PER_ACCOUNT_PER_HOUR = 20
-
 export const bookRequestLimiter = (perHour: number): RateLimitRequestHandler =>
   windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
 
@@ -373,10 +363,8 @@ export const bookDownloadLimiter = (perMinute: number): RateLimitRequestHandler 
 /**
  * How many logos one **account** may send per hour: the venue photograph's reasoning, with a
  * counter of its own so a host who is choosing their photograph cannot lock themselves out of
- * their logo (each call builds its own store).
+ * their logo (each call builds its own store). Ten an hour by default, `LOGO_RATE_LIMIT_PER_HOUR`.
  */
-export const LOGOS_PER_ACCOUNT_PER_HOUR = 10
-
 export const logoLimiter = (perHour: number): RateLimitRequestHandler =>
   windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
 
