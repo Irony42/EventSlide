@@ -143,7 +143,7 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
                     <Button
                       variant="danger"
                       size="sm"
-                      loading={revoke.pending === moderator.userId}
+                      loading={revoke.isPending(moderator.userId)}
                       disabled={revoke.busy}
                       onClick={() => setSelected(moderator)}
                     >

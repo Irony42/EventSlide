@@ -214,7 +214,7 @@ function PendingInvitations({ client }: { readonly client: ClientLimitsDto }) {
               <Button
                 size="sm"
                 variant="primary"
-                loading={approval.pending === invitation.id}
+                loading={approval.isPending(invitation.id)}
                 disabled={approval.busy}
                 aria-describedby={`invitee-${invitation.id}`}
                 onClick={() => approve(invitation)}
