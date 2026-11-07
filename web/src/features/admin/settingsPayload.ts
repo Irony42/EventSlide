@@ -1,6 +1,6 @@
 import type { EventSettingsPatch } from '../../lib/api/client'
 import type { EventSettingsDto } from '../../lib/api/dto'
-import { wallChanges } from './wallDisplayOptions'
+import { wallChanges } from '../../lib/wallDisplayOptions'
 
 /**
  * The settings form's draft, as `PATCH /settings` reads it: the theme without the

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   forgetGuestSession,
   readGuestSession,
@@ -50,10 +50,6 @@ const EVENT_FIELDS: readonly string[] = Object.keys(aPublicEvent()).filter(
 )
 
 describe('guestSession', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-  })
-
   it('hands the join step’s answer to the upload screen', () => {
     rememberGuestSession({
       event: aPublicEvent({ slug: 'gala' }),
@@ -413,11 +409,6 @@ describe('guestSession: the last event, remembered on the device', () => {
       privacyNotice: aPrivacyNoticeState({ acknowledgement: 'none' }),
     })
 
-  beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
-  })
-
   it('outlives the tab: a tab with no session of its own finds the event it was sent to', () => {
     joined('gala')
     sessionStorage.clear()
@@ -520,11 +511,6 @@ describe('guestSession: the memory expires with the guest’s cookie', () => {
       now,
     )
 
-  beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
-  })
-
   it('is still there inside the cookie’s 36 hours', () => {
     joinedAt(0)
 
@@ -585,11 +571,6 @@ describe('guestSession: a theme the server has since changed', () => {
       },
       now,
     )
-
-  beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
-  })
 
   it('replaces the stored theme and keeps everything else the join wrote', () => {
     joined('gala')

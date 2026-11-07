@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Notice } from '../design-system/components/Notice'
 import { useTranslations } from '../lib/i18n/useTranslations'
-import { useSessionExpired } from './useSession'
+import { useSessionExpired } from '../lib/useSession'
 import styles from './SessionExpiredBanner.module.css'
 
 /**

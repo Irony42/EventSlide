@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { serverOffsetMs } from '../../../lib/serverClock'
 import { useLoader } from '../../../lib/useLoader'
 import type { GuestChallengeDto, GuestMissionDto } from '../../../lib/api/dto'

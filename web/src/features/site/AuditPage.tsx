@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useApi } from '../../app/useApi'
+import { useApi } from '../../lib/useApi'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'

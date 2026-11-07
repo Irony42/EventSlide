@@ -321,8 +321,7 @@ describe('a web feature never imports another feature', { timeout: 60_000 }, () 
     'site',
     'wall',
   ] as const
-  // The host-structure lot's own folders, which are the ones the rule holds today. The wall and
-  // the join page still import siblings and are listed in the config's legacy ratchet.
+  // Every feature folder is held: the config's legacy ratchet is empty.
   const HELD = [
     'about',
     'admin',
@@ -330,8 +329,10 @@ describe('a web feature never imports another feature', { timeout: 60_000 }, () 
     'gallery',
     'guest-feed',
     'guest-upload',
+    'join',
     'moderation',
     'site',
+    'wall',
   ]
 
   const message = (path: string, source: string): Promise<readonly string[]> =>

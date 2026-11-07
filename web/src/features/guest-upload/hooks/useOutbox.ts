@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { apiOutboxSender } from '../../../lib/offline/apiSender'
 import { drainOutbox } from '../../../lib/offline/drainOutbox'
 import { isOfflineQueueEnabled } from '../../../lib/offline/killSwitch'

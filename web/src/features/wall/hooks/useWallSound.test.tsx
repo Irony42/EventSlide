@@ -62,7 +62,6 @@ describe('the wall sound hook (spec 12)', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(NOW)
-    window.localStorage.clear()
   })
   afterEach(() => {
     vi.useRealTimers()

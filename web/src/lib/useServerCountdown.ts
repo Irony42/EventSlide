@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { remainingMs } from '../lib/serverClock'
+import { remainingMs } from './serverClock'
 
 /** The part of a challenge a countdown needs: the same on the phone and on the wall. */
 export interface CountdownChallenge {
