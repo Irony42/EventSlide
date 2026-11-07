@@ -134,7 +134,26 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
       // The browser the largest share of guests actually use.
       name: 'webkit-mobile',
       testIgnore: OFFLINE_JOURNEYS,
-      use: { ...devices['iPhone 14'] },
+      use: {
+        ...devices['iPhone 14'],
+        /**
+         * The trace keeps its DOM snapshots and drops its screencast frames, because on WebKit
+         * the recording itself starves the page it records.
+         *
+         * Measured, not assumed: two journeys, 260 runs at twelve workers with `--retries=0`,
+         * failed 9 times with the default trace and 0 times with `screenshots: false` (1 of 260
+         * with only `snapshots: false`, 0 of 260 with no trace, 0 of 156 with video alone). None
+         * of those was an assertion. A page stopped producing frames mid-journey (`requestAnimationFrame`
+         * silent for seconds), so a `click` waited fifteen seconds for a button to be "stable" and
+         * a `goto` waited for a `load` that did not come, until the 60 s test timeout closed the
+         * browser under it ("Target page, context or browser has been closed"). The service
+         * worker is not involved: blocking it changed nothing. The screencast pays for a frame
+         * the page was already slow to paint (see the aurora in `tokens.css`), so the two fixes
+         * go together. A failing test still keeps its snapshots, its network log, its screenshot
+         * and its video.
+         */
+        trace: { mode: 'retain-on-failure', screenshots: false },
+      },
     },
     {
       name: 'firefox-desktop',
