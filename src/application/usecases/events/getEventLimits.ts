@@ -1,6 +1,6 @@
 import type { Event } from '../../../domain/events/event'
 import type { ClientRepository } from '../../ports/clientRepository'
-import { clientContextOf } from '../clients/clientContextOf'
+import { ceilingsOf } from '../clients/clientContextOf'
 
 /**
  * What a host is shown of the limits their event is under (G2-16 / P3-17, closing two findings
@@ -35,7 +35,7 @@ export type GetEventLimits = (input: GetEventLimitsInput) => Promise<EventLimits
 export const makeGetEventLimits =
   ({ clients }: GetEventLimitsDeps): GetEventLimits =>
   async ({ event }) => {
-    const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
+    const ceilings = await ceilingsOf(clients, event)
     return {
       quotaBytes: event.effectiveQuotaBytes(ceilings),
       liveWindowEnd: event.liveWindowEnd(ceilings),

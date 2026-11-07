@@ -1,7 +1,8 @@
+import type { ClientCeilings } from '../../../domain/clients/clientCeilings'
 import type { Event } from '../../../domain/events/event'
 import { privacyNoticeFor, type PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type { ClientRepository } from '../../ports/clientRepository'
-import { clientContextOf } from '../clients/clientContextOf'
+import { ceilingsOf } from '../clients/clientContextOf'
 
 /**
  * The privacy notice a guest of this event reads, with the retention it is **actually**
@@ -34,8 +35,18 @@ export const privacyNoticeOf = async (
   clients: ClientRepository,
   event: Event,
   operatorName: string | null,
-): Promise<PrivacyNotice> => {
-  const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
+): Promise<PrivacyNotice> =>
+  privacyNoticeUnder(event, await ceilingsOf(clients, event), operatorName)
+
+/**
+ * {@link privacyNoticeOf} for a caller that has already read the event's ceilings, so a request
+ * that needs both reads the client once.
+ */
+export const privacyNoticeUnder = (
+  event: Event,
+  ceilings: ClientCeilings | null,
+  operatorName: string | null,
+): PrivacyNotice => {
   if (ceilings === null) return privacyNoticeFor(event.settings, operatorName)
 
   const { settings } = event

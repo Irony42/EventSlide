@@ -6,6 +6,7 @@ import { asEventId, asGuestId, type EventId, type GuestId } from '../../../domai
 import { AT, aClient, aGuest, anEvent, anEventSettings, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
+import { CountingClientRepository } from '../../testing/countingClientRepository'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
@@ -608,6 +609,33 @@ describe('joinEvent', () => {
       const result = await joinClientEvent(null)
 
       expect(result.ok && result.value.privacyNotice.notice.retentionDays).toBe(30)
+    })
+
+    it('reads the client once for the notice and the video switch together', async () => {
+      const clients = new CountingClientRepository().seed(
+        aClient({ id: 'client-1', ceilings: { maxRetentionDays: 30 } }),
+      )
+      const clientEvents = new FakeEventRepository({ clients }).seed(
+        anEvent({
+          id: 'event-client',
+          slug: 'soiree-cliente',
+          joinCode: CLIENT_EVENT_CODE,
+          clientId: 'client-1',
+        }),
+      )
+
+      await makeJoinEvent({
+        events: clientEvents,
+        clients,
+        guests,
+        tokens: new FakeGuestTokenService(),
+        ids,
+        clock,
+        bus,
+        operatorName: null,
+      })({ joinCode: CLIENT_EVENT_CODE })
+
+      expect(clients.contextReads).toBe(1)
     })
 
     it('says the host’s own number when it is the shorter', async () => {
