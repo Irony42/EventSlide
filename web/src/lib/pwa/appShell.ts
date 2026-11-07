@@ -57,6 +57,19 @@ export const staleCacheNames = (existing: readonly string[], keep: string): read
 export const ownCacheNames = (existing: readonly string[]): readonly string[] =>
   existing.filter((name) => name.startsWith(CACHE_PREFIX))
 
+/**
+ * The request the worker sends to the network on the page's behalf.
+ *
+ * It must carry the same-origin cookies. WebKit's worker fetches of the shell (the manifest, which
+ * the browser requests without credentials, and each asset) reached the server with no `Cookie`
+ * header, the server minted a fresh `es_csrf` for each, and the jar's token moved away from the
+ * one the page had read: the guest's next POST was refused (`request.csrfMismatch`). A navigation
+ * is handed over as it is: the browser always sends its cookies, and a rebuilt navigation would
+ * stop being one (redirect handling, `mode`).
+ */
+const withCookies = (request: Request): Request =>
+  request.mode === 'navigate' ? request : new Request(request, { credentials: 'same-origin' })
+
 export interface ShellHandlerOptions {
   readonly fetch: typeof fetch
   readonly match: (request: Request) => Promise<Response | undefined>
@@ -83,7 +96,7 @@ export const respondFromShell = async (
   { fetch, match }: ShellHandlerOptions,
 ): Promise<Response> => {
   try {
-    return await fetch(request)
+    return await fetch(withCookies(request))
   } catch (cause) {
     // The shell's URL is resolved against the request rather than written as `'/'`. A
     // bare relative URL only resolves inside a worker, where there is a `location` to

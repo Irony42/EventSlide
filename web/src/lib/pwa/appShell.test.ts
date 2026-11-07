@@ -125,6 +125,61 @@ describe('respondFromShell', () => {
     ).resolves.toEqual({ body: 'fresh', consultedCache: 0 })
   })
 
+  it.each([
+    ['a manifest, fetched by the browser without credentials', 'omit', '/manifest.webmanifest'],
+    ['a script', 'same-origin', '/assets/index-a1b2c3.js'],
+  ] as const)('fetches %s with the same-origin cookies', async (_label, credentials, path) => {
+    // WebKit's worker fetches of the shell reached the server without the cookie jar, and the
+    // server minted a new `es_csrf` for each, so the token the page read went stale and the
+    // next POST was refused twice. The worker says explicitly that the cookies go along.
+    const seen: Request[] = []
+
+    await respondFromShell(aRequest(`${ORIGIN}${path}`, { credentials }), {
+      fetch: async (input) => {
+        seen.push(input as Request)
+        return new Response('ok')
+      },
+      match: async () => undefined,
+    })
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]?.credentials).toBe('same-origin')
+    expect(seen[0]?.url).toBe(`${ORIGIN}${path}`)
+  })
+
+  it('hands a navigation to the network exactly as the browser built it', async () => {
+    // A navigation always carries the cookies, and rebuilding it would turn it into a
+    // same-origin fetch with a different redirect handling.
+    const navigation = aNavigation(`${ORIGIN}/e/mariage/upload`)
+    const seen: unknown[] = []
+
+    await respondFromShell(navigation, {
+      fetch: async (input) => {
+        seen.push(input)
+        return new Response('ok')
+      },
+      match: async () => undefined,
+    })
+
+    expect(seen).toEqual([navigation])
+    expect(seen[0]).toBe(navigation)
+  })
+
+  it('still looks the original request up in the cache when the network is gone', async () => {
+    const original = aRequest(`${ORIGIN}/manifest.webmanifest`, { credentials: 'omit' })
+    const asked: Request[] = []
+
+    await respondFromShell(original, {
+      fetch: offline,
+      match: async (request) => {
+        asked.push(request)
+        return new Response('cached')
+      },
+    })
+
+    expect(asked[0]).toBe(original)
+  })
+
   it('falls back to the cached copy when the network is gone', async () => {
     const response = await respondFromShell(aRequest(`${ORIGIN}/assets/index-a1b2c3.js`), {
       fetch: async () => {
