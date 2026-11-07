@@ -44,7 +44,6 @@ let useInstallPrompt: typeof Hook.useInstallPrompt
 let stopWatching = (): void => {}
 
 beforeEach(async () => {
-  localStorage.clear()
   Reflect.deleteProperty(navigator, 'standalone')
   vi.resetModules()
   ;({ watchForInstall } = await import('../../../lib/pwa/install'))
@@ -55,7 +54,6 @@ beforeEach(async () => {
 afterEach(() => {
   stopWatching()
   vi.restoreAllMocks()
-  localStorage.clear()
   Reflect.deleteProperty(navigator, 'standalone')
 })
 

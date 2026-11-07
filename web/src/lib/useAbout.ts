@@ -1,5 +1,5 @@
 import { useContext } from 'react'
-import type { About } from '../lib/api/dto'
+import type { About } from './api/dto'
 import { AboutAnsweredContext, AboutContext, AboutHeardContext } from './aboutContext'
 
 /**

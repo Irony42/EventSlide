@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { ApiError, asError, isAbortError } from '../../../lib/http'
 import type { WallResponse } from '../../../lib/api/dto'
 import { serverOffsetMs } from '../../../lib/serverClock'

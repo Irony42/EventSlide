@@ -1,5 +1,5 @@
 import { createContext } from 'react'
-import type { About } from '../lib/api/dto'
+import type { About } from './api/dto'
 import { BUILD_ABOUT } from './aboutAnswer'
 
 /**

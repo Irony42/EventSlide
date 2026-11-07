@@ -1,11 +1,11 @@
-import { SelectField, type SelectOption } from '../../../admin/components/SelectField'
+import { SelectField, type SelectOption } from '../../../../design-system/components/SelectField'
 import { Button } from '../../../../design-system/components/Button'
 import {
   DEFAULT_RHYTHM_SECONDS,
   MIXED_SLIDESHOW_STEPS_SECONDS,
   MIXED_WALL_STEPS_SECONDS,
   mixedDurationOptions,
-} from '../../../admin/wallDisplayOptions'
+} from '../../../../lib/wallDisplayOptions'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale } from '../../../../lib/i18n/locale'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
 import { LayoutTiles } from '../controls/LayoutTiles'

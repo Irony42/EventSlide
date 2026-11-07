@@ -222,6 +222,14 @@ export interface HttpConfig {
     readonly galleryUnlockPerLink: number
     /** Per **account**, per hour — `eventCreationLimiter` keys on who is signed in, not on an address (P4-09 / D-14). */
     readonly eventCreationPerHour: number
+    /** Per **account**, per hour: the invitations a host sends. */
+    readonly invitationsPerHour: number
+    /** Per **account**, per hour: venue photographs uploaded. */
+    readonly venuePhotosPerHour: number
+    /** Per **account**, per hour: photo-book requests, whatever the answer. */
+    readonly bookRequestsPerHour: number
+    /** Per **account**, per hour: event logos uploaded. */
+    readonly logosPerHour: number
   }
   /** `middleware/accessLog.ts` (docs/SECURITY.md, P4-06): route pattern, status, duration. */
   readonly accessLog: AccessLogOptions

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { useLoader } from '../../../lib/useLoader'
 
 /**

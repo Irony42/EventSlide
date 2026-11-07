@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { ApiProvider } from '../../../app/ApiProvider'
+import { ApiProvider } from '../../../lib/ApiProvider'
 import { ToastProvider } from '../../../design-system/components/ToastProvider'
 import { ApiError } from '../../../lib/http'
 import { fakeApi } from '../../../testing/renderWithProviders'

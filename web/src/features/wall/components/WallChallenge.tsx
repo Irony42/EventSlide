@@ -3,7 +3,7 @@ import { VisuallyHidden } from '../../../design-system/components/VisuallyHidden
 import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { formatCountdown } from '../../../lib/serverClock'
-import { useGoneAfter, useServerCountdown } from '../../../app/useServerCountdown'
+import { useGoneAfter, useServerCountdown } from '../../../lib/useServerCountdown'
 import type { WallChallengeDto } from '../../../lib/api/dto'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import styles from './WallChallenge.module.css'

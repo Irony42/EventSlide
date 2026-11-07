@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { ApiProvider } from '../../../app/ApiProvider'
+import { ApiProvider } from '../../../lib/ApiProvider'
 import { aGuestPhoto, fakeApi } from '../../../testing/renderWithProviders'
 import { useMyPhotos } from './useMyPhotos'
 import type { Api } from '../../../lib/api/client'

@@ -10,7 +10,7 @@ import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../..
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
 import { CheckboxField } from '../../design-system/components/CheckboxField'
-import { WallSoundFields } from './components/WallSoundFields'
+import { WallSoundFields } from '../../design-system/components/WallSoundFields'
 import { DateTimeField } from '../../design-system/components/DateTimeField'
 import { SelectField, type SelectOption } from '../../design-system/components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
@@ -22,7 +22,7 @@ import {
   mixedDurationOptions,
   wallLayoutOptions,
   wallRhythmOptions,
-} from './wallDisplayOptions'
+} from '../../lib/wallDisplayOptions'
 import { VenuePhotoField } from './components/VenuePhotoField'
 import { LogoField } from './components/LogoField'
 import { WelcomeMessageField } from './components/WelcomeMessageField'

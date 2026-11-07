@@ -1,5 +1,5 @@
-import { BUILD_SOURCE_URL, BUILD_VERSION } from '../lib/about/buildInfo'
-import type { About, AboutLinks, AboutOperator } from '../lib/api/dto'
+import { BUILD_SOURCE_URL, BUILD_VERSION } from './about/buildInfo'
+import type { About, AboutLinks, AboutOperator } from './api/dto'
 
 /**
  * What this bundle knows without asking: the version it was built at and the upstream tag of

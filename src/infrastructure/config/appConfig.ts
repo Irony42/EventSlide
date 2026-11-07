@@ -189,6 +189,14 @@ export interface AppConfig {
     readonly galleryUnlockPerLink: number
     /** `EVENT_CREATION_RATE_LIMIT_PER_HOUR` — per account, not per client. See `eventSlugSuffix` (`featureFields.ts`) and its siblings for the rest of P4-09. */
     readonly eventCreationPerHour: number
+    /** `INVITATION_RATE_LIMIT_PER_HOUR`: invitations a host sends, per account. */
+    readonly invitationsPerHour: number
+    /** `VENUE_PHOTO_RATE_LIMIT_PER_HOUR`: venue photographs uploaded, per account. */
+    readonly venuePhotosPerHour: number
+    /** `BOOK_REQUEST_RATE_LIMIT_PER_HOUR`: photo-book requests, per account. */
+    readonly bookRequestsPerHour: number
+    /** `LOGO_RATE_LIMIT_PER_HOUR`: event logos uploaded, per account. */
+    readonly logosPerHour: number
   }
 
   readonly crypto: {

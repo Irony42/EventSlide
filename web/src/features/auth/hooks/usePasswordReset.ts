@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import type { Locale } from '../../../lib/i18n/locale'
 import { ApiError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'

@@ -3,7 +3,7 @@ import { Card } from '../../../design-system/components/Card'
 import { CloseIcon } from '../../../design-system/components/CloseIcon'
 import { IconButton } from '../../../design-system/components/IconButton'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { joinHost } from '../joinHost'
+import { joinHost } from '../../../lib/joinHost'
 import { JoinQr } from './JoinQr'
 import styles from './WallOverlay.module.css'
 

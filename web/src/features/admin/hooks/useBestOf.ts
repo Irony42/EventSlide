@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { ApiError } from '../../../lib/http'
 import { useLoader, type LoaderState } from '../../../lib/useLoader'
 import type { HighlightsDto, PreselectHighlightsResponse, ReelDto } from '../../../lib/api/dto'

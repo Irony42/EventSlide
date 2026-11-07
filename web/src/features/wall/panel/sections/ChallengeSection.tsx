@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChallengeControls } from '../../../admin/ChallengePanel'
+import { ChallengeControls } from '../../../../app/ChallengeControls'
 import type { WallPanelContext, WallPanelSection } from '../panelTypes'
 
 /**

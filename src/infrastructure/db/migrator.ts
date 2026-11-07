@@ -75,15 +75,28 @@ const LEDGER = `
 export const checksumOf = (migration: Migration): string =>
   sha256Hex(`${migration.id}:${migration.name}:${migration.sql}`).slice(0, 32)
 
+const SELECT_LEDGER = `
+  SELECT id, name, checksum, applied_at AS appliedAt
+    FROM schema_migrations
+   ORDER BY id
+`
+
+/** Creates the ledger when there is none, then reads it: for `migrate`, which may write. */
 const readLedger = (db: Db): AppliedMigration[] => {
   db.exec(LEDGER)
-  return db
-    .prepare(
-      `SELECT id, name, checksum, applied_at AS appliedAt
-         FROM schema_migrations
-        ORDER BY id`,
-    )
-    .all() as AppliedMigration[]
+  return db.prepare(SELECT_LEDGER).all() as AppliedMigration[]
+}
+
+/**
+ * Reads the ledger without ever creating it. A database that has none (restored, or never
+ * migrated) has applied nothing, and a read-only connection could not create the table anyway.
+ */
+const readLedgerIfAny = (db: Db): AppliedMigration[] => {
+  const exists =
+    db
+      .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'`)
+      .get() !== undefined
+  return exists ? (db.prepare(SELECT_LEDGER).all() as AppliedMigration[]) : []
 }
 
 const assertWellFormed = (migrations: readonly Migration[]): void => {
@@ -172,10 +185,13 @@ export const migrate = (
   return justApplied
 }
 
-/** Powers `npm run db:status`. Read-only. */
+/**
+ * Powers `npm run db:status`. Read-only: it works on a read-only connection, and on a database
+ * with no ledger table it reports every migration as pending instead of creating the table.
+ */
 export const status = (db: Db, migrations: readonly Migration[]): MigrationStatus => {
   assertWellFormed(migrations)
-  const applied = readLedger(db)
+  const applied = readLedgerIfAny(db)
   const appliedIds = new Set(applied.map((row) => row.id))
 
   return {

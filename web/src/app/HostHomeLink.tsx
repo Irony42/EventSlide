@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Logo } from '../design-system/components/Logo'
 import { useTranslations } from '../lib/i18n/useTranslations'
-import { useSession } from './useSession'
+import { useSession } from '../lib/useSession'
 import styles from './HostHomeLink.module.css'
 
 /**

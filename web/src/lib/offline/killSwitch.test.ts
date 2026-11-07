@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { isOfflineQueueEnabled, resolveOfflineQueue } from './killSwitch'
 
 /**
@@ -10,13 +10,8 @@ import { isOfflineQueueEnabled, resolveOfflineQueue } from './killSwitch'
  * again.
  */
 
-beforeEach(() => {
-  localStorage.clear()
-})
-
 afterEach(() => {
   vi.restoreAllMocks()
-  localStorage.clear()
 })
 
 describe('resolveOfflineQueue', () => {

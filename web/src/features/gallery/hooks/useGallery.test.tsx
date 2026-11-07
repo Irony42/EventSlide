@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { ApiProvider } from '../../../app/ApiProvider'
+import { ApiProvider } from '../../../lib/ApiProvider'
 import { ApiError } from '../../../lib/http'
 import { aGallery, aGalleryPhoto, fakeApi } from '../../../testing/renderWithProviders'
 import { GALLERY_REFRESH_MS, useGallery } from './useGallery'
