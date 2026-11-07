@@ -7,5 +7,8 @@ import { act } from '@testing-library/react'
  * the absence. An async `act` returns only after the microtask queue has drained and
  * React has flushed, so it waits for the work and not for a duration: unlike a real
  * `setTimeout` sleep it neither passes because the machine was slow nor costs wall time.
+ *
+ * Limit: microtasks only, not timers. Work that production puts behind a `setTimeout`
+ * is not awaited here; a test of that must drive fake timers itself.
  */
 export const flushPromises = (): Promise<void> => act(async () => {})
