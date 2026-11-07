@@ -32,9 +32,12 @@ export const outcomeForResults = (
   const outcome = results?.[0]
   if (outcome === undefined) return { kind: 'deferred' }
   if (outcome.status === 'rejected') {
-    // The server looked at these bytes and refused them by name. This is the one
-    // answer that is genuinely about the photo rather than about the moment.
-    return { kind: 'rejected', code: outcome.code ?? 'unknown' }
+    // The server looked at these bytes and refused them by name. Only a refusal that is
+    // genuinely about the photo, rather than about the moment, discards it: a server that
+    // could not render for its own reasons (a full disk) or a quota a host can raise is
+    // kept, exactly as the same code would be if it came as a whole-request failure.
+    const code = outcome.code ?? 'unknown'
+    return isTerminal(code) ? { kind: 'rejected', code } : { kind: 'deferred' }
   }
   return {
     kind: 'sent',

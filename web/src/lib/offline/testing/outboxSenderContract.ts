@@ -68,6 +68,17 @@ export const outboxSenderContract = (name: string, harness: SenderHarness): void
       expect(outcome).toEqual({ kind: 'rejected', code: 'image.unsupportedFormat' })
     })
 
+    it('keeps a photo the server could not process for its own reasons', async () => {
+      // A full disk or an allocation failure on the box (image.renderUnavailable) says nothing
+      // about the file, and the same photo is fine once the box has room again. A per-file
+      // refusal is only a discard when the code is one of the terminal ones.
+      const outcome = await harness.ok([
+        { index: 0, status: 'rejected', code: 'image.renderUnavailable' },
+      ])(anEntry())
+
+      expect(outcome).toEqual({ kind: 'deferred' })
+    })
+
     it('keeps a photo when nothing reached the server', async () => {
       expect(await harness.offline()(anEntry())).toEqual({ kind: 'deferred' })
     })
