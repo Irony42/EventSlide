@@ -109,9 +109,12 @@ test('a moderator invited by link accepts it on their own machine and can modera
     // header, and a list as wide as its longest entry used to hang off the left edge at 360 px.
     await theirPage.setViewportSize({ width: 360, height: 740 })
     await theirPage.getByRole('button', { name: fr.auth.accountMenu, exact: true }).click()
-    const widest = await theirPage
-      .getByRole('button', { name: fr.auth.logoutEverywhere, exact: true })
-      .boundingBox()
+    const widestEntry = theirPage.getByRole('button', {
+      name: fr.auth.logoutEverywhere,
+      exact: true,
+    })
+    await expect(widestEntry).toBeVisible()
+    const widest = await widestEntry.boundingBox()
     expect(widest, 'the menu lists its entries').not.toBeNull()
     expect(widest?.x ?? -1).toBeGreaterThanOrEqual(0)
     expect((widest?.x ?? 0) + (widest?.width ?? 0)).toBeLessThanOrEqual(360)

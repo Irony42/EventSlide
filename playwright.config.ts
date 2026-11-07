@@ -39,6 +39,10 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
   // exactOptionalPropertyTypes an explicit undefined is not the same as absent.
   ...(process.env['CI'] ? { workers: 2 } : {}),
   timeout: 60_000,
+  // CI only: a hung journey ends the run with the report written (and the job's upload step
+  // keeps it) instead of consuming the 55-minute job bound and ending as a cancellation. The
+  // slowest healthy job takes 18 minutes. Locally a run is the person's to interrupt.
+  ...(process.env['CI'] ? { globalTimeout: 40 * 60_000 } : {}),
   expect: {
     // SSE propagation across two browser contexts is the slowest thing asserted here.
     timeout: 10_000,
