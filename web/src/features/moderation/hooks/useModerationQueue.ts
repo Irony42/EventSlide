@@ -278,17 +278,17 @@ export const useModerationQueue = (
     const readRows = (
       rows: readonly ModerationPhotoDto[],
     ): { readonly rows: readonly ModerationPhotoDto[]; readonly pendingDelta: number } => {
-      const safe = rows.map(withDecisions).map((row) => {
-        const toggle = highlightsRef.current.get(row.id)
-        return toggle === undefined ? row : { ...row, highlighted: toggle.value }
-      })
-      remember(safe)
-
       for (const [id, toggle] of highlightsRef.current) {
         if (toggle.settledAfterRead !== null && startedAt > toggle.settledAfterRead) {
           highlightsRef.current.delete(id)
         }
       }
+
+      const safe = rows.map(withDecisions).map((row) => {
+        const toggle = highlightsRef.current.get(row.id)
+        return toggle === undefined ? row : { ...row, highlighted: toggle.value }
+      })
+      remember(safe)
 
       for (const [id, decision] of inFlightRef.current) {
         if (decision.settledAfterRead !== null && startedAt > decision.settledAfterRead) {

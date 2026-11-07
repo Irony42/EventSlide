@@ -1245,6 +1245,31 @@ describe('useModerationQueue', () => {
       expect(result.current.items[0]?.highlighted).toBe(true)
     })
 
+    it('shows the server on a read that started after the toggle was answered', async () => {
+      let reads = 0
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => {
+          reads += 1
+          return queueOf(
+            reads === 1
+              ? published()
+              : [aModerationPhoto({ id: 'photo-1', status: 'published', highlighted: false })],
+          )
+        }),
+      })
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+      await act(async () => {
+        await result.current.toggleHighlight('photo-1')
+      })
+      expect(result.current.items[0]?.highlighted).toBe(true)
+
+      emitSignal('photo.uploaded')
+      await waitFor(() => expect(api.moderationQueue).toHaveBeenCalledTimes(2))
+
+      await waitFor(() => expect(result.current.items[0]?.highlighted).toBe(false))
+    })
+
     it('ignores a second press while the first is still on the wire', async () => {
       const answer = deferred<undefined>()
       const api = fakeApi({
