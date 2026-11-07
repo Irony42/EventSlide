@@ -104,6 +104,11 @@ const StaleChunk = (): never => {
   throw new Error('Failed to fetch dynamically imported module: /assets/WallPage-8c1d04.js')
 }
 
+/** What Vite throws when a stylesheet request is cancelled by a navigation. */
+const StalePreload = (): never => {
+  throw new Error('Unable to preload CSS for /assets/AdminDashboardPage-abc.css')
+}
+
 describe('ErrorBoundary: a chunk that failed to load after a deploy', () => {
   beforeEach(() => {
     sessionStorage.clear()
@@ -155,6 +160,28 @@ describe('ErrorBoundary: a chunk that failed to load after a deploy', () => {
     expect(reload).toHaveBeenCalledTimes(1)
     log.mockRestore()
   })
+
+  it.each(['beforeunload', 'pagehide'])(
+    'does not reload the old page over a navigation: a preload cancelled after %s',
+    (type) => {
+      const log = silenceReactErrorLog()
+      const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+      window.dispatchEvent(new Event(type))
+
+      try {
+        render(
+          <ErrorBoundary surface="host">
+            <StalePreload />
+          </ErrorBoundary>,
+        )
+
+        expect(reload).not.toHaveBeenCalled()
+      } finally {
+        window.dispatchEvent(new Event('pageshow'))
+        log.mockRestore()
+      }
+    },
+  )
 
   it('does not reload for an ordinary render error', () => {
     const log = silenceReactErrorLog()

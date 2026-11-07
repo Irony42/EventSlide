@@ -70,14 +70,50 @@ export const pageReload = {
 }
 
 /**
+ * How long a "the user is leaving" signal holds when nothing follows it.
+ *
+ * `beforeunload` also fires for a "leave this page?" prompt answered with "stay", and then no
+ * `pagehide` and no `pageshow` ever comes, so the flag must expire by itself.
+ */
+export const LEAVING_WINDOW_MS = 3_000
+
+let leaving = false
+let leavingTimer: ReturnType<typeof setTimeout> | null = null
+
+const stopLeaving = (): void => {
+  leaving = false
+  if (leavingTimer !== null) clearTimeout(leavingTimer)
+  leavingTimer = null
+}
+
+const startLeaving = (): void => {
+  stopLeaving()
+  leaving = true
+  leavingTimer = setTimeout(stopLeaving, LEAVING_WINDOW_MS)
+}
+
+/**
+ * A navigation cancels the requests of the page it leaves, and Vite reports a cancelled lazy
+ * stylesheet as "Unable to preload CSS", which looks exactly like a stale bundle. Reloading
+ * then would reload the OLD address over the navigation the user just made.
+ */
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', startLeaving)
+  window.addEventListener('pagehide', startLeaving)
+  // A page restored from the back/forward cache is alive again.
+  window.addEventListener('pageshow', stopLeaving)
+}
+
+/**
  * Reloads the page once for a stale bundle, unless it already did a moment ago.
  *
  * Returns whether a reload was started. It is deliberately conservative: it does nothing when
  * `sessionStorage` cannot be written (no marker means no loop guard), and nothing when the
  * browser says it is offline (a reload would swap the crash screen for the browser's own error
- * page, which is worse).
+ * page, which is worse), and nothing while the user is leaving the page (see above).
  */
 export const reloadForStaleBundle = (now: number = Date.now()): boolean => {
+  if (leaving) return false
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
   try {
     const previous = Number(sessionStorage.getItem(STALE_BUNDLE_MARKER))
