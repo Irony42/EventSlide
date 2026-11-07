@@ -83,13 +83,15 @@ const MAX_TEXT_FIELDS = 4
  * "cleanup on every exit path" is exactly what 1.0 leaked. `withGuest` runs this in its
  * `finally`, and the read route shares it rather than repeating the narrowing.
  */
-const removeUploadedFile = (stagedUploads: StagedUploadStore) => async (req: Request): Promise<void> => {
-  if (req.file === undefined) return
-  await stagedUploads.remove(req.file.path).catch(() => {
-    // A leaked temp file is removed at the next boot, when the composition root empties
-    // MEDIA_ROOT/.uploads; failing a guest's clip over the cleanup would be worse.
-  })
-}
+const removeUploadedFile =
+  (stagedUploads: StagedUploadStore) =>
+  async (req: Request): Promise<void> => {
+    if (req.file === undefined) return
+    await stagedUploads.remove(req.file.path).catch(() => {
+      // A leaked temp file is removed at the next boot, when the composition root empties
+      // MEDIA_ROOT/.uploads; failing a guest's clip over the cleanup would be worse.
+    })
+  }
 export const clipRoutes = ({
   deps,
   usecases,
@@ -233,4 +235,3 @@ export const clipRoutes = ({
 
   return router
 }
-
