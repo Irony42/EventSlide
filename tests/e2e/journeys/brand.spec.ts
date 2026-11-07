@@ -41,7 +41,13 @@ test('a host writes a welcome message and the guest and the empty wall show it',
   await expect(guest.getByTestId('host-greeting')).toContainText('Une photo du gâteau')
 
   await host.getByRole('button', { name: 'Effacer le message' }).click()
+  // The first save's confirmation is still on the page, so the text alone cannot say the second
+  // save landed: wait for the save's own response, then for the confirmation.
+  const saved = host.waitForResponse(
+    (response) => response.request().method() === 'PATCH' && response.url().endsWith('/settings'),
+  )
   await host.getByRole('button', { name: 'Enregistrer', exact: true }).click()
+  expect((await saved).ok()).toBe(true)
   await expect(host.getByText('Réglages enregistrés.').last()).toBeVisible()
 
   await expect(projector.getByTestId('wall-welcome')).toHaveCount(0)
