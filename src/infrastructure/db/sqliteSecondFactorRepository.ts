@@ -78,18 +78,20 @@ export class SqliteSecondFactorRepository implements SecondFactorRepository {
     at: Date,
     recoveryDigests: readonly string[],
   ): Promise<boolean> {
-    return this.db.transaction((): boolean => {
-      const confirmed = this.db
-        .prepare(
-          `UPDATE user_totp SET confirmed_at = ?, last_used_step = ?
+    return this.db
+      .transaction((): boolean => {
+        const confirmed = this.db
+          .prepare(
+            `UPDATE user_totp SET confirmed_at = ?, last_used_step = ?
             WHERE user_id = ? AND confirmed_at IS NULL AND secret_enc = ?`,
-        )
-        .run(toIsoText(at), step, userId, sealedSecret)
-      if (confirmed.changes !== 1) return false
+          )
+          .run(toIsoText(at), step, userId, sealedSecret)
+        if (confirmed.changes !== 1) return false
 
-      this.installCodes(userId, recoveryDigests)
-      return true
-    })()
+        this.installCodes(userId, recoveryDigests)
+        return true
+      })
+      .immediate()
   }
 
   async useStep(userId: UserId, step: number): Promise<boolean> {
@@ -105,17 +107,19 @@ export class SqliteSecondFactorRepository implements SecondFactorRepository {
   }
 
   async replaceRecoveryCodes(userId: UserId, digests: readonly string[]): Promise<boolean> {
-    return this.db.transaction((): boolean => {
-      const factor = this.db
-        .prepare(
-          `SELECT 1 AS present FROM user_totp WHERE user_id = ? AND confirmed_at IS NOT NULL`,
-        )
-        .get(userId)
-      if (factor === undefined) return false
+    return this.db
+      .transaction((): boolean => {
+        const factor = this.db
+          .prepare(
+            `SELECT 1 AS present FROM user_totp WHERE user_id = ? AND confirmed_at IS NOT NULL`,
+          )
+          .get(userId)
+        if (factor === undefined) return false
 
-      this.installCodes(userId, digests)
-      return true
-    })()
+        this.installCodes(userId, digests)
+        return true
+      })
+      .immediate()
   }
 
   async unusedRecoveryDigests(userId: UserId): Promise<readonly string[]> {
