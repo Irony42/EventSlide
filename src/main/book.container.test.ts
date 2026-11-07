@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import sharp from 'sharp'
 import request from '../interface/http/testing/request'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { asEventId, asGuestId, asPhotoId, asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
@@ -22,13 +22,36 @@ const OWNER = 'hote@example.test'
 const PASSWORD = 'un-mot-de-passe-solide'
 const SLUG = 'mariage-de-camille'
 
+/**
+ * One container for the whole file: booting it (migrations, the bootstrap owner's password hash)
+ * is most of what a scene costs, and it is what made each test slow enough to meet its budget
+ * under load. Every test still gets an event of its own, so none sees another's photographs.
+ * `afterAll` has nothing in flight to wait for: the worker is never started here and `scene`
+ * awaits every render, so the directory is quiet when it is removed.
+ */
 let workDir: string | null = null
-let container: Container | null = null
+let shared: Container | null = null
+let eventCount = 0
 
-afterEach(async () => {
-  await container?.dispose()
-  container = null
-  if (workDir !== null) await rm(workDir, { recursive: true, force: true })
+beforeAll(async () => {
+  workDir = await mkdtemp(join(tmpdir(), 'eventslide-book-'))
+  shared = await createContainer(
+    loadConfig({
+      NODE_ENV: 'test',
+      LOG_LEVEL: 'fatal',
+      DATABASE_PATH: join(workDir, 'eventslide.sqlite'),
+      MEDIA_ROOT: join(workDir, 'media'),
+      BOOTSTRAP_OWNER_EMAIL: OWNER,
+      BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
+    }),
+  )
+  shared.db.prepare('UPDATE users SET must_change_password = 0').run()
+})
+
+afterAll(async () => {
+  await shared?.dispose()
+  shared = null
+  if (workDir !== null) await rm(workDir, { recursive: true, force: true, maxRetries: 5 })
   workDir = null
 })
 
@@ -42,20 +65,11 @@ const csrfOf = (headers: Record<string, unknown>): string => {
 }
 
 const scene = async () => {
-  workDir = await mkdtemp(join(tmpdir(), 'eventslide-book-'))
+  if (workDir === null || shared === null) throw new Error('fixture: no container')
+  const booted = shared
   const mediaRoot = join(workDir, 'media')
-  const booted = await createContainer(
-    loadConfig({
-      NODE_ENV: 'test',
-      LOG_LEVEL: 'fatal',
-      DATABASE_PATH: join(workDir, 'eventslide.sqlite'),
-      MEDIA_ROOT: mediaRoot,
-      BOOTSTRAP_OWNER_EMAIL: OWNER,
-      BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
-    }),
-  )
-  container = booted
-  booted.db.prepare('UPDATE users SET must_change_password = 0').run()
+  eventCount += 1
+  const slug = `${SLUG}-${eventCount}`
   const ownerId = booted.db
     .prepare<[string], { readonly id: string }>('SELECT id FROM users WHERE email = ?')
     .get(OWNER)?.id
@@ -64,7 +78,7 @@ const scene = async () => {
   const created = await booted.usecases.createEvent({
     ownerId: asUserId(ownerId),
     name: 'Mariage de Camille',
-    slug: SLUG,
+    slug,
   })
   if (!created.ok) throw new Error(`fixture rejected: ${created.error.code}`)
   const eventId = created.value.id
@@ -90,7 +104,7 @@ const scene = async () => {
       .jpeg()
       .toBuffer()
     const uploaded = await agent
-      .post(`/api/events/${SLUG}/photos`)
+      .post(`/api/events/${slug}/photos`)
       .set(CSRF_HEADER, csrf)
       .attach('photos', jpeg, 'a.jpg')
     expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201)
