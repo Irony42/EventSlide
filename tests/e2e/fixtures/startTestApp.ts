@@ -185,13 +185,39 @@ export interface StartOptions {
   readonly eventCreation?: EventCreation
 }
 
-export const startTestApp = async ({
+export interface BootOptions extends StartOptions {
+  /** The two paths a server is pointed at: what a restore puts back. */
+  readonly databasePath: string
+  readonly mediaRoot: string
+  /** The account the server bootstraps on an empty database. */
+  readonly owner?: { readonly email: string; readonly password: string }
+}
+
+/** A running server process, with no account settled and no directory of its own. */
+export interface BootedServer {
+  readonly baseUrl: string
+  /** What the process has written so far, to explain a failure. */
+  output(): string
+  /** SIGTERM so the graceful shutdown runs and the WAL is checkpointed; SIGKILL is the backstop. */
+  stop(): Promise<void>
+}
+
+/**
+ * Starts the built server on a free port against the given database and media root, and
+ * returns once it answers `/api/ready`.
+ *
+ * The one place a server is spawned: `startTestApp` makes a directory and settles the owner
+ * on top of it, and a spec that is about the paths themselves (backup and restore boots a
+ * second server on the restored pair) calls this with its own.
+ */
+export const bootServer = async ({
   worker,
+  databasePath,
+  mediaRoot,
   env = {},
   eventCreation = 'anyAccount',
-}: StartOptions): Promise<TestApp> => {
-  const root = await mkdtemp(join(tmpdir(), `eventslide-e2e-${worker}-`))
-  const databasePath = join(root, 'eventslide.sqlite')
+  owner = OWNER,
+}: BootOptions): Promise<BootedServer> => {
   const port = await freePort()
   const baseUrl = `http://127.0.0.1:${port}`
 
@@ -205,9 +231,9 @@ export const startTestApp = async ({
         port,
         baseUrl,
         databasePath,
-        mediaRoot: join(root, 'media'),
+        mediaRoot,
         eventCreation,
-        owner: OWNER,
+        owner,
         overrides: env,
       }),
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -220,10 +246,8 @@ export const startTestApp = async ({
   child.stdout?.on('data', (chunk: Buffer) => output.push(chunk.toString()))
   child.stderr?.on('data', (chunk: Buffer) => output.push(chunk.toString()))
 
-  const dispose = async (): Promise<void> => {
+  const stop = async (): Promise<void> => {
     if (child.exitCode === null) {
-      // SIGTERM so the graceful shutdown runs and the WAL is checkpointed; if it does
-      // not exit, the kill below is the backstop.
       child.kill('SIGTERM')
       await Promise.race([
         new Promise<void>((resolve) => child.once('exit', () => resolve())),
@@ -231,22 +255,71 @@ export const startTestApp = async ({
       ])
       if (child.exitCode === null) child.kill('SIGKILL')
     }
-    await rm(root, { recursive: true, force: true })
   }
 
   try {
     await waitForReady(baseUrl, child)
-    await settleOwnerPassword(baseUrl)
   } catch (error) {
-    // The server's own output is the only useful diagnostic here: a boot failure is
-    // otherwise an opaque timeout. The same applies to a failed rotation, and either
-    // way the child has to be reaped or the worker leaks a server and a temp directory.
+    // The server's own output is the only useful diagnostic here, and the child has to be
+    // reaped or the worker leaks a server.
     const detail = output.join('').slice(-2_000)
-    await dispose()
-    throw new Error(`${error instanceof Error ? error.message : String(error)}\n\n${detail}`, {
-      cause: error,
-    })
+    await stop()
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}
+
+${detail}`,
+      {
+        cause: error,
+      },
+    )
   }
+
+  return { baseUrl, output: () => output.join(''), stop }
+}
+
+export const startTestApp = async ({
+  worker,
+  env = {},
+  eventCreation = 'anyAccount',
+}: StartOptions): Promise<TestApp> => {
+  const root = await mkdtemp(join(tmpdir(), `eventslide-e2e-${worker}-`))
+  const databasePath = join(root, 'eventslide.sqlite')
+
+  const reap = async (running: BootedServer | undefined): Promise<void> => {
+    await running?.stop()
+    await rm(root, { recursive: true, force: true })
+  }
+
+  const server = await bootServer({
+    worker,
+    databasePath,
+    mediaRoot: join(root, 'media'),
+    env,
+    eventCreation,
+  }).catch(async (error: unknown) => {
+    // A boot failure already carries the server's output; the directory still has to go.
+    await reap(undefined)
+    throw error
+  })
+
+  try {
+    await settleOwnerPassword(server.baseUrl)
+  } catch (error) {
+    // A failed rotation is explained by the server's own output, and the child has to be
+    // reaped or the worker leaks a server and a temp directory.
+    const message = error instanceof Error ? error.message : String(error)
+    const detail = server.output().slice(-2_000)
+    await reap(server)
+    throw new Error(
+      `${message}
+
+${detail}`,
+      { cause: error },
+    )
+  }
+
+  const dispose = (): Promise<void> => reap(server)
+  const baseUrl = server.baseUrl
 
   /** Seeds through the API rather than by writing SQL — see `session.ts`. */
   const seedEvent = async ({
