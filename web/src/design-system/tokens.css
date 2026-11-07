@@ -30,9 +30,8 @@
          screen to buy legibility for text that is not on it. ---- */
   --surface-scrim: oklch(0% 0 0 / 0.83); /* behind wall captions, over photos */
   --surface-dim: oklch(0% 0 0 / 0.55); /* behind a Dialog, over the page */
-  --player-ground: oklch(
-    0% 0 0
-  ); /* the letterbox of a video player: black, whatever the ambiance */
+  /* the letterbox of a video player: black, whatever the ambiance */
+  --player-ground: oklch(0% 0 0);
   /* ---- Print. A material, not a panel: the paper the polaroid layout mounts a photo
          on. It is the one light ground in a dark palette, so it gets its own ink token
          rather than borrowing a text colour that was chosen against a dark surface. ---- */
