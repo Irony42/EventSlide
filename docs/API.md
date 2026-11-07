@@ -2391,7 +2391,7 @@ Refusals of `POST`: `400 request.invalid` (or `book.titleEmpty` / `book.titleToo
 `409 book.empty` (nothing published), `429 book.dailyLimitReached` (three books per event per
 rolling day, counted apart from the book so deleting it does not reset it; `Retry-After` is the
 wait until the oldest request leaves the day), `429 rate.limited` (twenty requests an hour per
-account), `503 book.unavailable` (`BOOK_ENABLED=off`). A book too large (`BOOK_MAX_PHOTOS`,
+account by default, `BOOK_REQUEST_RATE_LIMIT_PER_HOUR`), `503 book.unavailable` (`BOOK_ENABLED=off`). A book too large (`BOOK_MAX_PHOTOS`,
 `BOOK_MAX_BYTES`) is decided by the worker, which reads the album: it ends `failed` with
 `failureCode: "tooLarge"`, because the count at request time includes videos the book leaves out.
 
@@ -3285,14 +3285,14 @@ All of it is decided before a byte is buffered.
 is identified from the bytes: the part's filename and `Content-Type` are never read. It answers
 the full event, whose `settings.theme.groundUrl` is now the photograph's URL.
 
-| Status | `error.code`                                                     | When                                                            |
-| ------ | ---------------------------------------------------------------- | --------------------------------------------------------------- |
-| 400    | `upload.noFiles`                                                 | no `photo` part                                                 |
-| 400    | `image.unsupportedFormat` \| `image.corrupt` \| `image.animated` | the bytes are not one still image the pipeline reads            |
-| 413    | `upload.tooLarge`                                                | above `MAX_UPLOAD_BYTES`, cut off at the byte that crosses it   |
-| 413    | `photo.pixelBudgetExceeded` \| `venuePhoto.tooLarge`             | header pixels over `MAX_IMAGE_PIXELS`; rendered file over 1 MiB |
-| 429    | `rate.limited`                                                   | more than ten uploads an hour from one account                  |
-| 413    | `storage.boxFull`                                                | the disk guard, as for every upload                             |
+| Status | `error.code`                                                     | When                                                                               |
+| ------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 400    | `upload.noFiles`                                                 | no `photo` part                                                                    |
+| 400    | `image.unsupportedFormat` \| `image.corrupt` \| `image.animated` | the bytes are not one still image the pipeline reads                               |
+| 413    | `upload.tooLarge`                                                | above `MAX_UPLOAD_BYTES`, cut off at the byte that crosses it                      |
+| 413    | `photo.pixelBudgetExceeded` \| `venuePhoto.tooLarge`             | header pixels over `MAX_IMAGE_PIXELS`; rendered file over 1 MiB                    |
+| 429    | `rate.limited`                                                   | more than ten uploads an hour from one account (`VENUE_PHOTO_RATE_LIMIT_PER_HOUR`) |
+| 413    | `storage.boxFull`                                                | the disk guard, as for every upload                                                |
 
 The stored file is the pipeline's output and never the upload: rotated upright, **every metadata
 block stripped** (the GPS position of the venue included), resized to at most 1600 px on its long
@@ -3331,15 +3331,15 @@ or WebP only**, identified from the bytes (the filename and `Content-Type` are n
 an AVIF, a HEIF or a GIF is `400 image.unsupportedFormat`. It answers the full event, whose
 `brand.logoUrl` is now the logo's URL.
 
-| Status | `error.code`                | When                                                           |
-| ------ | --------------------------- | -------------------------------------------------------------- |
-| 400    | `upload.noFiles`            | no `file` part                                                 |
-| 400    | `image.unsupportedFormat`   | `image.corrupt`                                                | `image.animated`                                                  | not one still PNG, JPEG or WebP |
-| 413    | `upload.tooLarge`           | above **2 MiB** on the wire (not `MAX_UPLOAD_BYTES`)           |
-| 413    | `photo.pixelBudgetExceeded` | `logo.tooLarge`                                                | header pixels over `MAX_IMAGE_PIXELS`; rendered file over 256 KiB |
-| 413    | `storage.boxFull`           | the disk guard                                                 |
-| 429    | `rate.limited`              | more than ten logos an hour from one account (its own counter) |
-| 500    | `logo.saveFailed`           | `photo.mediaWriteFailed`                                       | a failed save; **also** `PUT` and `DELETE` under a purge hold     |
+| Status | `error.code`                | When                                                                                       |
+| ------ | --------------------------- | ------------------------------------------------------------------------------------------ |
+| 400    | `upload.noFiles`            | no `file` part                                                                             |
+| 400    | `image.unsupportedFormat`   | `image.corrupt`                                                                            | `image.animated`                                                  | not one still PNG, JPEG or WebP |
+| 413    | `upload.tooLarge`           | above **2 MiB** on the wire (not `MAX_UPLOAD_BYTES`)                                       |
+| 413    | `photo.pixelBudgetExceeded` | `logo.tooLarge`                                                                            | header pixels over `MAX_IMAGE_PIXELS`; rendered file over 256 KiB |
+| 413    | `storage.boxFull`           | the disk guard                                                                             |
+| 429    | `rate.limited`              | more than ten logos an hour from one account (its own counter; `LOGO_RATE_LIMIT_PER_HOUR`) |
+| 500    | `logo.saveFailed`           | `photo.mediaWriteFailed`                                                                   | a failed save; **also** `PUT` and `DELETE` under a purge hold     |
 
 The stored file is the pipeline's output: rotated upright, **every metadata block stripped**, at most
 640 by 320 (never enlarged) and re-encoded as WebP at quality 85 **with its transparency kept**, named
@@ -3869,7 +3869,7 @@ Whether it is there depends on the box and its relay and never on the address: *
 same for an address that has an account and one that has not**, and nothing in it says which.
 Re-inviting an address to the same event revokes the earlier link, so a lost one can be replaced.
 
-A host may write thirty invitations an hour, to any addresses (`429 rate.limited`, per account: another host is not
+A host may write thirty invitations an hour by default (`INVITATION_RATE_LIMIT_PER_HOUR`), to any addresses (`429 rate.limited`, per account: another host is not
 affected).
 
 **Errors** — `409 membership.alreadyExists` (the address is already a member of this event: the host
