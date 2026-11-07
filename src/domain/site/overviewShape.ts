@@ -26,6 +26,8 @@
  * thing this module exists to keep out of a log line and an error message.
  */
 
+import { hasOwn, isPlainObject } from '../shared/plainObject'
+
 /**
  * - `id`: the opaque identifier of a record the operator manages — a client, an event, an
  *   account. A non-empty string. It is *not* an invitation to carry any other string: a
@@ -72,16 +74,6 @@ export type ShapeProblem = 'notAnObject' | 'notAList' | 'unexpectedKey' | 'missi
 export interface ShapeViolation {
   readonly path: string
   readonly problem: ShapeProblem
-}
-
-const hasOwn = (object: object, key: string): boolean =>
-  Object.prototype.hasOwnProperty.call(object, key)
-
-/** Plain objects only: no class instance, so an entity cannot be handed over as a row. */
-const isPlainObject = (value: unknown): value is Record<string, unknown> => {
-  if (typeof value !== 'object' || value === null) return false
-  const prototype: unknown = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
 }
 
 const joinPath = (parent: string, key: string): string => (parent === '' ? key : `${parent}.${key}`)

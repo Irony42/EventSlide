@@ -33,6 +33,13 @@ import { CountingClientRepository } from '../../testing/countingClientRepository
  * died half-way does not cost a guest their clip or the album a duplicate.
  */
 
+/** The first row, or a failure that says what was missing: a guard that cannot pass silently. */
+const firstOf = <T>(rows: readonly T[], what: string): T => {
+  const row = rows[0]
+  if (row === undefined) throw new Error(`expected a ${what}, found none`)
+  return row
+}
+
 const EVENT = asEventId('event-1')
 
 /** Built through the domain factory, so a fixture is a size the entity accepts. */
@@ -215,9 +222,7 @@ describe('transcodeNextClip', () => {
     })
 
     it('removes the guest’s un-stripped upload once it is no longer needed', async () => {
-      const job = clips.all[0]
-      expect(job).toBeDefined()
-      if (job === undefined) return
+      const job = firstOf(clips.all, 'staged clip job')
 
       await transcodeNextClip()
 
@@ -662,9 +667,7 @@ describe('transcodeNextClip', () => {
     // reconciliation sweep is the collector that can tell.
     seedEvent()
     await stage()
-    const staged = clips.all[0]
-    expect(staged).toBeDefined()
-    if (staged === undefined) return
+    const staged = firstOf(clips.all, 'staged clip job')
 
     // The delete lands while the encoder is running, which is the window that matters.
     const encode = transcoder.transcode.bind(transcoder)
@@ -709,9 +712,7 @@ describe('transcodeNextClip', () => {
      */
     seedEvent({ settings: { moderation: 'auto' } })
     await stage()
-    const staged = clips.all[0]
-    expect(staged).toBeDefined()
-    if (staged === undefined) return
+    const staged = firstOf(clips.all, 'staged clip job')
 
     // Between the insert and `finish`: the status update is the last step before it.
     const updateStatuses = photos.updateStatuses.bind(photos)

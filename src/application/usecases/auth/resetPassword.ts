@@ -28,7 +28,7 @@ export type ResetPassword = (input: ResetPasswordInput) => Promise<Result<void, 
  * what separates "never existed" from "already used", "expired", "revoked" and "for another
  * purpose" is something only the owner of a real link may know.
  */
-export const INVALID_TOKEN_CODE = 'auth.invalidToken'
+const INVALID_TOKEN_CODE = 'auth.invalidToken'
 
 const invalidToken = (): DomainError => DomainError.invalid(INVALID_TOKEN_CODE)
 

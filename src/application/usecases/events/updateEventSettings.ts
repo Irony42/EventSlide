@@ -9,7 +9,7 @@ import type { ClientRepository } from '../../ports/clientRepository'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
-import { clientContextOf } from '../clients/clientContextOf'
+import { ceilingsOf } from '../clients/clientContextOf'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
@@ -114,7 +114,7 @@ export const makeUpdateEventSettings =
 
     // The client's ceilings (roadmap §10.5 / G2-05): the rule, and why it asks only of what this
     // save changes, are `ClientCeilings.settingsRefusal`'s.
-    const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
+    const ceilings = await ceilingsOf(clients, event)
     const refusal = ceilings?.settingsRefusal(event.settings, patch) ?? null
     if (refusal !== null) return err(refusal)
 
