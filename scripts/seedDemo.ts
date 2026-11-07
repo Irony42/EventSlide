@@ -99,7 +99,9 @@ const execute = async (env: NodeJS.ProcessEnv | undefined): Promise<number> => {
       console.error(`Could not create the demo owner: ${owner.error.code}`)
       return 1
     }
-    // The guard above refused any database holding an account, so this always creates.
+    // The guard above refused any database holding an account, so this always creates; the type
+    // is a union, and an account that appeared in between is a failure, not a second seed.
+    if (!owner.value.created) throw new Error('an account appeared while seeding')
     const ownerId = owner.value.userId
 
     // ------------------------------------------------------------- the event --
