@@ -57,7 +57,7 @@ const jpeg = async (label: string, width: number, height: number): Promise<Uint8
   )
 }
 
-const execute = async (env: NodeJS.ProcessEnv): Promise<number> => {
+const execute = async (env: NodeJS.ProcessEnv | undefined): Promise<number> => {
   const config = loadMaintenanceConfig(env)
   const container = await createContainer(config)
   const { usecases } = container
@@ -224,7 +224,7 @@ const execute = async (env: NodeJS.ProcessEnv): Promise<number> => {
  * The whole command, as a function of its environment: exported and returning an exit code (see
  * `backup.ts`) so a test can drive it, `dispose` running on every path.
  */
-export const run = async (env: NodeJS.ProcessEnv = process.env): Promise<number> => {
+export const run = async (env?: NodeJS.ProcessEnv): Promise<number> => {
   try {
     return await execute(env)
   } catch (error) {

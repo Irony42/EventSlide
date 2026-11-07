@@ -62,7 +62,10 @@ const consoleLogger: Logger = {
   child: () => consoleLogger,
 }
 
-const execute = async (argv: readonly string[], env: NodeJS.ProcessEnv): Promise<number> => {
+const execute = async (
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv | undefined,
+): Promise<number> => {
   const dryRun = argv.includes('--dry-run')
 
   // Only the config module reads the environment; it has already resolved these, and it
@@ -274,10 +277,7 @@ const execute = async (argv: readonly string[], env: NodeJS.ProcessEnv): Promise
  * The whole command, as a function of its arguments and environment. Exported and returning an
  * exit code so a test can drive it; it never calls `process.exit`.
  */
-export const run = async (
-  argv: readonly string[],
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<number> => {
+export const run = async (argv: readonly string[], env?: NodeJS.ProcessEnv): Promise<number> => {
   try {
     return await execute(argv, env)
   } catch (error) {

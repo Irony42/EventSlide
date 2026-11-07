@@ -4,6 +4,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as FsMediaStoreModule from '../src/infrastructure/media/fsMediaStore'
+import type * as PruneAuditLogModule from '../src/application/usecases/audit/pruneAuditLog'
 import { aClient, anEvent } from '../src/application/testing/builders'
 import type { MediaStore } from '../src/application/ports/mediaStore'
 import { closeDatabase, openDatabase, type Db } from '../src/infrastructure/db/connection'
@@ -20,7 +22,7 @@ import { SqliteEventRepository } from '../src/infrastructure/db/sqliteEventRepos
 const failures = vi.hoisted(() => ({ deleteEventFor: null as string | null, auditPrune: false }))
 
 vi.mock('../src/infrastructure/media/fsMediaStore', async (importActual) => {
-  const actual = await importActual<typeof import('../src/infrastructure/media/fsMediaStore')>()
+  const actual = await importActual<typeof FsMediaStoreModule>()
   return {
     ...actual,
     createFsMediaStore: (...args: Parameters<typeof actual.createFsMediaStore>): MediaStore => {
@@ -37,8 +39,7 @@ vi.mock('../src/infrastructure/media/fsMediaStore', async (importActual) => {
 })
 
 vi.mock('../src/application/usecases/audit/pruneAuditLog', async (importActual) => {
-  const actual =
-    await importActual<typeof import('../src/application/usecases/audit/pruneAuditLog')>()
+  const actual = await importActual<typeof PruneAuditLogModule>()
   return {
     ...actual,
     makePruneAuditLog: (...args: Parameters<typeof actual.makePruneAuditLog>) => {

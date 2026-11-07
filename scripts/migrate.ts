@@ -15,7 +15,7 @@ import { migrations } from '../src/infrastructure/db/migrations'
 import { migrate, status } from '../src/infrastructure/db/migrator'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 
-const execute = (argv: readonly string[], env: NodeJS.ProcessEnv): number => {
+const execute = (argv: readonly string[], env: NodeJS.ProcessEnv | undefined): number => {
   const wantsStatus = argv.includes('--status')
   const config = loadMaintenanceConfig(env)
   // Only the config module reads the environment; it has already resolved this.
@@ -62,7 +62,7 @@ const execute = (argv: readonly string[], env: NodeJS.ProcessEnv): number => {
  * The whole command, as a function of its arguments and environment: exported and returning an
  * exit code (see `backup.ts`) so a test can drive it. The handle is closed on every path.
  */
-export const run = (argv: readonly string[], env: NodeJS.ProcessEnv = process.env): number => {
+export const run = (argv: readonly string[], env?: NodeJS.ProcessEnv): number => {
   try {
     return execute(argv, env)
   } catch (error) {
