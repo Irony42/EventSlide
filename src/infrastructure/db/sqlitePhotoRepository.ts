@@ -669,13 +669,15 @@ export class SqlitePhotoRepository implements PhotoRepository {
       `UPDATE photos SET highlighted_at = NULL WHERE event_id = ? AND id = ?`,
     )
 
-    this.db.transaction(() => {
-      if (update.run(bindings).changes === 0) insert.run(bindings)
-      // The star is not rewritten from the aggregate, but it does not outlive `published`.
-      if (photo.status !== 'published') {
-        clearStar.run(photo.eventId, photo.id)
-      }
-    })()
+    this.db
+      .transaction(() => {
+        if (update.run(bindings).changes === 0) insert.run(bindings)
+        // The star is not rewritten from the aggregate, but it does not outlive `published`.
+        if (photo.status !== 'published') {
+          clearStar.run(photo.eventId, photo.id)
+        }
+      })
+      .immediate()
   }
 
   /**
@@ -853,17 +855,19 @@ export class SqlitePhotoRepository implements PhotoRepository {
     )
 
     const changed: PhotoId[] = []
-    this.db.transaction(() => {
-      for (const photoId of photoIds) {
-        const row = current.get(eventId, photoId)
-        if (row === undefined || row.status === status) continue
-        if (!canTransition(row.status, status)) continue
+    this.db
+      .transaction(() => {
+        for (const photoId of photoIds) {
+          const row = current.get(eventId, photoId)
+          if (row === undefined || row.status === status) continue
+          if (!canTransition(row.status, status)) continue
 
-        move.run(status, decision.kind, decision.at, decision.userId, eventId, photoId)
-        if (status !== 'published') clearStar.run(eventId, photoId)
-        changed.push(photoId)
-      }
-    })()
+          move.run(status, decision.kind, decision.at, decision.userId, eventId, photoId)
+          if (status !== 'published') clearStar.run(eventId, photoId)
+          changed.push(photoId)
+        }
+      })
+      .immediate()
 
     return changed
   }
