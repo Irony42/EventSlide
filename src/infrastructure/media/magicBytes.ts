@@ -170,7 +170,7 @@ export const identifySuspicious = (bytes: Uint8Array): SuspiciousKind | null => 
 
   if (head.startsWith('<?php')) return 'php'
   if (head.startsWith('#!')) return 'script'
-  if (head.startsWith('<svg') || head.includes('<svg')) return 'svg'
+  if (head.includes('<svg')) return 'svg'
   if (head.startsWith('<!doctype html') || head.startsWith('<html')) return 'html'
   // An SVG served as XML: '<?xml ... <svg'. The prefix may not reach the svg tag, so
   // an XML declaration alone is enough to reject and worth naming as such.

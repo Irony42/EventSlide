@@ -103,9 +103,8 @@ export interface Container {
   /**
    * Outgoing mail (G2-07 / P3-08): the SMTP adapter when `SMTP_URL` is set, `NullMailer`
    * otherwise — which is what a self-hosted box with no mail server gets, and the caller's
-   * cue to show a link to copy. Exposed rather than folded into `usecases` because no use
-   * case sends mail yet; invitations and password reset (G2-08, G2-09) will take it from
-   * here as an adapter.
+   * cue to show a link to copy. Exposed so a test can read which mailer a configuration
+   * chose; the use cases that send mail (invitations, password reset) take it as an adapter.
    */
   readonly mailer: Mailer
   readonly db: Db
