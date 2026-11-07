@@ -179,6 +179,9 @@ describe('npm run purge', () => {
 
   describe('--dry-run', () => {
     it('lists what is due and leaves the database and the media tree exactly as they were', async () => {
+      // The rollback journal mode: a read-write open converts the file to WAL and rewrites its
+      // header, so any non-read-only open is visible in the bytes below.
+      await inDatabase((db) => db.pragma('journal_mode = DELETE'))
       const dbBefore = sha(databasePath)
       const mtimeBefore = statSync(databasePath).mtimeMs
       const treeBefore = treeHash(mediaRoot)
@@ -192,10 +195,7 @@ describe('npm run purge', () => {
       expect(out).toContain('Dry run: nothing was deleted.')
       expect(sha(databasePath)).toBe(dbBefore)
       expect(statSync(databasePath).mtimeMs).toBe(mtimeBefore)
-      // A read-only connection to a WAL database may create an empty -wal and a -shm beside it;
-      // what it must never do is put a byte in the WAL.
-      const wal = `${databasePath}-wal`
-      expect(existsSync(wal) ? statSync(wal).size : 0).toBe(0)
+      expect(existsSync(`${databasePath}-wal`)).toBe(false)
       expect(treeHash(mediaRoot)).toEqual(treeBefore)
     })
 
