@@ -1,8 +1,6 @@
 import { Router, type Request, type RequestHandler } from 'express'
-import { rm } from 'node:fs/promises'
-import { readFile } from 'node:fs/promises'
 import multer from 'multer'
-import { join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { DomainError } from '../../../domain/shared/errors'
 import { asClipJobId } from '../../../domain/shared/ids'
 import { requireGuest } from '../middleware/authz'
@@ -17,6 +15,7 @@ import {
 import { toClipJobDto } from '../presenters/presenters'
 import { sendError, sendJson, sendResult } from '../presenters/send'
 import { clipJobParams, clipUploadFields } from '../schemas/requestSchemas'
+import type { StagedUploadStore } from '../../../application/ports/stagedUploadStore'
 import type { HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
 
@@ -84,15 +83,13 @@ const MAX_TEXT_FIELDS = 4
  * "cleanup on every exit path" is exactly what 1.0 leaked. `withGuest` runs this in its
  * `finally`, and the read route shares it rather than repeating the narrowing.
  */
-const removeUploadedFile = async (req: Request): Promise<void> => {
+const removeUploadedFile = (stagedUploads: StagedUploadStore) => async (req: Request): Promise<void> => {
   if (req.file === undefined) return
-  await rm(req.file.path, { force: true }).catch(() => {
+  await stagedUploads.remove(req.file.path).catch(() => {
     // A leaked temp file is removed at the next boot, when the composition root empties
     // MEDIA_ROOT/.uploads; failing a guest's clip over the cleanup would be worse.
   })
 }
-const clipGuest = { cleanup: removeUploadedFile }
-
 export const clipRoutes = ({
   deps,
   usecases,
@@ -112,6 +109,7 @@ export const clipRoutes = ({
   }),
 }: ClipRouteDeps): Router => {
   const router = Router()
+  const clipGuest = { cleanup: removeUploadedFile(deps.stagedUploads) }
 
   /**
    * Disk, not memory, and not `os.tmpdir()`.
@@ -173,20 +171,16 @@ export const clipRoutes = ({
        * against a container given 1 GB, with a limiter that bounds requests per minute
        * rather than concurrency.
        *
-       * A `Buffer` is already a `Uint8Array` over an `ArrayBuffer`; this names the same
-       * bytes. The offset and length are passed explicitly because a small read can come
-       * from Node's shared pool, where the buffer is a window onto a larger allocation
-       * and `.buffer` alone would hand on the whole pool.
+       * The staged-upload port hands back that view (see `StagedUploadStore.read`).
        */
-      const read = await readFile(file.path)
-      const bytes = new Uint8Array(read.buffer, read.byteOffset, read.byteLength)
+      const bytes = await deps.stagedUploads.read(file.path)
 
       // **Removed before the use case runs, not after the response goes out.** The
       // `finally` below is the backstop for the paths that never reach this line; doing
       // it here as well means the temp file is gone before anything that could fail, and
       // before any byte of the response — so there is no window in which a crash, or a
       // client that hangs up, leaves it behind.
-      await rm(file.path, { force: true })
+      await deps.stagedUploads.remove(file.path)
 
       const result = await usecases.uploadClip({
         eventId: event.id,
@@ -240,5 +234,3 @@ export const clipRoutes = ({
   return router
 }
 
-/** Exported so the composition root can name the same directory multer writes into. */
-export const clipUploadTempDir = (mediaRoot: string): string => join(mediaRoot, '.uploads')

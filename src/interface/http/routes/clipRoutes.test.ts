@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import type { Express } from 'express'
 import request from '../testing/request'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clipRoutes, clipUploadTempDir } from './clipRoutes'
+import { clipRoutes } from './clipRoutes'
 import { GUEST_COOKIE } from '../middleware/authz'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
@@ -105,7 +105,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
   if (options.transcoderUnavailable === true) transcoder.unavailable()
   // Under a per-test directory, standing in for MEDIA_ROOT — never `os.tmpdir()` in
   // production, because the container is read-only with a tmpfs on the memory cgroup.
-  const tempDir = clipUploadTempDir(tempRoot)
+  const tempDir = join(tempRoot, '.uploads')
 
   const harness = buildHarness({
     ...(options.config === undefined ? {} : { config: options.config }),
