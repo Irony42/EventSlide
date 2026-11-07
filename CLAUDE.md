@@ -63,6 +63,12 @@ went looking for that string you were reading an older version of this file. The
 companion rule is `no-restricted-syntax`, which is what bans `process.env` outside
 `env.ts` and `new Date()` / `Date.now()` / `Math.random()` inside domain and application.
 
+The web app has one more boundary of the same kind: **a feature never imports another feature**
+(`web/src/features/<a>` may not reach `web/src/features/<b>`). What two features need lives in
+`web/src/lib/`, `web/src/design-system/` or `web/src/app/`, and `lib/` and `design-system/` may not
+import a feature at all. It is the `WEB_FEATURES` / `featureImportRule` block of `eslint.config.mjs`,
+pinned by `scripts/lintBoundaries.test.ts`. Every feature folder is held and no file is excused: a new violation is fixed, never listed.
+
 If you need domain code to do I/O, you have modelled it wrong — define a **port** in
 `src/application/ports/` instead.
 
@@ -170,6 +176,10 @@ Rules:
   Never assert that a private helper was called.
 - **One clear reason to fail per test.** The name states the rule being protected
   (`rejects a photo when the event has already been archived`), not the mechanics.
+- **HTTP tests go through the shared helper.** `import request from '../testing/request'`
+  (`src/interface/http/testing/request.ts`), never `supertest` itself: it keeps one listening
+  server per app, because a port per request exhausts Windows' ephemeral range during a full
+  run. `supertestGuard.test.ts` fails on a value import of `supertest`.
 - **Time and randomness are injected.** `Clock` and `IdGenerator` are ports. A test
   that depends on `Date.now()` is a flaky test.
 - **Security invariants get named tests.** Tenant isolation, authz on every route,
@@ -178,7 +188,12 @@ Rules:
   surfaces (guest phone → host laptop → projector) or by exercising something only real
   infrastructure can break: EXIF rotation through `sharp`, SSE propagation, a real
   multipart upload. Everything else is cheaper one ring down. Real server, throwaway
-  SQLite file and media root, no network stubbing, no `waitForTimeout`.
+  SQLite file and media root, no network stubbing, no `waitForTimeout`. A test that passes
+  only on a CI retry fails the run (`tests/e2e/reporters/failOnFlaky.ts`).
+- **Component tests start from `web/src/testing/setup.ts`**: it clears `localStorage` and
+  `sessionStorage` after each test and gives `findBy*` / `waitFor` a 5 s timeout. Reuse
+  `FakeEventSource`, `deferred` and `flushPromises` from `web/src/testing/` instead of writing a
+  new double or a real sleep.
 
 Coverage gates are in `vitest.config.ts` and CI fails below them. `src/domain` and
 `src/application` are held at 100% branches; adapters lower, by design. Coverage is a
