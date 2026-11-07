@@ -47,8 +47,8 @@ describe('allowScripts', () => {
 
   it('keeps the install steps the app needs: ffmpeg download, esbuild check, bcrypt prebuild', () => {
     expect(manifest.allowScripts?.['ffmpeg-static']).toBe(true)
-    expect(manifest.allowScripts?.esbuild).toBe(true)
-    expect(manifest.allowScripts?.bcrypt).toBe(true)
+    expect(manifest.allowScripts?.['esbuild']).toBe(true)
+    expect(manifest.allowScripts?.['bcrypt']).toBe(true)
   })
 
   it('denies the node-gyp rebuild of better-sqlite3, which loads its shipped prebuild', () => {
@@ -66,6 +66,6 @@ describe('minimatch', () => {
   })
 
   it('is forced by a top-level override, not one scoped under a single parent', () => {
-    expect(manifest.overrides?.minimatch).toBe('^11.0.1')
+    expect(manifest.overrides?.['minimatch']).toBe('^11.0.1')
   })
 })
