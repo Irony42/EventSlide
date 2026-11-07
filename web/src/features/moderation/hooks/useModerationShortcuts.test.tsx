@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, type Mock } from 'vitest'
+import { useLayoutEffect } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useModerationShortcuts, type ModerationShortcutHandlers } from './useModerationShortcuts'
@@ -229,6 +230,35 @@ describe('useModerationShortcuts', () => {
 
     rerender(<Harness handlers={second} />)
     await userEvent.keyboard('p')
+
+    expect(first.onPublish).not.toHaveBeenCalled()
+    expect(second.onPublish).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs the new handlers for a key that arrives as the render commits, before passive effects', () => {
+    // Real keys arrive between a commit and the passive effects React runs after it: a
+    // browser that is slow to paint (WebKit on a loaded runner) leaves a window of several
+    // milliseconds, in which a J or a P reached the handlers of the render before. The
+    // key is dispatched from a layout effect declared after the hook, which is the last
+    // moment of the commit that a passive effect has not yet run.
+    const first = makeHandlers()
+    const second = makeHandlers()
+    const KeyAtCommit = ({
+      handlers,
+      pressed,
+    }: {
+      readonly handlers: ModerationShortcutHandlers
+      readonly pressed: string | null
+    }) => {
+      useModerationShortcuts(handlers)
+      useLayoutEffect(() => {
+        if (pressed !== null) window.dispatchEvent(new KeyboardEvent('keydown', { key: pressed }))
+      }, [pressed])
+      return null
+    }
+    const { rerender } = render(<KeyAtCommit handlers={first} pressed={null} />)
+
+    rerender(<KeyAtCommit handlers={second} pressed="p" />)
 
     expect(first.onPublish).not.toHaveBeenCalled()
     expect(second.onPublish).toHaveBeenCalledTimes(1)
