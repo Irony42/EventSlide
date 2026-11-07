@@ -167,7 +167,7 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
                 <Button
                   variant="danger"
                   size="sm"
-                  loading={remove.pending === mission.id}
+                  loading={remove.isPending(mission.id)}
                   disabled={remove.busy}
                   aria-label={t.admin.missionDelete(mission.prompt)}
                   onClick={() => setSelected(mission)}

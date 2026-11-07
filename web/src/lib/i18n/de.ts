@@ -1710,6 +1710,8 @@ export const de: UiText = {
       'Wenn Sie Ihr Telefon verlieren, öffnet Ihnen jeder dieser zehn Codes einmal die Tür. Notieren Sie sie jetzt: Sie werden nicht noch einmal angezeigt.',
     recoveryCodesCopy: 'Codes kopieren',
     recoveryCodesCopied: 'Codes kopiert.',
+    recoveryCodesCopyFailed:
+      'Kopieren ist hier nicht möglich: Markieren Sie die Codes und kopieren Sie sie selbst.',
     recoveryCodesSaved: 'Ich habe sie notiert',
     securityEnabled: 'Die Bestätigung in zwei Schritten ist für dieses Konto aktiv.',
     securityManageIntro:
@@ -1987,6 +1989,8 @@ export const de: UiText = {
     invitationLinkLabel: 'Einladungslink',
     copyLink: 'Link kopieren',
     linkCopied: 'Link kopiert.',
+    linkCopyFailed:
+      'Kopieren ist hier nicht möglich: Markieren Sie den Link und kopieren Sie ihn selbst.',
     invitationValidUntil: (date: string) => `Gültig bis ${date}.`,
 
     ceilingsLegend: 'Grenzen',

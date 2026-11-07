@@ -330,6 +330,30 @@ describe('opening a client', () => {
     expect(screen.queryByText('https://photos.example.test/invite/UN-JETON')).toBeNull()
   })
 
+  it('says the copy failed, and leaves the link on screen, when the browser refuses it (WEB-HOST-02)', async () => {
+    const clipboard = {
+      writeText: vi.fn(() => Promise.reject(new DOMException('denied', 'NotAllowedError'))),
+    }
+    Object.defineProperty(navigator, 'clipboard', { value: clipboard, configurable: true })
+    const api = consoleApi({
+      siteClientDefaults: vi.fn(async () => defaults),
+      siteProvisionClient: vi.fn(async () => ({
+        clientId: CLIENT_ID,
+        invitation: aLinkInvitation('https://photos.example.test/invite/UN-JETON'),
+      })),
+    })
+    await openForm(api)
+    await screen.findByLabelText(fr.site.maxEvents)
+    await fill()
+    await submit()
+    await screen.findByText(fr.site.invitationLinkTitle)
+
+    await userEvent.click(screen.getByRole('button', { name: fr.site.copyLink }))
+
+    expect(await screen.findByText(fr.site.linkCopyFailed)).toBeVisible()
+    expect(screen.getByText('https://photos.example.test/invite/UN-JETON')).toBeVisible()
+  })
+
   it('prints no link when the invitation went by mail, even if an answer carried one it should not have', async () => {
     // The server sends a link only where no mail went out. A mail delivery that carries one is a
     // server regression, and the screen does not turn it into something to copy and paste.

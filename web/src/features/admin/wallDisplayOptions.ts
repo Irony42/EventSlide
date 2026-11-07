@@ -85,30 +85,12 @@ export const wallChanges = (
   loaded: WallSettingsDto,
 ): Partial<WallSettingsDto> | undefined => {
   const changes: { -readonly [K in keyof WallSettingsDto]?: WallSettingsDto[K] } = {}
-  if (draft.layout !== loaded.layout) changes.layout = draft.layout
-  if (draft.slideIntervalMs !== loaded.slideIntervalMs) {
-    changes.slideIntervalMs = draft.slideIntervalMs
+  // Every key of the draft, so a setting added to the group is compared without anyone
+  // having to remember to add a line here.
+  const assign = <K extends keyof WallSettingsDto>(key: K): void => {
+    if (draft[key] !== loaded[key]) changes[key] = draft[key]
   }
-  if (draft.mixedEnabled !== loaded.mixedEnabled) changes.mixedEnabled = draft.mixedEnabled
-  if (draft.mixedWallSeconds !== loaded.mixedWallSeconds) {
-    changes.mixedWallSeconds = draft.mixedWallSeconds
-  }
-  if (draft.mixedSlideshowSeconds !== loaded.mixedSlideshowSeconds) {
-    changes.mixedSlideshowSeconds = draft.mixedSlideshowSeconds
-  }
-  if (draft.souvenirCounter !== loaded.souvenirCounter) {
-    changes.souvenirCounter = draft.souvenirCounter
-  }
-  if (draft.newPhotoSignal !== loaded.newPhotoSignal) changes.newPhotoSignal = draft.newPhotoSignal
-  if (draft.freshLane !== loaded.freshLane) changes.freshLane = draft.freshLane
-  if (draft.tilt !== loaded.tilt) changes.tilt = draft.tilt
-  if (draft.showTime !== loaded.showTime) changes.showTime = draft.showTime
-  if (draft.soundEnabled !== loaded.soundEnabled) changes.soundEnabled = draft.soundEnabled
-  if (draft.soundTone !== loaded.soundTone) changes.soundTone = draft.soundTone
-  if (draft.soundVolume !== loaded.soundVolume) changes.soundVolume = draft.soundVolume
-  if (draft.qrVisible !== loaded.qrVisible) changes.qrVisible = draft.qrVisible
-  if (draft.qrScale !== loaded.qrScale) changes.qrScale = draft.qrScale
-  if (draft.qrPlacement !== loaded.qrPlacement) changes.qrPlacement = draft.qrPlacement
+  for (const key of Object.keys(draft) as (keyof WallSettingsDto)[]) assign(key)
   return Object.keys(changes).length === 0 ? undefined : changes
 }
 

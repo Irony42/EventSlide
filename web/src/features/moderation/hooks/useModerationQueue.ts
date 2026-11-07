@@ -191,7 +191,11 @@ export const useModerationQueue = (
 
   const [filter, setFilterState] = useState<StatusFilter>('pending')
   const [attempt, setAttempt] = useState(0)
-  const [busy, setBusy] = useState(false)
+  // A count, not a flag: with two decisions out, the first to answer must not clear it.
+  const [inFlightCount, setInFlightCount] = useState(0)
+  const busy = inFlightCount > 0
+  const beginBusy = useCallback(() => setInFlightCount((count) => count + 1), [])
+  const endBusy = useCallback(() => setInFlightCount((count) => count - 1), [])
   const [state, setState] = useState<QueueState>({
     items: [],
     onScreen: null,
@@ -228,6 +232,10 @@ export const useModerationQueue = (
 
   /** Decisions sent and not yet answered, by photo. See `InFlightDecision`. */
   const inFlightRef = useRef(new Map<string, InFlightDecision>())
+  /** Highlight toggles sent and not yet answered, written over reads that predate their answer. */
+  const highlightsRef = useRef(
+    new Map<string, { value: boolean; settledAfterRead: number | null }>(),
+  )
   /** How many queue reads have started, to tell a read that predates an answer from one that follows it. */
   const readsStartedRef = useRef(0)
   /** An explicit refresh asked for the next read, which is allowed to show its failure. */
@@ -270,7 +278,16 @@ export const useModerationQueue = (
     const readRows = (
       rows: readonly ModerationPhotoDto[],
     ): { readonly rows: readonly ModerationPhotoDto[]; readonly pendingDelta: number } => {
-      const safe = rows.map(withDecisions)
+      for (const [id, toggle] of highlightsRef.current) {
+        if (toggle.settledAfterRead !== null && startedAt > toggle.settledAfterRead) {
+          highlightsRef.current.delete(id)
+        }
+      }
+
+      const safe = rows.map(withDecisions).map((row) => {
+        const toggle = highlightsRef.current.get(row.id)
+        return toggle === undefined ? row : { ...row, highlighted: toggle.value }
+      })
       remember(safe)
 
       for (const [id, decision] of inFlightRef.current) {
@@ -329,7 +346,12 @@ export const useModerationQueue = (
         // decision or signal reads again. A refused session or access is not a blip: it
         // will refuse every read after it, so it is said even then.
         const refused = cause instanceof ApiError && (cause.status === 401 || cause.status === 403)
-        if (quiet && !refused) return
+        if (quiet && !refused) {
+          // A refresh the host pressed may have been superseded by this read (a signal bumped
+          // `attempt` first), so its spinner is still up and no other read will clear it.
+          setState((previous) => (previous.loading ? { ...previous, loading: false } : previous))
+          return
+        }
         // The items already on screen are kept: a refetch that failed while the host
         // was working through a screenful must not empty the grid under them.
         setState((previous) => ({ ...previous, loading: false, error: asError(cause) }))
@@ -500,7 +522,7 @@ export const useModerationQueue = (
 
     const sent = sendDecisions(restored)
     setStatuses(restored)
-    setBusy(true)
+    beginBusy()
     try {
       const skipped: string[] = []
       const applied = new Set<string>()
@@ -568,7 +590,7 @@ export const useModerationQueue = (
       setStatuses(new Map(entries.map((entry) => [entry.id, entry.currentStatus])))
       toast.show(failureMessage(cause, text.moderation.undoFailed, text), { tone: 'danger' })
     } finally {
-      setBusy(false)
+      endBusy()
     }
   }, [
     api,
@@ -581,6 +603,8 @@ export const useModerationQueue = (
     sendDecisions,
     answerDecisions,
     failDecisions,
+    beginBusy,
+    endBusy,
   ])
 
   /**
@@ -671,7 +695,7 @@ export const useModerationQueue = (
 
       const sent = sendDecisions(new Map([[photoId, target]]))
       setStatuses(new Map([[photoId, target]]))
-      setBusy(true)
+      beginBusy()
       try {
         await api.moderate(slug, photoId, decision)
         answerDecisions(sent)
@@ -683,7 +707,7 @@ export const useModerationQueue = (
         forgetUndo()
         toast.show(failureMessage(cause, text.moderation.decisionFailed, text), { tone: 'danger' })
       } finally {
-        setBusy(false)
+        endBusy()
       }
     },
     [
@@ -698,6 +722,8 @@ export const useModerationQueue = (
       sendDecisions,
       answerDecisions,
       failDecisions,
+      beginBusy,
+      endBusy,
     ],
   )
 
@@ -712,7 +738,7 @@ export const useModerationQueue = (
 
       const sent = sendDecisions(new Map(chosen.map((id) => [id, target])))
       setStatuses(new Map(chosen.map((id) => [id, target])))
-      setBusy(true)
+      beginBusy()
       try {
         const response = await api.moderateBulk(slug, chosen, decision)
         answerDecisions(sent, response.skipped)
@@ -754,7 +780,7 @@ export const useModerationQueue = (
         forgetUndo()
         toast.show(failureMessage(cause, text.moderation.decisionFailed, text), { tone: 'danger' })
       } finally {
-        setBusy(false)
+        endBusy()
       }
     },
     [
@@ -769,6 +795,8 @@ export const useModerationQueue = (
       sendDecisions,
       answerDecisions,
       failDecisions,
+      beginBusy,
+      endBusy,
     ],
   )
 
@@ -779,6 +807,10 @@ export const useModerationQueue = (
       // Only a published photograph can be a favourite: the tile offers nothing else, and
       // the server would answer `highlight.notPublished`.
       if (photo === undefined || photo.status !== 'published') return
+
+      // One toggle per photo at a time: a double click would send highlight and
+      // unhighlight with no order between them.
+      if (highlightsRef.current.get(photoId)?.settledAfterRead === null) return
 
       const next = photo.highlighted !== true
       const apply = (value: boolean): void => {
@@ -791,10 +823,14 @@ export const useModerationQueue = (
         }))
       }
 
+      const toggle = { value: next, settledAfterRead: null as number | null }
+      highlightsRef.current.set(photoId, toggle)
       apply(next)
       try {
         await (next ? api.highlightPhoto(slug, photoId) : api.unhighlightPhoto(slug, photoId))
+        toggle.settledAfterRead = readsStartedRef.current
       } catch (cause) {
+        highlightsRef.current.delete(photoId)
         apply(!next)
         toast.show(failureMessage(cause, text.moderation.decisionFailed, text), { tone: 'danger' })
       }

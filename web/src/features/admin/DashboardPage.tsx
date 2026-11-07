@@ -146,7 +146,7 @@ export function DashboardPage() {
                               key={action.to}
                               variant={action.primary ? 'primary' : 'secondary'}
                               size="sm"
-                              loading={transition.pending === `${event.slug}:${action.to}`}
+                              loading={transition.isPending(`${event.slug}:${action.to}`)}
                               disabled={transition.busy}
                               onClick={() =>
                                 transition.request({

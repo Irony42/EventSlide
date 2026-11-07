@@ -90,7 +90,7 @@ export function GuestListPanel({ slug, canRevoke }: GuestListPanelProps) {
                     <Button
                       variant="danger"
                       size="sm"
-                      loading={revoke.pending === guest.id}
+                      loading={revoke.isPending(guest.id)}
                       disabled={revoke.busy}
                       onClick={() => setSelected(guest)}
                     >

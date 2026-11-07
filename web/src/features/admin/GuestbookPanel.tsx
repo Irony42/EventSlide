@@ -8,6 +8,7 @@ import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { useGuestbookQueue } from './hooks/useGuestbookQueue'
 import styles from './GuestbookPanel.module.css'
 import type { GuestbookQueueItemDto } from '../../lib/api/dto'
+import { copyToClipboard } from '../../lib/clipboard'
 
 export interface GuestbookPanelProps {
   readonly slug: string
@@ -42,15 +43,11 @@ export function GuestbookPanel({ slug, canDecide }: GuestbookPanelProps) {
     })[status]
 
   const copyId = (id: string) => {
-    const failed = () => toast.show(t.guestbookHost.copyFailed, { tone: 'danger' })
-    // Absent on a plain-HTTP LAN address, which is not a secure context.
-    if (navigator.clipboard === undefined) {
-      failed()
-      return
-    }
-    void navigator.clipboard
-      .writeText(id)
-      .then(() => toast.show(t.guestbookHost.idCopied, { tone: 'success' }), failed)
+    void copyToClipboard(id).then((copied) =>
+      copied
+        ? toast.show(t.guestbookHost.idCopied, { tone: 'success' })
+        : toast.show(t.guestbookHost.copyFailed, { tone: 'danger' }),
+    )
   }
 
   const formatter = new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' })

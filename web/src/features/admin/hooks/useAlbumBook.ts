@@ -1,10 +1,11 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import { useApi } from '../../../app/useApi'
 import { ApiError } from '../../../lib/http'
 import { useLoader, type LoaderState } from '../../../lib/useLoader'
 import type { AlbumBookInput } from '../../../lib/api/client'
 import type { AlbumBookDto } from '../../../lib/api/dto'
 import { useAction, type ActionState } from './useAction'
+import { usePollWhile } from './usePollWhile'
 import { useRevalidateWhenVisible } from './useRevalidateWhenVisible'
 
 /**
@@ -46,11 +47,7 @@ export const useAlbumBook = (slug: string): LoaderState<AlbumBookRead> => {
     state.data !== 'unsupported' &&
     (state.data.status === 'queued' || state.data.status === 'running')
   const { reload } = state
-  useEffect(() => {
-    if (!active) return undefined
-    const timer = window.setInterval(reload, BOOK_POLL_MS)
-    return () => window.clearInterval(timer)
-  }, [active, reload])
+  usePollWhile(active, BOOK_POLL_MS, reload)
 
   return state
 }
