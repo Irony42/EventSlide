@@ -65,10 +65,9 @@ export const backoffMs = (attempts: number): number => {
   return BACKOFF_STEPS_MS[attempts] ?? last
 }
 
-export const isExpired = (entry: OutboxEntry, now: number): boolean =>
-  now - entry.enqueuedAt >= MAX_AGE_MS
+const isExpired = (entry: OutboxEntry, now: number): boolean => now - entry.enqueuedAt >= MAX_AGE_MS
 
-export const isExhausted = (entry: OutboxEntry): boolean => entry.attempts >= MAX_ATTEMPTS
+const isExhausted = (entry: OutboxEntry): boolean => entry.attempts >= MAX_ATTEMPTS
 
 /** Whether this entry must be dropped rather than sent. */
 export const isSpent = (entry: OutboxEntry, now: number): boolean =>
