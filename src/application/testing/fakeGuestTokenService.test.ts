@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { asEventId, asGuestId } from '../../domain/shared/ids'
 import { AT } from './builders'
+import { guestTokenServiceContract } from './contracts/guestTokenServiceContract'
 import { FAKE_GUEST_TOKEN_MAX_AGE_MS, FakeGuestTokenService } from './fakeGuestTokenService'
 
 const EVENT = asEventId('event-1')
@@ -61,3 +62,5 @@ describe('FakeGuestTokenService', () => {
     expect(tokens.verify(`token|${EVENT}||${AT.getTime()}`, AT).ok).toBe(false)
   })
 })
+
+guestTokenServiceContract('fake', () => new FakeGuestTokenService())
