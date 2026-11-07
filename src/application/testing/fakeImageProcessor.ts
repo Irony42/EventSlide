@@ -99,10 +99,6 @@ export class FakeImageProcessor implements ImageProcessor {
     return ok({
       format: script.format ?? 'jpeg',
       dimensions: this.dimensionsOf(script),
-      hasAlpha: false,
-      exifOrientation: 6,
-      hasMetadata: true,
-      frames: 1,
     })
   }
 
