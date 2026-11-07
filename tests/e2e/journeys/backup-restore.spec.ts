@@ -1,12 +1,12 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdtemp, rm, stat } from 'node:fs/promises'
-import { createServer } from 'node:net'
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
-import sharp from 'sharp'
 import { hostEnvironment } from '../fixtures/childEnvironment'
+import { aPhoto } from '../fixtures/media'
+import { bootServer, type BootedServer } from '../fixtures/startTestApp'
 
 /**
  * The round trip, end to end: seed a real installation, back it up while the server is
@@ -38,102 +38,12 @@ test.describe('backup and restore', () => {
   }
   const ROTATED = 'backup-fixture-rotated-passphrase-not-a-secret'
 
-  /** Shared by both servers: a restore into an instance with different secrets would
-   *  invalidate every guest token and every session, which is exactly the caveat the
-   *  docs state. Here they are stable so the assertion is about the data. */
-  const secrets = (worker: number) => ({
-    SESSION_SECRET: `backup-session-secret-worker-${worker}-padding-pad`,
-    GUEST_TOKEN_SECRET: `backup-guest-secret-worker-${worker}-padding-padd`,
-  })
-
-  const freePort = (): Promise<number> =>
-    new Promise((resolve, reject) => {
-      const probe = createServer()
-      probe.once('error', reject)
-      probe.listen(0, '127.0.0.1', () => {
-        const address = probe.address()
-        if (address === null || typeof address === 'string') {
-          probe.close(() => reject(new Error('could not determine a free port')))
-          return
-        }
-        const { port } = address
-        probe.close(() => resolve(port))
-      })
-    })
-
-  interface Server {
-    readonly baseUrl: string
-    readonly output: () => string
-    stop(): Promise<void>
-  }
-
   /** A real EventSlide, on a chosen database and media root. */
-  const boot = async (input: {
+  const boot = (input: {
     databasePath: string
     mediaRoot: string
     worker: number
-  }): Promise<Server> => {
-    const port = await freePort()
-    const baseUrl = `http://127.0.0.1:${port}`
-
-    const child = spawn(
-      process.execPath,
-      ['--enable-source-maps', join(process.cwd(), 'dist/server/main/index.js')],
-      {
-        env: {
-          ...hostEnvironment(process.env),
-          NODE_ENV: 'test',
-          PORT: String(port),
-          PUBLIC_URL: baseUrl,
-          ...secrets(input.worker),
-          DATABASE_PATH: input.databasePath,
-          MEDIA_ROOT: input.mediaRoot,
-          E2E_HOOKS: '1',
-          UPLOAD_RATE_LIMIT_PER_MINUTE: '600',
-          JOIN_RATE_LIMIT_PER_MINUTE: '600',
-          LOGIN_RATE_LIMIT_PER_MINUTE: '600',
-          BCRYPT_COST: '10',
-          BOOTSTRAP_OWNER_EMAIL: OWNER.email,
-          BOOTSTRAP_OWNER_PASSWORD: OWNER.password,
-          LOG_LEVEL: 'warn',
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    )
-
-    const lines: string[] = []
-    child.stdout?.on('data', (chunk: Buffer) => lines.push(chunk.toString()))
-    child.stderr?.on('data', (chunk: Buffer) => lines.push(chunk.toString()))
-
-    const stop = async (): Promise<void> => {
-      if (child.exitCode !== null) return
-      child.kill('SIGTERM')
-      await Promise.race([
-        new Promise<void>((resolve) => child.once('exit', () => resolve())),
-        new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
-      ])
-      if (child.exitCode === null) child.kill('SIGKILL')
-    }
-
-    const deadline = Date.now() + 60_000
-    while (Date.now() < deadline) {
-      if (child.exitCode !== null) {
-        throw new Error(
-          `the server exited with code ${child.exitCode} before becoming ready:\n` +
-            lines.join('').slice(-2_000),
-        )
-      }
-      try {
-        const ready = await fetch(`${baseUrl}/api/ready`)
-        if (ready.ok) return { baseUrl, output: () => lines.join(''), stop }
-      } catch {
-        // Not up yet.
-      }
-      await new Promise((resolve) => setTimeout(resolve, 150))
-    }
-    await stop()
-    throw new Error(`the server never became ready:\n${lines.join('').slice(-2_000)}`)
-  }
+  }): Promise<BootedServer> => bootServer({ ...input, owner: OWNER })
 
   /**
    * A cookie jar and a CSRF token, so the spec talks to the API exactly as a browser
@@ -188,9 +98,13 @@ test.describe('backup and restore', () => {
       get: (path: string) => send('GET', path),
       post: (path: string, body?: unknown) => send('POST', path, body),
       patch: (path: string, body?: unknown) => send('PATCH', path, body),
-      upload: async (path: string, bytes: Uint8Array<ArrayBuffer>): Promise<Response> => {
+      upload: async (path: string, bytes: Uint8Array): Promise<Response> => {
+        // Copied into a freshly allocated buffer rather than wrapped: a Buffer's backing
+        // store is typed as possibly shared, and a Blob part may not be.
+        const part = new Uint8Array(bytes.byteLength)
+        part.set(bytes)
         const form = new FormData()
-        form.append('photos', new Blob([bytes], { type: 'image/jpeg' }), 'confettis.jpg')
+        form.append('photos', new Blob([part], { type: 'image/jpeg' }), 'confettis.jpg')
         const response = await fetch(`${baseUrl}${path}`, {
           method: 'POST',
           headers: { 'x-csrf-token': csrf(), cookie: cookie() },
@@ -229,25 +143,6 @@ test.describe('backup and restore', () => {
       child.once('close', (code) => resolve({ code: code ?? -1, out: lines.join('') }))
     })
 
-  const aPhoto = async (label: string): Promise<Uint8Array<ArrayBuffer>> => {
-    const hue = [...label].reduce((total, character) => total + character.charCodeAt(0), 0)
-    const encoded = await sharp({
-      create: {
-        width: 1600,
-        height: 1200,
-        channels: 3,
-        background: { r: hue % 256, g: (hue * 3) % 256, b: (hue * 7) % 256 },
-      },
-    })
-      .jpeg({ quality: 88 })
-      .toBuffer()
-    // Copied into a freshly allocated buffer rather than wrapped: a Buffer's backing
-    // store is typed as possibly shared, and a Blob part may not be.
-    const bytes = new Uint8Array(encoded.byteLength)
-    bytes.set(encoded)
-    return bytes
-  }
-
   interface WallItem {
     readonly id: string
     readonly displayUrl: string
@@ -278,7 +173,7 @@ test.describe('backup and restore', () => {
     const databasePath = join(root, 'eventslide.sqlite')
     const mediaRoot = join(root, 'media')
     const archive = join(root, 'archive')
-    const servers: Server[] = []
+    const servers: BootedServer[] = []
 
     try {
       // ------------------------------------------------------- an evening --
@@ -318,7 +213,7 @@ test.describe('backup and restore', () => {
 
       const uploaded = await guest.upload(
         `/api/events/${event.slug}/photos`,
-        await aPhoto('confettis'),
+        await readFile(await aPhoto('confettis')),
       )
       expect(uploaded.status).toBe(201)
       const outcome = (await uploaded.json()) as {
@@ -439,7 +334,7 @@ test.describe('backup and restore', () => {
     const databasePath = join(root, 'eventslide.sqlite')
     const mediaRoot = join(root, 'media')
     const archive = join(root, 'archive')
-    const servers: Server[] = []
+    const servers: BootedServer[] = []
 
     try {
       const server = await boot({ databasePath, mediaRoot, worker: testInfo.workerIndex })
