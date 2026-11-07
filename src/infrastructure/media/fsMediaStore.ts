@@ -135,8 +135,8 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
       } catch (error) {
         await unlink(temporary).catch(() => {
           // Best effort. A `.tmp` left here is not addressable, so `list` will not name
-          // it and `sweepOrphanedMedia` will not collect it either — it survives until
-          // the event is purged. Failing the upload over it would still be worse.
+          // it, but `list` does reap one older than an hour as it walks (see there), so it
+          // does not stay forever. Failing the upload over it would still be worse.
         })
         throw error
       }
