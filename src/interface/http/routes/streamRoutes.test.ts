@@ -85,9 +85,17 @@ const openStream = (
     request.on('error', reject)
   })
 
-/** How many change signals the stream has received so far. */
-const changesIn = (stream: Stream): number =>
-  stream.frames.join('').split('event: change').length - 1
+/**
+ * A signal of another kind than `photoPublished`, sent last and waited for: once it has come in,
+ * a `photo.moderated` that was going to arrive would already have. It is the positive event after
+ * the negative one, in place of a sleep that passes just as well when delivery is merely slow.
+ */
+const guestbookChanged = (eventId: string): DomainEvent => ({
+  type: 'guestbook.changed',
+  eventId: asEventId(eventId),
+})
+
+const hasGuestbookSignal = (text: string): boolean => text.includes('guestbook.changed')
 
 const photoPublished = (eventId: string): DomainEvent => ({
   type: 'photo.moderated',
@@ -243,13 +251,11 @@ describe('streamRoutes', () => {
     await stream.waitFor((text) => text.includes(': connected'), 'connection')
 
     subject.deps.bus.publish(photoPublished(GALA))
-    // A signal for this event, sent after the foreign one and answered in order: once it has
-    // arrived, the foreign one would have arrived before it. Nothing is waited on blindly.
-    subject.deps.bus.publish(photoPublished(WEDDING))
-    await stream.waitFor((text) => text.includes('event: change'), 'the event’s own signal')
+    // A signal for this event, sent after the foreign one: see `guestbookChanged`.
+    subject.deps.bus.publish(guestbookChanged(WEDDING))
+    await stream.waitFor(hasGuestbookSignal, 'the event’s own signal')
 
-    expect(changesIn(stream)).toBe(1)
-    expect(stream.frames.join('')).toContain('id: 1')
+    expect(stream.frames.join('')).not.toContain('photo.moderated')
   })
 
   it('gives two clients of one event the same id for one change', async () => {
@@ -400,14 +406,15 @@ describe('streamRoutes', () => {
       .poll(() => subject.bus.subscriberCount(asEventId(WEDDING)), { timeout: 3_000 })
       .toBe(0)
 
-    const later = await open('/api/events/mariage/stream')
+    // Asking to resume from the start is what would surface a buffer that had been kept.
+    const later = await open('/api/events/mariage/stream', { 'last-event-id': '0' })
     await later.waitFor((text) => text.includes(': connected'), 'the new connection')
     // A replay, had one been kept, is written when the client connects: the signal published
     // now arrives after it, so it must be the only one the client ever sees.
-    subject.deps.bus.publish(photoPublished(WEDDING))
-    await later.waitFor((text) => text.includes('event: change'), 'a fresh signal')
+    subject.deps.bus.publish(guestbookChanged(WEDDING))
+    await later.waitFor(hasGuestbookSignal, 'a fresh signal')
 
-    expect(changesIn(later)).toBe(1)
+    expect(later.frames.join('')).not.toContain('photo.moderated')
   })
 
   it.each([
@@ -435,14 +442,13 @@ describe('streamRoutes', () => {
     // buffer for every event the process has ever seen.
     subject.deps.bus.publish(photoPublished(WEDDING))
 
-    const stream = await open('/api/events/mariage/stream')
+    const stream = await open('/api/events/mariage/stream', { 'last-event-id': '0' })
     await stream.waitFor((text) => text.includes(': connected'), 'connection')
     // The signal published before anybody watched would be replayed at connection, ahead of this one.
-    subject.deps.bus.publish(photoPublished(WEDDING))
-    await stream.waitFor((text) => text.includes('event: change'), 'a fresh signal')
+    subject.deps.bus.publish(guestbookChanged(WEDDING))
+    await stream.waitFor(hasGuestbookSignal, 'a fresh signal')
 
-    expect(changesIn(stream)).toBe(1)
-    expect(stream.frames.join('')).toContain('id: 1')
+    expect(stream.frames.join('')).not.toContain('photo.moderated')
   })
 
   it('unsubscribes from the bus when the client disconnects', async () => {

@@ -32,7 +32,7 @@ describe('listSiteAccounts', () => {
 
     await listAccounts({})
 
-    expect(asked).toEqual([{ limit: DEFAULT_SITE_PAGE_SIZE }])
+    expect(asked).toStrictEqual([{ limit: DEFAULT_SITE_PAGE_SIZE }])
   })
 
   it('hands the read model the cursor of the previous page, so the next page starts after it', async () => {
