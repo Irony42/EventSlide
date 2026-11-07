@@ -157,7 +157,6 @@ describe('sharpImageProcessor', () => {
       expect(result.value.format).toBe('jpeg')
       expect(result.value.dimensions.width).toBe(800)
       expect(result.value.dimensions.height).toBe(600)
-      expect(result.value.frames).toBe(1)
     })
 
     it('rejects an executable script renamed to look like a photo', async () => {
@@ -257,25 +256,6 @@ describe('sharpImageProcessor', () => {
       expect(!result.ok && result.error.code).toBe('dimensions.tooLarge')
     })
 
-    it('reports the EXIF orientation a phone photo arrives with', async () => {
-      const result = await processor.probe(await jpegWithMetadata(400, 200, 6))
-
-      expect(result.ok && result.value.exifOrientation).toBe(6)
-      expect(result.ok && result.value.hasMetadata).toBe(true)
-    })
-
-    it('reports no metadata for an image that carries none', async () => {
-      const result = await processor.probe(await jpeg(64, 64))
-
-      expect(result.ok && result.value.hasMetadata).toBe(false)
-    })
-
-    it('reports a frame count, so the animation limit has something to act on', async () => {
-      const result = await processor.probe(await jpeg(32, 32))
-
-      expect(result.ok && result.value.frames).toBe(1)
-    })
-
     it('refuses an image whose frame count exceeds the configured limit', async () => {
       // Driven by lowering the limit rather than by building a real animation:
       // producing a genuinely multi-page GIF in-process needs an input that already
@@ -320,8 +300,7 @@ describe('sharpImageProcessor', () => {
       const input = await jpegWithMetadata(300, 300, 1)
       // The fixture has to really carry the EXIF block — including the GPS IFD, which
       // libvips exposes as IFD3 — or the assertions below pass vacuously.
-      const before = await processor.probe(input)
-      expect(before.ok && before.value.hasMetadata).toBe(true)
+      expect((await sharp(input).metadata()).exif).toBeDefined()
 
       const result = await processor.render(input, DISPLAY)
 
@@ -466,11 +445,11 @@ describe('renderFailureOf', () => {
     ['an I/O fault', errno('EIO', 'EIO: i/o error, read')],
     ['an allocation failure', errno('ENOMEM', 'Cannot allocate memory')],
     ['sharp running out of memory', new Error('Vips: out of memory')],
-  ])('blames the server, not the guest file, for %s', (_name, cause) => {
+  ])('blames the server, with a code of its own, not the guest file, for %s', (_name, cause) => {
     const failure = renderFailureOf(cause)
 
     expect(failure.kind).toBe('unexpected')
-    expect(failure.code).toBe('image.renderFailed')
+    expect(failure.code).toBe('image.renderUnavailable')
   })
 
   it.each([

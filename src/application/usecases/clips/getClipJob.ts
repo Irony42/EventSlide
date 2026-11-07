@@ -1,6 +1,5 @@
 import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import { DomainError } from '../../../domain/shared/errors'
-import type { PhotoActor } from '../../../domain/photos/photo'
 import type { ClipJobId, EventId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { ClipJobRepository } from '../../ports/clipJobRepository'
@@ -21,12 +20,6 @@ import type { ClipJobRepository } from '../../ports/clipJobRepository'
 export interface GetClipJobInput {
   readonly eventId: EventId
   readonly clipJobId: ClipJobId
-  /**
-   * Who is asking. Carried so the shape matches every other guest-facing use case and so
-   * a route cannot reach this without having resolved somebody — but the decision below
-   * is **event membership**, not authorship. Read the note in the body before changing it.
-   */
-  readonly actor: PhotoActor
 }
 
 export interface ClipJobView {

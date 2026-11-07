@@ -5,7 +5,7 @@ import { useTranslations } from '../lib/i18n/useTranslations'
 import { cx } from '../design-system/classNames'
 import { AmbianceMarker } from '../design-system/components/AmbianceMarker'
 import type { ThemeAmbiance, ThemeCustom } from '../lib/api/dto'
-import { useApi } from './useApi'
+import { useApi } from '../lib/useApi'
 import styles from './HostBreadcrumb.module.css'
 
 /** Where the host's list of events is: the one place that offers "Nouvel évènement". */

@@ -2,7 +2,8 @@ import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { Photo } from '../../../domain/photos/photo'
 import type { EventId } from '../../../domain/shared/ids'
 import type { Clock } from '../../ports/clock'
-import { SERVED_VARIANTS, type MediaStore } from '../../ports/mediaStore'
+import { type MediaStore } from '../../ports/mediaStore'
+import { SERVED_VARIANTS } from '../../../domain/photos/mediaVariant'
 import type { PhotoRepository } from '../../ports/photoRepository'
 
 /**

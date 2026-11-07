@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { readNoticeState, rememberPrivacyNotice } from '../../../lib/guestSession'
 import { ApiError } from '../../../lib/http'
 import type { PrivacyNoticeState } from '../../../lib/api/dto'

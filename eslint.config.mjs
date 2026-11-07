@@ -148,18 +148,6 @@ const WEB_FEATURES = [
 ]
 
 /**
- * Files that still import another feature, and the reason each is not fixed yet. This list
- * only shrinks: a new file never joins it, so the rule is a ratchet. Each entry belongs to a
- * feature outside the host-structure lot (WEB-HOST-04), which could not edit it.
- */
-const FEATURE_BOUNDARY_LEGACY = [
-  // The wall's host panel reuses the host console's pieces (and the join page reuses the guest
-  // upload's greeting and logo); both folders have their own structure lot.
-  'web/src/features/wall/**',
-  'web/src/features/join/**',
-]
-
-/**
  * Scope: static imports only. A dynamic `import()` (router.tsx lazy-loads every page from `app/`,
  * legitimately) and `vi.mock` paths are not seen by `no-restricted-imports`.
  * Known and accepted: `app/` is outside the zones on purpose, and `app/AmbiancePreview.tsx`
@@ -259,6 +247,31 @@ const NO_AMBIENT_NONDETERMINISM = [
   },
 ]
 
+const INTERFACE_FORBIDDEN = [
+  {
+    group: ['**/infrastructure/**', '**/main/**', '**/web/**'],
+    message:
+      'The HTTP layer receives its dependencies from src/main/container.ts. Import the port type, never the adapter.',
+  },
+  {
+    group: ['nodemailer*'],
+    message:
+      'The HTTP layer never talks to a mail library. Take the Mailer port from the use case that needs it.',
+  },
+]
+
+const ROUTES_NO_PEER = {
+  group: ['./*', '../routes/*'],
+  message:
+    'A route file imports no other route file. What two routes share belongs in middleware/ (a session helper), presenters/ or schemas/.',
+}
+
+const INTERFACE_NO_FS = {
+  group: ['fs', 'fs/*', 'node:fs', 'node:fs/*'],
+  message:
+    'src/interface may not touch the filesystem. Put the I/O behind a port in src/application/ports and an adapter in src/infrastructure.',
+}
+
 export default tseslint.config(
   {
     ignores: [
@@ -347,23 +360,25 @@ export default tseslint.config(
   {
     files: ['src/interface/**/*.ts'],
     rules: {
+      'no-restricted-imports': ['error', { patterns: [...INTERFACE_FORBIDDEN, INTERFACE_NO_FS] }],
+    },
+  },
+  {
+    files: ['src/interface/http/routes/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: {
       'no-restricted-imports': [
         'error',
-        {
-          patterns: [
-            {
-              group: ['**/infrastructure/**', '**/main/**', '**/web/**'],
-              message:
-                'The HTTP layer receives its dependencies from src/main/container.ts. Import the port type, never the adapter.',
-            },
-            {
-              group: ['nodemailer*'],
-              message:
-                'The HTTP layer never talks to a mail library. Take the Mailer port from the use case that needs it.',
-            },
-          ],
-        },
+        { patterns: [...INTERFACE_FORBIDDEN, INTERFACE_NO_FS, ROUTES_NO_PEER] },
       ],
+    },
+  },
+  {
+    // A test may build a real directory to stand in for MEDIA_ROOT; production code may not
+    // touch the filesystem, it asks a port (`StagedUploadStore`, `DiskSpaceChecker`).
+    files: ['src/interface/**/*.test.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: INTERFACE_FORBIDDEN }],
     },
   },
 
@@ -463,9 +478,9 @@ export default tseslint.config(
   },
 
   /* ------------------------------------------------- web feature boundary -- */
+  // Every feature is held and no file is excused: a new violation is fixed, not listed.
   ...WEB_FEATURES.map((feature) => ({
     files: [`web/src/features/${feature}/**/*.{ts,tsx}`],
-    ignores: FEATURE_BOUNDARY_LEGACY,
     rules: {
       'no-restricted-imports': webBoundary(WEB_FEATURES.filter((other) => other !== feature)),
     },

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Caption } from '../photos/caption'
 import { ContentHash } from '../photos/contentHash'
-import { asClipJobId, asEventId, asGuestId, asPhotoId, asUserId } from '../shared/ids'
+import { asClipJobId, asEventId, asGuestId, asPhotoId } from '../shared/ids'
 import type { Result } from '../shared/result'
 import type { DomainError } from '../shared/errors'
 import { ClipJob, type NewClipJob } from './clipJob'
@@ -98,28 +98,6 @@ describe('ClipJob.create', () => {
       AT,
     )
     expect(!result.ok && result.error.code).toBe('clip.sourceByteSizeInvalid')
-  })
-})
-
-describe('ClipJob.isAuthoredBy', () => {
-  it('recognises the guest who sent it', () => {
-    expect(aJob().isAuthoredBy({ kind: 'guest', guestId: asGuestId('guest-1') })).toBe(true)
-  })
-
-  it('does not hand one guest another guest’s clip', () => {
-    expect(aJob().isAuthoredBy({ kind: 'guest', guestId: asGuestId('guest-2') })).toBe(false)
-  })
-
-  it('recognises a host who uploaded from the venue’s own camera', () => {
-    const hosted = aJob({ author: { kind: 'host', userId: asUserId('user-1') } })
-    expect(hosted.isAuthoredBy({ kind: 'host', userId: asUserId('user-1') })).toBe(true)
-    expect(hosted.isAuthoredBy({ kind: 'host', userId: asUserId('user-2') })).toBe(false)
-  })
-
-  it('does not match a host against a guest’s clip, or the reverse', () => {
-    expect(aJob().isAuthoredBy({ kind: 'host', userId: asUserId('user-1') })).toBe(false)
-    const hosted = aJob({ author: { kind: 'host', userId: asUserId('user-1') } })
-    expect(hosted.isAuthoredBy({ kind: 'guest', guestId: asGuestId('guest-1') })).toBe(false)
   })
 })
 

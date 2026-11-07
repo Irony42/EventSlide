@@ -3,8 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import sharp from 'sharp'
-import request from 'supertest'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import request from '../interface/http/testing/request'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { DiskSpaceChecker } from '../application/ports/diskSpace'
 import { asEventId, asGuestId, asPhotoId, asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
@@ -39,13 +39,43 @@ const OWNER = 'hote@example.test'
 const PASSWORD = 'un-mot-de-passe-solide'
 const SLUG = 'mariage-de-camille'
 
+/**
+ * One container for the whole file: booting it (migrations, the bootstrap owner's password hash)
+ * is most of what a scene costs, and it is what made each test slow enough to meet its budget
+ * under load. Every test still gets an event of its own, so none sees another's photographs.
+ * Keep it that way: one event per test, and no assertion on a global count (users, books, purge
+ * totals), since the database and the media root are now shared and such a count would depend on
+ * the order the tests run in.
+ * `afterAll` has nothing in flight to wait for: the worker is never started here and `scene`
+ * awaits every render, so the directory is quiet when it is removed.
+ */
 let workDir: string | null = null
-let container: Container | null = null
+let shared: Container | null = null
+let eventCount = 0
 
-afterEach(async () => {
-  await container?.dispose()
-  container = null
-  if (workDir !== null) await rm(workDir, { recursive: true, force: true })
+beforeAll(async () => {
+  workDir = await mkdtemp(join(tmpdir(), 'eventslide-book-'))
+  shared = await createContainer(
+    loadConfig({
+      NODE_ENV: 'test',
+      LOG_LEVEL: 'fatal',
+      DATABASE_PATH: join(workDir, 'eventslide.sqlite'),
+      MEDIA_ROOT: join(workDir, 'media'),
+      BOOTSTRAP_OWNER_EMAIL: OWNER,
+      BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
+    }),
+  )
+  shared.db.prepare('UPDATE users SET must_change_password = 0').run()
+})
+
+afterEach(() => {
+  probe.diskFree = null
+})
+
+afterAll(async () => {
+  await shared?.dispose()
+  shared = null
+  if (workDir !== null) await rm(workDir, { recursive: true, force: true, maxRetries: 5 })
   workDir = null
   probe.diskFree = null
 })
@@ -60,20 +90,11 @@ const csrfOf = (headers: Record<string, unknown>): string => {
 }
 
 const scene = async (diskFree: ((path: string) => number | null) | null = null) => {
-  workDir = await mkdtemp(join(tmpdir(), 'eventslide-book-'))
+  if (workDir === null || shared === null) throw new Error('fixture: no container')
+  const booted = shared
   const mediaRoot = join(workDir, 'media')
-  const booted = await createContainer(
-    loadConfig({
-      NODE_ENV: 'test',
-      LOG_LEVEL: 'fatal',
-      DATABASE_PATH: join(workDir, 'eventslide.sqlite'),
-      MEDIA_ROOT: mediaRoot,
-      BOOTSTRAP_OWNER_EMAIL: OWNER,
-      BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
-    }),
-  )
-  container = booted
-  booted.db.prepare('UPDATE users SET must_change_password = 0').run()
+  eventCount += 1
+  const slug = `${SLUG}-${eventCount}`
   const ownerId = booted.db
     .prepare<[string], { readonly id: string }>('SELECT id FROM users WHERE email = ?')
     .get(OWNER)?.id
@@ -82,7 +103,7 @@ const scene = async (diskFree: ((path: string) => number | null) | null = null) 
   const created = await booted.usecases.createEvent({
     ownerId: asUserId(ownerId),
     name: 'Mariage de Camille',
-    slug: SLUG,
+    slug,
   })
   if (!created.ok) throw new Error(`fixture rejected: ${created.error.code}`)
   const eventId = created.value.id
@@ -108,7 +129,7 @@ const scene = async (diskFree: ((path: string) => number | null) | null = null) 
       .jpeg()
       .toBuffer()
     const uploaded = await agent
-      .post(`/api/events/${SLUG}/photos`)
+      .post(`/api/events/${slug}/photos`)
       .set(CSRF_HEADER, csrf)
       .attach('photos', jpeg, 'a.jpg')
     expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201)
@@ -295,17 +316,21 @@ describe('the photo book worker, when the disk is short', () => {
 
 describe('the photo book worker, when the function is off', () => {
   it('is not built at all', async () => {
-    workDir = await mkdtemp(join(tmpdir(), 'eventslide-book-off-'))
-    container = await createContainer(
+    const offDir = await mkdtemp(join(tmpdir(), 'eventslide-book-off-'))
+    const off = await createContainer(
       loadConfig({
         NODE_ENV: 'test',
         LOG_LEVEL: 'fatal',
-        DATABASE_PATH: join(workDir, 'eventslide.sqlite'),
-        MEDIA_ROOT: join(workDir, 'media'),
+        DATABASE_PATH: join(offDir, 'eventslide.sqlite'),
+        MEDIA_ROOT: join(offDir, 'media'),
         BOOK_ENABLED: 'false',
       }),
     )
-
-    expect(container.albumBookWorker).toBeNull()
+    try {
+      expect(off.albumBookWorker).toBeNull()
+    } finally {
+      await off.dispose()
+      await rm(offDir, { recursive: true, force: true, maxRetries: 5 })
+    }
   })
 })

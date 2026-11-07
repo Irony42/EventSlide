@@ -102,6 +102,14 @@ export const serverEnvironment = ({
   // account and answered the fixtures' own setup with `seed event failed with 429`. Per account
   // and per hour, so only a suite that seeds in a loop reaches it; 1000 is the schema's ceiling.
   EVENT_CREATION_RATE_LIMIT_PER_HOUR: '1000',
+  // The same account, the same reason, for the four other per-account hourly limits: invitations
+  // (30), venue photographs (10), book requests (20) and logos (10). Specs stay under them today
+  // with a margin nobody checks, and `retries: 2` replays count again; the next spec past one
+  // would answer 429 in whichever worker drew it last.
+  INVITATION_RATE_LIMIT_PER_HOUR: '1000',
+  VENUE_PHOTO_RATE_LIMIT_PER_HOUR: '1000',
+  BOOK_REQUEST_RATE_LIMIT_PER_HOUR: '1000',
+  LOGO_RATE_LIMIT_PER_HOUR: '1000',
   // Cost 10 rather than 12: this is the floor the hasher accepts, and it takes
   // roughly a quarter of the time. Every login in the suite pays it.
   BCRYPT_COST: '10',

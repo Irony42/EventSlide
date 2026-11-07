@@ -40,8 +40,6 @@ const typeTheCode = async (): Promise<void> => {
 
 describe('a guest with no session is sent to the code entry and comes back (A2)', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
@@ -80,8 +78,6 @@ describe('a guest with no session is sent to the code entry and comes back (A2)'
 
 describe('the installed app’s launch address (A1)', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 

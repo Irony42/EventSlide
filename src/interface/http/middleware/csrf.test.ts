@@ -187,6 +187,38 @@ describe('requireCsrfToken', () => {
     expect(response.body.error.code).toBe('request.csrfMismatch')
   })
 
+  it('tells a refused client the token its cookie holds, so a stale page can retry with it', async () => {
+    // WebKit can leave `document.cookie` behind the cookie jar. The jar is what the gate
+    // compares against, so the value the client was refused for is the one its retry needs.
+    // The caller already sent this cookie: nothing leaves the browser that it did not hold.
+    const subject = harness()
+    const first = await request(subject.app).get('/read')
+    const token = tokenFrom(first.headers)
+
+    const response = await request(subject.app)
+      .post('/write')
+      .set('Cookie', `${CSRF_COOKIE}=${token}`)
+      .set(CSRF_HEADER, 'x'.repeat(token.length))
+
+    expect(response.body.error.details).toEqual({ csrfToken: token })
+  })
+
+  it('echoes no token when the request had no header or no cookie to compare', async () => {
+    const subject = harness()
+    const first = await request(subject.app).get('/read')
+    const token = tokenFrom(first.headers)
+
+    const noHeader = await request(subject.app)
+      .post('/write')
+      .set('Cookie', `${CSRF_COOKIE}=${token}`)
+    const noCookie = await request(subject.app).post('/write').set(CSRF_HEADER, token)
+
+    expect(noHeader.body.error.code).toBe('request.csrfMissing')
+    expect(noHeader.body.error.details).toEqual({})
+    expect(noCookie.body.error.code).toBe('request.csrfMissing')
+    expect(noCookie.body.error.details).toEqual({})
+  })
+
   it('refuses a header of the right value but the wrong length', async () => {
     // Length is compared before the constant-time comparison, which throws on a
     // mismatch. The token is fixed-size, so length leaks nothing.

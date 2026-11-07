@@ -439,6 +439,16 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        */
       EVENT_CREATION_RATE_LIMIT_PER_HOUR: positiveInt(20, 1_000),
       /**
+       * The other four per-**account** hourly ceilings of a host's console, each keyed like
+       * the one above and each with a counter of its own. Invitations sent, venue photographs,
+       * photo-book requests and event logos: a script's brake, well above what a host does by
+       * hand, and raised in the end-to-end environment where every test signs in as one owner.
+       */
+      INVITATION_RATE_LIMIT_PER_HOUR: positiveInt(30, 1_000),
+      VENUE_PHOTO_RATE_LIMIT_PER_HOUR: positiveInt(10, 1_000),
+      BOOK_REQUEST_RATE_LIMIT_PER_HOUR: positiveInt(20, 1_000),
+      LOGO_RATE_LIMIT_PER_HOUR: positiveInt(10, 1_000),
+      /**
        * The shared gallery (roadmap §4.1), the one surface a stranger reaches with only a
        * URL. Pages and bytes are separate budgets because a grid of sixty thumbnails is
        * sixty requests the moment it renders; password attempts are per quarter hour and

@@ -216,36 +216,4 @@ describe('SqliteReactionRepository', () => {
 
     expect(log.prepared).toHaveLength(1)
   })
-
-  // -------------------------------------------------------------- ordering --
-
-  it('breaks a tie in a guest reaction list by id, so two devices agree', async () => {
-    // Written in descending id order and read back in ascending id order, against one
-    // shared `createdAt`: insertion order alone would return `clap` first, so this
-    // fails if the tie-break is dropped instead of quietly agreeing with the rowids.
-    await repo.save(
-      aReaction({
-        id: 'r2',
-        eventId: WEDDING,
-        photoId: P2,
-        guestId: LEA,
-        kind: 'clap',
-        createdAt: AT,
-      }),
-    )
-    await repo.save(
-      aReaction({
-        id: 'r1',
-        eventId: WEDDING,
-        photoId: P1,
-        guestId: LEA,
-        kind: 'love',
-        createdAt: AT,
-      }),
-    )
-
-    const entries = await repo.listByGuest(WEDDING, LEA)
-
-    expect(entries.map((entry) => entry.kind)).toEqual(['love', 'clap'])
-  })
 })

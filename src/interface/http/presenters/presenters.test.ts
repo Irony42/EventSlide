@@ -13,15 +13,18 @@ import {
   toInvitationPreviewDto,
   toModerationPhotoDto,
   toPublicEventDto,
-  toSessionUserDto,
+  toSignedInUserDto,
+  toUploadOutcomeDto,
   type PresenterContext,
   toEventThemeDto,
   venueGroundUrl,
 } from './presenters'
 import type { AuditRecord } from '../../../application/ports/auditLog'
-import { AT, aGuest, aPhoto, aUser, anEvent } from '../../../application/testing/builders'
+import { AT, aGuest, aPhoto, anEvent } from '../../../application/testing/builders'
+import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
 import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
 import { ContentHash } from '../../../domain/photos/contentHash'
+import { DomainError } from '../../../domain/shared/errors'
 import { asClientId, asUserId } from '../../../domain/shared/ids'
 
 const context: PresenterContext = {
@@ -526,25 +529,29 @@ describe('toGuestDto', () => {
   })
 })
 
-describe('toSessionUserDto', () => {
-  it('carries the identity and the forced-change flag, never the hash', () => {
-    const user = aUser({ email: 'host@example.com', displayName: 'Camille' })
+describe('toSignedInUserDto', () => {
+  const identity = (over: Partial<AuthenticatedUser> = {}): AuthenticatedUser => ({
+    userId: asUserId('user-1'),
+    email: 'host@example.com',
+    displayName: 'Camille',
+    mustChangePassword: false,
+    secondFactorRequired: false,
+    ...over,
+  })
 
-    const dto = toSessionUserDto(user)
+  it('carries the identity and the forced-change flag, nothing else', () => {
+    const user = identity()
 
-    expect(dto).toEqual({
-      userId: user.id,
+    expect(toSignedInUserDto(user)).toEqual({
+      userId: asUserId('user-1'),
       email: 'host@example.com',
       displayName: 'Camille',
       mustChangePassword: false,
     })
-    expect(Object.keys(dto)).not.toContain('passwordHash')
   })
 
   it('surfaces mustChangePassword so the client can gate the admin surface', () => {
-    const user = aUser({ mustChangePassword: true })
-
-    expect(toSessionUserDto(user).mustChangePassword).toBe(true)
+    expect(toSignedInUserDto(identity({ mustChangePassword: true })).mustChangePassword).toBe(true)
   })
 })
 
@@ -726,5 +733,22 @@ describe('toEventBrandDto', () => {
 
     expect(toEventBrandDto(anEvent().settings, 'camille-et-sacha').logoUrl).toBeNull()
     expect(toEventBrandDto(named.settings, null).logoUrl).toBeNull()
+  })
+})
+
+describe('a per-file upload refusal', () => {
+  it('crosses the wire as its code, so a server-side render failure keeps its own', () => {
+    const refused = {
+      index: 2,
+      declaredName: 'x.jpg',
+      kind: 'refused' as const,
+      error: DomainError.unexpected('image.renderUnavailable', { reason: 'ENOSPC' }),
+    }
+
+    expect(toUploadOutcomeDto(refused)).toEqual({
+      index: 2,
+      status: 'rejected',
+      code: 'image.renderUnavailable',
+    })
   })
 })

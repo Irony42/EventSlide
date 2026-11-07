@@ -137,7 +137,8 @@ export const issueCsrfToken =
  *
  * So this is a considered no rather than an omission, and it has exactly one
  * dependency, which is written here so the next reader finds it before repeating the
- * analysis: **if CORS is ever added to this server, reopen it.** An allowed origin is
+ * analysis: **if CORS is ever added to this server, reopen it** (the `csrfMismatch` token
+ * echo below relies on it as well: an allowed origin could read that body). An allowed origin is
  * precisely what turns cookie injection back into a deliverable CSRF, and at that point
  * the session-bound variant of (2) becomes worth its asymmetry.
  *
@@ -166,7 +167,11 @@ export const requireCsrfToken: RequestHandler = (req, res, next) => {
     return
   }
   if (!constantTimeEqual(cookie, header)) {
-    sendError(res, DomainError.forbidden('request.csrfMismatch'))
+    // The token the gate compared against. A client whose `document.cookie` fell behind the
+    // cookie jar (WebKit, after a service-worker fetch) cannot read it any other way, and the
+    // caller sent this very cookie: nothing is disclosed that it did not already hold. A page
+    // on another origin cannot read this body (no CORS, see `rotateCsrfToken`).
+    sendError(res, DomainError.forbidden('request.csrfMismatch', { csrfToken: cookie }))
     return
   }
   next()

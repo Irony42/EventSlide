@@ -51,8 +51,8 @@ import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings
 import { Event } from '../../../domain/events/event'
 import { Slug } from '../../../domain/shared/slug'
 import { eventCreationLimiter } from '../middleware/rateLimit'
-import { buildHarness, signInAs } from '../testing/middlewareHarness'
-import type { HttpDeps } from '../types'
+import { buildHarness, signInAs, testHttpConfig } from '../testing/middlewareHarness'
+import type { HttpConfig, HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
 import { eventRoutes } from './eventRoutes'
 import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
@@ -176,12 +176,15 @@ interface BuildWorldOptions {
   readonly eventCreation?: EventCreationPolicy
   /** Which mailer the invitation goes through: the recording fake, or a box with no relay. */
   readonly mailer?: 'fake' | 'none'
+  /** Overrides of the per-account hourly limits; a test about one narrows it. */
+  readonly rateLimits?: Partial<HttpConfig['rateLimits']>
 }
 
 const buildWorld = ({
   creationLimit = GENEROUS_CREATION_LIMIT,
   eventCreation = 'anyAccount',
   mailer: mailerChoice = 'fake',
+  rateLimits = {},
 }: BuildWorldOptions = {}): World => {
   const users = new FakeUserRepository()
   const photos = new FakePhotoRepository()
@@ -203,6 +206,7 @@ const buildWorld = ({
 
   const harness = buildHarness({
     users,
+    config: { rateLimits: { ...testHttpConfig().rateLimits, ...rateLimits } },
     routes: (app, harnessDeps) => {
       // The harness builds unlinked repositories of its own; the router gets the linked
       // ones instead, and shares everything else — the same clock, the same recording
@@ -2320,8 +2324,8 @@ describe('the host event routes', () => {
 
       await agent.delete(`/api/events/${SLUG}`)
 
-      expect(await world.media.usedBytes(WEDDING)).toBe(0)
-      expect(await world.media.usedBytes(GALA)).toBe(1)
+      expect(await world.media.exists(WEDDING, aPhoto().contentHash, 'original')).toBe(false)
+      expect(await world.media.exists(GALA, aPhoto().contentHash, 'original')).toBe(true)
     })
 
     it('leaves another event untouched', async () => {
@@ -2601,6 +2605,18 @@ describe('the host event routes', () => {
       expect(refused.status).toBe(429)
       expect(refused.body.error.code).toBe('rate.limited')
       expect(world.mailer.sent).toHaveLength(30)
+    })
+
+    it('takes the number of invitations an hour from the configuration', async () => {
+      world = buildWorld({ rateLimits: { invitationsPerHour: 2 } })
+      const agent = await signedIn(world, 'owner')
+
+      const statuses = []
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        statuses.push((await invite(agent, { email: `personne-${attempt}@example.test` })).status)
+      }
+
+      expect(statuses).toEqual([201, 201, 429])
     })
 
     it('counts that allowance per account, so another host is not locked out by the first', async () => {

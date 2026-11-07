@@ -33,13 +33,6 @@ export type OutputFormat = 'jpeg' | 'webp'
 export interface ImageProbe {
   readonly format: ImageFormat
   readonly dimensions: Dimensions
-  readonly hasAlpha: boolean
-  /** EXIF orientation 1-8 when present. Informational: `render` always applies it. */
-  readonly exifOrientation: number | null
-  /** True when the input carries EXIF, XMP or ICC data that `render` will strip. */
-  readonly hasMetadata: boolean
-  /** Frame count. A 900-frame animated GIF is a resource problem, not a photo. */
-  readonly frames: number
 }
 
 export interface RenderSpec {
@@ -69,9 +62,10 @@ export interface ImageProcessor {
    * Rotate to upright, strip every metadata block, downscale to fit within the spec
    * without enlarging, and re-encode.
    *
-   * Fails with `image.renderFailed`. A failure must leave nothing behind — the caller
-   * has not written anything to the media store or the database at this point, which
-   * is the ordering that stops 1.0's orphaned rows.
+   * Fails with `image.renderFailed` (the file is at fault) or, when the box is at fault (a full
+   * disk, an I/O fault, an allocation failure), `image.renderUnavailable`. A failure must leave
+   * nothing behind — the caller has not written anything to the media store or the database at
+   * this point, which is the ordering that stops 1.0's orphaned rows.
    */
   render(bytes: Uint8Array, spec: RenderSpec): Promise<Result<RenderedImage, DomainError>>
 }

@@ -4,10 +4,8 @@ import { PHOTO_STATUSES } from '../../../domain/photos/photoStatus'
 import type { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
-import {
-  MEDIA_VARIANTS,
-  type ByteRange,
-} from '../../ports/mediaStore'
+import { type ByteRange } from '../../ports/mediaStore'
+import { MEDIA_VARIANTS } from '../../../domain/photos/mediaVariant'
 import { aClip, aPhoto, type PhotoInput } from '../../testing/builders'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import {

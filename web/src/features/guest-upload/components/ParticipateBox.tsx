@@ -1,6 +1,6 @@
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { GuestChallengeDto } from '../../../lib/api/dto'
-import { useServerCountdown } from '../../../app/useServerCountdown'
+import { useServerCountdown } from '../../../lib/useServerCountdown'
 import styles from './ParticipateBox.module.css'
 
 export interface ParticipateBoxProps {

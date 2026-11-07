@@ -90,7 +90,7 @@ const INSERT_PHOTO = `
  * quota exists to protect from the moment it is accepted, and it has no `photos` row
  * until the transcode succeeds — so counting `photos` alone would under-report an event
  * by the whole contents of the queue, for the whole time the queue is draining, and
- * `MediaStore.usedBytes` would disagree with the database by exactly that amount. The
+ * the bytes the media store lists would disagree with the database by exactly that amount. The
  * media store's contract says that difference means a leak worth logging, so it must not
  * be produced routinely by a feature working correctly.
  *
@@ -590,25 +590,6 @@ export class SqlitePhotoRepository implements PhotoRepository {
       items: page.map(toPhoto),
       nextCursor: last === undefined ? null : encodeCursor(last),
     }
-  }
-
-  async listIdsByStatus(
-    eventId: EventId,
-    status: PhotoStatus,
-    limit: number,
-  ): Promise<readonly PhotoId[]> {
-    requirePositiveLimit(limit, 'listIdsByStatus')
-
-    return this.db
-      .prepare<[string, string, number], { readonly id: string }>(
-        `SELECT id
-           FROM photos
-          WHERE event_id = ? AND status = ? AND taken_down_at IS NULL
-          ORDER BY created_at DESC, id DESC
-          LIMIT ?`,
-      )
-      .all(eventId, status, limit)
-      .map((row) => asPhotoId(row.id))
   }
 
   async countsByStatus(eventId: EventId): Promise<PhotoStatusCounts> {

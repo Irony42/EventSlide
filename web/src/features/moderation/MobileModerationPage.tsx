@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { useApi } from '../../app/useApi'
+import { useApi } from '../../lib/useApi'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { LoadFailure } from '../../design-system/components/Async'

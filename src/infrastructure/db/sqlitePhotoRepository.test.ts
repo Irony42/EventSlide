@@ -412,10 +412,6 @@ describe('SqlitePhotoRepository', () => {
     expect(await repo.list(WEDDING, { statuses: [] })).toEqual({ items: [], nextCursor: null })
   })
 
-  it.each([0, -1, 1.5])('rejects a wall playlist limit of %s', async (limit) => {
-    await expect(repo.listIdsByStatus(WEDDING, 'published', limit)).rejects.toThrow()
-  })
-
   // ----------------------------------------------------------- bulk moderation --
 
   it('leaves a photo of another event untouched and out of the ids it returns', async () => {

@@ -672,40 +672,6 @@ export const photoRepositoryContract = (
       await expect(repo.list(WEDDING, { limit })).rejects.toThrow()
     })
 
-    // ------------------------------------------------------------- wall ids --
-
-    it('lists ids for one status, newest first, up to the limit', async () => {
-      await saveAll([
-        aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', createdAt: atPlus(0) }),
-        aPhoto({ id: 'p2', eventId: WEDDING, status: 'published', createdAt: atPlus(1_000) }),
-        aPhoto({ id: 'p3', eventId: WEDDING, status: 'pending', createdAt: atPlus(2_000) }),
-      ])
-
-      expect(await repo.listIdsByStatus(WEDDING, 'published', 10)).toEqual(['p2', 'p1'])
-    })
-
-    it('honours the id limit so the wall never loads an unbounded playlist', async () => {
-      await saveAll([
-        aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', createdAt: atPlus(0) }),
-        aPhoto({ id: 'p2', eventId: WEDDING, status: 'published', createdAt: atPlus(1_000) }),
-      ])
-
-      expect(await repo.listIdsByStatus(WEDDING, 'published', 1)).toEqual(['p2'])
-    })
-
-    it('never lists the published ids of another event', async () => {
-      await repo.save(
-        aPhoto({
-          id: 'p1',
-          eventId: GALA,
-          status: 'published',
-          author: { kind: 'guest', id: SAM },
-        }),
-      )
-
-      expect(await repo.listIdsByStatus(WEDDING, 'published', 10)).toEqual([])
-    })
-
     // ------------------------------------------------ the host's favourites (spec 08) --
 
     describe('the host favourites', () => {
@@ -853,12 +819,11 @@ export const photoRepositoryContract = (
         await repo.setTakenDown(WEDDING, asPhotoId('p-down'), AT_DOWN)
       }
 
-      it('is not found, not listed, not on the wall ids and not counted by status', async () => {
+      it('is not found, not listed and not counted by status', async () => {
         await seedPair()
 
         expect(await repo.findById(WEDDING, asPhotoId('p-down'))).toBeNull()
         expect((await repo.list(WEDDING)).items.map((photo) => photo.id)).toEqual(['p-up'])
-        expect(await repo.listIdsByStatus(WEDDING, 'published', 10)).toEqual(['p-up'])
         expect((await repo.countsByStatus(WEDDING)).published).toBe(1)
       })
 
@@ -988,7 +953,7 @@ export const photoRepositoryContract = (
     it('counts a clip still waiting to be transcoded, which has no photo row at all', async () => {
       // The quota is "bytes on this event's disk", and a staged source is on the disk
       // from the moment it lands. Counting only `photos` under-reports an event by the
-      // whole contents of its queue — and `MediaStore.usedBytes` would then disagree with
+      // whole contents of its queue — and the bytes the media store lists would then disagree with
       // the database by that amount, which the media store's contract says means a leak.
       await repo.save(aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 1_000 }))
       await stageClipBytes(WEDDING, 5_000)

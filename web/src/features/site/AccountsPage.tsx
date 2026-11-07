@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useApi } from '../../app/useApi'
+import { useApi } from '../../lib/useApi'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'

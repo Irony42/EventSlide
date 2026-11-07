@@ -1,32 +1,6 @@
 import type { ContentHash } from '../../domain/photos/contentHash'
-import type { EventId } from '../../domain/shared/ids'
-
-/**
- * The rendition names live in `src/domain/photos/mediaVariant.ts` and are re-exported
- * here, because which renditions exist is product policy rather than a storage detail —
- * and because a `Photo` has to be able to say which of them address its own bytes, which
- * it cannot do against a type declared in an outer layer. Every existing import of
- * `MEDIA_VARIANTS` and `MediaVariant` from this module still resolves.
- */
-export {
-  ALL_MEDIA_VARIANTS,
-  CLIP_VARIANTS,
-  EVENT_LOGO,
-  MEDIA_VARIANTS,
-  REEL_VARIANT,
-  SERVED_VARIANTS,
-  STAGED_SOURCE,
-  VARIANTS_BY_KIND,
-  VENUE_GROUND,
-} from '../../domain/photos/mediaVariant'
-export type {
-  ClipVariant,
-  MediaVariant,
-  PhotoVariant,
-  ServedVariant,
-} from '../../domain/photos/mediaVariant'
-
 import type { MediaVariant } from '../../domain/photos/mediaVariant'
+import type { EventId } from '../../domain/shared/ids'
 
 /**
  * Where the bytes live.
@@ -145,13 +119,6 @@ export interface MediaStore {
 
   /** Purge. Idempotent, and safe to call for an event that stored nothing. */
   deleteEvent(eventId: EventId): Promise<void>
-
-  /**
-   * Bytes on disk for the event. Used to reconcile against the quota the database
-   * tracks — if the two disagree, the database is authoritative and the difference is
-   * a leak worth logging.
-   */
-  usedBytes(eventId: EventId): Promise<number>
 
   /**
    * Every event this store is holding bytes for.

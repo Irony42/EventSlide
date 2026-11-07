@@ -20,7 +20,7 @@ import type { ClientByteLimit } from './clientRepository'
  *
  * A staged clip is on the disk the quota exists to protect and has no `photos` row, so
  * `SUM(byte_size)` over `photos` alone under-reports an event by the whole contents of
- * its queue — and `MediaStore.usedBytes` would then disagree with the database by that
+ * its queue — and the bytes the media store lists would then disagree with the database by that
  * amount, which the media store's own contract says means a leak worth logging.
  *
  * It is a named interface rather than one more method on the repository because the

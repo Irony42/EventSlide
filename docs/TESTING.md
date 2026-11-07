@@ -63,6 +63,38 @@ never tries to execute a `.spec.ts` from `tests/e2e`.
 When a bug escapes, the regression test goes in **the cheapest ring that would have
 caught it** — plus ring 6 only if the leak was in the wiring between rings.
 
+### The shared helpers of rings 4 and 5
+
+**Ring 4 sends its requests through `src/interface/http/testing/request.ts`, never through
+`supertest` directly.** `import request from '../testing/request'` (the relative path from the
+test's folder) has the API of `supertest`: `request(app)`, `request.agent(app)`, the `Test` and
+`Response` types. The difference is that the first request made against an Express app starts one
+listening server, every later request of the file reuses it, and the file's `afterAll` closes it; the
+requests also share one keep-alive `http.Agent`. A bare `supertest(app)` binds a fresh ephemeral port
+per request, and on Windows every closed socket sits in TIME_WAIT for two minutes, so a full run
+exhausted the 16 384-port range (`listen EADDRINUSE`, a thousand unrelated tests red) while Linux CI
+never noticed. `src/interface/http/testing/supertestGuard.test.ts` fails on any file under `src/`
+that imports `supertest` for its value (a type-only import is allowed); every test goes through the helper and the guard accepts no exception.
+
+**Ring 5 starts from `web/src/testing/setup.ts`** (the vitest `web` project's `setupFiles`), which
+does three things so no test has to:
+
+- `configure({ asyncUtilTimeout: 5_000 })`: `findBy*` and `waitFor` wait up to 5 s instead of
+  Testing Library's 1 s, because the first test of a cold worker pays to import a `lazy()` page chunk
+  and a passing test could exceed 1 s. A passing wait still returns at once; a real failure still
+  reports Testing Library's own message, inside the 10 s `testTimeout`.
+- After every test: `cleanup()`, `vi.restoreAllMocks()`, and a clear of **both** `localStorage` and
+  `sessionStorage` (jsdom keeps one of each per file, and the guest session and the stale-bundle
+  marker live in `sessionStorage`, so a test would otherwise find the previous test's visitor).
+- The stand-ins for browser APIs jsdom lacks (`matchMedia`, object URLs, `IntersectionObserver`, …).
+
+Beside it, `web/src/testing/` holds the doubles a component or hook test reuses instead of writing its
+own: `FakeEventSource` (a controllable `EventSource`: `vi.stubGlobal('EventSource', FakeEventSource)`,
+`FakeEventSource.reset()` first, then `latest()` and the `emit*` helpers), `deferred()` (a promise the
+test settles by hand, to hold a request open at the moment under test), and `flushPromises()` (an async
+`act` that lets in-flight promises finish, so "nothing happened" is asserted after settling and not
+after a real sleep).
+
 ---
 
 ## 3. Fakes, not mocks
@@ -135,7 +167,7 @@ tenant's bytes fails a ring-2 test instead of surfacing at someone's wedding.
 ## 3b. The wire contract has two parties, so something has to compare them
 
 Every response shape is declared **twice**: `src/interface/http/presenters/dto.ts` for
-the server and `web/src/lib/api/dto.ts` for the client. The client asserts its declared
+the server and `web/src/lib/api/dto/` (one file per audience, re-exported by the barrel `dto.ts`) for the client. The client asserts its declared
 shape onto whatever JSON arrives, so when the two disagree both sides still typecheck
 and nothing fails until a person reads the result.
 
@@ -554,6 +586,11 @@ tests/e2e/
   so it doubles as an accessibility assertion. `getByTestId` only where there is no
   accessible identity (a slide layer, upload queue rows). **Never** a CSS class or
   DOM-structure selector. `data-testid` values are contract; grep before renaming one.
+- **A test that only passes on a retry fails the run.** CI keeps `retries: 2` so that a browser losing
+  a frame does not block a pull request, but Playwright reports a pass-on-retry as "flaky" and exits 0,
+  which hides it. `tests/e2e/reporters/failOnFlaky.ts` (a CI-only reporter in `playwright.config.ts`)
+  turns that outcome into a failed run and lists the tests in the log and the job summary: fix the
+  flake, do not re-run.
 - **`page.waitForTimeout()` is banned** and lint rejects it; use
   `await expect(locator).toBeVisible({ timeout: 10_000 })`. A fixed sleep in an
   SSE-driven app is both flaky and slow — the single largest source of e2e flake here.
@@ -752,6 +789,7 @@ Every row is a mistake actually made in this project or in its 1.0 predecessor.
 | one test asserting eight things                      | one test per rule, one act each                                        |
 | a test that only passes after another ran            | `beforeEach` builds a fresh world                                      |
 | a shared temp dir or the dev database                | `mkdtemp` per test; per-worker SQLite file in e2e                      |
+| `import supertest from 'supertest'`                  | `import request from '../testing/request'` (one server per app)        |
 | `as any` to satisfy a type                           | build the real object with a builder                                   |
 | `it.skip` on a red test                              | fix it, or delete it and say why in the commit                         |
 | a snapshot of a whole component tree                 | assert the specific role or text                                       |

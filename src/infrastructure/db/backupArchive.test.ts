@@ -29,7 +29,7 @@ import {
   type BackupManifest,
   type ManifestEntry,
 } from './backupArchive'
-import type { MediaVariant } from '../../application/ports/mediaStore'
+import type { MediaVariant } from '../../domain/photos/mediaVariant'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { asEventId } from '../../domain/shared/ids'
 import { createFsMediaStore } from '../media/fsMediaStore'

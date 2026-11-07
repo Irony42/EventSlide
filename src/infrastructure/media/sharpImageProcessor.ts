@@ -103,8 +103,10 @@ const OUT_OF_MEMORY = /out of memory|cannot allocate memory/i
  *
  * A full disk, an I/O fault or an allocation failure is the box's fault, not the guest's
  * file, and must not tell the guest to try another photo: those are `unexpected` (a
- * server failure). Everything else, including anything ambiguous, keeps the old verdict
- * `invalid`: a decode error, the pixel limit and a truncated file are all the file.
+ * server failure) and carry their own code, `image.renderUnavailable`, which the outbox does not
+ * treat as terminal (`image.renderFailed` is, so a full disk must never wear it). Everything
+ * else, including anything ambiguous, keeps the old verdict `invalid`: a decode error, the pixel
+ * limit and a truncated file are all the file.
  */
 export const renderFailureOf = (cause: unknown): DomainError => {
   const reason = cause instanceof Error ? cause.message.slice(0, 200) : 'unknown'
@@ -113,7 +115,7 @@ export const renderFailureOf = (cause: unknown): DomainError => {
     (typeof code === 'string' && SERVER_SIDE_ERRNO.has(code)) ||
     (cause instanceof Error && OUT_OF_MEMORY.test(cause.message))
   return serverSide
-    ? DomainError.unexpected('image.renderFailed', { reason })
+    ? DomainError.unexpected('image.renderUnavailable', { reason })
     : DomainError.invalid('image.renderFailed', { reason })
 }
 
@@ -178,14 +180,6 @@ export const createSharpImageProcessor = ({
         // magic-byte result is what decided whether we accept the file at all.
         format: FORMAT_BY_SHARP[metadata.format ?? ''] ?? detected,
         dimensions: dimensions.value,
-        hasAlpha: metadata.hasAlpha === true,
-        exifOrientation: metadata.orientation ?? null,
-        hasMetadata:
-          metadata.exif !== undefined ||
-          metadata.icc !== undefined ||
-          metadata.xmp !== undefined ||
-          metadata.iptc !== undefined,
-        frames,
       })
     },
 

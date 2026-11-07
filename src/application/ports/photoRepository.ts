@@ -186,12 +186,6 @@ export interface PhotoRepository {
    */
   list(eventId: EventId, query?: PhotoQuery): Promise<PhotoPage>
 
-  /**
-   * Ordered ids only, for the wall. The playlist needs a stable list of hundreds of
-   * ids, not hundreds of hydrated aggregates.
-   */
-  listIdsByStatus(eventId: EventId, status: PhotoStatus, limit: number): Promise<readonly PhotoId[]>
-
   countsByStatus(eventId: EventId): Promise<PhotoStatusCounts>
 
   /** Drives the event byte quota. */
@@ -268,7 +262,7 @@ export interface PhotoRepository {
    * review S5). Scoped by event like everything else, and idempotent. `save` and
    * `updateStatuses` never write this column, so the host's moderation cannot undo it.
    *
-   * **A taken-down row is invisible to `findById`, `list`, `listIdsByStatus` and
+   * **A taken-down row is invisible to `findById`, `list` and
    * `countsByStatus`**, which is what removes it from the wall, a guest's feed, a gallery link,
    * the host's grid and the media route in one place. It still counts toward `totalBytes`,
    * `countByAuthor` and the client's total (the bytes are on the disk), is still named by

@@ -140,13 +140,13 @@ const readCookie = (name: string): string | null => {
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
-const headersFor = (method: string, body: unknown): HeadersInit => {
+const headersFor = (method: string, body: unknown, csrfToken?: string): HeadersInit => {
   const headers: Record<string, string> = { accept: 'application/json' }
   if (body !== undefined && !(body instanceof FormData)) {
     headers['content-type'] = 'application/json'
   }
   if (MUTATING.has(method)) {
-    const token = readCookie(CSRF_COOKIE)
+    const token = csrfToken ?? readCookie(CSRF_COOKIE)
     if (token !== null) headers[CSRF_HEADER] = token
   }
   return headers
@@ -203,12 +203,25 @@ const parse = async <T>(response: Response): Promise<T> => {
  * How long a plain JSON request may take, end to end (the response body included), before it
  * is given up as a network failure.
  *
- * Absolute on purpose here and nowhere near an upload: these bodies are a few kilobytes, so a
- * request that has not finished in half a minute is not slow, it is stuck (a captive portal, a
- * proxy that accepts the connection and never answers). Without a ceiling the promise never
- * settles, `useLoader` stays `loading` for ever and the guest stares at a spinner.
+ * Absolute on purpose, and only for a JSON body: these are a few kilobytes, so a request that has
+ * not finished in half a minute is not slow, it is stuck (a captive portal, a proxy that accepts
+ * the connection and never answers). Without a ceiling the promise never settles, `useLoader`
+ * stays `loading` for ever and the guest stares at a spinner.
+ *
+ * A `FormData` body sent through `fetch` (a host's venue photo or logo, up to the upload size limit)
+ * gets {@link MULTIPART_REQUEST_TIMEOUT_MS} instead: a host on a slow venue uplink must be allowed
+ * to finish it. `fetch` has no upload-progress event, so no stall guard fits; the guest's own
+ * uploads, which do have one, go through `upload`.
  */
 export const JSON_REQUEST_TIMEOUT_MS = 30_000
+
+/**
+ * The absolute ceiling of a multipart request sent through `fetch`: ten minutes, which is
+ * a 25 MB photo at about 350 kbit/s. Long enough that no live connection is cut, short enough that
+ * a stuck one (a captive portal, a proxy that never answers) ends in a network failure rather than
+ * a spinner for ever.
+ */
+export const MULTIPART_REQUEST_TIMEOUT_MS = 600_000
 
 /**
  * How long an upload may go without a single byte moving before it is given up.
@@ -232,6 +245,8 @@ interface RequestOptions {
   body?: unknown
   query?: Readonly<Record<string, string | number | undefined>>
   signal?: AbortSignal
+  /** The token to send instead of the one `document.cookie` holds: a retry's, see {@link echoedToken}. */
+  csrfToken?: string
 }
 
 const send = async <T>(method: string, path: string, options: RequestOptions): Promise<T> => {
@@ -242,7 +257,7 @@ const send = async <T>(method: string, path: string, options: RequestOptions): P
     method,
     // Session cookie for a host, device-token cookie for a guest.
     credentials: 'same-origin',
-    headers: headersFor(method, options.body),
+    headers: headersFor(method, options.body, options.csrfToken),
     ...(options.body === undefined
       ? {}
       : {
@@ -258,10 +273,13 @@ const send = async <T>(method: string, path: string, options: RequestOptions): P
   const onCallerAbort = () => controller.abort()
   if (options.signal?.aborted) controller.abort()
   else options.signal?.addEventListener('abort', onCallerAbort, { once: true })
-  const deadline = setTimeout(() => {
-    timedOut = true
-    controller.abort()
-  }, JSON_REQUEST_TIMEOUT_MS)
+  const deadline = setTimeout(
+    () => {
+      timedOut = true
+      controller.abort()
+    },
+    options.body instanceof FormData ? MULTIPART_REQUEST_TIMEOUT_MS : JSON_REQUEST_TIMEOUT_MS,
+  )
 
   try {
     let response: Response
@@ -311,6 +329,23 @@ const isStaleCsrf = (method: string, cause: unknown): boolean =>
   cause.status === 403 &&
   CSRF_REFUSALS.has(cause.code)
 
+/**
+ * The token the server named in a `request.csrfMismatch` refusal: the one in the cookie jar,
+ * which is what the gate compared the header against.
+ *
+ * `document.cookie` can lag the jar. WebKit does it after a service-worker fetch of the
+ * shell: the jar took a token the server minted for a request that carried no cookie, the page
+ * kept reading the old one, and a retry that re-read `document.cookie` sent the refused header
+ * a second time (webkit-mobile e2e: guest join, host logo upload, password reset). Only a
+ * mismatch carries one — a missing token has nothing to echo — and anything but a non-empty
+ * string is ignored, so the retry then falls back to the cookie as before.
+ */
+const echoedToken = (cause: unknown): string | undefined => {
+  if (!(cause instanceof ApiError) || cause.code !== 'request.csrfMismatch') return undefined
+  const token = cause.details['csrfToken']
+  return typeof token === 'string' && token.length > 0 ? token : undefined
+}
+
 const request = async <T>(
   method: string,
   path: string,
@@ -320,11 +355,16 @@ const request = async <T>(
     return await send<T>(method, path, options)
   } catch (cause) {
     if (!isStaleCsrf(method, cause)) throw cause
-    // Once, never in a loop. The second attempt re-reads `document.cookie`, so it
-    // carries whatever the rotation left there; if that is refused too then the token
-    // really is missing or stale — a tab open all evening, a proxy that dropped the
+    // Once, never in a loop. The second attempt carries the token the server named, or
+    // else whatever the rotation left in `document.cookie`; if that is refused too then the
+    // token really is missing or stale — a tab open all evening, a proxy that dropped the
     // cookie — and "reload the page" is the right advice after all.
-    return await send<T>(method, path, options)
+    const fresh = echoedToken(cause)
+    return await send<T>(
+      method,
+      path,
+      fresh === undefined ? options : { ...options, csrfToken: fresh },
+    )
   }
 }
 
@@ -357,13 +397,14 @@ const sendUpload = <T>(
     onProgress?: (progress: UploadProgress) => void
     signal?: AbortSignal
   } = {},
+  csrfToken?: string,
 ): Promise<T> =>
   new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('POST', path)
     xhr.withCredentials = true
     xhr.setRequestHeader('accept', 'application/json')
-    const csrf = readCookie(CSRF_COOKIE)
+    const csrf = csrfToken ?? readCookie(CSRF_COOKIE)
     if (csrf !== null) xhr.setRequestHeader(CSRF_HEADER, csrf)
 
     // Inactivity, not duration: re-armed by every progress event, so a slow upload that keeps
@@ -439,8 +480,9 @@ const upload = async <T>(
     return await sendUpload<T>(path, form, handlers)
   } catch (cause) {
     if (!isStaleCsrf('POST', cause)) throw cause
-    // Once, never in a loop: the second attempt re-reads `document.cookie`.
-    return await sendUpload<T>(path, form, handlers)
+    // Once, never in a loop: the second attempt carries the token the server named, or else
+    // re-reads `document.cookie`.
+    return await sendUpload<T>(path, form, handlers, echoedToken(cause))
   }
 }
 

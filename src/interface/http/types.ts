@@ -17,6 +17,7 @@ import type { Mailer } from '../../application/ports/mailer'
 import type { SecondFactorRepository } from '../../application/ports/secondFactorRepository'
 import type { AccessLogOptions } from './middleware/accessLog'
 import type { DiskSpaceChecker } from '../../application/ports/diskSpace'
+import type { StagedUploadStore } from '../../application/ports/stagedUploadStore'
 
 /**
  * The two principals, and nothing in between.
@@ -105,6 +106,11 @@ export interface HttpDeps {
    * able to stand in a nearly full disk without filling a real one.
    */
   readonly diskSpaceChecker: DiskSpaceChecker
+  /**
+   * Reads and deletes the files multer staged on disk (a clip upload). A port for the same
+   * reason: this layer may not import `node:fs`.
+   */
+  readonly stagedUploads: StagedUploadStore
   readonly config: HttpConfig
 }
 
@@ -222,6 +228,14 @@ export interface HttpConfig {
     readonly galleryUnlockPerLink: number
     /** Per **account**, per hour — `eventCreationLimiter` keys on who is signed in, not on an address (P4-09 / D-14). */
     readonly eventCreationPerHour: number
+    /** Per **account**, per hour: the invitations a host sends. */
+    readonly invitationsPerHour: number
+    /** Per **account**, per hour: venue photographs uploaded. */
+    readonly venuePhotosPerHour: number
+    /** Per **account**, per hour: photo-book requests, whatever the answer. */
+    readonly bookRequestsPerHour: number
+    /** Per **account**, per hour: event logos uploaded. */
+    readonly logosPerHour: number
   }
   /** `middleware/accessLog.ts` (docs/SECURITY.md, P4-06): route pattern, status, duration. */
   readonly accessLog: AccessLogOptions

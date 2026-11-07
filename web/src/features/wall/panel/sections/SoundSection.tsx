@@ -1,5 +1,5 @@
 import { Button } from '../../../../design-system/components/Button'
-import { WallSoundFields } from '../../../admin/components/WallSoundFields'
+import { WallSoundFields } from '../../../../design-system/components/WallSoundFields'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
 import type { WallPanelContext, WallPanelSection } from '../panelTypes'
 

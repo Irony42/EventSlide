@@ -178,17 +178,16 @@ web/src/features/guest-upload/
 
 ## Data and transport
 
-`web/src/lib/api/client.ts` holds typed functions, one per endpoint, as the methods of `Api`: built
-over an injectable `Transport` by `createApi`, with `api` the instance the app uses. A component or a
+`web/src/lib/api/client.ts` composes the typed functions, one per endpoint, into `Api`: they live in
+`web/src/lib/api/client/` (one file per audience: guest, account, site, host, gallery; `shared.ts` holds the helpers they share) and the wire
+shapes in `web/src/lib/api/dto/`; `client.ts` and `dto.ts` stay the barrels every import goes through.
+They are built over an injectable `Transport` by `createApi`, with `api` the instance the app uses. A component or a
 hook calls a method and never `fetch`. `apiCallers.guard.test.ts` fails on a method nothing calls.
 
 ```ts
-// web/src/lib/api/client.ts
-export const createApi = (transport: Transport) => ({
-  myPhotos: (
-    slug: string,
-    signal?: AbortSignal,
-  ): Promise<{ items: readonly GuestPhotoDto[] }> =>
+// web/src/lib/api/client/guest.ts (one file per audience; client.ts spreads them into createApi)
+export const guestApi = (transport: Transport) => ({
+  myPhotos: (slug: string, signal?: AbortSignal): Promise<MyPhotosDto> =>
     transport.get(`/api/events/${encode(slug)}/photos/mine`, undefined, signal),
   // …one per endpoint
 })

@@ -7,7 +7,7 @@ import {
   QR_SCALE_MAX,
   QR_SCALE_MIN,
   QR_SCALE_STEP,
-} from '../wallDisplayOptions'
+} from '../../../lib/wallDisplayOptions'
 import { CheckboxField } from '../../../design-system/components/CheckboxField'
 import styles from './WallQrControls.module.css'
 

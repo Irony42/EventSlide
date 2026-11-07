@@ -18,6 +18,7 @@ import { asEventId, asGuestId } from '../../../domain/shared/ids'
 import type { GuestTokenService } from '../../../application/ports/guestTokenService'
 import { createHmacGuestTokenService } from '../../../infrastructure/crypto/hmacGuestTokenService'
 import { silentLogger } from '../../../infrastructure/logging/pinoLogger'
+import { fsStagedUploadStore } from '../../../infrastructure/system/fsStagedUploadStore'
 import type { Logger } from '../../../application/ports/logger'
 import { errorHandler, requestContext } from '../middleware/errorHandler'
 import { attachUser, enforceSessionAge } from '../middleware/authz'
@@ -98,6 +99,10 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
     galleryUnlockPerClient: 10,
     galleryUnlockPerLink: 50,
     eventCreationPerHour: 20,
+    invitationsPerHour: 30,
+    venuePhotosPerHour: 10,
+    bookRequestsPerHour: 20,
+    logosPerHour: 10,
   },
   // Off by default: a real `pino-http` instance would write a JSON line to stdout for
   // every request every HTTP test in this repository makes. `accessLog.test.ts` and
@@ -203,6 +208,9 @@ export const buildTestWorld = (
     }),
     mailer: options.mailer ?? { canDeliver: false },
     diskSpaceChecker,
+    // The real adapter, not a fake: multer writes real files in a clip test and the route must
+    // read and delete those same files.
+    stagedUploads: fsStagedUploadStore,
     config: testHttpConfig(config),
   }
 

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from 'react'
-import { useApi } from '../../../app/useApi'
-import { useSession } from '../../../app/useSession'
+import { useApi } from '../../../lib/useApi'
+import { useSession } from '../../../lib/useSession'
 import { Button } from '../../../design-system/components/Button'
 import { Dialog } from '../../../design-system/components/Dialog'
 import { Field } from '../../../design-system/components/Field'

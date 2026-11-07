@@ -57,7 +57,6 @@ const patternOfUrl = (url: string, level: 'M' | 'H' = 'M') => {
 
 afterEach(() => {
   vi.restoreAllMocks()
-  window.localStorage.clear()
 })
 
 describe('PrintKitPage', () => {

@@ -2,14 +2,9 @@ import { createReadStream } from 'node:fs'
 import { mkdir, rename, rm, stat, unlink, writeFile, readFile } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type {
-  ByteRange,
-  MediaMetadata,
-  MediaStore,
-  MediaVariant,
-  StoredObject,
-} from '../../application/ports/mediaStore'
-import { ALL_MEDIA_VARIANTS } from '../../application/ports/mediaStore'
+import type { ByteRange, MediaMetadata, MediaStore, StoredObject } from '../../application/ports/mediaStore'
+import type { MediaVariant } from '../../domain/photos/mediaVariant'
+import { ALL_MEDIA_VARIANTS } from '../../domain/photos/mediaVariant'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { asEventId, type EventId } from '../../domain/shared/ids'
 import { isMissing, readdirOrEmpty } from '../system/fsErrors'
@@ -96,26 +91,6 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
       throw new Error('media store refused a path outside its root')
     }
     return candidate
-  }
-
-  const directorySize = async (directory: string): Promise<number> => {
-    let total = 0
-    const entries = await readdirOrEmpty(directory, { withFileTypes: true })
-    for (const entry of entries) {
-      const child = join(directory, entry.name)
-      if (entry.isDirectory()) {
-        total += await directorySize(child)
-      } else {
-        try {
-          total += (await stat(child)).size
-        } catch (error) {
-          // A file removed between the listing and the stat. Skipping it is right:
-          // this is a reconciliation figure, not an accounting record.
-          if (!isMissing(error)) throw error
-        }
-      }
-    }
-    return total
   }
 
   return {
@@ -221,8 +196,6 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
     deleteEvent: async (eventId): Promise<void> => {
       await rm(eventDir(eventId), { recursive: true, force: true })
     },
-
-    usedBytes: async (eventId): Promise<number> => directorySize(eventDir(eventId)),
 
     listEvents: async (): Promise<readonly EventId[]> => {
       const entries = await readdirOrEmpty(absoluteRoot, { withFileTypes: true })

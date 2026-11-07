@@ -7,6 +7,7 @@ import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository
 import { makePurgeEvent, type PurgeEvent } from './purgeEvent'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { FakeBookFileStore } from '../../testing/fakeBookFileStore'
+import { bytesHeld } from '../../testing/bytesHeld'
 
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
@@ -48,8 +49,8 @@ describe('purgeEvent', () => {
 
   /** What is left on the disk for the wedding and for the gala, in bytes. */
   const bytesLeft = async (): Promise<number[]> => [
-    await media.usedBytes(WEDDING),
-    await media.usedBytes(GALA),
+    await bytesHeld(media, WEDDING),
+    await bytesHeld(media, GALA),
   ]
 
   /** Every call the use case made on the media store, which for a purge is one or none. */
@@ -116,7 +117,7 @@ describe('purgeEvent', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(await media.usedBytes(WEDDING)).toBe(0)
+    expect(await bytesHeld(media, WEDDING)).toBe(0)
   })
 
   // ---------------------------------------------------------- a disk that fails --

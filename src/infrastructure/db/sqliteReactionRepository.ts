@@ -3,11 +3,7 @@ import { fromIsoText, toIsoText } from './rowMapping'
 import type { ReactionRepository } from '../../application/ports/reactionRepository'
 import { Reaction } from '../../domain/reactions/reaction'
 import type { ReactionKind } from '../../domain/reactions/reactionKind'
-import {
-  emptyCounts,
-  type ReactionCounts,
-  type TallyEntry,
-} from '../../domain/reactions/reactionTally'
+import { emptyCounts, type ReactionCounts } from '../../domain/reactions/reactionTally'
 import {
   asEventId,
   asGuestId,
@@ -49,11 +45,6 @@ interface KindTallyRow {
 
 interface PhotoTallyRow extends KindTallyRow {
   readonly photo_id: string
-}
-
-interface GuestEntryRow {
-  readonly kind: ReactionKind
-  readonly guest_id: string
 }
 
 interface CountRow {
@@ -204,19 +195,6 @@ export class SqliteReactionRepository implements ReactionRepository {
     // A photo nobody reacted to is absent rather than present with zeroes: the caller
     // ranks what it is given, and inventing a row per photo would defeat the grouping.
     return byPhoto
-  }
-
-  async listByGuest(eventId: EventId, guestId: GuestId): Promise<readonly TallyEntry[]> {
-    const rows = this.db
-      .prepare<[string, string], GuestEntryRow>(
-        `SELECT kind, guest_id
-           FROM reactions
-          WHERE event_id = ? AND guest_id = ?
-          ORDER BY created_at DESC, id`,
-      )
-      .all(eventId, guestId)
-
-    return rows.map((row) => ({ kind: row.kind, guestId: asGuestId(row.guest_id) }))
   }
 
   async countByGuestSince(eventId: EventId, guestId: GuestId, since: Date): Promise<number> {

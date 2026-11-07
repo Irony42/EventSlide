@@ -85,8 +85,6 @@ describe('GuestUploadPage: after a batch has arrived', () => {
   let scrollIntoView: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     // jsdom has no layout and no `scrollIntoView`: a fake that records what it was asked, and for.
     scrollIntoView = vi.fn()

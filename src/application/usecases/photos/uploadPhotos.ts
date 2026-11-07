@@ -19,7 +19,8 @@ import type { ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imag
 import type { Logger } from '../../ports/logger'
 import type { ChallengeRepository } from '../../ports/challengeRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
-import { MEDIA_VARIANTS, type MediaStore, type PhotoVariant } from '../../ports/mediaStore'
+import { type MediaStore } from '../../ports/mediaStore'
+import { MEDIA_VARIANTS, type PhotoVariant } from '../../../domain/photos/mediaVariant'
 import type {
   PhotoAdmission,
   PhotoAdmissionLimits,
@@ -531,7 +532,7 @@ const ingestFiles = async (
     }
 
     // Every variant counts against the quota, because every variant is on the disk the
-    // quota exists to protect — and it is what `MediaStore.usedBytes` reconciles with.
+    // quota exists to protect — and it is what the reconciliation of the listed bytes compares with.
     const byteSize =
       rendered.value.original.byteSize +
       rendered.value.display.byteSize +
