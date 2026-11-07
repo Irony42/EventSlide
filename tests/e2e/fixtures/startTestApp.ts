@@ -203,18 +203,35 @@ export interface BootedServer {
 }
 
 /**
- * Starts the built server on a free port against the given database and media root, and
- * returns once it answers `/api/ready`.
+ * How many times a boot may lose the race for its port before the error is the answer.
  *
- * The one place a server is spawned: `startTestApp` makes a directory and settles the owner
- * on top of it, and a spec that is about the paths themselves (backup and restore boots a
- * second server on the restored pair) calls this with its own.
- *
- * Two servers that must accept each other's signed tokens (a restored database keeps its
- * sessions and guest cookies) have to be booted with the same `worker`: the secrets are
- * derived from it.
+ * `freePort` picks a port and releases it, and the server binds it a moment later: another
+ * worker's server, or a browser's ephemeral connection, can take it in between (`listen
+ * EADDRINUSE`, `accessibility.spec.ts` on webkit-mobile). The window cannot be closed from
+ * outside the server — it prints no bound port — so a lost race is retried on a fresh port.
+ * Only that failure is retried: any other exit is a real boot error and surfaces at once.
  */
-export const bootServer = async ({
+export const BOOT_ATTEMPTS = 5
+
+/** Whether a failed boot's output says the port was taken, so a fresh one may work. */
+export const lostThePort = (output: string): boolean => output.includes('EADDRINUSE')
+
+/**
+ * Runs `boot` again while it fails because its port was taken, at most {@link BOOT_ATTEMPTS}
+ * times in all. Any other failure, and the last lost race, reject with the boot's own error.
+ */
+export const retryOnLostPort = async <T>(boot: () => Promise<T>): Promise<T> => {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await boot()
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      if (attempt >= BOOT_ATTEMPTS || !lostThePort(detail)) throw error
+    }
+  }
+}
+
+const bootOnce = async ({
   worker,
   databasePath,
   mediaRoot,
@@ -275,6 +292,24 @@ export const bootServer = async ({
 
   return { baseUrl, output: () => output.join(''), stop }
 }
+
+/**
+ * Starts the built server on a free port against the given database and media root, and
+ * returns once it answers `/api/ready`.
+ *
+ * The one place a server is spawned: `startTestApp` makes a directory and settles the owner
+ * on top of it, and a spec that is about the paths themselves (backup and restore boots a
+ * second server on the restored pair) calls this with its own.
+ *
+ * Two servers that must accept each other's signed tokens (a restored database keeps its
+ * sessions and guest cookies) have to be booted with the same `worker`: the secrets are
+ * derived from it.
+ *
+ * A boot that loses the race for its port is retried, up to {@link BOOT_ATTEMPTS} times, on a
+ * fresh one; see there.
+ */
+export const bootServer = (options: BootOptions): Promise<BootedServer> =>
+  retryOnLostPort(() => bootOnce(options))
 
 export const startTestApp = async ({
   worker,
