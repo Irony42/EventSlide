@@ -92,6 +92,7 @@ test('a guest reacts to another guest’s photo: the wall shows it, a reload kee
     // a second row as the others fill is one that moves under the thumb that was about to
     // use it.
     const kinds: readonly Kind[] = ['love', 'laugh', 'wow', 'cheers', 'clap']
+    for (const kind of kinds) await expect(reader.getByRole('button', named(kind))).toBeVisible()
     const tops = await Promise.all(
       kinds.map(async (kind) => (await reader.getByRole('button', named(kind)).boundingBox())?.y),
     )
