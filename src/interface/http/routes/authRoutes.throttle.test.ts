@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
-import request from 'supertest'
+import request from '../testing/request'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { authRoutes } from './authRoutes'
 import {

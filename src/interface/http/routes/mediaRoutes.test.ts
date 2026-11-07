@@ -1,4 +1,4 @@
-import request from 'supertest'
+import request from '../testing/request'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { mediaRoutes } from './mediaRoutes'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'

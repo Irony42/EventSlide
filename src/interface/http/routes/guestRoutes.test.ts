@@ -1,5 +1,5 @@
 import type { Express } from 'express'
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it } from 'vitest'
 import { guestRoutes } from './guestRoutes'
 import { GUEST_COOKIE, requireRole } from '../middleware/authz'

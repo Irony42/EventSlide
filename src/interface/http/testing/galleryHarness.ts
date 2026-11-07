@@ -1,4 +1,4 @@
-import request from 'supertest'
+import request from './request'
 import type { ShareLink } from '../../../domain/gallery/shareLink'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import {

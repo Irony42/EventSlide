@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it } from 'vitest'
 import { TEST_SESSION_SECRET } from '../testing/middlewareHarness'
 import { anUnusableSessionStore, buildServerHarness } from '../testing/serverHarness'

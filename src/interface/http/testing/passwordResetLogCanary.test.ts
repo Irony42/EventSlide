@@ -1,4 +1,4 @@
-import request from 'supertest'
+import request from './request'
 import { describe, expect, it, vi } from 'vitest'
 import { AT, aUser } from '../../../application/testing/builders'
 import { FakeAccountTokenRepository } from '../../../application/testing/fakeAccountTokenRepository'
