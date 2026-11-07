@@ -127,7 +127,7 @@ describe('respondFromShell', () => {
 
   it.each([
     ['a manifest, fetched by the browser without credentials', 'omit', '/manifest.webmanifest'],
-    ['a script', 'same-origin', '/assets/index-a1b2c3.js'],
+    ['a script, fetched without credentials', 'omit', '/assets/index-a1b2c3.js'],
   ] as const)('fetches %s with the same-origin cookies', async (_label, credentials, path) => {
     // WebKit's worker fetches of the shell reached the server without the cookie jar, and the
     // server minted a new `es_csrf` for each, so the token the page read went stale and the

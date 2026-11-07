@@ -1513,7 +1513,7 @@ A `request.csrfMismatch` refusal carries `details.csrfToken`, the cookie value t
 against, which the caller itself sent. WebKit can leave `document.cookie` behind the cookie jar (a
 service-worker fetch of the shell that carried no cookie made the server mint a new token), and the
 client's single retry (`web/src/lib/http.ts`) then sends that token instead of re-reading a stale
-`document.cookie`. A page on another origin cannot read the body (no CORS, above). A
+`document.cookie`. A page on another origin cannot read the body (no CORS, above): adding CORS would also make this echo readable cross-origin, so it must be reopened together with the rest. A
 `request.csrfMissing` refusal carries none. The service worker fetches shell requests with
 `credentials: 'same-origin'` (`web/src/lib/pwa/appShell.ts`), and static files never mint a token.
 

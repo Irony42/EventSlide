@@ -137,7 +137,8 @@ export const issueCsrfToken =
  *
  * So this is a considered no rather than an omission, and it has exactly one
  * dependency, which is written here so the next reader finds it before repeating the
- * analysis: **if CORS is ever added to this server, reopen it.** An allowed origin is
+ * analysis: **if CORS is ever added to this server, reopen it** (the `csrfMismatch` token
+ * echo below relies on it as well: an allowed origin could read that body). An allowed origin is
  * precisely what turns cookie injection back into a deliverable CSRF, and at that point
  * the session-bound variant of (2) becomes worth its asymmetry.
  *
