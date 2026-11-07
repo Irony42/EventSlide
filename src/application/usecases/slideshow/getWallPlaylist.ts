@@ -21,7 +21,7 @@ import {
 } from '../../../domain/guestbook/guestbookWall'
 import { wallNeedsSouvenirCount } from '../../../domain/events/eventWallSettings'
 import { DomainError } from '../../../domain/shared/errors'
-import type { GuestId, PhotoId } from '../../../domain/shared/ids'
+import type { PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Slug } from '../../../domain/shared/slug'
 import { mixedWallLayout } from '../../../domain/slideshow/wallPhase'
