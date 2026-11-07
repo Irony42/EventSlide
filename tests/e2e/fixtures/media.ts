@@ -206,17 +206,6 @@ export const aPixelBomb = async (edge = 20_000): Promise<string> => {
   )
 }
 
-/** Larger than the configured per-file byte limit, but a genuine photo. */
-export const anOversizedPhoto = async (): Promise<string> =>
-  write(
-    'huge.jpg',
-    await canvas(6000, 6000, 'huge')
-      // Maximum quality and no subsampling, to exceed the limit with real pixel data
-      // rather than padding — padding would be caught by a different check.
-      .jpeg({ quality: 100, chromaSubsampling: '4:4:4' })
-      .toBuffer(),
-  )
-
 /**
  * The same bytes twice, for the idempotency journey: a double-tapped submit, or a
  * retry after a dropped connection, must not put the same photo on the wall twice.
@@ -225,14 +214,6 @@ export const theSamePhotoTwice = async (): Promise<readonly [string, string]> =>
   const bytes = await canvas(800, 600, 'duplicate').jpeg().toBuffer()
   return [await write('duplicate-a.jpg', bytes), await write('duplicate-b.jpg', bytes)]
 }
-
-/** A fixed set for the visual snapshots, so the wall renders identically each run. */
-export const aDemoAlbum = async (count = 6): Promise<readonly string[]> =>
-  Promise.all(
-    Array.from({ length: count }, (_unused, index) =>
-      aPhoto(`demo-${index + 1}`, index % 2 === 0 ? 1600 : 1200, index % 2 === 0 ? 1200 : 1600),
-    ),
-  )
 
 // ------------------------------------------------------- short video clips --
 

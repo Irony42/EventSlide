@@ -169,24 +169,37 @@ describe('buildServer: the Cache-Control of the built client, by name', () => {
  * one the rule promotes — the failure this file exists for is the rule quietly matching
  * nothing. It runs wherever a build is present (a developer's second `npm run verify`, an
  * image build); on a tree with no `dist/` it is skipped, not green.
+ *
+ * **A skip must not be possible where the build is promised.** The CI quality job runs this file
+ * again after its `Build` step with `REQUIRE_BUILT_ASSETS=1`: with that set, a missing `dist/`
+ * is a failure and the block below cannot be skipped, so "every real asset is promoted" is
+ * asserted on every pull request and not only on a workstation that happens to have built.
  */
+const BUILDS_REQUIRED = process.env['REQUIRE_BUILT_ASSETS'] === '1'
 const BUILT_ASSETS = resolve(__dirname, '..', '..', '..', 'dist', 'client', 'assets')
 
-describe.skipIf(!existsSync(BUILT_ASSETS))('the build in dist/client, when there is one', () => {
-  const root = resolve(BUILT_ASSETS, '..')
+describe.skipIf(!BUILDS_REQUIRED && !existsSync(BUILT_ASSETS))(
+  'the build in dist/client, when there is one',
+  () => {
+    const root = resolve(BUILT_ASSETS, '..')
 
-  it('names every file under assets/ in the way the rule accepts', () => {
-    const names = readdirSync(BUILT_ASSETS)
-    const refused = names.filter((name) => !isContentHashedAsset(root, join(BUILT_ASSETS, name)))
+    it('is there when the run says a build precedes it', () => {
+      if (BUILDS_REQUIRED) expect(existsSync(BUILT_ASSETS), BUILT_ASSETS).toBe(true)
+    })
 
-    expect(names.length).toBeGreaterThan(0)
-    expect(refused).toEqual([])
-  })
+    it('names every file under assets/ in the way the rule accepts', () => {
+      const names = readdirSync(BUILT_ASSETS)
+      const refused = names.filter((name) => !isContentHashedAsset(root, join(BUILT_ASSETS, name)))
 
-  it('leaves what sits beside assets/ revalidated', () => {
-    const beside = readdirSync(root).filter((name) => name !== 'assets' && !name.startsWith('.'))
-    const promoted = beside.filter((name) => isContentHashedAsset(root, join(root, name)))
+      expect(names.length).toBeGreaterThan(0)
+      expect(refused).toEqual([])
+    })
 
-    expect(promoted).toEqual([])
-  })
-})
+    it('leaves what sits beside assets/ revalidated', () => {
+      const beside = readdirSync(root).filter((name) => name !== 'assets' && !name.startsWith('.'))
+      const promoted = beside.filter((name) => isContentHashedAsset(root, join(root, name)))
+
+      expect(promoted).toEqual([])
+    })
+  },
+)
