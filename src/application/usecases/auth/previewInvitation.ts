@@ -1,7 +1,6 @@
 import type { ClientRole } from '../../../domain/clients/clientRole'
 import { clientInvitationStillHonourable } from '../../../domain/clients/operatorGuard'
 import { canInviteModerators } from '../../../domain/events/eventRole'
-import { isMutable } from '../../../domain/events/eventStatus'
 import type { TermsOfUse } from '../../../domain/legal/termsOfUse'
 import { DomainError } from '../../../domain/shared/errors'
 import type { ClientId } from '../../../domain/shared/ids'
@@ -154,7 +153,7 @@ export const makeResolveInvitation = ({
     if (event === null || !event.isReachable()) {
       return err(invitationNotFound())
     }
-    if (!isMutable(event.status)) {
+    if (!event.allowsEditing()) {
       return err(DomainError.conflict('event.immutable', { status: event.status }))
     }
 
