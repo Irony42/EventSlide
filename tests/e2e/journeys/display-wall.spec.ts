@@ -24,6 +24,31 @@ const boxOf = async (locator: Locator) => {
   return box
 }
 
+/**
+ * Runs every animation on the element to its end, then waits until the engine has drawn that
+ * end state, so a measurement taken next reads the finished geometry.
+ *
+ * `animation.finish()` only moves the timeline. WebKit runs a transform animation on the
+ * compositor and answers a box query from the last frame it committed, so a box read in the
+ * same task as `finish()` can still be a few percent short of the end (the zoom read 1.0726
+ * against 1.08, the strip's travel 383 px against a 384 px pitch, webkit-mobile CI). Two
+ * animation frames after `finished` is the earliest the committed frame is the end one.
+ */
+const finishAnimations = async (locator: Locator): Promise<void> => {
+  await locator.evaluate(async (node) => {
+    const animations = node.getAnimations()
+    for (const animation of animations) animation.finish()
+    await Promise.all(animations.map((animation) => animation.finished))
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          resolve()
+        })
+      }),
+    )
+  })
+}
+
 /** Publishes `count` photos into a fresh event and returns it. */
 const anEventWithPublishedPhotos = async (
   app: Parameters<typeof signInAsHost>[1],
@@ -337,9 +362,7 @@ test('the Ken Burns zoom enlarges the photograph, and no snapshot is asked to pr
   // Through the animation rather than through the clock, exactly as the drift does: ten
   // real minutes is not a test, and a fast interval would put the answer back in the hands
   // of whichever frame the machine happened to render.
-  await photograph.evaluate((node) => {
-    for (const animation of node.getAnimations()) animation.finish()
-  })
+  await finishAnimations(photograph)
 
   const zoomed = await boxOf(photograph)
 
@@ -402,9 +425,7 @@ test('the filmstrip drifts by exactly one frame, and no snapshot is asked to pro
   // To the end of the slide, through the animation itself rather than through the clock:
   // waiting ten real minutes is not a test, and a fast interval would put the answer back
   // in the hands of whichever frame the machine rendered.
-  await track.evaluate((node) => {
-    for (const animation of node.getAnimations()) animation.finish()
-  })
+  await finishAnimations(track)
 
   const travelledSecond = await boxOf(frames.nth(1))
 
@@ -415,5 +436,9 @@ test('the filmstrip drifts by exactly one frame, and no snapshot is asked to pro
   const pitch = restedSecond.x - restedFirst.x
   const travelled = restedSecond.x - travelledSecond.x
   expect(Math.round(pitch)).toBeGreaterThan(0)
-  expect(Math.round(travelled)).toBe(Math.round(pitch))
+  // Within one pixel rather than equal after rounding: the two boxes are fractional and are
+  // rounded independently, so a travel of 383.5 against a pitch of 383.6 compared 384 with
+  // 383. A drift of any other distance — half a frame, a frame and a gap — is hundreds of
+  // pixels away and still fails.
+  expect(Math.abs(travelled - pitch)).toBeLessThanOrEqual(1)
 })
