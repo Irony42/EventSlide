@@ -14,6 +14,7 @@ import {
   toModerationPhotoDto,
   toPublicEventDto,
   toSignedInUserDto,
+  toUploadOutcomeDto,
   type PresenterContext,
   toEventThemeDto,
   venueGroundUrl,
@@ -23,6 +24,7 @@ import { AT, aGuest, aPhoto, anEvent } from '../../../application/testing/builde
 import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
 import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
 import { ContentHash } from '../../../domain/photos/contentHash'
+import { DomainError } from '../../../domain/shared/errors'
 import { asClientId, asUserId } from '../../../domain/shared/ids'
 
 const context: PresenterContext = {
@@ -731,5 +733,22 @@ describe('toEventBrandDto', () => {
 
     expect(toEventBrandDto(anEvent().settings, 'camille-et-sacha').logoUrl).toBeNull()
     expect(toEventBrandDto(named.settings, null).logoUrl).toBeNull()
+  })
+})
+
+describe('a per-file upload refusal', () => {
+  it('crosses the wire as its code, so a server-side render failure keeps its own', () => {
+    const refused = {
+      index: 2,
+      declaredName: 'x.jpg',
+      kind: 'refused' as const,
+      error: DomainError.unexpected('image.renderUnavailable', { reason: 'ENOSPC' }),
+    }
+
+    expect(toUploadOutcomeDto(refused)).toEqual({
+      index: 2,
+      status: 'rejected',
+      code: 'image.renderUnavailable',
+    })
   })
 })

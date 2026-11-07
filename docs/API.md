@@ -1531,15 +1531,16 @@ same photo twice on the wall.
 The `code` on a `rejected` entry is **per file** and never becomes the response's own
 status. These are the ones a guest can provoke:
 
-| Per-file `code`             | Why                                                                                                |
-| --------------------------- | -------------------------------------------------------------------------------------------------- |
-| `image.unsupportedFormat`   | The magic bytes are not JPEG, PNG, HEIC or WebP                                                    |
-| `image.corrupt`             | The header will not decode                                                                         |
-| `image.animated`            | An animated image; the wall is stills                                                              |
-| `image.renderFailed`        | `sharp` could not re-encode it                                                                     |
-| `photo.pixelBudgetExceeded` | Over the pixel budget (`MAX_IMAGE_PIXELS`), judged from the header alone, before any decode        |
-| `event.quotaExceeded`       | This file would overrun the event's byte quota                                                     |
-| `client.storageFull`        | This file would take the host's events past the account's total (`max_total_bytes`, roadmap §10.5) |
+| Per-file `code`             | Why                                                                                                                                                      |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `image.unsupportedFormat`   | The magic bytes are not JPEG, PNG, HEIC or WebP                                                                                                          |
+| `image.corrupt`             | The header will not decode                                                                                                                               |
+| `image.animated`            | An animated image; the wall is stills                                                                                                                    |
+| `image.renderFailed`        | `sharp` could not re-encode it                                                                                                                           |
+| `image.renderUnavailable`   | The server could not render it for its own reasons (a full disk, an I/O fault, no memory): not the file's fault, so a client keeps the photo and retries |
+| `photo.pixelBudgetExceeded` | Over the pixel budget (`MAX_IMAGE_PIXELS`), judged from the header alone, before any decode                                                              |
+| `event.quotaExceeded`       | This file would overrun the event's byte quota                                                                                                           |
+| `client.storageFull`        | This file would take the host's events past the account's total (`max_total_bytes`, roadmap §10.5)                                                       |
 
 `event.quotaExceeded` is on that list and **not** in the whole-request list below: the
 quota is charged file by file as the batch is written, so a guest sending five photos

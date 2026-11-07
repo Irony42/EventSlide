@@ -123,4 +123,16 @@ describe('the upload refusals after which the outbox deletes a photo', () => {
     )
     expect(unknownToServer).toEqual([])
   })
+
+  it('leave out the code the server sends when its own box failed to render', async () => {
+    // A full disk is not the guest's file: \image.renderUnavailable must reach the phone as a
+    // refusal the outbox keeps. If the server stops sending it, or the list ever grows it, the
+    // photo of every guest in the room is deleted during an outage.
+    const module = await loadWeb('web/src/lib/offline/outboxPolicy.ts')
+    const codes = module['TERMINAL_CODES']
+    if (!(codes instanceof Set)) throw new Error('outboxPolicy no longer exports TERMINAL_CODES')
+
+    expect(serverSources()).toContain("'image.renderUnavailable'")
+    expect(codes.has('image.renderUnavailable')).toBe(false)
+  })
 })
