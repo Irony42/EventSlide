@@ -128,17 +128,15 @@ export default defineConfig({
          * **These numbers go down as tests land, and never up.** Raising one to admit a
          * new untested script is how a ratchet becomes a rubber stamp; write the test
          * and lower the number instead. They are the uncovered counts of a full
-         * `npm run test:coverage` (208 statements, 91 branches, 20 functions, 194 lines),
-         * not of the scripts' own tests alone, and they were once set 70 statements above
-         * that, room for a script of about that size to land untested without a word.
+         * `npm run test:coverage` (54 statements, 54 branches, 11 functions, 44 lines), not of the
+         * scripts' own tests alone, and they were once set 70 statements above that, room for a
+         * script of about that size to land untested without a word.
          * `backup.ts` and `restore.ts` show the shape — they sit near 90% because
-         * `scripts/backup.test.ts` and `scripts/restore.test.ts` drive the real CLIs.
-         * What is still the debt: `seedDemo.ts` (79 statements), which refuses to run when
-         * `config.isProduction`, a guard rail with nothing asserting it still works;
-         * `purge.ts` (75), whose `--dry-run` must touch nothing; and `migrate.ts` (26), the
-         * tool an operator points at the database holding someone's wedding album.
+         * `scripts/backup.test.ts` and `scripts/restore.test.ts` drive the real CLIs — and since
+         * the operator-scripts lot `purge.ts`, `migrate.ts` and `seedDemo.ts` follow it: each exports
+         * `run` and has a test file driving it against temp directories.
          */
-        'scripts/**': { statements: -208, branches: -91, functions: -20, lines: -194 },
+        'scripts/**': { statements: -54, branches: -54, functions: -11, lines: -44 },
       },
     },
   },
