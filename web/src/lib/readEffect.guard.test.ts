@@ -32,19 +32,23 @@ import { withoutComments } from '../testing/withoutComments'
  * tells the copies apart until one of them drifts.
  */
 
-const MODULES = import.meta.glob<string>('../{features,app}/**/*.{ts,tsx}', {
+const MODULES = import.meta.glob<string>(['../{features,app}/**/*.{ts,tsx}', './*.{ts,tsx}'], {
   query: '?raw',
   import: 'default',
   eager: true,
 })
 
-/** Glob keys arrive relative to this file: `../app/x` is `app/x`. */
-const named = (path: string): string => path.replace(/^\.\.\//, '')
+/** Glob keys arrive relative to this file: `../app/x` is `app/x`, and `./x` (this folder) is `lib/x`. */
+const named = (path: string): string =>
+  path.startsWith('./') ? `lib/${path.slice(2)}` : path.replace(/^\.\.\//, '')
 
-/** Production modules only: a test may read however it likes. */
+/**
+ * Production modules only: a test may read however it likes. `useLoader` is the reader the rule
+ * points to, so it is the one file that writes the effect itself.
+ */
 const production = Object.entries(MODULES)
   .map(([path, source]) => [named(path), source] as const)
-  .filter(([path]) => !/\.test\.tsx?$/.test(path))
+  .filter(([path]) => !/\.test\.tsx?$/.test(path) && path !== 'lib/useLoader.ts')
 
 const EFFECT = /\buse(?:Layout)?Effect\(/g
 const CREATES_CONTROLLER = /\bnew\s+AbortController\(/
