@@ -1196,6 +1196,19 @@ describe('the aurora the root look paints', () => {
     expect(ground).not.toMatch(/url\(|oklch\(/)
   })
 
+  /**
+   * A glow handed to a gradient as an oklch colour is converted per pixel by a software
+   * rasteriser: measured on WebKit, the full-viewport aurora at 1440x900 ran the page at 2-3
+   * frames a second, and a 12-worker end-to-end run had `requestAnimationFrame` silent for whole
+   * seconds, so a click waited fifteen of them for a button to be "stable". Resolved to sRGB once,
+   * by `color-mix`, the same page runs at 37. The tokens stay oklch, because the contrast tests
+   * above read them as such.
+   */
+  it.each(AURORA_GLOWS)('hands %s to the gradient already resolved to sRGB', (glow) => {
+    const ground = /--ambiance-ground:([\s\S]*?);/.exec(ROOT_BLOCK)?.[1] ?? ''
+    expect(ground).toContain(`color-mix(in srgb, var(${glow}), transparent 0%)`)
+  })
+
   it('is static: the rule that paints it carries no animation or transition', async () => {
     const { default: base } = await import('./base.css?raw')
     const rule = /html::before {([^}]*)}/.exec(base)?.[1] ?? ''
