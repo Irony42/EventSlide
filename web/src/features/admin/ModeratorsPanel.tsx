@@ -14,6 +14,7 @@ import { useInviteModerator, useRevokeModerator } from './hooks/useEventActions'
 import styles from './ModeratorsPanel.module.css'
 import type { ModeratorDto } from '../../lib/api/dto'
 import type { UiText } from '../../lib/i18n/translations'
+import { copyToClipboard } from '../../lib/clipboard'
 
 export interface ModeratorsPanelProps {
   readonly slug: string
@@ -88,17 +89,13 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
   const copyLink = () => {
     if (pending === null) return
     // The address is also selectable in the field beside this button, so a browser that
-    // refuses the clipboard costs the host a long-press rather than the link — and says so.
-    // `navigator.clipboard` does not exist on an address that is not a secure context, which
-    // includes the plain-HTTP LAN deployment this product is at home on.
-    const failed = () => toast.show(t.admin.inviteLinkCopyFailed, { tone: 'danger' })
-    if (navigator.clipboard === undefined) {
-      failed()
-      return
-    }
-    void navigator.clipboard
-      .writeText(pending.link)
-      .then(() => toast.show(t.admin.inviteLinkCopied, { tone: 'success' }), failed)
+    // refuses the clipboard (or has none, on a plain-HTTP address) costs the host a long-press
+    // rather than the link, and says so.
+    void copyToClipboard(pending.link).then((copied) =>
+      copied
+        ? toast.show(t.admin.inviteLinkCopied, { tone: 'success' })
+        : toast.show(t.admin.inviteLinkCopyFailed, { tone: 'danger' }),
+    )
   }
 
   const confirmRevoke = () => {

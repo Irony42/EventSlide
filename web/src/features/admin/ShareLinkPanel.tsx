@@ -16,6 +16,7 @@ import { useCreateShareLink, useRevokeShareLink } from './hooks/useEventActions'
 import { useLeaveWarning } from './hooks/useLeaveWarning'
 import styles from './ShareLinkPanel.module.css'
 import type { ShareLinkCreated } from '../../lib/api/dto'
+import { copyToClipboard } from '../../lib/clipboard'
 
 export interface ShareLinkPanelProps {
   readonly slug: string
@@ -93,23 +94,19 @@ export function ShareLinkPanel({ slug, titleRef }: ShareLinkPanelProps) {
 
   const copy = () => {
     if (created === null) return
-    const refused = () => {
+    void copyToClipboard(created.url).then((copied) => {
+      if (copied) {
+        setCopied(true)
+        setCopyFailed(false)
+        toast.show(t.admin.shareLinkCopied, { tone: 'success' })
+        return
+      }
       // The address is in the field beside this button: selected, so the host's own Ctrl+C (or a
       // long-press) finishes what the browser would not, and the failure is said out loud.
       setCopyFailed(true)
       urlField.current?.focus()
       urlField.current?.select()
-    }
-    // No clipboard at all (an insecure origin, an old browser) is the same failure as a refusal.
-    if (navigator.clipboard === undefined) {
-      refused()
-      return
-    }
-    void navigator.clipboard.writeText(created.url).then(() => {
-      setCopied(true)
-      setCopyFailed(false)
-      toast.show(t.admin.shareLinkCopied, { tone: 'success' })
-    }, refused)
+    })
   }
 
   const confirmRevoke = () => {

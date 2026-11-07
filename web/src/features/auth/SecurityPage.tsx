@@ -16,6 +16,7 @@ import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AuthForm } from './components/AuthForm'
 import { messageForPasswordError } from '../../lib/i18n/translations'
 import styles from './SecurityPage.module.css'
+import { copyToClipboard } from '../../lib/clipboard'
 
 /**
  * An action the page takes against the server, as view-state: the busy flag, the sentence
@@ -67,12 +68,12 @@ function RecoveryCodes({
   const headingId = useId()
 
   const copy = () => {
-    // Some browsers ship no clipboard in an insecure context; a guard is cheaper than a click
-    // that throws, and the codes are on screen to be written down either way.
-    if (typeof navigator.clipboard?.writeText !== 'function') return
-    void navigator.clipboard
-      .writeText(codes.join('\n'))
-      .then(() => toast.show(t.auth.recoveryCodesCopied, { tone: 'success' }))
+    // The codes are on screen to be written down when the copy cannot be done.
+    void copyToClipboard(codes.join(String.fromCharCode(10))).then((copied) =>
+      copied
+        ? toast.show(t.auth.recoveryCodesCopied, { tone: 'success' })
+        : toast.show(t.auth.recoveryCodesCopyFailed, { tone: 'danger' }),
+    )
   }
 
   return (
