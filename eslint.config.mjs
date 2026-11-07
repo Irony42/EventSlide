@@ -247,6 +247,31 @@ const NO_AMBIENT_NONDETERMINISM = [
   },
 ]
 
+const INTERFACE_FORBIDDEN = [
+  {
+    group: ['**/infrastructure/**', '**/main/**', '**/web/**'],
+    message:
+      'The HTTP layer receives its dependencies from src/main/container.ts. Import the port type, never the adapter.',
+  },
+  {
+    group: ['nodemailer*'],
+    message:
+      'The HTTP layer never talks to a mail library. Take the Mailer port from the use case that needs it.',
+  },
+]
+
+const ROUTES_NO_PEER = {
+  group: ['./*', '../routes/*'],
+  message:
+    'A route file imports no other route file. What two routes share belongs in middleware/ (a session helper), presenters/ or schemas/.',
+}
+
+const INTERFACE_NO_FS = {
+  group: ['fs', 'fs/*', 'node:fs', 'node:fs/*'],
+  message:
+    'src/interface may not touch the filesystem. Put the I/O behind a port in src/application/ports and an adapter in src/infrastructure.',
+}
+
 export default tseslint.config(
   {
     ignores: [
@@ -335,23 +360,25 @@ export default tseslint.config(
   {
     files: ['src/interface/**/*.ts'],
     rules: {
+      'no-restricted-imports': ['error', { patterns: [...INTERFACE_FORBIDDEN, INTERFACE_NO_FS] }],
+    },
+  },
+  {
+    files: ['src/interface/http/routes/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: {
       'no-restricted-imports': [
         'error',
-        {
-          patterns: [
-            {
-              group: ['**/infrastructure/**', '**/main/**', '**/web/**'],
-              message:
-                'The HTTP layer receives its dependencies from src/main/container.ts. Import the port type, never the adapter.',
-            },
-            {
-              group: ['nodemailer*'],
-              message:
-                'The HTTP layer never talks to a mail library. Take the Mailer port from the use case that needs it.',
-            },
-          ],
-        },
+        { patterns: [...INTERFACE_FORBIDDEN, INTERFACE_NO_FS, ROUTES_NO_PEER] },
       ],
+    },
+  },
+  {
+    // A test may build a real directory to stand in for MEDIA_ROOT; production code may not
+    // touch the filesystem, it asks a port (`StagedUploadStore`, `DiskSpaceChecker`).
+    files: ['src/interface/**/*.test.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: INTERFACE_FORBIDDEN }],
     },
   },
 

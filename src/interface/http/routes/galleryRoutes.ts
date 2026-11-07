@@ -1,15 +1,9 @@
-import {
-  Router,
-  type NextFunction,
-  type Request,
-  type RequestHandler,
-  type Response,
-} from 'express'
+import { Router, type Request, type RequestHandler, type Response } from 'express'
 import { notAvailable } from '../../../application/usecases/gallery/galleryAccess'
 import { DomainError } from '../../../domain/shared/errors'
 import { asPhotoId, asShareLinkId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
-import { isUndecodablePath } from '../middleware/errorHandler'
+import { answerUndecodablePath } from '../middleware/errorHandler'
 import {
   galleryLimiter,
   galleryMediaLimiter,
@@ -298,13 +292,7 @@ export const galleryRoutes = ({ deps, usecases, limits }: GalleryRouteDeps): Rou
   // second answer for a token, and its log line used to carry the whole credential in Express's
   // own message. Only the router's own refusal is answered here, by the same test the error
   // handler uses, so a `URIError` of ours in a handler above stays a bug.
-  router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
-    if (!isUndecodablePath(error)) {
-      next(error)
-      return
-    }
-    sendError(res, notAvailable())
-  })
+  router.use(answerUndecodablePath((res) => sendError(res, notAvailable())))
 
   return router
 }
