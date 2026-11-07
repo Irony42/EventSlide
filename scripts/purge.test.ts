@@ -243,6 +243,19 @@ describe('npm run purge', () => {
       })
     })
 
+    it('deletes the purged event book file with the album, as the timer does', async () => {
+      const books = join(mediaRoot, '.books')
+      await mkdir(books, { recursive: true })
+      await writeFile(join(books, 'due-event.pdf'), 'pretend pdf')
+      await writeFile(join(books, 'live-event.pdf'), 'pretend pdf')
+
+      const { code } = await capture(() => run([], env()))
+
+      expect(code).toBe(0)
+      expect(existsSync(join(books, 'due-event.pdf'))).toBe(false)
+      expect(existsSync(join(books, 'live-event.pdf'))).toBe(true)
+    })
+
     it('finalises an offboarded client and prunes old audit rows, as the timer does', async () => {
       await inDatabase(async (db) => {
         await new SqliteClientRepository(db).save(
