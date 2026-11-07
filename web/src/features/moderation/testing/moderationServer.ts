@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import { deferred } from '../../../testing/deferred'
 import { aModerationPhoto } from '../../../testing/renderWithProviders'
 import type { Api } from '../../../lib/api/client'
 import type {
@@ -121,11 +122,8 @@ export const heldModerationServer = (
     }),
   }
   const hold = (kind: 'read' | 'moderate'): Hold => {
-    let settle: () => void = () => {}
-    const promise = new Promise<void>((resolve) => {
-      settle = resolve
-    })
-    const next: Hold = { promise, settle }
+    const held = deferred()
+    const next: Hold = { promise: held.promise, settle: held.resolve }
     holds[kind].push(next)
     return next
   }
