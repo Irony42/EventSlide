@@ -1,4 +1,4 @@
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it } from 'vitest'
 import { publicRoutes } from './publicRoutes'
 import { GUEST_COOKIE } from '../middleware/authz'

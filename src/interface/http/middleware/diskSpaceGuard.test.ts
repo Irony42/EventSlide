@@ -1,5 +1,5 @@
 import express from 'express'
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it } from 'vitest'
 import { FakeDiskSpaceChecker } from '../../../application/testing/fakeDiskSpaceChecker'
 import { createDiskSpaceGuard } from './diskSpaceGuard'

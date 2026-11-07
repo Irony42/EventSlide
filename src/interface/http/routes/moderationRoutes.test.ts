@@ -1,4 +1,4 @@
-import request from 'supertest'
+import request from '../testing/request'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { highlightRoutes } from './highlightRoutes'
 import { moderationRoutes } from './moderationRoutes'

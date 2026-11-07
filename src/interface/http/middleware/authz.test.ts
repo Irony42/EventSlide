@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it, vi } from 'vitest'
 import {
   ABSOLUTE_SESSION_LIFETIME_MS,

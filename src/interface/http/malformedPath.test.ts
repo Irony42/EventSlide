@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import request from 'supertest'
+import request from './testing/request'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { LogContext, Logger } from '../../application/ports/logger'
 import { errorHandler, requestContext } from './middleware/errorHandler'

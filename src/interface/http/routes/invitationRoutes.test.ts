@@ -1,4 +1,4 @@
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it } from 'vitest'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { EmailAddress } from '../../../domain/users/emailAddress'

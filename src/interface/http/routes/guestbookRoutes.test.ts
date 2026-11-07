@@ -1,7 +1,7 @@
 import { DomainError } from '../../../domain/shared/errors'
 import { err } from '../../../domain/shared/result'
 import type { Express } from 'express'
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it } from 'vitest'
 import { guestbookRoutes } from './guestbookRoutes'
 import { GUEST_COOKIE } from '../middleware/authz'

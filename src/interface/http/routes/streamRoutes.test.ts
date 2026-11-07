@@ -1,7 +1,7 @@
 import http from 'node:http'
 import type { Request } from 'express'
 import type { AddressInfo } from 'node:net'
-import supertest from 'supertest'
+import supertest from '../testing/request'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   drainStreams,
@@ -84,6 +84,10 @@ const openStream = (
     })
     request.on('error', reject)
   })
+
+/** How many change signals the stream has received so far. */
+const changesIn = (stream: Stream): number =>
+  stream.frames.join('').split('event: change').length - 1
 
 const photoPublished = (eventId: string): DomainEvent => ({
   type: 'photo.moderated',
@@ -239,9 +243,13 @@ describe('streamRoutes', () => {
     await stream.waitFor((text) => text.includes(': connected'), 'connection')
 
     subject.deps.bus.publish(photoPublished(GALA))
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    // A signal for this event, sent after the foreign one and answered in order: once it has
+    // arrived, the foreign one would have arrived before it. Nothing is waited on blindly.
+    subject.deps.bus.publish(photoPublished(WEDDING))
+    await stream.waitFor((text) => text.includes('event: change'), 'the event’s own signal')
 
-    expect(stream.frames.join('')).not.toContain('event: change')
+    expect(changesIn(stream)).toBe(1)
+    expect(stream.frames.join('')).toContain('id: 1')
   })
 
   it('gives two clients of one event the same id for one change', async () => {
@@ -394,9 +402,12 @@ describe('streamRoutes', () => {
 
     const later = await open('/api/events/mariage/stream')
     await later.waitFor((text) => text.includes(': connected'), 'the new connection')
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    // A replay, had one been kept, is written when the client connects: the signal published
+    // now arrives after it, so it must be the only one the client ever sees.
+    subject.deps.bus.publish(photoPublished(WEDDING))
+    await later.waitFor((text) => text.includes('event: change'), 'a fresh signal')
 
-    expect(later.frames.join('')).not.toContain('event: change')
+    expect(changesIn(later)).toBe(1)
   })
 
   it.each([
@@ -426,9 +437,12 @@ describe('streamRoutes', () => {
 
     const stream = await open('/api/events/mariage/stream')
     await stream.waitFor((text) => text.includes(': connected'), 'connection')
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    // The signal published before anybody watched would be replayed at connection, ahead of this one.
+    subject.deps.bus.publish(photoPublished(WEDDING))
+    await stream.waitFor((text) => text.includes('event: change'), 'a fresh signal')
 
-    expect(stream.frames.join('')).not.toContain('event: change')
+    expect(changesIn(stream)).toBe(1)
+    expect(stream.frames.join('')).toContain('id: 1')
   })
 
   it('unsubscribes from the bus when the client disconnects', async () => {
