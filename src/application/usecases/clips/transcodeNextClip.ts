@@ -323,7 +323,7 @@ export const makeTranscodeNextClip = ({
   /** The encoder's two outputs with their digests and the duration actually written. */
   interface Encoded {
     readonly video: TranscodedClip['video']
-    readonly poster: TranscodedFile
+    readonly poster: TranscodedClip['poster']
     readonly videoHash: ContentHash
     readonly posterHash: ContentHash
     readonly duration: ClipDuration
