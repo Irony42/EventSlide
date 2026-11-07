@@ -191,6 +191,35 @@ const parse = async <T>(response: Response): Promise<T> => {
   return payload as T
 }
 
+/**
+ * How long a plain JSON request may take, end to end (the response body included), before it
+ * is given up as a network failure.
+ *
+ * Absolute on purpose here and nowhere near an upload: these bodies are a few kilobytes, so a
+ * request that has not finished in half a minute is not slow, it is stuck (a captive portal, a
+ * proxy that accepts the connection and never answers). Without a ceiling the promise never
+ * settles, `useLoader` stays `loading` for ever and the guest stares at a spinner.
+ */
+export const JSON_REQUEST_TIMEOUT_MS = 30_000
+
+/**
+ * How long an upload may go without a single byte moving before it is given up.
+ *
+ * An inactivity budget, reset by every progress event, and never a total one: a photo on bad
+ * venue Wi-Fi can be slow and still be progressing, and cutting it at a fixed duration would
+ * lose exactly the guests the outbox exists for.
+ */
+export const UPLOAD_STALL_MS = 60_000
+
+/**
+ * How long the server may take to answer once the last byte has left the phone.
+ *
+ * The upload is over by then, so this is not the guest's connection being slow: it is the
+ * server decoding, shrinking and storing the file (a short clip is transcoded). Longer than the
+ * stall budget for that reason.
+ */
+export const UPLOAD_RESPONSE_WAIT_MS = 180_000
+
 interface RequestOptions {
   body?: unknown
   query?: Readonly<Record<string, string | number | undefined>>
@@ -211,19 +240,41 @@ const send = async <T>(method: string, path: string, options: RequestOptions): P
       : {
           body: options.body instanceof FormData ? options.body : JSON.stringify(options.body),
         }),
-    ...(options.signal ? { signal: options.signal } : {}),
   }
 
-  let response: Response
+  // One controller of our own, fed by the caller's signal and by the deadline, so the two are
+  // told apart: the caller's abort is theirs and stays an `AbortError`, the deadline is a
+  // network failure. `AbortSignal.timeout` is not used because fake timers cannot reach it.
+  const controller = new AbortController()
+  let timedOut = false
+  const onCallerAbort = () => controller.abort()
+  if (options.signal?.aborted) controller.abort()
+  else options.signal?.addEventListener('abort', onCallerAbort, { once: true })
+  const deadline = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, JSON_REQUEST_TIMEOUT_MS)
+
   try {
-    response = await fetch(buildUrl(path, options.query), init)
+    let response: Response
+    try {
+      response = await fetch(buildUrl(path, options.query), { ...init, signal: controller.signal })
+    } catch (cause) {
+      if (timedOut) throw ApiError.network()
+      // An aborted request is the caller's own doing, not a network failure to report.
+      if (isAbortError(cause)) throw cause
+      throw ApiError.network()
+    }
+    // The body is read under the same deadline: a response that stops mid-way is as stuck
+    // as one that never began.
+    return await parse<T>(response)
   } catch (cause) {
-    // An aborted request is the caller's own doing, not a network failure to report.
-    if (isAbortError(cause)) throw cause
-    throw ApiError.network()
+    if (timedOut && isAbortError(cause)) throw ApiError.network()
+    throw cause
+  } finally {
+    clearTimeout(deadline)
+    options.signal?.removeEventListener('abort', onCallerAbort)
   }
-
-  return parse<T>(response)
 }
 
 /**
@@ -307,19 +358,34 @@ const sendUpload = <T>(
     const csrf = readCookie(CSRF_COOKIE)
     if (csrf !== null) xhr.setRequestHeader(CSRF_HEADER, csrf)
 
-    if (handlers.onProgress) {
-      const onProgress = handlers.onProgress
-      xhr.upload.addEventListener('progress', (event) => {
-        if (!event.lengthComputable) return
-        onProgress({
-          loaded: event.loaded,
-          total: event.total,
-          percent: Math.round((event.loaded / event.total) * 100),
-        })
-      })
+    // Inactivity, not duration: re-armed by every progress event, so a slow upload that keeps
+    // moving is never cut, and an upload that has stopped is released instead of hanging the
+    // spinner and the outbox's drain for ever.
+    let stalled = false
+    let watchdog: ReturnType<typeof setTimeout> | undefined
+    const arm = (afterMs: number) => {
+      clearTimeout(watchdog)
+      watchdog = setTimeout(() => {
+        stalled = true
+        xhr.abort()
+      }, afterMs)
     }
+    const disarm = () => clearTimeout(watchdog)
+
+    xhr.upload.addEventListener('progress', (event) => {
+      arm(UPLOAD_STALL_MS)
+      if (!event.lengthComputable) return
+      handlers.onProgress?.({
+        loaded: event.loaded,
+        total: event.total,
+        percent: Math.round((event.loaded / event.total) * 100),
+      })
+    })
+    // Everything has left the phone: from here the wait is the server's, not the network's.
+    xhr.upload.addEventListener('load', () => arm(UPLOAD_RESPONSE_WAIT_MS))
 
     xhr.addEventListener('load', () => {
+      disarm()
       let payload: unknown
       try {
         payload = xhr.responseText.length > 0 ? JSON.parse(xhr.responseText) : undefined
@@ -338,9 +404,14 @@ const sendUpload = <T>(
       reject(new ApiError(xhr.status, 'unknown'))
     })
 
-    xhr.addEventListener('error', () => reject(ApiError.network()))
-    xhr.addEventListener('timeout', () => reject(ApiError.network()))
-    xhr.addEventListener('abort', () => reject(new DOMException('Upload aborted', 'AbortError')))
+    xhr.addEventListener('error', () => {
+      disarm()
+      reject(ApiError.network())
+    })
+    xhr.addEventListener('abort', () => {
+      disarm()
+      reject(stalled ? ApiError.network() : new DOMException('Upload aborted', 'AbortError'))
+    })
 
     if (handlers.signal) {
       const signal = handlers.signal
@@ -356,6 +427,7 @@ const sendUpload = <T>(
     }
 
     xhr.send(form)
+    arm(UPLOAD_STALL_MS)
   })
 
 const upload = async <T>(
