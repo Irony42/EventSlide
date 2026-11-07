@@ -3,11 +3,12 @@ import { ClipDuration } from '../../../domain/clips/clipDuration'
 import { MAX_TRIM_SOURCE_MS } from '../../../domain/clips/clipTrim'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { Photo } from '../../../domain/photos/photo'
+import type { Event } from '../../../domain/events/event'
 import { admissionRefusalError } from '../../../domain/events/admission'
 import type { DomainError } from '../../../domain/shared/errors'
 import type { ClipJobId, EventId, PhotoId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
-import type { ClientRepository } from '../../ports/clientRepository'
+import type { ClientEventContext, ClientRepository } from '../../ports/clientRepository'
 import type { ClipJobRepository } from '../../ports/clipJobRepository'
 import type { Clock } from '../../ports/clock'
 import type { ContentHasher } from '../../ports/contentHasher'
@@ -16,7 +17,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { Logger } from '../../ports/logger'
 import { STAGED_SOURCE, type MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
-import type { TranscodeSpec, VideoTranscoder } from '../../ports/videoTranscoder'
+import type { TranscodedClip, TranscodeSpec, VideoTranscoder } from '../../ports/videoTranscoder'
 import { clientBytesOf, clientContextOf } from '../clients/clientContextOf'
 
 /**
@@ -289,6 +290,188 @@ export const makeTranscodeNextClip = ({
     })
   }
 
+  /** A step of the pass that either carries on with a value or names why the clip is given up on. */
+  type Step<T> =
+    { readonly ok: true; readonly value: T } | { readonly ok: false; readonly code: string }
+  const stepOk = <T>(value: T): Step<T> => ({ ok: true, value })
+  const stepFailed = (code: string): { readonly ok: false; readonly code: string } => ({
+    ok: false,
+    code,
+  })
+
+  /**
+   * What the source's header says about it, judged before a frame is decoded: the pixel budget
+   * and the duration. The failure code, or `null` when the clip may be encoded.
+   *
+   * The pixel budget is the same control the photo path applies, and for the same reason:
+   * `maxHeight` scales the *output*, and the filter that does it runs after the decoder has
+   * already allocated the frame.
+   *
+   * Refused at the probe, and bounded again at the encoder through `spec`. Both, because the
+   * header is a claim by the file: a truncated recording declares a duration it never had, and
+   * a hand-written one can declare anything at all.
+   */
+  const refusalAtProbe = async (job: ClipJob, source: Uint8Array): Promise<string | null> => {
+    const probed = await transcoder.probe(source)
+    if (!probed.ok) return probed.error.code
+    if (probed.value.dimensions.exceedsPixelBudget(policy.maxPixels)) {
+      return 'clip.pixelBudgetExceeded'
+    }
+    return declaredDurationRefusal(job, probed.value.durationMs)
+  }
+
+  /** The encoder's two outputs with their digests and the duration actually written. */
+  interface Encoded {
+    readonly video: TranscodedClip['video']
+    readonly poster: TranscodedFile
+    readonly videoHash: ContentHash
+    readonly posterHash: ContentHash
+    readonly duration: ClipDuration
+  }
+
+  const encode = async (job: ClipJob, source: Uint8Array): Promise<Step<Encoded>> => {
+    const transcoded = await transcoder.transcode(
+      source,
+      job.trim === null
+        ? spec
+        : { ...spec, trim: { startMs: job.trim.startMs, endMs: job.trim.endMs } },
+    )
+    if (!transcoded.ok) return stepFailed(transcoded.error.code)
+
+    const { video, poster } = transcoded.value
+    const videoHash = ContentHash.create(hasher.sha256Hex(video.bytes))
+    const posterHash = ContentHash.create(hasher.sha256Hex(poster.bytes))
+    if (!videoHash.ok) return stepFailed('photo.hashFailed')
+    if (!posterHash.ok) return stepFailed('photo.hashFailed')
+
+    // Measured on what was actually written, never copied from the source: `-t` and the
+    // output size bound both truncate, and the wall lays out what it will really play.
+    const duration = ClipDuration.create(video.durationMs, policy.maxDurationMs)
+    if (!duration.ok) return stepFailed(duration.error.code)
+
+    return stepOk({
+      video,
+      poster,
+      videoHash: videoHash.value,
+      posterHash: posterHash.value,
+      duration: duration.value,
+    })
+  }
+
+  /**
+   * Writes the outputs, then the row — through the one insert that counts the quota inside its
+   * own transaction — and takes the outputs back when either fails or the row is refused.
+   */
+  const store = async (
+    job: ClipJob,
+    event: Event,
+    context: ClientEventContext | null,
+    encoded: Encoded,
+    now: Date,
+  ): Promise<Step<Photo>> => {
+    const { video, poster, videoHash, posterHash, duration } = encoded
+    const ceilings = context?.ceilings ?? null
+
+    /**
+     * Take back what this pass wrote — **and only what nothing else is naming.**
+     *
+     * The video's digest is safe by construction: `photos (event_id, content_hash)` is
+     * unique, so no other row can hold it. The **poster** is not. It is a deterministic
+     * 640-max-edge JPEG of a frame one second in, and it carries no unique index, so two
+     * clips whose opening second looks the same — a dark room, a stage before the lights
+     * — share it. Unwinding clip B without asking destroyed published clip A's poster,
+     * which is both its `thumbUrl` and its `displayUrl`: a broken tile on the wall, in
+     * the grid and in the album, while A's mp4 went on playing.
+     *
+     * The same guard `deletePhoto` and `uploadPhotos` have, on the path that did not
+     * have it. This is called from four places and every one of them can hit that.
+     */
+    const written = [videoHash, posterHash]
+    const unwind = async (): Promise<void> => {
+      for (const hash of written) {
+        // The row this pass is inserting does not exist yet on any path that unwinds, so
+        // anything found here belongs to somebody else.
+        if ((await photos.findIdsReferencing(job.eventId, hash)).length > 0) continue
+        // Best effort, for the reason `discard` gives: `unwind` is called from inside two
+        // catch blocks, so a throwing unlink here strands the row exactly as it did in
+        // `giveUpOn` — and both are reached by the same failing disk.
+        await discard(job.eventId, hash)
+      }
+    }
+
+    try {
+      await media.put(job.eventId, videoHash, 'video', video.bytes)
+      await media.put(job.eventId, posterHash, 'poster', poster.bytes)
+    } catch (cause) {
+      logger.error('could not store a transcoded clip; removing what this pass wrote', {
+        eventId: job.eventId,
+        clipJobId: job.id,
+        cause: String(cause),
+      })
+      await unwind()
+      return stepFailed('clip.storageFailed')
+    }
+
+    const photo = Photo.create(
+      {
+        eventId: job.eventId,
+        author: job.author,
+        contentHash: videoHash,
+        dimensions: video.dimensions,
+        // Both files, because both are on the disk the quota protects. The staged source
+        // stops counting a few statements below, when the job is marked done.
+        byteSize: video.byteSize + poster.byteSize,
+        caption: job.caption,
+        facet: { kind: 'clip', duration, posterHash },
+      },
+      job.photoId,
+      now,
+    )
+    if (!photo.ok) {
+      await unwind()
+      return stepFailed(photo.error.code)
+    }
+
+    // The only insert that takes the quota and the per-guest cap inside its own
+    // transaction. A clip refused here is refused against committed state, which is why
+    // `clipFailure` classifies those codes as permanent: retrying decides the same way.
+    let admissions
+    try {
+      admissions = await photos.saveManyWithinLimits(job.eventId, [photo.value], {
+        quotaBytes: event.effectiveQuotaBytes(ceilings),
+        maxPhotosPerGuest: event.settings.maxPhotosPerGuest,
+        // The client's ceiling over all its events, judged in the same transaction and with
+        // the same credit: the output replaces the source in the client's total exactly as
+        // it does in the event's, so a clip is never charged twice at either level.
+        clientBytes: clientBytesOf(context),
+        // **The source this output replaces, credited inside the same transaction.**
+        // The job is still `running` here, deliberately — marking it `done` first would
+        // open a window where a crash loses the accounting entirely — so without this
+        // the event is charged for the guest's original *and* the 720p result it became.
+        // A source is routinely twenty times its output, so an event anywhere near its
+        // quota refused a clip that plainly fitted; and `event.quotaExceeded` is
+        // permanent, so the outputs were unwound, the source deleted and the row left
+        // terminal. Freeing space did not help the guest: the re-upload deduped onto it.
+        replacesStagedClip: job.id,
+      })
+    } catch (cause) {
+      logger.error('could not insert a transcoded clip; removing what this pass wrote', {
+        eventId: job.eventId,
+        clipJobId: job.id,
+        cause: String(cause),
+      })
+      await unwind()
+      return stepFailed('clip.storageFailed')
+    }
+
+    const refusal = admissions[0]?.refusal ?? null
+    if (refusal !== null) {
+      await unwind()
+      return stepFailed(admissionRefusalError(refusal, 0).code)
+    }
+    return stepOk(photo.value)
+  }
+
   return async () => {
     const now = clock.now()
 
@@ -331,145 +514,22 @@ export const makeTranscodeNextClip = ({
     const source = await media.read(job.eventId, job.sourceHash, STAGED_SOURCE)
     if (source === null) return giveUpOn(job, 'clip.sourceMissing', now)
 
-    const probed = await transcoder.probe(source)
-    if (!probed.ok) return giveUpOn(job, probed.error.code, now)
+    const refused = await refusalAtProbe(job, source)
+    if (refused !== null) return giveUpOn(job, refused, now)
 
-    // The pixel budget, from the header, before a frame is decoded. The same control the
-    // photo path applies, and for the same reason: `maxHeight` scales the *output*, and
-    // the filter that does it runs after the decoder has already allocated the frame.
-    if (probed.value.dimensions.exceedsPixelBudget(policy.maxPixels)) {
-      return giveUpOn(job, 'clip.pixelBudgetExceeded', now)
-    }
+    const encoded = await encode(job, source)
+    if (!encoded.ok) return giveUpOn(job, encoded.code, now)
 
-    // Refused at the probe, and bounded again at the encoder through `spec`. Both,
-    // because the header is a claim by the file: a truncated recording declares a
-    // duration it never had, and a hand-written one can declare anything at all.
-    const declared = declaredDurationRefusal(job, probed.value.durationMs)
-    if (declared !== null) return giveUpOn(job, declared, now)
-
-    const transcoded = await transcoder.transcode(
-      source,
-      job.trim === null
-        ? spec
-        : { ...spec, trim: { startMs: job.trim.startMs, endMs: job.trim.endMs } },
-    )
-    if (!transcoded.ok) return giveUpOn(job, transcoded.error.code, now)
-
-    const { video, poster } = transcoded.value
-    const videoHash = ContentHash.create(hasher.sha256Hex(video.bytes))
-    const posterHash = ContentHash.create(hasher.sha256Hex(poster.bytes))
-    if (!videoHash.ok) return giveUpOn(job, 'photo.hashFailed', now)
-    if (!posterHash.ok) return giveUpOn(job, 'photo.hashFailed', now)
-
-    // Measured on what was actually written, never copied from the source: `-t` and the
-    // output size bound both truncate, and the wall lays out what it will really play.
-    const duration = ClipDuration.create(video.durationMs, policy.maxDurationMs)
-    if (!duration.ok) return giveUpOn(job, duration.error.code, now)
-
-    /**
-     * Take back what this pass wrote — **and only what nothing else is naming.**
-     *
-     * The video's digest is safe by construction: `photos (event_id, content_hash)` is
-     * unique, so no other row can hold it. The **poster** is not. It is a deterministic
-     * 640-max-edge JPEG of a frame one second in, and it carries no unique index, so two
-     * clips whose opening second looks the same — a dark room, a stage before the lights
-     * — share it. Unwinding clip B without asking destroyed published clip A's poster,
-     * which is both its `thumbUrl` and its `displayUrl`: a broken tile on the wall, in
-     * the grid and in the album, while A's mp4 went on playing.
-     *
-     * The same guard `deletePhoto` and `uploadPhotos` have, on the path that did not
-     * have it. This is called from four places and every one of them can hit that.
-     */
-    const written = [videoHash.value, posterHash.value]
-    const unwind = async (): Promise<void> => {
-      for (const hash of written) {
-        // The row this pass is inserting does not exist yet on any path that unwinds, so
-        // anything found here belongs to somebody else.
-        if ((await photos.findIdsReferencing(job.eventId, hash)).length > 0) continue
-        // Best effort, for the reason `discard` gives: `unwind` is called from inside two
-        // catch blocks, so a throwing unlink here strands the row exactly as it did in
-        // `giveUpOn` — and both are reached by the same failing disk.
-        await discard(job.eventId, hash)
-      }
-    }
-
-    try {
-      await media.put(job.eventId, videoHash.value, 'video', video.bytes)
-      await media.put(job.eventId, posterHash.value, 'poster', poster.bytes)
-    } catch (cause) {
-      logger.error('could not store a transcoded clip; removing what this pass wrote', {
-        eventId: job.eventId,
-        clipJobId: job.id,
-        cause: String(cause),
-      })
-      await unwind()
-      return giveUpOn(job, 'clip.storageFailed', now)
-    }
-
-    const photo = Photo.create(
-      {
-        eventId: job.eventId,
-        author: job.author,
-        contentHash: videoHash.value,
-        dimensions: video.dimensions,
-        // Both files, because both are on the disk the quota protects. The staged source
-        // stops counting a few statements below, when the job is marked done.
-        byteSize: video.byteSize + poster.byteSize,
-        caption: job.caption,
-        facet: { kind: 'clip', duration: duration.value, posterHash: posterHash.value },
-      },
-      job.photoId,
-      now,
-    )
-    if (!photo.ok) {
-      await unwind()
-      return giveUpOn(job, photo.error.code, now)
-    }
-
-    // The only insert that takes the quota and the per-guest cap inside its own
-    // transaction. A clip refused here is refused against committed state, which is why
-    // `clipFailure` classifies those codes as permanent: retrying decides the same way.
-    let admissions
-    try {
-      admissions = await photos.saveManyWithinLimits(job.eventId, [photo.value], {
-        quotaBytes: event.effectiveQuotaBytes(ceilings),
-        maxPhotosPerGuest: event.settings.maxPhotosPerGuest,
-        // The client's ceiling over all its events, judged in the same transaction and with
-        // the same credit: the output replaces the source in the client's total exactly as
-        // it does in the event's, so a clip is never charged twice at either level.
-        clientBytes: clientBytesOf(context),
-        // **The source this output replaces, credited inside the same transaction.**
-        // The job is still `running` here, deliberately — marking it `done` first would
-        // open a window where a crash loses the accounting entirely — so without this
-        // the event is charged for the guest's original *and* the 720p result it became.
-        // A source is routinely twenty times its output, so an event anywhere near its
-        // quota refused a clip that plainly fitted; and `event.quotaExceeded` is
-        // permanent, so the outputs were unwound, the source deleted and the row left
-        // terminal. Freeing space did not help the guest: the re-upload deduped onto it.
-        replacesStagedClip: job.id,
-      })
-    } catch (cause) {
-      logger.error('could not insert a transcoded clip; removing what this pass wrote', {
-        eventId: job.eventId,
-        clipJobId: job.id,
-        cause: String(cause),
-      })
-      await unwind()
-      return giveUpOn(job, 'clip.storageFailed', now)
-    }
-
-    const refusal = admissions[0]?.refusal ?? null
-    if (refusal !== null) {
-      await unwind()
-      return giveUpOn(job, admissionRefusalError(refusal, 0).code, now)
-    }
+    const stored = await store(job, event, context, encoded.value, now)
+    if (!stored.ok) return giveUpOn(job, stored.code, now)
+    const photo = stored.value
 
     // An auto-publish event records an `automatic` reviewer immediately, exactly as
     // photo ingest does, so the wall never shows something whose decision nobody can
     // account for afterwards.
     const published =
       event.settings.moderation === 'auto'
-        ? await photos.updateStatuses(job.eventId, [photo.value.id], 'published', {
+        ? await photos.updateStatuses(job.eventId, [photo.id], 'published', {
             kind: 'automatic',
             at: now,
           })
@@ -478,7 +538,7 @@ export const makeTranscodeNextClip = ({
     const finished = await finish(job, now, false)
     if (!finished.ok) return finished
 
-    bus.publish({ type: 'photo.uploaded', eventId: job.eventId, photoId: photo.value.id })
+    bus.publish({ type: 'photo.uploaded', eventId: job.eventId, photoId: photo.id })
     for (const photoId of published) {
       bus.publish({ type: 'photo.moderated', eventId: job.eventId, photoId, status: 'published' })
     }
