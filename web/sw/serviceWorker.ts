@@ -73,8 +73,8 @@ const worker = self as unknown as ServiceWorkerGlobalScope
  *
  * A worker has no `document.cookie`. `cookieStore` is the worker-side reader and exists
  * in every browser that implements Background Sync, so on the path this worker is woken
- * for, the live value is there. `null` falls back to the token captured beside the photo
- * — see `OutboxEntry.csrfToken` for why that is sound for a guest.
+ * for, the live value is there. `null` sends no header, and the server's answer decides
+ * (`outcomeForFailure`).
  */
 const readCookieStoreCsrf = async (): Promise<string | null> => {
   // Typed as always present, actually shipped by Chromium alone.

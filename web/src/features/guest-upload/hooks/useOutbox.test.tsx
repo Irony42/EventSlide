@@ -37,7 +37,6 @@ const seed = (store: OutboxStore, fileName = 'hier.jpg') =>
       fileType: 'image/jpeg',
       caption: null,
       missionId: null,
-      csrfToken: null,
     },
     // Stamped now, not at a fixed instant: the outbox drops a photo whose event is
     // over, and a hard-coded epoch would make every one of these cases expired.

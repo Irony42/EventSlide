@@ -87,7 +87,6 @@ export class IndexedDbOutbox implements OutboxStore {
       attempts: 0,
       lastAttemptAt: null,
       claimedAt: null,
-      csrfToken: entry.csrfToken,
     }
 
     const tx = this.db.transaction(STORE, 'readwrite')
