@@ -97,11 +97,14 @@ test.describe('the guest surface', () => {
     const event = await app.seedEvent({ slug: 'anniversaire' })
     await surfaces.guest.goto(app.url(`/join/${event.joinCode}`))
 
+    // The join page resolves the code on mount and swaps its form, and `boundingBox()` does not
+    // retry: wait for the button that stays, then poll its height rather than read it once.
     const submit = surfaces.guest.getByRole('button', { name: /Rejoindre/i })
-    const box = await submit.boundingBox()
+    await expect(submit).toBeVisible()
 
-    expect(box).not.toBeNull()
-    expect(box!.height).toBeGreaterThanOrEqual(44)
+    await expect
+      .poll(async () => (await submit.boundingBox())?.height ?? 0)
+      .toBeGreaterThanOrEqual(44)
   })
 
   test('the whole join flow works from the keyboard alone', async ({ app, surfaces }) => {
