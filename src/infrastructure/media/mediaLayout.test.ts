@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ALL_MEDIA_VARIANTS } from '../../application/ports/mediaStore'
+import { ALL_MEDIA_VARIANTS } from '../../domain/photos/mediaVariant'
 import { CONTENT_TYPE, EXTENSION, mediaObjectPath } from './mediaLayout'
 
 const EVENT = '11111111-1111-4111-8111-111111111111'

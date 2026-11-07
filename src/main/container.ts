@@ -60,7 +60,7 @@ import { nullMailer } from '../infrastructure/mail/nullMailer'
 import { createSmtpMailer } from '../infrastructure/mail/smtpMailer'
 import { systemClock } from '../infrastructure/time/systemClock'
 import { statfsDiskSpaceChecker } from '../infrastructure/system/statfsDiskSpaceChecker'
-import { evaluateDiskSpace } from '../domain/shared/diskSpaceGuard'
+import { evaluateDiskSpace, type DiskSpaceStatus } from '../domain/shared/diskSpaceGuard'
 import type { Logger } from '../application/ports/logger'
 import type { Mailer } from '../application/ports/mailer'
 import { buildServer } from '../interface/http/server'
@@ -72,9 +72,7 @@ import { createAlbumBookWorker, type AlbumBookWorker } from './albumBookWorker'
 import { SqliteAlbumBookRepository } from '../infrastructure/db/sqliteAlbumBookRepository'
 import { createFsBookFileStore } from '../infrastructure/media/fsBookFileStore'
 import { createPdfBookRenderer } from '../infrastructure/media/pdfBookRenderer'
-import { makeBuildNextAlbumBook } from '../application/usecases/book/buildNextAlbumBook'
-import { makeRecoverAlbumBooks } from '../application/usecases/book/recoverAlbumBooks'
-import { makeSweepAlbumBooks } from '../application/usecases/book/sweepAlbumBooks'
+import { bookWorkerUseCases } from './usecases.bookWorker'
 import { clipUploadTempDir } from '../interface/http/routes/clipRoutes'
 import {
   createMediaSweeper,
@@ -105,9 +103,8 @@ export interface Container {
   /**
    * Outgoing mail (G2-07 / P3-08): the SMTP adapter when `SMTP_URL` is set, `NullMailer`
    * otherwise — which is what a self-hosted box with no mail server gets, and the caller's
-   * cue to show a link to copy. Exposed rather than folded into `usecases` because no use
-   * case sends mail yet; invitations and password reset (G2-08, G2-09) will take it from
-   * here as an adapter.
+   * cue to show a link to copy. Exposed so a test can read which mailer a configuration
+   * chose; the use cases that send mail (invitations, password reset) take it as an adapter.
    */
   readonly mailer: Mailer
   readonly db: Db
@@ -247,7 +244,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // shipper aggregating several boxes can tell one instance's lines from another's, not
   // to be chosen or repeated by an operator.
   const instanceId = randomUUID()
-  const instanceBindings = { service: 'eventslide', version: appVersion(), instance: instanceId }
+  const version = appVersion()
+  const instanceBindings = { service: 'eventslide', version, instance: instanceId }
 
   const logger = createPinoLogger({
     level: config.logLevel,
@@ -273,6 +271,12 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
    * there is no third path to add once P4-04 lands.
    */
   const diskSpacePaths = [dirname(resolve(config.storage.databasePath)), mediaRoot]
+  /** The one free-space reading: the readiness detail and the book worker's pre-flight share it. */
+  const diskSpaceReport = async (): Promise<DiskSpaceStatus> =>
+    evaluateDiskSpace(
+      await Promise.all(diskSpacePaths.map((path) => statfsDiskSpaceChecker.freeBytes(path))),
+      config.storage.minFreeDiskBytes,
+    )
   // multer writes a clip here before it is staged, and the encoder writes its scratch
   // files beside it. Both are under MEDIA_ROOT rather than os.tmpdir(), because the
   // container runs read-only with a tmpfs charged to the same memory cgroup.
@@ -280,7 +284,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // **Emptied, not merely created.** Both hold work in progress and nothing else: what
   // survives a restart is what a `SIGKILL`, an OOM kill or a power cut left — up to
   // `MAX_CLIP_BYTES` per interrupted upload, on the disk the byte quota exists to
-  // protect, charged to no event and invisible to `MediaStore.usedBytes`. Nothing else
+  // protect, charged to no event and invisible to `MediaStore.list`. Nothing else
   // would ever collect them: the retention sweep deletes an event's media by content
   // hash, and neither of these files has one.
   //
@@ -647,45 +651,32 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // ------------------------------------------------------------ photo books --
 
   // Spec 04. Built only when the function is on: a box that switched it off pays for nothing.
-  const { books, bookFiles } = adapters
-  const albumBookWorker: AlbumBookWorker | null = config.books.enabled
-    ? createAlbumBookWorker({
-        buildNext: makeBuildNextAlbumBook({
-          events: adapters.events,
-          clients: adapters.clients,
-          guests: adapters.guests,
-          photos: adapters.photos,
-          media: adapters.media,
-          books,
-          bookFiles,
-          renderer: createPdfBookRenderer({}),
-          clips: adapters.clips,
-          bus,
-          clock: adapters.clock,
-          logger,
-          policy: {
-            maxPhotos: config.books.maxPhotos,
-            maxBytes: config.books.maxBytes,
-            ttlDays: config.books.ttlDays,
-            maxTotalBytes: config.books.maxTotalBytes,
-            maxWaitMs: config.books.maxWaitMs,
-            capNoticeDays: config.retention.capNoticeDays,
-          },
-          diskHasRoom: async () => {
-            const free = await Promise.all(
-              diskSpacePaths.map((path) => statfsDiskSpaceChecker.freeBytes(path)),
-            )
-            return evaluateDiskSpace(free, config.storage.minFreeDiskBytes).sufficient
-          },
-        }),
-        recover: makeRecoverAlbumBooks({ books, logger }),
-        sweep: makeSweepAlbumBooks({ books, bookFiles, bus, clock: adapters.clock, logger }),
-        bus,
-        logger,
-        clock: adapters.clock,
-        intervalMs: CLIP_WORKER_INTERVAL_MS,
+  const bookUseCases = config.books.enabled
+    ? bookWorkerUseCases(adapters, {
+        renderer: createPdfBookRenderer({}),
+        policy: {
+          maxPhotos: config.books.maxPhotos,
+          maxBytes: config.books.maxBytes,
+          ttlDays: config.books.ttlDays,
+          maxTotalBytes: config.books.maxTotalBytes,
+          maxWaitMs: config.books.maxWaitMs,
+          capNoticeDays: config.retention.capNoticeDays,
+        },
+        diskHasRoom: async () => (await diskSpaceReport()).sufficient,
       })
     : null
+  const albumBookWorker: AlbumBookWorker | null =
+    bookUseCases === null
+      ? null
+      : createAlbumBookWorker({
+          buildNext: bookUseCases.buildNextAlbumBook,
+          recover: bookUseCases.recoverAlbumBooks,
+          sweep: bookUseCases.sweepAlbumBooks,
+          bus,
+          logger,
+          clock: adapters.clock,
+          intervalMs: CLIP_WORKER_INTERVAL_MS,
+        })
 
   // ------------------------------------------------------------- first run --
 
@@ -793,7 +784,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     sessionStore,
     presenter,
     health: {
-      version: appVersion(),
+      version,
       startedAt: adapters.clock.now(),
       now: () => adapters.clock.now(),
       databaseReady: async () => {
@@ -814,20 +805,15 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       // service, so a tight margin must never flip `/api/ready` to 503 and take a whole
       // venue's wall out of service over headroom one guest's upload already answers
       // for on its own.
-      diskSpace: async () => {
-        const freeBytesByPath = await Promise.all(
-          diskSpacePaths.map((path) => statfsDiskSpaceChecker.freeBytes(path)),
-        )
-        return evaluateDiskSpace(freeBytesByPath, config.storage.minFreeDiskBytes)
-      },
+      diskSpace: diskSpaceReport,
     },
     // The source AGPL section 13 obliges this box to offer, for the version that is running.
     // Resolved here, once, because the HTTP layer may not import the config module or the
-    // manifest reader — and from the same `appVersion()` as `health` above, so the two
+    // manifest reader — and from the same `version` as `health` above, so the two
     // endpoints cannot name different builds.
     about: {
-      version: appVersion(),
-      sourceUrl: resolveSourceUrl(appVersion(), config.source),
+      version,
+      sourceUrl: resolveSourceUrl(version, config.source),
       // Every one `null` on a box that set nothing, which `/api/about` then leaves out
       // altogether: a self-hosted instance says nothing about money (roadmap G4-02), and
       // names nobody and links to nothing (roadmap G2-17).

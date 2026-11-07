@@ -33,13 +33,6 @@ export type OutputFormat = 'jpeg' | 'webp'
 export interface ImageProbe {
   readonly format: ImageFormat
   readonly dimensions: Dimensions
-  readonly hasAlpha: boolean
-  /** EXIF orientation 1-8 when present. Informational: `render` always applies it. */
-  readonly exifOrientation: number | null
-  /** True when the input carries EXIF, XMP or ICC data that `render` will strip. */
-  readonly hasMetadata: boolean
-  /** Frame count. A 900-frame animated GIF is a resource problem, not a photo. */
-  readonly frames: number
 }
 
 export interface RenderSpec {

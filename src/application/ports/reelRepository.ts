@@ -6,7 +6,7 @@ import type { ClientByteLimit } from './clientRepository'
 
 /**
  * The reel's half of the byte quota (spec 08): the montage's file is on the event's disk, so
- * `MediaStore.usedBytes` and the database sum must agree on it. The SQLite adapter reads
+ * the bytes the media store lists and the database sum must agree on it. The SQLite adapter reads
  * `highlight_reels` inside the same statement as its other sums (`eventHoldingBytesSum`);
  * `FakePhotoRepository` is handed this to stay honest about the same arithmetic.
  */

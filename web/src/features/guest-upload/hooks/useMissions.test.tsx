@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { ApiProvider } from '../../../app/ApiProvider'
+import { ApiProvider } from '../../../lib/ApiProvider'
 import { aGuestMission, fakeApi } from '../../../testing/renderWithProviders'
 import { CHALLENGE_POLL_MS, useMissions } from './useMissions'
 import type { ReactNode } from 'react'

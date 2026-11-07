@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
-import { useAbout } from '../../../app/useAbout'
-import { useApi } from '../../../app/useApi'
+import { useAbout } from '../../../lib/useAbout'
+import { useApi } from '../../../lib/useApi'
 import { chosenPath, landingPath, onPhone, ADMIN_HOME } from '../../../lib/landing'
 
 /**

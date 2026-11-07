@@ -307,6 +307,10 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       galleryUnlockPerClient: raw.GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT,
       galleryUnlockPerLink: raw.GALLERY_UNLOCK_ATTEMPTS_PER_LINK,
       eventCreationPerHour: raw.EVENT_CREATION_RATE_LIMIT_PER_HOUR,
+      invitationsPerHour: raw.INVITATION_RATE_LIMIT_PER_HOUR,
+      venuePhotosPerHour: raw.VENUE_PHOTO_RATE_LIMIT_PER_HOUR,
+      bookRequestsPerHour: raw.BOOK_REQUEST_RATE_LIMIT_PER_HOUR,
+      logosPerHour: raw.LOGO_RATE_LIMIT_PER_HOUR,
     },
 
     crypto: {

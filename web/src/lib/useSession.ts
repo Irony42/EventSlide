@@ -1,6 +1,6 @@
 import { useContext, useEffect } from 'react'
 import { SessionContext, type SessionStore } from './sessionContext'
-import type { SessionResponse } from '../lib/api/dto'
+import type { SessionResponse } from './api/dto'
 
 export interface SessionState {
   /** `null` until the first answer arrives. Absence is not "logged out". */

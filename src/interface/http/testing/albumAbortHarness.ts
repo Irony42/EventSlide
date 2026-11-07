@@ -8,7 +8,7 @@ import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestb
 import { FakeGuestRepository } from '../../../application/testing/fakeGuestRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { makeExportAlbum } from '../../../application/usecases/photos/exportAlbum'
-import { MEDIA_VARIANTS } from '../../../application/ports/mediaStore'
+import { MEDIA_VARIANTS } from '../../../domain/photos/mediaVariant'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { archiverWriter } from '../../../infrastructure/media/archiverWriter'
 import { mediaRoutes } from '../routes/mediaRoutes'

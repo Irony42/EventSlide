@@ -12,8 +12,8 @@ import { isInstalled } from '../../lib/pwa/install'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { fromOf, useJoin } from './hooks/useJoin'
 import styles from './JoinPage.module.css'
-import { HostGreeting } from '../guest-upload/components/HostGreeting'
-import { HostLogo } from '../guest-upload/components/HostLogo'
+import { HostGreeting } from '../../design-system/components/HostGreeting'
+import { HostLogo } from '../../design-system/components/HostLogo'
 import { AmbianceMarker } from '../../design-system/components/AmbianceMarker'
 
 /**

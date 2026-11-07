@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Spinner } from '../design-system/components/Spinner'
 import { useTranslations } from '../lib/i18n/useTranslations'
-import { useSession } from './useSession'
+import { useSession } from '../lib/useSession'
 import styles from './RequireAuth.module.css'
 
 export interface RequireOperatorProps {

@@ -1,6 +1,6 @@
 import { forwardRef, useId, type ReactNode } from 'react'
-import { NewTabLink } from '../../../app/NewTabLink'
-import { useAbout } from '../../../app/useAbout'
+import { NewTabLink } from '../../../design-system/components/NewTabLink'
+import { useAbout } from '../../../lib/useAbout'
 import { Button } from '../../../design-system/components/Button'
 import { Dialog } from '../../../design-system/components/Dialog'
 import { useTranslations } from '../../../lib/i18n/useTranslations'

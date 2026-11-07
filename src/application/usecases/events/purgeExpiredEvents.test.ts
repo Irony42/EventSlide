@@ -9,6 +9,7 @@ import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { makePurgeExpiredEvents, type PurgeExpiredEvents } from './purgeExpiredEvents'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { FakeBookFileStore } from '../../testing/fakeBookFileStore'
+import { bytesHeld } from '../../testing/bytesHeld'
 
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
@@ -41,8 +42,8 @@ describe('purgeExpiredEvents', () => {
 
   /** What is left on the disk for the wedding and for the gala, in bytes. */
   const bytesLeft = async (): Promise<number[]> => [
-    await media.usedBytes(WEDDING),
-    await media.usedBytes(GALA),
+    await bytesHeld(media, WEDDING),
+    await bytesHeld(media, GALA),
   ]
 
   beforeEach(async () => {

@@ -1,6 +1,6 @@
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { formatCountdown } from '../../../lib/serverClock'
-import { useGoneAfter, useServerCountdown } from '../../../app/useServerCountdown'
+import { useGoneAfter, useServerCountdown } from '../../../lib/useServerCountdown'
 import type { GuestChallengeDto } from '../../../lib/api/dto'
 import styles from './ChallengeBand.module.css'
 

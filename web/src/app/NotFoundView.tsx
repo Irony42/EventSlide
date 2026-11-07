@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { Logo } from '../design-system/components/Logo'
 import { EmptyState } from '../design-system/components/EmptyState'
 import { useTranslations } from '../lib/i18n/useTranslations'
-import { useSession } from './useSession'
+import { useSession } from '../lib/useSession'
 
 /**
  * The 404 view.

@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { NewTabLink } from '../../app/NewTabLink'
-import { useAbout } from '../../app/useAbout'
+import { NewTabLink } from '../../design-system/components/NewTabLink'
+import { useAbout } from '../../lib/useAbout'
 import { Button } from '../../design-system/components/Button'
 import { Logo } from '../../design-system/components/Logo'
 import { Card } from '../../design-system/components/Card'

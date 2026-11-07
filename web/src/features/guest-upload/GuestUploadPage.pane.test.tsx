@@ -58,8 +58,6 @@ const paneMeasured = (): void => {
 
 describe('GuestUploadPage: the pane at the bottom', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
     observers.length = 0
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)

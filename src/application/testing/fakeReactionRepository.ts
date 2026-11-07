@@ -3,7 +3,6 @@ import type { ReactionKind } from '../../domain/reactions/reactionKind'
 import { tally, type ReactionCounts, type TallyEntry } from '../../domain/reactions/reactionTally'
 import type { EventId, GuestId, PhotoId } from '../../domain/shared/ids'
 import type { ReactionRepository } from '../ports/reactionRepository'
-import { compareIds } from './ordering'
 
 /**
  * In-memory `ReactionRepository`.
@@ -21,9 +20,6 @@ import { compareIds } from './ordering'
  * Counting goes through the domain's own `tally`, so the fake cannot disagree with the
  * arithmetic the wall renders.
  */
-
-const newestFirst = (left: Reaction, right: Reaction): number =>
-  right.createdAt.getTime() - left.createdAt.getTime() || compareIds(left.id, right.id)
 
 const key = (eventId: EventId, photoId: PhotoId, guestId: GuestId, kind: ReactionKind): string =>
   `${eventId}:${photoId}:${guestId}:${kind}`
@@ -129,13 +125,6 @@ export class FakeReactionRepository implements ReactionRepository {
     const counts = new Map<PhotoId, ReactionCounts>()
     for (const [photoId, entries] of byPhoto) counts.set(photoId, tally(entries))
     return counts
-  }
-
-  async listByGuest(eventId: EventId, guestId: GuestId): Promise<readonly TallyEntry[]> {
-    return this.forEvent(eventId)
-      .filter((reaction) => reaction.isBy(guestId))
-      .sort(newestFirst)
-      .map(toEntry)
   }
 
   /** Feeds the anti-spam window. Inclusive of the boundary instant. */

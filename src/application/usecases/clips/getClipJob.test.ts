@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { asClipJobId, asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
+import { asClipJobId, asEventId } from '../../../domain/shared/ids'
 import { aClipJob } from '../../testing/builders'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { makeGetClipJob, type GetClipJob } from './getClipJob'
@@ -11,9 +11,6 @@ import { makeGetClipJob, type GetClipJob } from './getClipJob'
 
 const WEDDING = asEventId('event-1')
 const GALA = asEventId('event-2')
-const LEA = { kind: 'guest', guestId: asGuestId('guest-1') } as const
-const NILS = { kind: 'guest', guestId: asGuestId('guest-2') } as const
-const HOST = { kind: 'host', userId: asUserId('user-1') } as const
 
 describe('getClipJob', () => {
   let clips: FakeClipJobRepository
@@ -24,13 +21,12 @@ describe('getClipJob', () => {
     getClipJob = makeGetClipJob({ clips })
   })
 
-  it('tells a guest where their own clip has got to', async () => {
+  it('tells a guest where their clip has got to', async () => {
     clips.seed(aClipJob({ id: 'job-1', eventId: 'event-1', status: 'running' }))
 
     const result = await getClipJob({
       eventId: WEDDING,
       clipJobId: asClipJobId('job-1'),
-      actor: LEA,
     })
 
     expect(result.ok && result.value.status).toBe('running')
@@ -43,7 +39,6 @@ describe('getClipJob', () => {
     const result = await getClipJob({
       eventId: WEDDING,
       clipJobId: asClipJobId('job-1'),
-      actor: LEA,
     })
 
     expect(result.ok && result.value.photoId).toBe('job-1-photo')
@@ -62,7 +57,6 @@ describe('getClipJob', () => {
     const result = await getClipJob({
       eventId: WEDDING,
       clipJobId: asClipJobId('job-1'),
-      actor: LEA,
     })
 
     expect(result.ok && result.value.failureCode).toBe('clip.noVideoStream')
@@ -72,7 +66,6 @@ describe('getClipJob', () => {
     const result = await getClipJob({
       eventId: WEDDING,
       clipJobId: asClipJobId('nope'),
-      actor: LEA,
     })
 
     expect(!result.ok && result.error.code).toBe('clipJob.notFound')
@@ -84,27 +77,9 @@ describe('getClipJob', () => {
     const result = await getClipJob({
       eventId: GALA,
       clipJobId: asClipJobId('job-1'),
-      actor: LEA,
     })
 
     expect(!result.ok && result.error.code).toBe('clipJob.notFound')
-  })
-
-  it('lets a guest poll a job another guest staged, because the dedupe gives them one', async () => {
-    // **Authorized by event membership, not authorship, and deliberately so.** The
-    // dedupe is scoped by event, so two guests sending the same video from the group
-    // chat — or one guest on a phone and a laptop — share one job, and the second is
-    // handed the first's id in a `202`. An authorship check answered their very next
-    // poll with "this video no longer exists", about an upload just accepted.
-    clips.seed(aClipJob({ id: 'job-1', eventId: 'event-1' }))
-
-    const result = await getClipJob({
-      eventId: WEDDING,
-      clipJobId: asClipJobId('job-1'),
-      actor: NILS,
-    })
-
-    expect(result.ok && result.value.clipJobId).toBe('job-1')
   })
 
   it('still answers not-found — never forbidden — for a job that is not there', async () => {
@@ -113,21 +88,8 @@ describe('getClipJob', () => {
     const result = await getClipJob({
       eventId: WEDDING,
       clipJobId: asClipJobId('job-1'),
-      actor: NILS,
     })
 
     expect(!result.ok && result.error.kind).toBe('notFound')
-  })
-
-  it('lets a host see any clip in their own event', async () => {
-    clips.seed(aClipJob({ id: 'job-1', eventId: 'event-1' }))
-
-    const result = await getClipJob({
-      eventId: WEDDING,
-      clipJobId: asClipJobId('job-1'),
-      actor: HOST,
-    })
-
-    expect(result.ok).toBe(true)
   })
 })

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useSession } from '../../app/useSession'
+import { useSession } from '../../lib/useSession'
 import { Button } from '../../design-system/components/Button'
 import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'

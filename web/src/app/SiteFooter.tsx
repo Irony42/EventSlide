@@ -1,8 +1,8 @@
 import { Link, useLocation } from 'react-router-dom'
 import { cx } from '../design-system/classNames'
 import { useTranslations } from '../lib/i18n/useTranslations'
-import { NewTabLink } from './NewTabLink'
-import { useAbout } from './useAbout'
+import { NewTabLink } from '../design-system/components/NewTabLink'
+import { useAbout } from '../lib/useAbout'
 import styles from './SiteFooter.module.css'
 
 /**

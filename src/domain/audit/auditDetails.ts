@@ -2,6 +2,7 @@ import { isTermsVersion } from '../legal/termsOfUse'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 import { isCanonicalReason } from './auditReason'
+import { hasOwn, isPlainObject } from '../shared/plainObject'
 
 /**
  * The payload of an audit entry, and the allow-list that decides what it may hold
@@ -104,16 +105,6 @@ const fail = (path: string, problem: Problem): Checked => ({
   ok: false,
   violation: { path, problem },
 })
-
-const hasOwn = (object: object, key: string): boolean =>
-  Object.prototype.hasOwnProperty.call(object, key)
-
-/** Plain JSON objects only: no arrays, no class instances, no `Date`. */
-const isPlainObject = (value: unknown): value is Record<string, unknown> => {
-  if (typeof value !== 'object' || value === null) return false
-  const prototype: unknown = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
-}
 
 /**
  * A string is an instant only if it is exactly what `toISOString` would write for the

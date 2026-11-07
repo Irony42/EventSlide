@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import type { EventDto } from '../../../lib/api/dto'
 import { useLoader } from '../../../lib/useLoader'
 

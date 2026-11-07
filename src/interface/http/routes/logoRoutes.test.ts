@@ -15,7 +15,8 @@ import { AT, aGuest, aUser, anEvent } from '../../../application/testing/builder
 import { FakeContentHasher } from '../../../application/testing/fakeContentHasher'
 import { FakeImageProcessor, tagBytes } from '../../../application/testing/fakeImageProcessor'
 import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
-import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
+import { buildHarness, signInAs, testHttpConfig, type Harness } from '../testing/middlewareHarness'
+import type { HttpConfig } from '../types'
 import { notWiredUseCases } from '../testing/serverHarness'
 import type { HttpUseCases } from '../useCases'
 import { eventRoutes } from './eventRoutes'
@@ -52,13 +53,14 @@ interface World extends Harness {
   readonly media: InMemoryMediaStore
 }
 
-const buildWorld = (): World => {
+const buildWorld = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World => {
   const media = new InMemoryMediaStore().forbidEnumeration('the logo routes')
   const images = new FakeImageProcessor().script('not-an-image', {
     probeError: DomainError.invalid('image.unsupportedFormat'),
   })
 
   const harness = buildHarness({
+    config: { rateLimits: { ...testHttpConfig().rateLimits, ...rateLimits } },
     routes: (app, deps, base) => {
       app.post('/sign-in/owner', signInAs({ userId: OWNER, email: 'hote@example.test' }))
       app.post('/sign-in/moderator', signInAs({ userId: MODERATOR, email: 'mod@example.test' }))
@@ -309,6 +311,19 @@ describe('the host logo routes', () => {
 
       expect(statuses.slice(0, 10).every((status) => status === 200)).toBe(true)
       expect(statuses.slice(10)).toEqual([429, 429])
+    })
+
+    it('takes the number of uploads an hour from the configuration', async () => {
+      const narrow = buildWorld({ logosPerHour: 2 })
+      const owner = await signedIn(narrow, 'owner')
+      const photo = await aLogo('small')
+
+      const statuses: number[] = []
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        statuses.push((await upload(owner, photo)).status)
+      }
+
+      expect(statuses).toEqual([200, 200, 429, 429])
     })
   })
 

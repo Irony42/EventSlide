@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useApi } from '../../../app/useApi'
+import { useApi } from '../../../lib/useApi'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { sentenceFor } from './useMyMessages'
 

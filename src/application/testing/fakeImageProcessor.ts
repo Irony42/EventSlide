@@ -8,7 +8,7 @@ import type {
   RenderSpec,
   RenderedImage,
 } from '../ports/imageProcessor'
-import { MEDIA_VARIANTS, type PhotoVariant } from '../ports/mediaStore'
+import { MEDIA_VARIANTS, type PhotoVariant } from '../../domain/photos/mediaVariant'
 import { VARIANT_SPECS } from '../usecases/photos/uploadPhotos'
 import { LOGO_SPEC } from '../usecases/brand/setEventLogo'
 import { VENUE_GROUND_SPEC } from '../usecases/venue/setVenuePhoto'
@@ -99,10 +99,6 @@ export class FakeImageProcessor implements ImageProcessor {
     return ok({
       format: script.format ?? 'jpeg',
       dimensions: this.dimensionsOf(script),
-      hasAlpha: false,
-      exifOrientation: 6,
-      hasMetadata: true,
-      frames: 1,
     })
   }
 

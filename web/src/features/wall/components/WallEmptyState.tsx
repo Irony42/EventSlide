@@ -1,6 +1,6 @@
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { joinHost } from '../joinHost'
-import { HostLogo } from '../../guest-upload/components/HostLogo'
+import { joinHost } from '../../../lib/joinHost'
+import { HostLogo } from '../../../design-system/components/HostLogo'
 import { JoinQr } from './JoinQr'
 import styles from './WallEmptyState.module.css'
 

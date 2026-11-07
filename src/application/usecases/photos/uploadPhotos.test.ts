@@ -22,9 +22,7 @@ import type {
   PhotoAdmissionLimits,
   PhotoRefusal,
 } from '../../ports/photoRepository'
-import {
-  MEDIA_VARIANTS,
-} from '../../ports/mediaStore'
+import { MEDIA_VARIANTS } from '../../../domain/photos/mediaVariant'
 import { aClient, aMission, anEvent, aPhoto, type EventInput } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeChallengeRepository } from '../../testing/fakeChallengeRepository'
@@ -1145,6 +1143,21 @@ describe('uploadPhotos', () => {
     expect(!result.ok && result.error.code).toBe('photo.hashFailed')
     expect(!result.ok && result.error.kind).toBe('unexpected')
     expect(media.objectCount).toBe(0)
+  })
+
+  it('unwinds what the first file already wrote when the hasher fails on the second', async () => {
+    seedEvent()
+    hasher.returnGarbageAfter(1)
+
+    const result = await uploadPhotos({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('harbour')],
+    })
+
+    expect(!result.ok && result.error.code).toBe('photo.hashFailed')
+    expect(media.objectCount).toBe(0)
+    expect(await storedPhotos()).toEqual([])
   })
 
   it('logs the cause when it unwinds, so an operator can tell a full disk from a bug', async () => {

@@ -1,5 +1,5 @@
 import { createContext } from 'react'
-import type { SessionResponse } from '../lib/api/dto'
+import type { SessionResponse } from './api/dto'
 
 /** What is known about the session right now. */
 export interface SessionData {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
-import { renderWithProviders } from '../../../testing/renderWithProviders'
+import { renderWithProviders } from '../../testing/renderWithProviders'
 import { HostLogo } from './HostLogo'
 
 const URL_OK = `/api/events/soiree/logo/${'a'.repeat(64)}`
