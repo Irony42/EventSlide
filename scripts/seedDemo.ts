@@ -17,7 +17,7 @@ import sharp from 'sharp'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { createContainer } from '../src/main/container'
 import { SqliteUserRepository } from '../src/infrastructure/db/sqliteUserRepository'
-import { asGuestId, asUserId, type PhotoId } from '../src/domain/shared/ids'
+import { asGuestId, type PhotoId } from '../src/domain/shared/ids'
 
 const OWNER = {
   email: 'demo@eventslide.test',
@@ -57,8 +57,8 @@ const jpeg = async (label: string, width: number, height: number): Promise<Uint8
   )
 }
 
-const main = async (): Promise<void> => {
-  const config = loadMaintenanceConfig()
+const execute = async (env: NodeJS.ProcessEnv): Promise<number> => {
+  const config = loadMaintenanceConfig(env)
   const container = await createContainer(config)
   const { usecases } = container
 
@@ -84,7 +84,7 @@ const main = async (): Promise<void> => {
         'scratch file if that is what you meant.',
     )
     await container.dispose()
-    process.exit(1)
+    return 1
   }
   const scratch = await mkdtemp(join(tmpdir(), 'eventslide-seed-'))
 
@@ -97,23 +97,16 @@ const main = async (): Promise<void> => {
     })
     if (!owner.ok) {
       console.error(`Could not create the demo owner: ${owner.error.code}`)
-      process.exit(1)
+      return 1
     }
-    // `bootstrapOwner` is a no-op on a non-empty database, so a second run needs the
-    // existing account's id rather than the one it would have created.
-    const ownerId = owner.value.created
-      ? owner.value.userId
-      : await resolveOwnerId(container, OWNER.email)
+    // The guard above refused any database holding an account, so this always creates.
+    const ownerId = owner.value.userId
 
     // ------------------------------------------------------------- the event --
     const created = await usecases.createEvent({ ownerId, name: EVENT.name, slug: EVENT.slug })
     if (!created.ok) {
-      if (created.error.code === 'event.slugTaken') {
-        console.log(`The demo event already exists at /e/${EVENT.slug} — nothing to do.`)
-        return
-      }
       console.error(`Could not create the demo event: ${created.error.code}`)
-      process.exit(1)
+      return 1
     }
     const event = created.value
 
@@ -124,7 +117,7 @@ const main = async (): Promise<void> => {
     })
     if (!live.ok) {
       console.error(`Could not open the demo event: ${live.error.code}`)
-      process.exit(1)
+      return 1
     }
 
     // ------------------------------------------------------------ the guests --
@@ -136,7 +129,7 @@ const main = async (): Promise<void> => {
       })
       if (!joined.ok) {
         console.error(`Could not join as ${name}: ${joined.error.code}`)
-        process.exit(1)
+        return 1
       }
       guests.set(name, joined.value.guestId)
     }
@@ -146,7 +139,7 @@ const main = async (): Promise<void> => {
     })
     if (!anonymous.ok) {
       console.error(`Could not join anonymously: ${anonymous.error.code}`)
-      process.exit(1)
+      return 1
     }
 
     // ------------------------------------------------------------ the photos --
@@ -221,31 +214,28 @@ const main = async (): Promise<void> => {
   ${toPublish.length} published, ${uploaded.length - toPublish.length} awaiting moderation.
   Generated fixtures: ${scratch}
 `)
+    return 0
   } finally {
     await container.dispose()
   }
 }
 
 /**
- * The owner's id on a second run.
- *
- * Reaches for the repository through the container rather than adding a use case for
- * it: this is a development script, and a "find the user id by email" capability has
- * no business existing in the application's surface where a route could reach it.
+ * The whole command, as a function of its environment: exported and returning an exit code (see
+ * `backup.ts`) so a test can drive it, `dispose` running on every path.
  */
-const resolveOwnerId = async (
-  container: Awaited<ReturnType<typeof createContainer>>,
-  email: string,
-): Promise<Parameters<typeof container.usecases.createEvent>[0]['ownerId']> => {
-  const row = container.db
-    .prepare<[string], { id: string }>('SELECT id FROM users WHERE email = ?')
-    .get(email)
-  if (row === undefined) throw new Error(`no user with the email ${email}`)
-  // The boundary cast: a database row becoming a domain id.
-  return asUserId(row.id)
+export const run = async (env: NodeJS.ProcessEnv = process.env): Promise<number> => {
+  try {
+    return await execute(env)
+  } catch (error) {
+    console.error(error)
+    return 1
+  }
 }
 
-main().catch((error: unknown) => {
-  console.error(error)
-  process.exit(1)
-})
+/** Run as a program, and not when a test imports `run`. */
+if (require.main === module) {
+  void run().then((code) => {
+    process.exitCode = code
+  })
+}
