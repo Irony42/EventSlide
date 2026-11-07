@@ -353,6 +353,12 @@ const digestOfEntries = (entries: readonly ManifestEntry[]): string => {
   return hash.digest('hex')
 }
 
+/** True when `error` is the file at `path` not existing (and not, say, the destination folder). */
+const isSourceMissing = (error: unknown, path: string): boolean => {
+  const { code, path: failing } = error as { code?: string; path?: string }
+  return code === 'ENOENT' && failing === path
+}
+
 interface WalkedFile {
   readonly absolute: string
   readonly relative: string
@@ -773,6 +779,7 @@ const writeArchive = async ({
   onProgress(`Copying the media root ${sourceMedia}`)
   const skipped: string[] = []
   const files = await walkFiles(sourceMedia, skipped)
+  onProgress(`  ${files.length} media file(s) to copy`)
 
   const entries: ManifestEntry[] = []
   let mediaBytes = 0
@@ -787,7 +794,21 @@ const writeArchive = async ({
       skipped.push(`${posix}: the name cannot be written as an archive path`)
       continue
     }
-    const copied = await streamThroughSha256(file.absolute, join(archive, MEDIA_DIR, file.relative))
+    const target = join(archive, MEDIA_DIR, file.relative)
+    let copied
+    try {
+      copied = await streamThroughSha256(file.absolute, target)
+    } catch (error) {
+      if (!isSourceMissing(error, file.absolute)) throw error
+      // **A photo the host deleted while the backup ran** (retention, an orphan sweep: the
+      // server stays live, which is the documented use). The database half was snapshotted
+      // first, so its row is either gone from the snapshot or reported below as
+      // `missingMedia`; neither is a reason to throw away every byte already copied. Only
+      // the source going missing is forgiven: any other error stays fatal.
+      await rm(target, { force: true })
+      skipped.push(`${posix}: vanished while the backup ran`)
+      continue
+    }
     entries.push({ path: posix, bytes: copied.bytes, sha256: copied.sha256 })
     mediaBytes += copied.bytes
   }
