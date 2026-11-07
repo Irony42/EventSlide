@@ -50,6 +50,39 @@ const finishAnimations = async (locator: Locator): Promise<void> => {
   })
 }
 
+/**
+ * Holds every animation on the element at its first frame, and waits until the engine has
+ * drawn that frame, so a measurement taken next reads the geometry at rest.
+ *
+ * The wall starts its animations when the slide mounts, and `e2e_interval` does not lengthen
+ * them: the zoom and the drift last what the server's interval says (8.8 s for the zoom by
+ * default), whatever the override makes the wall wait before advancing. A box read some time
+ * after mount is therefore read part-way through, which on a loaded CI runner is hundreds of
+ * milliseconds in: the zoom read 1.0745 against 1.08 because the "rested" box was already
+ * 6 % of the way to the end, and the strip's travel has a tolerance of one pixel on 384,
+ * about 21 ms of its drift. Pausing at zero makes the start a state the test sets rather than
+ * one it hopes to catch. It throws when there is nothing to hold, so a wall that declared no
+ * animation cannot pass by never moving.
+ */
+const holdAnimationsAtStart = async (locator: Locator): Promise<void> => {
+  await locator.evaluate(async (node) => {
+    const animations = node.getAnimations()
+    if (animations.length === 0) throw new Error('the element runs no animation to hold at rest')
+    for (const animation of animations) {
+      animation.pause()
+      animation.currentTime = 0
+    }
+    await Promise.all(animations.map((animation) => animation.ready))
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          resolve()
+        })
+      }),
+    )
+  })
+}
+
 /** Publishes `count` photos into a fresh event and returns it. */
 const anEventWithPublishedPhotos = async (
   app: Parameters<typeof signInAsHost>[1],
@@ -358,6 +391,10 @@ test('the Ken Burns zoom enlarges the photograph, and no snapshot is asked to pr
   await expect(slide).toHaveAttribute('data-motion', 'kenburns')
 
   const photograph = slide.locator('img')
+  // The zoom has been running since the slide mounted and lasts 8.8 s whatever the interval
+  // override says, so the box is read with the animation held at its first frame rather than
+  // wherever a slow runner had got to.
+  await holdAnimationsAtStart(photograph)
   const rested = await boxOf(photograph)
 
   // Through the animation rather than through the clock, exactly as the drift does: ten
@@ -420,6 +457,9 @@ test('the filmstrip drifts by exactly one frame, and no snapshot is asked to pro
   await expect(track).toHaveAttribute('data-motion', 'drift')
 
   const frames = projector.getByTestId('wall-slide')
+  // Both boxes at the first frame of the drift, not at whatever frame each read caught: the
+  // band moves between the two reads, and the tolerance below is a pixel.
+  await holdAnimationsAtStart(track)
   const restedFirst = await boxOf(frames.nth(0))
   const restedSecond = await boxOf(frames.nth(1))
 
