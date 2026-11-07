@@ -469,7 +469,7 @@ Learned the hard way. Do not rediscover them.
     prebuild is what runs), and `true` for the three that need their step — `ffmpeg-static`
     (downloads `ffmpeg.exe`, without which the video path has nothing to transcode with),
     `bcrypt` (picks its prebuild), `esbuild` (verifies its binary) — plus `fsevents` on
-    macOS. A plain `npm ci` therefore works on this machine (npm 11.19). An npm that does
+    macOS. A plain `npm ci` therefore works on this machine (npm 11.19 here; check yours with `npm install-scripts ls`). An npm that does
     not know the key ignores it and runs every step as before, which is harmless wherever a
     toolchain exists (CI, the Docker `deps` stage keeps its own). `scripts/installScripts.test.ts`
     fails when a locked package with an install step has no `allowScripts` entry, so a new
