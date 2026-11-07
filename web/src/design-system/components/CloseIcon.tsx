@@ -1,5 +1,6 @@
 import { cx } from '../classNames'
 import styles from './CloseIcon.module.css'
+import { CROSS_PATH } from './iconPaths'
 
 export interface CloseIconProps {
   readonly className?: string | undefined
@@ -19,10 +20,7 @@ export function CloseIcon({ className }: CloseIconProps) {
 
   return (
     <svg className={classes} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <path
-        d="M4.2 3.1 8 6.9l3.8-3.8 1.1 1.1L9.1 8l3.8 3.8-1.1 1.1L8 9.1l-3.8 3.8-1.1-1.1L6.9 8 3.1 4.2z"
-        fill="currentColor"
-      />
+      <path d={CROSS_PATH} fill="currentColor" />
     </svg>
   )
 }

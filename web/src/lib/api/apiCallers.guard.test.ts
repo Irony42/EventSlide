@@ -43,7 +43,10 @@ const production = Object.entries(MODULES)
   .map(([path, source]) => [named(path), source] as const)
   .filter(
     ([path]) =>
-      !/\.test\.tsx?$/.test(path) && !/(^|\/)testing\//.test(path) && path !== 'lib/api/client.ts',
+      !/\.test\.tsx?$/.test(path) &&
+      !/(^|\/)testing\//.test(path) &&
+      path !== 'lib/api/client.ts' &&
+      !path.startsWith('lib/api/client/'),
   )
   .map(([path, source]) => [path, withoutComments(source)] as const)
 
@@ -76,6 +79,7 @@ describe('every method of Api has a production caller, or a reason it has none',
     expect(production.length).toBeGreaterThan(150)
     expect(production.map(([path]) => path)).toContain('features/admin/EventPage.tsx')
     expect(production.map(([path]) => path)).not.toContain('lib/api/client.ts')
+    expect(production.map(([path]) => path)).not.toContain('lib/api/client/host.ts')
     expect(METHODS.length).toBeGreaterThan(70)
   })
 

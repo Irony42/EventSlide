@@ -6,8 +6,6 @@ import {
   MAX_ATTEMPTS,
   backoffMs,
   isDue,
-  isExpired,
-  isExhausted,
   isLeased,
   isSpent,
   isTerminal,
@@ -40,23 +38,23 @@ const anEntry = (overrides: Partial<OutboxEntry> = {}): OutboxEntry => ({
 
 describe('expiry', () => {
   it('keeps a photo queued for as long as an evening lasts', () => {
-    expect(isExpired(anEntry(), t + MAX_AGE_MS - 1)).toBe(false)
+    expect(isSpent(anEntry(), t + MAX_AGE_MS - 1)).toBe(false)
   })
 
   it('drops a photo whose event is over', () => {
     // Pushing yesterday's photo to a wall the morning after is worse than losing it:
     // the guests have gone home and the host has downloaded the album.
-    expect(isExpired(anEntry(), t + MAX_AGE_MS)).toBe(true)
+    expect(isSpent(anEntry(), t + MAX_AGE_MS)).toBe(true)
   })
 })
 
 describe('attempts', () => {
   it('gives a photo many tries, because the fix is usually walking ten metres', () => {
-    expect(isExhausted(anEntry({ attempts: MAX_ATTEMPTS - 1 }))).toBe(false)
+    expect(isSpent(anEntry({ attempts: MAX_ATTEMPTS - 1 }), t)).toBe(false)
   })
 
   it('stops trying a photo the server will evidently never take', () => {
-    expect(isExhausted(anEntry({ attempts: MAX_ATTEMPTS }))).toBe(true)
+    expect(isSpent(anEntry({ attempts: MAX_ATTEMPTS }), t)).toBe(true)
   })
 })
 
