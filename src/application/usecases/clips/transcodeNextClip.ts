@@ -3,6 +3,7 @@ import { ClipDuration } from '../../../domain/clips/clipDuration'
 import { MAX_TRIM_SOURCE_MS } from '../../../domain/clips/clipTrim'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { Photo } from '../../../domain/photos/photo'
+import { admissionRefusalError } from '../../../domain/events/admission'
 import type { DomainError } from '../../../domain/shared/errors'
 import type { ClipJobId, EventId, PhotoId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
@@ -14,7 +15,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { Logger } from '../../ports/logger'
 import { STAGED_SOURCE, type MediaStore } from '../../ports/mediaStore'
-import type { PhotoRefusal, PhotoRepository } from '../../ports/photoRepository'
+import type { PhotoRepository } from '../../ports/photoRepository'
 import type { TranscodeSpec, VideoTranscoder } from '../../ports/videoTranscoder'
 import { clientBytesOf, clientContextOf } from '../clients/clientContextOf'
 
@@ -108,18 +109,6 @@ export type TranscodeNextClipOutcome =
     }
 
 export type TranscodeNextClip = () => Promise<Result<TranscodeNextClipOutcome, DomainError>>
-
-/** The code a transcode that the write transaction turned away is recorded under. */
-const refusalCode = (refusal: PhotoRefusal): string => {
-  switch (refusal.reason) {
-    case 'quotaExceeded':
-      return 'event.quotaExceeded'
-    case 'clientStorageFull':
-      return 'client.storageFull'
-    case 'photoLimitReached':
-      return 'event.photoLimitReached'
-  }
-}
 
 export const makeTranscodeNextClip = ({
   events,
@@ -472,7 +461,7 @@ export const makeTranscodeNextClip = ({
     const refusal = admissions[0]?.refusal ?? null
     if (refusal !== null) {
       await unwind()
-      return giveUpOn(job, refusalCode(refusal), now)
+      return giveUpOn(job, admissionRefusalError(refusal, 0).code, now)
     }
 
     // An auto-publish event records an `automatic` reviewer immediately, exactly as

@@ -1,3 +1,4 @@
+import { admissionRefusalError } from '../../../domain/events/admission'
 import { fitsInQuota } from '../../../domain/events/quota'
 import { Caption } from '../../../domain/photos/caption'
 import { ContentHash } from '../../../domain/photos/contentHash'
@@ -169,29 +170,6 @@ const renderVariants = async (
   if (!original.ok) return original
 
   return ok({ display: display.value, thumb: thumb.value, original: original.value })
-}
-
-/**
- * The refusal a guest is shown for a photo the write transaction turned away.
- *
- * Same codes as the checks before the loop, because it is the same rule — only decided
- * against the state that was actually committed rather than the one this request read
- * before it started rendering.
- */
-const refusalError = (refusal: PhotoRefusal, requiredBytes: number): DomainError => {
-  switch (refusal.reason) {
-    case 'quotaExceeded':
-      return DomainError.quotaExceeded('event.quotaExceeded', {
-        remaining: refusal.remaining,
-        required: requiredBytes,
-      })
-    case 'clientStorageFull':
-      // No `remaining`: it is what the client's **other** events have left too, and the
-      // guest of one event has no business reading how full its neighbours are.
-      return DomainError.quotaExceeded('client.storageFull', { required: requiredBytes })
-    case 'photoLimitReached':
-      return DomainError.quotaExceeded('event.photoLimitReached', { already: refusal.already })
-  }
 }
 
 /**
@@ -636,7 +614,7 @@ export const makeUploadPhotos = ({
       }
 
       const twin = twinsOfRefused.get(photo.id)
-      if (twin === undefined) turnedAway.set(photo.id, refusalError(refusal, photo.byteSize))
+      if (twin === undefined) turnedAway.set(photo.id, admissionRefusalError(refusal, photo.byteSize))
       else lostTo.set(photo.id, twin)
 
       // Its row was never written, so its media must not stay on the disk that the
