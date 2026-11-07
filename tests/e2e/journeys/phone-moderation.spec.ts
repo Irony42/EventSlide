@@ -199,6 +199,7 @@ test('every decision is reachable without a gesture', async ({ app, page, surfac
   const refuse = page.getByRole('button', { name: /^Refuser/ })
 
   for (const decision of [refuse, publish]) {
+    await expect(decision).toBeVisible()
     const box = await decision.boundingBox()
     expect(box).not.toBeNull()
     expect(box!.height).toBeGreaterThanOrEqual(TOUCH_MIN)

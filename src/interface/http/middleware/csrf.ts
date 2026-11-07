@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { extname } from 'node:path'
 import type { RequestHandler, Response } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { sendError } from '../presenters/send'
@@ -50,7 +51,22 @@ const setCsrfCookie = (res: Response, secureCookie: boolean): void => {
 }
 
 /**
+ * Whether the request is for a file the client never reads a token from.
+ *
+ * Static files (`/assets/*.js`, `/manifest.webmanifest`, `/sw.js`, icons, sounds) have an
+ * extension; the document (`/join/<code>`, `/admin/...`) and everything under `/api` do not
+ * need one. WebKit's service-worker fetches of the app shell can reach the server without the
+ * cookie jar, and a token minted on each of those replaced the one the page had already read
+ * from `document.cookie`: the next POST carried the old value against the new cookie
+ * (`request.csrfMismatch`, on the retry too, so the join form never moved on).
+ */
+const isStaticFile = (path: string): boolean => !path.startsWith('/api/') && extname(path) !== ''
+
+/**
  * Issues the cookie when it is missing.
+ *
+ * Not from a static file, see {@link isStaticFile}: the document and the API are the
+ * responses a client reads a token for.
  *
  * Deliberately **not** `HttpOnly`: the client has to read it to echo it. That is the
  * design, not an oversight — the value is not a credential on its own, it is proof that
@@ -59,7 +75,7 @@ const setCsrfCookie = (res: Response, secureCookie: boolean): void => {
 export const issueCsrfToken =
   ({ secureCookie }: CsrfOptions): RequestHandler =>
   (req, res, next) => {
-    if (req.cookies?.[CSRF_COOKIE] === undefined) {
+    if (req.cookies?.[CSRF_COOKIE] === undefined && !isStaticFile(req.path)) {
       setCsrfCookie(res, secureCookie)
     }
     next()
