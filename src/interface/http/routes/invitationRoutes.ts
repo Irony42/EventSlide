@@ -1,8 +1,8 @@
-import { Router, type NextFunction, type Request, type Response } from 'express'
+import { Router } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { resolveAuthState } from '../middleware/authz'
-import { isUndecodablePath } from '../middleware/errorHandler'
+import { answerUndecodablePath } from '../middleware/errorHandler'
 import { invitationLimiter } from '../middleware/rateLimit'
 import { toInvitationAcceptedDto, toInvitationPreviewDto } from '../presenters/presenters'
 import { sendError, sendJson, sendResult } from '../presenters/send'
@@ -132,14 +132,12 @@ export const invitationRoutes = ({ deps, usecases }: InvitationRouteDeps): Route
   // test the error handler and the gallery router use (a `URIError` **stamped** `status: 400`),
   // so a `URIError` of ours in a handler above, or an error a library stamped 400, stays a bug:
   // a 500 with its line in the log, not a quiet 404.
-  router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
-    if (!isUndecodablePath(error)) {
-      next(error)
-      return
-    }
-    res.setHeader('Cache-Control', 'no-store')
-    sendError(res, notFound())
-  })
+  router.use(
+    answerUndecodablePath((res) => {
+      res.setHeader('Cache-Control', 'no-store')
+      sendError(res, notFound())
+    }),
+  )
 
   return router
 }
