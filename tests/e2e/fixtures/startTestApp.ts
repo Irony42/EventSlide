@@ -209,6 +209,10 @@ export interface BootedServer {
  * The one place a server is spawned: `startTestApp` makes a directory and settles the owner
  * on top of it, and a spec that is about the paths themselves (backup and restore boots a
  * second server on the restored pair) calls this with its own.
+ *
+ * Two servers that must accept each other's signed tokens (a restored database keeps its
+ * sessions and guest cookies) have to be booted with the same `worker`: the secrets are
+ * derived from it.
  */
 export const bootServer = async ({
   worker,
@@ -264,14 +268,9 @@ export const bootServer = async ({
     // reaped or the worker leaks a server.
     const detail = output.join('').slice(-2_000)
     await stop()
-    throw new Error(
-      `${error instanceof Error ? error.message : String(error)}
-
-${detail}`,
-      {
-        cause: error,
-      },
-    )
+    throw new Error(`${error instanceof Error ? error.message : String(error)}\n\n${detail}`, {
+      cause: error,
+    })
   }
 
   return { baseUrl, output: () => output.join(''), stop }
@@ -310,12 +309,7 @@ export const startTestApp = async ({
     const message = error instanceof Error ? error.message : String(error)
     const detail = server.output().slice(-2_000)
     await reap(server)
-    throw new Error(
-      `${message}
-
-${detail}`,
-      { cause: error },
-    )
+    throw new Error(`${message}\n\n${detail}`, { cause: error })
   }
 
   const dispose = (): Promise<void> => reap(server)

@@ -12,10 +12,12 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   # A newer push to a pull request supersedes the older one. A push to `main` never does: nine of
   # the last thirty main runs were cancelled by the next merge, so those commits were never
-  # verified end to end and "main is green" was only true of the last one. Main runs queue.
+  # verified end to end and "main is green" was only true of the last one. A push to `main` gets its own
+  # group (its SHA), because a shared group keeps only one pending run and would still drop the
+  # middle one of three quick merges.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
