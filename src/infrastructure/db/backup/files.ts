@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
-import { mkdir, open, readdir, stat } from 'node:fs/promises'
+import { mkdir, open, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { Transform, type TransformCallback } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { REEL_VARIANT } from '../../../application/ports/mediaStore'
 import { type Db } from '../connection'
+import { readdirOrEmpty } from '../../system/fsErrors'
 import { toPosix } from './paths'
 
 /** Filesystem helpers shared by create, verify and restore: checksummed copy, the media walk. */
@@ -96,13 +97,7 @@ export const walkFiles = async (
   skipped: string[],
   prefix = '',
 ): Promise<readonly WalkedFile[]> => {
-  let entries
-  try {
-    entries = await readdir(join(root, prefix), { withFileTypes: true })
-  } catch (error) {
-    if ((error as { code?: string }).code === 'ENOENT') return []
-    throw error
-  }
+  const entries = await readdirOrEmpty(join(root, prefix), { withFileTypes: true })
 
   const found: WalkedFile[] = []
   for (const entry of [...entries].sort((a, b) => (a.name < b.name ? -1 : 1))) {
