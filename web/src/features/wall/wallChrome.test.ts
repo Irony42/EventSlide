@@ -10,6 +10,10 @@ const wallOf = (overrides: Partial<WallResponse> = {}): WallResponse => ({
   joinUrl: URL_SHORT,
   revision: 'r1',
   items: [],
+  slideIntervalMs: 8000,
+  kenBurnsDurationMs: 8000,
+  layout: 'spotlight',
+  reactionsEnabled: false,
   ...overrides,
 })
 
