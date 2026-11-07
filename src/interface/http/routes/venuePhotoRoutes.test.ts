@@ -384,6 +384,12 @@ describe('the host venue photograph routes', () => {
       const response = await request(world.app).get(url).set('Range', 'bytes=9999999-')
 
       expect(response.status).toBe(416)
+      expect(response.headers['content-range']).toMatch(/^bytes \*\/\d+$/)
+      expect(response.headers['accept-ranges']).toBe('bytes')
+      // A refusal is a JSON error, not the picture: no type, validator or disposition of the object.
+      expect(response.headers['content-type']).toContain('application/json')
+      expect(response.headers['content-disposition']).toBeUndefined()
+      expect(response.headers['x-content-type-options']).toBe('nosniff')
     })
 
     it('does not serve a draft event to the public or a guest, but does to its host', async () => {

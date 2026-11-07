@@ -16,7 +16,7 @@ import {
 } from './middleware/rateLimit'
 import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders'
 import { aboutRoutes } from './routes/aboutRoutes'
-import { authRoutes } from './routes/authRoutes'
+import { SESSION_COOKIE, authRoutes } from './routes/authRoutes'
 import { clientRoutes } from './routes/clientRoutes'
 import { invitationRoutes } from './routes/invitationRoutes'
 import { bookRoutes } from './routes/bookRoutes'
@@ -160,7 +160,7 @@ export const buildServer = ({
 
   app.use(
     session({
-      name: 'es_session',
+      name: SESSION_COOKIE,
       secret: config.sessionSecret,
       store: sessionStore,
       resave: false,
