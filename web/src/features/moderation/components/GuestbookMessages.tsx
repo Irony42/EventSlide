@@ -12,6 +12,7 @@ import styles from './GuestbookMessages.module.css'
 import type { GuestbookFilter, GuestbookModeration } from '../hooks/useGuestbookModeration'
 import type { QueueSelection } from '../hooks/useQueueSelection'
 import type { GuestbookQueueItemDto, ModerationDecision } from '../../../lib/api/dto'
+import { copyToClipboard } from '../../../lib/clipboard'
 
 const TONES: Record<GuestbookQueueItemDto['status'], BadgeTone> = {
   pending: 'warning',
@@ -74,15 +75,11 @@ export function GuestbookMessages({
     })[status]
 
   const copyId = (id: string) => {
-    const failed = () => toast.show(t.guestbookHost.copyFailed, { tone: 'danger' })
-    // Absent on a plain-HTTP LAN address, which is not a secure context.
-    if (navigator.clipboard === undefined) {
-      failed()
-      return
-    }
-    void navigator.clipboard
-      .writeText(id)
-      .then(() => toast.show(t.guestbookHost.idCopied, { tone: 'success' }), failed)
+    void copyToClipboard(id).then((copied) =>
+      copied
+        ? toast.show(t.guestbookHost.idCopied, { tone: 'success' })
+        : toast.show(t.guestbookHost.copyFailed, { tone: 'danger' }),
+    )
   }
 
   const formatter = new Intl.DateTimeFormat(locale, { timeStyle: 'short', dateStyle: 'short' })

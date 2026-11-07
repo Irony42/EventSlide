@@ -67,7 +67,7 @@ export const useLifecycleTransition = (onChanged: (event: EventDto) => void) => 
       if (!statusChange.busy) setAsking(null)
     },
     busy: statusChange.busy,
-    /** `slug:status` of the move in flight, to put a spinner on the one button pressed. */
-    pending: statusChange.pending,
+    /** Whether the `slug:status` move is in flight, to put a spinner on the one button pressed. */
+    isPending: statusChange.isPending,
   }
 }

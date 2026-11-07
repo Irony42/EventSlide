@@ -1628,6 +1628,8 @@ export const en: UiText = {
       'If you lose your phone, each of these ten codes lets you in once. Write them down now: they will not be shown again.',
     recoveryCodesCopy: 'Copy the codes',
     recoveryCodesCopied: 'Codes copied.',
+    recoveryCodesCopyFailed:
+      'Copying is not possible here: select the codes and copy them yourself.',
     recoveryCodesSaved: 'I have written them down',
     securityEnabled: 'Two-step verification is on for this account.',
     securityManageIntro:
@@ -1900,6 +1902,7 @@ export const en: UiText = {
     invitationLinkLabel: 'Invitation link',
     copyLink: 'Copy the link',
     linkCopied: 'Link copied.',
+    linkCopyFailed: 'Copying is not possible here: select the link and copy it yourself.',
     invitationValidUntil: (date: string) => `Valid until ${date}.`,
 
     ceilingsLegend: 'Limits',

@@ -740,6 +740,30 @@ describe('EventSettingsPage', () => {
       await waitFor(() => expect(screen.getByLabelText(fr.admin.moderationAuto)).toBeChecked())
     })
 
+    it('replaces the draft when only the welcome message moved on the server (WEB-HOST-07)', async () => {
+      // Another moderator changed the message while this tab was open: the comparison that
+      // decides "the server's answer moved" must see it, or the host saves the old one back.
+      const withMessage = (welcomeMessage: string | null) =>
+        anEventDto({
+          settings: eventSettings({ brand: { welcomeMessage, logoUrl: null } }),
+        })
+      const getEvent = vi.fn(async () => withMessage(null))
+      renderPage(fakeApi({ getEvent }))
+      const field = await screen.findByRole('textbox', {
+        name: new RegExp(fr.admin.welcomeMessage),
+      })
+      expect(field).toHaveValue('')
+      getEvent.mockResolvedValueOnce(withMessage('Bienvenue chez nous'))
+
+      fireEvent(window, new Event('focus'))
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole('textbox', { name: new RegExp(fr.admin.welcomeMessage) }),
+        ).toHaveValue('Bienvenue chez nous'),
+      )
+    })
+
     it('says the sweep threw a schedule away, which is the only record that it existed', async () => {
       const api = fakeApi({
         getEvent: vi.fn(async () =>

@@ -156,6 +156,35 @@ describe('SecurityPage', () => {
 
       await waitFor(() => expect(writeText).toHaveBeenCalledWith(CODE))
     })
+
+    const reachCodes = async () => {
+      render(enrolling())
+      await start()
+      await userEvent.type(await screen.findByLabelText(fr.auth.secondFactorCode), '123456')
+      await userEvent.click(screen.getByRole('button', { name: fr.auth.setupConfirm }))
+      await screen.findByText(CODE)
+    }
+
+    it('says the copy failed, and keeps the codes on screen, when the browser refuses it (WEB-HOST-02)', async () => {
+      const writeText = vi.fn(() => Promise.reject(new DOMException('denied', 'NotAllowedError')))
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      await reachCodes()
+
+      await userEvent.click(screen.getByRole('button', { name: fr.auth.recoveryCodesCopy }))
+
+      expect(await screen.findByText(fr.auth.recoveryCodesCopyFailed)).toBeVisible()
+      expect(screen.queryByText(fr.auth.recoveryCodesCopied)).toBeNull()
+      expect(screen.getByText(CODE)).toBeVisible()
+    })
+
+    it('says the copy failed when the page has no clipboard at all (WEB-HOST-02)', async () => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
+      await reachCodes()
+
+      await userEvent.click(screen.getByRole('button', { name: fr.auth.recoveryCodesCopy }))
+
+      expect(await screen.findByText(fr.auth.recoveryCodesCopyFailed)).toBeVisible()
+    })
   })
 
   describe('an account that has an authenticator', () => {

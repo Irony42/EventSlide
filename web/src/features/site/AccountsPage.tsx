@@ -282,7 +282,7 @@ export function AccountsPage() {
                           variant="secondary"
                           size="sm"
                           aria-describedby={`account-${account.id}`}
-                          loading={enable.pending === account.id}
+                          loading={enable.isPending(account.id)}
                           disabled={busy}
                           onClick={() => switchOn(account)}
                         >
