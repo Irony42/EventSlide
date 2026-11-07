@@ -892,3 +892,14 @@ image is `ghcr.io/irony42/eventslide:3.9.0`.
 - **`minimatch` 11 for `readdir-glob`** (Dependabot alert #44, not reachable from the product), patch bumps of
   `express-rate-limit`, `nodemailer` and `react-router-dom`, and a newer `node:24-bookworm-slim` digest. Nothing
   to do: they come with the image.
+
+## Upgrading to 3.10
+
+Not released yet. A minor release: no migration, nothing to change before upgrading.
+
+### Four per-account hourly limits can be set
+
+- **Nothing to set in `.env`.** `INVITATION_RATE_LIMIT_PER_HOUR` (30), `VENUE_PHOTO_RATE_LIMIT_PER_HOUR` (10),
+  `BOOK_REQUEST_RATE_LIMIT_PER_HOUR` (20) and `LOGO_RATE_LIMIT_PER_HOUR` (10) were fixed numbers in the code;
+  they are now settings with the same defaults, each between 1 and 1000, so an installation that never mentions
+  them behaves exactly as before. See [OPERATING.md](OPERATING.md).

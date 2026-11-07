@@ -763,6 +763,10 @@ const limits = () => ({
   galleryUnlockPerClient: 10,
   galleryUnlockPerLink: 50,
   eventCreationPerHour: 20,
+  invitationsPerHour: 30,
+  venuePhotosPerHour: 10,
+  bookRequestsPerHour: 20,
+  logosPerHour: 10,
 })
 
 describe('the gallery router on its own', () => {
