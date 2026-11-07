@@ -51,5 +51,5 @@
   width: 100%;
   max-height: 24rem;
   border-radius: var(--radius-sm);
-  background: #000;
+  background: var(--player-ground);
 }

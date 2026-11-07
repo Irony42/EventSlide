@@ -17,7 +17,7 @@
 .link {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: var(--touch-min);
   padding-inline: var(--space-4);
   color: var(--accent);
 }
