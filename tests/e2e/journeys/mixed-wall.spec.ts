@@ -1,4 +1,11 @@
-import { expect, csrfHeaders, signInAsHost, test, wallUrl } from '../fixtures/app'
+import {
+  expect,
+  csrfHeaders,
+  projectorContextOptions,
+  signInAsHost,
+  test,
+  wallUrl,
+} from '../fixtures/app'
 
 /**
  * The mixed wall (spec 09): two projectors on one event read the same phase, and the host
@@ -17,7 +24,8 @@ test('two projectors agree on the phase, and the host turning the mode on reache
   const { host, projector } = surfaces
   await signInAsHost(host, app)
 
-  const second = await browser.newContext({ baseURL: app.baseUrl })
+  // The second projector is the same kind of screen as the first, not a bare context.
+  const second = await browser.newContext(projectorContextOptions(app))
   const other = await second.newPage()
   try {
     const url = `${wallUrl(app, event.slug)}&e2e_phase_ms=800`
