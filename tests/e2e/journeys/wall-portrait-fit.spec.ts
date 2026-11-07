@@ -139,13 +139,16 @@ test('every mosaic tile shows at least 70 % of its photograph', async ({ app, su
   const event = await app.seedEvent({ slug: 'mosaique', name: 'Camille & Sacha' })
   await signInAsHost(host, app)
   await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+  // Only the aspect ratios matter here (the assertions read `naturalWidth / naturalHeight`), so
+  // the photographs are a tenth of a phone's size: at 3000x4000 six sequential uploads took 44 s
+  // of a 60 s test on webkit-mobile, and the first attempt timed out.
   const shapes = [
-    [3000, 4000],
-    [4000, 3000],
-    [3000, 4000],
-    [4000, 2000],
-    [3000, 3000],
-    [1600, 1200],
+    [300, 400],
+    [400, 300],
+    [300, 400],
+    [400, 200],
+    [300, 300],
+    [160, 120],
   ] as const
   for (const [index, [width, height]] of shapes.entries()) {
     await joinAndUpload(guest, app, event.joinCode, {
