@@ -136,6 +136,14 @@ describe('isTerminal', () => {
     expect(isTerminal('guest.revoked')).toBe(true)
   })
 
+  it('does not give up because the server itself could not render the photo', () => {
+    // A full disk or an allocation failure on the box (image.renderUnavailable) is not the
+    // file's fault; the photo is acceptable once the server has room again. The file's own
+    // decode failure, image.renderFailed, stays terminal (above).
+    expect(isTerminal('image.renderUnavailable')).toBe(false)
+    expect(isTerminal('image.renderFailed')).toBe(true)
+  })
+
   it('does not give up on a rate limit', () => {
     // The limit defaults to twelve a minute keyed per client and event, so one venue
     // behind one NAT reconnecting pushes every phone past it at once. Treating that as

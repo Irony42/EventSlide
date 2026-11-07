@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ErrorRequestHandler, RequestHandler } from 'express'
+import type { ErrorRequestHandler, RequestHandler, Response } from 'express'
 import { ZodError } from 'zod'
 import { DomainError } from '../../../domain/shared/errors'
 import type { Logger } from '../../../application/ports/logger'
@@ -276,6 +276,25 @@ export const errorHandler = (): ErrorRequestHandler => (error, req, res, _next) 
  */
 export const isUndecodablePath = (error: unknown): boolean =>
   error instanceof URIError && (error as { status?: unknown }).status === 400
+
+/**
+ * A router-level error middleware that answers **the router's own refusal to decode a path**
+ * with `answer`, and hands every other error on untouched.
+ *
+ * For a surface whose dead links must all look alike (a gallery token, an invitation token): the
+ * error handler would say `400 request.invalid` to any other address, and here that would be a
+ * second answer for a token. `isUndecodablePath` is the test, so a `URIError` of ours in a
+ * handler above, or an error a library stamped 400, stays a bug: a 500 with its line in the log.
+ */
+export const answerUndecodablePath =
+  (answer: (res: Response) => void): ErrorRequestHandler =>
+  (error, _req, res, next) => {
+    if (!isUndecodablePath(error)) {
+      next(error)
+      return
+    }
+    answer(res)
+  }
 
 /**
  * body-parser's own refusals, recognised by the `type` it stamps on every one of them.

@@ -457,6 +457,8 @@ export const en: UiText = {
     'image.corrupt': 'This photo looks damaged. Try another one.',
     'image.animated': 'Animated images are not accepted.',
     'image.renderFailed': 'This photo could not be processed. Try another one.',
+    'image.renderUnavailable':
+      'This photo could not be processed right now: the server is temporarily unavailable. Try again in a moment.',
     'upload.tooLarge': 'This photo is over the maximum size.',
     'upload.tooManyFiles': 'Too many photos at once. Send them in several batches.',
 

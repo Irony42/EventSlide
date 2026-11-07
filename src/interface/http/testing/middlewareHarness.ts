@@ -18,6 +18,7 @@ import { asEventId, asGuestId } from '../../../domain/shared/ids'
 import type { GuestTokenService } from '../../../application/ports/guestTokenService'
 import { createHmacGuestTokenService } from '../../../infrastructure/crypto/hmacGuestTokenService'
 import { silentLogger } from '../../../infrastructure/logging/pinoLogger'
+import { fsStagedUploadStore } from '../../../infrastructure/system/fsStagedUploadStore'
 import type { Logger } from '../../../application/ports/logger'
 import { errorHandler, requestContext } from '../middleware/errorHandler'
 import { attachUser, enforceSessionAge } from '../middleware/authz'
@@ -207,6 +208,9 @@ export const buildTestWorld = (
     }),
     mailer: options.mailer ?? { canDeliver: false },
     diskSpaceChecker,
+    // The real adapter, not a fake: multer writes real files in a clip test and the route must
+    // read and delete those same files.
+    stagedUploads: fsStagedUploadStore,
     config: testHttpConfig(config),
   }
 
