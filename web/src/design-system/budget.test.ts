@@ -122,7 +122,7 @@ describe('how a verdict turns into a rung', () => {
  * the machine that chose it, and a venue mini-PC may drive a projector at 60 Hz, at 50, or at
  * 30 over a long cable. Two cleverer rules were written to get around that — a count of
  * dropped frames, and the share of the display's frames the wall delivered — and
- * `tests/e2e/journeys/frame-budget.spec.ts` measured real walls against both. `budget.ts`
+ * `tests/e2e/perf/frame-budget.spec.ts` measured real walls against both. `budget.ts`
  * has the table; the short version is that a healthy wall on a busy machine drops a third of
  * its frames, and a wall deliberately held to every other frame delivers a *higher* share
  * than a healthy contended one. Neither rule separated the cases it existed to separate.

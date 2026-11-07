@@ -1,4 +1,4 @@
-import { expect, joinAsGuest, signInAsHost, test, wallUrl } from '../fixtures/app'
+import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
 import { aClip, aPhoto, hasEncoder } from '../fixtures/media'
 import { fr } from '../../../web/src/lib/i18n/fr'
@@ -166,14 +166,16 @@ const seedPlaylist = async (
 }
 
 test.describe('the wall, while it is running', () => {
-  // One project rather than one engine. `chromium-mobile` is the same instrument on a Pixel
-  // 7 viewport, which is not a thing anybody projects from: it would double the cost of the
-  // slowest file in the suite to measure a wall nobody runs. A hook rather than the
-  // describe-level `test.skip`, because the project's name is on `testInfo` and only a hook
-  // is handed one.
+  // The `perf` project is the only one that selects this file (playwright.config.ts): Chromium
+  // on a projector's desktop viewport, one worker, alone on its CI runner. A frame rate taken
+  // while a second browser is rendering beside it is a number about the neighbour, which is
+  // what this file used to measure in `chromium-desktop`. The guard stays for a run that points
+  // the file at another project by hand: `chromium-mobile` would be the same instrument on a
+  // Pixel 7 viewport, which nobody projects from. A hook rather than the describe-level
+  // `test.skip`, because the project's name is on `testInfo` and only a hook is handed one.
   test.beforeEach(({ browserName }, testInfo) => {
     test.skip(
-      browserName !== 'chromium' || testInfo.project.name !== 'chromium-desktop',
+      browserName !== 'chromium' || testInfo.project.name !== 'perf',
       'a projector is a desktop viewport, and two engines would be two numbers',
     )
   })
@@ -329,36 +331,5 @@ test.describe('the wall, while it is running', () => {
     )
     const tile = projector.getByTestId('wall-slide').first().locator('img').first()
     expect(await tile.evaluate((element) => getComputedStyle(element).animationName)).toBe('none')
-  })
-})
-
-test.describe('the guest surface', () => {
-  test('resolves no backdrop filter on any element, and paints its pane opaque', async ({
-    app,
-    surfaces,
-  }) => {
-    // The glass material is retired (ADR 0012): the composer is `--surface-raised` and nothing
-    // the guest's phone renders blurs what is behind it, which is read off the resolved style
-    // of every element rather than off a stylesheet.
-    const { guest } = surfaces
-    const event = await app.seedEvent({ slug: 'envoi-opaque', name: 'Camille & Sacha' })
-
-    await joinAsGuest(guest, app, event.joinCode, 'Léa')
-    const composer = guest.getByTestId('upload-composer')
-    await expect(composer).toBeVisible()
-
-    const filtered = await guest.evaluate(() =>
-      [...document.querySelectorAll('*')]
-        .map((element) => ({
-          tag: element.tagName.toLowerCase(),
-          filter: getComputedStyle(element).backdropFilter,
-        }))
-        .filter(({ filter }) => filter !== '' && filter !== 'none')
-        .map(({ tag, filter }) => `${tag}: ${filter}`),
-    )
-    expect(filtered).toEqual([])
-
-    const background = await composer.evaluate((element) => getComputedStyle(element).background)
-    expect(background).not.toContain('rgba')
   })
 })

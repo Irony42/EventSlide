@@ -57,7 +57,7 @@ npm run test:e2e:update-snapshots     # after an intentional visual change
 
 Projects: `chromium-desktop` (host + projector), `chromium-mobile` (Pixel 7, guest),
 `webkit-mobile` (iPhone 14 — the browser most guests actually use), `firefox-desktop`,
-`chromium-offline`, and `chromium-client-members` — `tenant-isolation.spec.ts` alone, on a
+`chromium-offline`, `perf` (the frame-rate specs of `tests/e2e/perf/`, one worker, ignored by every other project) and `chromium-client-members` — `tenant-isolation.spec.ts` alone, on a
 server started with `EVENT_CREATION=clientMembers` and `SITE_ADMIN=on` (the default projects
 run the same file under `anyAccount`, so it runs under both policies; a spec that only makes
 sense under one says so with `test.skip` on `app.eventCreation`).

@@ -591,6 +591,25 @@ tests/e2e/
   which hides it. `tests/e2e/reporters/failOnFlaky.ts` (a CI-only reporter in `playwright.config.ts`)
   turns that outcome into a failed run and lists the tests in the log and the job summary: fix the
   flake, do not re-run.
+- **How CI spreads the load.** The `e2e-shard` job in `.github/workflows/ci.yml` runs one runner per
+  (project, shard): `chromium-desktop` and `chromium-mobile` in three shards, `webkit-mobile` in four
+  (one worker per runner, because WebKit is the engine that starves under load), the other projects in
+  one. `--shard=i/n` splits a project's tests deterministically (`fullyParallel`), so the shards
+  partition it: nothing twice, nothing dropped. Check with
+  `npx playwright test --list --project=<p> --shard=i/n` after changing a count, and change the count
+  in both matrices of the workflow (`e2e-shard` and `e2e`). The required status checks keep their
+  names, `End-to-end (<project>)`: that is the `e2e` job, which waits for every shard of its project
+  and fails (never skips) unless all of them passed. `failOnFlaky` runs inside each shard.
+- **The `perf` project is the frame-rate check, alone.** `tests/e2e/perf/` holds the specs that read a
+  frame rate off a running wall (`frame-budget.spec.ts`). They run in the `perf` project (Chromium,
+  desktop viewport, `workers: 1`) and are ignored by every other project, so each runs exactly once and
+  on a runner of its own: a frame rate taken beside another browser is a number about the neighbour.
+  A spec that measures timing or cadence goes in that folder; one that merely waits for animation
+  frames to settle does not. For a trustworthy number locally, run it by itself:
+  `npm run test:e2e -- --project=perf`.
+- **The CI matrices are guarded.** `scripts/ciShards.test.ts` checks that the `e2e-shard` and `e2e` matrices of
+  `ci.yml` carry the same projects and shard counts (shards numbered 1..n) and that every project of
+  `playwright.config.ts` is in them: a project in neither is a project nothing gates.
 - **`page.waitForTimeout()` is banned** and lint rejects it; use
   `await expect(locator).toBeVisible({ timeout: 10_000 })`. A fixed sleep in an
   SSE-driven app is both flaky and slow — the single largest source of e2e flake here.
