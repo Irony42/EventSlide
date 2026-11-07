@@ -3,7 +3,7 @@ import { asMissionId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireRole } from '../middleware/authz'
 import { toMissionDto } from '../presenters/presenters'
-import { sendJson, sendNoContent, sendResult } from '../presenters/send'
+import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import { missionBody, missionParams } from '../schemas/requestSchemas'
 import { hostScopeOf } from '../middleware/scope'
 import type { MissionDto, MissionListResponseDto } from '../presenters/dto'
@@ -139,7 +139,7 @@ export const missionRoutes = ({ deps, usecases }: MissionRouteDeps): Router => {
        * So it returns nothing, and the console refetches the list — which it is doing
        * anyway, on the `mission.changed` signal this edit just published.
        */
-      sendResult(res, result, sendNoContent)
+      sendResultNoContent(res, result)
     }),
   )
 
@@ -156,7 +156,7 @@ export const missionRoutes = ({ deps, usecases }: MissionRouteDeps): Router => {
         actorId: scope.user.userId,
       })
 
-      sendResult(res, result, sendNoContent)
+      sendResultNoContent(res, result)
     }),
   )
 

@@ -518,11 +518,16 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant — a clip', () => {
     expect(response.status).toBe(416)
     expect(response.headers['content-range']).toBe('bytes */64')
     expect(response.body.error.code).toBe('photo.rangeNotSatisfiable')
-    // The one refusal that does not go through `sendMedia`, and it used to be the one
+    // The one refusal that does not carry the object's headers, and it used to be the one
     // response from this route with no `nosniff` on it. A JSON body is a small risk and
     // an inconsistent header is a bigger one: the next reader has to work out which
     // answers carry it.
     expect(response.headers['x-content-type-options']).toBe('nosniff')
+    expect(response.headers['accept-ranges']).toBe('bytes')
+    // Nothing of the representation: a JSON error, with no validator, disposition or caching policy.
+    expect(response.headers['content-type']).toContain('application/json')
+    expect(response.headers['content-disposition']).toBeUndefined()
+    expect(response.headers['cache-control']).toBeUndefined()
   })
 
   it('serves the whole object for a multi-range request rather than refusing it', async () => {
