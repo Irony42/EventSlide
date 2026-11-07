@@ -554,6 +554,12 @@ describe('GuestUploadPage', () => {
 })
 
 describe('an event that no longer takes photos', () => {
+  // This block once found its guest in the session an earlier block had left in `sessionStorage`;
+  // the setup now clears it after every test, so the guest joins here, as a real one does.
+  beforeEach(() => {
+    havingJoined()
+  })
+
   const closed = (photos: readonly GuestPhotoDto[] = []): Api =>
     fakeApi({ myPhotos: vi.fn(async () => ({ items: photos, acceptingUploads: false })) })
 
