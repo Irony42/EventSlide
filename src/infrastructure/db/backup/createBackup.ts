@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm, stat, statfs, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import {
   EVENT_LOGO,
@@ -7,6 +7,7 @@ import {
   VENUE_GROUND,
 } from '../../../application/ports/mediaStore'
 import { mediaObjectPath } from '../../media/mediaLayout'
+import { statfsDiskSpaceChecker } from '../../system/statfsDiskSpaceChecker'
 import { HOLDING_BYTES_SQL } from '../clipJobStatusSql'
 import { closeDatabase, openDatabase, type Db } from '../connection'
 import { BackupError } from './backupError'
@@ -216,17 +217,14 @@ export interface BackupResult {
 }
 
 /** The archive does not exist yet, so the nearest ancestor that does is asked instead. */
-const freeBytesOnFilesystemOf = async (path: string): Promise<number | null> => {
+export const freeBytesOnFilesystemOf = async (path: string): Promise<number | null> => {
   let probe = resolve(path)
   for (;;) {
-    try {
-      const { bavail, bsize } = await statfs(probe)
-      return bavail * bsize
-    } catch {
-      const parent = dirname(probe)
-      if (parent === probe) return null
-      probe = parent
-    }
+    const free = await statfsDiskSpaceChecker.freeBytes(probe)
+    if (free !== null) return free
+    const parent = dirname(probe)
+    if (parent === probe) return null
+    probe = parent
   }
 }
 
