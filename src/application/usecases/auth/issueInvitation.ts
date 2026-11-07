@@ -20,6 +20,7 @@ import type { Logger } from '../../ports/logger'
 import type { Mailer } from '../../ports/mailer'
 import type { SecretTokens } from '../../ports/secretTokens'
 import { MS_PER_DAY } from '../../../domain/shared/time'
+import { createKeyedQueue } from '../shared/keyedQueue'
 
 /** What an invitation is to, and what to call it in the mail. */
 export type InvitedPlace = InvitationTarget & {
@@ -113,7 +114,7 @@ export type IssueInvitation = (
  * - **At most {@link INVITATION_MAX_PER_ADDRESS_PER_HOUR} an hour to one address**, from
  *   anybody: a host can write a hundred invitations an hour to a hundred inboxes, and the
  *   per-account limit of the route already slows that; this bounds what any one inbox is sent.
- *   Held under concurrency: writes for one address run one after another (see `queues`).
+ *   Held under concurrency: writes for one address run one after another (see `queue`).
  *   The cap is global to the address, so one host can spend the five slots and make an
  *   operator's invitation to that address wait an hour; that is accepted, and a cap per
  *   inviter beside it is a later decision, not a hole in this one.
@@ -145,20 +146,8 @@ export const makeIssueInvitation = ({
    * that is already being written to the wait of the one ahead of it (a relay's own deadline at
    * the worst), and nobody else anything.
    */
-  const queues = new Map<string, Promise<void>>()
-  const serially = <T>(key: string, task: () => Promise<T>): Promise<T> => {
-    const ahead = queues.get(key) ?? Promise.resolve()
-    const run = ahead.then(task)
-    const settled = run.then(
-      () => undefined,
-      () => undefined,
-    )
-    queues.set(key, settled)
-    void settled.then(() => {
-      if (queues.get(key) === settled) queues.delete(key)
-    })
-    return run
-  }
+  const queue = createKeyedQueue()
+  const serially = queue.run
 
   return async ({ email, locale, place, createdBy, requiresApproval }) => {
     const address = EmailAddress.create(email)
