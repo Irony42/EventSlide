@@ -31,8 +31,9 @@ const boxOf = async (locator: Locator) => {
  * `animation.finish()` only moves the timeline. WebKit runs a transform animation on the
  * compositor and answers a box query from the last frame it committed, so a box read in the
  * same task as `finish()` can still be a few percent short of the end (the zoom read 1.0726
- * against 1.08, the strip's travel 383 px against a 384 px pitch, webkit-mobile CI). Two
- * animation frames after `finished` is the earliest the committed frame is the end one.
+ * against 1.08, the strip's travel 383 px against a 384 px pitch, webkit-mobile CI). That is
+ * the likely mechanism, inferred from those readings and not observed on WebKit: two animation
+ * frames after `finished` is the earliest the committed frame should be the end one.
  */
 const finishAnimations = async (locator: Locator): Promise<void> => {
   await locator.evaluate(async (node) => {

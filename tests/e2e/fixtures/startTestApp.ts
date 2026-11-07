@@ -267,6 +267,10 @@ const bootOnce = async ({
   child.stdout?.on('data', (chunk: Buffer) => output.push(chunk.toString()))
   child.stderr?.on('data', (chunk: Buffer) => output.push(chunk.toString()))
 
+  // 'exit' can fire before the last chunk of stderr has been delivered, and the line that
+  // says EADDRINUSE is exactly that chunk: 'close' is the event that follows the drained pipes.
+  const drained = new Promise<void>((resolve) => child.once('close', () => resolve()))
+
   const stop = async (): Promise<void> => {
     if (child.exitCode === null) {
       child.kill('SIGTERM')
@@ -283,6 +287,9 @@ const bootOnce = async ({
   } catch (error) {
     // The server's own output is the only useful diagnostic here, and the child has to be
     // reaped or the worker leaks a server.
+    if (child.exitCode !== null) {
+      await Promise.race([drained, new Promise<void>((resolve) => setTimeout(resolve, 2_000))])
+    }
     const detail = output.join('').slice(-2_000)
     await stop()
     throw new Error(`${error instanceof Error ? error.message : String(error)}\n\n${detail}`, {
