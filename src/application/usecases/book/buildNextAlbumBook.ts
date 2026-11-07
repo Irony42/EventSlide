@@ -1,9 +1,4 @@
-import {
-  failBook,
-  finishBook,
-  type AlbumBook,
-  type BookResult,
-} from '../../../domain/book/albumBook'
+import { type AlbumBook, type BookResult } from '../../../domain/book/albumBook'
 import type { BookFailureCode } from '../../../domain/book/albumBookStatus'
 import { checkBookBytes, checkBookSize, estimateBookBytes } from '../../../domain/book/bookCaps'
 import { bookExpiresAt } from '../../../domain/book/bookExpiry'
@@ -169,11 +164,9 @@ export const makeBuildNextAlbumBook = ({
     book: AlbumBook,
     code: BookFailureCode,
   ): Promise<BuildNextAlbumBookOutcome> => {
-    // The row as it is now: one the host deleted or replaced during the render has no failure to
-    // record (`failBook` only accepts a `running` book).
-    const current = await books.find(book.eventId)
-    const failed = current === null ? null : failBook(current, code)
-    if (failed !== null && failed.ok) await books.save(failed.value)
+    // Atomic in the repository: a row the host deleted or replaced during the render has no
+    // failure to record, and nothing is written.
+    await books.finish(book.eventId, { kind: 'failed', code }, clock.now())
     logger.warn('photo book failed', { eventId: book.eventId, code })
     announce(book.eventId)
     return { kind: 'failed', eventId: book.eventId, code }
@@ -309,20 +302,18 @@ export const makeBuildNextAlbumBook = ({
       expiresAt: bookExpiresAt(doneAt, policy.ttlDays, context.purgeDate),
     }
 
-    // Read again, **after** the file exists: a fact stamped while it rendered is in this row.
-    const current = await books.find(eventId)
-    // `finishBook` refuses anything that is not `running`: a row replaced by a new request
-    // (queued) or deleted by the host has no verdict to receive.
-    const finished = current === null ? null : finishBook(current, result, doneAt)
-    if (finished === null || !finished.ok) {
+    // Decided in the repository, on the row as it is **after** the file exists: a fact stamped
+    // while it rendered is in that row, and one replaced by a new request (queued) or deleted by
+    // the host has no verdict to receive.
+    const finished = await books.finish(eventId, { kind: 'finished', result }, doneAt)
+    if (finished === 'superseded') {
       await bookFiles.delete(eventId)
       announce(eventId)
       return { kind: 'superseded', eventId }
     }
-    await books.save(finished.value)
     announce(eventId)
 
-    if (finished.value.status === 'stale') {
+    if (finished === 'stale') {
       await bookFiles.delete(eventId)
       logger.info('photo book voided while it rendered', { eventId })
       return { kind: 'stale', eventId }

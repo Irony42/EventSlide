@@ -103,6 +103,32 @@ export const finishBook = (
   )
 }
 
+/**
+ * What the final write of a render did: `done` / `stale` (a fact voided the book while it
+ * rendered) / `failed` were recorded; `superseded`: the row was deleted or replaced by a new
+ * request meanwhile, so nothing was written and the caller deletes the file it produced.
+ */
+export type BookFinish = 'done' | 'stale' | 'failed' | 'superseded'
+
+/** What the final write did when it took `settled` as the row's new state. */
+export const finishOf = (settled: AlbumBook): BookFinish =>
+  settled.status === 'done' || settled.status === 'stale' || settled.status === 'failed'
+    ? settled.status
+    : 'superseded'
+
+/** How a render ended: a file was produced, or it gave up with a closed code. */
+export type BookVerdict =
+  | { readonly kind: 'finished'; readonly result: BookResult }
+  | { readonly kind: 'failed'; readonly code: BookFailureCode }
+
+/** The move a verdict makes on the book as it stands, or the refusal when it is not `running`. */
+export const settleBook = (
+  book: AlbumBook,
+  verdict: BookVerdict,
+  now: Date,
+): Result<AlbumBook, DomainError> =>
+  verdict.kind === 'finished' ? finishBook(book, verdict.result, now) : failBook(book, verdict.code)
+
 /** The reason recorded while the render ran is not kept apart; `photoRemoved` is the safe one. */
 const staleReasonOf = (book: AlbumBook): BookStaleReason => book.staleReason ?? 'photoRemoved'
 

@@ -3,8 +3,10 @@ import { asEventId } from '../shared/ids'
 import {
   failBook,
   finishBook,
+  finishOf,
   invalidateBook,
   requestBook,
+  settleBook,
   startBook,
   type AlbumBook,
   type BookOptions,
@@ -107,5 +109,32 @@ describe('invalidateBook', () => {
     expect(invalidateBook(stale, 'captionChanged', T2)).toBe(stale)
     const failed = unwrap(failBook(running, 'unexpected'))
     expect(invalidateBook(failed, 'photoRemoved', T2)).toBe(failed)
+  })
+})
+
+describe('settleBook', () => {
+  it('applies a finished verdict to a running book, and a failed one as a failure', () => {
+    expect(unwrap(settleBook(running, { kind: 'finished', result: RESULT }, T2)).status).toBe(
+      'done',
+    )
+    expect(unwrap(settleBook(running, { kind: 'failed', code: 'empty' }, T2))).toMatchObject({
+      status: 'failed',
+      failureCode: 'empty',
+    })
+  })
+
+  it('refuses either verdict on a book that is not running', () => {
+    expect(settleBook(queued, { kind: 'finished', result: RESULT }, T2).ok).toBe(false)
+    expect(settleBook(queued, { kind: 'failed', code: 'empty' }, T2).ok).toBe(false)
+  })
+})
+
+describe('finishOf', () => {
+  it('names what was recorded, and treats a book still in progress as superseded', () => {
+    expect(finishOf(unwrap(finishBook(running, RESULT, T2)))).toBe('done')
+    expect(finishOf({ ...running, status: 'stale' })).toBe('stale')
+    expect(finishOf(unwrap(failBook(running, 'empty')))).toBe('failed')
+    expect(finishOf(queued)).toBe('superseded')
+    expect(finishOf(running)).toBe('superseded')
   })
 })
