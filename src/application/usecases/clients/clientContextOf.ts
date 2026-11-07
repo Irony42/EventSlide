@@ -1,3 +1,4 @@
+import type { ClientCeilings } from '../../../domain/clients/clientCeilings'
 import type { Event } from '../../../domain/events/event'
 import type {
   ClientByteLimit,
@@ -34,3 +35,13 @@ export const clientBytesOf = (context: ClientEventContext | null): ClientByteLim
   const maxBytes = context?.ceilings.maxTotalBytes ?? null
   return context === null || maxBytes === null ? null : { clientId: context.clientId, maxBytes }
 }
+
+/**
+ * Just the ceilings of the event's client — `null` for an event with no client — for a caller
+ * that does not need the client's id or its other facts. The same lookup as
+ * {@link clientContextOf}, so an event with no client still costs no read.
+ */
+export const ceilingsOf = async (
+  clients: Pick<ClientRepository, 'contextForEvent'>,
+  event: Event,
+): Promise<ClientCeilings | null> => (await clientContextOf(clients, event))?.ceilings ?? null

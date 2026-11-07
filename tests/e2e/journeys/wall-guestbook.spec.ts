@@ -25,6 +25,7 @@ const PENDING = 'Un message que personne n’a encore lu'
 const REFUSED = 'Un message que l’hôte a refusé'
 
 const CARD = '[data-wall-message]'
+const NOT_RELOADED = '__wallNotReloaded'
 
 /** A host session over `fetch`: the owner the server bootstrapped. */
 const hostOf = async (app: TestApp): Promise<Session> => {
@@ -273,7 +274,10 @@ test.describe('guestbook cards on the wall', () => {
     await projector.goto(wallUrl(app, slug))
     const card = projector.locator(CARD)
     await expect(card).toBeVisible({ timeout: 15_000 })
-    const loaded = await projector.evaluate(() => performance.timeOrigin)
+    // A reload is told by a mark the page carries and a reload would drop. Not by
+    // `performance.timeOrigin`: webkit hands back a different float for it between two reads of
+    // the same document (43065966.26, then .24 in CI), so equality on it proves nothing.
+    await projector.evaluate((key) => Reflect.set(window, key, true), NOT_RELOADED)
 
     ok(await host.patch(`/api/events/${slug}/settings`, { allowGuestbook: false }), 'settings')
     await expect(card).toHaveCount(0)
@@ -282,7 +286,7 @@ test.describe('guestbook cards on the wall', () => {
     const seen = await watch(projector)
     await expect.poll(seen.changes, { timeout: 15_000 }).toBeGreaterThan(14)
     expect(await seen.cards()).toEqual([])
-    expect(await projector.evaluate(() => performance.timeOrigin)).toBe(loaded)
+    expect(await projector.evaluate((key) => Reflect.get(window, key), NOT_RELOADED)).toBe(true)
 
     // And back on, the same screen takes it up again.
     ok(await host.patch(`/api/events/${slug}/settings`, { allowGuestbook: true }), 'settings')

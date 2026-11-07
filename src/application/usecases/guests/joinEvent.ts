@@ -13,8 +13,8 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { GuestTokenService } from '../../ports/guestTokenService'
 import type { IdGenerator } from '../../ports/idGenerator'
-import { clientContextOf } from '../clients/clientContextOf'
-import { privacyNoticeOf } from './privacyNoticeOf'
+import { ceilingsOf } from '../clients/clientContextOf'
+import { privacyNoticeUnder } from './privacyNoticeOf'
 
 /**
  * The front door: a guest scans the QR code, lands on `/join/:code`, and walks out with
@@ -246,8 +246,8 @@ export const makeJoinEvent = ({
     // guest list right now.
     bus.publish({ type: 'guest.joined', eventId: event.id, guestId: guest.id })
 
-    const notice = await privacyNoticeOf(clients, event, operatorName)
-    const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
+    const ceilings = await ceilingsOf(clients, event)
+    const notice = privacyNoticeUnder(event, ceilings, operatorName)
     return ok({
       token,
       guestId: guest.id,

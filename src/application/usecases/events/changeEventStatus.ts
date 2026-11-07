@@ -8,7 +8,7 @@ import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
-import { clientContextOf } from '../clients/clientContextOf'
+import { ceilingsOf } from '../clients/clientContextOf'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
@@ -61,7 +61,7 @@ export const makeChangeEventStatus =
     // entity's rule (`live_allowed`, and the window `opened_at + max_live_days` that bounds
     // `closed → live`), so it answers with the same error from here and from the schedule
     // sweep. `null` — an event with no client — is today's lifecycle, unchanged.
-    const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
+    const ceilings = await ceilingsOf(clients, event)
     const updated = event.transitionTo(status, clock.now(), ceilings)
     if (!updated.ok) return updated
 

@@ -5,7 +5,7 @@ import type { Clock } from '../../ports/clock'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
-import { clientContextOf } from '../clients/clientContextOf'
+import { ceilingsOf, clientContextOf } from '../clients/clientContextOf'
 
 /**
  * The scheduling job: open the events that were due to open, close the ones that were
@@ -119,7 +119,7 @@ export const makeApplyEventSchedules =
     for (const event of due) {
       // The client's ceilings go into the schedule exactly as they go into a manual
       // transition, so a scheduled opening is refused for the reasons a manual one is.
-      const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
+      const ceilings = await ceilingsOf(clients, event)
       const outcome = event.applySchedule(now, ceilings)
 
       try {
