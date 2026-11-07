@@ -7,6 +7,7 @@ import { z } from 'zod'
 import * as clientSchemas from '../schemas/clientSchemas'
 import * as requestSchemas from '../schemas/requestSchemas'
 import { buildServerHarness } from '../testing/serverHarness'
+import { webApiFiles } from '../testing/webApiSources'
 
 /**
  * The other direction of the wire contract: what the client **sends**.
@@ -68,8 +69,6 @@ import { buildServerHarness } from '../testing/serverHarness'
  */
 
 const ROOT = process.cwd()
-const CLIENT = join(ROOT, 'web/src/lib/api/client.ts')
-const CLIENT_DTO = join(ROOT, 'web/src/lib/api/dto.ts')
 const SERVER_ENTRY = join(ROOT, 'src/interface/http/server.ts')
 const ROUTES = join(ROOT, 'src/interface/http/routes')
 
@@ -111,14 +110,13 @@ const interfacesIn = (source: ts.SourceFile, into: Map<string, Keys>): void => {
   }
 }
 
-const clientSource = sourceOf(CLIENT)
-const clientDtoSource = sourceOf(CLIENT_DTO)
+const clientSources = webApiFiles.client().map(sourceOf)
+const clientDtoSources = webApiFiles.dto().map(sourceOf)
 
 /** Every shape the client can hand to `transport` as a whole body. */
 const CLIENT_SHAPES = ((): ReadonlyMap<string, Keys> => {
   const shapes = new Map<string, Keys>()
-  interfacesIn(clientDtoSource, shapes)
-  interfacesIn(clientSource, shapes)
+  for (const source of [...clientDtoSources, ...clientSources]) interfacesIn(source, shapes)
   return shapes
 })()
 
@@ -185,7 +183,7 @@ const keysOfType = (
   into: Map<string, Presence>,
 ): boolean => {
   if (!ts.isTypeReferenceNode(type)) return false
-  const name = type.typeName.getText(clientSource)
+  const name = type.typeName.getText()
 
   if (name === 'Partial') {
     const inner = type.typeArguments?.[0]
@@ -233,7 +231,7 @@ const keysOf = (
       if (!ts.isPropertyAssignment(member) && !ts.isShorthandPropertyAssignment(member)) {
         return false
       }
-      record(into, member.name.getText(clientSource), presence)
+      record(into, member.name.getText(), presence)
     }
     return true
   }
@@ -311,21 +309,32 @@ const isFormDataVariable = (fn: ts.ArrowFunction, payload: ts.Expression | undef
   return found
 }
 
-/** The object literal `createApi` returns: one property per endpoint. */
-const apiSurface = ((): ts.ObjectLiteralExpression => {
-  for (const statement of clientSource.statements) {
-    if (!ts.isVariableStatement(statement)) continue
-    for (const declaration of statement.declarationList.declarations) {
-      if (!ts.isIdentifier(declaration.name) || declaration.name.text !== 'createApi') continue
-      const initializer = declaration.initializer
-      if (initializer === undefined || !ts.isArrowFunction(initializer)) continue
-      const body = ts.isParenthesizedExpression(initializer.body)
-        ? initializer.body.expression
-        : initializer.body
-      if (ts.isObjectLiteralExpression(body)) return body
+/**
+ * The properties of every `*Api` factory under `client/`: one property per endpoint.
+ * `createApi` spreads them into one object, so together they are its surface.
+ */
+const apiSurface = ((): readonly ts.ObjectLiteralElementLike[] => {
+  const properties: ts.ObjectLiteralElementLike[] = []
+  for (const source of clientSources) {
+    for (const statement of source.statements) {
+      if (!ts.isVariableStatement(statement)) continue
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name) || !declaration.name.text.endsWith('Api')) continue
+        const initializer = declaration.initializer
+        if (initializer === undefined || !ts.isArrowFunction(initializer)) continue
+        const body = ts.isParenthesizedExpression(initializer.body)
+          ? initializer.body.expression
+          : initializer.body
+        if (ts.isObjectLiteralExpression(body)) properties.push(...body.properties)
+      }
     }
   }
-  throw new Error(`createApi's returned object literal was not found in ${CLIENT}`)
+  if (properties.length < 70) {
+    throw new Error(
+      `the *Api factories under web/src/lib/api/client/ yield ${properties.length} endpoints`,
+    )
+  }
+  return properties
 })()
 
 const { CLIENT_CALLS, CLIENT_LINKS } = ((): {
@@ -335,10 +344,10 @@ const { CLIENT_CALLS, CLIENT_LINKS } = ((): {
   const calls: ClientCall[] = []
   const links: ClientLink[] = []
 
-  for (const property of apiSurface.properties) {
+  for (const property of apiSurface) {
     if (!ts.isPropertyAssignment(property)) continue
     if (!ts.isArrowFunction(property.initializer)) continue
-    const name = property.name.getText(clientSource)
+    const name = property.name.getText()
     const fn = property.initializer
 
     // A link builder returns the URL rather than requesting it: `albumUrl`, `streamUrl`.

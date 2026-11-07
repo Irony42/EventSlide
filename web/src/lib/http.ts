@@ -162,10 +162,15 @@ const buildUrl = (path: string, query?: Readonly<Record<string, string | number 
   return serialised.length > 0 ? `${path}?${serialised}` : path
 }
 
-const parse = async <T>(response: Response): Promise<T> => {
-  if (response.status === 204) return undefined as T
-
-  const text = await response.text()
+/**
+ * What a finished response says, from its status and its body text: the value, or the
+ * `ApiError` it amounts to. The one reading of an answer, for `fetch` and for the upload's
+ * `XMLHttpRequest` alike, so the two cannot disagree about what a body means.
+ *
+ * `onAuthRequired` is told of the server's "no valid session" answer. Only the JSON path passes
+ * one: an upload is a guest's and never carries a console session.
+ */
+const settle = <T>(status: number, text: string, onAuthRequired?: () => void): T => {
   let payload: unknown
   try {
     payload = text.length > 0 ? JSON.parse(text) : undefined
@@ -173,22 +178,25 @@ const parse = async <T>(response: Response): Promise<T> => {
     // A proxy error page or a truncated response, whatever the status was. Never
     // surface the raw body: it may be an HTML page or, behind a misconfigured proxy,
     // someone else's response.
-    throw new ApiError(response.status, 'unknown')
+    throw new ApiError(status, 'unknown')
   }
 
-  if (!response.ok) {
+  if (status < 200 || status >= 300) {
     if (isApiErrorBody(payload)) {
       // Only the server's "no valid session" answer. A wrong password at the sign-in form is a
       // 401 too (`auth.invalidCredentials`) and is not an expiry.
-      if (response.status === 401 && payload.error.code === AUTH_REQUIRED_CODE) {
-        announceSessionExpired()
-      }
-      throw new ApiError(response.status, payload.error.code, payload.error.details ?? {})
+      if (status === 401 && payload.error.code === AUTH_REQUIRED_CODE) onAuthRequired?.()
+      throw new ApiError(status, payload.error.code, payload.error.details ?? {})
     }
-    throw new ApiError(response.status, 'unknown')
+    throw new ApiError(status, 'unknown')
   }
 
   return payload as T
+}
+
+const parse = async <T>(response: Response): Promise<T> => {
+  if (response.status === 204) return undefined as T
+  return settle<T>(response.status, await response.text(), announceSessionExpired)
 }
 
 /**
@@ -386,22 +394,11 @@ const sendUpload = <T>(
 
     xhr.addEventListener('load', () => {
       disarm()
-      let payload: unknown
       try {
-        payload = xhr.responseText.length > 0 ? JSON.parse(xhr.responseText) : undefined
-      } catch {
-        reject(new ApiError(xhr.status, 'unknown'))
-        return
+        resolve(settle<T>(xhr.status, xhr.responseText))
+      } catch (error) {
+        reject(error)
       }
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(payload as T)
-        return
-      }
-      if (isApiErrorBody(payload)) {
-        reject(new ApiError(xhr.status, payload.error.code, payload.error.details ?? {}))
-        return
-      }
-      reject(new ApiError(xhr.status, 'unknown'))
     })
 
     xhr.addEventListener('error', () => {
