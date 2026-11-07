@@ -260,6 +260,12 @@ const INTERFACE_FORBIDDEN = [
   },
 ]
 
+const ROUTES_NO_PEER = {
+  group: ['./*', '../routes/*'],
+  message:
+    'A route file imports no other route file. What two routes share belongs in middleware/ (a session helper), presenters/ or schemas/.',
+}
+
 const INTERFACE_NO_FS = {
   group: ['fs', 'fs/*', 'node:fs', 'node:fs/*'],
   message:
@@ -355,6 +361,16 @@ export default tseslint.config(
     files: ['src/interface/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [...INTERFACE_FORBIDDEN, INTERFACE_NO_FS] }],
+    },
+  },
+  {
+    files: ['src/interface/http/routes/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [...INTERFACE_FORBIDDEN, INTERFACE_NO_FS, ROUTES_NO_PEER] },
+      ],
     },
   },
   {

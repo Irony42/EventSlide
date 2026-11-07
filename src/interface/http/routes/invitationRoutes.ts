@@ -9,7 +9,7 @@ import { sendError, sendJson, sendResult } from '../presenters/send'
 import { acceptInvitationBody, invitationTokenParams } from '../schemas/requestSchemas'
 import type { HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
-import { startSession } from './authRoutes'
+import { startSession } from '../middleware/session'
 
 /**
  * The invitee's side of an invitation link (docs/ROADMAP.md §10.3; free plan G2-09, paid plan
