@@ -470,6 +470,7 @@ export interface ClipJobInput {
   readonly sourceByteSize?: number
   readonly caption?: string | null
   readonly trim?: { readonly startMs: number; readonly endMs: number } | null
+  readonly missionId?: string | null
   readonly attempts?: number
   readonly createdAt?: Date
   readonly updatedAt?: Date
@@ -502,6 +503,10 @@ export const aClipJob = (input: ClipJobInput = {}): ClipJob => {
           'aClipJob.sourceHash',
         ),
         sourceByteSize: pick(input.sourceByteSize, 8_000_000),
+        missionId:
+          input.missionId === undefined || input.missionId === null
+            ? null
+            : asMissionId(input.missionId),
         caption: caption === null ? null : must(Caption.create(caption), 'aClipJob.caption'),
         trim:
           trim === null

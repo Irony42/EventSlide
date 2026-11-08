@@ -1938,7 +1938,9 @@ milliseconds from the start of the file sent; **both or neither**, `400 request.
 at least one second and at most `MAX_CLIP_SECONDS`; the source itself may then be longer than the cap (at most
 30 minutes declared, and at most `MAX_CLIP_BYTES`). The job carries the range and the worker applies it while it
 re-encodes (never `-c copy`); a range that ends past the end of the source fails the job, `failureCode` `clip.trimOutOfRange`.
-Sending the same bytes again returns the first job whatever the range. Guest token required.
+Sending the same bytes again returns the first job whatever the range.
+Optional `missionId` (uuid, else `400 request.invalid`): the mission the guest had selected when they picked the clip, as for a photo (`POST …/photos`).
+It is checked against **this** event; a mission that is unknown, deleted or another event's stores the clip **untagged** (a warning in the log, never a refusal). The job carries it and the worker files the finished photo under it (re-checked then, so a mission deleted meanwhile also yields an untagged clip). A tagged clip counts for the mission's progress once published, and appears in `GET …/photos/mine` with `missionPrompt` like a tagged photo. Guest token required.
 
 A separate route with its own `multer`, its own byte limit and its own storage, and none
 of that is incidental: the photo path's `MAX_UPLOAD_BYTES` feeds a per-request heap

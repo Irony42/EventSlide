@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Caption } from '../photos/caption'
 import { ContentHash } from '../photos/contentHash'
-import { asClipJobId, asEventId, asGuestId, asPhotoId } from '../shared/ids'
+import { asClipJobId, asEventId, asGuestId, asMissionId, asPhotoId } from '../shared/ids'
 import type { Result } from '../shared/result'
 import type { DomainError } from '../shared/errors'
 import { ClipJob, type NewClipJob } from './clipJob'
@@ -49,6 +49,12 @@ describe('ClipJob.create', () => {
     expect(job.status).toBe('reserved')
     expect(job.attempts).toBe(0)
     expect(job.isDue(AT)).toBe(false)
+  })
+
+  it('carries the mission it was filed under, and none by default', () => {
+    expect(reserved({ missionId: asMissionId('mission-1') }).missionId).toBe('mission-1')
+    expect(reserved().missionId).toBeNull()
+    expect(reserved({ missionId: null }).missionId).toBeNull()
   })
 
   it('becomes claimable once its bytes have landed', () => {

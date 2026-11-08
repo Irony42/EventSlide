@@ -7,7 +7,7 @@ import { ContentHash } from '../../../domain/photos/contentHash'
 import type { PhotoAuthor } from '../../../domain/photos/photo'
 import { admissionRefusalError } from '../../../domain/events/admission'
 import { DomainError } from '../../../domain/shared/errors'
-import type { ClipJobId, EventId, PhotoId } from '../../../domain/shared/ids'
+import type { ClipJobId, EventId, MissionId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type {
@@ -21,6 +21,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { Logger } from '../../ports/logger'
+import type { MissionRepository } from '../../ports/missionRepository'
 import { type MediaStore } from '../../ports/mediaStore'
 import { STAGED_SOURCE } from '../../../domain/photos/mediaVariant'
 import type { PhotoRepository } from '../../ports/photoRepository'
@@ -62,6 +63,12 @@ export interface UploadClipInput {
   readonly caption?: string | null
   /** The part of a too-long recording to keep, from the start of `file`; both or neither. */
   readonly trim?: { readonly startMs: number; readonly endMs: number } | null
+  /**
+   * The prompt the guest had selected when they picked the clip, if any (roadmap §2.1), as a
+   * photograph's is. Resolved against this event here; one that does not resolve drops the tag
+   * and keeps the clip — see `resolveMission`.
+   */
+  readonly missionId?: MissionId | null
 }
 
 export interface UploadClipLimits {
@@ -87,6 +94,8 @@ export interface UploadClipDeps {
   readonly clients: ClientRepository
   readonly clips: ClipJobRepository
   readonly photos: PhotoRepository
+  /** Where a `missionId` is resolved, against this event. */
+  readonly missions: MissionRepository
   readonly media: MediaStore
   readonly transcoder: VideoTranscoder
   readonly hasher: ContentHasher
@@ -127,6 +136,31 @@ const refusalError = (refusal: ClipRefusal, byteSize: number): DomainError => {
     case 'clientStorageFull':
       return admissionRefusalError(refusal, byteSize)
   }
+}
+
+/**
+ * The mission tag of a clip, resolved against **this** event: the id is the one thing in the
+ * request that the guest's phone chose, so the scoped lookup is the tenant boundary, and what
+ * is stored is the id the repository handed back.
+ *
+ * **An unresolvable tag drops the tag and keeps the clip**, exactly as `uploadPhotos` does and
+ * for the same reason: the bytes were never the problem, and a clip is eighty megabytes a guest
+ * will not push twice because a host retyped a mission while they were filming.
+ */
+const resolveMission = async (
+  { missions, logger }: Pick<UploadClipDeps, 'missions' | 'logger'>,
+  eventId: EventId,
+  missionId: MissionId | null | undefined,
+): Promise<MissionId | null> => {
+  if (missionId === undefined || missionId === null) return null
+  const found = await missions.findById(eventId, missionId)
+  if (found === null) {
+    logger.warn('a clip named a mission this event does not have; storing it untagged', {
+      eventId,
+      missionId,
+    })
+  }
+  return found?.id ?? null
 }
 
 /** The answer for bytes this event already has a job for. */
@@ -333,7 +367,7 @@ const handOverToQueue = async (
 export const makeUploadClip = (deps: UploadClipDeps): UploadClip => {
   const { events, clients, clips, photos, transcoder, hasher, bus, clock, ids, logger, limits } =
     deps
-  return async ({ eventId, author, file, caption, trim }) => {
+  return async ({ eventId, author, file, caption, trim, missionId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
@@ -413,6 +447,10 @@ export const makeUploadClip = (deps: UploadClipDeps): UploadClip => {
       return alreadyStaged(existing)
     }
 
+    // After the dedupe look: a retry of bytes already staged keeps the job it already has, and
+    // costs no lookup.
+    const mission = await resolveMission(deps, eventId, missionId)
+
     const now = clock.now()
     const job = ClipJob.create(
       {
@@ -422,6 +460,7 @@ export const makeUploadClip = (deps: UploadClipDeps): UploadClip => {
         sourceByteSize: byteSize,
         caption: parsedCaption.value,
         trim: parsedTrim,
+        missionId: mission,
       },
       ids.clipJobId(),
       // Minted here, before any transcode: a crash between the photo insert and the

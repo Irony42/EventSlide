@@ -1187,6 +1187,23 @@ describe('the clip upload', () => {
     expect(only().form?.get('caption')).toBe('La première danse')
   })
 
+  it('sends the mission the clip is for, ahead of the file', async () => {
+    await subject().uploadClip(SLUG, { file: aClip('un.mp4'), missionId: 'mission-a' })
+
+    const names = [...(only().form?.keys() ?? [])]
+    expect(only().form?.get('missionId')).toBe('mission-a')
+    expect(names.indexOf('missionId')).toBeLessThan(names.indexOf('clip'))
+  })
+
+  it.each([
+    ['null', null],
+    ['an empty id', ''],
+  ])('omits the mission for %s', async (_case, missionId) => {
+    await subject().uploadClip(SLUG, { file: aClip('un.mp4'), missionId })
+
+    expect(only().form?.has('missionId')).toBe(false)
+  })
+
   it.each([
     ['an untouched field', ''],
     ['a field the guest cleared', null],

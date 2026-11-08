@@ -2,7 +2,7 @@ import { Router, type Request, type RequestHandler } from 'express'
 import multer from 'multer'
 import { resolve } from 'node:path'
 import { DomainError } from '../../../domain/shared/errors'
-import { asClipJobId } from '../../../domain/shared/ids'
+import { asClipJobId, asMissionId } from '../../../domain/shared/ids'
 import { requireGuest } from '../middleware/authz'
 import { withGuest } from '../middleware/scope'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
@@ -75,7 +75,7 @@ export interface ClipRouteDeps {
 const CLIP_FIELD = 'clip'
 
 /** A ceiling on text parts, for the reason `guestRoutes` has one: the parser, not zod. */
-const MAX_TEXT_FIELDS = 4
+const MAX_TEXT_FIELDS = 5
 
 /**
  * Removes the temp file multer wrote, on **every** exit path of a clip handler: the happy
@@ -194,6 +194,9 @@ export const clipRoutes = ({
           declaredName: file.originalname,
         },
         ...(fields.caption === undefined ? {} : { caption: fields.caption }),
+        ...(fields.missionId === undefined || fields.missionId === null
+          ? {}
+          : { missionId: asMissionId(fields.missionId) }),
         ...(fields.startMs === undefined || fields.endMs === undefined
           ? {}
           : { trim: { startMs: Number(fields.startMs), endMs: Number(fields.endMs) } }),
