@@ -61,7 +61,7 @@ export interface MyPhotosProps {
   readonly onHighlightEnd?: () => void
   /**
    * The host has just published one of these (`useMyPhotos`). Said politely in a live region,
-   * because the negative developing into a print is a picture and a screen reader gets none.
+   * because the photo developing from black and white into colour is a picture and a screen reader gets none.
    */
   readonly arrival?: Arrival | null
 }
@@ -161,7 +161,10 @@ export function MyPhotos({
                 /* The caption is the photo's own description; without one the fallback
                    says what it is rather than reading a filename aloud. */
                 <img
-                  className={cx(styles['thumb'], photo.status === 'pending' && styles['negative'])}
+                  className={cx(
+                    styles['thumb'],
+                    photo.status === 'pending' && styles['undeveloped'],
+                  )}
                   src={photo.thumbUrl}
                   alt={photo.caption ?? t.upload.mineAlt}
                 />
