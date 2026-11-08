@@ -284,3 +284,19 @@ derived alphas describes what shipped in 3.0 to 3.2 and no longer exists: panes 
 `--surface-raised`, and each ambiance keeps only its pane hairline and highlight (`--pane-border`,
 `--pane-highlight`). The ambiances themselves, their contrast bars on opaque surfaces and the
 decisions about faces, grounds and ornaments stand.
+
+## Amendment of 08/11/2026: a photo awaiting the host is undeveloped, no longer a negative
+
+A guest's "Vos envois" list showed a photo still waiting for the host as its colour negative
+(`filter: invert(1) grayscale(0.35) contrast(0.9)`), developing into the print once published. The
+idea was a metaphor of the print; the screen read as a defect. The maintainer took the inverted
+colours for a display bug on his phone, so guests will too, and a bug-looking thumbnail on the
+one screen where a guest checks that a photo arrived costs more than the metaphor earns.
+
+**Decision (maintainer, 08/11/2026):** keep "not yet developed", make it legible. A pending photo
+is `grayscale(1) contrast(0.8) brightness(1.1)`: black and white, a little faded, plainly the same
+photograph, and **never inverted**. It still transitions to full colour when the host publishes it
+(the `transition: filter` on `.thumb`). The class is `.undeveloped` (it was `.negative`). The status
+badge still says "pending" in words, so the filter is never the only signal. The negative was
+applied only to guest-side pending thumbnails: no other surface (moderation console, wall, photo
+book) inverts anything.
