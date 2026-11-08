@@ -637,10 +637,8 @@ jobs:
       - name: Browser of this checkout (pull request head)
         if: env.COMPARABLE == '1'
         timeout-minutes: 15
-        # The image carries the browser of the Playwright version this workflow names. The merge base
-        # can sit on another version (a pull request cut before a Playwright bump), and its render
-        # would then fail on a missing executable rather than on anything about the wall. A no-op
-        # when the revision is already there, a download of Chromium alone when it is not.
+        # The head's own browser: normally the image's, so this is a no-op. Kept so the two renders
+        # start from the same guarantee as the merge-base one above.
         run: timeout 6m npx playwright install chromium || timeout 6m npx playwright install chromium
 
       - name: Build

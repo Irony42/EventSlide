@@ -655,10 +655,11 @@ tests/e2e/
 - **The same container, locally.** `npm run test:e2e:docker -- <playwright arguments>` runs the suite in that
   image (`npm run test:e2e:docker -- --project=webkit-mobile tests/e2e/journeys/guest-upload.spec.ts`). The
   checkout is mounted read-only and copied into the container; `node_modules` is a Linux install kept in the docker
-  volume `eventslide-e2e-node-modules` (re-installed when `package-lock.json` changes) and never touches the host's;
+  volume `eventslide-e2e-node-modules` (re-installed when `package-lock.json` or the Node version changes) and never touches the host's;
   the report, traces and JSON report come back under `playwright-report-docker/` (ignored by git).
   `scripts/e2eDocker.ts` builds the command and `scripts/e2eDocker.test.ts` pins it. It needs Docker; it is the way
-  to reproduce a CI-only failure from Windows or macOS.
+  to reproduce a CI-only failure from Windows or macOS. It sets `CI=1`, so retries, `failOnFlaky` and the JSON report are
+  those of CI.
 - **Timers of the wall are driven, not waited for.** The wall's slide clock, a guestbook card's stay and the like are
   `setTimeout`s, and a spec that waits "fifteen seconds for fifteen changes" measures its runner.
   `tests/e2e/fixtures/wallClock.ts` freezes `page.clock` before the page loads (`openWallFrozen`) and moves it one

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url'
  * - `node_modules` is **Linux, in a docker volume**. The host's tree holds Windows or macOS
  *   binaries (`better-sqlite3`, `sharp`, `esbuild`) that cannot run in the container, and the
  *   container's must never land in the host's. The volume is keyed by nothing but the lockfile
- *   hash: `npm ci` runs again only when package-lock.json changed. It is mounted at `/deps`, not
+ *   hash and Node version: `npm ci` runs again only when package-lock.json or Node changed. It is mounted at `/deps`, not
  *   at `/work/node_modules`, because `npm ci` removes `node_modules` first and cannot remove a
  *   mount point (EBUSY); `/work/node_modules` is a link to it.
  * - What a run leaves worth reading (the HTML report, traces, the JSON report) is copied to
@@ -59,7 +59,7 @@ export const CONTAINER_SCRIPT = [
     REPORT_DIRECTORY +
     ' -cf - . | tar -C /work -xf -',
   'cd /work',
-  'stamp="$(sha256sum package-lock.json | cut -d" " -f1)"',
+  'stamp="$(node --version) $(sha256sum package-lock.json | cut -d" " -f1)"',
   'if [ "$(cat /deps/.lock-hash 2>/dev/null || true)" != "$stamp" ]; then',
   '  cp package.json package-lock.json /deps/',
   '  (cd /deps && (npm ci || npm ci))',
@@ -87,6 +87,9 @@ export function dockerArguments(
     // `/root` is where the Playwright image keeps what Firefox needs to start as root.
     '--env',
     'HOME=/root',
+    // What `playwright.config.ts` switches on: retries, workers, failOnFlaky, the JSON report.
+    '--env',
+    'CI=1',
     '--volume',
     `${repository}:/src:ro`,
     '--volume',
@@ -139,6 +142,8 @@ export function run(
 const entry = process.argv[1]
 if (entry !== undefined && /e2eDocker\.ts$/.test(entry.replaceAll('\\', '/'))) {
   const repository = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  // Made here, as the user: left to docker, a Linux host gets it created as root.
+  mkdirSync(resolve(repository, REPORT_DIRECTORY), { recursive: true })
   const { code, lines } = run(process.argv.slice(2), repository, (args) =>
     spawnSync('docker', [...args], { stdio: 'inherit' }),
   )

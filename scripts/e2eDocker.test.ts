@@ -49,6 +49,15 @@ describe('dockerArguments', () => {
     expect(args).toContain('--ipc=host')
   })
 
+  it('runs Playwright as CI does, so the retries, failOnFlaky and the JSON report are the same', () => {
+    expect(args.flatMap((arg, i) => (args[i - 1] === '--env' ? [arg] : []))).toContain('CI=1')
+  })
+
+  it('keys the dependencies volume on the Node version as well as the lockfile', () => {
+    expect(CONTAINER_SCRIPT).toContain('node --version')
+    expect(CONTAINER_SCRIPT).toMatch(/stamp=.*node --version/)
+  })
+
   it('mounts the checkout read-only, so a run cannot write into it', () => {
     expect(volumes).toContain(`${repository}:/src:ro`)
   })

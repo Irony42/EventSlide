@@ -32,7 +32,7 @@ const CARD = '[data-wall-message]'
  * are allowed for the change a settings update or the first render may swallow. These are counts of
  * slides on a clock the spec moves (see ../fixtures/wallClock.ts), not seconds.
  */
-const CHANGES_TO_A_CARD = 12
+const CHANGES_TO_A_CARD = 8
 /** What "many automatic changes" meant when it was fifteen seconds at one change a quarter second. */
 const MANY_CHANGES = 15
 const NOT_RELOADED = '__wallNotReloaded'
