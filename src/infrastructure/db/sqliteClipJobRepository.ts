@@ -16,6 +16,7 @@ import {
   asClipJobId,
   asEventId,
   asGuestId,
+  asMissionId,
   asPhotoId,
   asUserId,
   type ClipJobId,
@@ -51,18 +52,18 @@ import { fromIsoText, toIsoText } from './rowMapping'
 
 const CLIP_JOB_COLUMNS = `
   id, event_id, photo_id, author_guest_id, author_user_id, status,
-  source_hash, source_byte_size, caption, trim_start_ms, trim_end_ms, attempts,
+  source_hash, source_byte_size, caption, trim_start_ms, trim_end_ms, mission_id, attempts,
   created_at, updated_at, not_before, failure_code
 `
 
 const INSERT_CLIP_JOB = `
   INSERT INTO clip_jobs (
     id, event_id, photo_id, author_guest_id, author_user_id, status,
-    source_hash, source_byte_size, caption, trim_start_ms, trim_end_ms, attempts,
+    source_hash, source_byte_size, caption, trim_start_ms, trim_end_ms, mission_id, attempts,
     created_at, updated_at, not_before, failure_code
   ) VALUES (
     @id, @event_id, @photo_id, @author_guest_id, @author_user_id, @status,
-    @source_hash, @source_byte_size, @caption, @trim_start_ms, @trim_end_ms, @attempts,
+    @source_hash, @source_byte_size, @caption, @trim_start_ms, @trim_end_ms, @mission_id, @attempts,
     @created_at, @updated_at, @not_before, @failure_code
   )
 `
@@ -79,6 +80,7 @@ const UPDATE_CLIP_JOB = `
          caption          = @caption,
          trim_start_ms    = @trim_start_ms,
          trim_end_ms      = @trim_end_ms,
+         mission_id       = @mission_id,
          attempts         = @attempts,
          created_at       = @created_at,
          updated_at       = @updated_at,
@@ -112,6 +114,7 @@ interface ClipJobRow {
   readonly caption: string | null
   readonly trim_start_ms: number | null
   readonly trim_end_ms: number | null
+  readonly mission_id: string | null
   readonly attempts: number
   readonly created_at: string
   readonly updated_at: string
@@ -131,6 +134,7 @@ interface ClipJobBindings {
   readonly caption: string | null
   readonly trim_start_ms: number | null
   readonly trim_end_ms: number | null
+  readonly mission_id: string | null
   readonly attempts: number
   readonly created_at: string
   readonly updated_at: string
@@ -188,6 +192,7 @@ const toClipJob = (row: ClipJobRow): ClipJob => {
     sourceByteSize: row.source_byte_size,
     caption: row.caption === null ? null : trusted(Caption.create(row.caption), row.id, 'caption'),
     trim: trimOf(row),
+    missionId: row.mission_id === null ? null : asMissionId(row.mission_id),
     attempts: row.attempts,
     createdAt: fromIsoText(row.created_at),
     updatedAt: fromIsoText(row.updated_at),
@@ -213,6 +218,7 @@ const toBindings = (job: ClipJob): ClipJobBindings => {
     caption: props.caption === null ? null : props.caption.value,
     trim_start_ms: props.trim === null ? null : props.trim.startMs,
     trim_end_ms: props.trim === null ? null : props.trim.endMs,
+    mission_id: props.missionId,
     attempts: props.attempts,
     created_at: toIsoText(props.createdAt),
     updated_at: toIsoText(props.updatedAt),

@@ -92,6 +92,13 @@ export interface ClipUpload {
 export interface UseClipUploadOptions {
   readonly slug: string
   readonly limits: ClipLimits
+  /**
+   * The mission selected on the screen **now**. Read at the moment a recording is picked and
+   * kept with that recording, so a guest who picks a clip for mission A and then taps mission B
+   * before pressing "Envoyer" still files it under A — the per-item rule the photo queue has
+   * (`useUploadQueue`). `null` is "no mission".
+   */
+  readonly missionId?: string | null
   /** Called once the box has produced a photo, so "Vos envois" can pick it up. */
   readonly onArrived?: () => void
   /**
@@ -204,6 +211,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
     slug,
     limits,
     onArrived,
+    missionId = null,
     publication = 'afterReview',
     probe = probeClipDuration,
     cut = cutContainer,
@@ -246,10 +254,16 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
    * bypassed, which is the same full upload spent to be refused again.
    */
   const blockedUntil = useRef(0)
-  const latest = useRef({ onArrived, publication })
+  const latest = useRef({ onArrived, publication, missionId })
+  /**
+   * The mission selected when the recording in hand was picked. Outside React state for the
+   * reason `chosen` is: `send` reads it long after the render that chose it, and it must not
+   * follow the selection afterwards. Kept through a failure, so a retry files it the same way.
+   */
+  const pickedMission = useRef<string | null>(null)
 
   useEffect(() => {
-    latest.current = { onArrived, publication }
+    latest.current = { onArrived, publication, missionId }
   })
 
   const stopTimers = useCallback(() => {
@@ -273,6 +287,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
     (file: File) => {
       abandon()
       chosen.current = file
+      pickedMission.current = latest.current.missionId
       const refusal = refuseClipFile(file, limits)
       if (refusal !== null) {
         // Kept on screen with the file that caused it: a guest who is told "trop longue"
@@ -337,6 +352,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
   const clear = useCallback(() => {
     abandon()
     chosen.current = null
+    pickedMission.current = null
     setState(IDLE)
   }, [abandon])
 
@@ -537,6 +553,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
           const job = await api.uploadClip(slug, {
             file: toSend,
             caption,
+            ...(pickedMission.current === null ? {} : { missionId: pickedMission.current }),
             ...(range === null ? {} : { trim: range }),
             onProgress: (progress) => {
               if (run.current !== mine) return

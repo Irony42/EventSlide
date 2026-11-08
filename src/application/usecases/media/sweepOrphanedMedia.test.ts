@@ -11,6 +11,7 @@ import { FakeVideoTranscoder } from '../../testing/fakeVideoTranscoder'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makeTranscodeNextClip } from '../clips/transcodeNextClip'
 import { FakeClock } from '../../testing/fakeClock'
+import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { FakeReelRepository } from '../../testing/fakeReelRepository'
@@ -777,6 +778,7 @@ describe('what one pass costs', () => {
         clients: new FakeClientRepository(),
         clips,
         photos,
+        missions: new FakeMissionRepository(photos),
         media,
         transcoder,
         hasher,

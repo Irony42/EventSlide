@@ -36,6 +36,8 @@ interface MountOptions {
   readonly cut?: (file: Blob, startMs: number, endMs: number) => Promise<ContainerCut | null>
   readonly onArrived?: () => void
   readonly publication?: NoticePublication
+  /** The mission selected on screen at mount; `rerender({ missionId })` changes it. */
+  readonly missionId?: string | null
 }
 
 /**
@@ -49,10 +51,11 @@ interface MountOptions {
 const mount = (api: Api, options: MountOptions = {}) => {
   const stages: ClipStage[] = []
   const rendered = renderHook(
-    () => {
+    ({ missionId }: { readonly missionId: string | null }) => {
       const clip = useClipUpload({
         slug: SLUG,
         limits: LIMITS,
+        missionId,
         // Deliberately short: these tests assert that polling happens, not how long it
         // waits, and a real two-second interval would make this file take a minute.
         pollIntervalMs: 1,
@@ -67,6 +70,7 @@ const mount = (api: Api, options: MountOptions = {}) => {
       return clip
     },
     {
+      initialProps: { missionId: options.missionId ?? null },
       wrapper: function Wrapper({ children }: { readonly children: ReactNode }) {
         return <ApiProvider api={api}>{children}</ApiProvider>
       },
@@ -342,6 +346,93 @@ describe('sending it', () => {
         expect.objectContaining({ caption: 'La première danse' }),
       ),
     )
+  })
+
+  describe('the mission it is filed under', () => {
+    it('sends the mission selected when the clip was picked', async () => {
+      const api = fakeApi()
+      const { result } = mount(api, { missionId: 'mission-a' })
+
+      act(() => result.current.choose(aClipFile()))
+      await waitFor(() => expect(result.current.stage).toBe('ready'))
+      act(() => result.current.send(null))
+
+      await waitFor(() =>
+        expect(api.uploadClip).toHaveBeenCalledWith(
+          SLUG,
+          expect.objectContaining({ missionId: 'mission-a' }),
+        ),
+      )
+    })
+
+    it('keeps the mission of the pick when the guest selects another before sending', async () => {
+      const api = fakeApi()
+      const { result, rerender } = mount(api, { missionId: 'mission-a' })
+
+      act(() => result.current.choose(aClipFile()))
+      await waitFor(() => expect(result.current.stage).toBe('ready'))
+      rerender({ missionId: 'mission-b' })
+      act(() => result.current.send(null))
+
+      await waitFor(() => expect(api.uploadClip).toHaveBeenCalled())
+      expect(api.uploadClip).toHaveBeenCalledWith(
+        SLUG,
+        expect.objectContaining({ missionId: 'mission-a' }),
+      )
+    })
+
+    it('files the next recording under the mission selected when that one is picked', async () => {
+      const api = fakeApi()
+      const { result, rerender } = mount(api, { missionId: 'mission-a' })
+      act(() => result.current.choose(aClipFile('first.mp4')))
+      await waitFor(() => expect(result.current.stage).toBe('ready'))
+
+      rerender({ missionId: 'mission-b' })
+      act(() => result.current.choose(aClipFile('second.mp4')))
+      await waitFor(() => expect(result.current.stage).toBe('ready'))
+      act(() => result.current.send(null))
+
+      await waitFor(() => expect(api.uploadClip).toHaveBeenCalled())
+      expect(api.uploadClip).toHaveBeenCalledWith(
+        SLUG,
+        expect.objectContaining({ missionId: 'mission-b' }),
+      )
+    })
+
+    it('sends no mission when none was selected', async () => {
+      const api = fakeApi()
+      const { result } = mount(api)
+
+      act(() => result.current.choose(aClipFile()))
+      await waitFor(() => expect(result.current.stage).toBe('ready'))
+      act(() => result.current.send(null))
+
+      await waitFor(() => expect(api.uploadClip).toHaveBeenCalled())
+      expect(api.uploadClip).toHaveBeenCalledWith(
+        SLUG,
+        expect.not.objectContaining({ missionId: expect.anything() }),
+      )
+    })
+
+    it('files a retry after a dropped connection under the same mission', async () => {
+      const upload = vi
+        .fn()
+        .mockRejectedValueOnce(ApiError.network())
+        .mockResolvedValue(aClipJob({ status: 'done' }))
+      const { result, rerender } = mount(fakeApi({ uploadClip: upload }), {
+        missionId: 'mission-a',
+      })
+      act(() => result.current.choose(aClipFile()))
+      await waitFor(() => expect(result.current.stage).toBe('ready'))
+      act(() => result.current.send(null))
+      await waitFor(() => expect(result.current.stage).toBe('failed'))
+
+      rerender({ missionId: 'mission-b' })
+      act(() => result.current.send(null))
+
+      await waitFor(() => expect(upload).toHaveBeenCalledTimes(2))
+      expect(upload.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ missionId: 'mission-a' }))
+    })
   })
 
   it('ignores a second press while the bytes are already going up', async () => {

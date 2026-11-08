@@ -149,6 +149,8 @@ export function useUploadScreen({ slug, event, privacyNotice }: UploadScreenInpu
     slug,
     limits: { maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds },
     onArrived: refreshMine,
+    // Read when a recording is picked and kept with it, as the photo queue does per row.
+    missionId: missions.selected,
     ...(publication === null ? {} : { publication }),
   })
 

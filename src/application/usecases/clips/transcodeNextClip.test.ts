@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { Dimensions } from '../../../domain/photos/dimensions'
-import { asEventId, asPhotoId } from '../../../domain/shared/ids'
+import { asEventId, asMissionId, asPhotoId } from '../../../domain/shared/ids'
 import type { ContentHasher } from '../../ports/contentHasher'
 import {
   AT,
@@ -10,6 +10,7 @@ import {
   aClip,
   aClipJob,
   anEvent,
+  aMission,
   aPhoto,
   type ClipJobInput,
   type EventInput,
@@ -18,6 +19,7 @@ import { CallLog } from '../../testing/callLog'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { FakeVideoTranscoder, fakeClipBytes, notAClip } from '../../testing/fakeVideoTranscoder'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
@@ -80,6 +82,7 @@ describe('transcodeNextClip', () => {
   let clients: CountingClientRepository
   let clips: FakeClipJobRepository
   let photos: FakePhotoRepository
+  let missions: FakeMissionRepository
   let media: InMemoryMediaStore
   let transcoder: FakeVideoTranscoder
   let bus: RecordingEventBus
@@ -93,6 +96,7 @@ describe('transcodeNextClip', () => {
       clients,
       clips,
       photos,
+      missions,
       media,
       transcoder,
       hasher,
@@ -108,6 +112,7 @@ describe('transcodeNextClip', () => {
     events = new FakeEventRepository()
     clips = new FakeClipJobRepository()
     photos = new FakePhotoRepository().chargeStagedBytesFrom(clips)
+    missions = new FakeMissionRepository(photos)
     media = new InMemoryMediaStore()
     transcoder = new FakeVideoTranscoder()
     bus = new RecordingEventBus()
@@ -144,6 +149,45 @@ describe('transcodeNextClip', () => {
       const result = await transcodeNextClip()
 
       expect(result.ok && result.value.kind).toBe('idle')
+    })
+  })
+
+  describe('a clip filed under a mission', () => {
+    it('files the photograph under the mission its job names, so the mission counts it', async () => {
+      seedEvent({ settings: { moderation: 'auto' } })
+      missions.seed(aMission({ id: 'mission-1', eventId: 'event-1' }))
+      await stage(sourceBytes(), { missionId: 'mission-1' })
+
+      await transcodeNextClip()
+
+      const photo = await photos.findById(EVENT, asPhotoId('clip-job-1-photo'))
+      expect(photo?.missionId).toBe(asMissionId('mission-1'))
+      const progress = await missions.listWithProgress(EVENT)
+      expect(progress.find((row) => row.mission.id === 'mission-1')?.progress.publishedPhotos).toBe(
+        1,
+      )
+    })
+
+    it('files the clip untagged when the mission was deleted while it waited', async () => {
+      seedEvent()
+      await stage(sourceBytes(), { missionId: 'mission-gone' })
+
+      const result = await transcodeNextClip()
+
+      expect(result.ok && result.value.kind).toBe('transcoded')
+      const photo = await photos.findById(EVENT, asPhotoId('clip-job-1-photo'))
+      expect(photo?.missionId).toBeNull()
+    })
+
+    it('does not file a clip under a mission of another event', async () => {
+      seedEvent()
+      missions.seed(aMission({ id: 'mission-gala', eventId: 'event-2' }))
+      await stage(sourceBytes(), { missionId: 'mission-gala' })
+
+      await transcodeNextClip()
+
+      const photo = await photos.findById(EVENT, asPhotoId('clip-job-1-photo'))
+      expect(photo?.missionId).toBeNull()
     })
   })
 
@@ -849,6 +893,7 @@ describe('transcodeNextClip', () => {
         clients,
         clips,
         photos,
+        missions: new FakeMissionRepository(photos),
         media,
         transcoder,
         hasher: { sha256Hex: (): string => 'not-a-digest' },
@@ -874,6 +919,7 @@ describe('transcodeNextClip', () => {
         clients,
         clips,
         photos,
+        missions: new FakeMissionRepository(photos),
         media,
         transcoder,
         hasher: {
@@ -941,6 +987,7 @@ describe('transcodeNextClip', () => {
         clients,
         clips,
         photos,
+        missions: new FakeMissionRepository(photos),
         media,
         transcoder: {
           available: () => true,
@@ -1011,6 +1058,7 @@ describe('transcodeNextClip', () => {
         clients,
         clips,
         photos,
+        missions: new FakeMissionRepository(photos),
         media,
         transcoder: emptyOutput,
         hasher,

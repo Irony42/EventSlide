@@ -15,6 +15,7 @@ import type { ContentHasher } from '../../ports/contentHasher'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { Logger } from '../../ports/logger'
+import type { MissionRepository } from '../../ports/missionRepository'
 import { type MediaStore } from '../../ports/mediaStore'
 import { STAGED_SOURCE } from '../../../domain/photos/mediaVariant'
 import type { PhotoRepository } from '../../ports/photoRepository'
@@ -82,6 +83,8 @@ export interface TranscodeNextClipDeps {
   readonly clients: ClientRepository
   readonly clips: ClipJobRepository
   readonly photos: PhotoRepository
+  /** Re-checks a job's mission just before its photograph is filed; see `finish`. */
+  readonly missions: MissionRepository
   readonly media: MediaStore
   readonly transcoder: VideoTranscoder
   readonly hasher: ContentHasher
@@ -117,6 +120,7 @@ export const makeTranscodeNextClip = ({
   clients,
   clips,
   photos,
+  missions,
   media,
   transcoder,
   hasher,
@@ -400,6 +404,19 @@ export const makeTranscodeNextClip = ({
       }
     }
 
+    /**
+     * The mission is asked again here, before anything is written, not trusted from the row. The job was staged minutes
+     * ago and a host may have removed the mission since; the database nulls the job's column
+     * then, but this `ClipJob` was read before that, and inserting a photograph that names a
+     * mission that is gone fails the foreign key — a clip lost to a retyped prompt. A mission
+     * that is gone files the clip untagged, which is what `uploadClip` does with one it
+     * cannot find.
+     */
+    const missionId =
+      job.missionId === null
+        ? null
+        : ((await missions.findById(job.eventId, job.missionId))?.id ?? null)
+
     try {
       await media.put(job.eventId, videoHash, 'video', video.bytes)
       await media.put(job.eventId, posterHash, 'poster', poster.bytes)
@@ -423,6 +440,7 @@ export const makeTranscodeNextClip = ({
         // stops counting a few statements below, when the job is marked done.
         byteSize: video.byteSize + poster.byteSize,
         caption: job.caption,
+        missionId,
         facet: { kind: 'clip', duration, posterHash },
       },
       job.photoId,

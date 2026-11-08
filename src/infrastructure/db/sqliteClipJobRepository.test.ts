@@ -46,6 +46,12 @@ const seedForeignRows = (db: Db): void => {
   )
 
   for (const id of CLIP_JOB_CONTRACT_FIXTURES.eventIds) insertEvent.run({ id, at: ISO_AT })
+  for (const id of CLIP_JOB_CONTRACT_FIXTURES.missionIds) {
+    db.prepare<{ readonly id: string; readonly at: string }>(
+      `INSERT INTO event_missions (id, event_id, prompt, scope, created_at)
+            VALUES (@id, 'evt-wedding', @id, 'guest', @at)`,
+    ).run({ id, at: ISO_AT })
+  }
   for (const id of [...CLIP_JOB_CONTRACT_FIXTURES.guestIds, 'guest-1']) {
     insertGuest.run({ id, eventId: GUEST_EVENTS[id] ?? 'evt-wedding', at: ISO_AT })
   }
