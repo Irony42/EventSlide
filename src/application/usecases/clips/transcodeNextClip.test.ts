@@ -199,6 +199,24 @@ describe('transcodeNextClip', () => {
       expect(job?.attempts).toBe(1)
     })
 
+    it('puts the clip back and keeps none of its media when the mission lookup fails', async () => {
+      seedEvent()
+      missions.seed(aMission({ id: 'mission-1', eventId: 'event-1' }))
+      await stage(sourceBytes(), { missionId: 'mission-1' })
+      const stagedObjects = media.objectCount
+      missions.findById = async (): Promise<never> => {
+        throw new Error('database is locked')
+      }
+
+      const result = await transcodeNextClip()
+
+      expect(result.ok && result.value.kind === 'failed' && result.value.code).toBe(
+        'clip.storageFailed',
+      )
+      expect(media.objectCount).toBe(stagedObjects)
+      expect(await photos.findById(EVENT, asPhotoId('clip-job-1-photo'))).toBeNull()
+    })
+
     it('does not file a clip under a mission of another event', async () => {
       seedEvent()
       missions.seed(aMission({ id: 'mission-gala', eventId: 'event-2' }))
