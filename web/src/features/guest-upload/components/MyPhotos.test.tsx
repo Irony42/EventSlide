@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { aGuestPhoto, renderWithProviders } from '../../../testing/renderWithProviders'
 import notice from '../../../design-system/components/Notice.module.css'
@@ -9,6 +9,47 @@ import { MyPhotos } from './MyPhotos'
 import styles from './MyPhotos.module.css'
 
 describe('MyPhotos', () => {
+  const renderPhotos = (...photos: Parameters<typeof aGuestPhoto>[0][]) =>
+    renderWithProviders(
+      <MyPhotos
+        photos={photos.map((photo) => aGuestPhoto(photo))}
+        loading={false}
+        error={null}
+        onRetry={vi.fn()}
+        onDelete={vi.fn(() => Promise.resolve())}
+      />,
+    )
+
+  it('labels a photo with the mission it was filed under, next to its status', () => {
+    renderPhotos({ id: 'photo-1', missionPrompt: 'un selfie avec les mariés' })
+
+    const row = screen.getByRole('listitem')
+    expect(within(row).getByText(fr.upload.mineMission('un selfie avec les mariés'))).toBeVisible()
+    expect(within(row).getByText(fr.upload.statusPending)).toBeVisible()
+  })
+
+  it('shows each photo its own mission, and none for a photo without one', () => {
+    renderPhotos(
+      { id: 'photo-1', missionPrompt: 'un selfie' },
+      { id: 'photo-2', missionPrompt: 'la piste de danse' },
+      { id: 'photo-3', missionPrompt: null },
+    )
+
+    const [first, second, third] = screen.getAllByRole('listitem')
+    expect(first).toHaveTextContent(fr.upload.mineMission('un selfie'))
+    expect(second).toHaveTextContent(fr.upload.mineMission('la piste de danse'))
+    expect(third).not.toHaveTextContent(fr.upload.mineMission(''))
+    expect(third).not.toHaveTextContent(fr.upload.mineChallenge)
+  })
+
+  it('labels a photo that answers a challenge, and no other', () => {
+    renderPhotos({ id: 'photo-1', answeredChallenge: true }, { id: 'photo-2' })
+
+    const [first, second] = screen.getAllByRole('listitem')
+    expect(first).toHaveTextContent(fr.upload.mineChallenge)
+    expect(second).not.toHaveTextContent(fr.upload.mineChallenge)
+  })
+
   it('shows a photo awaiting the host as its negative, and only that one (ADR 0010)', () => {
     renderWithProviders(
       <MyPhotos

@@ -44,7 +44,11 @@ export const photosUseCases = (
     limits: { maxPixels: policy.maxImagePixels },
   }),
   listEventPhotos: makeListEventPhotos({ events: adapters.events, photos: adapters.photos }),
-  listGuestPhotos: makeListGuestPhotos({ events: adapters.events, photos: adapters.photos }),
+  listGuestPhotos: makeListGuestPhotos({
+    events: adapters.events,
+    photos: adapters.photos,
+    missions: adapters.missions,
+  }),
   deletePhoto: makeDeletePhoto({
     invalidateReel,
     invalidateBook,

@@ -415,6 +415,10 @@ export const guestRoutes = ({
               photo,
               slug: event.slug.value,
               canDelete: canGuestDelete(event, photo, guest, now),
+              missionPrompt:
+                photo.missionId === null
+                  ? null
+                  : (page.missionPrompts.get(photo.missionId) ?? null),
             }),
           ),
           // The upload rule's own answer (`Event.acceptsUploads`; in practice the status, a suspended client's guests never get here), so the

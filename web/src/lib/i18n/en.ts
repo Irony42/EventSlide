@@ -253,6 +253,8 @@ export const en: UiText = {
     mineClipAlt: 'Your video',
     mineClipBadge: 'Video',
     mineClipLength: (seconds: number) => `Video · ${t.number(seconds)} s`,
+    mineMission: (prompt: string) => `Mission: ${prompt}`,
+    mineChallenge: 'Challenge',
     introImmediate: 'Add your photos. They will appear on the screen straight away.',
     noticeLink: 'How your photos are used',
     noticeTitle: 'Before your first photo',

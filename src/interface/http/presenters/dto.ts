@@ -501,6 +501,10 @@ export interface GuestPhotoDto {
    * button is enabled for an action the server will refuse.
    */
   readonly canDelete: boolean
+  /** The mission this was filed under, in the host's words, or `null` for none (or a deleted one). */
+  readonly missionPrompt: string | null
+  /** Whether this photo answers a timed challenge (spec 18). */
+  readonly answeredChallenge: boolean
   /** See {@link WallItemDto}. `thumbUrl` is the poster when this row is a clip. */
   readonly kind: MediaKind
   readonly videoUrl: string | null

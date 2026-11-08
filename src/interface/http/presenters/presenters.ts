@@ -476,15 +476,24 @@ export interface GuestPhotoDtoInput {
   readonly slug: string
   /** The result of `Photo.canBeDeletedBy` — decided by the domain, not re-derived here. */
   readonly canDelete: boolean
+  /** The words of the mission this was filed under, when it still exists. */
+  readonly missionPrompt?: string | null
 }
 
-export const toGuestPhotoDto = ({ photo, slug, canDelete }: GuestPhotoDtoInput): GuestPhotoDto => ({
+export const toGuestPhotoDto = ({
+  photo,
+  slug,
+  canDelete,
+  missionPrompt = null,
+}: GuestPhotoDtoInput): GuestPhotoDto => ({
   id: photo.id,
   status: photo.status,
   thumbUrl: mediaUrl(slug, photo.id, THUMB_VARIANT[photo.kind]),
   caption: photo.caption?.value ?? null,
   createdAt: iso(photo.createdAt),
   canDelete,
+  missionPrompt,
+  answeredChallenge: photo.challengeId !== null,
   ...toMediaFacetDto(photo, slug),
 })
 

@@ -2,6 +2,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { MissionRepository } from '../../ports/missionRepository'
 import type { PhotoPage, PhotoQuery, PhotoRepository } from '../../ports/photoRepository'
 
 /**
@@ -27,15 +28,27 @@ export interface ListGuestPhotosInput {
 export interface ListGuestPhotosDeps {
   readonly events: EventRepository
   readonly photos: PhotoRepository
+  readonly missions: MissionRepository
+}
+
+/**
+ * The guest's page of photos, with the words of the missions they were filed under.
+ *
+ * `missionPrompts` holds an entry only for a mission that still exists: a photo whose mission the
+ * host has since deleted reads as filed under none, which is what the guest can still act on.
+ */
+export interface GuestPhotoPage extends PhotoPage {
+  readonly missionPrompts: ReadonlyMap<string, string>
 }
 
 export type ListGuestPhotos = (
   input: ListGuestPhotosInput,
-) => Promise<Result<PhotoPage, DomainError>>
+) => Promise<Result<GuestPhotoPage, DomainError>>
 
 export const makeListGuestPhotos = ({
   events,
   photos,
+  missions,
 }: ListGuestPhotosDeps): ListGuestPhotos => {
   return async ({ eventId, guestId, limit, cursor }) => {
     const event = await events.findById(eventId)
@@ -47,6 +60,15 @@ export const makeListGuestPhotos = ({
       ...(cursor == null ? {} : { cursor }),
     }
 
-    return ok(await photos.list(eventId, query))
+    const page = await photos.list(eventId, query)
+    // The checklist is only read when a photo on this page was filed under a mission: most
+    // events have none, and this read is the one a phone repeats while it waits.
+    const missionPrompts = new Map<string, string>()
+    if (page.items.some((photo) => photo.missionId !== null)) {
+      for (const { mission } of await missions.listWithProgress(eventId)) {
+        missionPrompts.set(mission.id, mission.prompt.value)
+      }
+    }
+    return ok({ ...page, missionPrompts })
   }
 }
