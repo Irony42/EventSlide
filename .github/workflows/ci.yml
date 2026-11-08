@@ -182,6 +182,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Trust the workspace for git
+        # The job container runs as root over a checkout the runner user owns: git refuses it
+        # ("dubious ownership") until it is told otherwise.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -314,6 +319,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Trust the workspace for git
+        # The job container runs as root over a checkout the runner user owns: git refuses it
+        # ("dubious ownership") until it is told otherwise.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -419,6 +429,11 @@ jobs:
           # The base branch has to be there to diff against.
           fetch-depth: 0
 
+      - name: Trust the workspace for git
+        # The job container runs as root over a checkout the runner user owns: git refuses it
+        # ("dubious ownership") until it is told otherwise.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -520,6 +535,11 @@ jobs:
         with:
           # Both sides of the comparison have to be checked out in turn.
           fetch-depth: 0
+
+      - name: Trust the workspace for git
+        # The job container runs as root over a checkout the runner user owns: git refuses it
+        # ("dubious ownership") until it is told otherwise.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/setup-node@v7
         with:

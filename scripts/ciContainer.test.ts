@@ -46,6 +46,17 @@ describe('the Playwright container of the end-to-end jobs', () => {
   })
 
   it.each(CONTAINER_JOBS)(
+    '%s trusts the workspace for git, which the container user does not own',
+    (name) => {
+      const job = jobOf(name)
+      const trust = job.indexOf('git config --global --add safe.directory "$GITHUB_WORKSPACE"')
+      expect(trust).toBeGreaterThan(0)
+      // Before the first step that could run git (setup-node's cache key does not, the rest do).
+      expect(trust).toBeLessThan(job.indexOf('actions/setup-node'))
+    },
+  )
+
+  it.each(CONTAINER_JOBS)(
     '%s installs neither system packages nor a browser by project',
     (name) => {
       const job = jobOf(name)
