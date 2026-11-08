@@ -6,7 +6,7 @@ import { Photo } from '../../../domain/photos/photo'
 import type { Event } from '../../../domain/events/event'
 import { admissionRefusalError } from '../../../domain/events/admission'
 import type { DomainError } from '../../../domain/shared/errors'
-import type { ClipJobId, EventId, PhotoId } from '../../../domain/shared/ids'
+import type { ClipJobId, EventId, PhotoId, MissionId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
 import type { ClientEventContext, ClientRepository } from '../../ports/clientRepository'
 import type { ClipJobRepository } from '../../ports/clipJobRepository'
@@ -404,19 +404,6 @@ export const makeTranscodeNextClip = ({
       }
     }
 
-    /**
-     * The mission is asked again here, before anything is written, not trusted from the row. The job was staged minutes
-     * ago and a host may have removed the mission since; the database nulls the job's column
-     * then, but this `ClipJob` was read before that, and inserting a photograph that names a
-     * mission that is gone fails the foreign key — a clip lost to a retyped prompt. A mission
-     * that is gone files the clip untagged, which is what `uploadClip` does with one it
-     * cannot find.
-     */
-    const missionId =
-      job.missionId === null
-        ? null
-        : ((await missions.findById(job.eventId, job.missionId))?.id ?? null)
-
     try {
       await media.put(job.eventId, videoHash, 'video', video.bytes)
       await media.put(job.eventId, posterHash, 'poster', poster.bytes)
@@ -428,6 +415,34 @@ export const makeTranscodeNextClip = ({
       })
       await unwind()
       return stepFailed('clip.storageFailed')
+    }
+
+    /**
+     * The mission is asked again here, as late as possible: after the media writes and right
+     * before the insert, not trusted from the row. The job was staged minutes ago and a host
+     * may have removed the mission since; the database nulls the job's column then, but this
+     * `ClipJob` was read before that, and a photograph naming a mission that is gone fails the
+     * foreign key. That failure reads as `clip.storageFailed`, which is transient: it would
+     * burn one of the attempts and re-encode the clip. Asking after the writes (which can take
+     * a while on a slow disk) keeps that window to the lookup and the insert. A mission that
+     * is gone files the clip untagged, which is what `uploadClip` does with one it cannot find.
+     *
+     * A lookup that throws unwinds like a failed write, so the files this pass wrote are not
+     * left for the sweep.
+     */
+    let missionId: MissionId | null = null
+    if (job.missionId !== null) {
+      try {
+        missionId = (await missions.findById(job.eventId, job.missionId))?.id ?? null
+      } catch (cause) {
+        logger.error('could not look up a clip’s mission; removing what this pass wrote', {
+          eventId: job.eventId,
+          clipJobId: job.id,
+          cause: String(cause),
+        })
+        await unwind()
+        return stepFailed('clip.storageFailed')
+      }
     }
 
     const photo = Photo.create(

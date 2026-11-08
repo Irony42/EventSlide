@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { Dimensions } from '../../../domain/photos/dimensions'
-import { asEventId, asMissionId, asPhotoId } from '../../../domain/shared/ids'
+import { asClipJobId, asEventId, asMissionId, asPhotoId } from '../../../domain/shared/ids'
 import type { ContentHasher } from '../../ports/contentHasher'
 import {
   AT,
@@ -177,6 +177,26 @@ describe('transcodeNextClip', () => {
       expect(result.ok && result.value.kind).toBe('transcoded')
       const photo = await photos.findById(EVENT, asPhotoId('clip-job-1-photo'))
       expect(photo?.missionId).toBeNull()
+    })
+
+    it('files the clip untagged on the first pass when the mission goes while its files are being written', async () => {
+      seedEvent()
+      missions.seed(aMission({ id: 'mission-1', eventId: 'event-1' }))
+      await stage(sourceBytes(), { missionId: 'mission-1' })
+      const put = media.put.bind(media)
+      media.put = async (...args) => {
+        await missions.delete(EVENT, asMissionId('mission-1'))
+        return put(...args)
+      }
+
+      const result = await transcodeNextClip()
+
+      expect(result.ok && result.value.kind).toBe('transcoded')
+      const photo = await photos.findById(EVENT, asPhotoId('clip-job-1-photo'))
+      expect(photo?.missionId).toBeNull()
+      const job = await clips.findById(EVENT, asClipJobId('clip-job-1'))
+      expect(job?.status).toBe('done')
+      expect(job?.attempts).toBe(1)
     })
 
     it('does not file a clip under a mission of another event', async () => {
