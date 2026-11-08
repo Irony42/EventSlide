@@ -20,6 +20,109 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.10.0] - 2026-11-08
+
+Everything merged to `main` after the tag `v3.9.0`: pull requests #408 (the integration train of the 2026-11-07
+reliability review: #393 to #407, #409, #410 and #421), #411 to #419, #422, #428, #430 and #431. This is a minor
+release: a reliability review that fixed some fifteen real bugs (a guest's name, photo and challenge, the
+moderation console, the operator scripts, Safari and iPhone), then a CI that stops failing at random. No
+migration (the last is still 026), four new optional environment variables with the defaults the code already
+had, and two behaviour changes to read below (and nothing to migrate or set).
+
+### Guests
+
+- **A photo is no longer lost to the server's full disk or to a quota a host can raise** (#399, #417). When the
+  server ran out of disk or memory while re-encoding, the upload was refused as an invalid file and the phone
+  deleted the photo from its outbox. The refusal is now a server fault with its own code,
+  `image.renderUnavailable` (in the five languages), and the photo stays queued. A per-file refusal for
+  `event.quotaExceeded` or `client.storageFull` also keeps the photo in the outbox, up to 12 hours or the maximum
+  number of attempts, since a host can raise a quota; it used to be deleted.
+- **Safari and iPhone: no more spurious "this page has expired"** (#421, #422). The service worker fetched the
+  app's own files without the cookie and the server issued a new security token for each of them; under WebKit
+  `document.cookie` then stayed stale and two uploads in a row were refused with `request.csrfMismatch`. Static
+  files no longer create a token (server), and the client reads the current one (client).
+- **The aurora background no longer starves Safari's frames** (#421). Its three full-screen `oklch` gradients
+  dropped WebKit to two or three frames a second, enough to swallow taps and navigation; it is now a `color-mix`
+  in sRGB, the same colour, back to about 37 frames a second.
+- **A name typed while a scanned code resolves is no longer lost** (#401). The name field is not offered during
+  the automatic join, and a name submitted while it is in flight is sent once it ends.
+- **A "new version" reload no longer replaces a page the guest is leaving** (#401, #414), neither when leaving the
+  page nor on an in-app navigation.
+- **A request that goes quiet ends instead of hanging** (#403). A request fails after 30 seconds without an
+  answer (an upload after 60 seconds without progress, then 180 seconds for the answer), so a photo stuck on a bad
+  network is retried from the outbox instead of staying "sending" for ever. A live stream that a browser retry
+  never reconnects is replaced after 90 seconds.
+- **The offline page is served only to page loads** (#403): a script or stylesheet that was not cached now fails
+  as it should instead of receiving HTML.
+- **A challenge that is already over no longer shows its checkbox, and the countdown restarts with a new
+  challenge** (#405).
+- **The shared album no longer shows an old album under a new link** (#401).
+
+### Hosts
+
+- **Moderation and console actions no longer hang, overlap or fail silently** (#402). The moderation list drops
+  its spinner when a quiet refresh fails; the "busy" state and a row's "pending" mark last until the last of
+  several decisions has answered; a highlight (best-of star) is not undone by a stale read and a double press
+  sends one request; the event settings draft picks up a welcome message changed on the server.
+- **The `j` and `p` shortcuts work right after a message appears** (#421), in the guestbook console and in
+  moderation: a key pressed just after a new render used the previous render's handlers and did nothing.
+- **Copying a link or recovery codes says so when it fails** (#402): the host is told to copy by hand, in the
+  five languages.
+- **Logo and venue photo uploads are not cut on a slow Wi-Fi** (#417). The 30-second deadline of #403 would have
+  aborted them; a multipart upload now has a 10-minute ceiling, and JSON requests keep their 30 seconds.
+- **A refused range of the album book is an error, not a PDF** (#397): a JSON error with `Content-Range`; a
+  missing media file no longer carries the one-year cache header.
+
+### Operators
+
+- **Four per-account hourly limits can be set** (#412): `INVITATION_RATE_LIMIT_PER_HOUR` (30),
+  `VENUE_PHOTO_RATE_LIMIT_PER_HOUR` (10), `BOOK_REQUEST_RATE_LIMIT_PER_HOUR` (20) and
+  `LOGO_RATE_LIMIT_PER_HOUR` (10), each between 1 and 1000. The defaults are the numbers that were fixed in the
+  code. See [docs/OPERATING.md](docs/OPERATING.md).
+- **`npm run purge` does the whole sweep** (#398): it also finalises the offboarded clients, prunes the audit log
+  and deletes the event's album book PDF, as the retention timer does. A step that fails exits 1.
+- **`purge --dry-run` and `migrate --status` create nothing** (#398, #412): the database is opened read-only, a
+  path that does not exist is refused (exit 1) and a database with no ledger yet lists every migration as pending.
+- **A live backup survives a media file that disappears** (#399): the file is listed as skipped and the archive
+  is kept. A transcode started after shutdown no longer spawns a process, and a disk-space check with no path is
+  "unreadable", not "sufficient" (#399, #400).
+
+### Behaviour changes to check before upgrading
+
+- **No migration** (the last is still 026), and nothing to set: the four new variables above default to the
+  former fixed values.
+- **A photo refused for `event.quotaExceeded` or `client.storageFull` stays in the guest's outbox** (#417) up to
+  12 hours or the maximum number of attempts, instead of being deleted. A new error code,
+  `image.renderUnavailable`, answers a disk or memory failure while rendering and also keeps the photo queued
+  (API clients: see the error table of `docs/API.md`).
+- **Multipart uploads of a logo or a venue photo have a 10-minute ceiling, JSON requests a 30-second deadline**
+  (#403, #417). Other requests of the web client now fail after 30 seconds without an answer instead of waiting
+  for ever.
+
+### Dependencies and security
+
+- **Dependency bumps** (#395): `vitest` and its coverage plugin 5.1, `vite` 8.3.6, `@vitejs/plugin-react` 6.2.1,
+  Playwright 1.65 and `express-rate-limit` 8.7.3. `npm audit` reports nothing, and a plain `npm ci` works on
+  Windows without Visual Studio. TypeScript 7, `@types/node` 26 and `jsdom` 31 are left out on purpose.
+
+### Tests and CI
+
+- **A fixed, reproducible and sharded end to end CI** (#396, #407, #413, #421, #428, #430, #431). Each project
+  runs in shards, one runner each, behind an aggregate job that keeps the five required check names (#428); the
+  frame-rate specs run alone in a `perf` project. The jobs run in the Playwright container, and
+  `npm run test:e2e:docker` runs the same image from a workstation (#431); timing-driven wall specs move a frozen
+  `page.clock` instead of waiting real seconds. A `@quarantine` tag keeps a known flaky test out of the gate in a
+  non-blocking job, each shard prints a flake-rate table, and a pull request repeats its changed specs five times
+  (#430). The `main` runs are no longer cancelled, and the last journeys that passed only on a retry are fixed.
+- **Server and web tests are deterministic** (#393, #394, #412, #419): one shared listening server per app
+  (a guard refuses a direct `supertest` import), shared `FakeEventSource` and `deferred()`, `sessionStorage`
+  cleared between tests, the three giant suites split by behaviour, and coverage gates ratcheted up to the
+  measured level (#416).
+- **Structure, with no behaviour change** (#397, #399, #400, #404, #406, #409, #410, #414, #415, #418): each
+  business rule written once, a feature of the web app may no longer import another and a route no other route,
+  long use cases split into named steps, the composition root split by feature, unused port methods removed and
+  every port under a contract test. The testing guide, recipes and `ARCHITECTURE.md` follow (#411).
+
 ## [3.9.0] - 2026-11-06
 
 Everything merged to `main` after the tag `v3.8.1`: pull requests #375, #376, #377, #379, #381, #382, #383,
