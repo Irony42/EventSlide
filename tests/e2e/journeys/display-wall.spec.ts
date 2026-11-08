@@ -2,6 +2,7 @@ import type { Locator } from '@playwright/test'
 import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
 import { aPhoto } from '../fixtures/media'
+import { currentPhoto, openWallFrozen, slideChange } from '../fixtures/wallClock'
 
 /**
  * The projected wall.
@@ -143,24 +144,24 @@ test('the slideshow advances and wraps', async ({ app, surfaces }) => {
   const event = await anEventWithPublishedPhotos(app, surfaces, 3, 'defile')
   const { projector } = surfaces
 
-  // Driven by the query hooks, so this takes a second rather than half a minute. The
-  // hooks are only honoured when the server was started with E2E_HOOKS=1.
-  await projector.goto(wallUrl(app, event.slug, { intervalMs: 250, transitionMs: 0 }))
+  // Driven by the query hooks (honoured only when the server was started with E2E_HOOKS=1) and by
+  // a clock the spec moves, one interval per change, so the wall takes exactly the three changes
+  // below instead of however many a loaded runner managed within a timeout.
+  await openWallFrozen(projector, wallUrl(app, event.slug, { intervalMs: 250, transitionMs: 0 }))
+  const shown = (): Promise<string | null> => currentPhoto(projector)
 
-  const first = await projector.getByTestId('wall-slide').first().getAttribute('data-photo-id')
-  await expect
-    .poll(async () => projector.getByTestId('wall-slide').first().getAttribute('data-photo-id'), {
-      timeout: 5_000,
-    })
-    .not.toBe(first)
+  const first = await shown()
+  expect(first).not.toBeNull()
+  await slideChange(projector)
+  const second = await shown()
+  expect(second).not.toBe(first)
 
   // Wraps rather than stopping at the end: an eight-hour evening has more hours than
-  // photos.
-  await expect
-    .poll(async () => projector.getByTestId('wall-slide').first().getAttribute('data-photo-id'), {
-      timeout: 10_000,
-    })
-    .toBe(first)
+  // photos. Three photographs, so the third change is the first one again.
+  await slideChange(projector)
+  expect(await shown()).not.toBe(second)
+  await slideChange(projector)
+  expect(await shown()).toBe(first)
 })
 
 test('a newly published photo appears without the wall jumping elsewhere', async ({

@@ -170,11 +170,11 @@ test.describe('guestbook cards on the wall', () => {
     const { projector } = surfaces
     const { slug } = await arrange(app, 'gb-rhythm')
 
-    await projector.goto(wallUrl(app, slug))
-    await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
+    await openWallFrozen(projector, wallUrl(app, slug))
     // No arrow is ever pressed on this wall: only the slide clock can have brought the card.
     const card = projector.locator(CARD)
-    await expect(card).toBeVisible({ timeout: 15_000 })
+    await changeUntil(projector, 'the first card', () => card.isVisible(), CHANGES_TO_A_CARD)
+    await expect(card).toBeVisible()
 
     // The guest's own words, character for character (quotes, ampersand, accent): not translated,
     // not parsed as markup, not re-typeset.
@@ -184,7 +184,12 @@ test.describe('guestbook cards on the wall', () => {
 
     // Messages go round: the other one follows, and only published ones are ever read out.
     const seen = await watch(projector)
-    await expect.poll(async () => (await seen.cards()).length, { timeout: 30_000 }).toBe(2)
+    await changeUntil(
+      projector,
+      'the second message',
+      async () => (await seen.cards()).length === 2,
+      CHANGES_TO_A_CARD,
+    )
     expect([...(await seen.cards())].sort()).toEqual([...MESSAGES].sort())
   })
 
@@ -195,9 +200,9 @@ test.describe('guestbook cards on the wall', () => {
     const { projector } = surfaces
     const { slug } = await arrange(app, 'gb-arrows')
 
-    await projector.goto(wallUrl(app, slug))
+    await openWallFrozen(projector, wallUrl(app, slug))
     const card = projector.locator(CARD)
-    await expect(card).toBeVisible({ timeout: 15_000 })
+    await changeUntil(projector, 'the first card', () => card.isVisible(), CHANGES_TO_A_CARD)
 
     // The key goes to the page, not to a control that would swallow it.
     await projector.locator('body').click({ position: { x: 5, y: 5 } })
@@ -220,7 +225,7 @@ test.describe('guestbook cards on the wall', () => {
 
     // The clock back on: the automatic changes bring a card again.
     await projector.keyboard.press(' ')
-    await expect(card).toBeVisible({ timeout: 15_000 })
+    await changeUntil(projector, 'a card again', () => card.isVisible(), CHANGES_TO_A_CARD)
   })
 
   test('a running challenge stays in sight over a card, and no card starts while it runs', async ({
@@ -235,9 +240,9 @@ test.describe('guestbook cards on the wall', () => {
     })
     ok(mission, 'creating the mission')
 
-    await projector.goto(wallUrl(app, slug))
+    await openWallFrozen(projector, wallUrl(app, slug))
     const card = projector.locator(CARD)
-    await expect(card).toBeVisible({ timeout: 15_000 })
+    await changeUntil(projector, 'the first card', () => card.isVisible(), CHANGES_TO_A_CARD)
 
     const started = await host.post(`/api/events/${slug}/challenge`, {
       missionId: String(mission.body['id']),
@@ -263,15 +268,17 @@ test.describe('guestbook cards on the wall', () => {
     expect(covered).toBe('card up; banner on top')
 
     // The card ends on its own time; then the cadence goes by without bringing another.
-    await expect(card).toHaveCount(0, { timeout: 15_000 })
+    await changeUntil(projector, 'the card to end', async () => !(await card.isVisible()), 1)
+    await expect(card).toHaveCount(0)
     const seen = await watch(projector)
-    await expect.poll(seen.changes, { timeout: 15_000 }).toBeGreaterThan(14)
+    await changeSlides(projector, MANY_CHANGES)
+    expect(await seen.changes()).toBeGreaterThanOrEqual(MANY_CHANGES)
     expect(await seen.cards()).toEqual([])
     await expect(banner).toBeVisible()
 
     // The challenge over, the cadence resumes.
     ok(await host.delete(`/api/events/${slug}/challenge`), 'stopping the challenge')
-    await expect(card).toBeVisible({ timeout: 20_000 })
+    await changeUntil(projector, 'a card again', () => card.isVisible(), CHANGES_TO_A_CARD)
   })
 
   test('turning the guestbook off takes the card away without a reload', async ({
@@ -316,9 +323,14 @@ test.describe('guestbook cards on the wall', () => {
     )
 
     // And what it showed, over a full round of cards.
-    await projector.goto(wallUrl(app, slug))
+    await openWallFrozen(projector, wallUrl(app, slug))
     const seen = await watch(projector)
-    await expect.poll(async () => (await seen.cards()).length, { timeout: 30_000 }).toBe(2)
+    await changeUntil(
+      projector,
+      'both published messages',
+      async () => (await seen.cards()).length === 2,
+      CHANGES_TO_A_CARD * 2,
+    )
     await expect(projector.getByText(PENDING)).toHaveCount(0)
     await expect(projector.getByText(REFUSED)).toHaveCount(0)
     expect(await seen.cards()).not.toContain(PENDING)

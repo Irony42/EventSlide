@@ -11,47 +11,35 @@ import type { Page } from '@playwright/test'
  * the page loads and moves only when the spec says so, a whole number of slide intervals at a
  * time, so the same journey takes the same steps on a laptop and on the busiest runner.
  *
+ * The clock is moved with `fastForward`, never `runFor`. `runFor` replays every timer of the
+ * span one by one, and the wall has a `requestAnimationFrame` loop or two: a second of fake time
+ * was measured at about two seconds of real time in WebKit, so a card's six seconds outran any
+ * sensible timeout there. `fastForward` fires each timer that fell due once, which is exactly what
+ * a one-shot `setTimeout` needs, and takes milliseconds in every engine.
+ *
  * What it does **not** do, on purpose: it does not touch real network and SSE (the server and the
  * browser's event stream run in real time, and the spec waits for them with ordinary auto-waiting
- * assertions), and it is not used where the thing under test is a CSS animation, a `requestAnimationFrame`
- * loop or a frame rate — those run on the compositor's time, which `page.clock` does not own.
+ * assertions), and it is not used where the thing under test is a CSS animation, a frame rate or
+ * the agreement of two screens on the real clock: those do not run on a clock the spec owns.
  */
+
+/** The attribute of a guestbook card on the wall. */
+const CARD = '[data-wall-message]'
+/** A card stays up for at least six seconds; the clock jumps this far per step until it is gone. */
+const CARD_STEP_MS = 10_000
+const CARD_STAY_STEPS = 6
+const LOAD_STEP_MS = 100
+const STOPPED = 'stopped: what the caller waits for is already there'
 
 /**
  * Installs the fake clock on the page and stops it, before the first navigation: no timer of the
- * wall runs until {@link runFor} or {@link slideChange} moves the clock.
+ * wall runs until {@link forward} or {@link slideChange} moves the clock.
  */
 export const freezeClock = async (page: Page): Promise<void> => {
   const start = new Date()
   await page.clock.install({ time: start })
   await page.clock.pauseAt(new Date(start.getTime() + 1_000))
 }
-
-/**
- * Opens the wall on a frozen clock, and returns once a photograph is on it.
- *
- * Not `freezeClock` then `goto` then a plain wait: React itself runs on timers while a page loads
- * (a lazy route's fallback is revealed on a `setTimeout`), so on a clock that never moves the
- * wall stays on its spinner. The clock is moved a tenth of a second at a time until the first
- * photograph is there, which costs fake time and no real time, and the slide clock only starts
- * when the photograph is mounted, so every spec begins its first interval from the same place.
- */
-export const openWallFrozen = async (page: Page, url: string): Promise<void> => {
-  await freezeClock(page)
-  await page.goto(url)
-  await expect
-    .poll(
-      async () => {
-        await page.clock.runFor(LOAD_STEP_MS)
-        return (await currentPhoto(page)) !== null
-      },
-      { message: 'the wall mounts its first photograph' },
-    )
-    .toBe(true)
-  await settle(page)
-}
-
-const LOAD_STEP_MS = 100
 
 /**
  * Lets the page finish what the last step set going: the render that follows a timer, and the
@@ -70,13 +58,11 @@ export const settle = (page: Page): Promise<void> =>
     await trip()
   })
 
-/** Moves the clock by `ms` (a card's time on screen, say) and lets the page react to it. */
-export const runFor = async (page: Page, ms: number): Promise<void> => {
-  await page.clock.runFor(ms)
+/** Moves the clock forward by `ms`, firing what fell due, and lets the page react to it. */
+export const forward = async (page: Page, ms: number): Promise<void> => {
+  await page.clock.fastForward(ms)
   await settle(page)
 }
-
-const STOPPED = 'stopped: what the caller waits for is already there'
 
 /** The id of the photograph on the wall, or `null` while there is none. */
 export const currentPhoto = (page: Page): Promise<string | null> =>
@@ -85,6 +71,32 @@ export const currentPhoto = (page: Page): Promise<string | null> =>
     return slide === null ? null : slide.getAttribute('data-photo-id')
   })
 
+const cardUp = async (page: Page): Promise<boolean> => (await page.locator(CARD).count()) > 0
+
+/**
+ * Opens the wall on a frozen clock, and returns once a photograph is on it.
+ *
+ * Not `freezeClock` then `goto` then a plain wait: React itself runs on timers while a page loads
+ * (a lazy route's fallback is revealed on a `setTimeout`), so on a clock that never moves the
+ * wall stays on its spinner. The clock is moved a tenth of a second at a time until the first
+ * photograph is there, which costs fake time and no real time, and the slide clock only starts
+ * when the photograph is mounted, so every spec begins its first interval from the same place.
+ */
+export const openWallFrozen = async (page: Page, url: string): Promise<void> => {
+  await freezeClock(page)
+  await page.goto(url)
+  await expect
+    .poll(
+      async () => {
+        await page.clock.fastForward(LOAD_STEP_MS)
+        return (await currentPhoto(page)) !== null
+      },
+      { message: 'the wall mounts its first photograph' },
+    )
+    .toBe(true)
+  await settle(page)
+}
+
 /**
  * Moves the clock one slide interval and returns once the wall shows another photograph.
  *
@@ -92,6 +104,10 @@ export const currentPhoto = (page: Page): Promise<string | null> =>
  * in the instant between the two moves the clock past nothing. The step is therefore repeated
  * inside the poll until the photograph has changed: each repetition is one more interval of fake
  * time, never a wait on real time, and the loop ends the moment the wall has moved.
+ *
+ * A card holds the slide clock while it is up (`hold: cardUp`, WallPage). When what the caller
+ * waits for (`stopWhen`) is that card, there is no change to wait for; when it is not, the clock
+ * is moved to the end of the card's stay before the slides move again.
  */
 export const slideChange = async (
   page: Page,
@@ -102,10 +118,11 @@ export const slideChange = async (
   await expect
     .poll(
       async () => {
-        // A card holds the slide clock while it is up (`hold: cardUp`, WallPage): when the thing
-        // being waited for is already there, there is no change to wait for.
         if (stopWhen !== undefined && (await stopWhen())) return STOPPED
-        await page.clock.runFor(intervalMs)
+        for (let step = 0; step < CARD_STAY_STEPS && (await cardUp(page)); step += 1) {
+          await forward(page, CARD_STEP_MS)
+        }
+        await page.clock.fastForward(intervalMs)
         return currentPhoto(page)
       },
       { message: 'the wall changes photograph when its clock moves one interval' },
