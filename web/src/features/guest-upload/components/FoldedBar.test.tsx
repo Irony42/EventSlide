@@ -16,6 +16,7 @@ const row = (n: number, state: UploadItemState = 'pending'): UploadItem => ({
   photoId: null,
   retryable: false,
   outboxId: null,
+  missionId: null,
 })
 
 const bar = (props: Partial<FoldedBarProps> = {}) => {

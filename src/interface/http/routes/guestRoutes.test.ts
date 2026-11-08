@@ -215,7 +215,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
             : { maxUploadBytesPerRequest: options.maxUploadBytesPerRequest }),
           usecases: {
             uploadPhotos: upload.run,
-            listGuestPhotos: makeListGuestPhotos({ events: deps.events, photos }),
+            listGuestPhotos: makeListGuestPhotos({ events: deps.events, photos, missions }),
             deletePhoto: makeDeletePhoto({
               events: deps.events,
               photos,
@@ -900,6 +900,31 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
     ])
   })
 
+  it('names the mission a photo was filed under, and only for the guest that sent it', async () => {
+    const subject = buildSubject()
+    subject.missions.seed(aMission({ id: 'm1', eventId: WEDDING, prompt: 'un selfie' }))
+    subject.photos.seed(
+      aPhoto({
+        id: 'filed',
+        eventId: WEDDING,
+        author: { kind: 'guest', id: GUEST },
+        missionId: 'm1',
+        challengeId: 'c1',
+      }),
+    )
+
+    const response = await request(subject.app)
+      .get(`${BASE}/photos/mine`)
+      .set('Cookie', cookie(subject.token))
+
+    const filed = response.body.items.find((item: { id: string }) => item.id === 'filed')
+    expect(filed).toMatchObject({ missionPrompt: 'un selfie', answeredChallenge: true })
+    const others = response.body.items.filter((item: { id: string }) => item.id !== 'filed')
+    expect(others.every((item: { missionPrompt: unknown }) => item.missionPrompt === null)).toBe(
+      true,
+    )
+  })
+
   it('says whether the event still takes photos, so the upload screen can say it is over', async () => {
     const live = buildSubject()
     const liveResponse = await request(live.app)
@@ -1007,6 +1032,8 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       caption: null,
       createdAt: AT.toISOString(),
       canDelete: true,
+      missionPrompt: null,
+      answeredChallenge: false,
       // The clip facet, `null` on a photograph rather than absent, so no client has to
       // test for a missing key before deciding what to render.
       kind: 'photo',

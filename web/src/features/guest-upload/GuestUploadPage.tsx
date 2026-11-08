@@ -193,7 +193,6 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
       isChallengeRunning(missions.challenge, missions.offsetMs, Date.now())
     queue.send(
       trimmedCaption.length === 0 ? null : trimmedCaption,
-      missions.selected,
       answering && missions.challenge !== null ? missions.challenge.id : null,
     )
     // The next batch starts checked again.
@@ -573,7 +572,10 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
                 selected={missions.selected}
                 onToggle={missions.toggle}
               />
-              <PhotoPicker onPick={queue.add} libraryRef={libraryInput} />
+              <PhotoPicker
+                onPick={(files) => queue.add(files, missions.selected)}
+                libraryRef={libraryInput}
+              />
               {/* The caption and the video, as labelled buttons that unfold in place: shown in full
                 they took half of a phone before a photo was chosen. The host's settings, from the
                 event the join step returned, decide which exist at all. */}

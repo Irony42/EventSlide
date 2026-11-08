@@ -457,6 +457,28 @@ describe('toGuestPhotoDto', () => {
     expect(dto.caption).toBeNull()
   })
 
+  it('carries the mission prompt it is given, and null when it has none', () => {
+    const photo = aPhoto({ missionId: 'm1' })
+
+    expect(
+      toGuestPhotoDto({ photo, slug: 'mariage', canDelete: false, missionPrompt: 'un selfie' })
+        .missionPrompt,
+    ).toBe('un selfie')
+    expect(toGuestPhotoDto({ photo, slug: 'mariage', canDelete: false }).missionPrompt).toBeNull()
+  })
+
+  it('says whether the photo answers a challenge', () => {
+    const answering = toGuestPhotoDto({
+      photo: aPhoto({ challengeId: 'c1' }),
+      slug: 'mariage',
+      canDelete: false,
+    })
+    const plain = toGuestPhotoDto({ photo: aPhoto(), slug: 'mariage', canDelete: false })
+
+    expect(answering.answeredChallenge).toBe(true)
+    expect(plain.answeredChallenge).toBe(false)
+  })
+
   it('carries the caption when there is one', () => {
     const dto = toGuestPhotoDto({
       photo: aPhoto({ caption: 'Les confettis' }),

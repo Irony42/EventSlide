@@ -103,6 +103,28 @@ export const missionRepositoryContract = (
       expect(await repo.findById(WEDDING, asMissionId('m-gala'))).toBeNull()
     })
 
+    it('finds several missions by id, scoped to the event, and ignores unknown ids', async () => {
+      await repo.save(missionAt({ id: 'm1', prompt: 'un selfie' }))
+      await repo.save(missionAt({ id: 'm2', prompt: 'la piste de danse' }))
+      await repo.save(missionAt({ id: 'm3', prompt: 'le gâteau' }))
+      await repo.save(missionAt({ id: 'm-gala', eventId: 'evt-gala', prompt: 'le buffet' }))
+
+      const found = await repo.findByIds(WEDDING, [
+        asMissionId('m1'),
+        asMissionId('m2'),
+        asMissionId('m-gala'),
+        asMissionId('m-unknown'),
+      ])
+
+      expect(found.map((mission) => mission.id).sort()).toEqual(['m1', 'm2'])
+    })
+
+    it('answers an empty list for no ids', async () => {
+      await repo.save(missionAt({ id: 'm1' }))
+
+      expect(await repo.findByIds(WEDDING, [])).toEqual([])
+    })
+
     it('returns null for the same prompt at another event', async () => {
       await repo.save(missionAt({ id: 'm-gala', eventId: 'evt-gala', prompt: 'un selfie' }))
 

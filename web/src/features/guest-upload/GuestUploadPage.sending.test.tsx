@@ -268,3 +268,35 @@ describe('"you can close this page" (INV-8)', () => {
     expect(screen.queryByText(fr.upload.offlineHint)).toBeNull()
   })
 })
+
+describe('the mission of each photo', () => {
+  beforeEach(() => {
+    havingJoined()
+  })
+
+  it('files each photo under the mission selected when it was picked', async () => {
+    const api = fakeApi({
+      myMissions: vi.fn(async () => ({
+        items: [
+          aGuestMission({ id: 'm1', prompt: 'un selfie' }),
+          aGuestMission({ id: 'm2', prompt: 'la piste de danse' }),
+        ],
+      })),
+      uploadPhotos: vi.fn(async () => accepted('photo-1')),
+    })
+    renderUpload(api)
+
+    await userEvent.click(await screen.findByRole('button', { name: /un selfie/ }))
+    await pickPhotos(aPhotoFile('premiere.jpg'))
+    await userEvent.click(screen.getByRole('button', { name: /la piste de danse/ }))
+    await pickPhotos(aPhotoFile('seconde.jpg'))
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(2) }))
+
+    await waitFor(() => expect(api.uploadPhotos).toHaveBeenCalledTimes(2))
+    const calls = vi.mocked(api.uploadPhotos).mock.calls
+    expect(calls.map(([, input]) => [input.files[0]?.name, input.missionId])).toEqual([
+      ['premiere.jpg', 'm1'],
+      ['seconde.jpg', 'm2'],
+    ])
+  })
+})

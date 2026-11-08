@@ -2,6 +2,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { MissionRepository } from '../../ports/missionRepository'
 import type { PhotoPage, PhotoQuery, PhotoRepository } from '../../ports/photoRepository'
 
 /**
@@ -27,15 +28,27 @@ export interface ListGuestPhotosInput {
 export interface ListGuestPhotosDeps {
   readonly events: EventRepository
   readonly photos: PhotoRepository
+  readonly missions: MissionRepository
+}
+
+/**
+ * The guest's page of photos, with the words of the missions they were filed under.
+ *
+ * `missionPrompts` holds an entry only for a mission that still exists: a photo whose mission the
+ * host has since deleted reads as filed under none, which is what the guest can still act on.
+ */
+export interface GuestPhotoPage extends PhotoPage {
+  readonly missionPrompts: ReadonlyMap<string, string>
 }
 
 export type ListGuestPhotos = (
   input: ListGuestPhotosInput,
-) => Promise<Result<PhotoPage, DomainError>>
+) => Promise<Result<GuestPhotoPage, DomainError>>
 
 export const makeListGuestPhotos = ({
   events,
   photos,
+  missions,
 }: ListGuestPhotosDeps): ListGuestPhotos => {
   return async ({ eventId, guestId, limit, cursor }) => {
     const event = await events.findById(eventId)
@@ -47,6 +60,18 @@ export const makeListGuestPhotos = ({
       ...(cursor == null ? {} : { cursor }),
     }
 
-    return ok(await photos.list(eventId, query))
+    const page = await photos.list(eventId, query)
+    // Only the missions this page names, and only their words: this is the read a phone repeats
+    // while it waits, so it must not pay for the event-wide progress counts.
+    const missionIds = [
+      ...new Set(page.items.flatMap((photo) => (photo.missionId === null ? [] : [photo.missionId]))),
+    ]
+    const missionPrompts = new Map<string, string>()
+    if (missionIds.length > 0) {
+      for (const mission of await missions.findByIds(eventId, missionIds)) {
+        missionPrompts.set(mission.id, mission.prompt.value)
+      }
+    }
+    return ok({ ...page, missionPrompts })
   }
 }

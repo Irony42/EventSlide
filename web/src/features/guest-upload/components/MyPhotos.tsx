@@ -180,6 +180,18 @@ export function MyPhotos({
                       : t.upload.mineClipLength(Math.round(photo.durationMs / 1_000))}
                   </Badge>
                 ) : null}
+                {/* Where the guest filed it, said in words next to the status so a screen reader
+                    reads them together. No label at all for a photo with neither. */}
+                {photo.missionPrompt == null ? null : (
+                  <Badge tone="neutral" icon={null}>
+                    {t.upload.mineMission(photo.missionPrompt)}
+                  </Badge>
+                )}
+                {photo.answeredChallenge === true ? (
+                  <Badge tone="neutral" icon={null}>
+                    {t.upload.mineChallenge}
+                  </Badge>
+                ) : null}
                 {photo.caption === null ? null : (
                   <p className={styles['caption']}>{photo.caption}</p>
                 )}

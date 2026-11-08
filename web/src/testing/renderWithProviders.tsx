@@ -348,6 +348,8 @@ export const aGuestPhoto = (overrides: Partial<GuestPhotoDto> = {}): GuestPhotoD
   // The server computes this from the grace window and the status. A component must
   // never recompute it: that divergence is why 1.0 offered a delete button that 403'd.
   canDelete: true,
+  missionPrompt: null,
+  answeredChallenge: false,
   kind: 'photo',
   videoUrl: null,
   durationMs: null,

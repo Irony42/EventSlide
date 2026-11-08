@@ -161,6 +161,10 @@ export interface GuestPhotoDto {
   readonly createdAt: string
   /** Computed server-side from the grace window and the status, so the two never disagree. */
   readonly canDelete: boolean
+  /** The mission this was filed under, in the host's words. Absent (older server) or `null`: none. */
+  readonly missionPrompt?: string | null
+  /** Whether it answers a timed challenge. Absent from an older server: read as no. */
+  readonly answeredChallenge?: boolean
   /** See `WallItemDto` (wall.ts). `thumbUrl` is the poster when this row is a clip. */
   readonly kind: MediaKind
   readonly videoUrl: string | null

@@ -1609,6 +1609,8 @@ the evening is over instead of offering a form the server would refuse with `409
       "caption": null,
       "createdAt": "…",
       "canDelete": true,
+      "missionPrompt": null,
+      "answeredChallenge": false,
       "kind": "photo",
       "videoUrl": null,
       "durationMs": null
@@ -1630,6 +1632,12 @@ first frame is the new one. A client that predates the field keeps the join's th
 `canDelete` is computed server-side from the grace window, the current status **and the
 event's `allowGuestSelfDelete` switch**, so the client does not re-implement the rule and
 then disagree with the server: it is exactly what `DELETE` below would allow.
+
+`missionPrompt` is the prompt of the mission the photo was filed under, in the host's words (never
+translated), or `null` for none, including a mission the host has since deleted. `answeredChallenge` is
+`true` when the photo was sent for a timed challenge (spec 18). Both are the guest's own claim, not a
+verdict: a refused photo still carries its mission. They are read per request, so a renamed mission
+reads with its new words. Absent from a server build that predates them, and a client then draws no label.
 
 `kind`, `videoUrl` and `durationMs` are the clip facet, present on every row of this
 shape and `null`-valued on a photograph rather than absent — so no client tests for a

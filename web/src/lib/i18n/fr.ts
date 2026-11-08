@@ -463,6 +463,8 @@ export const fr = {
      * different audiences and free to diverge.
      */
     mineClipLength: (seconds: number) => `Vidéo · ${t.number(seconds)} s`,
+    mineMission: (prompt: string) => `Mission : ${prompt}`,
+    mineChallenge: 'Défi',
 
     /* ---- Added by the privacy notice (roadmap 5.1). Keep additions inside this block. ---- */
 

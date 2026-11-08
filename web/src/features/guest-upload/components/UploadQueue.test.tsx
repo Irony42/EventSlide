@@ -27,6 +27,7 @@ const row = (
   photoId,
   retryable: state === 'failed',
   outboxId: null,
+  missionId: null,
 })
 
 interface Handlers {
