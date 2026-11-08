@@ -654,7 +654,7 @@ The not-event-scoped check is not enough on its own, and for a while it was all 
 A route carrying a `requireOperator` of its own — `GET /api/events/:eventSlug/support-queue`,
 say, answering the operator a client's queue — satisfies it: 200 is not `event.notFound`.
 Listed in `NOT_EVENT_SCOPED`, it left the whole server project green while the operator read
-somebody's evening, and `GET /api/support/queue` did the same. (Listed in `PUBLIC_ROUTES`
+somebody's evening. (Listed in `PUBLIC_ROUTES`
 it was already caught: the caller with no credential gets `requireOperator`'s 401.) So
 under all three lists sits a rule that none of them can lift: on every route the harness's
 assembled server mounts that the `/api/site` mount does not carry — swept, public or
@@ -665,11 +665,17 @@ it to hold every exempted route, and every comparison reads both accounts' site 
 standing in the event from storage, on the very servers that answered, for the account each
 login named — so it cannot quietly become one account compared with itself.
 
-What it compares is the **first** answer a request with no body and no query earns, and
-three things follow from that. A route that refused both callers `400` for want of a body
-before it asked who they were would pass whatever it did next; every route here asks first
-— authorization is middleware, and `zod` runs inside the handler — which is the shape this
-catches, and one written the other way round is review's. Where both callers get as far as
+What it compares is the first answer a request earns, and three things follow from that.
+A route whose handler validates a body answers `400 request.invalid` to both callers
+before anything operator-specific can run, so each such route has a minimal valid body in
+`BODIES` and the case fails on `request.invalid` from both sides: a new route with a body
+is a red test, not a quiet gap. A route behind `requireGuest` answers both callers `401
+auth.required` — both are signed in, and a guest session is a device token the site role
+cannot stand in for — so those routes are named in `GUEST_SESSION_ROUTES`; a `401` on both
+sides is accepted only there, and a listed route that stops answering so fails, which keeps
+the list from outliving what it excuses. What the comparison cannot see on those routes is
+what a guest session would be handed, which is the guest routes' own suites' to hold.
+Authorization that runs after a handler's own refusal is review's. Where both callers get as far as
 a use case, the harness's unwired one answers them both `500`, so the comparison stops at
 the handler and what the use case would have handed the operator is ring 2's to hold. And
 it compares status and code, not bodies, because a body may rightly name its caller

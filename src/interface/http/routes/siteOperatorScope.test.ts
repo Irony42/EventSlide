@@ -403,23 +403,85 @@ const trespassersOn = (app: Express): readonly string[] =>
  * A `switch` rather than an index into the agent, so an unfamiliar method is a loud
  * failure rather than a `TypeError` two frames away — and so nothing here is cast.
  */
-const send = (agent: request.Agent, route: Route, csrf: string): request.Test => {
+const send = (
+  agent: request.Agent,
+  route: Route,
+  csrf: string,
+  body?: Readonly<Record<string, unknown>>,
+): request.Test => {
   const path = withParameters(route.path)
+  const carrying = (test: request.Test): request.Test =>
+    body === undefined ? test : test.send(body)
   switch (route.method) {
     case 'get':
       return agent.get(path)
     case 'post':
-      return agent.post(path).set(CSRF_HEADER, csrf)
+      return carrying(agent.post(path).set(CSRF_HEADER, csrf))
     case 'patch':
-      return agent.patch(path).set(CSRF_HEADER, csrf)
+      return carrying(agent.patch(path).set(CSRF_HEADER, csrf))
     case 'put':
-      return agent.put(path).set(CSRF_HEADER, csrf)
+      return carrying(agent.put(path).set(CSRF_HEADER, csrf))
     case 'delete':
-      return agent.delete(path).set(CSRF_HEADER, csrf)
+      return carrying(agent.delete(path).set(CSRF_HEADER, csrf))
     default:
       throw new Error(`this sweep does not know how to issue a ${route.method} request`)
   }
 }
+
+/**
+ * The smallest body each route that validates one will accept, for the comparison that asks
+ * both callers the same thing.
+ *
+ * Without one,  answers  to both sides before anything
+ * operator-specific could run, and the comparison would hold on a route while comparing
+ * nothing. With one, both callers reach the use case, which answers whatever it answers —
+ * the harness's `notWired` 500 where nothing is wired. The sweep above deliberately sends
+ * none: it asserts a 4xx, and a body that gets past validation is allowed a 500.
+ * The case below fails on a `request.invalid` for both sides, so a route added without an
+ * entry here is a red test rather than a quiet gap.
+ */
+const BODIES: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+  'post /api/events': { name: 'Soirée' },
+  'post /api/join': { joinCode: 'H7K2QM' },
+  'post /api/gallery/:token/unlock': { password: 'x' },
+  'post /api/auth/login': { email: 'nobody@example.test', password: 'x' },
+  'post /api/auth/login/2fa': { code: '123456' },
+  'post /api/auth/2fa/enroll': { password: 'x' },
+  'post /api/auth/2fa/confirm': { code: '123456' },
+  'post /api/auth/account/delete': { password: 'x' },
+  'post /api/auth/password': { currentPassword: 'x', newPassword: 'y' },
+  'post /api/auth/password-reset/request': { email: 'nobody@example.test' },
+  'post /api/auth/password-reset/confirm': { token: 'x', password: 'y' },
+  'post /api/auth/step-up': { password: 'x' },
+}
+
+/**
+ * The routes that answer `401 auth.required` to **both** callers, though both are signed in:
+ * they sit behind `requireGuest`, which reads a device token and never a site account, so
+ * what the caller is on the box changes nothing a request without one can reach. Listed by
+ * name so that the case below can tell this from a route that has lost its comparison: a
+ * 401 on both sides is accepted only here, and an entry that no longer answers so is a
+ * failure, so the list cannot outlive what it excuses. What it leaves unchecked is a guest
+ * session's own behaviour, which is the guest routes' own suites' business.
+ */
+const GUEST_SESSION_ROUTES: ReadonlySet<string> = new Set([
+  'delete /api/events/:eventSlug/guestbook/:entryId',
+  'delete /api/events/:eventSlug/guests/me',
+  'delete /api/events/:eventSlug/photos/:photoId/reactions/:kind',
+  'get /api/events/:eventSlug/clips/:clipJobId',
+  'get /api/events/:eventSlug/guestbook/mine',
+  'get /api/events/:eventSlug/missions/mine',
+  'get /api/events/:eventSlug/photos/:photoId/reactions',
+  'get /api/events/:eventSlug/photos/mine',
+  'get /api/events/:eventSlug/privacy-notice',
+  'patch /api/events/:eventSlug/guests/:guestId',
+  'patch /api/events/:eventSlug/photos/:photoId/caption',
+  'post /api/events/:eventSlug/clips',
+  'post /api/events/:eventSlug/guestbook',
+  'post /api/events/:eventSlug/photos',
+  'post /api/events/:eventSlug/photos/:photoId/reactions',
+  'post /api/events/:eventSlug/privacy-notice/acknowledgement',
+])
 
 /** Placeholder values for the parameters that are not the event. Never reached. */
 const PARAMETERS: Readonly<Record<string, string>> = {
@@ -955,7 +1017,11 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
    * comparison whose two sides were secretly one account would pass on every route, and a
    * check run on some other server than the two compared would not notice.
    */
-  const askAs = async (email: string, route: Route): Promise<Asked> => {
+  const askAs = async (
+    email: string,
+    route: Route,
+    body?: Readonly<Record<string, unknown>>,
+  ): Promise<Asked> => {
     const subject = operatorHarness()
     seedClientEvent(subject)
     const { agent, csrf, userId } = await signedInAs(subject.app, email)
@@ -963,7 +1029,7 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
       siteRole: await subject.users.siteRoleFor(asUserId(userId)),
       inTheGala: await subject.memberships.roleFor(GALA, asUserId(userId)),
     }
-    return { standing, answer: await answerOf(send(agent, route, csrf)) }
+    return { standing, answer: await answerOf(send(agent, route, csrf, body)) }
   }
 
   describe('the route table this sweep covers', () => {
@@ -1268,12 +1334,12 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
      * (`PUBLIC_ROUTES`' own check already refuses that shape: a caller with no credential
      * gets `requireOperator`'s 401.)
      *
-     * What it compares is the first answer a request with no body and no query earns, so a
-     * route that refused both callers 400 for want of a body before it asked who they were
-     * would pass here whatever it did next. Every route in this codebase asks first —
-     * authorization is middleware, and `zod` runs inside the handler — which is the shape
-     * this catches. Where both callers get as far as a use case, the harness's `notWired`
-     * one answers them both 500 and the comparison stops at the handler.
+     * What it compares is the first answer a request earns. A route with a body is sent a
+     * minimal valid one ({@link BODIES}), because without it `zod` answers both callers 400
+     * before anything operator-specific can run; the case fails on a `request.invalid` from
+     * both, and on a 401 from both outside {@link GUEST_SESSION_ROUTES}. Where both callers
+     * get as far as a use case, the harness's `notWired` one answers them both 500 and the
+     * comparison stops at the handler.
      */
     const offTheSiteMount = table.routes.filter((route) => !carriedBySite(route))
 
@@ -1293,12 +1359,12 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
 
     it.each(
       offTheSiteMount.map((route): [string, Route] => [`${route.method} ${route.path}`, route]),
-    )('is told by %s exactly what a signed-in stranger is told', async (_name, route) => {
+    )('is told by %s exactly what a signed-in stranger is told', async (name, route) => {
       // Same request, same seeded box, one server each: the only thing that differs is
       // who is asking. Status and error code rather than the whole body, because a body
       // may rightly name its caller — `GET /api/auth/me` does.
-      const stranger = await askAs('inconnu@example.test', route)
-      const operator = await askAs('ops@example.test', route)
+      const stranger = await askAs('inconnu@example.test', route, BODIES[name])
+      const operator = await askAs('ops@example.test', route, BODIES[name])
 
       // Preconditions, any of which would make the comparison pass on every route while
       // comparing nothing. The two accounts differ in the site role and in nothing else —
@@ -1311,6 +1377,19 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
       ])
       expect(CSRF_REFUSALS.has(stranger.answer.code ?? '')).toBe(false)
       expect(CSRF_REFUSALS.has(operator.answer.code ?? '')).toBe(false)
+
+      // And that the comparison got somewhere. A `request.invalid` on both sides is the
+      // body being refused before anyone was asked who they were, and a 401 on both is a
+      // route that wants a device token no site role can stand in for: either compares
+      // nothing about the site role. The first is cured by an entry in `BODIES`, the
+      // second is accepted only for the routes named in `GUEST_SESSION_ROUTES`, and
+      // that list must hold exactly what answers so.
+      expect(operator.answer.code).not.toBe('request.invalid')
+      const guestGated = operator.answer.status === 401 && operator.answer.code === 'auth.required'
+      expect(
+        guestGated,
+        `${name} answers 401 auth.required to both, and is ${GUEST_SESSION_ROUTES.has(name) ? '' : 'not '}listed in GUEST_SESSION_ROUTES`,
+      ).toBe(GUEST_SESSION_ROUTES.has(name))
 
       expect(operator.answer).toEqual(stranger.answer)
     })
