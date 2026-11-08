@@ -920,3 +920,28 @@ image is `ghcr.io/irony42/eventslide:3.10.0`.
   `BOOK_REQUEST_RATE_LIMIT_PER_HOUR` (20) and `LOGO_RATE_LIMIT_PER_HOUR` (10) were fixed numbers in the code;
   they are now settings with the same defaults, each between 1 and 1000, so an installation that never mentions
   them behaves exactly as before. See [OPERATING.md](OPERATING.md).
+
+## Upgrading to 3.11
+
+3.11.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no `BREAKING`
+section. It applies **one migration (027)** and adds no setting. Back up with the version you run now
+([above](#upgrading-with-docker)): the migration only goes forward, and going back is the restore of that
+archive. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [without](#without-docker), with
+`vX.Y.Z` as `v3.11.0`; the image is `ghcr.io/irony42/eventslide:3.11.0`.
+
+### A video clip filed under a mission
+
+- **One migration (027, `clip_mission`)**, applied at boot: a nullable `mission_id` column on `clip_jobs` (with a
+  partial index), `NULL` for every existing job. Nothing is rewritten. Back up first, as for any upgrade: the
+  migration only goes forward.
+- **Nothing to set in `.env`.** `POST /api/events/:slug/clips` accepts an optional `missionId`; a client that
+  sends none behaves exactly as before, and a phone left open across the upgrade keeps sending clips untagged
+  until it is reloaded.
+
+### Each photo under the mission picked for it, and a quieter pending photo
+
+- **No migration, nothing to set in `.env`.** A guest who picked photos under different missions and sent them in
+  one go no longer sees them all filed under the last mission selected. `GET /api/events/:slug/photos/mine`
+  returns `missionPrompt` and `answeredChallenge`, and "Vos envois" labels each photo with it.
+- **A photo awaiting the host's approval shows in black and white**, slightly faded, instead of a colour negative;
+  it takes its colours when published.
