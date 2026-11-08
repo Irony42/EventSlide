@@ -48,6 +48,13 @@ export interface UploadItem {
   readonly retryable: boolean
   /** The outbox entry holding these bytes, while the row is `queued`. */
   readonly outboxId: string | null
+  /**
+   * The mission that was selected when the guest picked this photo, `null` for none.
+   *
+   * Captured per row, never per batch: a guest who picks one photo for mission A and the next for
+   * mission B must see each photo land on its own mission. Kept for the retries and the outbox.
+   */
+  readonly missionId: string | null
 }
 
 /**
@@ -115,16 +122,13 @@ export interface UploadQueue {
   readonly sending: boolean
   /** How many photos a press of "Envoyer" would actually send. */
   readonly sendableCount: number
-  readonly add: (files: readonly File[]) => void
+  /** Adds photos, each carrying `missionId`: the mission selected at the moment they were picked. */
+  readonly add: (files: readonly File[], missionId?: string | null) => void
   readonly remove: (id: string) => void
   /** Drops every row that has arrived, as picking the next photos would. Never one that has not. */
   readonly clearSettled: () => void
   readonly retry: (id: string) => void
-  readonly send: (
-    caption: string | null,
-    missionId: string | null,
-    challengeId?: string | null,
-  ) => void
+  readonly send: (caption: string | null, challengeId?: string | null) => void
   /**
    * Reconciles the rows with what a drain just did.
    *
@@ -194,12 +198,6 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
    */
   const prepared = useRef(new Map<string, File>())
   const caption = useRef<string | null>(null)
-  /**
-   * The prompt the batch was sent for, kept for the retries exactly as the caption is
-   * (roadmap §2.1): a guest who chose a mission and then lost the connection must not
-   * lose the choice with it.
-   */
-  const mission = useRef<string | null>(null)
   /** The challenge the batch answers (spec 18), kept for the retries like the mission. */
   const challenge = useRef<string | null>(null)
   const lastId = useRef(0)
@@ -217,7 +215,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
   )
 
   const add = useCallback(
-    (files: readonly File[]) => {
+    (files: readonly File[], missionId: string | null = null) => {
       const arrived = files.map((file): UploadItem => {
         lastId.current += 1
         return {
@@ -230,6 +228,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
           photoId: null,
           retryable: false,
           outboxId: null,
+          missionId,
         }
       })
 
@@ -283,7 +282,13 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       let entryId: string | null
       storing.current.add(id)
       try {
-        entryId = await outbox.enqueue(file, caption.current, mission.current, challenge.current)
+        const row = itemsRef.current.find((candidate) => candidate.id === id)
+        entryId = await outbox.enqueue(
+          file,
+          caption.current,
+          row?.missionId ?? null,
+          challenge.current,
+        )
       } finally {
         storing.current.delete(id)
       }
@@ -326,7 +331,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
         const response = await api.uploadPhotos(slug, {
           files: [shrunk],
           caption: caption.current,
-          missionId: mission.current,
+          missionId: item.missionId,
           challengeId: challenge.current,
           onProgress: (progress) => patch(id, { progress: progress.percent }),
           signal: controller.signal,
@@ -406,16 +411,11 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
   )
 
   const send = useCallback(
-    (
-      batchCaption: string | null,
-      batchMission: string | null,
-      batchChallenge: string | null = null,
-    ) => {
-      // One caption and one mission for the batch, kept for the retries: a guest who
-      // wrote a caption or chose a prompt and then lost the connection must not lose
-      // either with it.
+    (batchCaption: string | null, batchChallenge: string | null = null) => {
+      // One caption for the batch, kept for the retries: a guest who wrote one and then
+      // lost the connection must not lose it. The mission is not here: each row carries
+      // the one that was selected when it was picked.
       caption.current = batchCaption
-      mission.current = batchMission
       challenge.current = batchChallenge
       const ids = itemsRef.current.filter((item) => item.state === 'pending').map((item) => item.id)
       void run(ids)
@@ -476,7 +476,6 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
    */
   const handOff = useCallback((): readonly OutboxHandOff[] => {
     const batchCaption = caption.current
-    const batchMission = mission.current
     const batchChallenge = challenge.current
     return itemsRef.current
       .filter((item) => owed.current.has(item.id) && !storing.current.has(item.id))
@@ -486,7 +485,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
           file: () =>
             ready === undefined ? resize(item.file).catch(() => item.file) : Promise.resolve(ready),
           caption: batchCaption,
-          missionId: batchMission,
+          missionId: item.missionId,
           challengeId: batchChallenge,
         }
       })

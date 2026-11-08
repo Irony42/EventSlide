@@ -118,13 +118,12 @@ describe('leaving the upload screen while photos are on their way', () => {
     await waitFor(() => expect(result.current.outbox.ready).toBe(true))
 
     act(() =>
-      result.current.queue.add([
-        aPhotoFile('un.jpg'),
-        aPhotoFile('deux.jpg'),
-        aPhotoFile('trois.jpg'),
-      ]),
+      result.current.queue.add(
+        [aPhotoFile('un.jpg'), aPhotoFile('deux.jpg'), aPhotoFile('trois.jpg')],
+        'mission-1',
+      ),
     )
-    act(() => result.current.queue.send('Les confettis', 'mission-1'))
+    act(() => result.current.queue.send('Les confettis'))
     await waitFor(() => expect(calls).toEqual(['reduite-un.jpg']))
 
     unmount()

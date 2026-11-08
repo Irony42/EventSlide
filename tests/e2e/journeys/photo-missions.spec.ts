@@ -167,3 +167,42 @@ test('a wall with no prompts draws no panel at all', async ({ app, surfaces }) =
   await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
   await expect(projector.getByRole('heading', { name: 'Missions' })).toHaveCount(0)
 })
+
+test('each photograph is filed under the mission selected when it was picked', async ({
+  app,
+  surfaces,
+}) => {
+  // The guest taps mission A and picks a photograph, then taps mission B and picks another,
+  // and presses "Envoyer" once. Both used to land on B: the mission was read at send time.
+  const { guest, host, projector } = surfaces
+  const event = await app.seedEvent({ slug: 'mariage-deux-missions', name: 'Camille & Sacha' })
+
+  await signInAsHost(host, app)
+  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await addMission(host, 'un selfie avec les mariés')
+  await addMission(host, 'la piste de danse')
+
+  await guest.goto(app.url(`/join/${event.joinCode}`))
+  await enterJoinName(guest, 'Léa')
+  await guest.getByRole('button', { name: /Rejoindre/i }).click()
+  await guest.waitForURL(/\/e\/[^/]+\/upload/)
+  await passPrivacyNotice(guest)
+
+  await guest.getByRole('button', { name: 'un selfie avec les mariés' }).click()
+  await guest.getByTestId('photo-input').setInputFiles(await aPhoto('mission-a', 1200, 900))
+  await guest.getByRole('button', { name: 'la piste de danse' }).click()
+  await guest.getByTestId('photo-input').setInputFiles(await aPhoto('mission-b', 900, 1200))
+  await guest.getByRole('button', { name: /Envoyer/i }).click()
+  await expect(guest.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'done')
+  await expect(guest.getByTestId('upload-item-1')).toHaveAttribute('data-state', 'done')
+
+  await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+  await publishEverything(host, 2)
+
+  await projector.goto(wallUrl(app, event.slug))
+  for (const prompt of ['un selfie avec les mariés', 'la piste de danse']) {
+    const row = projector.getByRole('listitem').filter({ hasText: prompt })
+    await expect(row).toHaveAttribute('data-mission-answered', 'true')
+    await expect(row).toContainText('1 invité')
+  }
+})

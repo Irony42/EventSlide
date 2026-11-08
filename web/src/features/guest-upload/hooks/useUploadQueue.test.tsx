@@ -1002,3 +1002,42 @@ describe('useUploadQueue: the batch summary', () => {
     expect(result.current.batch).toMatchObject({ settledOk: false, arrived: 0, photoIds: [] })
   })
 })
+
+describe('useUploadQueue: the mission of each photo', () => {
+  it('files each photo under the mission selected when it was picked, not the last one chosen', async () => {
+    const uploadPhotos = vi.fn(async (_slug: string, input: UploadInput) =>
+      accepted(`photo-${input.files[0]?.name ?? ''}`),
+    )
+    const { result } = mount(fakeApi({ uploadPhotos }))
+
+    act(() => result.current.add([aPhotoFile('a.jpg')], 'mission-a'))
+    act(() => result.current.add([aPhotoFile('b.jpg')], 'mission-b'))
+    act(() => result.current.add([aPhotoFile('c.jpg')]))
+    act(() => result.current.send(null))
+    await waitFor(() => expect(result.current.sending).toBe(false))
+
+    const sent = uploadPhotos.mock.calls.map(([, input]) => [input.files[0]?.name, input.missionId])
+    expect(sent).toEqual([
+      ['a.jpg', 'mission-a'],
+      ['b.jpg', 'mission-b'],
+      ['c.jpg', null],
+    ])
+  })
+
+  it('keeps a photo’s own mission when it is retried', async () => {
+    const uploadPhotos = vi
+      .fn<(slug: string, input: UploadInput) => Promise<UploadResponse>>()
+      .mockRejectedValueOnce(new ApiError(0, 'network'))
+      .mockResolvedValue(accepted('photo-1'))
+    const { result } = mount(fakeApi({ uploadPhotos }))
+
+    act(() => result.current.add([aPhotoFile('a.jpg')], 'mission-a'))
+    act(() => result.current.send(null))
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
+    act(() => result.current.add([aPhotoFile('b.jpg')], 'mission-b'))
+    act(() => result.current.retry(result.current.items[0]?.id ?? ''))
+    await waitFor(() => expect(uploadPhotos).toHaveBeenCalledTimes(2))
+
+    expect(uploadPhotos.mock.calls[1]?.[1].missionId).toBe('mission-a')
+  })
+})
