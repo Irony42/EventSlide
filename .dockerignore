@@ -2,6 +2,7 @@ node_modules
 dist
 coverage
 playwright-report
+playwright-report-docker
 test-results
 blob-report
 

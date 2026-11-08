@@ -50,6 +50,7 @@
     "test:e2e:offline": "playwright test --project=chromium-offline",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:smoke": "playwright test --grep @smoke",
+    "test:e2e:docker": "node scripts/e2eDocker.ts",
     "test:e2e:visual": "playwright test --grep @visual --project=chromium-desktop",
     "test:e2e:update-snapshots": "playwright test --grep @visual --project=chromium-desktop --update-snapshots",
     "verify": "npm run lint && npm run typecheck && npm run test:coverage && npm run build",
