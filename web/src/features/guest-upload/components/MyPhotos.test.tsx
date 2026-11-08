@@ -50,7 +50,7 @@ describe('MyPhotos', () => {
     expect(second).not.toHaveTextContent(fr.upload.mineChallenge)
   })
 
-  it('shows a photo awaiting the host as its negative, and only that one (ADR 0010)', () => {
+  it('shows a photo awaiting the host in black and white, and only that one (ADR 0010)', () => {
     renderWithProviders(
       <MyPhotos
         photos={[
@@ -66,7 +66,7 @@ describe('MyPhotos', () => {
 
     const thumbs = [...document.querySelectorAll('img')]
     expect(thumbs.map((thumb) => classesOf(thumb))).toEqual([
-      [cls(styles, 'thumb'), cls(styles, 'negative')],
+      [cls(styles, 'thumb'), cls(styles, 'undeveloped')],
       [cls(styles, 'thumb')],
     ])
     // The filter is never the only signal: the words are still there.
@@ -151,7 +151,7 @@ describe('MyPhotos', () => {
       expect(screen.queryByRole('status')).toBeNull()
     })
 
-    it('develops the negative into the print: a published photo carries no negative class', () => {
+    it('takes its colours once published: a published photo carries no undeveloped class', () => {
       renderWith({ whileAway: false })
 
       expect(classesOf(document.querySelector('img'))).toEqual([cls(styles, 'thumb')])
