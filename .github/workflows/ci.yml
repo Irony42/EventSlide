@@ -134,6 +134,9 @@ jobs:
     # `/root` as the Playwright docs ask for a container on GitHub (Actions points it at
     # /github/home, where Firefox refuses to start as root); `--ipc=host` is Chromium's shared-memory
     # advice. docs/TESTING.md §9.
+    defaults:
+      run:
+        shell: bash -e {0}
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
@@ -310,6 +313,9 @@ jobs:
     timeout-minutes: 45
     # The same image and settings as the shards (see e2e-shard), so a quarantined test fails for
     # the reason it failed in the gate, not because it runs on a different machine.
+    defaults:
+      run:
+        shell: bash -e {0}
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
@@ -411,6 +417,9 @@ jobs:
     timeout-minutes: 45
     # The image of the shards, for the same reason. `git` is in it, which the full-history checkout
     # and the diff against the base branch need.
+    defaults:
+      run:
+        shell: bash -e {0}
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
@@ -525,6 +534,9 @@ jobs:
     # whichever image carries them, and the committed baselines are never compared here (see
     # above), so the image changing the rasterisation cannot invalidate them. What the container
     # adds is that the fonts of the runner stop being a variable between two runs of the job.
+    defaults:
+      run:
+        shell: bash -e {0}
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host

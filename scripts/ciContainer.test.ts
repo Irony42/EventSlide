@@ -46,6 +46,17 @@ describe('the Playwright container of the end-to-end jobs', () => {
   })
 
   it.each(CONTAINER_JOBS)(
+    '%s runs its steps in bash, which a container does not default to',
+    (name) => {
+      // On the runner a `run:` step is `bash -e {0}`; in a container GitHub falls back to
+      // `sh -e {0}`, and dash has no `mapfile`, arrays or `[[`: the repeat job died with
+      // "mapfile: not found" (exit 127). `bash -e {0}` is the runner's own default, so the
+      // steps keep exactly the semantics they were written for (no pipefail added).
+      expect(jobOf(name)).toMatch(/^ {4}defaults:\n {6}run:\n {8}shell: bash -e \{0\}\s*$/m)
+    },
+  )
+
+  it.each(CONTAINER_JOBS)(
     '%s trusts the workspace for git, which the container user does not own',
     (name) => {
       const job = jobOf(name)
