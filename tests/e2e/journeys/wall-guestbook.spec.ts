@@ -5,6 +5,7 @@ import type { TestApp } from '../fixtures/startTestApp'
 import { aPhoto } from '../fixtures/media'
 import { sessionOn, succeeded, type Session } from '../fixtures/session'
 import { OWNER_SETTLED_PASSWORD } from '../fixtures/startTestApp'
+import { changeSlides, changeUntil, openWallFrozen } from '../fixtures/wallClock'
 
 /**
  * Guestbook cards on the projected wall (spec 01).
@@ -25,6 +26,15 @@ const PENDING = 'Un message que personne n’a encore lu'
 const REFUSED = 'Un message que l’hôte a refusé'
 
 const CARD = '[data-wall-message]'
+
+/**
+ * A card comes after every sixth automatic change (the server's `everyNth`); a few more than that
+ * are allowed for the change a settings update or the first render may swallow. These are counts of
+ * slides on a clock the spec moves (see ../fixtures/wallClock.ts), not seconds.
+ */
+const CHANGES_TO_A_CARD = 12
+/** What "many automatic changes" meant when it was fifteen seconds at one change a quarter second. */
+const MANY_CHANGES = 15
 const NOT_RELOADED = '__wallNotReloaded'
 
 /** A host session over `fetch`: the owner the server bootstrapped. */
@@ -271,9 +281,9 @@ test.describe('guestbook cards on the wall', () => {
     const { projector } = surfaces
     const { slug, host } = await arrange(app, 'gb-off')
 
-    await projector.goto(wallUrl(app, slug))
+    await openWallFrozen(projector, wallUrl(app, slug))
     const card = projector.locator(CARD)
-    await expect(card).toBeVisible({ timeout: 15_000 })
+    await changeUntil(projector, 'the first card', () => card.isVisible(), CHANGES_TO_A_CARD)
     // A reload is told by a mark the page carries and a reload would drop. Not by
     // `performance.timeOrigin`: webkit hands back a different float for it between two reads of
     // the same document (43065966.26, then .24 in CI), so equality on it proves nothing.
@@ -284,13 +294,14 @@ test.describe('guestbook cards on the wall', () => {
 
     // Many automatic changes later, still none: the next card was never queued.
     const seen = await watch(projector)
-    await expect.poll(seen.changes, { timeout: 15_000 }).toBeGreaterThan(14)
+    await changeSlides(projector, MANY_CHANGES)
+    expect(await seen.changes()).toBeGreaterThanOrEqual(MANY_CHANGES)
     expect(await seen.cards()).toEqual([])
     expect(await projector.evaluate((key) => Reflect.get(window, key), NOT_RELOADED)).toBe(true)
 
     // And back on, the same screen takes it up again.
     ok(await host.patch(`/api/events/${slug}/settings`, { allowGuestbook: true }), 'settings')
-    await expect(card).toBeVisible({ timeout: 15_000 })
+    await changeUntil(projector, 'the card back', () => card.isVisible(), CHANGES_TO_A_CARD)
   })
 
   test('a pending or refused message never reaches the wall', async ({ app, surfaces }) => {
