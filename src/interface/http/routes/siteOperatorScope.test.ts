@@ -11,9 +11,11 @@ import {
   type IdentifyMediaViewer,
 } from '../../../application/usecases/photos/identifyMediaViewer'
 import { AT, anEvent, aUser } from '../../../application/testing/builders'
+import type { EventRole } from '../../../domain/events/eventRole'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { err } from '../../../domain/shared/result'
+import type { SiteRole } from '../../../domain/users/siteRole'
 import { CSRF_HEADER } from '../middleware/csrf'
 import { mountedRoutes, type Route } from '../testing/routeTable'
 import { buildServerHarness, type ServerHarness } from '../testing/serverHarness'
@@ -44,6 +46,11 @@ import { galleryHeaders } from './galleryRoutes'
  * with nothing saying so. Every exemption list is itself exercised below, because a list
  * that removes a case is otherwise the cheapest way to make a failing sweep green.
  *
+ * And under all three lists sits a rule that none of them can lift: on every route
+ * `siteRoutes` does not carry, the operator gets the status and error code that a
+ * signed-in account with site role `none` and no membership gets. Each list says why a
+ * route is not swept; none of them is a reason for the site role to change an answer.
+ *
  * The use cases behind these routes are the harness's `notWired` ones, which throw. That
  * is deliberate: a request that got *past* authorization answers 500 rather than a
  * plausible 200, so "the operator was let in" cannot hide inside a 4xx.
@@ -62,6 +69,14 @@ import { galleryHeaders } from './galleryRoutes'
 
 const OPERATOR = '11111111-1111-4111-8111-111111111111'
 const CLIENT = '22222222-2222-4222-8222-222222222222'
+/**
+ * The account the operator is compared with: signed in, site role `none`, and a member of
+ * no event — so it differs from the operator in the site role and in nothing else.
+ *
+ * Not `CLIENT`: she owns the gala, so every event-scoped route lets her in, and the
+ * comparison would measure her membership instead of the operator's role.
+ */
+const STRANGER = '44444444-4444-4444-8444-444444444444'
 const GALA = asEventId('evt-gala')
 const A_PHOTO = '33333333-3333-4333-8333-333333333333'
 
@@ -148,6 +163,14 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
  * corresponding to a mounted route and for the exemption actually holding. A new route is
  * covered the day it is mounted whatever it calls its event, and taking it out of the
  * sweep is a deliberate line in a diff somebody reads.
+ *
+ * "Holding" used to mean only that the operator was not answered `event.notFound`, and
+ * that is not enough. A route carrying a `requireOperator` of its own — say
+ * `GET /events/:eventSlug/support-queue` on `eventRoutes` — answers the operator 200 with a
+ * client's queue, which is not `event.notFound`, so listing it here made the whole project
+ * green while the operator read somebody's evening. What catches it is the parity case
+ * below: that route answers a signed-in stranger 403, and the operator has to get the
+ * same answer as the stranger on every route `siteRoutes` does not carry, listed here or not.
  */
 const NOT_EVENT_SCOPED: Readonly<Record<string, string>> = {
   'get /api/health': 'liveness: the process is up, and it is the same answer for everyone',
@@ -380,23 +403,85 @@ const trespassersOn = (app: Express): readonly string[] =>
  * A `switch` rather than an index into the agent, so an unfamiliar method is a loud
  * failure rather than a `TypeError` two frames away — and so nothing here is cast.
  */
-const send = (agent: request.Agent, route: Route, csrf: string): request.Test => {
+const send = (
+  agent: request.Agent,
+  route: Route,
+  csrf: string,
+  body?: Readonly<Record<string, unknown>>,
+): request.Test => {
   const path = withParameters(route.path)
+  const carrying = (test: request.Test): request.Test =>
+    body === undefined ? test : test.send(body)
   switch (route.method) {
     case 'get':
       return agent.get(path)
     case 'post':
-      return agent.post(path).set(CSRF_HEADER, csrf)
+      return carrying(agent.post(path).set(CSRF_HEADER, csrf))
     case 'patch':
-      return agent.patch(path).set(CSRF_HEADER, csrf)
+      return carrying(agent.patch(path).set(CSRF_HEADER, csrf))
     case 'put':
-      return agent.put(path).set(CSRF_HEADER, csrf)
+      return carrying(agent.put(path).set(CSRF_HEADER, csrf))
     case 'delete':
-      return agent.delete(path).set(CSRF_HEADER, csrf)
+      return carrying(agent.delete(path).set(CSRF_HEADER, csrf))
     default:
       throw new Error(`this sweep does not know how to issue a ${route.method} request`)
   }
 }
+
+/**
+ * The smallest body each route that validates one will accept, for the comparison that asks
+ * both callers the same thing.
+ *
+ * Without one,  answers  to both sides before anything
+ * operator-specific could run, and the comparison would hold on a route while comparing
+ * nothing. With one, both callers reach the use case, which answers whatever it answers —
+ * the harness's `notWired` 500 where nothing is wired. The sweep above deliberately sends
+ * none: it asserts a 4xx, and a body that gets past validation is allowed a 500.
+ * The case below fails on a `request.invalid` for both sides, so a route added without an
+ * entry here is a red test rather than a quiet gap.
+ */
+const BODIES: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+  'post /api/events': { name: 'Soirée' },
+  'post /api/join': { joinCode: 'H7K2QM' },
+  'post /api/gallery/:token/unlock': { password: 'x' },
+  'post /api/auth/login': { email: 'nobody@example.test', password: 'x' },
+  'post /api/auth/login/2fa': { code: '123456' },
+  'post /api/auth/2fa/enroll': { password: 'x' },
+  'post /api/auth/2fa/confirm': { code: '123456' },
+  'post /api/auth/account/delete': { password: 'x' },
+  'post /api/auth/password': { currentPassword: 'x', newPassword: 'y' },
+  'post /api/auth/password-reset/request': { email: 'nobody@example.test' },
+  'post /api/auth/password-reset/confirm': { token: 'x', password: 'y' },
+  'post /api/auth/step-up': { password: 'x' },
+}
+
+/**
+ * The routes that answer `401 auth.required` to **both** callers, though both are signed in:
+ * they sit behind `requireGuest`, which reads a device token and never a site account, so
+ * what the caller is on the box changes nothing a request without one can reach. Listed by
+ * name so that the case below can tell this from a route that has lost its comparison: a
+ * 401 on both sides is accepted only here, and an entry that no longer answers so is a
+ * failure, so the list cannot outlive what it excuses. What it leaves unchecked is a guest
+ * session's own behaviour, which is the guest routes' own suites' business.
+ */
+const GUEST_SESSION_ROUTES: ReadonlySet<string> = new Set([
+  'delete /api/events/:eventSlug/guestbook/:entryId',
+  'delete /api/events/:eventSlug/guests/me',
+  'delete /api/events/:eventSlug/photos/:photoId/reactions/:kind',
+  'get /api/events/:eventSlug/clips/:clipJobId',
+  'get /api/events/:eventSlug/guestbook/mine',
+  'get /api/events/:eventSlug/missions/mine',
+  'get /api/events/:eventSlug/photos/:photoId/reactions',
+  'get /api/events/:eventSlug/photos/mine',
+  'get /api/events/:eventSlug/privacy-notice',
+  'patch /api/events/:eventSlug/guests/:guestId',
+  'patch /api/events/:eventSlug/photos/:photoId/caption',
+  'post /api/events/:eventSlug/clips',
+  'post /api/events/:eventSlug/guestbook',
+  'post /api/events/:eventSlug/photos',
+  'post /api/events/:eventSlug/photos/:photoId/reactions',
+  'post /api/events/:eventSlug/privacy-notice/acknowledgement',
+])
 
 /** Placeholder values for the parameters that are not the event. Never reached. */
 const PARAMETERS: Readonly<Record<string, string>> = {
@@ -455,6 +540,7 @@ const seedClientEvent = (subject: ServerHarness): void => {
   subject.users.seed(
     aUser({ id: OPERATOR, email: 'ops@example.test', siteRole: 'operator' }),
     aUser({ id: CLIENT, email: 'mariee@example.test' }),
+    aUser({ id: STRANGER, email: 'inconnu@example.test', siteRole: 'none' }),
   )
 }
 
@@ -462,6 +548,7 @@ const seedClientEvent = (subject: ServerHarness): void => {
 const ACCOUNTS: Readonly<Record<string, string>> = {
   'ops@example.test': OPERATOR,
   'mariee@example.test': CLIENT,
+  'inconnu@example.test': STRANGER,
 }
 
 /**
@@ -511,26 +598,49 @@ const refusedByTheCsrfGate = (response: request.Response): boolean => {
   return code !== null && CSRF_REFUSALS.has(code)
 }
 
+/** Where an account stands on the box, and in the gala. */
+interface Standing {
+  readonly siteRole: SiteRole
+  readonly inTheGala: EventRole | null
+}
+
+interface Asked {
+  readonly standing: Standing
+  readonly answer: Answer
+}
+
 /** What `middleware/authz` answers a caller it will not let through. */
 const AUTHORIZATION_REFUSALS: ReadonlySet<number> = new Set([401, 403])
 
+/** What a caller is told: the status, and the error code when the answer is a refusal. */
+interface Answer {
+  readonly status: number
+  readonly code: string | null
+}
+
 /**
- * The status line alone, read off the socket without waiting for the body.
+ * The answer a request gets, including from a response that never ends.
  *
  * `GET /api/events/:eventSlug/stream` is a public route **and** a response that never
  * ends, and supertest resolves on `end`. So the one exemption whose public-ness is most
- * worth checking is the one an ordinary `await` cannot check at all. The status line is
- * the whole question here — "was this caller refused for want of a credential" — so the
- * request is abandoned the moment it arrives, which also means no test leaves an SSE
- * socket and a heartbeat interval behind it.
+ * worth checking is the one an ordinary `await` cannot check at all. An event stream is
+ * therefore read for its status line alone and abandoned the moment it arrives, which also
+ * means no test leaves an SSE socket and a heartbeat interval behind it. It has no error
+ * code to read: a refusal is JSON, and ends. Every other response is awaited to its end and
+ * its code read.
  *
  * It reads `req`, which supertest does not publish, straight after `end()`. That holds only
- * for a request aimed at a server that is **already listening** — see {@link served}.
+ * for a request aimed at a server that is **already listening** — see {@link served} — which
+ * the shared `request` helper's per-app server is, since it binds synchronously.
  */
-const statusFor = (test: request.Test): Promise<number> =>
+const answerOf = (test: request.Test): Promise<Answer> =>
   new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('the server sent no status line')), 5_000)
-    test.end(() => {})
+    const timer = setTimeout(() => reject(new Error('the server did not answer')), 5_000)
+    test.end((error: unknown, response: request.Response) => {
+      clearTimeout(timer)
+      if (error) reject(error instanceof Error ? error : new Error(String(error)))
+      else resolve({ status: response.status, code: errorCodeOf(response) })
+    })
     const underlying = (test as unknown as { readonly req?: NodeJS.EventEmitter }).req
     if (underlying === undefined) {
       clearTimeout(timer)
@@ -538,8 +648,9 @@ const statusFor = (test: request.Test): Promise<number> =>
       return
     }
     underlying.on('response', (incoming: IncomingMessage) => {
+      if (!String(incoming.headers['content-type']).startsWith('text/event-stream')) return
       clearTimeout(timer)
-      resolve(incoming.statusCode ?? 0)
+      resolve({ status: incoming.statusCode ?? 0, code: null })
       test.abort()
     })
   })
@@ -549,7 +660,7 @@ const statusFor = (test: request.Test): Promise<number> =>
  *
  * supertest listens on its own for an app it is handed unstarted, and since 7.3.0 it defers
  * `end()` until that server is listening, so the underlying request does not exist yet when
- * `end()` returns and {@link statusFor} has nothing to watch. A server that is already
+ * `end()` returns and {@link answerOf} has nothing to watch. A server that is already
  * listening is the caller's own to supertest, and a request aimed at it is dispatched at
  * once, as it was before 7.3.0. `closeAllConnections` is there for the one request this
  * suite abandons mid-stream: nothing here may keep the server, or the run, alive.
@@ -891,6 +1002,36 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
     ...(siteAdmin ? CLIENT_SPACE_ROUTES : {}),
   }
 
+  /**
+   * What `route` tells the account behind `email`, and where that account stands, both read
+   * on one server of its own.
+   *
+   * A server per caller, seeded alike, so that neither answer depends on what the other
+   * request did first: a logout, a created event or a rate limiter's count would otherwise
+   * be shared between the two sides of a comparison. Built by `operatorHarness`, so it is
+   * the server whose mode this block's own guard reads back. The shared `request` helper
+   * listens once per app, so a side costs one port however many requests it makes.
+   *
+   * The standing is read for the account **the login signed in**, on that same server, from
+   * the storage `requireOperator` and `requireRole` ask, before the request goes out. A
+   * comparison whose two sides were secretly one account would pass on every route, and a
+   * check run on some other server than the two compared would not notice.
+   */
+  const askAs = async (
+    email: string,
+    route: Route,
+    body?: Readonly<Record<string, unknown>>,
+  ): Promise<Asked> => {
+    const subject = operatorHarness()
+    seedClientEvent(subject)
+    const { agent, csrf, userId } = await signedInAs(subject.app, email)
+    const standing: Standing = {
+      siteRole: await subject.users.siteRoleFor(asUserId(userId)),
+      inTheGala: await subject.memberships.roleFor(GALA, asUserId(userId)),
+    }
+    return { standing, answer: await answerOf(send(agent, route, csrf, body)) }
+  }
+
   describe('the route table this sweep covers', () => {
     it('finds the routes this is actually about', () => {
       // The guard on the guard. If the stack walk ever returns nothing — a new Express, a
@@ -1018,12 +1159,12 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
         const route = routeNamed(siteAdmin, name)
         const subject = operatorHarness()
         seedClientEvent(subject)
-        const status = await served(subject.app, async (server) => {
+        const answer = await served(subject.app, async (server) => {
           const stranger = await anonymousCaller(server)
-          return statusFor(send(stranger.agent, route, stranger.csrf))
+          return answerOf(send(stranger.agent, route, stranger.csrf))
         })
 
-        expect(AUTHORIZATION_REFUSALS.has(status)).toBe(false)
+        expect(AUTHORIZATION_REFUSALS.has(answer.status)).toBe(false)
       },
     )
   })
@@ -1156,7 +1297,7 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
     })
 
     it.each(scopedRoutes.map((route): [string, Route] => [`${route.method} ${route.path}`, route]))(
-      'is refused by %s, exactly as a stranger is',
+      'is refused by %s',
       async (_name, route) => {
         const subject = operatorHarness()
         seedClientEvent(subject)
@@ -1181,6 +1322,77 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
         expect(response.status).toBeLessThan(500)
       },
     )
+
+    /**
+     * Every route `siteRoutes` does not carry — swept, public or reaching no event alike.
+     *
+     * Filtered on the mount and on nothing else, so that no list above can take a route out
+     * of it. The lists decide which rule a route is held to; this is the rule they are all
+     * held to: off the operator's own mount, the site role changes no answer. A route listed
+     * in `NOT_EVENT_SCOPED` that let the operator in, by a `requireOperator` of its own,
+     * satisfied that list's check — 200 is not `event.notFound` — and nothing else asked.
+     * (`PUBLIC_ROUTES`' own check already refuses that shape: a caller with no credential
+     * gets `requireOperator`'s 401.)
+     *
+     * What it compares is the first answer a request earns. A route with a body is sent a
+     * minimal valid one ({@link BODIES}), because without it `zod` answers both callers 400
+     * before anything operator-specific can run; the case fails on a `request.invalid` from
+     * both, and on a 401 from both outside {@link GUEST_SESSION_ROUTES}. Where both callers
+     * get as far as a use case, the harness's `notWired` one answers them both 500 and the
+     * comparison stops at the handler.
+     */
+    const offTheSiteMount = table.routes.filter((route) => !carriedBySite(route))
+
+    it('compares the two on every route siteRoutes does not carry, the exempted ones included', () => {
+      // The guard on the table below. Filtering it by the exemption lists, as the sweep is
+      // filtered, is the one edit that reopens the hole it closes — so it is required to
+      // hold every exempted route by name, and exactly the routes off the mount.
+      const names = offTheSiteMount.map((route) => `${route.method} ${route.path}`)
+
+      expect(names).toEqual(
+        expect.arrayContaining([...Object.keys(PUBLIC_ROUTES), ...Object.keys(notEventScoped)]),
+      )
+      expect(offTheSiteMount.length).toBe(
+        table.routes.length - table.routes.filter(carriedBySite).length,
+      )
+    })
+
+    it.each(
+      offTheSiteMount.map((route): [string, Route] => [`${route.method} ${route.path}`, route]),
+    )('is told by %s exactly what a signed-in stranger is told', async (name, route) => {
+      // Same request, same seeded box, one server each: the only thing that differs is
+      // who is asking. Status and error code rather than the whole body, because a body
+      // may rightly name its caller — `GET /api/auth/me` does.
+      const stranger = await askAs('inconnu@example.test', route, BODIES[name])
+      const operator = await askAs('ops@example.test', route, BODIES[name])
+
+      // Preconditions, any of which would make the comparison pass on every route while
+      // comparing nothing. The two accounts differ in the site role and in nothing else —
+      // were the stranger an operator too, or one address to sign in the other's account,
+      // this would compare an account with itself. And neither side died at the CSRF gate,
+      // whose two refusals are equal and say nothing about authorization.
+      expect([operator.standing, stranger.standing]).toEqual([
+        { siteRole: 'operator', inTheGala: null },
+        { siteRole: 'none', inTheGala: null },
+      ])
+      expect(CSRF_REFUSALS.has(stranger.answer.code ?? '')).toBe(false)
+      expect(CSRF_REFUSALS.has(operator.answer.code ?? '')).toBe(false)
+
+      // And that the comparison got somewhere. A `request.invalid` on both sides is the
+      // body being refused before anyone was asked who they were, and a 401 on both is a
+      // route that wants a device token no site role can stand in for: either compares
+      // nothing about the site role. The first is cured by an entry in `BODIES`, the
+      // second is accepted only for the routes named in `GUEST_SESSION_ROUTES`, and
+      // that list must hold exactly what answers so.
+      expect(operator.answer.code).not.toBe('request.invalid')
+      const guestGated = operator.answer.status === 401 && operator.answer.code === 'auth.required'
+      expect(
+        guestGated,
+        `${name} answers 401 auth.required to both, and is ${GUEST_SESSION_ROUTES.has(name) ? '' : 'not '}listed in GUEST_SESSION_ROUTES`,
+      ).toBe(GUEST_SESSION_ROUTES.has(name))
+
+      expect(operator.answer).toEqual(stranger.answer)
+    })
 
     it('is told nothing by the moderation queue, the one screen this item is about', async () => {
       const subject = operatorHarness()

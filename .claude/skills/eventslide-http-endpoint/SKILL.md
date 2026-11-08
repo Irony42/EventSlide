@@ -127,7 +127,15 @@ Your new route is in that sweep whatever it calls its event, because the sweep n
 filters on `:eventSlug` — so if it is genuinely public, or genuinely reaches no event, say
 so in `PUBLIC_ROUTES` or `NOT_EVENT_SCOPED` with a reason. Both lists are checked against
 behaviour, not against the reason you wrote, so neither is a way to make a failing case go
-away.
+away. And listed or not, every route outside `/api/site` must answer the operator exactly
+what it answers a signed-in account with site role `none` — status and error code — so a
+`requireOperator` on your route fails the build wherever you list the route — but only while
+nothing ahead of it refuses both callers first. The comparison sends no query and no device token, so `requireRole` or `requireGuest`
+placed ahead of it gives both callers the same refusal and the comparison stops there; a
+route with a body needs a minimal valid one in `BODIES` in `siteOperatorScope.test.ts`
+(a `request.invalid` from both sides fails the case), and a `requireGuest` route is named
+in `GUEST_SESSION_ROUTES`. Put no `requireOperator` outside `siteRoutes` at all; review is
+what catches one that hides behind another gate.
 
 **Operator routes are the one exception to "declare it per route".** They live only in
 `src/interface/http/routes/siteRoutes.ts`, mounted at `/api/site` when `SITE_ADMIN=on`,
