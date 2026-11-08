@@ -895,7 +895,24 @@ image is `ghcr.io/irony42/eventslide:3.9.0`.
 
 ## Upgrading to 3.10
 
-Not released yet. A minor release: no migration, nothing to change before upgrading.
+3.10.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no `BREAKING`
+section. **No migration** (the last is still 026), four optional environment variables. Take the steps of
+[Upgrading with Docker](#upgrading-with-docker), or [without](#without-docker), with `vX.Y.Z` as `v3.10.0`; the
+image is `ghcr.io/irony42/eventslide:3.10.0`.
+
+### A refused photo that a host could unblock stays in the guest's outbox
+
+- **Nothing to set.** A photo refused for `event.quotaExceeded` or `client.storageFull` (and `event.photoLimitReached`)
+  is no longer deleted from the phone: it is retried for up to 12 hours or the maximum number of attempts, since a
+  host can raise a quota. A disk or memory failure while the server re-encodes a photo answers the new code
+  `image.renderUnavailable` (500-class) and keeps the photo queued too. API clients that map error codes: add it
+  to the table in [API.md](API.md).
+
+### Upload deadlines
+
+- **Nothing to set.** The web client ends a request that gets no answer after 30 seconds; a logo or venue photo
+  upload has a 10-minute ceiling, and a photo upload ends after 60 seconds without progress. A reverse proxy with a
+  shorter timeout than these still cuts first.
 
 ### Four per-account hourly limits can be set
 
