@@ -13,7 +13,7 @@
  * retry, `unexpected` is failed; `skipped` says nothing about stability and is left out. The
  * rate is `(flaky + failed) / (passed + flaky + failed)`.
  *
- * `run(argv, env)` returns an exit code, the way `purge.ts` does, so a test can drive it.
+ * `run(argv)` returns an exit code, the way `purge.ts` does, so a test can drive it.
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 
@@ -152,15 +152,21 @@ export function renderMarkdown(rows: readonly FlakeRow[], options: RenderOptions
   ].join('\n')
 }
 
-export const run = (argv: readonly string[], env: NodeJS.ProcessEnv = process.env): number => {
+export const run = (argv: readonly string[]): number => {
   const all = argv.includes('--all')
-  const paths = argv.filter((arg) => arg !== '--all')
-  if (paths.length === 0) {
-    console.error('Usage: flake-rate [--all] <playwright-report.json>...')
+  // `--summary <file>`: where to append the Markdown table (CI passes "$GITHUB_STEP_SUMMARY").
+  // A flag rather than a read of the environment: `process.env` is the config module's alone.
+  const flag = argv.indexOf('--summary')
+  const summaryFile = flag < 0 ? undefined : argv[flag + 1]
+  const paths = argv.filter((arg, index) => {
+    if (arg === '--all' || arg === '--summary') return false
+    return !(flag >= 0 && index === flag + 1)
+  })
+  if (paths.length === 0 || (flag >= 0 && summaryFile === undefined)) {
+    console.error('Usage: flake-rate [--all] [--summary <file>] <playwright-report.json>...')
     return 2
   }
 
-  const summaryFile = env['GITHUB_STEP_SUMMARY']
   const reports: unknown[] = []
   for (const path of paths) {
     // A shard that died before writing its report must not turn the reporting step red on top

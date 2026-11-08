@@ -213,7 +213,7 @@ describe('run', () => {
     const one = write('one.json', aReport(aSpec('uploads', aTest('p', 'flaky'))))
     const two = write('two.json', aReport(aSpec('uploads', aTest('p', 'expected'))))
 
-    const code = run([one, two], { GITHUB_STEP_SUMMARY: summary })
+    const code = run(['--summary', summary, one, two])
 
     expect(code).toBe(0)
     expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain('uploads')
@@ -223,14 +223,14 @@ describe('run', () => {
   it('notes a report that is missing and carries on with the others', () => {
     const one = write('one.json', aReport(aSpec('uploads', aTest('p', 'expected'))))
 
-    const code = run([join(directory, 'absent.json'), one], {})
+    const code = run([join(directory, 'absent.json'), one])
 
     expect(code).toBe(0)
     expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('absent.json')
   })
 
   it('exits 0 and says why when it was given nothing to read', () => {
-    expect(run([join(directory, 'absent.json')], { GITHUB_STEP_SUMMARY: summary })).toBe(0)
+    expect(run(['--summary', summary, join(directory, 'absent.json')])).toBe(0)
     expect(readFileSync(summary, 'utf8')).toContain('No Playwright JSON report')
   })
 
@@ -238,18 +238,20 @@ describe('run', () => {
     const broken = join(directory, 'broken.json')
     writeFileSync(broken, '{"suites": [')
 
-    expect(run([broken], {})).toBe(1)
+    expect(run([broken])).toBe(1)
     expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('broken.json')
   })
 
   it('asks for a file when it is given none', () => {
-    expect(run([], {})).toBe(2)
+    expect(run([])).toBe(2)
+    expect(run(['--summary'])).toBe(2)
+    expect(run(['--summary', summary])).toBe(2)
   })
 
   it('shows every test with --all', () => {
     const one = write('one.json', aReport(aSpec('clean one', aTest('p', 'expected'))))
 
-    run(['--all', one], {})
+    run(['--all', one])
 
     expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain('clean one')
   })

@@ -247,7 +247,7 @@ jobs:
         # Whatever the outcome of the run, as long as it wrote a report: the table lands in the
         # job summary and says which tests of this shard failed or only passed on a retry.
         if: always() && hashFiles('playwright-json/report.json') != ''
-        run: npx tsx scripts/flakeRate.ts playwright-json/report.json
+        run: npx tsx scripts/flakeRate.ts --summary "$GITHUB_STEP_SUMMARY" playwright-json/report.json
 
       - name: Upload the JSON report
         # Kept 30 days (the HTML report below only on failure, for 7): this is the history the
@@ -399,7 +399,7 @@ jobs:
 
       - name: Flake rate of the quarantined tests
         if: always() && hashFiles('playwright-json/quarantine/*.json') != ''
-        run: npx tsx scripts/flakeRate.ts --all playwright-json/quarantine/*.json
+        run: npx tsx scripts/flakeRate.ts --all --summary "$GITHUB_STEP_SUMMARY" playwright-json/quarantine/*.json
 
       - name: Upload the quarantine reports
         # Kept 30 days, so the history that decides whether a test leaves quarantine can be read
@@ -500,7 +500,7 @@ jobs:
 
       - name: Flake rate of the repeated specs
         if: always() && steps.select.outputs.run == 'true' && hashFiles('playwright-json/report.json') != ''
-        run: npx tsx scripts/flakeRate.ts playwright-json/report.json
+        run: npx tsx scripts/flakeRate.ts --summary "$GITHUB_STEP_SUMMARY" playwright-json/report.json
 
       - name: Upload report
         if: failure() || cancelled()
