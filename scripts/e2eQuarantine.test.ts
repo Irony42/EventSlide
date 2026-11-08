@@ -86,12 +86,14 @@ describe('playwright.config.ts quarantine selection', () => {
     vi.resetModules()
     vi.stubEnv('E2E_QUARANTINE', '')
     vi.stubEnv('CI', '1')
-    const inCi = (await import('../playwright.config')).default.reporter as unknown[][]
+    const inCi = (await import('../playwright.config')).default
+      .reporter as unknown as readonly (readonly unknown[])[]
     expect(inCi.map((reporter) => reporter[0])).toContain('json')
 
     vi.resetModules()
     vi.stubEnv('CI', '')
-    const local = (await import('../playwright.config')).default.reporter as unknown[][]
+    const local = (await import('../playwright.config')).default
+      .reporter as unknown as readonly (readonly unknown[])[]
     expect(local.map((reporter) => reporter[0])).not.toContain('json')
   })
 })

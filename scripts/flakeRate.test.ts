@@ -187,6 +187,33 @@ describe('renderText and renderMarkdown', () => {
   })
 })
 
+describe('summarise, the shapes a real report has', () => {
+  it('reads a file suite whose specs sit directly in it, with no nested suite key', () => {
+    const report = {
+      suites: [
+        {
+          title: 'a.spec.ts',
+          specs: [{ title: 'bare', file: 'a.spec.ts', tests: [aTest('p', 'flaky')] }],
+        },
+      ],
+    }
+    expect(summarise([report]).map((row) => [row.key, row.flaky])).toEqual([
+      ['p › a.spec.ts › bare', 1],
+    ])
+  })
+
+  it('orders tests of equal rate and equal bad runs by name, whatever order they came in', () => {
+    const rows = summarise([
+      aReport(
+        aSpec('b', aTest('p', 'flaky')),
+        aSpec('a', aTest('p', 'flaky')),
+        aSpec('c', aTest('p', 'flaky')),
+      ),
+    ])
+    expect(rows.map((row) => row.key.split(' › ').at(-1))).toEqual(['a', 'b', 'c'])
+  })
+})
+
 describe('run', () => {
   let directory: string
   let summary: string
@@ -242,6 +269,13 @@ describe('run', () => {
     expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('broken.json')
   })
 
+  it('says so on stdout when no report exists and there is no summary file to write', () => {
+    expect(run([join(directory, 'absent.json')])).toBe(0)
+    expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
+      'No Playwright JSON report',
+    )
+  })
+
   it('asks for a file when it is given none', () => {
     expect(run([])).toBe(2)
     expect(run(['--summary'])).toBe(2)
@@ -254,5 +288,28 @@ describe('run', () => {
     run(['--all', one])
 
     expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain('clean one')
+  })
+})
+
+describe('as a program', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    process.exitCode = undefined
+  })
+
+  it('runs on the arguments after the script name, and sets the exit code', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', '/repo/scripts/flakeRate.ts'])
+    vi.resetModules()
+    await import('./flakeRate')
+    expect(process.exitCode).toBe(2)
+  })
+
+  it('does nothing when it is only imported by something else', async () => {
+    vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', '/repo/node_modules/vitest/cli.js'])
+    vi.resetModules()
+    await import('./flakeRate')
+    expect(process.exitCode).toBeUndefined()
   })
 })

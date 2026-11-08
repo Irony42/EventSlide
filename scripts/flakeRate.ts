@@ -100,9 +100,7 @@ export function summarise(reports: readonly unknown[]): FlakeRow[] {
   }))
   return rows.sort(
     (a, b) =>
-      b.rate - a.rate ||
-      b.flaky + b.failed - (a.flaky + a.failed) ||
-      (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
+      b.rate - a.rate || b.flaky + b.failed - (a.flaky + a.failed) || (a.key < b.key ? -1 : 1), // keys are unique, so never a tie
   )
 }
 
@@ -180,8 +178,8 @@ export const run = (argv: readonly string[]): number => {
       reports.push(JSON.parse(readFileSync(path, 'utf8')) as unknown)
       summarise([reports[reports.length - 1]])
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      console.error(`flake-rate: ${path}: ${message}`)
+      // JSON.parse and notAReport() both throw an Error; String() reads it as "SyntaxError: ...".
+      console.error(`flake-rate: ${path}: ${String(error)}`)
       return 1
     }
   }
@@ -199,7 +197,8 @@ export const run = (argv: readonly string[]): number => {
   return 0
 }
 
-/** Run as a program, and not when a test imports `run` (see `purge.ts`). */
-if (require.main === module) {
+/** Run as a program, and not when a test imports `run`. */
+const entry = process.argv[1]
+if (entry !== undefined && /flakeRate\.ts$/.test(entry.replaceAll('\\', '/'))) {
   process.exitCode = run(process.argv.slice(2))
 }

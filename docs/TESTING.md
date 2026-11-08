@@ -626,9 +626,9 @@ tests/e2e/
      projects it belongs to, or delete the test if it no longer earns its seconds. A test that stays
      quarantined for more than 30 days is reviewed at the next release: fix, delete, or say why not.
      No test is quarantined today.
-- **Flake rate per test.** In CI the config also writes `playwright-json/report.json`; every shard
+- **Flake rate per test.** In CI the config also writes a JSON report under `playwright-json/`; every shard
   prints a table of its non-clean tests in the job summary and uploads the file
-  (`playwright-json-<project>-<i>of<n>`, 30 days). `npx tsx scripts/flakeRate.ts [--all] <report.json>...`
+  (`playwright-json-<project>-<i>of<n>`, 30 days). `npx tsx scripts/flakeRate.ts [--all] [--summary <file>] <report.json>...`
   adds up any number of reports into `{passed, flaky, failed, rate}` per test (rate is
   `(flaky + failed) / runs`, flakiest first): `gh run download --pattern 'playwright-json-*'` over a
   few runs answers "what flaked this week".

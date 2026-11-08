@@ -25,16 +25,29 @@ export function selectSpecs(changed: readonly string[], project: string): string
   return [...new Set(wanted)].sort()
 }
 
-/** Run as a program, and not when a test imports `selectSpecs`. */
+/**
+ * The command: `--project <name>` and the changed files (one per line) as `stdin`. Returns the
+ * exit code and what to print, so a test can drive it without a process.
+ */
+export function run(
+  argv: readonly string[],
+  stdin: string,
+): { readonly code: number; readonly lines: readonly string[] } {
+  const flag = argv.indexOf('--project')
+  const project = flag < 0 ? undefined : argv[flag + 1]
+  if (project === undefined) {
+    return {
+      code: 2,
+      lines: ['Usage: node scripts/changedSpecs.ts --project <name>  (file names on stdin)'],
+    }
+  }
+  return { code: 0, lines: selectSpecs(stdin.split(/\r?\n/).filter(Boolean), project) }
+}
+
+/** Run as a program, and not when a test imports `run`. */
 const entry = process.argv[1]
 if (entry !== undefined && /changedSpecs\.ts$/.test(entry.replaceAll('\\', '/'))) {
-  const flag = process.argv.indexOf('--project')
-  const project = flag < 0 ? undefined : process.argv[flag + 1]
-  if (project === undefined) {
-    console.error('Usage: node scripts/changedSpecs.ts --project <name>  (file names on stdin)')
-    process.exitCode = 2
-  } else {
-    const files = readFileSync(0, 'utf8').split(/\r?\n/).filter(Boolean)
-    for (const spec of selectSpecs(files, project)) console.log(spec)
-  }
+  const { code, lines } = run(process.argv.slice(2), readFileSync(0, 'utf8'))
+  for (const line of lines) (code === 0 ? console.log : console.error)(line)
+  process.exitCode = code
 }
