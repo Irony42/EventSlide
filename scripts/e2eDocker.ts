@@ -102,18 +102,46 @@ export function dockerArguments(
   ]
 }
 
-/** Run as a program, and not when a test imports the functions above. */
+/** What `run` needs of a child process: `spawnSync`'s answer, as far as it reads it. */
+export type Docker = (args: readonly string[]) => {
+  readonly status: number | null
+  readonly error?: Error | undefined
+}
+
+/**
+ * The command: Playwright's own arguments, passed through. Returns the exit code and what to
+ * print (as `[stream, line]`), with `docker` injected so a test can drive it without a process.
+ */
+export function run(
+  argv: readonly string[],
+  repository: string,
+  docker: Docker,
+): { readonly code: number; readonly lines: readonly (readonly ['log' | 'error', string])[] } {
+  const version = playwrightVersion(readFileSync(resolve(repository, 'package-lock.json'), 'utf8'))
+  const announce = `docker run ${imageFor(version)}  (node_modules in the volume ${DEPS_VOLUME})`
+  const result = docker(dockerArguments(version, repository, argv))
+  if (result.error !== undefined) {
+    return {
+      code: 127,
+      lines: [
+        ['log', announce],
+        [
+          'error',
+          `Could not run docker: ${result.error.message}. Is Docker installed and running?`,
+        ],
+      ],
+    }
+  }
+  return { code: result.status ?? 1, lines: [['log', announce]] }
+}
+
+/** Run as a program, and not when a test imports `run`. */
 const entry = process.argv[1]
 if (entry !== undefined && /e2eDocker\.ts$/.test(entry.replaceAll('\\', '/'))) {
   const repository = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-  const version = playwrightVersion(readFileSync(resolve(repository, 'package-lock.json'), 'utf8'))
-  const args = dockerArguments(version, repository, process.argv.slice(2))
-  console.log(`docker run ${imageFor(version)}  (node_modules in the volume ${DEPS_VOLUME})`)
-  const result = spawnSync('docker', args, { stdio: 'inherit' })
-  if (result.error !== undefined) {
-    console.error(`Could not run docker: ${result.error.message}. Is Docker installed and running?`)
-    process.exitCode = 127
-  } else {
-    process.exitCode = result.status ?? 1
-  }
+  const { code, lines } = run(process.argv.slice(2), repository, (args) =>
+    spawnSync('docker', [...args], { stdio: 'inherit' }),
+  )
+  for (const [stream, line] of lines) console[stream](line)
+  process.exitCode = code
 }

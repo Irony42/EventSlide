@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CONTAINER_SCRIPT,
   DEPS_VOLUME,
@@ -9,6 +9,7 @@ import {
   dockerArguments,
   imageFor,
   playwrightVersion,
+  run,
 } from './e2eDocker'
 
 /**
@@ -87,5 +88,91 @@ describe('the script run in the container', () => {
 
   it('keeps the exit status of the suite after copying the reports out', () => {
     expect(CONTAINER_SCRIPT).toMatch(/status=\$\?[\s\S]*cp -R[\s\S]*exit "\$status"/)
+  })
+})
+
+describe('run', () => {
+  const argv = ['--project=chromium-desktop']
+
+  it('passes the arguments to docker with the image of the lockfile, and returns its exit status', () => {
+    const seen: (readonly string[])[] = []
+    const answer = run(argv, ROOT, (args) => {
+      seen.push(args)
+      return { status: 3 }
+    })
+    expect(answer.code).toBe(3)
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toContain(imageFor(playwrightVersion(lockfile)))
+    expect(seen[0]?.slice(-2)).toEqual(['e2e-docker', '--project=chromium-desktop'])
+    expect(answer.lines).toEqual([
+      ['log', expect.stringContaining(imageFor(playwrightVersion(lockfile)))],
+    ])
+  })
+
+  it('is a failure when docker was killed by a signal and has no status', () => {
+    expect(run(argv, ROOT, () => ({ status: null })).code).toBe(1)
+  })
+
+  it('says docker could not be run, and exits 127, when it is not installed', () => {
+    const answer = run(argv, ROOT, () => ({
+      status: null,
+      error: new Error('spawnSync docker ENOENT'),
+    }))
+    expect(answer.code).toBe(127)
+    expect(answer.lines.map(([stream]) => stream)).toEqual(['log', 'error'])
+    expect(answer.lines[1]?.[1]).toContain('spawnSync docker ENOENT')
+  })
+})
+
+describe('as a program', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    process.exitCode = undefined
+  })
+
+  it('runs docker on the arguments after the script name, and sets its exit code', async () => {
+    const spawned: { command: unknown; args: unknown }[] = []
+    // Never the machine's own docker: a test run must not start a container.
+    vi.doMock('node:child_process', () => ({
+      spawnSync: (command: unknown, args: unknown) => {
+        spawned.push({ command, args })
+        return { status: 5 }
+      },
+    }))
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    vi.spyOn(process, 'argv', 'get').mockReturnValue([
+      'node',
+      '/repo/scripts/e2eDocker.ts',
+      '--list',
+    ])
+    vi.resetModules()
+    await import('./e2eDocker')
+    vi.doUnmock('node:child_process')
+    expect(process.exitCode).toBe(5)
+    expect(spawned).toHaveLength(1)
+    expect(spawned[0]?.command).toBe('docker')
+    expect(spawned[0]?.args).toContain('--list')
+  })
+
+  it('prints what docker said went wrong, and exits 127, when it cannot be started', async () => {
+    vi.doMock('node:child_process', () => ({
+      spawnSync: () => ({ status: null, error: new Error('spawnSync docker ENOENT') }),
+    }))
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', '/repo/scripts/e2eDocker.ts'])
+    vi.resetModules()
+    await import('./e2eDocker')
+    vi.doUnmock('node:child_process')
+    expect(process.exitCode).toBe(127)
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(error.mock.calls.flat().join(' ')).toContain('ENOENT')
+  })
+
+  it('does nothing when it is only imported by something else', async () => {
+    vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', '/repo/node_modules/vitest/cli.js'])
+    vi.resetModules()
+    await import('./e2eDocker')
+    expect(process.exitCode).toBeUndefined()
   })
 })
