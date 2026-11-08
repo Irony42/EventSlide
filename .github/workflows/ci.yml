@@ -123,11 +123,25 @@ jobs:
     name: End-to-end shard (${{ matrix.project }} ${{ matrix.shard }}/${{ matrix.shards }})
     runs-on: ubuntu-latest
     # A job that hangs is held for GitHub's default 360 minutes and blocks the pull request
-    # all that time. On 2026-10-23 four end-to-end jobs sat for 20 to 50 minutes in the
-    # browser download below. A warm run takes about ten minutes; the bound leaves room
-    # for a cold run that fills the system-package cache on a slow mirror.
+    # all that time. On 2026-10-23 four end-to-end jobs sat for 20 to 50 minutes downloading a
+    # browser and its system packages; the Playwright container below holds both, so what is left
+    # to wait on is the image pull and a run of about ten minutes, and the bound stays as a net.
     timeout-minutes: 55
     needs: quality
+    # The official Playwright image of the exact @playwright/test version in package-lock.json
+    # (scripts/ciContainer.test.ts holds the two together): the browsers, their system packages and
+    # the fonts are in it, so the runner no longer decides them and no step installs them. `HOME` is
+    # `/root` as the Playwright docs ask for a container on GitHub (Actions points it at
+    # /github/home, where Firefox refuses to start as root); `--ipc=host` is Chromium's shared-memory
+    # advice. docs/TESTING.md §9.
+    defaults:
+      run:
+        shell: bash -e {0}
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --ipc=host
+    env:
+      HOME: /root
     strategy:
       fail-fast: false
       matrix:
@@ -171,6 +185,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Trust the workspace for git
+        # The job container runs as root over a checkout the runner user owns: git refuses it
+        # ("dubious ownership") until it is told otherwise.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -186,49 +205,6 @@ jobs:
         # because a genuinely broken lockfile fails both times.
         run: npm ci || npm ci
 
-      # The browser's system packages come from the Ubuntu mirror, and on 2026-10-23 that
-      # mirror took 2 to 30 seconds a package: a WebKit job ran out of its 30 minutes in apt.
-      # The .deb files are kept between runs, so only the first run of a given project and
-      # lockfile depends on the mirror; every later one installs from the cache.
-      - name: Restore the browser's system packages
-        id: apt-cache
-        uses: actions/cache/restore@v6
-        with:
-          path: ~/apt-archives
-          key: apt-debs-${{ runner.os }}-${{ matrix.project }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: apt-debs-${{ runner.os }}-${{ matrix.project }}-
-
-      - name: Install the project's browser
-        # Only the engine this project runs (chromium-*, webkit-mobile, firefox-desktop: the
-        # prefix is the engine). System packages first, in one apt run with no outer timeout:
-        # `timeout` once killed npx but not the `sudo apt-get` under it, and the retry then
-        # waited on that orphan's dpkg lock until it gave up (exit code 100). apt retries each
-        # download itself, waits for a lock held by the runner's boot-time apt-get, keeps the
-        # .deb files for the cache, and the step's `timeout-minutes` is the bound. The browser
-        # comes from Playwright's CDN, not apt, so it keeps a bounded retry.
-        timeout-minutes: 40
-        env:
-          PROJECT: ${{ matrix.project }}
-        run: |
-          echo 'DPkg::Lock::Timeout "300"; Acquire::Retries "5"; Acquire::http::Timeout "60"; Binary::apt::APT::Keep-Downloaded-Packages "true"; APT::Keep-Downloaded-Packages "true";' | sudo tee /etc/apt/apt.conf.d/99-ci-apt > /dev/null
-          sudo rm -f /etc/apt/apt.conf.d/docker-clean
-          if [ -d ~/apt-archives ]; then sudo cp ~/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true; fi
-          engine="${PROJECT%%-*}"
-          # perf has no engine in its name: it is Chromium (playwright.config.ts).
-          if [ "$engine" = perf ]; then engine=chromium; fi
-          npx playwright install-deps "$engine"
-          mkdir -p ~/apt-archives && cp /var/cache/apt/archives/*.deb ~/apt-archives/ 2>/dev/null || true
-          timeout 6m npx playwright install "$engine" || timeout 6m npx playwright install "$engine"
-
-      - name: Keep the browser's system packages
-        # Shard 1 only: the shards of a project share one cache key, and several runners saving
-        # it at once would race for it.
-        if: steps.apt-cache.outputs.cache-hit != 'true' && matrix.shard == 1
-        uses: actions/cache/save@v6
-        with:
-          path: ~/apt-archives
-          key: apt-debs-${{ runner.os }}-${{ matrix.project }}-${{ hashFiles('package-lock.json') }}
-
       - name: Build
         run: npm run build
 
@@ -242,6 +218,23 @@ jobs:
         # it: perf is one). The reporters in playwright.config.ts run per shard, failOnFlaky
         # among them: a test that passed only on a retry fails the shard it ran in.
         run: npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }} --workers=${{ matrix.workers }}
+
+      - name: Flake rate of this shard
+        # Whatever the outcome of the run, as long as it wrote a report: the table lands in the
+        # job summary and says which tests of this shard failed or only passed on a retry.
+        if: always() && hashFiles('playwright-json/report.json') != ''
+        run: npx tsx scripts/flakeRate.ts --summary "$GITHUB_STEP_SUMMARY" playwright-json/report.json
+
+      - name: Upload the JSON report
+        # Kept 30 days (the HTML report below only on failure, for 7): this is the history the
+        # flake rate is read from. Sum any number of them with `npx tsx scripts/flakeRate.ts`
+        # after `gh run download --pattern 'playwright-json-*'`; docs/TESTING.md §9.
+        if: always() && hashFiles('playwright-json/report.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-json-${{ matrix.project }}-${{ matrix.shard }}of${{ matrix.shards }}
+          path: playwright-json/report.json
+          retention-days: 30
 
       - name: Upload report
         # `cancelled()` too: a job cancelled by the job-level bound or by hand still keeps its
@@ -301,6 +294,212 @@ jobs:
             exit 1
           fi
 
+  quarantine:
+    # The tests tagged `@quarantine` (policy: docs/TESTING.md §9), run on each project they belong
+    # to and never blocking: `continue-on-error`, and no required check or other job names it. They
+    # are out of the gate (playwright.config.ts excludes the tag unless E2E_QUARANTINE=only) but they
+    # must keep running, because a quarantined test that stops producing results can never be shown
+    # to have been fixed. Retries stay at the CI default so a pass-on-retry reads as "flaky" and an
+    # outright failure as "failed" in the JSON report that scripts/flakeRate.ts summarises.
+    #
+    # One runner, projects in turn: the list is usually empty or a handful of tests, and a runner
+    # per project would spend more minutes installing browsers than running them. `--list` is how it
+    # knows which projects have any (it needs no browser and no build), so an empty quarantine costs
+    # an `npm ci` and a note in the summary.
+    name: Quarantined end-to-end tests (non-blocking)
+    runs-on: ubuntu-latest
+    needs: quality
+    continue-on-error: true
+    timeout-minutes: 45
+    # The same image and settings as the shards (see e2e-shard), so a quarantined test fails for
+    # the reason it failed in the gate, not because it runs on a different machine.
+    defaults:
+      run:
+        shell: bash -e {0}
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --ipc=host
+    env:
+      E2E_QUARANTINE: only
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Trust the workspace for git
+        # The job container runs as root over a checkout the runner user owns: git refuses it
+        # ("dubious ownership") until it is told otherwise.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci || npm ci
+
+      - name: Which projects have a quarantined test
+        id: plan
+        run: |
+          # `|| true`: a selection with no test makes `--list` exit 1, and an empty one is the
+          # normal case. A list that is not JSON still fails the step in `node` below.
+          npx playwright test --list --grep-invert @visual --reporter=json > quarantine-list.json || true
+          projects="$(node -e '
+            const report = JSON.parse(require("fs").readFileSync("quarantine-list.json", "utf8"))
+            const found = new Set()
+            const walk = (suite) => {
+              for (const spec of suite.specs ?? []) for (const test of spec.tests) found.add(test.projectName)
+              for (const child of suite.suites ?? []) walk(child)
+            }
+            for (const suite of report.suites) walk(suite)
+            console.log([...found].sort().join(" "))
+          ')"
+          echo "projects=$projects" >> "$GITHUB_OUTPUT"
+          if [ -z "$projects" ]; then
+            echo "### Quarantined end-to-end tests" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "No test is tagged \`@quarantine\`." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "quarantined on: $projects"
+          fi
+
+      - name: Build
+        if: steps.plan.outputs.projects != ''
+        run: npm run build
+
+      - name: Run the quarantined tests
+        if: steps.plan.outputs.projects != ''
+        env:
+          PROJECTS: ${{ steps.plan.outputs.projects }}
+        run: |
+          mkdir -p playwright-json/quarantine
+          status=0
+          for project in $PROJECTS; do
+            # The browsers are in the image. A project's own `workers` in the config still caps this: perf is one.
+            npm run test:e2e -- --project="$project" --workers=1 || status=1
+            mv playwright-json/report.json "playwright-json/quarantine/$project.json" || true
+          done
+          exit $status
+
+      - name: Flake rate of the quarantined tests
+        if: always() && hashFiles('playwright-json/quarantine/*.json') != ''
+        run: npx tsx scripts/flakeRate.ts --all --summary "$GITHUB_STEP_SUMMARY" playwright-json/quarantine/*.json
+
+      - name: Upload the quarantine reports
+        # Kept 30 days, so the history that decides whether a test leaves quarantine can be read
+        # back with `gh run download` and summed by scripts/flakeRate.ts.
+        if: always() && hashFiles('playwright-json/quarantine/*.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-json-quarantine
+          path: playwright-json/quarantine/
+          retention-days: 30
+
+  repeat-changed-specs:
+    # A pull request that adds or changes an end-to-end spec runs that spec five times with no
+    # retry. The shards run each test once, and retry it twice: a journey that fails one run in
+    # five passes the gate three times out of four and then becomes tomorrow's flake. Here the
+    # same failure is a red job on the pull request that introduced it.
+    #
+    # Not a required check, on purpose, and named so that nobody mistakes it for one: it is
+    # evidence for the reviewer. It runs on `chromium-desktop` and `webkit-mobile`, the two
+    # engines the flakes have come from, and on `chromium-offline` for a changed offline spec
+    # (the only project that selects it). The frame-rate specs (`perf`) and the `@visual` ones
+    # are left to their own jobs (scripts/changedSpecs.ts); a quarantined test is excluded by the
+    # config like everywhere else, and a changed spec with nothing left to run passes.
+    #
+    # The decision whether there is anything to repeat is taken before `npm ci` and before a
+    # browser is downloaded, so a pull request that touches no spec costs three short jobs.
+    name: Repeat changed specs (${{ matrix.project }})
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 45
+    # The image of the shards, for the same reason. `git` is in it, which the full-history checkout
+    # and the diff against the base branch need.
+    defaults:
+      run:
+        shell: bash -e {0}
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --ipc=host
+    env:
+      HOME: /root
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { project: chromium-desktop, workers: 2 }
+          - { project: webkit-mobile, workers: 1 }
+          - { project: chromium-offline, workers: 1 }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The base branch has to be there to diff against.
+          fetch-depth: 0
+
+      - name: Trust the workspace for git
+        # The job container runs as root over a checkout the runner user owns: git refuses it
+        # ("dubious ownership") until it is told otherwise.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Which specs changed
+        id: select
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PROJECT: ${{ matrix.project }}
+        run: |
+          # Three dots: the changes of the pull request since it left its base, not the base's own.
+          # The base is the pull request's own (a stacked pull request diffs against its parent).
+          git diff --name-only --diff-filter=ACMR "origin/$BASE_REF...$HEAD_SHA" -- tests/e2e > changed.txt
+          node scripts/changedSpecs.ts --project "$PROJECT" < changed.txt > specs.txt
+          if [ -s specs.txt ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Repeating on $PROJECT:"
+            cat specs.txt
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No changed spec for $PROJECT, nothing to repeat."
+            echo "No changed end-to-end spec for \`$PROJECT\`, nothing to repeat." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install dependencies
+        if: steps.select.outputs.run == 'true'
+        run: npm ci || npm ci
+
+      - name: Build
+        if: steps.select.outputs.run == 'true'
+        run: npm run build
+
+      - name: Run the changed specs five times each
+        if: steps.select.outputs.run == 'true'
+        timeout-minutes: 30
+        # `--retries=0`: one failure in five is the finding, a retry would hide it.
+        # `--pass-with-no-tests`: every test of a changed spec may be quarantined.
+        run: |
+          mapfile -t specs < specs.txt
+          npm run test:e2e -- --project=${{ matrix.project }} --workers=${{ matrix.workers }} --repeat-each=5 --retries=0 --pass-with-no-tests "${specs[@]}"
+
+      - name: Flake rate of the repeated specs
+        if: always() && steps.select.outputs.run == 'true' && hashFiles('playwright-json/report.json') != ''
+        run: npx tsx scripts/flakeRate.ts --summary "$GITHUB_STEP_SUMMARY" playwright-json/report.json
+
+      - name: Upload report
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-repeat-${{ matrix.project }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
   visual:
     # The four baselines under tests/e2e/__screenshots__/ are the only assertion in the
     # repository that the projected wall still *looks* right, and until now no job
@@ -331,11 +530,28 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     needs: quality
+    # In the Playwright image too: both renders happen in this one job, so they share its fonts
+    # whichever image carries them, and the committed baselines are never compared here (see
+    # above), so the image changing the rasterisation cannot invalidate them. What the container
+    # adds is that the fonts of the runner stop being a variable between two runs of the job.
+    defaults:
+      run:
+        shell: bash -e {0}
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --ipc=host
+    env:
+      HOME: /root
     steps:
       - uses: actions/checkout@v7
         with:
           # Both sides of the comparison have to be checked out in turn.
           fetch-depth: 0
+
+      - name: Trust the workspace for git
+        # The job container runs as root over a checkout the runner user owns: git refuses it
+        # ("dubious ownership") until it is told otherwise.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/setup-node@v7
         with:
@@ -390,16 +606,14 @@ jobs:
         run: npm ci || npm ci
         if: env.COMPARABLE == '1'
 
-      # Only the engine the visual project uses. The other three would double the
-      # install for nothing.
-      - name: Install Chromium
+      - name: Browser of this checkout (merge base)
         if: env.COMPARABLE == '1'
-        timeout-minutes: 30
-        # System packages, then the browser, as in the e2e job (and for the same reasons).
-        run: |
-          echo 'DPkg::Lock::Timeout "300"; Acquire::Retries "5"; Acquire::http::Timeout "60";' | sudo tee /etc/apt/apt.conf.d/99-ci-apt > /dev/null
-          npx playwright install-deps chromium
-          timeout 6m npx playwright install chromium || timeout 6m npx playwright install chromium
+        timeout-minutes: 15
+        # The image carries the browser of the Playwright version this workflow names. The merge base
+        # can sit on another version (a pull request cut before a Playwright bump), and its render
+        # would then fail on a missing executable rather than on anything about the wall. A no-op
+        # when the revision is already there, a download of Chromium alone when it is not.
+        run: timeout 6m npx playwright install chromium || timeout 6m npx playwright install chromium
 
       - name: Build
         if: env.COMPARABLE == '1'
@@ -452,14 +666,12 @@ jobs:
         run: npm ci || npm ci
         if: env.COMPARABLE == '1'
 
-      - name: Install Chromium
+      - name: Browser of this checkout (pull request head)
         if: env.COMPARABLE == '1'
-        timeout-minutes: 30
-        # System packages, then the browser, as in the e2e job (and for the same reasons).
-        run: |
-          echo 'DPkg::Lock::Timeout "300"; Acquire::Retries "5"; Acquire::http::Timeout "60";' | sudo tee /etc/apt/apt.conf.d/99-ci-apt > /dev/null
-          npx playwright install-deps chromium
-          timeout 6m npx playwright install chromium || timeout 6m npx playwright install chromium
+        timeout-minutes: 15
+        # The head's own browser: normally the image's, so this is a no-op. Kept so the two renders
+        # start from the same guarantee as the merge-base one above.
+        run: timeout 6m npx playwright install chromium || timeout 6m npx playwright install chromium
 
       - name: Build
         if: env.COMPARABLE == '1'

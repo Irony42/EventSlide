@@ -2,6 +2,7 @@ dist
 coverage
 node_modules
 playwright-report
+playwright-report-docker
 test-results
 tests/e2e/__screenshots__
 data

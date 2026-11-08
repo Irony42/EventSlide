@@ -35,6 +35,8 @@ coverage-*/
 
 # Playwright
 playwright-report/
+playwright-report-docker/
+playwright-json/
 test-results/
 tests/e2e/__screenshots__/**/*-actual.png
 tests/e2e/__screenshots__/**/*-diff.png

@@ -610,6 +610,65 @@ tests/e2e/
 - **The CI matrices are guarded.** `scripts/ciShards.test.ts` checks that the `e2e-shard` and `e2e` matrices of
   `ci.yml` carry the same projects and shard counts (shards numbered 1..n) and that every project of
   `playwright.config.ts` is in them: a project in neither is a project nothing gates.
+- **Quarantine: a known flake leaves the gate and keeps running.** Tag the test in its title,
+  `test('does the thing @quarantine', ...)` (a describe title works too). Every project of
+  `playwright.config.ts` carries `grepInvert: /@quarantine/`, so the gating shards, the `e2e`
+  aggregate and `npm run test:e2e` skip it, `firefox-desktop`'s `@smoke` subset included
+  (`scripts/e2eQuarantine.test.ts` asks each project what it selects). The `quarantine` job of `ci.yml`
+  (`E2E_QUARANTINE=only`, `continue-on-error`, in no required check) runs only those tests on the
+  projects they belong to; locally, `E2E_QUARANTINE=only npx playwright test --project=<p>`. Policy:
+  1. One open GitHub issue per quarantined test, labelled `flaky`, linked in a comment above the
+     test with its date. No issue, no quarantine. Nothing is quarantined automatically.
+  2. Quarantine is for a test whose failure is understood to be unrelated to the change in front
+     of you and cannot be fixed in that pull request. Never to get green.
+  3. Exit: fix it, then remove the tag in the same pull request once the `quarantine` job's
+     flake-rate summary shows it clean (no `flaky`, no `failed`) over at least 20 runs on the
+     projects it belongs to, or delete the test if it no longer earns its seconds. A test that stays
+     quarantined for more than 30 days is reviewed at the next release: fix, delete, or say why not.
+     No test is quarantined today.
+- **Flake rate per test.** In CI the config also writes a JSON report under `playwright-json/`; every shard
+  prints a table of its non-clean tests in the job summary and uploads the file
+  (`playwright-json-<project>-<i>of<n>`, 30 days). `npx tsx scripts/flakeRate.ts [--all] [--summary <file>] <report.json>...`
+  adds up any number of reports into `{passed, flaky, failed, rate}` per test (rate is
+  `(flaky + failed) / runs`, flakiest first): `gh run download --pattern 'playwright-json-*'` over a
+  few runs answers "what flaked this week".
+- **A pull request that changes a spec repeats it.** The `repeat-changed-specs` job (pull requests
+  only, not a required check) runs the changed `tests/e2e/**/*.spec.ts` with `--repeat-each=5
+--retries=0` on `chromium-desktop`, `webkit-mobile` and, for `offline/` specs, `chromium-offline`
+  (`scripts/changedSpecs.ts` picks the files; `perf/` and `visual/` specs are left to their own jobs;
+  no changed spec means the job passes after a note). It diffs against the pull request's own base,
+  so a stacked pull request is compared with its parent. One failure in five is the finding.
+- **The browsers run in the Playwright container.** The `e2e-shard`, `quarantine`, `repeat-changed-specs`
+  and `visual` jobs run in `mcr.microsoft.com/playwright:v<version>-noble`, where `<version>` is the exact
+  `@playwright/test` of `package-lock.json` (1.65.0 today). The image holds the browsers, their system
+  packages and the fonts, so no job runs `apt`, `playwright install-deps` or `playwright install` any more and the
+  runner's mirror and fonts stop being variables. The job sets `HOME=/root` (GitHub otherwise points it at
+  `/github/home`, where Firefox will not start as root) and `--ipc=host` (Chromium's shared memory). `git` is in
+  the image, which the full-history checkouts need; `setup-node` still pins Node 24 and `npm ci` still brings
+  `ffmpeg-static`. `scripts/ciContainer.test.ts` fails when a job's tag is not the lockfile's version, so a
+  Playwright bump in `package.json` is a red unit test until the four tags follow, not a red browser launch on
+  every shard. The `quality`, `image` and aggregate `e2e` jobs stay on the runner. The `visual` job keeps its own
+  method (it renders both sides itself and never compares `tests/e2e/__screenshots__`, which stay the local
+  loop's baselines, generated on the maintainer's machine), so the container changing font rendering cannot
+  invalidate them; it runs `playwright install chromium` after each checkout as a guard for a merge base on
+  another Playwright version, a no-op otherwise.
+- **The same container, locally.** `npm run test:e2e:docker -- <playwright arguments>` runs the suite in that
+  image (`npm run test:e2e:docker -- --project=webkit-mobile tests/e2e/journeys/guest-upload.spec.ts`). The
+  checkout is mounted read-only and copied into the container; `node_modules` is a Linux install kept in the docker
+  volume `eventslide-e2e-node-modules` (re-installed when `package-lock.json` or the Node version changes) and never touches the host's;
+  the report, traces and JSON report come back under `playwright-report-docker/` (ignored by git).
+  `scripts/e2eDocker.ts` builds the command and `scripts/e2eDocker.test.ts` pins it. It needs Docker; it is the way
+  to reproduce a CI-only failure from Windows or macOS. It sets `CI=1`, so retries, `failOnFlaky` and the JSON report are
+  those of CI.
+- **Timers of the wall are driven, not waited for.** The wall's slide clock, a guestbook card's stay and the like are
+  `setTimeout`s, and a spec that waits "fifteen seconds for fifteen changes" measures its runner.
+  `tests/e2e/fixtures/wallClock.ts` freezes `page.clock` before the page loads (`openWallFrozen`) and moves it one
+  slide interval at a time (`slideChange`, `changeUntil`, `changeSlides`): the journey takes the same steps
+  everywhere. It uses `fastForward`, not `runFor` (`runFor` replays the wall's animation-frame loops one by one, about
+  two real seconds per fake second in WebKit). Used by `wall-guestbook.spec.ts` and `the slideshow advances and wraps`.
+  Not used, on purpose: where the thing proved is a CSS animation, a frame rate (`perf/`), a pixel (`visual/`), the
+  Ken Burns zoom (`display-wall.spec.ts`, driven through the animation itself) or two screens agreeing on the real
+  clock (`mixed-wall.spec.ts`, `wall-portrait-fit.spec.ts`'s phase test): a fake clock would change what they prove.
 - **`page.waitForTimeout()` is banned** and lint rejects it; use
   `await expect(locator).toBeVisible({ timeout: 10_000 })`. A fixed sleep in an
   SSE-driven app is both flaky and slow — the single largest source of e2e flake here.
