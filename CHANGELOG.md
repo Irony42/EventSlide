@@ -20,6 +20,46 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.11.0] - 2026-11-08
+
+Everything merged to `main` after the tag `v3.10.0`: pull requests #434, #435 and #436. This is a minor release:
+a photo awaiting the host reads as "waiting" instead of as a display bug, a bug fix so that each photo is filed
+under the mission picked for it, and a video clip that can be filed under a mission like a photo. One migration
+(027), applied at start-up, and nothing to set.
+
+### Guests
+
+- **A photo awaiting the host's approval shows in black and white, slightly faded** (#434), instead of the colour
+  negative that guests took for a display bug. It takes its colours when the host publishes it. ADR 0010 is
+  amended.
+- **Each photo is filed under the mission selected when it was picked** (#435). A guest who picked several photos
+  one after the other, then sent them in one go, had all of them filed under the last mission selected; each one
+  now keeps its own. "Vos envois" labels every photo with its mission ("Mission : …"), or "Défi" when it answers
+  a challenge. `GET /api/events/:slug/photos/mine` returns `missionPrompt` and `answeredChallenge` on each item
+  (see `docs/API.md`).
+- **A video clip can be filed under a mission, like a photo** (#436). It counts toward the mission's progress on
+  the wall once published, and shows the same label in "Vos envois". The mission is the one selected when the clip
+  was picked.
+
+### Hosts
+
+- **A tagged clip counts for the mission on the wall** (#436), like a photo: the progress of a mission includes
+  the clips filed under it. A mission deleted while a clip is still being prepared leaves the clip untagged.
+
+### Operators
+
+- **`POST /api/events/:slug/clips` takes an optional `missionId`** (#436), a uuid checked against the event. A
+  mission that is unknown, deleted or another event's stores the clip untagged (a warning in the log, never a
+  refusal); a malformed uuid is `400 request.invalid`. A client that sends none behaves as before.
+
+### Behaviour changes to check before upgrading
+
+- **One migration (027, `clip_mission`)**, applied automatically at start-up: a nullable `clip_jobs.mission_id`
+  column and a partial index. It is `NULL` for every existing job and nothing is rewritten. Back up first, as for
+  any upgrade: migrations only go forward.
+- Nothing to set in `.env`. A phone left open across the upgrade keeps sending clips untagged until it is
+  reloaded.
+
 ## [3.10.0] - 2026-11-08
 
 Everything merged to `main` after the tag `v3.9.0`: pull requests #408 (the integration train of the 2026-11-07
