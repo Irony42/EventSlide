@@ -902,7 +902,7 @@ image is `ghcr.io/irony42/eventslide:3.10.0`.
 
 ### A refused photo that a host could unblock stays in the guest's outbox
 
-- **Nothing to set.** A photo refused for `event.quotaExceeded` or `client.storageFull` (and `event.photoLimitReached`)
+- **Nothing to set.** A photo refused for `event.quotaExceeded` or `client.storageFull`
   is no longer deleted from the phone: it is retried for up to 12 hours or the maximum number of attempts, since a
   host can raise a quota. A disk or memory failure while the server re-encodes a photo answers the new code
   `image.renderUnavailable` (500-class) and keeps the photo queued too. API clients that map error codes: add it

@@ -27,7 +27,7 @@ reliability review: #393 to #407, #409, #410 and #421), #411 to #419, #422, #428
 release: a reliability review that fixed some fifteen real bugs (a guest's name, photo and challenge, the
 moderation console, the operator scripts, Safari and iPhone), then a CI that stops failing at random. No
 migration (the last is still 026), four new optional environment variables with the defaults the code already
-had, and two behaviour changes to read below.
+had, and two behaviour changes to read below (and nothing to migrate or set).
 
 ### Guests
 
