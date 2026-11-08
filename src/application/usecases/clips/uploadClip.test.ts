@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { MAX_ATTEMPTS } from '../../../domain/clips/clipFailure'
 import type { PhotoAuthor } from '../../../domain/photos/photo'
-import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
+import { asEventId, asGuestId, asMissionId, asUserId } from '../../../domain/shared/ids'
 import type { ContentHasher } from '../../ports/contentHasher'
 import type { TranscodeSpec } from '../../ports/videoTranscoder'
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
-import { AT, aClient, anEvent, aPhoto, type EventInput } from '../../testing/builders'
+import { AT, aClient, aMission, anEvent, aPhoto, type EventInput } from '../../testing/builders'
 import { CallLog } from '../../testing/callLog'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { FakeVideoTranscoder, fakeClipBytes, notAClip } from '../../testing/fakeVideoTranscoder'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
@@ -62,6 +63,7 @@ describe('uploadClip', () => {
   let clients: FakeClientRepository
   let clips: FakeClipJobRepository
   let photos: FakePhotoRepository
+  let missions: FakeMissionRepository
   let media: InMemoryMediaStore
   let transcoder: FakeVideoTranscoder
   let bus: RecordingEventBus
@@ -80,6 +82,7 @@ describe('uploadClip', () => {
       clients,
       clips,
       photos,
+      missions,
       media,
       transcoder,
       hasher,
@@ -100,6 +103,7 @@ describe('uploadClip', () => {
     // SQLite adapter reads `clip_jobs` inside its own `SUM`; here the fake is handed the
     // queue so the two answer the same number.
     photos = new FakePhotoRepository().chargeStagedBytesFrom(clips)
+    missions = new FakeMissionRepository(photos)
     // And the other way: staging a clip is judged against the album as well as the queue,
     // which is one statement in the adapter and two wired fakes here.
     clips.chargePhotoBytesFrom(photos)
@@ -119,6 +123,56 @@ describe('uploadClip', () => {
       file: { bytes, declaredName: 'IMG_4021.MOV' },
       ...(caption === undefined ? {} : { caption }),
     })
+
+  describe('the mission the clip was picked for', () => {
+    const forMission = (missionId: string | null) =>
+      uploadClip({
+        eventId: EVENT,
+        author: GUEST,
+        file: { bytes: aClipFile(), declaredName: 'IMG_4021.MOV' },
+        missionId: missionId === null ? null : asMissionId(missionId),
+      })
+
+    it('carries a mission of this event on the queued job, where the worker will read it', async () => {
+      seedEvent()
+      missions.seed(aMission({ id: 'mission-1', eventId: 'event-1' }))
+
+      const result = await forMission('mission-1')
+
+      expect(result.ok).toBe(true)
+      expect(clips.all[0]?.missionId).toBe('mission-1')
+    })
+
+    it('queues the clip untagged when no mission is sent', async () => {
+      seedEvent()
+
+      await forMission(null)
+
+      expect(clips.all[0]?.missionId).toBeNull()
+    })
+
+    it('keeps the clip, untagged and with a warning, when the mission does not exist', async () => {
+      seedEvent()
+
+      const result = await forMission('mission-gone')
+
+      expect(result.ok).toBe(true)
+      expect(clips.all[0]?.missionId).toBeNull()
+      expect(
+        logger.lines.some((line) => line.level === 'warn' && line.message.includes('mission')),
+      ).toBe(true)
+    })
+
+    it('keeps the clip untagged when the mission belongs to another event', async () => {
+      seedEvent()
+      missions.seed(aMission({ id: 'mission-gala', eventId: 'event-2' }))
+
+      const result = await forMission('mission-gala')
+
+      expect(result.ok).toBe(true)
+      expect(clips.all[0]?.missionId).toBeNull()
+    })
+  })
 
   describe('a trimmed recording (spec 16)', () => {
     const trimmed = (startMs: number, endMs: number) =>
@@ -325,6 +379,7 @@ describe('uploadClip', () => {
         clients,
         clips,
         photos,
+        missions: new FakeMissionRepository(photos),
         media,
         transcoder: {
           available: () => true,
@@ -829,6 +884,7 @@ describe('uploadClip', () => {
         clients,
         clips,
         photos,
+        missions: new FakeMissionRepository(photos),
         media,
         transcoder,
         hasher: { sha256Hex: (): string => 'not-a-digest' },
@@ -922,6 +978,7 @@ describe('uploadClip under a client’s ceilings', () => {
       clients,
       clips,
       photos,
+      missions: new FakeMissionRepository(photos),
       media,
       transcoder: new FakeVideoTranscoder(),
       hasher,

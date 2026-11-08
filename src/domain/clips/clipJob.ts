@@ -2,7 +2,7 @@ import type { Caption } from '../photos/caption'
 import type { ContentHash } from '../photos/contentHash'
 import type { PhotoAuthor } from '../photos/photo'
 import { DomainError } from '../shared/errors'
-import type { ClipJobId, EventId, PhotoId } from '../shared/ids'
+import type { ClipJobId, EventId, MissionId, PhotoId } from '../shared/ids'
 import { err, ok, type Result } from '../shared/result'
 import { MAX_ATTEMPTS, classifyClipFailure, retryDelayMs, shouldRetry } from './clipFailure'
 import { canTransition, type ClipJobStatus } from './clipJobStatus'
@@ -41,6 +41,12 @@ export interface NewClipJob {
   readonly caption: Caption | null
   /** The part of the source to keep; `null` is "all of it", and the source must then fit the cap. */
   readonly trim?: ClipTrim | null
+  /**
+   * The mission the guest picked the clip for, already resolved against this event, or
+   * `null`. Carried on the job because the `photos` row does not exist until the transcode
+   * has finished: the worker files the photo under it then.
+   */
+  readonly missionId?: MissionId | null
 }
 
 export interface ClipJobProps {
@@ -54,6 +60,8 @@ export interface ClipJobProps {
   readonly sourceByteSize: number
   readonly caption: Caption | null
   readonly trim: ClipTrim | null
+  /** The mission the finished photo is filed under, or `null`. See {@link NewClipJob.missionId}. */
+  readonly missionId: MissionId | null
   /** How many times the worker has claimed this job. */
   readonly attempts: number
   readonly createdAt: Date
@@ -102,6 +110,7 @@ export class ClipJob {
         sourceByteSize: input.sourceByteSize,
         caption: input.caption,
         trim: input.trim ?? null,
+        missionId: input.missionId ?? null,
         attempts: 0,
         createdAt: now,
         updatedAt: now,
@@ -150,6 +159,10 @@ export class ClipJob {
 
   get trim(): ClipTrim | null {
     return this.props.trim
+  }
+
+  get missionId(): MissionId | null {
+    return this.props.missionId
   }
 
   get attempts(): number {

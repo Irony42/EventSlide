@@ -46,6 +46,8 @@ export interface UploadInput {
 export interface ClipUploadInput {
   readonly file: File
   readonly caption?: string | null
+  /** The mission selected when the clip was picked; omitted when none, as for a photo. */
+  readonly missionId?: string | null
   /**
    * The part of a too-long recording to keep, in milliseconds from the start of `file`
    * (spec 16). Both bounds travel, or neither.
@@ -118,6 +120,10 @@ export const guestApi = (transport: Transport) => ({
     if (input.trim !== undefined) {
       form.append('startMs', String(Math.round(input.trim.startMs)))
       form.append('endMs', String(Math.round(input.trim.endMs)))
+    }
+    // Before the file, like the range: a text part after a large file part is the one a proxy may cut.
+    if (input.missionId !== undefined && input.missionId !== null && input.missionId !== '') {
+      form.append('missionId', input.missionId)
     }
     form.append('clip', input.file)
     // Omitted rather than sent empty, exactly as the photo path does: the server

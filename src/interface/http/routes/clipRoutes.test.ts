@@ -8,8 +8,16 @@ import { clipRoutes } from './clipRoutes'
 import { GUEST_COOKIE } from '../middleware/authz'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
-import { AT, aClient, aClipJob, aGuest, anEvent } from '../../../application/testing/builders'
+import {
+  AT,
+  aClient,
+  aClipJob,
+  aGuest,
+  aMission,
+  anEvent,
+} from '../../../application/testing/builders'
 import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
+import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import {
   FakeVideoTranscoder,
@@ -69,6 +77,7 @@ interface Subject {
   readonly app: Express
   readonly clips: FakeClipJobRepository
   readonly photos: FakePhotoRepository
+  readonly missions: FakeMissionRepository
   readonly media: InMemoryMediaStore
   readonly tempDir: string
   readonly token: string
@@ -96,6 +105,7 @@ let tempRoot: string
 const buildSubject = (options: SubjectOptions = {}): Subject => {
   const clips = new FakeClipJobRepository()
   const photos = new FakePhotoRepository().chargeStagedBytesFrom(clips)
+  const missions = new FakeMissionRepository(photos)
   // Both directions: the album counts the queue, and staging is judged against the
   // album. One statement in the SQLite adapter; two wired fakes here.
   clips.chargePhotoBytesFrom(photos)
@@ -126,6 +136,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               clients: world.clients,
               clips,
               photos,
+              missions,
               media,
               transcoder,
               hasher,
@@ -172,6 +183,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
     app: harness.app,
     clips,
     photos,
+    missions,
     media,
     tempDir,
     token: harness.issueGuestToken(WEDDING, GUEST),
@@ -292,6 +304,63 @@ describe('POST /api/events/:eventSlug/clips', () => {
       .attach('clip', aClipBody(), 'IMG_4021.MOV')
 
     expect(subject.clips.all[0]?.caption?.value).toBe('Le premier slow')
+  })
+
+  describe('the mission a clip is filed under', () => {
+    const MISSION = '3f2b8c1e-6a4d-4e0b-9d7a-1c5e8f2a9b60'
+    const GALA_MISSION = '8a1d4c7e-2b9f-4f63-a0e5-7d3c6b1f9e24'
+    const send = (subject: Subject, fields: Record<string, string>) => {
+      let req = request(subject.app).post(`${BASE}/clips`).set('Cookie', cookie(subject.token))
+      for (const [name, value] of Object.entries(fields)) req = req.field(name, value)
+      return req.attach('clip', aClipBody(), 'IMG_4021.MOV')
+    }
+
+    it('queues the clip under a mission of this event', async () => {
+      const subject = buildSubject()
+      subject.missions.seed(aMission({ id: MISSION, eventId: WEDDING }))
+
+      const response = await send(subject, { missionId: MISSION })
+
+      expect(response.status).toBe(202)
+      expect(subject.clips.all[0]?.missionId).toBe(MISSION)
+    })
+
+    it('queues the clip untagged when no mission is sent', async () => {
+      const subject = buildSubject()
+
+      await send(subject, {})
+
+      expect(subject.clips.all[0]?.missionId).toBeNull()
+    })
+
+    it('stores the clip untagged, and still answers 202, for a mission of another event', async () => {
+      const subject = buildSubject()
+      subject.missions.seed(aMission({ id: GALA_MISSION, eventId: GALA }))
+
+      const response = await send(subject, { missionId: GALA_MISSION })
+
+      expect(response.status).toBe(202)
+      expect(subject.clips.all[0]?.missionId).toBeNull()
+    })
+
+    it('stores the clip untagged for a mission that does not exist', async () => {
+      const subject = buildSubject()
+
+      const response = await send(subject, { missionId: MISSION })
+
+      expect(response.status).toBe(202)
+      expect(subject.clips.all[0]?.missionId).toBeNull()
+    })
+
+    it('answers 400 request.invalid for a mission id that is not a uuid, and queues nothing', async () => {
+      const subject = buildSubject()
+
+      const response = await send(subject, { missionId: 'not-a-uuid' })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+      expect(subject.clips.all).toHaveLength(0)
+    })
   })
 
   describe('the range a guest kept (spec 16)', () => {

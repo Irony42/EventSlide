@@ -3339,3 +3339,76 @@ describe('migration 024 (timed photo challenges)', () => {
     closeDatabase(db)
   })
 })
+
+describe('migration 027 (the mission a clip is filed under)', () => {
+  const AT = '2026-06-20T21:00:00.000Z'
+
+  const seed = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ('u1', 'u1@example.test', 'h', ?)`,
+    ).run(AT)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'e1', 'e1', 'e1', 'live', '{}', 1000, ?)`,
+    ).run(AT)
+    db.prepare(
+      `INSERT INTO guests (id, event_id, joined_at, last_seen_at) VALUES ('g1', 'e1', ?, ?)`,
+    ).run(AT, AT)
+    db.prepare(
+      `INSERT INTO event_missions (id, event_id, prompt, scope, created_at) VALUES ('m1', 'e1', 'selfie', 'guest', ?)`,
+    ).run(AT)
+  }
+
+  const job = (db: Db, id: string, missionColumn: boolean): void => {
+    db.prepare(
+      `INSERT INTO clip_jobs (id, event_id, photo_id, author_guest_id, status, source_hash,
+                              source_byte_size, attempts, created_at, updated_at, not_before
+                              ${missionColumn ? ', mission_id' : ''})
+            VALUES (?, 'e1', ?, 'g1', 'queued', ?, 1000, 0, ?, ?, ? ${missionColumn ? ", 'm1'" : ''})`,
+    ).run(id, `${id}-photo`, id.padEnd(64, '0'), AT, AT, AT)
+  }
+
+  it('keeps a queued job from 026 and gives it no mission', () => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 27),
+    )
+    seed(db)
+    job(db, 'old', false)
+
+    migrate(db, migrations)
+
+    expect(db.prepare(`SELECT id, mission_id FROM clip_jobs`).all()).toEqual([
+      { id: 'old', mission_id: null },
+    ])
+    closeDatabase(db)
+  })
+
+  it('adds the nullable column and the index its foreign key is looked up through', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    const columns = db
+      .prepare<[], { name: string; notnull: number }>(`PRAGMA table_info(clip_jobs)`)
+      .all()
+    expect(columns.find((column) => column.name === 'mission_id')?.notnull).toBe(0)
+    const indexes = db.prepare<[], { name: string }>(`PRAGMA index_list(clip_jobs)`).all()
+    expect(indexes.map((index) => index.name)).toContain('idx_clip_jobs_mission')
+    closeDatabase(db)
+  })
+
+  it('keeps the job when its mission is deleted, and clears the tag', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seed(db)
+    job(db, 'tagged', true)
+
+    db.prepare(`DELETE FROM event_missions WHERE id = 'm1'`).run()
+
+    expect(db.prepare(`SELECT id, mission_id FROM clip_jobs`).all()).toEqual([
+      { id: 'tagged', mission_id: null },
+    ])
+    closeDatabase(db)
+  })
+})

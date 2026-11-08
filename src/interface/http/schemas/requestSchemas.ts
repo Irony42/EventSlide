@@ -237,6 +237,8 @@ export const uploadFields = z.strictObject({
 export const clipUploadFields = z
   .strictObject({
     caption: z.string().max(1_000).nullish(),
+    /** The mission selected when the clip was picked: a uuid, as `uploadFields.missionId` is. */
+    missionId: uuid.nullish(),
     startMs: z
       .string()
       .regex(/^\d{1,9}$/)

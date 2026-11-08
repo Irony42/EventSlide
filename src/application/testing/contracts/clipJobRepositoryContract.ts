@@ -34,6 +34,8 @@ export const CLIP_JOB_CONTRACT_FIXTURES = {
   /** The brunch is only ever a *different client's* event, in the byte-ceiling cases. */
   eventIds: ['evt-wedding', 'evt-gala', 'evt-brunch'],
   guestIds: ['guest-lea', 'guest-sam'],
+  /** A mission of `evt-wedding`, for the case that files a clip under one. */
+  missionIds: ['mission-1'],
 } as const
 
 const WEDDING = asEventId('evt-wedding')
@@ -272,6 +274,20 @@ export const clipJobRepositoryContract = (
         expect((await repo.findById(WEDDING, asClipJobId('job-whole')))?.trim).toBeNull()
       })
 
+      it('round-trips the mission a clip is filed under, and gives an untagged job back as null', async () => {
+        await insertJob(
+          aClipJob({ id: 'job-tagged', eventId: 'evt-wedding', missionId: 'mission-1' }),
+        )
+        await insertJob(
+          aClipJob({ id: 'job-plain', eventId: 'evt-wedding', sourceHash: hexOf('beef') }),
+        )
+
+        expect((await repo.findById(WEDDING, asClipJobId('job-tagged')))?.missionId).toBe(
+          'mission-1',
+        )
+        expect((await repo.findById(WEDDING, asClipJobId('job-plain')))?.missionId).toBeNull()
+      })
+
       it('round-trips every field the entity carries', async () => {
         const job = aClipJob({
           id: 'job-1',
@@ -279,6 +295,7 @@ export const clipJobRepositoryContract = (
           author: { kind: 'guest', id: 'guest-lea' },
           caption: 'Le premier slow',
           trim: { startMs: 1_000, endMs: 9_000 },
+          missionId: 'mission-1',
           sourceByteSize: 7_654_321,
           attempts: 2,
           status: 'failed',
