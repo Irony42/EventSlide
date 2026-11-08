@@ -75,13 +75,15 @@
 }
 
 /**
- * ADR 0010: a photo still waiting for the host is shown as its negative, and it develops into
- * the print when it reaches the screen. The badge beside it still says so in words
- * (DESIGN-SYSTEM.md section 8), so the filter is never the only signal.
+ * ADR 0010 (amendment of 08/11/2026): a photo still waiting for the host is shown undeveloped,
+ * in black and white and a little veiled, and it takes its colours when it reaches the screen.
+ * It was a colour negative until a guest read the inverted colours as a display bug, so the
+ * filter never inverts: the photograph stays plainly recognisable. The badge beside it still
+ * says so in words (DESIGN-SYSTEM.md section 8), so the filter is never the only signal.
  */
 
-.negative {
-  filter: invert(1) grayscale(0.35) contrast(0.9);
+.undeveloped {
+  filter: grayscale(1) contrast(0.8) brightness(1.1);
 }
 
 /**
