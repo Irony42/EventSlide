@@ -24,6 +24,15 @@ export interface MissionRepository {
   findById(eventId: EventId, missionId: MissionId): Promise<Mission | null>
 
   /**
+   * The missions of this event with these ids, without their progress.
+   *
+   * For a reader that needs the words of a few missions and not the event-wide counts of
+   * `listWithProgress`. Ids that name no mission of this event (unknown, or another event's) are
+   * simply absent; an empty list answers an empty list. Order is not promised.
+   */
+  findByIds(eventId: EventId, missionIds: readonly MissionId[]): Promise<readonly Mission[]>
+
+  /**
    * The uniqueness lookup behind `(event_id, prompt)`.
    *
    * A mission rather than a boolean, because both callers need the row: creating asks

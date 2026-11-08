@@ -61,11 +61,14 @@ export const makeListGuestPhotos = ({
     }
 
     const page = await photos.list(eventId, query)
-    // The checklist is only read when a photo on this page was filed under a mission: most
-    // events have none, and this read is the one a phone repeats while it waits.
+    // Only the missions this page names, and only their words: this is the read a phone repeats
+    // while it waits, so it must not pay for the event-wide progress counts.
+    const missionIds = [
+      ...new Set(page.items.flatMap((photo) => (photo.missionId === null ? [] : [photo.missionId]))),
+    ]
     const missionPrompts = new Map<string, string>()
-    if (page.items.some((photo) => photo.missionId !== null)) {
-      for (const { mission } of await missions.listWithProgress(eventId)) {
+    if (missionIds.length > 0) {
+      for (const mission of await missions.findByIds(eventId, missionIds)) {
         missionPrompts.set(mission.id, mission.prompt.value)
       }
     }

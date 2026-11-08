@@ -89,6 +89,17 @@ export class SqliteMissionRepository implements MissionRepository {
     return row === undefined ? null : toMission(row)
   }
 
+  async findByIds(eventId: EventId, missionIds: readonly MissionId[]): Promise<readonly Mission[]> {
+    if (missionIds.length === 0) return []
+    const marks = missionIds.map(() => '?').join(', ')
+    return this.db
+      .prepare<string[], MissionRow>(
+        `SELECT ${MISSION_COLUMNS} FROM event_missions WHERE event_id = ? AND id IN (${marks})`,
+      )
+      .all(eventId, ...missionIds)
+      .map(toMission)
+  }
+
   async findByPrompt(eventId: EventId, prompt: MissionPrompt): Promise<Mission | null> {
     const row = this.db
       .prepare<[string, string], MissionRow>(

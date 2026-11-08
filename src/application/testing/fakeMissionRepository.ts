@@ -95,6 +95,11 @@ export class FakeMissionRepository implements MissionRepository {
     return this.rows.get(key(eventId, missionId)) ?? null
   }
 
+  async findByIds(eventId: EventId, missionIds: readonly MissionId[]): Promise<readonly Mission[]> {
+    const wanted = new Set<string>(missionIds)
+    return this.forEvent(eventId).filter((mission) => wanted.has(mission.id))
+  }
+
   async findByPrompt(eventId: EventId, prompt: MissionPrompt): Promise<Mission | null> {
     return this.forEvent(eventId).find((mission) => mission.prompt.equals(prompt)) ?? null
   }
