@@ -14,7 +14,15 @@
   /* Makes way for the invitation card when the host puts it bottom-start (spec 14). */
   inset-inline-start: calc(var(--wall-safe) + var(--wall-chrome-caption-start, 0px));
   inset-block-end: var(--wall-safe);
-  max-inline-size: var(--container-guest);
+  /* Never under the corner cartel: on a wall narrow enough (1024 px) that the two would meet,
+     the caption wraps inside what the reserved side leaves. */
+  max-inline-size: min(
+    var(--container-guest),
+    calc(
+      100% - 2 * var(--wall-safe) - var(--wall-chrome-inline-end, 0px) -
+        var(--wall-chrome-inline-start, 0px)
+    )
+  );
 }
 
 /* Inside a mosaic tile, which is already within the wall's safe area. */

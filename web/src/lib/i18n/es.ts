@@ -924,6 +924,13 @@ export const es: UiText = {
     sendPrompt: 'Envíe sus fotos a la pantalla',
     // Under the code, for the phone that cannot read the QR. Both holes are interpolated as given.
     typeCodeAt: (code: string, host: string) => `o escriba ${code} en ${host}`,
+    invitePrompt: {
+      tile: 'Su foto aquí',
+      cell: 'La próxima es la suya',
+      print: 'Su foto aquí',
+      tag: 'Cuelgue la suya',
+      seam: 'Envíe las suyas',
+    },
     // An empty wall of an event the host has closed: nobody can send a photo any more.
     emptyClosed: '¡Gracias por venir!',
     // In the shortcuts panel, only when the browser could not keep the screen awake itself.
@@ -1192,7 +1199,7 @@ export const es: UiText = {
         'bottom-end': 'Abajo a la derecha',
       },
       qrPlacementHint:
-        'En los diseños que dejan sitio a la tarjeta, las fotos se aprietan; en los demás, la tarjeta se pone sobre las fotos.',
+        'La esquina vale para el diseño Pantalla completa. Los demás colocan el QR dentro de su propia composición: una casilla del mosaico, una copia, una etiqueta en la cuerda…',
     },
     wallSound: {
       title: 'Sonido',

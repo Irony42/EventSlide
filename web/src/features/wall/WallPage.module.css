@@ -17,20 +17,11 @@
   /**
    * How much of the end edge is spoken for by chrome.
    *
-   * The join card sits in the bottom-right corner and is the wall's default state — a
-   * host has to dismiss it — so any layout that puts *centred* text in the bottom band
-   * printed the guest's own words underneath it. Measured on a 1920x1080 projector: the
-   * polaroid's third caption lost 362px of its box and the split's right caption lost
-   * 42px, both cut mid-word, and the baseline recorded the clipping as correct.
-   *
-   * Reserving here rather than moving the captions is which of the two yields: a caption
-   * is the guest's words under the guest's photo, and the card is chrome (§1). Nothing is
-   * reserved permanently — the card is dismissible, and the reservation goes with it.
-   *
-   * Layouts whose text cannot reach the corner ignore this. The mosaic's in-tile credit
-   * is left-aligned at the start of its tile — measured at x 985 against a card at 1448 —
-   * so only the empty end of its scrim passes behind the card, exactly as the photo under
-   * it already does.
+   * Only a layout whose invitation sits in a corner sets it (`joinSlot.ts`: the spotlight);
+   * the others give the invitation a place in their own flow and reserve nothing. The
+   * spotlight's caption reads it to stay clear of the cartel on a narrow wall: a caption is
+   * the guest's words, the cartel is chrome (§1), so the caption is the one that keeps its
+   * room. Nothing is reserved permanently — put away, the card takes the reservation with it.
    */
   --wall-chrome-inline-end: 0px;
   /*
@@ -216,6 +207,20 @@
 .wall[data-idle='true'],
 .wall[data-idle='true'] * {
   cursor: none;
+}
+
+/**
+ * The invitation's close button leaves with the arrow: nobody clicks a projector, and a cross in
+ * the middle of the invitation is a question the room cannot answer. It is back at the first
+ * movement, for the host who walked up. A touch screen keeps it, as it keeps the sound icon: it
+ * has no pointer whose movement could bring it back. Faded rather than hidden, so a host who
+ * reaches it with Tab still can: it is back the moment it has the focus.
+ */
+@media (hover: hover) {
+  .wall[data-idle='true'] [data-join-dismiss]:not(:focus-visible) {
+    opacity: 0;
+    pointer-events: none;
+  }
 }
 
 /**

@@ -825,6 +825,9 @@ describe('the wall reads from the back of the room, over any photograph', () => 
       'features/moderation/components/ModerationCard.module.css',
       // The wall's own notices, top-right, over the photograph.
       'features/wall/WallPage.module.css',
+      // The invitation's cartel, ticket and medallion, and its close button: the caption's own
+      // veil, over the photograph or the ground (joinSlot.ts).
+      'features/wall/components/JoinInvite.module.css',
       // The new-photo signal, top centre under the counter (spec 11).
       'features/wall/components/NewPhotoSignal.module.css',
       // Every wall caption.

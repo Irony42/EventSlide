@@ -7,6 +7,7 @@ import { SlideCaption } from '../SlideCaption'
 import { WallMedia } from '../WallMedia'
 import { stageStyleFor, type LayoutViewProps } from './layoutProps'
 import { rotatingSlots, nextPhotoUrl, MOSAIC_SLOTS } from '../wallLayoutMath'
+import { JoinInvite } from '../JoinInvite'
 import styles from '../WallLayouts.module.css'
 
 /**
@@ -20,9 +21,17 @@ import styles from '../WallLayouts.module.css'
  * The geometry is fixed in CSS, so a photo arriving mid-evening never reshuffles the
  * wall — it takes a tile's next turn and nothing moves.
  */
-export function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+export function MosaicLayout({
+  items,
+  slideshow,
+  transitionMs,
+  plays,
+  invite = null,
+}: LayoutViewProps) {
   const text = useTranslations()
-  const tiles = rotatingSlots(items, slideshow, MOSAIC_SLOTS)
+  // The invitation takes the last cell, so the grid never moves and nothing passes under it:
+  // five photographs and a place left for a guest, back to six the moment it is put away.
+  const tiles = rotatingSlots(items, slideshow, invite === null ? MOSAIC_SLOTS : MOSAIC_SLOTS - 1)
 
   return (
     <div className={styles['mosaic']} style={stageStyleFor(transitionMs)}>
@@ -63,6 +72,15 @@ export function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutVi
           />
         </figure>
       ))}
+
+      {invite === null ? null : (
+        <JoinInvite
+          join={invite.join}
+          slot="tile"
+          onDismiss={invite.onDismiss}
+          className={styles[`slot${MOSAIC_SLOTS - 1}`]}
+        />
+      )}
 
       {/* The next tile to turn shows exactly the slideshow's next photo. */}
       <PhotoPreload url={nextPhotoUrl(slideshow)} />

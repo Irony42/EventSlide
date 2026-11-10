@@ -30,6 +30,7 @@ import { WallSoundButton } from './components/WallSoundButton'
 import { SouvenirCounter } from './components/SouvenirCounter'
 import { WallMissions } from './components/WallMissions'
 import { WallOverlay } from './components/WallOverlay'
+import { joinSlotOf } from './joinSlot'
 import { useFrameBudget } from './hooks/useFrameBudget'
 import { useLayoutParam } from './hooks/useLayoutParam'
 import { useIdleCursor } from './hooks/useIdleCursor'
@@ -282,26 +283,6 @@ export function WallPage() {
   // below it, and an effect would let one photograph go by under a card that just appeared.
   if (cardUp !== (guestbookMessage !== null)) setCardUp(guestbookMessage !== null)
 
-  // The chrome rules are `wallChrome.ts`'s; this page draws what they say.
-  const {
-    join,
-    acceptsGuests,
-    invitation,
-    shownChallenge,
-    showsChallenge,
-    placement,
-    cardEnabled,
-    showsOverlay,
-    cardScale,
-    stackStart,
-    stackEnd,
-    chrome,
-    hideQr,
-    toggleQr,
-    qrHidden,
-    leaveChallenge,
-  } = useWallChrome(wall, items.length)
-
   /**
    * Four sources, in the order a room means them: the key somebody just pressed, then
    * the display URL the projector was launched on, then the layout the event's ambiance
@@ -332,10 +313,6 @@ export function WallPage() {
   const ambianceLayout = eventTheme === null ? null : AMBIANCE_LAYOUT[eventTheme.ambiance]
   useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
-  // Decision 11-4: while the banner is up the counter is hidden and the new-photo signal is held
-  // (its arrivals wait in the reserve and are announced together afterwards).
-  const { hold: holdSignal } = newPhotoSignal
-  useEffect(() => holdSignal(showsChallenge), [showsChallenge, holdSignal])
   // `R` is listed only for the owner, who is the only one it does anything for (spec 13, rule 13).
   const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.soundShortcutHint} ${text.wall.leaveHint}${
     owner === null ? '' : ` ${text.wall.panel.openHint}`
@@ -369,6 +346,34 @@ export function WallPage() {
     ambianceLayout ??
     serverLayout ??
     null
+
+  // The chrome rules are `wallChrome.ts`'s; this page draws what they say.
+  // The layout on screen decides where the invitation lives (`joinSlot.ts`): only a corner slot
+  // is reserved around, stacked in a top corner, and moved by the host’s corner choice.
+  const cornerCard = joinSlotOf(layout ?? 'spotlight') === 'corner'
+  const {
+    join,
+    acceptsGuests,
+    invitation,
+    shownChallenge,
+    showsChallenge,
+    placement,
+    cardEnabled,
+    showsOverlay,
+    showsCorner,
+    cardScale,
+    stackStart,
+    stackEnd,
+    chrome,
+    hideQr,
+    toggleQr,
+    qrHidden,
+    leaveChallenge,
+  } = useWallChrome(wall, items.length, cornerCard)
+  // Decision 11-4: while the banner is up the counter is hidden and the new-photo signal is held
+  // (its arrivals wait in the reserve and are announced together afterwards).
+  const { hold: holdSignal } = newPhotoSignal
+  useEffect(() => holdSignal(showsChallenge), [showsChallenge, holdSignal])
 
   /** One region for the whole concern, mounted once. Stacked under the card when it is top-end. */
   const noticesRegion = (
@@ -486,7 +491,7 @@ export function WallPage() {
       data-wall-chrome={chrome === '' ? undefined : chrome}
       // Which corner, only when it is not the bottom end the wall always used (spec 14): the
       // reservation follows the side, the caption makes way for a bottom-start card.
-      data-wall-join-corner={showsOverlay && placement !== 'bottom-end' ? placement : undefined}
+      data-wall-join-corner={showsCorner && placement !== 'bottom-end' ? placement : undefined}
       // The arrow is taken off the photo after a few idle seconds (MUR-2), and is back at the
       // first movement. An attribute, so the rule that hides it is one selector in CSS.
       data-idle={cursorIdle ? 'true' : undefined}
@@ -553,6 +558,12 @@ export function WallPage() {
             transitionMs={transitionMs}
             tilt={wall.tilt !== false}
             showTime={wall.showTime === true}
+            // Every layout but the spotlight draws the invitation in a place of its own.
+            invite={
+              showsOverlay && !cornerCard && invitation !== null
+                ? { join: invitation, onDismiss: hideQr }
+                : null
+            }
           />
         </WallScene>
       )}
@@ -589,12 +600,12 @@ export function WallPage() {
         onActivate={wallSound.activate}
       />
 
-      {showsOverlay && invitation !== null && !stackStart && !stackEnd ? (
+      {showsCorner && invitation !== null && !stackStart && !stackEnd ? (
         <WallOverlay join={invitation} placement={placement} onDismiss={hideQr} />
       ) : null}
       {stackStart ? (
         <div className={cx(styles['cornerStack'], styles['cornerStart'])}>
-          {showsOverlay && invitation !== null ? (
+          {showsCorner && invitation !== null ? (
             <WallOverlay join={invitation} placement={placement} stacked onDismiss={hideQr} />
           ) : null}
           {showsMissions ? <WallMissions missions={missions} stacked /> : null}
@@ -602,7 +613,7 @@ export function WallPage() {
       ) : null}
       {stackEnd ? (
         <div className={cx(styles['cornerStack'], styles['cornerEnd'])}>
-          {showsOverlay && invitation !== null ? (
+          {showsCorner && invitation !== null ? (
             <WallOverlay join={invitation} placement={placement} stacked onDismiss={hideQr} />
           ) : null}
           {noticesRegion}

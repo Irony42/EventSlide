@@ -12,6 +12,7 @@ import {
   nextPhotoUrl,
   POLAROID_PRINTS,
 } from '../wallLayoutMath'
+import { JoinInvite } from '../JoinInvite'
 import styles from '../WallLayouts.module.css'
 
 /**
@@ -33,22 +34,28 @@ import styles from '../WallLayouts.module.css'
  * likely to trigger the symptom the preference exists for. So it is declined here
  * outright rather than left to a global `!important` to defuse.
  */
+/** The invitation print's lean: inside the ±2° a camera app reads without a second thought. */
+const INVITE_TILT_DEG = -1.5
+
 export function PolaroidLayout({
   items,
   slideshow,
   transitionMs,
   plays,
   tilt: leans = true,
+  invite = null,
 }: LayoutViewProps) {
   const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
   const prints = rotatingSlots(items, slideshow, POLAROID_PRINTS)
+  const inviteTilt: TiltStyle = { '--wall-tilt': `${leans ? INVITE_TILT_DEG : 0}deg` }
 
   return (
     <div
       className={styles['polaroid']}
       style={stageStyleFor(transitionMs)}
       data-motion={reducedMotion ? 'still' : 'landing'}
+      data-invite={invite === null ? undefined : 'true'}
     >
       {prints.map((item, slot) => {
         const tilt: TiltStyle = { '--wall-tilt': `${leans ? tiltFor(item.id) : 0}deg` }
@@ -84,6 +91,15 @@ export function PolaroidLayout({
           </figure>
         )
       })}
+
+      {/* One more print at the end of the pile, its window holding the QR. It never takes a turn
+          and never lands: a code that moves is a scan that fails. A lean of its own, a little
+          less than the others, unless the host turned the lean off. */}
+      {invite === null ? null : (
+        <div className={styles['polaroidInvite']} style={inviteTilt}>
+          <JoinInvite join={invite.join} slot="print" onDismiss={invite.onDismiss} />
+        </div>
+      )}
 
       <PhotoPreload url={nextPhotoUrl(slideshow)} />
     </div>

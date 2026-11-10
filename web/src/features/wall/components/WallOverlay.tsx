@@ -1,10 +1,5 @@
 import { cx } from '../../../design-system/classNames'
-import { Card } from '../../../design-system/components/Card'
-import { CloseIcon } from '../../../design-system/components/CloseIcon'
-import { IconButton } from '../../../design-system/components/IconButton'
-import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { joinHost } from '../../../lib/joinHost'
-import { JoinQr } from './JoinQr'
+import { JoinInvite } from './JoinInvite'
 import styles from './WallOverlay.module.css'
 
 export interface WallOverlayProps {
@@ -27,13 +22,10 @@ export interface WallOverlayProps {
  * the printed card is on a table they are not sitting at. In 1.0 the QR existed only
  * on a separate page nobody projected, so late arrivals simply did not join.
  *
- * It sits in the opposite corner from the caption, inside the projector safe area, and
- * a host who walks up can put it away with `Q` or with the button — and it comes back by
- * itself, because the projector is unattended.
- *
- * Its title says what to do ("send your photos to the screen") rather than naming a place,
- * since from ten metres a guest needs the verb. Under the code, the address to type it at
- * is for the phone that cannot read the QR (MUR-7).
+ * Only the layouts whose invitation slot is the corner draw it (`joinSlot.ts`: the spotlight);
+ * the others give the invitation a place of their own. Here it is a cartel: the caption's veil,
+ * laid out across rather than up, on the caption's baseline in the opposite corner, inside the
+ * projector safe area. The content and its rules are {@link JoinInvite}'s.
  */
 export function WallOverlay({
   join,
@@ -41,32 +33,17 @@ export function WallOverlay({
   placement = 'bottom-end',
   stacked = false,
 }: WallOverlayProps) {
-  const text = useTranslations()
-  const host = joinHost(join.url)
-
   return (
-    <Card
+    <JoinInvite
+      join={join}
+      slot="corner"
+      onDismiss={onDismiss}
       className={cx(
         styles['overlay'],
         placement === 'bottom-start' && styles['bottomStart'],
         stacked && styles['stacked'],
       )}
-      data-placement={placement === 'bottom-end' ? undefined : placement}
-    >
-      <div className={styles['header']}>
-        <h2 className={styles['prompt']}>{text.wall.sendPrompt}</h2>
-        <IconButton
-          aria-label={text.wall.dismissJoinCard}
-          icon={<CloseIcon />}
-          variant="ghost"
-          onClick={onDismiss}
-        />
-      </div>
-      <JoinQr url={join.url} />
-      <p className={styles['code']}>{join.code}</p>
-      {host === null ? null : (
-        <p className={styles['address']}>{text.wall.typeCodeAt(join.code, host)}</p>
-      )}
-    </Card>
+      placement={placement === 'bottom-end' ? undefined : placement}
+    />
   )
 }

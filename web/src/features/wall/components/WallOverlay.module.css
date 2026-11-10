@@ -1,11 +1,10 @@
 /**
- * Bottom-right, inside the overscan inset, opposite the caption.
+ * Bottom-end, inside the overscan inset, opposite the caption.
  *
  * Inside `--wall-safe` on both axes so a projector that crops the frame does not eat
  * the QR — a cropped QR is not a slightly worse QR, it is one that never scans.
  *
- * Only properties `Card` does not set are declared here. Overriding a primitive's own
- * layout from a feature module would make the result depend on stylesheet order.
+ * Only the position and the footprint are declared here; the dress is `JoinInvite`'s.
  */
 /**
  * The width is declared rather than taken from the content, and that is the whole reason
@@ -13,8 +12,7 @@
  *
  * A content-sized card has no footprint anything else can reserve: `--wall-chrome-inline-end`
  * in `WallPage.module.css` is computed from this token, so the card and the layouts agree
- * on one number instead of the layouts guessing. The content — a QR, a six-character code
- * and one line of prompt — is fixed, so there is nothing here that wants to grow.
+ * on one number instead of the layouts guessing.
  */
 .overlay {
   position: absolute;
@@ -22,14 +20,6 @@
   inset-inline-end: var(--wall-safe);
   inset-block-end: var(--wall-safe);
   z-index: var(--z-wall-caption);
-  align-items: center;
-  box-shadow: var(--shadow-lg);
-  /* ADR 0010: a ticket of the ambiance's own paper (kraft in the Guinguette). Its inks are
-     the ones named for that ground. */
-  background-color: var(--wall-card-bg);
-  background-image: var(--wall-card-texture);
-  color: var(--wall-card-ink);
-  border-radius: var(--radius-sm);
 }
 
 /* Bottom-start (spec 14): the other bottom corner, still inside the safe area. */
@@ -39,50 +29,9 @@
 }
 
 /* Top corners are a column (WallPage's `.cornerStack`): the card comes first and the corner's
-   usual occupant under it, so no two rectangles can meet. In the flow, not at an edge. */
+   usual occupant under it, so no two rectangles can meet. In the flow, not at an edge, and still
+   positioned: the close button is placed from it. */
 .overlay.stacked {
-  position: static;
+  position: relative;
   inset: auto;
-}
-
-.overlay button {
-  color: var(--wall-card-ink-2);
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.prompt {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: calc(var(--text-xl) * var(--wall-join-scale, 1));
-  line-height: var(--leading-tight);
-  color: var(--wall-card-ink);
-}
-
-.code {
-  font-family: var(--font-mono);
-  letter-spacing: 0.14em;
-  font-size: calc(var(--text-xl) * var(--wall-join-scale, 1));
-  line-height: var(--leading-tight);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-/**
- * Where to type the code, for the phone that cannot read the QR (MUR-7).
- *
- * A step below the code and a tone softer, so the six characters stay what the eye lands
- * on. The card is a fixed width, so a long host wraps instead of widening it past the
- * footprint the layouts reserve around it (`--wall-join-card`).
- */
-.address {
-  font-size: calc(var(--text-lg) * var(--wall-join-scale, 1));
-  line-height: var(--leading-snug);
-  color: var(--wall-card-ink-2);
-  text-align: center;
-  overflow-wrap: anywhere;
 }

@@ -1,0 +1,241 @@
+/**
+ * The invitation's dresses, one per slot (`joinSlot.ts`).
+ *
+ * One rule holds across all of them: **the QR is never the thing that gives way.** It is sized
+ * from the host's scale alone (`--invite-qr`, the 224 px plate of 1080p at scale 1, whose 200 px
+ * inside is what `joinCardScale.ts` measures a module against) and no container clips it: a slot
+ * that runs short of room lets its text wrap, never the code shrink or get cut. A cropped QR is
+ * not a slightly worse QR, it is one that never scans.
+ *
+ * The dark-on-light plate is `JoinQr`'s own in every dress, even on the print's cream mat: the
+ * plate's field is the token that guarantees the contrast in every ambiance, the mat is not.
+ */
+.invite {
+  --invite-qr: calc(var(--space-10) * 3.5 * var(--wall-join-scale, 1));
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-5) * var(--wall-join-scale, 1));
+  min-inline-size: 0;
+  color: var(--text-primary);
+}
+
+/* Exactly `JoinQr`'s own `md` width, so its `min(…, 100%)` cap never bites inside a slot. */
+.qr {
+  flex: none;
+  inline-size: var(--invite-qr);
+}
+
+.body {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.prompt {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: calc(var(--text-xl) * var(--wall-join-scale, 1));
+  line-height: var(--leading-tight);
+}
+
+.code {
+  margin: 0;
+  /* Six characters never wrap in a slot that has room; one that has none breaks them rather
+     than spilling into the overscan margin. */
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: calc(var(--text-xl) * var(--wall-join-scale, 1));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.14em;
+  line-height: var(--leading-tight);
+}
+
+/* For the phone that cannot read the QR (MUR-7): a step below the code and a tone softer. */
+.address {
+  margin: 0;
+  font-size: calc(var(--text-lg) * var(--wall-join-scale, 1));
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Off the dress's corner, half outside it, so it never sits on the plate: the host's hand only.
+ * Only under the hand: on a screen with a pointer it shows while the pointer is over the
+ * invitation, or while the keyboard is on it, and never otherwise — the room sees the
+ * invitation, not a control. A touch screen has no hover to bring it, so it keeps it. The wall
+ * also hides it with the idle cursor (`WallPage.module.css`), for a pointer left resting on it.
+ */
+.dismiss {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  translate: 50% -50%;
+  z-index: 1;
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+  color: var(--text-primary);
+}
+
+[dir='rtl'] .dismiss {
+  translate: -50% -50%;
+}
+
+@media (hover: hover) {
+  .invite:not(:hover, :focus-within) .dismiss {
+    opacity: 0;
+  }
+}
+
+/* ---- corner: the spotlight's cartel, the caption's own veil on the caption's baseline ---- */
+.corner {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-6);
+  border-radius: var(--radius-md);
+  background: var(--surface-scrim);
+  box-shadow: var(--shadow-lg);
+  text-align: end;
+}
+
+.corner .body {
+  flex: 1 1 auto;
+}
+
+/* Every dress but the corner is in a layout's flow, and holds the close button itself. The corner's
+   position belongs to `WallOverlay` alone, so no two modules declare it. */
+.tile,
+.cell,
+.print,
+.tag,
+.band,
+.seam {
+  position: relative;
+}
+
+/* ---- tile: a mosaic cell left empty for a guest ---- */
+.tile,
+.cell {
+  justify-content: center;
+  padding: var(--space-6);
+  border-radius: var(--wall-frame-radius);
+  background: color-mix(in oklch, var(--surface-raised) 55%, transparent);
+  outline: 3px dashed var(--border-strong);
+  outline-offset: calc(-1 * var(--space-3));
+}
+
+/* A mosaic cell is a third of the screen wide: the QR keeps its size, so the dress tightens
+   around it, and the code takes what the cell leaves beside the QR — its full size on a 1080p
+   wall at scale 1, smaller only where the cell is narrow (720p, or scale 1.5). Six characters
+   and their spacing measure about 4.5 em of the mono face; 100cqi is the dress inside its padding. */
+.tile {
+  container-type: inline-size;
+  gap: calc(var(--space-4) * var(--wall-join-scale, 1));
+  padding: var(--space-4);
+}
+
+.tile .code {
+  font-size: min(
+    calc(var(--text-xl) * var(--wall-join-scale, 1)),
+    calc((100cqi - var(--invite-qr) - var(--space-4) * var(--wall-join-scale, 1)) / 4.6)
+  );
+}
+
+/* ---- cell: the collage's reserved column, the whole height, so the QR stands up in it ---- */
+.cell {
+  flex-direction: column;
+  text-align: center;
+}
+
+/* ---- print: one more polaroid, its window holding the QR ---- */
+.print {
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-5);
+  border-radius: var(--radius-sm);
+  background: var(--surface-print);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-print);
+  text-align: center;
+  /* The host's lean switch reaches it like the other prints; it never lands or moves. */
+  transform: rotate(var(--wall-tilt, 0deg));
+}
+
+.print .address {
+  color: var(--text-print);
+}
+
+/* The print, the tag and the medallion are as wide as their QR: the words wrap under it. */
+.print .body,
+.tag .body,
+.seam .body {
+  max-inline-size: var(--invite-qr);
+}
+
+/* ---- tag: a tag threaded on the clothesline, in the ambiance's ticket paper ---- */
+.tag {
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-10) var(--space-5) var(--space-5);
+  background-color: var(--wall-card-bg);
+  background-image: var(--wall-card-texture);
+  color: var(--wall-card-ink);
+  text-align: center;
+  /* The cut corners of a luggage tag, and its eyelet below. */
+  clip-path: polygon(18% 0, 82% 0, 100% 8%, 100% 100%, 0 100%, 0 8%);
+}
+
+.tag::before {
+  content: '';
+  position: absolute;
+  inset-block-start: var(--space-4);
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  border-radius: var(--radius-full);
+  background: var(--surface-base);
+  box-shadow: 0 0 0 calc(var(--space-1) / 1.5) var(--wall-card-ink-2);
+}
+
+.tag .address {
+  color: var(--wall-card-ink-2);
+}
+
+/* The clip path would cut the button off the tag: it sits inside on this one. */
+.tag .dismiss {
+  translate: 0 0;
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-2);
+}
+
+/* ---- band: a ticket under the filmstrip, its stub torn along the QR ---- */
+.band {
+  gap: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface-scrim);
+  box-shadow: var(--shadow-lg);
+}
+
+.band .qr {
+  box-sizing: content-box;
+  padding: var(--space-4);
+  border-inline-end: 3px dashed var(--border-strong);
+}
+
+.band .body {
+  padding: var(--space-5) var(--space-8);
+}
+
+/* ---- seam: a medallion between the split's two panes ---- */
+.seam {
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface-scrim);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}

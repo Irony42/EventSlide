@@ -251,7 +251,7 @@
   --container-guest: 30rem; /* single column, phone-first */
   --container-host: 78rem; /* moderation console, admin */
   --wall-safe: 4%; /* projector overscan inset */
-  --wall-join-card: 26rem; /* the corner invitation: declared, so layouts can reserve it */
+  --wall-join-card: 36rem; /* the corner cartel (QR beside its title): declared, so layouts can reserve it */
   /* The mission panel (roadmap 2.1), in the corner the invitation does not use.
      Declared rather than content-sized for the same reason the card above is: a panel
      whose width follows the longest prompt a host happened to type would move every time
