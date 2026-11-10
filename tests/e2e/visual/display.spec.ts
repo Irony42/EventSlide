@@ -315,6 +315,35 @@ test.describe('the projected wall @visual', () => {
     })
   })
 
+  /**
+   * The invitation's close button is the host's hand, not the room's picture: on a screen with a
+   * pointer it shows only while the pointer is over the invitation, or while the keyboard is on it.
+   * Measured as computed opacity, because hover is exactly what a component test cannot do.
+   */
+  test('the invitation shows its close button only under the hand', async ({ app, surfaces }) => {
+    const event = await seedAlbum(app, surfaces, 'croix')
+    const { projector } = surfaces
+
+    await projector.goto(wallUrl(app, event.slug, { intervalMs: 0, transitionMs: 0 }))
+    const invite = projector.getByTestId('wall-invite')
+    const close = invite.getByRole('button')
+    const opacity = () => close.evaluate((node) => getComputedStyle(node).opacity)
+
+    // Read at once rather than polled: the idle cursor also fades it, three seconds later, and a
+    // poll would wait for that and pass without any hover rule at all.
+    await projector.mouse.move(5, 5)
+    expect(await opacity()).toBe('0')
+
+    await invite.hover()
+    expect(await opacity()).toBe('1')
+
+    await projector.mouse.move(5, 5)
+    expect(await opacity()).toBe('0')
+
+    await close.focus()
+    expect(await opacity()).toBe('1')
+  })
+
   test('the mosaic layout', async ({ app, surfaces }) => {
     const event = await seedAlbum(app, surfaces, 'mosaique')
     const { projector } = surfaces

@@ -689,9 +689,10 @@ Three rules hold in every slot:
   container clips it: a slot that runs short lets its words wrap. That is why the collage's block
   is the whole last column — two rows (about 650 px at 1080p, 410 px at 720p) are shorter than the QR and its words at scale 1.5.
 - **The QR never moves.** No sway, no drift, no landing: a code in motion is a scan that fails.
-- **The close button is the host's.** It shows while the pointer moves and leaves with the idle
-  cursor (`[data-join-dismiss]` under `.wall[data-idle='true']`), faded rather than hidden so Tab
-  still reaches it; a touch screen keeps it. `Q` does the same from the keyboard.
+- **The close button is the host's.** On a screen with a pointer it shows only while the pointer
+  is over the invitation or the keyboard is on it (`.invite:not(:hover, :focus-within)` fades it),
+  and leaves with the idle cursor too; a touch screen, which has no hover, keeps it. `Q` does the
+  same from the keyboard.
 
 #### The reserved corner (spotlight only)
 

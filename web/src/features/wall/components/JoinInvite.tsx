@@ -27,9 +27,9 @@ export interface JoinInviteProps {
  * Only the dress does — a cartel, a tile, a print, a tag, a ticket, a medallion — so the room
  * reads it as part of the picture rather than as a box laid over it.
  *
- * The close button is for a host who walked up with a mouse: it shows while the pointer moves and
- * leaves with the cursor (`data-idle` on the wall), since a projector nobody touches has no use for
- * a cross in the middle of the invitation. `Q` puts it away from the keyboard either way.
+ * The close button is for a host who walked up with a mouse: it shows only while the pointer is over
+ * the invitation (or the keyboard is on it), since a projector nobody touches has no use for a
+ * cross on the invitation. `Q` puts it away from the keyboard either way.
  */
 export function JoinInvite({ join, slot, onDismiss, className, placement }: JoinInviteProps) {
   const text = useTranslations()
