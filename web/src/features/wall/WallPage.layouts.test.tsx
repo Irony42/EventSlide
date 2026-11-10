@@ -25,11 +25,12 @@ describe('WallPage', () => {
 
     await userEvent.keyboard('l')
 
-    // Six slots, and no captions: a caption is unreadable at five metres, while a name
-    // is short enough to survive the size.
-    expect(screen.getAllByTestId('wall-slide')).toHaveLength(6)
+    // Six cells, the last one the invitation's, and no captions: a caption is unreadable at five
+    // metres, while a name is short enough to survive the size.
+    expect(screen.getAllByTestId('wall-slide')).toHaveLength(5)
+    expect(screen.getByTestId('wall-invite')).toHaveAttribute('data-slot', 'tile')
     expect(screen.queryByText('Photo 0')).not.toBeInTheDocument()
-    expect(screen.getAllByText('Léa')).toHaveLength(6)
+    expect(screen.getAllByText('Léa')).toHaveLength(5)
   })
 
   /**
@@ -43,7 +44,7 @@ describe('WallPage', () => {
     const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: somePhotos(8) })) })
     renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=mosaic`, path: PATH })
 
-    expect(await screen.findAllByTestId('wall-slide')).toHaveLength(6)
+    expect(await screen.findAllByTestId('wall-slide')).toHaveLength(5)
     // The wall asked for the playlist and nothing else: the layout never left the browser.
     expect(api.wall).toHaveBeenCalledWith('camille-et-sacha', expect.anything())
   })
@@ -69,7 +70,7 @@ describe('WallPage', () => {
     // press `L` five times to get anywhere: the key continues from what is on screen.
     const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: somePhotos(8) })) })
     renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=mosaic`, path: PATH })
-    expect(await screen.findAllByTestId('wall-slide')).toHaveLength(6)
+    expect(await screen.findAllByTestId('wall-slide')).toHaveLength(5)
 
     await userEvent.keyboard('l')
 
@@ -186,7 +187,7 @@ describe('WallPage', () => {
     // The host sets the wall up for a cocktail hour while the server is still answering.
     // Losing that choice the moment the photos arrive would send them back to the
     // keyboard in front of the room.
-    expect(await screen.findAllByTestId('wall-slide')).toHaveLength(6)
+    expect(await screen.findAllByTestId('wall-slide')).toHaveLength(5)
   })
 
   it('never confuses the zoom’s length with the slide’s', async () => {

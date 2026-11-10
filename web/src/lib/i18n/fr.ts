@@ -936,6 +936,15 @@ export const fr = {
     sendPrompt: 'Envoyez vos photos sur l’écran',
     // Under the code, for the phone that cannot read the QR. Both holes are interpolated as given.
     typeCodeAt: (code: string, host: string) => `ou tapez ${code} sur ${host}`,
+    // The invitation's title where a layout gives it a place of its own (joinSlot.ts). The
+    // spotlight's cartel and the filmstrip's ticket keep `sendPrompt`, which says the whole verb.
+    invitePrompt: {
+      tile: 'Votre photo ici',
+      cell: 'La prochaine est la vôtre',
+      print: 'Votre photo ici',
+      tag: 'Accrochez la vôtre',
+      seam: 'Envoyez les vôtres',
+    },
     // An empty wall of an event the host has closed: nobody can send a photo any more.
     emptyClosed: 'Merci d’être venus !',
     // In the shortcuts panel, only when the browser could not keep the screen awake itself.
@@ -1265,7 +1274,7 @@ export const fr = {
         'bottom-end': 'En bas à droite',
       },
       qrPlacementHint:
-        'Sur les mises en page qui laissent de la place à la carte, les photos se serrent ; sur les autres, la carte passe sur les photos.',
+        'Le coin vaut pour la mise en page Plein écran. Les autres placent le QR dans leur propre composition : une case de la mosaïque, un tirage, une étiquette sur la corde…',
     },
     wallSound: {
       title: 'Son',

@@ -209,4 +209,57 @@ describe('the invitation card settings on the wall (spec 14)', () => {
       expect(missions?.parentElement).toBe(theNotices().parentElement)
     })
   })
+
+  describe('a layout that gives the invitation a place of its own (joinSlot.ts)', () => {
+    const showOn = async (layout: string, wall: WallResponse): Promise<HTMLElement> => {
+      const api = fakeApi({ wall: vi.fn(async () => wall) })
+      renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=${layout}`, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+      const wallElement = document.querySelector('[data-wall-layout]')
+      if (!(wallElement instanceof HTMLElement)) throw new Error('no wall')
+      return wallElement
+    }
+
+    it('draws it inside the layout, and reserves no corner around it', async () => {
+      const wall = await showOn('polaroid', wallWith({}))
+
+      const invite = screen.getByTestId('wall-invite')
+      expect(invite).toHaveAttribute('data-slot', 'print')
+      expect(invite.parentElement).not.toBe(wall)
+      expect(wall).not.toHaveAttribute('data-wall-chrome')
+      expect(screen.getAllByText('H7K2QM')).toHaveLength(1)
+    })
+
+    it('ignores a top corner: nothing is stacked over the missions or the notices', async () => {
+      const wall = await showOn(
+        'mosaic',
+        wallWith({ placement: 'top-end' }, { missions: [aWallMission()] }),
+      )
+
+      expect(wall).not.toHaveAttribute('data-wall-join-corner')
+      expect(theNotices().parentElement).toBe(wall)
+      expect(theMissions()?.parentElement).toBe(wall)
+      expect(screen.getByTestId('wall-invite')).toHaveAttribute('data-slot', 'tile')
+    })
+
+    it('spreads the host’s scale, so the QR is the same size there as in the corner', async () => {
+      const wall = await showOn('split', wallWith({ scale: 1.3 }))
+
+      expect(Number(wall.style.getPropertyValue('--wall-join-scale'))).toBe(1.3)
+    })
+
+    it('is put away by Q like the corner card', async () => {
+      await showOn('clothesline', wallWith({}))
+
+      await userEvent.keyboard('q')
+
+      expect(screen.queryByTestId('wall-invite')).not.toBeInTheDocument()
+    })
+
+    it('draws nothing in the layout when the host switched the card off', async () => {
+      await showOn('filmstrip', wallWith({ visible: false }))
+
+      expect(screen.queryByTestId('wall-invite')).not.toBeInTheDocument()
+    })
+  })
 })

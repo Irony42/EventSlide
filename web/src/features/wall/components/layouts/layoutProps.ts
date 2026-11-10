@@ -1,10 +1,20 @@
 import type { CSSProperties } from 'react'
 import type { WallItemDto } from '../../../../lib/api/dto'
+import type { WallInvitation } from '../../wallChrome'
 import type { Slideshow } from '../../hooks/useSlideshow'
 
 export type StageStyle = CSSProperties & { readonly '--wall-transition': string }
 export type TiltStyle = CSSProperties & { readonly '--wall-tilt': string }
 export type DriftStyle = CSSProperties & { readonly '--wall-drift-duration': string }
+
+/**
+ * The invitation a layout draws in its own flow (`joinSlot.ts`), or `null` while there is none
+ * to draw: put away, switched off, the evening closed, or the layout keeps it in a corner.
+ */
+export interface LayoutInvite {
+  readonly join: WallInvitation
+  readonly onDismiss: () => void
+}
 
 export interface LayoutViewProps {
   readonly items: readonly WallItemDto[]
@@ -26,6 +36,8 @@ export interface LayoutViewProps {
    * it is hardest to find.
    */
   readonly plays: boolean
+  /** Absent or `null`: the layout is the one it always was, with no place set aside. */
+  readonly invite?: LayoutInvite | null
 }
 
 /** The crossfade length the room was given, as the custom property the CSS reads. */

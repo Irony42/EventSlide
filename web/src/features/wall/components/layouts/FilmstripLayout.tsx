@@ -7,6 +7,7 @@ import { PhotoPreload } from '../PhotoPreload'
 import { WallMedia } from '../WallMedia'
 import { stageStyleFor, type LayoutViewProps, type DriftStyle } from './layoutProps'
 import { playlistWindow, nextPhotoUrl, FILMSTRIP_FRAMES } from '../wallLayoutMath'
+import { JoinInvite } from '../JoinInvite'
 import styles from '../WallLayouts.module.css'
 
 /**
@@ -39,7 +40,13 @@ import styles from '../WallLayouts.module.css'
  * is the invariant worth having, and the settle happens on a deliberate keypress that
  * already puts a notice on the wall.
  */
-export function FilmstripLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+export function FilmstripLayout({
+  items,
+  slideshow,
+  transitionMs,
+  plays,
+  invite = null,
+}: LayoutViewProps) {
   const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
   const scrolls = items.length > FILMSTRIP_FRAMES
@@ -86,6 +93,17 @@ export function FilmstripLayout({ items, slideshow, transitionMs, plays }: Layou
           </figure>
         ))}
       </div>
+
+      {/* A ticket in the band under the strip, in the flow rather than over it: the strip drifts
+          above and never passes beneath the code. */}
+      {invite === null ? null : (
+        <JoinInvite
+          join={invite.join}
+          slot="band"
+          onDismiss={invite.onDismiss}
+          className={styles['filmstripInvite']}
+        />
+      )}
 
       <PhotoPreload url={nextPhotoUrl(slideshow)} />
     </div>

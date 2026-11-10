@@ -4,6 +4,7 @@ import { PhotoPreload } from '../PhotoPreload'
 import { WallMedia } from '../WallMedia'
 import { stageStyleFor, type LayoutViewProps } from './layoutProps'
 import { rotatingSlots, nextPhotoUrl, COLLAGE_CELLS } from '../wallLayoutMath'
+import { JoinInvite } from '../JoinInvite'
 import styles from '../WallLayouts.module.css'
 
 /**
@@ -29,9 +30,26 @@ import styles from '../WallLayouts.module.css'
  * growing before or after the spec says it should — nothing breaks, and nothing catches
  * it either. `COLLAGE_CELLS` is the one the room sees.
  */
-export function CollageLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+/**
+ * Cells the collage's invitation holds: its whole last column. Three rows because two (about
+ * 650 px on a 1080p wall, 410 px on a 720p one) are shorter than the QR and its words at the
+ * host's largest scale, and a QR is never cropped to fit a cell.
+ */
+const INVITE_CELLS = 3
+
+export function CollageLayout({
+  items,
+  slideshow,
+  transitionMs,
+  plays,
+  invite = null,
+}: LayoutViewProps) {
   const text = useTranslations()
-  const composed = rotatingSlots(items, slideshow, COLLAGE_CELLS)
+  const composed = rotatingSlots(
+    items,
+    slideshow,
+    invite === null ? COLLAGE_CELLS : COLLAGE_CELLS - INVITE_CELLS,
+  )
   const filled = Math.min(slideshow.generation + 1, composed.length)
   const cells = composed.slice(0, filled)
 
@@ -55,6 +73,16 @@ export function CollageLayout({ items, slideshow, transitionMs, plays }: LayoutV
           />
         </figure>
       ))}
+
+      {/* A place the composition keeps for the next guest, from the first photograph on. */}
+      {invite === null ? null : (
+        <JoinInvite
+          join={invite.join}
+          slot="cell"
+          onDismiss={invite.onDismiss}
+          className={styles['collageInvite']}
+        />
+      )}
 
       <PhotoPreload url={nextPhotoUrl(slideshow)} />
     </div>

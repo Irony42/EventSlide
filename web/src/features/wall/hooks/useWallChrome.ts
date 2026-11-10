@@ -15,7 +15,11 @@ export interface WallChromeView extends WallChrome {
  * host, which undoes itself after `QR_HIDDEN_MS` because the projector is unattended, and the
  * challenge banner that has shown its end. One timer, cleared on change and on unmount.
  */
-export const useWallChrome = (wall: WallResponse | null, itemCount: number): WallChromeView => {
+export const useWallChrome = (
+  wall: WallResponse | null,
+  itemCount: number,
+  cornerCard = true,
+): WallChromeView => {
   const [qrHidden, setQrHidden] = useState(false)
   const [challengeGone, setChallengeGone] = useState<string | null>(null)
   const [seenChallenge, setSeenChallenge] = useState<string | null>(null)
@@ -26,7 +30,7 @@ export const useWallChrome = (wall: WallResponse | null, itemCount: number): Wal
     return () => window.clearTimeout(timer)
   }, [qrHidden])
 
-  const chrome = chromeOf({ wall, itemCount, qrHidden, challengeGone })
+  const chrome = chromeOf({ wall, itemCount, qrHidden, challengeGone, cornerCard })
 
   const challengeId = chrome.challenge?.id ?? null
   const leaveChallenge = useCallback(() => setChallengeGone(challengeId), [challengeId])

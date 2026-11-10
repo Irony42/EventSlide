@@ -33,6 +33,12 @@ export interface WallChromeInput {
   readonly qrHidden: boolean
   /** The id of the challenge whose banner has shown "Défi terminé" for its ten seconds. */
   readonly challengeGone: string | null
+  /**
+   * Whether the layout on screen keeps the invitation in a corner (`joinSlot.ts`: the spotlight).
+   * The others draw it in their own flow, so there is no corner to reserve or stack. Absent is the
+   * corner, the wall as it was before the layouts had slots.
+   */
+  readonly cornerCard?: boolean
 }
 
 export interface WallChrome {
@@ -51,6 +57,8 @@ export interface WallChrome {
   readonly cardEnabled: boolean
   /** Whether it is drawn now: enabled and not put away, or held on screen by a running challenge. */
   readonly showsOverlay: boolean
+  /** `showsOverlay`, in a corner of the wall rather than inside the layout. */
+  readonly showsCorner: boolean
   /** The scale drawn: the host's, lifted to the readability floor of this very link. */
   readonly cardScale: number
   readonly stackStart: boolean
@@ -70,6 +78,7 @@ export const chromeOf = ({
   itemCount,
   qrHidden,
   challengeGone,
+  cornerCard = true,
 }: WallChromeInput): WallChrome => {
   // The code and the link arrive together from one presenter, so there is no deployment in
   // which the server sends one and not the other. Requiring both here is what keeps the
@@ -95,6 +104,9 @@ export const chromeOf = ({
   const showsOverlay = cardEnabled && (!qrHidden || challengeRunning)
   const cardScale = invitation === null ? 1 : joinCardScale(joinCard.scale, invitation.url)
   const placement = joinCard.placement
+  // The host's corner (spec 14) moves only a card that is in a corner. A layout that gives the
+  // invitation a place of its own ignores it, and nothing stacks over the missions or the notices.
+  const cornered = cardEnabled && cornerCard
 
   return {
     join,
@@ -107,10 +119,11 @@ export const chromeOf = ({
     placement,
     cardEnabled,
     showsOverlay,
+    showsCorner: showsOverlay && cornerCard,
     cardScale,
-    stackStart: cardEnabled && placement === 'top-start',
-    stackEnd: cardEnabled && placement === 'top-end',
-    chrome: cx(showsOverlay && 'corner', showsChallenge && 'top'),
+    stackStart: cornered && placement === 'top-start',
+    stackEnd: cornered && placement === 'top-end',
+    chrome: cx(showsOverlay && cornerCard && 'corner', showsChallenge && 'top'),
     startedChallengeId: challengeRunning && challenge !== null ? challenge.id : null,
   }
 }

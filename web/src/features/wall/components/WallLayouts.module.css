@@ -125,12 +125,6 @@
   padding: var(--wall-safe);
   /* Below the challenge banner while there is one (spec 10); nothing otherwise. */
   padding-block-start: calc(var(--wall-safe) + var(--wall-chrome-block-start));
-  /* The pile shares the wall with the invitation. Each print's caption is centred in its
-     own mat, so the third one ran under the join card and was cut mid-word — measured at
-     362px of overlap. The row lays out inside what the corner leaves free instead, and
-     gets the space back the moment the card is dismissed. */
-  padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
-  padding-inline-start: calc(var(--wall-safe) + var(--wall-chrome-inline-start, 0px));
   /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
   background: var(--wall-ground);
   /* A print is as tall as its photo plus its caption, and a guest who writes two long
@@ -368,9 +362,8 @@
  *
  * The stage owns the ground and the clipping; `.line` is the row, and it is the string's
  * containing block, so the twine sits exactly where the pins are whatever the screen. The
- * row lays out inside what the join card leaves free (DESIGN-SYSTEM §9, "The reserved
- * corner"); the twine is ornament and runs the full width of the row's box, past the
- * card's gutter to the edge, where it passes above the card and behind nothing.
+ * twine is ornament and runs the full width of the row's box, to the edge; the invitation's
+ * tag hangs from it at the end of the row (DESIGN-SYSTEM §9, "Where the invitation lives").
  *
  * Every print is the same width however many hang, so the fourth photograph of an evening
  * does not resize the three already up; a short line is centred instead.
@@ -397,8 +390,6 @@
      its neighbour's caption: they pivot at the top, so their feet swing furthest. */
   gap: var(--space-6);
   padding-inline: var(--wall-safe);
-  padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
-  padding-inline-start: calc(var(--wall-safe) + var(--wall-chrome-inline-start, 0px));
   padding-block-start: var(--space-8);
 }
 
@@ -517,13 +508,6 @@
   padding: var(--wall-safe);
   /* Below the challenge banner while there is one (spec 10); nothing otherwise. */
   padding-block-start: calc(var(--wall-safe) + var(--wall-chrome-block-start));
-  /* Both panes narrow together, so the pair stays a pair. Centring each caption under its
-     own pane put the right one under the join card, cut mid-word — measured at 42px of
-     overlap on a 1920 screen. This layout is for ultra-wide walls, where the same card is
-     a much smaller share of the width, and on any wall a host who wants the full pair
-     presses Escape and the reservation goes with the card. */
-  padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
-  padding-inline-start: calc(var(--wall-safe) + var(--wall-chrome-inline-start, 0px));
   /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
   background: var(--wall-ground);
 }
@@ -604,4 +588,56 @@
 [data-wall-budget='cut'] .paneImage {
   animation: none;
   will-change: auto;
+}
+
+/* ---------------------------------------------------------------------------------- */
+/*
+ * The invitation in each layout's own flow (`joinSlot.ts`, `JoinInvite`). Only the place is
+ * declared here; the dress is JoinInvite's. Each layout makes room for it rather than letting it
+ * float over a photograph, and gets the room back the moment it is put away.
+ */
+
+/* The collage keeps its last column, the whole height: two rows are shorter than the QR and its
+   words at the host's largest scale, or on a 720p wall at scale 1. Placed explicitly, so the
+   photographs flow around it. */
+.collageInvite {
+  grid-column: 4;
+  grid-row: 1 / span 3;
+}
+
+/* A fourth column, as wide as the print it holds, so the three photographs share the rest. */
+.polaroid[data-invite='true'] {
+  grid-template-columns: repeat(3, 1fr) auto;
+}
+
+/* The last column, whatever the number of prints: never beside a lone photograph. */
+.polaroidInvite {
+  grid-column: -2 / -1;
+  align-self: center;
+}
+
+/* Hung from the string like a print, at its end; it keeps its size whatever the prints do. */
+.tagHolder {
+  position: relative;
+  flex: none;
+}
+
+/* The pin straddles the string over the tag's top edge, never over the code. */
+.tagHolder .pin {
+  z-index: 1;
+}
+
+/* Under the strip, centred, in the band the strip leaves empty. */
+.filmstripInvite {
+  justify-self: center;
+  margin-block-start: var(--space-8);
+}
+
+/* The seam: a column of its own between two panes of equal width. */
+.split[data-invite='true'] {
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.splitInvite {
+  align-self: end;
 }

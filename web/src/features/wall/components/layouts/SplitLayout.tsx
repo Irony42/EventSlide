@@ -5,6 +5,7 @@ import { SlideCaption } from '../SlideCaption'
 import { WallMedia } from '../WallMedia'
 import { stageStyleFor, type LayoutViewProps } from './layoutProps'
 import { splitPanes, saysFirstPhoto, nextPhotoUrl } from '../wallLayoutMath'
+import { JoinInvite } from '../JoinInvite'
 import styles from '../WallLayouts.module.css'
 
 /**
@@ -18,13 +19,36 @@ import styles from '../WallLayouts.module.css'
  * The panes change alternately, so one half is always still — a wall where both halves
  * cut at once is two slideshows rather than a pairing.
  */
-export function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+export function SplitLayout({
+  items,
+  slideshow,
+  transitionMs,
+  plays,
+  invite = null,
+}: LayoutViewProps) {
   const text = useTranslations()
   const panes = splitPanes(items, slideshow)
+  // A medallion on the seam, in a middle column of its own: the two panes stay the same width
+  // either side of it, which is what makes them a pair.
+  const medallion =
+    invite === null ? null : (
+      <JoinInvite
+        key="invite"
+        join={invite.join}
+        slot="seam"
+        onDismiss={invite.onDismiss}
+        className={styles['splitInvite']}
+      />
+    )
 
   return (
-    <div className={styles['split']} style={stageStyleFor(transitionMs)}>
-      {panes.map((item, pane) => (
+    <div
+      className={styles['split']}
+      style={stageStyleFor(transitionMs)}
+      data-invite={invite === null ? undefined : 'true'}
+    >
+      {panes.flatMap((item, pane) => [
+        pane === 1 ? medallion : null,
         <figure
           key={pane}
           className={styles['pane']}
@@ -47,8 +71,9 @@ export function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutVie
             firstFromGuest={saysFirstPhoto(item, slideshow)}
             variant="pane"
           />
-        </figure>
-      ))}
+        </figure>,
+      ])}
+      {panes.length < 2 ? medallion : null}
 
       <PhotoPreload url={nextPhotoUrl(slideshow)} />
     </div>

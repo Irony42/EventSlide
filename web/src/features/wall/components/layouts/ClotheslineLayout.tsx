@@ -13,6 +13,7 @@ import {
   nextPhotoUrl,
   CLOTHESLINE_PRINTS,
 } from '../wallLayoutMath'
+import { JoinInvite } from '../JoinInvite'
 import styles from '../WallLayouts.module.css'
 
 /**
@@ -38,6 +39,7 @@ export function ClotheslineLayout({
   transitionMs,
   plays,
   tilt: leans = true,
+  invite = null,
 }: LayoutViewProps) {
   const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
@@ -86,6 +88,14 @@ export function ClotheslineLayout({
             </figure>
           )
         })}
+        {/* A tag threaded at the end of the string. Not a `.hung`, so it is the one thing on the
+            line that never sways: a code that moves is a scan that fails. */}
+        {invite === null ? null : (
+          <div className={styles['tagHolder']}>
+            <span className={styles['pin']} aria-hidden="true" />
+            <JoinInvite join={invite.join} slot="tag" onDismiss={invite.onDismiss} />
+          </div>
+        )}
       </div>
 
       <PhotoPreload url={nextPhotoUrl(slideshow)} />

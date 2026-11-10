@@ -170,7 +170,7 @@ token exactly.
   --container-guest: 30rem; /* single column, phone-first */
   --container-host: 78rem; /* moderation console, admin */
   --wall-safe: 4%; /* projector overscan inset */
-  --wall-join-card: 26rem; /* the corner invitation: declared, so layouts can reserve it */
+  --wall-join-card: 36rem; /* the corner cartel (QR beside its title): declared, so layouts can reserve it */
   /* The most of the viewport a pane pinned to the bottom edge may take (the guest's upload
      composer). Past it the pane stays in the flow, because what scrolls behind a taller one
      is covered more than it is seen. A ratio, read by useOversizedPane. */
@@ -666,31 +666,48 @@ The layout is named on the wall element as `data-wall-layout`, which is how the 
 suite proves it photographed the layout it asked for. A slot count cannot: a filmstrip
 and a mosaic can both be holding six photos.
 
-### The reserved corner
+### Where the invitation lives
 
-The join card sits bottom-right and is the wall's **default** state — a host has to
-dismiss it. Every layout that centres a caption in the bottom band therefore printed the
-guest's own words underneath it. Measured on a 1920×1080 projector: the polaroid's third
-caption lost 362px of its box and the split's right caption 42px, both cut mid-word.
+The invitation (the QR, a title that says what to do, the code and where to type it) used to be
+one card in a corner of every layout. It hid half a mosaic tile, cut two frames of the filmstrip
+and pushed the split off centre. Each layout now gives it a place in its own vocabulary, named by
+`joinSlotOf(layout)` in `web/src/features/wall/joinSlot.ts` and dressed by `JoinInvite`:
 
-The card yields, not the caption. A caption is the guest's words under the guest's photo;
-the card is chrome, and §1 says chrome recedes. So the wall **declares** the corner and
-the layouts lay out inside what is left:
+| Layout      | Slot     | Its place                                                                       |
+| ----------- | -------- | ------------------------------------------------------------------------------- |
+| spotlight   | `corner` | a cartel: the caption's veil, laid across, on the caption's baseline            |
+| mosaic      | `tile`   | the last cell, dashed, « Votre photo ici »: five photographs, six once put away |
+| collage     | `cell`   | its whole last column, kept from the first photograph on (9 photos max)         |
+| polaroid    | `print`  | a fourth print, its window holding the QR; it never takes a turn or lands       |
+| clothesline | `tag`    | a tag in the ticket paper, pegged at the end of the string; it never sways      |
+| filmstrip   | `band`   | a ticket in the band under the strip, outside the track that drifts             |
+| split       | `seam`   | a medallion in a middle column, so the two panes keep the same width            |
 
-- `--wall-join-card` is the card's declared width. A content-sized card has no footprint
+Three rules hold in every slot:
+
+- **The QR never gives way.** It is `JoinQr` at the host's scale (spec 14) everywhere, and no
+  container clips it: a slot that runs short lets its words wrap. That is why the collage's block
+  is the whole last column — two rows (about 650 px at 1080p, 410 px at 720p) are shorter than the QR and its words at scale 1.5.
+- **The QR never moves.** No sway, no drift, no landing: a code in motion is a scan that fails.
+- **The close button is the host's.** It shows while the pointer moves and leaves with the idle
+  cursor (`[data-join-dismiss]` under `.wall[data-idle='true']`), faded rather than hidden so Tab
+  still reaches it; a touch screen keeps it. `Q` does the same from the keyboard.
+
+#### The reserved corner (spotlight only)
+
+The spotlight is the one layout whose invitation sits in a corner, so it is the one the host's
+corner choice (spec 14) moves, and the one the wall reserves room around:
+
+- `--wall-join-card` is the cartel's declared width. A content-sized card has no footprint
   anything can reserve, which is why it is a token rather than whatever the QR measures.
-- `.wall` publishes `--wall-chrome-inline-end`: `0px` normally, and the card plus a
-  `--space-6` gutter while `data-wall-chrome="corner"` is set. The gutter is `--space-6`
-  and not `--space-5` because a polaroid is rotated and `overflow: hidden` clips to the
-  padding box, so a tilted print renders past where the reservation puts it.
-- `polaroid`, `clothesline` and `split` add it to their `padding-inline-end`. Nothing is given up
-  permanently: dismissing the card removes the attribute and the width comes straight
-  back, which is one Escape away.
-
-Layouts whose text cannot reach the corner ignore all of this. The mosaic's in-tile credit
-is left-aligned at the start of its tile — measured at x 985 against a card at x 1448 — so
-only the empty end of its scrim passes behind the card, exactly as the photo under it
-already does. The filmstrip and the collage show no captions at all.
+- `.wall` publishes `--wall-chrome-inline-end` (or `-inline-start` and `-caption-start` for a
+  start corner): `0px` normally, the card plus a `--space-6` gutter while
+  `data-wall-chrome="corner"` is set. `chromeOf` sets it only for a corner slot, and stacks the
+  card over the missions or the notices only for a corner slot.
+- The caption reads it: the spotlight's caption keeps to what the reserved side leaves, so on a
+  narrow wall (1024 px) it wraps rather than running under the cartel, and it makes way for a
+  bottom-start card. Nothing is given up permanently: putting the card away removes the attribute
+  and the width comes straight back.
 
 ---
 

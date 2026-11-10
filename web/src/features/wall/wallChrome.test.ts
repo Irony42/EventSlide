@@ -155,6 +155,53 @@ describe('chromeOf: the join card', () => {
   })
 })
 
+describe('chromeOf: a layout that keeps the invitation in its own flow', () => {
+  it('still shows it, but in no corner, so nothing is reserved', () => {
+    const c = chrome({ cornerCard: false })
+
+    expect(c.showsOverlay).toBe(true)
+    expect(c.showsCorner).toBe(false)
+    expect(c.chrome).toBe('')
+  })
+
+  it('is a corner by default, the wall as it was before the layouts had slots', () => {
+    const c = chrome()
+
+    expect(c.showsCorner).toBe(true)
+    expect(c.chrome).toBe('corner')
+  })
+
+  it.each(['top-start', 'top-end'] as const)(
+    'ignores the host’s %s corner and stacks nothing over the missions or the notices',
+    (placement) => {
+      const c = chrome({
+        cornerCard: false,
+        wall: wallOf({ joinCard: { visible: true, scale: 1, placement } }),
+      })
+
+      expect(c.stackStart).toBe(false)
+      expect(c.stackEnd).toBe(false)
+    },
+  )
+
+  it('keeps the host’s scale: the QR is the same size wherever it is drawn', () => {
+    const joinCard = { visible: true, scale: 1.3, placement: 'bottom-end' } as const
+
+    expect(chrome({ cornerCard: false, wall: wallOf({ joinCard }) }).cardScale).toBe(1.3)
+  })
+
+  it('still lets a running challenge hold it on screen, and the banner still reserves the top', () => {
+    const c = chrome({
+      cornerCard: false,
+      qrHidden: true,
+      wall: wallOf({ challenge: challenge() }),
+    })
+
+    expect(c.showsOverlay).toBe(true)
+    expect(c.chrome).toBe('top')
+  })
+})
+
 describe('chromeOf: the challenge banner', () => {
   it('shows a running challenge, and names it as started', () => {
     const c = chrome({ wall: wallOf({ challenge: challenge() }) })
