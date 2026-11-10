@@ -167,6 +167,11 @@ test('every mosaic tile shows at least 70 % of its photograph', async ({ app, su
   }
 
   await projector.goto(wallUrl(app, event.slug, { layout: 'mosaic', intervalMs: 600_000 }))
+  // The invitation takes the mosaic's last cell (joinSlot.ts); put away, all six shapes are
+  // photographs, which is what this test measures.
+  await expect(projector.getByTestId('wall-invite')).toHaveAttribute('data-slot', 'tile')
+  await projector.keyboard.press('q')
+  await expect(projector.getByTestId('wall-invite')).toHaveCount(0)
   await expect(projector.getByTestId('wall-slide')).toHaveCount(shapes.length)
   await expect
     .poll(async () =>

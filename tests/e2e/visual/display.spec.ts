@@ -308,7 +308,7 @@ test.describe('the projected wall @visual', () => {
     // code and the QR now come from the server, so the shots that keep the card compare it
     // pixel for pixel.
     await projector.keyboard.press('q')
-    await expect(projector.getByTestId('wall-join')).toHaveCount(0)
+    await expect(projector.getByTestId('wall-invite')).toHaveCount(0)
 
     await expect(projector).toHaveScreenshot('wall-spotlight-bright.png', {
       animations: 'disabled',
@@ -322,11 +322,13 @@ test.describe('the projected wall @visual', () => {
     await projector.goto(wallUrl(app, event.slug, { intervalMs: 0, transitionMs: 0 }))
     await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
 
-    // `L` is the host's layout shortcut. Asserting six tiles before the shot is what
+    // `L` is the host's layout shortcut. Asserting the six cells before the shot is what
     // keeps this test honest: a spotlight has one, so a silent fall back to it fails
-    // here rather than in a snapshot diff nobody reads.
+    // here rather than in a snapshot diff nobody reads. Five photographs and the
+    // invitation's tile, the cell the mosaic gives it (joinSlot.ts).
     await projector.keyboard.press('l')
-    await expect(projector.getByTestId('wall-slide')).toHaveCount(6)
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(5)
+    await expect(projector.getByTestId('wall-invite')).toHaveAttribute('data-slot', 'tile')
 
     await expect(projector).toHaveScreenshot('wall-mosaic.png', { animations: 'disabled' })
   })
@@ -626,16 +628,17 @@ test.describe('the projected wall @visual', () => {
       'data-wall-layout',
       'mosaic',
     )
-    await expect(projector.getByTestId('wall-slide')).toHaveCount(6)
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(5)
 
     // The join card is put away first, which the unthemed layout baselines do not do.
     // The reason used to be that its code and QR were random per event; they are not any
     // more — the code comes from a server this test has to itself and the QR from that
     // server's `PUBLIC_URL`, so the eight shots that keep the card compare it pixel for
     // pixel. It goes because the subject here is the frame style on every tile, and the
-    // card covers two of them.
+    // invitation takes one of them: put away, the mosaic is six photographs again.
     await projector.keyboard.press('q')
-    await expect(projector.getByTestId('wall-join')).toHaveCount(0)
+    await expect(projector.getByTestId('wall-invite')).toHaveCount(0)
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(6)
 
     await expect(projector).toHaveScreenshot('wall-mosaic-themed.png', { animations: 'disabled' })
   })
