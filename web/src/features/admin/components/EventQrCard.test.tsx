@@ -1,12 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QRCodeSVG } from 'qrcode.react'
 import { EventQrCard } from './EventQrCard'
 import { fr } from '../../../lib/i18n/fr'
+import { renderWithProviders } from '../../../testing/renderWithProviders'
 
 /**
- * The card a host prints and puts on the tables.
+ * How a guest gets in: the card a host prints and puts on the tables, compact on screen.
  *
  * The 1.0 defect this whole component exists to prevent: the QR page emitted
  * `?partyname=` while the upload page read `?party`, so every guest silently uploaded
@@ -17,7 +18,9 @@ import { fr } from '../../../lib/i18n/fr'
 const JOIN_URL = 'https://photos.example/join/H7K2QM'
 
 const renderCard = (joinUrl = JOIN_URL) =>
-  render(<EventQrCard eventName="Camille & Sacha" joinCode="H7K2QM" joinUrl={joinUrl} />)
+  renderWithProviders(
+    <EventQrCard eventName="Camille & Sacha" joinCode="H7K2QM" joinUrl={joinUrl} />,
+  )
 
 /**
  * The module matrix, as the single `<path>` qrcode.react draws.
@@ -27,8 +30,11 @@ const renderCard = (joinUrl = JOIN_URL) =>
  * wrong thing" a red test rather than a room of guests uploading to the wrong event.
  */
 const matrixOf = (root: HTMLElement): string => {
+  // The QR's own svg, not a button's glyph; the reference has no plate, so it is its first svg.
+  const qr = root.querySelector('[role="img"] svg') ?? root.querySelector('svg')
+  if (qr === null) throw new Error('no QR code was drawn')
   // The first path is the quiet-zone background; the modules are the second.
-  const paths = root.querySelectorAll('svg path')
+  const paths = qr.querySelectorAll('path')
   const modules = paths[paths.length - 1]
   if (modules === undefined) throw new Error('no QR code was drawn')
   const drawn = modules.getAttribute('d')
@@ -70,7 +76,8 @@ describe('EventQrCard', () => {
     renderCard()
 
     expect(screen.getByText('H7K2QM')).toBeVisible()
-    expect(screen.getByText(fr.admin.qrScanPrompt)).toBeVisible()
+    // The sentence is the paper's: on screen the card's buttons say what to do with the QR.
+    expect(screen.getByText(fr.admin.qrScanPrompt)).toBeInTheDocument()
   })
 
   it('does nothing when the browser has no print at all', async () => {
@@ -94,5 +101,52 @@ describe('EventQrCard', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.admin.printQr }))
 
     expect(print).toHaveBeenCalledTimes(1)
+  })
+
+  describe('the link, one press from the clipboard', () => {
+    const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    afterEach(() => {
+      if (original === undefined) Reflect.deleteProperty(navigator, 'clipboard')
+      else Object.defineProperty(navigator, 'clipboard', original)
+    })
+
+    it('copies the link the server built, and says so', async () => {
+      const writeText = vi.fn(async () => {})
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      renderCard()
+
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.copyJoinLink }))
+
+      expect(writeText).toHaveBeenCalledWith(JOIN_URL)
+      expect(await screen.findByText(fr.admin.joinLinkCopied)).toBeVisible()
+    })
+
+    it('says the link must be selected by hand where the browser refuses the clipboard', async () => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
+      renderCard()
+
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.copyJoinLink }))
+
+      expect(await screen.findByText(fr.admin.joinLinkCopyFailed)).toBeVisible()
+      // The link is still on the card to be selected.
+      expect(screen.getByRole('link', { name: JOIN_URL })).toHaveAttribute('href', JOIN_URL)
+    })
+  })
+
+  it('shows the QR and the code full size for a guest at the laptop, and closes again', async () => {
+    renderCard()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.admin.qrEnlarge }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Camille & Sacha' })
+    expect(
+      within(dialog).getByRole('img', { name: fr.admin.qrAlt('Camille & Sacha') }),
+    ).toBeVisible()
+    expect(within(dialog).getByText('H7K2QM')).toBeVisible()
+    expect(matrixOf(dialog)).toBe(expectedMatrixFor(JOIN_URL))
+
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.app.close }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

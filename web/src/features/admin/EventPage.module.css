@@ -25,16 +25,23 @@
 }
 
 /**
- * Two columns on a laptop, one below that.
+ * The "Maintenant" card and the access card, side by side on a laptop, stacked below that.
  *
- * The minimum track is the single-column token: narrower than that, the join code at
- * display size and the QR plate start competing for the same width.
+ * The access card's track is narrow on purpose: it holds a small QR, a code and three buttons,
+ * and every pixel it does not take goes to the card that says what to do now. Below the
+ * guest container's width the two stack, the "Maintenant" card first.
  */
-.columns {
+.lead {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--container-guest)), 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, calc(var(--touch-min) * 7));
   gap: var(--space-4);
   align-items: start;
+}
+
+@media (max-width: 52rem) {
+  .lead {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .column {
@@ -44,24 +51,15 @@
   min-width: 0;
 }
 
-/**
- * The join code.
- *
- * At display size because a guest reads it out loud across a table, and a host reads
- * it off a laptop screen from two metres away while somebody dictates it.
- */
-.joinCode {
-  font-size: var(--text-display);
-  line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-tight);
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+/* "Tout l'évènement": one tile per destination the first card does not hold. */
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.joinUrl {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  overflow-wrap: anywhere;
+.overviewTitle {
+  font-size: var(--text-lg);
 }
 
 .actions {
@@ -77,17 +75,17 @@
 }
 
 /**
- * Print takes the QR card and nothing else.
+ * Print takes the access card and nothing else.
  *
- * Every other section carries this class, so "print-friendly" needs no global rule and
- * no second route — the host presses the button and gets the card for the tables.
+ * Every other section carries this class, so "print-friendly" needs no global rule and no
+ * second route — the host presses the button and gets the card for the tables.
  */
 @media print {
   .screenOnly {
     display: none;
   }
 
-  .columns {
+  .lead {
     display: block;
   }
 }
@@ -98,12 +96,10 @@
   color: var(--text-secondary);
 }
 
-/* What is armed to happen by itself, under the badge row: the times and the way to change them. */
+/* What is armed to happen by itself, at the foot of the "Maintenant" card: the times and the way to change them. */
 .schedule {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
+  gap: var(--space-2) var(--space-3);
 }

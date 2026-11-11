@@ -3,13 +3,14 @@ import { expect, signInAsHost, test } from '../fixtures/app'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
- * The host's way out of the event page: its navigation tiles (one for the queue, whatever the device).
+ * The host's way out of the event page: the large tiles of the "Maintenant" card and the small
+ * ones of the overview (one tile into the queue, whatever the device).
  *
  * What a component test cannot say is how they land in a real browser: whether the page
  * stays inside the screen on a phone with a real viewport and a real scrollbar, whether
  * the tiles clear the 44 px floor once layout has run, whether the ring is actually drawn
- * on one, and whether the contrast of the new surfaces survives axe. Which link goes where
- * is `EventActionLinks.test.tsx`'s job.
+ * on one, and whether the contrast of the new surfaces survives axe. Which tile goes where
+ * is `EventDestinationTile.test.tsx`'s and `eventOverview.test.ts`'s job.
  */
 
 /** 44 px is the floor, not the aspiration — docs/DESIGN-SYSTEM.md section 8. */
@@ -18,6 +19,7 @@ const TOUCH_MIN = 44
 const ACTIONS = [
   fr.admin.openWall,
   fr.admin.openModeration,
+  fr.admin.stats.tile,
   fr.admin.settings,
   fr.admin.download,
 ] as const
@@ -44,14 +46,18 @@ test('the event page lays its actions out inside the screen, as real targets', a
     expect(box.x + box.width, `${name} runs off the right edge`).toBeLessThanOrEqual(viewport.width)
   }
 
-  // The tiers are drawn, not only declared: the two actions the evening turns on stand taller
-  // than the rest, whatever the width puts them beside.
+  // The sizes are drawn, not only declared: the two actions the evening turns on (the
+  // "Maintenant" card of a live event) stand taller than the overview's, whatever the width.
   const height = async (name: string): Promise<number> => {
     const box = await page.getByRole('link', { name, exact: true }).boundingBox()
     if (box === null) throw new Error()
     return box.height
   }
-  const secondary = Math.max(await height(fr.admin.settings), await height(fr.admin.download))
+  const secondary = Math.max(
+    await height(fr.admin.stats.tile),
+    await height(fr.admin.settings),
+    await height(fr.admin.download),
+  )
   expect(await height(fr.admin.openWall)).toBeGreaterThan(secondary)
   expect(await height(fr.admin.openModeration)).toBeGreaterThan(secondary)
 

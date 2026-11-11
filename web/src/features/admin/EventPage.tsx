@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
-import { Card } from '../../design-system/components/Card'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { Notice } from '../../design-system/components/Notice'
 import { useToast } from '../../design-system/components/useToast'
@@ -13,10 +12,11 @@ import { useAbout } from '../../lib/useAbout'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
-import { AfterEventCard } from './components/AfterEventCard'
-import { EventActionLinks } from './components/EventActionLinks'
+import { EventDestinationTile, type PanelDestination } from './components/EventDestinationTile'
+import { EventNowCard } from './components/EventNowCard'
 import { EventQrCard } from './components/EventQrCard'
 import { EventStatusBadge } from './components/EventStatusBadge'
+import { TileGroup } from './components/EventTiles'
 import { LifecycleConfirmDialog } from './components/LifecycleConfirmDialog'
 import { StorageMeter } from './components/StorageMeter'
 import { SupportCard } from './components/SupportCard'
@@ -32,19 +32,28 @@ import { ShareLinkPanel } from './ShareLinkPanel'
 import {
   allowsModeration,
   canManageEvent,
-  isAfterEvening,
   isMutable,
   lifecycleActions,
   offersSupport,
 } from '../../lib/eventLifecycle'
 import { scheduleMoment, upcomingMoves } from './eventSchedule'
+import { overviewTiles } from './eventOverview'
 import { bringIntoView } from './bringIntoView'
 import { useAlbumUrl, useEvent } from './hooks/useEventData'
 import { usePurgeEvent, useRotateJoinCode } from './hooks/useEventActions'
 import { useLifecycleTransition } from './hooks/useLifecycleTransition'
 import styles from './EventPage.module.css'
 
-/** Surface: the host's laptop. The screen they come back to during the event. */
+/**
+ * Surface: the host's laptop, and the phone they hold by the end of the evening. The screen they
+ * come back to during the event.
+ *
+ * Three layers, most urgent first (maquette D, 11/11): the **"Maintenant" card**, which changes
+ * with the status and holds what the moment asks for, beside the **access card** (code, link,
+ * a small QR that prints large); then **"Tout l'évènement"**, one tile per destination, so what
+ * is not in the first card is one press away; then the panels themselves. `eventOverview.ts`
+ * decides what goes in which layer.
+ */
 export function EventPage() {
   const t = useTranslations()
   const { locale } = useLocale()
@@ -62,9 +71,24 @@ export function EventPage() {
   const [rotating, setRotating] = useState(false)
   const [purging, setPurging] = useState(false)
 
-  // The two cards a toast or a button elsewhere on the page sends the host to.
+  // The card a toast elsewhere on the page sends the host to (the new code makes the printed
+  // ones out of date), and the panels the tiles lead to.
   const qrHeading = useRef<HTMLHeadingElement>(null)
-  const shareHeading = useRef<HTMLHeadingElement>(null)
+  const overviewTitleId = useId()
+  // The panels the tiles lead to are found by id: a prefix of this page's own, one per panel.
+  const panelIds = useId()
+  const panelId = (panel: PanelDestination) => panelIds + '-' + panel
+
+  /**
+   * Takes the host to a panel further down: to its heading, so a screen reader reads on from
+   * there. The heading is the panel's own; it is made focusable here rather than in every panel.
+   */
+  const openPanel = (panel: PanelDestination) => {
+    const heading =
+      document.getElementById(panelId(panel))?.querySelector<HTMLElement>('h2, h3') ?? null
+    if (heading !== null && !heading.hasAttribute('tabindex')) heading.tabIndex = -1
+    bringIntoView(heading)
+  }
 
   const confirmRotate = () => {
     void rotate.run('rotate', slug).then((result) => {
@@ -124,6 +148,61 @@ export function EventPage() {
       ? null
       : (formatDateTime(event.scheduleDiscardedAt, locale) ?? event.scheduleDiscardedAt)
   const settingsPath = `/admin/events/${event.slug}/settings`
+  const actions = lifecycleActions(event.status, t)
+
+  // What is armed to happen by itself, so the host on the day does not open the doors "to be
+  // safe" (revue UX 30/10, HOT-10). Editing it is the settings page's, which is the owner's.
+  const scheduleTexts = moves.flatMap((move) => {
+    const moment = scheduleMoment(move.at, new Date(), locale)
+    if (moment === null) return []
+    const text =
+      move.kind === 'open'
+        ? moment.today
+          ? t.admin.autoOpenAt(moment.text)
+          : t.admin.autoOpenOn(moment.text)
+        : moment.today
+          ? t.admin.autoCloseAt(moment.text)
+          : t.admin.autoCloseOn(moment.text)
+    return [<span key={move.kind}>{text}</span>]
+  })
+  const schedule: ReactNode | undefined =
+    scheduleTexts.length === 0 ? undefined : (
+      <p className={styles['schedule']}>
+        {scheduleTexts}
+        {isOwner ? <Link to={settingsPath}>{t.admin.autoEdit}</Link> : null}
+      </p>
+    )
+
+  const lifecycle: ReactNode | undefined = !isOwner ? undefined : actions.length === 0 ? (
+    <p className={styles['archived']}>{t.admin.settingsReadOnly}</p>
+  ) : (
+    <>
+      {actions.map((action) => (
+        <Button
+          key={action.to}
+          variant={action.primary ? 'primary' : 'secondary'}
+          loading={transition.isPending(`${event.slug}:${action.to}`)}
+          disabled={transition.busy}
+          onClick={() =>
+            transition.request({
+              slug: event.slug,
+              eventName: event.name,
+              from: event.status,
+              to: action.to,
+            })
+          }
+        >
+          {action.label}
+        </Button>
+      ))}
+    </>
+  )
+
+  const overview = overviewTiles({
+    status: event.status,
+    role: event.role,
+    allowGuestbook: event.settings.allowGuestbook,
+  })
 
   return (
     <div className={styles['page']}>
@@ -135,7 +214,7 @@ export function EventPage() {
         custom={event.settings.theme.custom}
         groundUrl={event.settings.theme.groundUrl}
       />
-      <header className={styles['header']}>
+      <header className={cx(styles['header'], styles['screenOnly'])}>
         <h1 className={styles['title']}>{event.name}</h1>
         <div className={styles['facts']}>
           <EventStatusBadge status={event.status} />
@@ -145,27 +224,6 @@ export function EventPage() {
             <Badge tone="warning">{t.moderation.pending(event.pendingCount)}</Badge>
           ) : null}
         </div>
-        {/* What is armed to happen by itself, so the host on the day does not open the doors
-            "to be safe" (revue UX 30/10, HOT-10). Editing it is the settings page's, which is
-            the owner's. */}
-        {moves.length > 0 ? (
-          <p className={styles['schedule']}>
-            {moves.map((move) => {
-              const moment = scheduleMoment(move.at, new Date(), locale)
-              if (moment === null) return null
-              const text =
-                move.kind === 'open'
-                  ? moment.today
-                    ? t.admin.autoOpenAt(moment.text)
-                    : t.admin.autoOpenOn(moment.text)
-                  : moment.today
-                    ? t.admin.autoCloseAt(moment.text)
-                    : t.admin.autoCloseOn(moment.text)
-              return <span key={move.kind}>{text}</span>
-            })}
-            {isOwner ? <Link to={settingsPath}>{t.admin.autoEdit}</Link> : null}
-          </p>
-        ) : null}
         {discardedAt === null ? null : (
           <Notice tone="warning" role="status" variant="boxed">
             {t.admin.scheduleDiscarded(discardedAt)}{' '}
@@ -174,125 +232,121 @@ export function EventPage() {
         )}
       </header>
 
-      <div className={styles['columns']}>
-        <div className={cx(styles['column'], styles['screenOnly'])}>
-          {/* Once the evening is over the host's job is the album: it leads, and the card of
-              the donation comes after it (revue UX 30/10, HOT-5, APR-6). */}
-          {isAfterEvening(event.status) ? (
-            <AfterEventCard
-              albumUrl={albumUrl}
-              onShare={isOwner ? () => bringIntoView(shareHeading.current) : undefined}
-            />
-          ) : null}
-          <Card as="h2" title={t.admin.joinCode} subtitle={t.admin.joinCodeHint}>
-            <p className={styles['joinCode']}>{event.joinCode}</p>
-            <p className={styles['joinUrl']}>
-              <span>{t.admin.joinLink}</span>{' '}
-              {/* The server built this URL. The client never assembles a join link. */}
-              <a href={event.joinUrl}>{event.joinUrl}</a>
-            </p>
-            {isOwner && isMutable(event.status) ? (
-              <div className={styles['actions']}>
+      <div className={styles['lead']}>
+        <div className={styles['screenOnly']}>
+          <EventNowCard
+            event={event}
+            albumUrl={albumUrl}
+            onOpenPanel={openPanel}
+            schedule={schedule}
+            lifecycle={lifecycle}
+          />
+        </div>
+        <EventQrCard
+          eventName={event.name}
+          joinCode={event.joinCode}
+          joinUrl={event.joinUrl}
+          titleRef={qrHeading}
+          extraActions={
+            <>
+              {event.status === 'archived' ? null : (
+                <Link to={`/admin/events/${event.slug}/print`}>{t.admin.printKitTitle}</Link>
+              )}
+              {isOwner && isMutable(event.status) ? (
                 <Button
+                  size="sm"
+                  variant="ghost"
                   loading={rotate.busy}
                   onClick={() => setRotating(true)}
                   aria-haspopup="dialog"
                 >
                   {t.admin.rotateJoinCode}
                 </Button>
-              </div>
-            ) : null}
-          </Card>
-
-          <Card as="h2" title={t.admin.eventControls}>
-            <EventActionLinks
-              slug={event.slug}
-              status={event.status}
-              role={event.role}
-              albumUrl={albumUrl}
-            />
-            <StorageMeter usedBytes={event.usedBytes} quotaBytes={event.quotaBytes} />
-            {event.liveWindowEnd === undefined ? null : (
-              <p className={styles['liveWindow']}>
-                {t.clientSpace.liveWindowEnd(
-                  formatDateTime(event.liveWindowEnd, locale) ?? event.liveWindowEnd,
-                )}
-              </p>
-            )}
-            {isOwner ? (
-              <div className={styles['actions']}>
-                {lifecycleActions(event.status, t).map((action) => (
-                  <Button
-                    key={action.to}
-                    variant={action.primary ? 'primary' : 'secondary'}
-                    loading={transition.isPending(`${event.slug}:${action.to}`)}
-                    disabled={transition.busy}
-                    onClick={() =>
-                      transition.request({
-                        slug: event.slug,
-                        eventName: event.name,
-                        from: event.status,
-                        to: action.to,
-                      })
-                    }
-                  >
-                    {action.label}
-                  </Button>
-                ))}
-                {lifecycleActions(event.status, t).length === 0 ? (
-                  <p className={styles['archived']}>{t.admin.settingsReadOnly}</p>
-                ) : null}
-              </div>
-            ) : null}
-          </Card>
-
-          {/* Once the event is closed, and only where the operator set `DONATION_URL`
-              (roadmap G4-02): a card that can be closed and stays closed for this event. It
-              is in the host's console and nowhere a guest or the room can see. */}
-          {offersSupport(event.status) && links.donate !== undefined ? (
-            <SupportCard eventId={event.id} donateUrl={links.donate} budgetUrl={links.budget} />
-          ) : null}
-        </div>
-
-        <div className={styles['column']}>
-          <EventQrCard
-            eventName={event.name}
-            joinCode={event.joinCode}
-            joinUrl={event.joinUrl}
-            titleRef={qrHeading}
-            extraAction={
-              event.status === 'archived' ? undefined : (
-                <Link to={`/admin/events/${event.slug}/print`}>{t.admin.printKitTitle}</Link>
-              )
-            }
-          />
-        </div>
+              ) : null}
+            </>
+          }
+        />
       </div>
 
       <div className={cx(styles['column'], styles['screenOnly'])}>
-        <GuestListPanel slug={event.slug} canRevoke={allowsModeration(event.status)} />
-        {/* Any moderator: starring and the ZIP are moderation, and the routes allow it (spec 08). */}
-        <BestOfPanel slug={event.slug} canStar={allowsModeration(event.status)} />
-        {/* The photo book (spec 04): any moderator, like the ZIP; the server answers for the rest. */}
-        <AlbumBookPanel slug={event.slug} defaultTitle={event.name} />
-        {/* Owner-only for the reason below, and mounted above the moderators because a
-            host sets the prompts up before the evening rather than during it (roadmap
-            §2.1). A moderator may read the list — `GET` allows it — but a panel whose
-            every affordance is refused is worse than no panel. */}
-        {/* Any moderator: deciding on a message is moderation, like deciding on a photo (spec 01). */}
+        {/* Once the event is closed, and only where the operator set `DONATION_URL` (roadmap
+            G4-02): a card that can be closed and stays closed for this event. It is in the host's
+            console and nowhere a guest or the room can see. */}
+        {offersSupport(event.status) && links.donate !== undefined ? (
+          <SupportCard eventId={event.id} donateUrl={links.donate} budgetUrl={links.budget} />
+        ) : null}
+
+        <section className={styles['overview']} aria-labelledby={overviewTitleId}>
+          <h2 id={overviewTitleId} className={styles['overviewTitle']}>
+            {t.admin.overviewTitle}
+          </h2>
+          <TileGroup size="small">
+            {overview.map((destination) => (
+              <EventDestinationTile
+                key={destination}
+                destination={destination}
+                size="small"
+                event={event}
+                albumUrl={albumUrl}
+                onOpenPanel={openPanel}
+              />
+            ))}
+          </TileGroup>
+          <StorageMeter usedBytes={event.usedBytes} quotaBytes={event.quotaBytes} />
+          {event.liveWindowEnd === undefined ? null : (
+            <p className={styles['liveWindow']}>
+              {t.clientSpace.liveWindowEnd(
+                formatDateTime(event.liveWindowEnd, locale) ?? event.liveWindowEnd,
+              )}
+            </p>
+          )}
+        </section>
+
+        {/* The panels, in the overview's order. Each is wrapped so a tile can take the host to
+            its heading. */}
         {event.settings.allowGuestbook ? (
-          <GuestbookPanel slug={event.slug} canDecide={allowsModeration(event.status)} />
+          // Any moderator: deciding on a message is moderation, like deciding on a photo (spec 01).
+          <div id={panelId('guestbook')}>
+            <GuestbookPanel slug={event.slug} canDecide={allowsModeration(event.status)} />
+          </div>
         ) : null}
         {/* Any moderator launches or stops a timed challenge (spec 10): the person with the laptop
             at the evening is usually the moderator, and it writes no new sentence. */}
-        <ChallengePanel slug={event.slug} live={event.status === 'live'} />
-        {isOwner ? <MissionsPanel slug={event.slug} /> : null}
-        {/* Owner-only, like every endpoint behind it: sending the album beyond the room
-            is a decision about the whole event (roadmap §4.1). */}
-        {isOwner ? <ShareLinkPanel slug={event.slug} titleRef={shareHeading} /> : null}
-        {/* Owner-only: every moderator endpoint requires it, so a moderator is not
-            shown a panel whose requests would all come back 403. */}
-        {isOwner ? <ModeratorsPanel slug={event.slug} /> : null}
+        <div id={panelId('challenge')}>
+          <ChallengePanel slug={event.slug} live={event.status === 'live'} />
+        </div>
+        {/* Owner-only, and a moderator may read the list — `GET` allows it — but a panel whose
+            every affordance is refused is worse than no panel (roadmap §2.1). */}
+        {isOwner ? (
+          <div id={panelId('missions')}>
+            <MissionsPanel slug={event.slug} />
+          </div>
+        ) : null}
+        <div id={panelId('guests')}>
+          <GuestListPanel slug={event.slug} canRevoke={allowsModeration(event.status)} />
+        </div>
+        {/* Owner-only: every moderator endpoint requires it, so a moderator is not shown a panel
+            whose requests would all come back 403. */}
+        {isOwner ? (
+          <div id={panelId('moderators')}>
+            <ModeratorsPanel slug={event.slug} />
+          </div>
+        ) : null}
+        {/* Any moderator: starring and the ZIP are moderation, and the routes allow it (spec 08). */}
+        <div id={panelId('bestOf')}>
+          <BestOfPanel slug={event.slug} canStar={allowsModeration(event.status)} />
+        </div>
+        {/* The photo book (spec 04): any moderator, like the ZIP; the server answers for the rest. */}
+        <div id={panelId('book')}>
+          <AlbumBookPanel slug={event.slug} defaultTitle={event.name} />
+        </div>
+        {/* Owner-only, like every endpoint behind it: sending the album beyond the room is a
+            decision about the whole event (roadmap §4.1). */}
+        {isOwner ? (
+          <div id={panelId('share')}>
+            <ShareLinkPanel slug={event.slug} />
+          </div>
+        ) : null}
         {isOwner ? (
           <div className={styles['actions']}>
             <Button variant="danger" onClick={() => setPurging(true)} aria-haspopup="dialog">
