@@ -247,23 +247,24 @@ export function EventPage() {
           joinCode={event.joinCode}
           joinUrl={event.joinUrl}
           titleRef={qrHeading}
+          // Both are for an event still in use: an archived one gets no empty row under the card.
           extraActions={
-            <>
-              {event.status === 'archived' ? null : (
+            event.status === 'archived' ? undefined : (
+              <>
                 <Link to={`/admin/events/${event.slug}/print`}>{t.admin.printKitTitle}</Link>
-              )}
-              {isOwner && isMutable(event.status) ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  loading={rotate.busy}
-                  onClick={() => setRotating(true)}
-                  aria-haspopup="dialog"
-                >
-                  {t.admin.rotateJoinCode}
-                </Button>
-              ) : null}
-            </>
+                {isOwner && isMutable(event.status) ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    loading={rotate.busy}
+                    onClick={() => setRotating(true)}
+                    aria-haspopup="dialog"
+                  >
+                    {t.admin.rotateJoinCode}
+                  </Button>
+                ) : null}
+              </>
+            )
           }
         />
       </div>

@@ -8,8 +8,11 @@ import { allowsModeration, canManageEvent, linksToWall } from '../../lib/eventLi
  * on, and it changes with the status: before the evening, getting ready and opening the doors;
  * during it, the queue and the screen; after it, the album. The **overview** under it lists
  * everything else the event has, one tile each, so nothing is lost by not being in the first
- * card. A destination is in one layer or the other, never both: two links with one name to one
- * place is what the page used to have and what this replaces.
+ * card. A tile is in one layer or the other, never both: two links with one name to one place is
+ * what the page used to have and what this replaces. Before the evening the card is a list of
+ * steps instead of tiles, and a step may lead where a tile also leads (the settings, the screen,
+ * the moderators): it says why to go there ("Tester l'écran sur le vidéoprojecteur"), so its name
+ * is its own and never the tile's.
  *
  * Which destinations exist at all is not decided here. The lifecycle says whether there is a
  * screen or a queue (`linksToWall`, `allowsModeration`), the role says what is the owner's

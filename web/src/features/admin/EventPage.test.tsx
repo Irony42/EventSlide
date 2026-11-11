@@ -190,6 +190,30 @@ describe('EventPage', () => {
     expect(within(now).getByRole('button', { name: fr.admin.goLive })).toBeVisible()
   })
 
+  it('gives a moderator of a draft only the steps that are theirs: no settings, no inviting, no opening', async () => {
+    renderPage(
+      fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft', role: 'moderator' })) }),
+    )
+
+    const now = (await screen.findByRole('heading', { name: fr.admin.nowDraftTitle })).closest(
+      'section',
+    )
+    if (now === null) throw new Error('the "Maintenant" card is not a section')
+    expect(within(now).getByRole('link', { name: fr.admin.nowDraftPrint })).toBeVisible()
+    expect(within(now).getByRole('link', { name: fr.admin.nowDraftWall })).toBeVisible()
+    expect(within(now).queryByRole('link', { name: fr.admin.nowDraftSettings })).toBeNull()
+    expect(within(now).queryByRole('button', { name: fr.admin.nowDraftModerators })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.admin.goLive })).toBeNull()
+  })
+
+  it('offers an archived event no table cards and no new code', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'archived' })) }))
+
+    await screen.findByRole('heading', { name: fr.admin.accessTitle })
+    expect(screen.queryByRole('link', { name: fr.admin.printKitTitle })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.admin.rotateJoinCode })).toBeNull()
+  })
+
   it('takes the host from an overview tile to its panel’s heading', async () => {
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView as unknown as Element['scrollIntoView']

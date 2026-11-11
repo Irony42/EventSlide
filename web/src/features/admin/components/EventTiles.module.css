@@ -57,9 +57,11 @@
   transform: scale(0.98);
 }
 
-/* Something is waiting there: the border says it, the hint says it in words, never colour alone. */
+/* Something is waiting there: the border says it, the hint says it in words, never colour alone.
+   The end padding keeps a long label (a German one, in a narrow tile) clear of the badge. */
 .tile[data-attention] {
   border-color: var(--warning);
+  padding-inline-end: calc(var(--space-6) + var(--space-5));
 }
 
 .glyph {
