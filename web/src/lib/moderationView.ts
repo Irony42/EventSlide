@@ -11,7 +11,7 @@
  *   detection that guessed wrong (a tablet, a narrow laptop window, a phone in landscape). The
  *   choice is remembered on this device, for every event, because it is a fact about the
  *   device and not about the evening.
- * - **Otherwise the screen decides**: narrow, or driven by a finger, is a phone.
+ * - **Otherwise the screen decides**: narrow, or a finger on a small screen, is a phone.
  *
  * Read once, when the page opens, and never subscribed to: turning a phone sideways must not
  * swap the screen under a thumb that is halfway through a swipe.
@@ -25,8 +25,13 @@ export type ModerationView = 'phone' | 'desktop'
 
 const KEY = 'eventslide.moderation.view'
 
-/** The query `onPhone` asks: narrow, or a coarse pointer. Exported for the tests that stub it. */
-export const PHONE_QUERY = '(max-width: 767px), (pointer: coarse)'
+/**
+ * The query `onPhone` asks: narrow, or driven by a finger on a screen no wider than a tablet
+ * held upright. A finger alone is not enough: a touch laptop or a tablet in landscape is wide
+ * enough for the console's grid, and a phone turned sideways (up to about 930 px) still is a
+ * phone. Exported for the tests that stub it.
+ */
+export const PHONE_QUERY = '(max-width: 767px), (pointer: coarse) and (max-width: 1023px)'
 
 /**
  * Whether the screen in front of the person is a phone's. A browser without `matchMedia` (a

@@ -69,13 +69,14 @@ describe('whether the screen is a phone’s', () => {
     window.matchMedia = original
   })
 
-  it('asks for a narrow viewport or a coarse pointer, either of which makes it a phone', () => {
+  it('asks for a narrow viewport, or a finger on a screen no wider than an upright tablet', () => {
     const matchMedia = vi.fn(() => ({ matches: true }) as MediaQueryList)
     window.matchMedia = matchMedia
 
     expect(onPhone()).toBe(true)
     expect(matchMedia).toHaveBeenCalledWith(PHONE_QUERY)
-    expect(PHONE_QUERY).toBe('(max-width: 767px), (pointer: coarse)')
+    // A touch laptop is a laptop: the finger counts only below the tablet's landscape width.
+    expect(PHONE_QUERY).toBe('(max-width: 767px), (pointer: coarse) and (max-width: 1023px)')
   })
 
   it('is a laptop when neither matches', () => {
