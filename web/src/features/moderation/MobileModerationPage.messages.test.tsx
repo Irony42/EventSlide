@@ -51,10 +51,10 @@ const apiWith = (
 }
 
 const renderPhone = (api: Api) =>
-  renderWithProviders(<MobileModerationPage />, {
+  renderWithProviders(<MobileModerationPage onSwitchView={vi.fn()} />, {
     api,
-    route: `/admin/events/${SLUG}/moderation/mobile?vue=messages`,
-    path: '/admin/events/:slug/moderation/mobile',
+    route: `/admin/events/${SLUG}/moderation?vue=messages`,
+    path: '/admin/events/:slug/moderation',
   })
 
 const card = (): HTMLElement => screen.getByTestId('mobile-moderation-card')

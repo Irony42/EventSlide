@@ -150,21 +150,8 @@ export function EventActionLinks({ slug, status, role, albumUrl }: EventActionLi
         </div>
       ) : null}
       <div className={styles['group']}>
-        {moderation ? (
-          /*
-            The same queue, one photo at a time. It lives here rather than only on the
-            console because the host who needs it has already walked away from the
-            laptop: this page is what they reach on a phone, and an address they would
-            otherwise have to type is an address nobody uses.
-          */
-          <RouteTile
-            priority="secondary"
-            glyph="phone"
-            to={`/admin/events/${slug}/moderation/mobile`}
-          >
-            {t.mobileModeration.title}
-          </RouteTile>
-        ) : null}
+        {/* No tile for the phone's queue: "Modérer" opens it on a phone by itself
+            (`lib/moderationView.ts`), so one link serves both screens. */}
         <RouteTile priority="secondary" glyph="stats" to={`/admin/events/${slug}/stats`}>
           {t.admin.stats.tile}
         </RouteTile>

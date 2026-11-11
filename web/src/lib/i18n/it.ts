@@ -2306,7 +2306,6 @@ export const it: UiText = {
     newEvent: 'Nuovo evento',
     event: 'Evento',
     moderation: 'Moderazione',
-    mobileModeration: 'Moderazione da telefono',
     stats: 'Statistiche della serata',
     settings: 'Impostazioni dell’evento',
     customAmbiance: 'Atmosfera su misura',
