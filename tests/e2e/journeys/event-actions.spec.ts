@@ -51,10 +51,7 @@ test('the event page lays its actions out inside the screen, as real targets', a
     if (box === null) throw new Error()
     return box.height
   }
-  const secondary = Math.max(
-    await height(fr.admin.settings),
-    await height(fr.admin.download),
-  )
+  const secondary = Math.max(await height(fr.admin.settings), await height(fr.admin.download))
   expect(await height(fr.admin.openWall)).toBeGreaterThan(secondary)
   expect(await height(fr.admin.openModeration)).toBeGreaterThan(secondary)
 
