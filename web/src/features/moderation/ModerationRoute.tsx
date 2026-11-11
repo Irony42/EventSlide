@@ -1,4 +1,4 @@
-import { lazy, useEffect, useRef, useState } from 'react'
+import { lazy, startTransition, useEffect, useRef, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import {
   moderationViewFor,
@@ -39,11 +39,17 @@ export function ModerationRoute() {
   const switchTo = (next: ModerationView) => {
     rememberModerationView(next)
     switched.current = true
-    setView(next)
+    // A transition, because the other screen is a chunk that may not be loaded yet: the screen
+    // in hand stays up until the new one can replace it, instead of the router's fallback hiding
+    // it — and the focus below then lands on a heading that is on screen.
+    startTransition(() => {
+      setView(next)
+    })
   }
 
   // The button that was pressed has gone with the screen it was on: the keyboard and the screen
-  // reader are taken to the new screen's heading rather than left on the document's body.
+  // reader are taken to the new screen's heading rather than left on the document's body. Only
+  // after a switch: on arrival the focus is the browser's, like on every other page.
   useEffect(() => {
     if (!switched.current) return
     // Each screen has exactly one `h1`, its title, and the app's header has none.

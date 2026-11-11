@@ -76,6 +76,8 @@ describe('whether the screen is a phone’s', () => {
     expect(onPhone()).toBe(true)
     expect(matchMedia).toHaveBeenCalledWith(PHONE_QUERY)
     // A touch laptop is a laptop: the finger counts only below the tablet's landscape width.
+    // jsdom cannot evaluate a media query, so the rule is held here by its text; the e2e laptop
+    // surface of the phone projects (touch, 1440 px) holds its effect.
     expect(PHONE_QUERY).toBe('(max-width: 767px), (pointer: coarse) and (max-width: 1023px)')
   })
 

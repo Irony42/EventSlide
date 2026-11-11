@@ -63,6 +63,12 @@ describe('the moderation queue’s one address', () => {
     expect(screen.queryByRole('heading', { name: fr.mobileModeration.title })).toBeNull()
   })
 
+  it('leaves the focus alone on arrival: only a switch moves it', async () => {
+    renderQueue()
+
+    expect(await laptopHeading()).not.toHaveFocus()
+  })
+
   it('opens the phone’s screen on a phone, with no second link to find', async () => {
     onAPhone()
     renderQueue()
