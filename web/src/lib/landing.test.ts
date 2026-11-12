@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   afterInvitationPath,
   chosenPath,
@@ -7,7 +7,6 @@ import {
   hereAsFrom,
   landingPath,
   moderationQueuePath,
-  onPhone,
   type LandingFacts,
 } from './landing'
 
@@ -21,7 +20,6 @@ const facts = (overrides: Partial<LandingFacts> = {}): LandingFacts => ({
   soleEventRole: null,
   clientCount: 0,
   operatesConsole: false,
-  phone: false,
   ...overrides,
 })
 
@@ -90,12 +88,6 @@ describe('where an account lands when it chose no page', () => {
     )
   })
 
-  it('opens the phone’s queue on a phone', () => {
-    expect(
-      landingPath(facts({ eventSlugs: ['mariage'], soleEventRole: 'moderator', phone: true })),
-    ).toBe('/admin/events/mariage/moderation/mobile')
-  })
-
   it('opens the list of events for a moderator of several events, who has to choose', () => {
     expect(landingPath(facts({ eventSlugs: ['mariage', 'gala'], soleEventRole: null }))).toBe(
       '/admin',
@@ -133,71 +125,35 @@ describe('where an account lands when it chose no page', () => {
 
 describe('where somebody lands after accepting an invitation', () => {
   it('opens the queue of the event a moderator was invited to', () => {
-    expect(
-      afterInvitationPath({ kind: 'event', role: 'moderator', eventSlug: 'mariage' }, false),
-    ).toBe('/admin/events/mariage/moderation')
-  })
-
-  it('opens the phone’s queue on a phone', () => {
-    expect(
-      afterInvitationPath({ kind: 'event', role: 'moderator', eventSlug: 'mariage' }, true),
-    ).toBe('/admin/events/mariage/moderation/mobile')
+    expect(afterInvitationPath({ kind: 'event', role: 'moderator', eventSlug: 'mariage' })).toBe(
+      '/admin/events/mariage/moderation',
+    )
   })
 
   it.each(['owner', 'member'] as const)('opens the list of events for a client’s %s', (role) => {
-    expect(afterInvitationPath({ kind: 'client', role, eventSlug: null }, false)).toBe('/admin')
-    expect(afterInvitationPath({ kind: 'client', role, eventSlug: null }, true)).toBe('/admin')
+    expect(afterInvitationPath({ kind: 'client', role, eventSlug: null })).toBe('/admin')
   })
 
   it('opens the list of events for a client invitation even when the answer carries an event', () => {
     // The server sends none for a client; the rule is about the kind, not about what else is there.
-    expect(
-      afterInvitationPath({ kind: 'client', role: 'owner', eventSlug: 'mariage' }, false),
-    ).toBe('/admin')
+    expect(afterInvitationPath({ kind: 'client', role: 'owner', eventSlug: 'mariage' })).toBe(
+      '/admin',
+    )
   })
 
   it('opens the event’s page for any other role on an event', () => {
-    expect(afterInvitationPath({ kind: 'event', role: 'owner', eventSlug: 'mariage' }, false)).toBe(
+    expect(afterInvitationPath({ kind: 'event', role: 'owner', eventSlug: 'mariage' })).toBe(
       '/admin/events/mariage',
     )
   })
 
   it('opens the list of events when an event invitation names no event', () => {
-    expect(afterInvitationPath({ kind: 'event', role: 'moderator', eventSlug: null }, false)).toBe(
+    expect(afterInvitationPath({ kind: 'event', role: 'moderator', eventSlug: null })).toBe(
       '/admin',
     )
   })
 
   it('encodes a slug as a path segment', () => {
-    expect(moderationQueuePath('a b/c', false)).toBe('/admin/events/a%20b%2Fc/moderation')
-  })
-})
-
-describe('whether the screen is a phone’s', () => {
-  const original = window.matchMedia
-  afterEach(() => {
-    window.matchMedia = original
-  })
-
-  it('asks for a narrow viewport or a coarse pointer, either of which makes it a phone', () => {
-    const matchMedia = vi.fn(() => ({ matches: true }) as MediaQueryList)
-    window.matchMedia = matchMedia
-
-    expect(onPhone()).toBe(true)
-    expect(matchMedia).toHaveBeenCalledWith('(max-width: 767px), (pointer: coarse)')
-  })
-
-  it('is a laptop when neither matches', () => {
-    window.matchMedia = vi.fn(() => ({ matches: false }) as MediaQueryList)
-
-    expect(onPhone()).toBe(false)
-  })
-
-  it('is a laptop in a browser that cannot say', () => {
-    window.matchMedia = vi.fn(() => {
-      throw new Error('no matchMedia')
-    })
-
-    expect(onPhone()).toBe(false)
+    expect(moderationQueuePath('a b/c')).toBe('/admin/events/a%20b%2Fc/moderation')
   })
 })

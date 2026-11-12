@@ -9,7 +9,7 @@ import { Spinner } from '../../design-system/components/Spinner'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
-import { afterInvitationPath, onPhone } from '../../lib/landing'
+import { afterInvitationPath } from '../../lib/landing'
 import { useLocale } from '../../lib/i18n/useTranslations'
 import { AuthActions, AuthPage } from './components/AuthPage'
 import { AuthForm } from './components/AuthForm'
@@ -173,7 +173,7 @@ export function AcceptInvitationPage() {
         toast.show(t.auth.invitationAccepted, { tone: 'success' })
         // A moderator starts on the queue they were invited to work (the phone's, on a phone); a
         // client's owner or member on the list of events. `lib/landing.ts` has the rule.
-        navigate(afterInvitationPath(outcome.accepted, onPhone()), { replace: true })
+        navigate(afterInvitationPath(outcome.accepted), { replace: true })
         return
       case 'dead':
         setDiedUnderUs(true)

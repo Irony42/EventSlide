@@ -68,23 +68,11 @@ export const hereAsFrom = (location: {
 }): string => `${location.pathname}${location.search}`
 
 /**
- * Whether the screen in front of the person is a phone's: narrow, or driven by a finger.
- *
- * Read once, when a landing is decided, and never subscribed to: the question is "which of the
- * two queues do I open", asked at a moment, and not a layout that follows a rotation. A browser
- * without `matchMedia` (a test harness) is a laptop.
+ * The moderation queue of one event. One address for both screens: the page itself opens the
+ * phone's or the laptop's (`lib/moderationView.ts`), so a landing no longer has to guess.
  */
-export const onPhone = (): boolean => {
-  try {
-    return window.matchMedia('(max-width: 767px), (pointer: coarse)').matches
-  } catch {
-    return false
-  }
-}
-
-/** The moderation queue of one event: the phone's screen on a phone, the console's elsewhere. */
-export const moderationQueuePath = (slug: string, phone: boolean): string =>
-  `/admin/events/${encodeURIComponent(slug)}/moderation${phone ? '/mobile' : ''}`
+export const moderationQueuePath = (slug: string): string =>
+  `/admin/events/${encodeURIComponent(slug)}/moderation`
 
 /** What the server said about the account, as far as the landing rules need it. */
 export interface LandingFacts {
@@ -99,14 +87,12 @@ export interface LandingFacts {
   readonly clientCount: number
   /** The account operates the box **and** the box has a console to open. */
   readonly operatesConsole: boolean
-  readonly phone: boolean
 }
 
 /**
  * The first screen of somebody who has chosen none (decisions 2 and 3):
  *
- * - **A moderator of exactly one event** opens that event's moderation queue, and on a phone the
- *   phone's queue. They were invited to do that and nothing else; the event page is dense and is
+ * - **A moderator of exactly one event** opens that event's moderation queue. They were invited to do that and nothing else; the event page is dense and is
  *   one link away.
  * - **An operator with no event and no client** opens the console. Their list of events would be
  *   empty and their client space does not exist.
@@ -116,7 +102,7 @@ export interface LandingFacts {
 export const landingPath = (facts: LandingFacts): string => {
   const [only, ...others] = facts.eventSlugs
   if (only !== undefined && others.length === 0 && facts.soleEventRole === 'moderator') {
-    return moderationQueuePath(only, facts.phone)
+    return moderationQueuePath(only)
   }
   if (only === undefined && facts.clientCount === 0 && facts.operatesConsole) return SITE_HOME
   return ADMIN_HOME
@@ -132,14 +118,14 @@ export interface AcceptedInvitation {
 /**
  * Where somebody who has just accepted an invitation starts, which is known from the answer alone:
  *
- * - **To moderate an event**: that event's queue (phone's queue on a phone).
+ * - **To moderate an event**: that event's queue.
  * - **To a client** (owner or member): the list of events, which links to the client space and
  *   offers "Nouvel évènement". The invitation carries no event, and the client space is a page
  *   about limits, not about work.
  * - Any other event role: the event's page, as before.
  */
-export const afterInvitationPath = (accepted: AcceptedInvitation, phone: boolean): string => {
+export const afterInvitationPath = (accepted: AcceptedInvitation): string => {
   if (accepted.kind === 'client' || accepted.eventSlug === null) return ADMIN_HOME
-  if (accepted.role === 'moderator') return moderationQueuePath(accepted.eventSlug, phone)
+  if (accepted.role === 'moderator') return moderationQueuePath(accepted.eventSlug)
   return `/admin/events/${encodeURIComponent(accepted.eventSlug)}`
 }

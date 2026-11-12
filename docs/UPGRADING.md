@@ -945,3 +945,22 @@ archive. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
   returns `missionPrompt` and `answeredChallenge`, and "Vos envois" labels each photo with it.
 - **A photo awaiting the host's approval shows in black and white**, slightly faded, instead of a colour negative;
   it takes its colours when published.
+
+## Upgrading to 3.12
+
+3.12.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no `BREAKING`
+section. It applies **no migration** (the last is still 027) and adds no setting. Take the steps of
+[Upgrading with Docker](#upgrading-with-docker), or [without](#without-docker), with `vX.Y.Z` as `v3.12.0`; the
+image is `ghcr.io/irony42/eventslide:3.12.0`.
+
+### One address for the moderation queue
+
+- **Nothing to set.** `/admin/events/:slug/moderation` opens the phone's screen or the laptop's console by
+  itself, and each screen has a button to the other. `/admin/events/:slug/moderation/mobile` still works and
+  redirects there, so bookmarks and home-screen shortcuts on a host's phone keep working.
+
+### The wall's invitation and the host's event page
+
+- **Nothing to set.** The join QR takes a place of its own in each wall layout; the host's corner choice now
+  applies to the spotlight only. The host's event page is reorganised around a "Maintenant" card; what it prints
+  is unchanged.
