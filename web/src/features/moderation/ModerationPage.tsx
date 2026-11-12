@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useApi } from '../../lib/useApi'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
+import { Button } from '../../design-system/components/Button'
 import { LoadFailure } from '../../design-system/components/Async'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { EmptyState } from '../../design-system/components/EmptyState'
@@ -45,7 +46,12 @@ const NOT_ALLOWED_MESSAGE: Readonly<Record<ModerationDecision, (text: UiText) =>
   hide: (text) => text.moderation.notOnScreen,
 }
 
-export function ModerationPage() {
+export interface ModerationPageProps {
+  /** Opens the phone's screen of the same queue, on this same address (`ModerationRoute`). */
+  readonly onSwitchView: () => void
+}
+
+export function ModerationPage({ onSwitchView }: ModerationPageProps) {
   const t = useTranslations()
   const { slug } = useParams()
   const toast = useToast()
@@ -282,10 +288,11 @@ export function ModerationPage() {
       <header className={styles['intro']}>
         <h1 className={styles['title']}>{t.moderation.title}</h1>
         <p className={styles['lead']}>{t.moderation.intro}</p>
-        {/* The same queue, one photograph at a time: the two consoles used to share no link. */}
-        <Link className={styles['otherConsole']} to={`/admin/events/${slug}/moderation/mobile`}>
+        {/* The same queue, one photograph at a time, for a device the detection took for a
+            laptop: a tablet, a touch screen it did not recognise. The choice is remembered. */}
+        <Button variant="ghost" className={styles['otherConsole']} onClick={onSwitchView}>
           {t.moderation.openMobile}
-        </Link>
+        </Button>
       </header>
 
       {guestbookEnabled ? (

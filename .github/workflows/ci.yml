@@ -642,7 +642,22 @@ jobs:
           # run, and the next pull request failed this step because of them.
           project="$shots/chromium-desktop"
           rendered="$(find "$project" -type f -name '*.png' 2>/dev/null | wc -l | tr -d '[:space:]')"
-          expected="$(git ls-tree -r --name-only "$BASE_SHA" -- "$project" | grep -c '\.png$' || true)"
+          # Counted only for the specs the merge base actually has. A baseline sits at
+          # <project>/<spec path under tests/e2e>/<name>.png; one whose spec does not exist
+          # can never be rendered, and counting it reported a broken harness on every pull
+          # request: three PNGs of a local probe spec (`zz-probe.spec.ts/`) reached main
+          # with #440, and each later pull request failed here, 18 rendered of 21. They are
+          # named as a warning, so the orphan gets deleted, and not counted.
+          expected=0
+          while IFS= read -r png; do
+            spec="${png#"$project/"}"
+            spec="tests/e2e/${spec%/*}"
+            if git cat-file -e "$BASE_SHA:$spec" 2>/dev/null; then
+              expected=$((expected + 1))
+            else
+              echo "::warning file=$png::Baseline of a spec the merge base does not have ($spec): delete it."
+            fi
+          done < <(git ls-tree -r --name-only "$BASE_SHA" -- "$project" | grep '\.png$' || true)
           echo "rendered $rendered chromium-desktop baseline image(s); the merge base carries $expected"
           if [ "$rendered" -eq 0 ] || [ "$rendered" -lt "$expected" ]; then
             echo "::error::The merge base rendered $rendered of $expected baselines. That is a broken visual harness, not a regression in this pull request — read the step above before touching the wall."

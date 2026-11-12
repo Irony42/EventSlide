@@ -1428,7 +1428,13 @@ dense grid workable one-handed.
 A separate mobile surface: one photo at a time, swipe right to publish and left to
 refuse, undo always reachable. Reuses every use case; it is a view, not a feature.
 
-What landed, at `/admin/events/:slug/moderation/mobile`, reached from the event page:
+What landed, first at `/admin/events/:slug/moderation/mobile` with its own tile on the event page:
+
+> **Since 11/11 there is one address.** `/admin/events/:slug/moderation` opens the phone's
+> screen on a phone (narrow, or a finger on a screen under 1024 px) and the console elsewhere; each screen has a
+> button to the other, and that choice is remembered on the device (`web/src/lib/moderationView.ts`).
+> The event page has one "Modérer" tile and no second tile for the phone. The old `/mobile`
+> address still works: it remembers the phone's screen and redirects.
 
 - **No server code at all.** No endpoint, no use case, no migration. The screen is a
   second view over `useModerationQueue` — same fetch, same SSE channel, same decisions —
