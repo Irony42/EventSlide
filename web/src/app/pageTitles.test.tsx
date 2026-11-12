@@ -81,7 +81,6 @@ const HOST_SIGNED_IN: readonly (readonly [string, Key])[] = [
   ['/admin/events/new', 'newEvent'],
   ['/admin/events/mariage', 'event'],
   ['/admin/events/mariage/moderation', 'moderation'],
-  ['/admin/events/mariage/moderation/mobile', 'mobileModeration'],
   ['/admin/events/mariage/stats', 'stats'],
   ['/admin/events/mariage/settings', 'settings'],
   ['/admin/events/mariage/settings/ambiance', 'customAmbiance'],
@@ -102,7 +101,12 @@ const OPERATOR: readonly (readonly [string, Key])[] = [
 ]
 
 /** The addresses that answer with a redirect and so have no page to name. */
-const REDIRECTS = new Set(['/', '/e/:slug', '/admin/events'])
+const REDIRECTS = new Set([
+  '/',
+  '/e/:slug',
+  '/admin/events',
+  '/admin/events/:slug/moderation/mobile',
+])
 
 describe('the browser tab', () => {
   it.each(GUEST)('names %s after the page', async (route, key) => {
@@ -149,7 +153,8 @@ describe('the browser tab', () => {
   it('names every address the router declares, not only the ones listed above', () => {
     // The tables above are typed by hand. This reads the route table itself, so a route
     // added without `titled(...)` fails here even though no row mentions it. The one
-    // addresses that render no page are the `<Navigate>`s: `/`, `/e/:slug` and `/admin/events`.
+    // addresses that render no page are the redirects: `/`, `/e/:slug`, `/admin/events` and the
+    // phone's old moderation address.
     const routes = [
       ...ROUTER.matchAll(/<Route\s+path="([^"]+)"[\s\S]{0,160}?element=\{(titled\(|<[A-Za-z]+)/g),
     ].flatMap((match) =>

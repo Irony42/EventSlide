@@ -20,6 +20,48 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.12.0] - 2026-11-12
+
+Everything merged to `main` after the tag `v3.11.0`: pull requests #438, #440, #441 and #442. This is a minor
+release: the wall gives the join QR a place of its own in each layout, the moderation queue has one address that
+opens the phone's screen or the laptop's by itself, and the host's event page leads with what the moment asks for.
+No migration, nothing to set.
+
+### The room
+
+- **The join QR has a place of its own in each wall layout** (#440), instead of one card in a corner that hid half
+  a mosaic tile, cut filmstrip frames and pushed the split off centre: a cartel on the spotlight's caption line, the
+  mosaic's last tile ("Votre photo ici"), the collage's last column, a fourth polaroid print, a tag at the end of the
+  clothesline, a ticket under the filmstrip, a medallion between the split's two panes. The QR itself is the same
+  everywhere. The host's choice of corner (spec 14) now applies to the spotlight only, and the wall panel says so.
+  On a screen with a pointer, the invitation's close button shows only under the pointer or the keyboard.
+
+### Hosts and moderators
+
+- **One address for the moderation queue** (#441). `/admin/events/:slug/moderation` opens the phone's screen on a
+  phone (narrow, or a finger on a screen under 1024 px) and the laptop's console elsewhere. Each screen has a button
+  to the other one, for a wrong guess, and that choice is remembered on the device. The event page has a single
+  "Modérer" tile; the "Modération sur téléphone" tile is gone. The old `/admin/events/:slug/moderation/mobile`
+  address still works: it opens the phone's screen and remembers it. Signing in or accepting an invitation as the
+  moderator of one event lands on the one address.
+- **The event page leads with what the moment asks for** (#442). A "Maintenant" card changes with the status:
+  before the evening, the steps to get ready and "Ouvrir aux invités"; during it, the queue (with what waits there)
+  and the screen, with "Terminer la soirée" always at the card's foot beside the automatic times; after it, the
+  album to download and to share. Beside it, a compact access card: the code, the link with "Copier le lien",
+  printing, and "Afficher le QR code en grand" for a guest at the laptop. Below, "Tout l'évènement" lists every
+  other destination as a tile. The printed page is unchanged: the access card alone, with a large QR.
+
+### Under the hood
+
+- **The operator is held to a signed-in stranger's answer on every route outside `/api/site`** (#438), body
+  included, by contract tests. No product code changed.
+
+### Behaviour changes to check before upgrading
+
+- No migration (the last is still 027), nothing to set in `.env`.
+- Bookmarks and home-screen shortcuts to `/admin/events/:slug/moderation/mobile` keep working; they now redirect
+  to `/admin/events/:slug/moderation`.
+
 ## [3.11.0] - 2026-11-08
 
 Everything merged to `main` after the tag `v3.10.0`: pull requests #434, #435 and #436. This is a minor release:

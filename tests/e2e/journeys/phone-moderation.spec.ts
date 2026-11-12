@@ -35,7 +35,11 @@ import { fr } from '../../../web/src/lib/i18n/fr'
  */
 test.skip(({ isMobile }) => !isMobile, 'the phone console is asserted on the phone projects')
 
-const phoneConsole = (slug: string) => `/admin/events/${slug}/moderation/mobile`
+/**
+ * The queue's one address: on a phone project it opens the phone's screen by itself, so this
+ * journey also holds the detection (`web/src/lib/moderationView.ts`).
+ */
+const phoneConsole = (slug: string) => `/admin/events/${slug}/moderation`
 
 /** 44 px is the floor, not the aspiration — docs/DESIGN-SYSTEM.md section 8. */
 const TOUCH_MIN = 44
