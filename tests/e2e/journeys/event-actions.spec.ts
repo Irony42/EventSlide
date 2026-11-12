@@ -3,7 +3,7 @@ import { expect, signInAsHost, test } from '../fixtures/app'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
- * The host's way out of the event page: five navigation tiles.
+ * The host's way out of the event page: its navigation tiles (one for the queue, whatever the device).
  *
  * What a component test cannot say is how they land in a real browser: whether the page
  * stays inside the screen on a phone with a real viewport and a real scrollbar, whether
@@ -18,7 +18,6 @@ const TOUCH_MIN = 44
 const ACTIONS = [
   fr.admin.openWall,
   fr.admin.openModeration,
-  fr.mobileModeration.title,
   fr.admin.settings,
   fr.admin.download,
 ] as const
@@ -52,11 +51,7 @@ test('the event page lays its actions out inside the screen, as real targets', a
     if (box === null) throw new Error()
     return box.height
   }
-  const secondary = Math.max(
-    await height(fr.mobileModeration.title),
-    await height(fr.admin.settings),
-    await height(fr.admin.download),
-  )
+  const secondary = Math.max(await height(fr.admin.settings), await height(fr.admin.download))
   expect(await height(fr.admin.openWall)).toBeGreaterThan(secondary)
   expect(await height(fr.admin.openModeration)).toBeGreaterThan(secondary)
 

@@ -116,14 +116,15 @@ literally.
 ```ts
 // tests/e2e/journeys/guest-upload.spec.ts
 import { test, expect } from '../fixtures/app'
-import { openSurfaces } from '../fixtures/surfaces'
 import { jpegWithOrientation } from '../fixtures/media'
 
+// `surfaces` is a fixture of `fixtures/app.ts` (built by `openSurfaces` there): it opens the
+// three contexts, signs the host in, and closes them after the test.
 test('a photo uploaded on a phone reaches the wall once the host approves it @smoke', async ({
   app,
-  browser,
+  surfaces,
 }) => {
-  const { guest, host, projector } = await openSurfaces(browser, app)
+  const { guest, host, projector } = surfaces
   const event = await app.seedEvent({ slug: 'mariage', name: 'Camille & Sacha' })
 
   // --- Projector: running before anyone arrives.
@@ -174,6 +175,18 @@ What makes that test worth its runtime:
   checks the happy end would pass with moderation entirely bypassed.
 - It asserts **orientation from pixel dimensions**, catching a class of bug invisible
   to unit tests.
+
+**The host's "laptop" is not touch-free on a phone project.** `openSurfaces` sets the host
+context's viewport (1440×900) and scale, but a manual `browser.newContext()` keeps the rest
+of the project's _device_: under `chromium-mobile` and `webkit-mobile` the laptop still has
+`hasTouch`, so `(pointer: coarse)` matches on it. Anything that branches on the device has
+to survive that. Measured on 11/11: the moderation queue's one address opened the phone's
+screen when the rule was "narrow **or** coarse pointer", and three `video-clip` journeys
+that drive `host` on `/moderation` went red on `chromium-mobile` only. The rule became
+"narrow, or coarse **and** under 1024 px" (`web/src/lib/moderationView.ts`), which is also
+right for a real touch laptop. So: a change that reads the device runs its journeys on a
+phone project **and** `chromium-desktop`, and the specs that use `page` (the project's own
+device) are the ones that hold the phone's side.
 
 ## Selectors
 

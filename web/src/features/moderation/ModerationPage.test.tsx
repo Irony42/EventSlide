@@ -52,7 +52,7 @@ const sacha = (overrides: Partial<ModerationPhotoDto> = {}): ModerationPhotoDto 
   aModerationPhoto({ id: 'photo-2', authorName: 'Sacha', caption: null, ...overrides })
 
 const renderConsole = (api: Api) =>
-  renderWithProviders(<ModerationPage />, {
+  renderWithProviders(<ModerationPage onSwitchView={vi.fn()} />, {
     api,
     route: `/admin/events/${SLUG}/moderation`,
     path: '/admin/events/:slug/moderation',
@@ -132,13 +132,17 @@ describe('ModerationPage', () => {
     )
   })
 
-  it('leads to the phone’s version of the same queue', async () => {
-    renderConsole(fakeApi())
+  it('offers the phone’s screen of the same queue, for a device taken for a laptop by mistake', async () => {
+    const onSwitchView = vi.fn()
+    renderWithProviders(<ModerationPage onSwitchView={onSwitchView} />, {
+      api: fakeApi(),
+      route: `/admin/events/${SLUG}/moderation`,
+      path: '/admin/events/:slug/moderation',
+    })
 
-    expect(await screen.findByRole('link', { name: fr.moderation.openMobile })).toHaveAttribute(
-      'href',
-      `/admin/events/${SLUG}/moderation/mobile`,
-    )
+    await userEvent.click(await screen.findByRole('button', { name: fr.moderation.openMobile }))
+
+    expect(onSwitchView).toHaveBeenCalledOnce()
   })
 
   it('lists what has arrived, with the caption, the author and the status as a word', async () => {
@@ -1324,7 +1328,7 @@ describe('ModerationPage', () => {
 
   it('says nothing was found when the address carries no event', () => {
     // Rendered outside the /admin/events/:slug route, so there is no event to load.
-    renderWithProviders(<ModerationPage />, { api: fakeApi() })
+    renderWithProviders(<ModerationPage onSwitchView={vi.fn()} />, { api: fakeApi() })
 
     expect(screen.getByText(fr.shell.notFoundTitle)).toBeInTheDocument()
     expect(FakeEventSource.instances).toHaveLength(0)

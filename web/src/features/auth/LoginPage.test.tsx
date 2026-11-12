@@ -346,7 +346,6 @@ describe('LoginPage: where the host lands', () => {
         <Route path="/admin/site" element={<Where />} />
         <Route path="/admin/site/audit" element={<Where />} />
         <Route path="/admin/events/:slug/moderation" element={<Where />} />
-        <Route path="/admin/events/:slug/moderation/mobile" element={<Where />} />
       </Routes>,
       { api, route: '/depart' },
     )
@@ -388,12 +387,12 @@ describe('LoginPage: where the host lands', () => {
     expect(await screen.findByText('Arrivé /admin/events/mariage/moderation')).toBeVisible()
   })
 
-  it('lands them on the phone’s queue when the screen is a phone’s', async () => {
+  it('lands them on the queue’s one address on a phone too: the queue opens the phone’s screen itself', async () => {
     window.matchMedia = vi.fn(() => ({ matches: true }) as MediaQueryList)
     open(withEvents(['mariage'], 'moderator'))
     await signIn()
 
-    expect(await screen.findByText('Arrivé /admin/events/mariage/moderation/mobile')).toBeVisible()
+    expect(await screen.findByText('Arrivé /admin/events/mariage/moderation')).toBeVisible()
   })
 
   it('treats the dashboard as no choice at all, so a bounce from /admin still lands the moderator on the queue', async () => {

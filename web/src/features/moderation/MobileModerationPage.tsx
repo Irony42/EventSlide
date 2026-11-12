@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useApi } from '../../lib/useApi'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
@@ -53,7 +53,12 @@ import styles from './MobileModerationPage.module.css'
  */
 const ON_SCREEN_COUNT = 6
 
-export function MobileModerationPage() {
+export interface MobileModerationPageProps {
+  /** Opens the laptop's console of the same queue, on this same address (`ModerationRoute`). */
+  readonly onSwitchView: () => void
+}
+
+export function MobileModerationPage({ onSwitchView }: MobileModerationPageProps) {
   const t = useTranslations()
   const { slug } = useParams()
 
@@ -548,10 +553,11 @@ export function MobileModerationPage() {
           line taller, and on a short phone screen the bar then covered the middle of the card,
           where a swipe starts (the pointer landed on the bar and the gesture never began). Here
           the bar and the card are exactly where they were, and the link is below the fold's work:
-          a host who has put the phone down and sat at the laptop scrolls to it. */}
-      <Link className={styles['otherConsole']} to={`/admin/events/${slug}/moderation`}>
+          a host whose device was taken for a phone (a narrow window, a touch laptop) scrolls to it.
+          The choice is remembered on this device. */}
+      <Button variant="ghost" className={styles['otherConsole']} onClick={onSwitchView}>
         {t.mobileModeration.openConsole}
-      </Link>
+      </Button>
     </div>
   )
 }

@@ -2997,7 +2997,6 @@ export const fr = {
     newEvent: 'Nouvel évènement',
     event: 'Évènement',
     moderation: 'Modération',
-    mobileModeration: 'Modération sur téléphone',
     stats: 'Statistiques de la soirée',
     settings: 'Réglages de l’évènement',
     customAmbiance: 'Ambiance Sur mesure',

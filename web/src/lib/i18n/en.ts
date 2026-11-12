@@ -2262,7 +2262,6 @@ export const en: UiText = {
     newEvent: 'New event',
     event: 'Event',
     moderation: 'Moderation',
-    mobileModeration: 'Moderation on a phone',
     stats: 'Statistics for the event',
     settings: 'Event settings',
     customAmbiance: 'Custom ambiance',

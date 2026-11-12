@@ -25,7 +25,6 @@ describe('EventActionLinks', () => {
     const hrefs = new Map([
       [fr.admin.openWall, '/e/camille-et-sacha/display'],
       [fr.admin.openModeration, '/admin/events/camille-et-sacha/moderation'],
-      [fr.mobileModeration.title, '/admin/events/camille-et-sacha/moderation/mobile'],
       [fr.admin.stats.tile, '/admin/events/camille-et-sacha/stats'],
       [fr.admin.settings, '/admin/events/camille-et-sacha/settings'],
       [fr.admin.download, ALBUM],
@@ -41,7 +40,6 @@ describe('EventActionLinks', () => {
 
     expect(priorityOf(fr.admin.openWall)).toBe('primary')
     expect(priorityOf(fr.admin.openModeration)).toBe('primary')
-    expect(priorityOf(fr.mobileModeration.title)).toBe('secondary')
     expect(priorityOf(fr.admin.settings)).toBe('secondary')
     // The ZIP is a utility: it must never rank with the two actions the evening turns on.
     expect(priorityOf(fr.admin.download)).toBe('secondary')
@@ -82,8 +80,20 @@ describe('EventActionLinks', () => {
     // Everything a moderator can use stays.
     expect(screen.getByRole('link', { name: fr.admin.openWall })).toBeVisible()
     expect(screen.getByRole('link', { name: fr.admin.openModeration })).toBeVisible()
-    expect(screen.getByRole('link', { name: fr.mobileModeration.title })).toBeVisible()
     expect(screen.getByRole('link', { name: fr.admin.download })).toBeVisible()
+  })
+
+  // One way into the queue: "Modérer" opens the phone's screen on a phone by itself
+  // (`lib/moderationView.ts`), so a second tile would be a second door to the same room.
+  it('offers one way into the moderation queue, whatever the device', () => {
+    render()
+
+    const intoTheQueue = screen
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('href')?.includes('/moderation') === true)
+    expect(intoTheQueue.map((link) => link.getAttribute('href'))).toEqual([
+      '/admin/events/camille-et-sacha/moderation',
+    ])
   })
 
   it('keeps the settings tile for an owner', () => {
@@ -108,7 +118,7 @@ describe('EventActionLinks', () => {
     // The exact-name queries above would already fail if a glyph leaked into the name;
     // this one says why: every drawing is hidden from assistive technology.
     const glyphs = container.querySelectorAll('svg')
-    expect(glyphs).toHaveLength(6)
+    expect(glyphs).toHaveLength(5)
     for (const glyph of glyphs) {
       expect(glyph).toHaveAttribute('aria-hidden', 'true')
       expect(glyph).toHaveAttribute('focusable', 'false')

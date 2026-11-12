@@ -54,10 +54,10 @@ const sacha = (overrides: Partial<ModerationPhotoDto> = {}): ModerationPhotoDto 
   aModerationPhoto({ id: 'photo-2', authorName: 'Sacha', caption: null, ...overrides })
 
 const renderPhone = (api: Api) =>
-  renderWithProviders(<MobileModerationPage />, {
+  renderWithProviders(<MobileModerationPage onSwitchView={vi.fn()} />, {
     api,
-    route: `/admin/events/${SLUG}/moderation/mobile`,
-    path: '/admin/events/:slug/moderation/mobile',
+    route: `/admin/events/${SLUG}/moderation`,
+    path: '/admin/events/:slug/moderation',
   })
 
 /** The reads of the waiting queue, as opposed to the wall strip's (`status=published`). */
@@ -158,12 +158,19 @@ describe('MobileModerationPage', () => {
     )
   })
 
-  it('leads to the full console of the same event, which has no other link to this screen', async () => {
-    renderPhone(fakeApi())
+  it('offers the laptop’s console of the same queue, for a device taken for a phone by mistake', async () => {
+    const onSwitchView = vi.fn()
+    renderWithProviders(<MobileModerationPage onSwitchView={onSwitchView} />, {
+      api: fakeApi(),
+      route: `/admin/events/${SLUG}/moderation`,
+      path: '/admin/events/:slug/moderation',
+    })
 
-    expect(
-      await screen.findByRole('link', { name: fr.mobileModeration.openConsole }),
-    ).toHaveAttribute('href', `/admin/events/${SLUG}/moderation`)
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.mobileModeration.openConsole }),
+    )
+
+    expect(onSwitchView).toHaveBeenCalledOnce()
   })
 
   it('offers one photo at a time, whatever is waiting behind it', async () => {
@@ -563,7 +570,7 @@ describe('MobileModerationPage', () => {
   })
 
   it('says nothing was found when the address carries no event', () => {
-    renderWithProviders(<MobileModerationPage />, { api: fakeApi() })
+    renderWithProviders(<MobileModerationPage onSwitchView={vi.fn()} />, { api: fakeApi() })
 
     expect(screen.getByText(fr.shell.notFoundTitle)).toBeInTheDocument()
     expect(FakeEventSource.instances).toHaveLength(0)

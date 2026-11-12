@@ -178,7 +178,7 @@ test.describe('on a phone', () => {
     await expect(projector.getByTestId('wall-empty')).toBeVisible()
 
     await signInAsHost(page, app)
-    await page.goto(app.url(`/admin/events/${event.slug}/moderation/mobile`))
+    await page.goto(app.url(`/admin/events/${event.slug}/moderation`))
     await sendClip(guest, app, event.joinCode, 'Léa')
 
     const card = page.getByTestId('mobile-moderation-card')
@@ -222,7 +222,7 @@ test.describe('on a phone', () => {
     const event = await app.seedEvent({ slug: 'cible-lecture' })
 
     await signInAsHost(page, app)
-    await page.goto(app.url(`/admin/events/${event.slug}/moderation/mobile`))
+    await page.goto(app.url(`/admin/events/${event.slug}/moderation`))
     await sendClip(guest, app, event.joinCode, 'Léa')
 
     const play = page.getByRole('button', { name: fr.moderation.playVideo('Léa') })
