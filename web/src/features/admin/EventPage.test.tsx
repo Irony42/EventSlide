@@ -92,23 +92,29 @@ describe('EventPage', () => {
       screen.getByRole('link', { name: 'https://photos.example/join/H7K2QM' }),
     ).toHaveAttribute('href', 'https://photos.example/join/H7K2QM')
     expect(screen.getByRole('img', { name: fr.admin.qrAlt('Camille & Sacha') })).toBeVisible()
-    expect(screen.getByText(fr.admin.qrScanPrompt)).toBeVisible()
+    // The sentence for a guest is the paper's; on screen the card's buttons say what to do.
+    expect(screen.getByText(fr.admin.qrScanPrompt)).toBeInTheDocument()
   })
 
-  it('keeps the printed page to the QR card: the other two columns are for the screen only', async () => {
-    const { container } = renderPage(fakeApi())
+  it('keeps the printed page to the access card: everything else is for the screen only', async () => {
+    renderPage(fakeApi())
     await screen.findByRole('heading', { name: 'Camille & Sacha' })
 
-    // The card for the tables is what the host prints; the join code's controls and the guest
-    // list have nothing to say on paper, and `screenOnly` is what hides them there.
-    const columns = [...container.querySelectorAll('div')].filter((element) =>
-      classesOf(element).includes(cls(styles, 'column')),
+    // The card for the tables is what the host prints; the "Maintenant" card, the overview and
+    // the panels have nothing to say on paper, and `screenOnly` is what hides them there.
+    const onScreenOnly = (element: HTMLElement): boolean => {
+      for (let node: HTMLElement | null = element; node !== null; node = node.parentElement) {
+        if (classesOf(node).includes(cls(styles, 'screenOnly'))) return true
+      }
+      return false
+    }
+    expect(onScreenOnly(screen.getByRole('heading', { name: fr.admin.accessTitle }))).toBe(false)
+    expect(onScreenOnly(screen.getByRole('heading', { level: 1, name: 'Camille & Sacha' }))).toBe(
+      true,
     )
-    expect(columns.map((column) => classesOf(column).includes(cls(styles, 'screenOnly')))).toEqual([
-      true,
-      false,
-      true,
-    ])
+    expect(onScreenOnly(screen.getByRole('heading', { name: fr.admin.nowLiveTitle }))).toBe(true)
+    expect(onScreenOnly(screen.getByRole('heading', { name: fr.admin.overviewTitle }))).toBe(true)
+    expect(onScreenOnly(screen.getByRole('heading', { name: fr.admin.guestList }))).toBe(true)
   })
 
   it('links to the wall, the moderation console, the settings and the album', async () => {
@@ -131,6 +137,105 @@ describe('EventPage', () => {
       'href',
       '/api/events/camille-et-sacha/album.zip',
     )
+  })
+
+  it('offers one way into the moderation queue: it opens the phone’s screen on a phone by itself', async () => {
+    renderPage(fakeApi())
+    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+
+    expect(screen.getAllByRole('link', { name: fr.admin.openModeration })).toHaveLength(1)
+    const hrefs = screen.getAllByRole('link').map((link) => link.getAttribute('href') ?? '')
+    expect(hrefs.filter((href) => href.includes('/moderation/mobile'))).toEqual([])
+  })
+
+  it('leads a live event with the queue, what waits there, the screen and the way to end it', async () => {
+    renderPage(
+      fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'live', pendingCount: 3 })) }),
+    )
+
+    const now = (await screen.findByRole('heading', { name: fr.admin.nowLiveTitle })).closest(
+      'section',
+    )
+    if (now === null) throw new Error('the "Maintenant" card is not a section')
+    expect(
+      within(now).getByRole('link', { name: fr.admin.openModeration }),
+    ).toHaveAccessibleDescription(fr.admin.moderationWaiting(3))
+    expect(within(now).getByRole('link', { name: fr.admin.openWall })).toBeVisible()
+    expect(within(now).getByRole('button', { name: fr.admin.closeEvent })).toBeVisible()
+    // It leads: before the access card and the overview.
+    const access = screen.getByRole('heading', { name: fr.admin.accessTitle })
+    const overview = screen.getByRole('heading', { name: fr.admin.overviewTitle })
+    expect(now.compareDocumentPosition(access) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(now.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('leads a draft with what to get ready and the button that opens the doors', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft' })) }))
+
+    const now = (await screen.findByRole('heading', { name: fr.admin.nowDraftTitle })).closest(
+      'section',
+    )
+    if (now === null) throw new Error('the "Maintenant" card is not a section')
+    expect(within(now).getByRole('link', { name: fr.admin.nowDraftSettings })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha/settings',
+    )
+    expect(within(now).getByRole('link', { name: fr.admin.nowDraftPrint })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha/print',
+    )
+    const wall = within(now).getByRole('link', { name: fr.admin.nowDraftWall })
+    expect(wall).toHaveAttribute('target', '_blank')
+    expect(wall).toHaveAccessibleDescription(fr.about.opensInNewTab)
+    expect(within(now).getByRole('button', { name: fr.admin.goLive })).toBeVisible()
+  })
+
+  it('gives a moderator of a draft only the steps that are theirs: no settings, no inviting, no opening', async () => {
+    renderPage(
+      fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft', role: 'moderator' })) }),
+    )
+
+    const now = (await screen.findByRole('heading', { name: fr.admin.nowDraftTitle })).closest(
+      'section',
+    )
+    if (now === null) throw new Error('the "Maintenant" card is not a section')
+    expect(within(now).getByRole('link', { name: fr.admin.nowDraftPrint })).toBeVisible()
+    expect(within(now).getByRole('link', { name: fr.admin.nowDraftWall })).toBeVisible()
+    expect(within(now).queryByRole('link', { name: fr.admin.nowDraftSettings })).toBeNull()
+    expect(within(now).queryByRole('button', { name: fr.admin.nowDraftModerators })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.admin.goLive })).toBeNull()
+  })
+
+  it('offers an archived event no table cards and no new code', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'archived' })) }))
+
+    await screen.findByRole('heading', { name: fr.admin.accessTitle })
+    expect(screen.queryByRole('link', { name: fr.admin.printKitTitle })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.admin.rotateJoinCode })).toBeNull()
+  })
+
+  it('takes the host from an overview tile to its panel’s heading', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView as unknown as Element['scrollIntoView']
+    try {
+      renderPage(fakeApi())
+
+      await userEvent.click(await screen.findByRole('button', { name: fr.admin.guestList }))
+
+      const panel = screen.getByRole('heading', { name: fr.admin.guestList })
+      expect(scrollIntoView.mock.contexts[0]).toBe(panel)
+      expect(panel).toHaveFocus()
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+    }
+  })
+
+  it('takes the owner of a draft from "invite someone to moderate" to the moderators panel', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft' })) }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.nowDraftModerators }))
+
+    expect(screen.getByRole('heading', { name: fr.admin.moderators })).toHaveFocus()
   })
 
   it('shows the storage used against the quota the event actually has', async () => {
@@ -223,7 +328,7 @@ describe('EventPage', () => {
       await userEvent.click(inDialog(fr.admin.rotateJoinCode))
       await userEvent.click(await screen.findByRole('button', { name: fr.admin.codeRotatedAction }))
 
-      const heading = screen.getByRole('heading', { name: fr.admin.qrCode })
+      const heading = screen.getByRole('heading', { name: fr.admin.accessTitle })
       expect(scrollIntoView.mock.contexts[0]).toBe(heading)
       expect(heading).toHaveFocus()
     } finally {
@@ -577,33 +682,33 @@ describe('EventPage, after the evening', () => {
     role: 'owner' | 'moderator' = 'owner',
   ) => renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status, role })) }))
 
-  it('leads a closed event with the album, before the code and the controls', async () => {
+  it('leads a closed event with the album, before the code and the overview', async () => {
     renderClosed()
 
-    const after = await screen.findByRole('heading', { name: fr.admin.afterTitle })
-    const code = screen.getByRole('heading', { name: fr.admin.joinCode })
-    const controls = screen.getByRole('heading', { name: fr.admin.eventControls })
+    const after = await screen.findByRole('heading', { name: fr.admin.nowClosedTitle })
+    const code = screen.getByRole('heading', { name: fr.admin.accessTitle })
+    const overview = screen.getByRole('heading', { name: fr.admin.overviewTitle })
     expect(after.compareDocumentPosition(code) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(after.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(after.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('leads an archived event with the album too', async () => {
     renderClosed('archived')
 
-    expect(await screen.findByRole('heading', { name: fr.admin.afterTitle })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: fr.admin.nowArchivedTitle })).toBeVisible()
   })
 
   it('has no such card while the event is a draft or live', async () => {
     renderPage(fakeApi())
 
     await screen.findByRole('heading', { name: 'Camille & Sacha' })
-    expect(screen.queryByRole('heading', { name: fr.admin.afterTitle })).toBeNull()
+    expect(screen.queryByRole('heading', { name: fr.admin.nowClosedTitle })).toBeNull()
   })
 
   it('offers the album download in the card', async () => {
     renderClosed()
 
-    const card = (await screen.findByRole('heading', { name: fr.admin.afterTitle })).closest(
+    const card = (await screen.findByRole('heading', { name: fr.admin.nowClosedTitle })).closest(
       'section',
     )
     if (card === null) throw new Error('the card is not a section')
@@ -626,21 +731,10 @@ describe('EventPage, after the evening', () => {
     }
   })
 
-  it('tells the owner to send the album, and does not tell a moderator who has nothing to send it with', async () => {
-    const owner = renderClosed()
-    await screen.findByRole('heading', { name: fr.admin.afterTitle })
-    expect(screen.getByText(fr.admin.afterHint)).toBeVisible()
-    owner.unmount()
-
-    renderClosed('closed', 'moderator')
-    await screen.findByRole('heading', { name: fr.admin.afterTitle })
-    expect(screen.queryByText(fr.admin.afterHint)).toBeNull()
-  })
-
   it('offers a moderator the download but no way to make the link, which is the owner’s', async () => {
     renderClosed('closed', 'moderator')
 
-    await screen.findByRole('heading', { name: fr.admin.afterTitle })
+    await screen.findByRole('heading', { name: fr.admin.nowClosedTitle })
     expect(screen.queryByRole('button', { name: fr.admin.afterShare })).toBeNull()
     expect(screen.getAllByRole('link', { name: fr.admin.download }).length).toBeGreaterThan(0)
   })
@@ -707,8 +801,9 @@ describe('EventPage, what is armed to happen by itself', () => {
   })
 
   it('never gives two links on the page the same name', async () => {
-    // The line beside the badge and the warning above it both lead to the settings; a screen-reader
-    // list of links read "Modifier, Modifier" with no way to tell which was which.
+    // The schedule's line, the warning, the draft's first step and the overview's tile all lead to
+    // the settings; a screen-reader list of links once read "Modifier, Modifier" with no way to
+    // tell which was which.
     draftWith({
       scheduledOpenAt: '2031-06-20T16:00:00.000Z',
       scheduleDiscardedAt: '2031-06-19T16:00:00.000Z',
@@ -719,7 +814,7 @@ describe('EventPage, what is armed to happen by itself', () => {
       .getAllByRole('link')
       .filter((link) => link.getAttribute('href') === '/admin/events/camille-et-sacha/settings')
       .map((link) => link.textContent)
-    expect(toSettings).toHaveLength(3)
+    expect(toSettings).toHaveLength(4)
     expect(new Set(toSettings).size).toBe(toSettings.length)
   })
 

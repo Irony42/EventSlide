@@ -1,3 +1,4 @@
+/* What prints: the event's name, the QR, the sentence and the code. On screen, a compact column. */
 .printable {
   display: flex;
   flex-direction: column;
@@ -6,7 +7,9 @@
   text-align: center;
 }
 
+/* On paper only: on screen the page's own heading already names the event. */
 .eventName {
+  display: none;
   font-size: var(--text-lg);
   line-height: var(--leading-snug);
 }
@@ -14,46 +17,118 @@
 /**
  * The plate the QR sits on.
  *
- * Inverted on purpose: a QR code has to be dark modules on a light field to scan, and
- * a dark-on-dark code is unreadable to every phone camera. `--text-primary` is the
- * light token and `--surface-base` the dark one, so the inversion still costs no new
- * value. The padding is the quiet zone the spec requires around the symbol, which is
- * why the SVG itself is rendered with no margin of its own.
+ * Inverted on purpose: a QR code has to be dark modules on a light field to scan, and a
+ * dark-on-dark code is unreadable to every phone camera. `--text-primary` is the light token and
+ * `--surface-base` the dark one, so the inversion still costs no new value. The padding is the
+ * quiet zone the spec requires around the symbol, which is why the SVG itself is rendered with
+ * no margin of its own.
+ *
+ * Small on screen: big enough for a phone held at the laptop to read it, and no bigger. The
+ * dialog's is as large as the screen allows, and paper's is set by the print rules below.
  */
 .plate {
-  inline-size: 100%;
+  inline-size: calc(var(--touch-min) * 3.5);
+  max-inline-size: 100%;
   aspect-ratio: 1;
-  padding: var(--space-4);
+  padding: var(--space-3);
   border-radius: var(--radius-md);
   background: var(--text-primary);
   color: var(--surface-base);
 }
 
+.plate[data-size='large'] {
+  inline-size: min(70vh, 100%);
+  padding: var(--space-5);
+}
+
 .qr {
+  display: block;
   inline-size: 100%;
   block-size: 100%;
 }
 
+/* On paper only, like the name: on screen the card's actions say what to do with the QR. */
 .prompt {
+  display: none;
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
+.codeLabel {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* Read out across a table, so large; the same digits as the link's last segment. */
 .code {
   font-size: var(--text-xl);
   font-weight: 650;
   letter-spacing: var(--tracking-tight);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.url {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.urlLabel {
+  display: block;
+}
+
+.actions,
+.extra {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.extra {
+  font-size: var(--text-sm);
+}
+
+.enlarged {
+  inline-size: min(100%, calc(var(--container-guest) * 1.5));
+}
+
+.enlargedBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  text-align: center;
+}
+
+.enlargedCode {
+  font-size: var(--text-display);
+  line-height: var(--leading-tight);
+  font-weight: 650;
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 @media print {
-  /* The button is not part of what goes on the table. */
-  .printAction {
+  /* The controls and the link are not part of what goes on the table. */
+  .url,
+  .actions,
+  .extra {
     display: none;
   }
 
-  /* Consumer printers drop background colours by default, which would take the plate —
-     and with it the contrast the camera needs — down to nothing. */
+  .eventName,
+  .prompt {
+    display: block;
+  }
+
+  /* Consumer printers drop background colours by default, which would take the plate — and
+     with it the contrast the camera needs — down to nothing. The size is paper's, not the
+     screen's: the compact plate would print the size of a stamp. */
   .plate {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
