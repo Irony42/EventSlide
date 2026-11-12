@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useAbout } from '../../../lib/useAbout'
 import { useApi } from '../../../lib/useApi'
-import { chosenPath, landingPath, onPhone, ADMIN_HOME } from '../../../lib/landing'
+import { chosenPath, landingPath, ADMIN_HOME } from '../../../lib/landing'
 
 /**
  * What the account itself says about whether it operates the box, when the caller already holds
@@ -67,7 +67,6 @@ export const useResolveLanding = (): ((options: LandingOptions) => Promise<strin
             soleEventRole,
             clientCount,
             operatesConsole,
-            phone: onPhone(),
           })
         } catch {
           return ADMIN_HOME

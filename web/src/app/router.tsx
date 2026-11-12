@@ -64,19 +64,16 @@ const EventDetailPage = lazy(async () => ({
   default: (await import('../features/admin/EventPage')).EventPage,
 }))
 
-const ModerationPage = lazy(async () => ({
-  default: (await import('../features/moderation/ModerationPage')).ModerationPage,
+/**
+ * The queue, on the laptop's screen or the phone's: `ModerationRoute` picks one by the device
+ * and the host's own choice, and loads each screen as its own chunk.
+ */
+const ModerationRoute = lazy(async () => ({
+  default: (await import('../features/moderation/ModerationRoute')).ModerationRoute,
 }))
 
-/**
- * The same queue, for a host who is standing up with a phone in one hand.
- *
- * Its own chunk rather than a branch inside the console: the two screens share their
- * hooks and nothing else, and a host who only ever opens one of them should not be
- * downloading the other's grid, lightbox and keyboard layer over a venue's Wi-Fi.
- */
-const MobileModerationPage = lazy(async () => ({
-  default: (await import('../features/moderation/MobileModerationPage')).MobileModerationPage,
+const PhoneModerationRedirect = lazy(async () => ({
+  default: (await import('../features/moderation/ModerationRoute')).PhoneModerationRedirect,
 }))
 
 const EventStatsPage = lazy(async () => ({
@@ -459,14 +456,13 @@ export function AppRoutes() {
               <Route path="/admin/events/:slug" element={titled('event', <EventDetailPage />)} />
               <Route
                 path="/admin/events/:slug/moderation"
-                element={titled('moderation', <ModerationPage />)}
+                element={titled('moderation', <ModerationRoute />)}
               />
-              {/* Beside the console rather than instead of it: the host chooses the
-                  surface by choosing the address, and a phone-shaped screen is a
-                  different screen, not a narrow one. */}
+              {/* The phone's address from before there was one address: it still works, as
+                  the choice of the phone's screen. */}
               <Route
                 path="/admin/events/:slug/moderation/mobile"
-                element={titled('mobileModeration', <MobileModerationPage />)}
+                element={<PhoneModerationRedirect />}
               />
               <Route
                 path="/admin/events/:slug/stats"

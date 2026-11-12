@@ -55,7 +55,7 @@ const apiWith = (
   })
 
 const renderConsole = (api: Api, search = '') =>
-  renderWithProviders(<ModerationPage />, {
+  renderWithProviders(<ModerationPage onSwitchView={vi.fn()} />, {
     api,
     route: `/admin/events/${SLUG}/moderation${search}`,
     path: '/admin/events/:slug/moderation',

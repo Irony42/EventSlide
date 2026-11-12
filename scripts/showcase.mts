@@ -349,7 +349,7 @@ const main = async (): Promise<void> => {
     await mobileHost.getByLabel(/Password/i).fill(app.owner.password)
     await mobileHost.getByRole('button', { name: /Sign in/i }).click()
     await mobileHost.waitForURL(/\/admin(?!\/password)/)
-    await mobileHost.goto(`${app.baseUrl}/admin/events/${event.slug}/moderation/mobile`)
+    await mobileHost.goto(`${app.baseUrl}/admin/events/${event.slug}/moderation`)
     await mobileHost.waitForTimeout(1500)
     // Wait for the card's own image to be decoded: a shot taken while it is still
     // loading photographs an empty card and says nothing about the layout.
@@ -649,7 +649,7 @@ const readmeMain = async (): Promise<void> => {
     const pm = await ctx(390, 844, 2)
     const mh = await pm.newPage()
     await signIn(mh)
-    await mh.goto(`${app.baseUrl}/admin/events/${event.slug}/moderation/mobile`)
+    await mh.goto(`${app.baseUrl}/admin/events/${event.slug}/moderation`)
     await visibleImagesDecoded(mh)
     await mh.waitForTimeout(1000)
     await jpg(await mh.screenshot(), 'moderation-phone', 390)

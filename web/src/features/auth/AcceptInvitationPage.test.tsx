@@ -42,7 +42,6 @@ const renderInvitation = (api: Api, options: { readonly locale?: Locale } = {}) 
       <Route path="/admin" element={<p>Tableau de bord</p>} />
       <Route path="/admin/events/:slug" element={<EventStub />} />
       <Route path="/admin/events/:slug/moderation" element={<EventStub />} />
-      <Route path="/admin/events/:slug/moderation/mobile" element={<EventStub />} />
       <Route path="/login" element={<LoginProbe />} />
     </Routes>,
     { api, route: `/invite/${TOKEN}`, ...options },
@@ -1091,7 +1090,7 @@ describe('AcceptInvitationPage: where the person starts', () => {
     window.matchMedia = original
   })
 
-  it('lands a moderator on the phone’s queue when the screen is a phone’s', async () => {
+  it('lands a moderator on the queue’s one address on a phone too: the queue opens the phone’s screen itself', async () => {
     window.matchMedia = vi.fn(() => ({ matches: true }) as MediaQueryList)
     renderInvitation(fakeApi())
 
@@ -1099,7 +1098,7 @@ describe('AcceptInvitationPage: where the person starts', () => {
     await submit()
 
     expect(
-      await screen.findByText(/Évènement à \/admin\/events\/camille-et-sacha\/moderation\/mobile$/),
+      await screen.findByText(/Évènement à \/admin\/events\/camille-et-sacha\/moderation$/),
     ).toBeVisible()
   })
 
