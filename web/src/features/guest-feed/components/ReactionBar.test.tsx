@@ -9,6 +9,8 @@ import { ReactionBar } from './ReactionBar'
 import type { Api } from '../../../lib/api/client'
 import type { ReactionKind, ReactionsResponse } from '../../../lib/api/dto'
 import { deferred } from '../../../testing/deferred'
+// The token file, so the cascade behind `--touch-min` and `--accent` resolves as in the app.
+import '../../../design-system/tokens.css'
 
 const SLUG = 'camille-et-sacha'
 const PHOTO = 'photo-1'
@@ -413,7 +415,7 @@ describe('ReactionBar', () => {
   })
 
   it('keeps every button at the touch minimum, and fills the one that is pressed', async () => {
-    // jsdom resolves the cascade but not `var()`, so what is read is the declaration: the
+    // jsdom 31 substitutes `var()` in the cascade, so what is read is the computed value: the
     // 44 px floor of the guest surface, and a fill where the resting button has none — the
     // difference in lightness that carries the state for a guest who cannot tell hues apart.
     renderBar(bar({ reactions: vi.fn(async () => holding('love')) }))
@@ -423,9 +425,9 @@ describe('ReactionBar', () => {
     const resting = window.getComputedStyle(buttonFor('laugh'))
     const given = window.getComputedStyle(buttonFor('love'))
 
-    expect(resting.minWidth).toBe('var(--touch-min)')
-    expect(resting.minHeight).toBe('var(--touch-min)')
-    expect(given.backgroundColor).toBe('var(--accent)')
+    expect(resting.minWidth).toBe('44px')
+    expect(resting.minHeight).toBe('44px')
+    expect(given.backgroundColor).toMatch(/^oklch\(/)
     expect(resting.backgroundColor).not.toBe(given.backgroundColor)
   })
 

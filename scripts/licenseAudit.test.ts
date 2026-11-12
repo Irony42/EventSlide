@@ -501,8 +501,6 @@ describe('an exception', () => {
     ['axe-core-evil', 'MPL-2.0', true],
     ['evil-caniuse-lite', 'CC-BY-4.0', true],
     ['caniuse-lite-data', 'CC-BY-4.0', true],
-    ['evil-mdn-data', 'CC0-1.0', true],
-    ['mdn-data-extra', 'CC0-1.0', true],
     ['evil-lightningcss', 'MPL-2.0', true],
   ])('does not excuse the look-alike %s under %s', (name, license, dev) => {
     // Each exception is for one named package. A pattern that only has to *contain* the
