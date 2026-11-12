@@ -363,6 +363,17 @@ const signInThroughTheApi = async (page: Page, app: TestApp): Promise<void> => {
   if (!response.ok()) {
     throw new Error(`the host's sign-in answered ${response.status()}: ${await response.text()}`)
   }
+  // The answer says what the form's landing used to show: a session for an account that may use
+  // the console. A second factor asked for (no session) or a password still to change (the gate at
+  // `/admin/password`) means the fixture's own setup regressed, and is said here rather than at
+  // whatever a journey asserts next.
+  const answer = (await response.json()) as {
+    readonly mustChangePassword?: boolean
+    readonly secondFactorRequired?: boolean
+  }
+  if (answer.secondFactorRequired === true || answer.mustChangePassword !== false) {
+    throw new Error(`the host's sign-in opened no usable session: ${JSON.stringify(answer)}`)
+  }
   await page.goto(app.url('/admin'), { waitUntil: 'commit' })
   await page.waitForURL(ADMIN_AREA, { waitUntil: 'commit' })
   await adminPageHasRendered(page)
