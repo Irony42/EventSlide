@@ -295,10 +295,10 @@ committing it.
 **Commit the baselines of committed specs only.** A throwaway spec run with
 `--update-snapshots` (a probe, a capture for a mock-up) writes its PNGs under
 `tests/e2e/__screenshots__/` like any other, and `git add tests/e2e` takes them along. The
-"Visual regression (wall)" job compares how many baselines the merge base carries with how
-many it renders, so an orphan folder turns that job red on **every** later pull request
-("rendered 18 … the merge base carries 21"), whatever they change. It happened with
-`zz-probe.spec.ts/` in the #440 rebaseline, removed in 3.12.0. Before committing, check that
+"Visual regression (wall)" job compared how many baselines the merge base carries with how many it
+renders, so an orphan folder (`zz-probe.spec.ts/` in the #440 rebaseline) turned that job red on **every** later
+pull request. Since 3.12.0 the job counts only baselines whose spec exists and names an orphan as a warning: read
+the warnings, and delete the orphan. Before committing, check that
 each folder under `__screenshots__/<project>/` names a spec that exists. Delete a
 throwaway spec and its screenshots before you commit anything else.
 
