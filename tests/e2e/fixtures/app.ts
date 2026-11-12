@@ -243,7 +243,15 @@ export const openSurfaces = async (browser: Browser, app: TestApp): Promise<Surf
   //
   // The guest and the projector are deliberately left with no credentials at all: a
   // guest earns a device token by joining, and a projector has nobody to log it in.
-  await signInAsHost(host, app)
+  //
+  // Through the login endpoint, not the form: this is the setup of every journey, not the
+  // journey under test, and the form made it the one place WebKit's stalls could fail them
+  // all. On webkit-mobile the form's submit sometimes produced no navigation at all for the
+  // 60 s test timeout ("Test timeout … while setting up "surfaces"", `waitForURL` at the
+  // form path), in journeys that never look at the login (`event-stats.spec.ts`,
+  // `guest-upload.spec.ts`, 12/11). The session is the real one the endpoint issues, never a
+  // forged cookie; the form stays covered by `signInAsHost`, which journeys call themselves.
+  await signInThroughTheApi(host, app)
 
   return {
     guest,
@@ -336,6 +344,27 @@ export const signInAsHost = async (page: Page, app: TestApp): Promise<void> => {
   // bootstrap password at boot (see `OWNER_SETTLED_PASSWORD`), so landing here means
   // something regressed, and it should say so.
   await page.waitForURL(ADMIN_AREA)
+  await adminPageHasRendered(page)
+}
+
+/**
+ * Signs the host's surface in through `POST /api/auth/login`, then opens the admin area.
+ *
+ * `page.request` shares the browser context's cookies, so the session the endpoint issues is the
+ * page's. The page is then left where the form used to leave it, on the rendered admin area,
+ * because journeys may start from there. `commit` rather than `load`, because a WebKit page that
+ * stalls may never fire `load` (see `playwright.config.ts`): the rendered heading is the check.
+ */
+const signInThroughTheApi = async (page: Page, app: TestApp): Promise<void> => {
+  const response = await page.request.post(app.url('/api/auth/login'), {
+    headers: await csrfHeaders(page.request, app),
+    data: { email: app.owner.email, password: app.owner.password },
+  })
+  if (!response.ok()) {
+    throw new Error(`the host's sign-in answered ${response.status()}: ${await response.text()}`)
+  }
+  await page.goto(app.url('/admin'), { waitUntil: 'commit' })
+  await page.waitForURL(ADMIN_AREA, { waitUntil: 'commit' })
   await adminPageHasRendered(page)
 }
 
