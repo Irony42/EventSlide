@@ -3,6 +3,7 @@ import { asError, isAbortError } from './http'
 import { onSessionExpired } from './sessionExpiry'
 import { SessionContext, type SessionData } from './sessionContext'
 import { useApi } from './useApi'
+import type { SessionResponse } from './api/dto'
 
 export interface SessionProviderProps {
   /**
@@ -85,6 +86,12 @@ export function SessionProvider({ scope, children }: SessionProviderProps) {
     setExpired(false)
   }, [])
 
+  const amend = useCallback((change: (session: SessionResponse) => SessionResponse) => {
+    setData((previous) =>
+      previous.session === null ? previous : { ...previous, session: change(previous.session) },
+    )
+  }, [])
+
   useEffect(() => onSessionExpired(() => setExpired(true)), [])
 
   useEffect(() => {
@@ -117,8 +124,8 @@ export function SessionProvider({ scope, children }: SessionProviderProps) {
   }, [api, attempt, requested])
 
   const store = useMemo(
-    () => ({ data, requested, expired, request, refresh, forget }),
-    [data, requested, expired, request, refresh, forget],
+    () => ({ data, requested, expired, request, refresh, forget, amend }),
+    [data, requested, expired, request, refresh, forget, amend],
   )
 
   return <SessionContext.Provider value={store}>{children}</SessionContext.Provider>

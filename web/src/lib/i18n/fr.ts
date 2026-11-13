@@ -1598,6 +1598,39 @@ export const fr = {
     qrEnlarge: 'Afficher le QR code en grand',
     qrEnlargedHint: 'Vos invités scannent cet écran, ou tapent le code.',
     overviewTitle: 'Tout l’évènement',
+    /* The first visit's guided tour of this page (features/admin/eventTour.ts). */
+    tourButton: 'Visite guidée',
+    tourWelcomeTitle: 'Bienvenue dans votre soirée',
+    tourWelcomeBody: (name: string) =>
+      `C’est ici que vous préparez « ${name} », que vous la pilotez le jour J et que vous récupérez l’album ensuite. On fait le tour de l’écran ?`,
+    tourWelcomeModeratorTitle: 'Bienvenue dans l’équipe',
+    tourWelcomeModeratorBody: (name: string) =>
+      `Vous modérez « ${name} ». On fait le tour de ce que vous trouverez ici ?`,
+    tourNowTitle: 'Ce qui compte maintenant',
+    tourNowBody:
+      'Cette carte suit la soirée : avant, ce qu’il reste à préparer ; pendant, la modération et l’écran ; après, l’album. Commencez toujours par elle.',
+    tourAccessTitle: 'Faire entrer vos invités',
+    tourAccessBody:
+      'Ils scannent ce QR code ou tapent le code : ni appli, ni compte. Imprimez les cartes de table, ou affichez le QR en grand le jour J.',
+    tourOpenTitle: 'Rien ne part avant l’ouverture',
+    tourOpenBody:
+      'Tant que la soirée est en brouillon, personne ne peut envoyer de photo. Ouvrez-la ici le moment venu, ou programmez l’ouverture dans les réglages.',
+    tourCloseTitle: 'Terminer la soirée au bon moment',
+    tourCloseBody:
+      'Les invités envoient leurs photos jusqu’à ce que vous terminiez la soirée ici, ou à l’heure prévue dans les réglages.',
+    tourAfterTitle: 'Rouvrir ou archiver',
+    tourAfterBody:
+      'La soirée est terminée : plus aucun envoi. Rouvrez-la si besoin, ou archivez-la une fois l’album récupéré.',
+    tourEveningTitle: 'Les deux gestes du jour J',
+    tourEveningBodyManual:
+      'Modérer : chaque photo attend votre accord avant d’apparaître, depuis l’ordinateur ou le téléphone. Ouvrir l’écran : la page à mettre en plein écran sur le vidéoprojecteur.',
+    tourEveningBodyAuto:
+      'Modérer : les photos s’affichent dès leur arrivée, et vous retirez d’un geste celles qui n’ont rien à faire à l’écran. Ouvrir l’écran : la page à mettre en plein écran sur le vidéoprojecteur.',
+    tourOverviewTitle: 'Tout le reste est ici',
+    tourOverviewBody:
+      'Livre d’or, défi photo, invités, album… Chaque tuile mène à son panneau, plus bas dans la page.',
+    tourEndTitle: 'À vous de jouer',
+    tourEndBody: 'Ce bouton relance la visite quand vous voulez. Bonne soirée !',
     overviewHints: {
       guestbook: 'Les mots laissés par vos invités',
       challenge: 'Un défi photo chronométré',
@@ -2336,6 +2369,13 @@ export const fr = {
    */
   ui: {
     dialogClose: 'Fermer la fenêtre',
+    tourStep: (step: number, total: number) => `Étape ${step} sur ${total}`,
+    tourNext: 'Suivant',
+    tourPrevious: 'Précédent',
+    tourSkip: 'Passer',
+    tourFinish: 'Terminer',
+    tourLater: 'Plus tard',
+    tourStart: 'Faire le tour',
     dismissNotification: 'Masquer cette notification',
     /**
      * The narrow space before the sign is French and not universal: English writes

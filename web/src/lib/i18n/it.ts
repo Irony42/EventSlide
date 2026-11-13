@@ -343,6 +343,13 @@ export const it: UiText = {
 
   ui: {
     dialogClose: 'Chiudi la finestra',
+    tourStep: (step: number, total: number) => `Passo ${step} di ${total}`,
+    tourNext: 'Avanti',
+    tourPrevious: 'Indietro',
+    tourSkip: 'Salta',
+    tourFinish: 'Fine',
+    tourLater: 'Più tardi',
+    tourStart: 'Fai il giro',
     dismissNotification: 'Nascondi questa notifica',
     percent: (value: number) => t.percent(value),
     optional: 'Facoltativo',
@@ -1428,6 +1435,39 @@ export const it: UiText = {
     qrEnlarge: 'Mostra il codice QR in grande',
     qrEnlargedHint: 'I suoi ospiti scansionano questo schermo o digitano il codice.',
     overviewTitle: 'Tutto l’evento',
+    /* The first visit's guided tour of this page (features/admin/eventTour.ts). */
+    tourButton: 'Visita guidata',
+    tourWelcomeTitle: 'Benvenuti nella sua serata',
+    tourWelcomeBody: (name: string) =>
+      `Qui prepara «${name}», la guida il giorno della festa e recupera l’album dopo. Facciamo un giro della pagina?`,
+    tourWelcomeModeratorTitle: 'Benvenuti nella squadra',
+    tourWelcomeModeratorBody: (name: string) =>
+      `Lei modera «${name}». Facciamo un giro di quello che troverà qui?`,
+    tourNowTitle: 'Ciò che conta adesso',
+    tourNowBody:
+      'Questa scheda segue la serata: prima, ciò che resta da preparare; durante, la moderazione e lo schermo; dopo, l’album. Cominci sempre da qui.',
+    tourAccessTitle: 'Far entrare i suoi invitati',
+    tourAccessBody:
+      'Scansionano questo codice QR o digitano il codice: niente app, niente account. Stampi i segnaposto, oppure mostri il QR a schermo intero il giorno della festa.',
+    tourOpenTitle: 'Nulla parte prima dell’apertura',
+    tourOpenBody:
+      'Finché l’evento è una bozza, nessuno può inviare foto. Lo apra qui quando è il momento, oppure programmi l’apertura nelle impostazioni.',
+    tourCloseTitle: 'Terminare la serata al momento giusto',
+    tourCloseBody:
+      'Gli invitati inviano foto finché lei non termina l’evento qui, o fino all’ora prevista nelle impostazioni.',
+    tourAfterTitle: 'Riaprire o archiviare',
+    tourAfterBody:
+      'La serata è finita: non si può più inviare nulla. La riapra se serve, oppure la archivi una volta salvato l’album.',
+    tourEveningTitle: 'I due gesti del giorno della festa',
+    tourEveningBodyManual:
+      'Modera: ogni foto attende la sua approvazione prima di apparire, dal computer o dal telefono. Apri lo schermo: la pagina da mostrare a schermo intero sul proiettore.',
+    tourEveningBodyAuto:
+      'Modera: le foto appaiono appena arrivano, e lei toglie con un gesto quelle che non devono stare sullo schermo. Apri lo schermo: la pagina da mostrare a schermo intero sul proiettore.',
+    tourOverviewTitle: 'Tutto il resto è qui',
+    tourOverviewBody:
+      'Libro degli ospiti, sfida fotografica, invitati, album… Ogni riquadro porta al suo pannello, più in basso nella pagina.',
+    tourEndTitle: 'Tocca a lei',
+    tourEndBody: 'Questo pulsante fa ripartire la visita quando vuole. Buona serata!',
     overviewHints: {
       guestbook: 'Le parole dei suoi ospiti',
       challenge: 'Una sfida fotografica a tempo',

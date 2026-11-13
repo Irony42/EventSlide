@@ -130,6 +130,15 @@ const settleOwnerPassword = async (baseUrl: string): Promise<void> => {
   if (!succeeded(rotated)) {
     throw new Error(`the owner's forced password rotation failed with ${rotated.status}`)
   }
+
+  // The first visit's guided tour of an event's page opens over the page and takes every click
+  // until it is left. Every journey that opens an event as the owner would meet it, so the owner
+  // has seen it; the tour has its own journey, from an account that has not
+  // (`journeys/event-page-tour.spec.ts`).
+  const toured = await api.post('/api/auth/tours/eventPage')
+  if (!succeeded(toured)) {
+    throw new Error(`marking the owner's guided tour as seen failed with ${toured.status}`)
+  }
 }
 
 /** An ephemeral port, taken and released so the server can bind it. */

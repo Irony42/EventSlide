@@ -184,6 +184,8 @@ const NOT_EVENT_SCOPED: Readonly<Record<string, string>> = {
   'post /api/auth/password': 'an account’s own password, which no event owns',
   'post /api/auth/sessions/revoke-others':
     'ending the caller’s own other sessions — an account-wide act that no event owns',
+  'post /api/auth/tours/:tour':
+    'remembering that the caller’s own console showed a guided tour — it names no event',
   'get /api/events':
     'the caller’s **own** dashboard: the membership table answers it, so an ' +
     'operator with no membership is shown nothing, which `tenant-isolation.spec.ts` asserts',
@@ -502,6 +504,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   clientId: CLIENT,
   requestId: A_PHOTO,
   code: 'H7K2QM',
+  tour: 'eventPage',
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { Transport } from '../../http'
 import type { Locale } from '../../i18n/locale'
 import type {
+  GuidedTour,
   InvitationAcceptedDto,
   InvitationPreviewDto,
   RecoveryCodesDto,
@@ -76,6 +77,13 @@ export const accountApi = (transport: Transport) => ({
   disableSecondFactor: (): Promise<void> => transport.post('/api/auth/2fa/disable'),
 
   logout: (): Promise<void> => transport.post('/api/auth/logout'),
+
+  /**
+   * Records that the signed-in account was shown (or skipped) a guided tour, so the console no
+   * longer offers it by itself, on any device. `204`; a second call changes nothing.
+   */
+  markTourSeen: (tour: GuidedTour): Promise<void> =>
+    transport.post(`/api/auth/tours/${encode(tour)}`),
 
   session: (signal?: AbortSignal): Promise<SessionResponse> =>
     transport.get('/api/auth/me', undefined, signal),

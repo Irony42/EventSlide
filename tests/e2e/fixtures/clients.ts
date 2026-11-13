@@ -139,6 +139,9 @@ const introductionOf = (app: TestApp): Promise<string> => {
   return made
 }
 
+/** The password every invited account chose, for a spec that signs one in through a browser. */
+export const INVITED_ACCOUNT_PASSWORD = 'phrase-que-seule-la-cliente-connait'
+
 /** The token an invitation link carries: the last segment of `/invite/<token>`. */
 export const tokenOf = (link: string): string => {
   const token = link.split('/invite/')[1]
@@ -157,7 +160,7 @@ export const tokenOf = (link: string): string => {
 const anInvitedAccount = async (app: TestApp, label: string): Promise<Account> => {
   const suffix = randomUUID().slice(0, 8)
   const email = `${label}-${suffix}@eventslide.test`
-  const chosen = 'phrase-que-seule-la-cliente-connait'
+  const chosen = INVITED_ACCOUNT_PASSWORD
 
   // The operator: the account the server bootstrapped, signed in over the API.
   const operator = await sessionOn(app.baseUrl)

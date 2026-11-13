@@ -337,6 +337,13 @@ export const de: UiText = {
 
   ui: {
     dialogClose: 'Fenster schließen',
+    tourStep: (step: number, total: number) => `Schritt ${step} von ${total}`,
+    tourNext: 'Weiter',
+    tourPrevious: 'Zurück',
+    tourSkip: 'Überspringen',
+    tourFinish: 'Fertig',
+    tourLater: 'Später',
+    tourStart: 'Rundgang starten',
     dismissNotification: 'Diese Benachrichtigung ausblenden',
     percent: (value: number) => t.percent(value),
     optional: 'Optional',
@@ -1461,6 +1468,40 @@ export const de: UiText = {
     qrEnlarge: 'QR-Code groß anzeigen',
     qrEnlargedHint: 'Ihre Gäste scannen diesen Bildschirm oder tippen den Code ein.',
     overviewTitle: 'Die ganze Veranstaltung',
+    /* The first visit's guided tour of this page (features/admin/eventTour.ts). */
+    tourButton: 'Rundgang',
+    tourWelcomeTitle: 'Willkommen bei Ihrer Veranstaltung',
+    tourWelcomeBody: (name: string) =>
+      `Hier bereiten Sie „${name}“ vor, steuern den Abend selbst und holen danach das Album. Sollen wir uns die Seite kurz ansehen?`,
+    tourWelcomeModeratorTitle: 'Willkommen im Team',
+    tourWelcomeModeratorBody: (name: string) =>
+      `Sie moderieren „${name}“. Sollen wir uns kurz ansehen, was Sie hier finden?`,
+    tourNowTitle: 'Was jetzt zählt',
+    tourNowBody:
+      'Diese Karte folgt dem Abend: vorher, was noch vorzubereiten ist; währenddessen Moderation und Bildschirm; danach das Album. Fangen Sie immer hier an.',
+    tourAccessTitle: 'Ihre Gäste hereinlassen',
+    tourAccessBody:
+      'Sie scannen diesen QR-Code oder tippen den Code ein: keine App, kein Konto. Drucken Sie die Tischkarten oder zeigen Sie den QR-Code am Abend groß an.',
+    tourOpenTitle: 'Vor dem Öffnen geht nichts hinaus',
+    tourOpenBody:
+      'Solange die Veranstaltung ein Entwurf ist, kann niemand ein Foto senden. Öffnen Sie sie hier, wenn es so weit ist, oder planen Sie die Öffnung in den Einstellungen.',
+    tourCloseTitle: 'Den Abend zur richtigen Zeit beenden',
+    tourCloseBody:
+      'Gäste senden Fotos, bis Sie die Veranstaltung hier beenden oder bis zu der in den Einstellungen geplanten Zeit.',
+    tourAfterTitle: 'Erneut öffnen oder archivieren',
+    tourAfterBody:
+      'Der Abend ist vorbei: Es kann nichts mehr gesendet werden. Öffnen Sie ihn bei Bedarf erneut oder archivieren Sie ihn, sobald das Album gesichert ist.',
+    tourEveningTitle: 'Die zwei Handgriffe am Abend',
+    tourEveningBodyManual:
+      'Moderieren: Jedes Foto wartet auf Ihre Freigabe, bevor es erscheint, am Laptop oder am Handy. Bildschirm öffnen: die Seite, die im Vollbild über den Beamer läuft.',
+    tourEveningBodyAuto:
+      'Moderieren: Fotos erscheinen, sobald sie ankommen, und Sie nehmen mit einem Handgriff herunter, was nicht auf den Bildschirm gehört. Bildschirm öffnen: die Seite, die im Vollbild über den Beamer läuft.',
+    tourOverviewTitle: 'Alles andere ist hier',
+    tourOverviewBody:
+      'Gästebuch, Foto-Challenge, Gäste, Album … Jede Kachel führt zu ihrem Bereich weiter unten auf der Seite.',
+    tourEndTitle: 'Jetzt sind Sie dran',
+    tourEndBody:
+      'Mit dieser Schaltfläche starten Sie den Rundgang jederzeit neu. Einen schönen Abend!',
     overviewHints: {
       guestbook: 'Die Worte Ihrer Gäste',
       challenge: 'Eine Foto-Challenge auf Zeit',

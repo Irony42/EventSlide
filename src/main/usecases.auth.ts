@@ -14,6 +14,7 @@ import { makeRegisterModerator } from '../application/usecases/auth/registerMode
 import { makeRequestPasswordReset } from '../application/usecases/auth/requestPasswordReset'
 import { makeResetPassword } from '../application/usecases/auth/resetPassword'
 import { makeRevokeOtherSessions } from '../application/usecases/auth/revokeOtherSessions'
+import { makeMarkTourSeen } from '../application/usecases/auth/markTourSeen'
 import { makeStepUp } from '../application/usecases/auth/stepUp'
 import type { Adapters, UseCasePolicy } from './usecases'
 import {
@@ -43,6 +44,10 @@ export const authUseCases = (
   }),
   revokeOtherSessions: makeRevokeOtherSessions({
     users: adapters.users,
+    clock: adapters.clock,
+  }),
+  markTourSeen: makeMarkTourSeen({
+    tours: adapters.tours,
     clock: adapters.clock,
   }),
   requestPasswordReset: makeRequestPasswordReset({

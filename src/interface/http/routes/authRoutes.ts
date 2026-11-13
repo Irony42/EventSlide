@@ -48,6 +48,7 @@ import {
   secondFactorLoginBody,
   secondFactorProofOf,
   stepUpBody,
+  tourParams,
 } from '../schemas/requestSchemas'
 import type { HttpDeps, SessionPayload } from '../types'
 import type { HttpUseCases } from '../useCases'
@@ -87,6 +88,7 @@ export interface AuthRouteDeps {
     | 'changePassword'
     | 'deleteOwnAccount'
     | 'revokeOtherSessions'
+    | 'markTourSeen'
     | 'requestPasswordReset'
     | 'resetPassword'
     | 'verifySecondFactor'
@@ -357,9 +359,19 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
 
       const secondFactor = await secondFactorStatusOf(req, deps, principal?.userId, siteRole)
 
+      // What the console's first-visit tours need: asked only for an account that may act,
+      // like the site role, so an anonymous caller costs no query.
+      const toursSeen = principal === undefined ? [] : await deps.tours.seenBy(principal.userId)
+
       sendJson(
         res,
-        toSessionResponseDto(principal, state?.mustChangePassword ?? false, siteRole, secondFactor),
+        toSessionResponseDto(
+          principal,
+          state?.mustChangePassword ?? false,
+          siteRole,
+          secondFactor,
+          toursSeen,
+        ),
       )
     }),
   )
@@ -535,6 +547,19 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       // instant is kept: pressing the button does not make the session any younger.
       await startSession(req, res, deps, user, stampsOf(req))
       sendNoContent(res)
+    }),
+  )
+
+  router.post(
+    '/auth/tours/:tour',
+    // Any signed-in account, for itself: the account comes from the session, the tour from a
+    // closed vocabulary. It records that the console showed (or the person skipped) a guided
+    // tour, so it is not offered by itself again. Grants nothing.
+    requireUser(deps),
+    asyncHandler(async (req, res) => {
+      const user = userOf(req)
+      const { tour } = tourParams.parse(req.params)
+      sendResultNoContent(res, await usecases.markTourSeen({ userId: user.userId, tour }))
     }),
   )
 

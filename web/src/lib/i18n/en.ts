@@ -324,6 +324,13 @@ export const en: UiText = {
 
   ui: {
     dialogClose: 'Close the dialog',
+    tourStep: (step: number, total: number) => `Step ${step} of ${total}`,
+    tourNext: 'Next',
+    tourPrevious: 'Back',
+    tourSkip: 'Skip',
+    tourFinish: 'Done',
+    tourLater: 'Later',
+    tourStart: 'Take the tour',
     dismissNotification: 'Hide this notification',
     percent: (value: number) => t.percent(value),
     optional: 'Optional',
@@ -1389,6 +1396,39 @@ export const en: UiText = {
     qrEnlarge: 'Show the QR code full size',
     qrEnlargedHint: 'Your guests scan this screen, or type the code.',
     overviewTitle: 'The whole event',
+    /* The first visit's guided tour of this page (features/admin/eventTour.ts). */
+    tourButton: 'Guided tour',
+    tourWelcomeTitle: 'Welcome to your event',
+    tourWelcomeBody: (name: string) =>
+      `This is where you prepare “${name}”, run it on the day and get the album afterwards. Shall we look around the screen?`,
+    tourWelcomeModeratorTitle: 'Welcome to the team',
+    tourWelcomeModeratorBody: (name: string) =>
+      `You moderate “${name}”. Shall we look at what you will find here?`,
+    tourNowTitle: 'What matters now',
+    tourNowBody:
+      'This card follows the evening: before, what is left to prepare; during, moderation and the screen; after, the album. Always start here.',
+    tourAccessTitle: 'Letting your guests in',
+    tourAccessBody:
+      'They scan this QR code or type the code: no app, no account. Print the table cards, or show the QR code full screen on the day.',
+    tourOpenTitle: 'Nothing is sent before you open',
+    tourOpenBody:
+      'While the event is a draft, nobody can send a photo. Open it here when the time comes, or schedule the opening in the settings.',
+    tourCloseTitle: 'End the event at the right time',
+    tourCloseBody:
+      'Guests can send photos until you end the event here, or at the time set in the settings.',
+    tourAfterTitle: 'Reopen or archive',
+    tourAfterBody:
+      'The evening is over: nothing more can be sent. Reopen it if needed, or archive it once the album is saved.',
+    tourEveningTitle: 'The two moves of the big day',
+    tourEveningBodyManual:
+      'Moderate: every photo waits for your approval before it appears, from the laptop or the phone. Open the screen: the page to show full screen on the projector.',
+    tourEveningBodyAuto:
+      'Moderate: photos appear as they arrive, and you take down in one move any that do not belong on the screen. Open the screen: the page to show full screen on the projector.',
+    tourOverviewTitle: 'Everything else is here',
+    tourOverviewBody:
+      'Guestbook, photo challenge, guests, album… Each tile leads to its panel, further down the page.',
+    tourEndTitle: 'Over to you',
+    tourEndBody: 'This button starts the tour again whenever you like. Enjoy the evening!',
     overviewHints: {
       guestbook: 'The words your guests left',
       challenge: 'A timed photo challenge',

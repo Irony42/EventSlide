@@ -308,6 +308,8 @@ const REDUCED_MOTION_ANSWERS: Readonly<Record<string, string>> = {
   // The sign-in garland (brand integration): its fall and sway exist only under no-preference.
   'design-system/components/Garland.module.css': 'no-preference',
   'design-system/components/Dialog.module.css': 'no-preference',
+  // The guided tour's bubble fades in; the light itself never moves by animation.
+  'design-system/components/GuidedTour.module.css': 'no-preference',
   'design-system/components/Spinner.module.css': 'reduce-branch',
   'design-system/components/Toast.module.css': 'no-preference',
   'features/guest-upload/components/MyPhotos.module.css': 'no-preference',

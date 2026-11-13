@@ -13,6 +13,7 @@ import type { RegisterModerator } from '../../application/usecases/auth/register
 import type { RequestPasswordReset } from '../../application/usecases/auth/requestPasswordReset'
 import type { ResetPassword } from '../../application/usecases/auth/resetPassword'
 import type { RevokeOtherSessions } from '../../application/usecases/auth/revokeOtherSessions'
+import type { MarkTourSeen } from '../../application/usecases/auth/markTourSeen'
 import type { StepUp } from '../../application/usecases/auth/stepUp'
 import type { VerifySecondFactor } from '../../application/usecases/auth/verifySecondFactor'
 
@@ -158,6 +159,7 @@ export interface HttpUseCases {
   readonly changePassword: ChangePassword
   readonly deleteOwnAccount: DeleteOwnAccount
   readonly revokeOtherSessions: RevokeOtherSessions
+  readonly markTourSeen: MarkTourSeen
   readonly requestPasswordReset: RequestPasswordReset
   readonly resetPassword: ResetPassword
   readonly verifySecondFactor: VerifySecondFactor

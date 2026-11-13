@@ -682,6 +682,7 @@ export const toSessionResponseDto = (
   mustChangePassword: boolean,
   siteRole: SiteRole,
   secondFactor: SecondFactorStatusDto,
+  toursSeen: readonly string[],
 ): SessionResponseDto => {
   if (principal === undefined) return { authenticated: false }
 
@@ -692,6 +693,7 @@ export const toSessionResponseDto = (
     mustChangePassword,
     canOperateSite: canOperateSite(siteRole),
     secondFactor,
+    toursSeen,
   }
   return { authenticated: true, user }
 }

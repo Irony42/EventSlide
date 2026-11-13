@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
+import { GuidedTour } from '../../design-system/components/GuidedTour'
 import { Notice } from '../../design-system/components/Notice'
 import { useToast } from '../../design-system/components/useToast'
 import { cx } from '../../design-system/classNames'
@@ -40,6 +41,8 @@ import { scheduleMoment, upcomingMoves } from './eventSchedule'
 import { overviewTiles } from './eventOverview'
 import { bringIntoView } from './bringIntoView'
 import { useAlbumUrl, useEvent } from './hooks/useEventData'
+import { useEventTour } from './hooks/useEventTour'
+import { eventTourSteps } from './eventTour'
 import { usePurgeEvent, useRotateJoinCode } from './hooks/useEventActions'
 import { useLifecycleTransition } from './hooks/useLifecycleTransition'
 import styles from './EventPage.module.css'
@@ -71,9 +74,16 @@ export function EventPage() {
   const [rotating, setRotating] = useState(false)
   const [purging, setPurging] = useState(false)
 
+  // The first visit's guided tour of this page, once the event is there to show.
+  const tour = useEventTour(
+    event === null ? null : { status: event.status, pendingCount: event.pendingCount },
+  )
+
   // The card a toast elsewhere on the page sends the host to (the new code makes the printed
   // ones out of date), and the panels the tiles lead to.
   const qrHeading = useRef<HTMLHeadingElement>(null)
+  // Where focus lands when the guided tour closes: the button that brings it back.
+  const tourButton = useRef<HTMLButtonElement>(null)
   const overviewTitleId = useId()
   // The panels the tiles lead to are found by id: a prefix of this page's own, one per panel.
   const panelIds = useId()
@@ -223,6 +233,16 @@ export function EventPage() {
           {event.pendingCount > 0 ? (
             <Badge tone="warning">{t.moderation.pending(event.pendingCount)}</Badge>
           ) : null}
+          <Button
+            ref={tourButton}
+            size="sm"
+            variant="ghost"
+            onClick={tour.replay}
+            aria-haspopup="dialog"
+            data-tour="tourButton"
+          >
+            {t.admin.tourButton}
+          </Button>
         </div>
         {discardedAt === null ? null : (
           <Notice tone="warning" role="status" variant="boxed">
@@ -242,31 +262,34 @@ export function EventPage() {
             lifecycle={lifecycle}
           />
         </div>
-        <EventQrCard
-          eventName={event.name}
-          joinCode={event.joinCode}
-          joinUrl={event.joinUrl}
-          titleRef={qrHeading}
-          // Both are for an event still in use: an archived one gets no empty row under the card.
-          extraActions={
-            event.status === 'archived' ? undefined : (
-              <>
-                <Link to={`/admin/events/${event.slug}/print`}>{t.admin.printKitTitle}</Link>
-                {isOwner && isMutable(event.status) ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    loading={rotate.busy}
-                    onClick={() => setRotating(true)}
-                    aria-haspopup="dialog"
-                  >
-                    {t.admin.rotateJoinCode}
-                  </Button>
-                ) : null}
-              </>
-            )
-          }
-        />
+        {/* Wrapped for the guided tour only: the card is the grid's second track either way. */}
+        <div data-tour="access">
+          <EventQrCard
+            eventName={event.name}
+            joinCode={event.joinCode}
+            joinUrl={event.joinUrl}
+            titleRef={qrHeading}
+            // Both are for an event still in use: an archived one gets no empty row under the card.
+            extraActions={
+              event.status === 'archived' ? undefined : (
+                <>
+                  <Link to={`/admin/events/${event.slug}/print`}>{t.admin.printKitTitle}</Link>
+                  {isOwner && isMutable(event.status) ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      loading={rotate.busy}
+                      onClick={() => setRotating(true)}
+                      aria-haspopup="dialog"
+                    >
+                      {t.admin.rotateJoinCode}
+                    </Button>
+                  ) : null}
+                </>
+              )
+            }
+          />
+        </div>
       </div>
 
       <div className={cx(styles['column'], styles['screenOnly'])}>
@@ -277,7 +300,11 @@ export function EventPage() {
           <SupportCard eventId={event.id} donateUrl={links.donate} budgetUrl={links.budget} />
         ) : null}
 
-        <section className={styles['overview']} aria-labelledby={overviewTitleId}>
+        <section
+          className={styles['overview']}
+          aria-labelledby={overviewTitleId}
+          data-tour="overview"
+        >
           <h2 id={overviewTitleId} className={styles['overviewTitle']}>
             {t.admin.overviewTitle}
           </h2>
@@ -374,6 +401,22 @@ export function EventPage() {
         busy={transition.busy}
         onConfirm={transition.confirm}
         onCancel={transition.cancel}
+      />
+
+      <GuidedTour
+        open={tour.open}
+        steps={eventTourSteps(
+          {
+            name: event.name,
+            status: event.status,
+            role: event.role,
+            moderation: event.settings.moderation,
+          },
+          t,
+        )}
+        onFinish={tour.close}
+        onDismiss={tour.close}
+        returnFocusRef={tourButton}
       />
 
       <PurgeEventDialog

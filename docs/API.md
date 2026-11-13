@@ -2444,6 +2444,7 @@ invitation routes (below) take none because the link is the credential.
 | `POST` | `/api/auth/password`               | any signed-in user whose account is still enabled; no event, so no role |
 | `POST` | `/api/auth/account/delete`         | any signed-in user, and the password again; only with `SITE_ADMIN=on`   |
 | `POST` | `/api/auth/sessions/revoke-others` | same: any signed-in user whose account is still enabled, for itself     |
+| `POST` | `/api/auth/tours/:tour`            | same: any signed-in user whose account is still enabled, for itself     |
 | `POST` | `/api/auth/password-reset/request` | none: the person asking has no credential                               |
 | `POST` | `/api/auth/password-reset/confirm` | none: the mailed link is the credential                                 |
 | `POST` | `/api/auth/login/2fa`              | none: the half-finished sign-in the password bought is the credential   |
@@ -2520,7 +2521,8 @@ Destroys the session and clears the cookie. **204**. Idempotent.
       "enrolled": false,
       "verified": false,
       "required": false
-    }
+    },
+    "toursSeen": ["eventPage"]
   }
 }
 ```
@@ -2564,6 +2566,8 @@ enrol; `enrolled` — the account has a confirmed authenticator (storage, this r
 sets `REQUIRE_OPERATOR_2FA` and the account operates it. A console that reads
 `required && !verified` sends the account to enrol when `!enrolled` and to the code prompt
 otherwise. It grants nothing: `/api/site/*` is judged by its gate.
+
+**`toursSeen`** lists the console's guided tours this account was already shown or skipped (`eventPage`), read from storage on this request, so a tour is offered by itself once per account and not once per browser. Empty for an account that was shown none. It grants nothing; `POST /api/auth/tours/:tour` adds to it.
 
 `Cache-Control: no-store`, always. The body is an identity and a rolling session
 re-sends its cookie alongside it, so a shared cache holding this response would hand
@@ -2619,6 +2623,16 @@ The caller's own session is replaced (a new `es_session`, a new `es_csrf`) and s
 in. It changes nothing else: not the password, not the flags. **Errors** — `401 auth.required`
 (no session, or the account is switched off), `403 auth.passwordChangeRequired` while the
 account must still choose a password.
+
+### `POST /api/auth/tours/:tour`
+
+No body. `:tour` is one of the closed vocabulary of `domain/users/guidedTour.ts` (today only
+`eventPage`, the first visit to an event's page). **204**, and the tour is recorded for the account
+in the session, so `GET /api/auth/me` lists it in `toursSeen` on every device from then on and the
+console no longer offers it by itself. Idempotent: a second call keeps the first instant. It grants
+nothing. **Errors** — `400 request.invalid` for a tour outside the vocabulary, `401 auth.required`
+(no session, or the account is switched off), `403 auth.passwordChangeRequired` while the account
+must still choose a password.
 
 ### `POST /api/auth/password-reset/request`
 

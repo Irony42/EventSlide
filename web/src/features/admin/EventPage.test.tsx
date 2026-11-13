@@ -9,6 +9,7 @@ import { formatBytes, formatDateTime } from '../../lib/format'
 import { fr } from '../../lib/i18n/fr'
 import { classesOf, cls } from '../../testing/classesOf'
 import {
+  aSessionUser,
   anAbout,
   anEventDto,
   fakeApi,
@@ -997,5 +998,93 @@ describe('EventPage, the support card', () => {
 
     expect(await screen.findByRole('heading', { name: 'Fête deuxieme' })).toBeVisible()
     expect(await screen.findByText(fr.about.supportNoCounterpart)).toBeVisible()
+  })
+})
+
+describe('EventPage: the first visit’s guided tour', () => {
+  const signedIn = (toursSeen: readonly string[]) =>
+    vi.fn(async () => ({ authenticated: true as const, user: aSessionUser({ toursSeen }) }))
+
+  it('opens by itself on an account’s first visit, and records it as seen when it is left', async () => {
+    const api = fakeApi({ session: signedIn([]) })
+    renderPage(api)
+
+    const tour = await screen.findByRole('dialog', { name: fr.admin.tourWelcomeTitle })
+    await userEvent.click(within(tour).getByRole('button', { name: fr.ui.tourLater }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(api.markTourSeen).toHaveBeenCalledWith('eventPage'))
+    // Focus lands on the button that brings the tour back, so the host learns where it lives.
+    expect(screen.getByRole('button', { name: fr.admin.tourButton })).toHaveFocus()
+  })
+
+  it('walks through the page to the end, and records it once', async () => {
+    // A draft: the first visit is almost always right after the event was created.
+    const api = fakeApi({
+      session: signedIn([]),
+      getEvent: vi.fn(async () => anEventDto({ status: 'draft' })),
+    })
+    renderPage(api)
+
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: fr.ui.tourStart }),
+    )
+    // Each step is shown once it is measured, on the next frame.
+    expect(await screen.findByRole('dialog', { name: fr.admin.tourNowTitle })).toBeVisible()
+    for (const title of [
+      fr.admin.tourAccessTitle,
+      fr.admin.tourOpenTitle,
+      fr.admin.tourEveningTitle,
+      fr.admin.tourOverviewTitle,
+      fr.admin.tourEndTitle,
+    ]) {
+      await userEvent.click(await screen.findByRole('button', { name: fr.ui.tourNext }))
+      expect(await screen.findByRole('dialog', { name: title })).toBeVisible()
+    }
+    await userEvent.click(await screen.findByRole('button', { name: fr.ui.tourFinish }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(api.markTourSeen).toHaveBeenCalledOnce())
+  })
+
+  it('does not open by itself for an account that saw it, and the button still replays it', async () => {
+    const api = fakeApi({ session: signedIn(['eventPage']) })
+    renderPage(api)
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.tourButton }))
+    // The same tour, from the top.
+    const tour = await screen.findByRole('dialog', { name: fr.admin.tourWelcomeTitle })
+    await userEvent.click(within(tour).getByRole('button', { name: fr.ui.tourLater }))
+
+    // It was already seen: nothing new to record.
+    expect(api.markTourSeen).not.toHaveBeenCalled()
+  })
+
+  it('does not cover the queue of an evening with photos waiting', async () => {
+    const api = fakeApi({
+      session: signedIn([]),
+      getEvent: vi.fn(async () => anEventDto({ status: 'live', pendingCount: 4 })),
+    })
+    renderPage(api)
+
+    expect(await screen.findByRole('button', { name: fr.admin.tourButton })).toBeVisible()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('leaves the lifecycle out for a moderator, who has no lifecycle buttons', async () => {
+    const api = fakeApi({
+      session: signedIn([]),
+      getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })),
+    })
+    renderPage(api)
+
+    const tour = await screen.findByRole('dialog', { name: fr.admin.tourWelcomeModeratorTitle })
+    await userEvent.click(within(tour).getByRole('button', { name: fr.ui.tourStart }))
+    await screen.findByRole('dialog', { name: fr.admin.tourNowTitle })
+    await userEvent.click(screen.getByRole('button', { name: fr.ui.tourNext }))
+    await screen.findByRole('dialog', { name: fr.admin.tourAccessTitle })
+    await userEvent.click(screen.getByRole('button', { name: fr.ui.tourNext }))
+
+    expect(await screen.findByRole('dialog', { name: fr.admin.tourEveningTitle })).toBeVisible()
   })
 })

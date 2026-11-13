@@ -27,6 +27,12 @@ export interface SessionStore {
   readonly refresh: () => void
   /** The answer is stale and nobody is waiting: drop it, and ask when somebody next needs it. */
   readonly forget: () => void
+  /**
+   * The answer changed in a way this page already knows (it just told the server so): change the
+   * kept answer in place, with no new request and no loading state. `refresh` would set
+   * `loading`, and `RequireAuth` answers `loading` by swapping the page for a spinner.
+   */
+  readonly amend: (change: (session: SessionResponse) => SessionResponse) => void
 }
 
 /**

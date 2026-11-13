@@ -109,6 +109,7 @@ const usecasesFor = (
     changePassword: notWired,
     deleteOwnAccount: notWired,
     revokeOtherSessions: notWired,
+    markTourSeen: notWired,
     requestPasswordReset: notWired,
     resetPassword: notWired,
     verifySecondFactor: notWired,
