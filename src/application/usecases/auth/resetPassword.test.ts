@@ -338,4 +338,54 @@ describe('resetPassword', () => {
 
     expect(await tokens.findUsable(theirDigest, 'passwordReset', clock.now())).not.toBeNull()
   })
+
+  // ------------------------------------------------- what finished meanwhile --
+
+  it('does not re-enable an account disabled while the new hash was being computed', async () => {
+    const token = await issueLink()
+    const hasher = new FakePasswordHasher({
+      whileHashing: async () => {
+        const row = await users.findById(asUserId('user-1'))
+        if (row === null) throw new Error('fixture missing')
+        await users.save(row.disable(clock.now()))
+      },
+    })
+
+    const result = await makeResetPassword({ users, tokens, secrets, hasher, clock })({
+      token,
+      newPassword: NEW_PASSWORD,
+    })
+
+    expect(!result.ok && result.error.code).toBe('auth.invalidToken')
+    const after = await users.findById(asUserId('user-1'))
+    expect(after?.isDisabled()).toBe(true)
+    expect(after?.passwordHash).toBe('hash:ancien-mot-de-passe')
+  })
+
+  it('does not overwrite a password changed meanwhile, and revokes no other link for a reset it refused', async () => {
+    const token = await issueLink()
+    const other = await issueLink({ id: 'tok-other' })
+    const hasher = new FakePasswordHasher({
+      whileHashing: async () => {
+        await users.replacePasswordHash(
+          asUserId('user-1'),
+          'hash:ancien-mot-de-passe',
+          'hash:le-mot-de-passe-du-titulaire',
+          clock.now(),
+        )
+      },
+    })
+
+    const result = await makeResetPassword({ users, tokens, secrets, hasher, clock })({
+      token,
+      newPassword: NEW_PASSWORD,
+    })
+
+    expect(!result.ok && result.error.code).toBe('auth.invalidToken')
+    expect((await users.findById(asUserId('user-1')))?.passwordHash).toBe(
+      'hash:le-mot-de-passe-du-titulaire',
+    )
+    // The call changed nothing, so it revokes nothing: the other link still works.
+    expect((await reset(other)).ok).toBe(true)
+  })
 })

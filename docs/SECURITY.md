@@ -246,10 +246,19 @@ is now one conditional statement, `UPDATE … WHERE password_hash = <the hash it
 AND disabled_at IS NULL`, that names only the last-sign-in time and (for the cost upgrade)
 the hash; if it matches nothing, the sign-in is refused as a wrong password is. Held at
 ring 2 with a hasher that stays inside `verify` while the account is changed underneath it,
-and at the port contract on both implementations. **Not closed**: the other whole-row
-savers — `changePassword`, `disableAccount` — have the same window against a _concurrent
-change by someone else_, but each needs an authenticated actor and cannot be provoked by an
-unauthenticated attacker at the sign-in rate; they are listed under "Residuals" below.
+and at the port contract on both implementations. **A password change or a reset cannot undo it either (SEC-08)**
+(`UserRepository.replacePasswordHash`). `changePassword` (three bcrypt operations, ~500-750 ms)
+and `resetPassword` used to save the whole account they had read before hashing, so a
+switch-off or a reset finishing in that window was silently undone: a disabled account
+re-enabled, a rotated-out password restored. Both now write one conditional statement,
+`UPDATE … SET password_hash, must_change_password = 0, credentials_changed_at = max(stored, at)
+WHERE password_hash = <the hash they read> AND disabled_at IS NULL`. A lost race is refused as a
+wrong password (`auth.invalidCredentials`) or a dead link (`auth.invalidToken`); a refused reset
+leaves its link spent, because it cannot be un-spent and the account moved on under it, and revokes
+no other link, because it changed nothing. The other whole-row savers (`disableAccount`,
+`enableAccount`, `revokeOtherSessions`, `confirmTotpEnrollment`, `disableSecondFactor`) have no
+asynchronous call between their read and their save (better-sqlite3 is synchronous, the vault and the
+TOTP engine are too), so they cannot interleave with another request and are left as they are.
 
 **The epoch also ends trust in a device (G3-04b).** The sign-in throttle gives a browser that has
 signed in before a bucket of its own (§5), and that browser is told apart by a signed cookie whose
@@ -361,11 +370,7 @@ of either address. "Sign out everywhere" revokes the other sessions and then end
 that order, and leaves the page only once the server has answered.
 
 **Residuals.** A successful reset does not set `email_verified_at` and does not mail the account holder that
-their password changed; both are possible later without a schema change. `changePassword`
-and `disableAccount` still save a whole account they read earlier, so a concurrent change by
-a second actor (the owner changing a password while the operator switches the account off)
-can be undone by the slower of the two; the sign-in, which an unauthenticated attacker can
-provoke at will, is the one that was closed. Expired token rows
+their password changed; both are possible later without a schema change. Expired token rows
 are deleted opportunistically by the next reset request, a day after they expire — there is no
 dedicated sweep, because a reset token cascades with its account and holds no address the
 `users` table does not.

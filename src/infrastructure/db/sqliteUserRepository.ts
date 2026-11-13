@@ -320,6 +320,27 @@ export class SqliteUserRepository implements UserRepository {
     return result.changes === 1
   }
 
+  async replacePasswordHash(
+    id: UserId,
+    expectedHash: PasswordHash,
+    newHash: PasswordHash,
+    at: Date,
+  ): Promise<boolean> {
+    // The same shape as `recordSignIn`: the WHERE clause is the rule. The epoch is the later of
+    // the stored one and `at` (ISO text sorts as time; see LATEST_EPOCH for the COALESCE).
+    const result = this.db
+      .prepare<[string, string, string, string, string]>(
+        `UPDATE users
+            SET password_hash          = ?,
+                must_change_password   = 0,
+                credentials_changed_at = NULLIF(MAX(COALESCE(credentials_changed_at, ''), ?), '')
+          WHERE id = ? AND password_hash = ? AND disabled_at IS NULL`,
+      )
+      .run(newHash, toIsoText(at), id, expectedHash)
+
+    return result.changes === 1
+  }
+
   async save(user: User): Promise<void> {
     this.db.prepare(UPSERT_USER).run(...userRow(user))
   }

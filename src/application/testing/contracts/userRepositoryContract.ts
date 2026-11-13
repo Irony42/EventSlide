@@ -358,6 +358,97 @@ export const userRepositoryContract = (
       expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(3_000).toISOString())
     })
 
+    // ------------------------------------------------------ replacePasswordHash --
+
+    /**
+     * A password change hashes for ~500 ms and then commits. Whatever finished in that window
+     * must win, so the commit is one conditional statement and not a `save` of the account
+     * read before the hashing.
+     */
+    describe('replacePasswordHash', () => {
+      const HOST = asUserId('user-host')
+
+      it('replaces the hash, clears the forced change and raises the epoch', async () => {
+        await repo.save(
+          aUser({ id: 'user-host', passwordHash: 'hash:old', mustChangePassword: true }),
+        )
+
+        expect(await repo.replacePasswordHash(HOST, 'hash:old', 'hash:new', atPlus(5_000))).toBe(
+          true,
+        )
+
+        const stored = await repo.findById(HOST)
+        expect(stored?.passwordHash).toBe('hash:new')
+        expect(stored?.mustChangePassword).toBe(false)
+        expect(stored?.credentialsChangedAt?.toISOString()).toBe(atPlus(5_000).toISOString())
+      })
+
+      it('refuses, and writes nothing, once the account holds a different hash', async () => {
+        await repo.save(aUser({ id: 'user-host', passwordHash: 'hash:after-the-reset' }))
+
+        expect(await repo.replacePasswordHash(HOST, 'hash:old', 'hash:new', atPlus(5_000))).toBe(
+          false,
+        )
+
+        const stored = await repo.findById(HOST)
+        expect(stored?.passwordHash).toBe('hash:after-the-reset')
+        expect(stored?.credentialsChangedAt).toBeNull()
+      })
+
+      it('refuses an account switched off meanwhile, and leaves it off', async () => {
+        await repo.save(
+          aUser({ id: 'user-host', passwordHash: 'hash:old', disabledAt: atPlus(1_000) }),
+        )
+
+        expect(await repo.replacePasswordHash(HOST, 'hash:old', 'hash:new', atPlus(5_000))).toBe(
+          false,
+        )
+
+        const stored = await repo.findById(HOST)
+        expect(stored?.isDisabled()).toBe(true)
+        expect(stored?.passwordHash).toBe('hash:old')
+      })
+
+      it('refuses an account that does not exist, and creates nothing', async () => {
+        expect(
+          await repo.replacePasswordHash(asUserId('nobody'), 'hash:old', 'hash:new', atPlus(5_000)),
+        ).toBe(false)
+
+        expect(await repo.isEmpty()).toBe(true)
+      })
+
+      it('never lowers the credentials epoch', async () => {
+        await repo.save(
+          aUser({ id: 'user-host', passwordHash: 'hash:old', credentialsChangedAt: atPlus(9_000) }),
+        )
+
+        await repo.replacePasswordHash(HOST, 'hash:old', 'hash:new', atPlus(5_000))
+
+        expect((await repo.findById(HOST))?.credentialsChangedAt?.toISOString()).toBe(
+          atPlus(9_000).toISOString(),
+        )
+      })
+
+      it('touches the hash, the forced change and the epoch and nothing else', async () => {
+        await repo.save(
+          aUser({
+            id: 'user-host',
+            displayName: 'Camille',
+            passwordHash: 'hash:old',
+            siteRole: 'operator',
+            lastLoginAt: atPlus(2_000),
+          }),
+        )
+
+        await repo.replacePasswordHash(HOST, 'hash:old', 'hash:new', atPlus(5_000))
+
+        const stored = await repo.findById(HOST)
+        expect(stored?.displayName).toBe('Camille')
+        expect(stored?.siteRole).toBe('operator')
+        expect(stored?.lastLoginAt?.toISOString()).toBe(atPlus(2_000).toISOString())
+      })
+    })
+
     // ------------------------------------------------------------ recordSignIn --
 
     /**

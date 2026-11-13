@@ -114,6 +114,24 @@ export class FakeUserRepository implements UserRepository {
     return true
   }
 
+  async replacePasswordHash(
+    id: UserId,
+    expectedHash: PasswordHash,
+    newHash: PasswordHash,
+    at: Date,
+  ): Promise<boolean> {
+    const row = this.rows.get(id)
+    // The adapter's `WHERE id = ? AND password_hash = ? AND disabled_at IS NULL`.
+    if (row === undefined || row.isDisabled() || row.passwordHash !== expectedHash) return false
+    // `restore` with the epoch through `revokeSessionsBefore` (monotonic), the flag cleared.
+    const revoked = row.revokeSessionsBefore(at)
+    this.rows.set(
+      id,
+      User.restore({ ...revoked.toProps(), passwordHash: newHash, mustChangePassword: false }),
+    )
+    return true
+  }
+
   async save(user: User): Promise<void> {
     this.insert(user)
   }

@@ -27,6 +27,20 @@ describe('FakePasswordHasher', () => {
     )
   })
 
+  it('waits for whileHashing before it answers, so a test can interleave another request', async () => {
+    const order: string[] = []
+    const hasher = new FakePasswordHasher({
+      whileHashing: async () => {
+        order.push('meanwhile')
+      },
+    })
+
+    await hasher.hash(passwordOf('une phrase de passe'))
+    order.push('hashed')
+
+    expect(order).toEqual(['meanwhile', 'hashed'])
+  })
+
   it('records what each comparison was for, in order', async () => {
     const hasher = new FakePasswordHasher()
 

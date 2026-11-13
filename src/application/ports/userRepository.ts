@@ -109,6 +109,28 @@ export interface UserRepository {
   ): Promise<boolean>
 
   /**
+   * Chooses a new password — **and only if the account is still as the caller found it**.
+   *
+   * `expectedHash` is the hash the caller read (and compared the old password with, or judged a
+   * reset link against) before spending ~200 ms per bcrypt operation on the new one. The hash is
+   * replaced only if the account **still holds it and is still enabled**; `false` means a reset,
+   * a change or a switch-off finished meanwhile, and the caller must refuse as it would a wrong
+   * password or a dead link.
+   *
+   * The reason a password change is not `save(user)`: a whole-row save of the entity read before
+   * the hashing would put `disabled_at` back to `NULL` (re-enabling an account an operator just
+   * switched off) and replace a password somebody had just reset. One conditional statement
+   * touches the hash, clears the forced change and raises the credentials epoch to `at` — which
+   * **never moves backwards** — and nothing else.
+   */
+  replacePasswordHash(
+    id: UserId,
+    expectedHash: PasswordHash,
+    newHash: PasswordHash,
+    at: Date,
+  ): Promise<boolean>
+
+  /**
    * Insert or update. **The epoch only moves forward**: `credentialsChangedAt` is stored
    * as the later of what the row holds and what `user` carries, so a copy of the account
    * read before a password change and saved after it (a sign-in's `lastLoginAt` write

@@ -30,8 +30,13 @@ export type ChangePassword = (input: ChangePasswordInput) => Promise<Result<void
  * out loud.
  *
  * **Every session issued before this moment stops being valid** (G2-08 / P3-09). The change
- * raises the account's credentials epoch in the same save as the new hash, so there is no
+ * raises the account's credentials epoch in the same statement as the new hash, so there is no
  * state in which the password has changed and a cookie minted under the old one still works.
+ *
+ * **The write is a compare-and-set** (`UserRepository.replacePasswordHash`): it lands only if
+ * the account still holds the hash it was read with and is still enabled. Otherwise the change
+ * is refused with `auth.invalidCredentials`, and nothing is written.
+ *
  * The *current* session is the caller's to renew: the route regenerates it with a fresh
  * `issuedAt`, which is why this use case needs to say nothing about it.
  */
@@ -59,12 +64,22 @@ export const makeChangePassword =
       return err(DomainError.invalid('password.unchanged'))
     }
 
-    const rotated = user.changePassword(await hasher.hash(parsed.value), clock.now())
+    const newHash = await hasher.hash(parsed.value)
+    // The epoch is read after the hashing, which took ~200 ms: a session issued while it ran
+    // was issued under the old password.
+    const at = clock.now()
+    const rotated = user.changePassword(newHash, at)
     // Refused only when the hasher returned the hash already on file, which a salted
     // algorithm never does. Saving it anyway would report success for a change that
     // did not happen.
     if (!rotated.ok) return rotated
 
-    await users.save(rotated.value)
+    // Compare-and-set on the hash read above, not `save` of the account read before three bcrypt
+    // operations: a switch-off or a reset that finished meanwhile must win, not be rolled back.
+    // A lost race is refused as the wrong current password it has become (the password the
+    // caller proved is no longer the account's, or the account no longer signs in).
+    if (!(await users.replacePasswordHash(user.id, user.passwordHash, newHash, at))) {
+      return err(DomainError.unauthenticated('auth.invalidCredentials'))
+    }
     return ok(undefined)
   }
