@@ -386,9 +386,17 @@ export class Photo {
     )
   }
 
-  /** Same shape as deletion, plus: a published caption is the host's to change. */
+  /**
+   * Only the author, on their own still-pending photo, inside the grace window: a published
+   * caption is on the wall in front of the room.
+   *
+   * There is **no host arm**. A `host` actor carries a user id and no role, so "a host always"
+   * would have let any signed-in user caption any event's photo the day a route wired it. A host
+   * who may recaption has to be a decision that names the role (`eventRole`), made when that
+   * route exists, with its own test.
+   */
   canCaptionBeEditedBy(actor: PhotoActor, now: Date, graceMs: number): boolean {
-    if (actor.kind === 'host') return true
+    if (actor.kind === 'host') return false
     return (
       this.isAuthoredBy(actor) &&
       this.isWithinAuthorGrace(now, graceMs) &&

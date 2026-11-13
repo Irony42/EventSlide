@@ -325,8 +325,9 @@ describe('Photo.deletionVerdict', () => {
 })
 
 describe('Photo.canCaptionBeEditedBy', () => {
-  it('lets a host recaption a photo at any time', () => {
-    expect(aPublishedPhoto().canCaptionBeEditedBy(theHost, AFTER_GRACE, GRACE_MS)).toBe(true)
+  it('does not let a bare host actor recaption: that arm carried no role and nothing wired it (BUG-28)', () => {
+    expect(aPublishedPhoto().canCaptionBeEditedBy(theHost, AFTER_GRACE, GRACE_MS)).toBe(false)
+    expect(aPendingPhoto().canCaptionBeEditedBy(theHost, LAST_MOMENT_OF_GRACE, GRACE_MS)).toBe(false)
   })
 
   it('lets the author fix a typo while the photo is still pending', () => {

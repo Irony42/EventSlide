@@ -51,14 +51,14 @@ describe('setPhotoCaption', () => {
   const captionOf = async (): Promise<string | null> =>
     (await photos.findById(EVENT, PHOTO))?.caption?.value ?? null
 
-  it('lets a host caption a photo that is already on the wall, and announces it', async () => {
+  it('announces a caption the author changed', async () => {
     seedEvent()
-    seedPhoto({ status: 'published' })
+    seedPhoto({ status: 'pending' })
 
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: HOST,
+      actor: AUTHOR,
       caption: 'Le discours du témoin',
     })
 
@@ -150,7 +150,7 @@ describe('setPhotoCaption', () => {
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: HOST,
+      actor: AUTHOR,
       caption: 'Nous deux',
     })
 
@@ -160,12 +160,12 @@ describe('setPhotoCaption', () => {
 
   it('clears a caption when the new one is empty', async () => {
     seedEvent()
-    seedPhoto({ status: 'published', caption: 'À refaire' })
+    seedPhoto({ status: 'pending', caption: 'À refaire' })
 
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: HOST,
+      actor: AUTHOR,
       caption: null,
     })
 
@@ -175,12 +175,12 @@ describe('setPhotoCaption', () => {
 
   it('clears a caption even on an event that no longer accepts captions', async () => {
     seedEvent({ settings: { allowCaptions: false } })
-    seedPhoto({ status: 'published', caption: 'À refaire' })
+    seedPhoto({ status: 'pending', caption: 'À refaire' })
 
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: HOST,
+      actor: AUTHOR,
       caption: '   ',
     })
 
@@ -190,12 +190,12 @@ describe('setPhotoCaption', () => {
 
   it('refuses a new caption on an event that does not accept captions', async () => {
     seedEvent({ settings: { allowCaptions: false } })
-    seedPhoto({ status: 'published' })
+    seedPhoto({ status: 'pending' })
 
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: HOST,
+      actor: AUTHOR,
       caption: 'Nous deux',
     })
 
@@ -204,12 +204,12 @@ describe('setPhotoCaption', () => {
 
   it('refuses a caption longer than the wall can display', async () => {
     seedEvent()
-    seedPhoto({ status: 'published' })
+    seedPhoto({ status: 'pending' })
 
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: HOST,
+      actor: AUTHOR,
       caption: 'a'.repeat(141),
     })
 
@@ -223,7 +223,7 @@ describe('setPhotoCaption', () => {
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: asPhotoId('photo-404'),
-      actor: HOST,
+      actor: AUTHOR,
       caption: 'Nous deux',
     })
 
@@ -234,10 +234,88 @@ describe('setPhotoCaption', () => {
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: HOST,
+      actor: AUTHOR,
       caption: 'Nous deux',
     })
 
     expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
+  it('does not let a host caption through this use case: the host arm is not wired (BUG-28)', async () => {
+    seedEvent()
+    seedPhoto({ status: 'published' })
+
+    const result = await setPhotoCaption({
+      eventId: EVENT,
+      photoId: PHOTO,
+      actor: HOST,
+      caption: 'Le discours du témoin',
+    })
+
+    expect(!result.ok && result.error.code).toBe('photo.captionEditForbidden')
+    expect(await captionOf()).toBeNull()
+  })
+
+  describe('the state of the event (BUG-28)', () => {
+    it('refuses a new caption once the event is closed, and says why', async () => {
+      seedEvent({ status: 'closed' })
+      seedPhoto({ status: 'pending' })
+
+      const result = await setPhotoCaption({
+        eventId: EVENT,
+        photoId: PHOTO,
+        actor: AUTHOR,
+        caption: 'Nous deux',
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.notAcceptingUploads')
+      expect(await captionOf()).toBeNull()
+      expect(bus.published).toEqual([])
+    })
+
+    it('still lets a guest take a caption back after the event closed, for a privacy reason', async () => {
+      seedEvent({ status: 'closed' })
+      seedPhoto({ status: 'pending', caption: 'À retirer' })
+
+      const result = await setPhotoCaption({
+        eventId: EVENT,
+        photoId: PHOTO,
+        actor: AUTHOR,
+        caption: null,
+      })
+
+      expect(result.ok).toBe(true)
+      expect(await captionOf()).toBeNull()
+    })
+
+    it('refuses everything on an archived event, a clearing included: it is a record', async () => {
+      seedEvent({ status: 'archived' })
+      seedPhoto({ status: 'pending', caption: 'À retirer' })
+
+      const result = await setPhotoCaption({
+        eventId: EVENT,
+        photoId: PHOTO,
+        actor: AUTHOR,
+        caption: null,
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.immutable')
+      expect(await captionOf()).toBe('À retirer')
+    })
+
+    it('answers an event the operator took down as if it did not exist', async () => {
+      seedEvent()
+      seedPhoto({ status: 'pending' })
+      await events.setTakenDown(EVENT, new Date('2026-01-01T00:00:00Z'))
+
+      const result = await setPhotoCaption({
+        eventId: EVENT,
+        photoId: PHOTO,
+        actor: AUTHOR,
+        caption: 'Nous deux',
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.notFound')
+    })
   })
 })
