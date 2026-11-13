@@ -521,8 +521,8 @@ export interface StreamConnectionLimits {
  * what is spent.
  *
  * Every other public endpoint answers in milliseconds, so requests per minute bounds
- * what it costs. A stream is the opposite: `requestTimeout` is deliberately `0` for it,
- * and one connection holds a socket, a `setInterval` and a subscription for the whole
+ * what it costs. A stream is the opposite: no server timeout ends a response (Node's
+ * `requestTimeout` only bounds how long a request takes to arrive), and one connection holds a socket, a `setInterval` and a subscription for the whole
  * evening. Two hundred of them is an afternoon's work for one laptop, needs no
  * authentication, and used to be enough to silence an event's wall — so the quantity to
  * bound is how many are open, and a client that closes one immediately gets it back.
@@ -696,11 +696,12 @@ export const uploadConcurrencyLimiter = ({
 /**
  * The deadline for a whole upload body to arrive (review S2).
  *
- * `server.requestTimeout` is `0` (`main/index.ts`: the SSE streams and the ZIP export
- * legitimately outlive any request timeout), so nothing else ends a request whose body
- * trickles in. With the slot counter that is a denial of service: a handful of
- * connections sending a byte a minute hold every slot, for as long as they like. This
- * is the same bound, scoped to the two routes that read a body of that size.
+ * `server.requestTimeout` (`main/serverTimeouts.ts`) is this deadline plus a margin, so
+ * it is only the backstop: it bounds how long a request takes to *arrive*, never a
+ * response, and it fires later than this on these routes, so this answer, in the API's
+ * error shape, speaks first. With the slot counter a body sent a byte a minute would hold
+ * a slot for as long as the socket stayed open; this deadline frees it, on the two routes
+ * that read a body of that size.
  *
  * Mounted right after {@link uploadConcurrencyLimiter}, so the clock starts when a slot
  * is taken and covers the body, which is what the slot is held for. If the body has not
@@ -712,7 +713,7 @@ export const uploadConcurrencyLimiter = ({
  * like every other way out. A body that arrived in time is left alone (`req.complete`), so
  * the work after it (the decode, the transcode queue) is never cut off.
  *
- * The same ten minutes is also what Caddy's `read_body` has to be (infra), or the proxy
+ * At least the same ten minutes is also what Caddy's `read_body` has to be (infra), or the proxy
  * would cut a slow phone off before this does.
  */
 export const uploadBodyDeadline =

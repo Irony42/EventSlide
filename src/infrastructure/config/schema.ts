@@ -300,8 +300,9 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       ),
       /**
        * How long a photo or clip upload may take to arrive in full, in seconds (review S2).
-       * `requestTimeout` is `0` (the streams and the ZIP export need it), so without this a
-       * body sent a byte at a time held an upload slot for as long as the socket stayed open.
+       * The server's `requestTimeout` is derived from this value plus a margin
+       * (`main/serverTimeouts.ts`), so this deadline answers first on the upload routes and
+       * frees the slot with a `408 upload.timedOut`.
        * Ten minutes is a 5 MB photo at about 70 kbit/s, or an 80 MB clip at about 1.1 Mbit/s;
        * a phone slower than that is better served by a retry than by a slot held all evening.
        */
