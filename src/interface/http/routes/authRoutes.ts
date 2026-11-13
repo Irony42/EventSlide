@@ -10,9 +10,8 @@ import {
   requireUser,
   resolveAuthState,
 } from '../middleware/authz'
-import { rotateCsrfToken } from '../middleware/csrf'
 import {
-  destroySession,
+  endSession,
   pendingOf,
   regenerateSession,
   startPendingSecondFactor,
@@ -23,6 +22,7 @@ import { userOf } from '../middleware/scope'
 import {
   loginLimiter,
   passwordResetLimiter,
+  refusalIsNoGuess,
   secondFactorAccountLimiter,
   secondFactorLimiter,
 } from '../middleware/rateLimit'
@@ -64,14 +64,9 @@ import type { HttpUseCases } from '../useCases'
  * infer it from an absent middleware.
  */
 
-/**
- * Must match the `name` given to `express-session` in `server.ts`.
- *
- * Exported so the logout clear and its test agree on one literal: a browser matches a
- * cookie deletion on name, domain and path, so a mismatch here would silently leave
- * the cookie in place and nothing would fail until the next request.
- */
-export const SESSION_COOKIE = 'es_session'
+// Defined with the session lifecycle that clears it; re-exported because `server.ts` names the
+// session cookie from here.
+export { SESSION_COOKIE } from '../middleware/session'
 
 /**
  * Narrower than `RouteDeps` on purpose.
@@ -296,28 +291,8 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     // already expired — precisely the moment it asks to log out — and would leave the
     // stale cookie sitting in the browser.
     asyncHandler(async (req, res) => {
-      await destroySession(req.session)
-
-      // `destroy` removes the stored row but says nothing to the browser. Without this
-      // the cookie stays and every later request costs a store lookup for a session
-      // that no longer exists. The attributes mirror `server.ts`, since a deletion is
-      // matched on name, domain and path.
-      res.clearCookie(SESSION_COOKIE, {
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: deps.config.secureCookie,
-      })
-
-      // Replaced rather than cleared. The page that called this is still open and still
-      // needs to be able to act — the join page and the wall are public, and a guest on
-      // a shared phone signing the host out must not lose their own ability to upload —
-      // so what is issued here is a fresh anonymous token, not the absence of one.
-      //
-      // Rotating matters as much here as on the login: the browser has just stopped
-      // being a host, and a token that carried over would still be the one a page opened
-      // during the session holds.
-      rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
+      // What an ended session leaves behind, and why each part, is `endSession`'s to say.
+      await endSession(req, res, deps)
 
       sendNoContent(res)
     }),
@@ -379,10 +354,22 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
   router.post(
     '/auth/password',
     requireUser(deps),
+    // A wrong current password here is a guess like any other, and the owner of a stolen session
+    // is the one who makes it: the limiters are the ones `/auth/step-up` has, and the budget is
+    // the shared one. Only the wrong current password spends it (see `refusalIsNoGuess` below).
+    secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
+    secondFactorBudget,
     asyncHandler(async (req, res) => {
       const user = userOf(req)
 
+      // Every other answer of 400 or more is somebody whose new password the policy refuses, or a
+      // malformed body: not a guess at the current one. The invited moderator who must choose a
+      // password reaches this door first, and must not be locked out by their own typos.
+      // Until the body is read, the only refusal is a malformed one. From then on every refusal counts
+      // unless it is the policy's: a code nobody foresaw is a guess, not a courtesy.
+      refusalIsNoGuess(res, true)
       const body = changePasswordBody.parse(req.body)
+      refusalIsNoGuess(res, false)
 
       const result = await usecases.changePassword({
         // From the session, never from the body. A `userId` a client could send would
@@ -394,6 +381,10 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       })
 
       if (!result.ok) {
+        // Only the policy's answers (`password.*`, which come after the current password was proved)
+        // are no guess. The wrong current password, a lost race for the hash (refused as the same
+        // thing) and anything else keep counting.
+        if (result.error.code.startsWith('password.')) refusalIsNoGuess(res, true)
         sendError(res, result.error)
         return
       }
@@ -453,14 +444,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
         }
 
         // The account is gone: so is this session, and the cookie that named it. Same as a logout.
-        await destroySession(req.session)
-        res.clearCookie(SESSION_COOKIE, {
-          path: '/',
-          httpOnly: true,
-          sameSite: 'lax',
-          secure: deps.config.secureCookie,
-        })
-        rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
+        await endSession(req, res, deps)
         sendNoContent(res)
       }),
     )

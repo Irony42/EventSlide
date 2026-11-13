@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import rateLimit, { ipKeyGenerator, type RateLimitRequestHandler } from 'express-rate-limit'
-import type { Request, RequestHandler } from 'express'
+import type { Request, RequestHandler, Response } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { Slug } from '../../../domain/shared/slug'
 import {
@@ -68,6 +68,23 @@ const eventKey = (req: Request): string => {
   return slug.ok ? slug.value.value : NO_EVENT
 }
 
+/** The `res.locals` flag of {@link refusalIsNoGuess}. */
+const NO_GUESS = 'refusalIsNoGuess'
+
+/**
+ * Tells the failures-only limiters that the refusal this request is about to get is not a wrong
+ * guess, so it gives its hit back like a success. For a door whose 4xx answers are mostly something
+ * else: `POST /api/auth/password` refuses a new password the policy dislikes with a 400, and that
+ * person has not guessed anything. The default stays the other way round: a route that never calls
+ * this counts every answer of 400 or more.
+ */
+export const refusalIsNoGuess = (res: Response, noGuess: boolean): void => {
+  res.locals[NO_GUESS] = noGuess
+}
+
+const isNotAFailedGuess = (_req: Request, res: Response): boolean =>
+  res.statusCode < 400 || res.locals[NO_GUESS] === true
+
 interface LimiterOptions {
   readonly windowMs: number
   readonly limit: number
@@ -95,7 +112,9 @@ const windowLimiter = ({
   rateLimit({
     windowMs,
     limit,
-    ...(skipSuccessful ? { skipSuccessfulRequests: true } : {}),
+    ...(skipSuccessful
+      ? { skipSuccessfulRequests: true, requestWasSuccessful: isNotAFailedGuess }
+      : {}),
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     ...(key ? { keyGenerator: key } : {}),
