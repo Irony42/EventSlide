@@ -1,4 +1,4 @@
-import { realpath, stat } from 'node:fs/promises'
+import { lstat, readlink, realpath, stat } from 'node:fs/promises'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { BackupError } from './backupError'
 
@@ -52,6 +52,17 @@ const placeOf = async (path: string): Promise<Place> => {
       const shown = join(real, ...tail)
       return { key: (await foldsCase(real)) ? shown.toLowerCase() : shown, shown }
     } catch {
+      // A link whose target is gone: `realpath` fails on it, but the link still says where
+      // anything created through it would land, so follow it by hand.
+      const link = await lstat(probe).then(
+        (info) => (info.isSymbolicLink() ? readlink(probe) : null),
+        () => null,
+      )
+      if (link !== null) {
+        const target = await placeOf(resolve(dirname(probe), link))
+        const shown = join(target.shown, ...tail)
+        return { key: join(target.key, ...tail), shown }
+      }
       const parent = dirname(probe)
       // Nothing on the way up exists, not even the root: compare what was written.
       if (parent === probe) return { key: absolute, shown: absolute }
@@ -121,17 +132,16 @@ export const assertArchiveApart = async ({
     )
   }
 
-  // The database file, and the three names a restore writes or removes beside it.
-  for (const suffix of ['', '-wal', '-shm', '.restoring']) {
-    const sibling = await placeOf(`${databasePath}${suffix}`)
-    if (isWithin(sibling, archivePlace)) {
-      throw new BackupError(
-        `Refusing: the database is inside the archive.\n` +
-          `  archive   ${archivePlace.shown}\n` +
-          `  database  ${databasePlace.shown}\n` +
-          `${restoring ? 'A restore deletes and rewrites the database file, which would damage the archive it is reading from. ' : 'A backup writes its snapshot into the archive, beside the live database. '}` +
-          `Nothing was touched. ${advice}`,
-      )
-    }
+  if (isWithin(databasePlace, archivePlace)) {
+    throw new BackupError(
+      `Refusing: the database is inside the archive.
+` +
+        `  archive   ${archivePlace.shown}
+` +
+        `  database  ${databasePlace.shown}
+` +
+        `${restoring ? 'A restore deletes and rewrites the database file, which would damage the archive it is reading from. ' : 'A backup writes its snapshot into the archive, beside the live database. '}` +
+        `Nothing was touched. ${advice}`,
+    )
   }
 }

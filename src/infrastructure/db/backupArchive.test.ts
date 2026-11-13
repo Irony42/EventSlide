@@ -1607,5 +1607,55 @@ describe('backup and restore', () => {
         /(media root|database) is inside the archive/,
       )
     })
+
+    it('refuses a destination that holds only the database file', async () => {
+      await seedAnEvening()
+      const holder = join(root, 'dbdir')
+      await mkdir(holder)
+      const movedDatabase = join(holder, 'eventslide.sqlite')
+      await rename(databasePath, movedDatabase)
+
+      await expect(
+        createBackup({
+          databasePath: movedDatabase,
+          mediaRoot,
+          destination: holder,
+          now: NOW,
+          appVersion: '2.0.0',
+        }),
+      ).rejects.toThrow(/database is inside the archive/)
+    })
+
+    it.skipIf(process.platform !== 'win32' && process.platform !== 'darwin')(
+      'refuses a destination under a media root that does not exist yet, spelled in another case (case-folding filesystem only)',
+      async () => {
+        await seedAnEvening()
+        await rm(mediaRoot, { recursive: true, force: true })
+
+        await expect(backup({ destination: join(root, 'MEDIA', 'new') })).rejects.toThrow(
+          /archive is inside the media root/,
+        )
+        expect(await exists(join(root, 'MEDIA'))).toBe(false)
+      },
+    )
+
+    it('refuses a destination reached through a junction whose target is gone, when the media root is recreated there', async () => {
+      await seedAnEvening()
+      const gone = join(root, 'gone')
+      await mkdir(gone)
+      const alias = join(root, 'alias')
+      await symlink(gone, alias, 'junction')
+      await rm(gone, { recursive: true })
+
+      await expect(
+        createBackup({
+          databasePath,
+          mediaRoot: gone,
+          destination: join(alias, 'new'),
+          now: NOW,
+          appVersion: '2.0.0',
+        }),
+      ).rejects.toThrow(/archive is inside the media root/)
+    })
   })
 })
