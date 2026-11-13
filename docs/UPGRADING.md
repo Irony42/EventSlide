@@ -964,3 +964,33 @@ image is `ghcr.io/irony42/eventslide:3.12.0`.
 - **Nothing to set.** The join QR takes a place of its own in each wall layout; the host's corner choice now
   applies to the spotlight only. The host's event page is reorganised around a "Maintenant" card; what it prints
   is unchanged.
+
+## Upgrading to 3.13
+
+3.13.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no `BREAKING`
+section. It applies **one migration** (028, `user_tours`: a new table, nothing existing is rewritten) and adds no
+setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [without](#without-docker), with
+`vX.Y.Z` as `v3.13.0`; the image is `ghcr.io/irony42/eventslide:3.13.0`.
+
+### The guided tour of the event page
+
+- **Nothing to set.** Every account is shown a short tour on its next visit to an event's page, once, remembered
+  on the server. The « Visite guidée » button replays it.
+
+### Bounds that were missing
+
+- **Nothing to set.** The server now cuts a request that takes longer to arrive than `UPLOAD_BODY_TIMEOUT_SECONDS`
+  plus 60 s; an SSE stream and a ZIP export are not concerned. A reverse proxy's body timeout stays at least
+  `UPLOAD_BODY_TIMEOUT_SECONDS`, as before.
+- `POST /api/auth/password` can answer `429` after repeated wrong current passwords, and the host ZIP exports
+  answer `429` or `503` with `Retry-After` past two at once per account or four on the box.
+
+### Backups
+
+- `backup` and `restore` refuse an archive placed inside the media root (or a media root or database inside the
+  archive) and touch nothing. With the image's default layout (`/data/media` beside `/data/backups`) nothing
+  changes; with a `--to` under `MEDIA_ROOT`, choose a directory beside it.
+
+### Clips
+
+- A clip declared above 60 frames per second is stored at 60. Clips already stored are not re-encoded.
