@@ -325,9 +325,17 @@ describe('Photo.deletionVerdict', () => {
 })
 
 describe('Photo.canCaptionBeEditedBy', () => {
-  it('does not let a bare host actor recaption: that arm carried no role and nothing wired it (BUG-28)', () => {
+  it('lets a moderator of the event recaption a photo at any time', () => {
+    const moderator: PhotoActor = { ...theHost, role: 'moderator' }
+
+    expect(aPublishedPhoto().canCaptionBeEditedBy(moderator, AFTER_GRACE, GRACE_MS)).toBe(true)
+  })
+
+  it('refuses a host actor with no role: a user id says nothing about this event (BUG-28)', () => {
     expect(aPublishedPhoto().canCaptionBeEditedBy(theHost, AFTER_GRACE, GRACE_MS)).toBe(false)
-    expect(aPendingPhoto().canCaptionBeEditedBy(theHost, LAST_MOMENT_OF_GRACE, GRACE_MS)).toBe(false)
+    expect(aPendingPhoto().canCaptionBeEditedBy(theHost, LAST_MOMENT_OF_GRACE, GRACE_MS)).toBe(
+      false,
+    )
   })
 
   it('lets the author fix a typo while the photo is still pending', () => {

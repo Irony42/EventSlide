@@ -11,7 +11,8 @@ import { makeSetPhotoCaption, type SetPhotoCaption } from './setPhotoCaption'
 const EVENT = asEventId('event-1')
 const PHOTO = asPhotoId('photo-1')
 
-const HOST: PhotoActor = { kind: 'host', userId: asUserId('user-1') }
+const HOST: PhotoActor = { kind: 'host', userId: asUserId('user-1'), role: 'moderator' }
+const HOST_WITHOUT_ROLE: PhotoActor = { kind: 'host', userId: asUserId('user-1') }
 const AUTHOR: PhotoActor = { kind: 'guest', guestId: asGuestId('guest-1') }
 const ANOTHER_GUEST: PhotoActor = { kind: 'guest', guestId: asGuestId('guest-2') }
 
@@ -51,14 +52,14 @@ describe('setPhotoCaption', () => {
   const captionOf = async (): Promise<string | null> =>
     (await photos.findById(EVENT, PHOTO))?.caption?.value ?? null
 
-  it('announces a caption the author changed', async () => {
+  it('lets a host caption a photo that is already on the wall, and announces it', async () => {
     seedEvent()
-    seedPhoto({ status: 'pending' })
+    seedPhoto({ status: 'published' })
 
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: AUTHOR,
+      actor: HOST,
       caption: 'Le discours du témoin',
     })
 
@@ -150,7 +151,7 @@ describe('setPhotoCaption', () => {
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: AUTHOR,
+      actor: HOST,
       caption: 'Nous deux',
     })
 
@@ -160,12 +161,12 @@ describe('setPhotoCaption', () => {
 
   it('clears a caption when the new one is empty', async () => {
     seedEvent()
-    seedPhoto({ status: 'pending', caption: 'À refaire' })
+    seedPhoto({ status: 'published', caption: 'À refaire' })
 
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: AUTHOR,
+      actor: HOST,
       caption: null,
     })
 
@@ -175,12 +176,12 @@ describe('setPhotoCaption', () => {
 
   it('clears a caption even on an event that no longer accepts captions', async () => {
     seedEvent({ settings: { allowCaptions: false } })
-    seedPhoto({ status: 'pending', caption: 'À refaire' })
+    seedPhoto({ status: 'published', caption: 'À refaire' })
 
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: AUTHOR,
+      actor: HOST,
       caption: '   ',
     })
 
@@ -190,12 +191,12 @@ describe('setPhotoCaption', () => {
 
   it('refuses a new caption on an event that does not accept captions', async () => {
     seedEvent({ settings: { allowCaptions: false } })
-    seedPhoto({ status: 'pending' })
+    seedPhoto({ status: 'published' })
 
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: AUTHOR,
+      actor: HOST,
       caption: 'Nous deux',
     })
 
@@ -204,12 +205,12 @@ describe('setPhotoCaption', () => {
 
   it('refuses a caption longer than the wall can display', async () => {
     seedEvent()
-    seedPhoto({ status: 'pending' })
+    seedPhoto({ status: 'published' })
 
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: AUTHOR,
+      actor: HOST,
       caption: 'a'.repeat(141),
     })
 
@@ -223,7 +224,7 @@ describe('setPhotoCaption', () => {
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: asPhotoId('photo-404'),
-      actor: AUTHOR,
+      actor: HOST,
       caption: 'Nous deux',
     })
 
@@ -234,21 +235,21 @@ describe('setPhotoCaption', () => {
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: AUTHOR,
+      actor: HOST,
       caption: 'Nous deux',
     })
 
     expect(!result.ok && result.error.code).toBe('event.notFound')
   })
 
-  it('does not let a host caption through this use case: the host arm is not wired (BUG-28)', async () => {
+  it('does not let a host actor with no role caption (BUG-28)', async () => {
     seedEvent()
     seedPhoto({ status: 'published' })
 
     const result = await setPhotoCaption({
       eventId: EVENT,
       photoId: PHOTO,
-      actor: HOST,
+      actor: HOST_WITHOUT_ROLE,
       caption: 'Le discours du témoin',
     })
 
@@ -257,7 +258,7 @@ describe('setPhotoCaption', () => {
   })
 
   describe('the state of the event (BUG-28)', () => {
-    it('refuses a new caption once the event is closed, and says why', async () => {
+    it('refuses a guest a new caption once the event is closed, and says why', async () => {
       seedEvent({ status: 'closed' })
       seedPhoto({ status: 'pending' })
 
@@ -286,6 +287,20 @@ describe('setPhotoCaption', () => {
 
       expect(result.ok).toBe(true)
       expect(await captionOf()).toBeNull()
+    })
+
+    it('lets a moderator caption on a closed event: the guest rule is about the guest', async () => {
+      seedEvent({ status: 'closed' })
+      seedPhoto({ status: 'published' })
+
+      const result = await setPhotoCaption({
+        eventId: EVENT,
+        photoId: PHOTO,
+        actor: HOST,
+        caption: 'Le discours du témoin',
+      })
+
+      expect(result.ok).toBe(true)
     })
 
     it('refuses everything on an archived event, a clearing included: it is a record', async () => {

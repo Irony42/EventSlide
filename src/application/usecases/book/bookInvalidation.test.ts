@@ -279,7 +279,7 @@ describe('the photo book and the ways out of the evening', () => {
       makeSetPhotoCaption({ events, photos, bus, clock, invalidateBook })({
         eventId: EVENT,
         photoId: asPhotoId(photoId),
-        actor: hostActor,
+        actor: { ...hostActor, role: 'moderator' },
         caption: 'Autre légende',
       })
 

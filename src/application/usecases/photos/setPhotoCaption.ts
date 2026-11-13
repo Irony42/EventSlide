@@ -14,9 +14,10 @@ import type { InvalidateBook } from '../book/invalidateAlbumBook'
 /**
  * Write or clear the line projected under a photo.
  *
- * `Photo.canCaptionBeEditedBy` owns who may: a guest, only on their own still-pending photo
+ * `Photo.canCaptionBeEditedBy` owns who may: a guest only on their own still-pending photo
  * and only inside the grace window — once a caption is on the wall in front of the room,
- * changing it is the host's call (and no host route calls this use case).
+ * changing it is the host's call, and a host is a moderator or owner of **this** event (the
+ * caller resolves the role; none is a refusal).
  *
  * The event's state is asked first: an event the operator took down is not there, a suspended
  * client's guests write nothing, an archived event is a record. A **closed** event takes no new
@@ -83,7 +84,7 @@ export const makeSetPhotoCaption = ({
     if (parsed.value !== null && !settings.allowCaptions) {
       return err(DomainError.forbidden('event.captionsNotAllowed'))
     }
-    if (parsed.value !== null && !event.acceptsUploads()) {
+    if (parsed.value !== null && actor.kind === 'guest' && !event.acceptsUploads()) {
       return err(DomainError.conflict('event.notAcceptingUploads', { status: event.status }))
     }
 
