@@ -149,6 +149,8 @@ describe('joiners between two characters (BUG-29)', () => {
     ['mixed in a run', `a${ZWJ}${ZWNJ}b`, 'ab'],
     ['before a space', `Léa${ZWJ} Dupont`, 'Léa Dupont'],
     ['after a space', `Léa ${ZWJ}Dupont`, 'Léa Dupont'],
+    ['against a space on its left only', `a ${ZWJ}b`, 'a b'],
+    ['against a space on its right only', `a${ZWJ} b`, 'a b'],
     ['alone', ZWJ, ''],
   ])('strips a joiner that is %s', (_label, raw, expected) => {
     expect(toSingleLine(raw)).toBe(expected)
