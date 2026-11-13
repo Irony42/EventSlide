@@ -246,4 +246,18 @@ describe('SqliteUserRepository', () => {
 
     await expect(repo.findById(asUserId('user-corrupt'))).rejects.toThrow()
   })
+
+  it('loads an account whose stored address the new rule would refuse, and finds it by that address (QUAL-09)', async () => {
+    const legacy = 'a@b.example,c@d.example'
+    db.prepare<[string]>(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('user-legacy', 'a@b.example,c@d.example', 'hash:seed', ?)`,
+    ).run(AT.toISOString())
+    expect(EmailAddress.create(legacy).ok).toBe(false)
+    const stored = EmailAddress.fromStored(legacy)
+    if (!stored.ok) throw new Error('fixture')
+
+    expect((await repo.findById(asUserId('user-legacy')))?.email.value).toBe(legacy)
+    expect((await repo.findByEmail(stored.value))?.id).toBe('user-legacy')
+  })
 })

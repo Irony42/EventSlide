@@ -93,11 +93,17 @@ export const requireEditable = (event: Event): Result<Event, DomainError> =>
  * entity answers (`isClientSuspended`); this says how the refusal is shaped, once, with the code
  * the wire has always carried: `403 client.suspended`.
  */
-export const requireWritable = (event: Event): Result<Event, DomainError> => {
+export const requireReachable = (event: Event): Result<Event, DomainError> => {
   // The operator took the event down: nobody holding it is told anything but "not there".
   if (event.isTakenDown()) return err(DomainError.notFound('event.notFound'))
   return event.isClientSuspended() ? err(DomainError.forbidden('client.suspended')) : ok(event)
 }
+
+/**
+ * The same refusal under the name a write asks it by. `requireWritable` and `requireReadable` had two
+ * identical bodies, kept equal by hand; a day they diverge is a decision, taken here in one place.
+ */
+export const requireWritable = requireReachable
 
 /**
  * What a member may read of an event's **photographs**: the grid, the queue, the album, the top
@@ -112,7 +118,4 @@ export const requireWritable = (event: Event): Result<Event, DomainError> => {
  *   counts, the audit trail) and are told why with the code the wire already carries,
  *   `403 client.suspended`.
  */
-export const requireReadable = (event: Event): Result<Event, DomainError> => {
-  if (event.isTakenDown()) return err(DomainError.notFound('event.notFound'))
-  return event.isClientSuspended() ? err(DomainError.forbidden('client.suspended')) : ok(event)
-}
+export const requireReadable = requireReachable

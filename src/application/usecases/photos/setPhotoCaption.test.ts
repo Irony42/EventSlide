@@ -11,7 +11,8 @@ import { makeSetPhotoCaption, type SetPhotoCaption } from './setPhotoCaption'
 const EVENT = asEventId('event-1')
 const PHOTO = asPhotoId('photo-1')
 
-const HOST: PhotoActor = { kind: 'host', userId: asUserId('user-1') }
+const HOST: PhotoActor = { kind: 'host', userId: asUserId('user-1'), role: 'moderator' }
+const HOST_WITHOUT_ROLE: PhotoActor = { kind: 'host', userId: asUserId('user-1') }
 const AUTHOR: PhotoActor = { kind: 'guest', guestId: asGuestId('guest-1') }
 const ANOTHER_GUEST: PhotoActor = { kind: 'guest', guestId: asGuestId('guest-2') }
 
@@ -239,5 +240,97 @@ describe('setPhotoCaption', () => {
     })
 
     expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
+  it('does not let a host actor with no role caption (BUG-28)', async () => {
+    seedEvent()
+    seedPhoto({ status: 'published' })
+
+    const result = await setPhotoCaption({
+      eventId: EVENT,
+      photoId: PHOTO,
+      actor: HOST_WITHOUT_ROLE,
+      caption: 'Le discours du témoin',
+    })
+
+    expect(!result.ok && result.error.code).toBe('photo.captionEditForbidden')
+    expect(await captionOf()).toBeNull()
+  })
+
+  describe('the state of the event (BUG-28)', () => {
+    it('refuses a guest a new caption once the event is closed, and says why', async () => {
+      seedEvent({ status: 'closed' })
+      seedPhoto({ status: 'pending' })
+
+      const result = await setPhotoCaption({
+        eventId: EVENT,
+        photoId: PHOTO,
+        actor: AUTHOR,
+        caption: 'Nous deux',
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.notAcceptingUploads')
+      expect(await captionOf()).toBeNull()
+      expect(bus.published).toEqual([])
+    })
+
+    it('still lets a guest take a caption back after the event closed, for a privacy reason', async () => {
+      seedEvent({ status: 'closed' })
+      seedPhoto({ status: 'pending', caption: 'À retirer' })
+
+      const result = await setPhotoCaption({
+        eventId: EVENT,
+        photoId: PHOTO,
+        actor: AUTHOR,
+        caption: null,
+      })
+
+      expect(result.ok).toBe(true)
+      expect(await captionOf()).toBeNull()
+    })
+
+    it('lets a moderator caption on a closed event: the guest rule is about the guest', async () => {
+      seedEvent({ status: 'closed' })
+      seedPhoto({ status: 'published' })
+
+      const result = await setPhotoCaption({
+        eventId: EVENT,
+        photoId: PHOTO,
+        actor: HOST,
+        caption: 'Le discours du témoin',
+      })
+
+      expect(result.ok).toBe(true)
+    })
+
+    it('refuses everything on an archived event, a clearing included: it is a record', async () => {
+      seedEvent({ status: 'archived' })
+      seedPhoto({ status: 'pending', caption: 'À retirer' })
+
+      const result = await setPhotoCaption({
+        eventId: EVENT,
+        photoId: PHOTO,
+        actor: AUTHOR,
+        caption: null,
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.immutable')
+      expect(await captionOf()).toBe('À retirer')
+    })
+
+    it('answers an event the operator took down as if it did not exist', async () => {
+      seedEvent()
+      seedPhoto({ status: 'pending' })
+      await events.setTakenDown(EVENT, new Date('2026-01-01T00:00:00Z'))
+
+      const result = await setPhotoCaption({
+        eventId: EVENT,
+        photoId: PHOTO,
+        actor: AUTHOR,
+        caption: 'Nous deux',
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.notFound')
+    })
   })
 })

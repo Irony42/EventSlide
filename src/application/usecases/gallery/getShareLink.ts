@@ -7,7 +7,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { ShareLinkRepository } from '../../ports/shareLinkRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { eventBehind } from './galleryAccess'
-import { requireEventRole } from '../shared/eventRole'
+import { requireEventRole, requireReachable } from '../shared/eventRole'
 
 /**
  * What the host's console shows about the event's link: whether there is one, until when,
@@ -52,6 +52,11 @@ export const makeGetShareLink =
 
     const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
     if (!allowed.ok) return allowed
+
+    // After the role, like every guard of the state: an event the operator took down is not
+    // there, and a suspended client's host is told why (the route alone held this before).
+    const reachable = requireReachable(event)
+    if (!reachable.ok) return reachable
 
     const link = await shareLinks.findCurrent(eventId)
     if (link === null) return ok(null)

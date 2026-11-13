@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toMultiLine, toParagraphs, toSingleLine } from './plainText'
+import { characterCount, toMultiLine, toParagraphs, toSingleLine } from './plainText'
 /**
  * Every awkward code point is built rather than typed, so this file stays plain ASCII
  * text that survives a copy, a diff and a Windows editor unchanged — the same
@@ -118,5 +118,65 @@ describe('toParagraphs', () => {
 
   it('returns an empty string for nothing visible', () => {
     expect(toParagraphs(` ${BEL}${NO_BREAK_SPACE}\n${TAB}`)).toBe('')
+  })
+})
+
+const ZWJ = String.fromCodePoint(0x200d)
+const ZWNJ = String.fromCodePoint(0x200c)
+const WOMAN = String.fromCodePoint(0x1f469)
+const LAPTOP = String.fromCodePoint(0x1f4bb)
+const TECHNOLOGIST = `${WOMAN}${ZWJ}${LAPTOP}`
+
+describe('joiners between two characters (BUG-29)', () => {
+  it.each([
+    ['toSingleLine', toSingleLine],
+    ['toMultiLine', toMultiLine],
+    ['toParagraphs', toParagraphs],
+  ])('%s keeps a compound emoji whole', (_name, clean) => {
+    expect(clean(`Merci ${TECHNOLOGIST}`)).toBe(`Merci ${TECHNOLOGIST}`)
+  })
+
+  it('keeps the non-joiner inside a Persian word', () => {
+    const word = `می${ZWNJ}خواهم`
+
+    expect(toSingleLine(word)).toBe(word)
+  })
+
+  it.each([
+    ['leading', `${ZWJ}Léa`, 'Léa'],
+    ['trailing', `Léa${ZWNJ}`, 'Léa'],
+    ['doubled', `a${ZWJ}${ZWJ}b`, 'ab'],
+    ['mixed in a run', `a${ZWJ}${ZWNJ}b`, 'ab'],
+    ['before a space', `Léa${ZWJ} Dupont`, 'Léa Dupont'],
+    ['after a space', `Léa ${ZWJ}Dupont`, 'Léa Dupont'],
+    ['against a space on its left only', `a ${ZWJ}b`, 'a b'],
+    ['against a space on its right only', `a${ZWJ} b`, 'a b'],
+    ['alone', ZWJ, ''],
+  ])('strips a joiner that is %s', (_label, raw, expected) => {
+    expect(toSingleLine(raw)).toBe(expected)
+  })
+
+  it('strips a joiner that sits against a line break in a paragraph', () => {
+    expect(toMultiLine(`a${ZWJ}${NEWLINE}b`)).toBe(`a${NEWLINE}b`)
+  })
+
+  it('keeps stripping every other invisible character around a kept joiner', () => {
+    expect(toSingleLine(`${WOMAN}${ZERO_WIDTH_SPACE}${ZWJ}${BYTE_ORDER_MARK}${LAPTOP}`)).toBe(
+      TECHNOLOGIST,
+    )
+  })
+
+  it('does not refuse text made of blank-looking characters: that rule was not retained', () => {
+    const hangulFiller = String.fromCodePoint(0x3164)
+
+    expect(toSingleLine(hangulFiller)).toBe(hangulFiller)
+  })
+})
+
+describe('characterCount', () => {
+  it('counts code points, so an emoji is one character and not two UTF-16 units', () => {
+    expect(characterCount(WOMAN)).toBe(1)
+    expect(characterCount(TECHNOLOGIST)).toBe(3)
+    expect(characterCount('abc')).toBe(3)
   })
 })

@@ -1,5 +1,5 @@
 import { DomainError } from '../shared/errors'
-import { toParagraphs } from '../shared/plainText'
+import { characterCount, toParagraphs } from '../shared/plainText'
 import { err, ok, type Result } from '../shared/result'
 
 /**
@@ -23,8 +23,6 @@ export const WELCOME_MAX_LINES = 4
  */
 const RESTORE_MAX_CHARS = 2_000
 
-const codePoints = (text: string): number => [...text].length
-
 /**
  * A host's choice, judged. Empty after cleaning is `null` ("no message"), never an error:
  * a host who clears the field wants no message.
@@ -40,7 +38,7 @@ export const normalizeWelcomeMessage = (raw: unknown): Result<string | null, Dom
       DomainError.invalid('eventSettings.welcomeTooManyLines', { maxLines: WELCOME_MAX_LINES }),
     )
   }
-  if (codePoints(cleaned) > WELCOME_MAX_CHARS) {
+  if (characterCount(cleaned) > WELCOME_MAX_CHARS) {
     return err(DomainError.invalid('eventSettings.welcomeTooLong', { max: WELCOME_MAX_CHARS }))
   }
   return ok(cleaned)
@@ -54,5 +52,5 @@ export const restoreWelcomeMessage = (raw: unknown): string | null => {
   if (typeof raw !== 'string') return null
   const cleaned = toParagraphs(raw)
   if (cleaned.length === 0) return null
-  return codePoints(cleaned) > RESTORE_MAX_CHARS ? null : cleaned
+  return characterCount(cleaned) > RESTORE_MAX_CHARS ? null : cleaned
 }

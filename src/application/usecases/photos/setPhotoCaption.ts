@@ -8,14 +8,22 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import { isInBook } from '../../../domain/book/isInBook'
+import { requireEditable, requireWritable } from '../shared/eventRole'
 import type { InvalidateBook } from '../book/invalidateAlbumBook'
 
 /**
  * Write or clear the line projected under a photo.
  *
- * `Photo.canCaptionBeEditedBy` owns who may: a host always, a guest only on their own
- * still-pending photo and only inside the grace window — once a caption is on the wall
- * in front of the room, changing it is the host's call.
+ * `Photo.canCaptionBeEditedBy` owns who may: a guest only on their own still-pending photo
+ * and only inside the grace window — once a caption is on the wall in front of the room,
+ * changing it is the host's call, and a host is a moderator or owner of **this** event (the
+ * caller resolves the role; none is a refusal).
+ *
+ * The event's state is asked first: an event the operator took down is not there, a suspended
+ * client's guests write nothing, an archived event is a record. A **closed** event takes no new
+ * text from a guest (their uploads are closed too), but still lets them clear their own caption:
+ * taking words back off a photograph is never what closing was meant to prevent, and a guest
+ * may want to for a privacy reason.
  *
  * Clearing a caption is allowed even on an event that has since turned captions off,
  * because removing text from the wall can never be the thing the setting was meant to
@@ -57,6 +65,11 @@ export const makeSetPhotoCaption = ({
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
+    const editable = requireEditable(event)
+    if (!editable.ok) return editable
+
     const photo = await photos.findById(eventId, photoId)
     if (photo === null) return err(DomainError.notFound('photo.notFound'))
 
@@ -70,6 +83,9 @@ export const makeSetPhotoCaption = ({
     if (!parsed.ok) return parsed
     if (parsed.value !== null && !settings.allowCaptions) {
       return err(DomainError.forbidden('event.captionsNotAllowed'))
+    }
+    if (parsed.value !== null && actor.kind === 'guest' && !event.acceptsUploads()) {
+      return err(DomainError.conflict('event.notAcceptingUploads', { status: event.status }))
     }
 
     if (isInBook(photo.status)) await invalidateBook?.(eventId, 'captionChanged')

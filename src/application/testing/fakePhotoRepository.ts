@@ -551,7 +551,9 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
     const changed: PhotoId[] = []
     for (const photoId of photoIds) {
       const photo = this.rows.get(key(eventId, photoId))
+      // A photograph the operator took down is not there for a host to move, as for every read.
       if (photo === undefined || photo.status === status) continue
+      if (this.takenDown.has(key(eventId, photoId))) continue
 
       const moved = photo.transitionTo(status, review, review.at)
       if (!moved.ok) continue

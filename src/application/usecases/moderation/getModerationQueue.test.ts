@@ -148,6 +148,53 @@ describe('getModerationQueue', () => {
     expect(result.ok && result.value.items.map((item) => item.id)).toEqual(['photo-1', 'photo-2'])
   })
 
+  it('asks the repository for the page, oldest first, rather than reading the whole event (BUG-27)', async () => {
+    seedThreePending()
+    const list = vi.spyOn(photos, 'list')
+
+    const result = await getModerationQueue({
+      eventId: EVENT,
+      filter: 'pending',
+      order: null,
+      limit: 2,
+      actor: moderator,
+    })
+
+    // The direction is the rule: asked newest first for two rows, the repository would hand
+    // the oldest-first queue the two newest photos and the longest wait would fall off the page.
+    expect(list).toHaveBeenCalledWith(EVENT, { statuses: ['pending'], order: 'asc', limit: 2 })
+    expect(result.ok && result.value.items.map((item) => item.id)).toEqual(['photo-1', 'photo-2'])
+  })
+
+  it('asks newest first on a tab that reads newest first, and sends no limit when none was asked', async () => {
+    seedThreePending()
+    const list = vi.spyOn(photos, 'list')
+
+    await getModerationQueue({
+      eventId: EVENT,
+      filter: 'all',
+      order: null,
+      limit: null,
+      actor: moderator,
+    })
+
+    expect(list).toHaveBeenCalledWith(EVENT, { order: 'desc' })
+  })
+
+  it('refuses a limit the domain refuses before the repository can throw on it', async () => {
+    seedThreePending()
+
+    const result = await getModerationQueue({
+      eventId: EVENT,
+      filter: 'pending',
+      order: null,
+      limit: 1.5,
+      actor: moderator,
+    })
+
+    expect(!result.ok && result.error.code).toBe('moderation.limitInvalid')
+  })
+
   it('counts the badge over the whole event, not over the page the host is looking at', async () => {
     seedThreePending()
 

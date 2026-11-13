@@ -24,6 +24,40 @@
 const LINE_BREAKS = /[\t\n\r\f\v]+/g
 
 /**
+ * The zero-width joiner and non-joiner (`Cf`, like the rest of the invisible class).
+ *
+ * Built from their code points rather than typed or escaped, so this file stays plain text in every
+ * editor. They are not padding when they sit **between two characters**: ZWJ is what makes a family,
+ * a flag-with-gender or a profession one emoji, and ZWNJ is part of how a Persian or an Indic word
+ * is spelt. They are still removed where they can only be padding: leading, trailing, next to a
+ * space, or doubled (see {@link keepJoinersBetweenCharacters}).
+ */
+const ZWNJ = String.fromCharCode(0x200c)
+const ZWJ = String.fromCharCode(0x200d)
+const JOINER_RUN = new RegExp(`[${ZWNJ}${ZWJ}]+`, 'gu')
+
+/**
+ * Keep a joiner only when it is alone between two characters that are not whitespace; strip it
+ * when it is leading, trailing, next to whitespace (a line break included) or doubled.
+ *
+ * Runs on text whose other invisible characters are already gone, so what is left around a joiner
+ * is what a reader would see around it.
+ */
+const keepJoinersBetweenCharacters = (run: string, offset: number, text: string): string => {
+  if (run.length !== 1) return ''
+  const before = text.charAt(offset - 1)
+  const after = text.charAt(offset + 1)
+  return before !== '' && after !== '' && !/\s/u.test(before) && !/\s/u.test(after) ? run : ''
+}
+
+/**
+ * How many characters a reader sees: code points, not UTF-16 units, so an emoji is one and a limit
+ * never cuts one in half. The one counter every length bound uses, so a name, a caption and a
+ * guestbook message are measured the same way (the database's `length()` counts the same way too).
+ */
+export const characterCount = (text: string): number => [...text].length
+
+/**
  * Everything invisible, by Unicode general category rather than by a hand-listed range:
  *
  * - `Cc` — C0/C1 control codes.
@@ -39,7 +73,8 @@ const LINE_BREAKS = /[\t\n\r\f\v]+/g
  * Ordinary space separators (`Zs`, including a non-breaking space) survive here and are
  * collapsed by the whitespace pass instead, because JavaScript's `\s` covers them.
  */
-const INVISIBLE = /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]/gu
+const INVISIBLE_CLASS = String.raw`\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}`
+const INVISIBLE = new RegExp(`(?![${ZWNJ}${ZWJ}])[${INVISIBLE_CLASS}]`, 'gu')
 
 /**
  * Fold to one line, drop what cannot be seen, collapse runs of space, trim.
@@ -56,11 +91,15 @@ export const toSingleLine = (raw: string): string =>
   raw
     .replace(LINE_BREAKS, ' ')
     .replace(INVISIBLE, '')
+    .replace(JOINER_RUN, keepJoinersBetweenCharacters)
     .replace(/\s{2,}/gu, ' ')
     .trim()
 
-/** Everything invisible except the line feed, which a paragraph of text legitimately keeps. */
-const INVISIBLE_KEEPING_NEWLINE = /(?!\n)[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]/gu
+/**
+ * Everything invisible except the line feed, which a paragraph legitimately keeps, and the joiners,
+ * which {@link keepJoinersBetweenCharacters} then judges.
+ */
+const INVISIBLE_KEEPING_NEWLINE = new RegExp(`(?![\n${ZWNJ}${ZWJ}])[${INVISIBLE_CLASS}]`, 'gu')
 
 /**
  * A short paragraph of untrusted text, fit to be rendered with its line breaks (the guestbook).
@@ -81,6 +120,7 @@ export const toMultiLine = (raw: string): string =>
     .replace(/\r\n|[\r\u2028\u2029]/gu, '\n')
     .replace(/[\t\v\f]/gu, ' ')
     .replace(INVISIBLE_KEEPING_NEWLINE, '')
+    .replace(JOINER_RUN, keepJoinersBetweenCharacters)
     .replace(/[^\S\n]+/gu, ' ')
     .replace(/ ?\n ?/gu, '\n')
     .replace(/\n{3,}/gu, '\n\n')

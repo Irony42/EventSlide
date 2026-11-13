@@ -69,6 +69,9 @@ const to = (address: string): EmailAddress => {
   return parsed.value
 }
 
+/** A recipient that bypassed `EmailAddress.create` (which refuses a list): the mailer's own guard is what is tested. */
+const forgedTo = (value: string): EmailAddress => ({ value }) as unknown as EmailAddress
+
 const aMail = (overrides: Partial<OutgoingMail> = {}): OutgoingMail => ({
   to: to('camille@example.org'),
   subject: 'Your invitation',
@@ -838,7 +841,7 @@ describe('createSmtpMailer: nothing but the recipient’s domain reaches a log',
     )
     results.push(
       await mailerFor(accepting.port, ORDINARY).send(
-        canaryMail({ to: to(`${recipient},someone-else@example.net`) }),
+        canaryMail({ to: forgedTo(`${recipient},someone-else@example.net`) }),
       ),
     )
 
@@ -939,7 +942,7 @@ describe('createSmtpMailer: nothing but the recipient’s domain reaches a log',
       timeouts: ORDINARY,
     })
 
-    await mailer.send(canaryMail({ to: to(`${recipient},someone-else@example.net`) }))
+    await mailer.send(canaryMail({ to: forgedTo(`${recipient},someone-else@example.net`) }))
 
     expect(logger.lines).toEqual([
       {

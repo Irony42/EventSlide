@@ -1,4 +1,5 @@
 import type { ClipDuration } from '../clips/clipDuration'
+import { canModerate, type EventRole } from '../events/eventRole'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 import type { ChallengeId, EventId, GuestId, MissionId, PhotoId, UserId } from '../shared/ids'
@@ -22,7 +23,15 @@ export type PhotoAuthor =
  * decided this" when someone asks afterwards how a photo got on the wall.
  */
 export type Reviewer =
-  | { readonly kind: 'host'; readonly userId: UserId }
+  | {
+      readonly kind: 'host'
+      readonly userId: UserId
+      /**
+       * The role this user holds **in the event concerned**, when the caller has resolved it. A host
+       * actor without one is a signed-in user and nothing more: it may not recaption (BUG-28).
+       */
+      readonly role?: EventRole
+    }
   | { readonly kind: 'automatic' }
 
 export type PhotoReview = Reviewer & { readonly at: Date }
@@ -33,7 +42,15 @@ export type { DeletionVerdict }
 /** Anyone who might act on a photo. Used by the permission predicates below. */
 export type PhotoActor =
   | { readonly kind: 'guest'; readonly guestId: GuestId }
-  | { readonly kind: 'host'; readonly userId: UserId }
+  | {
+      readonly kind: 'host'
+      readonly userId: UserId
+      /**
+       * The role this user holds **in the event concerned**, when the caller has resolved it. A host
+       * actor without one is a signed-in user and nothing more: it may not recaption (BUG-28).
+       */
+      readonly role?: EventRole
+    }
 
 /**
  * What this row *is*, and the extra facts that follow from it.
@@ -386,9 +403,17 @@ export class Photo {
     )
   }
 
-  /** Same shape as deletion, plus: a published caption is the host's to change. */
+  /**
+   * A moderator or owner of the event always; a guest only on their own still-pending photo,
+   * inside the grace window — a published caption is on the wall in front of the room.
+   *
+   * A `host` actor is a user id, and a user id says nothing about **this** event: the arm used to
+   * accept any of them, which the day a route wired it would have let any signed-in account caption
+   * any event's photograph. It now demands the role the caller resolved for the event (`eventRole`);
+   * none is a refusal.
+   */
   canCaptionBeEditedBy(actor: PhotoActor, now: Date, graceMs: number): boolean {
-    if (actor.kind === 'host') return true
+    if (actor.kind === 'host') return actor.role !== undefined && canModerate(actor.role)
     return (
       this.isAuthoredBy(actor) &&
       this.isWithinAuthorGrace(now, graceMs) &&

@@ -138,7 +138,7 @@ export const UPSERT_USER = `${INSERT_USER}
  * whose identifier no longer means what the unique index assumes.
  */
 const toEmail = (raw: string): EmailAddress => {
-  const parsed = EmailAddress.create(raw)
+  const parsed = EmailAddress.fromStored(raw)
   if (!parsed.ok) {
     throw new Error(`users.email holds a value the domain rejects (${parsed.error.code})`)
   }

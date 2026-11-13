@@ -291,17 +291,22 @@ const resolveTags = async (
  * already at their limit from costing the box a single decode. It is not the enforcing check:
  * the repository takes this count again inside the write transaction, where a second request
  * of theirs cannot slip past it.
+ *
+ * It refuses only a guest with **no room at all**, never by counting the files of the request:
+ * how many rows a request would create is not known before it is decoded and compared with the
+ * album (a duplicate creates none), so a count of files refused a guest at 9/10 who re-sent one
+ * duplicate and one new photograph, for a request that would have created one row. A request that
+ * only partly fits is judged in the write transaction, file by file.
  */
 const guestCapRefusal = async (
   photos: PhotoRepository,
   eventId: EventId,
   author: PhotoAuthor,
   maxPerGuest: number | null,
-  incoming: number,
 ): Promise<DomainError | null> => {
   if (maxPerGuest === null || author.kind !== 'guest') return null
   const already = await photos.countByAuthor(eventId, author.guestId)
-  if (already + incoming <= maxPerGuest) return null
+  if (already < maxPerGuest) return null
   return DomainError.quotaExceeded('event.photoLimitReached', { max: maxPerGuest, already })
 }
 
@@ -746,7 +751,7 @@ export const makeUploadPhotos = (deps: UploadPhotosDeps): UploadPhotos => {
     const tags = await resolveTags(deps, eventId, missionId, challengeId)
 
     const maxPerGuest = settings.maxPhotosPerGuest
-    const capRefusal = await guestCapRefusal(photos, eventId, author, maxPerGuest, files.length)
+    const capRefusal = await guestCapRefusal(photos, eventId, author, maxPerGuest)
     if (capRefusal !== null) return err(capRefusal)
 
     const now = clock.now()

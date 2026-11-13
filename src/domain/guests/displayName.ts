@@ -1,6 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
-import { toSingleLine } from '../shared/plainText'
+import { characterCount, toSingleLine } from '../shared/plainText'
 
 /**
  * The name a guest signs their photos with, shown under the photo on the wall.
@@ -24,8 +24,8 @@ export class DisplayName {
   static create(raw: string): Result<DisplayName, DomainError> {
     const cleaned = toSingleLine(raw)
 
-    if (cleaned.length < MIN_LENGTH) return err(DomainError.invalid('displayName.empty'))
-    if (cleaned.length > MAX_LENGTH) {
+    if (characterCount(cleaned) < MIN_LENGTH) return err(DomainError.invalid('displayName.empty'))
+    if (characterCount(cleaned) > MAX_LENGTH) {
       return err(DomainError.invalid('displayName.tooLong', { max: MAX_LENGTH }))
     }
     return ok(new DisplayName(cleaned))
@@ -38,7 +38,7 @@ export class DisplayName {
    */
   static createOptional(raw: string | null | undefined): Result<DisplayName | null, DomainError> {
     if (raw === null || raw === undefined) return ok(null)
-    if (toSingleLine(raw).length < MIN_LENGTH) return ok(null)
+    if (characterCount(toSingleLine(raw)) < MIN_LENGTH) return ok(null)
     return DisplayName.create(raw)
   }
 

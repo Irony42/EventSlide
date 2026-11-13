@@ -821,7 +821,7 @@ export class SqlitePhotoRepository implements PhotoRepository {
   ): Promise<readonly PhotoId[]> {
     const decision = reviewColumns(review)
     const current = this.db.prepare<[string, string], { readonly status: PhotoStatus }>(
-      `SELECT status FROM photos WHERE event_id = ? AND id = ?`,
+      `SELECT status FROM photos WHERE event_id = ? AND id = ? AND taken_down_at IS NULL`,
     )
     const move = this.db.prepare<
       [string, string | null, string | null, string | null, string, string]

@@ -1,3 +1,4 @@
+import { isSingleMailbox } from '../mail/outgoingMail'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 
@@ -13,6 +14,11 @@ import { err, ok, type Result } from '../shared/result'
  * real test is whether mail arrives. So this checks the shape that would break the
  * system (no `@`, whitespace, empty local or domain part) and normalises case, and
  * nothing more.
+ *
+ * The one exception is what the mailer would **always** refuse: more than one mailbox, a quote, an
+ * angle bracket, a parenthesis, a backslash. `isSingleMailbox` (`domain/mail/outgoingMail`) is the
+ * only definition of that, so an address that is accepted here is one a message can be sent to: an
+ * account registered as `a@b.example,c@d.example` could never be invited, reset or notified.
  */
 
 const MAX_LENGTH = 254 // RFC 5321 path limit
@@ -20,7 +26,27 @@ const MAX_LENGTH = 254 // RFC 5321 path limit
 export class EmailAddress {
   private constructor(readonly value: string) {}
 
+  /**
+   * The only way a **new** address enters: the shape a box may hold ({@link EmailAddress.fromStored})
+   * and, on top of it, a single mailbox the mailer would accept (`isSingleMailbox`).
+   */
   static create(raw: unknown): Result<EmailAddress, DomainError> {
+    const stored = EmailAddress.fromStored(raw)
+    if (!stored.ok) return stored
+    if (!isSingleMailbox(stored.value.value)) return err(DomainError.invalid('email.malformed'))
+    return stored
+  }
+
+  /**
+   * An address as a box may **already hold it**: the rule `create` applied before it learnt the mail
+   * rule (QUAL-09). Used where a stored row is read back, and where a typed address is only looked up
+   * (sign-in), so an account registered as `a@b.example,c@d.example` still loads and still signs in
+   * rather than failing every read that hydrates it. What was never storable (no `@`, whitespace, no
+   * dot in the domain, too long) is still refused, so a genuinely corrupt row surfaces.
+   *
+   * Never a way for a new address to enter: that is `create`.
+   */
+  static fromStored(raw: unknown): Result<EmailAddress, DomainError> {
     if (typeof raw !== 'string') return err(DomainError.invalid('email.invalid'))
 
     // The local part is technically case-sensitive; in practice no provider treats it

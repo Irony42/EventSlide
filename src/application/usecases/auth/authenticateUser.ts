@@ -93,7 +93,9 @@ const upgradedHashFor = async (
 export const makeAuthenticateUser =
   ({ users, factors, hasher, clock }: AuthenticateUserDeps): AuthenticateUser =>
   async ({ email, password }) => {
-    const parsedEmail = EmailAddress.create(email)
+    // A lookup, not a registration: an account whose address predates the single-mailbox rule
+    // (QUAL-09) is still found, so its holder is not locked out.
+    const parsedEmail = EmailAddress.fromStored(email)
     const user = parsedEmail.ok ? await users.findByEmail(parsedEmail.value) : null
 
     if (user === null) {

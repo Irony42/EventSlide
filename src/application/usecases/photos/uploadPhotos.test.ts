@@ -421,8 +421,8 @@ describe('uploadPhotos', () => {
 
   // --------------------------------------------------------- the per-guest limit --
 
-  it('refuses the request when it would take the guest past their photo limit', async () => {
-    seedEvent({ settings: { maxPhotosPerGuest: 2 } })
+  it('refuses the request outright when the guest is already at their photo limit', async () => {
+    seedEvent({ settings: { maxPhotosPerGuest: 1 } })
     photos.seed(
       aPhoto({ id: 'earlier', eventId: 'event-1', author: { kind: 'guest', id: 'guest-1' } }),
     )
@@ -434,6 +434,42 @@ describe('uploadPhotos', () => {
     })
 
     expect(!result.ok && result.error.code).toBe('event.photoLimitReached')
+  })
+
+  it('stores what fits and turns the rest of the batch away file by file (BUG-30)', async () => {
+    seedEvent({ settings: { maxPhotosPerGuest: 2 } })
+    photos.seed(
+      aPhoto({ id: 'earlier', eventId: 'event-1', author: { kind: 'guest', id: 'guest-1' } }),
+    )
+
+    const result = await uploadPhotos({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    expect(kinds(result)).toEqual(['stored', 'refused'])
+    expect(await photos.countByAuthor(EVENT, asGuestId('guest-1'))).toBe(2)
+  })
+
+  it('does not refuse a guest one photo from the limit for re-sending a duplicate beside a new photo (BUG-30)', async () => {
+    seedEvent({ settings: { maxPhotosPerGuest: 2 } })
+    photos.seed(
+      aPhoto({
+        id: 'earlier',
+        eventId: 'event-1',
+        author: { kind: 'guest', id: 'guest-1' },
+        contentHash: hashOf('sunset'),
+      }),
+    )
+
+    const result = await uploadPhotos({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    expect(kinds(result)).toEqual(['duplicate', 'stored'])
   })
 
   it('refuses a request past the photo limit with a quota kind, so the endpoint answers 413', async () => {

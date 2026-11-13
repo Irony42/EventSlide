@@ -137,11 +137,21 @@ export const makeGetModerationQueue =
     const readable = requireReadable(event)
     if (!readable.ok) return readable
 
-    // The repository narrows by status; the domain owns the order and the page. The
-    // limit is deliberately *not* pushed down: the repository returns newest first, so
-    // asking it for ten rows would hand the oldest-first queue the ten newest photos —
-    // precisely the starvation this ordering exists to prevent.
-    const query: PhotoQuery = filter === 'all' ? {} : { statuses: [filter] }
+    // The repository narrows by status, reads in the queue's own direction and stops at the
+    // page: a console refresh must not read every photo of the event in the process that also
+    // serves the wall. The direction is what keeps the rule true under a limit: the pending tab
+    // runs oldest first, so the repository is asked for the oldest rows (asking newest first for
+    // ten rows would hand the queue the ten newest photos, which is the starvation this ordering
+    // exists to prevent). The domain still orders and cuts what comes back, so the queue's order
+    // stays the domain's: the two only differ on the tie-break of arrivals in the same
+    // millisecond, which can change which of them sits on the page edge, never the oldest one.
+    const queueOrder = order ?? defaultOrderFor(filter)
+    const query: PhotoQuery = {
+      ...(filter === 'all' ? {} : { statuses: [filter] }),
+      order: queueOrder === 'oldestFirst' ? 'asc' : 'desc',
+      // A limit the domain refuses is not forwarded: the repository would throw on it first.
+      ...(limit !== null && Number.isInteger(limit) && limit > 0 ? { limit } : {}),
+    }
     const page = await photos.list(eventId, query)
     const counts = await photos.countsByStatus(eventId)
     const names = await authorNamesOf(guests, eventId, page.items)
@@ -154,7 +164,7 @@ export const makeGetModerationQueue =
       page.items.map((photo) => toRow(photo, names)),
       {
         filter,
-        order: order ?? defaultOrderFor(filter),
+        order: queueOrder,
         limit: limit ?? undefined,
       },
     )

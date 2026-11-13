@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { Event } from '../../../domain/events/event'
 import { asEventId } from '../../../domain/shared/ids'
 import { AT, aUser } from '../../testing/builders'
 import {
@@ -79,5 +80,25 @@ describe('getShareLink', () => {
     const result = await get(OWNER, asEventId('evt-nope'))
 
     expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
+  it('answers an event the operator took down as though it did not exist, even to its owner (QUAL-08)', async () => {
+    world.seedLink()
+    await world.events.setTakenDown(WEDDING, AT)
+
+    const result = await get()
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
+  it('tells the owner of a suspended client why, rather than showing the link (QUAL-08)', async () => {
+    world.seedLink()
+    const event = await world.events.findById(WEDDING)
+    if (event === null) throw new Error('the gallery world seeds the wedding')
+    world.events.seed(Event.restore({ ...event.toProps(), clientSuspendedAt: AT }))
+
+    const result = await get()
+
+    expect(!result.ok && result.error.code).toBe('client.suspended')
   })
 })

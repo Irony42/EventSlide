@@ -1,6 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
-import { toSingleLine } from '../shared/plainText'
+import { characterCount, toSingleLine } from '../shared/plainText'
 
 /**
  * A client's own name: the studio, the agency, the couple — whatever the operator typed
@@ -9,10 +9,8 @@ import { toSingleLine } from '../shared/plainText'
  * invisible, the same way `EventName` is.
  *
  * The bounds are the catalogue's own `CHECK (length(name) BETWEEN 1 AND 200)` — see the
- * paid plan's "Schéma des clients" (P3-04) — so the two layers use the same numbers. They
- * count differently, which is why this is not a claim that they agree on every string:
- * SQLite's `length()` counts code points and this counts UTF-16 units, so the domain is the
- * stricter of the two for a name of astral characters.
+ * paid plan's "Schéma des clients" (P3-04) — so the two layers use the same numbers, and both
+ * count code points (the domain through `characterCount`), so they agree on astral characters too.
  */
 
 const MIN_LENGTH = 1
@@ -26,8 +24,8 @@ export class ClientName {
 
     const cleaned = toSingleLine(raw)
 
-    if (cleaned.length < MIN_LENGTH) return err(DomainError.invalid('clientName.empty'))
-    if (cleaned.length > MAX_LENGTH) {
+    if (characterCount(cleaned) < MIN_LENGTH) return err(DomainError.invalid('clientName.empty'))
+    if (characterCount(cleaned) > MAX_LENGTH) {
       return err(DomainError.invalid('clientName.tooLong', { max: MAX_LENGTH }))
     }
     return ok(new ClientName(cleaned))

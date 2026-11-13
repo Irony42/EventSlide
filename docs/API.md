@@ -1568,7 +1568,8 @@ introduction of this section); `403 guest.revoked`; `409 event.notAcceptingUploa
 over `maxUploadBytes`, refused by multer before any of our code runs);
 `400 upload.tooManyFiles`; `400 caption.tooLong`; `403 event.captionsNotAllowed` when a
 caption is sent to an event with captions off; `413 event.photoLimitReached` when the
-batch would take the guest past the event's `maxPhotosPerGuest`; `429 rate.limited`;
+guest is already at the event's `maxPhotosPerGuest` (a batch that only partly fits stores what fits and
+refuses the rest file by file, with the same code, since a duplicate creates no row); `429 rate.limited`;
 **`429 upload.busy` with `Retry-After`** when the box's upload concurrency cap is
 spent (shared with clips, §1) or the event's own share of it is; **`408 upload.timedOut`** when the
 body was not fully received within `UPLOAD_BODY_TIMEOUT_SECONDS`; **`413 storage.boxFull`** when the box is nearly out of
@@ -4024,7 +4025,8 @@ event, `403 auth.forbidden` for a moderator, `404 event.notFound` for anybody el
 A prompt is **content**, not interface copy: it is stored as the host typed it, in whatever
 language the event is held in, and nothing translates it. It is folded to one line and
 stripped of invisible characters (bidirectional overrides, zero-width padding) before it is
-stored, because it reaches a projector in front of two hundred people. Markup is _not_
+stored (a zero-width joiner or non-joiner survives only alone between two characters, so a compound
+emoji or a Persian word stays whole; lengths count code points, as for every name and caption), because it reaches a projector in front of two hundred people. Markup is _not_
 stripped — React escapes on render, and a sanitiser here would eat a host writing "3 < 4".
 
 ### `PATCH /api/events/:slug/missions/:missionId`

@@ -872,7 +872,25 @@ export const photoRepositoryContract = (
         expect(await repo.findById(WEDDING, asPhotoId('p-down'))).toBeNull()
 
         await repo.setTakenDown(WEDDING, asPhotoId('p-down'), null)
-        expect((await repo.findById(WEDDING, asPhotoId('p-down')))?.status).toBe('hidden')
+        expect(await repo.findById(WEDDING, asPhotoId('p-down'))).not.toBeNull()
+      })
+
+      it('is not moved by a bulk status update, like every other read of it (QUAL-07)', async () => {
+        await seedPair()
+        const review: PhotoReview = { kind: 'host', userId: HOST, at: AT }
+
+        const changed = await repo.updateStatuses(
+          WEDDING,
+          [asPhotoId('p-down'), asPhotoId('p-up')],
+          'hidden',
+          review,
+        )
+
+        expect(changed).toEqual(['p-up'])
+        await repo.setTakenDown(WEDDING, asPhotoId('p-down'), null)
+        // Put back, it is what it was: the host's decision about a photograph they could not see
+        // was never recorded.
+        expect((await repo.findById(WEDDING, asPhotoId('p-down')))?.status).toBe('published')
       })
 
       it('is scoped by event: naming the id of another event takes nothing down', async () => {

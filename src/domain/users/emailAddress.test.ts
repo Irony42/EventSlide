@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DomainError } from '../shared/errors'
 import type { Result } from '../shared/result'
+import { isSingleMailbox } from '../mail/outgoingMail'
 import { EmailAddress, normalisedAddress } from './emailAddress'
 
 /**
@@ -141,10 +142,80 @@ describe('EmailAddress shape', () => {
     expect(!result.ok && result.error.code).toBe('email.malformed')
   })
 
-  it('splits on the last @, so an extra one earlier stays part of the local part', () => {
+  it('refuses a second @, which the mail rule refuses too', () => {
     const result = EmailAddress.create('camille@work@example.com')
 
-    expect(result.ok && result.value.value).toBe('camille@work@example.com')
+    expect(!result.ok && result.error.code).toBe('email.malformed')
+  })
+})
+
+/**
+ * One definition of "an address": what the mailer would always refuse (`isSingleMailbox`) cannot
+ * be registered either, or an invitation to it would silently turn into a link (QUAL-09).
+ */
+describe('EmailAddress is the mailbox the mailer accepts', () => {
+  it.each([
+    ['two addresses joined by a comma', 'a@b.example,c@d.example'],
+    ['a semicolon', 'a@b.example;c@d.example'],
+    ['a quote', '"a"@b.example'],
+    ['angle brackets', 'a <a@b.example>'.replace(' ', '')],
+    ['a parenthesis', 'a(comment)@b.example'],
+    ['a backslash', 'a\\b@b.example'],
+  ])('refuses %s', (_label, raw) => {
+    const result = EmailAddress.create(raw)
+
+    expect(!result.ok && result.error.code).toBe('email.malformed')
+  })
+
+  it('still accepts an apostrophe in the local part, which is a real address', () => {
+    expect(emailOf("O'Brien@Example.org").value).toBe("o'brien@example.org")
+  })
+
+  it('agrees with isSingleMailbox on every address it creates', () => {
+    for (const raw of ['camille@example.com', "o'brien@example.org", 'a+b@sub.example.co.uk']) {
+      expect(isSingleMailbox(emailOf(raw).value)).toBe(true)
+    }
+  })
+})
+
+/**
+ * QUAL-09: `create` got stricter, and a box may already hold an address of the shape it now refuses.
+ * `fromStored` is the entry point for rows read back and for a sign-in lookup: the previous rule.
+ */
+describe('EmailAddress.fromStored', () => {
+  it.each([
+    ['a list', 'a@b.example,c@d.example'],
+    ['a quote', '"a"@b.example'],
+    ['angle brackets', '<a@b.example>'],
+    ['a parenthesis', 'a(c)@b.example'],
+    ['a backslash', 'a\\b@b.example'],
+    ['a second @', 'camille@work@example.com'],
+  ])('accepts what create now refuses: %s', (_label, raw) => {
+    expect(EmailAddress.create(raw).ok).toBe(false)
+
+    const stored = EmailAddress.fromStored(raw)
+
+    expect(stored.ok && stored.value.value).toBe(raw)
+  })
+
+  it('normalises like create, and reads the domain from the last @', () => {
+    const stored = EmailAddress.fromStored('  Camille@Work@Example.COM ')
+
+    expect(stored.ok && stored.value.value).toBe('camille@work@example.com')
+    expect(stored.ok && stored.value.domain).toBe('example.com')
+  })
+
+  it.each([
+    ['not a string', 42, 'email.invalid'],
+    ['empty', '  ', 'email.empty'],
+    ['whitespace inside', 'a b@example.com', 'email.containsWhitespace'],
+    ['no @', 'camille.example.com', 'email.malformed'],
+    ['a bare host', 'camille@localhost', 'email.malformed'],
+    ['too long', `${'a'.repeat(260)}@example.com`, 'email.tooLong'],
+  ])('still refuses what was never storable: %s', (_label, raw, code) => {
+    const result = EmailAddress.fromStored(raw)
+
+    expect(!result.ok && result.error.code).toBe(code)
   })
 })
 
@@ -155,10 +226,6 @@ describe('EmailAddress.domain', () => {
 
   it('keeps a subdomain in the domain rather than treating it as a suffix', () => {
     expect(emailOf('camille@mail.example.co.uk').domain).toBe('mail.example.co.uk')
-  })
-
-  it('reads the domain from the last @ when the local part contains one too', () => {
-    expect(emailOf('camille@work@example.com').domain).toBe('example.com')
   })
 })
 
