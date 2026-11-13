@@ -5,6 +5,7 @@ import { ToastProvider } from '../../../design-system/components/ToastProvider'
 import { ApiError } from '../../../lib/http'
 import { fakeApi } from '../../../testing/renderWithProviders'
 import { SIGNAL_DEBOUNCE_MS, useGuestbookModeration } from './useGuestbookModeration'
+import { deferred } from '../../../testing/deferred'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
 import type { GuestbookQueueItemDto } from '../../../lib/api/dto'
@@ -187,5 +188,117 @@ describe('useGuestbookModeration', () => {
     await act(() => result.current.decide('m1', 'publish'))
     expect(result.current.canUndo).toBe(false)
     await waitFor(() => expect(result.current.items).toHaveLength(1))
+  })
+
+  it('puts the message back when the decision and the re-read both fail (BUG-03)', async () => {
+    // The network is down: the decision fails, and so does the quiet read that would have
+    // corrected the list. The message is still pending on the server and must still be listed.
+    let reads = 0
+    const api = fakeApi({
+      guestbookQueue: vi.fn(async () => {
+        reads += 1
+        if (reads > 1) throw new ApiError(503, 'unavailable')
+        return { items: [aMessage()], pendingCount: 1 }
+      }),
+      decideGuestbookEntry: vi.fn(async () => {
+        throw new ApiError(503, 'unavailable')
+      }),
+    })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    await act(() => result.current.decide('m1', 'publish'))
+    await waitFor(() => expect(api.guestbookQueue).toHaveBeenCalledTimes(2))
+
+    expect(result.current.items.map((row) => row.id)).toEqual(['m1'])
+    expect(result.current.items[0]?.status).toBe('pending')
+    expect(result.current.pendingCount).toBe(1)
+  })
+
+  it('puts a failed message back at its place in the list (BUG-03)', async () => {
+    let reads = 0
+    const api = fakeApi({
+      guestbookQueue: vi.fn(async () => {
+        reads += 1
+        if (reads > 1) throw new ApiError(503, 'unavailable')
+        return {
+          items: [aMessage({ id: 'm1' }), aMessage({ id: 'm2' }), aMessage({ id: 'm3' })],
+          pendingCount: 3,
+        }
+      }),
+      decideGuestbookEntry: vi.fn(async () => {
+        throw new ApiError(503, 'unavailable')
+      }),
+    })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(3))
+
+    await act(() => result.current.decide('m2', 'reject'))
+
+    expect(result.current.items.map((row) => row.id)).toEqual(['m1', 'm2', 'm3'])
+    expect(result.current.pendingCount).toBe(3)
+  })
+
+  it('reads the book again when the stream reopens after a drop', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const api = fakeApi()
+    const { result } = mount(api)
+    await waitFor(() => expect(api.guestbookQueue).toHaveBeenCalledTimes(1))
+
+    act(() => result.current.onReconnect())
+    await act(() => vi.advanceTimersByTimeAsync(SIGNAL_DEBOUNCE_MS))
+
+    expect(api.guestbookQueue).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not restart a read that is in flight when a signal arrives', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const first = deferred<{ items: GuestbookQueueItemDto[]; pendingCount: number }>()
+    const calls: AbortSignal[] = []
+    const api = fakeApi({
+      guestbookQueue: vi.fn(async (_slug: string, signal?: AbortSignal) => {
+        calls.push(signal ?? new AbortController().signal)
+        if (calls.length === 1) return first.promise
+        return { items: [aMessage()], pendingCount: 1 }
+      }),
+    })
+    const { result } = mount(api)
+    await waitFor(() => expect(calls).toHaveLength(1))
+
+    act(() => result.current.onSignal(changed))
+    await act(() => vi.advanceTimersByTimeAsync(SIGNAL_DEBOUNCE_MS * 2))
+
+    // The read on the wire is neither aborted nor doubled: the signal only marks it stale.
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.aborted).toBe(false)
+
+    await act(async () => {
+      first.resolve({ items: [aMessage()], pendingCount: 1 })
+      await vi.advanceTimersByTimeAsync(SIGNAL_DEBOUNCE_MS)
+    })
+    // One replay once it has answered.
+    expect(calls).toHaveLength(2)
+  })
+
+  it('reads again on a later signal after a read that failed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    let reads = 0
+    const api = fakeApi({
+      guestbookQueue: vi.fn(async () => {
+        reads += 1
+        if (reads === 2) throw new ApiError(503, 'unavailable')
+        return { items: [aMessage()], pendingCount: 1 }
+      }),
+    })
+    const { result } = mount(api)
+    await waitFor(() => expect(reads).toBe(1))
+
+    act(() => result.current.onSignal(changed))
+    await act(() => vi.advanceTimersByTimeAsync(SIGNAL_DEBOUNCE_MS))
+    expect(reads).toBe(2)
+    act(() => result.current.onSignal(changed))
+    await act(() => vi.advanceTimersByTimeAsync(SIGNAL_DEBOUNCE_MS))
+
+    expect(reads).toBe(3)
   })
 })
