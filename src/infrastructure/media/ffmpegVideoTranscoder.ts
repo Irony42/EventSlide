@@ -31,7 +31,7 @@ import type { FfmpegPaths } from './ffmpegBinaries'
  * -t <cap seconds>
  * -map 0:v:0 -map 0:a:0?
  * -dn -sn -map_metadata -1 -map_chapters -1
- * -vf scale=<w>:<h>,format=yuv420p
+ * -vf [fps=60,]scale=<w>:<h>,format=yuv420p
  * -c:v libx264 -profile:v high -level 4.0 -preset veryfast -crf 23 -pix_fmt yuv420p
  * -c:a aac -b:a 128k -ac 2 -ar 48000
  * -movflags +faststart -fs <cap bytes> -f mp4 file:<scratch out>
@@ -97,8 +97,12 @@ const PROBE_TIMEOUT_MS = 20_000
 const PROBE_STDOUT_BYTES = 4 * 1024 * 1024
 
 /**
- * The bound on how far into a **guest's** container the demuxer will read looking for
- * streams. On both commands that open guest bytes — the probe and the encode — and on
+ * The bounds on how far into a **guest's** container the demuxer will read looking for
+ * streams. **Two options, two units, so two constants**: `-probesize` is in bytes and
+ * `-analyzeduration` is in microseconds (ffmpeg's defaults are 5 MB and 5 s). One constant
+ * named in bytes used to feed both, so tuning "the bytes" silently retuned the duration.
+ *
+ * They are on both commands that open guest bytes — the probe and the encode — and on
  * neither by accident: without it a crafted header can make the encoder read the whole
  * file before it decodes a frame, which is work the timeout eventually stops rather than
  * work anything refuses.
@@ -108,7 +112,29 @@ const PROBE_STDOUT_BYTES = 4 * 1024 * 1024
  * ffmpeg call that does not carry it, because it reads our own re-encoded output rather
  * than anything a guest wrote.
  */
-const INPUT_SCAN_BYTES = '10000000'
+const INPUT_PROBE_BYTES = '10000000'
+
+/** `-analyzeduration`, in **microseconds**: ten seconds. See {@link INPUT_PROBE_BYTES}. */
+const INPUT_ANALYZE_MICROSECONDS = '10000000'
+
+/**
+ * The most frames per second the **output** carries (BUG-09). Encoder work is
+ * `duration x frame rate`; duration and pixels were capped and the rate was not, so a
+ * clip declaring thousands of frames a second made the encoder run to the wall clock. A
+ * source at or under this keeps its own rate: the `fps` filter is added only when the
+ * source is declared above it, because the filter also *duplicates* frames up to the
+ * target, which a 15 fps clip must not pay for. A source that declares no rate (WebM from
+ * a browser recorder) gets `-fpsmax` instead, an output option that only ever drops.
+ */
+export const OUTPUT_MAX_FPS = 60
+
+/**
+ * The highest declared frame rate the probe accepts. Slow motion is real (phones record
+ * 240, some cameras 960); a rate beyond this is a crafted header, answered `clip.corrupt`,
+ * which is permanent, so it is neither encoded nor retried. Decoding is still
+ * `duration x rate` frames even when the output is capped, hence a bound at the door too.
+ */
+export const INPUT_MAX_FPS = 1_000
 
 /** The demuxer each signature pins the input to. Never content sniffing. */
 const DEMUXER: Readonly<Record<ClipContainer, string>> = {
@@ -137,6 +163,7 @@ const streamSchema = z.object({
   width: numeric.optional(),
   height: numeric.optional(),
   duration: numeric.optional(),
+  avg_frame_rate: z.string().optional(),
   side_data_list: z.array(sideDataSchema).optional(),
   tags: z.record(z.string(), z.unknown()).optional(),
 })
@@ -192,7 +219,25 @@ const rotationOf = (stream: ProbedStream): number => {
   return Number.isFinite(parsed) ? Math.abs(Math.round(parsed)) % 360 : 0
 }
 
+/**
+ * ffprobe's `avg_frame_rate` (`30000/1001`) as a number; `null` for `0/0`, absent or garbage.
+ * The average rather than `r_frame_rate`: a WebM from `MediaRecorder` reports a 1000 fps
+ * timebase there, and refusing it would refuse every browser recording.
+ */
+export const frameRateOf = (stream: ProbedStream): number | null => {
+  const [numerator, denominator] = (stream.avg_frame_rate ?? '').split('/').map(Number)
+  if (numerator === undefined || denominator === undefined) return null
+  const rate = numerator / denominator
+  return Number.isFinite(rate) && rate > 0 ? rate : null
+}
+
 const isQuarterTurn = (rotation: number): boolean => rotation === 90 || rotation === 270
+
+interface ProbedClip {
+  readonly clip: ClipProbe
+  /** `null` when the container declares no usable average rate. */
+  readonly frameRate: number | null
+}
 
 export interface FfmpegTranscoderOptions {
   readonly paths: FfmpegPaths
@@ -234,6 +279,117 @@ const outputLimitMs = (spec: TranscodeSpec): number =>
   spec.trim === undefined
     ? spec.maxDurationMs
     : Math.min(spec.maxDurationMs, spec.trim.endMs - spec.trim.startMs)
+
+export interface EncodeRequest {
+  readonly ffmpegInput: string
+  readonly output: string
+  readonly container: ClipContainer
+  readonly spec: TranscodeSpec
+  readonly target: Dimensions
+  /** The source's declared average rate, or `null` when it declares none. */
+  readonly frameRate: number | null
+}
+
+/**
+ * The whole argument list of the re-encode, pure so the test can read it. The comment
+ * block at the top of this file is its commentary.
+ */
+export const buildEncodeArgs = (request: EncodeRequest): string[] => [
+      '-nostdin',
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      // Progress on stdout is what feeds the stall detector: a wall clock generous
+      // enough for a real 4K clip is far too generous for a wedged decoder.
+      '-progress',
+      'pipe:1',
+      '-nostats',
+      '-protocol_whitelist',
+      'file',
+      '-f',
+      DEMUXER[request.container],
+      // **Before `-i`, or they apply to nothing.** The same bound the probe
+      // carries: an input option placed after the input is a global option ffmpeg
+      // quietly ignores for this file. The comment on the constant claimed the
+      // encoder was bounded too while the argv said otherwise, so the encoder read
+      // at ffmpeg's defaults and the stall and wall-clock timeouts were the only
+      // thing standing between a crafted header and a full read of a 60 MB file.
+      '-analyzeduration',
+      INPUT_ANALYZE_MICROSECONDS,
+      '-probesize',
+      INPUT_PROBE_BYTES,
+      // The guest's range (spec 16). **Before `-i`, like the scan bounds above**: as an
+      // input option it seeks to the keyframe before the start and decodes forward to it,
+      // so the cost is the range's and the first frame is the one asked for. Seconds
+      // formatted here, from numbers the use case already validated; nothing the client
+      // wrote reaches argv as text.
+      ...(request.spec.trim === undefined
+        ? []
+        : ['-ss', (request.spec.trim.startMs / 1000).toFixed(3)]),
+      '-i',
+      `file:${request.ffmpegInput}`,
+      // The cap, again. The header is a claim by the file.
+      '-t',
+      (outputLimitMs(request.spec) / 1000).toFixed(3),
+      '-map',
+      '0:v:0',
+      // The `?` is load-bearing: a clip with no audio must not fail outright.
+      '-map',
+      '0:a:0?',
+      // Data and subtitle streams: `-map_metadata` does not remove these, and an
+      // iPhone's `mebx` track carries gyroscope and sometimes location data.
+      '-dn',
+      '-sn',
+      '-map_metadata',
+      '-1',
+      '-map_chapters',
+      '-1',
+      '-vf',
+      // `fps` first, so the frames dropped are dropped before they are scaled. Only when
+      // the source is declared above the cap (BUG-09): see OUTPUT_MAX_FPS.
+      [
+        ...(request.frameRate !== null && request.frameRate > OUTPUT_MAX_FPS
+          ? [`fps=${OUTPUT_MAX_FPS}`]
+          : []),
+        `scale=${request.target.width}:${request.target.height}`,
+        'format=yuv420p',
+      ].join(','),
+      // An unknown rate cannot be judged against the cap, so it is bounded without being
+      // changed: `-fpsmax` (ffmpeg 5.1+, which the image and ffmpeg-static both have) drops
+      // frames above the cap and never duplicates one.
+      ...(request.frameRate === null ? ['-fpsmax', String(OUTPUT_MAX_FPS)] : []),
+      '-c:v',
+      'libx264',
+      '-profile:v',
+      'high',
+      '-level',
+      '4.0',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '23',
+      // Both this and `format=yuv420p` above: a 10-bit HEVC source otherwise
+      // produces High 10, which no browser decodes.
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '128k',
+      '-ac',
+      '2',
+      '-ar',
+      '48000',
+      // Rewrites moov to the front so playback starts before the download does.
+      '-movflags',
+      '+faststart',
+      '-fs',
+      String(request.spec.maxOutputBytes),
+      '-f',
+      'mp4',
+      `file:${request.output}`,
+    ]
 
 export const createFfmpegVideoTranscoder = ({
   paths,
@@ -309,7 +465,7 @@ export const createFfmpegVideoTranscoder = ({
   const probeFile = async (
     file: string,
     container: ClipContainer,
-  ): Promise<Result<ClipProbe, DomainError>> => {
+  ): Promise<Result<ProbedClip, DomainError>> => {
     const result = await run(
       paths.ffprobe,
       [
@@ -330,9 +486,9 @@ export const createFfmpegVideoTranscoder = ({
         // Bounded so a crafted header cannot make it read the whole file looking for a
         // stream it will never find.
         '-analyzeduration',
-        INPUT_SCAN_BYTES,
+        INPUT_ANALYZE_MICROSECONDS,
         '-probesize',
-        INPUT_SCAN_BYTES,
+        INPUT_PROBE_BYTES,
         '-print_format',
         'json',
         '-show_format',
@@ -407,9 +563,16 @@ export const createFfmpegVideoTranscoder = ({
     )
     if (!dimensions.ok) return err(DomainError.invalid('clip.corrupt', { reason: 'impossible size' }))
 
+    const frameRate = frameRateOf(video)
+    if (frameRate !== null && frameRate > INPUT_MAX_FPS) {
+      return err(DomainError.invalid('clip.corrupt', { reason: 'impossible frame rate' }))
+    }
+
     const seconds = durationSecondsOf(parsed, video)
 
     return ok({
+      frameRate,
+      clip: {
       container,
       // Not defaulted to zero: `ClipDuration` refuses a duration the container did not
       // declare, and a zero here would be read as a clip of no length rather than as an
@@ -417,6 +580,7 @@ export const createFfmpegVideoTranscoder = ({
       durationMs: Number.isFinite(seconds) ? Math.round(seconds * 1000) : Number.NaN,
       dimensions: dimensions.value,
       hasAudio: parsed.streams.some((stream) => stream.codec_type === 'audio'),
+      },
     })
   }
 
@@ -438,7 +602,8 @@ export const createFfmpegVideoTranscoder = ({
       return onScratch(async (directory) => {
         const input = join(directory, 'in.bin')
         await writeFile(input, bytes)
-        return probeFile(input, container)
+        const probed = await probeFile(input, container)
+        return probed.ok ? ok(probed.value.clip) : probed
       })
     },
 
@@ -460,94 +625,18 @@ export const createFfmpegVideoTranscoder = ({
 
         const box = Dimensions.create(Dimensions.maxEdge, spec.maxHeight)
         if (!box.ok) return box
-        const target = source.value.dimensions.scaleToFit(box.value).evenEdges()
+        const target = source.value.clip.dimensions.scaleToFit(box.value).evenEdges()
 
         const encoded = await run(
           paths.ffmpeg,
-          [
-            '-nostdin',
-            '-hide_banner',
-            '-loglevel',
-            'error',
-            '-y',
-            // Progress on stdout is what feeds the stall detector: a wall clock generous
-            // enough for a real 4K clip is far too generous for a wedged decoder.
-            '-progress',
-            'pipe:1',
-            '-nostats',
-            '-protocol_whitelist',
-            'file',
-            '-f',
-            DEMUXER[container],
-            // **Before `-i`, or they apply to nothing.** The same bound the probe
-            // carries: an input option placed after the input is a global option ffmpeg
-            // quietly ignores for this file. The comment on the constant claimed the
-            // encoder was bounded too while the argv said otherwise, so the encoder read
-            // at ffmpeg's defaults and the stall and wall-clock timeouts were the only
-            // thing standing between a crafted header and a full read of a 60 MB file.
-            '-analyzeduration',
-            INPUT_SCAN_BYTES,
-            '-probesize',
-            INPUT_SCAN_BYTES,
-            // The guest's range (spec 16). **Before `-i`, like the scan bounds above**: as an
-            // input option it seeks to the keyframe before the start and decodes forward to it,
-            // so the cost is the range's and the first frame is the one asked for. Seconds
-            // formatted here, from numbers the use case already validated; nothing the client
-            // wrote reaches argv as text.
-            ...(spec.trim === undefined
-              ? []
-              : ['-ss', (spec.trim.startMs / 1000).toFixed(3)]),
-            '-i',
-            `file:${input}`,
-            // The cap, again. The header is a claim by the file.
-            '-t',
-            (outputLimitMs(spec) / 1000).toFixed(3),
-            '-map',
-            '0:v:0',
-            // The `?` is load-bearing: a clip with no audio must not fail outright.
-            '-map',
-            '0:a:0?',
-            // Data and subtitle streams: `-map_metadata` does not remove these, and an
-            // iPhone's `mebx` track carries gyroscope and sometimes location data.
-            '-dn',
-            '-sn',
-            '-map_metadata',
-            '-1',
-            '-map_chapters',
-            '-1',
-            '-vf',
-            `scale=${target.width}:${target.height},format=yuv420p`,
-            '-c:v',
-            'libx264',
-            '-profile:v',
-            'high',
-            '-level',
-            '4.0',
-            '-preset',
-            'veryfast',
-            '-crf',
-            '23',
-            // Both this and `format=yuv420p` above: a 10-bit HEVC source otherwise
-            // produces High 10, which no browser decodes.
-            '-pix_fmt',
-            'yuv420p',
-            '-c:a',
-            'aac',
-            '-b:a',
-            '128k',
-            '-ac',
-            '2',
-            '-ar',
-            '48000',
-            // Rewrites moov to the front so playback starts before the download does.
-            '-movflags',
-            '+faststart',
-            '-fs',
-            String(spec.maxOutputBytes),
-            '-f',
-            'mp4',
-            `file:${output}`,
-          ],
+          buildEncodeArgs({
+            ffmpegInput: input,
+            output,
+            container,
+            spec,
+            target,
+            frameRate: source.value.frameRate,
+          }),
           { timeoutMs, stallMs },
         )
 
@@ -580,11 +669,11 @@ export const createFfmpegVideoTranscoder = ({
 
         const posterBox = Dimensions.create(spec.posterMaxEdge, spec.posterMaxEdge)
         if (!posterBox.ok) return posterBox
-        const posterSize = produced.value.dimensions.scaleToFit(posterBox.value)
+        const posterSize = produced.value.clip.dimensions.scaleToFit(posterBox.value)
 
         // A second in, or the midpoint of a shorter clip: the first frame of a phone
         // recording is very often black.
-        const at = Math.min(1_000, Math.max(0, Math.floor(produced.value.durationMs / 2)))
+        const at = Math.min(1_000, Math.max(0, Math.floor(produced.value.clip.durationMs / 2)))
 
         const framed = await run(
           paths.ffmpeg,
@@ -656,8 +745,8 @@ export const createFfmpegVideoTranscoder = ({
           video: {
             bytes: videoBytes,
             byteSize: videoBytes.byteLength,
-            dimensions: produced.value.dimensions,
-            durationMs: produced.value.durationMs,
+            dimensions: produced.value.clip.dimensions,
+            durationMs: produced.value.clip.durationMs,
           },
           poster: {
             bytes: posterBytes,

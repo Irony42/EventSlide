@@ -5,6 +5,15 @@ import type { HttpDeps, PendingSecondFactor, SessionPayload } from '../types'
 import { rotateCsrfToken } from './csrf'
 
 /**
+ * Must match the `name` given to `express-session` in `server.ts`.
+ *
+ * Defined here, next to `endSession` which clears it, and re-exported by `routes/authRoutes.ts` for `server.ts` and the tests: one literal: a browser matches a
+ * cookie deletion on name, domain and path, so a mismatch here would silently leave
+ * the cookie in place and nothing would fail until the next request.
+ */
+export const SESSION_COOKIE = 'es_session'
+
+/**
  * The session lifecycle: starting one, parking a half-finished sign-in, ending one.
  *
  * Here, and not in `routes/authRoutes.ts`, because more than one route starts a session
@@ -37,6 +46,33 @@ export const regenerateSession = (session: Session): Promise<void> =>
 
 export const destroySession = (session: Session): Promise<void> =>
   promisify((done) => session.destroy(done), 'session destruction failed')
+
+/**
+ * Ends the caller's session, on the server and in the browser: destroys it, clears the cookie that
+ * named it and replaces the CSRF token. Used by the logout and by the erasure of the caller's own
+ * account, which end a session the same way.
+ *
+ * `destroy` removes the stored row but says nothing to the browser. Without the clear the cookie
+ * stays and every later request costs a store lookup for a session that no longer exists. The
+ * attributes mirror `server.ts`, since a deletion is matched on name, domain and path.
+ *
+ * The CSRF token is replaced rather than cleared. The page that called this is still open and still
+ * needs to be able to act — the join page and the wall are public, and a guest on a shared phone
+ * signing the host out must not lose their own ability to upload — so what is issued is a fresh
+ * anonymous token, not the absence of one. Rotating matters as much here as on the login: the
+ * browser has just stopped being a host, and a token that carried over would still be the one a
+ * page opened during the session holds.
+ */
+export const endSession = async (req: Request, res: Response, deps: HttpDeps): Promise<void> => {
+  await destroySession(req.session)
+  res.clearCookie(SESSION_COOKIE, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: deps.config.secureCookie,
+  })
+  rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
+}
 
 /**
  * Gives the caller a brand-new session: a new id, a new CSRF token, and an identity stamped

@@ -3,6 +3,8 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import {
   chmod,
   mkdir,
+  readdir as listDir,
+  rename,
   mkdtemp,
   readdir,
   readFile,
@@ -896,7 +898,7 @@ describe('backup and restore', () => {
 
   describe('inspectRestoreTarget', () => {
     it('reports an empty target as unoccupied', async () => {
-      const target = await inspectRestoreTarget(databasePath, mediaRoot)
+      const target = await inspectRestoreTarget(archive, databasePath, mediaRoot)
 
       expect(target.occupied).toBe(false)
       expect(target.databaseBytes).toBeNull()
@@ -908,7 +910,7 @@ describe('backup and restore', () => {
       await seedAnEvening()
       await writeFile(`${databasePath}-wal`, 'pretend write-ahead log')
 
-      const target = await inspectRestoreTarget(databasePath, mediaRoot)
+      const target = await inspectRestoreTarget(archive, databasePath, mediaRoot)
 
       expect(target.occupied).toBe(true)
       expect(target.databaseBytes).toBeGreaterThan(0)
@@ -1417,5 +1419,243 @@ describe('backup and restore', () => {
         expect((await verify()).ok).toBe(true)
       },
     )
+  })
+  // ------------------------------------------- where an archive may live --
+
+  describe('an archive that overlaps the installation (BUG-08)', () => {
+    /** Every file under a directory with its bytes, so "untouched" is a comparison and not a feeling. */
+    const snapshotOf = async (dir: string): Promise<Record<string, string>> => {
+      const out: Record<string, string> = {}
+      const walk = async (current: string): Promise<void> => {
+        for (const entry of await listDir(current, { withFileTypes: true })) {
+          const path = join(current, entry.name)
+          if (entry.isDirectory()) await walk(path)
+          else out[path] = (await readFile(path)).toString('base64')
+        }
+      }
+      if (await exists(dir)) await walk(dir)
+      return out
+    }
+
+    const everything = async (): Promise<unknown[]> => [
+      await readFile(databasePath).then((bytes) => bytes.toString('base64')),
+      await snapshotOf(mediaRoot),
+      await snapshotOf(archive),
+    ]
+
+    /** A backup taken beside the media root, then moved under it: the layout the finding describes. */
+    const archiveInsideMedia = async (): Promise<string> => {
+      await seedAnEvening()
+      await backup()
+      const inside = join(mediaRoot, 'backups', 'one')
+      await mkdir(join(mediaRoot, 'backups'), { recursive: true })
+      await rename(archive, inside)
+      archive = inside
+      return inside
+    }
+
+    it('refuses an archive that lives inside the media root, before anything is touched', async () => {
+      await archiveInsideMedia()
+      const before = await everything()
+
+      for (const force of [false, true]) {
+        const refusal = restore({ force })
+        await expect(refusal).rejects.toThrow(BackupError)
+        await expect(refusal).rejects.toThrow(/archive is inside the media root/)
+        await expect(refusal).rejects.toThrow(archive)
+        await expect(refusal).rejects.toThrow(mediaRoot)
+        await expect(refusal).rejects.toThrow(/Nothing was touched/)
+      }
+
+      expect(await everything()).toEqual(before)
+      expect(await exists(`${databasePath}.restoring`)).toBe(false)
+    })
+
+    it('refuses an archive reached through a symlink or junction into the media root', async () => {
+      await archiveInsideMedia()
+      const alias = join(root, 'alias')
+      await symlink(mediaRoot, alias, 'junction')
+      const before = await everything()
+
+      await expect(restore({ force: true, from: join(alias, 'backups', 'one') })).rejects.toThrow(
+        /archive is inside the media root/,
+      )
+
+      expect(await everything()).toEqual(before)
+    })
+
+    it('refuses a media root that is a link leading into the archive', async () => {
+      await seedAnEvening()
+      await backup()
+      const alias = join(root, 'alias')
+      await symlink(join(archive, MEDIA_DIR), alias, 'junction')
+      const before = await everything()
+
+      await expect(
+        restoreBackup({ archive, databasePath, mediaRoot: alias, force: true, migrations }),
+      ).rejects.toThrow(/media root is inside the archive/)
+
+      expect(await everything()).toEqual(before)
+    })
+
+    it.skipIf(process.platform !== 'win32' && process.platform !== 'darwin')(
+      'refuses an archive inside the media root when the path differs only in case (case-folding filesystem only)',
+      async () => {
+        await archiveInsideMedia()
+        const before = await everything()
+        const shouted = join(mediaRoot.toUpperCase(), 'backups', 'one')
+
+        await expect(restore({ force: true, from: shouted })).rejects.toThrow(
+          /archive is inside the media root/,
+        )
+
+        expect(await everything()).toEqual(before)
+      },
+    )
+
+    it('refuses an archive whose ".." segments lead into the media root', async () => {
+      await archiveInsideMedia()
+      const before = await everything()
+
+      await expect(
+        restore({ force: true, from: join(root, 'elsewhere', '..', 'media', 'backups', 'one') }),
+      ).rejects.toThrow(/archive is inside the media root/)
+
+      expect(await everything()).toEqual(before)
+    })
+
+    it('refuses when the media root is inside the archive, or is the archive', async () => {
+      await seedAnEvening()
+      await backup()
+      const before = await everything()
+
+      await expect(
+        restoreBackup({
+          archive,
+          databasePath,
+          mediaRoot: join(archive, MEDIA_DIR),
+          force: true,
+          migrations,
+        }),
+      ).rejects.toThrow(/media root is inside the archive/)
+      await expect(
+        restoreBackup({ archive, databasePath, mediaRoot: archive, force: true, migrations }),
+      ).rejects.toThrow(/archive is inside the media root/)
+
+      expect(await everything()).toEqual(before)
+    })
+
+    it('refuses a database path inside the archive, which a restore would delete and rewrite', async () => {
+      await seedAnEvening()
+      await backup()
+      const before = await snapshotOf(archive)
+
+      await expect(
+        restoreBackup({
+          archive,
+          databasePath: join(archive, MANIFEST_FILE),
+          mediaRoot,
+          force: true,
+          migrations,
+        }),
+      ).rejects.toThrow(/database is inside the archive/)
+
+      expect(await snapshotOf(archive)).toEqual(before)
+    })
+
+    it('does not mistake a sibling whose name starts like the media root for being inside it', async () => {
+      await seedAnEvening()
+      await backup({ destination: join(root, 'media-backups', 'one') })
+
+      const result = await restore({ force: true, from: join(root, 'media-backups', 'one') })
+
+      expect(result.mediaFilesWritten).toBe(3)
+    })
+
+    it('refuses a destination inside the media root, and writes nothing', async () => {
+      await seedAnEvening()
+      const before = await snapshotOf(mediaRoot)
+
+      for (const destination of [join(mediaRoot, 'backups', 'one'), join(mediaRoot, 'x')]) {
+        const refusal = backup({ destination })
+        await expect(refusal).rejects.toThrow(BackupError)
+        await expect(refusal).rejects.toThrow(/archive is inside the media root/)
+        await expect(refusal).rejects.toThrow(/Pass --to/)
+      }
+
+      expect(await snapshotOf(mediaRoot)).toEqual(before)
+      expect(await exists(join(mediaRoot, 'backups'))).toBe(false)
+    })
+
+    it('refuses a destination reached through a junction into the media root', async () => {
+      await seedAnEvening()
+      const alias = join(root, 'alias')
+      await symlink(mediaRoot, alias, 'junction')
+      const before = await snapshotOf(mediaRoot)
+
+      await expect(backup({ destination: join(alias, 'new', 'deeper') })).rejects.toThrow(
+        /archive is inside the media root/,
+      )
+
+      expect(await snapshotOf(mediaRoot)).toEqual(before)
+    })
+
+    it('refuses a destination that holds the media root or the database', async () => {
+      await seedAnEvening()
+
+      await expect(backup({ destination: root })).rejects.toThrow(
+        /(media root|database) is inside the archive/,
+      )
+    })
+
+    it('refuses a destination that holds only the database file', async () => {
+      await seedAnEvening()
+      const holder = join(root, 'dbdir')
+      await mkdir(holder)
+      const movedDatabase = join(holder, 'eventslide.sqlite')
+      await rename(databasePath, movedDatabase)
+
+      await expect(
+        createBackup({
+          databasePath: movedDatabase,
+          mediaRoot,
+          destination: holder,
+          now: NOW,
+          appVersion: '2.0.0',
+        }),
+      ).rejects.toThrow(/database is inside the archive/)
+    })
+
+    it.skipIf(process.platform !== 'win32' && process.platform !== 'darwin')(
+      'refuses a destination under a media root that does not exist yet, spelled in another case (case-folding filesystem only)',
+      async () => {
+        await seedAnEvening()
+        await rm(mediaRoot, { recursive: true, force: true })
+
+        await expect(backup({ destination: join(root, 'MEDIA', 'new') })).rejects.toThrow(
+          /archive is inside the media root/,
+        )
+        expect(await exists(join(root, 'MEDIA'))).toBe(false)
+      },
+    )
+
+    it('refuses a destination reached through a junction whose target is gone, when the media root is recreated there', async () => {
+      await seedAnEvening()
+      const gone = join(root, 'gone')
+      await mkdir(gone)
+      const alias = join(root, 'alias')
+      await symlink(gone, alias, 'junction')
+      await rm(gone, { recursive: true })
+
+      await expect(
+        createBackup({
+          databasePath,
+          mediaRoot: gone,
+          destination: join(alias, 'new'),
+          now: NOW,
+          appVersion: '2.0.0',
+        }),
+      ).rejects.toThrow(/archive is inside the media root/)
+    })
   })
 })

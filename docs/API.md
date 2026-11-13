@@ -684,7 +684,8 @@ other limiters' bodies carry the header only.
 | `POST /api/auth/password-reset/confirm`                            | 10            | client IP, own bucket      | `rate.limited`                     |
 | `GET /api/invitations/:token`, `POST …/accept`                     | 10            | client IP, own bucket each | `rate.limited`                     |
 | `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm` | 10            | client IP, own bucket each | `rate.limited`                     |
-| the same four                                                      | 10 / 15 min   | **account**, failures only | `auth.tooManySecondFactorAttempts` |
+| `POST /api/auth/password`, `POST /api/auth/account/delete`         | 10            | client IP, own bucket each | `rate.limited`                     |
+| the same four, and those two ◊                                     | 10 / 15 min   | **account**, failures only | `auth.tooManySecondFactorAttempts` |
 | `POST /api/events` (create)                                        | 20 / **hour** | account                    | `event.creationRateLimited`        |
 | `POST /api/events/:slug/moderators` (invite)                       | 30 / **hour** | account                    | `rate.limited`                     |
 | `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §       | 300           | client IP **and** event    | `rate.limited`                     |
@@ -696,6 +697,8 @@ other limiters' bodies carry the header only.
 | `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                  | `rate.limited`                     |
 | `GET /api/gallery-media/…`                                         | 3000          | client IP                  | `rate.limited`                     |
 | `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min      | `gallery.tooManyAttempts`          |
+
+◊ One budget for all six doors (a guess at one is spent at the others). On `POST /api/auth/password` a failure is **only** `401 auth.invalidCredentials`, the wrong current password: a `400` (a new password the policy refuses, `password.unchanged`, a malformed body) spends nothing, so a person who is learning the policy, an invited moderator who must choose a password included, cannot lock themselves out. The other five doors count every answer of 400 or more.
 
 § **Two stages**, since 3.2. The first is a flood ceiling per client address and event
 (`UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE`, `REACTION_RATE_LIMIT_PER_IP_PER_MINUTE`), checked before the
@@ -2343,6 +2346,10 @@ wall and the printed card do not. `Cache-Control: no-store` and no `Content-Leng
 size is unknown until the archive is written, and a four-thousand-photo wedding is
 several gigabytes. Streamed, never buffered.
 
+**Concurrency.** At most **2** exports open at once per account and **4** on the box, counting `album.zip` and
+`best-of.zip` together: past the account's two, `429 rate.limited` with `Retry-After: 30`; with the box's four
+open, `503 service.notReady` with `Retry-After: 30`. A slot is given back when the response ends, however it ends.
+
 Unlike the media route above, this one is behind `requireRole('moderator')` and so
 **does** serve an archived event: `401 auth.required` with no session,
 `404 event.notFound` for a caller with no membership, `403 auth.forbidden` never
@@ -2379,7 +2386,8 @@ failureCode?, updatedAt }`; no photograph id travels.
 
 - `GET /api/events/:slug/best-of.zip`: streamed like `album.zip` (same headers, filename
   `<slug>-best-of.zip`), oldest photo first, one folder `<slug>-best-of/`. `409 highlight.empty`
-  before any header when there is no favourite.
+  before any header when there is no favourite. Counted with `album.zip` in one concurrency allowance (2 per
+  account, 4 on the box: `429 rate.limited` / `503 service.notReady`, both with `Retry-After`).
 
 The moderation rows (`GET /moderation`, `GET /photos`) carry `highlighted: boolean`; no guest, wall
 or gallery payload does.
@@ -2586,7 +2594,8 @@ response replaces the caller's own session — a new `es_session` and a new `es_
 client must read the CSRF cookie again — and the caller stays signed in. The response also sets a fresh
 `es_device` (the sign-in throttle's trusted-device cookie, `POST /api/auth/login`), because the request
 has just proved the current password; the previous one is older than the change and no longer counts.
-**Errors** — `401 auth.invalidCredentials`, `400 password.*`,
+The route has the second-step limiters of a sign-in, because a wrong current password here is a guess like any other: `429 rate.limited` from the eleventh attempt in a minute from one address, and `429 auth.tooManySecondFactorAttempts` (with `Retry-After`) once the account's shared budget of 10 wrong attempts per quarter of an hour is spent. Only a wrong current password spends that budget; a refused new password (`400`) and a correct change spend nothing. A `mustChangePassword` account reaches the route as before.
+**Errors** — `401 auth.invalidCredentials`, `429 rate.limited`, `429 auth.tooManySecondFactorAttempts`, `400 password.*`,
 `400 password.unchanged`, and `401 auth.required` when the session outlived the account it
 names or that account has been disabled. Both are refused by `requireUser` before the
 handler runs, and they are one answer on purpose: the id comes from the session, so either
@@ -2917,7 +2926,7 @@ auth.secondFactorRequired`. The stamp is written into the server-side session by
 step or a confirmed enrolment and nowhere else, kept across a renewal, and dropped when the factor
 is removed. Off — the default — the gate does nothing at all.
 
-**Rate limits.** The four doors that take a secret — `login/2fa`, `step-up`, `2fa/enroll` and `2fa/confirm` — have
+**Rate limits.** (`POST /api/auth/password` and `POST /api/auth/account/delete` take the same two limiters, and the same account budget; see §1.) The four doors that take a secret — `login/2fa`, `step-up`, `2fa/enroll` and `2fa/confirm` — have
 the sign-in budget per client address (own bucket each, `rate.limited`), **and** one budget per
 **account** of 10 wrong attempts per quarter of an hour from every address together
 (`auth.tooManySecondFactorAttempts`, failures only: the owner who types it right spends nothing).

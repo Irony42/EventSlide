@@ -12,7 +12,7 @@
  * everybody discovers too late, so this prints what it captured, what it could not, and
  * what the archive is worth.
  */
-import { mkdir, stat } from 'node:fs/promises'
+import { stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { migrations } from '../src/infrastructure/db/migrations'
@@ -145,7 +145,9 @@ const runBackup = async (argv: readonly string[], invocation: Invocation): Promi
   // which in the image is a read-only `/app`. See `BACKUP_DIR` in config/schema.ts.
   const destination =
     option(argv, 'to') ?? join(config.storage.backupDir, `eventslide-${stampOf(now)}`)
-  await mkdir(resolve(destination, '..'), { recursive: true })
+  // No `mkdir` of the parent here: `createBackup` creates the archive with its parents, and
+  // only after it has refused a destination that overlaps the media root. A directory made
+  // first would be a write into the very tree the refusal protects.
 
   console.log(`EventSlide backup`)
   console.log(`  database  ${resolve(databasePath)}`)

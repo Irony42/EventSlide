@@ -1,4 +1,5 @@
 import http from 'node:http'
+import { hostExportLimiter } from '../middleware/rateLimit'
 import type { AddressInfo } from 'node:net'
 import type { Express } from 'express'
 import request from './request'
@@ -119,6 +120,7 @@ export const hostAlbum = async (): Promise<AbortableAlbum> => {
       app.use(
         mediaRoutes({
           deps,
+          hostExportLimiter: hostExportLimiter(),
           usecases: {
             getPhotoMedia: () => Promise.reject(new Error('not part of an album download')),
             identifyMediaViewer: () => Promise.reject(new Error('not part of an album download')),

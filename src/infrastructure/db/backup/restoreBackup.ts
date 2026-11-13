@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path'
 import { closeDatabase, openDatabase } from '../connection'
 import { migrate, MigrationError, type Migration } from '../migrator'
 import { fromPosix, resolveInside } from './paths'
+import { assertArchiveApart } from './containment'
 import { BackupError } from './backupError'
 import { MEDIA_DIR, type BackupManifest, type ManifestEntry } from './manifest'
 import { verifyBackup } from './verifyBackup'
@@ -21,11 +22,19 @@ export interface RestoreTarget {
   readonly occupied: boolean
 }
 
-/** What restoring would destroy. Read-only; the CLI prints this before it acts. */
+/**
+ * What restoring would destroy. Read-only; the CLI prints this before it acts.
+ *
+ * Also the one "is it safe to proceed" step, so it refuses an archive that overlaps the
+ * target (inside the media root, around it, or around the database) whatever `--force`
+ * says: the restore would delete the archive it is reading from.
+ */
 export const inspectRestoreTarget = async (
+  archive: string,
   databasePath: string,
   mediaRoot: string,
 ): Promise<RestoreTarget> => {
+  await assertArchiveApart({ archive, databasePath, mediaRoot, operation: 'restore' })
   const database = resolve(databasePath)
   const media = resolve(mediaRoot)
 
@@ -137,7 +146,7 @@ export const restoreBackup = async ({
   // before telling an operator that they needed `--force` is forty gigabytes of
   // waiting for an answer that was known at the start. The safety property is
   // unaffected: the archive is still proven before anything is destroyed, below.
-  const target = await inspectRestoreTarget(databasePath, mediaRoot)
+  const target = await inspectRestoreTarget(root, databasePath, mediaRoot)
   if (target.occupied && !force) {
     throw new BackupError(
       `Refusing to overwrite an existing installation.\n` +

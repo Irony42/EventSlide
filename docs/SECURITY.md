@@ -1059,6 +1059,15 @@ purge`, which is the _only_ place it runs when an operator has moved the schedul
 - **On shutdown the child is killed, not orphaned.** `container.dispose()` calls the
   transcoder's `close()`, which SIGTERMs then SIGKILLs every running ffmpeg. Without it a
   new container starts the same job while the old encoder holds a core all evening.
+- **Frames are bounded, not just seconds and pixels.** Encoder work is duration times frame
+  rate, and a header can declare thousands of frames a second of a tiny picture. The probe
+  refuses a declared average rate above 1 000 fps as `clip.corrupt` (permanent, so it is
+  neither encoded nor retried), and the encode adds `fps=60` ahead of the scale whenever the
+  source is declared above 60 fps (`-fpsmax 60` when it declares none), so the output is
+  never above 60 fps. A source at or under 60 keeps its own rate: the filter would also
+  duplicate frames up to its target.
+  `-probesize` (bytes) and `-analyzeduration` (microseconds) are separate constants. A
+  timeout is still classified transient and retried, which is the application's rule.
 - **ffprobe's stdout is an untrusted boundary input**, derived from a guest's file. It is
   parsed with zod, like `req.body`.
 - **ffprobe is not the cheap header read `sharp.metadata()` is.** It is the same demuxer
@@ -1066,7 +1075,7 @@ purge`, which is the _only_ place it runs when an operator has moved the schedul
   `-analyzeduration` and a timeout — and why it runs in the worker rather than on the
   guest's request. The cheap gate on the request path is the signature, and only that.
 - **No encoder on the box is not a failure of the box.** The boot check asks `-encoders`
-  for `libx264` and `aac` **by name, never a version string**: a distribution's patched
+  for `libx264` and `aac` **by name, never a version string** (the encoder's own name in the listing's name column, so `libfdk_aac` is not `aac`): a distribution's patched
   build reports its own version, and one compiled without those encoders reports a
   perfectly modern one right up until the first transcode fails. On failure the adapter is
   replaced by a Null Object, clip uploads are refused with `clip.transcoderUnavailable`,
@@ -1122,21 +1131,24 @@ without its upload ever being judged against a number another event's guests bui
 **(planned: the store. In the first cut the counters are in-process, which is a real gap
 on a restart loop)**.
 
-| Endpoint                                      | Per IP       | Per event              | Per guest token | Window |
-| --------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
-| `POST /api/auth/login` †                      | 10           | —                      | —               | 1 min  |
-| `POST /api/events` (create)\*                 | —            | —                      | —               | 1 hour |
-| `GET /api/join/:code` (code lookup)           | 20 (as join) | —                      | —               | 1 min  |
-| `POST /api/events/:slug/guests` (join)        | 10           | 60                     | —               | 1 min  |
-| `POST /api/events/:slug/photos`               | **(defect)** | **(defect)**           | —               | 1 min  |
-| `POST /api/events/:slug/clips`                | **(defect)** | **(defect)**           | —               | 1 min  |
-| `POST /api/events/:slug/photos/:id/reactions` | 120          | 600                    | 60              | 1 min  |
-| the five other guest writes (below)           | 300 per pair | (keyed together)       | —               | 1 min  |
-| `GET /api/events/:slug/stream` (SSE)          | 5 concurrent | 200 concurrent         | —               | —      |
-| `GET /api/gallery/:token`, `…/photos`, unlock | 120          | —                      | —               | 1 min  |
-| `GET /api/gallery-media/…`                    | 3000         | —                      | —               | 1 min  |
-| `POST /api/gallery/:token/unlock` (failures)  | 10           | 50 per link            | —               | 15 min |
-| `GET /api/gallery-media/:linkId/album.zip`    | 2 concurrent | 4 concurrent, box-wide | —               | —      |
+| Endpoint                                             | Per IP       | Per event              | Per guest token | Window |
+| ---------------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
+| `POST /api/auth/login` †                             | 10           | —                      | —               | 1 min  |
+| `POST /api/events` (create)\*                        | —            | —                      | —               | 1 hour |
+| `GET /api/join/:code` (code lookup)                  | 20 (as join) | —                      | —               | 1 min  |
+| `POST /api/events/:slug/guests` (join)               | 10           | 60                     | —               | 1 min  |
+| `POST /api/events/:slug/photos`                      | **(defect)** | **(defect)**           | —               | 1 min  |
+| `POST /api/events/:slug/clips`                       | **(defect)** | **(defect)**           | —               | 1 min  |
+| `POST /api/events/:slug/photos/:id/reactions`        | 120          | 600                    | 60              | 1 min  |
+| the five other guest writes (below)                  | 300 per pair | (keyed together)       | —               | 1 min  |
+| `GET /api/events/:slug/stream` (SSE)                 | 5 concurrent | 200 concurrent         | —               | —      |
+| `GET /api/gallery/:token`, `…/photos`, unlock        | 120          | —                      | —               | 1 min  |
+| `GET /api/gallery-media/…`                           | 3000         | —                      | —               | 1 min  |
+| `POST /api/gallery/:token/unlock` (failures)         | 10           | 50 per link            | —               | 15 min |
+| `GET /api/gallery-media/:linkId/album.zip`           | 2 concurrent | 4 concurrent, box-wide | —               | —      |
+| `GET /api/events/:slug/album.zip`, `…/best-of.zip` ‡ | 2 concurrent | 4 concurrent, box-wide | —               | —      |
+
+**Doors that compare the password of a signed-in account** (`/api/auth/password`, `/api/auth/account/delete`, and the second-step doors `login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm`): the sign-in budget per address (a limiter of its own on each route), and **one** budget per account shared by all six, 10 wrong attempts per 15 minutes from every address together (`auth.tooManySecondFactorAttempts`, with `Retry-After`). Failures only; on the password change a failure is the wrong current password alone, not a new password the policy refuses (a `400`), so an invited moderator who must choose a password is not locked out by their own typos. The budget can also be spent by whoever holds a stolen session: the owner is then refused those six doors for a quarter of an hour, as step-up already allowed; accepted, because the alternative is unlimited guessing. Before, `/api/auth/password` had no limiter and a stolen session could guess the current password at bcrypt speed (review 2026-11-13, SEC-01).
 
 **\*** Keyed by **account**, which none of this table's three columns name — the one
 row here that is not about an anonymous caller. An office or a venue's own guest Wi-Fi is
@@ -1144,6 +1156,17 @@ one address shared by several hosts, and one host's burst of event creation must
 spend a colleague's allowance; `EVENT_CREATION_RATE_LIMIT_PER_HOUR` (default **20**; the four other per-account hourly limits are settings too, see `docs/OPERATING.md`) and
 `event.creationRateLimited` are in `env.ts` and `middleware/rateLimit.ts` (P4-09 / D-14,
 roadmap G3-05).
+
+**‡** The host's two ZIP exports, keyed by **account** (after `requireRole`) and not by address, with **one
+shared allowance**: an album and a best-of count together (`hostExportLimiter` in `middleware/rateLimit.ts`, built
+once in `server.ts`; SEC-04, review 13/11/2026). They read the same files as the gallery's archive, which was
+already bounded, and a moderator invited by a client could start dozens at once and saturate the disk every other
+event on the box shares, a live wall included. The box-wide four is its **own counter**, not the gallery's: a
+shared one would let anybody holding a public link fill it and refuse every host's export. Two accounts at their two can therefore fill the box's four and every other host is
+answered `503` until one ends: a trade accepted, the disk before the availability of an export. Worst case on the disk is
+eight archives, each read one photograph at a time. The slot is released when the response closes, whichever way it
+ended, so an export the use case refuses (`404`, `409 highlight.empty`) gives it back at once. The reel and the
+photo book are single files served with `Range`, not archives, and are not counted.
 
 **(defect)** The two upload rows describe three independent limits and there are two.
 `uploadLimiter` in `middleware/rateLimit.ts` mints a single bucket keyed by
@@ -2245,6 +2268,13 @@ lives — in the code where it can be, in the procedure where it cannot:
   album and sits on the volume uploads fill, so it is deleted there once the copy has
   verified. A drive mounted into a one-off container, given as `--to` and writable by
   uid 1000, keeps it off the volume entirely.
+- **Where an archive may not land.** Inside the media root, around it, or around the
+  database file. `restore` empties the media root and rewrites the database, so an
+  archive in either place deletes itself after the database is already replaced; `backup`
+  would walk its own half-written output. `assertArchiveApart`
+  (`src/infrastructure/db/backup/containment.ts`) refuses both before anything is
+  touched, on real paths (symlinks, junctions, `..`, case-folding filesystems), and
+  not subject to `--force`. The image's default layout is unaffected.
 - **Restore never races the server — by procedure, not by lock.** It is run with
   `docker compose run --rm` after `docker compose stop`, never with `exec` into the
   running container. The `-wal`/`-shm` warning above is a hint, not a lock — SQLite

@@ -1,4 +1,5 @@
 import request from '../testing/request'
+import { hostExportLimiter } from '../middleware/rateLimit'
 import type { Agent } from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
@@ -114,7 +115,7 @@ const buildWorld = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World =
           creationLimiter: (_req, _res, next) => next(),
         }),
       )
-      app.use('/api', mediaRoutes({ deps, usecases }))
+      app.use('/api', mediaRoutes({ deps, usecases, hostExportLimiter: hostExportLimiter() }))
     },
   })
 

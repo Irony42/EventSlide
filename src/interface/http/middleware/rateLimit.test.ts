@@ -32,6 +32,7 @@ import {
   secondFactorAccountLimiter,
   secondFactorLimiter,
   streamConnectionLimiter,
+  type StreamConnectionLimits,
   uploadBodyDeadline,
   uploadConcurrencyLimiter,
   uploadGuestLimiter,
@@ -531,7 +532,7 @@ describe('the stream connection limiter', () => {
   }
 
   /** A route that answers and then holds the socket, the way a stream does. */
-  const listening = async (limits: { perClient: number; total: number }): Promise<number> => {
+  const listening = async (limits: StreamConnectionLimits): Promise<number> => {
     const held: Response[] = []
     const app = express()
     app.set('trust proxy', 1)
@@ -551,10 +552,17 @@ describe('the stream connection limiter', () => {
   }
 
   /** Opens one connection and resolves as soon as the server has answered its headers. */
-  const connect = (port: number, address: string): Promise<Connection> =>
+  const connect = (port: number, address: string, account?: string): Promise<Connection> =>
     new Promise((resolve, reject) => {
       const outgoing = http.get(
-        { port, path: '/events/mariage/stream', headers: { 'X-Forwarded-For': address } },
+        {
+          port,
+          path: '/events/mariage/stream',
+          headers: {
+            'X-Forwarded-For': address,
+            ...(account === undefined ? {} : { 'X-Account': account }),
+          },
+        },
         (incoming) => {
           incoming.setEncoding('utf8')
           let body = ''
@@ -633,6 +641,45 @@ describe('the stream connection limiter', () => {
     await expect
       .poll(async () => (await connect(port, SAME_SUBNET[0])).status, { timeout: 3_000 })
       .toBe(200)
+  })
+
+  describe('counted per key rather than per address (SEC-04)', () => {
+    const byAccount = (req: express.Request): string => String(req.get('X-Account'))
+
+    it('counts one account across addresses, and two accounts behind one address apart', async () => {
+      const port = await listening({ perClient: 1, total: 10, key: byAccount })
+
+      await connect(port, SAME_SUBNET[0], 'alice')
+      const elsewhere = await connect(port, OTHER_SUBNET, 'alice')
+      const sameAddress = await connect(port, SAME_SUBNET[0], 'bob')
+
+      expect(elsewhere.status).toBe(429)
+      expect(elsewhere.headers['retry-after']).toBe('30')
+      expect(sameAddress.status).toBe(200)
+    })
+
+    it('still answers 503 once the process is full, whoever is asking', async () => {
+      const port = await listening({ perClient: 1, total: 2, key: byAccount })
+      await connect(port, SAME_SUBNET[0], 'alice')
+      await connect(port, SAME_SUBNET[0], 'bob')
+
+      const refused = await connect(port, SAME_SUBNET[0], 'carol')
+
+      expect(refused.status).toBe(503)
+      expect(refused.headers['retry-after']).toBe('30')
+    })
+
+    it('gives the account’s slot back when its response closes', async () => {
+      const port = await listening({ perClient: 1, total: 10, key: byAccount })
+      const first = await connect(port, SAME_SUBNET[0], 'alice')
+      expect((await connect(port, SAME_SUBNET[0], 'alice')).status).toBe(429)
+
+      first.close()
+
+      await expect
+        .poll(async () => (await connect(port, SAME_SUBNET[0], 'alice')).status, { timeout: 3_000 })
+        .toBe(200)
+    })
   })
 
   it('answers 503 rather than 429 once the process itself is full', async () => {

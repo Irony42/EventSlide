@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { probeFfmpegCapability, resolveBinary } from './ffmpegBinaries'
+import { missingEncoders, probeFfmpegCapability, resolveBinary } from './ffmpegBinaries'
 import { minimalChildEnv } from './runProcess'
 
 /**
@@ -167,6 +167,47 @@ describe('resolveBinary', () => {
   })
 })
 
+describe('missingEncoders', () => {
+  const WANTED = ['libx264', 'aac'] as const
+  const row = (name: string, description: string): string =>
+    ` A....D ${name.padEnd(20)} ${description}`
+
+  it('finds a build that lists both encoders under their own names', () => {
+    const listing = [
+      ' V....D libx264              libx264 H.264 / AVC (codec h264)',
+      row('aac', 'AAC (Advanced Audio Coding)'),
+    ].join('\n')
+
+    expect(missingEncoders(listing, WANTED)).toEqual([])
+  })
+
+  it('says aac is missing from a build that only has libfdk_aac (BUG-13)', () => {
+    const listing = [
+      ' V....D libx264              libx264 H.264 / AVC (codec h264)',
+      row('libfdk_aac', 'Fraunhofer FDK AAC (codec aac)'),
+    ].join('\n')
+
+    expect(missingEncoders(listing, WANTED)).toEqual(['aac'])
+  })
+
+  it('does not take aac_mf, whose description says (codec aac), for aac (BUG-13)', () => {
+    expect(missingEncoders(row('aac_mf', 'AAC via MediaFoundation (codec aac)'), ['aac'])).toEqual([
+      'aac',
+    ])
+  })
+
+  it('does not take libx264rgb for libx264 (BUG-13)', () => {
+    expect(missingEncoders(' V....D libx264rgb  libx264 H.264 RGB', ['libx264'])).toEqual([
+      'libx264',
+    ])
+  })
+
+  it('reads a listing with Windows line endings', () => {
+    expect(missingEncoders(`${row('aac', 'AAC')}
+`, ['aac'])).toEqual([])
+  })
+})
+
 describe('probeFfmpegCapability', () => {
   it('reports what is missing when there is no encoder on the box', async () => {
     const capability = await probeFfmpegCapability({ search: NOWHERE, packages: NO_PACKAGES, env: ENV })
@@ -185,6 +226,32 @@ describe('probeFfmpegCapability', () => {
     })
 
     expect(!capability.available && capability.reason).toContain('ffprobe')
+  })
+
+  it('says there is no video on a build that only has libfdk_aac, once, at boot (BUG-13)', async () => {
+    const listing = [
+      ' V....D libx264              libx264 H.264 / AVC (codec h264)',
+      ' A....D libfdk_aac           Fraunhofer FDK AAC (codec aac)',
+    ].join('\n')
+
+    const capability = await probeFfmpegCapability({
+      ffmpegPath: NODE,
+      ffprobePath: NODE,
+      search: NOWHERE,
+      env: ENV,
+      run: async () => ({
+        ok: true,
+        failure: null,
+        code: 0,
+        signal: null,
+        stdout: listing,
+        stdoutTruncated: false,
+        stderr: '',
+      }),
+    })
+
+    expect(capability.available).toBe(false)
+    expect(!capability.available && capability.reason).toContain('no aac encoder')
   })
 
   it('refuses a binary that cannot list its encoders', async () => {

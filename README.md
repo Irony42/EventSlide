@@ -135,6 +135,12 @@ It prints the archive's name. Copy it off the machine before you delete it from 
 until then it is on the same disk as the photographs. Restoring, the USB-drive variant and
 the npm scripts are in [docs/OPERATING.md](docs/OPERATING.md#backups).
 
+Keep the archive **outside the media directory**, and the media directory outside the
+archive. `backup` and `restore` both refuse the overlap, naming the two paths, before they
+touch anything and whatever `--force` says: a restore empties the media directory, so an
+archive inside it would delete itself. The default layout (`/data/backups` beside
+`/data/media`) is fine; `MEDIA_ROOT=/data` is not, so give `--to` a directory beside it.
+
 ## Upgrading
 
 Run a tagged release, not the tip of `main`, and take a backup first: migrations only go
