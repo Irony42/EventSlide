@@ -271,6 +271,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       controllers.current.get(id)?.abort()
       owed.current.delete(id)
       prepared.current.delete(id)
+      retryAfterRun.current = retryAfterRun.current.filter((queued) => queued !== id)
       const target = itemsRef.current.find((item) => item.id === id)
       if (target !== undefined) {
         URL.revokeObjectURL(target.previewUrl)
@@ -428,6 +429,8 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
           batch = retryAfterRun.current.splice(0)
         }
       } finally {
+        // Whatever is left in line when the run ends abnormally is not sent behind the guest's back.
+        retryAfterRun.current = []
         running.current = false
         setSending(false)
         // Read from the mirror: the rendered `items` is a snapshot of the past.
@@ -447,7 +450,10 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       // lost the connection must not lose it. The mission is not here: each row carries
       // the one that was selected when it was picked.
       lastCaption.current = batchCaption
-      const ids = itemsRef.current.filter((item) => item.state === 'pending').map((item) => item.id)
+      // Not the rows a retry has already put in line: they keep the words they were first sent with.
+      const ids = itemsRef.current
+        .filter((item) => item.state === 'pending' && !retryAfterRun.current.includes(item.id))
+        .map((item) => item.id)
       commit(
         itemsRef.current.map((item) =>
           ids.includes(item.id)

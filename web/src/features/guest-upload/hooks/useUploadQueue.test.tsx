@@ -1118,6 +1118,27 @@ describe('useUploadQueue: what a row remembers of its own batch and of its own b
     ])
   })
 
+  it('keeps a retry waiting for the run to end out of a batch sent meanwhile (BUG-21)', async () => {
+    const gate = deferred()
+    const uploadPhotos = vi.fn(async (_slug: string, input: UploadInput) => {
+      const name = input.files[0]?.name ?? ''
+      if (name === 'a.jpg' && uploadPhotos.mock.calls.length === 1) throw new ApiError(0, 'network')
+      if (name === 'b.jpg') await gate.promise
+      return accepted(`photo-${name}`)
+    })
+    const { result } = mount(fakeApi({ uploadPhotos }))
+    act(() => result.current.add([aPhotoFile('a.jpg'), aPhotoFile('b.jpg')]))
+    act(() => result.current.send('Premier', 'challenge-1'))
+    await waitFor(() => expect(result.current.items[1]?.state).toBe('uploading'))
+    act(() => result.current.retry(result.current.items[0]?.id ?? ''))
+
+    act(() => result.current.send('Second', 'challenge-2'))
+    gate.resolve()
+
+    await waitFor(() => expect(uploadPhotos).toHaveBeenCalledTimes(3))
+    expect(uploadPhotos.mock.calls[2]?.[1].caption).toBe('Premier')
+  })
+
   it('does not keep the shrunk file of a row stored offline (BUG-19)', async () => {
     const shrunk = aPhotoFile('reduite.jpg')
     // Every Map that was handed the shrunk file, caught as it is written to: the hook's

@@ -8,6 +8,7 @@ import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import notice from '../../design-system/components/Notice.module.css'
 import { classesOf, cls } from '../../testing/classesOf'
+import { openOutbox } from '../../lib/offline/openOutbox'
 import {
   aJoinResponse,
   aPrivacyNoticeState,
@@ -272,6 +273,15 @@ const asInstalledApp = (): void => {
   )
 }
 
+const aPendingPhoto = (slug: string) => ({
+  slug,
+  bytes: new Uint8Array([0xff, 0xd8, 0xff]).buffer,
+  fileName: 'avant.jpg',
+  fileType: 'image/jpeg',
+  caption: null,
+  missionId: null,
+})
+
 const havingJoined = (slug: string): void => {
   rememberGuestSession({
     event: aPublicEvent({ slug, name: 'Kermesse' }),
@@ -338,6 +348,20 @@ describe('JoinPage: a way out of the wrong event (A10)', () => {
     expect(await screen.findByLabelText(fr.join.codeLabel)).toHaveValue('')
     expect(readRememberedGuestSession()).toBeNull()
     expect(api.join).toHaveBeenCalledTimes(1)
+  })
+
+  it('takes the photos waiting on this phone for that event with it (QUAL-06)', async () => {
+    const store = await openOutbox()
+    await store.add(aPendingPhoto('camille-et-sacha'), 1)
+    const api = fakeApi({
+      join: vi.fn(async () => aJoinResponse({ event: aPublicEvent({ name: 'Kermesse' }) })),
+    })
+    renderJoin('/join/H7K2QM', api)
+    await screen.findByRole('heading', { name: fr.join.welcome('Kermesse') })
+
+    await userEvent.click(screen.getByRole('button', { name: fr.join.notYourEvening }))
+
+    await waitFor(async () => expect(await store.list('camille-et-sacha')).toEqual([]))
   })
 
   it('does not offer it while the code is still being resolved or typed', () => {
