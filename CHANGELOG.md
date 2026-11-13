@@ -20,6 +20,116 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.13.0] - 2026-11-13
+
+Everything merged to `main` after the tag `v3.12.0`: pull requests #444 to #447 and #449 to #463. This is a minor
+release: the host's event page opens with a guided tour on the first visit, and a code review of the whole
+application (security first) was turned into fixes: the consoles and the wall no longer keep a stale answer under
+load, a guest's waiting photos survive more of what a phone does to them, and four doors that had no bound now have
+one. One migration, 028 (`user_tours`), applied at start-up. Nothing to set.
+
+### The room
+
+- **Under steady traffic the wall keeps reading its playlist** (#454). Each signal used to cancel the read in
+  flight and start another, so with photos arriving faster than a read completes none ever landed and the wall
+  stayed on its last answer. One read is in flight at a time, signals that arrive meanwhile ask for one more after
+  it, and a burst is grouped over 250 ms. After the stream reconnects the wall reads again, at a slightly random
+  delay so a room of screens does not ask at the same instant.
+- **A photograph that fails to load never shows the browser's broken-image mark** (#460): it is hidden, its place
+  kept, and the wall reads its playlist again, once. The arrival tone is asked for again at the next chime after a
+  failed load, instead of staying silent for the evening.
+
+### Guests
+
+- **Photos waiting to be sent survive more** (#453, #459). On a phone whose browser has no storage for the queue
+  (private browsing), photos still waiting are kept when the guest leaves the upload screen and sent when they come
+  back to it; a page reload still loses them. The `?offline=off` switch still turns the offline mode off, and now
+  sends the photos the queue was holding instead of deleting them.
+- **Composed emojis stay whole in a caption, a name or a message, and lengths are counted in characters** (#461),
+  as the guestbook already did: a family emoji or a flag is no longer cut in pieces, and no longer costs several
+  characters of the limit.
+- **A slow-motion clip comes out at 60 frames per second** (#458) instead of its declared 120 or 240, which no
+  projector shows and which cost the box minutes of encoding. A file declaring more than 1 000 frames per second
+  is refused as corrupt.
+
+### Hosts and moderators
+
+- **A guided tour on the first visit to an event's page** (#450): welcome, the "Maintenant" card, the access card,
+  the lifecycle button, "Modérer" and "Ouvrir l'écran", "Tout l'évènement", and the « Visite guidée » button that
+  replays it at any time. Offered once per account, remembered on the server, so not again after a reload or on
+  another device; not offered by itself on a live event with photos waiting. A moderator gets a shorter one. In the
+  five languages.
+- **A decision key held down decides one photo, not the whole queue** (#462): the keyboard's auto-repeat of P, R,
+  H, F, Z and Space is ignored in both consoles; J and K still repeat to move.
+- **The moderation consoles read again when the live stream comes back** (#454, #462), photos and guestbook, so the
+  "Live" badge no longer sits on a queue from before the cut. A guestbook decision that fails goes back to its
+  place with the count corrected, and an undo whose second half fails keeps what the first half restored.
+- **A save is no longer overwritten by an older answer** (#460, #462): the wall panel numbers its saves and keeps
+  the newest, and a page that reloads while a save returns keeps the saved values.
+- **The browser's Back button asks before leaving the recovery codes** (#462), like the links of the page already
+  did, and the moderator invitation link asks until it has been copied. A long press on Back that jumps several
+  pages at once is not held.
+- **The shared gallery's viewer stays on the photograph being looked at** (#460) when the album changes under it,
+  (it closes if that photograph is gone), and reads the album again when the phone wakes up, so its one-hour
+  addresses are fresh.
+- **Changing or resetting a password can no longer undo what happened meanwhile** (#452). The password is written
+  only if the account is still enabled and its password is still the one that was checked, so an owner who disables
+  an account, or a reset, is not silently reversed by a change that was in flight.
+- **The current password is no longer guessable without limit on the change-password form** (#455): it has the
+  limits of a sign-in's second step and shares the account's budget of ten wrong attempts per quarter of an hour.
+  Only a wrong current password spends it; a new password the policy refuses spends nothing.
+- **At most two ZIP exports at once per account, four on the box** (#457), the album and the best-of counted
+  together; past that the answer is `429 rate.limited` or `503 service.notReady` with `Retry-After: 30`.
+- **A new account's address must be one mailbox** (#461): a list of addresses, or a name with an address in angle
+  brackets, is refused. Addresses already stored are read as before, and their accounts sign in as before.
+- **The moderation queue asks storage for the page it shows** (#461) instead of loading the whole event and
+  sorting it in memory, and a guest can no longer write a caption on an event that has stopped accepting (they
+  can still remove theirs).
+
+### Operators
+
+- **A request must arrive within the upload time plus one minute** (#451). The server had no limit on how long a
+  request takes to arrive, so a connection that sent a JSON body one byte at a time was held for ever, without
+  signing in. The limit is `UPLOAD_BODY_TIMEOUT_SECONDS` + 60 s (never under 70 s) and bounds reception only: an
+  SSE stream and a ZIP export are not cut by it.
+- **`backup` and `restore` refuse an archive that overlaps the installation** (#456): an archive inside the media
+  root, the media root inside the archive, or the database inside the archive. `restore --force` used to empty the
+  media root and delete the archive it was reading from, after the database was already replaced. The refusal
+  names both paths, says what to do, and touches nothing. The image's default layout (`/data/media` beside
+  `/data/backups`) is not concerned.
+- **A stored photograph is on the disk before its row exists** (#458): the media file is synced before it takes its
+  name and its directory after, so a power cut no longer leaves a row over an empty file. The clip encoders are
+  recognised by their whole name: a build that only has `libfdk_aac` no longer passes for one that has `aac`.
+- **The wall's `e2e_interval` and `e2e_transition` address parameters are bounded** (#460) to what the settings
+  accept (0, or 50 ms to 10 minutes; 0 to 10 s): a link can no longer put a projector in a one-millisecond loop.
+
+### Under the hood
+
+- The host surface signs in through the API in the end-to-end fixture (#449). A release recipe for agents,
+  `.claude/skills/eventslide-release/` (#463). No product change in either.
+
+### Dependencies and security
+
+- nodemailer 10.3.1 to 10.4.0 (#444); two GitHub Actions (#445); development dependencies, among them jsdom 31
+  (#446, #447).
+- The findings above come from one review on 13 November; none was known to be exploited. The ones with a
+  security bearing are #451 (unbounded request reception), #452 (a disabled account re-enabled by a concurrent
+  password change), #455 (unlimited guesses of the current password) and #457 (unbounded exports).
+
+### Behaviour changes to check before upgrading
+
+- **One migration, 028** (`user_tours`), applied at start-up: a new table, nothing existing is rewritten. Back up
+  first, as for every upgrade.
+- Nothing to set in `.env`. `UPLOAD_BODY_TIMEOUT_SECONDS` now also decides the server's request timeout (its value
+  plus 60 s), which bounds how long any request takes to arrive. A reverse proxy's own body timeout stays as
+  `.env.example` already says: at least `UPLOAD_BODY_TIMEOUT_SECONDS`.
+- `POST /api/auth/password` can now answer `429`; the host ZIP exports can answer `429` or `503` with
+  `Retry-After`. A script that calls them should wait and try again.
+- A `backup --to` or a `restore` whose archive sits inside `MEDIA_ROOT` (or the reverse) is now refused. Move the
+  archive beside the media root.
+- Clips declared above 60 frames per second are stored at 60.
+- Every account sees the guided tour once, on its next visit to an event's page.
+
 ## [3.12.0] - 2026-11-12
 
 Everything merged to `main` after the tag `v3.11.0`: pull requests #438, #440, #441 and #442. This is a minor
