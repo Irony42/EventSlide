@@ -59,6 +59,12 @@ export interface BinaryOverrides {
    */
   readonly env: Readonly<Record<string, string>>
   /**
+   * How the `-encoders` child is run. Production never passes it; a test hands in a
+   * stand-in that answers the probe output of a build it does not have installed (one
+   * with only `libfdk_aac`), which no executable on a test machine can be made to print.
+   */
+  readonly run?: typeof runProcess
+  /**
    * The packages the bundled-binary fallback resolves through. Production never passes
    * it; {@link STATIC_PACKAGES} is the answer there.
    *
@@ -188,6 +194,24 @@ export type FfmpegCapability =
 const CAPABILITY_TIMEOUT_MS = 10_000
 
 /**
+ * Which of `wanted` the `-encoders` listing does not carry, **by the encoder's own name**.
+ *
+ * A row reads ` A....D aac   AAC (Advanced Audio Coding)`: six flag characters, then the
+ * name, then a description. Matching the name as a substring accepted `libfdk_aac` or
+ * `aac_mf` as `aac` (and `libx264rgb` as `libx264`), after which every clip failed on
+ * `-c:a aac`; and matching a word anywhere in the line is no better, because the
+ * description of `aac_mf` says `(codec aac)`. So the second token of a row is compared.
+ */
+export const missingEncoders = (listing: string, wanted: readonly string[]): string[] => {
+  const names = new Set<string>()
+  for (const line of listing.split(/\r?\n/)) {
+    const [flags, name] = line.trim().split(/\s+/)
+    if (flags !== undefined && name !== undefined && /^[VASFXBD.]{6}$/.test(flags)) names.add(name)
+  }
+  return wanted.filter((encoder) => !names.has(encoder))
+}
+
+/**
  * Whether this box can encode what a browser will play.
  *
  * The check is `-encoders`, and what it looks for is `libx264` and `aac` **by name**.
@@ -216,7 +240,7 @@ export const probeFfmpegCapability = async (
     return { available: false, reason: ffprobe.reason ?? 'ffprobe was not found' }
   }
 
-  const encoders = await runProcess({
+  const encoders = await (overrides.run ?? runProcess)({
     binary: ffmpeg.path,
     args: ['-hide_banner', '-loglevel', 'error', '-nostdin', '-encoders'],
     env: overrides.env,
@@ -236,7 +260,7 @@ export const probeFfmpegCapability = async (
   }
 
   const listing = encoders.stdout
-  const missing = (['libx264', 'aac'] as const).filter((encoder) => !listing.includes(encoder))
+  const missing = missingEncoders(listing, ['libx264', 'aac'])
   if (missing.length > 0) {
     return {
       available: false,
