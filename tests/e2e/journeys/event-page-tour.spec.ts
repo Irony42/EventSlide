@@ -72,6 +72,16 @@ test('a host is shown the event page once, on their first visit, and not again o
   await expect(tour).toHaveAccessibleName(fr.admin.tourWelcomeTitle)
   await expectContained(page, tour)
 
+  // Nothing on the page can be pressed from under the tour: a click aimed at "Ouvrir aux
+  // invités" lands on the tour's layer, so no confirmation opens and the event stays a draft.
+  const goLive = await page.locator('[data-tour="lifecycle"] button').first().boundingBox()
+  if (goLive === null) throw new Error('the lifecycle button was never laid out')
+  await page.mouse.click(goLive.x + goLive.width / 2, goLive.y + goLive.height / 2)
+  await expect(page.getByRole('dialog')).toHaveCount(1)
+  await expect(tour).toHaveAccessibleName(fr.admin.tourWelcomeTitle)
+  const event = await account.api.get(`/api/events/${slug}`)
+  expect(event.body['status']).toBe('draft')
+
   // Through every stop of a draft owner's tour, each laid out where it fits.
   const stops = [
     fr.admin.tourNowTitle,
@@ -85,8 +95,16 @@ test('a host is shown the event page once, on their first visit, and not again o
   for (const [index, title] of stops.entries()) {
     await expect(tour).toHaveAccessibleName(title)
     await expectContained(page, tour)
-    const next = index === stops.length - 1 ? fr.ui.tourFinish : fr.ui.tourNext
-    await tour.getByRole('button', { name: next }).click()
+    if (index < stops.length - 1) {
+      await tour.getByRole('button', { name: fr.ui.tourNext }).click()
+    } else {
+      // Finished, and told to the server before anything reloads: the write is what the rest of
+      // this journey is about.
+      await Promise.all([
+        page.waitForResponse((response) => response.url().endsWith('/api/auth/tours/eventPage')),
+        tour.getByRole('button', { name: fr.ui.tourFinish }).click(),
+      ])
+    }
   }
   await expect(tour).toHaveCount(0)
   // Focus is on the button that brings it back.

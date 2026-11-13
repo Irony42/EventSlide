@@ -17,10 +17,13 @@ export interface EventTourState {
  *
  * It opens by itself on an account's first visit (`toursSeen` on `GET /api/auth/me`, so per
  * account and not per browser), unless `offersTourOnArrival` says the moment is wrong; it opens
- * on the button any time. Closing it, at the end or early, records it as seen on the server and
- * in the shared session, so neither another page of this console nor another device offers it a
- * second time. A failed write is not shown to the host: the worst it costs is the tour offered
- * once more, on the next device.
+ * on the button any time. **Decided once, on arrival**: a photo arriving mid-tour does not pull
+ * the tour from under the reader, and a queue emptied later does not pop it over the host.
+ *
+ * Closing it, at the end or early, records it as seen on the server and in the shared session,
+ * so neither another page of this console nor another device offers it a second time. A failed
+ * write is not shown to the host: the worst it costs is the tour offered once more, on the next
+ * device (a host who closes it and leaves the page in the same instant may lose the write too).
  */
 export const useEventTour = (
   facts: { readonly status: EventStatus; readonly pendingCount: number } | null,
@@ -31,10 +34,21 @@ export const useEventTour = (
   const [state, setState] = useState<'arriving' | 'open' | 'closed'>('arriving')
 
   const seen = session?.authenticated === true ? session.user.toursSeen : null
-  const offered =
-    facts !== null &&
-    seen !== null &&
-    offersTourOnArrival({ toursSeen: seen, status: facts.status, pendingCount: facts.pendingCount })
+
+  // Adjusted during render rather than in an effect, as React advises for state derived from
+  // props the first time they are known: no frame shows the page without the tour it is about to
+  // open. Guarded, so it runs once.
+  if (state === 'arriving' && facts !== null && seen !== null) {
+    setState(
+      offersTourOnArrival({
+        toursSeen: seen,
+        status: facts.status,
+        pendingCount: facts.pendingCount,
+      })
+        ? 'open'
+        : 'closed',
+    )
+  }
 
   const replay = useCallback(() => setState('open'), [])
 
@@ -54,5 +68,5 @@ export const useEventTour = (
     api.markTourSeen('eventPage').catch(() => undefined)
   }, [amend, api, seen])
 
-  return { open: state === 'open' || (state === 'arriving' && offered), replay, close }
+  return { open: state === 'open', replay, close }
 }

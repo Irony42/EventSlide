@@ -41,7 +41,7 @@ const FOCUSABLE = 'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1
 
 /** What one measure of a step found: where its region is, and where its bubble goes. */
 interface Layout {
-  readonly step: TourStep
+  readonly stepId: string
   readonly sheet: boolean
   readonly box: Box | null
   readonly placement: TourPlacement | null
@@ -100,40 +100,57 @@ function TourLayer({ steps: offered, onFinish, onDismiss, returnFocusRef }: Guid
   const bubbleRef = useRef<HTMLDivElement>(null)
   const primaryRef = useRef<HTMLButtonElement>(null)
 
+  const layerRef = useRef<HTMLDivElement>(null)
+
   // Decided once, when the tour opens: a step about something this page does not show (a
   // moderator has no lifecycle buttons) is not a step. On the next frame and not during render: a
   // tour that opens with the page is rendered in the same commit as the regions it lights, and
-  // they are not in the document until that commit lands.
-  const [steps, setSteps] = useState<readonly TourStep[] | null>(null)
+  // they are not in the document until that commit lands. Only the ids are kept, so the words of
+  // each step stay the page's current ones (a language switched while the tour is open).
+  const [kept, setKept] = useState<readonly string[] | null>(null)
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      setSteps(offered.filter((step) => step.targets.length === 0 || elementsOf(step).length > 0))
+      setKept(
+        offered
+          .filter((step) => step.targets.length === 0 || elementsOf(step).length > 0)
+          .map((step) => step.id),
+      )
     })
     return () => cancelAnimationFrame(frame)
     // Once per opening, on purpose: a page that re-renders does not reshuffle the tour under the reader.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  const steps = kept === null ? null : offered.filter((step) => kept.includes(step.id))
   const [opener] = useState(() => document.activeElement)
   const [index, setIndex] = useState(0)
   const [layout, setLayout] = useState<Layout | null>(null)
 
   const step = steps?.[index]
+  const stepId = step?.id
   const last = steps !== null && index === steps.length - 1
   const intro = step !== undefined && step.targets.length === 0 && index === 0
   const numbered = (steps ?? []).filter((candidate) => candidate.targets.length > 0)
-  const position = step === undefined ? 0 : numbered.indexOf(step) + 1
+  const position = step === undefined ? 0 : numbered.findIndex((one) => one.id === step.id) + 1
   // A step is shown once it has been measured: until then its bubble is laid out but hidden, so
   // it never shows for a frame where the last step left it.
-  const pending = step === undefined || layout?.step !== step
+  const pending = step === undefined || layout?.stepId !== step.id
+
+  // The step as the page describes it now, for the measure that runs on scroll and resize: the
+  // page hands a new list on every render, and the effects below must not restart for that.
+  const stepRef = useRef(step)
+  useEffect(() => {
+    stepRef.current = step
+  })
 
   const measure = useCallback(() => {
-    if (step === undefined) return
+    const current = stepRef.current
+    if (current === undefined) return
     const viewport = { width: window.innerWidth, height: window.innerHeight }
     const narrow = viewport.width < SHEET_BELOW
-    const target = boxOf(step)
+    const target = boxOf(current)
     const bubble = bubbleRef.current
     setLayout({
-      step,
+      stepId: current.id,
       sheet: narrow,
       box: target === null ? null : padded(target),
       placement:
@@ -143,16 +160,17 @@ function TourLayer({ steps: offered, onFinish, onDismiss, returnFocusRef }: Guid
               padded(target),
               { width: bubble.offsetWidth, height: bubble.offsetHeight },
               viewport,
-              step.side,
+              current.side,
             ),
     })
-  }, [step])
+  }, [])
 
   // Each step brings what it lights into view, is measured on the next frame, and again on every
   // scroll and resize after that, so the light follows the page.
   useEffect(() => {
-    if (step === undefined) return
-    const first = elementsOf(step)[0]
+    const current = stepRef.current
+    if (current === undefined) return
+    const first = elementsOf(current)[0]
     if (first !== undefined && typeof first.scrollIntoView === 'function') {
       first.scrollIntoView({
         block: window.innerWidth < SHEET_BELOW ? 'start' : 'center',
@@ -171,12 +189,27 @@ function TourLayer({ steps: offered, onFinish, onDismiss, returnFocusRef }: Guid
       window.removeEventListener('scroll', schedule, { capture: true })
       window.removeEventListener('resize', schedule)
     }
-  }, [step, measure])
+  }, [stepId, measure])
 
   // The step's main button takes focus once the step is shown: a hidden button cannot.
   useEffect(() => {
     if (!pending) primaryRef.current?.focus({ preventScroll: true })
-  }, [pending, step])
+  }, [pending, stepId])
+
+  // The page under the tour is inert while it is open: no click, no focus, and nothing a screen
+  // reader can wander into. Everything else in the body is, not only the app: a toast or another
+  // portal is as much "under" the tour. Each element is given back as it was.
+  useEffect(() => {
+    const layer = layerRef.current
+    const others = Array.from(document.body.children).filter(
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement && element !== layer && !element.hasAttribute('inert'),
+    )
+    for (const element of others) element.setAttribute('inert', '')
+    return () => {
+      for (const element of others) element.removeAttribute('inert')
+    }
+  }, [])
 
   const next = useCallback(() => {
     if (last) onFinish()
@@ -186,12 +219,16 @@ function TourLayer({ steps: offered, onFinish, onDismiss, returnFocusRef }: Guid
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      // Not the browser's own shortcuts (Alt+← is "back"), and nothing before the first step.
+      if (event.altKey || event.ctrlKey || event.metaKey || stepId === undefined) return
       if (event.key === 'Escape') {
         event.preventDefault()
+        event.stopPropagation()
         onDismiss()
       } else if (event.key === 'ArrowRight') {
         event.preventDefault()
-        next()
+        // A stray key does not end the tour: finishing is the button's.
+        if (!last) next()
       } else if (event.key === 'ArrowLeft') {
         event.preventDefault()
         previous()
@@ -214,7 +251,7 @@ function TourLayer({ steps: offered, onFinish, onDismiss, returnFocusRef }: Guid
     }
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)
-  }, [next, previous, onDismiss])
+  }, [next, previous, onDismiss, last, stepId])
 
   // Focus goes back on close: to the page's "Visite guidée" button when there is one, so the
   // person learns where the tour lives, else to what had it before.
@@ -226,7 +263,7 @@ function TourLayer({ steps: offered, onFinish, onDismiss, returnFocusRef }: Guid
     [returnFocusRef, opener],
   )
 
-  if (step === undefined) return null
+  if (step === undefined) return <div ref={layerRef} className={styles['layer']} />
 
   const sheet = layout?.sheet ?? window.innerWidth < SHEET_BELOW
   // While a step is measured the light stays where the last one was; the first step has none yet.
@@ -243,7 +280,7 @@ function TourLayer({ steps: offered, onFinish, onDismiss, returnFocusRef }: Guid
         } as CSSProperties)
 
   return (
-    <div className={styles['layer']} data-testid="guided-tour">
+    <div ref={layerRef} className={styles['layer']} data-testid="guided-tour">
       {box === null ? (
         <div className={styles['dim']} aria-hidden="true" />
       ) : (

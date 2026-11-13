@@ -3,8 +3,8 @@
  *
  * A closed vocabulary rather than free text: the table's `CHECK` holds the same list, so a
  * client that sends a tour nobody wrote is refused at the edge instead of filling a row with a
- * name nothing will ever read. Adding a tour is adding a word here and a migration that widens
- * the `CHECK`.
+ * name nothing will ever read. Adding a tour is adding a word here and a migration that rebuilds
+ * `user_tours` with the wider `CHECK` (SQLite cannot alter one in place).
  *
  * - `eventPage`: the first visit to an event's page (`/admin/events/:slug`), five steps that
  *   point at the "now" card, the access card, the lifecycle buttons, the two evening tiles and

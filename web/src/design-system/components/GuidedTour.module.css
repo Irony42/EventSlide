@@ -28,6 +28,8 @@
   left: var(--space-4);
   inline-size: min(calc(var(--touch-min) * 8), calc(100vw - var(--space-6)));
   max-block-size: calc(100vh - var(--space-6));
+  /* The visible height on a phone, whose address bar comes and goes: `vh` is the tallest one. */
+  max-block-size: calc(100dvh - var(--space-6));
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -54,6 +56,7 @@
   bottom: var(--space-2);
   inline-size: auto;
   max-block-size: 60vh;
+  max-block-size: 60dvh;
 }
 
 /* The pointer: a square turned on its corner, on the edge that faces the lit region. */

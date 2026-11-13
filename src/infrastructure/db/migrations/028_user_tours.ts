@@ -6,8 +6,9 @@ import type { Migration } from '../migrator'
  *
  * - **One row per account and tour**, the pair as primary key: marking a tour twice is a no-op,
  *   and the key leads with `user_id`, which is the lookup both reads and the cascade make.
- * - **`tour` is a closed vocabulary.** The `CHECK` holds the same list as `GUIDED_TOURS`; a new
- *   tour widens it in a migration of its own.
+ * - **`tour` is a closed vocabulary.** The `CHECK` holds the same list as `GUIDED_TOURS`. SQLite
+ *   cannot alter a `CHECK`, so a new tour is a migration that rebuilds the table (copy, drop,
+ *   rename); `seenBy` already ignores a row it does not know, so a rollback reads nothing wrong.
  * - **Cascades from `users`.** An account that is deleted takes what it was shown with it.
  */
 export const migration028: Migration = {
