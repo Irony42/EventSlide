@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useApi } from '../../../lib/useApi'
+import { useReadScheduler } from '../../../lib/realtime/useReadScheduler'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 import { useLoader, type LoaderState } from '../../../lib/useLoader'
 import type { GuestbookQueueDto } from '../../../lib/api/dto'
@@ -15,14 +16,22 @@ export const useGuestbookQueue = (slug: string): LoaderState<GuestbookQueueDto> 
   const state = useLoader(load)
   const { reload } = state
 
+  // The loader cannot report when its read ends, so only the burst window applies here: a flurry
+  // of messages is one read. (`useLoader.reload` still restarts a read in flight; that is the
+  // loader's own policy, and a later change to it needs no change here.)
+  const reads = useReadScheduler(reload, { tracksSettlement: false })
+
   const onSignal = useCallback(
     (signal: StreamSignal) => {
-      if (signal.type === 'guestbook.changed') reload()
+      if (signal.type === 'guestbook.changed') reads.request()
     },
-    [reload],
+    [reads],
   )
+  // The server forgets an event's replay log when its last connection leaves: read in full
+  // when the stream comes back, whatever the signals did or did not say.
+  const onReconnect = useCallback(() => reads.request({ immediate: true }), [reads])
   const streamUrl = useMemo(() => api.moderationStreamUrl(slug), [api, slug])
-  useEventStream({ url: streamUrl, onSignal })
+  useEventStream({ url: streamUrl, onSignal, onReconnect })
 
   return state
 }

@@ -108,8 +108,10 @@ describe('WallPage', () => {
       await userEvent.keyboard('q')
       await streamSignals('photo.published')
 
+      // The signal's read is coalesced for a quarter of a second, so the photo is awaited:
+      // the empty wall's own invitation shows the same code and would satisfy the first line.
+      expect(await screen.findByTestId('wall-slide')).toBeVisible()
       expect(await screen.findByText('H7K2QM')).toBeVisible()
-      expect(screen.getByTestId('wall-slide')).toBeVisible()
     })
 
     it.each(LOCALE_TABLES)('lists Q in the shortcuts panel in %s', async (code, dictionary) => {

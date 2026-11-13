@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { useApi } from '../../../lib/useApi'
 import type { EventStatsResponse } from '../../../lib/api/dto'
 import { ApiError } from '../../../lib/http'
+import { useReadScheduler } from '../../../lib/realtime/useReadScheduler'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 import { useLoader, type LoaderState } from '../../../lib/useLoader'
 import { usePollWhile } from './usePollWhile'
@@ -61,27 +62,25 @@ export const useEventStats = (slug: string): LoaderState<EventStatsResponse> => 
   // The slow read, only while someone can see the page.
   usePollWhile(true, SLOW_REFRESH_MS, refresh)
 
-  // Signals open a five-second window; whatever arrives inside it is the same one read.
-  const pending = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(
-    () => () => {
-      if (pending.current !== null) clearTimeout(pending.current)
-    },
-    [],
-  )
+  // Signals open a five-second window; whatever arrives inside it is the same one read. Kept at
+  // five seconds, unlike the consoles' quarter of a second: each read is a set of SQL aggregates
+  // on the connection uploads share, and a figure that is a few seconds late is not a defect.
+  const reads = useReadScheduler(refresh, {
+    debounceMs: SIGNAL_DEBOUNCE_MS,
+    tracksSettlement: false,
+  })
   const onSignal = useCallback(
     (signal: StreamSignal) => {
-      if (!SIGNALS.has(signal.type) || pending.current !== null) return
-      pending.current = setTimeout(() => {
-        pending.current = null
-        refresh()
-      }, SIGNAL_DEBOUNCE_MS)
+      if (SIGNALS.has(signal.type)) reads.request()
     },
-    [refresh],
+    [reads],
   )
+  // No signal tells what happened while the stream was down (the server drops the replay log
+  // with its last connection), so the figures are read at once when it comes back.
+  const onReconnect = useCallback(() => reads.request({ immediate: true }), [reads])
 
   const streamUrl = useMemo(() => api.moderationStreamUrl(slug), [api, slug])
-  useEventStream({ url: streamUrl, onSignal })
+  useEventStream({ url: streamUrl, onSignal, onReconnect })
 
   return state
 }

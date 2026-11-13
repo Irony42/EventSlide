@@ -98,7 +98,7 @@ export function MobileModerationPage({ onSwitchView }: MobileModerationPageProps
   const messageAuthor = (message: { readonly authorName: string | null }) =>
     message.authorName ?? t.guestbookHost.anonymous
 
-  const { onSignal: onQueueSignal } = queue
+  const { onSignal: onQueueSignal, onReconnect } = queue
   const { onSignal: onMessagesSignal } = messages
   const { onSignal: onWallSignal } = onWallMessages
   const onSignal = useCallback(
@@ -113,7 +113,7 @@ export function MobileModerationPage({ onSwitchView }: MobileModerationPageProps
     () => (slug === undefined ? null : api.moderationStreamUrl(slug)),
     [api, slug],
   )
-  const { connected } = useEventStream({ url: streamUrl, onSignal })
+  const { connected } = useEventStream({ url: streamUrl, onSignal, onReconnect })
 
   /**
    * The photo in hand: the first one still awaiting a decision.

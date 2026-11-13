@@ -91,7 +91,7 @@ export function ModerationPage({ onSwitchView }: ModerationPageProps) {
   /** What the last decision on a message said, for the live region. */
   const [decisionNote, setDecisionNote] = useState('')
 
-  const { onSignal: onQueueSignal } = queue
+  const { onSignal: onQueueSignal, onReconnect } = queue
   const { onSignal: onGuestbookSignal } = guestbook
   const onSignal = useCallback(
     (signal: StreamSignal) => {
@@ -104,7 +104,7 @@ export function ModerationPage({ onSwitchView }: ModerationPageProps) {
     () => (slug === undefined ? null : api.moderationStreamUrl(slug)),
     [api, slug],
   )
-  const { connected } = useEventStream({ url: streamUrl, onSignal })
+  const { connected } = useEventStream({ url: streamUrl, onSignal, onReconnect })
 
   /**
    * Above the grid, not inside it — roadmap 11.2.
