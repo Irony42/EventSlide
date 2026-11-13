@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { Link, Route, Routes, useNavigate } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../../lib/http'
@@ -13,6 +13,7 @@ import {
   fakeApi,
   renderWithProviders,
 } from '../../testing/renderWithProviders'
+import { GALLERY_REFRESH_MS } from './hooks/useGallery'
 import { GalleryPage } from './GalleryPage'
 import type { Api } from '../../lib/api/client'
 
@@ -350,5 +351,54 @@ describe('GalleryPage: closing a photograph twice in a row (A6)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(screen.getByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
     expect(screen.queryByRole('link', { name: 'to album' })).toBeNull()
+  })
+})
+
+describe('GalleryPage: the open photograph through a refresh (BUG-25)', () => {
+  const caption = (id: string) => `Photo ${id}`
+
+  it('keeps showing the same photograph when a refresh changes the list under it', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    try {
+      let items = ['p1', 'p2', 'p3']
+      const galleryPhotos = vi.fn(async () => ({
+        items: items.map((id) => aGalleryPhoto({ id, caption: caption(id) })),
+        nextCursor: null,
+      }))
+      render(fakeApi({ galleryPhotos }))
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+      fireEvent.click(screen.getByRole('button', { name: fr.gallery.openPhoto(2) }))
+      expect(within(screen.getByRole('dialog')).getByText(caption('p2'))).toBeVisible()
+
+      // The host hides p1 while a guest has p2 open: p2 is now the first of the list.
+      items = ['p2', 'p3']
+      await act(async () => vi.advanceTimersByTimeAsync(GALLERY_REFRESH_MS))
+
+      expect(within(screen.getByRole('dialog')).getByText(caption('p2'))).toBeVisible()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('closes the viewer when the photograph it showed is gone, rather than showing another', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    try {
+      let items = ['p1', 'p2', 'p3']
+      const galleryPhotos = vi.fn(async () => ({
+        items: items.map((id) => aGalleryPhoto({ id, caption: caption(id) })),
+        nextCursor: null,
+      }))
+      render(fakeApi({ galleryPhotos }))
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+      fireEvent.click(screen.getByRole('button', { name: fr.gallery.openPhoto(2) }))
+
+      items = ['p1', 'p3']
+      await act(async () => vi.advanceTimersByTimeAsync(GALLERY_REFRESH_MS))
+
+      expect(screen.queryByText(caption('p3'), { selector: 'figcaption' })).toBeNull()
+      expect(screen.queryByText(caption('p2'))).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

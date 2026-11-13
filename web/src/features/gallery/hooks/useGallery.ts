@@ -69,6 +69,10 @@ const classify = (cause: unknown): Answer => {
 /**
  * Calls `read` every `everyMs`, one at a time: a tick that finds the previous read still
  * running asks nothing. The stop function aborts the read in flight and silences its answer.
+ *
+ * A tab that slept (a closed laptop, a phone in a pocket) does not run its timers, so it wakes
+ * holding URLs whose grant has lapsed. When the page becomes visible again and the last
+ * successful read is older than `everyMs`, it reads at once instead of waiting for the timer.
  */
 const startRefreshLoop = ({
   everyMs,
@@ -83,12 +87,14 @@ const startRefreshLoop = ({
 }): (() => void) => {
   const stop = new AbortController()
   let reading = false
-  const timer = setInterval(() => {
+  let lastRead = Date.now()
+  const tick = () => {
     if (reading) return
     reading = true
     read(stop.signal).then(
       (fresh) => {
         reading = false
+        lastRead = Date.now()
         if (!stop.signal.aborted) onFresh(fresh)
       },
       (cause: unknown) => {
@@ -96,9 +102,15 @@ const startRefreshLoop = ({
         if (!stop.signal.aborted) onFailure(cause)
       },
     )
-  }, everyMs)
+  }
+  const timer = setInterval(tick, everyMs)
+  const onVisibility = () => {
+    if (document.visibilityState === 'visible' && Date.now() - lastRead >= everyMs) tick()
+  }
+  document.addEventListener('visibilitychange', onVisibility)
   return () => {
     clearInterval(timer)
+    document.removeEventListener('visibilitychange', onVisibility)
     stop.abort()
   }
 }
