@@ -6,7 +6,7 @@ import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
 import { aModerationPhoto, fakeApi } from '../../../testing/renderWithProviders'
 import { heldModerationServer, moderationServer } from '../testing/moderationServer'
-import { useModerationQueue } from './useModerationQueue'
+import { MODERATION_READ_DEBOUNCE_MS, useModerationQueue } from './useModerationQueue'
 import type { ModerationQueueOptions } from './useModerationQueue'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
@@ -296,6 +296,94 @@ describe('useModerationQueue', () => {
     })
 
     expect(api.moderate).not.toHaveBeenCalled()
+  })
+
+  const settle = (ms: number) =>
+    act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, ms))
+    })
+
+  it('coalesces a burst of photo signals into one read', async () => {
+    const moderationQueue = vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })]))
+    const { result } = mount(fakeApi({ moderationQueue }))
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    for (let i = 0; i < 10; i += 1) emitSignal('photo.uploaded')
+    await settle(MODERATION_READ_DEBOUNCE_MS + 100)
+
+    expect(moderationQueue).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not abort the read in flight when another photo signal arrives', async () => {
+    const slow = deferred<ModerationQueueResponse>()
+    const moderationQueue = vi
+      .fn<Api['moderationQueue']>()
+      .mockResolvedValueOnce(queueOf([aModerationPhoto({ id: 'photo-1' })]))
+      .mockReturnValueOnce(slow.promise)
+      .mockResolvedValue(queueOf([aModerationPhoto({ id: 'photo-3' })]))
+    const { result } = mount(fakeApi({ moderationQueue }))
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+    emitSignal('photo.uploaded')
+    await settle(MODERATION_READ_DEBOUNCE_MS + 100)
+    emitSignal('photo.uploaded')
+    await settle(MODERATION_READ_DEBOUNCE_MS + 100)
+
+    expect(moderationQueue.mock.calls[1]?.[2]?.aborted).toBe(false)
+    await act(async () => {
+      slow.resolve(queueOf([aModerationPhoto({ id: 'photo-2' })]))
+    })
+
+    // The answer of the read that was running is applied, then the one signal that arrived
+    // meanwhile is read once: two reads after the first, not one per signal.
+    await waitFor(() => expect(result.current.items[0]?.id).toBe('photo-3'))
+    expect(moderationQueue).toHaveBeenCalledTimes(3)
+  })
+
+  it('leaves the first read running when a photo signal arrives during it', async () => {
+    const first = deferred<ModerationQueueResponse>()
+    const moderationQueue = vi
+      .fn<Api['moderationQueue']>()
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValue(queueOf([aModerationPhoto({ id: 'photo-2' })]))
+    const { result } = mount(fakeApi({ moderationQueue }))
+    await waitFor(() => expect(moderationQueue).toHaveBeenCalledTimes(1))
+
+    emitSignal('photo.uploaded')
+    await settle(MODERATION_READ_DEBOUNCE_MS + 100)
+
+    expect(moderationQueue).toHaveBeenCalledTimes(1)
+    expect(moderationQueue.mock.calls[0]?.[2]?.aborted).toBe(false)
+    await act(async () => {
+      first.resolve(queueOf([aModerationPhoto({ id: 'photo-1' })]))
+    })
+    await waitFor(() => expect(result.current.items[0]?.id).toBe('photo-2'))
+    expect(moderationQueue).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads nothing for a reaction', async () => {
+    const moderationQueue = vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })]))
+    const { result } = mount(fakeApi({ moderationQueue }))
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    emitSignal('reaction.added')
+    await settle(MODERATION_READ_DEBOUNCE_MS + 100)
+
+    expect(moderationQueue).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads the queue again when the stream reopens after a drop', async () => {
+    const moderationQueue = vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })]))
+    const { result } = mount(fakeApi({ moderationQueue }))
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+    act(() => FakeEventSource.latest('the console').emitOpen())
+    act(() => FakeEventSource.latest('the console').emitDrop())
+    // The server forgot what happened while nobody was connected: no signal will tell.
+    expect(moderationQueue).toHaveBeenCalledTimes(1)
+
+    act(() => FakeEventSource.latest('the console').emitOpen())
+
+    await waitFor(() => expect(moderationQueue).toHaveBeenCalledTimes(2))
+    expect(result.current.connected).toBe(true)
   })
 
   it('ignores a signal it has never heard of, such as the photo book changing (spec 04)', async () => {
@@ -1124,8 +1212,9 @@ describe('useModerationQueue', () => {
     })
 
     it('stops the spinner of a refresh whose read a signal superseded and that then fails (WEB-HOST-01)', async () => {
-      // "Actualiser" arms the loud read and shows the spinner; a signal then starts a new
-      // read before that one answers. The superseded read is aborted, the new one is a
+      // "Actualiser" arms the loud read and shows the spinner; a decision's own revalidation
+      // then starts a new read before that one answers (a stream signal no longer does: it
+      // waits for the read in flight). The superseded read is aborted, the new one is a
       // quiet read, and when it fails nothing used to clear the spinner: an emptied phone
       // queue sat on "chargement" with nothing to retry from.
       const superseded = deferred<ModerationQueueResponse>()
@@ -1143,7 +1232,9 @@ describe('useModerationQueue', () => {
       act(() => result.current.refresh())
       expect(result.current.loading).toBe(true)
 
-      emitSignal('photo.uploaded')
+      await act(async () => {
+        await result.current.decide('photo-1', 'publish')
+      })
 
       await waitFor(() => expect(result.current.loading).toBe(false))
       expect(api.moderationQueue).toHaveBeenCalledTimes(3)

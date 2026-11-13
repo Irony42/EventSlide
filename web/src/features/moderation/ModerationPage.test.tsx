@@ -865,6 +865,26 @@ describe('ModerationPage', () => {
     expect(api.moderationQueue).toHaveBeenCalledTimes(2)
   })
 
+  it('reads the queue again when the stream reopens after a drop', async () => {
+    // The server drops an event's replay log when the last connection leaves, so a console
+    // that was alone on it gets no signal for what arrived during the gap.
+    let answered = 0
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () => {
+        answered += 1
+        return answered === 1 ? queueOf([lea()]) : queueOf([lea(), sacha()])
+      }),
+    })
+    renderConsole(api)
+    await screen.findByTestId('moderation-card')
+    act(() => stream().emitOpen())
+    act(() => stream().emitDrop())
+
+    act(() => stream().emitOpen())
+
+    await waitFor(() => expect(screen.getAllByTestId('moderation-card')).toHaveLength(2))
+  })
+
   /**
    * What moves when a photo arrives — roadmap 11.2.
    *

@@ -3,6 +3,7 @@ import { useApi } from '../../../lib/useApi'
 import { ApiError, asError, isAbortError } from '../../../lib/http'
 import type { WallResponse } from '../../../lib/api/dto'
 import { serverOffsetMs } from '../../../lib/serverClock'
+import { useReadScheduler } from '../../../lib/realtime/useReadScheduler'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 
 export interface WallPlaylistState {
@@ -85,6 +86,9 @@ const NOT_SERVED_CODE = 'event.notFound'
  * per projector, not one per signal.
  */
 const STREAM_DOWN_REFRESH_MS = 30_000
+
+/** The burst window of the wall's reads: signals inside it are one read (see `readScheduler`). */
+export const WALL_READ_DEBOUNCE_MS = 250
 
 /**
  * Whether a failed read is the server saying the event is no longer served — and nothing else.
@@ -299,7 +303,7 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
  *
  * 1. **The revision decides where the photos are.** A signal is an invalidation, not
  *    data, so every signal on the event's channel — a guest joining, a photo submitted
- *    for moderation, a settings change — provokes one refetch. Most come back with the
+ *    for moderation, a settings change — provokes one refetch (coalesced and never aborted by a later signal: see `readScheduler`). Most come back with the
  *    same `revision`, and an unchanged revision leaves the playlist untouched, so React
  *    bails out and the room sees nothing at all. Without that check the wall would jump
  *    every time anything happened at the event.
@@ -336,7 +340,9 @@ export const useWallPlaylist = (
     onReadRef.current = onRead
   })
   const [state, setState] = useState<Fetched>(INITIAL)
-  const [attempt, setAttempt] = useState(0)
+  // Bumped by the scheduler, and only when no read is running: the effect below never has a
+  // read in flight to abort when it re-runs for this reason.
+  const [readNonce, setReadNonce] = useState(0)
   const [reactionPulse, setReactionPulse] = useState(0)
   const [offsetMs, setOffsetMs] = useState(0)
 
@@ -347,7 +353,13 @@ export const useWallPlaylist = (
    * it on a refetch would replace a wall full of photos with a spinner every time a
    * guest joined.
    */
-  const refresh = useCallback(() => setAttempt((current) => current + 1), [])
+  const scheduler = useReadScheduler(() => setReadNonce((current) => current + 1), {
+    debounceMs: WALL_READ_DEBOUNCE_MS,
+  })
+  /** Stream-driven: coalesced with its neighbours. */
+  const requestRead = useCallback(() => scheduler.request(), [scheduler])
+  /** Already paced by a timer or a person: no burst window, still never overlapping a read. */
+  const refresh = useCallback(() => scheduler.request({ immediate: true }), [scheduler])
 
   const onSignal = useCallback(
     (signal: StreamSignal) => {
@@ -357,27 +369,35 @@ export const useWallPlaylist = (
         setReactionPulse((pulse) => pulse + 1)
         return
       }
-      refresh()
+      requestRead()
     },
-    [refresh],
+    [requestRead],
   )
 
   const { connected } = useEventStream({
     url: slug === '' ? null : api.streamUrl(slug),
     onSignal,
-    onDrop: refresh,
+    onDrop: requestRead,
+    // The server drops an event's replay log when its last connection leaves, so what was
+    // published during the gap may never come as a signal: read the playlist in full.
+    onReconnect: requestRead,
   })
 
   useEffect(() => {
-    if (slug === '') return
+    if (slug === '') {
+      scheduler.cancel()
+      return
+    }
 
     const controller = new AbortController()
     let live = true
+    scheduler.began()
 
     const sentAt = Date.now()
     api.wall(slug, controller.signal).then(
       (response) => {
         if (!live) return
+        scheduler.settled()
         // Measured at every read, so it follows this machine's clock if somebody corrects it. Kept
         // to the nearest 100 ms so a read that differs by round-trip jitter alone re-renders nothing.
         if (response.serverNowMs !== undefined) {
@@ -405,6 +425,7 @@ export const useWallPlaylist = (
       },
       (cause: unknown) => {
         if (!live) return
+        scheduler.settled()
         // The abort came from this effect's own cleanup — StrictMode mounts twice — and
         // is not a failure the room needs to hear about.
         if (isAbortError(cause)) return
@@ -422,7 +443,7 @@ export const useWallPlaylist = (
       live = false
       controller.abort()
     }
-  }, [api, slug, attempt])
+  }, [api, slug, readNonce, scheduler])
 
   // The offset is read at every response; this only guarantees one when the room is quiet.
   const alternates = state.wall?.mixed != null

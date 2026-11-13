@@ -13,10 +13,13 @@ describe('useEventStream', () => {
   beforeEach(() => {
     FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
+    // Dead centre of the jitter band: the backoff tests below name exact delays.
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 
@@ -461,6 +464,98 @@ describe('useEventStream', () => {
       act(() => void vi.advanceTimersByTime(45_000))
 
       expect(onDrop).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('telling the page that the stream came back', () => {
+    it('tells the consumer when it reopens after a loss', () => {
+      const onReconnect = vi.fn()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), onReconnect }))
+      act(() => latest().emitOpen())
+      expect(onReconnect).not.toHaveBeenCalled()
+
+      act(() => latest().emitDrop())
+      expect(onReconnect).not.toHaveBeenCalled()
+      act(() => latest().emitOpen())
+
+      expect(onReconnect).toHaveBeenCalledTimes(1)
+    })
+
+    it('tells the consumer once the hook has reopened by hand after a refusal', () => {
+      vi.useFakeTimers()
+      const onReconnect = vi.fn()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), onReconnect }))
+      act(() => latest().emitOpen())
+      act(() => latest().emitRefusal())
+      act(() => void vi.advanceTimersByTime(1_000))
+
+      act(() => latest().emitOpen())
+
+      expect(onReconnect).toHaveBeenCalledTimes(1)
+    })
+
+    it('tells the consumer when a first connection that failed finally opens', () => {
+      // Whatever happened between the page's first read and this open was never signalled.
+      const onReconnect = vi.fn()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), onReconnect }))
+      act(() => latest().emitDrop())
+
+      act(() => latest().emitOpen())
+
+      expect(onReconnect).toHaveBeenCalledTimes(1)
+    })
+
+    it('says nothing for a connection that opened cleanly the first time', () => {
+      const onReconnect = vi.fn()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), onReconnect }))
+
+      act(() => latest().emitOpen())
+
+      expect(onReconnect).not.toHaveBeenCalled()
+    })
+
+    it('calls the newest callback without reopening the connection', () => {
+      const first = vi.fn()
+      const second = vi.fn()
+      const { rerender } = renderHook(
+        ({ onReconnect }) => useEventStream({ url: URL_A, onSignal: vi.fn(), onReconnect }),
+        { initialProps: { onReconnect: first } },
+      )
+      act(() => latest().emitOpen())
+      act(() => latest().emitDrop())
+      rerender({ onReconnect: second })
+
+      act(() => latest().emitOpen())
+
+      expect(first).not.toHaveBeenCalled()
+      expect(second).toHaveBeenCalledTimes(1)
+      expect(FakeEventSource.instances).toHaveLength(1)
+    })
+  })
+
+  describe('spreading the reconnects', () => {
+    const refuseThenWait = (random: () => number, waitMs: number): number => {
+      vi.useFakeTimers()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), random }))
+      act(() => latest().emitRefusal())
+      act(() => void vi.advanceTimersByTime(waitMs))
+      return FakeEventSource.instances.length
+    }
+
+    it('does not reconnect sooner than a fifth under the backoff', () => {
+      expect(refuseThenWait(() => 0, 799)).toBe(1)
+    })
+
+    it('reconnects after a fifth less than the backoff when the draw is lowest', () => {
+      expect(refuseThenWait(() => 0, 800)).toBe(2)
+    })
+
+    it('does not reconnect before a fifth more than the backoff when the draw is highest', () => {
+      expect(refuseThenWait(() => 0.999999, 1_199)).toBe(1)
+    })
+
+    it('reconnects after a fifth more than the backoff when the draw is highest', () => {
+      expect(refuseThenWait(() => 0.999999, 1_200)).toBe(2)
     })
   })
 })

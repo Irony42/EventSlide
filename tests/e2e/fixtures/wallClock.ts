@@ -154,3 +154,33 @@ export const changeUntil = async (
 export const changeSlides = async (page: Page, count: number, intervalMs = 250): Promise<void> => {
   for (let change = 0; change < count; change += 1) await slideChange(page, intervalMs)
 }
+
+/**
+ * How far one step of {@link forwardUntil} moves the clock: past the burst window the wall
+ * waits before it reads again after a signal (250 ms, `WALL_READ_DEBOUNCE_MS`), which is a
+ * timer like any other and does not run while the clock is frozen.
+ */
+const SIGNAL_READ_STEP_MS = 260
+
+/**
+ * For what the wall shows only after a signal of the event stream and the read that follows it
+ * (a host changing a setting, starting a challenge). The signal travels in real time, and the
+ * wall reads on a timer of the page's clock, so the spec moves that clock a little at a time
+ * until `done` holds. Never a wait on real time; fails with `what` through the poll's timeout.
+ */
+export const forwardUntil = async (
+  page: Page,
+  what: string,
+  done: () => Promise<boolean>,
+): Promise<void> => {
+  await expect
+    .poll(
+      async () => {
+        if (await done()) return true
+        await forward(page, SIGNAL_READ_STEP_MS)
+        return done()
+      },
+      { message: what },
+    )
+    .toBe(true)
+}

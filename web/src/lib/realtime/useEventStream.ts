@@ -79,7 +79,16 @@ const BASE_DELAY_MS = 1_000
  * restarting, and short enough that a projector nobody is watching rejoins the stream
  * before the next song ends.
  */
-const MAX_DELAY_MS = 30_000
+const MAX_DELAY_MS = 30_000 // before jitter: the wait itself may reach 36 s
+
+/**
+ * How far the reconnect delay may stray from the backoff, either way (20 %).
+ *
+ * A server that restarts drops every projector, console and phone in the venue at the same
+ * instant; without a spread they all knock again on the same second, on every step of the
+ * backoff, and the box that has just come back meets them as one wave.
+ */
+const JITTER = 0.2
 
 export interface StreamSignal {
   /**
@@ -132,7 +141,20 @@ export interface UseEventStreamOptions {
    * gain from telling the two apart asks the server itself, and this is when.
    */
   readonly onDrop?: () => void
+  /**
+   * Called each time a connection opens after the stream was lost or failed to open — the
+   * browser's own retry succeeding, or the hook's own reconnect. Not for the first
+   * connection of a page that opened cleanly.
+   *
+   * It is the moment to read again. The server keeps a replay log per event only while
+   * somebody is connected, and a browser that reopens by hand sends no `Last-Event-ID`, so
+   * what happened during the gap may simply never arrive as a signal. A consumer that mirrors
+   * server state reads it in full here and does not count on the replay.
+   */
+  readonly onReconnect?: () => void
   readonly enabled?: boolean
+  /** A number in [0, 1) for the backoff jitter. Injected so a test decides it; defaults to `Math.random`. */
+  readonly random?: () => number
 }
 
 export interface EventStreamState {
@@ -144,7 +166,9 @@ export const useEventStream = ({
   url,
   onSignal,
   onDrop,
+  onReconnect,
   enabled = true,
+  random = Math.random,
 }: UseEventStreamOptions): EventStreamState => {
   const [open, setOpen] = useState(false)
 
@@ -156,10 +180,14 @@ export const useEventStream = ({
    */
   const listener = useRef(onSignal)
   const dropped = useRef(onDrop)
+  const reconnected = useRef(onReconnect)
+  const randomness = useRef(random)
   useEffect(() => {
     listener.current = onSignal
     dropped.current = onDrop
-  }, [onSignal, onDrop])
+    reconnected.current = onReconnect
+    randomness.current = random
+  }, [onSignal, onDrop, onReconnect, random])
 
   useEffect(() => {
     if (!enabled || url === null) return
@@ -169,6 +197,8 @@ export const useEventStream = ({
     // Whether the last thing this effect knew about the connection was that it delivers, so a
     // loss is reported once per outage rather than once per failed retry of it.
     let delivering = false
+    // Set by any loss or failed attempt, cleared by the next open, which then reports it.
+    let gap = false
     let source: EventSource | null = null
     let timer: ReturnType<typeof setTimeout> | undefined
     let watchdog: ReturnType<typeof setTimeout> | undefined
@@ -180,6 +210,7 @@ export const useEventStream = ({
     }
 
     const lost = () => {
+      gap = true
       if (!delivering) return
       delivering = false
       dropped.current?.()
@@ -215,6 +246,10 @@ export const useEventStream = ({
         delivering = true
         setOpen(true)
         heard()
+        if (gap) {
+          gap = false
+          reconnected.current?.()
+        }
       })
 
       stream.addEventListener(SIGNAL_EVENT, (event) => {
@@ -261,7 +296,9 @@ export const useEventStream = ({
 
     const scheduleReconnect = () => {
       if (disposed) return
-      const delay = Math.min(BASE_DELAY_MS * 2 ** attempt, MAX_DELAY_MS)
+      const backoff = Math.min(BASE_DELAY_MS * 2 ** attempt, MAX_DELAY_MS)
+      // Centred on the backoff, so the average wait is the one the tests and the docs name.
+      const delay = Math.round(backoff * (1 + (randomness.current() * 2 - 1) * JITTER))
       attempt += 1
       timer = setTimeout(connect, delay)
     }

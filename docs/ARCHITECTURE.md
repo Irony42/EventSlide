@@ -684,12 +684,12 @@ data: {"topic":"wall","eventId":"evt_7f3a2c"}
 
 `data` carries a topic, never a photo.
 
-| Reason            | Consequence of pushing payloads instead                                                                                                                                         |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Authorization** | One frame would need three shapes — moderator, guest, wall. A pending photo's caption pushed to the wall channel is a leak; a signal carries nothing to leak.                   |
-| **Consistency**   | A dropped, duplicated or out-of-order frame cannot corrupt client state, because state always comes from an authorized `GET`. Refetch is idempotent; patch application is not.  |
-| **One contract**  | The DTO presenters in `src/interface/http/presenters/` remain the only wire format. Pushed payloads would be a second serialisation to keep in sync — and the one nobody tests. |
-| **Bandwidth**     | A burst of 40 uploads during a first dance collapses into one refetch, not 40 pushed rows. `useEventStream.ts` debounces invalidations per topic.                               |
+| Reason            | Consequence of pushing payloads instead                                                                                                                                                                                                                                                                                                                  |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Authorization** | One frame would need three shapes — moderator, guest, wall. A pending photo's caption pushed to the wall channel is a leak; a signal carries nothing to leak.                                                                                                                                                                                            |
+| **Consistency**   | A dropped, duplicated or out-of-order frame cannot corrupt client state, because state always comes from an authorized `GET`. Refetch is idempotent; patch application is not.                                                                                                                                                                           |
+| **One contract**  | The DTO presenters in `src/interface/http/presenters/` remain the only wire format. Pushed payloads would be a second serialisation to keep in sync — and the one nobody tests.                                                                                                                                                                          |
+| **Bandwidth**     | A burst of 40 uploads during a first dance collapses into one refetch, not 40 pushed rows. each consumer reads through `web/src/lib/realtime/readScheduler.ts`: one read in flight, a trailing burst window, one replay when a signal arrived meanwhile, and a read when `useEventStream` reports (`onReconnect`) that the stream reopened after a loss. |
 
 The trade-off is accepted: a refetch costs one extra round trip. On a venue network a
 wrong wall is expensive and 80 ms is not.

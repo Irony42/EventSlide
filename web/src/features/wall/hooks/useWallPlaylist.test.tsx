@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
 import { ApiError } from '../../../lib/http'
 import type { WallItemDto, WallResponse } from '../../../lib/api/dto'
@@ -12,6 +12,8 @@ import {
 } from '../../../testing/renderWithProviders'
 import { useWallPlaylist } from './useWallPlaylist'
 import { deferred } from '../../../testing/deferred'
+import { FakeEventSource } from '../../../testing/fakeEventSource'
+import { WALL_READ_DEBOUNCE_MS } from './useWallPlaylist'
 
 /**
  * The playlist, kept current over an evening on a venue's network.
@@ -307,5 +309,135 @@ describe('useWallPlaylist', () => {
     await screen.findByText('teinte 345')
 
     expect(screen.getByText('listes 1')).toBeInTheDocument()
+  })
+})
+
+describe('useWallPlaylist and the event stream', () => {
+  beforeEach(() => {
+    FakeEventSource.reset()
+    vi.stubGlobal('EventSource', FakeEventSource)
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const settle = (ms: number) =>
+    act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, ms))
+    })
+
+  const signal = (type: string) => act(() => FakeEventSource.latest('the wall').emitSignal(type))
+
+  it('keeps the answer of a read that was still in flight when another signal arrived', async () => {
+    const slow = deferred<WallResponse>()
+    const wall = vi
+      .fn<(slug: string, signal?: AbortSignal) => Promise<WallResponse>>()
+      .mockResolvedValueOnce(aWall('Camille & Sacha', 'rev-1'))
+      .mockReturnValueOnce(slow.promise)
+      .mockResolvedValue(aWall('Camille & Sacha', 'rev-3'))
+    renderWithProviders(<Probe slug="camille-et-sacha" />, { api: fakeApi({ wall }) })
+    await screen.findByText('révision rev-1')
+
+    signal('photo.moderated')
+    await settle(WALL_READ_DEBOUNCE_MS + 50)
+    expect(wall).toHaveBeenCalledTimes(2)
+    signal('guest.joined')
+    await settle(WALL_READ_DEBOUNCE_MS + 50)
+    const inFlight = wall.mock.calls[1]?.[1]
+    // The read that was running is left to finish, not aborted by the next signal.
+    expect(inFlight?.aborted).toBe(false)
+    await act(async () => {
+      slow.resolve(aWall('Camille & Sacha', 'rev-2'))
+    })
+
+    expect(await screen.findByText('révision rev-3')).toBeInTheDocument()
+    // One read for the burst, one replay for the signal that arrived meanwhile: no more.
+    expect(wall).toHaveBeenCalledTimes(3)
+  })
+
+  it('applies the answer when signals keep arriving faster than a read completes', async () => {
+    const reads: ReturnType<typeof deferred<WallResponse>>[] = []
+    const wall = vi.fn((_slug: string, abort?: AbortSignal) => {
+      const read = deferred<WallResponse>()
+      reads.push(read)
+      abort?.addEventListener('abort', () => read.reject(new DOMException('x', 'AbortError')))
+      return read.promise
+    })
+    renderWithProviders(<Probe slug="camille-et-sacha" />, { api: fakeApi({ wall }) })
+    await waitFor(() => expect(reads).toHaveLength(1))
+    await act(async () => {
+      reads[0]?.resolve(aWall('Camille & Sacha', 'rev-1'))
+    })
+    await screen.findByText('révision rev-1')
+
+    signal('photo.moderated')
+    await settle(WALL_READ_DEBOUNCE_MS + 50)
+    for (let i = 0; i < 5; i += 1) {
+      signal('guest.joined')
+      await settle(WALL_READ_DEBOUNCE_MS + 50)
+    }
+    await act(async () => {
+      reads[1]?.resolve(aWall('Camille & Sacha', 'rev-2'))
+    })
+
+    expect(await screen.findByText('révision rev-2')).toBeInTheDocument()
+  })
+
+  it('leaves the first read of the page running when a signal arrives during it', async () => {
+    const first = deferred<WallResponse>()
+    const wall = vi
+      .fn<(slug: string, signal?: AbortSignal) => Promise<WallResponse>>()
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValue(aWall('Camille & Sacha', 'rev-2'))
+    renderWithProviders(<Probe slug="camille-et-sacha" />, { api: fakeApi({ wall }) })
+    await waitFor(() => expect(wall).toHaveBeenCalledTimes(1))
+
+    signal('photo.moderated')
+    await settle(WALL_READ_DEBOUNCE_MS + 50)
+
+    expect(wall).toHaveBeenCalledTimes(1)
+    expect(wall.mock.calls[0]?.[1]?.aborted).toBe(false)
+    await act(async () => {
+      first.resolve(aWall('Camille & Sacha', 'rev-1'))
+    })
+    expect(await screen.findByText('révision rev-2')).toBeInTheDocument()
+    expect(wall).toHaveBeenCalledTimes(2)
+  })
+
+  it('provokes no playlist read for a reaction', async () => {
+    const wall = reads(aWall('Camille & Sacha', 'rev-1'))
+    renderWithProviders(<Probe slug="camille-et-sacha" />, { api: fakeApi({ wall }) })
+    await screen.findByText('révision rev-1')
+
+    signal('reaction.added')
+    await settle(WALL_READ_DEBOUNCE_MS + 50)
+
+    expect(wall).toHaveBeenCalledTimes(1)
+  })
+
+  it('coalesces a burst of signals into one read', async () => {
+    const wall = reads(aWall('Camille & Sacha', 'rev-1'))
+    renderWithProviders(<Probe slug="camille-et-sacha" />, { api: fakeApi({ wall }) })
+    await screen.findByText('révision rev-1')
+
+    for (let i = 0; i < 10; i += 1) signal('photo.uploaded')
+    await settle(WALL_READ_DEBOUNCE_MS + 50)
+
+    expect(wall).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads the wall again when the stream reopens after a drop', async () => {
+    const wall = reads(aWall('Camille & Sacha', 'rev-1'), aWall('Camille & Sacha', 'rev-2'))
+    renderWithProviders(<Probe slug="camille-et-sacha" />, { api: fakeApi({ wall }) })
+    await screen.findByText('révision rev-1')
+    act(() => FakeEventSource.latest('the wall').emitOpen())
+    act(() => FakeEventSource.latest('the wall').emitDrop())
+    await settle(WALL_READ_DEBOUNCE_MS + 50)
+    const afterDrop = wall.mock.calls.length
+
+    act(() => FakeEventSource.latest('the wall').emitOpen())
+    await settle(WALL_READ_DEBOUNCE_MS + 50)
+
+    expect(wall.mock.calls.length).toBeGreaterThan(afterDrop)
   })
 })

@@ -502,6 +502,25 @@ describe('MobileModerationPage', () => {
     expect(within(card()).getByText('Les confettis')).toBeInTheDocument()
   })
 
+  it('reads the queue again when the stream reopens after a drop', async () => {
+    let answered = 0
+    const api = fakeApi({
+      moderationQueue: vi.fn(async (_slug: string, query?: { status?: string }) => {
+        if (query?.status === 'published') return queueOf([])
+        answered += 1
+        return answered === 1 ? queueOf([lea()]) : queueOf([lea(), sacha()])
+      }),
+    })
+    renderPhone(api)
+    await screen.findByTestId('mobile-moderation-card')
+    act(() => stream().emitOpen())
+    act(() => stream().emitDrop())
+
+    act(() => stream().emitOpen())
+
+    expect(await screen.findByText(fr.moderation.pending(2))).toBeInTheDocument()
+  })
+
   it('keeps the photo on screen, and says nothing, when a refresh nobody asked for fails', async () => {
     let answered = 0
     const api = fakeApi({

@@ -219,4 +219,17 @@ describe('EventStatsPage', () => {
 
     expect(getEventStats).toHaveBeenCalledTimes(1)
   })
+
+  it('reads the figures again when the stream reopens after a drop', async () => {
+    const getEventStats = vi.fn(async () => busy())
+    renderPage(fakeApi({ getEventStats }))
+    await waitFor(() => expect(getEventStats).toHaveBeenCalledTimes(1))
+    act(() => FakeEventSource.latest('the page').emitOpen())
+    act(() => FakeEventSource.latest('the page').emitDrop())
+
+    act(() => FakeEventSource.latest('the page').emitOpen())
+
+    // At once, not after the five-second window: nothing was signalled about the gap.
+    await waitFor(() => expect(getEventStats).toHaveBeenCalledTimes(2))
+  })
 })

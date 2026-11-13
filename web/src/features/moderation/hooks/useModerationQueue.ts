@@ -4,6 +4,7 @@ import { useToast } from '../../../design-system/components/useToast'
 import { ApiError, asError, isAbortError } from '../../../lib/http'
 import { messageForCode, type UiText } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { useReadScheduler } from '../../../lib/realtime/useReadScheduler'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 import type { ModerationDecision, ModerationPhotoDto, PhotoStatus } from '../../../lib/api/dto'
 import { expiredIds, NOTHING_TO_UNDO_MS } from '../lib/optimisticOverlay'
@@ -25,6 +26,9 @@ import { useOptimisticDecisions } from './useOptimisticDecisions'
  *   every signal refetches. That is what reconciles this optimism with another
  *   moderator on a second laptop, and it is why no code here tries to read a payload.
  */
+
+/** The burst window of the console's signal-driven reads (see `readScheduler`). */
+export const MODERATION_READ_DEBOUNCE_MS = 250
 
 export type StatusFilter = PhotoStatus | 'all'
 
@@ -125,6 +129,8 @@ export interface ModerationQueue extends QueueState {
   refresh: () => void
   /** The stream's signals, for a page that owns the connection (`ownStream: false`). */
   onSignal: (signal: StreamSignal) => void
+  /** The stream reopened after a loss, for a page that owns the connection: read the queue again. */
+  onReconnect: () => void
   decide: (photoId: string, decision: ModerationDecision) => Promise<void>
   decideBulk: (photoIds: readonly string[], decision: ModerationDecision) => Promise<void>
   undo: () => Promise<void>
@@ -156,6 +162,15 @@ export const useModerationQueue = (
 
   const [filter, setFilterState] = useState<StatusFilter>('pending')
   const [attempt, setAttempt] = useState(0)
+  /**
+   * When the stream's signals and reconnections ask for a read: one in flight, never aborted
+   * by the next signal, a burst of photo signals being one read (see `readScheduler`). A
+   * decision's own revalidation and the host's refresh below bump `attempt` directly: they
+   * are explicit and supersede whatever was running, which is what they want.
+   */
+  const signalReads = useReadScheduler(() => setAttempt((current) => current + 1), {
+    debounceMs: MODERATION_READ_DEBOUNCE_MS,
+  })
   // Decisions sent and not yet answered, and the written-over rows they cause (WEB-HOST-05).
   const {
     busy,
@@ -220,6 +235,7 @@ export const useModerationQueue = (
 
     const controller = new AbortController()
     let live = true
+    signalReads.began()
 
     const remember = (rows: readonly ModerationPhotoDto[]) => {
       const next = new Map(serverRef.current)
@@ -276,6 +292,7 @@ export const useModerationQueue = (
     api.moderationQueue(slug, { status: filter }, controller.signal).then(
       (response) => {
         if (!live) return
+        signalReads.settled()
         const { rows: items, pendingDelta } = readRows(response.items)
         loadedRef.current = queueKey
         setState((previous) => ({
@@ -288,6 +305,7 @@ export const useModerationQueue = (
       },
       (cause: unknown) => {
         if (!live) return
+        signalReads.settled()
         // The abort is this effect's own cleanup — StrictMode mounts twice — and is
         // not a failure to put in front of the host.
         if (isAbortError(cause)) return
@@ -313,7 +331,7 @@ export const useModerationQueue = (
       live = false
       controller.abort()
     }
-  }, [api, slug, filter, attempt, onScreenLimit, startRead, overlay])
+  }, [api, slug, filter, attempt, onScreenLimit, startRead, overlay, signalReads])
 
   /** A host asked for fresh data and should see that something is happening. */
   const refresh = useCallback(() => {
@@ -764,10 +782,17 @@ export const useModerationQueue = (
       // reactions would otherwise refetch the console once per tap, on the laptop that
       // has the least time to spare.
       if (!signal.type.startsWith('photo.')) return
-      revalidate()
+      signalReads.request()
     },
-    [revalidate],
+    [signalReads],
   )
+
+  /**
+   * The stream came back after a loss. The server drops an event's replay log when its last
+   * connection leaves, so a console that was the only one watching never receives the photos
+   * that arrived in the gap as signals: it reads the queue in full instead.
+   */
+  const onReconnect = useCallback(() => signalReads.request(), [signalReads])
 
   /**
    * The console's own channel, not the wall's.
@@ -782,7 +807,7 @@ export const useModerationQueue = (
     () => (slug === undefined || !ownStream ? null : api.moderationStreamUrl(slug)),
     [api, slug, ownStream],
   )
-  const { connected } = useEventStream({ url: streamUrl, onSignal })
+  const { connected } = useEventStream({ url: streamUrl, onSignal, onReconnect })
 
   return {
     ...state,
@@ -793,6 +818,7 @@ export const useModerationQueue = (
     setFilter,
     refresh,
     onSignal,
+    onReconnect,
     decide,
     decideBulk,
     undo,
