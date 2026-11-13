@@ -258,7 +258,10 @@ leaves its link spent, because it cannot be un-spent and the account moved on un
 no other link, because it changed nothing. The other whole-row savers (`disableAccount`,
 `enableAccount`, `revokeOtherSessions`, `confirmTotpEnrollment`, `disableSecondFactor`) have no
 asynchronous call between their read and their save (better-sqlite3 is synchronous, the vault and the
-TOTP engine are too), so they cannot interleave with another request and are left as they are.
+TOTP engine are too), so within this single process they cannot interleave with another request and
+are left as they are; revisit if one of those ports ever becomes truly asynchronous. A lost race
+can also come from a sign-in's silent cost upgrade of the hash, which is rare and safe: the person
+retries (or asks for a new link).
 
 **The epoch also ends trust in a device (G3-04b).** The sign-in throttle gives a browser that has
 signed in before a bucket of its own (§5), and that browser is told apart by a signed cookie whose

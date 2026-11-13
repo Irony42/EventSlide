@@ -387,5 +387,8 @@ describe('resetPassword', () => {
     )
     // The call changed nothing, so it revokes nothing: the other link still works.
     expect((await reset(other)).ok).toBe(true)
+    // The refused link stays spent: it cannot be used again.
+    const again = await reset(token)
+    expect(!again.ok && again.error.code).toBe('auth.invalidToken')
   })
 })

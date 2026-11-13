@@ -144,4 +144,13 @@ describe('changePassword', () => {
     expect(!result.ok && result.error.code).toBe('auth.invalidCredentials')
     expect((await stored())?.passwordHash).toBe(hashOf('le-mot-de-passe-de-la-reinitialisation'))
   })
+
+  it('raises the epoch to the instant after the hashing, so a session issued meanwhile does not survive', async () => {
+    await changeWhileHashing(async () => clock.advance(200))
+
+    expect((await users.authStateFor(asUserId('user-1'))).credentialsChangedAt?.toISOString()).toBe(
+      clock.now().toISOString(),
+    )
+    expect(clock.now().getTime()).toBe(AT.getTime() + 200)
+  })
 })
