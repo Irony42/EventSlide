@@ -461,15 +461,19 @@ export const useModerationQueue = (
     const sent = sendDecisions(restored)
     setStatuses(restored)
     beginBusy()
+    // What the server has answered for, group by group: a later group failing must not
+    // take back, on screen, what an earlier one already did there.
+    const skipped: string[] = []
+    const applied = new Set<string>()
+    const answered = new Set<string>()
     try {
-      const skipped: string[] = []
-      const applied = new Set<string>()
       for (const [decision, ids] of groups) {
         // The bulk endpoint for a single photo too: one code path, and it is the one
         // that reports what it could not do instead of failing the lot.
         const response = await api.moderateBulk(slug, ids, decision)
         skipped.push(...response.skipped)
         for (const id of response.applied) applied.add(id)
+        for (const id of ids) answered.add(id)
       }
       answerDecisions(sent, skipped)
 
@@ -524,9 +528,26 @@ export const useModerationQueue = (
       // The restored photos hold no decisions until the server says what they allow.
       revalidate()
     } catch (cause) {
-      failDecisions(sent)
-      setStatuses(new Map(entries.map((entry) => [entry.id, entry.currentStatus])))
+      // The groups that were answered keep their restored status (a skip inside one goes
+      // back where the decision left it); the one that failed, and those never sent, go back.
+      const unanswered = (decision: { readonly size: number } | null, id: string) =>
+        decision !== null && !answered.has(id)
+      void unanswered
+      answerDecisions(new Map([...sent].filter(([id]) => answered.has(id))), skipped)
+      failDecisions(new Map([...sent].filter(([id]) => !answered.has(id))))
+      const refused = new Set(skipped)
+      setStatuses(
+        new Map(
+          entries.flatMap<[string, PhotoStatus]>((entry) =>
+            !answered.has(entry.id) || refused.has(entry.id)
+              ? [[entry.id, entry.currentStatus]]
+              : [],
+          ),
+        ),
+      )
       toast.show(failureMessage(cause, text.moderation.undoFailed, text), { tone: 'danger' })
+      // What the screen shows is a guess about the groups that did land: ask the server.
+      revalidate()
     } finally {
       endBusy()
     }
