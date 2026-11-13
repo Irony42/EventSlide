@@ -193,10 +193,32 @@ export class IndexedDbOutbox implements OutboxStore {
 }
 
 /**
+ * Whether the database holds a photo for any event.
+ *
+ * Asked by the kill switch before it deletes anything (SEC-06): a photo the guest believes is
+ * queued is never destroyed by turning the layer off. Resolves `false` when the database cannot be
+ * opened, and never rejects, because a store that will not open is exactly the case the switch
+ * exists for: nothing in it can be sent, and "off" must still succeed.
+ */
+export const outboxHoldsPhotos = async (): Promise<boolean> => {
+  if (!hasIndexedDb()) return false
+  try {
+    const store = await IndexedDbOutbox.open()
+    try {
+      return (await store.slugs()).length > 0
+    } finally {
+      store.close()
+    }
+  } catch {
+    return false
+  }
+}
+
+/**
  * Deletes the whole database.
  *
- * The kill switch's teeth: turning the feature off has to take the stored photos with
- * it, or a guest carries a queue no code is left to drain.
+ * The kill switch's teeth: turning the feature off must not leave a database no code
+ * drains. It is called only once {@link outboxHoldsPhotos} says nothing is waiting.
  */
 export const deleteOutboxDb = (): Promise<void> =>
   new Promise((resolve) => {

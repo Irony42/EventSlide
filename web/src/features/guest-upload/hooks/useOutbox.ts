@@ -268,7 +268,7 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
     return () => {
       const opened = store.current
       const photos = leaving.current?.() ?? []
-      if (opened === null || photos.length === 0) return
+      if (opened === null || photos.length === 0 || !isOfflineQueueEnabled()) return
       handingOver.current = handOverRef.current(opened, photos)
     }
   }, [])
@@ -279,11 +279,12 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
     // The set itself never changes, only its members: read in the cleanup, it is the one that was here.
     const inFlightWrites = writes.current
 
-    if (!isOfflineQueueEnabled()) {
-      // The switch is off. No store is opened, so `enqueue` refuses and the upload
-      // screen reports failures exactly as it did before this feature existed.
-      return
-    }
+    // Off: no new photo is accepted (`ready` stays false, `enqueue` refuses), so the upload
+    // screen reports failures exactly as it did before this feature existed. But the store is
+    // still opened, to send what an earlier visit left in it (SEC-06): the switch arrives by URL
+    // and must not destroy a photo the guest believes is queued, and with the worker gone this
+    // screen's drain is the only thing left that can send it. An empty store is closed at once.
+    const accepting = isOfflineQueueEnabled()
 
     void (async () => {
       let opened: OutboxStore
@@ -304,8 +305,20 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
         opened.close()
         return
       }
+      if (!accepting) {
+        let waitingHere = 0
+        try {
+          waitingHere = (await opened.list(slug)).length
+        } catch (cause) {
+          console.warn('the outbox could not be read with the offline layer off', cause)
+        }
+        if (waitingHere === 0 || generation.current !== mine) {
+          opened.close()
+          return
+        }
+      }
       store.current = opened
-      setReady(true)
+      if (accepting) setReady(true)
 
       try {
         await count()
@@ -337,7 +350,7 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
       if (pending.length === 0) closing?.close()
       else void Promise.allSettled(pending).then(() => closing?.close())
     }
-  }, [count, drainNow, schedule])
+  }, [count, drainNow, schedule, slug])
 
   useEffect(() => {
     const retry = () => {
@@ -444,7 +457,8 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
       challengeId: string | null = null,
     ): Promise<string | null> => {
       const opened = store.current
-      if (opened === null) return null
+      // Also refused while the layer is off, though the store is open to drain what is left in it.
+      if (opened === null || !isOfflineQueueEnabled()) return null
       const write = (async (): Promise<string | null> => {
         const id = await storeIn(opened, file, caption, missionId, challengeId)
         if (id === null) return null

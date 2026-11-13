@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { IndexedDbOutbox } from './indexedDbOutbox'
 import { isOfflineQueueEnabled, resolveOfflineQueue } from './killSwitch'
+import { OUTBOX_DB_NAME } from './names'
+import { removeUploadWorker } from './serviceWorker'
 
 /**
  * The switch that has to work on a phone already carrying a bad worker.
@@ -64,5 +69,86 @@ describe('resolveOfflineQueue', () => {
     })
 
     expect(resolveOfflineQueue('?offline=off')).toBe(false)
+  })
+})
+
+/**
+ * What turning the layer off does to the photos a guest is still waiting to send (SEC-06).
+ *
+ * A join link is forwarded in group chats, so `?offline=off` reaches phones whose owners never
+ * typed it. The switch still turns the worker, the caches and the queue off; it no longer takes a
+ * photo with it. Driven through the real store over `fake-indexeddb`, in the order `main.tsx`
+ * runs it: resolve the URL, then remove the worker.
+ */
+describe('the switch arriving by URL, with photos waiting', () => {
+  const aPhoto = (slug = 'camille-et-sacha') => ({
+    slug,
+    bytes: new ArrayBuffer(3),
+    fileName: 'confettis.jpg',
+    fileType: 'image/jpeg',
+    caption: null,
+    missionId: null,
+  })
+
+  const heldSlugs = async (): Promise<readonly string[]> => {
+    const store = await IndexedDbOutbox.open()
+    try {
+      return await store.slugs()
+    } finally {
+      store.close()
+    }
+  }
+
+  const arrivesBy = async (search: string): Promise<void> => {
+    if (!resolveOfflineQueue(search)) await removeUploadWorker()
+  }
+
+  beforeEach(() => {
+    globalThis.indexedDB = new IDBFactory()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  it('keeps photos still waiting when the switch arrives by URL', async () => {
+    const store = await IndexedDbOutbox.open()
+    await store.add(aPhoto(), Date.now())
+    store.close()
+
+    await arrivesBy('?offline=off')
+
+    expect(isOfflineQueueEnabled()).toBe(false)
+    expect(await heldSlugs()).toEqual(['camille-et-sacha'])
+  })
+
+  it('keeps them for every event the device holds, not only the one in the URL', async () => {
+    const store = await IndexedDbOutbox.open()
+    await store.add(aPhoto('a'), Date.now())
+    await store.add(aPhoto('b'), Date.now())
+    store.close()
+
+    await arrivesBy('?offline=off')
+
+    expect([...(await heldSlugs())].sort()).toEqual(['a', 'b'])
+  })
+
+  it('deletes the store as before when nothing is waiting', async () => {
+    const store = await IndexedDbOutbox.open()
+    await store.add(aPhoto(), Date.now())
+    await store.remove((await store.list('camille-et-sacha'))[0]?.id ?? '')
+    store.close()
+
+    await arrivesBy('?offline=off')
+
+    expect((await indexedDB.databases()).map((db) => db.name)).not.toContain(OUTBOX_DB_NAME)
+  })
+
+  it('still switches off when the store cannot be opened', async () => {
+    // The reason the switch exists: if the outbox itself is what is broken, "off" has to work.
+    ;(await IndexedDbOutbox.open()).close()
+    vi.spyOn(IndexedDbOutbox, 'open').mockRejectedValue(new Error('the database is corrupt'))
+
+    await expect(arrivesBy('?offline=off')).resolves.toBeUndefined()
+
+    expect(isOfflineQueueEnabled()).toBe(false)
+    expect((await indexedDB.databases()).map((db) => db.name)).not.toContain(OUTBOX_DB_NAME)
   })
 })

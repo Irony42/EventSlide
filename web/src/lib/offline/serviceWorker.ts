@@ -1,4 +1,4 @@
-import { deleteOutboxDb } from './indexedDbOutbox'
+import { deleteOutboxDb, outboxHoldsPhotos } from './indexedDbOutbox'
 import { ownCacheNames } from '../pwa/appShell'
 import { KILL_MESSAGE, OUTBOX_SYNC_TAG } from './names'
 
@@ -51,10 +51,15 @@ export const registerUploadWorker = async (url = '/sw.js'): Promise<boolean> => 
 }
 
 /**
- * Removes every worker this origin has, and the photos any of them were holding.
+ * Removes every worker this origin has and the cached shell, and the outbox database once it is empty.
  *
- * Both halves matter. Unregistering alone would leave a database no code drains;
- * deleting alone would leave a worker that re-creates it on the next sync.
+ * Unregistering the worker is what stops it re-creating a database on the next sync. The database
+ * itself is deleted only when no photo is waiting in it (SEC-06): the switch arrives by URL, a join
+ * link is forwarded in group chats, and a guest must not lose photos they believe are queued to a
+ * query string they never typed. With photos waiting the database stays, and the upload screen of
+ * the event drains it from the page (`useOutbox`, with no worker and no new entry accepted); the
+ * emptied database is deleted by the next load. A database that cannot be opened counts as empty,
+ * so the switch still gets a broken outbox out of the way.
  */
 export const removeUploadWorker = async (): Promise<void> => {
   if (supported()) {
@@ -73,7 +78,7 @@ export const removeUploadWorker = async (): Promise<void> => {
   // otherwise — and a stale shell cache with no worker to update it is the one failure
   // a kill switch exists to prevent.
   await dropShellCaches()
-  await deleteOutboxDb()
+  if (!(await outboxHoldsPhotos())) await deleteOutboxDb()
 }
 
 /** Deletes every cache this app's worker has ever made, from the page. */

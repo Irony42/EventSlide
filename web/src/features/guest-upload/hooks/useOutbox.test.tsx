@@ -296,19 +296,74 @@ describe('useOutbox', () => {
     expect(result.current.waiting).toBe(0)
   })
 
-  it('opens nothing at all when the kill switch is off', async () => {
-    // Not a flag that merely stops new work: with no store, `enqueue` refuses and the
-    // upload screen reports failures exactly as it did before this feature existed.
+  it('opens the store but takes no new photo when the kill switch is off and it is empty', async () => {
+    // With nothing waiting the switch behaves as it always did: `enqueue` refuses and the upload
+    // screen reports failures exactly as it did before this feature existed. The store is opened
+    // only to find it empty, and closed again at once.
     localStorage.setItem('eventslide.offline', 'off')
-    const open = vi.fn(async () => new MemoryOutbox())
+    const store = new MemoryOutbox()
+    const close = vi.spyOn(store, 'close')
 
-    const { result } = renderHook(() => useOutbox({ slug: SLUG, open }), {
-      wrapper: wrapperFor(fakeApi()),
-    })
+    const { result } = renderHook(
+      () => useOutbox({ slug: SLUG, open: () => Promise.resolve(store) }),
+      {
+        wrapper: wrapperFor(fakeApi()),
+      },
+    )
 
-    await waitFor(() => expect(result.current.ready).toBe(false))
-    expect(open).not.toHaveBeenCalled()
+    await waitFor(() => expect(close).toHaveBeenCalled())
+    expect(result.current.ready).toBe(false)
     expect(await result.current.enqueue(aPhotoFile(), null, null)).toBeNull()
+    expect(await store.list(SLUG)).toHaveLength(0)
+  })
+
+  it('sends them when the upload screen is next open although the layer is off', async () => {
+    // SEC-06: the switch no longer deletes photos still waiting, so something has to send them.
+    // With no worker, that is this screen's own drain.
+    localStorage.setItem('eventslide.offline', 'off')
+    const store = new MemoryOutbox()
+    await seed(store)
+    const uploadPhotos = vi.fn<Api['uploadPhotos']>().mockResolvedValue(accepted())
+    const onDrained = vi.fn()
+
+    const { result } = mount(fakeApi({ uploadPhotos }), { store, onDrained })
+
+    await waitFor(() => expect(uploadPhotos).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(onDrained).toHaveBeenCalled())
+    expect(await store.list(SLUG)).toHaveLength(0)
+    // Still off: sending what was there is not turning the queue back on.
+    expect(result.current.ready).toBe(false)
+  })
+
+  it('accepts no new photo while the layer is off, even with photos still waiting', async () => {
+    localStorage.setItem('eventslide.offline', 'off')
+    const store = new MemoryOutbox()
+    await seed(store)
+    const uploadPhotos = vi.fn<Api['uploadPhotos']>().mockRejectedValue(ApiError.network())
+
+    const { result } = mount(fakeApi({ uploadPhotos }), { store })
+    await waitFor(() => expect(result.current.waiting).toBe(1))
+
+    expect(await result.current.enqueue(aPhotoFile(), null, null)).toBeNull()
+    expect(await store.list(SLUG)).toHaveLength(1)
+  })
+
+  it('writes nothing on leaving while the layer is off', async () => {
+    localStorage.setItem('eventslide.offline', 'off')
+    const store = new MemoryOutbox()
+    await seed(store)
+    const uploadPhotos = vi.fn<Api['uploadPhotos']>().mockRejectedValue(ApiError.network())
+
+    const { result, unmount } = mount(fakeApi({ uploadPhotos }), { store })
+    await waitFor(() => expect(result.current.waiting).toBe(1))
+    result.current.keepOnLeave(() => [
+      { file: async () => aPhotoFile('ce-soir.jpg'), caption: null, missionId: null },
+    ])
+
+    unmount()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(await store.list(SLUG)).toHaveLength(1)
   })
 
   it('comes back on its own after a photo the network would not take', async () => {
