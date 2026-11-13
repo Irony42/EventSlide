@@ -130,13 +130,15 @@ describe('useMissions', () => {
 describe('useMissions: its read', () => {
   type Mine = { readonly items: readonly ReturnType<typeof aGuestMission>[] }
 
-  it('does not let a superseded read replace the current checklist', async () => {
+  it('ends on the newest checklist when a refresh is asked while a read is in flight', async () => {
     // The checklist refetches after every settled upload, and on venue Wi-Fi two of those can
-    // be in flight at once. The slow first one landing last would put back a prompt the guest
-    // has just answered.
-    const stale = deferred<Mine>()
-    const fresh = deferred<Mine>()
-    const answers = [() => stale.promise, () => fresh.promise]
+    // be asked together. The read on the wire is not restarted: it lands, and one more read
+    // follows it, so the last word is always the newest answer, never the slow first one's.
+    const first = deferred<Mine>()
+    const answers = [
+      () => first.promise,
+      () => Promise.resolve({ items: [aGuestMission({ id: 'm2', done: true })] }),
+    ]
     const api = fakeApi({
       myMissions: vi.fn(() => (answers.shift() ?? (() => Promise.resolve({ items: [] })))()),
     })
@@ -144,15 +146,13 @@ describe('useMissions: its read', () => {
 
     act(() => result.current.refresh())
     await act(async () => {
-      fresh.resolve({ items: [aGuestMission({ id: 'm2', done: true })] })
-      await fresh.promise
-    })
-    await act(async () => {
-      stale.resolve({ items: [aGuestMission({ id: 'm1' })] })
-      await stale.promise
+      first.resolve({ items: [aGuestMission({ id: 'm1' })] })
+      await first.promise
     })
 
-    expect(result.current.missions.map((mission) => mission.id)).toEqual(['m2'])
+    await waitFor(() =>
+      expect(result.current.missions.map((mission) => mission.id)).toEqual(['m2']),
+    )
   })
 
   it('leaves the checklist as it was when a refresh fails', async () => {
