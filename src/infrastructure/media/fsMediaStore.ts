@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs'
-import { mkdir, rename, rm, stat, unlink, writeFile, readFile } from 'node:fs/promises'
+import { mkdir, open, rename, rm, stat, unlink, readFile } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { ByteRange, MediaMetadata, MediaStore, StoredObject } from '../../application/ports/mediaStore'
@@ -9,6 +9,30 @@ import { ContentHash } from '../../domain/photos/contentHash'
 import { asEventId, type EventId } from '../../domain/shared/ids'
 import { isMissing, readdirOrEmpty } from '../system/fsErrors'
 import { CONTENT_TYPE, EXTENSION, mediaObjectPath } from './mediaLayout'
+
+/**
+ * fsync a directory so a rename into it survives a power cut. Best effort **only where the
+ * platform cannot do it**: Windows refuses to open a directory (EPERM/EISDIR) and some
+ * filesystems refuse to sync one (EINVAL/ENOTSUP). Any other failure is a real I/O error
+ * and is raised.
+ */
+const syncDirectory = async (directory: string): Promise<void> => {
+  const UNSUPPORTED = new Set(['EPERM', 'EISDIR', 'EINVAL', 'ENOTSUP'])
+  let handle
+  try {
+    handle = await open(directory, 'r')
+  } catch (error) {
+    if (UNSUPPORTED.has((error as NodeJS.ErrnoException).code ?? '')) return
+    throw error
+  }
+  try {
+    await handle.sync()
+  } catch (error) {
+    if (!UNSUPPORTED.has((error as NodeJS.ErrnoException).code ?? '')) throw error
+  } finally {
+    await handle.close()
+  }
+}
 
 /**
  * Media on the local filesystem, laid out as:
@@ -105,7 +129,18 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
       // other's temporary file.
       const temporary = `${target}.${randomUUID()}.tmp`
       try {
-        await writeFile(temporary, bytes, { flag: 'wx' })
+        // **Synced before the rename** (BUG-14), like `fsBookFileStore`. Ingest is write
+        // file, verify, insert the row; the verify reads the page cache, and on ext4 a
+        // rename to a new name does not force the data blocks out. A power cut after the
+        // row was committed could leave that row pointing at a zero-length file. About a
+        // millisecond per rendition here, on the upload path's own few writes.
+        const handle = await open(temporary, 'wx')
+        try {
+          await handle.writeFile(bytes)
+          await handle.sync()
+        } finally {
+          await handle.close()
+        }
         await rename(temporary, target)
       } catch (error) {
         await unlink(temporary).catch(() => {
@@ -115,6 +150,9 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
         })
         throw error
       }
+      // The rename is a change to the directory, which is its own piece of state: without
+      // this the synced bytes can be there and the name not.
+      await syncDirectory(join(target, '..'))
     },
 
     exists: async (eventId, hash, variant): Promise<boolean> => {

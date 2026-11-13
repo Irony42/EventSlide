@@ -1059,6 +1059,15 @@ purge`, which is the _only_ place it runs when an operator has moved the schedul
 - **On shutdown the child is killed, not orphaned.** `container.dispose()` calls the
   transcoder's `close()`, which SIGTERMs then SIGKILLs every running ffmpeg. Without it a
   new container starts the same job while the old encoder holds a core all evening.
+- **Frames are bounded, not just seconds and pixels.** Encoder work is duration times frame
+  rate, and a header can declare thousands of frames a second of a tiny picture. The probe
+  refuses a declared average rate above 1 000 fps as `clip.corrupt` (permanent, so it is
+  neither encoded nor retried), and the encode adds `fps=60` ahead of the scale whenever the
+  source is declared above 60 fps (`-fpsmax 60` when it declares none), so the output is
+  never above 60 fps. A source at or under 60 keeps its own rate: the filter would also
+  duplicate frames up to its target.
+  `-probesize` (bytes) and `-analyzeduration` (microseconds) are separate constants. A
+  timeout is still classified transient and retried, which is the application's rule.
 - **ffprobe's stdout is an untrusted boundary input**, derived from a guest's file. It is
   parsed with zod, like `req.body`.
 - **ffprobe is not the cheap header read `sharp.metadata()` is.** It is the same demuxer
@@ -1066,7 +1075,7 @@ purge`, which is the _only_ place it runs when an operator has moved the schedul
   `-analyzeduration` and a timeout — and why it runs in the worker rather than on the
   guest's request. The cheap gate on the request path is the signature, and only that.
 - **No encoder on the box is not a failure of the box.** The boot check asks `-encoders`
-  for `libx264` and `aac` **by name, never a version string**: a distribution's patched
+  for `libx264` and `aac` **by name, never a version string** (the encoder's own name in the listing's name column, so `libfdk_aac` is not `aac`): a distribution's patched
   build reports its own version, and one compiled without those encoders reports a
   perfectly modern one right up until the first transcode fails. On failure the adapter is
   replaced by a Null Object, clip uploads are refused with `clip.transcoderUnavailable`,
