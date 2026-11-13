@@ -10,9 +10,8 @@ import {
   requireUser,
   resolveAuthState,
 } from '../middleware/authz'
-import { rotateCsrfToken } from '../middleware/csrf'
 import {
-  destroySession,
+  endSession,
   pendingOf,
   regenerateSession,
   startPendingSecondFactor,
@@ -65,14 +64,9 @@ import type { HttpUseCases } from '../useCases'
  * infer it from an absent middleware.
  */
 
-/**
- * Must match the `name` given to `express-session` in `server.ts`.
- *
- * Exported so the logout clear and its test agree on one literal: a browser matches a
- * cookie deletion on name, domain and path, so a mismatch here would silently leave
- * the cookie in place and nothing would fail until the next request.
- */
-export const SESSION_COOKIE = 'es_session'
+// Defined with the session lifecycle that clears it; re-exported because `server.ts` names the
+// session cookie from here.
+export { SESSION_COOKIE } from '../middleware/session'
 
 /**
  * Narrower than `RouteDeps` on purpose.
@@ -297,28 +291,8 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     // already expired — precisely the moment it asks to log out — and would leave the
     // stale cookie sitting in the browser.
     asyncHandler(async (req, res) => {
-      await destroySession(req.session)
-
-      // `destroy` removes the stored row but says nothing to the browser. Without this
-      // the cookie stays and every later request costs a store lookup for a session
-      // that no longer exists. The attributes mirror `server.ts`, since a deletion is
-      // matched on name, domain and path.
-      res.clearCookie(SESSION_COOKIE, {
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: deps.config.secureCookie,
-      })
-
-      // Replaced rather than cleared. The page that called this is still open and still
-      // needs to be able to act — the join page and the wall are public, and a guest on
-      // a shared phone signing the host out must not lose their own ability to upload —
-      // so what is issued here is a fresh anonymous token, not the absence of one.
-      //
-      // Rotating matters as much here as on the login: the browser has just stopped
-      // being a host, and a token that carried over would still be the one a page opened
-      // during the session holds.
-      rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
+      // What an ended session leaves behind, and why each part, is `endSession`'s to say.
+      await endSession(req, res, deps)
 
       sendNoContent(res)
     }),
@@ -466,14 +440,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
         }
 
         // The account is gone: so is this session, and the cookie that named it. Same as a logout.
-        await destroySession(req.session)
-        res.clearCookie(SESSION_COOKIE, {
-          path: '/',
-          httpOnly: true,
-          sameSite: 'lax',
-          secure: deps.config.secureCookie,
-        })
-        rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
+        await endSession(req, res, deps)
         sendNoContent(res)
       }),
     )
