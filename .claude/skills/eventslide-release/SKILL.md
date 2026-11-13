@@ -320,16 +320,22 @@ gh release view vX --repo Irony42/EventSlide --json tagName,isPrerelease,assets,
 - Locally, if `docker` and `cosign` exist (**unverified here**): the commands of
   `docs/IMAGE-SOURCES.md`, "Checking the signature".
 - Post a GitHub Discussion in the **Announcements** category, titled
-  `EventSlide X.Y: <the three or four main things>` (#439 for 3.11.0, #392, #380, #371 are
+  `EventSlide X.Y: <the three or four main things>` (#465 for 3.13.0, #439, #392, #380 are
   the models). Body: a bold one-sentence summary, a bullet per change a user will notice,
   a "Before upgrading" line (migration number, settings; "Nothing to set" otherwise), the
   links to `CHANGELOG.md` and `docs/UPGRADING.md` at the tag, and the image and release
   links. It is a public post: ask the maintainer first unless he has said to post it. The
-  command is **unverified** (the discussions listed were created from the same account):
-  `gh api graphql` with `createDiscussion(input: {repositoryId, categoryId, title, body})`;
-  fetch the two ids with `repository(owner:"Irony42",name:"EventSlide"){id
-discussionCategories(first:10){nodes{id name}}}`.
-- Tell the maintainer the hosted instance can be upgraded; that is his.
+  command (used for #465), with the body in a file:
+
+  ```bash
+  gh api graphql -f query='{repository(owner:"Irony42",name:"EventSlide"){id discussionCategories(first:10){nodes{id name}}}}'
+  gh api graphql -f query='mutation($repo:ID!,$cat:ID!,$title:String!,$body:String!){createDiscussion(input:{repositoryId:$repo,categoryId:$cat,title:$title,body:$body}){discussion{number url}}}' \
+    -f repo=<repository id> -f cat=<the Announcements category id> -f title="EventSlide X.Y.Z: ..." -F body=@<file>
+  ```
+
+- Tell the maintainer the hosted instance can be upgraded; that is his. Its runbook (in his
+  private infrastructure repository) forbids an upgrade from Friday 16:00 to Sunday midnight
+  and during a live event: say so when the release lands in that window.
 
 ## 10. When a step fails half way
 
