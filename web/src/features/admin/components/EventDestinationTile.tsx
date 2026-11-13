@@ -47,6 +47,7 @@ export function EventDestinationTile({
         <RouteTile
           size={size}
           glyph="moderate"
+          tour="moderate"
           to={`${base}/moderation`}
           count={event.pendingCount}
           hint={
@@ -63,6 +64,7 @@ export function EventDestinationTile({
         <RouteTile
           size={size}
           glyph="wall"
+          tour="wall"
           to={`/e/${event.slug}/display`}
           newTab
           hint={event.status === 'draft' ? t.admin.wallDraftHint : t.admin.wallTileHint}

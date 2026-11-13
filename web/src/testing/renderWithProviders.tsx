@@ -531,6 +531,9 @@ export const aSessionUser = (overrides: Partial<CurrentUserDto> = {}): CurrentUs
   canOperateSite: false,
   // A box with no key, as a stock install: nothing offered, nothing required.
   secondFactor: { available: false, enrolled: false, verified: false, required: false },
+  // Seen, so the event page's first-visit tour does not cover every test of that page; a test
+  // about the tour says `toursSeen: []`.
+  toursSeen: ['eventPage'],
   ...overrides,
 })
 
@@ -594,6 +597,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   requestPasswordReset: vi.fn(async () => undefined),
   confirmPasswordReset: vi.fn(async () => undefined),
   revokeOtherSessions: vi.fn(async () => undefined),
+  markTourSeen: vi.fn(async () => undefined),
   invitation: vi.fn(async () => anInvitationPreview()),
   acceptInvitation: vi.fn(async () => anInvitationAccepted()),
   loginSecondFactor: vi.fn(async () => aSessionUser()),

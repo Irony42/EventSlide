@@ -29,6 +29,9 @@ export interface InvitationAcceptedDto {
   readonly targetName: string
   readonly eventSlug: string | null
 }
+/** The console's guided tours (`domain/users/guidedTour.ts`): `POST /api/auth/tours/:tour`. */
+export type GuidedTour = 'eventPage'
+
 export interface SessionUserDto {
   readonly userId: string
   readonly email: string
@@ -46,6 +49,11 @@ export interface CurrentUserDto extends SessionUserDto {
   readonly canOperateSite: boolean
   /** Where the account stands with the second factor (G2-13 / P3-15). */
   readonly secondFactor: SecondFactorStatusDto
+  /**
+   * The console's guided tours this account was already shown or skipped (`'eventPage'`), on
+   * any device: such a tour is not offered by itself again. Grants nothing.
+   */
+  readonly toursSeen: readonly string[]
 }
 /**
  * What decides between "carry on", "enrol" and "enter your code". `available`: this box has a

@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { ApiProvider } from './ApiProvider'
 import { SessionProvider } from './SessionProvider'
 import { announceSessionExpired } from './sessionExpiry'
-import { useForgetSession, useSession, useSessionExpired } from './useSession'
+import { useAmendSession, useForgetSession, useSession, useSessionExpired } from './useSession'
 import { aSessionUser, fakeApi } from '../testing/renderWithProviders'
 import type { ReactNode } from 'react'
 import type { Api } from './api/client'
@@ -309,5 +309,43 @@ describe('useSessionExpired', () => {
     rerender()
 
     expect(result.current.expired).toBe(false)
+  })
+})
+
+describe('useAmendSession', () => {
+  it('changes the shared answer in place: no new request, and never a loading state', async () => {
+    // `refresh` would set `loading`, and `RequireAuth` swaps the whole page for a spinner on
+    // `loading`: amending after a guided tour must not reload the page the host is on.
+    const session = vi.fn(async (): Promise<SessionResponse> => signedIn())
+    const api = fakeApi({ session })
+    const wrapper = ({ children }: { readonly children: ReactNode }) => (
+      <ApiProvider api={api}>
+        <SessionProvider scope="test">{children}</SessionProvider>
+      </ApiProvider>
+    )
+    const loadings: boolean[] = []
+    const { result } = renderHook(
+      () => {
+        const state = useSession()
+        loadings.push(state.loading)
+        return { state, amend: useAmendSession() }
+      },
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.state.loading).toBe(false))
+    loadings.length = 0
+
+    act(() =>
+      result.current.amend((current) =>
+        current.authenticated
+          ? { ...current, user: { ...current.user, toursSeen: ['eventPage'] } }
+          : current,
+      ),
+    )
+
+    const answer = result.current.state.session
+    expect(answer?.authenticated === true ? answer.user.toursSeen : null).toEqual(['eventPage'])
+    expect(session).toHaveBeenCalledOnce()
+    expect(loadings).not.toContain(true)
   })
 })

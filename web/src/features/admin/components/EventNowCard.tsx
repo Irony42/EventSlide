@@ -62,7 +62,8 @@ export function EventNowCard({
   })
 
   return (
-    <section className={styles['card']} aria-labelledby={titleId}>
+    // `data-tour`: the regions the first visit's guided tour lights (`eventTour.ts`).
+    <section className={styles['card']} aria-labelledby={titleId} data-tour="now">
       <header className={styles['header']}>
         <p className={styles['eyebrow']}>{eyebrow}</p>
         <h2 id={titleId} className={styles['title']}>
@@ -90,7 +91,11 @@ export function EventNowCard({
       {schedule === undefined && lifecycle === undefined ? null : (
         <footer className={styles['footer']}>
           {schedule === undefined ? null : <div className={styles['schedule']}>{schedule}</div>}
-          {lifecycle === undefined ? null : <div className={styles['lifecycle']}>{lifecycle}</div>}
+          {lifecycle === undefined ? null : (
+            <div className={styles['lifecycle']} data-tour="lifecycle">
+              {lifecycle}
+            </div>
+          )}
         </footer>
       )}
     </section>

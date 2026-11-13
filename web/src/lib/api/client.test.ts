@@ -492,6 +492,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.revokeOtherSessions(),
   },
   {
+    name: 'markTourSeen',
+    verb: 'post',
+    path: '/api/auth/tours/eventPage',
+    invoke: (client) => client.markTourSeen('eventPage'),
+  },
+  {
     name: 'invitation',
     verb: 'get',
     path: `/api/invitations/${GALLERY_TOKEN}`,

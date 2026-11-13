@@ -26,16 +26,19 @@ interface TileContent {
   readonly hint?: string | undefined
   /** A number that wants the host's attention (photos waiting): drawn as a badge, said in the hint. */
   readonly count?: number | undefined
+  /** The region name the first visit's guided tour lights this tile by (`data-tour`). */
+  readonly tour?: string | undefined
 }
 
 /**
  * What makes an element a tile of a size. The attribute is the whole mechanism: the stylesheet
  * reads `data-size` and nothing else, so what a test asserts is what is drawn.
  */
-const tileProps = (size: TileSize, attention: boolean) => ({
+const tileProps = (size: TileSize, attention: boolean, tour: string | undefined) => ({
   className: styles['tile'],
   'data-size': size,
   ...(attention ? { 'data-attention': '' } : {}),
+  ...(tour === undefined ? {} : { 'data-tour': tour }),
 })
 
 /** What is inside a tile. The glyph and the badge are decoration: the label is the name. */
@@ -82,6 +85,7 @@ export function RouteTile({
   children,
   hint,
   count,
+  tour,
   newTab = false,
 }: TileContent & { readonly to: string; readonly newTab?: boolean }) {
   const t = useTranslations()
@@ -97,7 +101,7 @@ export function RouteTile({
   return (
     <>
       <Link
-        {...tileProps(size, count !== undefined && count > 0)}
+        {...tileProps(size, count !== undefined && count > 0, tour)}
         to={to}
         {...(newTab ? { target: '_blank', rel: 'noopener' } : {})}
         {...(describedBy === '' ? {} : { 'aria-describedby': describedBy })}
@@ -122,11 +126,12 @@ export function DownloadTile({
   glyph,
   children,
   hint,
+  tour,
 }: Omit<TileContent, 'count'> & { readonly href: string }) {
   const hintId = useId()
   return (
     <a
-      {...tileProps(size, false)}
+      {...tileProps(size, false, tour)}
       href={href}
       download
       {...(hint === undefined ? {} : { 'aria-describedby': hintId })}
@@ -146,12 +151,13 @@ export function PanelTile({
   children,
   hint,
   count,
+  tour,
 }: TileContent & { readonly onOpen: () => void }) {
   const hintId = useId()
   return (
     <button
       type="button"
-      {...tileProps(size, count !== undefined && count > 0)}
+      {...tileProps(size, count !== undefined && count > 0, tour)}
       onClick={onOpen}
       {...(hint === undefined ? {} : { 'aria-describedby': hintId })}
     >

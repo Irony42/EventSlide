@@ -338,6 +338,13 @@ export const es: UiText = {
 
   ui: {
     dialogClose: 'Cerrar la ventana',
+    tourStep: (step: number, total: number) => `Paso ${step} de ${total}`,
+    tourNext: 'Siguiente',
+    tourPrevious: 'Anterior',
+    tourSkip: 'Saltar',
+    tourFinish: 'Terminar',
+    tourLater: 'Más tarde',
+    tourStart: 'Hacer el recorrido',
     dismissNotification: 'Ocultar esta notificación',
     percent: (value: number) => t.percent(value),
     optional: 'Opcional',
@@ -1446,6 +1453,39 @@ export const es: UiText = {
     qrEnlarge: 'Mostrar el código QR en grande',
     qrEnlargedHint: 'Sus invitados escanean esta pantalla o escriben el código.',
     overviewTitle: 'Todo el evento',
+    /* The first visit's guided tour of this page (features/admin/eventTour.ts). */
+    tourButton: 'Visita guiada',
+    tourWelcomeTitle: 'Le damos la bienvenida a su fiesta',
+    tourWelcomeBody: (name: string) =>
+      `Aquí prepara «${name}», la dirige el gran día y recupera el álbum después. ¿Damos una vuelta por la pantalla?`,
+    tourWelcomeModeratorTitle: 'Le damos la bienvenida al equipo',
+    tourWelcomeModeratorBody: (name: string) =>
+      `Usted modera «${name}». ¿Damos una vuelta por lo que encontrará aquí?`,
+    tourNowTitle: 'Lo que importa ahora',
+    tourNowBody:
+      'Esta tarjeta sigue la fiesta: antes, lo que queda por preparar; durante, la moderación y la pantalla; después, el álbum. Empiece siempre por ella.',
+    tourAccessTitle: 'Hacer entrar a sus invitados',
+    tourAccessBody:
+      'Escanean este código QR o escriben el código: sin aplicación ni cuenta. Imprima las tarjetas de mesa o muestre el QR en grande el gran día.',
+    tourOpenTitle: 'Nada sale antes de abrir',
+    tourOpenBody:
+      'Mientras el evento sea un borrador, nadie puede enviar fotos. Ábralo aquí cuando llegue el momento, o programe la apertura en los ajustes.',
+    tourCloseTitle: 'Finalizar la fiesta en el momento justo',
+    tourCloseBody:
+      'Los invitados envían fotos hasta que usted finalice el evento aquí, o hasta la hora prevista en los ajustes.',
+    tourAfterTitle: 'Reabrir o archivar',
+    tourAfterBody:
+      'La fiesta ha terminado: ya no se puede enviar nada. Reábrala si hace falta, o archívela una vez guardado el álbum.',
+    tourEveningTitle: 'Los dos gestos del gran día',
+    tourEveningBodyManual:
+      'Moderar: cada foto espera su aprobación antes de aparecer, desde el ordenador o el teléfono. Abrir la pantalla: la página que se muestra a pantalla completa en el proyector.',
+    tourEveningBodyAuto:
+      'Moderar: las fotos aparecen en cuanto llegan, y usted retira de un gesto las que no deben estar en pantalla. Abrir la pantalla: la página que se muestra a pantalla completa en el proyector.',
+    tourOverviewTitle: 'Todo lo demás está aquí',
+    tourOverviewBody:
+      'Libro de visitas, reto fotográfico, invitados, álbum… Cada mosaico lleva a su panel, más abajo en la página.',
+    tourEndTitle: 'Ahora le toca a usted',
+    tourEndBody: 'Este botón vuelve a iniciar la visita cuando quiera. ¡Buena fiesta!',
     overviewHints: {
       guestbook: 'Las palabras de sus invitados',
       challenge: 'Un reto fotográfico cronometrado',

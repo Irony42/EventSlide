@@ -58,3 +58,11 @@ export const useSessionExpired = (): boolean => useStore().expired
  * session must do. Does not subscribe, so a sign-in form that calls it still asks nothing.
  */
 export const useForgetSession = (): (() => void) => useStore().forget
+
+/**
+ * Changes the shared answer in place, for a fact this page has just told the server (a guided
+ * tour seen): every reader sees it at once, nothing is asked again, and nothing reloads.
+ */
+export const useAmendSession = (): ((
+  change: (session: SessionResponse) => SessionResponse,
+) => void) => useStore().amend
