@@ -138,12 +138,6 @@ export const EXCEPTIONS: readonly LicenseException[] = [
       'Browser-support data read by the build tooling. It asks for attribution, nothing ' +
       'from it is served, and it is pruned from the image.',
   },
-  {
-    packages: /^mdn-data$/,
-    licenses: ['CC0-1.0'],
-    scope: 'development',
-    reason: 'CSS reference data read by the build tooling: a public-domain dedication, pruned.',
-  },
 ]
 
 export interface RecordedLicense {

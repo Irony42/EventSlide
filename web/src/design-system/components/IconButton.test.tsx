@@ -51,11 +51,12 @@ describe('IconButton', () => {
       .getComputedStyle(document.documentElement)
       .getPropertyValue('--touch-min')
 
-    // Two assertions because jsdom resolves the cascade but not `var()`: the control
-    // declares the token, and the token is 44px. A 16px close cross is what made 1.0's
-    // "remove this photo" unusable one-handed in a dark venue.
-    expect(style.minWidth).toBe('var(--touch-min)')
-    expect(style.minHeight).toBe('var(--touch-min)')
+    // jsdom 31 substitutes `var()` while it resolves the cascade, so the control's computed
+    // floor is read directly: the token is 2.75rem, which is 44px at the default 16px root.
+    // A 16px close cross is what made 1.0's "remove this photo" unusable one-handed in a
+    // dark venue.
+    expect(style.minWidth).toBe('44px')
+    expect(style.minHeight).toBe('44px')
     expect(touchMin.trim()).toBe('2.75rem')
   })
 
