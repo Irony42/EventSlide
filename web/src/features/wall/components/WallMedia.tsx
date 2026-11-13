@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { cx } from '../../../design-system/classNames'
 import { isAbortError } from '../../../lib/http'
 import type { WallItemDto } from '../../../lib/api/dto'
 import styles from './WallMedia.module.css'
+import { WallMediaFailureContext } from './wallMediaFailure'
 
 /**
  * One item of the playlist, as the room sees it: a photograph, a clip's poster frame, or
@@ -27,6 +28,11 @@ import styles from './WallMedia.module.css'
  * back to the still. It never falls forward: once degraded, this item stays a photograph
  * for as long as it is on screen, because a video that re-attempts every render is a wall
  * that flickers.
+ *
+ * A photograph is held to the same promise: an `<img>` that fails is hidden (never the
+ * browser's broken-image glyph) and the playlist is asked to be read again, once per mount for
+ * that address. A read that brings a fresh address shows it; the same address failing again asks
+ * for nothing more, so a photograph that is really gone cannot make a loop.
  */
 
 export interface WallMediaProps {
@@ -66,6 +72,16 @@ export function WallMedia({ item, plays, paused = false, alt, className }: WallM
    */
   const mounted = useRef<HTMLVideoElement | null>(null)
   const [degraded, setDegraded] = useState(false)
+  const imageFailed = useContext(WallMediaFailureContext)
+  /** The address that failed to load, so a fresh one is tried and the same one is not. */
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const failedRef = useRef(imageFailed)
+  useEffect(() => {
+    failedRef.current = imageFailed
+  })
+  useEffect(() => {
+    if (failedSrc !== null) failedRef.current()
+  }, [failedSrc])
 
   const attach = useCallback((element: HTMLVideoElement | null) => {
     video.current = element
@@ -137,8 +153,9 @@ export function WallMedia({ item, plays, paused = false, alt, className }: WallM
   if (!playable || item.videoUrl === null) {
     return (
       <img
-        className={className}
+        className={failedSrc === item.displayUrl ? cx(className, styles['failed']) : className}
         src={item.displayUrl}
+        onError={() => setFailedSrc(item.displayUrl)}
         alt={alt}
         width={item.width}
         height={item.height}

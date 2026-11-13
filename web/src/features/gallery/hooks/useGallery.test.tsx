@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { ApiProvider } from '../../../lib/ApiProvider'
 import { ApiError } from '../../../lib/http'
@@ -66,6 +66,62 @@ describe('useGallery', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  describe('when the page becomes visible again (BUG-25)', () => {
+    // A tab that slept past the grant wakes with dead URLs until a timer that sleeping
+    // throttled finally fires: the wake itself must re-read when the grant may have lapsed.
+    const wake = (advanceMs: number) => {
+      vi.setSystemTime(Date.now() + advanceMs)
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+      document.dispatchEvent(new Event('visibilitychange'))
+    }
+
+    const setup = async () => {
+      vi.useFakeTimers()
+      const gallery = vi.fn<Api['gallery']>(async () => aGallery())
+      const galleryPhotos = vi.fn<Api['galleryPhotos']>(async () => ({
+        items: [aGalleryPhoto({ id: 'p1' })],
+        nextCursor: null,
+      }))
+      const view = mount(fakeApi({ gallery, galleryPhotos }), 1000)
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+      expect(view.result.current.phase).toBe('ready')
+      return gallery
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+      vi.useRealTimers()
+    })
+
+    it('re-reads at once when the last read is older than the refresh period', async () => {
+      const gallery = await setup()
+
+      await act(async () => wake(1500))
+
+      expect(gallery).toHaveBeenCalledTimes(2)
+    })
+
+    it('leaves a recent read alone', async () => {
+      const gallery = await setup()
+
+      await act(async () => wake(200))
+
+      expect(gallery).toHaveBeenCalledTimes(1)
+    })
+
+    it('does nothing while the page is hidden', async () => {
+      const gallery = await setup()
+
+      vi.setSystemTime(Date.now() + 5000)
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+
+      expect(gallery).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('does not write old signatures back when a page lands after a refresh', async () => {

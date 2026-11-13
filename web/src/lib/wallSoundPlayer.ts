@@ -70,12 +70,13 @@ export const createWallSoundPlayer = (deps: WallSoundDeps = {}): WallSoundPlayer
   const load = (tone: WallSoundTone): Promise<void> => {
     const pending = loading.get(tone)
     if (pending !== undefined) return pending
+    // No context yet: nothing to cache. Caching the early return would pin a finished,
+    // empty promise and the tone would never be fetched (BUG-24).
+    if (context === null || buffers.has(tone)) return Promise.resolve()
     const started = (async () => {
       try {
-        if (context === null) {
-          loading.delete(tone)
-          return
-        }
+        // Yield first: a failure must settle after `loading.set` below, even a synchronous throw.
+        await Promise.resolve()
         const bytes = await fetchBytes(wallSoundUrl(tone))
         buffers.set(tone, await context.decodeAudioData(bytes))
       } catch {

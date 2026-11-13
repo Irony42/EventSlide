@@ -117,6 +117,18 @@ describe('the wall sound hook (spec 12)', () => {
     expect(hook.player.plays).toHaveLength(2)
   })
 
+  it('asks the player for the tone again at each chime, so a failed fetch is not final (BUG-24)', async () => {
+    const hook = setup()
+    act(() => hook.result.current.observe(read(['a'], 1)))
+    await activate(hook)
+    hook.player.loads.length = 0
+
+    vi.setSystemTime(NOW + WALL_SOUND_MIN_GAP_MS + 1_000)
+    act(() => hook.result.current.observe(read(['b', 'a'], 2)))
+
+    expect(hook.player.loads).toEqual(['bell'])
+  })
+
   it('rings once for a burst, and not again inside the 5 s window', async () => {
     const hook = setup()
     act(() => hook.result.current.observe(read(['a'], 1)))

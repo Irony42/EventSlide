@@ -1,8 +1,9 @@
-import { act, render } from '@testing-library/react'
+import { act, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { aWallClip, aWallItem } from '../../../testing/renderWithProviders'
 import { classesOf, cls } from '../../../testing/classesOf'
 import { WallMedia } from './WallMedia'
+import { WallMediaFailureContext } from './wallMediaFailure'
 import styles from './WallMedia.module.css'
 
 /**
@@ -131,5 +132,62 @@ describe('when the slide is over', () => {
     unmount()
 
     expect(load).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * BUG-22: the module promises "never a black rectangle in the middle of a wedding", and kept
+ * it for a clip only. A photograph whose rendition fails to load showed the browser's
+ * broken-image glyph for the whole slide, and for good on a one-photo wall.
+ */
+describe('a photograph that fails to load (BUG-22)', () => {
+  const photo = aWallItem({ id: 'p1', displayUrl: '/media/p1/display?sig=a' })
+
+  const renderWithReader = (item = photo) => {
+    const onFailed = vi.fn()
+    const view = render(
+      <WallMediaFailureContext.Provider value={onFailed}>
+        <WallMedia item={item} plays={false} alt="une photo" className="slot" />
+      </WallMediaFailureContext.Provider>,
+    )
+    const rerender = (next: typeof photo) =>
+      view.rerender(
+        <WallMediaFailureContext.Provider value={onFailed}>
+          <WallMedia item={next} plays={false} alt="une photo" className="slot" />
+        </WallMediaFailureContext.Provider>,
+      )
+    return { ...view, onFailed, rerender }
+  }
+
+  it('does not show a broken image, and asks the playlist to be read again once', () => {
+    const { container, onFailed } = renderWithReader()
+
+    fireEvent.error(container.querySelector('img') as HTMLImageElement)
+
+    const img = container.querySelector('img')
+    expect(img === null || img.classList.contains(cls(styles, 'failed'))).toBe(true)
+    expect(onFailed).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not ask again for a photograph that keeps failing', () => {
+    const { container, onFailed } = renderWithReader()
+    const img = () => container.querySelector('img') as HTMLImageElement
+
+    fireEvent.error(img())
+    fireEvent.error(img())
+    fireEvent.error(img())
+
+    expect(onFailed).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the photograph again when the read brings a fresh address for it', () => {
+    const { container, rerender } = renderWithReader()
+    fireEvent.error(container.querySelector('img') as HTMLImageElement)
+
+    rerender({ ...photo, displayUrl: '/media/p1/display?sig=b' })
+
+    const img = container.querySelector('img') as HTMLImageElement
+    expect(img.classList.contains(cls(styles, 'failed'))).toBe(false)
+    expect(img.getAttribute('src')).toBe('/media/p1/display?sig=b')
   })
 })

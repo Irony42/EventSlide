@@ -35,17 +35,20 @@ import styles from './GalleryPage.module.css'
  */
 
 /**
- * Which photograph the viewer shows, read from the history entry that opened it.
+ * Which photograph the viewer shows (its id), read from the history entry that opened it.
  *
  * Opening a photograph **pushes** an entry (A6): on a phone the Back gesture closes the
  * viewer instead of leaving the album and losing the guest's place in it. The position is
  * router state and not part of the address, so the shared link stays the same one and
  * nothing about a photograph is written into a URL that gets forwarded.
+ *
+ * By id and not by position in the list: the list is re-read while the viewer is open, and a
+ * photograph hidden or added before the open one would otherwise slide another under it.
  */
-const openedFrom = (state: unknown): number | null => {
+const openedFrom = (state: unknown): string | null => {
   if (typeof state !== 'object' || state === null) return null
-  const index: unknown = Reflect.get(state, 'photo')
-  return typeof index === 'number' && Number.isInteger(index) && index >= 0 ? index : null
+  const id: unknown = Reflect.get(state, 'photo')
+  return typeof id === 'string' && id !== '' ? id : null
 }
 
 const Robots = () => <meta name="robots" content="noindex,nofollow" />
@@ -59,7 +62,7 @@ export function GalleryPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const open = openedFrom(location.state)
-  const openPhoto = (index: number) => navigate('.', { state: { photo: index } })
+  const openPhoto = (id: string) => navigate('.', { state: { photo: id } })
   // Back, not a second push: closing walks the history the opening made. An entry that did not
   // come from this page (nothing before it) is replaced instead, so closing never leaves the album.
   //
@@ -152,7 +155,8 @@ export function GalleryPage() {
 
   const { gallery, items } = state
   const until = formatDateTime(gallery.expiresAt, locale)
-  const viewing = open === null ? null : (items[open] ?? null)
+  const openIndex = open === null ? -1 : items.findIndex((photo) => photo.id === open)
+  const viewing = openIndex < 0 ? null : (items[openIndex] ?? null)
 
   return (
     <div {...themeSurfaceProps(gallery.theme, 'guest')} className={styles['page']}>
@@ -179,7 +183,7 @@ export function GalleryPage() {
                 className={styles['open']}
                 aria-label={t.gallery.openPhoto(index + 1)}
                 aria-haspopup="dialog"
-                onClick={() => openPhoto(index)}
+                onClick={() => openPhoto(photo.id)}
               >
                 {/* Decorative inside a labelled button: the viewer carries the caption. */}
                 <img
@@ -230,7 +234,7 @@ export function GalleryPage() {
 
       <GalleryViewer
         photo={viewing}
-        position={(open ?? 0) + 1}
+        position={openIndex + 1}
         total={gallery.photoCount}
         onClose={closePhoto}
       />

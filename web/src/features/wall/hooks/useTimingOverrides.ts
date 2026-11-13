@@ -10,12 +10,25 @@ export interface TimingOverrides {
   readonly phaseMs: number | null
 }
 
-const readMs = (raw: string | null): number | null => {
+/**
+ * The server's own bounds for these two parameters (`wallQuery`, requestSchemas.ts): a link
+ * sent to a host must not put the projector in a 1 ms slide loop, nor past the 32-bit limit
+ * of `setTimeout` (which fires at once). `0` stays valid for both: it is the suites' "no
+ * clock" and "cut" (CLAUDE.md §9 trap 10), and an out-of-range value is treated as absent.
+ */
+const INTERVAL_RANGE = { min: 50, max: 600_000 } as const
+const TRANSITION_RANGE = { min: 0, max: 10_000 } as const
+
+const readMs = (
+  raw: string | null,
+  range: { readonly min: number; readonly max: number } | null = null,
+): number | null => {
   if (raw === null) return null
   const parsed = Number(raw)
   // A negative or unparseable value is ignored rather than clamped: a typo in a query
   // string must not silently reconfigure the room's screen.
   if (!Number.isFinite(parsed) || parsed < 0) return null
+  if (range !== null && parsed !== 0 && (parsed < range.min || parsed > range.max)) return null
   return Math.trunc(parsed)
 }
 
@@ -40,8 +53,8 @@ export const useTimingOverrides = (): TimingOverrides => {
 
   return useMemo(
     () => ({
-      intervalMs: readMs(interval),
-      transitionMs: readMs(transition),
+      intervalMs: readMs(interval, INTERVAL_RANGE),
+      transitionMs: readMs(transition, TRANSITION_RANGE),
       // Zero would be a boundary every millisecond: refused like any unusable value.
       phaseMs: ((ms) => (ms === 0 ? null : ms))(readMs(phase)),
     }),

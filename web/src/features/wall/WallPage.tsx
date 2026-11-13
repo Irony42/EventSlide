@@ -23,6 +23,7 @@ import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallControls } from './components/WallControls'
 import { WallLayouts } from './components/WallLayouts'
+import { WallMediaFailureContext } from './components/wallMediaFailure'
 import { WallMessage } from './components/WallMessage'
 import { WallChallenge } from './components/WallChallenge'
 import { NewPhotoSignal } from './components/NewPhotoSignal'
@@ -550,21 +551,23 @@ export function WallPage() {
           alternating={followsPhase}
           transitionMs={transitionMs}
         >
-          <WallLayouts
-            layout={layout ?? wall.layout}
-            items={items}
-            slideshow={slideshow}
-            kenBurnsDurationMs={wall.kenBurnsDurationMs}
-            transitionMs={transitionMs}
-            tilt={wall.tilt !== false}
-            showTime={wall.showTime === true}
-            // Every layout but the spotlight draws the invitation in a place of its own.
-            invite={
-              showsOverlay && !cornerCard && invitation !== null
-                ? { join: invitation, onDismiss: hideQr }
-                : null
-            }
-          />
+          <WallMediaFailureContext.Provider value={refresh}>
+            <WallLayouts
+              layout={layout ?? wall.layout}
+              items={items}
+              slideshow={slideshow}
+              kenBurnsDurationMs={wall.kenBurnsDurationMs}
+              transitionMs={transitionMs}
+              tilt={wall.tilt !== false}
+              showTime={wall.showTime === true}
+              // Every layout but the spotlight draws the invitation in a place of its own.
+              invite={
+                showsOverlay && !cornerCard && invitation !== null
+                  ? { join: invitation, onDismiss: hideQr }
+                  : null
+              }
+            />
+          </WallMediaFailureContext.Provider>
         </WallScene>
       )}
 

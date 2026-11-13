@@ -98,6 +98,9 @@ export const useWallSound = (slug: string, makePlayer = createWallSoundPlayer): 
     const decision = decideRing(gate.current, arrivals, taken.at)
     if (!decision.ring || player.current === null || !player.current.running()) return
     gate.current = decision.gate
+    // A tone whose fetch failed is asked for again at every chime (the player caches only a
+    // success): this chime may stay silent, the next one will not.
+    void player.current.load(live.tone)
     player.current.play(live.tone, live.volume)
   }, [])
 
