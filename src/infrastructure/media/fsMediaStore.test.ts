@@ -12,10 +12,11 @@ import {
 } from 'node:fs/promises'
 import { closeSync, openSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { open } from 'node:fs/promises'
 import { once } from 'node:events'
 import type { ReadStream } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createFsMediaStore } from './fsMediaStore'
 import { mediaStoreContract } from '../../application/testing/contracts/mediaStoreContract'
 import type { MediaStore } from '../../application/ports/mediaStore'
@@ -186,6 +187,63 @@ describe('fsMediaStore', () => {
     const shard = HASH_A.value.slice(0, 2)
     expect(await readdir(join(root, WEDDING, 'display', shard))).toEqual([`${HASH_A.value}.jpg`])
     expect(await bytesHeld(store, WEDDING)).toBe(2)
+  })
+
+  describe('durability (BUG-14)', () => {
+    // A power cut cannot be produced here, so this pins the *sequence* with a spy on the
+    // one method that makes bytes durable, through a real temp directory: the bytes are
+    // synced under their temporary name, then the rename, then the directory that now
+    // holds the new name. Without the first, a committed row can outlive zero-length data;
+    // without the second the name itself can be lost.
+    const syncProbe = async (): Promise<{ prototype: { sync: () => Promise<void> } }> => {
+      const handle = await open(join(root, '..'), 'r').catch(() => open(__filename, 'r'))
+      const prototype = Object.getPrototypeOf(handle) as { sync: () => Promise<void> }
+      await handle.close()
+      return { prototype }
+    }
+
+    it('syncs the file before it is renamed into place, then the directory after', async () => {
+      const { prototype } = await syncProbe()
+      const original = prototype.sync
+      const target = objectPath(root, WEDDING, 'display', HASH_A)
+      const events: string[] = []
+      const spy = vi.spyOn(prototype, 'sync').mockImplementation(async function (
+        this: unknown,
+      ) {
+        const targetExists = await stat(target).then(
+          () => true,
+          () => false,
+        )
+        events.push(targetExists ? 'sync after rename' : 'sync before rename')
+        return original.call(this)
+      })
+
+      try {
+        await store.put(WEDDING, HASH_A, 'display', new Uint8Array([1, 2, 3]))
+      } finally {
+        spy.mockRestore()
+      }
+
+      // The directory sync is best effort where the platform cannot open a directory
+      // (Windows), so only its order is asserted when it happens at all.
+      expect(events[0]).toBe('sync before rename')
+      expect(events.slice(1).every((event) => event === 'sync after rename')).toBe(true)
+      expect(await readFile(target)).toEqual(Buffer.from([1, 2, 3]))
+    })
+
+    it('leaves no object and no temporary file when the sync fails', async () => {
+      const { prototype } = await syncProbe()
+      const spy = vi.spyOn(prototype, 'sync').mockRejectedValue(new Error('EIO'))
+
+      try {
+        await expect(store.put(WEDDING, HASH_A, 'display', new Uint8Array([1]))).rejects.toThrow('EIO')
+      } finally {
+        spy.mockRestore()
+      }
+
+      const shard = join(root, WEDDING, 'display', HASH_A.value.slice(0, 2))
+      expect(await readdir(shard)).toEqual([])
+    })
   })
 
   it('removes its temporary file when the rename into place fails', async () => {
