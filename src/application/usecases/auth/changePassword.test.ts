@@ -146,7 +146,9 @@ describe('changePassword', () => {
   })
 
   it('raises the epoch to the instant after the hashing, so a session issued meanwhile does not survive', async () => {
-    await changeWhileHashing(async () => clock.advance(200))
+    await changeWhileHashing(async () => {
+      clock.advance(200)
+    })
 
     expect((await users.authStateFor(asUserId('user-1'))).credentialsChangedAt?.toISOString()).toBe(
       clock.now().toISOString(),

@@ -329,7 +329,7 @@ export class SqliteUserRepository implements UserRepository {
     // The same shape as `recordSignIn`: the WHERE clause is the rule. The epoch is the later of
     // the stored one and `at` (ISO text sorts as time; see LATEST_EPOCH for the COALESCE).
     const result = this.db
-      .prepare<[string, string, string, string, string]>(
+      .prepare<[string, string, string, string]>(
         `UPDATE users
             SET password_hash          = ?,
                 must_change_password   = 0,
