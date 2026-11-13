@@ -15,3 +15,9 @@
   max-inline-size: 100%;
   max-block-size: 100%;
 }
+
+/* A photograph that failed to load: the slot keeps its box, and nothing is drawn in it. Never
+   the browser's broken-image glyph on a three-metre screen. */
+.failed {
+  visibility: hidden;
+}

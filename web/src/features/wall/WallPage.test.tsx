@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
@@ -206,6 +206,21 @@ describe('WallPage', () => {
     await waitFor(() => expect(wall).toHaveBeenCalledTimes(2))
     expect(within(screen.getByTestId('wall-slide')).getByText('Les confettis')).toBeVisible()
     expect(screen.queryByText('Le gâteau')).not.toBeInTheDocument()
+  })
+
+  it('reads the playlist again, once, when the photo on screen cannot be loaded (BUG-22)', async () => {
+    const wall = wallSequence(aPopulatedWall())
+    renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+    const photo = within(await screen.findByTestId('wall-slide')).getByRole('img')
+
+    fireEvent.error(photo)
+    await waitFor(() => expect(wall).toHaveBeenCalledTimes(2))
+    fireEvent.error(photo)
+    fireEvent.error(photo)
+
+    // The same address failing again asks for nothing more: no loop on a photo that is gone.
+    await new Promise((done) => setTimeout(done, 400))
+    expect(wall).toHaveBeenCalledTimes(2)
   })
 
   it('keeps the photos on screen when a refetch fails', async () => {
