@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Link, Route, Routes, useLocation } from 'react-router-dom'
+import { useState } from 'react'
+import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom'
 import { fr } from '../lib/i18n/fr'
 import { renderWithProviders } from '../testing/renderWithProviders'
 import { LeaveGuard } from './LeaveGuard'
@@ -186,5 +187,125 @@ describe('LeaveGuard: what it leaves alone, and what it hands on', () => {
     // A listener left on the document would freeze every link of the app behind a dialog that
     // is no longer drawn.
     expect(click.defaultPrevented).toBe(false)
+    link.remove()
+  })
+})
+
+describe('LeaveGuard: the browser’s Back button (BUG-07)', () => {
+  /** The browser's own entries: where the person came from, then the page that holds the secret. */
+  const arriveFrom = (previous: string) => {
+    window.history.pushState({}, '', previous)
+  }
+  const here = () => window.location.pathname
+
+  it('asks when Back is pressed, and the page stays where it is', async () => {
+    arriveFrom('/avant')
+    renderGuard(true)
+
+    window.history.back()
+
+    expect(await screen.findByRole('dialog', { name: TITLE })).toBeVisible()
+    expect(here()).toBe('/ici')
+  })
+
+  it('keeps asking: staying does not disarm the guard', async () => {
+    arriveFrom('/avant')
+    renderGuard(true)
+    window.history.back()
+    await userEvent.click(await screen.findByRole('button', { name: 'Rester' }))
+    expect(screen.queryByRole('dialog', { name: TITLE })).toBeNull()
+
+    window.history.back()
+
+    expect(await screen.findByRole('dialog', { name: TITLE })).toBeVisible()
+    expect(here()).toBe('/ici')
+  })
+
+  it('goes back to where the person came from when they leave anyway', async () => {
+    arriveFrom('/avant')
+    renderGuard(true)
+    window.history.back()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Partir' }))
+
+    await waitFor(() => expect(here()).toBe('/avant'))
+  })
+
+  it('leaves no extra entry behind when the person leaves by a link', async () => {
+    arriveFrom('/avant')
+    renderGuard(true)
+    await userEvent.click(screen.getByRole('link', { name: 'dans l’appli' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Partir' }))
+    await screen.findByText('Arrivé ailleurs')
+
+    window.history.back()
+
+    await waitFor(() => expect(here()).toBe('/avant'))
+  })
+
+  it('with the real browser router, leaving by a link leaves no copy of the guarded page in history', async () => {
+    window.history.replaceState(null, '', '/avant')
+    window.history.pushState(null, '', '/ici')
+    // The secret is lost with the page: coming back to it, nothing is held any more.
+    let visits = 0
+    const Guarded = () => {
+      const [holding] = useState(() => {
+        visits += 1
+        return visits === 1
+      })
+      return (
+        <>
+          <LeaveGuard
+            when={holding}
+            title={TITLE}
+            description="Ce qui est perdu."
+            stayLabel="Rester"
+            leaveLabel="Partir"
+          />
+          <Link to="/ailleurs">dans l’appli</Link>
+        </>
+      )
+    }
+    render(
+      <BrowserRouter>
+        <Routes>
+          <Route path="/ici" element={<Guarded />} />
+          <Route path="/ailleurs" element={<p>Arrivé ailleurs</p>} />
+          <Route path="*" element={<p>Avant</p>} />
+        </Routes>
+      </BrowserRouter>,
+    )
+    await userEvent.click(screen.getByRole('link', { name: 'dans l’appli' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Partir' }))
+    await screen.findByText('Arrivé ailleurs')
+
+    window.history.back()
+    await waitFor(() => expect(here()).toBe('/ici'))
+    window.history.back()
+
+    // Two presses from the page that was left: the guarded page, once, then where it came from.
+    await waitFor(() => expect(here()).toBe('/avant'))
+  })
+
+  it('does not hold Back while there is nothing to lose', async () => {
+    arriveFrom('/avant')
+    renderGuard(false)
+
+    window.history.back()
+
+    await waitFor(() => expect(here()).toBe('/avant'))
+    expect(screen.queryByRole('dialog', { name: TITLE })).toBeNull()
+  })
+
+  it('leaves no extra entry behind once there is nothing left to lose', async () => {
+    arriveFrom('/avant')
+    const { unmount } = renderGuard(true)
+    unmount()
+    // Letting the guard take its own entry off the stack.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    window.history.back()
+
+    await waitFor(() => expect(here()).toBe('/avant'))
   })
 })

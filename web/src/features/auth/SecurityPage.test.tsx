@@ -470,6 +470,17 @@ describe('SecurityPage: coming and going', () => {
       expect(screen.queryByText(`${ELSEWHERE} atteint`)).toBeNull()
     })
 
+    it('asks before the browser’s Back button leaves the page, with the factor already active (BUG-07)', async () => {
+      enter(enrolling())
+      await enrol()
+
+      window.history.back()
+
+      const dialog = await prompt()
+      expect(within(dialog).getByText(fr.auth.recoveryCodesLeaveHint)).toBeVisible()
+      expect(screen.getByText(CODE)).toBeVisible()
+    })
+
     it('keeps the codes, and the page, when the person stays', async () => {
       enter(enrolling())
       await enrol()
