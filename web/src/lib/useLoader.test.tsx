@@ -41,13 +41,16 @@ describe('useLoader', () => {
 
   it('does not let a superseded read replace the current answer', async () => {
     // 1.0's admin page had no notion of which request an answer belonged to, so a slow
-    // first read landing after a retry put the pre-retry event back on screen.
+    // first read landing after the request changed put the previous event back on screen.
+    // The request changes with `load`; a plain `reload` no longer supersedes (see below).
     const stale = deferred<string>()
     const fresh = deferred<string>()
-    const { load } = loaderOf([() => stale.promise, () => fresh.promise])
-    const { result } = renderHook(() => useLoader(load))
+    const { result, rerender } = renderHook(
+      (load: (signal: AbortSignal) => Promise<string>) => useLoader(load),
+      { initialProps: () => stale.promise },
+    )
 
-    act(() => result.current.reload())
+    rerender(() => fresh.promise)
     await act(async () => {
       fresh.resolve('à jour')
       await fresh.promise
@@ -64,10 +67,12 @@ describe('useLoader', () => {
   it('does not let a superseded read report a failure over the current answer', async () => {
     const stale = deferred<string>()
     const fresh = deferred<string>()
-    const { load } = loaderOf([() => stale.promise, () => fresh.promise])
-    const { result } = renderHook(() => useLoader(load))
+    const { result, rerender } = renderHook(
+      (load: (signal: AbortSignal) => Promise<string>) => useLoader(load),
+      { initialProps: () => stale.promise },
+    )
 
-    act(() => result.current.reload())
+    rerender(() => fresh.promise)
     await act(async () => {
       fresh.resolve('à jour')
       await fresh.promise
@@ -216,18 +221,22 @@ describe('useLoader: how a failure ends', () => {
     expect(result.current.error).toBeNull()
   })
 
-  it('gives each request its own signal, and aborts the first when a second supersedes it', async () => {
-    const { load, calls } = loaderOf([
-      () => new Promise<string>(() => {}),
-      () => new Promise<string>(() => {}),
-    ])
-    const { result } = renderHook(() => useLoader(load))
+  it('gives each request its own signal, and aborts the first when a new request supersedes it', async () => {
+    const signals: AbortSignal[] = []
+    const never = (signal: AbortSignal) => {
+      signals.push(signal)
+      return new Promise<string>(() => {})
+    }
+    const { rerender } = renderHook(
+      (load: (signal: AbortSignal) => Promise<string>) => useLoader(load),
+      { initialProps: never },
+    )
 
-    act(() => result.current.reload())
+    rerender((signal: AbortSignal) => never(signal))
 
-    expect(calls).toHaveLength(2)
-    expect(calls[0]?.aborted).toBe(true)
-    expect(calls[1]?.aborted).toBe(false)
+    expect(signals).toHaveLength(2)
+    expect(signals[0]?.aborted).toBe(true)
+    expect(signals[1]?.aborted).toBe(false)
   })
 
   it('reports nothing for the abort its own cleanup causes', async () => {
@@ -248,5 +257,85 @@ describe('useLoader: how a failure ends', () => {
 
     await waitFor(() => expect(result.current.data).toBe('après'))
     expect(result.current.error).toBeNull()
+  })
+
+  it('an answer older than a replace does not overwrite it (BUG-05)', async () => {
+    // The window regains focus (a reload), then the host presses Save: the older GET lands after
+    // the save's answer and, without the guard, puts the pre-save values back under a "saved" toast.
+    const older = deferred<string>()
+    const { load } = loaderOf([() => Promise.resolve('chargé'), () => older.promise])
+    const { result } = renderHook(() => useLoader(load))
+    await waitFor(() => expect(result.current.data).toBe('chargé'))
+    act(() => result.current.reload())
+
+    act(() => result.current.replace('enregistré'))
+    await act(async () => {
+      older.resolve('avant')
+      await older.promise
+    })
+
+    expect(result.current.data).toBe('enregistré')
+    expect(result.current.loading).toBe(false)
+  })
+
+  it('an older failure after a replace does not report an error over it (BUG-05)', async () => {
+    const older = deferred<string>()
+    const { load } = loaderOf([() => Promise.resolve('chargé'), () => older.promise])
+    const { result } = renderHook(() => useLoader(load))
+    await waitFor(() => expect(result.current.data).toBe('chargé'))
+    act(() => result.current.reload())
+
+    act(() => result.current.replace('enregistré'))
+    await act(async () => {
+      older.reject(ApiError.network())
+      await older.promise.catch(() => undefined)
+    })
+
+    expect(result.current.data).toBe('enregistré')
+    expect(result.current.error).toBeNull()
+    expect(result.current.loading).toBe(false)
+  })
+
+  it('still takes an answer that was asked after a replace', async () => {
+    const { load } = loaderOf([() => Promise.resolve('chargé'), () => Promise.resolve('relu')])
+    const { result } = renderHook(() => useLoader(load))
+    await waitFor(() => expect(result.current.data).toBe('chargé'))
+
+    act(() => result.current.replace('enregistré'))
+    act(() => result.current.reload())
+
+    await waitFor(() => expect(result.current.data).toBe('relu'))
+  })
+
+  it('does not restart a read that is in flight, and reads once more when it has answered', async () => {
+    const first = deferred<string>()
+    const { load, calls } = loaderOf([() => first.promise, () => Promise.resolve('relu')])
+    const { result } = renderHook(() => useLoader(load))
+
+    act(() => result.current.reload())
+    act(() => result.current.reload())
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.aborted).toBe(false)
+    await act(async () => {
+      first.resolve('premier')
+      await first.promise
+    })
+    await waitFor(() => expect(result.current.data).toBe('relu'))
+    expect(calls).toHaveLength(2)
+  })
+
+  it('reads again on a reload once the read that failed is over', async () => {
+    const { load, calls } = loaderOf([
+      () => Promise.reject(ApiError.network()),
+      () => Promise.resolve('là'),
+    ])
+    const { result } = renderHook(() => useLoader(load))
+    await waitFor(() => expect(result.current.error).toBe(fr.errors.network))
+
+    act(() => result.current.reload())
+
+    await waitFor(() => expect(result.current.data).toBe('là'))
+    expect(calls).toHaveLength(2)
   })
 })

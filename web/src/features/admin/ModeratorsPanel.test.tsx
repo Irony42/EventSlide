@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
+import { Link } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { ApiError } from '../../lib/http'
@@ -239,6 +240,86 @@ describe('ModeratorsPanel', () => {
       await userEvent.click(await screen.findByRole('button', { name: fr.admin.inviteLinkCopy }))
 
       expect(await screen.findByText(fr.admin.inviteLinkCopyFailed)).toBeVisible()
+    })
+
+    describe('leaving the page while the link is shown (QUAL-05)', () => {
+      const leave = (): boolean => {
+        const event = new Event('beforeunload', { cancelable: true })
+        window.dispatchEvent(event)
+        return event.defaultPrevented
+      }
+      const invite = async () => {
+        await fillInvitation('sacha@example.com')
+        await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
+        await screen.findByLabelText(fr.admin.inviteLinkUrl)
+      }
+
+      it('has the browser ask before the tab is closed, as the share link does', async () => {
+        renderPanel(noMail())
+        expect(leave()).toBe(false)
+
+        await invite()
+
+        expect(leave()).toBe(true)
+      })
+
+      it('asks before a link of the app takes the host away, naming what is lost', async () => {
+        const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+        renderWithProviders(
+          <>
+            <ModeratorsPanel slug="camille-et-sacha" />
+            <Link to="/admin">Vos évènements</Link>
+          </>,
+          { api: noMail(), route: '/', path: '/' },
+        )
+        await invite()
+
+        await userEvent.click(screen.getByRole('link', { name: 'Vos évènements' }))
+
+        expect(confirm).toHaveBeenCalledWith(fr.admin.shareLinkLeaveWarning)
+        expect(screen.getByLabelText(fr.admin.inviteLinkUrl)).toHaveValue(LINK)
+        confirm.mockRestore()
+      })
+
+      it('asks nothing once the link has been copied', async () => {
+        Object.defineProperty(navigator, 'clipboard', {
+          value: { writeText: vi.fn(async () => undefined) },
+          configurable: true,
+        })
+        renderPanel(noMail())
+        await invite()
+
+        await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteLinkCopy }))
+        await screen.findByText(fr.admin.inviteLinkCopied)
+
+        expect(leave()).toBe(false)
+      })
+
+      it('asks again for the next link, which has not been copied either', async () => {
+        Object.defineProperty(navigator, 'clipboard', {
+          value: { writeText: vi.fn(async () => undefined) },
+          configurable: true,
+        })
+        renderPanel(noMail())
+        await invite()
+        await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteLinkCopy }))
+        await screen.findByText(fr.admin.inviteLinkCopied)
+
+        await userEvent.type(screen.getByLabelText(fr.admin.moderatorEmail), 'autre@example.com')
+        await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
+        await screen.findByLabelText(fr.admin.inviteLinkUrl)
+
+        expect(leave()).toBe(true)
+      })
+
+      it('asks nothing after the link was copied by hand', async () => {
+        renderPanel(noMail())
+        await invite()
+
+        fireEvent.copy(screen.getByLabelText(fr.admin.inviteLinkUrl))
+
+        expect(leave()).toBe(false)
+      })
     })
 
     it('forgets the link when the next invitation is sent', async () => {

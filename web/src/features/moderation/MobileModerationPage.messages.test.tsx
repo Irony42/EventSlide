@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MobileModerationPage } from './MobileModerationPage'
 import {
@@ -97,6 +97,24 @@ describe('MobileModerationPage, messages tab', () => {
 
     await screen.findByTestId('mobile-moderation-card')
     expect(FakeEventSource.instances).toHaveLength(1)
+  })
+
+  it('reads the messages again when the stream reopens after a drop', async () => {
+    const api = apiWith([aMessage()])
+    renderPhone(api)
+    await screen.findByTestId('mobile-moderation-card')
+    const stream = () => FakeEventSource.latest('the console')
+    act(() => stream().emitOpen())
+    act(() => stream().emitDrop())
+    const reads = (api.guestbookQueue as ReturnType<typeof vi.fn>).mock.calls.length
+
+    act(() => stream().emitOpen())
+
+    await waitFor(() =>
+      expect((api.guestbookQueue as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(
+        reads,
+      ),
+    )
   })
 
   it('shows the message in the card and publishes it from the real button', async () => {

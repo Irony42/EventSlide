@@ -91,8 +91,8 @@ export function ModerationPage({ onSwitchView }: ModerationPageProps) {
   /** What the last decision on a message said, for the live region. */
   const [decisionNote, setDecisionNote] = useState('')
 
-  const { onSignal: onQueueSignal, onReconnect } = queue
-  const { onSignal: onGuestbookSignal } = guestbook
+  const { onSignal: onQueueSignal, onReconnect: onQueueReconnect } = queue
+  const { onSignal: onGuestbookSignal, onReconnect: onGuestbookReconnect } = guestbook
   const onSignal = useCallback(
     (signal: StreamSignal) => {
       onQueueSignal(signal)
@@ -100,6 +100,10 @@ export function ModerationPage({ onSwitchView }: ModerationPageProps) {
     },
     [onQueueSignal, onGuestbookSignal],
   )
+  const onReconnect = useCallback(() => {
+    onQueueReconnect()
+    onGuestbookReconnect()
+  }, [onQueueReconnect, onGuestbookReconnect])
   const streamUrl = useMemo(
     () => (slug === undefined ? null : api.moderationStreamUrl(slug)),
     [api, slug],

@@ -64,6 +64,44 @@ describe('useModerationShortcuts', () => {
     expect(handlers[handler]).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    ['p', 'onPublish'],
+    ['r', 'onReject'],
+    ['h', 'onHide'],
+    ['f', 'onHighlight'],
+    ['z', 'onUndo'],
+    [' ', 'onToggleSelect'],
+  ] as const)('ignores an auto-repeated %j (%s): one press decides one photo', (key, handler) => {
+    const handlers = makeHandlers()
+    render(<Harness handlers={handlers} />)
+
+    fireEvent.keyDown(window, { key })
+    for (let i = 0; i < 5; i += 1) fireEvent.keyDown(window, { key, repeat: true })
+
+    expect(handlers[handler]).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['j', 'onNext'],
+    ['k', 'onPrevious'],
+  ] as const)('keeps the auto-repeat of %s, so a held key walks the queue', (key, handler) => {
+    const handlers = makeHandlers()
+    render(<Harness handlers={handlers} />)
+
+    fireEvent.keyDown(window, { key })
+    for (let i = 0; i < 3; i += 1) fireEvent.keyDown(window, { key, repeat: true })
+
+    expect(handlers[handler]).toHaveBeenCalledTimes(4)
+  })
+
+  it('still keeps the page from scrolling on a repeated Space', () => {
+    render(<Harness handlers={makeHandlers()} />)
+
+    const notPrevented = fireEvent.keyDown(window, { key: ' ', repeat: true })
+
+    expect(notPrevented).toBe(false)
+  })
+
   it('runs an uppercase key too, so Caps Lock does not disarm the console', async () => {
     const handlers = makeHandlers()
     render(<Harness handlers={handlers} />)

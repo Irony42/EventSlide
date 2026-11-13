@@ -6,6 +6,7 @@ import { messageForError } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { NOTHING_TO_UNDO_MS } from '../lib/optimisticOverlay'
 import { restoringDecision, TARGET_STATUS } from '../lib/restoringDecision'
+import { useReadScheduler } from '../../../lib/realtime/useReadScheduler'
 import { useOptimisticDecisions } from './useOptimisticDecisions'
 import type { StreamSignal } from '../../../lib/realtime/useEventStream'
 import type { GuestbookQueueItemDto, ModerationDecision, PhotoStatus } from '../../../lib/api/dto'
@@ -22,7 +23,7 @@ import type { GuestbookQueueItemDto, ModerationDecision, PhotoStatus } from '../
 
 export type GuestbookFilter = PhotoStatus | 'all'
 
-/** A burst of guests writing is one reading, not one per signal: the book is read whole. */
+/** A burst of guests writing is one reading, not one per signal: the book is read whole (see `readScheduler`). */
 export const SIGNAL_DEBOUNCE_MS = 300
 
 /** The book is bounded at 500 messages; the active tab reads all of them. */
@@ -65,6 +66,8 @@ export interface GuestbookModeration {
   undo: () => Promise<void>
   /** Hand it every signal of the console's stream; it acts on `guestbook.changed` only. */
   onSignal: (signal: StreamSignal) => void
+  /** The console's stream reopened after a loss: read the book again, it may have changed unseen. */
+  onReconnect: () => void
 }
 
 interface UndoEntry {
@@ -116,10 +119,28 @@ export const useGuestbookModeration = (
     itemsRef.current = items
   }, [items])
 
+  const readRef = useRef<(loud: boolean) => void>(() => undefined)
+  /**
+   * When the stream's signals and reconnections ask for a read: one in flight, never aborted
+   * by the next signal, a burst being one read (see `readScheduler`). A decision's own re-read
+   * and the loud reads (first, tab, status, refresh) are explicit and supersede whatever was
+   * running: they only report to the scheduler, so a signal never doubles one in flight.
+   */
+  const signalReads = useReadScheduler(
+    () => {
+      readRef.current(false)
+    },
+    { debounceMs },
+  )
+
   /** One read. `loud` lets its failure show; a signal's never does. */
   const read = useCallback(
     (loud: boolean) => {
-      if (!live || slug === undefined) return
+      if (!live || slug === undefined) {
+        // A read the scheduler started that has nothing to read: it is over.
+        signalReads.settled()
+        return
+      }
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
@@ -130,10 +151,12 @@ export const useGuestbookModeration = (
         : watching
           ? { status: 'published' as const, limit: ACTIVE_LIMIT }
           : { limit: BADGE_LIMIT }
+      signalReads.began()
       api
         .guestbookQueue(slug, controller.signal, query)
         .then((answer) => {
           if (controller.signal.aborted) return
+          signalReads.settled()
           // A read that started before a decision answers about the message as it was.
           const { rows, pendingDelta } = overlay(answer.items, index)
           const pending = answer.pendingCount + pendingDelta
@@ -152,12 +175,17 @@ export const useGuestbookModeration = (
         })
         .catch((cause: unknown) => {
           if (isAbortError(cause) || controller.signal.aborted) return
+          signalReads.settled()
           setLoading(false)
           if (loud || !loadedRef.current) setError(asError(cause))
         })
     },
-    [api, slug, live, active, filter, watchPublishedSince, startRead, overlay],
+    [api, slug, live, active, filter, watchPublishedSince, startRead, overlay, signalReads],
   )
+
+  useEffect(() => {
+    readRef.current = read
+  }, [read])
 
   // The first read, and the one after a change of tab or of status: those may show a failure.
   useEffect(() => {
@@ -166,35 +194,24 @@ export const useGuestbookModeration = (
     return () => abortRef.current?.abort()
   }, [live, read])
 
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(
-    () => () => {
-      if (timerRef.current !== null) clearTimeout(timerRef.current)
-    },
-    [],
-  )
-  const readRef = useRef(read)
-  useEffect(() => {
-    readRef.current = read
-  }, [read])
-
   const onSignal = useCallback(
     (signal: StreamSignal) => {
       if (signal.type !== 'guestbook.changed' || !live) return
-      if (timerRef.current !== null) clearTimeout(timerRef.current)
-      timerRef.current = setTimeout(() => {
-        timerRef.current = null
-        readRef.current(false)
-      }, debounceMs)
+      signalReads.request()
     },
-    [live, debounceMs],
+    [live, signalReads],
   )
+
+  const onReconnect = useCallback(() => {
+    if (live) signalReads.request()
+  }, [live, signalReads])
 
   const send = useCallback(
     async (entryId: string, decision: ModerationDecision): Promise<PhotoStatus | null> => {
       if (slug === undefined) return null
       const target = TARGET_STATUS[decision]
-      const before = itemsRef.current.find((row) => row.id === entryId)
+      const position = itemsRef.current.findIndex((row) => row.id === entryId)
+      const before = itemsRef.current[position]
       const sent = sendDecisions(new Map([[entryId, target]]))
       // Visible at once; the server's answer and the next read correct it.
       setItems((rows) =>
@@ -213,6 +230,20 @@ export const useGuestbookModeration = (
         return before?.status ?? null
       } catch (cause) {
         failDecisions(sent)
+        // Put back by hand, as the photo queue does: the usual reason a decision fails is a
+        // network that is down, and the quiet read below would fail with it, leaving the
+        // message gone from the list and the badge while it is still waiting on the server.
+        if (before !== undefined) {
+          setItems((rows) => {
+            if (rows.some((row) => row.id === entryId)) {
+              return rows.map((row) => (row.id === entryId ? before : row))
+            }
+            const restored = [...rows]
+            restored.splice(Math.min(position, restored.length), 0, before)
+            return restored
+          })
+          if (before.status === 'pending') setPendingCount((n) => n + 1)
+        }
         toast.show(messageForError(cause, text), { tone: 'danger' })
         readRef.current(false)
         return null
@@ -285,6 +316,7 @@ export const useGuestbookModeration = (
       decide,
       undo,
       onSignal,
+      onReconnect,
     }),
     [
       items,
@@ -301,6 +333,7 @@ export const useGuestbookModeration = (
       decide,
       undo,
       onSignal,
+      onReconnect,
     ],
   )
 }

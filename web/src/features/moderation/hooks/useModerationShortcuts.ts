@@ -125,11 +125,19 @@ export const useModerationShortcuts = (
         // Space scrolls the page otherwise, which moves the queue out from under the
         // host mid-selection.
         event.preventDefault()
+        // A held Space selects once, not thirty times a second.
+        if (event.repeat) return
         actions.onToggleSelect()
         return
       }
 
-      switch (event.key.toLowerCase()) {
+      const key = event.key.toLowerCase()
+      // A held key repeats about thirty times a second. Walking the queue may repeat; deciding
+      // or undoing must not: each repeat would decide the photo the focus just moved to, and
+      // publish photos nobody looked at.
+      if (event.repeat && key !== 'j' && key !== 'k') return
+
+      switch (key) {
         case 'j':
           actions.onNext()
           return

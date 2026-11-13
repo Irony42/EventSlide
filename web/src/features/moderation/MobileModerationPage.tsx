@@ -98,9 +98,9 @@ export function MobileModerationPage({ onSwitchView }: MobileModerationPageProps
   const messageAuthor = (message: { readonly authorName: string | null }) =>
     message.authorName ?? t.guestbookHost.anonymous
 
-  const { onSignal: onQueueSignal, onReconnect } = queue
-  const { onSignal: onMessagesSignal } = messages
-  const { onSignal: onWallSignal } = onWallMessages
+  const { onSignal: onQueueSignal, onReconnect: onQueueReconnect } = queue
+  const { onSignal: onMessagesSignal, onReconnect: onMessagesReconnect } = messages
+  const { onSignal: onWallSignal, onReconnect: onWallReconnect } = onWallMessages
   const onSignal = useCallback(
     (signal: StreamSignal) => {
       onQueueSignal(signal)
@@ -109,6 +109,11 @@ export function MobileModerationPage({ onSwitchView }: MobileModerationPageProps
     },
     [onQueueSignal, onMessagesSignal, onWallSignal],
   )
+  const onReconnect = useCallback(() => {
+    onQueueReconnect()
+    onMessagesReconnect()
+    onWallReconnect()
+  }, [onQueueReconnect, onMessagesReconnect, onWallReconnect])
   const streamUrl = useMemo(
     () => (slug === undefined ? null : api.moderationStreamUrl(slug)),
     [api, slug],

@@ -214,6 +214,23 @@ describe('ModerationPage, messages tab', () => {
     expect(api.guestbookQueue).toHaveBeenCalledTimes(reads + 1)
   })
 
+  it('reads the messages again when the stream reopens after a drop', async () => {
+    // The replay log is gone when the last connection leaves: a console alone on the event
+    // gets no guestbook.changed for what guests wrote during the gap.
+    const api = apiWith([aMessage()])
+    renderConsole(api, '?vue=messages')
+    await screen.findByText('Bravo les mariés')
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    act(() => FakeEventSource.latest('the console').emitOpen())
+    act(() => FakeEventSource.latest('the console').emitDrop())
+    const reads = (api.guestbookQueue as ReturnType<typeof vi.fn>).mock.calls.length
+
+    act(() => FakeEventSource.latest('the console').emitOpen())
+    await act(() => vi.advanceTimersByTimeAsync(SIGNAL_DEBOUNCE_MS))
+
+    expect(api.guestbookQueue).toHaveBeenCalledTimes(reads + 1)
+  })
+
   it('is read-only when the event is archived: no decision button, keys do nothing', async () => {
     const api = apiWith([aMessage()], eventWith({}, { status: 'archived' }))
     renderConsole(api, '?vue=messages')

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isAbortError } from './http'
 import { useTranslations } from './i18n/useTranslations'
 import { messageForError } from './i18n/translations'
+import { useReadScheduler } from './realtime/useReadScheduler'
 
 export interface LoaderState<T> {
   /** `null` until the first answer arrives. Absence is not emptiness. */
@@ -72,21 +73,50 @@ export const useLoader = <T>(load: Load<T>): LoaderState<T> => {
     failure: null,
   })
 
-  const reload = useCallback(() => setAttempt((current) => current + 1), [])
+  /**
+   * How many times `replace` has stored a value. A read remembers the count it started under, and
+   * an answer that comes back under an older count is older than what a mutation just returned:
+   * it is dropped, or the screen would go back to the values from before a save that succeeded.
+   */
+  const replacements = useRef(0)
+
+  /**
+   * `reload` never restarts a read that is on its way (see `readScheduler`): it marks it stale and
+   * one more read follows its answer. The press is already paced by the person or by a visibility
+   * event, so it skips the burst window.
+   */
+  const reads = useReadScheduler(() => setAttempt((current) => current + 1))
+  const reload = useCallback(() => reads.request({ immediate: true }), [reads])
 
   useEffect(() => {
     const controller = new AbortController()
     let current = true
+    const startedUnder = replacements.current
+    reads.began()
 
     load(controller.signal).then(
       (value) => {
-        if (current) setAnswer({ load, attempt, data: value, failure: null })
+        if (!current) return
+        reads.settled()
+        if (replacements.current !== startedUnder) {
+          // Asked before a mutation's own answer was stored: only the bookkeeping moves on.
+          setAnswer((previous) => ({ ...previous, load, attempt }))
+          return
+        }
+        setAnswer({ load, attempt, data: value, failure: null })
       },
       (cause: unknown) => {
         if (!current) return
         // The abort came from this effect's own cleanup — StrictMode mounts twice —
         // and is not a failure to report to the reader.
+        // A read that ends must free the slot, even one the transport itself aborted (its own
+        // deadline): otherwise every later reload would only mark it stale.
+        reads.settled()
         if (isAbortError(cause)) return
+        if (replacements.current !== startedUnder) {
+          setAnswer((previous) => ({ ...previous, load, attempt }))
+          return
+        }
         // The previous data stays: a failed refresh must not blank a page the reader is
         // reading, it must say that the refresh failed.
         setAnswer((previous) => ({
@@ -102,12 +132,12 @@ export const useLoader = <T>(load: Load<T>): LoaderState<T> => {
       current = false
       controller.abort()
     }
-  }, [load, attempt])
+  }, [load, attempt, reads])
 
-  const replace = useCallback(
-    (value: T) => setAnswer((previous) => ({ ...previous, data: value, failure: null })),
-    [],
-  )
+  const replace = useCallback((value: T) => {
+    replacements.current += 1
+    setAnswer((previous) => ({ ...previous, data: value, failure: null }))
+  }, [])
 
   /**
    * The sentence, composed here rather than where the failure was caught — so a reader who
