@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { loadConfig, ConfigError } from '../infrastructure/config/env'
 import { createContainer } from './container'
-import { configureServer } from './serverTimeouts'
+import { configureServer, SERVER_OPTIONS } from './serverTimeouts'
 import { installShutdown } from './shutdown'
 
 /**
@@ -40,7 +40,7 @@ const bootstrap = async (): Promise<void> => {
   const container = await createContainer(config)
   const { logger } = container
 
-  const server = createServer(container.app)
+  const server = createServer(SERVER_OPTIONS, container.app)
 
   // Derived from the upload body deadline, see serverTimeouts.ts: `requestTimeout` bounds
   // only how long a request takes to arrive, never a response, so the SSE streams and the

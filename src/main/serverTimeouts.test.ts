@@ -7,6 +7,7 @@ import {
   applyServerTimeouts,
   configureServer,
   REQUEST_TIMEOUT_MARGIN_MS,
+  SERVER_OPTIONS,
   serverTimeouts,
   CONNECTIONS_CHECKING_INTERVAL_MS,
 } from './serverTimeouts'
@@ -29,14 +30,13 @@ afterEach(() => {
 })
 
 const listen = async (app: express.Express): Promise<number> => {
-  const server = createServer(app)
+  // Node checks timeouts on an interval; shorten it so a test does not wait 30 s.
+  const server = createServer({ connectionsCheckingInterval: 50 }, app)
   applyServerTimeouts(server, {
     keepAliveTimeout: 5_000,
     headersTimeout: 500,
     requestTimeout: REQUEST_TIMEOUT_MS,
   })
-  // Node checks timeouts on an interval; shorten it so a test does not wait 30 s.
-  server.connectionsCheckingInterval = 50
   servers.push(server)
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   return (server.address() as AddressInfo).port
@@ -117,7 +117,7 @@ describe('serverTimeouts', () => {
     expect(server.requestTimeout).toBe(660_000)
     expect(server.headersTimeout).toBe(70_000)
     expect(server.keepAliveTimeout).toBe(65_000)
-    expect(server.connectionsCheckingInterval).toBe(30_000)
+    expect(SERVER_OPTIONS.connectionsCheckingInterval).toBe(30_000)
   })
 
   it('derives the request timeout from the upload deadline plus a margin of two checking intervals', () => {

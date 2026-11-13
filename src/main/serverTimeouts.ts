@@ -25,6 +25,11 @@ import type { Server } from 'node:http'
 export const CONNECTIONS_CHECKING_INTERVAL_MS = 30_000
 export const REQUEST_TIMEOUT_MARGIN_MS = 60_000
 
+/** Passed to `createServer`: said, not left to Node's default, because the margin is sized against it. */
+export const SERVER_OPTIONS = {
+  connectionsCheckingInterval: CONNECTIONS_CHECKING_INTERVAL_MS,
+} as const
+
 export interface ServerTimeouts {
   readonly keepAliveTimeout: number
   readonly headersTimeout: number
@@ -49,8 +54,6 @@ export const applyServerTimeouts = (server: Server, timeouts: ServerTimeouts): v
   server.keepAliveTimeout = timeouts.keepAliveTimeout
   server.headersTimeout = timeouts.headersTimeout
   server.requestTimeout = timeouts.requestTimeout
-  // Said, not left to Node's default, because the margin is sized against it.
-  server.connectionsCheckingInterval = CONNECTIONS_CHECKING_INTERVAL_MS
 }
 
 /** What `index.ts` calls: the one place the figures meet a server. */
