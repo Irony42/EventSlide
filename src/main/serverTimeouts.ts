@@ -37,7 +37,7 @@ export const serverTimeouts = (uploadBodyTimeoutMs: number): ServerTimeouts => (
   // Node's default is 5 s, shorter than a guest uploading four photos over congested
   // venue Wi-Fi: too low and the connection is closed between two requests.
   keepAliveTimeout: 65_000,
-  // Headers only; must stay below `requestTimeout` (Node rejects the reverse) and above
+  // Headers only; must stay below `requestTimeout` and above
   // `keepAliveTimeout` (a reverse proxy reusing an idle connection must not race it).
   headersTimeout: HEADERS_TIMEOUT_MS,
   // Never below `headersTimeout`: a one-second upload deadline (the schema allows it)
@@ -49,4 +49,10 @@ export const applyServerTimeouts = (server: Server, timeouts: ServerTimeouts): v
   server.keepAliveTimeout = timeouts.keepAliveTimeout
   server.headersTimeout = timeouts.headersTimeout
   server.requestTimeout = timeouts.requestTimeout
+  // Said, not left to Node's default, because the margin is sized against it.
+  server.connectionsCheckingInterval = CONNECTIONS_CHECKING_INTERVAL_MS
 }
+
+/** What `index.ts` calls: the one place the figures meet a server. */
+export const configureServer = (server: Server, uploadBodyTimeoutMs: number): void =>
+  applyServerTimeouts(server, serverTimeouts(uploadBodyTimeoutMs))

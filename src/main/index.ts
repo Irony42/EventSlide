@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { loadConfig, ConfigError } from '../infrastructure/config/env'
 import { createContainer } from './container'
-import { applyServerTimeouts, serverTimeouts } from './serverTimeouts'
+import { configureServer } from './serverTimeouts'
 import { installShutdown } from './shutdown'
 
 /**
@@ -45,7 +45,7 @@ const bootstrap = async (): Promise<void> => {
   // Derived from the upload body deadline, see serverTimeouts.ts: `requestTimeout` bounds
   // only how long a request takes to arrive, never a response, so the SSE streams and the
   // ZIP export are unaffected.
-  applyServerTimeouts(server, serverTimeouts(config.uploads.bodyTimeoutMs))
+  configureServer(server, config.uploads.bodyTimeoutMs)
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)

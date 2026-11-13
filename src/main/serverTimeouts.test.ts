@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { uploadBodyDeadline } from '../interface/http/middleware/rateLimit'
 import {
   applyServerTimeouts,
+  configureServer,
   REQUEST_TIMEOUT_MARGIN_MS,
   serverTimeouts,
   CONNECTIONS_CHECKING_INTERVAL_MS,
@@ -29,13 +30,13 @@ afterEach(() => {
 
 const listen = async (app: express.Express): Promise<number> => {
   const server = createServer(app)
-  // Node checks timeouts on an interval; shorten it so a test does not wait 30 s.
-  server.connectionsCheckingInterval = 50
   applyServerTimeouts(server, {
     keepAliveTimeout: 5_000,
     headersTimeout: 500,
     requestTimeout: REQUEST_TIMEOUT_MS,
   })
+  // Node checks timeouts on an interval; shorten it so a test does not wait 30 s.
+  server.connectionsCheckingInterval = 50
   servers.push(server)
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   return (server.address() as AddressInfo).port
@@ -106,6 +107,17 @@ describe('serverTimeouts', () => {
 
     expect(received()).toMatch(/^HTTP\/1\.1 408 /)
     expect(received()).toContain('upload.timedOut')
+  })
+
+  it('configures a server with the production figures, in milliseconds', () => {
+    const server = createServer()
+
+    configureServer(server, 600_000)
+
+    expect(server.requestTimeout).toBe(660_000)
+    expect(server.headersTimeout).toBe(70_000)
+    expect(server.keepAliveTimeout).toBe(65_000)
+    expect(server.connectionsCheckingInterval).toBe(30_000)
   })
 
   it('derives the request timeout from the upload deadline plus a margin of two checking intervals', () => {
