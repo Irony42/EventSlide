@@ -5,7 +5,7 @@ import type { TestApp } from '../fixtures/startTestApp'
 import { aPhoto } from '../fixtures/media'
 import { sessionOn, succeeded, type Session } from '../fixtures/session'
 import { OWNER_SETTLED_PASSWORD } from '../fixtures/startTestApp'
-import { changeSlides, changeUntil, openWallFrozen } from '../fixtures/wallClock'
+import { changeSlides, changeUntil, forwardUntil, openWallFrozen } from '../fixtures/wallClock'
 
 /**
  * Guestbook cards on the projected wall (spec 01).
@@ -251,7 +251,7 @@ test.describe('guestbook cards on the wall', () => {
     expect(started.status).toBe(201)
 
     const banner = projector.locator('[data-wall-challenge="running"]')
-    await expect(banner).toBeVisible()
+    await forwardUntil(projector, 'the challenge banner', () => banner.isVisible())
     // Visible is not seen: what is at the banner's centre has to be the banner (#362 put it under
     // the card). The card is asserted up in the same breath, or the check proves nothing.
     const covered = await projector.evaluate(
@@ -297,7 +297,7 @@ test.describe('guestbook cards on the wall', () => {
     await projector.evaluate((key) => Reflect.set(window, key, true), NOT_RELOADED)
 
     ok(await host.patch(`/api/events/${slug}/settings`, { allowGuestbook: false }), 'settings')
-    await expect(card).toHaveCount(0)
+    await forwardUntil(projector, 'the card taken away', async () => (await card.count()) === 0)
 
     // Many automatic changes later, still none: the next card was never queued.
     const seen = await watch(projector)
