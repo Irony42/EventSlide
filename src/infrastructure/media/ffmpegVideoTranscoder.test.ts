@@ -10,10 +10,14 @@ import {
 import { probeFfmpegCapability, type FfmpegPaths } from './ffmpegBinaries'
 import {
   createFfmpegVideoTranscoder,
+  buildEncodeArgs,
   durationSecondsOf,
+  frameRateOf,
+  OUTPUT_MAX_FPS,
   probeSchema,
   type FfmpegVideoTranscoder,
 } from './ffmpegVideoTranscoder'
+import { Dimensions } from '../../domain/photos/dimensions'
 import { minimalChildEnv, runProcess } from './runProcess'
 
 /**
@@ -130,12 +134,18 @@ const tenBitSource = async (paths: FfmpegPaths, directory: string): Promise<Uint
   }
 }
 
+/** `30000/1001` as a number; 0 for ffprobe's `0/0`. */
+const rateOf = (text: string): number => {
+  const [numerator = 0, denominator = 0] = text.split('/').map(Number)
+  return denominator === 0 ? 0 : numerator / denominator
+}
+
 /** What ffprobe says one stream of a produced file really is. */
 const streamFacts = async (
   paths: FfmpegPaths,
   directory: string,
   bytes: Uint8Array,
-): Promise<{ codec: string; pixelFormat: string; profile: string; streams: string[] }> => {
+): Promise<{ codec: string; pixelFormat: string; profile: string; frameRate: number; streams: string[] }> => {
   const file = join(directory, `inspect-${Math.random().toString(16).slice(2)}.mp4`)
   await writeFile(file, bytes)
   const result = await runProcess({
@@ -168,6 +178,7 @@ const streamFacts = async (
     codec: String(video['codec_name'] ?? ''),
     pixelFormat: String(video['pix_fmt'] ?? ''),
     profile: String(video['profile'] ?? ''),
+    frameRate: rateOf(String(video['avg_frame_rate'] ?? '')),
     streams: list.map((stream) => String(stream['codec_type'] ?? '')),
   }
 }
@@ -239,6 +250,53 @@ videoTranscoderContract('ffmpeg', async () => ({
 }))
 
 describe('ffmpegVideoTranscoder against real ffmpeg', () => {
+  it('re-encodes a high-frame-rate clip at no more than the output cap (BUG-09)', async () => {
+    // A 240 fps clip is real (slow motion) and is not refused, but its output is not 240
+    // fps: the frame count the encoder works through is bounded whatever the source says.
+    const fast = await generate(harness.paths, harness.scratch, 'fast-240.mp4', [
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc2=size=160x120:rate=240:duration=1',
+      ...H264_OUT,
+    ])
+
+    const result = await harness.transcoder.transcode(fast, CONTRACT_SPEC)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const facts = await streamFacts(harness.paths, harness.scratch, result.value.video.bytes)
+    expect(facts.frameRate).toBeGreaterThan(0)
+    expect(facts.frameRate).toBeLessThanOrEqual(60)
+  }, 120_000)
+
+  it('leaves a 15 fps clip at 15 fps rather than duplicating frames up to the cap (BUG-09)', async () => {
+    const result = await harness.transcoder.transcode(harness.fixtures.landscape, CONTRACT_SPEC)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const facts = await streamFacts(harness.paths, harness.scratch, result.value.video.bytes)
+    expect(facts.frameRate).toBeCloseTo(15, 0)
+  }, 120_000)
+
+  it('refuses a clip declaring an absurd frame rate as corrupt, permanently (BUG-09)', async () => {
+    // 10 000 fps of a tiny picture: pixels and duration pass every other gate. Refused at
+    // the probe, with a permanent code, so it is neither encoded nor retried.
+    const absurd = await generate(harness.paths, harness.scratch, 'absurd-fps.mp4', [
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=red:size=64x64:rate=10000:duration=1',
+      ...H264_OUT,
+    ])
+
+    const probed = await harness.transcoder.probe(absurd)
+    const transcoded = await harness.transcoder.transcode(absurd, CONTRACT_SPEC)
+
+    expect(!probed.ok && probed.error.code).toBe('clip.corrupt')
+    expect(!transcoded.ok && transcoded.error.code).toBe('clip.corrupt')
+  }, 120_000)
+
   it('produces H.264 in 8-bit 4:2:0, whatever depth the source was', async () => {
     // The trap, asserted rather than commented: a 10-bit source without a forced output
     // format produces High 10, which transcodes cleanly, passes every check this
@@ -436,5 +494,60 @@ describe('durationSecondsOf', () => {
     )
 
     expect(Number.isNaN(durationSecondsOf(parsed, videoOf(parsed)))).toBe(true)
+  })
+})
+
+describe('buildEncodeArgs', () => {
+  const target = (() => {
+    const made = Dimensions.create(320, 240)
+    if (!made.ok) throw new Error('fixture')
+    return made.value
+  })()
+  const argsFor = (frameRate: number | null): string[] =>
+    buildEncodeArgs({
+      ffmpegInput: 'in.bin',
+      output: 'out.mp4',
+      container: 'mp4',
+      spec: CONTRACT_SPEC,
+      target,
+      frameRate,
+    })
+  const filterOf = (args: string[]): string => args[args.indexOf('-vf') + 1] ?? ''
+
+  it('caps the output frame rate when the source is above the cap (BUG-09)', () => {
+    expect(filterOf(argsFor(10_000))).toBe(`fps=${OUTPUT_MAX_FPS},scale=320:240,format=yuv420p`)
+  })
+
+  it('caps it when the source declares no rate at all (BUG-09)', () => {
+    expect(filterOf(argsFor(null))).toBe(`fps=${OUTPUT_MAX_FPS},scale=320:240,format=yuv420p`)
+  })
+
+  it('leaves a source at or under the cap alone, so no frame is duplicated (BUG-09)', () => {
+    expect(filterOf(argsFor(OUTPUT_MAX_FPS))).toBe('scale=320:240,format=yuv420p')
+    expect(filterOf(argsFor(15))).toBe('scale=320:240,format=yuv420p')
+  })
+
+  it('gives -probesize bytes and -analyzeduration microseconds, both before the input (BUG-15)', () => {
+    const args = argsFor(30)
+    const input = args.indexOf('-i')
+    const analyze = args.indexOf('-analyzeduration')
+    const probe = args.indexOf('-probesize')
+
+    expect(analyze).toBeGreaterThan(-1)
+    expect(analyze).toBeLessThan(input)
+    expect(probe).toBeLessThan(input)
+    // 10 s of analysis (microseconds) and 10 MB of reading (bytes): the values ffmpeg's
+    // own 5 s / 5 MB defaults are doubled to, stated once each.
+    expect(args[analyze + 1]).toBe('10000000')
+    expect(args[probe + 1]).toBe('10000000')
+  })
+})
+
+describe('frameRateOf', () => {
+  it('reads a fraction, and answers null for 0/0, absent and garbage', () => {
+    expect(frameRateOf({ avg_frame_rate: '30000/1001' })).toBeCloseTo(29.97, 2)
+    expect(frameRateOf({ avg_frame_rate: '0/0' })).toBeNull()
+    expect(frameRateOf({})).toBeNull()
+    expect(frameRateOf({ avg_frame_rate: 'abc' })).toBeNull()
   })
 })
