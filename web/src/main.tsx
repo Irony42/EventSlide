@@ -36,9 +36,11 @@ if (container === null) {
  * misbehaving build is exactly who needs to turn it off.
  *
  * The "off" path is not a no-op, and that is the point of having it: it unregisters a
- * worker already installed on the guest's phone and deletes the photos it was holding.
- * A kill switch that only stopped new installations would leave the bad build running
- * on exactly the devices it was breaking.
+ * worker already installed on the guest's phone and drops its caches. A kill switch that
+ * only stopped new installations would leave the bad build running on exactly the devices
+ * it was breaking. It deletes the outbox database only when no photo is waiting in it
+ * (SEC-06: the switch arrives by URL, and a forwarded link must not cost a guest their
+ * photos); otherwise the upload screen sends them from the page.
  *
  * The end-to-end suite runs against the built client, so it exercises the real
  * registration rather than a branch nothing takes.
