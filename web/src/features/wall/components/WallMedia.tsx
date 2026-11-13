@@ -30,8 +30,8 @@ import { WallMediaFailureContext } from './wallMediaFailure'
  * that flickers.
  *
  * A photograph is held to the same promise: an `<img>` that fails is hidden (never the
- * browser's broken-image glyph) and the playlist is asked to be read again, once for that
- * address. A read that brings a fresh address shows it; the same address failing again asks
+ * browser's broken-image glyph) and the playlist is asked to be read again, once per mount for
+ * that address. A read that brings a fresh address shows it; the same address failing again asks
  * for nothing more, so a photograph that is really gone cannot make a loop.
  */
 

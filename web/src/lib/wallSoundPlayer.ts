@@ -75,6 +75,8 @@ export const createWallSoundPlayer = (deps: WallSoundDeps = {}): WallSoundPlayer
     if (context === null || buffers.has(tone)) return Promise.resolve()
     const started = (async () => {
       try {
+        // Yield first: a failure must settle after `loading.set` below, even a synchronous throw.
+        await Promise.resolve()
         const bytes = await fetchBytes(wallSoundUrl(tone))
         buffers.set(tone, await context.decodeAudioData(bytes))
       } catch {
