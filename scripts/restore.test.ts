@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -158,5 +158,22 @@ describe('npm run restore', () => {
     expect(missing.code).toBe(1)
     expect(missing.out).toContain('Pass the directory node dist/ops/scripts/backup.js wrote')
     expect(`${usage.out}\n${missing.out}`).not.toContain('npm run')
+  })
+  it('refuses an archive inside the media root even with --force, and leaves everything alone (BUG-08)', async () => {
+    const inside = join(mediaRoot, 'backups', 'one')
+    await mkdir(join(mediaRoot, 'backups'), { recursive: true })
+    await rename(archive, inside)
+    const before = await readFile(databasePath)
+
+    for (const args of [[], ['--force'], ['--dry-run']]) {
+      const { code, out } = await capture(() => run([inside, ...where(), ...args]))
+      expect(code).toBe(1)
+      expect(out).toContain('archive is inside the media root')
+      expect(out).toContain(inside)
+      expect(out).toContain('Nothing was touched')
+    }
+
+    expect(await readFile(databasePath)).toEqual(before)
+    expect(await stat(join(inside, 'manifest.json'))).toBeTruthy()
   })
 })
