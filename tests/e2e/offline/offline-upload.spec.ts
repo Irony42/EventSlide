@@ -106,14 +106,16 @@ test('a photo outlives the tab that picked it @offline', async ({ app, surfaces 
   await expect(guest.getByText('En attente de validation')).toBeVisible({ timeout: 15_000 })
 })
 
-test('the kill switch removes the queue from a phone already carrying it @offline', async ({
+test('the kill switch takes the worker off the phone and sends the photos it was holding @offline', async ({
   app,
   surfaces,
 }) => {
   // The property that makes shipping a service worker survivable: a bad worker already
-  // installed on a guest's phone can be taken off it, and the photos it was holding go
-  // with it rather than being stranded where nothing will ever drain them.
-  const { guest } = surfaces
+  // installed on a guest's phone can be taken off it. A photo that was waiting is not the
+  // price of that (SEC-06): the switch arrives by URL, and a link forwarded in a group chat
+  // must not cost anybody their photos. The queue is switched off, the database is kept while
+  // it holds a photo, and the upload screen sends what is in it from the page.
+  const { guest, host } = surfaces
   const event = await app.seedEvent({ slug: 'kill', name: 'Camille & Sacha' })
 
   await join(guest, app.baseUrl, event.joinCode)
@@ -124,14 +126,27 @@ test('the kill switch removes the queue from a phone already carrying it @offlin
   await guest.context().setOffline(false)
   await guest.goto(app.url(`/e/${event.slug}/upload?offline=off`))
 
-  // No queue, and no worker left to run one.
-  await expect(guest.getByTestId('offline-notice')).toBeHidden()
+  // No worker left to run a queue, and nothing waiting once the page has sent the photo.
+  await expect(guest.getByTestId('offline-notice')).toBeHidden({ timeout: 20_000 })
   await expect
     .poll(
       () => guest.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length),
       { timeout: 15_000 },
     )
     .toBe(0)
+
+  // And the photo is on the server, not deleted: it reached the host's moderation queue.
+  await expect
+    .poll(
+      async () => {
+        const response = await host.request.get(
+          app.url(`/api/events/${event.slug}/moderation?status=all`),
+        )
+        return ((await response.json()) as { items: unknown[] }).items.length
+      },
+      { timeout: 20_000 },
+    )
+    .toBe(1)
 })
 
 test('the app opens with no connection once it has been visited @offline', async ({
