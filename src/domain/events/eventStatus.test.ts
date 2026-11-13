@@ -127,3 +127,15 @@ describe('capabilities by status', () => {
     expect(retentionApplies(status)).toBe(expected)
   })
 })
+
+/**
+ * SEC-05. A known device that replays `POST /api/join` with a display name is renamed by `joinEvent`
+ * under `acceptsGuests()`, while `renameGuest` demands `acceptsUploads()`. The join path is therefore
+ * exactly as open as the rename path only as long as the two predicates agree: a status that opened
+ * one and not the other would let the join form do what the rename route refuses (or the reverse).
+ */
+describe('a guest may join exactly when a guest may upload (SEC-05)', () => {
+  it.each(EVENT_STATUSES)('agrees on %s', (status) => {
+    expect(acceptsGuests(status)).toBe(acceptsUploads(status))
+  })
+})
