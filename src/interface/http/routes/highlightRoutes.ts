@@ -1,13 +1,14 @@
-import { Router } from 'express'
+import { Router, type RequestHandler } from 'express'
 import { asPhotoId } from '../../../domain/shared/ids'
 import { requireRole } from '../middleware/authz'
+import { hostExportLimiter } from '../middleware/rateLimit'
 import { withModerator } from '../middleware/scope'
 import type { HighlightsDto, PreselectHighlightsResponseDto } from '../presenters/dto'
 import { serveRanged, streamOrAbandon } from '../presenters/serveRanged'
 import { toReelDto } from '../presenters/presenters'
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import { photoParams, preselectHighlightsBody } from '../schemas/requestSchemas'
-import type { RouteDeps } from '../useCases'
+import type { HttpUseCases, RouteDeps } from '../useCases'
 import type { ReelDto } from '../presenters/dto'
 
 /**
@@ -20,7 +21,25 @@ import type { ReelDto } from '../presenters/dto'
  * Reads are never stored: the count and the archive describe a selection that keeps moving.
  */
 
-export const highlightRoutes = ({ deps, usecases }: RouteDeps): Router => {
+export type HighlightRouteDeps = Pick<RouteDeps, 'deps'> & {
+  readonly usecases: Pick<
+    HttpUseCases,
+    | 'setPhotoHighlight'
+    | 'preselectHighlights'
+    | 'getHighlights'
+    | 'requestReel'
+    | 'getReelMedia'
+    | 'exportHighlights'
+  >
+  /** Shared with `album.zip` (see `MediaRouteDeps`): one allowance for both host exports. */
+  readonly hostExportLimiter?: RequestHandler
+}
+
+export const highlightRoutes = ({
+  deps,
+  usecases,
+  hostExportLimiter: exportLimiter = hostExportLimiter(),
+}: HighlightRouteDeps): Router => {
   const router = Router()
 
   const setStar = (highlighted: boolean) =>
@@ -136,6 +155,8 @@ export const highlightRoutes = ({ deps, usecases }: RouteDeps): Router => {
   router.get(
     '/events/:eventSlug/best-of.zip',
     requireRole('moderator', deps),
+    // The same bound as `album.zip`, after the role and released when the response closes (SEC-04).
+    exportLimiter,
     withModerator(async ({ eventId, slug }, req, res) => {
       // Nothing is written until the use case has answered: `highlight.empty` is a JSON
       // error, never a download named `-best-of.zip`.

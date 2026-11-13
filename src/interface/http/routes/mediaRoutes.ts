@@ -1,10 +1,11 @@
-import { Router } from 'express'
+import { Router, type RequestHandler } from 'express'
 import type { PhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
 import { DomainError } from '../../../domain/shared/errors'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { asPhotoId } from '../../../domain/shared/ids'
 import { Slug } from '../../../domain/shared/slug'
 import { asyncHandler } from '../middleware/asyncHandler'
+import { hostExportLimiter } from '../middleware/rateLimit'
 import { guestTokenOf, requireRole, resolvePublicEvent } from '../middleware/authz'
 import { publicEventOf } from '../middleware/scope'
 import { sendError } from '../presenters/send'
@@ -43,6 +44,12 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  * thirty unrelated use cases to exercise a photo download.
  */
 export type MediaRouteDeps = Pick<RouteDeps, 'deps'> & {
+  /**
+   * The concurrency bound `album.zip` shares with `best-of.zip`: `server.ts` builds one and hands it
+   * to both routers. A router built without one gets its own, which only a test of this router alone
+   * should rely on.
+   */
+  readonly hostExportLimiter?: RequestHandler
   readonly usecases: Pick<
     HttpUseCases,
     | 'exportAlbum'
@@ -79,7 +86,11 @@ const mediaHeaders = (media: Pick<PhotoMedia, 'contentType'>, etag: string): Ran
   failureMessage: 'photo media failed mid-stream',
 })
 
-export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
+export const mediaRoutes = ({
+  deps,
+  usecases,
+  hostExportLimiter: exportLimiter = hostExportLimiter(),
+}: MediaRouteDeps): Router => {
   const router = Router()
 
   /**
@@ -217,6 +228,9 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
   router.get(
     '/events/:eventSlug/album.zip',
     requireRole('moderator', deps),
+    // After the role, which puts the account on the request; the slot goes back when the response
+    // closes, a refusal by the use case below included (SEC-04).
+    exportLimiter,
     asyncHandler(async (req, res) => {
       const event = publicEventOf(req)
 

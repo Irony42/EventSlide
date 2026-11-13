@@ -1,6 +1,9 @@
+import type { RequestHandler } from 'express'
 import request from '../testing/request'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { HeldExport } from '../testing/heldExport'
 import { mediaRoutes } from './mediaRoutes'
+import { hostExportLimiter as buildHostExportLimiter } from '../middleware/rateLimit'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import { GUEST_COOKIE } from '../middleware/authz'
 import type { ArchiveWriter } from '../../../application/ports/archiveWriter'
@@ -78,11 +81,14 @@ interface WorldOptions {
    * runs, so the real one has nothing left to refuse.
    */
   readonly exportAlbum?: ExportAlbum
+  /** Replaces the route's own concurrency bound, to reach the box total with fewer accounts. */
+  readonly hostExportLimiter?: RequestHandler
 }
 
 const buildWorld = async ({
   archive = new FakeArchiveWriter({ emits: 'content' }),
   exportAlbum,
+  hostExportLimiter,
 }: WorldOptions = {}): Promise<World> => {
   const photos = new FakePhotoRepository()
   const media = new InMemoryMediaStore().forbidEnumeration('the media routes')
@@ -94,6 +100,7 @@ const buildWorld = async ({
       app.use(
         mediaRoutes({
           deps,
+          ...(hostExportLimiter === undefined ? {} : { hostExportLimiter }),
           usecases: {
             getPhotoMedia: makeGetPhotoMedia({ photos, media }),
             getVenuePhotoMedia: makeGetVenuePhotoMedia({ media }),
@@ -432,6 +439,156 @@ describe('GET /events/:eventSlug/album.zip', () => {
     const agent = await signedIn(world, 'host')
 
     await expect(agent.get('/events/mariage/album.zip').responseType('blob')).rejects.toThrow()
+  })
+})
+
+describe('GET /events/:eventSlug/album.zip: how many are open at once (SEC-04)', () => {
+  const PATH = '/events/mariage/album.zip'
+  type Agent = Awaited<ReturnType<typeof signedIn>>
+
+  /** Starts an export and does not wait for it: what is held is the point. */
+  const start = (agent: Agent) => {
+    const pending = agent.get(PATH).responseType('blob')
+    const settled = pending.then(
+      (response) => response.status,
+      () => 0,
+    )
+    return { pending, settled }
+  }
+
+  const heldWorld = async (): Promise<{ world: World; held: HeldExport }> => {
+    const held = new HeldExport()
+    const world = await buildWorld({ exportAlbum: held.use })
+    return { world, held }
+  }
+
+  it('refuses a concurrent album export past the account’s ceiling', async () => {
+    const { world, held } = await heldWorld()
+    const agent = await signedIn(world, 'host')
+    start(agent)
+    start(agent)
+    await vi.waitFor(() => expect(held.opened).toBe(2))
+
+    const third = await agent.get(PATH)
+
+    // The API's own refusal, with the `Retry-After` section 1 of API.md promises every 429.
+    expect(third.status).toBe(429)
+    expect(third.body.error.code).toBe('rate.limited')
+    expect(third.headers['retry-after']).toBe('30')
+    expect(held.opened).toBe(2)
+    held.releaseAll()
+  })
+
+  it('does not refuse another account because of the first one’s exports', async () => {
+    const { world, held } = await heldWorld()
+    world.memberships.seed({
+      eventId: asEventId(WEDDING),
+      userId: asUserId(OUTSIDER),
+      role: 'moderator',
+      grantedAt: AT,
+    })
+    const host = await signedIn(world, 'host')
+    const second = await signedIn(world, 'outsider')
+    start(host)
+    start(host)
+    await vi.waitFor(() => expect(held.opened).toBe(2))
+    expect((await host.get(PATH)).status).toBe(429)
+
+    start(second)
+    start(second)
+
+    // Up to the box's total of four: each account has its own ceiling under it.
+    await vi.waitFor(() => expect(held.opened).toBe(4))
+    held.releaseAll()
+  })
+
+  it('answers 503 once the box is serving its total, whichever account asks', async () => {
+    const held = new HeldExport()
+    const world = await buildWorld({
+      exportAlbum: held.use,
+      hostExportLimiter: buildHostExportLimiter({ perAccount: 5, total: 2 }),
+    })
+    world.memberships.seed({
+      eventId: asEventId(WEDDING),
+      userId: asUserId(OUTSIDER),
+      role: 'moderator',
+      grantedAt: AT,
+    })
+    const host = await signedIn(world, 'host')
+    const second = await signedIn(world, 'outsider')
+    start(host)
+    start(host)
+    await vi.waitFor(() => expect(held.opened).toBe(2))
+
+    const refused = await second.get(PATH)
+
+    expect(refused.status).toBe(503)
+    expect(refused.headers['retry-after']).toBe('30')
+    held.releaseAll()
+  })
+
+  it('gives the slot back when an export finishes', async () => {
+    const { world, held } = await heldWorld()
+    const agent = await signedIn(world, 'host')
+    const first = start(agent)
+    const second = start(agent)
+    await vi.waitFor(() => expect(held.opened).toBe(2))
+
+    held.holding = false
+    held.releaseAll()
+    await Promise.all([first.settled, second.settled])
+
+    expect((await agent.get(PATH)).status).toBe(200)
+  })
+
+  it('gives the slot back when the client abandons an export', async () => {
+    const { world, held } = await heldWorld()
+    const agent = await signedIn(world, 'host')
+    const first = start(agent)
+    start(agent)
+    await vi.waitFor(() => expect(held.opened).toBe(2))
+    expect((await agent.get(PATH)).status).toBe(429)
+
+    held.holding = false
+    first.pending.abort()
+
+    await vi.waitFor(async () => expect((await agent.get(PATH)).status).toBe(200))
+    held.releaseAll()
+  })
+
+  it('gives the slot back when the archive fails mid-stream', async () => {
+    const world = await buildWorld({
+      archive: new FakeArchiveWriter({
+        emits: 'content',
+        failsWith: new Error('an entry vanished'),
+      }),
+    })
+    const agent = await signedIn(world, 'host')
+
+    // Three in a row, one past the ceiling: each one's slot must be back before the next, so
+    // none is ever refused with a 429 (which is an answer, not an abandoned connection).
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const outcome = await agent
+        .get(PATH)
+        .responseType('blob')
+        .then(
+          (response) => response.status,
+          () => 'abandoned',
+        )
+      expect(outcome).toBe('abandoned')
+    }
+  })
+
+  it('gives the slot back at once when the use case refuses before a byte is written', async () => {
+    const world = await buildWorld({
+      exportAlbum: () => Promise.resolve(err(DomainError.notFound('event.notFound'))),
+    })
+    const agent = await signedIn(world, 'host')
+
+    // Past the ceiling of two: a refusal that kept its slot would turn the third into a 429.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      expect((await agent.get(PATH)).status).toBe(404)
+    }
   })
 })
 

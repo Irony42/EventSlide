@@ -1122,21 +1122,22 @@ without its upload ever being judged against a number another event's guests bui
 **(planned: the store. In the first cut the counters are in-process, which is a real gap
 on a restart loop)**.
 
-| Endpoint                                      | Per IP       | Per event              | Per guest token | Window |
-| --------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
-| `POST /api/auth/login` †                      | 10           | —                      | —               | 1 min  |
-| `POST /api/events` (create)\*                 | —            | —                      | —               | 1 hour |
-| `GET /api/join/:code` (code lookup)           | 20 (as join) | —                      | —               | 1 min  |
-| `POST /api/events/:slug/guests` (join)        | 10           | 60                     | —               | 1 min  |
-| `POST /api/events/:slug/photos`               | **(defect)** | **(defect)**           | —               | 1 min  |
-| `POST /api/events/:slug/clips`                | **(defect)** | **(defect)**           | —               | 1 min  |
-| `POST /api/events/:slug/photos/:id/reactions` | 120          | 600                    | 60              | 1 min  |
-| the five other guest writes (below)           | 300 per pair | (keyed together)       | —               | 1 min  |
-| `GET /api/events/:slug/stream` (SSE)          | 5 concurrent | 200 concurrent         | —               | —      |
-| `GET /api/gallery/:token`, `…/photos`, unlock | 120          | —                      | —               | 1 min  |
-| `GET /api/gallery-media/…`                    | 3000         | —                      | —               | 1 min  |
-| `POST /api/gallery/:token/unlock` (failures)  | 10           | 50 per link            | —               | 15 min |
-| `GET /api/gallery-media/:linkId/album.zip`    | 2 concurrent | 4 concurrent, box-wide | —               | —      |
+| Endpoint                                             | Per IP       | Per event              | Per guest token | Window |
+| ---------------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
+| `POST /api/auth/login` †                             | 10           | —                      | —               | 1 min  |
+| `POST /api/events` (create)\*                        | —            | —                      | —               | 1 hour |
+| `GET /api/join/:code` (code lookup)                  | 20 (as join) | —                      | —               | 1 min  |
+| `POST /api/events/:slug/guests` (join)               | 10           | 60                     | —               | 1 min  |
+| `POST /api/events/:slug/photos`                      | **(defect)** | **(defect)**           | —               | 1 min  |
+| `POST /api/events/:slug/clips`                       | **(defect)** | **(defect)**           | —               | 1 min  |
+| `POST /api/events/:slug/photos/:id/reactions`        | 120          | 600                    | 60              | 1 min  |
+| the five other guest writes (below)                  | 300 per pair | (keyed together)       | —               | 1 min  |
+| `GET /api/events/:slug/stream` (SSE)                 | 5 concurrent | 200 concurrent         | —               | —      |
+| `GET /api/gallery/:token`, `…/photos`, unlock        | 120          | —                      | —               | 1 min  |
+| `GET /api/gallery-media/…`                           | 3000         | —                      | —               | 1 min  |
+| `POST /api/gallery/:token/unlock` (failures)         | 10           | 50 per link            | —               | 15 min |
+| `GET /api/gallery-media/:linkId/album.zip`           | 2 concurrent | 4 concurrent, box-wide | —               | —      |
+| `GET /api/events/:slug/album.zip`, `…/best-of.zip` ‡ | 2 concurrent | 4 concurrent, box-wide | —               | —      |
 
 **\*** Keyed by **account**, which none of this table's three columns name — the one
 row here that is not about an anonymous caller. An office or a venue's own guest Wi-Fi is
@@ -1144,6 +1145,16 @@ one address shared by several hosts, and one host's burst of event creation must
 spend a colleague's allowance; `EVENT_CREATION_RATE_LIMIT_PER_HOUR` (default **20**; the four other per-account hourly limits are settings too, see `docs/OPERATING.md`) and
 `event.creationRateLimited` are in `env.ts` and `middleware/rateLimit.ts` (P4-09 / D-14,
 roadmap G3-05).
+
+**‡** The host's two ZIP exports, keyed by **account** (after `requireRole`) and not by address, with **one
+shared allowance**: an album and a best-of count together (`hostExportLimiter` in `middleware/rateLimit.ts`, built
+once in `server.ts`; SEC-04, review 13/11/2026). They read the same files as the gallery's archive, which was
+already bounded, and a moderator invited by a client could start dozens at once and saturate the disk every other
+event on the box shares, a live wall included. The box-wide four is its **own counter**, not the gallery's: a
+shared one would let anybody holding a public link fill it and refuse every host's export. Worst case on the disk is
+eight archives, each read one photograph at a time. The slot is released when the response closes, whichever way it
+ended, so an export the use case refuses (`404`, `409 highlight.empty`) gives it back at once. The reel and the
+photo book are single files served with `Range`, not archives, and are not counted.
 
 **(defect)** The two upload rows describe three independent limits and there are two.
 `uploadLimiter` in `middleware/rateLimit.ts` mints a single bucket keyed by

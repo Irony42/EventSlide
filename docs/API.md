@@ -2342,6 +2342,10 @@ wall and the printed card do not. `Cache-Control: no-store` and no `Content-Leng
 size is unknown until the archive is written, and a four-thousand-photo wedding is
 several gigabytes. Streamed, never buffered.
 
+**Concurrency.** At most **2** exports open at once per account and **4** on the box, counting `album.zip` and
+`best-of.zip` together: past the account's two, `429 rate.limited` with `Retry-After: 30`; with the box's four
+open, `503 service.notReady` with `Retry-After: 30`. A slot is given back when the response ends, however it ends.
+
 Unlike the media route above, this one is behind `requireRole('moderator')` and so
 **does** serve an archived event: `401 auth.required` with no session,
 `404 event.notFound` for a caller with no membership, `403 auth.forbidden` never
@@ -2378,7 +2382,8 @@ failureCode?, updatedAt }`; no photograph id travels.
 
 - `GET /api/events/:slug/best-of.zip`: streamed like `album.zip` (same headers, filename
   `<slug>-best-of.zip`), oldest photo first, one folder `<slug>-best-of/`. `409 highlight.empty`
-  before any header when there is no favourite.
+  before any header when there is no favourite. Counted with `album.zip` in one concurrency allowance (2 per
+  account, 4 on the box: `429 rate.limited` / `503 service.notReady`, both with `Retry-After`).
 
 The moderation rows (`GET /moderation`, `GET /photos`) carry `highlighted: boolean`; no guest, wall
 or gallery payload does.

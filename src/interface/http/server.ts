@@ -10,6 +10,7 @@ import { attachUser, enforceSessionAge, requirePasswordCurrent } from './middlew
 import {
   eventCreationLimiter,
   guestWriteLimiter,
+  hostExportLimiter,
   uploadConcurrencyLimiter,
   uploadGuestLimiter,
   uploadLimiter,
@@ -320,14 +321,21 @@ export const buildServer = ({
   // The guestbook (spec 01): the guest writes, reads their own and takes one back. Shares the
   // guest-write bucket with the routes above; the host's side arrives with the moderation routes.
   app.use('/api', guestbookRoutes({ ...routeDeps, guestWriteRateLimiter }))
-  app.use('/api', mediaRoutes(routeDeps))
+  /**
+   * **One allowance for the two host exports (SEC-04), same reason, same arrangement.**
+   *
+   * `album.zip` and `best-of.zip` read the same disk; a limiter built inside each router would let
+   * an account hold its ceiling of each.
+   */
+  const sharedHostExportLimiter = hostExportLimiter()
+  app.use('/api', mediaRoutes({ ...routeDeps, hostExportLimiter: sharedHostExportLimiter }))
   // The shared gallery (roadmap §4.1): public, token-gated, with its own limits and its
   // own headers. Its own router so that nothing mounted for the host's surface — a role
   // check, a cache header — can be inherited by the one surface a stranger reaches.
   app.use('/api', galleryRoutes({ deps, usecases, limits: config.rateLimits }))
   app.use('/api', shareLinkRoutes(routeDeps))
   app.use('/api', moderationRoutes(routeDeps))
-  app.use('/api', highlightRoutes(routeDeps))
+  app.use('/api', highlightRoutes({ ...routeDeps, hostExportLimiter: sharedHostExportLimiter }))
   // The photo book (spec 04): a moderator's PDF of the published album.
   app.use('/api', bookRoutes(routeDeps))
   // After the guest router, which owns 'missions/mine' on the same path prefix, and
