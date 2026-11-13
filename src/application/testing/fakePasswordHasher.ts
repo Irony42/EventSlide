@@ -11,6 +11,11 @@ export interface FakePasswordHasherOptions {
    * runs when `hash` does, so it can move a clock).
    */
   readonly produces?: (password: Password) => PasswordHash
+  /**
+   * `hash` awaits this before it answers: the ~200 ms during which another request can finish.
+   * A test puts the interleaved operation (a switch-off, a reset) here.
+   */
+  readonly whileHashing?: () => Promise<void>
   /** Which stored hashes `needsRehash` calls stale, as a cost increase would. Default: none. */
   readonly stale?: (hash: PasswordHash) => boolean
   /**
@@ -60,6 +65,7 @@ export class FakePasswordHasher implements PasswordHasher {
   }
 
   async hash(password: Password): Promise<PasswordHash> {
+    await this.options.whileHashing?.()
     return this.options.produces?.(password) ?? `hash:${password.value}`
   }
 

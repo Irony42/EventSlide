@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import { loadConfig, ConfigError } from '../infrastructure/config/env'
 import { createContainer } from './container'
+import { configureServer, SERVER_OPTIONS } from './serverTimeouts'
 import { installShutdown } from './shutdown'
 
 /**
@@ -39,15 +40,12 @@ const bootstrap = async (): Promise<void> => {
   const container = await createContainer(config)
   const { logger } = container
 
-  const server = createServer(container.app)
+  const server = createServer(SERVER_OPTIONS, container.app)
 
-  // Node's default is 5s, which is shorter than a guest uploading four photos over
-  // congested venue Wi-Fi. Too low and the upload is cut off mid-request.
-  server.keepAliveTimeout = 65_000
-  server.headersTimeout = 70_000
-  // No request timeout: the SSE stream is deliberately open for hours, and the ZIP
-  // export of a four-thousand-photo album legitimately takes minutes.
-  server.requestTimeout = 0
+  // Derived from the upload body deadline, see serverTimeouts.ts: `requestTimeout` bounds
+  // only how long a request takes to arrive, never a response, so the SSE streams and the
+  // ZIP export are unaffected.
+  configureServer(server, config.uploads.bodyTimeoutMs)
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)

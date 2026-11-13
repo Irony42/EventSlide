@@ -246,10 +246,22 @@ is now one conditional statement, `UPDATE … WHERE password_hash = <the hash it
 AND disabled_at IS NULL`, that names only the last-sign-in time and (for the cost upgrade)
 the hash; if it matches nothing, the sign-in is refused as a wrong password is. Held at
 ring 2 with a hasher that stays inside `verify` while the account is changed underneath it,
-and at the port contract on both implementations. **Not closed**: the other whole-row
-savers — `changePassword`, `disableAccount` — have the same window against a _concurrent
-change by someone else_, but each needs an authenticated actor and cannot be provoked by an
-unauthenticated attacker at the sign-in rate; they are listed under "Residuals" below.
+and at the port contract on both implementations. **A password change or a reset cannot undo it either (SEC-08)**
+(`UserRepository.replacePasswordHash`). `changePassword` (three bcrypt operations, ~500-750 ms)
+and `resetPassword` used to save the whole account they had read before hashing, so a
+switch-off or a reset finishing in that window was silently undone: a disabled account
+re-enabled, a rotated-out password restored. Both now write one conditional statement,
+`UPDATE … SET password_hash, must_change_password = 0, credentials_changed_at = max(stored, at)
+WHERE password_hash = <the hash they read> AND disabled_at IS NULL`. A lost race is refused as a
+wrong password (`auth.invalidCredentials`) or a dead link (`auth.invalidToken`); a refused reset
+leaves its link spent, because it cannot be un-spent and the account moved on under it, and revokes
+no other link, because it changed nothing. The other whole-row savers (`disableAccount`,
+`enableAccount`, `revokeOtherSessions`, `confirmTotpEnrollment`, `disableSecondFactor`) have no
+asynchronous call between their read and their save (better-sqlite3 is synchronous, the vault and the
+TOTP engine are too), so within this single process they cannot interleave with another request and
+are left as they are; revisit if one of those ports ever becomes truly asynchronous. A lost race
+can also come from a sign-in's silent cost upgrade of the hash, which is rare and safe: the person
+retries (or asks for a new link).
 
 **The epoch also ends trust in a device (G3-04b).** The sign-in throttle gives a browser that has
 signed in before a bucket of its own (§5), and that browser is told apart by a signed cookie whose
@@ -361,11 +373,7 @@ of either address. "Sign out everywhere" revokes the other sessions and then end
 that order, and leaves the page only once the server has answered.
 
 **Residuals.** A successful reset does not set `email_verified_at` and does not mail the account holder that
-their password changed; both are possible later without a schema change. `changePassword`
-and `disableAccount` still save a whole account they read earlier, so a concurrent change by
-a second actor (the owner changing a password while the operator switches the account off)
-can be undone by the slower of the two; the sign-in, which an unauthenticated attacker can
-provoke at will, is the one that was closed. Expired token rows
+their password changed; both are possible later without a schema change. Expired token rows
 are deleted opportunistically by the next reset request, a day after they expire — there is no
 dedicated sweep, because a reset token cascades with its account and holds no address the
 `users` table does not.
@@ -1192,10 +1200,13 @@ bucket and the key, and sweeps the route table so that a sixth guest write with 
   single event can use 3 of the 4 slots, so a self-hosted box keeps most of its throughput; a
   box run for other people should lower it, and raise the global one as far as memory allows.
   What it does not do: with few slots, a few events can still fill them together (four slots
-  are four slots), which is why the next guard exists. `requestTimeout` is `0` (the streams and
-  the ZIP export need it), so `UPLOAD_BODY_TIMEOUT_SECONDS` (default 600) ends an upload body
+  are four slots), which is why the next guard exists. `UPLOAD_BODY_TIMEOUT_SECONDS` (default 600) ends an upload body
   that is not fully received in time with `408 upload.timedOut`, closes the connection and frees
-  the slot; the reverse proxy's body read timeout must be at least as long. And a `statfs`-based guard refuses a
+  the slot; the reverse proxy's body read timeout must be at least as long. Every other request
+  is bounded too: Node's `requestTimeout` (how long a request may take to _arrive_, headers and
+  body; it never ends a response, so the SSE streams and the ZIP export are not concerned) is
+  that figure plus 60 s (`src/main/serverTimeouts.ts`), so a JSON route cannot be held open by a
+  body sent a byte at a time, and the upload deadline's own answer still comes first. And a `statfs`-based guard refuses a
   request below `MIN_FREE_DISK_BYTES` free on the directory holding `DATABASE_PATH` or
   on `MEDIA_ROOT` (which, without a separate `SCRATCH_ROOT` (P4-04), is also where a
   clip stages while it uploads) with `413 storage.boxFull`, before a byte is read or
@@ -1950,6 +1961,7 @@ request. Password rules live in `src/domain/users/`, not the controller.
 | Headers           | let the app own security headers; do not duplicate CSP at the proxy                                                                                                                                                                                                                                                                     | two CSPs intersect and produce a policy nobody wrote                                                                                                                                                                                            |
 | SSE               | disable proxy buffering (`proxy_buffering off`, and the app sends `X-Accel-Buffering: no`); raise read timeout above the 15 s heartbeat                                                                                                                                                                                                 | a buffering proxy makes the wall look frozen                                                                                                                                                                                                    |
 | Uploads           | proxy body limit ≥ `MAX_UPLOAD_BYTES` + overhead                                                                                                                                                                                                                                                                                        | otherwise the proxy rejects before the app can return a useful error                                                                                                                                                                            |
+| Request timeout   | proxy body-read timeout (Caddy `read_body`, nginx `client_body_timeout`) ≥ `UPLOAD_BODY_TIMEOUT_SECONDS`; the app itself bounds the arrival of any request at that figure + 60 s (`src/main/serverTimeouts.ts`)                                                                                                                         | a proxy that cuts a slow upload sooner answers for the app, with no `upload.timedOut`; one with no limit leaves the app's bound as the only one. A response is never bounded: the SSE streams and the ZIP export stay open                      |
 | Video             | leave `ffmpeg` installed (the image does) and raise the proxy read timeout above a clip upload, not above a transcode: a clip is encoded **after** the response, so no request waits on the encoder                                                                                                                                     | a missing encoder is reported by `/api/ready` as a detail and refuses clips by name; it never takes the wall out of service                                                                                                                     |
 | File permissions  | run as a dedicated non-root user; DB `0600`, `MEDIA_ROOT` `0700`; both outside the web root                                                                                                                                                                                                                                             | the SQLite file contains session data and every hash                                                                                                                                                                                            |
 | Process hardening | systemd: `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `ReadWritePaths=` the data dir                                                                                                                                                                                                                                | limits what a `sharp` or Node CVE can reach                                                                                                                                                                                                     |

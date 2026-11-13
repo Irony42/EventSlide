@@ -1041,3 +1041,160 @@ describe('useUploadQueue: the mission of each photo', () => {
     expect(uploadPhotos.mock.calls[1]?.[1].missionId).toBe('mission-a')
   })
 })
+
+describe('useUploadQueue: what a row remembers of its own batch and of its own bytes', () => {
+  it('retries a failed photo with the caption and challenge it was first sent with (BUG-21)', async () => {
+    const uploadPhotos = vi
+      .fn<(slug: string, input: UploadInput) => Promise<UploadResponse>>()
+      .mockRejectedValueOnce(new ApiError(0, 'network'))
+      .mockResolvedValue(accepted('photo-1'))
+    const { result } = mount(fakeApi({ uploadPhotos }))
+
+    act(() => result.current.add([aPhotoFile('a.jpg')]))
+    act(() => result.current.send('Légende du premier lot', 'challenge-1'))
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
+    act(() => result.current.add([aPhotoFile('b.jpg')]))
+    act(() => result.current.send('Légende du second lot', 'challenge-2'))
+    await waitFor(() => expect(result.current.items[1]?.state).toBe('done'))
+    act(() => result.current.retry(result.current.items[0]?.id ?? ''))
+    await waitFor(() => expect(uploadPhotos).toHaveBeenCalledTimes(3))
+
+    const retried = uploadPhotos.mock.calls[2]?.[1]
+    expect(retried?.files[0]?.name).toBe('a.jpg')
+    expect(retried?.caption).toBe('Légende du premier lot')
+    expect(retried?.challengeId).toBe('challenge-1')
+  })
+
+  it('stores a retried photo with its own caption and challenge, not the latest batch’s (BUG-21)', async () => {
+    const enqueue = vi
+      .fn<UploadOutbox['enqueue']>()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue('entry-1')
+    const outbox: UploadOutbox = { ready: true, enqueue, discard: vi.fn(async () => undefined) }
+    const uploadPhotos = vi
+      .fn<(slug: string, input: UploadInput) => Promise<UploadResponse>>()
+      .mockRejectedValueOnce(new ApiError(0, 'network'))
+      .mockResolvedValue(accepted('photo-b'))
+    const { result } = mount(fakeApi({ uploadPhotos }), { outbox })
+
+    act(() => result.current.add([aPhotoFile('a.jpg')]))
+    act(() => result.current.send('Premier', 'challenge-1'))
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
+    act(() => result.current.add([aPhotoFile('b.jpg')]))
+    act(() => result.current.send('Second', 'challenge-2'))
+    await waitFor(() => expect(result.current.items[1]?.state).toBe('done'))
+    uploadPhotos.mockRejectedValueOnce(new ApiError(0, 'network'))
+    act(() => result.current.retry(result.current.items[0]?.id ?? ''))
+
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('queued'))
+    expect(enqueue).toHaveBeenLastCalledWith(expect.any(File), 'Premier', null, 'challenge-1')
+  })
+
+  it('sends a retry pressed during a send once the run ends (BUG-20)', async () => {
+    const gate = deferred()
+    const uploadPhotos = vi.fn(async (_slug: string, input: UploadInput) => {
+      const name = input.files[0]?.name ?? ''
+      if (name === 'a.jpg' && uploadPhotos.mock.calls.length === 1) throw new ApiError(0, 'network')
+      if (name === 'b.jpg') await gate.promise
+      return accepted(`photo-${name}`)
+    })
+    const { result } = mount(fakeApi({ uploadPhotos }))
+
+    act(() => result.current.add([aPhotoFile('a.jpg'), aPhotoFile('b.jpg')]))
+    act(() => result.current.send(null, null))
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
+    await waitFor(() => expect(result.current.items[1]?.state).toBe('uploading'))
+
+    act(() => result.current.retry(result.current.items[0]?.id ?? ''))
+    gate.resolve()
+
+    await waitFor(() =>
+      expect(result.current.items.map((item) => item.state)).toEqual(['done', 'done']),
+    )
+    expect(uploadPhotos.mock.calls.map((call) => call[1].files[0]?.name)).toEqual([
+      'a.jpg',
+      'b.jpg',
+      'a.jpg',
+    ])
+  })
+
+  it('keeps a retry waiting for the run to end out of a batch sent meanwhile (BUG-21)', async () => {
+    const gate = deferred()
+    const uploadPhotos = vi.fn(async (_slug: string, input: UploadInput) => {
+      const name = input.files[0]?.name ?? ''
+      if (name === 'a.jpg' && uploadPhotos.mock.calls.length === 1) throw new ApiError(0, 'network')
+      if (name === 'b.jpg') await gate.promise
+      return accepted(`photo-${name}`)
+    })
+    const { result } = mount(fakeApi({ uploadPhotos }))
+    act(() => result.current.add([aPhotoFile('a.jpg'), aPhotoFile('b.jpg')]))
+    act(() => result.current.send('Premier', 'challenge-1'))
+    await waitFor(() => expect(result.current.items[1]?.state).toBe('uploading'))
+    act(() => result.current.retry(result.current.items[0]?.id ?? ''))
+
+    act(() => result.current.send('Second', 'challenge-2'))
+    gate.resolve()
+
+    await waitFor(() => expect(uploadPhotos).toHaveBeenCalledTimes(3))
+    expect(uploadPhotos.mock.calls[2]?.[1].caption).toBe('Premier')
+  })
+
+  it('does not keep the shrunk file of a row stored offline (BUG-19)', async () => {
+    const shrunk = aPhotoFile('reduite.jpg')
+    // Every Map that was handed the shrunk file, caught as it is written to: the hook's
+    // `prepared` map is private, and what matters is whether it still holds the bytes.
+    const holders = new Set<Map<unknown, unknown>>()
+    const realSet = Map.prototype.set
+    vi.spyOn(Map.prototype, 'set').mockImplementation(function (
+      this: Map<unknown, unknown>,
+      key: unknown,
+      value: unknown,
+    ) {
+      if (value === shrunk) holders.add(this)
+      return realSet.call(this, key, value)
+    })
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    const outbox: UploadOutbox = {
+      ready: true,
+      enqueue: vi.fn(async () => 'entry-1'),
+      discard: vi.fn(async () => undefined),
+    }
+    const { result } = mount(fakeApi(), { outbox, resize: () => Promise.resolve(shrunk) })
+
+    act(() => result.current.add([aPhotoFile('originale.jpg')]))
+    act(() => result.current.send(null, null))
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('queued'))
+    await waitFor(() => expect(result.current.sending).toBe(false))
+
+    expect(holders.size).toBe(1)
+    for (const holder of holders) expect([...holder.values()]).not.toContain(shrunk)
+  })
+
+  it('lets go of the shrunk file of a row the guest takes back (BUG-19)', async () => {
+    const gate = deferred()
+    const shrunk = aPhotoFile('reduite.jpg')
+    const holders = new Set<Map<unknown, unknown>>()
+    const realSet = Map.prototype.set
+    vi.spyOn(Map.prototype, 'set').mockImplementation(function (
+      this: Map<unknown, unknown>,
+      key: unknown,
+      value: unknown,
+    ) {
+      if (value === shrunk) holders.add(this)
+      return realSet.call(this, key, value)
+    })
+    const uploadPhotos = vi.fn(async () => {
+      await gate.promise
+      return accepted('photo-1')
+    })
+    const { result } = mount(fakeApi({ uploadPhotos }), { resize: () => Promise.resolve(shrunk) })
+
+    act(() => result.current.add([aPhotoFile('originale.jpg')]))
+    act(() => result.current.send(null, null))
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('uploading'))
+    act(() => result.current.remove(result.current.items[0]?.id ?? ''))
+
+    for (const holder of holders) expect([...holder.values()]).not.toContain(shrunk)
+    gate.resolve()
+  })
+})

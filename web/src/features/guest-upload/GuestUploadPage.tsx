@@ -4,7 +4,7 @@ import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { themeSurfaceProps } from '../../design-system/eventTheme'
 import { RootGroundHue } from '../../design-system/useRootGroundHue'
-import { forgetGuestSession, readGuestSession } from '../../lib/guestSession'
+import { leaveGuestEvent, readGuestSession } from '../../lib/guestSession'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { cx } from '../../design-system/classNames'
 import { ComposerOptions } from './components/ComposerOptions'
@@ -317,7 +317,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           // send in flight (the reason `NewTabLink` exists), and a thumb brushes a header link.
           disabled={sending}
           onClick={() => {
-            forgetGuestSession(slug)
+            leaveGuestEvent(slug)
             navigate('/join')
           }}
         >

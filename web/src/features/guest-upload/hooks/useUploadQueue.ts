@@ -55,6 +55,15 @@ export interface UploadItem {
    * mission B must see each photo land on its own mission. Kept for the retries and the outbox.
    */
   readonly missionId: string | null
+  /**
+   * The caption of the batch this photo was sent in, set when the guest presses "Envoyer".
+   *
+   * Per row for the reason the mission is: a retry pressed after a later batch went out must
+   * still carry the words this photo was first sent with, not the latest batch's.
+   */
+  readonly caption: string | null
+  /** The challenge (spec 18) of the batch this photo was sent in, kept on the row like the caption. */
+  readonly challengeId: string | null
 }
 
 /**
@@ -197,9 +206,18 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
    * ends the attempt, so the bytes are copied here before the first await after they are made.
    */
   const prepared = useRef(new Map<string, File>())
-  const caption = useRef<string | null>(null)
-  /** The challenge the batch answers (spec 18), kept for the retries like the mission. */
-  const challenge = useRef<string | null>(null)
+  /**
+   * The caption of the last batch sent, for `onSettled` alone: it tells the screen which words to
+   * keep or clear. What a photo itself is sent with is on its row, never here.
+   */
+  const lastCaption = useRef<string | null>(null)
+  /**
+   * The rows whose "Réessayer" was pressed while a run was in progress, sent when it ends.
+   *
+   * `run` returns at once when another is going, so a retry pressed during a send would leave its
+   * row reading "En attente" with nothing left to send it.
+   */
+  const retryAfterRun = useRef<string[]>([])
   const lastId = useRef(0)
 
   const commit = useCallback((next: readonly UploadItem[]) => {
@@ -229,6 +247,8 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
           retryable: false,
           outboxId: null,
           missionId,
+          caption: null,
+          challengeId: null,
         }
       })
 
@@ -250,6 +270,8 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       // guest's remaining bandwidth on a photo they just took back.
       controllers.current.get(id)?.abort()
       owed.current.delete(id)
+      prepared.current.delete(id)
+      retryAfterRun.current = retryAfterRun.current.filter((queued) => queued !== id)
       const target = itemsRef.current.find((item) => item.id === id)
       if (target !== undefined) {
         URL.revokeObjectURL(target.previewUrl)
@@ -285,9 +307,9 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
         const row = itemsRef.current.find((candidate) => candidate.id === id)
         entryId = await outbox.enqueue(
           file,
-          caption.current,
+          row?.caption ?? null,
           row?.missionId ?? null,
-          challenge.current,
+          row?.challengeId ?? null,
         )
       } finally {
         storing.current.delete(id)
@@ -321,7 +343,11 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       // Nothing to gain from an upload the browser already knows cannot leave the
       // device: the photo goes straight to the outbox, and the guest gets an honest
       // "en attente du réseau" instead of watching a progress bar fail.
-      if (!navigator.onLine && (await storeForLater(id, shrunk))) return
+      if (!navigator.onLine && (await storeForLater(id, shrunk))) {
+        // The outbox holds the bytes now; the early return skips the `finally` below.
+        prepared.current.delete(id)
+        return
+      }
 
       const controller = new AbortController()
       controllers.current.set(id, controller)
@@ -330,9 +356,9 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       try {
         const response = await api.uploadPhotos(slug, {
           files: [shrunk],
-          caption: caption.current,
+          caption: item.caption,
           missionId: item.missionId,
-          challengeId: challenge.current,
+          challengeId: item.challengeId,
           onProgress: (progress) => patch(id, { progress: progress.percent }),
           signal: controller.signal,
         })
@@ -387,23 +413,31 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       if (running.current || ids.length === 0) return
       running.current = true
       setSending(true)
-      for (const id of ids) owed.current.add(id)
       try {
-        // One at a time, deliberately. Four parallel uploads on a saturated venue
-        // Wi-Fi finish later than four in a row, and they turn every progress bar
-        // into a guess rather than a measurement.
-        for (const id of ids) {
-          await uploadOne(id)
-          owed.current.delete(id)
+        // A retry pressed while this run was going had nowhere to start: it joins the run, as
+        // another pass once the rows in hand are done.
+        let batch = ids
+        while (batch.length > 0) {
+          for (const id of batch) owed.current.add(id)
+          // One at a time, deliberately. Four parallel uploads on a saturated venue
+          // Wi-Fi finish later than four in a row, and they turn every progress bar
+          // into a guess rather than a measurement.
+          for (const id of batch) {
+            await uploadOne(id)
+            owed.current.delete(id)
+          }
+          batch = retryAfterRun.current.splice(0)
         }
       } finally {
+        // Whatever is left in line when the run ends abnormally is not sent behind the guest's back.
+        retryAfterRun.current = []
         running.current = false
         setSending(false)
         // Read from the mirror: the rendered `items` is a snapshot of the past.
         const rows = itemsRef.current
         onSettled?.({
           allSent: rows.length > 0 && rows.every((item) => SENT.includes(item.state)),
-          caption: caption.current,
+          caption: lastCaption.current,
         })
       }
     },
@@ -415,18 +449,28 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       // One caption for the batch, kept for the retries: a guest who wrote one and then
       // lost the connection must not lose it. The mission is not here: each row carries
       // the one that was selected when it was picked.
-      caption.current = batchCaption
-      challenge.current = batchChallenge
-      const ids = itemsRef.current.filter((item) => item.state === 'pending').map((item) => item.id)
+      lastCaption.current = batchCaption
+      // Not the rows a retry has already put in line: they keep the words they were first sent with.
+      const ids = itemsRef.current
+        .filter((item) => item.state === 'pending' && !retryAfterRun.current.includes(item.id))
+        .map((item) => item.id)
+      commit(
+        itemsRef.current.map((item) =>
+          ids.includes(item.id)
+            ? { ...item, caption: batchCaption, challengeId: batchChallenge }
+            : item,
+        ),
+      )
       void run(ids)
     },
-    [run],
+    [commit, run],
   )
 
   const retry = useCallback(
     (id: string) => {
       patch(id, { state: 'pending', progress: 0, error: null, retryable: false, outboxId: null })
-      void run([id])
+      if (running.current) retryAfterRun.current.push(id)
+      else void run([id])
     },
     [patch, run],
   )
@@ -475,8 +519,6 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
    * row leaves it the moment its attempt ends, whatever the attempt ended with.
    */
   const handOff = useCallback((): readonly OutboxHandOff[] => {
-    const batchCaption = caption.current
-    const batchChallenge = challenge.current
     return itemsRef.current
       .filter((item) => owed.current.has(item.id) && !storing.current.has(item.id))
       .map((item): OutboxHandOff => {
@@ -484,9 +526,9 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
         return {
           file: () =>
             ready === undefined ? resize(item.file).catch(() => item.file) : Promise.resolve(ready),
-          caption: batchCaption,
+          caption: item.caption,
           missionId: item.missionId,
-          challengeId: batchChallenge,
+          challengeId: item.challengeId,
         }
       })
   }, [resize])

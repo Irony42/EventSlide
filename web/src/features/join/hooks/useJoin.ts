@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useApi } from '../../../lib/useApi'
-import { forgetGuestSession, rememberGuestSession } from '../../../lib/guestSession'
+import { leaveGuestEvent, rememberGuestSession } from '../../../lib/guestSession'
 import { ApiError } from '../../../lib/http'
 import { messageForError } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
@@ -93,7 +93,7 @@ export const useJoin = (): JoinState => {
 
   const leave = useCallback(
     (slug: string) => {
-      forgetGuestSession(slug)
+      leaveGuestEvent(slug)
       setState({ phase: 'idle', event: null, error: null, errorCode: null })
       // The path loses its code, or a reload would resolve it again.
       navigate('/join', { replace: true })
