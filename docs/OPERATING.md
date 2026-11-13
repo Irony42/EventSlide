@@ -184,6 +184,15 @@ needs no mount; pass its `/data/backups/...` path instead. To re-check an archiv
 without restoring it, `node dist/ops/scripts/backup.js --verify <archive>` runs the
 same way and is safe with the server up.
 
+An archive must not overlap the installation it saves or replaces, and neither command
+lets it: `backup` refuses a `--to` (or `BACKUP_DIR`) inside the media directory, around it,
+or around the database file; `restore` refuses the same three layouts for the archive it
+is given, before it writes anything and with or without `--force`, because a restore
+empties the media directory and would otherwise delete the archive it is reading from.
+The comparison is on real paths, so a symlink, a Windows junction, `..` or a different
+case does not get past it. The refusal names both paths; the fix is to put the archive
+beside the media directory, not under it.
+
 There is no migration step. The server applies pending migrations when it starts,
 before it answers a request, and `restore` brings the database it wrote up to the
 running version itself.

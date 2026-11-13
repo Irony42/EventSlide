@@ -2245,6 +2245,13 @@ lives — in the code where it can be, in the procedure where it cannot:
   album and sits on the volume uploads fill, so it is deleted there once the copy has
   verified. A drive mounted into a one-off container, given as `--to` and writable by
   uid 1000, keeps it off the volume entirely.
+- **Where an archive may not land.** Inside the media root, around it, or around the
+  database file. `restore` empties the media root and rewrites the database, so an
+  archive in either place deletes itself after the database is already replaced; `backup`
+  would walk its own half-written output. `assertArchiveApart`
+  (`src/infrastructure/db/backup/containment.ts`) refuses both before anything is
+  touched, on real paths (symlinks, junctions, `..`, case-folding filesystems), and
+  not subject to `--force`. The image's default layout is unaffected.
 - **Restore never races the server — by procedure, not by lock.** It is run with
   `docker compose run --rm` after `docker compose stop`, never with `exec` into the
   running container. The `-wal`/`-shm` warning above is a hint, not a lock — SQLite

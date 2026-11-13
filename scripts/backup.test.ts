@@ -211,4 +211,15 @@ describe('npm run backup', () => {
     expect(out).toContain('npm run backup:verify')
     await expect(stat(archive)).rejects.toThrow()
   })
+  it('refuses a destination inside the media root, naming both, and writes nothing (BUG-08)', async () => {
+    const inside = join(mediaRoot, 'backups', 'one')
+
+    const { code, out } = await capture(() => run(['--to', inside, ...where()]))
+
+    expect(code).toBe(1)
+    expect(out).toContain('archive is inside the media root')
+    expect(out).toContain(mediaRoot)
+    expect(out).toContain('Pass --to')
+    expect(await readdir(mediaRoot)).toEqual(['an-event'])
+  })
 })

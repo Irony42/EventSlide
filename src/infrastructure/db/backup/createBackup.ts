@@ -11,6 +11,7 @@ import { statfsDiskSpaceChecker } from '../../system/statfsDiskSpaceChecker'
 import { HOLDING_BYTES_SQL } from '../clipJobStatusSql'
 import { closeDatabase, openDatabase, type Db } from '../connection'
 import { BackupError } from './backupError'
+import { assertArchiveApart } from './containment'
 import { isContainedPath, toPosix } from './paths'
 import {
   ARCHIVE_FORMAT,
@@ -272,6 +273,16 @@ export const createBackup = async ({
         `with (DATABASE_PATH).`,
     )
   }
+
+  // Before anything else is read or written: an archive inside the media root would be
+  // copied into itself, and one around the media root or the database is a tree this
+  // call is about to read from and write to at once.
+  await assertArchiveApart({
+    archive,
+    databasePath: sourceDatabase,
+    mediaRoot: sourceMedia,
+    operation: 'backup',
+  })
 
   // A backup that overwrote a previous one would destroy the only other copy at the
   // moment the operator is trying to make a second.

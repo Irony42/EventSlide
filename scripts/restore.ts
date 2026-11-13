@@ -147,7 +147,7 @@ const restore = async (argv: readonly string[], invocation: Invocation): Promise
   const force = flag(argv, 'force')
 
   const manifest = await readManifest(archive)
-  const target = await inspectRestoreTarget(databasePath, mediaRoot)
+  const target = await inspectRestoreTarget(archive, databasePath, mediaRoot)
 
   console.log('EventSlide restore')
   console.log(`  archive   ${resolve(archive)}`)
