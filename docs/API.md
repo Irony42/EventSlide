@@ -4671,6 +4671,12 @@ itself, plus two things that follow it:
   vulnerability — but it is the sentence that would stop the next reader from removing
   the hooks, and it is wrong.
 
+  **Bounded since the 13 November review (SEC-07).** `useTimingOverrides.ts` now accepts
+  `e2e_interval` only as `0` (no clock, the suites' still frame) or 50 to 600 000 ms, and
+  `e2e_transition` as 0 to 10 000 ms: the schema's own bounds. Any other value is treated as
+  absent, so a link sent to a host cannot put the projector in a 1 ms loop. `e2e_phase_ms`
+  is not bounded yet.
+
 Closing it is a removal from `wallQuery` plus the flag, and it is not a one-file change:
 `requestSchemas.ts` and its test; `publicRoutes.ts` and `publicRoutes.test.ts`, which
 asserts **200** for `?e2e_interval=250&e2e_transition=10000` and is the test that goes red
