@@ -109,4 +109,50 @@ describe('changePassword', () => {
     expect(!result.ok && result.error.code).toBe('user.passwordUnchanged')
     expect((await stored())?.passwordHash).toBe(hashOf(CURRENT))
   })
+
+  // ------------------------------------------------- what finished meanwhile --
+
+  /** Runs the change with `meanwhile` happening while the new hash is being computed. */
+  const changeWhileHashing = (meanwhile: () => Promise<void>) => {
+    hasher = new FakePasswordHasher({ whileHashing: meanwhile })
+    return change()
+  }
+
+  it('does not re-enable an account disabled while the new hash was being computed', async () => {
+    const result = await changeWhileHashing(async () => {
+      const row = await stored()
+      if (row === null) throw new Error('fixture missing')
+      await users.save(row.disable(clock.now()))
+    })
+
+    expect(!result.ok && result.error.code).toBe('auth.invalidCredentials')
+    const after = await stored()
+    expect(after?.isDisabled()).toBe(true)
+    expect(after?.passwordHash).toBe(hashOf(CURRENT))
+  })
+
+  it('does not overwrite a password reset that finished meanwhile', async () => {
+    const result = await changeWhileHashing(async () => {
+      await users.replacePasswordHash(
+        asUserId('user-1'),
+        hashOf(CURRENT),
+        hashOf('le-mot-de-passe-de-la-reinitialisation'),
+        clock.now(),
+      )
+    })
+
+    expect(!result.ok && result.error.code).toBe('auth.invalidCredentials')
+    expect((await stored())?.passwordHash).toBe(hashOf('le-mot-de-passe-de-la-reinitialisation'))
+  })
+
+  it('raises the epoch to the instant after the hashing, so a session issued meanwhile does not survive', async () => {
+    await changeWhileHashing(async () => {
+      clock.advance(200)
+    })
+
+    expect((await users.authStateFor(asUserId('user-1'))).credentialsChangedAt?.toISOString()).toBe(
+      clock.now().toISOString(),
+    )
+    expect(clock.now().getTime()).toBe(AT.getTime() + 200)
+  })
 })

@@ -51,7 +51,8 @@ const invalidToken = (): DomainError => DomainError.invalid(INVALID_TOKEN_CODE)
  * 4. **Spend the link.** One conditional statement decides, among any number of simultaneous
  *    requests carrying this link, which one proceeds; the others get `auth.invalidToken`.
  *    Everything after this line happens at most once per link.
- * 5. **Change the password**, which clears a forced change and raises the credentials epoch
+ * 5. **Change the password** with a compare-and-set on the hash read in step 2 (a lost race is
+ *    `auth.invalidToken`: the link stays spent and nothing else is revoked), which clears a forced change and raises the credentials epoch
  *    (`User.changePassword`): every session issued before this moment stops being valid, the
  *    one the thief may be holding included. Then every other reset link for the address is
  *    revoked — the one just spent is the only one that was ever meant to work.
@@ -81,10 +82,18 @@ export const makeResetPassword =
     // The epoch is read **after** the hash, which takes ~200 ms: a session issued while it ran
     // was issued under the old password and must not outlive the change. (`now` above is the
     // moment the link was judged usable, and the epoch is not that moment.)
-    const changed = user.changePassword(await hasher.hash(parsed.value), clock.now())
+    const newHash = await hasher.hash(parsed.value)
+    const at = clock.now()
+    const changed = user.changePassword(newHash, at)
     if (!changed.ok) return changed
 
-    await users.save(changed.value)
+    // Compare-and-set, not `save` of the account read before the hashing: a switch-off or another
+    // reset that finished meanwhile must win. On a lost race the link stays spent (it cannot be
+    // un-spent, and the account moved on under it: the person asks for a new one) and nothing
+    // else is revoked, because this call changed nothing.
+    if (!(await users.replacePasswordHash(user.id, user.passwordHash, newHash, at))) {
+      return err(invalidToken())
+    }
     await tokens.revokeOutstanding(user.email, 'passwordReset', now)
     return ok(undefined)
   }
