@@ -29,11 +29,29 @@ export const anEntry = (overrides: Partial<NewOutboxEntry> = {}): NewOutboxEntry
   ...overrides,
 })
 
+/**
+ * @param reopen gives the store a later visit to the screen would get after `previous` was closed:
+ *   a fresh handle on the same database for IndexedDB, the page's one store for the memory fallback.
+ */
 export const outboxStoreContract = (
   name: string,
   makeSubject: () => Promise<OutboxStore>,
+  reopen: (previous: OutboxStore) => Promise<OutboxStore>,
 ): void => {
   describe(`OutboxStore contract: ${name}`, () => {
+    it('keeps its entries when it is closed and a later visit reopens the same store kind', async () => {
+      // The upload screen closes its store when it unmounts, and a guest offline with photos
+      // waiting who taps the feed link unmounts it. `close` releases a handle; it never forgets.
+      const store = await makeSubject()
+      const { entry } = await store.add(anEntry({ caption: 'Pour plus tard' }), t)
+
+      store.close()
+      const reopened = await reopen(store)
+
+      expect((await reopened.list('camille-et-sacha')).map((held) => held.id)).toEqual([entry.id])
+      reopened.close()
+    })
+
     it('gives back what it was handed, with an id and the time it arrived', async () => {
       const store = await makeSubject()
 

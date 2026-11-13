@@ -28,6 +28,8 @@ const row = (
   retryable: state === 'failed',
   outboxId: null,
   missionId: null,
+  caption: null,
+  challengeId: null,
 })
 
 interface Handlers {

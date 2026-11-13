@@ -9,6 +9,7 @@ import {
 } from '../../lib/guestSession'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
+import { openOutbox } from '../../lib/offline/openOutbox'
 import {
   aGuestPhoto,
   aPrivacyNoticeState,
@@ -29,6 +30,15 @@ import type {
 } from '../../lib/api/dto'
 
 const SLUG = 'camille-et-sacha'
+
+const aPendingPhoto = (slug: string) => ({
+  slug,
+  bytes: new Uint8Array([0xff, 0xd8, 0xff]).buffer,
+  fileName: 'avant.jpg',
+  fileType: 'image/jpeg',
+  caption: null,
+  missionId: null,
+})
 
 /** What the join step leaves behind. Without it the screen has no event to show. */
 const havingJoined = (overrides: Partial<PublicEventDto> = {}): void => {
@@ -458,6 +468,17 @@ describe('a guest with no session on the feed (A2)', () => {
 
     expect(readRememberedGuestSession()).toBeNull()
     expect(readGuestSession(SLUG)).toBeNull()
+  })
+
+  it('takes the photos waiting on this phone with it when it is not their evening (QUAL-06)', async () => {
+    havingJoined()
+    const store = await openOutbox()
+    await store.add(aPendingPhoto(SLUG), 1)
+    renderFeed(withWall([photo('a')]))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.join.notYourEvening }))
+
+    await waitFor(async () => expect(await store.list(SLUG)).toEqual([]))
   })
 })
 

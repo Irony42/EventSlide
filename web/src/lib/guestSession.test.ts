@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   forgetGuestSession,
+  leaveGuestEvent,
   readGuestSession,
   readRememberedGuestSession,
   rememberEventTheme,
   rememberGuestSession,
   rememberPrivacyNotice,
 } from './guestSession'
+import { openOutbox } from './offline/openOutbox'
 import { aPrivacyNotice, aPrivacyNoticeState, aPublicEvent } from '../testing/renderWithProviders'
 
 /**
@@ -672,5 +674,39 @@ describe('guestSession, the guestbook flag of the notice (spec 01)', () => {
 
   it('adds no key to a notice without a guestbook', () => {
     expect(roundTrip(aPrivacyNotice())).not.toHaveProperty('guestbook')
+  })
+})
+
+describe('leaving an event on a lent phone (QUAL-06)', () => {
+  const aPhoto = (slug: string) => ({
+    slug,
+    bytes: new Uint8Array([0xff, 0xd8, 0xff]).buffer,
+    fileName: 'confettis.jpg',
+    fileType: 'image/jpeg',
+    caption: null,
+    missionId: null,
+  })
+
+  it('forgets the photos this device holds for the event, and only that event’s', async () => {
+    const store = await openOutbox()
+    await store.add(aPhoto('gala'), 1)
+    await store.add(aPhoto('mariage'), 2)
+
+    leaveGuestEvent('gala')
+
+    await vi.waitFor(async () => expect(await store.list('gala')).toEqual([]))
+    expect(await store.list('mariage')).toHaveLength(1)
+  })
+
+  it('keeps the photos when the session is only forgotten because the server lost it', async () => {
+    // `forgetGuestSession` is also what a signed-out screen calls: the same person joins again
+    // and their waiting photos are still theirs.
+    const store = await openOutbox()
+    await store.add(aPhoto('gala'), 1)
+
+    forgetGuestSession('gala')
+    await Promise.resolve()
+
+    expect(await store.list('gala')).toHaveLength(1)
   })
 })

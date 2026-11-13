@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { readGuestSession, readRememberedGuestSession } from '../../lib/guestSession'
 import { ApiError } from '../../lib/http'
+import { openOutbox } from '../../lib/offline/openOutbox'
 import { fr } from '../../lib/i18n/fr'
 import { aGuestPhoto, fakeApi } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
@@ -72,6 +73,27 @@ describe('a guest who comes back to the page after the tab was closed (A1, A2)',
 
     expect(readRememberedGuestSession()).toBeNull()
     expect(readGuestSession(SLUG)).toBeNull()
+  })
+
+  it('takes the photos waiting on this phone with it, so the next guest does not send them (QUAL-06)', async () => {
+    havingJoined()
+    const store = await openOutbox()
+    await store.add(
+      {
+        slug: SLUG,
+        bytes: new Uint8Array([0xff, 0xd8, 0xff]).buffer,
+        fileName: 'avant.jpg',
+        fileType: 'image/jpeg',
+        caption: null,
+        missionId: null,
+      },
+      1,
+    )
+    renderUpload(fakeApi())
+
+    await userEvent.click(screen.getByRole('button', { name: fr.join.notYourEvening }))
+
+    await waitFor(async () => expect(await store.list(SLUG)).toEqual([]))
   })
 })
 

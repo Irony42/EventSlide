@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, configure } from '@testing-library/react'
 import { afterEach, beforeAll, vi } from 'vitest'
+import { forgetMemoryFallback } from '../lib/offline/openOutbox'
 
 /**
  * jsdom setup shared by every component test.
@@ -28,6 +29,10 @@ configure({ asyncUtilTimeout: 5_000 })
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  // jsdom has no IndexedDB, so every screen that opens the outbox gets the page's memory store, and
+  // that store now outlives the screen. One per test, or a photo queued by one test would be
+  // drained by the next.
+  forgetMemoryFallback()
   // jsdom keeps one `localStorage` and one `sessionStorage` for a whole file, so what one
   // test writes would otherwise leak into every test after it: a test that picks a
   // language would decide the starting language of the next, and a guest session or the

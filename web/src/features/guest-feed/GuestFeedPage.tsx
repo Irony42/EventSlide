@@ -7,7 +7,7 @@ import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
 import { themeSurfaceProps } from '../../design-system/eventTheme'
 import { RootGroundHue } from '../../design-system/useRootGroundHue'
-import { forgetGuestSession, readGuestSession } from '../../lib/guestSession'
+import { forgetGuestSession, leaveGuestEvent, readGuestSession } from '../../lib/guestSession'
 import { photoAlt } from '../../lib/photoAlt'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { ReactionBar } from './components/ReactionBar'
@@ -118,7 +118,7 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
           size="sm"
           className={styles['notYours']}
           onClick={() => {
-            forgetGuestSession(slug)
+            leaveGuestEvent(slug)
             navigate('/join')
           }}
         >
