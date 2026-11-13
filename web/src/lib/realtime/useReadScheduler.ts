@@ -12,8 +12,7 @@ export const useReadScheduler = (
   start: () => Promise<unknown> | void,
   options: { readonly debounceMs?: number; readonly tracksSettlement?: boolean } = {},
 ): ReadScheduler => {
-  const { debounceMs, tracksSettlement } = options
-  const [scheduler] = useState(() => createReadScheduler({ start, debounceMs, tracksSettlement }))
+  const [scheduler] = useState(() => createReadScheduler({ start, ...options }))
   useEffect(() => {
     scheduler.retarget(start)
   }, [scheduler, start])
