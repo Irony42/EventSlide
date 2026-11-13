@@ -1,5 +1,5 @@
 import { DomainError } from '../shared/errors'
-import { toSingleLine } from '../shared/plainText'
+import { characterCount, toSingleLine } from '../shared/plainText'
 import { err, ok, type Result } from '../shared/result'
 
 /**
@@ -28,8 +28,8 @@ export class AccountName {
   static create(raw: string): Result<AccountName, DomainError> {
     const cleaned = toSingleLine(raw)
 
-    if (cleaned.length < MIN_LENGTH) return err(DomainError.invalid('accountName.empty'))
-    if (cleaned.length > MAX_LENGTH) {
+    if (characterCount(cleaned) < MIN_LENGTH) return err(DomainError.invalid('accountName.empty'))
+    if (characterCount(cleaned) > MAX_LENGTH) {
       return err(DomainError.invalid('accountName.tooLong', { max: MAX_LENGTH }))
     }
     return ok(new AccountName(cleaned))

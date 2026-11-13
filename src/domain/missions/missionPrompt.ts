@@ -1,5 +1,5 @@
 import { DomainError } from '../shared/errors'
-import { toSingleLine } from '../shared/plainText'
+import { characterCount, toSingleLine } from '../shared/plainText'
 import { err, ok, type Result } from '../shared/result'
 
 /**
@@ -45,8 +45,8 @@ export class MissionPrompt {
     // A blank prompt is a row on the wall with nothing in it, which reads as a defect
     // rather than as an empty list. Refused rather than dropped, because the host is at
     // a keyboard and can be told.
-    if (cleaned.length === 0) return err(DomainError.invalid('mission.promptEmpty'))
-    if (cleaned.length > MAX_LENGTH) {
+    if (characterCount(cleaned) === 0) return err(DomainError.invalid('mission.promptEmpty'))
+    if (characterCount(cleaned) > MAX_LENGTH) {
       return err(DomainError.invalid('mission.promptTooLong', { max: MAX_LENGTH }))
     }
     return ok(new MissionPrompt(cleaned))

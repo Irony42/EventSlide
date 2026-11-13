@@ -1,5 +1,5 @@
 import { DomainError } from '../shared/errors'
-import { toMultiLine } from '../shared/plainText'
+import { characterCount, toMultiLine } from '../shared/plainText'
 import { err, ok, type Result } from '../shared/result'
 
 /**
@@ -27,7 +27,7 @@ export class GuestbookText {
     const cleaned = toMultiLine(raw)
 
     if (cleaned.length === 0) return err(DomainError.invalid('guestbook.empty'))
-    if ([...cleaned].length > GUESTBOOK_TEXT_MAX_LENGTH) {
+    if (characterCount(cleaned) > GUESTBOOK_TEXT_MAX_LENGTH) {
       return err(DomainError.invalid('guestbook.tooLong', { max: GUESTBOOK_TEXT_MAX_LENGTH }))
     }
     if (cleaned.split('\n').length - 1 > GUESTBOOK_TEXT_MAX_LINES) {
@@ -38,7 +38,7 @@ export class GuestbookText {
 
   /** How many characters a reader sees, which is what the wall sizes its card from. */
   get length(): number {
-    return [...this.value].length
+    return characterCount(this.value)
   }
 
   equals(other: GuestbookText): boolean {

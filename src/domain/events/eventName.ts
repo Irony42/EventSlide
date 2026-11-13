@@ -1,6 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
-import { toSingleLine } from '../shared/plainText'
+import { characterCount, toSingleLine } from '../shared/plainText'
 
 /**
  * The title a host types: "Camille & Sacha".
@@ -43,11 +43,11 @@ export class EventName {
 
     const cleaned = toSingleLine(raw)
 
-    if (cleaned.length === 0) return err(DomainError.invalid('eventName.empty'))
-    if (cleaned.length < MIN_LENGTH) {
+    if (characterCount(cleaned) === 0) return err(DomainError.invalid('eventName.empty'))
+    if (characterCount(cleaned) < MIN_LENGTH) {
       return err(DomainError.invalid('eventName.tooShort', { min: MIN_LENGTH }))
     }
-    if (cleaned.length > MAX_LENGTH) {
+    if (characterCount(cleaned) > MAX_LENGTH) {
       return err(DomainError.invalid('eventName.tooLong', { max: MAX_LENGTH }))
     }
     if (!HAS_ALPHANUMERIC.test(cleaned)) {

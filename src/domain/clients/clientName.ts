@@ -1,6 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
-import { toSingleLine } from '../shared/plainText'
+import { characterCount, toSingleLine } from '../shared/plainText'
 
 /**
  * A client's own name: the studio, the agency, the couple — whatever the operator typed
@@ -26,8 +26,8 @@ export class ClientName {
 
     const cleaned = toSingleLine(raw)
 
-    if (cleaned.length < MIN_LENGTH) return err(DomainError.invalid('clientName.empty'))
-    if (cleaned.length > MAX_LENGTH) {
+    if (characterCount(cleaned) < MIN_LENGTH) return err(DomainError.invalid('clientName.empty'))
+    if (characterCount(cleaned) > MAX_LENGTH) {
       return err(DomainError.invalid('clientName.tooLong', { max: MAX_LENGTH }))
     }
     return ok(new ClientName(cleaned))

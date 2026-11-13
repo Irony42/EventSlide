@@ -91,6 +91,20 @@ describe('DisplayName.create', () => {
   })
 })
 
+describe('DisplayName length is counted in characters (BUG-29)', () => {
+  const WOMAN = String.fromCodePoint(0x1f469)
+
+  it('accepts a name of exactly the maximum in emoji, which is twice that in UTF-16 units', () => {
+    expect(DisplayName.create(WOMAN.repeat(DisplayName.maxLength)).ok).toBe(true)
+  })
+
+  it('refuses one emoji more', () => {
+    const result = DisplayName.create(WOMAN.repeat(DisplayName.maxLength + 1))
+
+    expect(!result.ok && result.error.code).toBe('displayName.tooLong')
+  })
+})
+
 describe('DisplayName.createOptional', () => {
   it('keeps a name of exactly the minimum length, so one letter is a name and not anonymity', () => {
     const name = 'Z'.repeat(DisplayName.minLength)

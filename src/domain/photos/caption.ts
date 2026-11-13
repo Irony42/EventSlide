@@ -1,5 +1,5 @@
 import { DomainError } from '../shared/errors'
-import { toSingleLine } from '../shared/plainText'
+import { characterCount, toSingleLine } from '../shared/plainText'
 import { err, ok, type Result } from '../shared/result'
 
 /**
@@ -26,8 +26,8 @@ export class Caption {
 
     const cleaned = toSingleLine(raw)
 
-    if (cleaned.length === 0) return err(DomainError.invalid('caption.empty'))
-    if (cleaned.length > MAX_LENGTH) {
+    if (characterCount(cleaned) === 0) return err(DomainError.invalid('caption.empty'))
+    if (characterCount(cleaned) > MAX_LENGTH) {
       return err(DomainError.invalid('caption.tooLong', { max: MAX_LENGTH }))
     }
     return ok(new Caption(cleaned))
