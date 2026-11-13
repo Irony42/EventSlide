@@ -79,7 +79,7 @@ const BASE_DELAY_MS = 1_000
  * restarting, and short enough that a projector nobody is watching rejoins the stream
  * before the next song ends.
  */
-const MAX_DELAY_MS = 30_000
+const MAX_DELAY_MS = 30_000 // before jitter: the wait itself may reach 36 s
 
 /**
  * How far the reconnect delay may stray from the backoff, either way (20 %).

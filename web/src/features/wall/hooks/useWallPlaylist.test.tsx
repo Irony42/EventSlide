@@ -383,6 +383,27 @@ describe('useWallPlaylist and the event stream', () => {
     expect(await screen.findByText('révision rev-2')).toBeInTheDocument()
   })
 
+  it('leaves the first read of the page running when a signal arrives during it', async () => {
+    const first = deferred<WallResponse>()
+    const wall = vi
+      .fn<(slug: string, signal?: AbortSignal) => Promise<WallResponse>>()
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValue(aWall('Camille & Sacha', 'rev-2'))
+    renderWithProviders(<Probe slug="camille-et-sacha" />, { api: fakeApi({ wall }) })
+    await waitFor(() => expect(wall).toHaveBeenCalledTimes(1))
+
+    signal('photo.moderated')
+    await settle(WALL_READ_DEBOUNCE_MS + 50)
+
+    expect(wall).toHaveBeenCalledTimes(1)
+    expect(wall.mock.calls[0]?.[1]?.aborted).toBe(false)
+    await act(async () => {
+      first.resolve(aWall('Camille & Sacha', 'rev-1'))
+    })
+    expect(await screen.findByText('révision rev-2')).toBeInTheDocument()
+    expect(wall).toHaveBeenCalledTimes(2)
+  })
+
   it('provokes no playlist read for a reaction', async () => {
     const wall = reads(aWall('Camille & Sacha', 'rev-1'))
     renderWithProviders(<Probe slug="camille-et-sacha" />, { api: fakeApi({ wall }) })

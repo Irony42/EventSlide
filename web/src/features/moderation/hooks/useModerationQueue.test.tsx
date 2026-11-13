@@ -339,6 +339,38 @@ describe('useModerationQueue', () => {
     expect(moderationQueue).toHaveBeenCalledTimes(3)
   })
 
+  it('leaves the first read running when a photo signal arrives during it', async () => {
+    const first = deferred<ModerationQueueResponse>()
+    const moderationQueue = vi
+      .fn<Api['moderationQueue']>()
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValue(queueOf([aModerationPhoto({ id: 'photo-2' })]))
+    const { result } = mount(fakeApi({ moderationQueue }))
+    await waitFor(() => expect(moderationQueue).toHaveBeenCalledTimes(1))
+
+    emitSignal('photo.uploaded')
+    await settle(MODERATION_READ_DEBOUNCE_MS + 100)
+
+    expect(moderationQueue).toHaveBeenCalledTimes(1)
+    expect(moderationQueue.mock.calls[0]?.[2]?.aborted).toBe(false)
+    await act(async () => {
+      first.resolve(queueOf([aModerationPhoto({ id: 'photo-1' })]))
+    })
+    await waitFor(() => expect(result.current.items[0]?.id).toBe('photo-2'))
+    expect(moderationQueue).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads nothing for a reaction', async () => {
+    const moderationQueue = vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })]))
+    const { result } = mount(fakeApi({ moderationQueue }))
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    emitSignal('reaction.added')
+    await settle(MODERATION_READ_DEBOUNCE_MS + 100)
+
+    expect(moderationQueue).toHaveBeenCalledTimes(1)
+  })
+
   it('reads the queue again when the stream reopens after a drop', async () => {
     const moderationQueue = vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })]))
     const { result } = mount(fakeApi({ moderationQueue }))
