@@ -137,6 +137,22 @@ describe('the wall sound player (spec 12)', () => {
     expect(fetchBytes).not.toHaveBeenCalled()
   })
 
+  it('tries again once the context exists when a load came before the gesture', async () => {
+    // BUG-24: a load that returned at once (no context yet) used to stay cached as a
+    // finished promise, so the tone was never fetched for the rest of the evening.
+    const fake = fakeContext()
+    const fetchBytes = vi.fn(bytes)
+    const player = createWallSoundPlayer({ createContext: () => fake.context, fetchBytes })
+    await player.load('chime')
+    await player.activate()
+
+    await player.load('chime')
+    player.play('chime', 50)
+
+    expect(fetchBytes).toHaveBeenCalledTimes(1)
+    expect(fake.starts).toBe(1)
+  })
+
   it('closes its context once', async () => {
     const fake = fakeContext()
     const player = createWallSoundPlayer({ createContext: () => fake.context, fetchBytes: bytes })
