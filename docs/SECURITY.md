@@ -1063,8 +1063,9 @@ purge`, which is the _only_ place it runs when an operator has moved the schedul
   rate, and a header can declare thousands of frames a second of a tiny picture. The probe
   refuses a declared average rate above 1 000 fps as `clip.corrupt` (permanent, so it is
   neither encoded nor retried), and the encode adds `fps=60` ahead of the scale whenever the
-  source is above 60 fps or declares no rate, so the output is never above 60 fps. A source
-  at or under 60 keeps its own rate: the filter also duplicates frames up to its target.
+  source is declared above 60 fps (`-fpsmax 60` when it declares none), so the output is
+  never above 60 fps. A source at or under 60 keeps its own rate: the filter would also
+  duplicate frames up to its target.
   `-probesize` (bytes) and `-analyzeduration` (microseconds) are separate constants. A
   timeout is still classified transient and retried, which is the application's rule.
 - **ffprobe's stdout is an untrusted boundary input**, derived from a guest's file. It is

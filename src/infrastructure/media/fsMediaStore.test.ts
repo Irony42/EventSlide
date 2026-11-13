@@ -224,10 +224,10 @@ describe('fsMediaStore', () => {
         spy.mockRestore()
       }
 
-      // The directory sync is best effort where the platform cannot open a directory
-      // (Windows), so only its order is asserted when it happens at all.
+      // The directory is synced after the rename. Where the platform then refuses (Windows),
+      // the refusal is swallowed, but the attempt is made and seen here.
       expect(events[0]).toBe('sync before rename')
-      expect(events.slice(1).every((event) => event === 'sync after rename')).toBe(true)
+      expect(events.slice(1)).toEqual(['sync after rename'])
       expect(await readFile(target)).toEqual(Buffer.from([1, 2, 3]))
     })
 

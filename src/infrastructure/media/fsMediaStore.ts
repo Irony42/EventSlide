@@ -17,7 +17,7 @@ import { CONTENT_TYPE, EXTENSION, mediaObjectPath } from './mediaLayout'
  * and is raised.
  */
 const syncDirectory = async (directory: string): Promise<void> => {
-  const UNSUPPORTED = new Set(['EPERM', 'EISDIR', 'EINVAL', 'ENOTSUP', 'EACCES'])
+  const UNSUPPORTED = new Set(['EPERM', 'EISDIR', 'EINVAL', 'ENOTSUP'])
   let handle
   try {
     handle = await open(directory, 'r')

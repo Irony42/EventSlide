@@ -279,6 +279,23 @@ describe('ffmpegVideoTranscoder against real ffmpeg', () => {
     expect(facts.frameRate).toBeCloseTo(15, 0)
   }, 120_000)
 
+  it('accepts 960 fps slow motion and refuses 1200 fps (BUG-09)', async () => {
+    const at = async (rate: number): Promise<Uint8Array> =>
+      generate(harness.paths, harness.scratch, `fps-${rate}.mp4`, [
+        '-f',
+        'lavfi',
+        '-i',
+        `color=c=red:size=64x64:rate=${rate}:duration=1`,
+        ...H264_OUT,
+      ])
+
+    const slowMotion = await harness.transcoder.probe(await at(960))
+    const crafted = await harness.transcoder.probe(await at(1_200))
+
+    expect(slowMotion.ok).toBe(true)
+    expect(!crafted.ok && crafted.error.code).toBe('clip.corrupt')
+  }, 120_000)
+
   it('refuses a clip declaring an absurd frame rate as corrupt, permanently (BUG-09)', async () => {
     // 10 000 fps of a tiny picture: pixels and duration pass every other gate. Refused at
     // the probe, with a permanent code, so it is neither encoded nor retried.
@@ -518,8 +535,12 @@ describe('buildEncodeArgs', () => {
     expect(filterOf(argsFor(10_000))).toBe(`fps=${OUTPUT_MAX_FPS},scale=320:240,format=yuv420p`)
   })
 
-  it('caps it when the source declares no rate at all (BUG-09)', () => {
-    expect(filterOf(argsFor(null))).toBe(`fps=${OUTPUT_MAX_FPS},scale=320:240,format=yuv420p`)
+  it('bounds a source that declares no rate with -fpsmax, never the duplicating fps filter (BUG-09)', () => {
+    const args = argsFor(null)
+
+    expect(args[args.indexOf('-fpsmax') + 1]).toBe(String(OUTPUT_MAX_FPS))
+    expect(filterOf(args)).toBe('scale=320:240,format=yuv420p')
+    expect(argsFor(30)).not.toContain('-fpsmax')
   })
 
   it('leaves a source at or under the cap alone, so no frame is duplicated (BUG-09)', () => {

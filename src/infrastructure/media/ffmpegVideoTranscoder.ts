@@ -100,7 +100,9 @@ const PROBE_STDOUT_BYTES = 4 * 1024 * 1024
  * The bounds on how far into a **guest's** container the demuxer will read looking for
  * streams. **Two options, two units, so two constants**: `-probesize` is in bytes and
  * `-analyzeduration` is in microseconds (ffmpeg's defaults are 5 MB and 5 s). One constant
- * named in bytes used to feed both, so tuning "the bytes" silently retuned the duration. On both commands that open guest bytes — the probe and the encode — and on
+ * named in bytes used to feed both, so tuning "the bytes" silently retuned the duration.
+ *
+ * They are on both commands that open guest bytes — the probe and the encode — and on
  * neither by accident: without it a crafted header can make the encoder read the whole
  * file before it decodes a frame, which is work the timeout eventually stops rather than
  * work anything refuses.
@@ -120,8 +122,9 @@ const INPUT_ANALYZE_MICROSECONDS = '10000000'
  * `duration x frame rate`; duration and pixels were capped and the rate was not, so a
  * clip declaring thousands of frames a second made the encoder run to the wall clock. A
  * source at or under this keeps its own rate: the `fps` filter is added only when the
- * source is above it or its rate is unknown, because the filter also *duplicates* frames
- * up to the target, which a 15 fps clip must not pay for.
+ * source is declared above it, because the filter also *duplicates* frames up to the
+ * target, which a 15 fps clip must not pay for. A source that declares no rate (WebM from
+ * a browser recorder) gets `-fpsmax` instead, an output option that only ever drops.
  */
 export const OUTPUT_MAX_FPS = 60
 
@@ -344,14 +347,18 @@ export const buildEncodeArgs = (request: EncodeRequest): string[] => [
       '-1',
       '-vf',
       // `fps` first, so the frames dropped are dropped before they are scaled. Only when
-      // the source is above the cap or does not say (BUG-09): see OUTPUT_MAX_FPS.
+      // the source is declared above the cap (BUG-09): see OUTPUT_MAX_FPS.
       [
-        ...(request.frameRate === null || request.frameRate > OUTPUT_MAX_FPS
+        ...(request.frameRate !== null && request.frameRate > OUTPUT_MAX_FPS
           ? [`fps=${OUTPUT_MAX_FPS}`]
           : []),
         `scale=${request.target.width}:${request.target.height}`,
         'format=yuv420p',
       ].join(','),
+      // An unknown rate cannot be judged against the cap, so it is bounded without being
+      // changed: `-fpsmax` (ffmpeg 5.1+, which the image and ffmpeg-static both have) drops
+      // frames above the cap and never duplicates one.
+      ...(request.frameRate === null ? ['-fpsmax', String(OUTPUT_MAX_FPS)] : []),
       '-c:v',
       'libx264',
       '-profile:v',
