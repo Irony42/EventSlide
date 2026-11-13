@@ -15,6 +15,14 @@ import { authorMayTakeBack, removalVerdict, type DeletionVerdict } from './selfR
 /** Who sent the photo. Hosts can upload too — the venue's own camera roll. */
 export type PhotoAuthor =
   | { readonly kind: 'guest'; readonly guestId: GuestId }
+  | { readonly kind: 'host'; readonly userId: UserId }
+
+/**
+ * Who made a moderation decision. `automatic` exists because an event may run in
+ * auto-publish mode, and "nobody decided this" must be distinguishable from "the host
+ * decided this" when someone asks afterwards how a photo got on the wall.
+ */
+export type Reviewer =
   | {
       readonly kind: 'host'
       readonly userId: UserId
@@ -24,14 +32,6 @@ export type PhotoAuthor =
        */
       readonly role?: EventRole
     }
-
-/**
- * Who made a moderation decision. `automatic` exists because an event may run in
- * auto-publish mode, and "nobody decided this" must be distinguishable from "the host
- * decided this" when someone asks afterwards how a photo got on the wall.
- */
-export type Reviewer =
-  | { readonly kind: 'host'; readonly userId: UserId }
   | { readonly kind: 'automatic' }
 
 export type PhotoReview = Reviewer & { readonly at: Date }
@@ -42,7 +42,15 @@ export type { DeletionVerdict }
 /** Anyone who might act on a photo. Used by the permission predicates below. */
 export type PhotoActor =
   | { readonly kind: 'guest'; readonly guestId: GuestId }
-  | { readonly kind: 'host'; readonly userId: UserId }
+  | {
+      readonly kind: 'host'
+      readonly userId: UserId
+      /**
+       * The role this user holds **in the event concerned**, when the caller has resolved it. A host
+       * actor without one is a signed-in user and nothing more: it may not recaption (BUG-28).
+       */
+      readonly role?: EventRole
+    }
 
 /**
  * What this row *is*, and the extra facts that follow from it.

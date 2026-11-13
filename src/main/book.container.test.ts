@@ -273,7 +273,7 @@ describe('the photo book, through the real composition root', () => {
     const edited = await s.booted.usecases.setPhotoCaption({
       eventId: s.eventId,
       photoId: first,
-      actor: s.actor,
+      actor: { ...s.actor, role: 'owner' },
       caption: 'Autre légende',
     })
 
