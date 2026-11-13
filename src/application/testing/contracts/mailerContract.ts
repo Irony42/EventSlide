@@ -18,8 +18,9 @@ import type { SentMail } from '../fakeMailer'
  *
  * Three of the cases are the expensive traps, written out as assertions:
  *
- * - **a recipient that is really a list.** `EmailAddress` is shallow on purpose and accepts
- *   `a@example.org,b@example.com`; a mail library either splits that into two recipients,
+ * - **a recipient that is really a list.** `EmailAddress` refuses
+ *   `a@example.org,b@example.com` (one definition,
+ *   `isSingleMailbox`), but a value that reached the mailer another way could carry it; a mail library either splits that into two recipients,
  *   so an invitation meant for one person goes to both, or rewrites it into one quoted
  *   mailbox that nobody chose. Either way the mail goes somewhere the caller did not mean.
  * - **a subject with a line break in it.** That is how a caller-supplied string becomes a
@@ -49,6 +50,12 @@ const recipient = (address: string): EmailAddress => {
   if (!parsed.ok) throw new Error(`invalid fixture: ${parsed.error.code}`)
   return parsed.value
 }
+
+/**
+ * A recipient built around `EmailAddress.create`, which now refuses a list (they share `isSingleMailbox`):
+ * the mailer's own guard still has to hold for a value that reached it some other way.
+ */
+const forgedRecipient = (value: string): EmailAddress => ({ value }) as unknown as EmailAddress
 
 const aMail = (overrides: Partial<OutgoingMail> = {}): OutgoingMail => ({
   to: recipient('camille@example.org'),
@@ -169,7 +176,7 @@ export const mailerContract = (
 
     describe('a message that breaks the rules of checkOutgoingMail', () => {
       it('refuses a recipient that is really a list, and delivers to neither address', async () => {
-        const list = recipient('a@example.org,b@example.com')
+        const list = forgedRecipient('a@example.org,b@example.com')
 
         const result = await subject.mailer.send(aMail({ to: list }))
 

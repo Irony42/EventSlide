@@ -15,15 +15,19 @@ const LF = String.fromCodePoint(0x0a)
 const TAB = String.fromCodePoint(0x09)
 const NUL = String.fromCodePoint(0x00)
 
-/**
- * An address `EmailAddress` accepts, whatever it looks like: the point of several cases
- * below is that its check is shallow and this one is not.
- */
+/** An address `EmailAddress` accepts. */
 const emailOf = (raw: string): EmailAddress => {
   const parsed = EmailAddress.create(raw)
   if (!parsed.ok) throw new Error(`invalid fixture: ${parsed.error.code}`)
   return parsed.value
 }
+
+/**
+ * A recipient that did not come through `EmailAddress.create`: it refuses everything this check
+ * refuses (they share `isSingleMailbox`), so the mailer's own guard is exercised with a forged one,
+ * as it would be by a caller that built the value some other way.
+ */
+const forgedRecipient = (value: string): EmailAddress => ({ value }) as unknown as EmailAddress
 
 const aMail = (overrides: Partial<OutgoingMail> = {}): OutgoingMail => ({
   to: emailOf('camille@example.org'),
@@ -81,12 +85,9 @@ describe('isSingleMailbox', () => {
     expect(isSingleMailbox(address)).toBe(false)
   })
 
-  it('refuses a list that EmailAddress itself lets through, which is the reason this check exists', () => {
-    // The last `@` splits it into a "local part" of `a@example.org,b` and a domain, and
-    // neither of those contains whitespace — so as a login identifier it is fine.
-    const list = emailOf('a@example.org,b@example.com')
-
-    expect(isSingleMailbox(list.value)).toBe(false)
+  it('is the rule EmailAddress itself applies: a list is not an address (QUAL-09)', () => {
+    expect(EmailAddress.create('a@example.org,b@example.com').ok).toBe(false)
+    expect(isSingleMailbox('a@example.org,b@example.com')).toBe(false)
   })
 })
 
@@ -104,7 +105,7 @@ describe('checkOutgoingMail', () => {
   })
 
   it('refuses a recipient that is really a list, so one invitation cannot go to two people', () => {
-    const result = checkOutgoingMail(aMail({ to: emailOf('a@example.org,b@example.com') }))
+    const result = checkOutgoingMail(aMail({ to: forgedRecipient('a@example.org,b@example.com') }))
 
     expect(codeOf(result)).toBe('mail.recipientInvalid')
   })

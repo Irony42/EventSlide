@@ -1,3 +1,4 @@
+import { isSingleMailbox } from '../mail/outgoingMail'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 
@@ -13,6 +14,11 @@ import { err, ok, type Result } from '../shared/result'
  * real test is whether mail arrives. So this checks the shape that would break the
  * system (no `@`, whitespace, empty local or domain part) and normalises case, and
  * nothing more.
+ *
+ * The one exception is what the mailer would **always** refuse: more than one mailbox, a quote, an
+ * angle bracket, a parenthesis, a backslash. `isSingleMailbox` (`domain/mail/outgoingMail`) is the
+ * only definition of that, so an address that is accepted here is one a message can be sent to: an
+ * account registered as `a@b.example,c@d.example` could never be invited, reset or notified.
  */
 
 const MAX_LENGTH = 254 // RFC 5321 path limit
@@ -41,6 +47,7 @@ export class EmailAddress {
     if (!domain.includes('.') || domain.startsWith('.') || domain.endsWith('.')) {
       return err(DomainError.invalid('email.malformed'))
     }
+    if (!isSingleMailbox(candidate)) return err(DomainError.invalid('email.malformed'))
 
     return ok(new EmailAddress(candidate))
   }
