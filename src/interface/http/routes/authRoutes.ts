@@ -23,6 +23,7 @@ import { userOf } from '../middleware/scope'
 import {
   loginLimiter,
   passwordResetLimiter,
+  refusalIsNoGuess,
   secondFactorAccountLimiter,
   secondFactorLimiter,
 } from '../middleware/rateLimit'
@@ -379,9 +380,18 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
   router.post(
     '/auth/password',
     requireUser(deps),
+    // A wrong current password here is a guess like any other, and the owner of a stolen session
+    // is the one who makes it: the limiters are the ones `/auth/step-up` has, and the budget is
+    // the shared one. Only the wrong current password spends it (see `refusalIsNoGuess` below).
+    secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
+    secondFactorBudget,
     asyncHandler(async (req, res) => {
       const user = userOf(req)
 
+      // Every other answer of 400 or more is somebody whose new password the policy refuses, or a
+      // malformed body: not a guess at the current one. The invited moderator who must choose a
+      // password reaches this door first, and must not be locked out by their own typos.
+      refusalIsNoGuess(res, true)
       const body = changePasswordBody.parse(req.body)
 
       const result = await usecases.changePassword({
@@ -394,6 +404,9 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       })
 
       if (!result.ok) {
+        // The one answer that says the proof of the current password failed (a lost race for the
+        // hash is refused as the same thing, and is just as much a wrong password).
+        if (result.error.code === 'auth.invalidCredentials') refusalIsNoGuess(res, false)
         sendError(res, result.error)
         return
       }

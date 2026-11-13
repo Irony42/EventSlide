@@ -1011,6 +1011,120 @@ describe('POST /api/auth/password', () => {
     expect(response.body.error.code).toBe('auth.invalidCredentials')
   })
 
+  describe('the guesses at the current password', () => {
+    const wrongGuess = { currentPassword: 'un-autre-mot-de-passe', newPassword: NEW_PASSWORD }
+    // The per-address minute is not what these tests are about: out of its way.
+    const roomy = { rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: 500 } }
+    const hosted = { config: { siteAdmin: true, ...roomy } }
+    const onRoomyBox = { config: roomy }
+
+    it('refuses the guesses of one account past the second-factor budget, as its siblings do', async () => {
+      const subject = harness(onRoomyBox)
+      seedHost(subject)
+      const agent = await signedIn(subject)
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        expect((await agent.post('/api/auth/password').send(wrongGuess)).status).toBe(401)
+      }
+
+      const eleventh = await agent.post('/api/auth/password').send(change)
+
+      expect(eleventh.status).toBe(429)
+      expect(eleventh.body.error.code).toBe('auth.tooManySecondFactorAttempts')
+      expect(Number(eleventh.headers['retry-after'])).toBeGreaterThan(0)
+      // The right password did not get through: the guesser cannot tell, and nothing changed.
+      const signIn = await request(subject.app)
+        .post('/api/auth/login')
+        .send({ email: HOST_EMAIL, password: PASSWORD })
+      expect(signIn.status).toBe(200)
+    })
+
+    it('is the budget of step-up and erasure: a guess here is spent there, and the other way round', async () => {
+      const subject = harness(hosted)
+      seedHost(subject)
+      const agent = await signedIn(subject)
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        await agent.post('/api/auth/password').send(wrongGuess)
+        await agent.post('/api/auth/account/delete').send({ password: 'pas-le-bon-mot' })
+      }
+
+      const here = await agent.post('/api/auth/password').send(wrongGuess)
+      const there = await agent.post('/api/auth/account/delete').send({ password: PASSWORD })
+
+      expect(here.status).toBe(429)
+      expect(there.status).toBe(429)
+      expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+    })
+
+    it('spends nothing on a correct change, however many an account makes', async () => {
+      const subject = harness(onRoomyBox)
+      seedHost(subject)
+      const agent = await signedIn(subject)
+      let current = PASSWORD
+      for (let round = 0; round < 12; round += 1) {
+        const next = round % 2 === 0 ? NEW_PASSWORD : PASSWORD
+        const response = await agent
+          .post('/api/auth/password')
+          .send({ currentPassword: current, newPassword: next })
+        expect(response.status).toBe(204)
+        current = next
+      }
+    })
+
+    it('spends nothing on a new password the policy refuses: a typo in the policy is no guess', async () => {
+      const subject = harness(onRoomyBox)
+      seedHost(subject)
+      const agent = await signedIn(subject)
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const refused = await agent
+          .post('/api/auth/password')
+          .send({ currentPassword: PASSWORD, newPassword: 'court' })
+        expect(refused.status).toBe(400)
+      }
+
+      const malformed = await agent.post('/api/auth/password').send({})
+      const right = await agent.post('/api/auth/password').send(change)
+
+      expect(malformed.status).toBe(400)
+      expect(right.status).toBe(204)
+    })
+
+    it('keeps an invited moderator who must change their password out of the lock, policy mistakes included', async () => {
+      const subject = harness(onRoomyBox)
+      subject.users.seed(
+        aUser({ id: HOST_ID, email: HOST_EMAIL, displayName: 'Camille', mustChangePassword: true }),
+      )
+      const agent = await signedIn(subject)
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        await agent
+          .post('/api/auth/password')
+          .send({ currentPassword: PASSWORD, newPassword: 'court' })
+      }
+
+      const response = await agent.post('/api/auth/password').send(change)
+
+      expect(response.status).toBe(204)
+    })
+
+    it('limits the address by the sign-in budget a minute, whoever the account is', async () => {
+      const subject = harness({
+        config: { rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: 2 } },
+      })
+      seedHost(subject)
+      const agent = await signedIn(subject)
+      await agent
+        .post('/api/auth/password')
+        .send({ currentPassword: PASSWORD, newPassword: 'court' })
+      await agent
+        .post('/api/auth/password')
+        .send({ currentPassword: PASSWORD, newPassword: 'court' })
+
+      const third = await agent.post('/api/auth/password').send(change)
+
+      expect(third.status).toBe(429)
+      expect(third.body.error.code).toBe('rate.limited')
+    })
+  })
+
   const rejected: readonly [string, string, string][] = [
     ['shorter than the minimum', 'court', 'password.tooShort'],
     ['on the blocklist', 'password1234', 'password.tooCommon'],

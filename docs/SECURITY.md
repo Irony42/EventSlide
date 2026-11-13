@@ -1138,6 +1138,8 @@ on a restart loop)**.
 | `POST /api/gallery/:token/unlock` (failures)  | 10           | 50 per link            | —               | 15 min |
 | `GET /api/gallery-media/:linkId/album.zip`    | 2 concurrent | 4 concurrent, box-wide | —               | —      |
 
+**Doors that compare the password of a signed-in account** (`/api/auth/password`, `/api/auth/account/delete`, and the second-step doors `login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm`): the sign-in budget per address (a limiter of its own on each route), and **one** budget per account shared by all six, 10 wrong attempts per 15 minutes from every address together (`auth.tooManySecondFactorAttempts`, with `Retry-After`). Failures only; on the password change a failure is the wrong current password alone, not a new password the policy refuses (a `400`), so an invited moderator who must choose a password is not locked out by their own typos. Before, `/api/auth/password` had no limiter and a stolen session could guess the current password at bcrypt speed (review 2026-11-13, SEC-01).
+
 **\*** Keyed by **account**, which none of this table's three columns name — the one
 row here that is not about an anonymous caller. An office or a venue's own guest Wi-Fi is
 one address shared by several hosts, and one host's burst of event creation must not
