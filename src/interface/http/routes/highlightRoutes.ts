@@ -1,7 +1,6 @@
 import { Router, type RequestHandler } from 'express'
 import { asPhotoId } from '../../../domain/shared/ids'
 import { requireRole } from '../middleware/authz'
-import { hostExportLimiter } from '../middleware/rateLimit'
 import { withModerator } from '../middleware/scope'
 import type { HighlightsDto, PreselectHighlightsResponseDto } from '../presenters/dto'
 import { serveRanged, streamOrAbandon } from '../presenters/serveRanged'
@@ -32,13 +31,13 @@ export type HighlightRouteDeps = Pick<RouteDeps, 'deps'> & {
     | 'exportHighlights'
   >
   /** Shared with `album.zip` (see `MediaRouteDeps`): one allowance for both host exports. */
-  readonly hostExportLimiter?: RequestHandler
+  readonly hostExportLimiter: RequestHandler
 }
 
 export const highlightRoutes = ({
   deps,
   usecases,
-  hostExportLimiter: exportLimiter = hostExportLimiter(),
+  hostExportLimiter: exportLimiter,
 }: HighlightRouteDeps): Router => {
   const router = Router()
 

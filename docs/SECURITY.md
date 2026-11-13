@@ -1151,7 +1151,8 @@ shared allowance**: an album and a best-of count together (`hostExportLimiter` i
 once in `server.ts`; SEC-04, review 13/11/2026). They read the same files as the gallery's archive, which was
 already bounded, and a moderator invited by a client could start dozens at once and saturate the disk every other
 event on the box shares, a live wall included. The box-wide four is its **own counter**, not the gallery's: a
-shared one would let anybody holding a public link fill it and refuse every host's export. Worst case on the disk is
+shared one would let anybody holding a public link fill it and refuse every host's export. Two accounts at their two can therefore fill the box's four and every other host is
+answered `503` until one ends: a trade accepted, the disk before the availability of an export. Worst case on the disk is
 eight archives, each read one photograph at a time. The slot is released when the response closes, whichever way it
 ended, so an export the use case refuses (`404`, `409 highlight.empty`) gives it back at once. The reel and the
 photo book are single files served with `Range`, not archives, and are not counted.

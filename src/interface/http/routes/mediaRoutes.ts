@@ -5,7 +5,6 @@ import { ContentHash } from '../../../domain/photos/contentHash'
 import { asPhotoId } from '../../../domain/shared/ids'
 import { Slug } from '../../../domain/shared/slug'
 import { asyncHandler } from '../middleware/asyncHandler'
-import { hostExportLimiter } from '../middleware/rateLimit'
 import { guestTokenOf, requireRole, resolvePublicEvent } from '../middleware/authz'
 import { publicEventOf } from '../middleware/scope'
 import { sendError } from '../presenters/send'
@@ -46,10 +45,10 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
 export type MediaRouteDeps = Pick<RouteDeps, 'deps'> & {
   /**
    * The concurrency bound `album.zip` shares with `best-of.zip`: `server.ts` builds one and hands it
-   * to both routers. A router built without one gets its own, which only a test of this router alone
-   * should rely on.
+   * to both routers. Required, with no default: a router that built its own would silently be a
+   * second allowance, and the type is what stops a wiring that forgets it.
    */
-  readonly hostExportLimiter?: RequestHandler
+  readonly hostExportLimiter: RequestHandler
   readonly usecases: Pick<
     HttpUseCases,
     | 'exportAlbum'
@@ -89,7 +88,7 @@ const mediaHeaders = (media: Pick<PhotoMedia, 'contentType'>, etag: string): Ran
 export const mediaRoutes = ({
   deps,
   usecases,
-  hostExportLimiter: exportLimiter = hostExportLimiter(),
+  hostExportLimiter: exportLimiter,
 }: MediaRouteDeps): Router => {
   const router = Router()
 

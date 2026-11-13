@@ -100,7 +100,7 @@ const buildWorld = async ({
       app.use(
         mediaRoutes({
           deps,
-          ...(hostExportLimiter === undefined ? {} : { hostExportLimiter }),
+          hostExportLimiter: hostExportLimiter ?? buildHostExportLimiter(),
           usecases: {
             getPhotoMedia: makeGetPhotoMedia({ photos, media }),
             getVenuePhotoMedia: makeGetVenuePhotoMedia({ media }),
@@ -577,6 +577,22 @@ describe('GET /events/:eventSlug/album.zip: how many are open at once (SEC-04)',
         )
       expect(outcome).toBe('abandoned')
     }
+  })
+
+  it('answers 401 and 404 before the limiter, even with the box full', async () => {
+    const held = new HeldExport()
+    const world = await buildWorld({
+      exportAlbum: held.use,
+      hostExportLimiter: buildHostExportLimiter({ perAccount: 5, total: 1 }),
+    })
+    const host = await signedIn(world, 'host')
+    start(host)
+    await vi.waitFor(() => expect(held.opened).toBe(1))
+
+    // The box is full: only a caller already admitted by requireRole may be told so.
+    expect((await request(world.app).get(PATH)).status).toBe(401)
+    expect((await (await signedIn(world, 'outsider')).get(PATH)).status).toBe(404)
+    held.releaseAll()
   })
 
   it('gives the slot back at once when the use case refuses before a byte is written', async () => {

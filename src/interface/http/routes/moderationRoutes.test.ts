@@ -1,4 +1,5 @@
 import request from '../testing/request'
+import { hostExportLimiter } from '../middleware/rateLimit'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { highlightRoutes } from './highlightRoutes'
 import { moderationRoutes } from './moderationRoutes'
@@ -303,7 +304,7 @@ const world = (): World => {
         presenter: PRESENTER,
       }
       app.use('/api', moderationRoutes(routeDeps))
-      app.use('/api', highlightRoutes(routeDeps))
+      app.use('/api', highlightRoutes({ ...routeDeps, hostExportLimiter: hostExportLimiter() }))
     },
   })
 
