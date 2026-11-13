@@ -10,6 +10,7 @@ import { FakeEventRepository } from '../../../application/testing/fakeEventRepos
 import { FakeGuestRepository } from '../../../application/testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../../application/testing/fakeMembershipRepository'
 import { FakeSecondFactorRepository } from '../../../application/testing/fakeSecondFactorRepository'
+import { FakeTourLedger } from '../../../application/testing/fakeTourLedger'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
 import { AT } from '../../../application/testing/builders'
@@ -141,6 +142,8 @@ export interface TestWorld {
   readonly users: FakeUserRepository
   /** Authenticators, for the one thing the HTTP layer asks them: whether an account has one. */
   readonly secondFactors: FakeSecondFactorRepository
+  /** Guided tours, for what `GET /api/auth/me` reports an account was shown. */
+  readonly tours: FakeTourLedger
   readonly bus: RecordingEventBus
   readonly clock: FakeClock
   /** The free-disk-space guard's probe (G3-06 / P4-10), generous until a test says otherwise. */
@@ -160,6 +163,7 @@ export const buildTestWorld = (
     readonly logger?: Logger
     readonly users?: FakeUserRepository
     readonly secondFactors?: FakeSecondFactorRepository
+    readonly tours?: FakeTourLedger
     /** A clock the test already holds, so use cases built beforehand and the server agree on now. */
     readonly clock?: FakeClock
     /** Defaults to a box with no relay, like one that never set SMTP_URL. */
@@ -183,6 +187,8 @@ export const buildTestWorld = (
   // pass against a product that was broken.
   const memberships = new FakeMembershipRepository({ users })
   const secondFactors = options.secondFactors ?? new FakeSecondFactorRepository()
+  // Knows no account unless a test brings one that does: every account reads as shown no tour.
+  const tours = options.tours ?? new FakeTourLedger()
   const bus = new RecordingEventBus()
   // Silent by default — almost every HTTP test wants no log output at all.
   // `logCanary.test.ts` passes a real logger, because it is the one test asking what a
@@ -199,6 +205,7 @@ export const buildTestWorld = (
     memberships,
     users,
     secondFactors,
+    tours,
     authenticateGuest: makeAuthenticateGuest({
       events,
       guests,
@@ -224,6 +231,7 @@ export const buildTestWorld = (
     memberships,
     users,
     secondFactors,
+    tours,
     bus,
     clock,
     issueGuestToken: (eventId, guestId) =>

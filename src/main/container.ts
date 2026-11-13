@@ -25,6 +25,7 @@ import { SqliteAccountHoldings } from '../infrastructure/db/sqliteAccountHolding
 import { SqliteSiteOverview } from '../infrastructure/db/sqliteSiteOverview'
 import { SqliteAccountTokenRepository } from '../infrastructure/db/sqliteAccountTokenRepository'
 import { SqliteSecondFactorRepository } from '../infrastructure/db/sqliteSecondFactorRepository'
+import { SqliteTourLedger } from '../infrastructure/db/sqliteTourLedger'
 import { createAesGcmMfaVault } from '../infrastructure/crypto/aesGcmMfaVault'
 import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
 import { SqliteInvitationAcceptance } from '../infrastructure/db/sqliteInvitationAcceptance'
@@ -460,6 +461,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     secretTokens: sha256SecretTokens,
     mailer,
     secondFactors: new SqliteSecondFactorRepository(db),
+    tours: new SqliteTourLedger(db),
     totpEngine: nodeTotpEngine,
     // Chosen once, from configuration: no key, no vault, and the enrolment routes answer
     // `404 feature.unavailable`. A recovery code still opens an enrolled account on such a box,
@@ -751,6 +753,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // Narrowed by `HttpDeps` to `find`: whether an account has an authenticator, and nothing
     // of what it holds.
     secondFactors: adapters.secondFactors,
+    // Narrowed by `HttpDeps` to `seenBy`: the one read `GET /api/auth/me` makes.
+    tours: adapters.tours,
     authenticateGuest: usecases.authenticateGuest,
     // Narrowed by `HttpDeps` to the one fact the HTTP layer publishes.
     mailer,

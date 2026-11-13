@@ -52,6 +52,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
   changePassword: notWired('changePassword'),
   deleteOwnAccount: notWired('deleteOwnAccount'),
   revokeOtherSessions: notWired('revokeOtherSessions'),
+  markTourSeen: notWired('markTourSeen'),
   requestPasswordReset: notWired('requestPasswordReset'),
   resetPassword: notWired('resetPassword'),
   verifySecondFactor: notWired('verifySecondFactor'),

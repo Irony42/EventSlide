@@ -732,6 +732,11 @@ export interface CurrentUserDto extends SessionUserDto {
   readonly canOperateSite: boolean
   /** Where the account stands with the second factor (G2-13 / P3-15). */
   readonly secondFactor: SecondFactorStatusDto
+  /**
+   * The console's guided tours this account was already shown (`'eventPage'`), so the console
+   * does not offer them by itself again, on this device or another. Grants nothing.
+   */
+  readonly toursSeen: readonly string[]
 }
 
 /**

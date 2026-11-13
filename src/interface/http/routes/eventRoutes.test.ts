@@ -220,6 +220,7 @@ const buildWorld = ({
         changePassword: absent('changePassword'),
         deleteOwnAccount: absent('deleteOwnAccount'),
         revokeOtherSessions: absent('revokeOtherSessions'),
+        markTourSeen: absent('markTourSeen'),
         requestPasswordReset: absent('requestPasswordReset'),
         resetPassword: absent('resetPassword'),
         verifySecondFactor: absent('verifySecondFactor'),

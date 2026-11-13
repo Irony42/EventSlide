@@ -22,6 +22,8 @@ import { FakeClientRepository } from '../../../application/testing/fakeClientRep
 import { makeRequestPasswordReset } from '../../../application/usecases/auth/requestPasswordReset'
 import { makeResetPassword } from '../../../application/usecases/auth/resetPassword'
 import { makeRevokeOtherSessions } from '../../../application/usecases/auth/revokeOtherSessions'
+import { makeMarkTourSeen } from '../../../application/usecases/auth/markTourSeen'
+import { FakeTourLedger } from '../../../application/testing/fakeTourLedger'
 import { FakeAccountTokenRepository } from '../../../application/testing/fakeAccountTokenRepository'
 import { FakeMailer } from '../../../application/testing/fakeMailer'
 import { FakeSecondFactorRepository } from '../../../application/testing/fakeSecondFactorRepository'
@@ -105,6 +107,7 @@ const harness = ({
   const secrets = new FakeSecretTokens()
   const holdings = new FakeAccountHoldings()
   const factors = new FakeSecondFactorRepository().withAccounts(asUserId(HOST_ID))
+  const tours = new FakeTourLedger().withAccounts(asUserId(HOST_ID), asUserId(OTHER_ID))
   const audit = new FakeAuditLog().withAccounts(asUserId(HOST_ID))
   const ids = new SequentialIdGenerator()
   const boxMailer: Mailer =
@@ -139,7 +142,7 @@ const harness = ({
           // `requireUser` reads the account on every `POST /api/auth/password`, so the
           // gate has to be asking the same repository the use cases were built from —
           // otherwise a test seeds a host into one world and is refused by another.
-          deps: { ...deps, users },
+          deps: { ...deps, users, tours },
           // The bag `authRoutes` asks for, built from fakes here: the HTTP layer is
           // never given a user repository, so a route test has to compose the two use
           // cases itself.
@@ -171,6 +174,7 @@ const harness = ({
               }),
             }),
             revokeOtherSessions: makeRevokeOtherSessions({ users, clock: deps.clock }),
+            markTourSeen: makeMarkTourSeen({ tours, clock: deps.clock }),
             requestPasswordReset: makeRequestPasswordReset({
               users,
               tokens,
@@ -197,7 +201,7 @@ const harness = ({
     },
   })
 
-  return { ...built, users, mailer, tokens, secrets, holdings, audit, factors }
+  return { ...built, users, mailer, tokens, secrets, holdings, audit, factors, tours }
 }
 
 /** supertest types `headers` loosely, so the shape read here is narrowed explicitly. */
@@ -286,6 +290,7 @@ describe('POST /api/auth/login', () => {
         mustChangePassword: false,
         canOperateSite: false,
         secondFactor: { available: false, enrolled: false, verified: false, required: false },
+        toursSeen: [],
       },
     })
   })
@@ -533,6 +538,7 @@ describe('GET /api/auth/me', () => {
         mustChangePassword: false,
         canOperateSite: false,
         secondFactor: { available: false, enrolled: false, verified: false, required: false },
+        toursSeen: [],
       },
     })
   })
@@ -681,6 +687,60 @@ describe('GET /api/auth/me', () => {
     const agent = await signedIn(subject)
 
     expect((await agent.get('/api/auth/me')).body).toEqual({ authenticated: false })
+  })
+})
+
+describe('POST /api/auth/tours/:tour', () => {
+  it('remembers the tour for the signed-in account, which GET /api/auth/me then reports', async () => {
+    const subject = harness()
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    expect((await agent.get('/api/auth/me')).body.user.toursSeen).toEqual([])
+    await agent.post('/api/auth/tours/eventPage').expect(204)
+
+    expect((await agent.get('/api/auth/me')).body.user.toursSeen).toEqual(['eventPage'])
+  })
+
+  it('records it for the account in the session and nobody else', async () => {
+    const subject = harness()
+    seedHost(subject)
+    subject.users.seed(aUser({ id: OTHER_ID, email: OTHER_EMAIL }))
+    const agent = await signedIn(subject)
+
+    await agent.post('/api/auth/tours/eventPage').expect(204)
+
+    expect(await subject.tours.seenBy(asUserId(OTHER_ID))).toEqual([])
+    const other = await signedIn(subject, '/test/sign-in/other')
+    expect((await other.get('/api/auth/me')).body.user.toursSeen).toEqual([])
+  })
+
+  it('answers the same when the tour was already seen', async () => {
+    const subject = harness()
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    await agent.post('/api/auth/tours/eventPage').expect(204)
+    await agent.post('/api/auth/tours/eventPage').expect(204)
+
+    expect((await agent.get('/api/auth/me')).body.user.toursSeen).toEqual(['eventPage'])
+  })
+
+  it('refuses a tour outside the closed vocabulary', async () => {
+    const subject = harness()
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/tours/dashboard')
+
+    expect(response.status).toBe(400)
+    expect(await subject.tours.seenBy(asUserId(HOST_ID))).toEqual([])
+  })
+
+  it('requires a session', async () => {
+    const response = await request(harness().app).post('/api/auth/tours/eventPage')
+
+    expect(response.status).toBe(401)
   })
 })
 
@@ -869,6 +929,7 @@ describe('POST /api/auth/password', () => {
         mustChangePassword: false,
         canOperateSite: false,
         secondFactor: { available: false, enrolled: false, verified: false, required: false },
+        toursSeen: [],
       },
     })
   })

@@ -292,6 +292,7 @@ describe('the real schema', () => {
       'sqlite_sequence',
       'user_recovery_codes',
       'user_totp',
+      'user_tours',
       'users',
     ])
     closeDatabase(db)
@@ -3409,6 +3410,60 @@ describe('migration 027 (the mission a clip is filed under)', () => {
     expect(db.prepare(`SELECT id, mission_id FROM clip_jobs`).all()).toEqual([
       { id: 'tagged', mission_id: null },
     ])
+    closeDatabase(db)
+  })
+})
+
+describe('migration 028, the guided tours an account was shown', () => {
+  const seedAccount = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u-host', 'hote@example.test', 'hash:x', '2026-06-20T11:00:00.000Z')`,
+    ).run()
+  }
+
+  it('keeps an account that existed before tours did, and says it was shown none', () => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 28),
+    )
+    seedAccount(db)
+
+    migrate(db, migrations)
+
+    expect(db.prepare(`SELECT id, email FROM users`).all()).toEqual([
+      { id: 'u-host', email: 'hote@example.test' },
+    ])
+    expect(db.prepare(`SELECT * FROM user_tours`).all()).toEqual([])
+    closeDatabase(db)
+  })
+
+  it('refuses a tour outside the closed vocabulary', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedAccount(db)
+
+    expect(() =>
+      db
+        .prepare(`INSERT INTO user_tours (user_id, tour, seen_at) VALUES ('u-host', 'nope', 'x')`)
+        .run(),
+    ).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('forgets what an account was shown when the account is deleted', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedAccount(db)
+    db.prepare(
+      `INSERT INTO user_tours (user_id, tour, seen_at)
+            VALUES ('u-host', 'eventPage', '2026-11-13T10:00:00.000Z')`,
+    ).run()
+
+    db.prepare(`DELETE FROM users WHERE id = 'u-host'`).run()
+
+    expect(db.prepare(`SELECT * FROM user_tours`).all()).toEqual([])
     closeDatabase(db)
   })
 })

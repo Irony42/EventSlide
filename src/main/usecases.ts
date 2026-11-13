@@ -28,6 +28,7 @@ import type { AccountTokenRepository } from '../application/ports/accountTokenRe
 import type { MfaVault } from '../application/ports/mfaVault'
 import type { SignInAttempts } from '../application/ports/signInAttempts'
 import type { SecondFactorRepository } from '../application/ports/secondFactorRepository'
+import type { TourLedger } from '../application/ports/tourLedger'
 import type { TotpEngine } from '../application/ports/totpEngine'
 import type { InvitationAcceptance } from '../application/ports/invitationAcceptance'
 import type { Mailer } from '../application/ports/mailer'
@@ -110,6 +111,8 @@ export interface Adapters {
   readonly mailer: Mailer
   /** The operators' authenticators and recovery codes (roadmap §10.1, G2-13). */
   readonly secondFactors: SecondFactorRepository
+  /** The console's guided tours each account was shown (`user_tours`). */
+  readonly tours: TourLedger
   /** RFC 6238's one primitive. */
   readonly totpEngine: TotpEngine
   /** Encryption of a secret at rest; `null` on a box with no `MFA_ENCRYPTION_KEY`. */

@@ -20,6 +20,8 @@ import { makeChangePassword } from '../../../application/usecases/auth/changePas
 import { makeRequestPasswordReset } from '../../../application/usecases/auth/requestPasswordReset'
 import { makeResetPassword } from '../../../application/usecases/auth/resetPassword'
 import { makeRevokeOtherSessions } from '../../../application/usecases/auth/revokeOtherSessions'
+import { makeMarkTourSeen } from '../../../application/usecases/auth/markTourSeen'
+import { FakeTourLedger } from '../../../application/testing/fakeTourLedger'
 import { asUserId } from '../../../domain/shared/ids'
 import { TRUSTED_DEVICE_LIFETIME_MS } from '../../../domain/users/trustedDevice'
 import { TRUSTED_DEVICE_COOKIE, trustedDeviceCodec } from '../middleware/trustedDevice'
@@ -140,6 +142,7 @@ const subjectOf = ({
             // Not what this suite is about: an unwired call fails loudly.
             deleteOwnAccount: () => Promise.reject(new Error('deleteOwnAccount is not wired here')),
             revokeOtherSessions: makeRevokeOtherSessions({ users, clock: deps.clock }),
+            markTourSeen: makeMarkTourSeen({ tours: new FakeTourLedger(), clock: deps.clock }),
             requestPasswordReset: makeRequestPasswordReset({
               users,
               tokens,

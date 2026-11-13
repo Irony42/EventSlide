@@ -15,6 +15,7 @@ import type {
 import type { AuthenticateGuest } from '../../application/usecases/guests/authenticateGuest'
 import type { Mailer } from '../../application/ports/mailer'
 import type { SecondFactorRepository } from '../../application/ports/secondFactorRepository'
+import type { TourLedger } from '../../application/ports/tourLedger'
 import type { AccessLogOptions } from './middleware/accessLog'
 import type { DiskSpaceChecker } from '../../application/ports/diskSpace'
 import type { StagedUploadStore } from '../../application/ports/stagedUploadStore'
@@ -88,6 +89,8 @@ export interface HttpDeps {
    * reader, it reads `confirmedAt` and nothing else, and a second reader is a review blocker.
    */
   readonly secondFactors: Pick<SecondFactorRepository, 'find'>
+  /** The guided tours an account was shown, which `GET /api/auth/me` reports. Read only. */
+  readonly tours: Pick<TourLedger, 'seenBy'>
   /**
    * What `requireGuest` asks about a device token: the one implementation of "which guest of
    * which event is this, and may they be here", which also stamps the guest as seen.

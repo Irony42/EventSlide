@@ -15,6 +15,7 @@ import { SERVED_VARIANTS } from '../../../domain/photos/mediaVariant'
 import { PHOTO_STATUSES } from '../../../domain/photos/photoStatus'
 import { REACTION_KINDS } from '../../../domain/reactions/reactionKind'
 import { EmailAddress } from '../../../domain/users/emailAddress'
+import { GUIDED_TOURS } from '../../../domain/users/guidedTour'
 import {
   accentHueRange,
   THEME_FONTS,
@@ -166,6 +167,9 @@ export const guestParams = z.object({ eventSlug: slug, guestId: uuid })
 
 /** `GET /join/:code`. Shape only: the use case normalises the code and decides what it means. */
 export const joinCodeParams = z.object({ code: joinCode })
+
+/** `POST /api/auth/tours/:tour`: one of the closed vocabulary, nothing else is a tour. */
+export const tourParams = z.object({ tour: z.enum(GUIDED_TOURS) })
 
 export const missionParams = z.object({ eventSlug: slug, missionId: uuid })
 
