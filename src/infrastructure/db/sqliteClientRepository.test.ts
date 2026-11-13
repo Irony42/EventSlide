@@ -209,6 +209,17 @@ describe('SqliteClientRepository', () => {
     await expect(repo.findById(asClientId('client-1'))).rejects.toThrow(/clients\.contact_email/)
   })
 
+  it('loads a client whose stored contact address the new rule would refuse, alone and in a listing (QUAL-09)', async () => {
+    await repo.save(aClient({ id: 'client-1' }))
+    corrupt('contact_email', 'a@b.example,c@d.example')
+
+    expect((await repo.findById(asClientId('client-1')))?.contactEmail?.value).toBe(
+      'a@b.example,c@d.example',
+    )
+    const page = await repo.list({ limit: 10 })
+    expect(page.items.map((client) => client.id)).toEqual(['client-1'])
+  })
+
   it('names the column of a corrupt row but never repeats its value, which may be personal data', async () => {
     await repo.save(aClient({ id: 'client-1' }))
     corrupt('contact_email', 'marie.dupont-sans-arobase')

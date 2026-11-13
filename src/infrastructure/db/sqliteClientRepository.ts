@@ -177,7 +177,7 @@ const toClient = (row: ClientRow): Client => {
 
   let contactEmail: EmailAddress | null = null
   if (row.contact_email !== null) {
-    const parsed = EmailAddress.create(row.contact_email)
+    const parsed = EmailAddress.fromStored(row.contact_email)
     if (!parsed.ok) throw corrupt('contact_email', parsed.error.code)
     contactEmail = parsed.value
   }

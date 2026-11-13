@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asUserId } from '../../../domain/shared/ids'
-import type { PasswordHash } from '../../../domain/users/user'
+import { EmailAddress } from '../../../domain/users/emailAddress'
+import { User, type PasswordHash } from '../../../domain/users/user'
 import { AT, aUser } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeSecondFactorRepository } from '../../testing/fakeSecondFactorRepository'
@@ -65,6 +66,16 @@ describe('authenticateUser', () => {
       mustChangePassword: false,
       secondFactorRequired: false,
     })
+  })
+
+  it('still signs in an account whose address predates the single-mailbox rule (QUAL-09)', async () => {
+    const legacy = EmailAddress.fromStored('a@b.example,c@d.example')
+    if (!legacy.ok) throw new Error('fixture')
+    users.seed(User.restore({ ...aUser({ id: 'user-1' }).toProps(), email: legacy.value }))
+
+    const result = await authenticate({ email: 'a@b.example,c@d.example', password: PASSWORD })
+
+    expect(result.ok).toBe(true)
   })
 
   it('accepts an address the host typed with different capitalisation', async () => {

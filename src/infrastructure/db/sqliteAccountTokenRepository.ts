@@ -113,7 +113,7 @@ const purposeOf = (raw: string): AccountTokenPurpose => {
 }
 
 const emailOf = (raw: string): EmailAddress => {
-  const parsed = EmailAddress.create(raw)
+  const parsed = EmailAddress.fromStored(raw)
   if (!parsed.ok) {
     throw new Error(`account_tokens.email holds a value the domain rejects (${parsed.error.code})`)
   }
