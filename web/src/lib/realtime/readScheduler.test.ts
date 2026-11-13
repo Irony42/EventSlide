@@ -204,4 +204,35 @@ describe('createReadScheduler', () => {
     expect(old).not.toHaveBeenCalled()
     expect(current).toHaveBeenCalledTimes(1)
   })
+
+  it('does not start a read when one began on its own while the window was open', () => {
+    const start = vi.fn()
+    const scheduler = createReadScheduler({ start, debounceMs: 250 })
+    scheduler.request()
+
+    scheduler.began()
+    vi.advanceTimersByTime(250)
+
+    expect(start).not.toHaveBeenCalled()
+    scheduler.settled()
+    vi.advanceTimersByTime(250)
+    expect(start).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not let the end of a cancelled read free the slot of the read that replaced it', async () => {
+    const first = deferred()
+    const second = deferred()
+    const start = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const scheduler = createReadScheduler({ start, debounceMs: 0 })
+    scheduler.request()
+    scheduler.cancel()
+    scheduler.request()
+    expect(start).toHaveBeenCalledTimes(2)
+
+    first.resolve()
+    await vi.advanceTimersByTimeAsync(0)
+    scheduler.request()
+
+    expect(start).toHaveBeenCalledTimes(2)
+  })
 })
