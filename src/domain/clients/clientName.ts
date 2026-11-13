@@ -9,10 +9,8 @@ import { characterCount, toSingleLine } from '../shared/plainText'
  * invisible, the same way `EventName` is.
  *
  * The bounds are the catalogue's own `CHECK (length(name) BETWEEN 1 AND 200)` — see the
- * paid plan's "Schéma des clients" (P3-04) — so the two layers use the same numbers. They
- * count differently, which is why this is not a claim that they agree on every string:
- * SQLite's `length()` counts code points and this counts UTF-16 units, so the domain is the
- * stricter of the two for a name of astral characters.
+ * paid plan's "Schéma des clients" (P3-04) — so the two layers use the same numbers, and both
+ * count code points (the domain through `characterCount`), so they agree on astral characters too.
  */
 
 const MIN_LENGTH = 1

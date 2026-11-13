@@ -4016,7 +4016,8 @@ event, `403 auth.forbidden` for a moderator, `404 event.notFound` for anybody el
 A prompt is **content**, not interface copy: it is stored as the host typed it, in whatever
 language the event is held in, and nothing translates it. It is folded to one line and
 stripped of invisible characters (bidirectional overrides, zero-width padding) before it is
-stored, because it reaches a projector in front of two hundred people. Markup is _not_
+stored (a zero-width joiner or non-joiner survives only alone between two characters, so a compound
+emoji or a Persian word stays whole; lengths count code points, as for every name and caption), because it reaches a projector in front of two hundred people. Markup is _not_
 stripped — React escapes on render, and a sanitiser here would eat a host writing "3 < 4".
 
 ### `PATCH /api/events/:slug/missions/:missionId`
