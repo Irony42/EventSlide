@@ -533,6 +533,12 @@ const MAX_STREAMS_TOTAL = 500
 export interface StreamConnectionLimits {
   readonly perClient?: number
   readonly total?: number
+  /**
+   * Who a slot is counted against. The client address when omitted. A route behind a session passes
+   * the account (see {@link hostExportLimiter}): an address is the wrong notion of "who" for a
+   * moderator on a venue's shared wifi, and the right one for a stranger with a link.
+   */
+  readonly key?: (req: Request) => string
 }
 
 /**
@@ -561,6 +567,7 @@ export interface StreamConnectionLimits {
 export const streamConnectionLimiter = ({
   perClient = MAX_STREAMS_PER_CLIENT,
   total = MAX_STREAMS_TOTAL,
+  key: keyOf = clientKey,
 }: StreamConnectionLimits = {}): RequestHandler => {
   const openPerClient = new Map<string, number>()
   let openTotal = 0
@@ -575,7 +582,7 @@ export const streamConnectionLimiter = ({
       return
     }
 
-    const key = clientKey(req)
+    const key = keyOf(req)
     const held = openPerClient.get(key) ?? 0
     if (held >= perClient) {
       // With the `Retry-After` section 1 promises every 429 (HTTP-M-04): it bypassed `sendError`
@@ -611,6 +618,41 @@ export const streamConnectionLimiter = ({
     next()
   }
 }
+
+/**
+ * How many host exports (`album.zip`, `best-of.zip`) one **account** may have open at once.
+ *
+ * Two, like the public gallery's archive: a host starting a second export while the first runs
+ * is plausible (the album, then the favourites), a third is a script. Counted per account and not
+ * per address because the route is behind a session, and a moderator invited by several clients
+ * is one account whichever wifi it is on.
+ */
+const HOST_EXPORTS_PER_ACCOUNT = 2
+
+/**
+ * How many host exports the box serves at once, across every account.
+ *
+ * Four, the gallery's own figure, but **its own counter** and not the gallery's: sharing it would
+ * let an anonymous holder of a public link fill the box's allowance and refuse every host's
+ * export (and the reverse). Both read the same disk, so the worst case is eight archives, the
+ * gallery's four and these four, each a sequential read of one photograph at a time.
+ */
+const HOST_EXPORTS_TOTAL = 4
+
+/**
+ * The concurrency bound the two host-side ZIP exports share: **build it once** (`server.ts`) and
+ * hand the same instance to both routes, or each gets its own allowance and an account may hold
+ * two of each.
+ *
+ * Mount it after `requireRole`, which is what puts the account on the request; before that the key
+ * would fall back to the address. The slot is released when the response closes, so a request the
+ * use case then refuses (`404`, `409 highlight.empty`) gives it back at once.
+ */
+export const hostExportLimiter = ({
+  perAccount = HOST_EXPORTS_PER_ACCOUNT,
+  total = HOST_EXPORTS_TOTAL,
+}: { readonly perAccount?: number; readonly total?: number } = {}): RequestHandler =>
+  streamConnectionLimiter({ perClient: perAccount, total, key: accountKey })
 
 // ------------------------------------------------------- upload concurrency --
 
