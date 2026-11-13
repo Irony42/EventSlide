@@ -365,8 +365,11 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       // Every other answer of 400 or more is somebody whose new password the policy refuses, or a
       // malformed body: not a guess at the current one. The invited moderator who must choose a
       // password reaches this door first, and must not be locked out by their own typos.
+      // Until the body is read, the only refusal is a malformed one. From then on every refusal counts
+      // unless it is the policy's: a code nobody foresaw is a guess, not a courtesy.
       refusalIsNoGuess(res, true)
       const body = changePasswordBody.parse(req.body)
+      refusalIsNoGuess(res, false)
 
       const result = await usecases.changePassword({
         // From the session, never from the body. A `userId` a client could send would
@@ -378,9 +381,10 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       })
 
       if (!result.ok) {
-        // The one answer that says the proof of the current password failed (a lost race for the
-        // hash is refused as the same thing, and is just as much a wrong password).
-        if (result.error.code === 'auth.invalidCredentials') refusalIsNoGuess(res, false)
+        // Only the policy's answers (`password.*`, which come after the current password was proved)
+        // are no guess. The wrong current password, a lost race for the hash (refused as the same
+        // thing) and anything else keep counting.
+        if (result.error.code.startsWith('password.')) refusalIsNoGuess(res, true)
         sendError(res, result.error)
         return
       }

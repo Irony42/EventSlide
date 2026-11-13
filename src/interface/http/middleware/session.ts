@@ -7,7 +7,7 @@ import { rotateCsrfToken } from './csrf'
 /**
  * Must match the `name` given to `express-session` in `server.ts`.
  *
- * Exported so `endSession` and its test agree on one literal: a browser matches a
+ * Defined here, next to `endSession` which clears it, and re-exported by `routes/authRoutes.ts` for `server.ts` and the tests: one literal: a browser matches a
  * cookie deletion on name, domain and path, so a mismatch here would silently leave
  * the cookie in place and nothing would fail until the next request.
  */

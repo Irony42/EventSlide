@@ -698,7 +698,7 @@ other limiters' bodies carry the header only.
 | `GET /api/gallery-media/…`                                         | 3000          | client IP                  | `rate.limited`                     |
 | `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min      | `gallery.tooManyAttempts`          |
 
-◊ One budget for all six doors (a guess at one is spent at the others). On `POST /api/auth/password` a failure is **only** `401 auth.invalidCredentials`, the wrong current password: a `400` (a new password the policy refuses, `password.unchanged`, a malformed body) spends nothing, so a person who is learning the policy, an invited moderator who must choose a password included, cannot lock themselves out.
+◊ One budget for all six doors (a guess at one is spent at the others). On `POST /api/auth/password` a failure is **only** `401 auth.invalidCredentials`, the wrong current password: a `400` (a new password the policy refuses, `password.unchanged`, a malformed body) spends nothing, so a person who is learning the policy, an invited moderator who must choose a password included, cannot lock themselves out. The other five doors count every answer of 400 or more.
 
 § **Two stages**, since 3.2. The first is a flood ceiling per client address and event
 (`UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE`, `REACTION_RATE_LIMIT_PER_IP_PER_MINUTE`), checked before the
