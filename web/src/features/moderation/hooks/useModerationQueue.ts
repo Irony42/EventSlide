@@ -530,9 +530,6 @@ export const useModerationQueue = (
     } catch (cause) {
       // The groups that were answered keep their restored status (a skip inside one goes
       // back where the decision left it); the one that failed, and those never sent, go back.
-      const unanswered = (decision: { readonly size: number } | null, id: string) =>
-        decision !== null && !answered.has(id)
-      void unanswered
       answerDecisions(new Map([...sent].filter(([id]) => answered.has(id))), skipped)
       failDecisions(new Map([...sent].filter(([id]) => !answered.has(id))))
       const refused = new Set(skipped)

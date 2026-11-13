@@ -504,6 +504,48 @@ describe('useModerationQueue', () => {
     expect(queue).toHaveBeenCalled()
   })
 
+  it('forgets the failed group’s decisions but not the answered one’s, so the next read tells the truth (BUG-06)', async () => {
+    const rows = [
+      aModerationPhoto({ id: 'photo-1', status: 'hidden' }),
+      aModerationPhoto({ id: 'photo-2', status: 'rejected' }),
+    ]
+    const queue = vi.fn(async () => queueOf(rows))
+    let failReject = false
+    const moderateBulk = vi.fn(
+      async (
+        _slug: string,
+        ids: readonly string[],
+        decision: string,
+      ): Promise<BulkModerationResponse> => {
+        if (failReject && decision === 'reject') throw new ApiError(503, 'unavailable')
+        return { applied: [...ids], skipped: [] }
+      },
+    )
+    const api = fakeApi({ moderationQueue: queue, moderateBulk })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(2))
+    await act(async () => {
+      await result.current.decideBulk(['photo-1', 'photo-2'], 'publish')
+    })
+    failReject = true
+    // The server's truth after the partial undo: the first group landed, the second did not.
+    queue.mockImplementation(async () =>
+      queueOf([
+        aModerationPhoto({ id: 'photo-1', status: 'hidden' }),
+        aModerationPhoto({ id: 'photo-2', status: 'published' }),
+      ]),
+    )
+
+    await act(async () => {
+      await result.current.undo()
+    })
+
+    await waitFor(() =>
+      expect(result.current.items.find((row) => row.id === 'photo-2')?.status).toBe('published'),
+    )
+    expect(result.current.items.find((row) => row.id === 'photo-1')?.status).toBe('hidden')
+  })
+
   it('offers to take back only the photos it can put somewhere', async () => {
     // `applied` can name a photo this console never loaded, and there is no previous
     // status recorded for one. Undoing it would guess — and a guess here is a photo

@@ -109,8 +109,10 @@ export const useLoader = <T>(load: Load<T>): LoaderState<T> => {
         if (!current) return
         // The abort came from this effect's own cleanup — StrictMode mounts twice —
         // and is not a failure to report to the reader.
-        if (isAbortError(cause)) return
+        // A read that ends must free the slot, even one the transport itself aborted (its own
+        // deadline): otherwise every later reload would only mark it stale.
         reads.settled()
+        if (isAbortError(cause)) return
         if (replacements.current !== startedUnder) {
           setAnswer((previous) => ({ ...previous, load, attempt }))
           return
