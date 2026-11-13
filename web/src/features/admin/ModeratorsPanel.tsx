@@ -11,6 +11,7 @@ import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { Async } from '../../design-system/components/Async'
 import { useModerators } from './hooks/useEventData'
 import { useInviteModerator, useRevokeModerator } from './hooks/useEventActions'
+import { useLeaveWarning } from './hooks/useLeaveWarning'
 import styles from './ModeratorsPanel.module.css'
 import type { ModeratorDto } from '../../lib/api/dto'
 import type { UiText } from '../../lib/i18n/translations'
@@ -48,8 +49,14 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
   const [pending, setPending] = useState<{ readonly email: string; readonly link: string } | null>(
     null,
   )
+  /** The link left this page: the copy button worked, or the host copied it by hand. */
+  const [copied, setCopied] = useState(false)
   const [inviteFailure, setInviteFailure] = useState<string | null>(null)
   const [selected, setSelected] = useState<ModeratorDto | null>(null)
+
+  // Like the share link: the address is held in this page only, so leaving before it has been
+  // copied asks first (QUAL-05).
+  useLeaveWarning(pending !== null && !copied, t.admin.shareLinkLeaveWarning)
 
   const list = moderators.data ?? []
   /**
@@ -63,6 +70,7 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
     event.preventDefault()
     setInviteFailure(null)
     setPending(null)
+    setCopied(false)
 
     const address = email.trim()
 
@@ -91,11 +99,12 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
     // The address is also selectable in the field beside this button, so a browser that
     // refuses the clipboard (or has none, on a plain-HTTP address) costs the host a long-press
     // rather than the link, and says so.
-    void copyToClipboard(pending.link).then((copied) =>
-      copied
-        ? toast.show(t.admin.inviteLinkCopied, { tone: 'success' })
-        : toast.show(t.admin.inviteLinkCopyFailed, { tone: 'danger' }),
-    )
+    void copyToClipboard(pending.link).then((done) => {
+      if (done) setCopied(true)
+      toast.show(done ? t.admin.inviteLinkCopied : t.admin.inviteLinkCopyFailed, {
+        tone: done ? 'success' : 'danger',
+      })
+    })
   }
 
   const confirmRevoke = () => {
@@ -168,6 +177,8 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
                 autoFocus
                 value={pending.link}
                 onFocus={(focused) => focused.target.select()}
+                // A hand copy counts: the address has left this page.
+                onCopy={() => setCopied(true)}
               />
             )}
           </Field>
