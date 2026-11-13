@@ -172,17 +172,11 @@ export const makeBuildNextAlbumBook = ({
     return { kind: 'failed', eventId: book.eventId, code }
   }
 
-  return async (signal) => {
-    const next = await books.findNextQueued()
-    if (next === null) return { kind: 'idle' }
-
-    // One core is shared with the video transcoder: a book waits for it, but never longer than
-    // the box says, or a wedding that sends clips all evening would starve the book for good.
-    const waited = clock.now().getTime() - next.requestedAt.getTime()
-    if (waited < policy.maxWaitMs && (await clips.countActive()) > 0) return { kind: 'waiting' }
-
-    const claimed = await books.claimNext(clock.now())
-    if (claimed === null) return { kind: 'idle' }
+  /** Everything after the claim. */
+  const buildClaimed = async (
+    claimed: AlbumBook,
+    signal: AbortSignal | undefined,
+  ): Promise<BuildNextAlbumBookOutcome> => {
     const { eventId } = claimed
     const startedAt = clock.now()
     announce(eventId)
@@ -332,6 +326,32 @@ export const makeBuildNextAlbumBook = ({
       photoCount: rendered,
       pageCount: result.pageCount,
       byteSize,
+    }
+  }
+
+  return async (signal) => {
+    const next = await books.findNextQueued()
+    if (next === null) return { kind: 'idle' }
+
+    // One core is shared with the video transcoder: a book waits for it, but never longer than
+    // the box says, or a wedding that sends clips all evening would starve the book for good.
+    const waited = clock.now().getTime() - next.requestedAt.getTime()
+    if (waited < policy.maxWaitMs && (await clips.countActive()) > 0) return { kind: 'waiting' }
+
+    const claimed = await books.claimNext(clock.now())
+    if (claimed === null) return { kind: 'idle' }
+
+    try {
+      return await buildClaimed(claimed, signal)
+    } catch (error) {
+      // Whatever failed after the claim (the disk probe, a read of the album, the verdict's own
+      // write), the book is given up like the render's own failure is: left `running` it would
+      // answer `book.alreadyRunning` to every new request until the next boot. A shutdown is
+      // the one exception, as in the render: the row stays `running` for the boot to re-queue.
+      if (signal?.aborted === true) return { kind: 'aborted', eventId: claimed.eventId }
+      if (!DomainError.is(error))
+        logger.error('photo book failed unexpectedly', { eventId: claimed.eventId })
+      return giveUp(claimed, failureCodeOf(error))
     }
   }
 }

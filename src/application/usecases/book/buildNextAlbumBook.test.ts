@@ -27,6 +27,7 @@ import { RecordingEventBus } from '../../testing/recordingEventBus'
 import {
   makeBuildNextAlbumBook,
   type BuildAlbumBookPolicy,
+  type BuildNextAlbumBookDeps,
   type BuildNextAlbumBook,
 } from './buildNextAlbumBook'
 
@@ -90,24 +91,26 @@ const makeWorld = (policy: BuildAlbumBookPolicy = POLICY): World => {
     diskHasRoom: true,
     build: async () => ({ kind: 'idle' }),
   }
-  state.build = makeBuildNextAlbumBook({
-    events: state.events,
-    clients: state.clients,
-    guests: state.guests,
-    photos: state.photos,
-    media: state.media,
-    books: state.books,
-    bookFiles: state.bookFiles,
-    renderer: state.renderer,
-    clips: state.clips,
-    bus: state.bus,
-    clock: state.clock,
-    logger: state.logger,
-    policy,
-    diskHasRoom: async () => state.diskHasRoom,
-  })
+  state.build = makeBuildNextAlbumBook(depsOf(state, policy))
   return state
 }
+
+const depsOf = (state: World, policy: BuildAlbumBookPolicy): BuildNextAlbumBookDeps => ({
+  events: state.events,
+  clients: state.clients,
+  guests: state.guests,
+  photos: state.photos,
+  media: state.media,
+  books: state.books,
+  bookFiles: state.bookFiles,
+  renderer: state.renderer,
+  clips: state.clips,
+  bus: state.bus,
+  clock: state.clock,
+  logger: state.logger,
+  diskHasRoom: async () => state.diskHasRoom,
+  policy,
+})
 
 /** A published photograph with its `display` file on the disk. */
 const seedPhoto = async (input: PhotoInput & { id: string }): Promise<void> => {
@@ -549,6 +552,48 @@ describe('buildNextAlbumBook', () => {
       await askForBook({}, atPlus(5_000_000))
 
       expect(await world.build()).toMatchObject({ kind: 'built' })
+    })
+  })
+
+  describe('a failure after the claim, before the render (BUG-26)', () => {
+    it('gives the book up as unexpected when the disk probe throws, instead of leaving it running', async () => {
+      await seedPhoto({ id: 'p1' })
+      await askForBook()
+      const probe = new Error('statfs: secret /path')
+      const failing = makeBuildNextAlbumBook({
+        ...depsOf(world, POLICY),
+        diskHasRoom: async () => {
+          throw probe
+        },
+      })
+
+      expect(await failing()).toMatchObject({ kind: 'failed', eventId: EVENT, code: 'unexpected' })
+      expect((await world.books.find(EVENT))?.status).toBe('failed')
+      expect(JSON.stringify(world.logger.lines)).not.toContain('secret')
+    })
+
+    it('gives the book up when a read of the album throws, keeping a domain error’s own code', async () => {
+      await seedPhoto({ id: 'p1' })
+      await askForBook()
+      world.media.stat = async () => {
+        throw DomainError.unexpected('book.unavailable')
+      }
+
+      expect(await world.build()).toMatchObject({ kind: 'failed', code: 'unavailable' })
+      expect((await world.books.find(EVENT))?.status).toBe('failed')
+    })
+
+    it('leaves the row running when it was the shutdown that interrupted it', async () => {
+      await seedPhoto({ id: 'p1' })
+      await askForBook()
+      const stop = new AbortController()
+      world.media.stat = async () => {
+        stop.abort()
+        throw new Error('interrupted')
+      }
+
+      expect(await world.build(stop.signal)).toEqual({ kind: 'aborted', eventId: EVENT })
+      expect((await world.books.find(EVENT))?.status).toBe('running')
     })
   })
 
