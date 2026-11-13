@@ -28,8 +28,10 @@ afterEach(async () => {
   await deleteOutboxDb()
 })
 
-outboxStoreContract('indexeddb', async () => {
+const openTracked = async (): Promise<IndexedDbOutbox> => {
   const store = await IndexedDbOutbox.open()
   opened.push(store)
   return store
-})
+}
+
+outboxStoreContract('indexeddb', openTracked, openTracked)

@@ -82,9 +82,15 @@ export class MemoryOutbox implements OutboxStore {
     this.entries = this.entries.filter((candidate) => candidate.slug !== slug)
   }
 
-  close(): void {
-    this.entries = []
-  }
+  /**
+   * Nothing to release, and above all nothing to forget.
+   *
+   * This used to empty the store, which was right for a test double and wrong for the production
+   * fallback: the upload screen closes its store on unmount, and a guest offline with photos waiting
+   * who left for the feed lost them without a word. `IndexedDbOutbox.close()` only gives back a
+   * handle and keeps every entry; the shared contract suite now holds both to that.
+   */
+  close(): void {}
 
   /** Oldest first, matching the adapter: the cap drops what has waited longest. */
   private evictOverflow(slug: string): readonly string[] {

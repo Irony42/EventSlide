@@ -15,6 +15,8 @@ const row = (state: UploadItemState, photoId: string | null = null): UploadItem 
   retryable: false,
   outboxId: null,
   missionId: null,
+  caption: null,
+  challengeId: null,
 })
 
 describe('summarizeBatch', () => {

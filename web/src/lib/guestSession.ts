@@ -1,4 +1,5 @@
 import { DEFAULT_EVENT_THEME, readEventTheme } from '../design-system/eventTheme'
+import { clearOutboxFor } from './offline/clearOutbox'
 import type {
   EventThemeDto,
   NoticeAcknowledgementStatus,
@@ -464,4 +465,18 @@ export const readGuestSession = (slug: string, now: number = Date.now()): GuestS
 export const forgetGuestSession = (slug: string): void => {
   tryRemove(inTab, keyFor(slug))
   tryRemove(onDevice, REMEMBERED_KEY)
+}
+
+/**
+ * "Ce n'est pas votre soirée ?" said by a person: {@link forgetGuestSession}, and the photos this
+ * device still holds for the event go with it (QUAL-06).
+ *
+ * Not folded into `forgetGuestSession`, which is also what a session the server no longer knows
+ * calls. That guest is the same person and will join again; their waiting photos are theirs and
+ * stay. Here somebody is telling the app the phone is not theirs, and the photos are not either.
+ * Fire and forget: the way out of the event does not wait for a database.
+ */
+export const leaveGuestEvent = (slug: string): void => {
+  forgetGuestSession(slug)
+  void clearOutboxFor(slug)
 }
