@@ -2350,6 +2350,14 @@ several gigabytes. Streamed, never buffered.
 `best-of.zip` together: past the account's two, `429 rate.limited` with `Retry-After: 30`; with the box's four
 open, `503 service.notReady` with `Retry-After: 30`. A slot is given back when the response ends, however it ends.
 
+**`HEAD /api/events/:slug/album.zip`** (and `best-of.zip`) is the question the console's link asks before it
+starts the download, so that a refusal reaches the host as a sentence and not as a saved JSON file. Same role
+check as the `GET` (`401` / `404`). Then `204` with no body and `Cache-Control: no-store` when the `GET` would
+start, or exactly the refusal the `GET` would give (`429 rate.limited` / `503 service.notReady`, each with its
+`Retry-After`). It **takes no slot** and **runs no use case**: what only the use case can refuse (an event the
+operator took down, `409 highlight.empty`) is still the `GET`'s to say. It is check-then-act: a slot can be taken
+between the `204` and the `GET`, which is then refused as before.
+
 Unlike the media route above, this one is behind `requireRole('moderator')` and so
 **does** serve an archived event: `401 auth.required` with no session,
 `404 event.notFound` for a caller with no membership, `403 auth.forbidden` never
@@ -2388,6 +2396,7 @@ failureCode?, updatedAt }`; no photograph id travels.
   `<slug>-best-of.zip`), oldest photo first, one folder `<slug>-best-of/`. `409 highlight.empty`
   before any header when there is no favourite. Counted with `album.zip` in one concurrency allowance (2 per
   account, 4 on the box: `429 rate.limited` / `503 service.notReady`, both with `Retry-After`).
+  `HEAD` on it is the preflight described under `album.zip` (`204` or the same `429` / `503`, no slot taken).
 
 The moderation rows (`GET /moderation`, `GET /photos`) carry `highlighted: boolean`; no guest, wall
 or gallery payload does.
@@ -4686,7 +4695,9 @@ itself, plus two things that follow it:
   `e2e_interval` only as `0` (no clock, the suites' still frame) or 50 to 600 000 ms, and
   `e2e_transition` as 0 to 10 000 ms: the schema's own bounds. Any other value is treated as
   absent, so a link sent to a host cannot put the projector in a 1 ms loop. `e2e_phase_ms`
-  is not bounded yet.
+  is bounded the same way, to 100 to 600 000 ms (the suites use 300 to 2 500; `0` is not a
+  value there and is absent too), so a link cannot flip the mixed wall through black every
+  millisecond. The server has no schema for it: the bounds live in `useTimingOverrides.ts`.
 
 Closing it is a removal from `wallQuery` plus the flag, and it is not a one-file change:
 `requestSchemas.ts` and its test; `publicRoutes.ts` and `publicRoutes.test.ts`, which

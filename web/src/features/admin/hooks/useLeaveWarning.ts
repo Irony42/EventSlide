@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { useBackHold } from '../../../lib/useBackHold'
 
 /**
  * Asks before the page is left, while `active`, for what exists nowhere else.
@@ -9,10 +10,11 @@ import { useEffect } from 'react'
  * unloading anything, so no browser event fires, and the one place to catch it is the click
  * itself, in the capture phase, before the router sees it. That asks with `message`.
  *
- * What it does **not** catch is the browser's Back button: the app runs on a `BrowserRouter`,
- * which has no blocker (`useBlocker` needs a data router), and a `popstate` cannot be
- * cancelled. It is the limit of "keep it simple", and the page says in words, beside the link,
- * that it will not be shown again.
+ * **The browser's Back button** is held too, with the spare history entry `LeaveGuard` uses
+ * (`lib/useBackHold`): the app runs on a `BrowserRouter`, which has no blocker and cannot cancel a
+ * `popstate`, so the page keeps one spare entry above its own and asks with the same `message`
+ * when Back pops it. Confirming goes back past the page; a long press on Back (several entries
+ * at once) is not held.
  *
  * **Known double prompt**: a same-origin plain `<a href>` that makes a full page load (the join
  * link, a crash screen's home link) is asked here and then again by the browser's own
@@ -24,6 +26,14 @@ import { useEffect } from 'react'
  * has it).
  */
 export const useLeaveWarning = (active: boolean, message: string): void => {
+  const asked = useRef(message)
+  useEffect(() => {
+    asked.current = message
+  })
+  const { releaseThen } = useBackHold(active, (leave) => {
+    if (window.confirm(asked.current)) leave()
+  })
+
   useEffect(() => {
     if (!active) return
 
@@ -33,7 +43,9 @@ export const useLeaveWarning = (active: boolean, message: string): void => {
       event.returnValue = ''
     }
 
+    let replaying = false
     const onClick = (event: MouseEvent) => {
+      if (replaying) return
       if (event.defaultPrevented || event.button !== 0) return
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
       const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null
@@ -48,10 +60,16 @@ export const useLeaveWarning = (active: boolean, message: string): void => {
       ) {
         return
       }
-      if (!window.confirm(message)) {
-        // The router's own links read `defaultPrevented` and do not navigate.
-        event.preventDefault()
-      }
+      // The router's own links read `defaultPrevented` and do not navigate: stopped here, then
+      // followed again once the spare history entry is off, so it does not stay behind the page.
+      event.preventDefault()
+      event.stopPropagation()
+      if (!window.confirm(message)) return
+      releaseThen(() => {
+        replaying = true
+        ;(anchor as HTMLAnchorElement).click()
+        replaying = false
+      })
     }
 
     window.addEventListener('beforeunload', onBeforeUnload)
@@ -60,5 +78,5 @@ export const useLeaveWarning = (active: boolean, message: string): void => {
       window.removeEventListener('beforeunload', onBeforeUnload)
       document.removeEventListener('click', onClick, true)
     }
-  }, [active, message])
+  }, [active, message, releaseThen])
 }

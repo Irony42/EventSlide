@@ -1519,6 +1519,21 @@ export const en: UiText = {
     bestOfPreselectNothing:
       'Nothing to add: the most liked photos are already favourites, or nobody has reacted yet.',
     bestOfDownload: 'Download favourites (ZIP)',
+    exportBusy: (seconds: number | null) =>
+      seconds === null
+        ? 'An export is already running for your account.'
+        : `An export is already running for your account. ${t.count(seconds, {
+            one: `Try again in ${t.number(seconds)} second.`,
+            other: `Try again in ${t.number(seconds)} seconds.`,
+          })}`,
+    exportNotReady: (seconds: number | null) =>
+      seconds === null
+        ? 'The server is already preparing other exports.'
+        : `The server is already preparing other exports. ${t.count(seconds, {
+            one: `Try again in ${t.number(seconds)} second.`,
+            other: `Try again in ${t.number(seconds)} seconds.`,
+          })}`,
+    exportFailed: 'The download could not start. Try again in a moment.',
     // Spec 04: the photo book (a PDF of the published album) on the event page.
     book: 'Photo book',
     bookHint: 'A PDF of your published photos, to keep or to print.',

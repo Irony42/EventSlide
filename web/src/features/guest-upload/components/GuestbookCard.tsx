@@ -4,6 +4,7 @@ import { Card } from '../../../design-system/components/Card'
 import { Notice } from '../../../design-system/components/Notice'
 import { Textarea } from '../../../design-system/components/Textarea'
 import { VisuallyHidden } from '../../../design-system/components/VisuallyHidden'
+import { characterCount } from '../../../lib/characters'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { NoticePublication } from '../../../lib/api/dto'
 import type { GuestbookWriter } from '../hooks/useGuestbook'
@@ -41,9 +42,6 @@ const levelOf = (length: number, max: number | undefined): Level => {
   return length * NEAR_DENOMINATOR >= max * NEAR_NUMERATOR ? 'near' : 'ok'
 }
 
-/** Characters as a guest counts them (an emoji is one), which is also how the server counts. */
-const lengthOf = (text: string): number => Array.from(text).length
-
 export function GuestbookCard({ writer, maxLength, publication }: GuestbookCardProps) {
   const t = useTranslations()
   const inputId = useId()
@@ -52,7 +50,7 @@ export function GuestbookCard({ writer, maxLength, publication }: GuestbookCardP
   const [thanks, setThanks] = useState<'pending' | 'published' | null>(null)
   const openButton = useRef<HTMLButtonElement | null>(null)
 
-  const length = lengthOf(text)
+  const length = characterCount(text)
   const level = levelOf(length, maxLength)
   // Announced when the level changes, not on every key: the state is adjusted during render, which
   // is how React wants a value derived from a change of another one.

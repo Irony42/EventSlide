@@ -36,4 +36,16 @@ describe('the e2e timing overrides on the display address (SEC-07)', () => {
   it.each(['10001', '2147483648'])('treats a transition of %s as absent', (ms) => {
     expect(overridesFor(`e2e_transition=${ms}`).transitionMs).toBeNull()
   })
+
+  // The suites use 300 (WallPage.mixed), 800 (mixed-wall) and 2500 (wall-portrait-fit).
+  it.each(['100', '300', '800', '2500', '600000'])('keeps a phase of %s', (ms) => {
+    expect(overridesFor(`e2e_phase_ms=${ms}`).phaseMs).toBe(Number(ms))
+  })
+
+  it.each(['0', '1', '99', '600001', '2147483648', '99999999999', '-5', 'abc'])(
+    'treats a phase of %s as absent: a link must not flip the mixed wall every millisecond',
+    (ms) => {
+      expect(overridesFor(`e2e_phase_ms=${ms}`).phaseMs).toBeNull()
+    },
+  )
 })

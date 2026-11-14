@@ -2,6 +2,7 @@ import { useId, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { VisuallyHidden } from '../../../design-system/components/VisuallyHidden'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { useArchiveDownload } from '../hooks/useArchiveDownload'
 import { EventActionIcon, type EventActionGlyph } from './EventActionIcon'
 import styles from './EventTiles.module.css'
 
@@ -116,9 +117,10 @@ export function RouteTile({
 }
 
 /**
- * The album as a ZIP. A plain link, not a fetch: the ZIP is streamed and can be hundreds of
+ * The album as a ZIP. A plain link: the ZIP is streamed and can be hundreds of
  * megabytes, so the browser's own download manager is the right tool — buffering it through
- * JavaScript is how a laptop runs out of memory halfway through an album.
+ * JavaScript is how a laptop runs out of memory halfway through an album. A click only asks the server
+ * first (headers, never the body) so that a `429` or `503` becomes a sentence (`useArchiveDownload`).
  */
 export function DownloadTile({
   href,
@@ -129,11 +131,13 @@ export function DownloadTile({
   tour,
 }: Omit<TileContent, 'count'> & { readonly href: string }) {
   const hintId = useId()
+  const downloadArchive = useArchiveDownload()
   return (
     <a
       {...tileProps(size, false, tour)}
       href={href}
       download
+      onClick={downloadArchive}
       {...(hint === undefined ? {} : { 'aria-describedby': hintId })}
     >
       <TileBody glyph={glyph} hint={hint} hintId={hintId}>

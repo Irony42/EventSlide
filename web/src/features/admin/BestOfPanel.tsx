@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Async } from '../../design-system/components/Async'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
+import { useArchiveDownload } from './hooks/useArchiveDownload'
 import { useToast } from '../../design-system/components/useToast'
 import { useApi } from '../../lib/useApi'
 import { useTranslations } from '../../lib/i18n/useTranslations'
@@ -38,6 +39,7 @@ export function BestOfPanel({ slug, canStar }: BestOfPanelProps) {
   const t = useTranslations()
   const api = useApi()
   const toast = useToast()
+  const downloadArchive = useArchiveDownload()
   const best = useBestOf(slug)
   const preselect = usePreselectHighlights()
   const requestReel = useRequestReel()
@@ -116,7 +118,12 @@ export function BestOfPanel({ slug, canStar }: BestOfPanelProps) {
             {t.admin.bestOfDownload}
           </Button>
         ) : (
-          <a className={styles['download']} href={api.bestOfUrl(slug)} download>
+          <a
+            className={styles['download']}
+            href={api.bestOfUrl(slug)}
+            download
+            onClick={downloadArchive}
+          >
             {t.admin.bestOfDownload}
           </a>
         )}

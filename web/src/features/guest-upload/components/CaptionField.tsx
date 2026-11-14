@@ -1,6 +1,7 @@
 import type { ChangeEvent, Ref } from 'react'
 import { Field } from '../../../design-system/components/Field'
 import { Textarea } from '../../../design-system/components/Textarea'
+import { characterCount, clampCharacters } from '../../../lib/characters'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 
 /**
@@ -19,7 +20,8 @@ import { useTranslations } from '../../../lib/i18n/useTranslations'
  * stays legible on two lines at 3-10 metres. It is duplicated rather than fetched
  * because no endpoint publishes it; the server stays the authority and answers
  * `caption.tooLong`, so the worst a stale copy can do is count down to the wrong
- * number, never accept something the wall cannot show.
+ * number, never accept something the wall cannot show. It is counted in code points like the server
+ * (`lib/characters.ts`), not with the HTML `maxLength`, which counts UTF-16 units and would cut a flag.
  */
 const MAX_LENGTH = 140
 
@@ -36,9 +38,9 @@ export function CaptionField({ value, onChange, inputRef }: CaptionFieldProps) {
   // read out with the field instead of living in a live region that would interrupt
   // on every keystroke.
   const hint =
-    value.length === 0
+    value === ''
       ? t.upload.captionHint(MAX_LENGTH)
-      : t.upload.captionRemaining(MAX_LENGTH - value.length)
+      : t.upload.captionRemaining(MAX_LENGTH - characterCount(value))
 
   return (
     <Field label={t.upload.captionLabel} hint={hint} optional>
@@ -47,8 +49,9 @@ export function CaptionField({ value, onChange, inputRef }: CaptionFieldProps) {
           {...control}
           ref={inputRef}
           value={value}
-          maxLength={MAX_LENGTH}
-          onChange={(event: ChangeEvent<HTMLTextAreaElement>) => onChange(event.target.value)}
+          onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+            onChange(clampCharacters(event.target.value, MAX_LENGTH))
+          }
         />
       )}
     </Field>

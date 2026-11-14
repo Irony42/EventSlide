@@ -530,6 +530,12 @@ const MAX_STREAMS_PER_CLIENT = 12
  */
 const MAX_STREAMS_TOTAL = 500
 
+/** A concurrency limiter, plus the question "would a request be admitted?" that takes no slot. */
+export type StreamLimiter = RequestHandler & {
+  readonly preflight: RequestHandler
+  readonly answerHead: RequestHandler
+}
+
 export interface StreamConnectionLimits {
   readonly perClient?: number
   readonly total?: number
@@ -568,23 +574,26 @@ export const streamConnectionLimiter = ({
   perClient = MAX_STREAMS_PER_CLIENT,
   total = MAX_STREAMS_TOTAL,
   key: keyOf = clientKey,
-}: StreamConnectionLimits = {}): RequestHandler => {
+}: StreamConnectionLimits = {}): StreamLimiter => {
   const openPerClient = new Map<string, number>()
   let openTotal = 0
 
-  return (req, res, next) => {
+  /**
+   * Answers the refusal a request would get right now, and says whether it did. The one place the
+   * two refusals are decided and worded, so {@link StreamLimiter.preflight} cannot answer
+   * differently from the handler that acquires.
+   */
+  const refused = (req: Request, res: Response): boolean => {
     if (openTotal >= total) {
       // **A documented exception to `sendError`'s status table** (HTTP-M-14, listed in `send.ts`):
       // the server is full, not this client, so `503`, the same answer `/api/ready` gives about a
       // state that is temporary and nobody's fault. The kind that carries the code maps to 500.
       res.setHeader('Retry-After', String(STREAM_RETRY_AFTER_SECONDS))
       res.status(503).json(errorBody(DomainError.unexpected('service.notReady')))
-      return
+      return true
     }
 
-    const key = keyOf(req)
-    const held = openPerClient.get(key) ?? 0
-    if (held >= perClient) {
+    if ((openPerClient.get(keyOf(req)) ?? 0) >= perClient) {
       // With the `Retry-After` section 1 promises every 429 (HTTP-M-04): it bypassed `sendError`
       // and carried none. Thirty seconds, like its 503: a slot frees the moment one of this client's
       // streams closes, and a reloading projector asks again at once.
@@ -592,9 +601,16 @@ export const streamConnectionLimiter = ({
         res,
         DomainError.rateLimited('rate.limited', { retryAfterSeconds: STREAM_RETRY_AFTER_SECONDS }),
       )
-      return
+      return true
     }
+    return false
+  }
 
+  const acquire: RequestHandler = (req, res, next) => {
+    if (refused(req, res)) return
+
+    const key = keyOf(req)
+    const held = openPerClient.get(key) ?? 0
     openPerClient.set(key, held + 1)
     openTotal += 1
 
@@ -617,6 +633,32 @@ export const streamConnectionLimiter = ({
     res.on('close', release)
     next()
   }
+
+  /**
+   * Passes when `acquire` would, **without taking a slot**; refuses with the very same answer
+   * when it would not. For a `HEAD` that asks, before a download starts, whether it may. Still
+   * check-then-act: a slot can be taken between this answer and the `GET`, and that `GET` is then
+   * refused as it always was.
+   */
+  const preflight: RequestHandler = (req, res, next) => {
+    if (refused(req, res)) return
+    next()
+  }
+
+  /**
+   * Mounted ahead of `acquire` on a `GET` route: a `HEAD` (which Express hands to the `GET` route) is
+   * answered here, `204` when {@link preflight} would pass, and never reaches the handlers behind;
+   * any other method goes on.
+   */
+  const answerHead: RequestHandler = (req, res, next) => {
+    if (req.method !== 'HEAD') return next()
+    preflight(req, res, () => {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(204).end()
+    })
+  }
+
+  return Object.assign(acquire, { preflight, answerHead })
 }
 
 /**
@@ -651,7 +693,7 @@ const HOST_EXPORTS_TOTAL = 4
 export const hostExportLimiter = ({
   perAccount = HOST_EXPORTS_PER_ACCOUNT,
   total = HOST_EXPORTS_TOTAL,
-}: { readonly perAccount?: number; readonly total?: number } = {}): RequestHandler =>
+}: { readonly perAccount?: number; readonly total?: number } = {}): StreamLimiter =>
   streamConnectionLimiter({ perClient: perAccount, total, key: accountKey })
 
 // ------------------------------------------------------- upload concurrency --
