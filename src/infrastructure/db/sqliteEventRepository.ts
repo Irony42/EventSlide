@@ -785,11 +785,15 @@ export class SqliteEventRepository implements EventRepository {
         ORDER BY created_at, id LIMIT ?`,
     )
     // Rows that predate migration 016 have no fold, and SQL cannot compute it: fill them once, here.
-    const unfolded = db
-      .prepare<[], { readonly id: string; readonly name: string }>(
-        `SELECT id, name FROM events WHERE name_fold IS NULL`,
-      )
-      .all()
+    // Never on a read-only connection (`purge --dry-run`): that handle cannot write, and the paths
+    // it uses do not look anything up by name. The next writable open, the server's, does the fill.
+    const unfolded = db.readonly
+      ? []
+      : db
+          .prepare<[], { readonly id: string; readonly name: string }>(
+            `SELECT id, name FROM events WHERE name_fold IS NULL`,
+          )
+          .all()
     if (unfolded.length > 0) {
       const fill = db.prepare<[string, string]>(`UPDATE events SET name_fold = ? WHERE id = ?`)
       db.transaction(() => {

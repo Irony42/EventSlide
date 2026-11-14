@@ -10,12 +10,14 @@
  * create states the application cannot produce, and a screen built on impossible state
  * teaches you nothing.
  */
+import { existsSync } from 'node:fs'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import sharp from 'sharp'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { createContainer } from '../src/main/container'
+import { closeDatabase, openDatabase } from '../src/infrastructure/db/connection'
 import { SqliteUserRepository } from '../src/infrastructure/db/sqliteUserRepository'
 import { asGuestId, type PhotoId } from '../src/domain/shared/ids'
 
@@ -57,11 +59,22 @@ const jpeg = async (label: string, width: number, height: number): Promise<Uint8
   )
 }
 
+/** True when nothing at `databasePath` holds an account. Opens read-only: creates, migrates and writes nothing. */
+const isFreshDatabase = async (databasePath: string): Promise<boolean> => {
+  if (!existsSync(databasePath)) return true
+  const db = openDatabase({ path: databasePath, readonly: true })
+  try {
+    const hasUsers =
+      db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'users'`).get() !==
+      undefined
+    return !hasUsers || (await new SqliteUserRepository(db).isEmpty())
+  } finally {
+    closeDatabase(db)
+  }
+}
+
 const execute = async (env: NodeJS.ProcessEnv | undefined): Promise<number> => {
   const config = loadMaintenanceConfig(env)
-  const container = await createContainer(config)
-  const { usecases } = container
-
   /**
    * **The guard is the database, not the environment.**
    *
@@ -75,17 +88,25 @@ const execute = async (env: NodeJS.ProcessEnv | undefined): Promise<number> => {
    * one, because a box with no owner cannot be logged into; a fresh checkout has none.
    * And the demo owner's password is a constant in this file, so seeding a box somebody
    * is actually using would hand it an account whose credentials are published here.
+   *
+   * **And it runs first, on a read-only connection, before the container exists.** Building the
+   * container empties `.uploads` and `.scratch` (the running server's in-flight uploads and
+   * transcodes), applies migrations and may create the bootstrap owner: a refusal that came after
+   * all that had already done to the box what it was there to prevent. A database file that does
+   * not exist yet, or has no `users` table yet, is a fresh install: nothing to refuse.
    */
-  if (!(await new SqliteUserRepository(container.db).isEmpty())) {
+  if (!(await isFreshDatabase(config.storage.databasePath))) {
     console.error(
       'Refusing to seed: this database already holds an account, so it is not a fresh\n' +
         'install. `npm run db:seed:demo` fills an empty database so the wall and the\n' +
         'console can be looked at before there is a real event. Point DATABASE_PATH at a\n' +
         'scratch file if that is what you meant.',
     )
-    await container.dispose()
     return 1
   }
+
+  const container = await createContainer(config)
+  const { usecases } = container
   const scratch = await mkdtemp(join(tmpdir(), 'eventslide-seed-'))
 
   try {

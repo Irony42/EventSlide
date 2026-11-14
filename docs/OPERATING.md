@@ -107,6 +107,13 @@ Three settings worth a thought before you start:
   container. The purge command does the whole sweep, not only the purge: it also ends the
   offboarding of clients whose albums are gone and prunes the audit log of a box run for
   other people (`SITE_ADMIN=on`), so a cron running it loses nothing the timer did.
+  A purge that is cut after an album's row was deleted (a restart, a full disk) is not listed
+  again, since its row is gone: its files are collected by the media reconciliation once they are
+  15 minutes old. The purge command runs that reconciliation on every run, even with nothing due,
+  so on a box with the timer off (or a `MEDIA_ROOT` too shared to sweep: the command then says it
+  does not reconcile either) run it again after a failure and the bytes go too.
+  `--dry-run` also works on a database whose event-name index the server has not yet filled
+  since an upgrade (it never writes).
   `--dry-run` opens the database read-only, and a `DATABASE_PATH` that does not exist is
   refused rather than created.
 - **Opening and closing on their own.** The settings page takes an opening time and a

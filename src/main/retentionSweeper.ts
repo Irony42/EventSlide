@@ -194,8 +194,9 @@ export const createRetentionSweeper = ({
       }
       if (report.failed.length > 0) {
         // An error, not a warning. Photos a host promised to delete are still on disk,
-        // and these ids are the only signal an operator gets that a disk is wedged. The
-        // next sweep retries them, which is why this is not fatal.
+        // and these ids are the only signal an operator gets that a disk is wedged. The rows
+        // are already deleted (row first, bytes second), so the next sweep does not list them
+        // again: their files are collected by the media reconciliation, or by `npm run purge`.
         logger.error('retention sweep could not purge every expired event', {
           failed: report.failed.length,
           failedIds: report.failed.join(' '),
@@ -231,12 +232,14 @@ export const createRetentionSweeper = ({
       /**
        * A sweep already running is abandoned, not awaited.
        *
-       * It is safe to abandon because the sweep is resumable by construction: it deletes
-       * media then the row, one event at a time, so an interrupted event is one whose
-       * row still exists — `listDueForPurge` returns it again next time, and
-       * `MediaStore.deleteEvent` is idempotent and safe on an event that stored nothing,
-       * so the retry finishes the half-removed directory rather than tripping over it.
-       * Nothing is lost that was not already promised to be deleted.
+       * It is safe to abandon because nothing is lost that was not already promised to be
+       * deleted, and what is left is collected rather than retried: the sweep deletes, one
+       * event at a time, the row first and the bytes second (`purgeExpiredEvents`), so an
+       * interrupted event is one whose row is already gone — `listDueForPurge` will not return
+       * it again. Its leftover files are collected by the media reconciliation
+       * (`sweepOrphanedMedia`) once they are old enough: by the timer built beside this one,
+       * or, on a box where that timer is off (`RETENTION_SWEEP_INTERVAL_MINUTES=off`, or a
+       * `MEDIA_ROOT` too shared to sweep), by `npm run purge`, which reconciles on every run.
        *
        * Waiting, by contrast, would hold the process open past `docker stop`'s ten
        * second default while forty recursive deletions finish, and the container would
