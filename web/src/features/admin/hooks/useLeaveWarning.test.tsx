@@ -196,6 +196,32 @@ describe('useLeaveWarning: the browser’s Back button', () => {
     expect(confirm).not.toHaveBeenCalled()
   })
 
+  it('keeps holding Back for the second secret when the first is taken, and asks only once', async () => {
+    arrive()
+    const Two = ({ first }: { readonly first: boolean }) => {
+      useLeaveWarning(first, 'premier')
+      useLeaveWarning(true, 'second')
+      return null
+    }
+    const { rerender } = render(<Two first />)
+    confirm.mockReturnValue(false)
+
+    window.history.back()
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith('premier'))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(confirm).toHaveBeenCalledTimes(1)
+
+    // The first secret was copied: the second still has to be held.
+    rerender(<Two first={false} />)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    // Taking the first one off asked nothing by itself.
+    expect(confirm).toHaveBeenCalledTimes(1)
+    window.history.back()
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2))
+    expect(confirm).toHaveBeenLastCalledWith('second')
+    expect(here()).toBe('/ici')
+  })
+
   it('leaves no copy of the page in history when the host leaves by a link', async () => {
     window.history.replaceState(null, '', '/avant')
     window.history.pushState(null, '', '/ici')

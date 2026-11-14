@@ -27,12 +27,12 @@ import { useBackHold } from '../../../lib/useBackHold'
  */
 export const useLeaveWarning = (active: boolean, message: string): void => {
   const asked = useRef(message)
-  asked.current = message
-  const hold = useBackHold(active, () => {
-    if (window.confirm(asked.current)) hold.leaveBack()
+  useEffect(() => {
+    asked.current = message
   })
-  const release = useRef(hold.releaseThen)
-  release.current = hold.releaseThen
+  const { releaseThen } = useBackHold(active, (leave) => {
+    if (window.confirm(asked.current)) leave()
+  })
 
   useEffect(() => {
     if (!active) return
@@ -65,7 +65,7 @@ export const useLeaveWarning = (active: boolean, message: string): void => {
       event.preventDefault()
       event.stopPropagation()
       if (!window.confirm(message)) return
-      release.current(() => {
+      releaseThen(() => {
         replaying = true
         ;(anchor as HTMLAnchorElement).click()
         replaying = false
@@ -78,5 +78,5 @@ export const useLeaveWarning = (active: boolean, message: string): void => {
       window.removeEventListener('beforeunload', onBeforeUnload)
       document.removeEventListener('click', onClick, true)
     }
-  }, [active, message])
+  }, [active, message, releaseThen])
 }

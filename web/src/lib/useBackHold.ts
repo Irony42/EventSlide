@@ -18,11 +18,11 @@ import { useCallback, useEffect, useId, useRef } from 'react'
 /** The mark on the history entry the hold adds on top of the page's own. */
 const SPARE_ENTRY = 'eventslideLeaveGuard'
 
-/** Whether the entry the browser is on is a spare one, and, given `owner`, that hold's own. */
-const onSpareEntry = (owner?: string): boolean => {
+/** Whether the entry the browser is on is a spare one. */
+const onSpareEntry = (): boolean => {
   const state: unknown = window.history.state
   if (typeof state !== 'object' || state === null || !(SPARE_ENTRY in state)) return false
-  return owner === undefined || (state as Record<string, unknown>)[SPARE_ENTRY] === owner
+  return true
 }
 
 /** Puts the spare entry on top, with the router's bookkeeping (`idx`) moved on by one. */
@@ -38,6 +38,13 @@ const addSpareEntry = (owner: string): void => {
   )
 }
 
+/**
+ * The holds armed now. Two can live on one page (the share link and a moderator's invitation on
+ * the event page): they share the one spare entry, the first to see Back puts it back (so the
+ * other finds it there and the host is asked once), and it comes off when the last one lets go.
+ */
+const armedHolds: string[] = []
+
 export interface BackHold {
   /** The person chose to leave after pressing Back: past the spare entry and the page's own. */
   readonly leaveBack: () => void
@@ -50,57 +57,20 @@ export interface BackHold {
 
 /**
  * While `when`, holds Back and calls `onBack` each time the person presses it (the spare entry is
- * already back in place; the page has not moved).
+ * already back in place; the page has not moved). `onBack` is handed `leaveBack`, to call if the
+ * person chooses to leave.
  */
-export function useBackHold(when: boolean, onBack: () => void): BackHold {
+export function useBackHold(when: boolean, onBack: (leave: () => void) => void): BackHold {
   // The hold's own history moves (taking the spare entry off, going back past the page), which its
   // `popstate` listener must not take for the person's.
   const moving = useRef(false)
-  const armed = useRef(false)
   const give = useRef<number | null>(null)
-  // Which spare entry is this hold's own, so a late clean-up never takes another hold's off.
+  // This hold's name in `armedHolds`.
   const owner = useId()
   const asked = useRef(onBack)
-  asked.current = onBack
-
   useEffect(() => {
-    if (!when) return
-    armed.current = true
-    const page = `${window.location.pathname}${window.location.search}`
-    addSpareEntry(owner)
-
-    const onPopState = () => {
-      if (moving.current || onSpareEntry()) return
-      // Another address: a jump of several entries, already past the page.
-      if (`${window.location.pathname}${window.location.search}` !== page) return
-      addSpareEntry(owner)
-      asked.current()
-    }
-
-    window.addEventListener('popstate', onPopState)
-    return () => {
-      armed.current = false
-      window.removeEventListener('popstate', onPopState)
-      // Nothing left to lose: take the spare entry off, or Back would need a second press to
-      // leave. Deferred, so a remount that arms the hold again (StrictMode) keeps it.
-      window.setTimeout(() => {
-        if (!armed.current && onSpareEntry(owner)) {
-          moving.current = true
-          window.history.back()
-          window.setTimeout(() => {
-            moving.current = false
-          }, 100)
-        }
-      }, 0)
-    }
-  }, [when, owner])
-
-  useEffect(
-    () => () => {
-      if (give.current !== null) window.clearTimeout(give.current)
-    },
-    [],
-  )
+    asked.current = onBack
+  })
 
   const leaveBack = useCallback(() => {
     // If there is nothing behind the page the browser stays put, and the hold takes its place again.
@@ -111,6 +81,45 @@ export function useBackHold(when: boolean, onBack: () => void): BackHold {
       addSpareEntry(owner)
     }, 300)
   }, [owner])
+
+  useEffect(() => {
+    if (!when) return
+    armedHolds.push(owner)
+    const page = `${window.location.pathname}${window.location.search}`
+    addSpareEntry(owner)
+
+    const onPopState = () => {
+      if (moving.current || onSpareEntry()) return
+      // Another address: a jump of several entries, already past the page.
+      if (`${window.location.pathname}${window.location.search}` !== page) return
+      addSpareEntry(owner)
+      asked.current(leaveBack)
+    }
+
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      armedHolds.splice(armedHolds.indexOf(owner), 1)
+      window.removeEventListener('popstate', onPopState)
+      // Nothing left to lose: take the spare entry off, or Back would need a second press to
+      // leave. Deferred, so a remount that arms the hold again (StrictMode) keeps it.
+      window.setTimeout(() => {
+        if (armedHolds.length === 0 && onSpareEntry()) {
+          moving.current = true
+          window.history.back()
+          window.setTimeout(() => {
+            moving.current = false
+          }, 100)
+        }
+      }, 0)
+    }
+  }, [when, owner, leaveBack])
+
+  useEffect(
+    () => () => {
+      if (give.current !== null) window.clearTimeout(give.current)
+    },
+    [],
+  )
 
   const releaseThen = useCallback((follow: () => void) => {
     const go = () => {
