@@ -9,6 +9,7 @@ import type { FakeSecondFactorRepository } from '../../../application/testing/fa
 import type { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { buildTestWorld, type TestWorld } from './middlewareHarness'
 import type { HttpConfig, HttpDeps } from '../types'
+import type { StreamHub } from '../routes/streamRoutes'
 import type { HttpUseCases } from '../useCases'
 import type { Logger } from '../../../application/ports/logger'
 
@@ -237,6 +238,8 @@ export interface ServerHarnessOptions {
    * built stays as it was for a key that is not given.
    */
   readonly deps?: Partial<HttpDeps>
+  /** The streams of this server, when a test drains or compares them. Its own hub otherwise. */
+  readonly streamHub?: StreamHub
 }
 
 /**
@@ -266,6 +269,7 @@ export const buildServerHarness = ({
   secondFactors,
   clock,
   deps: depOverrides = {},
+  streamHub,
 }: ServerHarnessOptions = {}): ServerHarness => {
   const world = buildTestWorld(config, {
     ...(logger === undefined ? {} : { logger }),
@@ -291,6 +295,7 @@ export const buildServerHarness = ({
 
   const app = buildServer({
     deps,
+    ...(streamHub === undefined ? {} : { streamHub }),
     usecases: { ...notWiredUseCases(), ...usecases },
     // A real `Store` implementation rather than a fake: session handling is part of
     // what the wiring under test arranges, and MemoryStore's production faults

@@ -37,7 +37,7 @@ import { privacyNoticeRoutes } from './routes/privacyNoticeRoutes'
 import { publicRoutes } from './routes/publicRoutes'
 import { shareLinkRoutes } from './routes/shareLinkRoutes'
 import { siteRoutes } from './routes/siteRoutes'
-import { streamRoutes } from './routes/streamRoutes'
+import { createStreamHub, streamRoutes, type StreamHub } from './routes/streamRoutes'
 import type { AboutFacts } from './presenters/aboutPresenter'
 import type { HttpDeps } from './types'
 import type { PresenterContext } from './presenters/presenters'
@@ -64,6 +64,12 @@ export interface ServerOptions {
   readonly presenter: PresenterContext
   /** Where the built web app lives, when there is one. Absent in tests. */
   readonly clientDir?: string
+  /**
+   * The SSE streams of this server. `src/main/container.ts` builds it so the shutdown can drain the
+   * same one; absent, the server gets a hub of its own, which is what keeps two servers built in
+   * one process (tests) apart.
+   */
+  readonly streamHub?: StreamHub
 }
 
 export const buildServer = ({
@@ -74,6 +80,7 @@ export const buildServer = ({
   about,
   presenter,
   clientDir,
+  streamHub = createStreamHub(),
 }: ServerOptions): Express => {
   const app = express()
   const { config } = deps
@@ -354,7 +361,7 @@ export const buildServer = ({
       creationLimiter: eventCreationLimiter(config.rateLimits.eventCreationPerHour),
     }),
   )
-  app.use('/api', streamRoutes(deps))
+  app.use('/api', streamRoutes(deps, streamHub))
 
   // An unmatched /api path is a 404 in the API's own error shape, not the HTML the
   // SPA fallback below would otherwise return — a client parsing that as JSON gets a

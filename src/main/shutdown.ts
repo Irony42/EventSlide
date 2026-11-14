@@ -1,5 +1,4 @@
 import type { Container } from './container'
-import { drainStreams as drainOpenStreams } from '../interface/http/routes/streamRoutes'
 import { setBackgroundTimeout } from '../infrastructure/time/backgroundTimers'
 
 /**
@@ -35,8 +34,8 @@ export interface ShutdownDeps {
   readonly grace?: number
   /** Defaults to `process.exit`. Overridden in tests so nothing actually exits. */
   readonly exit?: (code: number) => void
-  /** Defaults to the real SSE hub. Overridden in tests so no real connection is needed. */
-  readonly drainStreams?: () => void
+  /** Ends the box's open SSE streams: `container.streamHub.drain`. A fake in tests, so no real connection is needed. */
+  readonly drainStreams: () => void
 }
 
 /**
@@ -48,7 +47,7 @@ export interface ShutdownDeps {
 export const createShutdownHandler = (deps: ShutdownDeps): ((signal: string) => void) => {
   const grace = deps.grace ?? defaultGrace
   const exit = deps.exit ?? ((code: number): void => process.exit(code))
-  const drainStreams = deps.drainStreams ?? drainOpenStreams
+  const drainStreams = deps.drainStreams
   let shuttingDown = false
 
   return (signal: string): void => {
@@ -103,7 +102,11 @@ export const createShutdownHandler = (deps: ShutdownDeps): ((signal: string) => 
 
 /** Wires the handler built above to the process's actual signals. */
 export const installShutdown = (server: ShutdownServer, container: Container): void => {
-  const shutdown = createShutdownHandler({ server, container })
+  const shutdown = createShutdownHandler({
+    server,
+    container,
+    drainStreams: () => container.streamHub.drain(),
+  })
 
   process.on('SIGTERM', () => shutdown('SIGTERM'))
   process.on('SIGINT', () => shutdown('SIGINT'))
