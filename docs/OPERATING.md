@@ -112,7 +112,8 @@ Three settings worth a thought before you start:
   15 minutes old. The purge command runs that reconciliation on every run, even with nothing due,
   so on a box with the timer off (or a `MEDIA_ROOT` too shared to sweep: the command then says it
   does not reconcile either) run it again after a failure and the bytes go too.
-  `--dry-run` also works on a database the server has not opened since an upgrade.
+  `--dry-run` also works on a database whose event-name index the server has not yet filled
+  since an upgrade (it never writes).
   `--dry-run` opens the database read-only, and a `DATABASE_PATH` that does not exist is
   refused rather than created.
 - **Opening and closing on their own.** The settings page takes an opening time and a

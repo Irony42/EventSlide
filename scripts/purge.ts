@@ -257,10 +257,13 @@ const execute = async (
       for (const id of report.failed) console.error(`  ${id}`)
       console.error('')
       console.error(
-        'The row of an event is deleted first and its files second, so these events are already deleted',
+        'The row of an event is deleted first and its files second, so these events are normally already deleted',
       )
       console.error(
-        'from the database and no later run lists them again: only their files may remain on disk.',
+        'from the database and no later run lists them again: only their files remain on disk. (If the',
+      )
+      console.error(
+        'database itself refused the delete, the event is still listed and the next run retries it.)',
       )
       console.error(`Check that the disk is writable and not full: ${mediaRoot}`)
       console.error(

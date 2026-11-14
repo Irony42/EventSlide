@@ -106,6 +106,15 @@ describe('npm run db:seed:demo', () => {
     expect(inDatabase((db) => count(db, 'schema_migrations'))).toBe(ledgerBefore)
   })
 
+  it('treats an existing file with no schema yet as a fresh install and seeds it', async () => {
+    await writeFile(databasePath, '')
+
+    const { code } = await capture(() => run(env()))
+
+    expect(code).toBe(0)
+    inDatabase((db) => expect(count(db, 'users')).toBe(1))
+  }, 60_000)
+
   it('seeds an empty database: a live event, its guests, and photos with a moderation queue', async () => {
     const { code, out } = await capture(() => run(env()))
 
