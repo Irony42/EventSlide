@@ -1303,7 +1303,7 @@ because anyone who knows an owner's address can type wrong passwords into it.
     not a new variable and not the secret itself: a new required secret would refuse to boot
     every existing installation, and the label means nothing `express-session` signs can be
     replayed as a device cookie or the other way round (the choice `hmacGallerySigner.ts`
-    makes, for the same reasons). Rotating `SESSION_SECRET` ends every device's trust, which
+    makes, for the same reasons; both are one `StatementSigner`, `hmacStatementSigner.ts`, under two labels). Rotating `SESSION_SECRET` ends every device's trust, which
     is the safe side: they fall back to the network bucket and the next sign-in sets a new
     cookie. The MAC is compared with `timingSafeEqual` before the payload is decoded, and the
     payload is then parsed with a strict schema.
@@ -1998,7 +1998,7 @@ request. Password rules live in `src/domain/users/`, not the controller.
 flips `GET /api/ready` to `503` unconditionally — database and media root healthy or not
 — so an orchestrator stops sending new traffic before anything else changes; then every
 open SSE connection is told `retry: 2000` and ended
-(`src/interface/http/routes/streamRoutes.ts`'s `drainStreams`), because an SSE response
+(`src/interface/http/routes/streamRoutes.ts`'s `StreamHub.drain`), because an SSE response
 is by design never finished on its own and `server.close()`'s callback would otherwise
 never fire; only then does the process stop accepting new connections and let in-flight
 requests finish, with the 15 s backstop in the Shutdown row above as the fallback.
