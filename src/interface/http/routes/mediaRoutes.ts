@@ -1,4 +1,4 @@
-import { Router, type RequestHandler } from 'express'
+import { Router } from 'express'
 import type { PhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
 import { DomainError } from '../../../domain/shared/errors'
 import { ContentHash } from '../../../domain/photos/contentHash'
@@ -7,6 +7,7 @@ import { Slug } from '../../../domain/shared/slug'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { guestTokenOf, requireRole, resolvePublicEvent } from '../middleware/authz'
 import { publicEventOf } from '../middleware/scope'
+import type { StreamLimiter } from '../middleware/rateLimit'
 import { sendError } from '../presenters/send'
 import { serveRanged, streamOrAbandon, type RangedHeaders } from '../presenters/serveRanged'
 import { photoVariantParams, venuePhotoDigest } from '../schemas/requestSchemas'
@@ -48,7 +49,7 @@ export type MediaRouteDeps = Pick<RouteDeps, 'deps'> & {
    * to both routers. Required, with no default: a router that built its own would silently be a
    * second allowance, and the type is what stops a wiring that forgets it.
    */
-  readonly hostExportLimiter: RequestHandler
+  readonly hostExportLimiter: StreamLimiter
   readonly usecases: Pick<
     HttpUseCases,
     | 'exportAlbum'
@@ -227,6 +228,10 @@ export const mediaRoutes = ({
   router.get(
     '/events/:eventSlug/album.zip',
     requireRole('moderator', deps),
+    // A `HEAD` is the browser link asking whether this `GET` would start (see `answerHead`): answered
+    // here, with no slot taken and no use case run. Express hands a `HEAD` to the `GET` route, which
+    // is also why no sweep of the mounted routes needs to know about a second method.
+    exportLimiter.answerHead,
     // After the role, which puts the account on the request; the slot goes back when the response
     // closes, a refusal by the use case below included (SEC-04).
     exportLimiter,

@@ -1,4 +1,4 @@
-import type { RequestHandler } from 'express'
+import type { StreamLimiter } from '../middleware/rateLimit'
 import request from '../testing/request'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HeldExport } from '../testing/heldExport'
@@ -82,7 +82,7 @@ interface WorldOptions {
    */
   readonly exportAlbum?: ExportAlbum
   /** Replaces the route's own concurrency bound, to reach the box total with fewer accounts. */
-  readonly hostExportLimiter?: RequestHandler
+  readonly hostExportLimiter?: StreamLimiter
 }
 
 const buildWorld = async ({

@@ -211,3 +211,113 @@ describe('the album and the best-of exports share one allowance', () => {
     bestOf.releaseAll()
   })
 })
+
+describe('HEAD on the two exports: the preflight a browser link asks before it downloads', () => {
+  const PATHS = [ALBUM, BEST_OF] as const
+
+  /** A world whose use cases count how often they are called: a preflight must call neither. */
+  const counted = () => {
+    const bestOf = new HeldExport()
+    const album = new HeldExport()
+    const calls = { album: 0, bestOf: 0 }
+    const harness = world({
+      album: {
+        ...album,
+        use: () => {
+          calls.album += 1
+          return album.use()
+        },
+      } as HeldExport,
+      bestOf: () => {
+        calls.bestOf += 1
+        return bestOf.use()
+      },
+    })
+    return { album, bestOf, calls, harness }
+  }
+
+  it.each(PATHS)('answers 204 with no body when the GET would start (%s)', async (path) => {
+    const { harness } = counted()
+    const agent = await signedIn(harness, 'host')
+
+    const response = await agent.head(path)
+
+    expect(response.status).toBe(204)
+    expect(response.headers['content-type'] ?? '').not.toContain('zip')
+  })
+
+  it.each(PATHS)(
+    'answers 429 exactly when the GET would, same code and Retry-After (%s)',
+    async (path) => {
+      const { album, bestOf, harness } = counted()
+      const agent = await signedIn(harness, 'host')
+      start(agent, ALBUM)
+      start(agent, BEST_OF)
+      await vi.waitFor(() => expect(album.opened + bestOf.opened).toBe(2))
+
+      const preflight = await agent.head(path)
+      const real = await agent.get(path)
+
+      expect(preflight.status).toBe(429)
+      expect(preflight.status).toBe(real.status)
+      expect(preflight.headers['retry-after']).toBe(real.headers['retry-after'])
+      album.releaseAll()
+      bestOf.releaseAll()
+    },
+  )
+
+  it.each(PATHS)(
+    'answers 503 with Retry-After when the box is full, like the GET (%s)',
+    async (path) => {
+      const { album, bestOf, harness } = counted()
+      const host = await signedIn(harness, 'host')
+      const other = await signedIn(harness, 'other')
+      start(host, ALBUM)
+      start(host, BEST_OF)
+      start(other, ALBUM)
+      start(other, BEST_OF)
+      await vi.waitFor(() => expect(album.opened + bestOf.opened).toBe(4))
+
+      const preflight = await other.head(path)
+
+      expect(preflight.status).toBe(503)
+      expect(preflight.headers['retry-after']).toBe('30')
+      album.releaseAll()
+      bestOf.releaseAll()
+    },
+  )
+
+  it.each(PATHS)(
+    'holds no slot: many HEADs, then two GETs, all pass for one account (%s)',
+    async (path) => {
+      const { album, bestOf, harness } = counted()
+      const agent = await signedIn(harness, 'host')
+
+      for (let i = 0; i < 6; i += 1) expect((await agent.head(path)).status).toBe(204)
+      start(agent, path)
+      start(agent, path)
+
+      await vi.waitFor(() => expect(album.opened + bestOf.opened).toBe(2))
+      album.releaseAll()
+      bestOf.releaseAll()
+    },
+  )
+
+  it.each(PATHS)('runs no export use case (%s)', async (path) => {
+    const { calls, harness } = counted()
+    const agent = await signedIn(harness, 'host')
+
+    await agent.head(path)
+
+    expect(calls).toEqual({ album: 0, bestOf: 0 })
+  })
+
+  it.each(PATHS)('is refused to a signed-out caller like the GET (%s)', async (path) => {
+    const { harness } = counted()
+    harness.events.seed(
+      anEvent({ id: 'gala-id', slug: 'gala', ownerId: 'someone', joinCode: 'B4N9PT' }),
+    )
+
+    expect((await request(harness.app).head(path)).status).toBe(401)
+  })
+})

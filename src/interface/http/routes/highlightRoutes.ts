@@ -1,6 +1,7 @@
-import { Router, type RequestHandler } from 'express'
+import { Router } from 'express'
 import { asPhotoId } from '../../../domain/shared/ids'
 import { requireRole } from '../middleware/authz'
+import type { StreamLimiter } from '../middleware/rateLimit'
 import { withModerator } from '../middleware/scope'
 import type { HighlightsDto, PreselectHighlightsResponseDto } from '../presenters/dto'
 import { serveRanged, streamOrAbandon } from '../presenters/serveRanged'
@@ -31,7 +32,7 @@ export type HighlightRouteDeps = Pick<RouteDeps, 'deps'> & {
     | 'exportHighlights'
   >
   /** Shared with `album.zip` (see `MediaRouteDeps`): one allowance for both host exports. */
-  readonly hostExportLimiter: RequestHandler
+  readonly hostExportLimiter: StreamLimiter
 }
 
 export const highlightRoutes = ({
@@ -154,6 +155,9 @@ export const highlightRoutes = ({
   router.get(
     '/events/:eventSlug/best-of.zip',
     requireRole('moderator', deps),
+    // A `HEAD` is the link asking whether this `GET` would start: answered here, no slot, no use case
+    // (`409 highlight.empty` stays the `GET`'s to say; the console disables the link at zero).
+    exportLimiter.answerHead,
     // The same bound as `album.zip`, after the role and released when the response closes (SEC-04).
     exportLimiter,
     withModerator(async ({ eventId, slug }, req, res) => {

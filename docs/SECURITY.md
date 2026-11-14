@@ -1166,7 +1166,7 @@ shared one would let anybody holding a public link fill it and refuse every host
 answered `503` until one ends: a trade accepted, the disk before the availability of an export. Worst case on the disk is
 eight archives, each read one photograph at a time. The slot is released when the response closes, whichever way it
 ended, so an export the use case refuses (`404`, `409 highlight.empty`) gives it back at once. The reel and the
-photo book are single files served with `Range`, not archives, and are not counted.
+photo book are single files served with `Range`, not archives, and are not counted. A `HEAD` on either export (the console's preflight) is answered by the same limiter **without taking a slot** (`preflight`): `204` or the same `429` / `503`, and no use case runs.
 
 **(defect)** The two upload rows describe three independent limits and there are two.
 `uploadLimiter` in `middleware/rateLimit.ts` mints a single bucket keyed by

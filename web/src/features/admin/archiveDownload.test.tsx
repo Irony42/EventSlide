@@ -42,7 +42,7 @@ describe('the host export links, when the server refuses the archive', () => {
     await userEvent.click(await screen.findByRole('link', { name: fr.admin.bestOfDownload }))
 
     expect(await screen.findByText(fr.admin.exportBusy(30))).toBeVisible()
-    expect(fetchMock).toHaveBeenCalledWith(ZIP, expect.objectContaining({ method: 'GET' }))
+    expect(fetchMock).toHaveBeenCalledWith(ZIP, expect.objectContaining({ method: 'HEAD' }))
   })
 
   it('says the server is busy on 503, in the host language, with the wait', async () => {
@@ -80,7 +80,7 @@ describe('the host export links, when the server refuses the archive', () => {
     expect(await screen.findByText(fr.admin.exportBusy(30))).toBeVisible()
   })
 
-  it('lets the browser download when the server agrees, without reading the archive', async () => {
+  it('lets the browser download at once when the server agrees, after a HEAD that carries no body', async () => {
     const fetchMock = answers(200)
     const clicked = vi.fn()
     // The programmatic click that starts the browser's own download.
@@ -93,8 +93,8 @@ describe('the host export links, when the server refuses the archive', () => {
       await userEvent.click(await screen.findByRole('link', { name: fr.admin.bestOfDownload }))
 
       await waitFor(() => expect(clicked).toHaveBeenCalledWith(ZIP, true))
-      const init = fetchMock.mock.calls[0]?.[1]
-      expect(init?.signal?.aborted).toBe(true)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('HEAD')
       expect(screen.queryByText(fr.admin.exportFailed)).toBeNull()
     } finally {
       HTMLAnchorElement.prototype.click = original
@@ -112,6 +112,43 @@ describe('the host export links, when the server refuses the archive', () => {
     // The browser must not also follow the link: it would save the JSON refusal as a file.
     expect(fireEvent.click(link)).toBe(false)
     await screen.findByText(fr.admin.exportBusy(30))
+  })
+
+  it('asks once for two quick clicks, and asks again after a refusal', async () => {
+    const fetchMock = answers(429, { 'Retry-After': '30' })
+    renderPanel()
+    const link = await screen.findByRole('link', { name: fr.admin.bestOfDownload })
+
+    fireEvent.click(link)
+    fireEvent.click(link)
+    await screen.findByText(fr.admin.exportBusy(30))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    // The refusal did not leave the link dead.
+    await userEvent.click(link)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+  })
+
+  it('falls back to the browser when the probe itself fails (network)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('network')
+      }),
+    )
+    const clicked = vi.fn()
+    const original = HTMLAnchorElement.prototype.click
+    HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+      clicked(this.getAttribute('href'))
+    }
+    try {
+      renderPanel()
+      await userEvent.click(await screen.findByRole('link', { name: fr.admin.bestOfDownload }))
+
+      await waitFor(() => expect(clicked).toHaveBeenCalledWith(ZIP))
+    } finally {
+      HTMLAnchorElement.prototype.click = original
+    }
   })
 
   it('has its sentence in the five languages, with the wait in it', () => {

@@ -2,12 +2,14 @@
  * Starting a host export (`album.zip`, `best-of.zip`) without ever holding the archive.
  *
  * The ZIP is streamed and can be hundreds of megabytes, so the bytes always go through the
- * browser's own download manager, never through JavaScript. What JavaScript may do is ask first:
- * a `GET` whose headers are read and whose body is **never** read, then aborted. A refusal
- * (`429 rate.limited`, `503 service.notReady`, both with `Retry-After`; or `409`, `404`) arrives
- * before any archive byte, and it is turned into a sentence instead of a JSON file the browser
- * would show or save. The server releases the export slot when the aborted request closes, so
- * the download that follows is not counted twice.
+ * browser's own download manager, never through JavaScript. What JavaScript may do is ask first,
+ * with a `HEAD`: the server answers it `204` when the `GET` would start and with the `GET`'s own
+ * refusal otherwise (`429 rate.limited`, `503 service.notReady`, both with `Retry-After`), taking
+ * no export slot and building nothing. A refusal becomes a sentence instead of a JSON file the
+ * browser would show or save.
+ *
+ * **Check-then-act**: a slot can be taken between the `HEAD` and the download that follows, and that
+ * download is then refused as it was before this existed. The answer is a courtesy, not a promise.
  */
 
 export type ArchiveRefusal =
@@ -27,13 +29,8 @@ const retryAfterOf = (response: Response): number | null => {
  * for itself, as it always did); a refusal otherwise.
  */
 export const probeArchive = async (url: string): Promise<ArchiveRefusal | null> => {
-  const controller = new AbortController()
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      credentials: 'same-origin',
-      signal: controller.signal,
-    })
+    const response = await fetch(url, { method: 'HEAD', credentials: 'same-origin' })
     if (response.ok) return null
     if (response.status === 429)
       return { reason: 'busy', retryAfterSeconds: retryAfterOf(response) }
@@ -43,9 +40,6 @@ export const probeArchive = async (url: string): Promise<ArchiveRefusal | null> 
     return { reason: 'failed', retryAfterSeconds: null }
   } catch {
     return null
-  } finally {
-    // Headers are all that was wanted: stop the archive before it is built, whatever the answer.
-    controller.abort()
   }
 }
 
