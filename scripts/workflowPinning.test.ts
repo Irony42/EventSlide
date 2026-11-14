@@ -14,19 +14,19 @@ import { parseWorkflow, valueAt, type YamlMap, type YamlValue } from './workflow
  * `# vX.Y.Z` after it is what a human (and Dependabot, `package-ecosystem: github-actions`)
  * reads to know which release it is.
  *
- * `ci.yml` predates the rule, and is **not edited by the pull request that added it**: it is
- * being changed by others at the same time, and rewriting every `uses:` of a file under
- * review is how a conflict is made. It is named below, so that the exception is a line in a
- * test rather than a thing nobody remembers, and so that a new workflow is held to the rule
- * from its first commit. Pinning it, and giving it `permissions:`, is the one change left to
- * make there, and the day it is made this entry goes.
+ * `ci.yml` predated the rule and was the one exception (SEC-03); it is pinned and read-only now,
+ * and `LEGACY` is empty. A workflow added later that is not yet pinned would be named there, so
+ * that the exception is a line in a test rather than a thing nobody remembers.
  */
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const WORKFLOWS = join(ROOT, '.github', 'workflows')
 
 /** Workflows written before the rule, still on tags and on the repository's default token. */
-const LEGACY: ReadonlySet<string> = new Set(['ci.yml'])
+const LEGACY: ReadonlySet<string> = new Set<string>()
+
+/** A line break, spelled once so that a regular expression above never has to. */
+const NL = String.fromCharCode(10)
 
 const files = readdirSync(WORKFLOWS).filter((file) => /\.ya?ml$/.test(file))
 const text = (file: string): string => readFileSync(join(WORKFLOWS, file), 'utf8')
@@ -62,16 +62,60 @@ const jobsOf = (file: string): Readonly<Record<string, YamlMap>> => {
   )
 }
 
-/** The `run:` scripts of every step of a workflow. */
-const scriptsOf = (file: string): readonly string[] =>
-  Object.values(jobsOf(file)).flatMap((job) => {
-    const steps = job['steps']
-    if (!Array.isArray(steps)) return []
-    return steps.flatMap((step) => {
-      const run = isMap(step) ? step['run'] : undefined
-      return typeof run === 'string' ? [run] : []
-    })
-  })
+/**
+ * The `run:` scripts of a workflow, from the text, like `usesOf`: the reader refuses ci.yml (flow
+ * mappings in its matrices). A script is the rest of the `run:` line, or for `run: |` the lines
+ * indented deeper than the key.
+ */
+const scriptsOf = (file: string): readonly string[] => {
+  const lines = text(file).split(NL)
+  const scripts: string[] = []
+  for (const [index, line] of lines.entries()) {
+    const match = /^(\s*)(?:-\s+)?run:\s*(.*)$/.exec(line)
+    if (match === null || line.trimStart().startsWith('#')) continue
+    const indent = (match[1] ?? '').length
+    const body = [match[2] ?? '']
+    if (/^[|>]/.test(body[0] ?? '')) {
+      for (const next of lines.slice(index + 1)) {
+        const nextIndent = next.length - next.trimStart().length
+        if (next.trim() !== '' && nextIndent <= indent) break
+        body.push(next)
+      }
+    }
+    scripts.push(body.join(NL))
+  }
+  return scripts
+}
+
+/** The top-level `permissions:` block of a workflow, as scope -> level (`{}` is empty), or undefined. */
+const topLevelPermissions = (file: string): Readonly<Record<string, string>> | undefined => {
+  const lines = text(file).split(NL)
+  const start = lines.findIndex((line) => /^permissions:/.test(line))
+  if (start < 0) return undefined
+  if (/^permissions:\s*\{\}\s*(#.*)?$/.test(lines[start] ?? '')) return {}
+  // `read-all` / `write-all`: a scalar, which no scope can be read from, and never a safe default.
+  const scalar = /^permissions:\s*([\w-]+)\s*(?:#.*)?$/.exec(lines[start] ?? '')
+  if (scalar !== null) return { '*': scalar[1] ?? '' }
+  const scopes: Record<string, string> = {}
+  for (const line of lines.slice(start + 1)) {
+    const match = /^\s+([\w-]+):\s*([\w-]+)\s*(?:#.*)?$/.exec(line)
+    if (match === null) break
+    scopes[match[1] ?? ''] = match[2] ?? ''
+  }
+  return scopes
+}
+
+/** The jobs of a workflow that declare their own `permissions:` (at the job's indent), by name. */
+const jobsWithPermissions = (file: string): readonly string[] => {
+  const names: string[] = []
+  let job = ''
+  for (const line of text(file).split(NL)) {
+    const header = /^ {2}([\w-]+):\s*(#.*)?$/.exec(line)
+    if (header !== null) job = header[1] ?? ''
+    else if (/^ {4}permissions:/.test(line)) names.push(job)
+  }
+  return names
+}
 
 describe('the workflows', () => {
   it('are found, so that nothing below passes by looking at an empty directory', () => {
@@ -115,7 +159,18 @@ describe('the workflows', () => {
     }
   })
 
-  it.each(current)(
+  it.each(files)('every workflow declares top-level permissions: %s', (file) => {
+    // Without the key a job runs with the repository's default token, which is write access
+    // when the repository setting allows it. Read-only (or none) is what a workflow may default to.
+    const permissions = topLevelPermissions(file)
+
+    expect(permissions, `${file}: the workflow-level permissions`).toBeDefined()
+    for (const [scope, level] of Object.entries(permissions ?? {})) {
+      expect(['read', 'none'], `${file}: top-level permission ${scope}`).toContain(level)
+    }
+  })
+
+  it.each(files.filter((file) => file !== 'ci.yml'))(
     '%s declares permissions: none by default, and per job what the job needs',
     (file) => {
       const workflow = parseWorkflow(text(file))
@@ -129,6 +184,13 @@ describe('the workflows', () => {
       }
     },
   )
+
+  it('keeps ci.yml read-only by default, with only e2e widening it (to read the jobs of the run)', () => {
+    expect(topLevelPermissions('ci.yml')).toEqual({ contents: 'read' })
+    expect(jobsWithPermissions('ci.yml')).toEqual(['e2e'])
+    const block = /^ {4}permissions:\n((?: {6}[^\n]*\n)+)/m.exec(text('ci.yml'))
+    expect(block?.[1]).toBe('      actions: read\n')
+  })
 
   it.each(current)('%s never puts an expression inside a script', (file) => {
     // `run: echo ${{ inputs.tag }}` is the shell being handed whatever was typed into the
