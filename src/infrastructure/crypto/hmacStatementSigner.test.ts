@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { TRUSTED_DEVICE_SIGNER_LABEL, createHmacStatementSigner } from './hmacStatementSigner'
+import {
+  TRUSTED_DEVICE_SIGNER_LABEL,
+  createHmacStatementSigner,
+  createTrustedDeviceSigner,
+} from './hmacStatementSigner'
 
 const SECRET = 'a-session-secret-of-more-than-32-characters'
 const PAYLOAD = 'eyJkIjoiZGV2aWNlLTEiLCJ1IjoidXNlci0xIiwiaSI6MTgwMDAwMDAwMDAwMH0'
@@ -16,6 +20,12 @@ describe('createHmacStatementSigner', () => {
     // `middleware/trustedDevice.test.ts`. A cookie issued before the upgrade must still verify.
     expect(signer.sign(STATEMENT)).toBe('Wj00qUbDp0w89-5rkukw0nsmI2rTF8zkHHW4A68WjU0')
     expect(signer.verify(STATEMENT, 'Wj00qUbDp0w89-5rkukw0nsmI2rTF8zkHHW4A68WjU0')).toBe(true)
+  })
+
+  it('is what the container builds for the device cookie: the same bytes under the same label', () => {
+    expect(createTrustedDeviceSigner(SECRET).sign(STATEMENT)).toBe(
+      'Wj00qUbDp0w89-5rkukw0nsmI2rTF8zkHHW4A68WjU0',
+    )
   })
 
   it('keeps the label as the domain separation: another label signs the same parts differently', () => {

@@ -29,6 +29,14 @@ export const TRUSTED_DEVICE_SIGNER_LABEL = 'eventslide/trusted-device/v1'
 /** A base64url HMAC-SHA256 is always these 43 characters (and 43 bytes). Anything else is not ours. */
 const SIGNATURE_SHAPE = /^[A-Za-z0-9_-]{43}$/
 
+/**
+ * The trusted-device cookie's signer for `rootSecret` (`SESSION_SECRET`). The one place the label is
+ * paired with the construction: the container and the test harness both call it, so neither can
+ * drift to another label and silently sign every remembered device out.
+ */
+export const createTrustedDeviceSigner = (rootSecret: string): StatementSigner =>
+  createHmacStatementSigner({ rootSecret, label: TRUSTED_DEVICE_SIGNER_LABEL })
+
 export interface HmacStatementSignerOptions {
   readonly rootSecret: string
   /** The HKDF label: one per purpose, never reused, never changed. */

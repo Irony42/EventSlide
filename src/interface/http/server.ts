@@ -37,7 +37,7 @@ import { privacyNoticeRoutes } from './routes/privacyNoticeRoutes'
 import { publicRoutes } from './routes/publicRoutes'
 import { shareLinkRoutes } from './routes/shareLinkRoutes'
 import { siteRoutes } from './routes/siteRoutes'
-import { createStreamHub, streamRoutes, type StreamHub } from './routes/streamRoutes'
+import { streamRoutes, type StreamHub } from './routes/streamRoutes'
 import type { AboutFacts } from './presenters/aboutPresenter'
 import type { HttpDeps } from './types'
 import type { PresenterContext } from './presenters/presenters'
@@ -66,10 +66,10 @@ export interface ServerOptions {
   readonly clientDir?: string
   /**
    * The SSE streams of this server. `src/main/container.ts` builds it so the shutdown can drain the
-   * same one; absent, the server gets a hub of its own, which is what keeps two servers built in
-   * one process (tests) apart.
+   * same one, and it is required: a server that quietly made its own would open streams nothing
+   * can drain, and `server.close()` would hang until the shutdown backstop.
    */
-  readonly streamHub?: StreamHub
+  readonly streamHub: StreamHub
 }
 
 export const buildServer = ({
@@ -80,7 +80,7 @@ export const buildServer = ({
   about,
   presenter,
   clientDir,
-  streamHub = createStreamHub(),
+  streamHub,
 }: ServerOptions): Express => {
   const app = express()
   const { config } = deps

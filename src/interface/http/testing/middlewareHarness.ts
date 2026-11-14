@@ -18,10 +18,7 @@ import { makeAuthenticateGuest } from '../../../application/usecases/guests/auth
 import { asEventId, asGuestId } from '../../../domain/shared/ids'
 import type { GuestTokenService } from '../../../application/ports/guestTokenService'
 import { createHmacGuestTokenService } from '../../../infrastructure/crypto/hmacGuestTokenService'
-import {
-  TRUSTED_DEVICE_SIGNER_LABEL,
-  createHmacStatementSigner,
-} from '../../../infrastructure/crypto/hmacStatementSigner'
+import { createTrustedDeviceSigner } from '../../../infrastructure/crypto/hmacStatementSigner'
 import { silentLogger } from '../../../infrastructure/logging/pinoLogger'
 import { fsStagedUploadStore } from '../../../infrastructure/system/fsStagedUploadStore'
 import type { Logger } from '../../../application/ports/logger'
@@ -48,7 +45,7 @@ export const TEST_SESSION_SECRET = 'harness-session-secret-at-least-32-character
 
 /** The trusted-device cookie's signer for `secret`, built as `main/container.ts` builds it. */
 export const trustedDeviceSignerFor = (secret: string): StatementSigner =>
-  createHmacStatementSigner({ rootSecret: secret, label: TRUSTED_DEVICE_SIGNER_LABEL })
+  createTrustedDeviceSigner(secret)
 
 export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig => ({
   isProduction: false,

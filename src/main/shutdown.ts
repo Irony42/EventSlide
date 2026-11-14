@@ -34,7 +34,10 @@ export interface ShutdownDeps {
   readonly grace?: number
   /** Defaults to `process.exit`. Overridden in tests so nothing actually exits. */
   readonly exit?: (code: number) => void
-  /** Ends the box's open SSE streams: `container.streamHub.drain`. A fake in tests, so no real connection is needed. */
+  /**
+   * Ends the box's open SSE streams: `container.streamHub.drain`. A fake in tests, so no real
+   * connection is needed.
+   */
   readonly drainStreams: () => void
 }
 

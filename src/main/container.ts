@@ -51,10 +51,7 @@ import { createBcryptPasswordHasher } from '../infrastructure/crypto/bcryptPassw
 import { createHmacGuestTokenService } from '../infrastructure/crypto/hmacGuestTokenService'
 import { sha256SecretTokens } from '../infrastructure/crypto/sha256SecretTokens'
 import { createHmacGallerySigner } from '../infrastructure/crypto/hmacGallerySigner'
-import {
-  TRUSTED_DEVICE_SIGNER_LABEL,
-  createHmacStatementSigner,
-} from '../infrastructure/crypto/hmacStatementSigner'
+import { createTrustedDeviceSigner } from '../infrastructure/crypto/hmacStatementSigner'
 import { randomIdGenerator } from '../infrastructure/crypto/randomIdGenerator'
 import { createSequentialIdGenerator } from '../infrastructure/crypto/sequentialIdGenerator'
 import { sha256ContentHasher } from '../infrastructure/crypto/sha256ContentHasher'
@@ -751,10 +748,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   }
 
   const httpDeps: HttpDeps = {
-    trustedDeviceSigner: createHmacStatementSigner({
-      rootSecret: config.secrets.session,
-      label: TRUSTED_DEVICE_SIGNER_LABEL,
-    }),
+    trustedDeviceSigner: createTrustedDeviceSigner(config.secrets.session),
     clock: adapters.clock,
     logger,
     bus: adapters.bus,
