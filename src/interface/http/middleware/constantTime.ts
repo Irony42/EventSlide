@@ -5,8 +5,8 @@ import { timingSafeEqual } from 'node:crypto'
  *
  * The HTTP layer's own copy of `constantTimeEqual` in `infrastructure/crypto/primitives.ts`,
  * which it may not import (an adapter reaches the HTTP layer through the container, not the
- * other way round). The CSRF check and the trusted-device cookie share this one, so the layer
- * has the one comparison rather than two.
+ * other way round). The CSRF check uses it (the trusted-device cookie is signed and checked by the
+ * `StatementSigner` port now).
  *
  * Compared as UTF-8 **bytes**, with the byte lengths checked first: `timingSafeEqual` throws
  * when they differ, and one two-byte character against one one-byte character has the same

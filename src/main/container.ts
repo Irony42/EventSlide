@@ -51,6 +51,7 @@ import { createBcryptPasswordHasher } from '../infrastructure/crypto/bcryptPassw
 import { createHmacGuestTokenService } from '../infrastructure/crypto/hmacGuestTokenService'
 import { sha256SecretTokens } from '../infrastructure/crypto/sha256SecretTokens'
 import { createHmacGallerySigner } from '../infrastructure/crypto/hmacGallerySigner'
+import { createTrustedDeviceSigner } from '../infrastructure/crypto/hmacStatementSigner'
 import { randomIdGenerator } from '../infrastructure/crypto/randomIdGenerator'
 import { createSequentialIdGenerator } from '../infrastructure/crypto/sequentialIdGenerator'
 import { sha256ContentHasher } from '../infrastructure/crypto/sha256ContentHasher'
@@ -66,6 +67,7 @@ import { evaluateDiskSpace, type DiskSpaceStatus } from '../domain/shared/diskSp
 import type { Logger } from '../application/ports/logger'
 import type { Mailer } from '../application/ports/mailer'
 import { buildServer } from '../interface/http/server'
+import { createStreamHub, type StreamHub } from '../interface/http/routes/streamRoutes'
 import type { HttpConfig, HttpDeps } from '../interface/http/types'
 import type { PresenterContext } from '../interface/http/presenters/presenters'
 import { buildUseCases, type Adapters, type UseCases } from './usecases'
@@ -154,6 +156,11 @@ export interface Container {
    * lose.
    */
   readonly readiness: { markShuttingDown(): void }
+  /**
+   * The box's SSE streams (ARCH-01): built here, handed to the server that opens them and to the
+   * shutdown that ends them, so no two containers in one process share a replay log.
+   */
+  readonly streamHub: StreamHub
   dispose(): Promise<void>
 }
 
@@ -693,6 +700,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // once in a process (every HTTP test that builds a harness does), and a module-level
   // flag would leak a shutdown from one container into another's readiness.
   const shutdownState = { shuttingDown: false }
+  const streamHub = createStreamHub()
   const readiness = {
     markShuttingDown: (): void => {
       shutdownState.shuttingDown = true
@@ -740,6 +748,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   }
 
   const httpDeps: HttpDeps = {
+    trustedDeviceSigner: createTrustedDeviceSigner(config.secrets.session),
     clock: adapters.clock,
     logger,
     bus: adapters.bus,
@@ -787,6 +796,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   const app = buildServer({
     deps: httpDeps,
+    streamHub,
     usecases,
     sessionStore,
     presenter,
@@ -854,6 +864,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     clipWorker,
     albumBookWorker,
     readiness,
+    streamHub,
     dispose: async () => {
       // First: a sweep that started after the database was closed would log a failure
       // for every expired event and delete none of them. An already-running one is

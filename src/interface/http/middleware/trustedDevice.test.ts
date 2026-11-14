@@ -5,6 +5,7 @@ import { AT } from '../../../application/testing/builders'
 import { FakeClock } from '../../../application/testing/fakeClock'
 import type { AuthState, UserRepository } from '../../../application/ports/userRepository'
 import { TRUSTED_DEVICE_LIFETIME_MS } from '../../../domain/users/trustedDevice'
+import { trustedDeviceSignerFor } from '../testing/middlewareHarness'
 import { TRUSTED_DEVICE_COOKIE, trustedDeviceCodec, trustedDevices } from './trustedDevice'
 
 /**
@@ -22,7 +23,7 @@ const NUL = String.fromCharCode(0)
 const CLAIMS = { device: 'device-1', userId: 'user-1', issuedAtMs: 1_800_000_000_000 }
 
 describe('the trusted-device cookie', () => {
-  const codec = trustedDeviceCodec(SECRET)
+  const codec = trustedDeviceCodec(trustedDeviceSignerFor(SECRET))
 
   it('opens what it sealed, for the address it was sealed for', () => {
     expect(codec.open(codec.seal(CLAIMS, ADDRESS), ADDRESS)).toEqual(CLAIMS)
@@ -43,6 +44,18 @@ describe('the trusted-device cookie', () => {
     expect(value).not.toContain('camille')
   })
 
+  it('seals to the exact bytes it always has, so a cookie issued before an upgrade still opens after it', () => {
+    // A literal, produced by the construction as it stood when ARCH-04 was written (HKDF-SHA256 of
+    // the secret under the label eventslide/trusted-device/v1, HMAC-SHA256 over the length-prefixed
+    // parts v1, the payload and the address). A change to the label, the salt or the encoding signs
+    // out every remembered device at once, and nothing else here would notice.
+    const pinned =
+      'v1.eyJkIjoiZGV2aWNlLTEiLCJ1IjoidXNlci0xIiwiaSI6MTgwMDAwMDAwMDAwMH0.Wj00qUbDp0w89-5rkukw0nsmI2rTF8zkHHW4A68WjU0'
+
+    expect(codec.seal(CLAIMS, ADDRESS)).toBe(pinned)
+    expect(codec.open(pinned, ADDRESS)).toEqual(CLAIMS)
+  })
+
   it('is bound to the address: another address opens nothing, whatever it shares with the first', () => {
     const value = codec.seal(CLAIMS, ADDRESS)
 
@@ -59,7 +72,9 @@ describe('the trusted-device cookie', () => {
   it('is bound to the key: another secret opens nothing', () => {
     const value = codec.seal(CLAIMS, ADDRESS)
 
-    expect(trustedDeviceCodec(`${SECRET}-rotated`).open(value, ADDRESS)).toBeUndefined()
+    expect(
+      trustedDeviceCodec(trustedDeviceSignerFor(`${SECRET}-rotated`)).open(value, ADDRESS),
+    ).toBeUndefined()
   })
 
   it('opens nothing once any single character of it is changed', () => {
@@ -176,8 +191,13 @@ describe('reading the cookie of a request', () => {
         return state
       },
     }
-    const devices = trustedDevices({ secret: SECRET, clock, users, secureCookie: false })
-    const codec = trustedDeviceCodec(SECRET)
+    const devices = trustedDevices({
+      signer: trustedDeviceSignerFor(SECRET),
+      clock,
+      users,
+      secureCookie: false,
+    })
+    const codec = trustedDeviceCodec(trustedDeviceSignerFor(SECRET))
     const requestWith = (value: unknown): Request =>
       ({ cookies: { [TRUSTED_DEVICE_COOKIE]: value } }) as unknown as Request
     const sealed = (overrides: Partial<typeof CLAIMS> = {}): string =>

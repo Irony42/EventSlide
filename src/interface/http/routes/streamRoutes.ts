@@ -123,40 +123,43 @@ interface Channel {
   connections: number
 }
 
-const channels = new Map<EventId, Channel>()
-
 /**
- * Every response currently holding an SSE connection open, across every event.
+ * The state of one server's streams, owned by whoever built it (ARCH-01).
  *
- * What {@link drainStreams} ends at shutdown. Separate from `channels`, which is keyed
- * by event and torn down once its last connection goes — this is the flat set of
- * sockets themselves, which `main/index.ts` has to reach without knowing which events
- * are being watched.
+ * It used to be module state, so two `buildServer()` in one process (every HTTP test, and anything
+ * else that builds two) shared the replay log and the list of open connections: a signal delivered
+ * on one box was replayed to a client of the other, and draining one ended the other's streams.
+ * `src/main/container.ts` builds one hub for the box and hands it to the server and to the
+ * shutdown that drains it.
  */
-const openConnections = new Set<Response>()
+interface HubState {
+  readonly channels: Map<EventId, Channel>
+  /**
+   * Every response currently holding an SSE connection open, across every event.
+   *
+   * What {@link StreamHub.drain} ends at shutdown. Separate from `channels`, which is keyed by
+   * event and torn down once its last connection goes: this is the flat set of sockets themselves,
+   * which `main/index.ts` has to reach without knowing which events are being watched.
+   */
+  readonly openConnections: Set<Response>
+}
 
-const acquireChannel = (eventId: EventId): Channel => {
-  const existing = channels.get(eventId)
+const acquireChannel = (state: HubState, eventId: EventId): Channel => {
+  const existing = state.channels.get(eventId)
   if (existing !== undefined) {
     existing.connections += 1
     return existing
   }
   const created: Channel = { log: new SignalLog(), connections: 1 }
-  channels.set(eventId, created)
+  state.channels.set(eventId, created)
   return created
 }
 
-const releaseChannel = (eventId: EventId): void => {
-  const channel = channels.get(eventId)
+const releaseChannel = (state: HubState, eventId: EventId): void => {
+  const channel = state.channels.get(eventId)
   if (channel === undefined) return
   channel.connections -= 1
-  if (channel.connections <= 0) channels.delete(eventId)
-}
-
-/** Test-only: start from a known state. The server never calls this. */
-export const resetSignalLogs = (): void => {
-  channels.clear()
-  openConnections.clear()
+  if (channel.connections <= 0) state.channels.delete(eventId)
 }
 
 const writeSignal = (res: Response, signal: Signal): void => {
@@ -201,8 +204,8 @@ export interface StreamOptions {
 }
 
 /**
- * Opens the stream. Exported so a test can drive it without a route, and so both the
- * public wall channel and the moderator channel share exactly one implementation —
+ * Opens the stream (reached through {@link StreamHub.openStream}). The public wall channel and the
+ * moderator channel share exactly one implementation —
  * the authorization difference is decided by the middleware in front, never here.
  *
  * Returns the teardown on success, and the reason on failure — **having written
@@ -211,18 +214,21 @@ export interface StreamOptions {
  * `200` and `text/event-stream` have gone out there is no way left to say no, and the
  * client will sit on a connection that can never carry a frame.
  */
-export const openStream = ({
-  deps,
-  logger,
-  eventId,
-  lastEventId,
-  res,
-  suspension = 'ends',
-  member,
-  audience = 'public',
-}: StreamOptions): Result<Unsubscribe, DomainError> => {
+const openStreamIn = (
+  state: HubState,
+  {
+    deps,
+    logger,
+    eventId,
+    lastEventId,
+    res,
+    suspension = 'ends',
+    member,
+    audience = 'public',
+  }: StreamOptions,
+): Result<Unsubscribe, DomainError> => {
   let closed = false
-  const channel = acquireChannel(eventId)
+  const channel = acquireChannel(state, eventId)
 
   const subscription = deps.bus.subscribe(eventId, (domainEvent, delivery) => {
     if (closed || res.writableEnded) return
@@ -235,7 +241,7 @@ export const openStream = ({
   })
 
   if (!subscription.ok) {
-    releaseChannel(eventId)
+    releaseChannel(state, eventId)
     logger.warn('stream refused, the event is at its subscriber limit', { eventId })
     return err(subscription.error)
   }
@@ -252,8 +258,8 @@ export const openStream = ({
   // before reporting the connection open, and the first photo may be minutes away.
   res.flushHeaders()
   // From here the connection is live and holds a resource for hours by design — exactly
-  // what `drainStreams` has to find and end at shutdown.
-  openConnections.add(res)
+  // what `StreamHub.drain` has to find and end at shutdown.
+  state.openConnections.add(res)
 
   for (const missed of channel.log.since(parseLastEventId(lastEventId))) {
     if (canReceiveSignal(missed.type, audience)) writeSignal(res, missed)
@@ -317,8 +323,8 @@ export const openStream = ({
     closed = true
     clearInterval(heartbeat)
     subscription.value()
-    releaseChannel(eventId)
-    openConnections.delete(res)
+    releaseChannel(state, eventId)
+    state.openConnections.delete(res)
   }
 
   res.on('close', cleanup)
@@ -356,11 +362,36 @@ const DRAIN_RETRY_MS = 2000
  * above, so the channel and the bus subscription are released exactly as they are on
  * any other disconnect.
  */
-export const drainStreams = (): void => {
-  for (const res of openConnections) {
+const drainIn = (state: HubState): void => {
+  for (const res of state.openConnections) {
     if (res.writableEnded) continue
     res.write(`retry: ${DRAIN_RETRY_MS}\n\n`)
     res.end()
+  }
+}
+
+/**
+ * One server's SSE streams: opening one, and ending them all at shutdown.
+ *
+ * Exported as a type so a test can drive `openStream` without a route, and so the two channels
+ * (the public wall and the moderation console) share exactly one implementation: the authorization
+ * difference is decided by the middleware in front, never here.
+ */
+export interface StreamHub {
+  /**
+   * Opens the stream. Returns the teardown on success, and the reason on failure, **having written
+   * nothing at all** in that case, so the caller can still choose a status.
+   */
+  openStream(options: StreamOptions): Result<Unsubscribe, DomainError>
+  /** Ends every open connection of this hub, for a graceful shutdown. */
+  drain(): void
+}
+
+export const createStreamHub = (): StreamHub => {
+  const state: HubState = { channels: new Map(), openConnections: new Set() }
+  return {
+    openStream: (options) => openStreamIn(state, options),
+    drain: () => drainIn(state),
   }
 }
 
@@ -391,11 +422,11 @@ const RETRY_AFTER_SECONDS = String(STREAM_RETRY_AFTER_SECONDS)
  * correct answer about a temporary state, and the client's own backoff is built for it.
  */
 export const streamHandler =
-  (deps: HttpDeps, channel: 'wall' | 'moderation' = 'wall'): RequestHandler =>
+  (deps: HttpDeps, hub: StreamHub, channel: 'wall' | 'moderation' = 'wall'): RequestHandler =>
   (req, res) => {
     const event = publicEventOf(req)
 
-    const opened = openStream({
+    const opened = hub.openStream({
       deps,
       logger: req.context.logger,
       eventId: event.id,
@@ -414,7 +445,7 @@ export const streamHandler =
     res.status(503).json(errorBody(opened.error))
   }
 
-export const streamRoutes = (deps: HttpDeps): Router => {
+export const streamRoutes = (deps: HttpDeps, hub: StreamHub): Router => {
   const router = Router()
 
   /**
@@ -434,7 +465,7 @@ export const streamRoutes = (deps: HttpDeps): Router => {
     '/events/:eventSlug/stream',
     connections,
     resolvePublicEvent(deps),
-    streamHandler(deps),
+    streamHandler(deps, hub),
   )
 
   /** The moderation console's channel. Same frames, moderator authorization. */
@@ -442,7 +473,7 @@ export const streamRoutes = (deps: HttpDeps): Router => {
     '/events/:eventSlug/moderation/stream',
     connections,
     requireRole('moderator', deps),
-    streamHandler(deps, 'moderation'),
+    streamHandler(deps, hub, 'moderation'),
   )
 
   return router

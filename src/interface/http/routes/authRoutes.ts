@@ -122,7 +122,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
   // set by a successful sign-in below, read by the sign-in throttle. One instance, because they
   // have to agree on the key.
   const devices = trustedDevices({
-    secret: deps.config.sessionSecret,
+    signer: deps.trustedDeviceSigner,
     clock: deps.clock,
     users: deps.users,
     secureCookie: deps.config.secureCookie,

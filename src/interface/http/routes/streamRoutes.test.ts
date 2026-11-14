@@ -3,13 +3,7 @@ import type { Request } from 'express'
 import type { AddressInfo } from 'node:net'
 import supertest from '../testing/request'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  drainStreams,
-  openStream as openStreamFor,
-  resetSignalLogs,
-  streamHandler,
-  streamRoutes,
-} from './streamRoutes'
+import { createStreamHub, streamHandler, streamRoutes, type StreamHub } from './streamRoutes'
 import {
   buildHarness,
   buildTestWorld,
@@ -18,6 +12,7 @@ import {
   type TestWorld,
 } from '../testing/middlewareHarness'
 import { SseSink, asResponse } from '../testing/sseSink'
+import { buildServerHarness } from '../testing/serverHarness'
 import { AT, aClient, aUser, anEvent } from '../../../application/testing/builders'
 import { asClientId, asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import { DomainError } from '../../../domain/shared/errors'
@@ -125,17 +120,18 @@ const idsIn = (stream: Stream): string[] =>
   [...stream.frames.join('').matchAll(/^id: (\d+)$/gm)].map(([, id]) => id ?? '')
 
 describe('streamRoutes', () => {
+  let hub: StreamHub
   let subject: Harness
   let server: http.Server
   let port: number
   const streams: Stream[] = []
 
   beforeEach(async () => {
-    resetSignalLogs()
+    hub = createStreamHub()
     subject = buildHarness({
       routes: (app, deps) => {
         app.post('/sign-in', signInAs({ userId: HOST, email: 'host@example.com' }))
-        app.use('/api', streamRoutes(deps))
+        app.use('/api', streamRoutes(deps, hub))
       },
     })
     subject.events.seed(
@@ -492,7 +488,7 @@ describe('streamRoutes', () => {
     // enough to do it to someone else's wedding.
     const full = buildHarness({
       routes: (app, deps) => {
-        app.use('/api', streamRoutes({ ...deps, bus: busAtCapacity() }))
+        app.use('/api', streamRoutes({ ...deps, bus: busAtCapacity() }, hub))
       },
     })
     full.events.seed(anEvent({ slug: 'mariage', status: 'live', joinCode: 'H7K2QM' }))
@@ -524,7 +520,7 @@ describe('streamRoutes', () => {
     const tight = buildHarness({
       config: { realtime: { maxStreamsPerClient: 1, maxStreamsTotal: 500 } },
       routes: (app, deps) => {
-        app.use('/api', streamRoutes(deps))
+        app.use('/api', streamRoutes(deps, hub))
       },
     })
     tight.events.seed(anEvent({ slug: 'mariage', status: 'live', joinCode: 'H7K2QM' }))
@@ -576,7 +572,7 @@ describe('streamRoutes', () => {
     await stream.waitFor((text) => text.includes(': connected'), 'connection')
     expect(subject.bus.subscriberCount(asEventId(WEDDING))).toBe(1)
 
-    drainStreams()
+    hub.drain()
 
     await stream.waitFor((text) => text.includes('retry: 2000'), 'the drain retry directive')
     // The real socket: `res.end()` finishes the response, which is what frees the bus
@@ -592,7 +588,7 @@ describe('streamRoutes', () => {
     const stream = await open('/api/events/mariage/stream')
     await stream.waitFor((text) => text.includes(': connected'), 'connection')
 
-    drainStreams()
+    hub.drain()
 
     await stream.waitFor((text) => text.includes('retry: 2000'), 'the drain retry directive')
     expect(stream.frames.join('')).not.toContain('event: change')
@@ -609,10 +605,11 @@ describe('streamRoutes', () => {
  * waited for.
  */
 describe('openStream', () => {
+  let hub: StreamHub
   let world: TestWorld
 
   beforeEach(() => {
-    resetSignalLogs()
+    hub = createStreamHub()
     world = buildTestWorld()
     // The beat asks whether the event is still served (G2-14), so there has to be one.
     world.events.seed(anEvent({ id: WEDDING }))
@@ -626,7 +623,7 @@ describe('openStream', () => {
 
   const open = (lastEventId?: string): SseSink => {
     const sink = new SseSink()
-    openStreamFor({
+    hub.openStream({
       deps: world.deps,
       logger: world.deps.logger,
       eventId: asEventId(WEDDING),
@@ -720,7 +717,7 @@ describe('openStream', () => {
     it('closes the wall and the moderation feed alike at the first beat after the operator takes the event down (launch review S5)', async () => {
       const wall = await openForAClient()
       const moderation = new SseSink()
-      openStreamFor({
+      hub.openStream({
         deps: world.deps,
         logger: world.deps.logger,
         eventId: asEventId(WEDDING),
@@ -797,7 +794,7 @@ describe('openStream', () => {
           throw new Error('database is locked')
         },
       })
-      openStreamFor({
+      hub.openStream({
         deps: { ...world.deps, events: failing },
         logger: world.deps.logger,
         eventId: asEventId(WEDDING),
@@ -820,7 +817,7 @@ describe('openStream', () => {
             answer = () => resolve(null)
           }),
       })
-      openStreamFor({
+      hub.openStream({
         deps: { ...world.deps, events: slow },
         logger: world.deps.logger,
         eventId: asEventId(WEDDING),
@@ -849,7 +846,7 @@ describe('openStream', () => {
           grantedAt: AT,
         })
         const sink = new SseSink()
-        openStreamFor({
+        hub.openStream({
           deps: world.deps,
           logger: world.deps.logger,
           eventId: asEventId(WEDDING),
@@ -870,7 +867,7 @@ describe('openStream', () => {
         } as unknown as Request
         const through = (channel: 'wall' | 'moderation'): SseSink => {
           const sink = new SseSink()
-          streamHandler(world.deps, channel)(request, asResponse(sink), () => undefined)
+          streamHandler(world.deps, hub, channel)(request, asResponse(sink), () => undefined)
           return sink
         }
         const moderation = through('moderation')
@@ -922,7 +919,7 @@ describe('openStream', () => {
       await seedAClient()
       await suspendTheClient()
       const sink = new SseSink()
-      openStreamFor({
+      hub.openStream({
         deps: world.deps,
         logger: world.deps.logger,
         eventId: asEventId(WEDDING),
@@ -949,7 +946,7 @@ describe('openStream', () => {
     // and an abandoned stream is what the projector reports as "connected".
     const sink = new SseSink()
 
-    const result = openStreamFor({
+    const result = hub.openStream({
       deps: { ...world.deps, bus: busAtCapacity() },
       logger: world.deps.logger,
       eventId: asEventId(WEDDING),
@@ -1038,7 +1035,7 @@ describe('openStream', () => {
     const sink = open()
     expect(vi.getTimerCount()).toBeGreaterThan(0)
 
-    drainStreams()
+    hub.drain()
 
     expect(sink.text).toContain('retry: 2000')
     expect(sink.writableEnded).toBe(true)
@@ -1054,7 +1051,7 @@ describe('openStream', () => {
     const framesBeforeDrain = sink.frames.length
     sink.endWriting()
 
-    drainStreams()
+    hub.drain()
 
     // Nothing new: a drain must not write a retry frame to a socket that is already gone.
     expect(sink.frames).toHaveLength(framesBeforeDrain)
@@ -1083,7 +1080,7 @@ describe('streamHandler', () => {
     // 404 with no body and not a `TypeError` on a projector at 22:00.
     const subject = buildHarness({
       routes: (app, deps) => {
-        app.get('/events/:eventSlug/unguarded-stream', streamHandler(deps))
+        app.get('/events/:eventSlug/unguarded-stream', streamHandler(deps, createStreamHub()))
       },
     })
 
@@ -1092,5 +1089,77 @@ describe('streamHandler', () => {
     expect(response.status).toBe(500)
     expect(response.body.error.code).toBe('server.unexpected')
     expect(subject.bus.subscriberCount()).toBe(0)
+  })
+})
+
+/**
+ * Two servers in one process (ARCH-01). The replay log and the list of open connections used to
+ * be module state, so every `buildServer()` of a test run (and anything else that builds two)
+ * shared them: a signal delivered on one box was replayed to a client of the other, and draining
+ * one ended the other's streams.
+ */
+describe('two servers in one process', () => {
+  const servers: http.Server[] = []
+  const streams: Stream[] = []
+
+  afterEach(async () => {
+    for (const stream of streams.splice(0)) stream.close()
+    for (const listening of servers.splice(0)) {
+      await new Promise<void>((resolve) => listening.close(() => resolve()))
+    }
+  })
+
+  const listen = async (app: http.RequestListener): Promise<number> => {
+    const listening = http.createServer(app)
+    servers.push(listening)
+    await new Promise<void>((resolve) => listening.listen(0, '127.0.0.1', resolve))
+    return (listening.address() as AddressInfo).port
+  }
+
+  const aBox = async (hub?: StreamHub) => {
+    const harness = buildServerHarness(hub === undefined ? {} : { streamHub: hub })
+    harness.events.seed(anEvent({ id: WEDDING, slug: 'mariage', status: 'live' }))
+    return { harness, port: await listen(harness.app) }
+  }
+
+  const connect = async (port: number): Promise<Stream> => {
+    const stream = await openStream(port, '/api/events/mariage/stream')
+    streams.push(stream)
+    await stream.waitFor((text) => text.includes(': connected'), 'connection')
+    return stream
+  }
+
+  it('does not replay one box’s signals to a client of the other', async () => {
+    const first = await aBox()
+    const second = await aBox()
+    const watching = await connect(first.port)
+    first.harness.deps.bus.publish(photoPublished(WEDDING))
+    await watching.waitFor((text) => text.includes('event: change'), 'the first box’s signal')
+
+    // A client of the other box that has seen nothing asks for everything it missed.
+    const other = await connect(second.port)
+    second.harness.deps.bus.publish(guestbookChanged(WEDDING))
+    await other.waitFor(hasGuestbookSignal, 'the second box’s own signal')
+
+    expect(other.frames.join('')).not.toContain('photo.moderated')
+    expect(idsIn(other)).toEqual(['1'])
+  })
+
+  it('drains only its own connections', async () => {
+    const hubs = [createStreamHub(), createStreamHub()] as const
+    const first = await aBox(hubs[0])
+    const second = await aBox(hubs[1])
+    const draining = await connect(first.port)
+    const staying = await connect(second.port)
+
+    hubs[0].drain()
+
+    await draining.waitFor((text) => text.includes('retry: 2000'), 'the drain on the first box')
+    await expect
+      .poll(() => first.harness.bus.subscriberCount(asEventId(WEDDING)), { timeout: 3_000 })
+      .toBe(0)
+    // The other box's projector was never told anything.
+    expect(staying.frames.join('')).not.toContain('retry:')
+    expect(second.harness.bus.subscriberCount(asEventId(WEDDING))).toBe(1)
   })
 })
