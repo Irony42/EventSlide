@@ -226,6 +226,37 @@ describe('SqliteEventRepository', () => {
       ])
     })
 
+    it('is not written when the repository is constructed on a read-only connection, even with unfolded rows', async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'eventslide-fold-readonly-'))
+      const path = join(directory, 'eventslide.sqlite')
+      try {
+        const writable = openDatabase({ path })
+        migrate(writable, migrations)
+        seedUsers(writable, FIXTURE_USER_IDS)
+        await new SqliteEventRepository(writable).save(
+          anEvent({ id: 'evt-1', name: 'Fête de Noël' }),
+        )
+        writable.prepare('UPDATE events SET name_fold = NULL').run()
+        closeDatabase(writable)
+
+        const readOnly = openDatabase({ path, readonly: true })
+        try {
+          expect(() => new SqliteEventRepository(readOnly)).not.toThrow()
+          expect(
+            (
+              readOnly.prepare('SELECT name_fold FROM events WHERE id = ?').get('evt-1') as {
+                name_fold: string | null
+              }
+            ).name_fold,
+          ).toBeNull()
+        } finally {
+          closeDatabase(readOnly)
+        }
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+      }
+    })
+
     it('is looked up by its index, not by scanning the table', () => {
       const plan = db
         .prepare("EXPLAIN QUERY PLAN SELECT id FROM events WHERE name_fold = 'x'")

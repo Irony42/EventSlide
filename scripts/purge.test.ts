@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -306,6 +306,33 @@ describe('npm run purge', () => {
       expect(existsSync(join(mediaRoot, 'due-event'))).toBe(true)
       // The row goes first and the bytes second: a media failure leaves files with no row.
       await inDatabase((db) => expect(count(db, `events WHERE id = 'due-event'`)).toBe(0))
+    })
+
+    it('tells the truth about a purge cut after its row deletion: not listed again, collected by the next run', async () => {
+      failures.deleteEventFor = 'due-event'
+
+      const cut = await capture(() => run([], env()))
+
+      // The row is gone, so no later run can list the event: the text must not promise a retry of
+      // the purge, and must say what does collect the bytes.
+      expect(cut.code).toBe(1)
+      expect(cut.out).not.toContain('The next run retries them')
+      expect(cut.out).toContain('already deleted')
+      expect(cut.out).toContain('npm run purge')
+
+      // Later, once the leftover is old enough for the reconciliation to dare touch it, the very
+      // same command with nothing due collects it, with the periodic sweep out of the picture.
+      failures.deleteEventFor = null
+      const old = new Date(Date.now() - 60 * 60 * 1000)
+      const leftover = join(mediaRoot, 'due-event', 'thumb', 'aa', `${'a'.repeat(64)}.jpg`)
+      await utimes(leftover, old, old)
+      const later = await capture(() => run([], env()))
+
+      expect(later.code).toBe(0)
+      expect(later.out).toContain('Nothing is due for purge.')
+      expect(later.out).toContain('collected 1')
+      expect(existsSync(leftover)).toBe(false)
+      expect(existsSync(join(mediaRoot, 'live-event'))).toBe(true)
     })
 
     it('exits 1 when a follow-up step fails, and still reports the purge', async () => {

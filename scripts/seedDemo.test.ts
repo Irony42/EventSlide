@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -79,6 +79,31 @@ describe('npm run db:seed:demo', () => {
       expect(count(db, 'users')).toBe(1)
       expect(count(db, 'events')).toBe(0)
     })
+  })
+
+  it('refuses before touching anything: the staging directories, the schema ledger and the files stay as they were', async () => {
+    // A database one migration behind the code, holding an account: a refused seed that built the
+    // container first would have emptied .uploads and .scratch and applied the last migration.
+    inDatabase((db) => {
+      migrate(db, migrations.slice(0, -1))
+      db.prepare(
+        `INSERT INTO users (id, email, display_name, password_hash, created_at, must_change_password)
+         VALUES ('user-1', 'real-host@eventslide.test', 'Camille', 'not-a-real-hash',
+                 '2026-09-01T10:00:00.000Z', 0)`,
+      ).run()
+    })
+    const ledgerBefore = inDatabase((db) => count(db, 'schema_migrations'))
+    for (const directory of ['.uploads', '.scratch']) {
+      await mkdir(join(root, 'media', directory), { recursive: true })
+      await writeFile(join(root, 'media', directory, 'in-flight.part'), 'a clip being uploaded')
+    }
+
+    const { code } = await capture(() => run(env()))
+
+    expect(code).toBe(1)
+    expect(await readdir(join(root, 'media', '.uploads'))).toEqual(['in-flight.part'])
+    expect(await readdir(join(root, 'media', '.scratch'))).toEqual(['in-flight.part'])
+    expect(inDatabase((db) => count(db, 'schema_migrations'))).toBe(ledgerBefore)
   })
 
   it('seeds an empty database: a live event, its guests, and photos with a moderation queue', async () => {

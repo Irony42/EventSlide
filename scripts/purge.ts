@@ -257,12 +257,16 @@ const execute = async (
       for (const id of report.failed) console.error(`  ${id}`)
       console.error('')
       console.error(
-        'Their files may still be on disk, and a row that could not be deleted is still in the',
+        'The row of an event is deleted first and its files second, so these events are already deleted',
       )
-      console.error(`database. Check that the disk is writable and not full: ${mediaRoot}`)
       console.error(
-        'The next run retries them, and the media reconciliation collects leftover files.',
+        'from the database and no later run lists them again: only their files may remain on disk.',
       )
+      console.error(`Check that the disk is writable and not full: ${mediaRoot}`)
+      console.error(
+        'The media reconciliation collects those files once they are 15 minutes old, and this command',
+      )
+      console.error('runs it every time: run `npm run purge` again later, even with nothing due.')
       return 1
     }
 
