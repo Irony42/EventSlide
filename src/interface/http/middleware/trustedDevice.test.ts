@@ -43,6 +43,18 @@ describe('the trusted-device cookie', () => {
     expect(value).not.toContain('camille')
   })
 
+  it('seals to the exact bytes it always has, so a cookie issued before an upgrade still opens after it', () => {
+    // A literal, produced by the construction as it stood when ARCH-04 was written (HKDF-SHA256 of
+    // the secret under , HMAC-SHA256 over the length-prefixed parts
+    // , the payload and the address). A change to the label, the salt or the encoding signs
+    // out every remembered device at once, and nothing else here would notice.
+    const pinned =
+      'v1.eyJkIjoiZGV2aWNlLTEiLCJ1IjoidXNlci0xIiwiaSI6MTgwMDAwMDAwMDAwMH0.Wj00qUbDp0w89-5rkukw0nsmI2rTF8zkHHW4A68WjU0'
+
+    expect(codec.seal(CLAIMS, ADDRESS)).toBe(pinned)
+    expect(codec.open(pinned, ADDRESS)).toEqual(CLAIMS)
+  })
+
   it('is bound to the address: another address opens nothing, whatever it shares with the first', () => {
     const value = codec.seal(CLAIMS, ADDRESS)
 

@@ -18,6 +18,7 @@ import {
   type TestWorld,
 } from '../testing/middlewareHarness'
 import { SseSink, asResponse } from '../testing/sseSink'
+import { buildServerHarness } from '../testing/serverHarness'
 import { AT, aClient, aUser, anEvent } from '../../../application/testing/builders'
 import { asClientId, asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import { DomainError } from '../../../domain/shared/errors'
@@ -1092,5 +1093,59 @@ describe('streamHandler', () => {
     expect(response.status).toBe(500)
     expect(response.body.error.code).toBe('server.unexpected')
     expect(subject.bus.subscriberCount()).toBe(0)
+  })
+})
+
+/**
+ * Two servers in one process (ARCH-01). The replay log and the list of open connections used to
+ * be module state, so every `buildServer()` of a test run (and anything else that builds two)
+ * shared them: a signal delivered on one box was replayed to a client of the other, and draining
+ * one ended the other's streams.
+ */
+describe('two servers in one process', () => {
+  const servers: http.Server[] = []
+  const streams: Stream[] = []
+
+  afterEach(async () => {
+    for (const stream of streams.splice(0)) stream.close()
+    for (const listening of servers.splice(0)) {
+      await new Promise<void>((resolve) => listening.close(() => resolve()))
+    }
+  })
+
+  const listen = async (app: http.RequestListener): Promise<number> => {
+    const listening = http.createServer(app)
+    servers.push(listening)
+    await new Promise<void>((resolve) => listening.listen(0, '127.0.0.1', resolve))
+    return (listening.address() as AddressInfo).port
+  }
+
+  const aBox = async (hub?: StreamHub) => {
+    const harness = buildServerHarness(hub === undefined ? {} : { streamHub: hub })
+    harness.events.seed(anEvent({ id: WEDDING, slug: 'mariage', status: 'live' }))
+    return { harness, port: await listen(harness.app) }
+  }
+
+  const connect = async (port: number): Promise<Stream> => {
+    const stream = await openStream(port, '/api/events/mariage/stream')
+    streams.push(stream)
+    await stream.waitFor((text) => text.includes(': connected'), 'connection')
+    return stream
+  }
+
+  it('does not replay one box’s signals to a client of the other', async () => {
+    const first = await aBox()
+    const second = await aBox()
+    const watching = await connect(first.port)
+    first.harness.deps.bus.publish(photoPublished(WEDDING))
+    await watching.waitFor((text) => text.includes('event: change'), 'the first box’s signal')
+
+    // A client of the other box that has seen nothing asks for everything it missed.
+    const other = await connect(second.port)
+    second.harness.deps.bus.publish(guestbookChanged(WEDDING))
+    await other.waitFor(hasGuestbookSignal, 'the second box’s own signal')
+
+    expect(other.frames.join('')).not.toContain('photo.moderated')
+    expect(idsIn(other)).toEqual(['1'])
   })
 })
