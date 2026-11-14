@@ -156,10 +156,19 @@ describe('ChallengePanel', () => {
     expect(screen.queryByRole('group', { name: fr.challenge.fromMission })).toBeNull()
   })
 
-  it('stops at sixty characters, the length of a mission text', async () => {
+  it('stops at sixty characters, counted like the server: a flag is two, not four', async () => {
+    const user = userEvent.setup()
     render(apiWith())
+    const box = await screen.findByLabelText(fr.challenge.prompt)
+    const flag = String.fromCodePoint(0x1f1eb, 0x1f1f7)
 
-    expect(await screen.findByLabelText(fr.challenge.prompt)).toHaveAttribute('maxlength', '60')
+    // No HTML maxlength: it counts UTF-16 units and would stop thirty flags at fifteen.
+    expect(box).not.toHaveAttribute('maxlength')
+    await user.click(box)
+    await user.paste(flag.repeat(30) + 'abc')
+
+    expect([...(box as HTMLInputElement).value]).toHaveLength(60)
+    expect((box as HTMLInputElement).value).toBe(flag.repeat(30))
   })
 
   it('offers the four durations the interface promises', async () => {

@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useLeaveWarning } from './useLeaveWarning'
 
 /**
@@ -47,15 +48,22 @@ describe('useLeaveWarning', () => {
     expect(notAsked.defaultPrevented).toBe(false)
   })
 
-  it('stops a link inside the app when the host says no, and lets it through when they say yes', () => {
+  it('stops a link inside the app when the host says no, and follows it again when they say yes', async () => {
     render(<Page active links={<a href="/admin">Vos évènements</a>} />)
+    // What the router would see: a click that was not prevented.
+    const followed = vi.fn((event: MouseEvent) => event.preventDefault())
+    document.addEventListener('click', followed)
 
     confirm.mockReturnValueOnce(false)
     expect(click('Vos évènements')).toBe(false)
     expect(confirm).toHaveBeenCalledWith(MESSAGE)
+    expect(followed).not.toHaveBeenCalled()
 
     confirm.mockReturnValueOnce(true)
-    expect(click('Vos évènements')).toBe(true)
+    click('Vos évènements')
+    // The spare history entry comes off first, then the very same link is pressed again.
+    await waitFor(() => expect(followed).toHaveBeenCalledTimes(1))
+    document.removeEventListener('click', followed)
   })
 
   it('asks nothing when it is not active', () => {
@@ -139,5 +147,86 @@ describe('useLeaveWarning', () => {
     const event = new Event('beforeunload', { cancelable: true })
     window.dispatchEvent(event)
     expect(event.defaultPrevented).toBe(false)
+  })
+})
+
+describe('useLeaveWarning: the browser’s Back button', () => {
+  const here = () => window.location.pathname
+  /** The entries of the browser: where the host came from, then the page that shows the secret. */
+  const arrive = () => {
+    window.history.pushState({}, '', '/avant')
+    window.history.pushState({}, '', '/ici')
+  }
+
+  it('asks when Back is pressed, and the page stays where it is when the host says no', async () => {
+    arrive()
+    render(<Page active />)
+    confirm.mockReturnValue(false)
+
+    window.history.back()
+
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(MESSAGE))
+    expect(here()).toBe('/ici')
+
+    // Staying does not disarm it.
+    window.history.back()
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2))
+    expect(here()).toBe('/ici')
+  })
+
+  it('goes back to where the host came from when they say yes', async () => {
+    arrive()
+    render(<Page active />)
+    confirm.mockReturnValue(true)
+
+    window.history.back()
+
+    await waitFor(() => expect(here()).toBe('/avant'))
+  })
+
+  it('holds nothing while it is not active, and leaves no entry behind once it stops', async () => {
+    arrive()
+    const { rerender } = render(<Page active />)
+    rerender(<Page active={false} />)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    window.history.back()
+
+    await waitFor(() => expect(here()).toBe('/avant'))
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it('leaves no copy of the page in history when the host leaves by a link', async () => {
+    window.history.replaceState(null, '', '/avant')
+    window.history.pushState(null, '', '/ici')
+    let visits = 0
+    const Guarded = () => {
+      // The secret is lost with the page: coming back to it, nothing is held any more.
+      const [holding] = useState(() => {
+        visits += 1
+        return visits === 1
+      })
+      useLeaveWarning(holding, MESSAGE)
+      return <Link to="/ailleurs">Vos évènements</Link>
+    }
+    render(
+      <BrowserRouter>
+        <Routes>
+          <Route path="/ici" element={<Guarded />} />
+          <Route path="/ailleurs" element={<p>Arrivé ailleurs</p>} />
+          <Route path="*" element={<p>Avant</p>} />
+        </Routes>
+      </BrowserRouter>,
+    )
+    confirm.mockReturnValue(true)
+
+    fireEvent.click(screen.getByRole('link', { name: 'Vos évènements' }))
+    await screen.findByText('Arrivé ailleurs')
+    window.history.back()
+    await waitFor(() => expect(here()).toBe('/ici'))
+    window.history.back()
+
+    // Two presses from the page that was left: the page, once, then where it came from.
+    await waitFor(() => expect(here()).toBe('/avant'))
   })
 })

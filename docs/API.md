@@ -4686,7 +4686,9 @@ itself, plus two things that follow it:
   `e2e_interval` only as `0` (no clock, the suites' still frame) or 50 to 600 000 ms, and
   `e2e_transition` as 0 to 10 000 ms: the schema's own bounds. Any other value is treated as
   absent, so a link sent to a host cannot put the projector in a 1 ms loop. `e2e_phase_ms`
-  is not bounded yet.
+  is bounded the same way, to 100 to 600 000 ms (the suites use 300 to 2 500; `0` is not a
+  value there and is absent too), so a link cannot flip the mixed wall through black every
+  millisecond. The server has no schema for it: the bounds live in `useTimingOverrides.ts`.
 
 Closing it is a removal from `wallQuery` plus the flag, and it is not a one-file change:
 `requestSchemas.ts` and its test; `publicRoutes.ts` and `publicRoutes.test.ts`, which

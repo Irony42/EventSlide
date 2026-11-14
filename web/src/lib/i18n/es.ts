@@ -1579,6 +1579,21 @@ export const es: UiText = {
     bestOfPreselectNothing:
       'Nada que añadir: las más queridas ya son favoritas, o todavía nadie ha reaccionado.',
     bestOfDownload: 'Descargar las favoritas (ZIP)',
+    exportBusy: (seconds: number | null) =>
+      seconds === null
+        ? 'Ya hay una exportación en curso en tu cuenta.'
+        : `Ya hay una exportación en curso en tu cuenta. ${t.count(seconds, {
+            one: `Inténtalo de nuevo en ${t.number(seconds)} segundo.`,
+            other: `Inténtalo de nuevo en ${t.number(seconds)} segundos.`,
+          })}`,
+    exportNotReady: (seconds: number | null) =>
+      seconds === null
+        ? 'El servidor ya está preparando otras exportaciones.'
+        : `El servidor ya está preparando otras exportaciones. ${t.count(seconds, {
+            one: `Inténtalo de nuevo en ${t.number(seconds)} segundo.`,
+            other: `Inténtalo de nuevo en ${t.number(seconds)} segundos.`,
+          })}`,
+    exportFailed: 'No se pudo iniciar la descarga. Inténtalo de nuevo en un momento.',
     // Spec 04: the photo book (a PDF of the published album) on the event page.
     book: 'Libro de fotos',
     bookHint: 'Un PDF con tus fotos publicadas, para guardar o imprimir.',

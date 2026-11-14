@@ -8,6 +8,7 @@ import { SelectField } from '../design-system/components/SelectField'
 import { useChallenge, useMissions } from '../features/admin/hooks/useEventData'
 import { ChoiceChips } from '../design-system/components/ChoiceChips'
 import { useStartChallenge, useStopChallenge } from '../features/admin/hooks/useEventActions'
+import { characterCount, clampCharacters } from '../lib/characters'
 import styles from './ChallengeControls.module.css'
 
 export interface ChallengeControlsProps {
@@ -147,15 +148,14 @@ export function ChallengeControls({
               <TextInput
                 {...control}
                 autoComplete="off"
-                maxLength={PROMPT_MAX_LENGTH}
                 value={prompt}
                 disabled={!live}
-                onChange={(event) => type(event.target.value)}
+                onChange={(event) => type(clampCharacters(event.target.value, PROMPT_MAX_LENGTH))}
               />
             )}
           </Field>
           <p className={styles['count']} aria-hidden="true">
-            {t.challenge.promptCount(prompt.length, PROMPT_MAX_LENGTH)}
+            {t.challenge.promptCount(characterCount(prompt), PROMPT_MAX_LENGTH)}
           </p>
           <PromptChips
             title={t.challenge.recent}

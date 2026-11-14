@@ -11,13 +11,20 @@ export interface TimingOverrides {
 }
 
 /**
- * The server's own bounds for these two parameters (`wallQuery`, requestSchemas.ts): a link
+ * The server's own bounds for the first two parameters (`wallQuery`, requestSchemas.ts): a link
  * sent to a host must not put the projector in a 1 ms slide loop, nor past the 32-bit limit
  * of `setTimeout` (which fires at once). `0` stays valid for both: it is the suites' "no
  * clock" and "cut" (CLAUDE.md §9 trap 10), and an out-of-range value is treated as absent.
  */
 const INTERVAL_RANGE = { min: 50, max: 600_000 } as const
 const TRANSITION_RANGE = { min: 0, max: 10_000 } as const
+/**
+ * `e2e_phase_ms` has no server schema; its bounds are the wall's own: the suites use 300 to 2 500 ms,
+ * a room's real phases last seconds to minutes, and a phase shorter than 100 ms would flip the mixed
+ * wall through black ten times a second. The ceiling is the interval's. Unlike the other two, `0`
+ * is not a value here (a boundary every millisecond), so it is absent too.
+ */
+const PHASE_RANGE = { min: 100, max: 600_000 } as const
 
 const readMs = (
   raw: string | null,
@@ -55,8 +62,7 @@ export const useTimingOverrides = (): TimingOverrides => {
     () => ({
       intervalMs: readMs(interval, INTERVAL_RANGE),
       transitionMs: readMs(transition, TRANSITION_RANGE),
-      // Zero would be a boundary every millisecond: refused like any unusable value.
-      phaseMs: ((ms) => (ms === 0 ? null : ms))(readMs(phase)),
+      phaseMs: ((ms) => (ms === 0 ? null : ms))(readMs(phase, PHASE_RANGE)),
     }),
     [interval, transition, phase],
   )

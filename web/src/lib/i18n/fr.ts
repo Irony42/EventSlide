@@ -1741,6 +1741,21 @@ export const fr = {
     bestOfPreselectNothing:
       'Aucune photo à ajouter : les plus aimées sont déjà en favori, ou personne n’a encore réagi.',
     bestOfDownload: 'Télécharger les favoris (ZIP)',
+    exportBusy: (seconds: number | null) =>
+      seconds === null
+        ? 'Un export est déjà en cours pour votre compte.'
+        : `Un export est déjà en cours pour votre compte. ${t.count(seconds, {
+            one: `Réessayez dans ${t.number(seconds)} seconde.`,
+            other: `Réessayez dans ${t.number(seconds)} secondes.`,
+          })}`,
+    exportNotReady: (seconds: number | null) =>
+      seconds === null
+        ? 'Le serveur prépare déjà d’autres exports.'
+        : `Le serveur prépare déjà d’autres exports. ${t.count(seconds, {
+            one: `Réessayez dans ${t.number(seconds)} seconde.`,
+            other: `Réessayez dans ${t.number(seconds)} secondes.`,
+          })}`,
+    exportFailed: 'Le téléchargement n’a pas pu démarrer. Réessayez dans un instant.',
     // Spec 04: the photo book (a PDF of the published album) on the event page.
     book: 'Livre photo',
     bookHint: 'Un PDF de vos photos publiées, à garder ou à imprimer.',
