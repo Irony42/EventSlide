@@ -1,3 +1,5 @@
+import type { StatementSigner } from './statementSigner'
+
 /**
  * The cryptography behind a shared gallery link (docs/ROADMAP.md §4.1).
  *
@@ -36,9 +38,8 @@ export interface MintedShareToken {
   readonly digest: string
 }
 
-export interface GallerySigner {
+/** `sign` and `verify` are the box's one {@link StatementSigner}, under the gallery's own key. */
+export interface GallerySigner extends StatementSigner {
   mintToken(): MintedShareToken
   digestOf(token: string): string
-  sign(parts: readonly string[]): string
-  verify(parts: readonly string[], signature: string): boolean
 }

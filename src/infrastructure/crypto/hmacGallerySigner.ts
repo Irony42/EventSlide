@@ -1,6 +1,5 @@
-import { createHmac } from 'node:crypto'
 import type { GallerySigner, MintedShareToken } from '../../application/ports/gallerySigner'
-import { constantTimeEqual, deriveKey } from './primitives'
+import { createHmacStatementSigner } from './hmacStatementSigner'
 import { sha256SecretTokens } from './sha256SecretTokens'
 
 /**
@@ -37,21 +36,10 @@ import { sha256SecretTokens } from './sha256SecretTokens'
 
 const LABEL = 'eventslide/gallery/v1'
 
-/** A base64url HMAC-SHA256 is always 43 characters. Anything else is not one of ours. */
-const SIGNATURE_LENGTH = 43
-
 export interface HmacGallerySignerOptions {
   /** `SESSION_SECRET`. At least 32 characters, like every secret this box accepts. */
   readonly rootSecret: string
 }
-
-const canonical = (parts: readonly string[]): Buffer =>
-  Buffer.concat(
-    parts.map((part) => {
-      const bytes = Buffer.from(part, 'utf8')
-      return Buffer.concat([Buffer.from(`${bytes.length}:`, 'utf8'), bytes])
-    }),
-  )
 
 export const createHmacGallerySigner = ({
   rootSecret,
@@ -62,10 +50,7 @@ export const createHmacGallerySigner = ({
     throw new Error('the gallery signing key must be derived from a secret of 32+ characters')
   }
 
-  const key = deriveKey(rootSecret, LABEL)
-
-  const mac = (parts: readonly string[]): string =>
-    createHmac('sha256', key).update(canonical(parts)).digest('base64url')
+  const statements = createHmacStatementSigner({ rootSecret, label: LABEL })
 
   return {
     // A share link's token is the same thing as any other secret token: 256 random bits,
@@ -75,13 +60,8 @@ export const createHmacGallerySigner = ({
 
     digestOf: sha256SecretTokens.digestOf,
 
-    sign: mac,
+    sign: statements.sign,
 
-    verify: (parts: readonly string[], signature: string): boolean => {
-      // The length of an HMAC is public, so refusing on it leaks nothing, and it spares
-      // computing a MAC for a value that cannot be one.
-      if (signature.length !== SIGNATURE_LENGTH) return false
-      return constantTimeEqual(mac(parts), signature)
-    },
+    verify: statements.verify,
   }
 }

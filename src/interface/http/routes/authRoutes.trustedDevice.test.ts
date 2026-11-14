@@ -4,6 +4,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { authRoutes } from './authRoutes'
 import {
   TEST_SESSION_SECRET,
+  trustedDeviceSignerFor,
   buildHarness,
   testHttpConfig,
   type Harness,
@@ -576,7 +577,9 @@ describe('the trusted device’s own bucket still throttles', () => {
   it('gives back an attempt that was not a wrong guess: a server failure after the right password is no failure of the device', async () => {
     const subject = subjectOf({ sessionStoreDown: true })
     // The store is down, so no sign-in can issue a cookie: seal one, as the table below does.
-    const cookie = `${TRUSTED_DEVICE_COOKIE}=${trustedDeviceCodec(TEST_SESSION_SECRET).seal(
+    const cookie = `${TRUSTED_DEVICE_COOKIE}=${trustedDeviceCodec(
+      trustedDeviceSignerFor(TEST_SESSION_SECRET),
+    ).seal(
       { device: 'sealed-device', userId: OWNER_ID, issuedAtMs: subject.clock.now().getTime() },
       OWNER,
     )}`
@@ -641,7 +644,7 @@ describe('a cookie that does not count is ignored, and answered exactly as no co
 
   const sealWith = (secret: string, overrides: { userId?: string; issuedAtMs?: number } = {}) => {
     return (subject: Subject, address: string = OWNER): string =>
-      `${TRUSTED_DEVICE_COOKIE}=${trustedDeviceCodec(secret).seal(
+      `${TRUSTED_DEVICE_COOKIE}=${trustedDeviceCodec(trustedDeviceSignerFor(secret)).seal(
         {
           device: 'forged-device',
           userId: overrides.userId ?? OWNER_ID,

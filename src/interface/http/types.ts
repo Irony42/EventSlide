@@ -5,6 +5,7 @@ import type { Guest } from '../../domain/guests/guest'
 import type { EventId, UserId } from '../../domain/shared/ids'
 import type { Clock } from '../../application/ports/clock'
 import type { Logger } from '../../application/ports/logger'
+import type { StatementSigner } from '../../application/ports/statementSigner'
 import type { EventBus } from '../../application/ports/eventBus'
 import type { EventRepository } from '../../application/ports/eventRepository'
 import type {
@@ -114,6 +115,11 @@ export interface HttpDeps {
    * reason: this layer may not import `node:fs`.
    */
   readonly stagedUploads: StagedUploadStore
+  /**
+   * Signs the trusted-device cookie of the sign-in throttle (ARCH-04): the box's one
+   * `StatementSigner`, under its own key. A port because this layer may not import the adapter.
+   */
+  readonly trustedDeviceSigner: StatementSigner
   readonly config: HttpConfig
 }
 

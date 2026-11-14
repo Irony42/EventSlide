@@ -1,12 +1,12 @@
-import { createHmac, hkdfSync, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import type { Request, Response } from 'express'
 import { z } from 'zod'
 import type { Clock } from '../../../application/ports/clock'
+import type { StatementSigner } from '../../../application/ports/statementSigner'
 import type { UserRepository } from '../../../application/ports/userRepository'
 import { asUserId } from '../../../domain/shared/ids'
 import { normalisedAddress } from '../../../domain/users/emailAddress'
 import { TRUSTED_DEVICE_LIFETIME_MS, isTrustedDevice } from '../../../domain/users/trustedDevice'
-import { constantTimeEqual } from './constantTime'
 
 /**
  * The trusted-device cookie of the sign-in throttle (free plan G3-04b, on top of G3-04 / P4-07).
@@ -87,17 +87,7 @@ export const TRUSTED_DEVICE_COOKIE = 'es_device'
 
 const COOKIE_PATH = '/api/auth'
 const VERSION = 'v1'
-const LABEL = 'eventslide/trusted-device/v1'
-const KEY_BYTES = 32
 const DEVICE_ID_BYTES = 16
-
-/**
- * A base64url HMAC-SHA256 is always these 43 characters, which are also 43 bytes. Checked as a
- * shape and not as a length, because a cookie made of 43 two-byte characters has the right
- * length in characters: `constantTimeEqual` compares bytes and would refuse it, and the shape
- * keeps anything that is not base64url from reaching it at all.
- */
-const MAC_SHAPE = /^[A-Za-z0-9_-]{43}$/
 
 const claims = z.strictObject({
   d: z.string().min(1).max(64),
@@ -111,25 +101,14 @@ export interface DeviceClaims {
   readonly issuedAtMs: number
 }
 
-/** Length-prefixed, so no boundary between two parts can be moved. */
-const canonical = (parts: readonly string[]): Buffer =>
-  Buffer.concat(
-    parts.map((part) => {
-      const bytes = Buffer.from(part, 'utf8')
-      return Buffer.concat([Buffer.from(`${bytes.length}:`, 'utf8'), bytes])
-    }),
-  )
-
 /** The signing and the checking, with no Express and no clock in them. */
-export const trustedDeviceCodec = (secret: string) => {
-  // The HTTP layer's copy of `deriveKey` in `infrastructure/crypto/primitives.ts`, which it may
-  // not import: the same HKDF-SHA256 with an empty salt, under a label of its own.
-  const key = Buffer.from(hkdfSync('sha256', secret, Buffer.alloc(0), LABEL, KEY_BYTES))
-
-  const macOf = (payload: string, address: string): string =>
-    createHmac('sha256', key)
-      .update(canonical([VERSION, payload, address]))
-      .digest('base64url')
+export const trustedDeviceCodec = (signer: StatementSigner) => {
+  /** What the MAC covers: the version, the payload and the address, as length-prefixed parts. */
+  const statement = (payload: string, address: string): readonly string[] => [
+    VERSION,
+    payload,
+    address,
+  ]
 
   return {
     /** The cookie value for `claimed`, bound to `address`. */
@@ -138,7 +117,7 @@ export const trustedDeviceCodec = (secret: string) => {
         JSON.stringify({ d: claimed.device, u: claimed.userId, i: claimed.issuedAtMs }),
         'utf8',
       ).toString('base64url')
-      return `${VERSION}.${payload}.${macOf(payload, address)}`
+      return `${VERSION}.${payload}.${signer.sign(statement(payload, address))}`
     },
 
     /**
@@ -155,8 +134,8 @@ export const trustedDeviceCodec = (secret: string) => {
       if (parts.length !== 3 || version !== VERSION || payload === undefined || mac === undefined) {
         return undefined
       }
-      if (!MAC_SHAPE.test(mac)) return undefined
-      if (!constantTimeEqual(macOf(payload, address), mac)) return undefined
+      // `verify` refuses anything that is not a base64url MAC before it compares a byte.
+      if (!signer.verify(statement(payload, address), mac)) return undefined
 
       let decoded: unknown
       try {
@@ -184,8 +163,11 @@ export interface TrustedDevices {
 }
 
 export interface TrustedDevicesOptions {
-  /** `SESSION_SECRET`: the parent of the key the cookie is signed with. */
-  readonly secret: string
+  /**
+   * Signs the cookie: the box's `StatementSigner` under the trusted-device label, whose key is
+   * derived from `SESSION_SECRET` (`infrastructure/crypto/hmacStatementSigner.ts`).
+   */
+  readonly signer: StatementSigner
   readonly clock: Clock
   /** The one read the epoch needs. */
   readonly users: Pick<UserRepository, 'authStateFor'>
@@ -194,12 +176,12 @@ export interface TrustedDevicesOptions {
 }
 
 export const trustedDevices = ({
-  secret,
+  signer,
   clock,
   users,
   secureCookie,
 }: TrustedDevicesOptions): TrustedDevices => {
-  const codec = trustedDeviceCodec(secret)
+  const codec = trustedDeviceCodec(signer)
 
   return {
     async recognise(req, address) {

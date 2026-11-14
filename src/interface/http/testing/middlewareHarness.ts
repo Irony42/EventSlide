@@ -18,9 +18,14 @@ import { makeAuthenticateGuest } from '../../../application/usecases/guests/auth
 import { asEventId, asGuestId } from '../../../domain/shared/ids'
 import type { GuestTokenService } from '../../../application/ports/guestTokenService'
 import { createHmacGuestTokenService } from '../../../infrastructure/crypto/hmacGuestTokenService'
+import {
+  TRUSTED_DEVICE_SIGNER_LABEL,
+  createHmacStatementSigner,
+} from '../../../infrastructure/crypto/hmacStatementSigner'
 import { silentLogger } from '../../../infrastructure/logging/pinoLogger'
 import { fsStagedUploadStore } from '../../../infrastructure/system/fsStagedUploadStore'
 import type { Logger } from '../../../application/ports/logger'
+import type { StatementSigner } from '../../../application/ports/statementSigner'
 import { errorHandler, requestContext } from '../middleware/errorHandler'
 import { attachUser, enforceSessionAge } from '../middleware/authz'
 import type { HttpConfig, HttpDeps, SessionPayload } from '../types'
@@ -40,6 +45,10 @@ import type { HttpConfig, HttpDeps, SessionPayload } from '../types'
 
 export const TEST_GUEST_SECRET = 'harness-guest-token-secret-at-least-32-chars'
 export const TEST_SESSION_SECRET = 'harness-session-secret-at-least-32-characters'
+
+/** The trusted-device cookie's signer for `secret`, built as `main/container.ts` builds it. */
+export const trustedDeviceSignerFor = (secret: string): StatementSigner =>
+  createHmacStatementSigner({ rootSecret: secret, label: TRUSTED_DEVICE_SIGNER_LABEL })
 
 export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig => ({
   isProduction: false,
@@ -218,6 +227,7 @@ export const buildTestWorld = (
     // The real adapter, not a fake: multer writes real files in a clip test and the route must
     // read and delete those same files.
     stagedUploads: fsStagedUploadStore,
+    trustedDeviceSigner: trustedDeviceSignerFor(TEST_SESSION_SECRET),
     config: testHttpConfig(config),
   }
 
