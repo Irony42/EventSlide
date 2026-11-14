@@ -25,7 +25,7 @@ const retryAfterOf = (response: Response): number | null => {
 }
 
 /**
- * `null` when the server will send the archive (or could not be asked: the browser then tries
+ * `null` when the server will send the archive (or could not be asked at all, a network error: the browser then tries
  * for itself, as it always did); a refusal otherwise.
  */
 export const probeArchive = async (url: string): Promise<ArchiveRefusal | null> => {
