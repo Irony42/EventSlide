@@ -11,6 +11,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Read-only by default (SEC-03). A job that needs more names it at job level: `e2e` reads the run's
+# jobs through the API (`actions: read`). Uploading an artifact, writing the job summary and the
+# `cache: npm` of setup-node use the runner's own runtime token, not this one.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   # A newer push to a pull request supersedes the older one. A push to `main` never does: nine of
@@ -32,9 +38,9 @@ jobs:
     name: Lint, typecheck, unit and integration tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -78,7 +84,7 @@ jobs:
 
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: coverage/
@@ -97,7 +103,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: quality
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # The image build runs `npm ci` and `npm run build` inside itself; nothing here
       # needs Node on the runner.
@@ -183,14 +189,14 @@ jobs:
           - { project: chromium-client-members, shard: 1, shards: 1, workers: 2 }
           - { project: perf, shard: 1, shards: 1, workers: 1 }
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Trust the workspace for git
         # The job container runs as root over a checkout the runner user owns: git refuses it
         # ("dubious ownership") until it is told otherwise.
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -217,7 +223,11 @@ jobs:
         # `--workers` comes from the matrix (a project's own `workers` in the config still caps
         # it: perf is one). The reporters in playwright.config.ts run per shard, failOnFlaky
         # among them: a test that passed only on a retry fails the shard it ran in.
-        run: npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }} --workers=${{ matrix.workers }}
+        env:
+          PROJECT: ${{ matrix.project }}
+          SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
+          WORKERS: ${{ matrix.workers }}
+        run: npm run test:e2e -- --project="$PROJECT" --shard="$SHARD" --workers="$WORKERS"
 
       - name: Flake rate of this shard
         # Whatever the outcome of the run, as long as it wrote a report: the table lands in the
@@ -230,7 +240,7 @@ jobs:
         # flake rate is read from. Sum any number of them with `npx tsx scripts/flakeRate.ts`
         # after `gh run download --pattern 'playwright-json-*'`; docs/TESTING.md §9.
         if: always() && hashFiles('playwright-json/report.json') != ''
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-json-${{ matrix.project }}-${{ matrix.shard }}of${{ matrix.shards }}
           path: playwright-json/report.json
@@ -240,7 +250,7 @@ jobs:
         # `cancelled()` too: a job cancelled by the job-level bound or by hand still keeps its
         # trace, which is the one thing a hang leaves worth reading.
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report-${{ matrix.project }}-${{ matrix.shard }}of${{ matrix.shards }}
           path: |
@@ -323,14 +333,14 @@ jobs:
       E2E_QUARANTINE: only
       HOME: /root
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Trust the workspace for git
         # The job container runs as root over a checkout the runner user owns: git refuses it
         # ("dubious ownership") until it is told otherwise.
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -389,7 +399,7 @@ jobs:
         # Kept 30 days, so the history that decides whether a test leaves quarantine can be read
         # back with `gh run download` and summed by scripts/flakeRate.ts.
         if: always() && hashFiles('playwright-json/quarantine/*.json') != ''
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-json-quarantine
           path: playwright-json/quarantine/
@@ -433,7 +443,7 @@ jobs:
           - { project: webkit-mobile, workers: 1 }
           - { project: chromium-offline, workers: 1 }
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The base branch has to be there to diff against.
           fetch-depth: 0
@@ -443,7 +453,7 @@ jobs:
         # ("dubious ownership") until it is told otherwise.
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -482,9 +492,12 @@ jobs:
         timeout-minutes: 30
         # `--retries=0`: one failure in five is the finding, a retry would hide it.
         # `--pass-with-no-tests`: every test of a changed spec may be quarantined.
+        env:
+          PROJECT: ${{ matrix.project }}
+          WORKERS: ${{ matrix.workers }}
         run: |
           mapfile -t specs < specs.txt
-          npm run test:e2e -- --project=${{ matrix.project }} --workers=${{ matrix.workers }} --repeat-each=5 --retries=0 --pass-with-no-tests "${specs[@]}"
+          npm run test:e2e -- --project="$PROJECT" --workers="$WORKERS" --repeat-each=5 --retries=0 --pass-with-no-tests "${specs[@]}"
 
       - name: Flake rate of the repeated specs
         if: always() && steps.select.outputs.run == 'true' && hashFiles('playwright-json/report.json') != ''
@@ -492,7 +505,7 @@ jobs:
 
       - name: Upload report
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report-repeat-${{ matrix.project }}
           path: |
@@ -543,7 +556,7 @@ jobs:
     env:
       HOME: /root
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Both sides of the comparison have to be checked out in turn.
           fetch-depth: 0
@@ -553,20 +566,23 @@ jobs:
         # ("dubious ownership") until it is told otherwise.
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
 
       - name: Resolve the two commits to render
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          base="$(git merge-base '${{ github.event.pull_request.base.sha }}' '${{ github.event.pull_request.head.sha }}')"
+          base="$(git merge-base "$PR_BASE_SHA" "$PR_HEAD_SHA")"
           {
             echo "BASE_SHA=$base"
-            echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}"
+            echo "HEAD_SHA=$PR_HEAD_SHA"
           } >> "$GITHUB_ENV"
           echo "before: $base"
-          echo "after:  ${{ github.event.pull_request.head.sha }}"
+          echo "after:  $PR_HEAD_SHA"
 
       # The whole method is "render the before, render the after, compare". That needs a
       # before that can render — and the merge base of the 2.0 rewrite is a 1.0 commit
@@ -721,7 +737,7 @@ jobs:
 
       - name: Upload report
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           # The diff images live in test-results/; they are the only useful output when
           # this job is red, and reading them is the job.
@@ -750,7 +766,7 @@ jobs:
       # there and never appear on main's first-parent chain, so pinning the head instead
       # would check history main never sees, and would turn every branch cut before the
       # relicence red — they predate the boundary file — for a state main will never be in.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # `git merge-base --is-ancestor` and `git rev-list <boundary>..HEAD` need the
           # boundary commit, which can be arbitrarily far back. A shallow checkout would
