@@ -1,0 +1,90 @@
+/**
+ * The discreet announcement's pill, in the top-centre column (spec 21, rule 19).
+ *
+ * In the flow of `WallTopCentre`, under whatever holds the place (the challenge banner, the
+ * announcement countdown or the souvenir counter): it covers none of them. At most two lines of
+ * the host's sentence and one of the time left, at the caption's size, on the scrim every wall
+ * caption wears: never text directly on the photograph. At most 40 % of the frame, and never wider
+ * than what a card in a top corner leaves (`--wall-top-centre-start` / `-end`, set by the wall root):
+ * at the card's largest scale the card reaches past the middle of the wall, so the pill is centred
+ * in the room that is left, not under the card.
+ *
+ * On the caption rung and drawn before the guestbook card, so a card covers it and it comes back.
+ * The fullscreen announcement is on a higher rung and covers it too.
+ */
+.pill {
+  position: relative;
+  z-index: var(--z-wall-caption);
+  box-sizing: border-box;
+  /* The margins are the inset and the room a top-corner card takes; a flex item is centred by its
+     margin box, so the pill sits in the middle of what is left, and the cap keeps it inside. */
+  margin-inline-start: calc(var(--wall-safe) + var(--wall-top-centre-start, 0px));
+  margin-inline-end: calc(var(--wall-safe) + var(--wall-top-centre-end, 0px));
+  max-inline-size: min(
+    40%,
+    calc(
+      100% - 2 * var(--wall-safe) - var(--wall-top-centre-start, 0px) -
+        var(--wall-top-centre-end, 0px)
+    )
+  );
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface-scrim);
+  color: var(--text-primary);
+  text-align: center;
+  pointer-events: none;
+}
+
+.body {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: center;
+}
+
+.text {
+  margin: 0;
+  max-inline-size: 100%;
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  font-weight: 600;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  /* Two lines at most, whatever the text (80 characters at most): never a scroll, never a tall slab. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.time {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/**
+ * The entrance: a 250 ms fade, `opacity` only (roadmap 11.2: rare enough to earn it), ending at
+ * rest. There is no exit animation: it is gone at its end. Under `prefers-reduced-motion` the
+ * component does not apply this class at all.
+ */
+.enters {
+  animation: announcement-pill-in var(--duration-base) var(--ease-out) both;
+}
+
+@keyframes announcement-pill-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The bottom rung of the frame budget gives the entrance up: the pill is simply there. */
+[data-wall-budget='cut'] .enters {
+  animation: none;
+}

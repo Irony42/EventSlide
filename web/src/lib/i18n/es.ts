@@ -906,6 +906,9 @@ export const es: UiText = {
     announcementSay: (text: string) => `Anuncio: ${text}.`,
     announcementIn: (time: string) => `en ${time}`,
     announcementImminent: (time: string) => `en un instante · ${time}`,
+    /* A discreet announcement's pill (spec 21): rounded up to the minute, two minutes and over; the last minute has its own words. */
+    announcementMinutesLeft: (minutes: number) => `quedan ${minutes} min`,
+    announcementLastMinute: 'menos de 1 min',
 
     codeLabel: 'Código de la fiesta',
     // Read by nothing in the room: the wall is also opened on a laptop while a host

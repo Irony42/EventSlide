@@ -7,6 +7,7 @@ const raw = import.meta.glob<string>(
     '../features/wall/components/WallMessage.module.css',
     '../features/wall/components/WallAnnouncementBand.module.css',
     '../features/wall/components/WallAnnouncementCard.module.css',
+    '../features/wall/components/WallAnnouncementPill.module.css',
     '../features/wall/components/WallControls.module.css',
   ],
   { query: '?raw', import: 'default', eager: true },
@@ -15,6 +16,7 @@ const tokens = raw['./tokens.css'] ?? ''
 const challengeCss = raw['../features/wall/components/WallChallenge.module.css'] ?? ''
 const messageCss = raw['../features/wall/components/WallMessage.module.css'] ?? ''
 const bandCss = raw['../features/wall/components/WallAnnouncementBand.module.css'] ?? ''
+const pillCss = raw['../features/wall/components/WallAnnouncementPill.module.css'] ?? ''
 const announcementCss = raw['../features/wall/components/WallAnnouncementCard.module.css'] ?? ''
 
 /**
@@ -61,5 +63,17 @@ describe('the wall stacking order', () => {
     )
     expect(token('--z-wall-announcement')).toBeLessThan(token('--z-wall-caption') + 10)
     expect(token('--z-wall-announcement')).toBeLessThan(token('--z-dialog'))
+  })
+
+  it('draws the discreet pill on the caption rung, so the fullscreen card and the challenge banner are in front of it (spec 21, rule 19)', () => {
+    expect(zIndexOf(pillCss)).toBe('var(--z-wall-caption)')
+    expect(token('--z-wall-announcement')).toBeGreaterThan(token('--z-wall-caption'))
+    expect(token('--z-wall-challenge')).toBeGreaterThan(token('--z-wall-caption'))
+  })
+
+  it('draws the pill on the guestbook card’s own rung, which covers it by coming later in the page', () => {
+    // A tie is settled by document order, and `WallPage` draws the column before the card
+    // (`WallPage.announcements.discreet.test.tsx` pins that order): the card covers the pill.
+    expect(zIndexOf(pillCss)).toBe(zIndexOf(messageCss))
   })
 })

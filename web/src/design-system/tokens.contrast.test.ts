@@ -836,6 +836,8 @@ describe('the wall reads from the back of the room, over any photograph', () => 
       'features/wall/components/SouvenirCounter.module.css',
       // A fullscreen announcement's countdown banner, top centre (spec 21), over the photograph.
       'features/wall/components/WallAnnouncementBand.module.css',
+      // A discreet announcement's pill, top centre under the banner or the counter (spec 21), over the photograph.
+      'features/wall/components/WallAnnouncementPill.module.css',
       // The timed challenge's banner, top centre (spec 10), over the photograph.
       'features/wall/components/WallChallenge.module.css',
       // The owner's icon bar, bottom centre (spec 17), over the photograph.
@@ -887,6 +889,33 @@ describe('the wall reads from the back of the room, over any photograph', () => 
 
     it('clears 7:1 for every ink on its scrim over the worst photograph, and 12:1 for the badge', () => {
       expect(holds(scrim.alpha)).toBe(true)
+    })
+
+    /**
+     * The discreet announcement's pill (spec 21): text at the caption's size, on the scrim, over
+     * any photograph. Every ink its stylesheet sets, and the ground it paints, are read from the
+     * stylesheet itself: a pill that moved to another ground or another ink is measured on that.
+     */
+    it('carries the pill’s text on its scrim at 4.5:1 over the worst photograph', () => {
+      const source = stylesheets.find(([path]) =>
+        path.endsWith('WallAnnouncementPill.module.css'),
+      )?.[1]
+      expect(source).toBeDefined()
+      const css = source ?? ''
+      const grounds = [...css.matchAll(/(?:^|[;{\s])background\s*:\s*var\((--[a-z-]+)\)/g)].flatMap(
+        (match) => (match[1] === undefined ? [] : [match[1]]),
+      )
+      const inks = [...css.matchAll(/(?:^|[;{\s])color\s*:\s*var\((--[a-z-]+)\)/g)].flatMap(
+        (match) => (match[1] === undefined ? [] : [match[1]]),
+      )
+      // The pill is painted on the scrim and on nothing else: never text straight on the photograph.
+      expect(grounds).toEqual(['--surface-scrim'])
+      expect(inks.length).toBeGreaterThan(0)
+      const failures = inks
+        .map((ink) => [ink, ratioOf(srgb(of(ink)), scrimOver(scrim.alpha))] as const)
+        .filter(([, ratio]) => ratio < 4.5)
+        .map(([ink, ratio]) => `${ink}: ${ratio.toFixed(2)}`)
+      expect(failures).toEqual([])
     })
 
     it.runIf(name === 'noces')(

@@ -62,6 +62,19 @@
   --wall-chrome-inline-end: 0px;
 }
 
+/* The top-centre column keeps out of a card that sits in a top corner (spec 21, rule 19): the pill
+   is centred in what the card leaves rather than under it, at the largest scale included, where the
+   card reaches past the middle of the wall. The width is the card's own (`--wall-join-width`) and the
+   gutter the layouts reserve. A bottom corner and any layout that draws the invitation in its own
+   flow set nothing, and the pill stays centred. */
+.wall[data-wall-chrome~='corner'][data-wall-join-corner='top-end'] {
+  --wall-top-centre-end: calc(var(--wall-join-width) + var(--space-6));
+}
+
+.wall[data-wall-chrome~='corner'][data-wall-join-corner='top-start'] {
+  --wall-top-centre-start: calc(var(--wall-join-width) + var(--space-6));
+}
+
 .wall[data-wall-chrome~='corner'][data-wall-join-corner='bottom-start'] {
   --wall-chrome-caption-start: calc(var(--wall-join-width) + var(--space-6));
 }

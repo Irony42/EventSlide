@@ -28,6 +28,8 @@ import { WallMessage } from './components/WallMessage'
 import { WallChallenge } from './components/WallChallenge'
 import { WallAnnouncementBand } from './components/WallAnnouncementBand'
 import { WallAnnouncementCard } from './components/WallAnnouncementCard'
+import { WallAnnouncementPill } from './components/WallAnnouncementPill'
+import { WallTopCentre } from './components/WallTopCentre'
 import { NewPhotoSignal } from './components/NewPhotoSignal'
 import { WallSoundButton } from './components/WallSoundButton'
 import { SouvenirCounter } from './components/SouvenirCounter'
@@ -582,31 +584,43 @@ export function WallPage() {
 
       {showsMissions && !stackStart ? <WallMissions missions={missions} /> : null}
 
-      {/* Spec 11: the host's switch, and the server's total (never `items.length`, which is capped). */}
-      {wall?.souvenirCounter === true &&
-      typeof wall.souvenirCount === 'number' &&
-      !showsChallenge &&
-      announcementBand === null ? (
-        <SouvenirCounter count={wall.souvenirCount} />
-      ) : null}
-
-      {shownChallenge !== null ? (
-        <WallChallenge
-          key={shownChallenge.id}
-          challenge={shownChallenge}
-          offsetMs={serverOffsetMs}
-          onElapsed={refresh}
-          onLeave={leaveChallenge}
-        />
-      ) : null}
-
-      {announcementBand !== null ? (
-        <WallAnnouncementBand
-          key={announcementBand.id}
-          announcement={announcementBand}
-          offsetMs={serverOffsetMs}
-        />
-      ) : null}
+      {/*
+        The top-centre column (spec 21, rule 19): whichever of the challenge banner, the
+        announcement's countdown and the souvenir counter holds the place, then the discreet
+        announcement's pill under it. Drawn before the guestbook card, which therefore covers the
+        pill (and the counter) and gives it back; the challenge banner keeps its own higher rung.
+      */}
+      <WallTopCentre
+        occupant={
+          shownChallenge !== null ? (
+            <WallChallenge
+              key={shownChallenge.id}
+              challenge={shownChallenge}
+              offsetMs={serverOffsetMs}
+              onElapsed={refresh}
+              onLeave={leaveChallenge}
+            />
+          ) : announcementBand !== null ? (
+            <WallAnnouncementBand
+              key={announcementBand.id}
+              announcement={announcementBand}
+              offsetMs={serverOffsetMs}
+            />
+          ) : /* Spec 11: the host's switch, and the server's total (never `items.length`, which is capped). */ wall?.souvenirCounter ===
+              true && typeof wall.souvenirCount === 'number' ? (
+            <SouvenirCounter count={wall.souvenirCount} />
+          ) : null
+        }
+        pill={
+          announcementLayers.pill !== null ? (
+            <WallAnnouncementPill
+              key={announcementLayers.pill.id}
+              announcement={announcementLayers.pill}
+              now={serverNow}
+            />
+          ) : null
+        }
+      />
 
       {guestbookMessage !== null && items.length > 0 ? (
         <WallMessage message={guestbookMessage} />

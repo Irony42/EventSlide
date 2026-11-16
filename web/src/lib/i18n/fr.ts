@@ -907,6 +907,9 @@ export const fr = {
     announcementSay: (text: string) => `Annonce : ${text}.`,
     announcementIn: (time: string) => `dans ${time}`,
     announcementImminent: (time: string) => `dans un instant · ${time}`,
+    /* A discreet announcement's pill (spec 21): rounded up to the minute, two minutes and over; the last minute has its own words. */
+    announcementMinutesLeft: (minutes: number) => `encore ${minutes} min`,
+    announcementLastMinute: 'moins d’1 min',
 
     /* ---- Added by features/wall. Keep additions inside this block. ---- */
     codeLabel: 'Code de la soirée',

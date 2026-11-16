@@ -1,0 +1,20 @@
+/**
+ * The top-centre column of the wall (spec 21): the place the challenge banner, the announcement
+ * countdown and the souvenir counter each held on their own, now one stack, so a pill can sit
+ * under whichever of them is there instead of over it.
+ *
+ * It spans the wall and takes no pointer: the corners beside it (the missions at the top left,
+ * the notices at the top right) keep their own places, and each child caps its own width as it
+ * did when it was absolute. The occupants keep their own rungs, so a guestbook card still goes
+ * under the challenge banner and over the counter and the pill.
+ */
+.column {
+  position: absolute;
+  inset-block-start: var(--wall-safe);
+  inset-inline: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: none;
+}

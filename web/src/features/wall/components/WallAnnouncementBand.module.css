@@ -8,10 +8,11 @@
  * together: the page gives this one up while a challenge banner is there.
  */
 .banner {
-  position: absolute;
-  inset-block-start: var(--wall-safe);
-  inset-inline: 0;
-  margin-inline: auto;
+  /* In the flow of `WallTopCentre`, which holds the place (and the pill under it). */
+  position: relative;
+  box-sizing: border-box;
+  /* The column above takes no pointer, so this one asks for it back: it is a layer a hit test finds. */
+  pointer-events: auto;
   inline-size: fit-content;
   max-inline-size: calc(100% - 2 * (var(--wall-safe) + var(--wall-mission-panel) + var(--space-6)));
   max-block-size: var(--wall-challenge-height);

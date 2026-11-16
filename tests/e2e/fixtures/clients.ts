@@ -309,8 +309,9 @@ export const uploadPhoto = (
   slug: string,
   bytes: Buffer,
   name = 'photo.jpg',
+  fields?: Readonly<Record<string, string>>,
 ): Promise<Reply> =>
-  guest.upload(`/api/events/${slug}/photos`, 'photos', { name, type: 'image/jpeg', bytes })
+  guest.upload(`/api/events/${slug}/photos`, 'photos', { name, type: 'image/jpeg', bytes }, fields)
 
 /** The one per-file `code` of a single-file upload that was refused, or `null`. */
 export const refusalOf = (reply: Reply): string | null => {

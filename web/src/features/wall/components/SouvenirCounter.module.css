@@ -4,10 +4,9 @@
  * Nothing here animates; a stylesheet that does must be answered in `WALL_BUDGET_ANSWERS`.
  */
 .counter {
-  position: absolute;
-  inset-block-start: var(--wall-safe);
-  inset-inline-start: 50%;
-  transform: translateX(-50%);
+  /* In the flow of `WallTopCentre` (spec 21), which centres it and stacks a pill under it. */
+  position: relative;
+  box-sizing: border-box;
   z-index: var(--z-wall-caption);
   max-inline-size: 40%;
   padding: var(--space-2) var(--space-4);

@@ -934,6 +934,9 @@ export const de: UiText = {
     announcementSay: (text: string) => `Ansage: ${text}.`,
     announcementIn: (time: string) => `in ${time}`,
     announcementImminent: (time: string) => `gleich · ${time}`,
+    /* A discreet announcement's pill (spec 21): rounded up to the minute, two minutes and over; the last minute has its own words. */
+    announcementMinutesLeft: (minutes: number) => `noch ${minutes} Min.`,
+    announcementLastMinute: 'noch unter 1 Min.',
 
     codeLabel: 'Code der Feier',
     qrTitle: 'QR-Code für den Beitritt zur Feier',

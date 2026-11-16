@@ -328,6 +328,8 @@ const REDUCED_MOTION_ANSWERS: Readonly<Record<string, string>> = {
   // neither component applies the class under the preference, so both are simply there.
   'features/wall/components/WallAnnouncementBand.module.css': 'declined-in-javascript',
   'features/wall/components/WallAnnouncementCard.module.css': 'declined-in-javascript',
+  // The discreet pill's 250 ms entrance (spec 21), `opacity` only: not applied under the preference either.
+  'features/wall/components/WallAnnouncementPill.module.css': 'declined-in-javascript',
   'features/wall/components/WallLayouts.module.css': 'declined-in-javascript',
 }
 
@@ -463,6 +465,7 @@ const WALL_BUDGET_ANSWERS: Readonly<Record<string, 'still' | 'cut'>> = {
   // The announcements' entrances (spec 21): given up at the bottom rung, the layer is simply there.
   'features/wall/components/WallAnnouncementBand.module.css': 'cut',
   'features/wall/components/WallAnnouncementCard.module.css': 'cut',
+  'features/wall/components/WallAnnouncementPill.module.css': 'cut',
   'features/wall/components/WallLayouts.module.css': 'still',
   // The option switches' knob slide in the settings drawer: given up at the bottom rung.
   'features/wall/panel/controls/controls.module.css': 'cut',
