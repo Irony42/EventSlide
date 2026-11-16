@@ -194,6 +194,10 @@ worst case.
   Guinguette.
 - Decorative colours (bulbs, gingham, linen, stripes, tartan, gold) are tokens of their ambiance and
   never mark a control, so the "one accent, reserved for the action" rule still holds.
+- A scheduled announcement's pill (spec 21, discreet kind) is not the fixed ornament principle 9 refuses: it has a
+  cause (the host wrote it), an end written on it and imposed by the domain (30 minutes, like the challenge banner),
+  a return to the bare screen (two are at least a minute apart) and a bounded footprint. §6 of
+  `eventslide-suivi/specs/21-annonces-programmees.md` carries the argument.
 
 ## Alternatives considered
 
