@@ -22,11 +22,11 @@ export interface WallPanelContext {
 /**
  * One section of the panel, declared by its own file in `./sections/` and nothing else
  * (`wallPanelSections.ts` collects them): adding one is adding a file, not touching the panel.
- * The names and the order of the six sections are fixed for the whole batch (spec 13, §3).
+ * The names and the order of the first six sections were fixed for the whole batch (spec 13, §3); a later spec slots in between with its own number (Annonces is 55).
  */
 export interface WallPanelSection {
   readonly id: string
-  /** 10 Affichage, 20 Ambiance, 30 QR code, 40 A l'ecran, 50 Defi photo, 60 Son. */
+  /** 10 Affichage, 20 Ambiance, 30 QR code, 40 A l'ecran, 50 Defi photo, 55 Annonces, 60 Son. */
   readonly order: number
   readonly title: (text: UiText) => string
   /** The glyph of the section's badge and of its button in the drawer's jump row (spec 17). */

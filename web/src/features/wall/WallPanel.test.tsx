@@ -6,6 +6,7 @@ import { fr } from '../../lib/i18n/fr'
 import {
   aWallItem,
   aWallResponse,
+  anAnnouncement,
   anEventDto,
   eventSettings,
   fakeApi,
@@ -605,6 +606,52 @@ describe('the photo challenge, from the panel (spec 10, PR 5)', () => {
   })
 })
 
+describe('the announcements, from the panel (spec 21, PR 4)', () => {
+  const openPanel = async (overrides: Parameters<typeof fakeApi>[0] = {}) => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()), ...overrides })
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+    return api
+  }
+
+  it('has a section "Annonces" that launches the text typed, as a card, now', async () => {
+    const createAnnouncement = vi.fn(async () => ({ announcement: anAnnouncement() }))
+    await openPanel({ createAnnouncement })
+
+    expect(screen.getByText(fr.announcement.title, { selector: 'summary strong' })).toBeVisible()
+    await userEvent.type(await screen.findByLabelText(fr.announcement.text), 'Le gâteau arrive')
+    await userEvent.click(screen.getByRole('button', { name: fr.announcement.launchNow }))
+
+    expect(createAnnouncement).toHaveBeenCalledWith('camille-et-sacha', {
+      text: 'Le gâteau arrive',
+      kind: 'fullscreen',
+      durationSeconds: 30,
+    })
+  })
+
+  it('says the server refusal in the panel, which has no toaster', async () => {
+    const createAnnouncement = vi.fn(async () => {
+      throw new ApiError(409, 'announcement.showing')
+    })
+    await openPanel({ createAnnouncement })
+
+    await userEvent.type(await screen.findByLabelText(fr.announcement.text), 'Le gâteau arrive')
+    await userEvent.click(screen.getByRole('button', { name: fr.announcement.launchNow }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['announcement.showing'])
+  })
+
+  it('does not exist for a moderator, who uses the event page', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) })
+    await screen.findByTestId('wall-slide')
+    await waitFor(() => expect(api.getEvent).toHaveBeenCalled())
+
+    await userEvent.keyboard('r')
+
+    expect(screen.queryByText(fr.announcement.launchNow)).not.toBeInTheDocument()
+  })
+})
+
 describe('the drawer (spec 17)', () => {
   const open = async () => {
     await userEvent.click(await barButton(fr.wall.panel.open))
@@ -637,6 +684,7 @@ describe('the drawer (spec 17)', () => {
       fr.wall.panel.sectionQr,
       fr.admin.wallDisplay.onScreen,
       fr.challenge.title,
+      fr.announcement.title,
       fr.admin.wallSound.title,
     ])
   })
