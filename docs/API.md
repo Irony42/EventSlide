@@ -4188,7 +4188,7 @@ a record). `state` is computed at `serverNowMs`.
   discreet one. `countdownSeconds` absent is 300 for a **scheduled** fullscreen card, 0 otherwise. The countdown is one
   of 0, 60, 300, 600 or 900, and a discreet announcement has none.
 - `text` is one line of at most **80 characters** (control and invisible characters are removed; it is content, never
-  translated). `at` may be at most 60 seconds in the past and 60 days ahead.
+  translated). `at` must carry its offset (`Z` or `+02:00`; a moment without one is `announcement.atInvalid`, the box would read it in its own time zone), and may be at most 60 seconds in the past and 60 days ahead.
 
 `PATCH /announcements/:id` takes the same fields, all optional (an absent one is left as it was; a body that changes
 nothing writes and signals nothing) and answers `200 { "announcement": { … } }`. Every field may change while the
