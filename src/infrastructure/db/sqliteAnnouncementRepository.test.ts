@@ -112,7 +112,9 @@ describe('SqliteAnnouncementRepository schema behaviour', () => {
       .map((row) => row.detail)
       .join(' | ')
 
-    expect(plan).toContain('idx_event_announcements_event_at')
+    // Both columns of the index are used to seek, so the window is a range read and not a walk
+    // of the event's rows (an index on `event_id` alone would also be "used").
+    expect(plan).toContain('USING INDEX idx_event_announcements_event_at (event_id=? AND at>?)')
     expect(plan).not.toMatch(/SCAN event_announcements/)
   })
 })
