@@ -59,6 +59,20 @@ export const acceptsGuests = (status: EventStatus): boolean => status === 'live'
  */
 export const servesWall = (status: EventStatus): boolean => status === 'live' || status === 'closed'
 
+/**
+ * Whether a host may schedule, edit, launch or delete a wall announcement (spec 21, rule 10): the
+ * evening is being prepared (`draft`) or is on (`live`). A `closed` or `archived` event is a
+ * record, and its list is read-only.
+ */
+export const allowsAnnouncementWrites = (status: EventStatus): boolean =>
+  status === 'draft' || status === 'live'
+
+/**
+ * Whether the wall shows announcements at all: only while the event is `live`. A `closed` wall is
+ * still served, but it is a keepsake, not an evening.
+ */
+export const showsAnnouncements = (status: EventStatus): boolean => status === 'live'
+
 /** Whether a host may still approve, hide or reject. Archived events are read-only. */
 export const allowsModeration = (status: EventStatus): boolean => status !== 'archived'
 
