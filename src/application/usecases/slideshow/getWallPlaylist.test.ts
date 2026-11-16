@@ -8,6 +8,7 @@ import type { GuestRepository } from '../../ports/guestRepository'
 import { aGuest, aMission, anEvent, aPhoto, atPlus, AT } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeAnnouncementRepository } from '../../testing/fakeAnnouncementRepository'
 import { FakeChallengeRepository } from '../../testing/fakeChallengeRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
@@ -78,6 +79,7 @@ describe('getWallPlaylist', () => {
       missions,
       guestbook,
       challenges: new FakeChallengeRepository(photos),
+      announcements: new FakeAnnouncementRepository(),
       clock: new FakeClock(AT),
     })
   })
@@ -138,6 +140,7 @@ describe('getWallPlaylist', () => {
       missions: new FakeMissionRepository(recording),
       guestbook: new FakeGuestbookRepository(),
       challenges: new FakeChallengeRepository(recording),
+      announcements: new FakeAnnouncementRepository(),
       clock: new FakeClock(AT),
     })
 
@@ -606,6 +609,7 @@ describe('getWallPlaylist', () => {
       missions,
       guestbook: new FakeGuestbookRepository(),
       challenges: new FakeChallengeRepository(photos),
+      announcements: new FakeAnnouncementRepository(),
       clock: new FakeClock(AT),
     })
 
@@ -668,6 +672,7 @@ describe('getWallPlaylist and "Première photo de …"', () => {
       missions: new FakeMissionRepository(photos),
       guestbook: new FakeGuestbookRepository(),
       challenges: new FakeChallengeRepository(photos),
+      announcements: new FakeAnnouncementRepository(),
       clock: new FakeClock(AT),
     })
     events.seed(wedding)
@@ -795,6 +800,7 @@ describe('getWallPlaylist and the mission panel', () => {
       missions,
       guestbook: new FakeGuestbookRepository(),
       challenges: new FakeChallengeRepository(photos),
+      announcements: new FakeAnnouncementRepository(),
       clock: new FakeClock(AT),
     })
     events.seed(wedding)
@@ -944,6 +950,7 @@ describe('getWallPlaylist and the mission panel', () => {
         missions: new FakeMissionRepository(counting),
         guestbook: new FakeGuestbookRepository(),
         challenges: new FakeChallengeRepository(counting),
+        announcements: new FakeAnnouncementRepository(),
         clock: new FakeClock(AT),
       })
 

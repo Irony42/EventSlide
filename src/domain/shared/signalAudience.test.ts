@@ -15,6 +15,7 @@ describe('signal audience', () => {
       'event.statusChanged',
       'mission.changed',
       'challenge.changed',
+      'announcement.changed',
     ]) {
       expect(canReceiveSignal(type, 'public')).toBe(true)
       expect(canReceiveSignal(type, 'moderation')).toBe(true)

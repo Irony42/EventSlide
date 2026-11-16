@@ -223,6 +223,28 @@ describe('Announcement.edit', () => {
   })
 })
 
+describe('Announcement.sameAs', () => {
+  const base = (): Announcement => create({ at: iso(3600) })
+
+  it('is true for the same words at the same moment, whoever wrote them', () => {
+    const twin = Announcement.restore({ ...base().toProps(), createdBy: asUserId('other') })
+
+    expect(base().sameAs(twin)).toBe(true)
+  })
+
+  it.each([
+    ['text', { text: 'Discours' }],
+    ['kind', { kind: 'discreet', durationSeconds: 900 }],
+    ['moment', { at: iso(3601) }],
+    ['duration', { durationSeconds: 60 }],
+    ['countdown', { countdownSeconds: 600 }],
+  ])('is false when the %s differs', (_field, patch) => {
+    const changed = base().edit(patch, NOW)
+
+    expect(changed.ok && base().sameAs(changed.value)).toBe(false)
+  })
+})
+
 describe('Announcement.launch', () => {
   it('sets the moment to now and drops the countdown, keeping the rest', () => {
     const scheduled = create({ at: iso(3600), durationSeconds: 60, text: 'Discours' })

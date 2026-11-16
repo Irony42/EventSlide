@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AnnouncementKind } from './announcementRules'
 import {
   announcementPhaseAt,
+  anotherShowing,
   announcementsOverlap,
   nextReadAtMs,
   occupiedSpan,
@@ -215,5 +216,26 @@ describe('occupiedSpan and announcementsOverlap', () => {
   it('lets a fullscreen card and a discreet announcement overlap: they are two layers', () => {
     expect(announcementsOverlap(at(0, 'discreet', 900), at(60, 'fullscreen', 30))).toBe(false)
     expect(announcementsOverlap(at(60, 'fullscreen', 30), at(0, 'discreet', 900))).toBe(false)
+  })
+})
+
+describe('anotherShowing', () => {
+  const onScreen = timing({ id: 'on', countdownSeconds: 0, durationSeconds: 30 })
+
+  it('sees a card of the same kind on screen', () => {
+    expect(anotherShowing([onScreen], 'fullscreen', AT + 5 * SECOND, null)).toBe(true)
+  })
+
+  it('does not see one that is over, or has not started', () => {
+    expect(anotherShowing([onScreen], 'fullscreen', AT + 30 * SECOND, null)).toBe(false)
+    expect(anotherShowing([onScreen], 'fullscreen', AT - 1, null)).toBe(false)
+  })
+
+  it('does not count a card of the other kind: they are two layers', () => {
+    expect(anotherShowing([onScreen], 'discreet', AT + 5 * SECOND, null)).toBe(false)
+  })
+
+  it('leaves out the announcement itself', () => {
+    expect(anotherShowing([onScreen], 'fullscreen', AT + 5 * SECOND, 'on')).toBe(false)
   })
 })

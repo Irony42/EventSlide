@@ -225,6 +225,20 @@ export class Announcement {
     return ok(new Announcement({ ...this.props, at: now, countdownSeconds: 0 }))
   }
 
+  /**
+   * Whether `other` says the same thing at the same moment: text, kind, moment and durations.
+   * What a signal is worth sending for: an edit that changes none of them changes nothing.
+   */
+  sameAs(other: Announcement): boolean {
+    return (
+      this.props.text.equals(other.props.text) &&
+      this.props.kind === other.props.kind &&
+      this.props.at.getTime() === other.props.at.getTime() &&
+      this.props.durationSeconds === other.props.durationSeconds &&
+      this.props.countdownSeconds === other.props.countdownSeconds
+    )
+  }
+
   toProps(): AnnouncementProps {
     return this.props
   }

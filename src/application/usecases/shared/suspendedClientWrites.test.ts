@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Event } from '../../../domain/events/event'
 import type { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asMissionId, asPhotoId, asUserId } from '../../../domain/shared/ids'
+import { asAnnouncementId, asEventId, asMissionId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
 import { AT, anEvent } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { makeRegisterModerator } from '../auth/registerModerator'
+import { makeCreateAnnouncement } from '../announcements/createAnnouncement'
+import { makeDeleteAnnouncement } from '../announcements/deleteAnnouncement'
+import { makeLaunchAnnouncement } from '../announcements/launchAnnouncement'
+import { makeUpdateAnnouncement } from '../announcements/updateAnnouncement'
 import { makeChangeEventStatus } from '../events/changeEventStatus'
 import { makePurgeEvent } from '../events/purgeEvent'
 import { makeRenameEvent } from '../events/renameEvent'
@@ -224,6 +228,53 @@ const CASES: readonly Case[] = [
       makeStopChallenge({ events, memberships, challenges: gone(), bus: gone(), clock: gone() })({
         eventId: EVENT,
         actorId,
+      }),
+  },
+  {
+    name: 'createAnnouncement',
+    member: 'moderator',
+    ask: ({ events, memberships }, actorId) =>
+      makeCreateAnnouncement({
+        events,
+        memberships,
+        announcements: gone(),
+        ids: gone(),
+        bus: gone(),
+        clock: gone(),
+      })({ eventId: EVENT, actorId, text: 'Gâteau' }),
+  },
+  {
+    name: 'updateAnnouncement',
+    member: 'moderator',
+    ask: ({ events, memberships }, actorId) =>
+      makeUpdateAnnouncement({
+        events,
+        memberships,
+        announcements: gone(),
+        bus: gone(),
+        clock: gone(),
+      })({ eventId: EVENT, actorId, announcementId: asAnnouncementId('announcement-1'), text: 'X' }),
+  },
+  {
+    name: 'launchAnnouncement',
+    member: 'moderator',
+    ask: ({ events, memberships }, actorId) =>
+      makeLaunchAnnouncement({
+        events,
+        memberships,
+        announcements: gone(),
+        bus: gone(),
+        clock: gone(),
+      })({ eventId: EVENT, actorId, announcementId: asAnnouncementId('announcement-1') }),
+  },
+  {
+    name: 'deleteAnnouncement',
+    member: 'moderator',
+    ask: ({ events, memberships }, actorId) =>
+      makeDeleteAnnouncement({ events, memberships, announcements: gone(), bus: gone() })({
+        eventId: EVENT,
+        actorId,
+        announcementId: asAnnouncementId('announcement-1'),
       }),
   },
   {

@@ -121,3 +121,28 @@ export const announcementsOverlap = (a: AnnouncementTiming, b: AnnouncementTimin
   const second = occupiedSpan(b)
   return first.fromMs < second.toMs && second.fromMs < first.toMs
 }
+
+/**
+ * How far back the wall's read goes, and how many rows it takes: the longest a discreet
+ * announcement stays (30 minutes) plus the minute of gap that follows it, and a handful of rows,
+ * so the query a public endpoint can provoke is bounded here and not by a request.
+ */
+export const WALL_LOOKBACK_MS = 31 * 60_000
+export const WALL_READ_LIMIT = 20
+
+/**
+ * Whether an announcement **of this kind**, other than `exceptId`, is on screen at `nowMs`: the
+ * reason a launch is refused with `announcement.showing` (rule 12) rather than with an overlap.
+ */
+export const anotherShowing = (
+  rows: readonly (AnnouncementTiming & { readonly id: string })[],
+  kind: AnnouncementKind,
+  nowMs: number,
+  exceptId: string | null,
+): boolean =>
+  rows.some(
+    (row) =>
+      row.kind === kind &&
+      row.id !== exceptId &&
+      announcementPhaseAt(row, nowMs).phase === 'showing',
+  )

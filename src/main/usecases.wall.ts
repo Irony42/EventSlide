@@ -11,6 +11,11 @@ import { makeDeleteGuestbookEntry } from '../application/usecases/guestbook/dele
 import { makeListGuestbookQueue } from '../application/usecases/guestbook/listGuestbookQueue'
 import { makeListMyGuestbookEntries } from '../application/usecases/guestbook/listMyGuestbookEntries'
 import { makeModerateGuestbookEntry } from '../application/usecases/guestbook/moderateGuestbookEntry'
+import { makeCreateAnnouncement } from '../application/usecases/announcements/createAnnouncement'
+import { makeDeleteAnnouncement } from '../application/usecases/announcements/deleteAnnouncement'
+import { makeLaunchAnnouncement } from '../application/usecases/announcements/launchAnnouncement'
+import { makeListAnnouncements } from '../application/usecases/announcements/listAnnouncements'
+import { makeUpdateAnnouncement } from '../application/usecases/announcements/updateAnnouncement'
 import { makeGetChallenge } from '../application/usecases/challenges/getChallenge'
 import { makeStartChallenge } from '../application/usecases/challenges/startChallenge'
 import { makeStopChallenge } from '../application/usecases/challenges/stopChallenge'
@@ -62,6 +67,7 @@ export const wallUseCases = (
     missions: adapters.missions,
     guestbook: adapters.guestbook,
     challenges: adapters.challenges,
+    announcements: adapters.announcements,
     clock: adapters.clock,
   }),
 
@@ -147,6 +153,41 @@ export const wallUseCases = (
     memberships: adapters.memberships,
     bus: adapters.bus,
     clock: adapters.clock,
+  }),
+  // scheduled announcements (spec 21)
+  listAnnouncements: makeListAnnouncements({
+    events: adapters.events,
+    announcements: adapters.announcements,
+    memberships: adapters.memberships,
+    clock: adapters.clock,
+  }),
+  createAnnouncement: makeCreateAnnouncement({
+    events: adapters.events,
+    announcements: adapters.announcements,
+    memberships: adapters.memberships,
+    ids: adapters.ids,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  updateAnnouncement: makeUpdateAnnouncement({
+    events: adapters.events,
+    announcements: adapters.announcements,
+    memberships: adapters.memberships,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  launchAnnouncement: makeLaunchAnnouncement({
+    events: adapters.events,
+    announcements: adapters.announcements,
+    memberships: adapters.memberships,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  deleteAnnouncement: makeDeleteAnnouncement({
+    events: adapters.events,
+    announcements: adapters.announcements,
+    memberships: adapters.memberships,
+    bus: adapters.bus,
   }),
   getGuestChecklist: makeGetGuestChecklist({
     events: adapters.events,

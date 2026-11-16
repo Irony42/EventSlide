@@ -11,6 +11,7 @@ import {
   makeGetWallPlaylist,
   type WallPlaylistView,
 } from '../../../application/usecases/slideshow/getWallPlaylist'
+import { FakeAnnouncementRepository } from '../../../application/testing/fakeAnnouncementRepository'
 import { FakeChallengeRepository } from '../../../application/testing/fakeChallengeRepository'
 import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
 import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
@@ -67,6 +68,7 @@ interface World {
   readonly missions: FakeMissionRepository
   readonly guestbook: FakeGuestbookRepository
   readonly challenges: FakeChallengeRepository
+  readonly announcements: FakeAnnouncementRepository
 }
 
 /**
@@ -85,6 +87,7 @@ const world = (
   const missions = new FakeMissionRepository(photos)
   const guestbook = new FakeGuestbookRepository()
   const challenges = new FakeChallengeRepository(photos)
+  const announcements = new FakeAnnouncementRepository()
   const ids = new SequentialIdGenerator()
 
   const subject = buildHarness({
@@ -114,6 +117,7 @@ const world = (
               missions,
               guestbook,
               challenges,
+              announcements,
               clock: deps.clock,
             }),
           },
@@ -154,7 +158,7 @@ const world = (
     }),
   )
 
-  return { subject, photos, missions, guestbook, challenges }
+  return { subject, photos, missions, guestbook, challenges, announcements }
 }
 
 /** `set-cookie` is an array at runtime and loosely typed; narrow it once, here. */
@@ -1268,6 +1272,7 @@ describe('toWallResponseDto', () => {
       missions: [],
       guestbook: null,
       challenge: null,
+      announcements: null,
       serverNowMs: 0,
       souvenirCount: null,
       souvenirCounter: false,
@@ -1302,6 +1307,7 @@ describe('toWallResponseDto', () => {
       missions: [],
       guestbook: null,
       challenge: null,
+      announcements: null,
       serverNowMs: 0,
       souvenirCount: null,
       souvenirCounter: false,
