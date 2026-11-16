@@ -485,3 +485,90 @@ describe('a guestbook message the operator took down, by its id (spec 01)', () =
     expect(await mineHolds(s, 'Un mot')).toBe(true)
   })
 })
+
+describe('the scheduled announcements of an event the operator holds or removes (spec 21)', () => {
+  const inAnHour = (): string => new Date(Date.now() + 3_600_000).toISOString()
+
+  const schedule = async (s: Scene) => {
+    const created = await s.host.post(`/api/events/${SLUG}/announcements`, {
+      text: 'Gâteau',
+      at: inAnHour(),
+    })
+    expect(created.status, JSON.stringify(created.body)).toBe(201)
+    return created.body.announcement.id as string
+  }
+
+  const rows = (s: Scene): number =>
+    (
+      s.booted.db.prepare('SELECT COUNT(*) AS n FROM event_announcements').get() as {
+        readonly n: number
+      }
+    ).n
+
+  it('answers a removed event to its own host exactly as an event that does not exist, for a read and a write', async () => {
+    const s = await scene()
+    const id = await schedule(s)
+    expect((await act(s, `events/${s.eventId}/take-down`)).status).toBe(204)
+
+    const reads = [
+      [`/api/events/${SLUG}/announcements`, `/api/events/${NO_SUCH}/announcements`],
+    ] as const
+    for (const [real, unknown] of reads) {
+      expect(answer(await s.host.get(real))).toEqual(answer(await s.host.get(unknown)))
+    }
+    const write = await s.host.post(`/api/events/${SLUG}/announcements`, { text: 'Autre' })
+    const missing = await s.host.post(`/api/events/${NO_SUCH}/announcements`, { text: 'Autre' })
+    const launch = await s.host.post(`/api/events/${SLUG}/announcements/${id}/launch`)
+    expect(answer(write)).toEqual(answer(missing))
+    expect(launch.status).toBe(404)
+    expect(rows(s)).toBe(1)
+  })
+
+  it('stops serving a removed event wall, with its announcements, and serves them again when restored', async () => {
+    const s = await scene()
+    await s.host.post(`/api/events/${SLUG}/announcements`, { text: 'Gâteau' })
+
+    const before = await s.stranger.get(`/api/events/${SLUG}/wall`)
+    expect(before.body.announcements.items.map((row: { text: string }) => row.text)).toEqual([
+      'Gâteau',
+    ])
+
+    await act(s, `events/${s.eventId}/take-down`)
+    expect((await s.stranger.get(`/api/events/${SLUG}/wall`)).status).toBe(404)
+
+    await act(s, `events/${s.eventId}/restore`)
+    const after = await s.stranger.get(`/api/events/${SLUG}/wall`)
+    expect(after.body.announcements.items).toHaveLength(1)
+  })
+
+  it('tells the host of a suspended client why a read is refused, with 403 client.suspended', async () => {
+    const s = await scene()
+    await schedule(s)
+    expect((await s.host.post(`/api/site/clients/${CLIENT}/suspend`)).status).toBe(204)
+
+    const refused = await s.host.get(`/api/events/${SLUG}/announcements`)
+
+    expect([refused.status, refused.body.error?.code]).toEqual([403, 'client.suspended'])
+  })
+
+  it('keeps the rows while a purge hold keeps the event, and takes them with it once released', async () => {
+    const s = await scene()
+    await schedule(s)
+    s.booted.db
+      .prepare(
+        `UPDATE events SET status = 'closed', closed_at = '2020-01-01T00:00:00.000Z',
+                settings = json_set(settings, '$.retentionDays', 1) WHERE id = ?`,
+      )
+      .run(s.eventId)
+    expect((await act(s, `events/${s.eventId}/purge-hold`)).status).toBe(204)
+
+    const held = await s.booted.usecases.purgeExpiredEvents()
+    expect(held.purged).toEqual([])
+    expect(rows(s)).toBe(1)
+
+    expect((await act(s, `events/${s.eventId}/purge-release`)).status).toBe(204)
+    const released = await s.booted.usecases.purgeExpiredEvents()
+    expect(released.purged).toEqual([s.eventId])
+    expect(rows(s)).toBe(0)
+  })
+})

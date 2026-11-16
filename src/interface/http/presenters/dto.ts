@@ -7,6 +7,8 @@
  * uploader's raw EXIF. Note what is absent from every DTO below.
  */
 
+import type { AnnouncementKind } from '../../../domain/announcements/announcementRules'
+import type { AnnouncementState } from '../../../domain/announcements/announcementSchedule'
 import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import type { EventLanguage } from '../../../domain/events/eventLanguage'
 import type { EventStatus } from '../../../domain/events/eventStatus'
@@ -463,6 +465,12 @@ export interface WallResponseDto {
   readonly serverNowMs: number
   /** The running challenge, or the one that just ended; `null` otherwise (spec 10). */
   readonly challenge: WallChallengeDto | null
+  /**
+   * The announcements the wall may read now and when to read again (spec 21). **Absent** when the
+   * event has none left to come or is not live: a wall that does not use the feature is exactly
+   * the wall it was.
+   */
+  readonly announcements?: WallAnnouncementsDto
 }
 
 export type UploadOutcomeDto =
@@ -962,6 +970,48 @@ export interface WallChallengeDto {
   readonly endsAt: string
   readonly state: 'running' | 'ended'
   readonly answers: number | null
+}
+
+/**
+ * One scheduled announcement as the wall reads it (spec 21): the text (content, never translated),
+ * its kind, the moment it appears and two integers. The phase is the wall's to derive from the
+ * clock, so no state is sent.
+ */
+export interface WallAnnouncementDto {
+  readonly id: string
+  readonly text: string
+  readonly kind: AnnouncementKind
+  readonly at: string
+  readonly durationSeconds: number
+  readonly countdownSeconds: number
+}
+
+/** The announcements whose text the wall may be given, and the server instant to read again at. */
+export interface WallAnnouncementsDto {
+  readonly items: readonly WallAnnouncementDto[]
+  readonly nextReadAtMs: number
+}
+
+/** One announcement as the host's console reads it: the row, and its state at the server's clock. */
+export interface AnnouncementDto {
+  readonly id: string
+  readonly text: string
+  readonly kind: AnnouncementKind
+  readonly at: string
+  readonly durationSeconds: number
+  readonly countdownSeconds: number
+  readonly state: AnnouncementState
+}
+
+/** `GET /events/:slug/announcements`: the host's list, with the clock it was derived at. */
+export interface AnnouncementListResponseDto {
+  readonly announcements: readonly AnnouncementDto[]
+  readonly serverNowMs: number
+}
+
+/** What a schedule, an edit and a launch answer. */
+export interface AnnouncementResponseDto {
+  readonly announcement: AnnouncementDto
 }
 
 /** The console's view: the wall's, plus the mission it names (to say which row is running). */

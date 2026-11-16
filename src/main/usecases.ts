@@ -12,6 +12,7 @@ import type { MembershipRepository, UserRepository } from '../application/ports/
 import type { MediaStore } from '../application/ports/mediaStore'
 import type { ImageProcessor } from '../application/ports/imageProcessor'
 import type { ClipJobRepository } from '../application/ports/clipJobRepository'
+import type { AnnouncementRepository } from '../application/ports/announcementRepository'
 import type { ChallengeRepository } from '../application/ports/challengeRepository'
 import type { MissionRepository } from '../application/ports/missionRepository'
 import type { GuestbookRepository } from '../application/ports/guestbookRepository'
@@ -80,6 +81,8 @@ export interface Adapters {
   readonly missions: MissionRepository
   /** Timed photo challenges (spec 10). */
   readonly challenges: ChallengeRepository
+  /** Scheduled wall announcements (spec 21). */
+  readonly announcements: AnnouncementRepository
   readonly guestbook: GuestbookRepository
   readonly users: UserRepository
   readonly memberships: MembershipRepository

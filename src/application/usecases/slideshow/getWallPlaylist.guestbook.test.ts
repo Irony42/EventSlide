@@ -8,6 +8,7 @@ import {
 import { aGuest, aGuestbookEntry, anEvent, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeAnnouncementRepository } from '../../testing/fakeAnnouncementRepository'
 import { FakeChallengeRepository } from '../../testing/fakeChallengeRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
@@ -34,6 +35,7 @@ describe('getWallPlaylist — the guestbook', () => {
       missions: new FakeMissionRepository(photos),
       guestbook,
       challenges: new FakeChallengeRepository(photos),
+      announcements: new FakeAnnouncementRepository(),
       clock: new FakeClock(),
     })
     guests.seed(aGuest({ id: 'guest-1', eventId: 'event-1', displayName: 'Léa' }))

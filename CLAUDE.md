@@ -125,6 +125,7 @@ src/
     mail/          Outgoing message rules: one mailbox, a one-line subject (roadmap §10.3)
     legal/         The terms of use an invitation's acceptance agrees to: a URL and a short version (G2-20)
     stats/         The host statistics page: the ranking of the top contributors (spec 05; every figure is derived, never counted)
+    announcements/ The wall's scheduled announcements: text, kind, bounds, the derived phase, what the public wall may be told and when two collide (spec 21)
     site/          What the operator may see of the box: the closed field vocabulary and the rows of the content-free overview (roadmap §10.4; served by `/api/site`, G2-14)
   application/
     ports/         Interfaces. One file per port. No implementations.

@@ -29,6 +29,7 @@ import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
 import { mediaRoutes } from './routes/mediaRoutes'
 import { meRoutes } from './routes/meRoutes'
 import { guestbookRoutes } from './routes/guestbookRoutes'
+import { announcementRoutes } from './routes/announcementRoutes'
 import { challengeRoutes } from './routes/challengeRoutes'
 import { missionRoutes } from './routes/missionRoutes'
 import { highlightRoutes } from './routes/highlightRoutes'
@@ -351,6 +352,8 @@ export const buildServer = ({
   app.use('/api', missionRoutes(routeDeps))
   // The timed photo challenge (spec 10): a moderator launches or stops one of the missions.
   app.use('/api', challengeRoutes(routeDeps))
+  // The scheduled announcements (spec 21): a moderator schedules, edits, launches or deletes them.
+  app.use('/api', announcementRoutes(routeDeps))
   app.use(
     '/api',
     eventRoutes({

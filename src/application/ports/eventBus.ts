@@ -69,6 +69,15 @@ export type DomainEvent =
    */
   | { readonly type: 'challenge.changed'; readonly eventId: EventId }
   /**
+   * An announcement was scheduled, edited, launched or deleted (spec 21). An invalidation signal
+   * without data, like `challenge.changed`: the wall and the console re-read. **Public**: the wall
+   * is a public surface and shows the announcement (`signalAudience.ts` keeps its default), and
+   * the signal carries no text, no moment and no identifier, so a surprise stays one. Published
+   * only when something changed. The start and the end of an announcement are derived from the
+   * clock and announce nothing.
+   */
+  | { readonly type: 'announcement.changed'; readonly eventId: EventId }
+  /**
    * A clip has been staged and is waiting for the transcoder.
    *
    * Two subscribers care, for different reasons. The guest's own view refetches, so

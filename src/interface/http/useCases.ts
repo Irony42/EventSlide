@@ -114,6 +114,11 @@ import type { DeleteGuestbookEntry } from '../../application/usecases/guestbook/
 import type { ListGuestbookQueue } from '../../application/usecases/guestbook/listGuestbookQueue'
 import type { ListMyGuestbookEntries } from '../../application/usecases/guestbook/listMyGuestbookEntries'
 import type { ModerateGuestbookEntry } from '../../application/usecases/guestbook/moderateGuestbookEntry'
+import type { CreateAnnouncement } from '../../application/usecases/announcements/createAnnouncement'
+import type { DeleteAnnouncement } from '../../application/usecases/announcements/deleteAnnouncement'
+import type { LaunchAnnouncement } from '../../application/usecases/announcements/launchAnnouncement'
+import type { ListAnnouncements } from '../../application/usecases/announcements/listAnnouncements'
+import type { UpdateAnnouncement } from '../../application/usecases/announcements/updateAnnouncement'
 import type { StartChallenge } from '../../application/usecases/challenges/startChallenge'
 import type { GetChallenge } from '../../application/usecases/challenges/getChallenge'
 import type { StopChallenge } from '../../application/usecases/challenges/stopChallenge'
@@ -297,6 +302,12 @@ export interface HttpUseCases {
   readonly startChallenge: StartChallenge
   readonly stopChallenge: StopChallenge
   readonly getChallenge: GetChallenge
+  // scheduled wall announcements (spec 21)
+  readonly listAnnouncements: ListAnnouncements
+  readonly createAnnouncement: CreateAnnouncement
+  readonly updateAnnouncement: UpdateAnnouncement
+  readonly launchAnnouncement: LaunchAnnouncement
+  readonly deleteAnnouncement: DeleteAnnouncement
   readonly getGuestChecklist: GetGuestChecklist
 
   // the shared gallery (roadmap §4.1): the host's three, then the link holder's five

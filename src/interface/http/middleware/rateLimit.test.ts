@@ -17,6 +17,7 @@ import { asUserId } from '../../../domain/shared/ids'
 import type { UserPrincipal } from '../types'
 import { SECOND_FACTOR_FAILURES_PER_ACCOUNT } from '../../../domain/users/secondFactor'
 import {
+  announcementWriteLimiter,
   eventCreationLimiter,
   galleryLimiter,
   galleryMediaLimiter,
@@ -114,6 +115,7 @@ describe('every limiter answers 429 with the error shape and a Retry-After', () 
     ['uploadLimiter', uploadLimiter(1), 'rate.limited', 60],
     ['reactionLimiter', reactionLimiter(1), 'reaction.rateLimited', 60],
     ['guestWriteLimiter', guestWriteLimiter(1), 'rate.limited', 60],
+    ['announcementWriteLimiter', announcementWriteLimiter(1), 'rate.limited', 60],
     ['eventCreationLimiter', eventCreationLimiter(1), 'event.creationRateLimited', 3_600],
     ['invitationIssueLimiter', invitationIssueLimiter(1), 'rate.limited', 3_600],
     ['secondFactorLimiter', secondFactorLimiter(1), 'rate.limited', 60],

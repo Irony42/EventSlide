@@ -7,10 +7,12 @@ import request from '../interface/http/testing/request'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { asEventId, asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
+import { closeDatabase, openDatabase } from '../infrastructure/db/connection'
 import { migrations } from '../infrastructure/db/migrations'
-import { status } from '../infrastructure/db/migrator'
-import { anAuditEntry, anEventSettings } from '../application/testing/builders'
+import { migrate, status } from '../infrastructure/db/migrator'
+import { anAuditEntry, anEvent, anEventSettings } from '../application/testing/builders'
 import { SqliteAuditLog } from '../infrastructure/db/sqliteAuditLog'
+import { SqliteEventRepository } from '../infrastructure/db/sqliteEventRepository'
 import { createContainer, type Container } from './container'
 import { appVersion } from './version'
 import type { OutgoingMail } from '../application/ports/mailer'
@@ -205,6 +207,90 @@ describe('createContainer: SITE_ADMIN decides surface, never schema', () => {
       expect(status(db, migrations).applied.map((row) => row.id)).toEqual(
         migrations.map((migration) => migration.id),
       )
+    },
+  )
+})
+
+/**
+ * Migration 029 (spec 21) on a database that is at 028 and already holds an evening: the box that
+ * upgrades with a live event on it, in both modes of `SITE_ADMIN` (which decides surface, never
+ * schema). The table appears empty, the event and its account are untouched, the schema's own
+ * guards answer, and the wall of the existing event serves an announcement written afterwards
+ * only inside its window.
+ */
+describe('createContainer: migration 029 on a database at 028', () => {
+  const SLUG = 'mariage-existant'
+  const EVENT_ID = 'evt-existing'
+  const HOUR = 3_600_000
+
+  it.each(['off', 'on'] as const)(
+    'adds event_announcements to a populated 028 database with SITE_ADMIN=%s, and keeps what was there',
+    async (mode) => {
+      workDir = await mkdtemp(join(tmpdir(), 'eventslide-container-'))
+      const databasePath = join(workDir, 'eventslide.sqlite')
+      const old = openDatabase({ path: databasePath })
+      migrate(
+        old,
+        migrations.filter((migration) => migration.id < 29),
+      )
+      old
+        .prepare(
+          `INSERT INTO users (id, email, password_hash, created_at)
+                VALUES ('u-host', 'hote@example.test', 'hash:x', '2026-06-20T11:00:00.000Z')`,
+        )
+        .run()
+      await new SqliteEventRepository(old).save(
+        anEvent({
+          id: EVENT_ID,
+          ownerId: 'u-host',
+          slug: SLUG,
+          joinCode: 'H7K2QM',
+          status: 'live',
+        }),
+      )
+      expect(
+        old
+          .prepare<[], { readonly name: string }>(
+            `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'event_announcements'`,
+          )
+          .all(),
+      ).toEqual([])
+      closeDatabase(old)
+
+      container = await createContainer(
+        loadConfig({
+          NODE_ENV: 'test',
+          LOG_LEVEL: 'fatal',
+          DATABASE_PATH: databasePath,
+          MEDIA_ROOT: join(workDir, 'media'),
+          FFMPEG_PATH: join(workDir, 'no-ffmpeg-here'),
+          FFPROBE_PATH: join(workDir, 'no-ffprobe-here'),
+          SITE_ADMIN: mode,
+        }),
+      )
+      const { db, app } = container
+
+      expect(status(db, migrations).applied.map((row) => row.id)).toContain(29)
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_announcements').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT slug FROM events').all()).toEqual([{ slug: SLUG }])
+      expect(
+        (await request(app).get(`/api/events/${SLUG}/wall`)).body.announcements,
+      ).toBeUndefined()
+
+      const insert = db.prepare(
+        `INSERT INTO event_announcements
+                (id, event_id, text, at, kind, duration_seconds, countdown_seconds, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      const soon = new Date(Date.now() + HOUR).toISOString()
+      expect(() =>
+        insert.run('a-bad', EVENT_ID, 'Buffet', soon, 'discreet', 900, 300, soon),
+      ).toThrow(/CHECK constraint failed/)
+      insert.run('a-ok', EVENT_ID, 'Demande en mariage', soon, 'fullscreen', 30, 300, soon)
+
+      const wall = await request(app).get(`/api/events/${SLUG}/wall`)
+      expect(wall.body.announcements.items).toEqual([])
+      expect(JSON.stringify(wall.body)).not.toContain('Demande en mariage')
     },
   )
 })

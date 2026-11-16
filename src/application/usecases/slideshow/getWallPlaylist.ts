@@ -25,6 +25,14 @@ import type { PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Slug } from '../../../domain/shared/slug'
 import { mixedWallLayout } from '../../../domain/slideshow/wallPhase'
+import type { Announcement } from '../../../domain/announcements/announcement'
+import {
+  nextReadAtMs,
+  visibleAnnouncements,
+  WALL_LOOKBACK_MS,
+  WALL_READ_LIMIT,
+} from '../../../domain/announcements/announcementSchedule'
+import type { AnnouncementRepository } from '../../ports/announcementRepository'
 import type { ChallengeRepository } from '../../ports/challengeRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
@@ -95,6 +103,8 @@ export interface GetWallPlaylistDeps {
   readonly guestbook: GuestbookRepository
   /** The timed challenge the wall counts down (spec 10). */
   readonly challenges: ChallengeRepository
+  /** The scheduled announcements the wall shows (spec 21). */
+  readonly announcements: AnnouncementRepository
   /** The one clock the countdown is anchored on: `serverNowMs` and the challenge state come from it. */
   readonly clock: Clock
 }
@@ -135,6 +145,13 @@ export interface WallGuestbookMessage {
 export interface WallGuestbook {
   readonly everyNth: number
   readonly messages: readonly WallGuestbookMessage[]
+}
+
+/** What the wall carries of the announcements: the rows it may read, and the next read. */
+export interface WallAnnouncements {
+  readonly items: readonly Announcement[]
+  /** An instant on the server's clock; at most fifteen minutes from `serverNowMs`. */
+  readonly nextReadAtMs: number
 }
 
 export interface WallPlaylistView {
@@ -210,6 +227,13 @@ export interface WallPlaylistView {
   /** The running challenge, or the one that just ended (twenty seconds), or `null` (spec 10). */
   readonly challenge: ChallengeReading | null
   /**
+   * The announcements whose text the wall may be given now, and when to read again (spec 21).
+   * `null` when the event is not `live` or has none left to come: a wall that does not use the
+   * feature is exactly the wall it was. Before an announcement's window opens, **nothing** of it
+   * is here, not even an identifier.
+   */
+  readonly announcements: WallAnnouncements | null
+  /**
    * The server's clock at this read, in milliseconds: what a client anchors its countdown on, so
    * two projectors with different clocks show the same time. The same field spec 09 puts on the
    * wall's response.
@@ -282,6 +306,29 @@ const readGuestbook = async (
       displayMs: messageDisplayMs(entry.text.length),
     })),
   }
+}
+
+/**
+ * The announcements of a `live` event, bounded in the repository by a window around now and a
+ * row count, then narrowed by the domain to what a stranger may read at `nowMs` (rule 6). A `closed`
+ * wall is a keepsake: it shows none, and a draft is not served at all.
+ */
+const readAnnouncements = async (
+  announcements: AnnouncementRepository,
+  event: Event,
+  now: Date,
+): Promise<WallAnnouncements | null> => {
+  if (!event.showsAnnouncements()) return null
+
+  const rows = await announcements.listAround(
+    event.id,
+    new Date(now.getTime() - WALL_LOOKBACK_MS),
+    WALL_READ_LIMIT,
+  )
+  const nextRead = nextReadAtMs(rows, now.getTime())
+  if (nextRead === null) return null
+
+  return { items: visibleAnnouncements(rows, now.getTime()), nextReadAtMs: nextRead }
 }
 
 /**
@@ -372,6 +419,7 @@ export const makeGetWallPlaylist =
     missions,
     guestbook,
     challenges,
+    announcements,
     clock,
   }: GetWallPlaylistDeps): GetWallPlaylist =>
   async ({ slug, layout, slideIntervalMs, windowSize }) => {
@@ -416,6 +464,7 @@ export const makeGetWallPlaylist =
     // after it ends. `now` is taken once, so the state and `serverNowMs` cannot disagree.
     const now = clock.now()
     const challenge = await readChallenge(challenges, event.id, now)
+    const announcement = await readAnnouncements(announcements, event, now)
     // The same definition as the moderation counters and the album: published, not taken down.
     const wallSettings = event.settings.wall
     const souvenirCount = wallNeedsSouvenirCount(wallSettings)
@@ -438,6 +487,7 @@ export const makeGetWallPlaylist =
       missions: standings.map((row) => ({ ...row, achieved: isAchieved(row.progress) })),
       guestbook: book,
       challenge,
+      announcements: announcement,
       serverNowMs: now.getTime(),
       souvenirCount,
       souvenirCounter: wallSettings.souvenirCounter,

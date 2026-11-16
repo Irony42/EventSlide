@@ -664,6 +664,16 @@ describe('openStream', () => {
     expect(sink.text).not.toContain('book.changed')
   })
 
+  it('carries announcement.changed on the public wall channel, and nothing but its type', () => {
+    const sink = open()
+
+    world.deps.bus.publish({ type: 'announcement.changed', eventId: asEventId(WEDDING) })
+
+    expect(sink.text).toContain('announcement.changed')
+    // A signal with no data: a surprise announcement is not readable on the wall's stream.
+    expect(sink.text).not.toContain(WEDDING)
+  })
+
   it('names the heartbeat too, so a client can tell quiet from dead', async () => {
     // A comment reaches no client handler, which is what makes it safe for a proxy and
     // useless as a sign of life. The named half is what the client's watchdog listens

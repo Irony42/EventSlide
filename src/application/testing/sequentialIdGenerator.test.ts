@@ -84,12 +84,23 @@ describe('SequentialIdGenerator', () => {
     expect([ids.challengeId(), ids.challengeId()]).toEqual(['challenge-1', 'challenge-2'])
   })
 
+  it('numbers announcements from one, on a counter of their own', async () => {
+    const ids = new SequentialIdGenerator()
+    ids.challengeId()
+
+    expect([ids.announcementId(), ids.announcementId()]).toEqual([
+      'announcement-1',
+      'announcement-2',
+    ])
+  })
+
   it('starts over on reset', async () => {
     const ids = new SequentialIdGenerator()
     ids.eventId()
     ids.clientId()
     ids.accountTokenId()
     ids.challengeId()
+    ids.announcementId()
     ids.bytes(6)
 
     ids.reset()
@@ -99,8 +110,9 @@ describe('SequentialIdGenerator', () => {
       ids.clientId(),
       ids.accountTokenId(),
       ids.challengeId(),
+      ids.announcementId(),
       [...ids.bytes(2)],
-    ]).toEqual(['event-1', 'client-1', 'account-token-1', 'challenge-1', [0, 1]])
+    ]).toEqual(['event-1', 'client-1', 'account-token-1', 'challenge-1', 'announcement-1', [0, 1]])
   })
 
   it('returns itself from reset, so a beforeEach reads in one line', async () => {

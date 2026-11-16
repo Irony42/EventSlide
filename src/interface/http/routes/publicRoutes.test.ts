@@ -11,12 +11,14 @@ import {
   makeGetWallPlaylist,
   type WallPlaylistView,
 } from '../../../application/usecases/slideshow/getWallPlaylist'
+import { FakeAnnouncementRepository } from '../../../application/testing/fakeAnnouncementRepository'
 import { FakeChallengeRepository } from '../../../application/testing/fakeChallengeRepository'
 import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
 import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import {
+  anAnnouncement,
   aMission,
   aGuest,
   aPhoto,
@@ -67,6 +69,7 @@ interface World {
   readonly missions: FakeMissionRepository
   readonly guestbook: FakeGuestbookRepository
   readonly challenges: FakeChallengeRepository
+  readonly announcements: FakeAnnouncementRepository
 }
 
 /**
@@ -85,6 +88,7 @@ const world = (
   const missions = new FakeMissionRepository(photos)
   const guestbook = new FakeGuestbookRepository()
   const challenges = new FakeChallengeRepository(photos)
+  const announcements = new FakeAnnouncementRepository()
   const ids = new SequentialIdGenerator()
 
   const subject = buildHarness({
@@ -114,6 +118,7 @@ const world = (
               missions,
               guestbook,
               challenges,
+              announcements,
               clock: deps.clock,
             }),
           },
@@ -154,7 +159,7 @@ const world = (
     }),
   )
 
-  return { subject, photos, missions, guestbook, challenges }
+  return { subject, photos, missions, guestbook, challenges, announcements }
 }
 
 /** `set-cookie` is an array at runtime and loosely typed; narrow it once, here. */
@@ -786,6 +791,124 @@ describe('GET /api/events/:eventSlug/wall, the timed challenge (spec 10)', () =>
   })
 })
 
+describe('GET /api/events/:eventSlug/wall, the scheduled announcements (spec 21)', () => {
+  const SECOND = 1000
+  const MINUTE = 60 * SECOND
+  const at = (ms: number): Date => new Date(AT.getTime() + ms)
+
+  const seed = (w: ReturnType<typeof world>, over: Parameters<typeof anAnnouncement>[0]) =>
+    w.announcements.seed(anAnnouncement({ eventId: WEDDING, ...over }))
+
+  it('is absent from the response of an event that has no announcement: the wall it was', async () => {
+    const w = world()
+
+    const response = await request(w.subject.app).get('/api/events/mariage/wall')
+
+    expect(response.status).toBe(200)
+    expect(Object.keys(response.body)).not.toContain('announcements')
+  })
+
+  it('serves nothing of a surprise two hours ahead: not its text, its id, its moment', async () => {
+    const w = world()
+    seed(w, { id: 'secret-id', text: 'Demande en mariage', at: at(2 * 60 * MINUTE) })
+
+    const response = await request(w.subject.app).get('/api/events/mariage/wall')
+
+    // Something is pending, so the wall is told to come back, never when the next one is.
+    expect(response.body.announcements).toEqual({
+      items: [],
+      nextReadAtMs: AT.getTime() + 15 * MINUTE,
+    })
+    const wire = JSON.stringify(response.body)
+    expect(wire).not.toContain('Demande en mariage')
+    expect(wire).not.toContain('secret-id')
+    expect(wire).not.toContain(at(2 * 60 * MINUTE).toISOString())
+  })
+
+  it('serves the announcement from a minute before its countdown starts', async () => {
+    const w = world()
+    seed(w, { id: 'cake', text: 'Gâteau', at: at(10 * MINUTE), countdownSeconds: 300 })
+
+    w.subject.clock.advance(10 * MINUTE - 300 * SECOND - 61 * SECOND)
+    const early = await request(w.subject.app).get('/api/events/mariage/wall')
+    w.subject.clock.advance(SECOND)
+    const open = await request(w.subject.app).get('/api/events/mariage/wall')
+
+    expect(early.body.announcements.items).toEqual([])
+    expect(open.body.announcements.items).toEqual([
+      {
+        id: 'cake',
+        text: 'Gâteau',
+        kind: 'fullscreen',
+        at: at(10 * MINUTE).toISOString(),
+        durationSeconds: 30,
+        countdownSeconds: 300,
+      },
+    ])
+  })
+
+  it('serves the kind, and no author, state or creation time', async () => {
+    const w = world()
+    seed(w, { id: 'buffet', kind: 'discreet', text: 'Le buffet est ouvert', at: at(-10 * MINUTE) })
+
+    const response = await request(w.subject.app).get('/api/events/mariage/wall')
+
+    const [item] = response.body.announcements.items
+    expect(item).toEqual({
+      id: 'buffet',
+      text: 'Le buffet est ouvert',
+      kind: 'discreet',
+      at: at(-10 * MINUTE).toISOString(),
+      durationSeconds: 900,
+      countdownSeconds: 0,
+    })
+  })
+
+  it('drops an announcement once it is over, and the field with it', async () => {
+    const w = world()
+    seed(w, { id: 'cake', at: at(0), durationSeconds: 30 })
+
+    w.subject.clock.advance(29 * SECOND)
+    const on = await request(w.subject.app).get('/api/events/mariage/wall')
+    w.subject.clock.advance(SECOND)
+    const over = await request(w.subject.app).get('/api/events/mariage/wall')
+
+    expect(on.body.announcements.items).toHaveLength(1)
+    expect(Object.keys(over.body)).not.toContain('announcements')
+  })
+
+  it('serves none on a closed wall, which is a keepsake', async () => {
+    const w = world()
+    seed(w, { id: 'cake', at: at(-5 * SECOND) })
+    w.subject.events.seed(
+      anEvent({ id: 'closed-evt', slug: 'cloture', joinCode: 'K4N7PQ', status: 'closed' }),
+    )
+    w.announcements.seed(anAnnouncement({ id: 'old', eventId: 'closed-evt', at: at(-5 * SECOND) }))
+
+    const response = await request(w.subject.app).get('/api/events/cloture/wall')
+
+    expect(response.status).toBe(200)
+    expect(Object.keys(response.body)).not.toContain('announcements')
+  })
+
+  it('never serves another event announcement', async () => {
+    const w = world()
+    w.announcements.seed(anAnnouncement({ id: 'gala-card', eventId: GALA, at: at(-5 * SECOND) }))
+
+    const response = await request(w.subject.app).get('/api/events/mariage/wall')
+
+    expect(JSON.stringify(response.body)).not.toContain('gala-card')
+  })
+
+  it('leaves the query of the wall strict: an unknown parameter is still refused', async () => {
+    const w = world()
+
+    const response = await request(w.subject.app).get('/api/events/mariage/wall?announcements=on')
+
+    expect(response.status).toBe(400)
+  })
+})
+
 describe('GET /api/events/:eventSlug/wall', () => {
   it('serves the published photos of a live event, newest first', async () => {
     const { subject, photos } = world()
@@ -1268,6 +1391,7 @@ describe('toWallResponseDto', () => {
       missions: [],
       guestbook: null,
       challenge: null,
+      announcements: null,
       serverNowMs: 0,
       souvenirCount: null,
       souvenirCounter: false,
@@ -1302,6 +1426,7 @@ describe('toWallResponseDto', () => {
       missions: [],
       guestbook: null,
       challenge: null,
+      announcements: null,
       serverNowMs: 0,
       souvenirCount: null,
       souvenirCounter: false,

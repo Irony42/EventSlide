@@ -9,6 +9,8 @@ import type { EventSettings } from './eventSettings'
 import { fitsInQuota, remainingQuota } from './quota'
 import {
   acceptsGuests,
+  allowsAnnouncementWrites,
+  showsAnnouncements,
   acceptsUploads,
   allowsModeration,
   canTransition,
@@ -679,6 +681,16 @@ export class Event {
    */
   servesPublicWall(): boolean {
     return !this.isClientSuspended() && this.servesWall()
+  }
+
+  /** Whether announcements may be written: `draft` to prepare, `live` to run (spec 21). */
+  allowsAnnouncementWrites(): boolean {
+    return allowsAnnouncementWrites(this.props.status)
+  }
+
+  /** Whether the wall shows announcements: `live` only (spec 21, rule 10). */
+  showsAnnouncements(): boolean {
+    return showsAnnouncements(this.props.status)
   }
 
   allowsModeration(): boolean {

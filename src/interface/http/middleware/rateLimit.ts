@@ -388,6 +388,24 @@ export const bookDownloadLimiter = (perMinute: number): RateLimitRequestHandler 
 export const logoLimiter = (perHour: number): RateLimitRequestHandler =>
   windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
 
+// ------------------------------------------------------ announcements --
+
+/**
+ * How many announcement writes (schedule, edit, launch, delete) one **account** may send per
+ * minute (spec 21). A host at an evening taps a handful of these; a script does not need a
+ * hundred. The real ceiling is the event's fifty rows, counted in the database: this one only
+ * stops a loop from hammering a route that reads and writes rows in a transaction, and every one
+ * of those writes publishes a signal that makes every projector read again.
+ *
+ * A constant and not an environment variable (the feature adds none), keyed by account for
+ * `eventCreationLimiter`'s reason, and placed after `requireRole`, which puts the account on the
+ * request.
+ */
+export const ANNOUNCEMENT_WRITES_PER_ACCOUNT_PER_MINUTE = 60
+
+export const announcementWriteLimiter = (perMinute: number): RateLimitRequestHandler =>
+  windowLimiter({ windowMs: 60_000, limit: perMinute, code: 'rate.limited', key: accountKey })
+
 // ------------------------------------------------------------ second factor --
 
 /**

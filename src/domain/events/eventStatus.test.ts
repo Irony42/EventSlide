@@ -4,12 +4,14 @@ import {
   acceptsGuests,
   acceptsUploads,
   allowedTransitionsFrom,
+  allowsAnnouncementWrites,
   allowsModeration,
   canTransition,
   isEventStatus,
   isMutable,
   retentionApplies,
   servesWall,
+  showsAnnouncements,
   type EventStatus,
 } from './eventStatus'
 
@@ -99,6 +101,27 @@ describe('capabilities by status', () => {
       expect(servesWall(status)).toBe(expected)
     },
   )
+
+  it.each<[EventStatus, boolean]>([
+    ['draft', true],
+    ['live', true],
+    ['closed', false],
+    ['archived', false],
+  ])(
+    'lets announcements be written while the evening is prepared or on (%s: %s)',
+    (status, expected) => {
+      expect(allowsAnnouncementWrites(status)).toBe(expected)
+    },
+  )
+
+  it.each<[EventStatus, boolean]>([
+    ['draft', false],
+    ['live', true],
+    ['closed', false],
+    ['archived', false],
+  ])('shows announcements on a live wall only (%s: %s)', (status, expected) => {
+    expect(showsAnnouncements(status)).toBe(expected)
+  })
 
   it.each<[EventStatus, boolean]>([
     ['draft', true],

@@ -41,10 +41,15 @@ import type {
   ThemeCustomDto,
   GalleryDto,
   GalleryPageDto,
+  AnnouncementDto,
+  AnnouncementListResponseDto,
+  AnnouncementResponseDto,
   ChallengeDto,
   GuestChallengeDto,
   HostChallengeDto,
   HostChallengeResponseDto,
+  WallAnnouncementDto,
+  WallAnnouncementsDto,
   WallChallengeDto,
   GalleryPhotoDto,
   GuestDto,
@@ -110,6 +115,10 @@ import type { MembershipWithUser } from '../../../application/ports/userReposito
 import type { AcceptedInvitation } from '../../../application/usecases/auth/acceptInvitation'
 import type { IssuedInvitation } from '../../../application/usecases/auth/issueInvitation'
 import type { InvitationPreview } from '../../../application/usecases/auth/previewInvitation'
+import type { Announcement } from '../../../domain/announcements/announcement'
+import type { HostAnnouncement } from '../../../application/usecases/announcements/announcementAccess'
+import type { HostAnnouncementList } from '../../../application/usecases/announcements/listAnnouncements'
+import type { WallAnnouncements } from '../../../application/usecases/slideshow/getWallPlaylist'
 import type { ChallengeReading } from '../../../application/usecases/challenges/readChallenge'
 import type { HostChallengeView } from '../../../application/usecases/challenges/getChallenge'
 import type { ChecklistItem } from '../../../application/usecases/missions/getGuestChecklist'
@@ -901,6 +910,10 @@ export const toWallResponseDto = (
     // One read of the server's clock, taken with the challenge's state, so the two agree.
     serverNowMs: view.serverNowMs,
     challenge: toWallChallengeDto(view.challenge),
+    // Absent rather than null, like the guestbook: a wall with nothing to announce is the wall it was.
+    ...(view.announcements === null
+      ? {}
+      : { announcements: toWallAnnouncementsDto(view.announcements) }),
   }
 }
 
@@ -1018,6 +1031,43 @@ export const toHostChallengeResponseDto = (view: HostChallengeView): HostChallen
   serverNowMs: view.serverNowMs,
   challenge: view.challenge === null ? null : toHostChallengeDto(view.challenge),
   recent: view.recent,
+})
+
+/** An announcement as the public wall reads it: no author, no creation time, no state. */
+const toWallAnnouncementDto = (announcement: Announcement): WallAnnouncementDto => ({
+  id: announcement.id,
+  text: announcement.text.value,
+  kind: announcement.kind,
+  at: announcement.at.toISOString(),
+  durationSeconds: announcement.durationSeconds,
+  countdownSeconds: announcement.countdownSeconds,
+})
+
+export const toWallAnnouncementsDto = (view: WallAnnouncements): WallAnnouncementsDto => ({
+  items: view.items.map(toWallAnnouncementDto),
+  nextReadAtMs: view.nextReadAtMs,
+})
+
+/** An announcement as the host's console reads it. */
+export const toAnnouncementDto = ({ announcement, state }: HostAnnouncement): AnnouncementDto => ({
+  id: announcement.id,
+  text: announcement.text.value,
+  kind: announcement.kind,
+  at: announcement.at.toISOString(),
+  durationSeconds: announcement.durationSeconds,
+  countdownSeconds: announcement.countdownSeconds,
+  state,
+})
+
+export const toAnnouncementResponseDto = (row: HostAnnouncement): AnnouncementResponseDto => ({
+  announcement: toAnnouncementDto(row),
+})
+
+export const toAnnouncementListResponseDto = (
+  list: HostAnnouncementList,
+): AnnouncementListResponseDto => ({
+  announcements: list.announcements.map(toAnnouncementDto),
+  serverNowMs: list.serverNowMs,
 })
 
 export const toGuestMissionDto = (row: ChecklistItem): GuestMissionDto => ({

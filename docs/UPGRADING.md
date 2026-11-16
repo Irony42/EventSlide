@@ -994,3 +994,12 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 ### Clips
 
 - A clip declared above 60 frames per second is stored at 60. Clips already stored are not re-encoded.
+
+## Upgrading to 3.14 (not released yet)
+
+### Scheduled announcements on the wall (spec 21)
+
+- **One migration (029)**: a new table, `event_announcements`, with its index. Nothing existing is rewritten. Back up
+  first, as for any upgrade: the migration only goes forward.
+- **Nothing to set in `.env`.** A wall that has no announcement answers exactly what it did before; `GET /wall`
+  gains an optional `announcements` field only while an event is live and has one still to come.
