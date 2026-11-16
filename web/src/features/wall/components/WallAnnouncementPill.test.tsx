@@ -1,3 +1,4 @@
+import { Profiler } from 'react'
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fr } from '../../../lib/i18n/fr'
@@ -109,6 +110,25 @@ describe('WallAnnouncementPill (spec 21)', () => {
     expect(screen.getByText(fr.wall.announcementLastMinute)).toBeInTheDocument()
     // Nothing more to change in the last minute: no timer left running.
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('renders once a minute, on the boundary, and not once a second', async () => {
+    let renders = 0
+    render(
+      <LocaleProvider initialLocale="fr">
+        <Profiler id="pill" onRender={() => (renders += 1)}>
+          <WallAnnouncementPill announcement={discreet(600)} now={() => Date.now()} />
+        </Profiler>
+      </LocaleProvider>,
+    )
+
+    for (let minute = 1; minute <= 3; minute += 1) {
+      const before = renders
+      await advance(59_999)
+      expect(renders).toBe(before)
+      await advance(1)
+      expect(renders).toBe(before + 1)
+    }
   })
 
   it('clears its timer when it is taken down', () => {
