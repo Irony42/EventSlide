@@ -4,8 +4,10 @@
  * In the flow of `WallTopCentre`, under whatever holds the place (the challenge banner, the
  * announcement countdown or the souvenir counter): it covers none of them. At most two lines of
  * the host's sentence and one of the time left, at the caption's size, on the scrim every wall
- * caption wears: never text directly on the photograph. At most 40 % of the frame, so it fits
- * between the two top corners even with the invitation's card at its largest scale.
+ * caption wears: never text directly on the photograph. At most 40 % of the frame, and never wider
+ * than what a card in a top corner leaves (`--wall-top-centre-start` / `-end`, set by the wall root):
+ * at the card's largest scale the card reaches past the middle of the wall, so the pill is centred
+ * in the room that is left, not under the card.
  *
  * On the caption rung and drawn before the guestbook card, so a card covers it and it comes back.
  * The fullscreen announcement is on a higher rung and covers it too.
@@ -14,7 +16,17 @@
   position: relative;
   z-index: var(--z-wall-caption);
   box-sizing: border-box;
-  max-inline-size: 40%;
+  /* The margins are the inset and the room a top-corner card takes; a flex item is centred by its
+     margin box, so the pill sits in the middle of what is left, and the cap keeps it inside. */
+  margin-inline-start: calc(var(--wall-safe) + var(--wall-top-centre-start, 0px));
+  margin-inline-end: calc(var(--wall-safe) + var(--wall-top-centre-end, 0px));
+  max-inline-size: min(
+    40%,
+    calc(
+      100% - 2 * var(--wall-safe) - var(--wall-top-centre-start, 0px) -
+        var(--wall-top-centre-end, 0px)
+    )
+  );
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-lg);
   background: var(--surface-scrim);
