@@ -102,6 +102,15 @@ describe('getWallPlaylist: the announcements', () => {
     expect(read?.nextReadAtMs).toBe(AT.getTime() + 15 * MINUTE)
   })
 
+  it('reads at most twenty rows, whatever the event holds', async () => {
+    open()
+    for (let index = 0; index < 25; index += 1) {
+      announcements.seed(card({ id: `row-${index}`, kind: 'discreet', at: at(-10 * MINUTE) }))
+    }
+
+    expect((await wall())?.items).toHaveLength(20)
+  })
+
   it('carries the kind of a discreet announcement', async () => {
     open()
     announcements.seed(card({ id: 'buffet', kind: 'discreet', at: at(-10 * MINUTE) }))

@@ -275,6 +275,18 @@ describe('POST /api/events/:eventSlug/announcements', () => {
     expect(unknown.status).toBe(400)
     expect(unknown.body.error.code).toBe('request.invalid')
     expect(huge.status).toBe(400)
+    expect(huge.body.error.code).toBe('request.invalid')
+    expect(await world.announcements.listByEvent(WEDDING)).toEqual([])
+  })
+
+  it('answers request.invalid, not a domain code, for a field far past its cap', async () => {
+    const agent = await signedIn(world, 'moderator')
+
+    const at = await agent.post(BASE).send({ ...CAKE, at: '2'.repeat(65) })
+    const kind = await agent.post(BASE).send({ ...CAKE, kind: 'k'.repeat(33) })
+
+    expect([at.status, at.body.error.code]).toEqual([400, 'request.invalid'])
+    expect([kind.status, kind.body.error.code]).toEqual([400, 'request.invalid'])
     expect(await world.announcements.listByEvent(WEDDING)).toEqual([])
   })
 
@@ -511,6 +523,20 @@ describe('PATCH /api/events/:eventSlug/announcements/:announcementId', () => {
 
     expect((await agent.patch(`${BASE}/not-an-id`).send({ text: 'x' })).status).toBe(400)
     expect((await agent.patch(`${BASE}/${id}`).send({ state: 'over' })).status).toBe(400)
+  })
+
+  it('answers request.invalid for a text, a moment or a kind far past its cap', async () => {
+    const agent = await signedIn(world, 'moderator')
+    const id = await schedule(agent)
+
+    for (const body of [
+      { text: 'x'.repeat(201) },
+      { at: '2'.repeat(65) },
+      { kind: 'k'.repeat(33) },
+    ]) {
+      const response = await agent.patch(`${BASE}/${id}`).send(body)
+      expect([response.status, response.body.error.code]).toEqual([400, 'request.invalid'])
+    }
   })
 
   it('answers 401 without a session and 404 to the owner of another event', async () => {
