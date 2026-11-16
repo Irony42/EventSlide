@@ -547,6 +547,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
           purge: usecases.purgeExpiredEvents,
           pruneAuditLog: usecases.pruneAuditLog,
           finalizeOffboardedClients: usecases.finalizeOffboardedClients,
+          sweepPurgeNotices: usecases.sweepPurgeNotices,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,

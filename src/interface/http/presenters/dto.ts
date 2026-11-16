@@ -614,6 +614,11 @@ export interface EventSummaryDto {
   readonly role: EventRole
 }
 
+export interface EventPurgeDto {
+  readonly at: string | null
+  readonly notice: 14 | 3 | 1 | null
+}
+
 export interface EventDto extends EventSummaryDto {
   readonly joinCode: string
   /** Built from PUBLIC_URL here, so the QR code and the printed card cannot disagree. */
@@ -632,6 +637,16 @@ export interface EventDto extends EventSummaryDto {
    * with no window to announce: no client, no `max_live_days`, or one that has not opened yet.
    */
   readonly liveWindowEnd?: string
+  /**
+   * When the album will be deleted, and the last warning its owners were sent (spec 22). Never on a
+   * guest's answer and never on the wall's: a host's own page only. `at` is an ISO-8601 instant, the
+   * date the retention sweep acts on, or `null` when the album is not on a clock (a live event, or
+   * one kept until a person deletes it); `notice` is the threshold of the last e-mail, 14, 3 or 1
+   * day(s) before, or `null`. It says **nothing** of the operator's hold on the purge: a hold is
+   * invisible to a host, who may be the person concerned. Optional in the type only so that a
+   * fixture older than this field still compiles; every host answer carries it.
+   */
+  readonly purge?: EventPurgeDto
   readonly settings: EventSettingsDto
   readonly startsAt: string | null
   readonly closedAt: string | null

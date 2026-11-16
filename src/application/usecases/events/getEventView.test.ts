@@ -1,3 +1,4 @@
+import { FakePurgeNoticeLedger } from '../../testing/fakePurgeNoticeLedger'
 import { describe, expect, it } from 'vitest'
 import { asClientId, asEventId } from '../../../domain/shared/ids'
 import { AT, aClient, aGuest, aPhoto, anEvent, atPlus } from '../../testing/builders'
@@ -34,11 +35,15 @@ const aWorld = () => {
   const wedding = anEvent({ id: WEDDING, slug: 'mariage', quotaBytes: 5_000 })
   const gala = anEvent({ id: GALA, slug: 'gala', joinCode: 'ZZZZZZ' })
   const events = new FakeEventRepository({ photos, guests, clients }).seed(wedding, gala)
+  const notices = new FakePurgeNoticeLedger().withEvents(WEDDING, GALA)
   const getEventView = makeGetEventView({
     events,
+    clients,
+    notices,
+    capNoticeDays: 30,
     getEventLimits: makeGetEventLimits({ clients }),
   })
-  return { getEventView, clients, wedding, gala }
+  return { getEventView, clients, notices, wedding, gala }
 }
 
 describe('getEventView', () => {
