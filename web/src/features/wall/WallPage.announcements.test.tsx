@@ -110,7 +110,9 @@ describe('WallPage', () => {
     it('keeps the banner out of the accessibility tree, the card says it once', async () => {
       await open(wallWith([aWallAnnouncement(SERVER_START + 5_000)]))
       expect(band()?.getAttribute('aria-hidden')).toBe('true')
-      expect(screen.queryByRole('status', { name: '' })).toBeNull()
+      const live = '[role=status], [aria-live]'
+      expect(band()?.matches(live)).toBe(false)
+      expect(band()?.querySelector(live)).toBeNull()
 
       await advance(5_000)
 

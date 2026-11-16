@@ -905,7 +905,7 @@ export const es: UiText = {
     /* ---- Spec 21: scheduled announcements on the wall. The text inside is the host's, never translated. ---- */
     announcementSay: (text: string) => `Anuncio: ${text}.`,
     announcementIn: (time: string) => `en ${time}`,
-    announcementImminent: (time: string) => `un instante · ${time}`,
+    announcementImminent: (time: string) => `en un instante · ${time}`,
 
     codeLabel: 'Código de la fiesta',
     // Read by nothing in the room: the wall is also opened on a laptop while a host

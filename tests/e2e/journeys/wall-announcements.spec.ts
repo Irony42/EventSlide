@@ -116,7 +116,7 @@ test.describe('the wall and its announcements', () => {
     await projector.goto(wallUrl(app, slug))
     await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
 
-    // A one-minute countdown that began three seconds ago: the text has been served for a while.
+    // A one-minute countdown that starts in three seconds.
     const armed = await host.post(`/api/events/${slug}/announcements`, {
       text: 'Le discours',
       at: inSeconds(63),
@@ -138,6 +138,33 @@ test.describe('the wall and its announcements', () => {
     if (box === null || viewport === null) throw new Error('no box to measure')
     expect(box.y).toBeLessThan(viewport.height / 4)
     expect(Math.abs(box.x + box.width / 2 - viewport.width / 2)).toBeLessThan(2)
+  })
+
+  test('an 80-character text never pushes the countdown out of the banner', async ({
+    app,
+    surfaces,
+  }) => {
+    const { slug, host } = await arrange(app, 'long')
+    const { projector } = surfaces
+    await projector.goto(wallUrl(app, slug))
+    await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
+
+    const armed = await host.post(`/api/events/${slug}/announcements`, {
+      text: 'Le grand discours de la mariée suivi du gâteau et de la première danse',
+      at: inSeconds(63),
+      durationSeconds: 30,
+      countdownSeconds: 60,
+    })
+    expect(armed.status).toBe(201)
+
+    const band = projector.locator(BAND)
+    await expect(band).toBeVisible({ timeout: 20_000 })
+    await expect(band).toContainText(/dans \d:\d\d/)
+    const box = await band.boundingBox()
+    const time = await band.locator('[class*="time"]').boundingBox()
+    if (box === null || time === null) throw new Error('no box to measure')
+    // The countdown line lies inside the band, not cut off below its cap.
+    expect(time.y + time.height).toBeLessThanOrEqual(box.y + box.height + 1)
   })
 
   test('launching now puts a card on the wall at once', async ({ app, surfaces }) => {
@@ -163,6 +190,9 @@ test.describe('the wall and its announcements', () => {
     await projector.goto(wallUrl(app, slug))
     await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
 
+    const reread = projector.waitForResponse(
+      (r) => r.url().includes(`/api/events/${slug}/wall`) && r.request().method() === 'GET',
+    )
     const armed = await host.post(`/api/events/${slug}/announcements`, {
       text: 'Demande en mariage à 22 h',
       at: inSeconds(2 * 3600),
@@ -171,7 +201,9 @@ test.describe('the wall and its announcements', () => {
     })
     expect(armed.status).toBe(201)
 
-    // The wall is told to read again, and learns nothing: not a card, not a banner, not the text.
+    // The open page reads again (told by the signal) and learns nothing: not a card, not a
+    // banner, not the text. Only then are the zero counts worth asserting.
+    await reread
     const reply = await projector.request.get(app.url(`/api/events/${slug}/wall`))
     expect(await reply.text()).not.toContain('Demande en mariage')
     await expect(projector.locator(CARD)).toHaveCount(0)

@@ -32,7 +32,12 @@
   font-size: var(--text-xl);
   line-height: var(--leading-tight);
   font-weight: 650;
-  overflow-wrap: anywhere;
+  /* One line, whatever the text (up to 80 characters): a second line would push the countdown
+     under the height cap, and the countdown is all the band is for. The card carries the full text. */
+  max-inline-size: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .time {
