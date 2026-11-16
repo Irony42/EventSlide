@@ -45,6 +45,11 @@ tests/e2e/
 
 ## Running
 
+The suite drives the **built** application: the server is `dist/server/main/index.js` and the
+pages are `dist/client`. A spec run after a source change and before `npm run build` (or
+`npm run build:client` for a web-only change) runs the old code, and fails far from its cause
+(a label that "is not there" because the page is the one from before the change).
+
 ```bash
 npx playwright install --with-deps    # once
 npm run test:e2e                      # headless, all projects
