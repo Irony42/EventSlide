@@ -32,10 +32,14 @@ import {
   type PhotoReview,
 } from '../../domain/photos/photo'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
+import { Announcement } from '../../domain/announcements/announcement'
+import { AnnouncementText } from '../../domain/announcements/announcementText'
+import type { AnnouncementKind } from '../../domain/announcements/announcementRules'
 import { Reaction } from '../../domain/reactions/reaction'
 import type { DomainError } from '../../domain/shared/errors'
 import {
   asAccountTokenId,
+  asAnnouncementId,
   asClientId,
   asClipJobId,
   asEventId,
@@ -358,6 +362,38 @@ export interface MissionInput {
   readonly prompt?: string
   readonly scope?: MissionScope
   readonly createdAt?: Date
+}
+
+export interface AnnouncementInput {
+  readonly id?: string
+  readonly eventId?: string
+  readonly text?: string
+  readonly kind?: AnnouncementKind
+  readonly at?: Date
+  readonly durationSeconds?: number
+  readonly countdownSeconds?: number
+  readonly createdBy?: string | null
+  readonly createdAt?: Date
+}
+
+/**
+ * A scheduled announcement (spec 21), a fullscreen card at {@link AT} with no countdown by
+ * default. It is **restored**, not created, so a test can put a state the rules would refuse (two
+ * cards that overlap) into a repository; the defaults of a real creation are those of `Announcement.create`.
+ */
+export const anAnnouncement = (input: AnnouncementInput = {}): Announcement => {
+  const id = pick(input.id, 'announcement-1')
+  return Announcement.restore({
+    id: asAnnouncementId(id),
+    eventId: asEventId(pick(input.eventId, 'event-1')),
+    text: must(AnnouncementText.create(pick(input.text, id)), 'anAnnouncement.text'),
+    kind: pick(input.kind, 'fullscreen'),
+    at: pick(input.at, AT),
+    durationSeconds: pick(input.durationSeconds, input.kind === 'discreet' ? 900 : 30),
+    countdownSeconds: pick(input.countdownSeconds, 0),
+    createdBy: input.createdBy === undefined ? asUserId('user-1') : input.createdBy === null ? null : asUserId(input.createdBy),
+    createdAt: pick(input.createdAt, AT),
+  })
 }
 
 /**
