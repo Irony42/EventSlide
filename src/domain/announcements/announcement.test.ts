@@ -4,7 +4,8 @@ import { Announcement, type NewAnnouncement } from './announcement'
 
 const NOW = new Date('2026-06-20T21:00:00.000Z')
 const SECOND = 1000
-const iso = (offsetSeconds: number): string => new Date(NOW.getTime() + offsetSeconds * SECOND).toISOString()
+const iso = (offsetSeconds: number): string =>
+  new Date(NOW.getTime() + offsetSeconds * SECOND).toISOString()
 
 const input = (over: Partial<NewAnnouncement> = {}): NewAnnouncement => ({
   eventId: asEventId('wedding'),
@@ -100,7 +101,13 @@ describe('Announcement.edit', () => {
 
   it('changes every field while upcoming, the kind included', () => {
     const result = scheduled().edit(
-      { text: 'Discours', kind: 'discreet', at: iso(7200), durationSeconds: 600, countdownSeconds: 0 },
+      {
+        text: 'Discours',
+        kind: 'discreet',
+        at: iso(7200),
+        durationSeconds: 600,
+        countdownSeconds: 0,
+      },
       NOW,
     )
 

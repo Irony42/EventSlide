@@ -42,7 +42,13 @@ export type UpdateAnnouncement = (
 ) => Promise<Result<HostAnnouncement, DomainError>>
 
 export const makeUpdateAnnouncement =
-  ({ events, announcements, memberships, bus, clock }: UpdateAnnouncementDeps): UpdateAnnouncement =>
+  ({
+    events,
+    announcements,
+    memberships,
+    bus,
+    clock,
+  }: UpdateAnnouncementDeps): UpdateAnnouncement =>
   async ({ eventId, actorId, announcementId, ...patch }) => {
     const opened = await openAnnouncements({ events, memberships }, eventId, actorId, 'write')
     if (!opened.ok) return opened

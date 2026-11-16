@@ -42,10 +42,7 @@ export class FakeAnnouncementRepository implements AnnouncementRepository {
       .slice(0, limit)
   }
 
-  async tryCreate(
-    announcement: Announcement,
-    ceiling: number,
-  ): Promise<CreateAnnouncementOutcome> {
+  async tryCreate(announcement: Announcement, ceiling: number): Promise<CreateAnnouncementOutcome> {
     const held = this.forEvent(announcement.eventId)
     if (!hasRoomForAnnouncement(held.length, ceiling)) return 'limitReached'
     if (held.some((row) => announcementsOverlap(row, announcement))) return 'overlap'

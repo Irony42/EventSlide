@@ -1,4 +1,5 @@
 import type { Announcement } from '../../../domain/announcements/announcement'
+import type { AnnouncementState } from '../../../domain/announcements/announcementSchedule'
 import type { Event } from '../../../domain/events/event'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
@@ -47,8 +48,6 @@ export const openAnnouncements = async (
 }
 
 /** What the host's console is shown of one announcement: the row, and where it is in time. */
-export type AnnouncementState = 'upcoming' | 'counting' | 'showing' | 'over'
-
 export interface HostAnnouncement {
   readonly announcement: Announcement
   readonly state: AnnouncementState

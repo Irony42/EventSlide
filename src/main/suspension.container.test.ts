@@ -393,6 +393,19 @@ describe('a suspended client, through the real composition root', () => {
       body: { missionId: ANY, durationSeconds: 120 },
     },
     { method: 'delete', path: '/api/events/:eventSlug/challenge', body: {} },
+    // The scheduled announcements (spec 21): a frozen event cannot be given one, or lose one.
+    { method: 'post', path: '/api/events/:eventSlug/announcements', body: { text: 'Gâteau' } },
+    {
+      method: 'patch',
+      path: '/api/events/:eventSlug/announcements/:announcementId',
+      body: { text: 'Discours' },
+    },
+    {
+      method: 'post',
+      path: '/api/events/:eventSlug/announcements/:announcementId/launch',
+      body: {},
+    },
+    { method: 'delete', path: '/api/events/:eventSlug/announcements/:announcementId', body: {} },
     {
       method: 'patch',
       path: '/api/events/:eventSlug/photos/:photoId/status',

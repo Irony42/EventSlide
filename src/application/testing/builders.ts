@@ -391,7 +391,12 @@ export const anAnnouncement = (input: AnnouncementInput = {}): Announcement => {
     at: pick(input.at, AT),
     durationSeconds: pick(input.durationSeconds, input.kind === 'discreet' ? 900 : 30),
     countdownSeconds: pick(input.countdownSeconds, 0),
-    createdBy: input.createdBy === undefined ? asUserId('user-1') : input.createdBy === null ? null : asUserId(input.createdBy),
+    createdBy:
+      input.createdBy === undefined
+        ? asUserId('user-1')
+        : input.createdBy === null
+          ? null
+          : asUserId(input.createdBy),
     createdAt: pick(input.createdAt, AT),
   })
 }

@@ -41,7 +41,10 @@ describe('updateAnnouncement', () => {
   })
 
   const edit = (
-    patch: Omit<Parameters<AnnouncementScene['update']>[0], 'eventId' | 'actorId' | 'announcementId'>,
+    patch: Omit<
+      Parameters<AnnouncementScene['update']>[0],
+      'eventId' | 'actorId' | 'announcementId'
+    >,
     id = 'card',
   ) =>
     s.update({
@@ -51,8 +54,7 @@ describe('updateAnnouncement', () => {
       ...patch,
     })
 
-  const stored = async (id: string) =>
-    s.announcements.findById(WEDDING, asAnnouncementId(id))
+  const stored = async (id: string) => s.announcements.findById(WEDDING, asAnnouncementId(id))
 
   it('changes every field of an upcoming announcement and announces it once', async () => {
     const result = await edit({
@@ -187,7 +189,9 @@ describe('updateAnnouncement', () => {
 
     expect(!unknown.ok && unknown.error.code).toBe('announcement.notFound')
     expect(!foreign.ok && foreign.error.code).toBe('announcement.notFound')
-    expect((await s.announcements.findById(GALA, asAnnouncementId('a-gala')))?.text.value).toBe('Gala')
+    expect((await s.announcements.findById(GALA, asAnnouncementId('a-gala')))?.text.value).toBe(
+      'Gala',
+    )
   })
 
   it('refuses a stranger as it refuses an event that does not exist, and a closed event', async () => {

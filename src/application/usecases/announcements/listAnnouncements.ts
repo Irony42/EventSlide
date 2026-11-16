@@ -1,4 +1,4 @@
-import { DomainError } from '../../../domain/shared/errors'
+import type { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
 import type { AnnouncementRepository } from '../../ports/announcementRepository'

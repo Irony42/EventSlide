@@ -80,9 +80,9 @@ describe('SqliteAnnouncementRepository schema behaviour', () => {
 
     db.prepare(`DELETE FROM events WHERE id = 'evt-wedding'`).run()
 
-    expect(await new SqliteAnnouncementRepository(db).listByEvent(asEventId('evt-wedding'))).toEqual(
-      [],
-    )
+    expect(
+      await new SqliteAnnouncementRepository(db).listByEvent(asEventId('evt-wedding')),
+    ).toEqual([])
     expect(db.prepare(`SELECT COUNT(*) AS n FROM event_announcements`).get()).toEqual({ n: 0 })
   })
 

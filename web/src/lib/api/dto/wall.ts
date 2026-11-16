@@ -1,5 +1,6 @@
 // What the projected wall is sent.
 import type {
+  AnnouncementKind,
   ClipJobStatus,
   EventBrandDto,
   EventLanguage,
@@ -168,6 +169,11 @@ export interface WallResponse {
   readonly serverNowMs?: number
   /** The running challenge, or the one that just ended; `null` or absent otherwise (spec 10). */
   readonly challenge?: WallChallengeDto | null
+  /**
+   * The announcements the wall may read now and when to read again (spec 21). Absent when the event
+   * has none left to come or is not live, and on an older server.
+   */
+  readonly announcements?: WallAnnouncementsDto
   /** The guestbook for the room (spec 01); absent when there is nothing to show or an older server. */
   readonly guestbook?: WallGuestbookDto
   /**
@@ -204,6 +210,24 @@ export interface WallMissionDto {
   readonly scope: MissionScope
   readonly achieved: boolean
   readonly completedByGuests: number
+}
+/**
+ * One scheduled announcement as the wall reads it (spec 21): the text (content, never translated),
+ * its kind, the moment it appears and two integers. The phase is the wall's to derive from the
+ * clock, so no state is sent.
+ */
+export interface WallAnnouncementDto {
+  readonly id: string
+  readonly text: string
+  readonly kind: AnnouncementKind
+  readonly at: string
+  readonly durationSeconds: number
+  readonly countdownSeconds: number
+}
+/** The announcements whose text the wall may be given, and the server instant to read again at. */
+export interface WallAnnouncementsDto {
+  readonly items: readonly WallAnnouncementDto[]
+  readonly nextReadAtMs: number
 }
 /**
  * The timed challenge as the wall reads it (spec 10): the frozen prompt, two instants, a state,

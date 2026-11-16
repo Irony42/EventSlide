@@ -1,5 +1,7 @@
 // What the host and moderators read and write.
 import type {
+  AnnouncementKind,
+  AnnouncementState,
   EventBrandDto,
   EventLanguage,
   EventRole,
@@ -256,6 +258,25 @@ export interface MissionDto {
 }
 export interface MissionListResponse {
   readonly items: readonly MissionDto[]
+}
+/** One announcement as the host's console reads it: the row, and its state at the server's clock. */
+export interface AnnouncementDto {
+  readonly id: string
+  readonly text: string
+  readonly kind: AnnouncementKind
+  readonly at: string
+  readonly durationSeconds: number
+  readonly countdownSeconds: number
+  readonly state: AnnouncementState
+}
+/** `GET /events/:slug/announcements`: the host's list, with the clock it was derived at. */
+export interface AnnouncementListResponse {
+  readonly announcements: readonly AnnouncementDto[]
+  readonly serverNowMs: number
+}
+/** What a schedule, an edit and a launch answer. */
+export interface AnnouncementResponse {
+  readonly announcement: AnnouncementDto
 }
 /** The console's view: the wall's, plus the mission it names (to say which row is running). */
 export interface HostChallengeDto {

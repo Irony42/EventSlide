@@ -30,10 +30,7 @@ export const parseAnnouncementKind = (raw: unknown): Result<AnnouncementKind, Do
  * an ornament (ADR 0010, principle 9).
  */
 export const ANNOUNCEMENT_DURATION_SECONDS: Readonly<
-  Record<
-    AnnouncementKind,
-    { readonly min: number; readonly max: number; readonly default: number }
-  >
+  Record<AnnouncementKind, { readonly min: number; readonly max: number; readonly default: number }>
 > = {
   fullscreen: { min: 10, max: 120, default: 30 },
   discreet: { min: 5 * 60, max: 30 * 60, default: 15 * 60 },
@@ -87,7 +84,9 @@ export const parseAnnouncementCountdown = (
   const allowed = kind === 'fullscreen' ? ANNOUNCEMENT_COUNTDOWN_SECONDS : [0]
   return typeof raw === 'number' && allowed.includes(raw)
     ? ok(raw)
-    : err(DomainError.invalid('announcement.countdownInvalid', { kind, allowed: allowed.join(',') }))
+    : err(
+        DomainError.invalid('announcement.countdownInvalid', { kind, allowed: allowed.join(',') }),
+      )
 }
 
 /**

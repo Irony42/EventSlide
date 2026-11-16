@@ -24,6 +24,9 @@ export type AnnouncementPhase =
   | { readonly phase: 'showing'; readonly remainingMs: number }
   | { readonly phase: 'over' }
 
+/** The name of a phase: what the host's list says in words. */
+export type AnnouncementState = AnnouncementPhase['phase']
+
 /**
  * `upcoming` before the countdown starts, `counting` from `at - countdown` to `at` (never, for a
  * zero countdown), `showing` from `at` for `duration`, `over` from `at + duration` on. Every

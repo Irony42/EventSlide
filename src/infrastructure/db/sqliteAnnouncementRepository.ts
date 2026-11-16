@@ -122,10 +122,7 @@ export class SqliteAnnouncementRepository implements AnnouncementRepository {
       .map(toAnnouncement)
   }
 
-  async tryCreate(
-    announcement: Announcement,
-    ceiling: number,
-  ): Promise<CreateAnnouncementOutcome> {
+  async tryCreate(announcement: Announcement, ceiling: number): Promise<CreateAnnouncementOutcome> {
     // Synchronous driver: nothing can run between the reads and the insert, and the transaction
     // keeps it that way if the driver ever changes.
     return this.db

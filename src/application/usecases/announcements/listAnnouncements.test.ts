@@ -25,7 +25,12 @@ describe('listAnnouncements', () => {
     s.announcements.seed(
       anAnnouncement({ id: 'later', eventId: 'evt-wedding', at: at(3600), countdownSeconds: 300 }),
       anAnnouncement({ id: 'now', eventId: 'evt-wedding', at: at(-5) }),
-      anAnnouncement({ id: 'counting', eventId: 'evt-wedding', at: at(100), countdownSeconds: 300 }),
+      anAnnouncement({
+        id: 'counting',
+        eventId: 'evt-wedding',
+        at: at(100),
+        countdownSeconds: 300,
+      }),
       anAnnouncement({ id: 'past', eventId: 'evt-wedding', at: at(-600) }),
     )
 

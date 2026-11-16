@@ -640,6 +640,43 @@ export const challengeBody = z.strictObject({
   durationSeconds: z.number(),
 })
 
+/** The announcement routes that name one: its id is a uuid, resolved inside the event. */
+export const announcementParams = z.object({ eventSlug: slug, announcementId: uuid })
+
+/**
+ * `POST /announcements` and `PATCH /announcements/:id` (spec 21). Every bound a host can break
+ * is **the domain's**: the text (80 characters, one line), the kind, the moment, the durations and
+ * the countdown each answer their own `400 announcement.*Invalid` with the limits, so a form
+ * can say what is wrong. What is checked here is only that a field has the shape of its type and
+ * that a request cannot be arbitrarily large. `at` and `kind` are strings the domain reads, so a
+ * badly written moment is `announcement.atInvalid` and not a second kind of refusal.
+ */
+const announcementFields = {
+  text: z.string().max(200),
+  kind: z.string().max(32),
+  at: z.string().max(64),
+  durationSeconds: z.number(),
+  countdownSeconds: z.number(),
+}
+
+/** Absent `at` is a launch; absent `kind` is `fullscreen`; absent durations are the kind's own. */
+export const announcementCreateBody = z.strictObject({
+  text: announcementFields.text,
+  kind: announcementFields.kind.optional(),
+  at: announcementFields.at.optional(),
+  durationSeconds: announcementFields.durationSeconds.optional(),
+  countdownSeconds: announcementFields.countdownSeconds.optional(),
+})
+
+/** Every field optional: one that is absent is left as it was. */
+export const announcementPatchBody = z.strictObject({
+  text: announcementFields.text.optional(),
+  kind: announcementFields.kind.optional(),
+  at: announcementFields.at.optional(),
+  durationSeconds: announcementFields.durationSeconds.optional(),
+  countdownSeconds: announcementFields.countdownSeconds.optional(),
+})
+
 // --------------------------------------------------------------- moderation --
 
 export const moderationDecisionBody = z.strictObject({

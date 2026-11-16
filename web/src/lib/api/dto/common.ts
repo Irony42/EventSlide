@@ -79,6 +79,13 @@ export type EventTemplateKey = 'wedding' | 'birthday' | 'conference' | 'party'
  */
 export type MissionScope = 'guest' | 'event'
 /**
+ * The two kinds of scheduled announcement (spec 21): a card in the middle of the wall, or a
+ * discreet text laid over the photographs.
+ */
+export type AnnouncementKind = 'fullscreen' | 'discreet'
+/** Where an announcement is in time, in the words the host's list uses. Derived, never stored. */
+export type AnnouncementState = 'upcoming' | 'counting' | 'showing' | 'over'
+/**
  * How one event looks, as three settled choices rather than as colours.
  *
  * **No colour crosses this wire.** `accentHue` is an angle; the lightness and chroma that

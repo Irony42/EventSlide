@@ -31,8 +31,10 @@ describe('AnnouncementText', () => {
   it('folds the text to one line and strips control characters', () => {
     const result = AnnouncementText.create('  Gâteau\n à \u0007 22 h  ')
 
-    expect(result.ok && result.value.value).not.toMatch(/[\n\u0007]/)
-    expect(result.ok && result.value.value.startsWith('Gâteau')).toBe(true)
+    const text = result.ok ? result.value.value : ''
+    expect(text.includes('\n')).toBe(false)
+    expect(text.includes('\u0007')).toBe(false)
+    expect(text.startsWith('Gâteau')).toBe(true)
   })
 
   it('does not count what is stripped against the limit', () => {

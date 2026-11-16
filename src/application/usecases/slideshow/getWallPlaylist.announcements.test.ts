@@ -145,7 +145,9 @@ describe('getWallPlaylist: the announcements', () => {
     announcements.seed(card({ id: 'cake', at: at(3600 * SECOND), countdownSeconds: 300 }))
     clock.advance(3600 * SECOND - 300 * SECOND - 10 * MINUTE)
 
-    expect((await wall())?.nextReadAtMs).toBe(AT.getTime() + 3600 * SECOND - 300 * SECOND - 30 * SECOND)
+    expect((await wall())?.nextReadAtMs).toBe(
+      AT.getTime() + 3600 * SECOND - 300 * SECOND - 30 * SECOND,
+    )
   })
 
   it('never reads another event announcements', async () => {
@@ -158,7 +160,9 @@ describe('getWallPlaylist: the announcements', () => {
   it('bounds its read to twenty rows, whatever the event holds', async () => {
     open()
     for (let i = 0; i < 30; i += 1) {
-      announcements.seed(card({ id: `a${String(i).padStart(2, '0')}`, at: at(i * 3 * MINUTE - 5 * SECOND) }))
+      announcements.seed(
+        card({ id: `a${String(i).padStart(2, '0')}`, at: at(i * 3 * MINUTE - 5 * SECOND) }),
+      )
     }
 
     const read = await wall()

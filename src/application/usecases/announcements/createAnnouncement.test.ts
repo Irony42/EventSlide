@@ -14,7 +14,8 @@ import {
 } from '../../testing/announcementScene'
 
 const SECOND = 1000
-const inSeconds = (seconds: number): string => new Date(AT.getTime() + seconds * SECOND).toISOString()
+const inSeconds = (seconds: number): string =>
+  new Date(AT.getTime() + seconds * SECOND).toISOString()
 
 describe('createAnnouncement', () => {
   let s: AnnouncementScene

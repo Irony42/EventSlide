@@ -107,9 +107,12 @@ describe('capabilities by status', () => {
     ['live', true],
     ['closed', false],
     ['archived', false],
-  ])('lets announcements be written while the evening is prepared or on (%s: %s)', (status, expected) => {
-    expect(allowsAnnouncementWrites(status)).toBe(expected)
-  })
+  ])(
+    'lets announcements be written while the evening is prepared or on (%s: %s)',
+    (status, expected) => {
+      expect(allowsAnnouncementWrites(status)).toBe(expected)
+    },
+  )
 
   it.each<[EventStatus, boolean]>([
     ['draft', false],

@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Event } from '../../../domain/events/event'
 import type { DomainError } from '../../../domain/shared/errors'
-import { asAnnouncementId, asEventId, asMissionId, asPhotoId, asUserId } from '../../../domain/shared/ids'
+import {
+  asAnnouncementId,
+  asEventId,
+  asMissionId,
+  asPhotoId,
+  asUserId,
+} from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
 import { AT, anEvent } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
@@ -253,7 +259,12 @@ const CASES: readonly Case[] = [
         announcements: gone(),
         bus: gone(),
         clock: gone(),
-      })({ eventId: EVENT, actorId, announcementId: asAnnouncementId('announcement-1'), text: 'X' }),
+      })({
+        eventId: EVENT,
+        actorId,
+        announcementId: asAnnouncementId('announcement-1'),
+        text: 'X',
+      }),
   },
   {
     name: 'launchAnnouncement',

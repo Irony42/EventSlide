@@ -144,9 +144,9 @@ describe('parseAnnouncementInstant', () => {
 
 describe('hasRoomForAnnouncement', () => {
   it('lets the fiftieth in and refuses the fifty-first', () => {
-    expect(hasRoomForAnnouncement(MAX_ANNOUNCEMENTS_PER_EVENT - 1, MAX_ANNOUNCEMENTS_PER_EVENT)).toBe(
-      true,
-    )
+    expect(
+      hasRoomForAnnouncement(MAX_ANNOUNCEMENTS_PER_EVENT - 1, MAX_ANNOUNCEMENTS_PER_EVENT),
+    ).toBe(true)
     expect(hasRoomForAnnouncement(MAX_ANNOUNCEMENTS_PER_EVENT, MAX_ANNOUNCEMENTS_PER_EVENT)).toBe(
       false,
     )

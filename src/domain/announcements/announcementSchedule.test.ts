@@ -64,7 +64,10 @@ describe('announcementPhaseAt', () => {
     const discreet = timing({ kind: 'discreet', countdownSeconds: 0, durationSeconds: 900 })
 
     expect(announcementPhaseAt(discreet, AT - 1)).toEqual({ phase: 'upcoming' })
-    expect(announcementPhaseAt(discreet, AT)).toEqual({ phase: 'showing', remainingMs: 900 * SECOND })
+    expect(announcementPhaseAt(discreet, AT)).toEqual({
+      phase: 'showing',
+      remainingMs: 900 * SECOND,
+    })
     expect(announcementPhaseAt(discreet, AT + 900 * SECOND - 1).phase).toBe('showing')
     expect(announcementPhaseAt(discreet, AT + 900 * SECOND)).toEqual({ phase: 'over' })
   })
@@ -98,7 +101,12 @@ describe('visibleAnnouncements', () => {
   })
 
   it('serves a discreet announcement for its whole length', () => {
-    const discreet = timing({ id: 'buffet', kind: 'discreet', countdownSeconds: 0, durationSeconds: 1800 })
+    const discreet = timing({
+      id: 'buffet',
+      kind: 'discreet',
+      countdownSeconds: 0,
+      durationSeconds: 1800,
+    })
 
     expect(visibleAnnouncements([discreet], AT + 29 * MINUTE)).toEqual([discreet])
   })

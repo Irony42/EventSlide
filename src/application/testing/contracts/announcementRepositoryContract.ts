@@ -82,7 +82,11 @@ export const announcementRepositoryContract = (
     })
 
     it('keeps the moment to the millisecond', async () => {
-      const exact = anAnnouncement({ id: 'a1', eventId: 'evt-wedding', at: new Date(AT.getTime() + 7) })
+      const exact = anAnnouncement({
+        id: 'a1',
+        eventId: 'evt-wedding',
+        at: new Date(AT.getTime() + 7),
+      })
 
       await create(exact)
 
@@ -259,7 +263,12 @@ export const announcementRepositoryContract = (
       await create(cardAt({ id: 'z', offsetMs: 0 }))
       await create(cardAt({ id: 'c', offsetMs: 5 * MINUTE }))
       await repo.tryCreate(
-        anAnnouncement({ id: 'a', eventId: 'evt-wedding', at: atPlus(5 * MINUTE), kind: 'discreet' }),
+        anAnnouncement({
+          id: 'a',
+          eventId: 'evt-wedding',
+          at: atPlus(5 * MINUTE),
+          kind: 'discreet',
+        }),
         MAX_ANNOUNCEMENTS_PER_EVENT,
       )
 
@@ -285,7 +294,9 @@ export const announcementRepositoryContract = (
     })
 
     it('reads a discreet announcement launched 29 minutes ago from 31 minutes back', async () => {
-      await create(cardAt({ id: 'buffet', kind: 'discreet', offsetMs: -29 * MINUTE, seconds: 1800 }))
+      await create(
+        cardAt({ id: 'buffet', kind: 'discreet', offsetMs: -29 * MINUTE, seconds: 1800 }),
+      )
 
       const read = await repo.listAround(WEDDING, atPlus(-31 * MINUTE), 20)
 
