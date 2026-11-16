@@ -127,6 +127,28 @@ describe('parseAnnouncementInstant', () => {
     expect(result.ok && result.value.toISOString()).toBe('2026-06-20T22:00:00.000Z')
   })
 
+  it('reads an offset written out, and a time without seconds', () => {
+    const offset = parseAnnouncementInstant('2026-06-20T23:00:00+02:00', NOW)
+    const compact = parseAnnouncementInstant('2026-06-20T23:00:00+0200', NOW)
+    const minutes = parseAnnouncementInstant('2026-06-20T22:30Z', NOW)
+
+    expect(offset.ok && offset.value.toISOString()).toBe('2026-06-20T21:00:00.000Z')
+    expect(compact.ok && compact.value.toISOString()).toBe('2026-06-20T21:00:00.000Z')
+    expect(minutes.ok && minutes.value.toISOString()).toBe('2026-06-20T22:30:00.000Z')
+  })
+
+  it('refuses a moment with no offset, which the box would read in its own time zone', () => {
+    for (const raw of [
+      '2026-06-20T22:00:00',
+      '2026-06-20',
+      'June 20 2026 22:00',
+      '2026-06-20 22:00Z',
+    ]) {
+      const result = parseAnnouncementInstant(raw, NOW)
+      expect(!result.ok && result.error.code, raw).toBe('announcement.atInvalid')
+    }
+  })
+
   it('refuses a string that is not a date, and what is not a string', () => {
     for (const raw of ['soon', '', 1782000000000, null]) {
       const result = parseAnnouncementInstant(raw, NOW)

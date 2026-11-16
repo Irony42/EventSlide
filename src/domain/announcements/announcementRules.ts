@@ -100,6 +100,13 @@ export const isAnnouncementInstant = (at: Date, now: Date): boolean => {
   return atMs >= nowMs - ANNOUNCEMENT_PAST_TOLERANCE_MS && atMs <= nowMs + ANNOUNCEMENT_MAX_AHEAD_MS
 }
 
+/**
+ * ISO 8601 with its offset written out (`Z` or `+02:00`): a moment with no offset would be read in
+ * the time zone of the box, which the host's browser never agreed to, so it is refused rather than
+ * guessed.
+ */
+const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/
+
 /** An ISO 8601 string as an instant the host may choose, or `400 announcement.atInvalid`. */
 export const parseAnnouncementInstant = (raw: unknown, now: Date): Result<Date, DomainError> => {
   const invalid = (): DomainError =>
@@ -107,7 +114,7 @@ export const parseAnnouncementInstant = (raw: unknown, now: Date): Result<Date, 
       pastToleranceSeconds: ANNOUNCEMENT_PAST_TOLERANCE_MS / 1000,
       maxDays: ANNOUNCEMENT_MAX_AHEAD_MS / (24 * 60 * 60 * 1000),
     })
-  if (typeof raw !== 'string') return err(invalid())
+  if (typeof raw !== 'string' || !ISO_WITH_OFFSET.test(raw)) return err(invalid())
   const at = new Date(raw)
   return isAnnouncementInstant(at, now) ? ok(at) : err(invalid())
 }
