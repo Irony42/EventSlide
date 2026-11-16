@@ -1,0 +1,177 @@
+/* The same shape as `ChallengeControls`: a hint, one form, then the list of what is planned. One
+   column at every width: the evening's own phone is the surface this is held to (spec 21, §6). */
+
+.hint {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.editing {
+  font-weight: 650;
+}
+
+.count {
+  margin-block-start: calc(-1 * var(--space-2));
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  text-align: end;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chipsTitle {
+  flex-basis: 100%;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* The line that says which moment the typed time is. Its height is reserved, so the form does not
+   jump when the host starts typing (and the keyboard does not move the buttons under the thumb). */
+.resolution {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-block-size: calc(2 * var(--leading-normal) * var(--text-sm));
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  font-variant-numeric: tabular-nums;
+}
+
+.kind {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.kindLegend {
+  padding: 0;
+  margin-block-end: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+/* A whole row is the target, and the choice is said by a check as well as by the tint. */
+.kindOption {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  justify-content: center;
+  min-block-size: var(--touch-min);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
+  cursor: pointer;
+}
+
+.kindOption:has(.kindInput:checked) {
+  background: color-mix(in oklch, var(--accent) var(--selected-tint), var(--surface-raised));
+  border-color: var(--accent);
+}
+
+.kindOption:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.kindInput {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.kindName {
+  font-weight: 650;
+}
+
+.kindHelp {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.kind:disabled .kindOption {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Side by side where there is room, one under the other on a phone. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.actions > * {
+  flex: 1 1 12rem;
+}
+
+/* On a phone the buttons stay at the foot of the screen while the form scrolls under them, so
+   "Lancer maintenant" is under the thumb without going down the page. */
+@media (max-width: 40rem) {
+  .actions {
+    position: sticky;
+    inset-block-end: 0;
+    padding-block: var(--space-2);
+    background: var(--surface-raised);
+  }
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  padding-block: var(--space-3);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rowText {
+  overflow-wrap: anywhere;
+  line-height: var(--leading-snug);
+}
+
+.rowMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
