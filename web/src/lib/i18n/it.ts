@@ -911,6 +911,9 @@ export const it: UiText = {
     announcementSay: (text: string) => `Annuncio: ${text}.`,
     announcementIn: (time: string) => `tra ${time}`,
     announcementImminent: (time: string) => `tra un attimo · ${time}`,
+    /* A discreet announcement's pill (spec 21): rounded up to the minute, two minutes and over; the last minute has its own words. */
+    announcementMinutesLeft: (minutes: number) => `ancora ${minutes} min`,
+    announcementLastMinute: 'meno di 1 min',
     codeLabel: 'Codice della serata',
     qrTitle: 'Codice QR per entrare nella serata',
     photoBy: (name: string) => `Foto inviata da ${name}`,

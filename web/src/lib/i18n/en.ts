@@ -870,6 +870,9 @@ export const en: UiText = {
     announcementSay: (text: string) => `Announcement: ${text}.`,
     announcementIn: (time: string) => `in ${time}`,
     announcementImminent: (time: string) => `any moment now · ${time}`,
+    /* A discreet announcement's pill (spec 21): rounded up to the minute, two minutes and over; the last minute has its own words. */
+    announcementMinutesLeft: (minutes: number) => `${minutes} min left`,
+    announcementLastMinute: 'under 1 min left',
 
     codeLabel: 'Event code',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall
