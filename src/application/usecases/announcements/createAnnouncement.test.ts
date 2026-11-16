@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { MAX_ANNOUNCEMENTS_PER_EVENT } from '../../../domain/announcements/announcementRules'
 import { AT, anAnnouncement, anEvent } from '../../testing/builders'
+import { FakeAnnouncementRepository } from '../../testing/fakeAnnouncementRepository'
+import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
+import { makeCreateAnnouncement } from './createAnnouncement'
 import {
   announcementScene,
   CLOSED,
@@ -216,6 +219,32 @@ describe('createAnnouncement', () => {
     await ask({ at: inSeconds(3600) })
 
     expect(s.bus.published).toEqual([{ type: 'announcement.changed', eventId: WEDDING }])
+  })
+
+  it('answers announcement.limit when another moderator filled the event between the read and the write', async () => {
+    const racing = new (class extends FakeAnnouncementRepository {
+      override async tryCreate(): ReturnType<FakeAnnouncementRepository['tryCreate']> {
+        return 'limitReached'
+      }
+    })()
+    const create = makeCreateAnnouncement({
+      events: s.events,
+      announcements: racing,
+      memberships: s.memberships,
+      ids: new SequentialIdGenerator(),
+      bus: s.bus,
+      clock: s.clock,
+    })
+
+    const result = await create({
+      eventId: WEDDING,
+      actorId: MODERATOR,
+      text: 'Gâteau',
+      at: inSeconds(3600),
+    })
+
+    expect(!result.ok && result.error.code).toBe('announcement.limit')
+    expect(s.bus.published).toEqual([])
   })
 
   it('announces nothing when the announcement was refused', async () => {

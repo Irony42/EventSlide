@@ -74,7 +74,7 @@ export const visibleAnnouncements = <T extends AnnouncementTiming & { readonly i
       const opensMs = atMs - row.countdownSeconds * 1000 - TEXT_LEAD_MS
       return nowMs >= opensMs && nowMs < atMs + row.durationSeconds * 1000
     })
-    .sort((a, b) => a.at.getTime() - b.at.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .sort((a, b) => a.at.getTime() - b.at.getTime() || (a.id < b.id ? -1 : 1))
 
 /**
  * When the wall should read again, or `null` when no announcement is still to come or on screen.

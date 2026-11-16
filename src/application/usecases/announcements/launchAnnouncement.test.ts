@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asAnnouncementId } from '../../../domain/shared/ids'
 import { AT, anAnnouncement } from '../../testing/builders'
+import { FakeAnnouncementRepository } from '../../testing/fakeAnnouncementRepository'
+import { makeLaunchAnnouncement } from './launchAnnouncement'
 import {
   announcementScene,
   CLOSED,
@@ -118,6 +120,30 @@ describe('launchAnnouncement', () => {
 
     expect(!result.ok && result.error.code).toBe('announcement.overlap')
     expect((await stored('later'))?.at).toEqual(at(3600))
+  })
+
+  it('answers announcement.notFound when another moderator deleted it between the read and the write', async () => {
+    const racing = new (class extends FakeAnnouncementRepository {
+      override async trySave(): ReturnType<FakeAnnouncementRepository['trySave']> {
+        return 'notFound'
+      }
+    })().seed(anAnnouncement({ id: 'card', eventId: 'evt-wedding', at: at(3600) }))
+    const launchRacing = makeLaunchAnnouncement({
+      events: s.events,
+      announcements: racing,
+      memberships: s.memberships,
+      bus: s.bus,
+      clock: s.clock,
+    })
+
+    const result = await launchRacing({
+      eventId: WEDDING,
+      actorId: MODERATOR,
+      announcementId: asAnnouncementId('card'),
+    })
+
+    expect(!result.ok && result.error.code).toBe('announcement.notFound')
+    expect(s.bus.published).toEqual([])
   })
 
   it('answers an unknown identifier and another event identifier announcement.notFound', async () => {

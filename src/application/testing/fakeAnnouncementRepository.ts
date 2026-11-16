@@ -25,7 +25,7 @@ export class FakeAnnouncementRepository implements AnnouncementRepository {
   private forEvent(eventId: EventId): Announcement[] {
     return this.rows
       .filter((row) => row.eventId === eventId)
-      .sort((a, b) => a.at.getTime() - b.at.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .sort((a, b) => a.at.getTime() - b.at.getTime() || (a.id < b.id ? -1 : 1))
   }
 
   async listByEvent(eventId: EventId): Promise<readonly Announcement[]> {
