@@ -57,6 +57,19 @@ export interface AlbumEntriesSource {
   ) => Promise<AsyncIterable<Uint8Array> | null>
   /** Told of each row skipped, so the caller says so to the operator in its own words. */
   readonly skipped: (photo: Photo) => void
+  /**
+   * Gets the last word on each entry, with the row it came from: the host's export wraps the
+   * bytes to hash them as they pass (the manifest, the check of a digest against the file). The
+   * entry's `name` is already final here. Absent, the entry goes out as built.
+   */
+  readonly decorate?: (entry: ArchiveEntry, row: AlbumRow) => ArchiveEntry
+}
+
+/** The row an entry was built from, and what it was archived as. */
+export interface AlbumRow {
+  readonly photo: Photo
+  readonly hash: ContentHash
+  readonly variant: ServedVariant
 }
 
 export const albumEntries = async function* ({
@@ -67,6 +80,7 @@ export const albumEntries = async function* ({
   filter,
   open,
   skipped,
+  decorate,
 }: AlbumEntriesSource): AsyncIterable<ArchiveEntry> {
   let sequence = 0
   let cursor: string | null = null
@@ -94,7 +108,8 @@ export const albumEntries = async function* ({
       const name = `${slug}/${String(sequence).padStart(4, '0')}-${hash.short}.${
         DOWNLOAD_EXTENSION[photo.kind]
       }`
-      yield { name, bytes, modifiedAt: photo.createdAt }
+      const entry: ArchiveEntry = { name, bytes, modifiedAt: photo.createdAt }
+      yield decorate === undefined ? entry : decorate(entry, { photo, hash, variant })
     }
     cursor = page.nextCursor
   } while (cursor !== null)
