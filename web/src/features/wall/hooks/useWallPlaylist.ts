@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApi } from '../../../lib/useApi'
 import { ApiError, asError, isAbortError } from '../../../lib/http'
 import type { WallResponse } from '../../../lib/api/dto'
-import { serverOffsetMs } from '../../../lib/serverClock'
+import { serverNowFrom, serverOffsetMs } from '../../../lib/serverClock'
 import { useReadScheduler } from '../../../lib/realtime/useReadScheduler'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 
@@ -86,6 +86,9 @@ const NOT_SERVED_CODE = 'event.notFound'
  * per projector, not one per signal.
  */
 const STREAM_DOWN_REFRESH_MS = 30_000
+
+/** The longest a `setTimeout` can wait: a signed 32-bit number of milliseconds. */
+const MAX_TIMEOUT_MS = 2_147_483_647
 
 /** The burst window of the wall's reads: signals inside it are one read (see `readScheduler`). */
 export const WALL_READ_DEBOUNCE_MS = 250
@@ -192,6 +195,37 @@ const sameChallenge = (kept: WallResponse, fresh: WallResponse): boolean => {
 }
 
 /**
+ * The scheduled announcements, compared field by field (spec 21).
+ *
+ * One appears, moves or is deleted without moving a photograph, so `revision` never sees it. Every
+ * field the wall derives from is compared: the text is the sentence, `kind` the layer, `at` and the
+ * two durations the clock. `nextReadAtMs` is compared too, **unlike** `serverNowMs`: it is what the
+ * read timer below is armed to, so a stale one would leave the wall reading at an old moment. It
+ * moves at every read while an announcement is pending, and that is a re-render of the page with
+ * the same photographs, not a restart of anything.
+ */
+const sameAnnouncements = (kept: WallResponse, fresh: WallResponse): boolean => {
+  const before = kept.announcements
+  const after = fresh.announcements
+  if (before === undefined || after === undefined) return before === after
+  if (before.nextReadAtMs !== after.nextReadAtMs) return false
+  if (before.items.length !== after.items.length) return false
+
+  return before.items.every((item, index) => {
+    const now = after.items[index]
+    return (
+      now !== undefined &&
+      item.id === now.id &&
+      item.text === now.text &&
+      item.kind === now.kind &&
+      item.at === now.at &&
+      item.durationSeconds === now.durationSeconds &&
+      item.countdownSeconds === now.countdownSeconds
+    )
+  })
+}
+
+/**
  * The guestbook cards, compared message by message (spec 01).
  *
  * Like the missions, and for the same reason: `revision` fingerprints the photographs' ids, so
@@ -294,6 +328,7 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.brand?.logoUrl === fresh.brand?.logoUrl &&
   sameMissions(kept, fresh) &&
   sameChallenge(kept, fresh) &&
+  sameAnnouncements(kept, fresh) &&
   sameGuestbook(kept, fresh)
 
 /**
@@ -470,6 +505,29 @@ export const useWallPlaylist = (
     const timer = window.setInterval(refresh, STREAM_DOWN_REFRESH_MS)
     return () => window.clearInterval(timer)
   }, [slug, connected, holdsPlaylist, refresh])
+
+  // Spec 21, §5: the server says when to read again while an announcement is pending, as an
+  // instant of **its** clock. One `setTimeout`, replaced at each read and cleared on unmount, and
+  // converted with the offset of the last read. It never reads in a loop: the instant the server
+  // names is always at least half a minute ahead.
+  const nextReadAtMs = state.wall?.announcements?.nextReadAtMs ?? null
+  useEffect(() => {
+    if (nextReadAtMs === null) return
+    const delay = Math.max(0, nextReadAtMs - serverNowFrom(Date.now(), offsetMs))
+    const timer = window.setTimeout(refresh, Math.min(delay, MAX_TIMEOUT_MS))
+    return () => window.clearTimeout(timer)
+  }, [nextReadAtMs, offsetMs, refresh])
+
+  // A hidden tab throttles timers, so the instant above may have gone by unseen: read when it is back.
+  const announcementsPending = nextReadAtMs !== null
+  useEffect(() => {
+    if (!announcementsPending) return
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [announcementsPending, refresh])
 
   return {
     wall: state.wall,
