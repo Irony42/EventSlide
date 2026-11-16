@@ -23,6 +23,7 @@ import { StorageMeter } from './components/StorageMeter'
 import { SupportCard } from './components/SupportCard'
 import { GuestListPanel } from './GuestListPanel'
 import { GuestbookPanel } from './GuestbookPanel'
+import { AnnouncementsPanel } from './AnnouncementsPanel'
 import { ChallengePanel } from './ChallengePanel'
 import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
@@ -343,6 +344,12 @@ export function EventPage() {
         <div id={panelId('challenge')}>
           <ChallengePanel slug={event.slug} live={event.status === 'live'} />
         </div>
+        {/* Any moderator schedules a sentence for the room (spec 21), the same reason as the challenge. */}
+        <AnnouncementsPanel
+          slug={event.slug}
+          live={event.status === 'live'}
+          opensAt={event.scheduledOpenAt}
+        />
         {/* Owner-only, and a moderator may read the list — `GET` allows it — but a panel whose
             every affordance is refused is worse than no panel (roadmap §2.1). */}
         {isOwner ? (
