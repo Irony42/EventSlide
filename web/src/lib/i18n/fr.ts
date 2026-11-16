@@ -903,6 +903,11 @@ export const fr = {
     arrivalClips: (count: number) => `${t.number(count)} nouvelles vidéos`,
     arrivalMixed: (count: number) => `${t.number(count)} nouveaux souvenirs`,
 
+    /* ---- Spec 21: scheduled announcements on the wall. The text inside is the host's, never translated. ---- */
+    announcementSay: (text: string) => `Annonce : ${text}.`,
+    announcementIn: (time: string) => `dans ${time}`,
+    announcementImminent: (time: string) => `dans un instant · ${time}`,
+
     /* ---- Added by features/wall. Keep additions inside this block. ---- */
     codeLabel: 'Code de la soirée',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall

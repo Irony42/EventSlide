@@ -1,0 +1,74 @@
+/**
+ * The countdown banner of a fullscreen announcement, top centre (spec 21).
+ *
+ * The place and the width rule of the challenge banner, on purpose and with the same variables:
+ * inside the overscan inset, capped to what the corners beside it leave, so it never passes under
+ * the mission panel at the top left or the notices at the top right. The layouts reserve its
+ * height (`--wall-chrome-block-start`, set by `data-wall-chrome~='top'`). The two never show
+ * together: the page gives this one up while a challenge banner is there.
+ */
+.banner {
+  position: absolute;
+  inset-block-start: var(--wall-safe);
+  inset-inline: 0;
+  margin-inline: auto;
+  inline-size: fit-content;
+  max-inline-size: calc(100% - 2 * (var(--wall-safe) + var(--wall-mission-panel) + var(--space-6)));
+  max-block-size: var(--wall-challenge-height);
+  overflow: hidden;
+  display: grid;
+  gap: var(--space-1);
+  justify-items: center;
+  text-align: center;
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--surface-scrim);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  z-index: var(--z-wall-challenge);
+}
+
+.head {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.time {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The last seconds: the warning token and the heavier weight, beside the word the text changes to. */
+.urgent .time {
+  color: var(--warning);
+  font-weight: 650;
+}
+
+/**
+ * The entrance: a fade and a lift, 250 ms, `opacity` and `transform` only (roadmap 11.2: an
+ * announcement made a few times an evening is rare enough to earn it). It ends at rest. Under
+ * `prefers-reduced-motion` the component does not apply this class at all.
+ */
+.enters {
+  animation: announcement-band-in var(--duration-base) var(--ease-out) both;
+}
+
+@keyframes announcement-band-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-3)));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The bottom rung of the frame budget gives the entrance up: the banner is simply there. */
+[data-wall-budget='cut'] .enters {
+  animation: none;
+}

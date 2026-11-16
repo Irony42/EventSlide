@@ -930,6 +930,11 @@ export const de: UiText = {
     arrivalClips: (count: number) => `${t.number(count)} neue Videos`,
     arrivalMixed: (count: number) => `${t.number(count)} neue Erinnerungen`,
 
+    /* ---- Spec 21: scheduled announcements on the wall. The text inside is the host's, never translated. ---- */
+    announcementSay: (text: string) => `Ansage: ${text}.`,
+    announcementIn: (time: string) => `in ${time}`,
+    announcementImminent: (time: string) => `gleich · ${time}`,
+
     codeLabel: 'Code der Feier',
     qrTitle: 'QR-Code für den Beitritt zur Feier',
     photoBy: (name: string) => `Foto, gesendet von ${name}`,

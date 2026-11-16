@@ -906,6 +906,11 @@ export const it: UiText = {
     arrivalPhotos: (count: number) => `${t.number(count)} nuove foto`,
     arrivalClips: (count: number) => `${t.number(count)} nuovi video`,
     arrivalMixed: (count: number) => `${t.number(count)} nuovi ricordi`,
+
+    /* ---- Spec 21: scheduled announcements on the wall. The text inside is the host's, never translated. ---- */
+    announcementSay: (text: string) => `Annuncio: ${text}.`,
+    announcementIn: (time: string) => `tra ${time}`,
+    announcementImminent: (time: string) => `tra un attimo · ${time}`,
     codeLabel: 'Codice della serata',
     qrTitle: 'Codice QR per entrare nella serata',
     photoBy: (name: string) => `Foto inviata da ${name}`,
