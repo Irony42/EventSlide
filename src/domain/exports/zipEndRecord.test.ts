@@ -11,7 +11,11 @@ const eocd = (entries: number, options: { comment?: number; disk?: number } = {}
   return record
 }
 
-const zip64 = (entries: bigint, locatorSignature = 0x07064b50, recordSignature = 0x06064b50) => {
+const zip64 = (
+  entries: bigint,
+  locatorSignature = 0x07064b50,
+  recordSignature = 0x06064b50,
+): readonly [Uint8Array, Uint8Array] => {
   const record = new Uint8Array(56)
   new DataView(record.buffer).setUint32(0, recordSignature, true)
   new DataView(record.buffer).setBigUint64(32, entries, true)
@@ -73,7 +77,7 @@ describe('readZipEnd (spec 22, check 3)', () => {
 
     expect(readZipEnd(eocd(0xffff))).toBeNull()
     expect(readZipEnd(join(record, badLocator, eocd(0xffff)))).toBeNull()
-    expect(readZipEnd(join(badRecord as Uint8Array, locator, eocd(0xffff)))).toBeNull()
+    expect(readZipEnd(join(badRecord, locator, eocd(0xffff)))).toBeNull()
   })
 
   it('refuses a ZIP64 count no number can hold', () => {
