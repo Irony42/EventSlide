@@ -146,6 +146,8 @@ export function AnnouncementControls({
 
   const [draft, setDraft] = useState<AnnouncementDraft>(() => blankDraft())
   const [timeTouched, setTimeTouched] = useState(false)
+  // Bumped by a press that found the line stale: it only asks for a render on a fresh clock.
+  const [, setPresses] = useState(0)
   const [editing, setEditing] = useState<{ id: string; textOnly: boolean } | null>(null)
 
   const items = useMemo(
@@ -159,13 +161,27 @@ export function AnnouncementControls({
   const nowMs = useServerClock(announcements.offsetMs, boundaries)
 
   const offer = KIND_OFFERS[draft.kind]
-  const textOnly = editing?.textOnly === true
   const openAtMs = opensAt === null ? null : Date.parse(opensAt)
-  const resolved = resolveAnnouncementInstant(
-    draft.time,
-    nowMs,
-    openAtMs === null || Number.isNaN(openAtMs) ? null : openAtMs,
-  )
+  const opening = openAtMs === null || Number.isNaN(openAtMs) ? null : openAtMs
+  const resolved = resolveAnnouncementInstant(draft.time, nowMs, opening)
+  // The row under correction, read on the clock at every render: it may have moved on while the
+  // form was open (rule 11). A discreet text that went up keeps its words correctable and nothing
+  // else; a card that went up, or any row that is over, can no longer be corrected.
+  const editedRow = editing === null ? undefined : items.find((row) => row.id === editing.id)
+  const editedState = editedRow === undefined ? null : phaseOf(editedRow, nowMs)
+  const editable =
+    editedRow !== undefined &&
+    (editedState === 'upcoming' ||
+      editedState === 'counting' ||
+      (editedState === 'showing' && editedRow.kind === 'discreet'))
+  const textOnly = editing !== null && (editing.textOnly || editedState === 'showing')
+  // The loaded list may not hold the row yet: only a row known to be closed ends the correction.
+  // State adjusted during render, the documented way to reset on a change (no effect, no flash).
+  if (editing !== null && editedRow !== undefined && !editable) {
+    setEditing(null)
+    setDraft(blankDraft())
+    setTimeTouched(false)
+  }
   // Correcting an announcement and not touching its time keeps the instant the server holds.
   const showResolution = editing === null || timeTouched
 
@@ -186,16 +202,29 @@ export function AnnouncementControls({
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!hasText(draft)) return
+    // Read again at the press: the line on screen may be a few seconds old. When the moment it
+    // names has moved on (the 60 s grace ran out), nothing is sent: the line is redrawn and the
+    // host reads which moment the time now means, rather than a toast or a surprise tomorrow.
+    const pressed = resolveAnnouncementInstant(
+      draft.time,
+      serverNowFrom(localNow(), announcements.offsetMs),
+      opening,
+    )
+    const touched = editing === null || timeTouched
+    if (touched && pressed?.atMs !== resolved?.atMs) {
+      setPresses((count) => count + 1)
+      return
+    }
     if (editing !== null) {
-      const atMs = timeTouched && resolved !== null ? resolved.atMs : null
+      const atMs = timeTouched && pressed !== null ? pressed.atMs : null
       void update
-        .run(editing.id, slug, editing.id, editInput(draft, editing.textOnly, atMs))
+        .run(editing.id, slug, editing.id, editInput(draft, textOnly, atMs))
         .then((result) => afterWrite(result.ok ? null : result.message, result.ok))
       return
     }
-    if (resolved === null) return
+    if (pressed === null) return
     void create
-      .run('create', slug, scheduleInput(draft, resolved.atMs))
+      .run('create', slug, scheduleInput(draft, pressed.atMs))
       .then((result) => afterWrite(result.ok ? null : result.message, result.ok))
   }
 
@@ -386,7 +415,7 @@ export function AnnouncementControls({
                 type="submit"
                 variant="primary"
                 loading={update.isPending(editing.id)}
-                disabled={!hasText(draft) || busy}
+                disabled={!hasText(draft) || busy || (timeTouched && resolved === null)}
               >
                 {copy.save}
               </Button>

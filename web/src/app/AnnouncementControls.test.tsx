@@ -618,5 +618,109 @@ describe('AnnouncementControls', () => {
       expect(await textBox()).toHaveValue('')
       expect(button(copy.schedule)).toBeDisabled()
     })
+
+    it('sends nothing when the grace minute ran out since the line was drawn, and redraws the line', async () => {
+      // 22:00 typed at 22:00:50 reads "today" (inside the 60 s grace); pressed at 22:01:10 it
+      // would be 70 s late: the server would refuse, so the host is shown "tomorrow" instead.
+      vi.setSystemTime(new Date(2026, 5, 20, 22, 0, 50))
+      const createAnnouncement = vi.fn(apiWith().createAnnouncement)
+      render(apiWith([], { createAnnouncement }))
+      const user = userEvent.setup()
+      await typeText(user, 'Le gâteau')
+      setTime('22:00')
+      expect(screen.getByText(copy.resolvedToday('22:00', copy.lead(0)))).toBeInTheDocument()
+
+      vi.setSystemTime(new Date(2026, 5, 20, 22, 1, 10))
+      await user.click(button(copy.schedule))
+
+      expect(createAnnouncement).not.toHaveBeenCalled()
+      expect(screen.getByText(/^Demain/u)).toBeInTheDocument()
+
+      await user.click(button(copy.schedule))
+      const [, sent] = createAnnouncement.mock.calls[0] ?? []
+      expect(sent).toEqual(
+        expect.objectContaining({ at: new Date(2026, 5, 21, 22, 0, 0).toISOString() }),
+      )
+    })
+
+    it('cannot save a correction whose time was emptied', async () => {
+      const updateAnnouncement = vi.fn(apiWith().updateAnnouncement)
+      render(apiWith([planned(7200, { id: 'a', text: 'Discours' })], { updateAnnouncement }))
+      const user = userEvent.setup()
+      await user.click(
+        within(await screen.findByRole('group', { name: 'Discours' })).getByRole('button', {
+          name: copy.edit,
+        }),
+      )
+
+      setTime('')
+
+      expect(button(copy.save)).toBeDisabled()
+      await user.click(button(copy.save))
+      expect(updateAnnouncement).not.toHaveBeenCalled()
+    })
+
+    it('closes the correction of a card that went up while the form was open', async () => {
+      vi.useRealTimers()
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+      vi.setSystemTime(NOW)
+      render(apiWith([planned(30, { id: 'a', text: 'Gâteau', countdownSeconds: 10 })]))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      fireEvent.click(
+        within(screen.getByRole('group', { name: 'Gâteau' })).getByRole('button', {
+          name: copy.edit,
+        }),
+      )
+      expect(screen.getByText(copy.editing)).toBeInTheDocument()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31_000)
+      })
+
+      expect(screen.queryByText(copy.editing)).not.toBeInTheDocument()
+      expect(screen.getByLabelText(copy.text)).toHaveValue('')
+    })
+
+    it('narrows the correction of a discreet text to its words when it goes up meanwhile', async () => {
+      vi.useRealTimers()
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+      vi.setSystemTime(NOW)
+      const updateAnnouncement = vi.fn(apiWith().updateAnnouncement)
+      render(
+        apiWith(
+          [
+            planned(30, {
+              id: 'q',
+              text: 'Buffet',
+              kind: 'discreet',
+              durationSeconds: 900,
+              countdownSeconds: 0,
+            }),
+          ],
+          { updateAnnouncement },
+        ),
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      fireEvent.click(
+        within(screen.getByRole('group', { name: 'Buffet' })).getByRole('button', {
+          name: copy.edit,
+        }),
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31_000)
+      })
+      expect(screen.getByText(copy.textOnly)).toBeInTheDocument()
+
+      fireEvent.click(button(copy.save))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      expect(updateAnnouncement).toHaveBeenCalledWith(SLUG, 'q', { text: 'Buffet' })
+    })
   })
 })
