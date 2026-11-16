@@ -2,6 +2,8 @@ import { useCallback } from 'react'
 import { useApi } from '../../../lib/useApi'
 import { useAction, type ActionState } from './useAction'
 import type {
+  AnnouncementInput,
+  AnnouncementPatchInput,
   ChallengeInput,
   CreateEventInput,
   EventScheduleInput,
@@ -11,6 +13,7 @@ import type {
   ShareLinkInput,
 } from '../../../lib/api/client'
 import type {
+  AnnouncementResponse,
   ChallengeDto,
   EventDto,
   EventStatus,
@@ -149,6 +152,48 @@ export const useStartChallenge = (): ActionState<[string, ChallengeInput], Chall
 export const useStopChallenge = (): ActionState<[string], void> => {
   const api = useApi()
   return useAction(useCallback((slug: string) => api.stopChallenge(slug), [api]))
+}
+
+/** The four writes on a scheduled announcement (spec 21). A row's id is its busy key. */
+export const useCreateAnnouncement = (): ActionState<
+  [string, AnnouncementInput],
+  AnnouncementResponse
+> => {
+  const api = useApi()
+  return useAction(
+    useCallback(
+      (slug: string, input: AnnouncementInput) => api.createAnnouncement(slug, input),
+      [api],
+    ),
+  )
+}
+
+export const useUpdateAnnouncement = (): ActionState<
+  [string, string, AnnouncementPatchInput],
+  AnnouncementResponse
+> => {
+  const api = useApi()
+  return useAction(
+    useCallback(
+      (slug: string, id: string, input: AnnouncementPatchInput) =>
+        api.updateAnnouncement(slug, id, input),
+      [api],
+    ),
+  )
+}
+
+export const useLaunchAnnouncement = (): ActionState<[string, string], AnnouncementResponse> => {
+  const api = useApi()
+  return useAction(
+    useCallback((slug: string, id: string) => api.launchAnnouncement(slug, id), [api]),
+  )
+}
+
+export const useDeleteAnnouncement = (): ActionState<[string, string], void> => {
+  const api = useApi()
+  return useAction(
+    useCallback((slug: string, id: string) => api.deleteAnnouncement(slug, id), [api]),
+  )
 }
 
 /**

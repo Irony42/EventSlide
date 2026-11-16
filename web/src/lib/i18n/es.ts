@@ -618,6 +618,17 @@ export const es: UiText = {
     'challenge.limit': 'Este evento ha alcanzado el número de retos permitido.',
     'challenge.eventNotOpen': 'Un reto solo se puede lanzar mientras el evento está abierto.',
     'challenge.durationInvalid': 'Esta duración no es válida.',
+    'announcement.textInvalid': 'Escriba el texto del anuncio (80 caracteres como máximo).',
+    'announcement.atInvalid': 'Esa hora ya ha pasado. Use «Lanzar ahora».',
+    'announcement.kindInvalid': 'Ese tipo de anuncio no es válido.',
+    'announcement.durationInvalid': 'Esa duración no es válida para este tipo de anuncio.',
+    'announcement.countdownInvalid': 'Esa cuenta atrás no es válida para este tipo de anuncio.',
+    'announcement.notFound': 'Este anuncio ya no existe. Recargue la página.',
+    'announcement.overlap': 'Hay otro anuncio previsto para ese momento.',
+    'announcement.showing': 'Ya hay un anuncio en pantalla.',
+    'announcement.locked': 'Este anuncio está en pantalla: quítelo para corregirlo.',
+    'announcement.limit': 'Ha alcanzado los 50 anuncios. Elimine algunos.',
+    'announcement.eventNotOpen': 'La fiesta no está abierta: el anuncio no se mostrará.',
 
     'eventTheme.accentHueInvalid': 'Ese color no se reconoce. Elija uno de la lista.',
     'eventTheme.accentUnreadable':
@@ -2405,6 +2416,66 @@ export const es: UiText = {
     /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
     participate: 'Participo en el reto',
     announceEnd: 'Fin del reto fotográfico',
+  },
+  /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
+  announcement: {
+    title: 'Anuncios',
+    hint: 'Una frase para toda la sala, a la hora elegida. Solo aparece en el momento previsto.',
+    text: 'Texto del anuncio',
+    /** The text box's counter: how much of the eighty characters is used. */
+    textCount: (used, max) => `${t.number(used)} / ${t.number(max)}`,
+    ideasTitle: 'Ideas',
+    /** Ready-made texts for a full-screen card; each is at most 80 characters. */
+    ideas: ['Tarta', 'Discursos', 'Primer baile', 'Abre el buffet', 'Última canción'],
+    /** The same for a discreet one, which says something that stays true for a while; each at most 80 characters. */
+    ideasDiscreet: ['El buffet está abierto', 'El fotomatón le espera', 'Última ronda en el bar'],
+    time: 'Hora',
+    timeHint: 'Déjelo vacío para usar «Lanzar ahora».',
+    /** The line that says which moment the typed time is: the day, the time, and how far away it is. */
+    resolvedToday: (time, lead) => `Hoy ${time}, dentro de ${lead}`,
+    resolvedTomorrow: (time, lead) => `Mañana ${time}, dentro de ${lead}`,
+    resolvedOn: (date, time, lead) => `${date} ${time}, dentro de ${lead}`,
+    /** How far away, from whole minutes: "1 h 12", "45 min". */
+    lead: (minutes) => {
+      if (minutes <= 0) return 'un instante'
+      if (minutes < 60) return `${minutes} min`
+      const rest = minutes % 60
+      const hours = Math.floor(minutes / 60)
+      return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, '0')}`
+    },
+    far: 'Faltan más de 12 horas: compruebe la hora y el día.',
+    kind: 'Tipo de anuncio',
+    kindFullscreen: 'Pantalla completa',
+    kindFullscreenHelp: 'Una tarjeta en medio de la pantalla, unos segundos.',
+    kindDiscreet: 'Discreto',
+    kindDiscreetHelp: 'Un texto discreto sobre las fotos, de 5 a 30 minutos.',
+    countdown: 'Cuenta atrás',
+    countdownNone: 'Ninguna',
+    duration: 'Duración en pantalla',
+    /** A span of seconds as the chips say it: under a minute in seconds, from a minute in minutes. */
+    span: (seconds) => (seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min`),
+    schedule: 'Programar',
+    launchNow: 'Lanzar ahora',
+    save: 'Guardar',
+    cancel: 'Cancelar',
+    edit: 'Modificar',
+    relaunch: 'Volver a lanzar',
+    remove: 'Eliminar',
+    withdraw: 'Quitar de la pantalla',
+    editing: 'Modificación de un anuncio',
+    textOnly: 'Este anuncio está en pantalla: solo puede cambiar su texto.',
+    listLabel: 'Anuncios de la fiesta',
+    empty: 'Todavía no hay anuncios.',
+    loadFailed: 'No se han podido cargar los anuncios.',
+    notLive:
+      'La fiesta aún no está abierta: el anuncio solo se mostrará cuando se abra la pantalla.',
+    /** The state the row is in, in words: never by colour alone. */
+    states: {
+      upcoming: 'Próximo',
+      counting: 'Cuenta atrás',
+      showing: 'En pantalla',
+      over: 'Pasado',
+    },
   },
   titles: {
     print: 'Tarjetas de mesa y cartel',

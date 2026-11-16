@@ -12,6 +12,9 @@ import type {
   EventTemplateKey,
   EventStatsResponse,
   GuestListResponse,
+  AnnouncementKind,
+  AnnouncementListResponse,
+  AnnouncementResponse,
   ChallengeDto,
   HostChallengeResponse,
   GuestbookQueueDto,
@@ -102,7 +105,23 @@ export interface EventScheduleInput {
 export interface MissionInput {
   readonly prompt: string
   readonly scope: MissionScope
-} /** A timed photo challenge as the host launches it (spec 10). */
+} /**
+ * What the host may change on an announcement (spec 21): a field left out is left as it was.
+ */
+export interface AnnouncementPatchInput {
+  /** One line, 80 characters: content, never translated. */
+  readonly text?: string
+  readonly kind?: AnnouncementKind
+  /** An instant with its offset (ISO 8601): the console resolves the host's "22:00" to one. */
+  readonly at?: string
+  readonly durationSeconds?: number
+  readonly countdownSeconds?: number
+}
+/** A new announcement: the text is the one thing it cannot do without, and no `at` is a launch. */
+export interface AnnouncementInput extends AnnouncementPatchInput {
+  readonly text: string
+}
+/** A timed photo challenge as the host launches it (spec 10). */
 export interface ChallengeInput {
   /** The challenge's own text (spec 18): one line, 60 characters at most. */
   readonly prompt: string
@@ -340,6 +359,30 @@ export const hostApi = (transport: Transport) => ({
   /** Stops the running challenge; `204` with nothing running, too. */
   stopChallenge: (slug: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/challenge`),
+
+  /** The host's list, with the server's clock the states were derived at (spec 21). */
+  listAnnouncements: (slug: string, signal?: AbortSignal): Promise<AnnouncementListResponse> =>
+    transport.get(`/api/events/${encode(slug)}/announcements`, undefined, signal),
+
+  /** Schedules an announcement, or launches it when `at` is absent. */
+  createAnnouncement: (slug: string, input: AnnouncementInput): Promise<AnnouncementResponse> =>
+    transport.post(`/api/events/${encode(slug)}/announcements`, input),
+
+  /** Only the fields sent change; the server says which states allow which. */
+  updateAnnouncement: (
+    slug: string,
+    id: string,
+    input: AnnouncementPatchInput,
+  ): Promise<AnnouncementResponse> =>
+    transport.patch(`/api/events/${encode(slug)}/announcements/${encode(id)}`, input),
+
+  /** "Lancer maintenant" and "Relancer": the server's clock, no countdown. */
+  launchAnnouncement: (slug: string, id: string): Promise<AnnouncementResponse> =>
+    transport.post(`/api/events/${encode(slug)}/announcements/${encode(id)}/launch`),
+
+  /** In any state; one on screen leaves the wall at its next read. */
+  deleteAnnouncement: (slug: string, id: string): Promise<void> =>
+    transport.del(`/api/events/${encode(slug)}/announcements/${encode(id)}`),
 
   /** The host's link: its status, never its address, which is not stored. */
   shareLink: (slug: string, signal?: AbortSignal): Promise<ShareLinkResponse> =>

@@ -593,6 +593,17 @@ export const en: UiText = {
     'challenge.limit': 'This event has reached the number of challenges allowed.',
     'challenge.eventNotOpen': 'A challenge can only start while the event is open.',
     'challenge.durationInvalid': 'That duration is not valid.',
+    'announcement.textInvalid': 'Write the announcement text (80 characters at most).',
+    'announcement.atInvalid': 'That time has already passed. Use “Launch now”.',
+    'announcement.kindInvalid': 'That type of announcement is not valid.',
+    'announcement.durationInvalid': 'That duration is not valid for this type of announcement.',
+    'announcement.countdownInvalid': 'That countdown is not valid for this type of announcement.',
+    'announcement.notFound': 'This announcement no longer exists. Reload the page.',
+    'announcement.overlap': 'Another announcement is planned for that time.',
+    'announcement.showing': 'An announcement is already on screen.',
+    'announcement.locked': 'This announcement is on screen: take it off to correct it.',
+    'announcement.limit': 'You have reached 50 announcements. Delete some.',
+    'announcement.eventNotOpen': 'The event is not open: the announcement will not be shown.',
 
     'eventTheme.accentHueInvalid': 'That colour is not recognised. Choose one from the list.',
     'eventTheme.accentUnreadable':
@@ -2335,6 +2346,70 @@ export const en: UiText = {
     /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
     participate: 'I’m taking part in the challenge',
     announceEnd: 'Photo challenge over',
+  },
+  /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
+  announcement: {
+    title: 'Announcements',
+    hint: 'One sentence for the whole room, at the time you choose. It only appears when it is due.',
+    text: 'Announcement text',
+    /** The text box's counter: how much of the eighty characters is used. */
+    textCount: (used, max) => `${t.number(used)} / ${t.number(max)}`,
+    ideasTitle: 'Ideas',
+    /** Ready-made texts for a full-screen card; each is at most 80 characters. */
+    ideas: ['Cake', 'Speeches', 'First dance', 'Buffet opens', 'Last song'],
+    /** The same for a discreet one, which says something that stays true for a while; each at most 80 characters. */
+    ideasDiscreet: [
+      'The buffet is open',
+      'The photo booth is waiting for you',
+      'Last call at the bar',
+    ],
+    time: 'Time',
+    timeHint: 'Leave empty to use “Launch now”.',
+    /** The line that says which moment the typed time is: the day, the time, and how far away it is. */
+    resolvedToday: (time, lead) => `Today ${time}, in ${lead}`,
+    resolvedTomorrow: (time, lead) => `Tomorrow ${time}, in ${lead}`,
+    resolvedOn: (date, time, lead) => `${date} ${time}, in ${lead}`,
+    /** How far away, from whole minutes: "1 h 12", "45 min". */
+    lead: (minutes) => {
+      if (minutes <= 0) return 'a moment'
+      if (minutes < 60) return `${minutes} min`
+      const rest = minutes % 60
+      const hours = Math.floor(minutes / 60)
+      return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, '0')}`
+    },
+    far: 'More than 12 hours from now: check the time and the day.',
+    kind: 'Type of announcement',
+    kindFullscreen: 'Full screen',
+    kindFullscreenHelp: 'A card in the middle of the screen, for a few seconds.',
+    kindDiscreet: 'Discreet',
+    kindDiscreetHelp: 'A discreet text over the photos, for 5 to 30 minutes.',
+    countdown: 'Countdown',
+    countdownNone: 'None',
+    duration: 'Time on screen',
+    /** A span of seconds as the chips say it: under a minute in seconds, from a minute in minutes. */
+    span: (seconds) => (seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min`),
+    schedule: 'Schedule',
+    launchNow: 'Launch now',
+    save: 'Save',
+    cancel: 'Cancel',
+    edit: 'Edit',
+    relaunch: 'Launch again',
+    remove: 'Delete',
+    withdraw: 'Take off the screen',
+    editing: 'Editing an announcement',
+    textOnly: 'This announcement is on screen: only its text can change.',
+    listLabel: 'Announcements of the event',
+    empty: 'No announcements yet.',
+    loadFailed: 'The announcements could not be loaded.',
+    notLive:
+      'The event is not open yet: the announcement will only be shown once the screen is open.',
+    /** The state the row is in, in words: never by colour alone. */
+    states: {
+      upcoming: 'Upcoming',
+      counting: 'Counting down',
+      showing: 'On screen',
+      over: 'Past',
+    },
   },
   titles: {
     print: 'Table cards and poster',

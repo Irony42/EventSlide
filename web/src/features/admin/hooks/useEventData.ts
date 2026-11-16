@@ -6,6 +6,7 @@ import type {
   EventDto,
   EventSummaryDto,
   GuestListResponse,
+  AnnouncementListResponse,
   HostChallengeResponse,
   MissionDto,
   ModeratorDto,
@@ -89,6 +90,29 @@ export const useChallenge = (
     async (signal: AbortSignal) => {
       const sentAt = Date.now()
       const response = await api.getChallenge(slug, signal)
+      setOffsetMs(serverOffsetMs(response.serverNowMs, sentAt, Date.now()))
+      return response
+    },
+    [api, slug],
+  )
+  return { ...useLoader(load), offsetMs }
+}
+
+/**
+ * The event's scheduled announcements as the console reads them (spec 21), with the server's
+ * clock. Re-read by the controls after every write and when an announcement changes phase: the
+ * phases are derived from the clock and announce nothing.
+ */
+export const useAnnouncements = (
+  slug: string,
+): LoaderState<AnnouncementListResponse> & { readonly offsetMs: number } => {
+  const api = useApi()
+  // The same offset as `useChallenge`: measured at each read, half the round trip taken off.
+  const [offsetMs, setOffsetMs] = useState(0)
+  const load = useCallback(
+    async (signal: AbortSignal) => {
+      const sentAt = Date.now()
+      const response = await api.listAnnouncements(slug, signal)
       setOffsetMs(serverOffsetMs(response.serverNowMs, sentAt, Date.now()))
       return response
     },

@@ -651,6 +651,18 @@ export const de: UiText = {
     'challenge.eventNotOpen':
       'Eine Challenge kann nur starten, solange die Veranstaltung geöffnet ist.',
     'challenge.durationInvalid': 'Diese Dauer ist nicht gültig.',
+    'announcement.textInvalid': 'Schreiben Sie den Text der Ansage (höchstens 80 Zeichen).',
+    'announcement.atInvalid': 'Diese Uhrzeit ist schon vorbei. Nutzen Sie „Jetzt starten“.',
+    'announcement.kindInvalid': 'Diese Art der Ansage ist nicht gültig.',
+    'announcement.durationInvalid': 'Diese Dauer ist für diese Art der Ansage nicht gültig.',
+    'announcement.countdownInvalid': 'Dieser Countdown ist für diese Art der Ansage nicht gültig.',
+    'announcement.notFound': 'Diese Ansage gibt es nicht mehr. Laden Sie die Seite neu.',
+    'announcement.overlap': 'Zu dieser Zeit ist schon eine andere Ansage geplant.',
+    'announcement.showing': 'Es ist schon eine Ansage auf dem Bildschirm.',
+    'announcement.locked':
+      'Diese Ansage ist auf dem Bildschirm: Nehmen Sie sie herunter, um sie zu korrigieren.',
+    'announcement.limit': 'Sie haben 50 Ansagen erreicht. Löschen Sie einige.',
+    'announcement.eventNotOpen': 'Die Feier ist nicht geöffnet: Die Ansage wird nicht gezeigt.',
 
     'eventTheme.accentHueInvalid': 'Diese Farbe ist unbekannt. Wählen Sie eine aus der Liste.',
     'eventTheme.accentUnreadable':
@@ -2427,6 +2439,70 @@ export const de: UiText = {
     /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
     participate: 'Ich nehme an der Challenge teil',
     announceEnd: 'Foto-Challenge beendet',
+  },
+  /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
+  announcement: {
+    title: 'Ansagen',
+    hint: 'Ein Satz für den ganzen Saal, zur gewählten Uhrzeit. Er erscheint erst, wenn es so weit ist.',
+    text: 'Text der Ansage',
+    /** The text box's counter: how much of the eighty characters is used. */
+    textCount: (used, max) => `${t.number(used)} / ${t.number(max)}`,
+    ideasTitle: 'Ideen',
+    /** Ready-made texts for a full-screen card; each is at most 80 characters. */
+    ideas: ['Torte', 'Reden', 'Eröffnungstanz', 'Buffet eröffnet', 'Letztes Lied'],
+    /** The same for a discreet one, which says something that stays true for a while; each at most 80 characters. */
+    ideasDiscreet: [
+      'Das Buffet ist eröffnet',
+      'Der Fotobooth wartet auf Sie',
+      'Letzte Runde an der Bar',
+    ],
+    time: 'Uhrzeit',
+    timeHint: 'Leer lassen, um „Jetzt starten“ zu nutzen.',
+    /** The line that says which moment the typed time is: the day, the time, and how far away it is. */
+    resolvedToday: (time, lead) => `Heute ${time}, in ${lead}`,
+    resolvedTomorrow: (time, lead) => `Morgen ${time}, in ${lead}`,
+    resolvedOn: (date, time, lead) => `${date} ${time}, in ${lead}`,
+    /** How far away, from whole minutes: "1 h 12", "45 min". */
+    lead: (minutes) => {
+      if (minutes <= 0) return 'einem Augenblick'
+      if (minutes < 60) return `${minutes} Min.`
+      const rest = minutes % 60
+      const hours = Math.floor(minutes / 60)
+      return rest === 0 ? `${hours} Std.` : `${hours} Std. ${String(rest).padStart(2, '0')} Min.`
+    },
+    far: 'Mehr als 12 Stunden entfernt: Prüfen Sie Uhrzeit und Tag.',
+    kind: 'Art der Ansage',
+    kindFullscreen: 'Vollbild',
+    kindFullscreenHelp: 'Eine Karte in der Mitte des Bildschirms, für einige Sekunden.',
+    kindDiscreet: 'Dezent',
+    kindDiscreetHelp: 'Ein dezenter Text über den Fotos, 5 bis 30 Minuten lang.',
+    countdown: 'Countdown',
+    countdownNone: 'Keiner',
+    duration: 'Dauer auf dem Bildschirm',
+    /** A span of seconds as the chips say it: under a minute in seconds, from a minute in minutes. */
+    span: (seconds) => (seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} Min.`),
+    schedule: 'Planen',
+    launchNow: 'Jetzt starten',
+    save: 'Speichern',
+    cancel: 'Abbrechen',
+    edit: 'Bearbeiten',
+    relaunch: 'Erneut starten',
+    remove: 'Löschen',
+    withdraw: 'Vom Bildschirm nehmen',
+    editing: 'Ansage bearbeiten',
+    textOnly: 'Diese Ansage ist auf dem Bildschirm: Nur ihr Text kann sich ändern.',
+    listLabel: 'Ansagen der Feier',
+    empty: 'Noch keine Ansagen.',
+    loadFailed: 'Die Ansagen konnten nicht geladen werden.',
+    notLive:
+      'Die Feier ist noch nicht geöffnet: Die Ansage wird erst gezeigt, sobald der Bildschirm geöffnet ist.',
+    /** The state the row is in, in words: never by colour alone. */
+    states: {
+      upcoming: 'Bevorstehend',
+      counting: 'Countdown läuft',
+      showing: 'Auf dem Bildschirm',
+      over: 'Vorbei',
+    },
   },
   titles: {
     print: 'Tischkarten und Plakat',

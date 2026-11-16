@@ -668,14 +668,6 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // ring 4, but nothing in `web/src` calls it yet; the console reads the moderation
   // queue instead. `dtoContract.test.ts` records the same gap from the response side.
   photoListQuery: 'GET /api/events/:eventSlug/photos has no client method',
-  // The scheduled announcements (spec 21): the routes are written and held at ring 4
-  // (`announcementRoutes.test.ts`: an unknown key is a 400, every bound is the domain's), and the
-  // console that sends them is the fourth pull request of the spec. The pairing starts the day
-  // `AnnouncementControls` exists, and this is then what shrinks.
-  announcementCreateBody:
-    'POST /api/events/:eventSlug/announcements: the host console (spec 21, PR 4) is not built yet',
-  announcementPatchBody:
-    'PATCH /api/events/:eventSlug/announcements/:announcementId: the host console (spec 21, PR 4) is not built yet',
   // `PATCH /api/events/:slug` (rename) and `PATCH /api/events/:slug/photos/:photoId/caption`: both
   // routes are written and held at ring 4, and no screen sends either. The client methods were
   // deleted for having no caller (`web/src/lib/api/apiCallers.guard.test.ts` keeps it that way); a

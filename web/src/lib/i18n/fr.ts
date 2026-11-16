@@ -2360,6 +2360,17 @@ export const fr = {
     'challenge.limit': 'Cet évènement a atteint le nombre de défis autorisé.',
     'challenge.eventNotOpen': 'Un défi ne peut se lancer que pendant que l’évènement est ouvert.',
     'challenge.durationInvalid': 'Cette durée n’est pas valide.',
+    'announcement.textInvalid': 'Écrivez le texte de l’annonce (80 caractères au plus).',
+    'announcement.atInvalid': 'Cette heure est déjà passée. Utilisez « Lancer maintenant ».',
+    'announcement.kindInvalid': 'Ce type d’annonce n’est pas valide.',
+    'announcement.durationInvalid': 'Cette durée n’est pas valide pour ce type d’annonce.',
+    'announcement.countdownInvalid': 'Ce compte à rebours n’est pas valide pour ce type d’annonce.',
+    'announcement.notFound': 'Cette annonce n’existe plus. Rechargez la page.',
+    'announcement.overlap': 'Une autre annonce est prévue à ce moment-là.',
+    'announcement.showing': 'Une annonce est déjà à l’écran.',
+    'announcement.locked': 'Cette annonce est à l’écran : retirez-la pour la corriger.',
+    'announcement.limit': 'Vous avez atteint 50 annonces. Supprimez-en.',
+    'announcement.eventNotOpen': 'L’évènement n’est pas ouvert : l’annonce ne sera pas montrée.',
     /* ---- Added by the shared gallery (ROADMAP 4.1). ---- */
     'gallery.notAvailable': 'Ce lien n’est plus disponible.',
     'gallery.passwordRequired': 'Cet album est protégé par un mot de passe.',
@@ -3069,6 +3080,66 @@ export const fr = {
     /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
     participate: 'Je participe au défi',
     announceEnd: 'Fin du défi photo',
+  },
+  /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
+  announcement: {
+    title: 'Annonces',
+    hint: 'Une phrase pour toute la salle, à l’heure choisie. Elle n’apparaît qu’au moment voulu.',
+    text: 'Texte de l’annonce',
+    /** The text box's counter: how much of the eighty characters is used. */
+    textCount: (used: number, max: number) => `${t.number(used)} / ${t.number(max)}`,
+    ideasTitle: 'Idées',
+    /** Ready-made texts for a full-screen card; each is at most 80 characters. */
+    ideas: ['Gâteau', 'Discours', 'Première danse', 'Ouverture du buffet', 'Dernière chanson'],
+    /** The same for a discreet one, which says something that stays true for a while; each at most 80 characters. */
+    ideasDiscreet: ['Le buffet est ouvert', 'Le photobooth vous attend', 'Dernier service au bar'],
+    time: 'Heure',
+    timeHint: 'Laissez vide pour utiliser « Lancer maintenant ».',
+    /** The line that says which moment the typed time is: the day, the time, and how far away it is. */
+    resolvedToday: (time: string, lead: string) => `Aujourd’hui ${time}, dans ${lead}`,
+    resolvedTomorrow: (time: string, lead: string) => `Demain ${time}, dans ${lead}`,
+    resolvedOn: (date: string, time: string, lead: string) => `${date} ${time}, dans ${lead}`,
+    /** How far away, from whole minutes: "1 h 12", "45 min". */
+    lead: (minutes: number) => {
+      if (minutes <= 0) return 'un instant'
+      if (minutes < 60) return `${minutes} min`
+      const rest = minutes % 60
+      const hours = Math.floor(minutes / 60)
+      return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, '0')}`
+    },
+    far: 'Plus de 12 heures d’ici : vérifiez l’heure et le jour.',
+    kind: 'Type d’annonce',
+    kindFullscreen: 'Plein écran',
+    kindFullscreenHelp: 'Une carte au milieu de l’écran, quelques secondes.',
+    kindDiscreet: 'Discrète',
+    kindDiscreetHelp: 'Un texte discret sur les photos, de 5 à 30 minutes.',
+    countdown: 'Compte à rebours',
+    countdownNone: 'Aucun',
+    duration: 'Durée à l’écran',
+    /** A span of seconds as the chips say it: under a minute in seconds, from a minute in minutes. */
+    span: (seconds: number) => (seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min`),
+    schedule: 'Programmer',
+    launchNow: 'Lancer maintenant',
+    save: 'Enregistrer',
+    cancel: 'Annuler',
+    edit: 'Modifier',
+    relaunch: 'Relancer',
+    remove: 'Supprimer',
+    withdraw: 'Retirer de l’écran',
+    editing: 'Modification d’une annonce',
+    textOnly: 'Cette annonce est à l’écran : seul son texte peut changer.',
+    listLabel: 'Annonces de la soirée',
+    empty: 'Aucune annonce pour le moment.',
+    loadFailed: 'Les annonces n’ont pas pu être chargées.',
+    notLive:
+      'L’évènement n’est pas encore ouvert : l’annonce ne sera montrée qu’une fois l’écran ouvert.',
+    /** The state the row is in, in words: never by colour alone. */
+    states: {
+      upcoming: 'À venir',
+      counting: 'Compte à rebours',
+      showing: 'À l’écran',
+      over: 'Passée',
+    },
   },
   titles: {
     print: 'Cartes de table et affiche',
