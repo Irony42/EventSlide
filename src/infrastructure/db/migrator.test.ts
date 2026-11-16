@@ -278,6 +278,8 @@ describe('the real schema', () => {
       'clip_jobs',
       'event_announcements',
       'event_challenges',
+      'event_export_requests',
+      'event_exports',
       'event_memberships',
       'event_missions',
       'event_purge_notices',
