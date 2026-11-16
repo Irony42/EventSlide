@@ -26,6 +26,8 @@ import { WallLayouts } from './components/WallLayouts'
 import { WallMediaFailureContext } from './components/wallMediaFailure'
 import { WallMessage } from './components/WallMessage'
 import { WallChallenge } from './components/WallChallenge'
+import { WallAnnouncementBand } from './components/WallAnnouncementBand'
+import { WallAnnouncementCard } from './components/WallAnnouncementCard'
 import { NewPhotoSignal } from './components/NewPhotoSignal'
 import { WallSoundButton } from './components/WallSoundButton'
 import { SouvenirCounter } from './components/SouvenirCounter'
@@ -41,6 +43,7 @@ import { useOutageStage } from './hooks/useOutageStage'
 import { useSlideshow } from './hooks/useSlideshow'
 import { useWallGuestbook } from './hooks/useWallGuestbook'
 import { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion'
+import { useWallAnnouncements } from './hooks/useWallAnnouncements'
 import { useWallPhase } from './hooks/useWallPhase'
 import { useTimingOverrides } from './hooks/useTimingOverrides'
 import { useWallOwner } from './hooks/useWallOwner'
@@ -274,11 +277,15 @@ export function WallPage() {
     fadeMs: transitionMs,
     phaseMsOverride: phaseMs,
   })
+  // Scheduled announcements (spec 21): layers over the wall, derived from the server's clock. They
+  // hold nothing and touch no cursor: the slideshow above is told nothing about them (rule 17).
+  const announcementLayers = useWallAnnouncements(wall?.announcements, serverNow)
   const { message: guestbookMessage, dismiss: dismissGuestbook } = useWallGuestbook(
     wall?.guestbook,
     slideshow.automaticChanges,
-    // Spec 10: the room's attention belongs to a running challenge (the server's state).
-    wall?.challenge?.state === 'running',
+    // Spec 10: the room's attention belongs to a running challenge (the server's state), and
+    // spec 21 to a fullscreen announcement that counts down or is on screen.
+    wall?.challenge?.state === 'running' || announcementLayers.active,
   )
   // Adjusted while rendering, not in an effect: the slideshow above needs the answer of the hook
   // below it, and an effect would let one photograph go by under a card that just appeared.
@@ -370,11 +377,13 @@ export function WallPage() {
     toggleQr,
     qrHidden,
     leaveChallenge,
-  } = useWallChrome(wall, items.length, cornerCard)
+  } = useWallChrome(wall, items.length, cornerCard, announcementLayers.band !== null)
   // Decision 11-4: while the banner is up the counter is hidden and the new-photo signal is held
   // (its arrivals wait in the reserve and are announced together afterwards).
   const { hold: holdSignal } = newPhotoSignal
   useEffect(() => holdSignal(showsChallenge), [showsChallenge, holdSignal])
+  // Spec 21: the challenge banner keeps the top centre; the announcement's countdown gives way to it.
+  const announcementBand = shownChallenge === null ? announcementLayers.band : null
 
   /** One region for the whole concern, mounted once. Stacked under the card when it is top-end. */
   const noticesRegion = (
@@ -576,7 +585,8 @@ export function WallPage() {
       {/* Spec 11: the host's switch, and the server's total (never `items.length`, which is capped). */}
       {wall?.souvenirCounter === true &&
       typeof wall.souvenirCount === 'number' &&
-      !showsChallenge ? (
+      !showsChallenge &&
+      announcementBand === null ? (
         <SouvenirCounter count={wall.souvenirCount} />
       ) : null}
 
@@ -587,6 +597,14 @@ export function WallPage() {
           offsetMs={serverOffsetMs}
           onElapsed={refresh}
           onLeave={leaveChallenge}
+        />
+      ) : null}
+
+      {announcementBand !== null ? (
+        <WallAnnouncementBand
+          key={announcementBand.id}
+          announcement={announcementBand}
+          offsetMs={serverOffsetMs}
         />
       ) : null}
 
@@ -624,6 +642,14 @@ export function WallPage() {
       ) : null}
 
       <ReactionBurst pulse={reactionPulse} />
+
+      {/* Spec 21: in front of everything, the invitation card included: a promise made at a time. */}
+      {announcementLayers.card !== null ? (
+        <WallAnnouncementCard
+          key={announcementLayers.card.id}
+          announcement={announcementLayers.card}
+        />
+      ) : null}
 
       {owner === null || wall === null ? null : (
         <WallControls
