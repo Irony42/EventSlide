@@ -29,6 +29,8 @@ import type { AccountTokenRepository } from '../application/ports/accountTokenRe
 import type { MfaVault } from '../application/ports/mfaVault'
 import type { SignInAttempts } from '../application/ports/signInAttempts'
 import type { SecondFactorRepository } from '../application/ports/secondFactorRepository'
+import type { StreamHasher } from '../application/ports/streamHasher'
+import type { PurgeNoticeLedger } from '../application/ports/purgeNoticeLedger'
 import type { TourLedger } from '../application/ports/tourLedger'
 import type { TotpEngine } from '../application/ports/totpEngine'
 import type { InvitationAcceptance } from '../application/ports/invitationAcceptance'
@@ -116,6 +118,10 @@ export interface Adapters {
   readonly secondFactors: SecondFactorRepository
   /** The console's guided tours each account was shown (`user_tours`). */
   readonly tours: TourLedger
+  /** SHA-256 of a file as it streams (the host's album manifest). */
+  readonly streamHasher: StreamHasher
+  /** Which deletion warning an event's owners were last sent (spec 22). */
+  readonly purgeNotices: PurgeNoticeLedger
   /** RFC 6238's one primitive. */
   readonly totpEngine: TotpEngine
   /** Encryption of a secret at rest; `null` on a box with no `MFA_ENCRYPTION_KEY`. */
