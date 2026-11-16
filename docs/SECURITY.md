@@ -3755,6 +3755,14 @@ found: the host of the frozen client kept looking at the content that froze it. 
 there, and keep the dashboard, the settings, the counts and the audit trail. A taken-down photograph and a held event
 are separate levers: the suspension still does not stop the retention clock, and the hold is what does.
 
+**One exception, and it is the grace period (spec 22).** A client being offboarded (`clients.purge_after` set) is suspended
+and told it has `graceDays` to export; the album download used to be refused for that whole window, so the window was a
+countdown with no door out. `exportAllowed` (`src/domain/clients/exportAllowed.ts`) now lets the album download through
+when the suspension comes with an offboarding, and only that: a suspension without one keeps the `403`, and an event the
+operator took down is `404` whatever else is true, so the lever against an abuse is the take-down, never the suspension.
+Named tests: `exportAllowed.test.ts` (ring 1), `exportAlbum.manifest.test.ts` (ring 2), `offboarding.container.test.ts`
+(over the real composition root).
+
 **What it does not do.**
 
 - **The console screen shows no content either.** **Retrait** (`/admin/site/takedown`) finds an event from a slug, a join
