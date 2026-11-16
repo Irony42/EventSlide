@@ -40,6 +40,12 @@ export const noticeLevelFor = (daysLeft: number): PurgeNoticeLevel | null => {
  * already noted is not sent again, and a level less urgent than the last one noted is not sent
  * either. So an album whose deadline shows up late — a retention of 7 days, an offboarding with 2
  * days — gets the most urgent threshold that applies, once, and not the 14 it has already passed.
+ *
+ * **A deadline that moved later starts the thresholds over.** For one deadline the days left only
+ * shrink, so a level noted always satisfies `daysLeft <= lastLevel` afterwards; more days left
+ * than the last level noted can therefore only mean the deadline moved out (the event reopened and
+ * closed again, a longer retention, a client offboarded anew), and the old ledger row describes a
+ * date that no longer exists. Its thresholds are owed again, once each.
  */
 export const nextNotice = (
   daysLeft: number,
@@ -47,5 +53,6 @@ export const nextNotice = (
 ): PurgeNoticeLevel | null => {
   const level = noticeLevelFor(daysLeft)
   if (level === null) return null
-  return lastLevel !== null && lastLevel <= level ? null : level
+  const stale = lastLevel !== null && daysLeft > lastLevel
+  return lastLevel !== null && !stale && lastLevel <= level ? null : level
 }

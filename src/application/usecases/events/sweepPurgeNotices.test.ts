@@ -146,6 +146,23 @@ describe('makeSweepPurgeNotices', () => {
     expect(world.mailer.sent).toHaveLength(3)
   })
 
+  it('owes every threshold again when the deadline moves later after the 1-day notice', async () => {
+    // Reopened and closed again: the old ledger row (1) describes a date that is gone.
+    const world = build()
+    world.events.seed(closedGoingIn('evt-wedding', 1))
+    world.owns('evt-wedding', HOST)
+    await world.sweep()
+    expect(world.notices.noted.map((note) => note.level)).toEqual([1])
+
+    world.events.seed(closedGoingIn('evt-wedding', 14, { id: 'evt-wedding' }))
+    const report = await world.sweep()
+
+    expect(report.noticed).toEqual([{ eventId: WEDDING, level: 14 }])
+    expect(world.mailer.sent).toHaveLength(2)
+    await world.sweep()
+    expect(world.mailer.sent).toHaveLength(2)
+  })
+
   it('writes nothing to an album that has more than 14 days left', async () => {
     const world = build()
     world.events.seed(closedGoingIn('evt-wedding', 15))

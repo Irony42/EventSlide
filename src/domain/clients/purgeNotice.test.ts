@@ -65,11 +65,19 @@ describe('nextNotice', () => {
     expect(nextNotice(1, 14)).toBe(1)
   })
 
-  it('never goes back to a less urgent threshold than the last one noted', () => {
-    // The host lengthened the retention after the 1-day notice: the 14 is not owed again today.
-    expect(nextNotice(14, 1)).toBeNull()
-    expect(nextNotice(3, 1)).toBeNull()
-    expect(nextNotice(14, 3)).toBeNull()
+  it('never goes back to a less urgent threshold for the same deadline', () => {
+    // Same deadline: days left only shrink, so a noted level is never followed by a larger count.
+    expect(nextNotice(3, 3)).toBeNull()
+    expect(nextNotice(2, 3)).toBeNull()
+    expect(nextNotice(10, 14)).toBeNull()
+  })
+
+  it('starts the thresholds over when the deadline has moved later than the last level noted', () => {
+    // The 1-day notice went; the host reopened and re-closed: 14 days away is a new deadline.
+    expect(nextNotice(14, 1)).toBe(14)
+    expect(nextNotice(3, 1)).toBe(3)
+    expect(nextNotice(14, 3)).toBe(14)
+    expect(nextNotice(4, 3)).toBe(14)
   })
 
   it('sends only the most urgent threshold that applies when the date shows up late', () => {
