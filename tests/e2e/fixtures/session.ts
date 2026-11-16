@@ -36,6 +36,8 @@ export interface Session {
     path: string,
     field: string,
     file: { name: string; type: string; bytes: Buffer },
+    /** Text fields sent beside the file (a caption), written before it as a browser does. */
+    fields?: Readonly<Record<string, string>>,
   ): Promise<Reply>
 }
 
@@ -99,8 +101,9 @@ export const sessionOn = async (baseUrl: string): Promise<Session> => {
     post: (path, body) => send('POST', path, body === undefined ? {} : json(body)),
     patch: (path, body) => send('PATCH', path, json(body)),
     delete: (path) => send('DELETE', path),
-    upload: (path, field, file) => {
+    upload: (path, field, file, fields = {}) => {
       const form = new FormData()
+      for (const [name, value] of Object.entries(fields)) form.append(name, value)
       form.append(field, new Blob([new Uint8Array(file.bytes)], { type: file.type }), file.name)
       return send('POST', path, { body: form })
     },

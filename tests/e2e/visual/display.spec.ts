@@ -310,6 +310,36 @@ test.describe('the projected wall @visual', () => {
   })
 
   /**
+   * A discreet announcement's pill on the wall (spec 21): the host's sentence and the time left,
+   * in the top centre over the spotlight, which goes on under it.
+   *
+   * Pinned like the banner and the card: the spotlight is held still (`e2e_interval=0`), the
+   * entrance ends at rest and the shot asserts it is there. The time left is "encore 30 min" for
+   * the first minute of a 30-minute announcement, and the shot is taken in that minute; nothing
+   * in the picture is a function of the clock, so nothing is masked.
+   */
+  test('the discreet announcement pill, over the spotlight', async ({ app, surfaces }) => {
+    const event = await seedAlbum(app, surfaces, 'annonce-pastille')
+    const { projector, host } = surfaces
+    await projector.goto(wallUrl(app, event.slug, { intervalMs: 0, transitionMs: 0 }))
+    await expect(projector.getByTestId('wall-slide')).toHaveAttribute('data-motion', 'still')
+
+    const launched = await host.request.post(app.url(`/api/events/${event.slug}/announcements`), {
+      headers: await csrfHeaders(host.request, app),
+      data: { text: 'Le buffet est ouvert', kind: 'discreet', durationSeconds: 1800 },
+    })
+    expect(launched.status()).toBe(201)
+
+    const pill = projector.locator('[data-wall-announcement-pill]')
+    await expect(pill).toBeVisible({ timeout: 15_000 })
+    await expect(pill).toHaveCSS('opacity', '1')
+    await expect(pill).toContainText('encore 30 min')
+    await expect(projector).toHaveScreenshot('wall-announcement-pill.png', {
+      animations: 'disabled',
+    })
+  })
+
+  /**
    * The caption over a white dress in full sun — roadmap 11.3.
    *
    * **The baseline this suite did not have, and the gap is worth recording.** `aPhoto`
