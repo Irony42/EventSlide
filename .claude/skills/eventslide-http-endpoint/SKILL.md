@@ -158,6 +158,20 @@ middleware in `PATH_MOUNTED_MIDDLEWARE` in `testing/routeTable.ts` with the reas
 answers nothing), or a sub-app. Each makes it fail loudly, in both modes. Every other
 route keeps the per-route rule above.
 
+### The other lists a new event route enters
+
+Besides `siteOperatorScope.test.ts`, a route (or what stands behind it) is held by lists that
+fail by name when it is not in them. Each is a deliberate decision, never a way to silence a case:
+
+| What you add                                             | Where it must be named, or the build fails                                                                                                                                       |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A path parameter the API has not had (`:announcementId`) | `PARAMETERS` in **both** `siteOperatorScope.test.ts` and `siteRoutes.escalation.test.ts`: each throws on a placeholder it does not know                                          |
+| A write on an event (`POST`, `PATCH`, `PUT`, `DELETE`)   | `HOST_WRITES` in `main/suspension.container.test.ts` (it also lists every non-GET route and fails on one that is not named), and the use case in `suspendedClientWrites.test.ts` |
+| A request body whose schema no client method sends yet   | `NO_CLIENT_CALLER` in `presenters/requestContract.test.ts`, with the reason; the entry leaves when the console that sends it is written                                          |
+| A response shape                                         | A twin in `web/src/lib/api/dto/` (one file per audience): `dtoContract.test.ts` pairs them field by field                                                                        |
+| A use case in `HttpUseCases`                             | A stub in the three harness bags that spell out every use case: `serverHarness.ts`, `eventRoutes.test.ts` and `moderationRoutes.test.ts`                                         |
+| A port                                                   | A row in the ports catalogue of `docs/ARCHITECTURE.md` §4 (`scripts/architectureDocs.test.ts`)                                                                                   |
+
 ## 4. Error mapping — one place, exhaustive
 
 ```ts
