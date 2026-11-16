@@ -688,6 +688,7 @@ other limiters' bodies carry the header only.
 | the same four, and those two ◊                                     | 10 / 15 min   | **account**, failures only | `auth.tooManySecondFactorAttempts` |
 | `POST /api/events` (create)                                        | 20 / **hour** | account                    | `event.creationRateLimited`        |
 | `POST /api/events/:slug/moderators` (invite)                       | 30 / **hour** | account                    | `rate.limited`                     |
+| `POST`, `PATCH`, `DELETE …/announcements…` (spec 21) ♯             | 60            | account, fixed             | `rate.limited`                     |
 | `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §       | 300           | client IP **and** event    | `rate.limited`                     |
 | the same two, photos and clips together §                          | 12            | **guest** and event        | `rate.limited`                     |
 | `POST /api/events/:slug/photos/:id/reactions` (flood ceiling) §    | 600           | client IP **and** event    | `reaction.rateLimited`             |
@@ -707,6 +708,8 @@ the guest's own budget (`UPLOAD_RATE_LIMIT_PER_MINUTE`, `REACTION_RATE_LIMIT_PER
 guest the token proves and checked right after it, before the body of an upload is read: two guests
 on one Wi-Fi each have their own. Both answer the same code with the same `Retry-After`. Through 3.1
 the two variables counted per client address and event.
+
+♯ **Announcements** (spec 21). The four writes of the host (`POST …/announcements`, `PATCH`, `POST …/launch`, `DELETE`) share one budget of **60 a minute per account**, a constant in the code and not a setting (the feature adds no environment variable). The event's own ceiling is fifty rows; this one only stops a loop from making every open wall read again.
 
 ¶ **Guestbook, two stages** (spec 01). Both routes first spend the guest-write bucket of ‡ (client address and event, before the token is verified), then a second budget of **6 a minute per guest** that writing and taking back share. That number is a constant in the code, not a setting: the ceiling of three messages per guest does not bound the abuse by itself, because writing then removing in a loop never holds more than three rows yet announces a `guestbook.changed` each turn, and every open wall re-reads on it.
 
@@ -1223,6 +1226,19 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
     "endsAt": "2026-06-20T21:02:00.000Z",
     "state": "running",
     "answers": null
+  },
+  "announcements": {
+    "items": [
+      {
+        "id": "…",
+        "text": "Gâteau",
+        "kind": "fullscreen",
+        "at": "2026-06-20T22:00:00.000Z",
+        "durationSeconds": 30,
+        "countdownSeconds": 300
+      }
+    ],
+    "nextReadAtMs": 1782000900000
   }
 }
 ```
@@ -1236,6 +1252,19 @@ photographs that answer **this challenge** (spec 18: the phone's "Je participe a
 inside the window from the start to a minute after the end, not by the mission); it is
 `null` while the challenge runs and when nobody answered, and it never counts a pending, refused,
 hidden or taken-down photograph. No name and no identifier appears in it.
+
+`announcements` carries the **scheduled announcements** of spec 21 and is **absent** (the key is not there) when
+the event is not `live` or has none left to come or to finish: a wall that does not use the feature is exactly the
+wall it was. `items` are the announcements whose text the wall may read now; each is `{ id, text, kind, at,
+durationSeconds, countdownSeconds }` with `kind` `fullscreen` or `discreet` and `at` an ISO 8601 UTC instant. No
+phase is sent: the wall works out `upcoming`, `counting` (the countdown, fullscreen only), `showing` and `over` from
+`at`, the two integers and `serverNowMs`, so two projectors agree to the second. **A text leaves the server only
+from 60 seconds before its countdown starts** (before it, `items` does not hold it, nor its id or its moment; this is
+a public URL and an announcement may be a surprise) **until it ends**. `nextReadAtMs` is a server instant, at most
+fifteen minutes after `serverNowMs`: the wall reads again then. It is thirty seconds before the first announcement
+still to come appears when that is sooner, and otherwise the fifteen-minute cap, so the response does not say when
+the next one is. `revision` does **not** cover `announcements`: a wall compares it field by field. The
+`announcement.changed` signal (public, no data) makes it read again.
 
 `layout` is the **effective** layout: the one the host chose for the event (spec 13) when there is one, the
 default `spotlight` otherwise. `layoutChosen` says which: true when the host chose it, so the wall lets the
@@ -4132,6 +4161,66 @@ countdown off the wall. Deleting a mission no longer stops a challenge (spec 18)
 
 **Errors** — `401`, `404 event.notFound` for a non-member, `403 client.suspended`.
 
+### Announcements (spec 21): `GET`, `POST`, `PATCH`, `DELETE /api/events/:slug/announcements`
+
+**`moderator`** (any moderator, or the owner). The sentences a host puts on the wall at a chosen moment, "Gâteau à
+22 h": a **fullscreen** card in the middle of the screen, after an optional countdown, for 10 to 120 seconds; or a
+**discreet** text laid over the photographs while the slideshow goes on, for 5 to 30 minutes. A guest's token never
+reaches these routes (`401` without a session), and an announcement is looked up **inside the event the path
+names**: another event's identifier is `404 announcement.notFound`. The four writes spend the announcement budget
+of §1 (60 a minute per account).
+
+**An announcement is a moment and two durations, never a state.** `at` is an instant (ISO 8601; no time zone is
+stored, the host's browser picks the instant). Where it is in time is derived from it and the clock: `state` is
+`upcoming` before the countdown starts, `counting` from `at` minus `countdownSeconds` (fullscreen only), `showing`
+from `at` for `durationSeconds`, then `over`. Nothing fires on the server when one starts or ends.
+
+`GET` answers `200 { "announcements": [{ "id", "text", "kind", "at", "durationSeconds", "countdownSeconds", "state" }],
+"serverNowMs" }`, by moment then by id, the past ones included, in any status of the event (a closed evening's list is
+a record). `state` is computed at `serverNowMs`.
+
+`POST` takes a strict body `{ "text": string, "kind"?: "fullscreen" | "discreet", "at"?: ISO 8601,
+"durationSeconds"?: number, "countdownSeconds"?: number }` and answers `201 { "announcement": { … } }`.
+
+- `at` absent is a **launch**: the announcement starts at the server's clock, with no countdown, and is refused
+  `409 announcement.showing` if one **of its kind** is already on screen.
+- `kind` absent is `fullscreen`. `durationSeconds` absent is 30 for a fullscreen card and 900 (15 minutes) for a
+  discreet one. `countdownSeconds` absent is 300 for a **scheduled** fullscreen card, 0 otherwise. The countdown is one
+  of 0, 60, 300, 600 or 900, and a discreet announcement has none.
+- `text` is one line of at most **80 characters** (control and invisible characters are removed; it is content, never
+  translated). `at` may be at most 60 seconds in the past and 60 days ahead.
+
+`PATCH /announcements/:id` takes the same fields, all optional (an absent one is left as it was; a body that changes
+nothing writes and signals nothing) and answers `200 { "announcement": { … } }`. Every field may change while the
+announcement is `upcoming` or `counting`, the **kind included** (the duration and the countdown are checked again for
+the new kind; moving to `discreet` drops the countdown). Once it is `showing` or `over` it is `409
+announcement.locked`, **except the text of a discreet announcement on screen**, which changes in place; its moment,
+duration and kind stay locked, and a field sent back unchanged is not an edit.
+
+`POST /announcements/:id/launch` has no body and answers `200 { "announcement": { … } }`: "Lancer maintenant" and
+"Relancer" start it at the server's clock, with no countdown, keeping its text, kind and duration, from `upcoming`,
+`counting` or `over`. `DELETE /announcements/:id` answers `204` in **any** state (one on screen leaves the wall at
+its next read); a second delete is `404`.
+
+**One of each kind at a time, no queue.** Two announcements **of the same kind** never overlap: fullscreen cards
+occupy `[at, at + duration)`, discreet ones `[at, at + duration + 60 s)` (two are always a minute apart, so the wall is
+bare again in between), and a card that starts the second the previous one ends is fine. A fullscreen card and a
+discreet announcement may overlap: they are two layers. An event holds at most **50** announcements, past ones
+included. Both rules are decided in one transaction, so two moderators writing together cannot both win.
+
+**Writes need an event that is `draft` or `live`**; on `closed` or `archived` they are `409
+announcement.eventNotOpen` (with `details.status`). The wall only shows announcements while the event is `live`. Each
+write that changes something publishes the `announcement.changed` signal (public, no data) on the event's stream.
+
+**Errors** — `400` `announcement.textInvalid` (`details.max`: 80), `announcement.atInvalid`
+(`details.pastToleranceSeconds`, `details.maxDays`), `announcement.kindInvalid`, `announcement.durationInvalid`
+(`details.kind`, `details.min`, `details.max`: the bounds **of the kind**, never clamped) and
+`announcement.countdownInvalid` (`details.kind`, `details.allowed`), or `request.invalid` for a field the body does
+not declare or a text far past the limit; `404 announcement.notFound`; `409 announcement.overlap`,
+`announcement.showing` (a launch while one of its kind is on screen), `announcement.locked`, `announcement.limit`
+(`details.max`: 50) and `announcement.eventNotOpen`; `401` without a session, `404 event.notFound` for a non-member
+or an event the operator removed, `403 client.suspended`, `429 rate.limited`.
+
 ### `GET /api/events/:slug/top-photos`
 
 "Photo de la soirée". Query: `limit` 1..50, default 10 — bounded low on purpose, because
@@ -4586,7 +4675,9 @@ wall channel instead, which worked only because the frames are identical.
 
 The console opens **one** such connection and feeds both its photo queue (`photo.*` signals) and its guestbook tab
 (`guestbook.changed`, spec 15). `guestbook.changed` is not a console-only signal: the public wall channel carries it too,
-because the wall reads the guestbook again on it.
+because the wall reads the guestbook again on it. The same goes for `announcement.changed` (spec 21): public, with no
+text, no moment and no identifier, published only when an announcement was actually scheduled, changed, launched or
+deleted.
 
 ---
 
