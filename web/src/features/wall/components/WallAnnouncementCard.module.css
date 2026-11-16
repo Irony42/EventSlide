@@ -1,0 +1,50 @@
+/**
+ * Full frame, over the layouts and the chrome, on the event's own ground (spec 21): the card
+ * replaces what is on the wall for a few seconds, the invitation's QR included. Inside the
+ * overscan inset like every wall text. Above the challenge banner (a promise made at a time beats
+ * the game in progress) and under the owner's controls.
+ */
+.card {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-wall-announcement);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: var(--wall-safe);
+  margin: 0;
+  background: var(--wall-ground);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.text {
+  margin: 0;
+  max-inline-size: var(--wall-announcement-measure);
+  font-family: var(--font-display);
+  font-size: var(--wall-announcement-size);
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+/**
+ * The entrance: a 250 ms fade, `opacity` only, ending at rest. Under `prefers-reduced-motion` the
+ * component does not apply this class at all.
+ */
+.enters {
+  animation: announcement-card-in var(--duration-base) var(--ease-out) both;
+}
+
+@keyframes announcement-card-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The bottom rung of the frame budget gives the entrance up: the card is simply there. */
+[data-wall-budget='cut'] .enters {
+  animation: none;
+}

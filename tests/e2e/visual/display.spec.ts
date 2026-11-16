@@ -1,5 +1,6 @@
 import {
   closeQuietly,
+  csrfHeaders,
   expect,
   FIRST_JOIN_CODE,
   freshServerTest as test,
@@ -246,6 +247,66 @@ test.describe('the projected wall @visual', () => {
     await expect(projector.getByTestId('wall-slide')).toHaveAttribute('data-motion', 'still')
 
     await expect(projector).toHaveScreenshot('wall-spotlight.png', { animations: 'disabled' })
+  })
+
+  /**
+   * A fullscreen announcement on the wall, as the room sees it (spec 21): the countdown banner
+   * above the photograph, then the card over everything.
+   *
+   * Armed through the API as the host's console will. The photograph is the spotlight's, pinned
+   * still like its own baseline (`e2e_interval=0`: no zoom is mounted). What cannot be pinned is
+   * the countdown's digits, a function of the server's clock **by design**, so the shot masks that
+   * one line of the banner and nothing else: its width does not depend on the digits (tabular
+   * figures, one `m:ss` shape), the sentence and the frame are compared exactly. The card's
+   * baseline masks nothing: the sentence is static and its ground is opaque. Both entrances end at
+   * rest (opacity 1, no transform), so the shutter's `finish()` is the frame a viewer ends on, and
+   * the shot asserts it is there before it is taken.
+   */
+  test('the announcement banner, over the spotlight', async ({ app, surfaces }) => {
+    const event = await seedAlbum(app, surfaces, 'annonce-bandeau')
+    const { projector, host } = surfaces
+    await projector.goto(wallUrl(app, event.slug, { intervalMs: 0, transitionMs: 0 }))
+    await expect(projector.getByTestId('wall-slide')).toHaveAttribute('data-motion', 'still')
+
+    const armed = await host.request.post(app.url(`/api/events/${event.slug}/announcements`), {
+      headers: await csrfHeaders(host.request, app),
+      data: {
+        text: 'Le gâteau arrive',
+        at: new Date(Date.now() + 5 * 60_000 + 2_000).toISOString(),
+        countdownSeconds: 300,
+        durationSeconds: 30,
+      },
+    })
+    expect(armed.status()).toBe(201)
+
+    const band = projector.locator('[data-wall-announcement-band]')
+    await expect(band).toBeVisible({ timeout: 15_000 })
+    await expect(band).toHaveCSS('opacity', '1')
+    await expect(projector).toHaveScreenshot('wall-announcement-band.png', {
+      animations: 'disabled',
+      mask: [band.locator('p').nth(1)],
+    })
+  })
+
+  test('the announcement card, over everything', async ({ app, surfaces }) => {
+    const event = await seedAlbum(app, surfaces, 'annonce-carte')
+    const { projector, host } = surfaces
+    await projector.goto(wallUrl(app, event.slug, { intervalMs: 0, transitionMs: 0 }))
+    await expect(projector.getByTestId('wall-slide')).toHaveAttribute('data-motion', 'still')
+
+    const launched = await host.request.post(app.url(`/api/events/${event.slug}/announcements`), {
+      headers: await csrfHeaders(host.request, app),
+      // A launch, for as long as the server allows: the shot is never taken after its end.
+      data: { text: 'Le gâteau arrive', durationSeconds: 120 },
+    })
+    expect(launched.status()).toBe(201)
+
+    const card = projector.locator('[data-wall-announcement-card]')
+    await expect(card).toBeVisible({ timeout: 15_000 })
+    await expect(card).toHaveCSS('opacity', '1')
+    await expect(projector).toHaveScreenshot('wall-announcement-card.png', {
+      animations: 'disabled',
+    })
   })
 
   /**

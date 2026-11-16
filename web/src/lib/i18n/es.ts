@@ -902,6 +902,11 @@ export const es: UiText = {
     arrivalClips: (count: number) => `${t.number(count)} vídeos nuevos`,
     arrivalMixed: (count: number) => `${t.number(count)} recuerdos nuevos`,
 
+    /* ---- Spec 21: scheduled announcements on the wall. The text inside is the host's, never translated. ---- */
+    announcementSay: (text: string) => `Anuncio: ${text}.`,
+    announcementIn: (time: string) => `en ${time}`,
+    announcementImminent: (time: string) => `en un instante · ${time}`,
+
     codeLabel: 'Código de la fiesta',
     // Read by nothing in the room: the wall is also opened on a laptop while a host
     // sets the projector up.

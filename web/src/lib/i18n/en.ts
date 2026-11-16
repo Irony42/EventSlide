@@ -866,6 +866,11 @@ export const en: UiText = {
     arrivalClips: (count: number) => `${t.number(count)} new videos`,
     arrivalMixed: (count: number) => `${t.number(count)} new memories`,
 
+    /* ---- Spec 21: scheduled announcements on the wall. The text inside is the host's, never translated. ---- */
+    announcementSay: (text: string) => `Announcement: ${text}.`,
+    announcementIn: (time: string) => `in ${time}`,
+    announcementImminent: (time: string) => `any moment now · ${time}`,
+
     codeLabel: 'Event code',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall
     // is also opened on a laptop while a host sets the projector up.

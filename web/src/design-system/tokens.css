@@ -264,6 +264,10 @@
   /* The reading width of a guestbook card on the wall (spec 01): about forty words a line is too
      many at ten metres, and the column keeps 500 characters in a handful of lines. */
   --wall-message-measure: 32ch;
+  /* A fullscreen announcement card (spec 21): one sentence of 80 characters at most, set very large so
+     the room reads it from ten metres; the measure keeps it to two or three lines. */
+  --wall-announcement-measure: 22ch;
+  --wall-announcement-size: clamp(2.5rem, 6vw, 7.5rem);
   /* The most of the viewport a pane pinned to the bottom edge may take (the guest's upload
      composer). Past it the pane stays in the flow, because what scrolls behind a taller one
      is covered more than it is seen. A ratio, read by useOversizedPane. */
@@ -276,6 +280,9 @@
   /* The timed challenge's banner: above every other wall layer, the guestbook card included,
      because a countdown the room cannot see is not a challenge. Under the dialogs. */
   --z-wall-challenge: 15;
+  /* A fullscreen announcement card (spec 21): above the challenge banner, because a promise made at a
+     time beats a game in progress, and under the owner's controls (caption + 10). */
+  --z-wall-announcement: 18;
   --z-dialog: 50;
   --z-toast: 60;
 

@@ -834,6 +834,8 @@ describe('the wall reads from the back of the room, over any photograph', () => 
       'features/wall/components/SlideCaption.module.css',
       // The souvenir counter, top centre (spec 11), over whatever photograph is under it.
       'features/wall/components/SouvenirCounter.module.css',
+      // A fullscreen announcement's countdown banner, top centre (spec 21), over the photograph.
+      'features/wall/components/WallAnnouncementBand.module.css',
       // The timed challenge's banner, top centre (spec 10), over the photograph.
       'features/wall/components/WallChallenge.module.css',
       // The owner's icon bar, bottom centre (spec 17), over the photograph.

@@ -11,6 +11,7 @@ import type {
   WallGuestbookMessageDto,
   WallMissionDto,
   WallResponse,
+  WallAnnouncementDto,
   WallChallengeDto,
 } from '../../../lib/api/dto'
 
@@ -88,6 +89,46 @@ describe('every field of the wall response is accounted for', () => {
     expect(sameSettings(withLogo(one), withLogo(two))).toBe(false)
     expect(sameSettings(withLogo(one), withLogo(null))).toBe(false)
     expect(sameSettings(withLogo(one), withLogo(one))).toBe(true)
+  })
+
+  describe('the scheduled announcements (spec 21)', () => {
+    // `announcements` is not in `aWallResponse`'s shape (absent is what a wall without any sends), so
+    // the sweep above cannot see it, and an announcement scheduled or edited moves no photograph.
+    const at = '2026-11-16T21:00:00.000Z'
+    const one: WallAnnouncementDto = {
+      id: 'a1',
+      text: 'Gâteau',
+      kind: 'fullscreen',
+      at,
+      durationSeconds: 30,
+      countdownSeconds: 300,
+    }
+    const withItems = (items: readonly WallAnnouncementDto[], nextReadAtMs = 1_000) => ({
+      ...aWallResponse(),
+      announcements: { items, nextReadAtMs },
+    })
+
+    it.each([
+      ['id', { ...one, id: 'a2' }],
+      ['text', { ...one, text: 'Discours' }],
+      ['kind', { ...one, kind: 'discreet' as const }],
+      ['at', { ...one, at: '2026-11-16T21:00:01.000Z' }],
+      ['durationSeconds', { ...one, durationSeconds: 31 }],
+      ['countdownSeconds', { ...one, countdownSeconds: 60 }],
+    ] as const)('notices a change to an announcement’s %s', (_field, moved) => {
+      expect(sameSettings(withItems([one]), withItems([moved]))).toBe(false)
+      expect(sameSettings(withItems([one]), withItems([{ ...one }]))).toBe(true)
+    })
+
+    it('notices an announcement scheduled, deleted or added to another', () => {
+      expect(sameSettings(aWallResponse(), withItems([one]))).toBe(false)
+      expect(sameSettings(withItems([one]), aWallResponse())).toBe(false)
+      expect(sameSettings(withItems([one]), withItems([one, { ...one, id: 'a2' }]))).toBe(false)
+    })
+
+    it('notices the instant the server asked to read again at: the wall’s timer is armed to it', () => {
+      expect(sameSettings(withItems([one], 1_000), withItems([one], 2_000))).toBe(false)
+    })
   })
 
   it('notices the host replacing or removing the venue photo', () => {

@@ -39,6 +39,11 @@ export interface WallChromeInput {
    * corner, the wall as it was before the layouts had slots.
    */
   readonly cornerCard?: boolean
+  /**
+   * A fullscreen announcement's countdown banner is up (spec 21): it takes the top centre, in the
+   * place of the challenge banner, so the layouts reserve it the same way.
+   */
+  readonly announcementBand?: boolean
 }
 
 export interface WallChrome {
@@ -79,6 +84,7 @@ export const chromeOf = ({
   qrHidden,
   challengeGone,
   cornerCard = true,
+  announcementBand = false,
 }: WallChromeInput): WallChrome => {
   // The code and the link arrive together from one presenter, so there is no deployment in
   // which the server sends one and not the other. Requiring both here is what keeps the
@@ -123,7 +129,10 @@ export const chromeOf = ({
     cardScale,
     stackStart: cornered && placement === 'top-start',
     stackEnd: cornered && placement === 'top-end',
-    chrome: cx(showsOverlay && cornerCard && 'corner', showsChallenge && 'top'),
+    chrome: cx(
+      showsOverlay && cornerCard && 'corner',
+      (showsChallenge || announcementBand) && 'top',
+    ),
     startedChallengeId: challengeRunning && challenge !== null ? challenge.id : null,
   }
 }

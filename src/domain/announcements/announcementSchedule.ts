@@ -1,3 +1,4 @@
+import { announcementWindowPhaseAt, type AnnouncementPhase } from './announcementPhase'
 import { DISCREET_GAP_MS, type AnnouncementKind } from './announcementRules'
 
 /**
@@ -18,33 +19,27 @@ export interface AnnouncementTiming {
   readonly countdownSeconds: number
 }
 
-export type AnnouncementPhase =
-  | { readonly phase: 'upcoming' }
-  | { readonly phase: 'counting'; readonly remainingMs: number }
-  | { readonly phase: 'showing'; readonly remainingMs: number }
-  | { readonly phase: 'over' }
+export type { AnnouncementPhase }
 
 /** The name of a phase: what the host's list says in words. */
 export type AnnouncementState = AnnouncementPhase['phase']
 
 /**
- * `upcoming` before the countdown starts, `counting` from `at - countdown` to `at` (never, for a
- * zero countdown), `showing` from `at` for `duration`, `over` from `at + duration` on. Every
- * boundary belongs to the later phase.
+ * The phase of an announcement at `nowMs` (rule 5): the rule is {@link announcementWindowPhaseAt},
+ * which the browser runs as a guarded copy.
  */
 export const announcementPhaseAt = (
   announcement: Pick<AnnouncementTiming, 'at' | 'durationSeconds' | 'countdownSeconds'>,
   nowMs: number,
-): AnnouncementPhase => {
-  const atMs = announcement.at.getTime()
-  const countingFromMs = atMs - announcement.countdownSeconds * 1000
-  const endsMs = atMs + announcement.durationSeconds * 1000
-
-  if (nowMs < countingFromMs) return { phase: 'upcoming' }
-  if (nowMs < atMs) return { phase: 'counting', remainingMs: atMs - nowMs }
-  if (nowMs < endsMs) return { phase: 'showing', remainingMs: endsMs - nowMs }
-  return { phase: 'over' }
-}
+): AnnouncementPhase =>
+  announcementWindowPhaseAt(
+    {
+      atMs: announcement.at.getTime(),
+      durationSeconds: announcement.durationSeconds,
+      countdownSeconds: announcement.countdownSeconds,
+    },
+    nowMs,
+  )
 
 /**
  * How long before the countdown starts the text may leave the server (rule 6). `/wall` is

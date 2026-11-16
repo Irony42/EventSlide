@@ -19,6 +19,7 @@ export const useWallChrome = (
   wall: WallResponse | null,
   itemCount: number,
   cornerCard = true,
+  announcementBand = false,
 ): WallChromeView => {
   const [qrHidden, setQrHidden] = useState(false)
   const [challengeGone, setChallengeGone] = useState<string | null>(null)
@@ -30,7 +31,14 @@ export const useWallChrome = (
     return () => window.clearTimeout(timer)
   }, [qrHidden])
 
-  const chrome = chromeOf({ wall, itemCount, qrHidden, challengeGone, cornerCard })
+  const chrome = chromeOf({
+    wall,
+    itemCount,
+    qrHidden,
+    challengeGone,
+    cornerCard,
+    announcementBand,
+  })
 
   const challengeId = chrome.challenge?.id ?? null
   const leaveChallenge = useCallback(() => setChallengeGone(challengeId), [challengeId])
