@@ -40,6 +40,7 @@ import type {
   SessionResponse,
   ShareLinkDto,
   WallItemDto,
+  WallAnnouncementDto,
   WallGuestbookMessageDto,
   WallMissionDto,
   WallResponse,
@@ -166,6 +167,23 @@ export const aWallGuestbookMessage = (
   text: 'Une soirée merveilleuse',
   authorName: 'Léa',
   displayMs: 8_000,
+  ...overrides,
+})
+
+/**
+ * One scheduled announcement as the wall reads it (spec 21): a fullscreen one by default, five
+ * minutes of countdown and thirty seconds on screen, `at` given in milliseconds of the server's clock.
+ */
+export const aWallAnnouncement = (
+  atMs: number,
+  overrides: Partial<WallAnnouncementDto> = {},
+): WallAnnouncementDto => ({
+  id: 'announcement-1',
+  text: 'Le gâteau arrive',
+  kind: 'fullscreen',
+  at: new Date(atMs).toISOString(),
+  durationSeconds: 30,
+  countdownSeconds: 300,
   ...overrides,
 })
 
