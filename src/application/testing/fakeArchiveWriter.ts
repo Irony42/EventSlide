@@ -63,6 +63,7 @@ export class FakeArchiveWriter implements ArchiveWriter {
       const content = emits === 'content' || emits === 'zip'
       if (content) yield new Uint8Array(ZIP_LOCAL_FILE_HEADER)
 
+      let inThisArchive = 0
       for await (const entry of entries) {
         if (failsWith !== undefined) throw failsWith
         if (content) yield new TextEncoder().encode(entry.name)
@@ -73,6 +74,7 @@ export class FakeArchiveWriter implements ArchiveWriter {
           if (content) yield chunk
         }
 
+        inThisArchive += 1
         recorded.push({ name: entry.name, modifiedAt: entry.modifiedAt, bytesRead })
         if (emits === 'marker') yield Uint8Array.of(recorded.length)
       }
@@ -81,8 +83,8 @@ export class FakeArchiveWriter implements ArchiveWriter {
         const end = new Uint8Array(22)
         const view = new DataView(end.buffer)
         view.setUint32(0, 0x06054b50, true)
-        view.setUint16(8, recorded.length, true)
-        view.setUint16(10, recorded.length, true)
+        view.setUint16(8, inThisArchive, true)
+        view.setUint16(10, inThisArchive, true)
         yield end
       }
     })()
