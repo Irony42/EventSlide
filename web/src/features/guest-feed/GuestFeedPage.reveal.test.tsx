@@ -66,6 +66,18 @@ describe('the feed of a disposable-camera evening', () => {
     expect(screen.queryByText(fr.feed.empty)).toBeNull()
   })
 
+  it('counts on the server clock, not the phone’s: a server an hour ahead leaves an hour less', async () => {
+    const now = Date.now()
+    const { api } = serving({
+      reveal: wallReveal({ serverNowMs: now + 3_600_000, atMs: now + 3_600_000 + 2 * 3_600_000 }),
+    })
+    renderFeed(api)
+
+    expect(await screen.findByTestId('feed-reveal-left')).toHaveTextContent(
+      fr.reveal.guestLeft(2, 0),
+    )
+  })
+
   it('says the photos will be revealed soon, with no countdown, for an evening revealed by hand', async () => {
     const { api } = serving({ reveal: wallReveal({ atMs: null }) })
     renderFeed(api)

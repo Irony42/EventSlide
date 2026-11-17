@@ -137,6 +137,21 @@ describe('the upload screen on a disposable-camera evening', () => {
       expect(screen.queryByLabelText(fr.upload.takePhoto)).toBeNull()
     })
 
+    it('says the roll is empty once, in the sentence and not as a counter of zero', async () => {
+      renderUpload(emptyRoll())
+      await screen.findByText(fr.reveal.rollEmpty)
+
+      expect(screen.queryByTestId('guest-poses')).toBeNull()
+    })
+
+    it('offers no video either: a clip is a pose too, and the roll has none left', async () => {
+      havingJoined({ allowClips: true })
+      renderUpload(emptyRoll())
+      await screen.findByText(fr.reveal.rollEmpty)
+
+      expect(screen.queryByRole('button', { name: fr.upload.clipSection })).toBeNull()
+    })
+
     it('keeps the photographs already sent listed', async () => {
       renderUpload(emptyRoll())
       await screen.findByText(fr.reveal.rollEmpty)
