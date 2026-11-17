@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ArchiveEntry } from '../ports/archiveWriter'
+import { readZipEnd } from '../../domain/exports/zipEndRecord'
 import { archiveWriterContract } from './contracts/archiveWriterContract'
 import { FakeArchiveWriter, ZIP_LOCAL_FILE_HEADER } from './fakeArchiveWriter'
 
@@ -51,6 +52,20 @@ describe('FakeArchiveWriter', () => {
 
       expect(await drain(archive.stream(source()))).toEqual([])
       expect(archive.entries).toEqual([])
+    })
+  })
+
+  describe('emitting a zip end', () => {
+    it('ends with the 22-byte end record announcing the number of entries, after the content', async () => {
+      const archive = new FakeArchiveWriter({ emits: 'zip' })
+
+      const chunks = await drain(archive.stream(source(entry('a', [9]), entry('b', [8]))))
+
+      expect(chunks[0]).toEqual([...ZIP_LOCAL_FILE_HEADER])
+      const end = chunks.at(-1) ?? []
+      expect(end).toHaveLength(22)
+      expect(readZipEnd(Uint8Array.from(end))).toEqual({ entries: 2 })
+      expect(chunks.slice(1, -1)).toEqual([[97], [9], [98], [8]])
     })
   })
 

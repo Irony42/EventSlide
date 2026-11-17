@@ -1,0 +1,58 @@
+/* The deletion band: a card with a mark of its own on the leading edge. The urgency is said in words
+   (the headline carries the number of days); the edge is a second signal, never the only one. */
+.band {
+  border-inline-start: var(--space-1) solid var(--warning);
+}
+
+/* At least the page's base size: it is the line a host must not misread. */
+.headline {
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}
+
+.status:empty {
+  display: none;
+}
+
+/* 64 hexadecimal digits do not break at a space: they must wrap, or a phone scrolls sideways. */
+.digest {
+  overflow-wrap: anywhere;
+  font-size: var(--text-base);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* A link to a file, with a target a thumb can hit. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  padding-inline: var(--space-4);
+  font-size: var(--text-base);
+}
+
+.note {
+  font-size: var(--text-base);
+  color: var(--text-muted);
+}
+
+@media (max-width: 30rem) {
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

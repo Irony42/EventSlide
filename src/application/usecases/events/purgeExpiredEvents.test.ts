@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { EventId } from '../../../domain/shared/ids'
 import { asEventId } from '../../../domain/shared/ids'
+import { ARCHIVE_STATES } from '../../../domain/clients/archiveState'
 import { AT, aClient, aPhoto, anEvent, atPlus } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
@@ -9,6 +10,7 @@ import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { makePurgeExpiredEvents, type PurgeExpiredEvents } from './purgeExpiredEvents'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { FakeBookFileStore } from '../../testing/fakeBookFileStore'
+import { FakeExportFileStore } from '../../testing/fakeExportFileStore'
 import { bytesHeld } from '../../testing/bytesHeld'
 
 const WEDDING = asEventId('evt-wedding')
@@ -88,6 +90,65 @@ describe('purgeExpiredEvents', () => {
     expect(report.purged).toEqual([WEDDING])
   })
 
+  // ------------------------------------------- the verified archive (spec 22, rule 1) --
+
+  it('deletes the archive file of a purged event with the album, whatever state its archive is in, and keeps the one of an event that stays', async () => {
+    seedExpiredWedding()
+    events.seed(anEvent({ id: GALA, slug: 'gala-annuel', joinCode: 'Z3N9PT', status: 'live' }))
+    const exportFiles = new FakeExportFileStore()
+    exportFiles.seed(WEDDING, Uint8Array.of(1))
+    exportFiles.seed(GALA, Uint8Array.of(1))
+
+    const report = await makePurgeExpiredEvents({
+      events,
+      media,
+      clock,
+      capNoticeDays: 30,
+      exportFiles,
+      // A sealed archive that was never sent: the purge does not wait for it, nor ask.
+      archiveStateOf: async () => 'sealed',
+    })()
+
+    expect(report.purged).toEqual([WEDDING])
+    expect(await exportFiles.list()).toEqual([GALA])
+  })
+
+  it('does not delete the archive file of an event it did not purge: an operator’s hold keeps the album, so the archive too', async () => {
+    seedExpiredWedding()
+    await events.setPurgeHeld(WEDDING, AT)
+    const exportFiles = new FakeExportFileStore()
+    exportFiles.seed(WEDDING, Uint8Array.of(1))
+
+    const report = await makePurgeExpiredEvents({
+      events,
+      media,
+      clock,
+      capNoticeDays: 30,
+      exportFiles,
+    })()
+
+    expect(report.purged).toEqual([])
+    expect(await exportFiles.list()).toEqual([WEDDING])
+  })
+
+  it('still purges when an archive file cannot be deleted: the sweep collects the file no row names', async () => {
+    seedExpiredWedding()
+    const exportFiles = new FakeExportFileStore()
+    exportFiles.delete = async () => {
+      throw new Error('disk gone')
+    }
+
+    const report = await makePurgeExpiredEvents({
+      events,
+      media,
+      clock,
+      capNoticeDays: 30,
+      exportFiles,
+    })()
+
+    expect(report.purged).toEqual([WEDDING])
+  })
+
   const seedExpiredWedding = (): void => {
     events.seed(
       anEvent({
@@ -128,7 +189,7 @@ describe('purgeExpiredEvents', () => {
       capNoticeDays: 30,
     })()
 
-    expect(report).toEqual({ purged: [], failed: [] })
+    expect(report).toEqual({ purged: [], failed: [], archives: {} })
     expect(await events.findById(WEDDING)).not.toBeNull()
     expect(await bytesLeft()).toEqual([1, 1])
     expect(calls.names).toEqual([])
@@ -152,7 +213,7 @@ describe('purgeExpiredEvents', () => {
       capNoticeDays: 30,
     })()
 
-    expect(report).toEqual({ purged: [], failed: [WEDDING] })
+    expect(report).toEqual({ purged: [], failed: [WEDDING], archives: {} })
     expect(calls.names).toEqual([])
     expect(await bytesLeft()).toEqual([1, 1])
   })
@@ -170,7 +231,72 @@ describe('purgeExpiredEvents', () => {
 
     const report = await purgeExpiredEvents()
 
-    expect(report).toEqual({ purged: [WEDDING], failed: [] })
+    expect(report).toEqual({ purged: [WEDDING], failed: [], archives: { [WEDDING]: 'none' } })
+  })
+
+  // ------------------------------------------------ what the log will say of the archive --
+
+  it('reports an album as having no archive when the box prepares none', async () => {
+    seedExpiredWedding()
+
+    expect((await purgeExpiredEvents()).archives).toEqual({ [WEDDING]: 'none' })
+  })
+
+  it('reports the state of the archive an album held, read before its row is deleted (spec 22)', async () => {
+    seedExpiredWedding()
+    const seenWhileStillThere: boolean[] = []
+    const report = await makePurgeExpiredEvents({
+      events,
+      media,
+      clock,
+      capNoticeDays: 30,
+      archiveStateOf: async (id) => {
+        seenWhileStillThere.push((await events.findById(id)) !== null)
+        return 'served'
+      },
+    })()
+
+    expect(report.archives).toEqual({ [WEDDING]: 'served' })
+    expect(seenWhileStillThere).toEqual([true])
+  })
+
+  it.each(ARCHIVE_STATES)(
+    'purges the album whatever its archive says (%s): the date promised to the guests does not move',
+    async (state) => {
+      seedExpiredWedding()
+      const report = await makePurgeExpiredEvents({
+        events,
+        media,
+        clock,
+        capNoticeDays: 30,
+        archiveStateOf: async () => state,
+      })()
+
+      expect(report.purged).toEqual([WEDDING])
+      expect(await bytesLeft()).toEqual([0, 1])
+    },
+  )
+
+  it('purges the album, and calls it none, when the archive state cannot be read', async () => {
+    seedExpiredWedding()
+    const report = await makePurgeExpiredEvents({
+      events,
+      media,
+      clock,
+      capNoticeDays: 30,
+      archiveStateOf: async () => {
+        throw new Error('database is locked')
+      },
+    })()
+
+    expect(report).toMatchObject({ purged: [WEDDING], archives: { [WEDDING]: 'none' } })
+  })
+
+  it('keeps no archive state for an album it did not purge', async () => {
+    seedExpiredWedding()
+    await events.setPurgeHeld(WEDDING, AT)
+
+    expect((await purgeExpiredEvents()).archives).toEqual({})
   })
 
   // -------------------------------------------------------- what it must not eat --
@@ -186,7 +312,7 @@ describe('purgeExpiredEvents', () => {
 
     const report = await purgeExpiredEvents()
 
-    expect(report).toEqual({ purged: [], failed: [] })
+    expect(report).toEqual({ purged: [], failed: [], archives: {} })
   })
 
   /** No `retentionDays` means keep the album forever, and that is the default. */
@@ -195,7 +321,7 @@ describe('purgeExpiredEvents', () => {
 
     const report = await purgeExpiredEvents()
 
-    expect(report).toEqual({ purged: [], failed: [] })
+    expect(report).toEqual({ purged: [], failed: [], archives: {} })
   })
 
   it('never purges an event that is still running', async () => {
@@ -203,7 +329,7 @@ describe('purgeExpiredEvents', () => {
 
     const report = await purgeExpiredEvents()
 
-    expect(report).toEqual({ purged: [], failed: [] })
+    expect(report).toEqual({ purged: [], failed: [], archives: {} })
   })
 
   it('asks the media store for nothing when nothing is due', async () => {
@@ -286,7 +412,7 @@ describe('purgeExpiredEvents', () => {
 
       const report = await purgeWith(30)()
 
-      expect(report).toEqual({ purged: [WEDDING], failed: [] })
+      expect(report).toEqual({ purged: [WEDDING], failed: [], archives: { [WEDDING]: 'none' } })
       expect(await bytesLeft()).toEqual([0, 1])
     })
 
@@ -296,7 +422,7 @@ describe('purgeExpiredEvents', () => {
 
       const report = await purgeWith(30)()
 
-      expect(report).toEqual({ purged: [], failed: [] })
+      expect(report).toEqual({ purged: [], failed: [], archives: {} })
     })
 
     it('waits out the notice a lowered ceiling is owed, in the days it is configured with', async () => {
@@ -310,10 +436,14 @@ describe('purgeExpiredEvents', () => {
       )
       seedKeptForEver(AT)
 
-      expect(await purgeWith(10)()).toEqual({ purged: [], failed: [] })
+      expect(await purgeWith(10)()).toEqual({ purged: [], failed: [], archives: {} })
 
       clock.advance(10 * DAY)
-      expect(await purgeWith(10)()).toEqual({ purged: [WEDDING], failed: [] })
+      expect(await purgeWith(10)()).toEqual({
+        purged: [WEDDING],
+        failed: [],
+        archives: { [WEDDING]: 'none' },
+      })
     })
 
     it('does not let the notice hold back an album the host themselves asked to be purged by now', async () => {
@@ -344,7 +474,7 @@ describe('purgeExpiredEvents', () => {
 
       const report = await purgeWith(1)()
 
-      expect(report).toEqual({ purged: [], failed: [] })
+      expect(report).toEqual({ purged: [], failed: [], archives: {} })
     })
   })
 })

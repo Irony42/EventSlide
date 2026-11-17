@@ -19,9 +19,11 @@ import type { AuditPage } from '../../../application/ports/auditLog'
 import type { ClientLimits } from '../../../application/usecases/clients/getClientLimits'
 import type { PendingInvitation } from '../../../application/usecases/clients/listPendingInvitations'
 import type { EventLimits } from '../../../application/usecases/events/getEventLimits'
+import type { EventPurgeView } from '../../../application/usecases/events/getEventView'
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
   AlbumBookDto,
+  AlbumExportDto,
   CreatedGuestbookEntryDto,
   GuestbookQueueItemDto,
   GuestbookEntryDto,
@@ -35,6 +37,7 @@ import type {
   CurrentUserDto,
   ReelDto,
   EventDto,
+  EventPurgeDto,
   EventSettingsDto,
   EventSummaryDto,
   EventBrandDto,
@@ -136,6 +139,7 @@ import type {
 import type { GalleryView } from '../../../application/usecases/gallery/openGallery'
 import type { EventStats } from '../../../application/usecases/stats/getEventStats'
 import type { AlbumBook } from '../../../domain/book/albumBook'
+import { canDeleteWithoutConfirmation, type AlbumExport } from '../../../domain/exports/albumExport'
 import { canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 
 /**
@@ -212,6 +216,21 @@ export const toAlbumBookDto = (book: AlbumBook | null): AlbumBookDto =>
         failureCode: book.failureCode,
         staleReason: book.staleReason,
       }
+
+export const toAlbumExportDto = (archive: AlbumExport): AlbumExportDto => ({
+  status: archive.status,
+  requestedAt: iso(archive.requestedAt),
+  sealedAt: isoOrNull(archive.sealedAt),
+  expiresAt: isoOrNull(archive.expiresAt),
+  entries: archive.entries,
+  skipped: archive.skipped,
+  bytes: archive.bytes,
+  sha256: archive.sha256,
+  servedAt: isoOrNull(archive.servedAt),
+  staleReason: archive.staleReason,
+  failure: archive.failure,
+  canDeleteWithoutConfirmation: canDeleteWithoutConfirmation(archive),
+})
 
 export const mediaUrl = (slug: string, photoId: string, variant: MediaVariant): string =>
   `/api/events/${encodeURIComponent(slug)}/photos/${encodeURIComponent(photoId)}/${variant}`
@@ -458,19 +477,29 @@ export const toEventSummaryDto = (summary: HostEventSummary): EventSummaryDto =>
   role: summary.role,
 })
 
+/** The date the album will be deleted, as the host's page reads it (spec 22). */
+export const toEventPurgeDto = (purge: EventPurgeView, serverNowMs: number): EventPurgeDto => ({
+  at: isoOrNull(purge.at),
+  notice: purge.notice,
+  offboarding: purge.offboarding,
+  serverNowMs,
+})
+
 export interface EventDtoInput {
   readonly event: Event
   readonly role: EventRole
   readonly counts: EventCounts
   /** What the event's client makes of its quota and its live window (`getEventView`). */
   readonly limits: EventLimits
+  /** When the album will be deleted and the last warning sent (`getEventView`, spec 22). */
+  readonly purge: EventPurgeView
   /** The server's clock at this answer, and what the reveal gate holds back (spec 23). */
   readonly now: Date
   readonly readyCount: number | null
 }
 
 export const toEventDto = (
-  { event, role, counts, limits, now, readyCount }: EventDtoInput,
+  { event, role, counts, limits, purge, now, readyCount }: EventDtoInput,
   context: PresenterContext,
 ): EventDto => ({
   id: event.id,
@@ -486,6 +515,7 @@ export const toEventDto = (
   joinUrl: joinUrl(context.publicUrl, event.joinCode.value),
   quotaBytes: limits.quotaBytes,
   ...(limits.liveWindowEnd === null ? {} : { liveWindowEnd: iso(limits.liveWindowEnd) }),
+  purge: toEventPurgeDto(purge, now.getTime()),
   settings: toEventSettingsDto(event.settings, event.slug.value),
   startsAt: isoOrNull(event.startsAt),
   closedAt: isoOrNull(event.closedAt),

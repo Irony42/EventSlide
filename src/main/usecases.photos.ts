@@ -11,6 +11,9 @@ import { makeExportHighlights } from '../application/usecases/highlights/exportH
 import { makeGetHighlights } from '../application/usecases/highlights/getHighlights'
 import { makePreselectHighlights } from '../application/usecases/highlights/preselectHighlights'
 import { makeSetPhotoHighlight } from '../application/usecases/highlights/setPhotoHighlight'
+import { makeDownloadAlbumExport } from '../application/usecases/exports/downloadAlbumExport'
+import { makeGetAlbumExport } from '../application/usecases/exports/getAlbumExport'
+import { makeRequestAlbumExport } from '../application/usecases/exports/requestAlbumExport'
 import { makeExportAlbum } from '../application/usecases/photos/exportAlbum'
 import { makeGetPhotoMedia } from '../application/usecases/photos/getPhotoMedia'
 import { makeIdentifyMediaViewer } from '../application/usecases/photos/identifyMediaViewer'
@@ -25,7 +28,7 @@ import { type SharedHooks } from './usecases.shared'
 export const photosUseCases = (
   adapters: Adapters,
   policy: UseCasePolicy,
-  { invalidateReel, invalidateBook }: SharedHooks,
+  { invalidateReel, invalidateBook, invalidateExport }: SharedHooks,
 ) => ({
   // photos
   uploadPhotos: makeUploadPhotos({
@@ -53,6 +56,7 @@ export const photosUseCases = (
   deletePhoto: makeDeletePhoto({
     invalidateReel,
     invalidateBook,
+    invalidateExport,
     events: adapters.events,
     photos: adapters.photos,
     clips: adapters.clips,
@@ -86,7 +90,40 @@ export const photosUseCases = (
     guests: adapters.guests,
     media: adapters.media,
     archive: adapters.archive,
+    clients: adapters.clients,
+    streamHasher: adapters.streamHasher,
+    clock: adapters.clock,
     logger: adapters.logger,
+  }),
+
+  // the verified archive (spec 22)
+  invalidateExport,
+  requestAlbumExport: makeRequestAlbumExport({
+    events: adapters.events,
+    clients: adapters.clients,
+    photos: adapters.photos,
+    exports: adapters.exports,
+    exportFiles: adapters.exportFiles,
+    bus: adapters.bus,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    freeDiskBytes: policy.export.freeDiskBytes,
+    policy: policy.export,
+  }),
+  getAlbumExport: makeGetAlbumExport({
+    events: adapters.events,
+    clients: adapters.clients,
+    exports: adapters.exports,
+    clock: adapters.clock,
+  }),
+  downloadAlbumExport: makeDownloadAlbumExport({
+    events: adapters.events,
+    clients: adapters.clients,
+    exports: adapters.exports,
+    exportFiles: adapters.exportFiles,
+    bus: adapters.bus,
+    clock: adapters.clock,
+    policy: { ttlDays: policy.export.ttlDays, capNoticeDays: policy.retention.capNoticeDays },
   }),
 
   // photo book

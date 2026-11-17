@@ -1,3 +1,7 @@
+import { sha256StreamHasher } from '../crypto/sha256StreamHasher'
+import { FakeClock } from '../../application/testing/fakeClock'
+import { FakeClientRepository } from '../../application/testing/fakeClientRepository'
+import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -85,6 +89,9 @@ describe('the host’s album with the real archiver, filesystem and database', (
         guests: new SqliteGuestRepository(db),
         media,
         archive: archiverWriter,
+        clients: new FakeClientRepository(),
+        streamHasher: sha256StreamHasher,
+        clock: new FakeClock(),
         logger: new CapturingLogger(),
       }),
     }
@@ -100,6 +107,30 @@ describe('the host’s album with the real archiver, filesystem and database', (
     if (!result.ok) throw new Error(`expected an archive, got ${result.error.code}`)
     return result.value
   }
+
+  it('closes the real ZIP with a MANIFEST.sha256 whose digests are those of the bytes on the disk (spec 22)', async () => {
+    const chunks: Buffer[] = []
+    for await (const chunk of await download()) chunks.push(Buffer.from(chunk))
+    const zip = Buffer.concat(chunks)
+
+    // Stored, not deflated (the photographs are already compressed), so the manifest's text is in the
+    // archive as written; the last entry of the archive is the manifest.
+    const text = zip.toString('latin1')
+    // The first line shares a line with the entry header, so no anchor at the start of the line.
+    const lines = [...text.matchAll(/([0-9a-f]{64}) {2}(\d{4}-[0-9a-f]{12}\.jpg)\n/g)]
+    const missing = [...text.matchAll(/^# missing: (\d+)$/gm)]
+
+    const expected = Array.from({ length: PHOTOS }, (_, index) =>
+      createHash('sha256')
+        .update(new Uint8Array(PHOTO_BYTES).fill(index))
+        .digest('hex'),
+    )
+    expect(lines.map((line) => line[1]).sort()).toEqual([...expected].sort())
+    expect(missing.map((line) => line[1])).toEqual(['0'])
+    expect(text.lastIndexOf('MANIFEST.sha256')).toBeGreaterThan(text.lastIndexOf('.jpg'))
+    // The end-of-central-directory record announces the photographs and the manifest.
+    expect(zip.readUInt16LE(zip.length - 22 + 10)).toBe(PHOTOS + 1)
+  })
 
   it('leaves the database writable for every other event while a host downloads slowly', async () => {
     // A host on venue Wi-Fi reads the ZIP at a trickle, for minutes, while guests at the

@@ -6,6 +6,7 @@ import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { recordOperatorAct, type OperatorActInput } from './operatorAct'
 
 /**
@@ -34,6 +35,11 @@ export interface SetGuestbookTakedownDeps {
   readonly audit: AuditRecorder
   readonly bus: Pick<EventBus, 'publish'>
   readonly clock: Clock
+  /**
+   * Retires the verified archive the box may hold (spec 22) when a message is taken down (`guestbook.txt` holds the album's messages), awaited and before anything
+   * goes: an archive must never still hold what was removed.
+   */
+  readonly invalidateExport?: InvalidateExport
 }
 
 export type SetGuestbookTakedown = (
@@ -41,7 +47,13 @@ export type SetGuestbookTakedown = (
 ) => Promise<Result<void, DomainError>>
 
 export const makeSetGuestbookTakedown =
-  ({ guestbook, audit, bus, clock }: SetGuestbookTakedownDeps): SetGuestbookTakedown =>
+  ({
+    guestbook,
+    audit,
+    bus,
+    clock,
+    invalidateExport,
+  }: SetGuestbookTakedownDeps): SetGuestbookTakedown =>
   async ({ entryId, down, reason, actor }) => {
     const why = parseAuditReason(reason)
     if (!why.ok) return why
@@ -60,6 +72,7 @@ export const makeSetGuestbookTakedown =
     })
     if (!recorded.ok) return recorded
 
+    if (down) await invalidateExport?.(located.eventId, 'takenDown')
     await guestbook.setTakenDown(located.eventId, entryId, down ? at : null)
     bus.publish({ type: 'guestbook.changed', eventId: located.eventId })
     return ok(undefined)

@@ -29,6 +29,8 @@ import type { AccountTokenRepository } from '../application/ports/accountTokenRe
 import type { MfaVault } from '../application/ports/mfaVault'
 import type { SignInAttempts } from '../application/ports/signInAttempts'
 import type { SecondFactorRepository } from '../application/ports/secondFactorRepository'
+import type { StreamHasher } from '../application/ports/streamHasher'
+import type { PurgeNoticeLedger } from '../application/ports/purgeNoticeLedger'
 import type { TourLedger } from '../application/ports/tourLedger'
 import type { TotpEngine } from '../application/ports/totpEngine'
 import type { InvitationAcceptance } from '../application/ports/invitationAcceptance'
@@ -39,6 +41,8 @@ import type { AccountHoldings } from '../application/ports/accountHoldings'
 import { type EventCreationPolicy } from '../application/usecases/events/createEvent'
 import type { AlbumBookRepository } from '../application/ports/albumBookRepository'
 import type { BookFileStore } from '../application/ports/bookFileStore'
+import type { AlbumExportRepository } from '../application/ports/albumExportRepository'
+import type { ExportFileStore } from '../application/ports/exportFileStore'
 import type { ReelRenderer } from '../application/ports/reelRenderer'
 import type { ReelRepository } from '../application/ports/reelRepository'
 import type { NewClientDefaults } from '../domain/clients/newClientCeilings'
@@ -72,6 +76,9 @@ export interface Adapters {
   /** The event's photo book (spec 04): its row, and the PDF file it names. */
   readonly books: AlbumBookRepository
   readonly bookFiles: BookFileStore
+  /** The event's verified archive (spec 22): its row, and the ZIP file it names. */
+  readonly exports: AlbumExportRepository
+  readonly exportFiles: ExportFileStore
   /** The reel's encoder, or the Null Object when this box has no ffmpeg. */
   readonly reelRenderer: ReelRenderer
   readonly guests: GuestRepository
@@ -116,6 +123,10 @@ export interface Adapters {
   readonly secondFactors: SecondFactorRepository
   /** The console's guided tours each account was shown (`user_tours`). */
   readonly tours: TourLedger
+  /** SHA-256 of a file as it streams (the host's album manifest). */
+  readonly streamHasher: StreamHasher
+  /** Which deletion warning an event's owners were last sent (spec 22). */
+  readonly purgeNotices: PurgeNoticeLedger
   /** RFC 6238's one primitive. */
   readonly totpEngine: TotpEngine
   /** Encryption of a secret at rest; `null` on a box with no `MFA_ENCRYPTION_KEY`. */
@@ -181,6 +192,19 @@ export interface UseCasePolicy {
   readonly termsOfUse: TermsOfUse | null
   /** `BOOK_ENABLED` and `BOOK_MAX_PER_EVENT_PER_DAY` (spec 04). */
   readonly book: { readonly enabled: boolean; readonly maxPerEventPerDay: number }
+  /**
+   * `EXPORT_*` (spec 22): the box's switch and ceilings for the verified archive, and the free-space
+   * probe the request judges the disk with (`null` when it cannot be read: a refusal).
+   */
+  readonly export: {
+    readonly enabled: boolean
+    readonly maxBytes: number
+    readonly maxTotalBytes: number
+    readonly maxPerEventPerDay: number
+    readonly ttlDays: number
+    readonly minFreeDiskBytes: number
+    readonly freeDiskBytes: () => Promise<number | null>
+  }
   /** `REEL_*` and `MAX_QUEUED_REELS` (spec 08). */
   readonly reel: {
     readonly enabled: boolean
@@ -216,7 +240,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
 
   return {
     ...authUseCases(adapters, policy, hooks),
-    ...eventsUseCases(adapters, policy),
+    ...eventsUseCases(adapters, policy, hooks),
     ...guestsUseCases(adapters, policy, hooks),
     ...photosUseCases(adapters, policy, hooks),
     ...clipsUseCases(adapters, policy),

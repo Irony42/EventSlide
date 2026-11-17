@@ -35,6 +35,9 @@ import { resolve } from 'node:path'
 import { makePruneAuditLog } from '../src/application/usecases/audit/pruneAuditLog'
 import { makeFinalizeOffboardedClients } from '../src/application/usecases/clients/finalizeOffboardedClients'
 import { makePurgeExpiredEvents } from '../src/application/usecases/events/purgeExpiredEvents'
+import { makeSweepPurgeNotices } from '../src/application/usecases/events/sweepPurgeNotices'
+import { leftWithArchive } from '../src/domain/clients/archiveState'
+import type { PurgeExpiredEventsReport } from '../src/application/usecases/events/purgeExpiredEvents'
 import { makeSweepOrphanedMedia } from '../src/application/usecases/media/sweepOrphanedMedia'
 import type { LogContext, Logger } from '../src/application/ports/logger'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
@@ -45,9 +48,13 @@ import { SqliteClientRepository } from '../src/infrastructure/db/sqliteClientRep
 import { SqliteClipJobRepository } from '../src/infrastructure/db/sqliteClipJobRepository'
 import { SqliteReelRepository } from '../src/infrastructure/db/sqliteReelRepository'
 import { SqliteEventRepository } from '../src/infrastructure/db/sqliteEventRepository'
+import { SqliteMembershipRepository } from '../src/infrastructure/db/sqliteMembershipRepository'
 import { SqlitePhotoRepository } from '../src/infrastructure/db/sqlitePhotoRepository'
+import { SqlitePurgeNoticeLedger } from '../src/infrastructure/db/sqlitePurgeNoticeLedger'
 import { SqliteUserRepository } from '../src/infrastructure/db/sqliteUserRepository'
 import { createFsBookFileStore } from '../src/infrastructure/media/fsBookFileStore'
+import { nullMailer } from '../src/infrastructure/mail/nullMailer'
+import { createSmtpMailer } from '../src/infrastructure/mail/smtpMailer'
 import { createFsMediaStore } from '../src/infrastructure/media/fsMediaStore'
 import { systemClock } from '../src/infrastructure/time/systemClock'
 import { isTooDangerousToSweep, MEDIA_SWEEP_MIN_AGE_MS } from '../src/main/mediaSweeper'
@@ -60,6 +67,23 @@ const consoleLogger: Logger = {
   warn: (message: string, context?: LogContext) => console.warn(`  ${message}`, context ?? ''),
   error: (message: string, context?: LogContext) => console.error(`  ${message}`, context ?? ''),
   child: () => consoleLogger,
+}
+
+/**
+ * One line per purged album with what the box held for it (spec 22, `archive=…`). An album that
+ * left without an archive sent in full is a **warning**: it is the trace that the album went and
+ * nobody had taken it. Pure, so that a test can say it without a box that prepares archives.
+ */
+export const reportPurged = (
+  report: Pick<PurgeExpiredEventsReport, 'purged' | 'archives'>,
+  out: { readonly log: (line: string) => void; readonly warn: (line: string) => void },
+): void => {
+  for (const id of report.purged) {
+    const archive = report.archives[id] ?? 'none'
+    const line = `  ${id}  archive=${archive}`
+    if (leftWithArchive(archive)) out.log(line)
+    else out.warn(line)
+  }
 }
 
 const execute = async (
@@ -126,6 +150,22 @@ const execute = async (
           holdings: new SqliteAccountHoldings(db),
           audit: new SqliteAuditLog(db),
           clock: systemClock,
+        }),
+        // The warning to the owners of albums about to be deleted (spec 22): the same function as
+        // the timer's, with the box's own mailer. Without `SMTP_URL` it sends and notes nothing.
+        sweepPurgeNotices: makeSweepPurgeNotices({
+          events,
+          clients: new SqliteClientRepository(db),
+          memberships: new SqliteMembershipRepository(db),
+          notices: new SqlitePurgeNoticeLedger(db),
+          mailer:
+            config.mail.smtp === null
+              ? nullMailer
+              : createSmtpMailer({ settings: config.mail.smtp, logger: followUpLogger }),
+          clock: systemClock,
+          logger: followUpLogger,
+          capNoticeDays,
+          publicUrl: config.publicUrl,
         }),
         pruneAuditLog: makePruneAuditLog({
           audit: new SqliteAuditLog(db),
@@ -247,6 +287,9 @@ const execute = async (
     const report = await purge()
 
     console.log(`Purged ${report.purged.length} event(s).`)
+    // What the box held for each album as it left (spec 22). An album that went with no archive
+    // sent in full is a warning, the same care as the timer's: it is the trace that nobody had taken it.
+    reportPurged(report, console)
     const followUpFailed = await followUp()
     await reconcile()
 

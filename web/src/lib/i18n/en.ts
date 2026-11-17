@@ -449,6 +449,17 @@ export const en: UiText = {
     'book.titleEmpty': 'Give the book a title.',
     'book.titleTooLong': 'This title is too long.',
     'book.subtitleTooLong': 'This subtitle is too long.',
+    'export.alreadyRunning': 'An archive is already being prepared.',
+    'export.notClosed': 'The archive can be prepared once the event is closed.',
+    'export.noRoom':
+      'The server does not have enough room to prepare the archive. Download the album directly, or tell the operator.',
+    'export.tooLarge':
+      'The archive would be larger than the server agrees to prepare. Download the album directly.',
+    'export.dailyLimitReached':
+      'The daily limit of archives for this event has been reached. Try again tomorrow, or download the album directly.',
+    'export.unavailable':
+      'Preparing archives is switched off on this server. Download the album directly.',
+    'export.notFound': 'This archive is no longer available. Prepare it again.',
     'reel.notEnoughPhotos': 'You need at least three published favourites to make a video.',
     'reel.tooManyPhotos': 'Too many favourites for one video: remove a few.',
     'reel.alreadyRunning': 'A video is already being made.',
@@ -2518,6 +2529,48 @@ export const en: UiText = {
       showing: 'On screen',
       over: 'Past',
     },
+  },
+  exportPurge: {
+    title: 'Deleting the album',
+    deletesOn: (date: string, days: number) =>
+      `This album will be deleted on ${date} (${t.count(days, { one: 'in 1 day', other: `in ${t.number(days)} days` })}).`,
+    deletesToday: (date: string) => `This album will be deleted today, ${date}.`,
+    passed: 'The planned deletion date has passed.',
+    downloadFirst: 'Download it first: after that date it will no longer exist anywhere.',
+    downloadAlbum: 'Download the album',
+    directNote:
+      'The server cannot check this direct download: the MANIFEST.sha256 file inside lets you check it yourself.',
+    prepare: 'Prepare a verified archive',
+    downloadArchive: 'Download the archive',
+    rebuild: 'Prepare the archive again',
+    working: 'Archive being prepared. You can leave this page: it updates by itself.',
+    digest: 'SHA-256 fingerprint',
+    ready: (entries: number, size: string, sealedOn: string, until: string | null) =>
+      `Archive ready: ${t.count(entries, { one: `${t.number(entries)} file`, other: `${t.number(entries)} files` })}, ${size}, verified on ${sealedOn}.${until === null ? '' : ` Available until ${until}.`}`,
+    sent: (date: string) =>
+      `Archive sent in full on ${date}. Check your file before deleting anything.`,
+    incomplete: (missing: number) =>
+      `Archive ready, but ${t.count(missing, { one: `${t.number(missing)} file was`, other: `${t.number(missing)} files were` })} missing from the server’s disk: ${t.count(missing, { one: 'it is not in it.', other: 'they are not in it.' })}`,
+    retired: 'The archive was withdrawn because a photo was deleted. Prepare it again.',
+    changed:
+      'The album changed after the archive was prepared, so it is no longer offered. Prepare it again.',
+    noRoom:
+      'The server does not have enough room to prepare the archive. Download the album directly, or tell the operator.',
+    tooLarge:
+      'The archive would be larger than the server agrees to prepare. Download the album directly.',
+    failed:
+      'The archive could not be prepared. Try again; if it keeps happening, contact the operator.',
+    deleteNow: 'Delete now',
+    deleteWithout: 'Delete without an archive…',
+    needsArchive:
+      'To delete the album now, first prepare the verified archive and download it in full.',
+    needsDownload: 'To delete the album now, first download the archive in full.',
+    needsComplete:
+      'The archive is incomplete: files were missing from the server’s disk. You can still delete the album, after confirming.',
+    wordPrompt: (word: string) =>
+      `This album was not archived completely. To delete it anyway, type ${word}.`,
+    confirmWord: 'DELETE',
+    wordLabel: 'Confirmation word',
   },
   titles: {
     print: 'Table cards and poster',

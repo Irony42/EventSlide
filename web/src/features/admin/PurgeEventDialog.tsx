@@ -5,6 +5,7 @@ import { Field } from '../../design-system/components/Field'
 import { Notice } from '../../design-system/components/Notice'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useTranslations } from '../../lib/i18n/useTranslations'
+import { wordMatches } from './albumDeletion'
 import styles from './PurgeEventDialog.module.css'
 
 export interface PurgeEventDialogProps {
@@ -12,6 +13,11 @@ export interface PurgeEventDialogProps {
   readonly slug: string
   readonly eventName: string
   readonly busy: boolean
+  /**
+   * `word`: the album has no complete archive that was sent (spec 22), so the host types the word
+   * of the language on screen instead of the address. The default is the address, as before.
+   */
+  readonly confirmWith?: 'address' | 'word'
   readonly onConfirm: () => void
   readonly onCancel: () => void
 }
@@ -29,14 +35,17 @@ export function PurgeEventDialog({
   slug,
   eventName,
   busy,
+  confirmWith = 'address',
   onConfirm,
   onCancel,
 }: PurgeEventDialogProps) {
   const t = useTranslations()
+  const word = t.exportPurge.confirmWord
   const [typed, setTyped] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const matches = typed.trim() === slug
+  // The word is compared without regard to case or spaces; the address, exactly as it always was.
+  const matches = confirmWith === 'word' ? wordMatches(typed, word) : typed.trim() === slug
 
   /**
    * Every way out of this dialog empties the box.
@@ -82,7 +91,12 @@ export function PurgeEventDialog({
         <Notice tone="danger" variant="boxed">
           {t.admin.purgeWarning}
         </Notice>
-        <Field label={t.admin.purgeConfirmLabel} hint={t.admin.purgeConfirmHint(slug)}>
+        <Field
+          label={confirmWith === 'word' ? t.exportPurge.wordLabel : t.admin.purgeConfirmLabel}
+          hint={
+            confirmWith === 'word' ? t.exportPurge.wordPrompt(word) : t.admin.purgeConfirmHint(slug)
+          }
+        >
           {(control) => (
             <TextInput
               {...control}

@@ -86,6 +86,18 @@ export interface AppConfig {
     readonly maxQueued: number
   }
 
+  /**
+   * The verified archive of the album, prepared on the box (spec 22); every figure from an
+   * `EXPORT_*` variable.
+   */
+  readonly exports: {
+    readonly enabled: boolean
+    readonly ttlDays: number
+    readonly maxBytes: number
+    readonly maxTotalBytes: number
+    readonly maxPerEventPerDay: number
+  }
+
   /** The photo book (PDF of the published album); every figure from a `BOOK_*` variable. */
   readonly books: {
     readonly enabled: boolean

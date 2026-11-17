@@ -88,6 +88,7 @@ describe('the scope', () => {
         'challenge',
         'clientSpace',
         'errors',
+        'exportPurge',
         'feed',
         'gallery',
         'guestbook',
