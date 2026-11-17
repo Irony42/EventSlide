@@ -71,7 +71,17 @@
   background: var(--surface-overlay);
   rotate: -2deg;
   box-shadow: var(--shadow-md);
-  transition: filter var(--duration-slow) var(--ease-out);
+}
+
+/**
+ * The development: black and white turning to colour when the host publishes, or when the evening
+ * is revealed. Only for a guest who has not asked for less motion (spec 23): with the preference the
+ * colour is simply there.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .thumb {
+    transition: filter var(--duration-slow) var(--ease-out);
+  }
 }
 
 /**

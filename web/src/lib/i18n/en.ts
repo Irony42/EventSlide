@@ -2430,6 +2430,41 @@ export const en: UiText = {
         one: `${t.number(count)} photo being developed`,
         other: `${t.number(count)} photos being developed`,
       }),
+    /* The guest's phone (spec 23): the roll, the veiled photographs, the hour and the moment of the reveal. */
+    poses: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} shot left`,
+        other: `${t.number(count)} shots left`,
+      }),
+    freshRoll: (count: number) =>
+      t.count(count, {
+        one: `Fresh roll: ${t.number(count)} shot`,
+        other: `Fresh roll: ${t.number(count)} shots`,
+      }),
+    rollEmpty: 'Roll finished: your camera is empty',
+    rollKept: (kept: number) =>
+      t.count(kept, {
+        one: 'You had 1 shot left, so the first one is kept.',
+        other: `You had ${t.number(kept)} shots left, so the first ${t.number(kept)} are kept.`,
+      }),
+    undeveloped: 'Will be developed at the reveal',
+    guestAt: (time: string) => `Reveal at ${time}`,
+    guestOn: (when: string) => `Reveal on ${when}`,
+    guestLeft: (hours: number, minutes: number) =>
+      hours > 0
+        ? `in ${t.number(hours)} h ${String(minutes).padStart(2, '0')}`
+        : `in ${t.number(minutes)} min`,
+    guestSoon: 'in under a minute',
+    guestManual: 'The hosts will reveal the photos during the evening.',
+    developedNow: (count: number) =>
+      t.count(count, {
+        one: 'Your photo has just been developed.',
+        other: `Your ${t.number(count)} photos have just been developed.`,
+      }),
+    feedAt: (time: string) => `The photos will be revealed at ${time}`,
+    feedOn: (when: string) => `The photos will be revealed on ${when}`,
+    feedSoon: 'The photos will be revealed soon',
+    feedHint: 'They will appear here at the reveal. Your own photos stay in your list.',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

@@ -10,6 +10,9 @@ import { RootGroundHue } from '../../design-system/useRootGroundHue'
 import { forgetGuestSession, leaveGuestEvent, readGuestSession } from '../../lib/guestSession'
 import { photoAlt } from '../../lib/photoAlt'
 import { useTranslations } from '../../lib/i18n/useTranslations'
+import { awaitsReveal } from '../../lib/revealGate'
+import { useRevealSwitch } from '../../lib/useRevealSwitch'
+import { FeedWait } from './components/FeedWait'
 import { ReactionBar } from './components/ReactionBar'
 import { usePhotoFeed } from './hooks/usePhotoFeed'
 import type { PublicEventDto } from '../../lib/api/dto'
@@ -75,6 +78,11 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
     if (signedOut) forgetGuestSession(slug)
   }, [signedOut, slug])
   const [shown, setShown] = useState(PAGE_SIZE)
+  // A held evening (spec 23): the hour announces nothing, so this phone reads again on its own
+  // timer, a little late on purpose, and the guest's "Actualiser" covers a reveal by hand.
+  const reveal = feed.reveal
+  const held = awaitsReveal(reveal ?? undefined)
+  useRevealSwitch(reveal ?? undefined, feed.refresh)
 
   const items = feed.items ?? []
   const visible = items.slice(0, shown)
@@ -155,7 +163,11 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
         </div>
       ) : null}
 
-      {!feed.settling && feed.items !== null && items.length === 0 ? (
+      {!feed.settling && !feed.unavailable && held && reveal !== null ? (
+        <FeedWait reveal={reveal} offsetMs={feed.offsetMs} />
+      ) : null}
+
+      {!feed.settling && feed.items !== null && items.length === 0 && !held ? (
         <EmptyState as="h2" title={t.feed.empty} description={t.feed.emptyHint} />
       ) : null}
 

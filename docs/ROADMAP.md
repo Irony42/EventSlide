@@ -265,7 +265,7 @@ a CSS filter on screen, never a re-encode: the originals stay clean.
 Delivered in five stacked pull requests: **1** the server (this gate, `POST /events/:slug/reveal`, the `reveal` blocks of the
 wall, the phone and the gallery, the notice clauses), **2** the host (settings section, console banner, the template),
 **3** the room (the waiting wall, the switch at the hour), **4** the guest (the roll, the limited picker, the undeveloped
-thumbnails), **5** the film look and its measured budget. Only the first is built: see `docs/API.md` and `docs/UPGRADING.md`.
+thumbnails), **5** the film look and its measured budget. Built so far: 1 to 4 (the film look is the last); see `docs/API.md` and `docs/UPGRADING.md`.
 
 ---
 

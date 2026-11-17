@@ -2525,6 +2525,41 @@ export const de: UiText = {
         one: `${t.number(count)} Foto wird entwickelt`,
         other: `${t.number(count)} Fotos werden entwickelt`,
       }),
+    /* The guest's phone (spec 23): the roll, the veiled photographs, the hour and the moment of the reveal. */
+    poses: (count: number) =>
+      t.count(count, {
+        one: `Noch ${t.number(count)} Aufnahme übrig`,
+        other: `Noch ${t.number(count)} Aufnahmen übrig`,
+      }),
+    freshRoll: (count: number) =>
+      t.count(count, {
+        one: `Neuer Film: ${t.number(count)} Aufnahme`,
+        other: `Neuer Film: ${t.number(count)} Aufnahmen`,
+      }),
+    rollEmpty: 'Film voll: Ihre Kamera ist leer',
+    rollKept: (kept: number) =>
+      t.count(kept, {
+        one: 'Sie hatten noch 1 Aufnahme, das erste Foto wird behalten.',
+        other: `Sie hatten noch ${t.number(kept)} Aufnahmen, die ersten ${t.number(kept)} Fotos werden behalten.`,
+      }),
+    undeveloped: 'Wird bei der Enthüllung entwickelt',
+    guestAt: (time: string) => `Enthüllung um ${time}`,
+    guestOn: (when: string) => `Enthüllung am ${when}`,
+    guestLeft: (hours: number, minutes: number) =>
+      hours > 0
+        ? `in ${t.number(hours)} h ${String(minutes).padStart(2, '0')}`
+        : `in ${t.number(minutes)} min`,
+    guestSoon: 'in weniger als einer Minute',
+    guestManual: 'Die Gastgeber enthüllen die Fotos im Laufe des Abends.',
+    developedNow: (count: number) =>
+      t.count(count, {
+        one: 'Ihr Foto wurde gerade entwickelt.',
+        other: `Ihre ${t.number(count)} Fotos wurden gerade entwickelt.`,
+      }),
+    feedAt: (time: string) => `Die Fotos werden um ${time} enthüllt`,
+    feedOn: (when: string) => `Die Fotos werden am ${when} enthüllt`,
+    feedSoon: 'Die Fotos werden bald enthüllt',
+    feedHint: 'Sie erscheinen hier bei der Enthüllung. Ihre eigenen Fotos bleiben in Ihrer Liste.',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

@@ -5,7 +5,11 @@ import { rememberEventTheme } from '../../../lib/guestSession'
 import { ApiError, isAbortError } from '../../../lib/http'
 import { messageForCode } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import type { EventBrandDto, EventThemeDto, GuestPhotoDto, PhotoStatus } from '../../../lib/api/dto'
+import type { EventBrandDto, EventThemeDto, GuestPhotoDto, RevealDto } from '../../../lib/api/dto'
+import { serverOffsetMs } from '../../../lib/serverClock'
+import { awaitsReveal } from '../../../lib/revealGate'
+import { useRevealSwitch } from '../../../lib/useRevealSwitch'
+import type { Shots } from '../roll'
 import { POLL_SLOW_AFTER_MS, pollDelayMs } from './pollCadence'
 
 /**
@@ -31,8 +35,31 @@ export interface Arrival {
   readonly whileAway: boolean
 }
 
+/**
+ * The guest's own photographs have just been developed (spec 23): the evening was revealed and
+ * `count` of them went from veiled to colour on this screen. `whileAway` as for {@link Arrival}.
+ */
+export interface Developed {
+  readonly count: number
+  readonly whileAway: boolean
+}
+
 export interface MyPhotosState {
   readonly photos: readonly GuestPhotoDto[]
+  /** The roll as the server counts it, or `null` with no cap (and for a server that predates it). */
+  readonly shots: Shots | null
+  /** The reveal gate as the server last said it; `null` for a server that predates it. */
+  readonly reveal: RevealDto | null
+  /**
+   * The server's clock less this phone's, as of the last read: what a countdown to `reveal.atMs`
+   * is measured with, never the phone's own `Date.now()` alone.
+   */
+  readonly offsetMs: number
+  /**
+   * The evening was revealed while the guest watched: their photographs have just been developed.
+   * Set for a few seconds and said politely, like {@link MyPhotosState.arrival}; `null` otherwise.
+   */
+  readonly developed: Developed | null
   /**
    * The host has just published one of these. Set for a few seconds, and it is what the
    * list announces ("Validée ! … levez les yeux"), politely, to a screen reader as well.
@@ -143,8 +170,18 @@ const classifyRead = (cause: unknown): Failure => {
   return { kind: 'load' }
 }
 
+/** What a read left of a photograph, to tell a transition from a first sight. */
+interface Known {
+  readonly status: GuestPhotoDto['status']
+  readonly awaitsReveal: boolean
+}
+
 interface Loaded {
   readonly photos: readonly GuestPhotoDto[]
+  readonly shots: Shots | null
+  readonly reveal: RevealDto | null
+  readonly offsetMs: number
+  readonly developed: Developed | null
   readonly arrival: Arrival | null
   readonly acceptingUploads: boolean
   readonly theme: EventThemeDto | null
@@ -158,6 +195,10 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
   const api = useApi()
   const [state, setState] = useState<Loaded>({
     photos: [],
+    shots: null,
+    reveal: null,
+    offsetMs: 0,
+    developed: null,
     arrival: null,
     acceptingUploads: true,
     theme: null,
@@ -182,7 +223,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
    * transition from a first sight, kept outside React state so deciding it, and buzzing the
    * phone, are not done inside a state updater (StrictMode runs those twice).
    */
-  const knownRef = useRef<ReadonlyMap<string, PhotoStatus> | null>(null)
+  const knownRef = useRef<ReadonlyMap<string, Known> | null>(null)
   /**
    * A read is in the air, since when, and whether it is the poll's. A poll never aborts it to
    * start another: on slow Wi-Fi it would never finish. Only the timeout below, and the guest's
@@ -222,7 +263,8 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
     let current = true
     const quiet = quietRef.current
     quietRef.current = false
-    inFlightRef.current = { since: Date.now(), quiet }
+    const sentAt = Date.now()
+    inFlightRef.current = { since: sentAt, quiet }
     // Only the poll gives up: a read the guest asked for has a spinner and a retry button.
     const timeout = quiet
       ? window.setTimeout(() => {
@@ -239,25 +281,56 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
         window.clearTimeout(timeout)
         inFlightRef.current = null
         const before = knownRef.current
-        knownRef.current = new Map(response.items.map((photo) => [photo.id, photo.status]))
+        knownRef.current = new Map(
+          response.items.map((photo) => [
+            photo.id,
+            { status: photo.status, awaitsReveal: photo.awaitsReveal === true },
+          ]),
+        )
         // Only a photo this screen has seen waiting counts: a first read, and a photo that
-        // arrives already published (an event that publishes by itself), are not a moment.
+        // arrives already published (an event that publishes by itself), are not a moment. Nor is
+        // one published into a held evening: it is not on the wall yet, and the guest is told so.
         const published =
           before !== null &&
           response.items.some(
-            (photo) => photo.status === 'published' && before.get(photo.id) === 'pending',
+            (photo) =>
+              photo.status === 'published' &&
+              photo.awaitsReveal !== true &&
+              before.get(photo.id)?.status === 'pending',
           )
+        // The reveal, seen from here: photographs this screen saw veiled and now come in colour.
+        // A photo the host hides or refuses mid-evening also stops awaiting the reveal, with the
+        // evening still held: it is not developed, so only a published one counts.
+        const developedCount =
+          before === null
+            ? 0
+            : response.items.filter(
+                (photo) =>
+                  photo.status === 'published' &&
+                  photo.awaitsReveal !== true &&
+                  before.get(photo.id)?.awaitsReveal === true,
+              ).length
         const whileAway = returnedRef.current
         returnedRef.current = false
         // A phone in a pocket buzzes in the room; one that is being looked at has no need, and
         // a tab in the background is refused the buzz anyway.
         if (published && !whileAway) navigator.vibrate?.(VIBRATE_MS)
+        // The offset is corrected by half the round trip, the server's instant being taken
+        // somewhere in the middle of it. Without a reveal block there is nothing to count down.
+        const offsetMs =
+          response.reveal === undefined
+            ? null
+            : serverOffsetMs(response.reveal.serverNowMs, sentAt, Date.now())
         // Written back so the next open of the screen paints it first. Only a theme this build
         // can read: `null` (absent from an older server, or malformed) leaves the stored one.
         const theme = readEventTheme(response.theme)
         if (theme !== null) rememberEventTheme(slug, theme)
         setState((previous) => ({
           photos: response.items,
+          shots: response.shots ?? null,
+          reveal: response.reveal ?? null,
+          offsetMs: offsetMs ?? previous.offsetMs,
+          developed: developedCount > 0 ? { count: developedCount, whileAway } : previous.developed,
           arrival: published ? { whileAway } : previous.arrival,
           acceptingUploads: response.acceptingUploads ?? true,
           // A later read that carries none does not take the theme back: what was learned stands.
@@ -312,6 +385,33 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
     return () => window.clearTimeout(timer)
   }, [announced])
 
+  /** Same leaving, for the line that says the photographs were developed. */
+  const developedNow = state.developed
+  useEffect(() => {
+    if (developedNow === null) return
+    const timer = window.setTimeout(
+      () => setState((previous) => ({ ...previous, developed: null })),
+      ARRIVAL_SHOWN_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [developedNow])
+
+  /**
+   * The reveal hour announces nothing, so this phone asks for its own photographs when it comes,
+   * on the server's clock and with the draw that spreads two hundred phones over three seconds
+   * (spec 23). A `readQuietly` and not a refresh: no spinner, and a blip stays silent.
+   */
+  const readAtReveal = useCallback(() => {
+    returnedRef.current = false
+    readQuietly()
+  }, [readQuietly])
+  useRevealSwitch(state.reveal ?? undefined, readAtReveal)
+  /**
+   * Waiting for the reveal ends on its own as well (the host's button has no hour to arm a timer
+   * for), so a held evening keeps the slow poll alive while the guest looks.
+   */
+  const held = awaitsReveal(state.reveal ?? undefined)
+
   /**
    * Waiting for the host is the one state that ends on its own, so it is the only one worth
    * re-reading for — and only while the guest is looking. A hidden tab asks nothing, and the
@@ -323,7 +423,9 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
     state.failure?.kind === 'gone' ||
     state.failure?.kind === 'signedOut' ||
     state.failure?.kind === 'revoked'
-  const pending = refused ? 0 : state.photos.filter((photo) => photo.status === 'pending').length
+  const pending = refused
+    ? 0
+    : state.photos.filter((photo) => photo.status === 'pending').length + (held ? 1 : 0)
   /**
    * When the host was last given something new to look at, and how many photos waited then. The
    * slow-down is the host's silence since that moment: a photo uploaded after four silent
@@ -415,6 +517,10 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
 
   return {
     photos: state.photos,
+    shots: state.shots,
+    reveal: state.reveal,
+    offsetMs: state.offsetMs,
+    developed: state.developed,
     arrival: state.arrival,
     acceptingUploads: state.acceptingUploads,
     theme: state.theme,
