@@ -996,3 +996,58 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 - A clip declared above 60 frames per second is stored at 60. Clips already stored are not re-encoded.
 
 ## Upgrading to 3.14 (not released yet)
+
+### Export before the purge: the date, the warning, the manifest (spec 22)
+
+- **One migration (030)**: a new table, `event_purge_notices` (one row per event: the last warning threshold sent, and when),
+  removed with its event. Nothing existing is rewritten. Back up first, as for any upgrade: the migration only goes forward.
+- **Nothing to set in `.env`.** An album that is on a clock now shows its deletion date to its host (`purge` on
+  `GET /api/events/:slug`), and **with `SMTP_URL` configured** its owners are written to 14, 3 and 1 day before (see
+  [OPERATING.md](OPERATING.md#before-an-album-is-deleted)). Without it nothing is sent and nothing changes.
+- **A fix to apply before the next offboarding.** A client being offboarded could not export its albums during the
+  grace period: the suspension that comes with the offboarding answered `403 client.suspended`. It can now. A client
+  suspended for any other reason is still refused. If you offboarded a client on 3.13 or earlier and its grace period is
+  still running, it can export as soon as this version runs.
+- The host's `album.zip` gains a last file, `MANIFEST.sha256`, and a clip that is corrupt on disk now aborts the download
+  instead of being delivered. The purge's log lines gain `archive=…`.
+
+### The verified archive of the album, on the box (spec 22)
+
+- **One migration (031)**: two new tables, `event_exports` (one row per event) and `event_export_requests` (what the three-a-day
+  ceiling counts), with their indexes, both removed with their event. Nothing existing is rewritten. Back up first, as for any
+  upgrade: the migration only goes forward. (Numbers 029 and 030 are the announcements and the deletion warnings above.)
+- **Five settings, all optional**: `EXPORT_ENABLED` (`true`; `false` turns the preparation off for the box, read at boot, and leaves the
+  direct download), `EXPORT_TTL_DAYS` (7, 1 to 90), `EXPORT_MAX_BYTES` (10 GB, one archive), `EXPORT_MAX_TOTAL_BYTES` (12 GB, every archive
+  made or in the making) and `EXPORT_MAX_PER_EVENT_PER_DAY` (3). An archive is a copy of the album kept in `<MEDIA_ROOT>/.exports/`,
+  outside the event folders and the backups: **budget the disk for it**, and make sure an off-box backup that copies hidden folders skips it.
+- Three routes under an event (`export` to ask and to read, `export.zip` to download; see [API.md](API.md#the-verified-archive-spec-22)),
+  a `409 export.noRoom` / `413 export.tooLarge` / `429 export.dailyLimitReached` / `503 export.unavailable` family of refusals and one
+  console-only signal (`export.changed`). No page uses them yet. Nothing changes for a box whose hosts do not ask: no archive is
+  prepared by itself.
+
+### The reveal gate of the disposable-camera mode (spec 23, server)
+
+- **No migration.** The mode lives in the event's settings JSON (`reveal`); an event written before it has no such key and
+  is read as **off**, which is a read and not a rewrite. The mode is **off on every existing event**: nothing changes on
+  a wall, a phone or a gallery until a host switches it on (there is no interface for that yet: the section of settings
+  and the console banner come with the next pull requests, the API takes it today, see `docs/API.md`).
+- **Nothing to set in `.env`.** No operator switch exists for it (`NEW_CLIENT_*` ceilings do not carry it) and
+  `SITE_ADMIN` makes no difference.
+- **An older web bundle** does not know the `reveal` blocks. On an evening whose host has turned the mode on, it would show
+  the wall and the guests' feed **empty without saying why** until the reveal, and a guest's own photographs as ordinary
+  ones. That is the price of upgrading the server during such an evening: reload the screens after the upgrade, or
+  upgrade before the evening (the same advice as for any version).
+- **What a public screen can no longer read before the hour**: the wall and the guests' feed (empty, with how many
+  photographs wait), the podium, the reactions, the shared gallery (the link opens with an empty grid, no new error) and
+  the bytes of somebody else's photograph. A host's ZIP, the moderation console, the best-of and the photo book are not
+  public readers and are untouched.
+- **The privacy notice** gains three clauses, present only when the mode is on (that the photographs are held back, how many
+  poses, the film look): an event without the mode keeps its notice, its revision and the acknowledgements of its guests.
+- `POST /api/events/:slug/reveal` is new, and `PATCH /settings` takes an optional `reveal` group.
+
+### Scheduled announcements on the wall (spec 21)
+
+- **One migration (029)**: a new table, `event_announcements`, with its index. Nothing existing is rewritten. Back up
+  first, as for any upgrade: the migration only goes forward.
+- **Nothing to set in `.env`.** A wall that has no announcement answers exactly what it did before; `GET /wall`
+  gains an optional `announcements` field only while an event is live and has one still to come.

@@ -60,6 +60,7 @@
     "db:seed:demo": "tsx scripts/seedDemo.ts",
     "purge": "tsx scripts/purge.ts",
     "purge:dry-run": "tsx scripts/purge.ts --dry-run",
+    "export": "tsx scripts/export.ts",
     "backup": "tsx scripts/backup.ts",
     "backup:verify": "tsx scripts/backup.ts --verify",
     "restore": "tsx scripts/restore.ts"
