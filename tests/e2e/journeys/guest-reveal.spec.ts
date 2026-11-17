@@ -73,5 +73,6 @@ test('a guest uses a roll of two poses, sees veiled photographs, and finds them 
   await expect(guest.getByText(fr.reveal.developedNow(2))).toBeVisible({ timeout: 30_000 })
   await expect(mine.getByText(fr.reveal.undeveloped)).toHaveCount(0)
   await expect(guest.getByTestId('guest-reveal')).toHaveCount(0)
-  await expect(thumb).not.toHaveCSS('filter', /grayscale/)
+  // Developed: the veil's grayscale(1) is gone (the film look keeps a grayscale(0) to fade from).
+  await expect(thumb).not.toHaveCSS('filter', /grayscale\(1\)/)
 })

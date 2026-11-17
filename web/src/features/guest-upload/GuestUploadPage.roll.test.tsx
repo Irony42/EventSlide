@@ -271,5 +271,36 @@ describe('the upload screen on a disposable-camera evening', () => {
       expect(within(list).getByText(fr.reveal.undeveloped)).toBeVisible()
       await waitFor(() => expect(within(list).queryByText(fr.upload.statusPublished)).toBeNull())
     })
+
+    it('draws a developed photograph with the film look when the evening has it, and a veiled one without', async () => {
+      renderUpload(
+        answering({
+          items: [
+            aGuestPhoto({ id: 'mine-1', status: 'published' }),
+            aGuestPhoto({ id: 'mine-2', status: 'published', awaitsReveal: true }),
+          ],
+          reveal: aRevealBlock({ revealed: false, film: true }),
+        }),
+      )
+
+      const list = await screen.findByRole('list')
+      const [developed, veiled] = within(list)
+        .getAllByRole('listitem')
+        .map((row) => row.querySelector('img'))
+      expect(developed).toHaveClass('filmLook')
+      expect(veiled).not.toHaveClass('filmLook')
+    })
+
+    it('draws none on an evening without the film look', async () => {
+      renderUpload(
+        answering({
+          items: [aGuestPhoto({ id: 'mine-1', status: 'published' })],
+          reveal: aRevealBlock({ revealed: true, film: false }),
+        }),
+      )
+
+      const list = await screen.findByRole('list')
+      expect(list.querySelector('.filmLook')).toBeNull()
+    })
   })
 })

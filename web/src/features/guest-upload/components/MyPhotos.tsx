@@ -9,6 +9,7 @@ import { IconButton } from '../../../design-system/components/IconButton'
 import { Notice } from '../../../design-system/components/Notice'
 import { Spinner } from '../../../design-system/components/Spinner'
 import { cx } from '../../../design-system/classNames'
+import { filmLook } from '../../../design-system/filmLook'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { UiText } from '../../../lib/i18n/translations'
 import type { StatusTone } from '../../../design-system/components/StatusIcon'
@@ -48,6 +49,9 @@ const TONES: Record<PhotoStatus, StatusTone> = {
 const awaiting = (photo: GuestPhotoDto): boolean =>
   photo.status === 'published' && photo.awaitsReveal === true
 
+/** Waiting for the host, or published into an evening that is not revealed yet. */
+const veiled = (photo: GuestPhotoDto): boolean => photo.status === 'pending' || awaiting(photo)
+
 export interface MyPhotosProps {
   readonly photos: readonly GuestPhotoDto[]
   readonly loading: boolean
@@ -74,6 +78,12 @@ export interface MyPhotosProps {
    * gets none.
    */
   readonly developed?: Developed | null
+  /**
+   * The film look of the evening (spec 23, `reveal.film`): a photograph that is no longer veiled is
+   * drawn with it. On screen only; a veiled one keeps its black and white, which is the rule that
+   * already says "not developed yet".
+   */
+  readonly film?: boolean
 }
 
 export function MyPhotos({
@@ -87,6 +97,7 @@ export function MyPhotos({
   onHighlightEnd,
   arrival = null,
   developed = null,
+  film = false,
 }: MyPhotosProps) {
   const t = useTranslations()
   const labels = labelsFor(t)
@@ -182,7 +193,8 @@ export function MyPhotos({
                     styles['thumb'],
                     // Waiting for the host, or published into an evening not yet revealed (spec 23):
                     // the filter says "not developed" and the badge beside it says so in words.
-                    (photo.status === 'pending' || awaiting(photo)) && styles['undeveloped'],
+                    // Never both filters on one element: a veiled photograph has no film look yet.
+                    veiled(photo) ? styles['undeveloped'] : filmLook(film),
                   )}
                   src={photo.thumbUrl}
                   alt={photo.caption ?? t.upload.mineAlt}

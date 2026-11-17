@@ -3203,6 +3203,10 @@ export const fr = {
     feedSoon: 'Les photos seront bientôt révélées',
     feedHint:
       'Elles apparaîtront ici à la révélation. Vos propres photos restent dans votre liste.',
+    /* The shared gallery (spec 23): a link that opens before the reveal, and what a download is. */
+    galleryHeld: (when: string) => `Les photos seront révélées le ${when}.`,
+    galleryHeldSoon: 'Les photos seront bientôt révélées.',
+    galleryOriginal: 'Le téléchargement donne l’original, sans effet pellicule.',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

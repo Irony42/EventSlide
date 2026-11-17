@@ -437,3 +437,26 @@ body:has([data-event-ambiance='noces']:not([data-template-preview])):not(
   ) {
   padding-block: var(--space-6) var(--space-5);
 }
+
+/**
+ * The film look of a disposable-camera evening (spec 23): a filter on what a screen draws, never on
+ * a byte. Originals, the `display` and `thumb` variants, the ZIP and every download stay clean, and
+ * the class is set on the image element only, so a caption, the QR and every text are untouched.
+ *
+ * Defined here, once, because four surfaces show a photograph (the wall, the guests' feed, the shared
+ * gallery, the guest's own list) and none may keep a copy of the recipe. Five functions are
+ * deliberately all that is in it: the wall projects large images, and a filter is the one place this
+ * spec can cost a projector frames (`tests/e2e/perf/film-look.spec.ts` measures it).
+ *
+ * The list starts with `grayscale`, `contrast` and `brightness`, in the order of `.undeveloped`
+ * (guest-upload/MyPhotos.module.css), so that a photograph developing from black and white into this
+ * look interpolates function by function with the transition that already exists instead of
+ * snapping. There is no transition here: under `prefers-reduced-motion` the look is simply there.
+ */
+.filmLook {
+  --film-contrast: 1.08;
+  --film-sepia: 0.28;
+  --film-saturate: 1.15;
+  filter: grayscale(0) contrast(var(--film-contrast)) brightness(1) sepia(var(--film-sepia))
+    saturate(var(--film-saturate));
+}

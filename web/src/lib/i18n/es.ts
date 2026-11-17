@@ -2537,6 +2537,10 @@ export const es: UiText = {
     feedOn: (when: string) => `Las fotos se revelarán el ${when}`,
     feedSoon: 'Las fotos se revelarán pronto',
     feedHint: 'Aparecerán aquí en la revelación. Tus propias fotos siguen en tu lista.',
+    /* The shared gallery (spec 23): a link that opens before the reveal, and what a download is. */
+    galleryHeld: (when: string) => `Las fotos se revelarán el ${when}.`,
+    galleryHeldSoon: 'Las fotos se revelarán pronto.',
+    galleryOriginal: 'La descarga es el original, sin el aspecto de carrete.',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {
