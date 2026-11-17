@@ -29,6 +29,14 @@ export interface ExportFolderStore {
   /** `MANIFEST.sha256`, beside the archive. Written only once the archive is verified. */
   writeManifest(folder: string, text: string): Promise<void>
 
+  /**
+   * Moves the archive and its manifest from `staging` to `folder`, replacing an earlier copy there:
+   * the old manifest goes first, then the archive, then the new manifest comes in, so a reader finds
+   * either a whole copy, or an archive with no manifest, never an archive beside another one's
+   * manifest. Called only once the staged copy is verified. Empties `staging`.
+   */
+  publish(staging: string, folder: string): Promise<void>
+
   /** Idempotent: the archive, its manifest and the folder when it is then empty. */
   delete(folder: string): Promise<void>
 }

@@ -78,6 +78,57 @@ describe('createFsExportFolderStore', () => {
       expect(existsSync(join(root, 'a-2026-01-01'))).toBe(false)
     }))
 
+  it('publishes a staged copy over an earlier one, manifest included, and removes the staging', () =>
+    withRoot(async (root) => {
+      const store = createFsExportFolderStore(root)
+      await store.write('a-2026-01-01', bytes('old'), { maxBytes: 100 })
+      await store.writeManifest('a-2026-01-01', 'old manifest')
+      await store.write('a-2026-01-01.partial', bytes('newer'), { maxBytes: 100 })
+      await store.writeManifest('a-2026-01-01.partial', 'new manifest')
+
+      await store.publish('a-2026-01-01.partial', 'a-2026-01-01')
+
+      expect(readFileSync(join(root, 'a-2026-01-01', 'album.zip'), 'utf8')).toBe('newer')
+      expect(readFileSync(join(root, 'a-2026-01-01', 'MANIFEST.sha256'), 'utf8')).toBe('new manifest')
+      expect(existsSync(join(root, 'a-2026-01-01.partial'))).toBe(false)
+    }))
+
+  it('never leaves an archive beside the manifest of the one it replaced', () =>
+    withRoot(async (root) => {
+      const store = createFsExportFolderStore(root)
+      await store.write('a', bytes('old'), { maxBytes: 100 })
+      await store.writeManifest('a', 'old manifest')
+      await store.write('a.partial', bytes('newer'), { maxBytes: 100 })
+
+      await store.publish('a.partial', 'a')
+
+      expect(readdirSync(join(root, 'a'))).toEqual(['album.zip'])
+    }))
+
+  it('publishes into a folder that does not exist yet', () =>
+    withRoot(async (root) => {
+      const store = createFsExportFolderStore(root)
+      await store.write('b.partial', bytes('z'), { maxBytes: 100 })
+
+      await store.publish('b.partial', 'b')
+
+      expect(readdirSync(join(root, 'b'))).toEqual(['album.zip'])
+    }))
+
+  it('keeps the earlier copy when a staged write fails', () =>
+    withRoot(async (root) => {
+      const store = createFsExportFolderStore(root)
+      await store.write('a', bytes('old'), { maxBytes: 100 })
+      await store.writeManifest('a', 'm')
+
+      await expect(store.write('a.partial', bytes('too long'), { maxBytes: 3 })).rejects.toThrow()
+      await store.delete('a.partial')
+
+      expect(readFileSync(join(root, 'a', 'album.zip'), 'utf8')).toBe('old')
+      expect(readFileSync(join(root, 'a', 'MANIFEST.sha256'), 'utf8')).toBe('m')
+      expect(existsSync(join(root, 'a.partial'))).toBe(false)
+    }))
+
   it.each(['../evil', 'a/b', '..', '', '.hidden'])('refuses the unsafe folder name %j', (name) =>
     withRoot(async (root) => {
       const store = createFsExportFolderStore(root)

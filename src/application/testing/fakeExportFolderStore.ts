@@ -60,6 +60,17 @@ export class FakeExportFolderStore implements ExportFolderStore {
     this.manifests.set(folder, text)
   }
 
+  async publish(staging: string, folder: string): Promise<void> {
+    const archive = this.archives.get(staging)
+    if (archive === undefined) throw new Error('nothing staged')
+    this.manifests.delete(folder)
+    this.archives.set(folder, archive)
+    this.archives.delete(staging)
+    const manifest = this.manifests.get(staging)
+    if (manifest !== undefined) this.manifests.set(folder, manifest)
+    this.manifests.delete(staging)
+  }
+
   async delete(folder: string): Promise<void> {
     this.archives.delete(folder)
     this.manifests.delete(folder)

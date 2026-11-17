@@ -25,8 +25,9 @@ import { guardedEntries, verifiedOnDisk, type ArchiveReader } from './archiveChe
  * own disk; this disk is somebody else's, and only its free room is judged), or ask whether the
  * host may take the album out (the operator is the one responsible for this copy).
  *
- * Failure is data, never a half copy: whatever is not a verified archive is deleted before the
- * outcome is returned, so a folder holding an `album.zip` holds a verified one.
+ * Failure is data, never a half copy: a run is staged in `<folder>.partial` and moved in only once
+ * verified, and a failure deletes only the staged files, so a folder holding an `album.zip` holds a
+ * verified one, and a failing re-run keeps the previous night's copy.
  */
 
 export type ExportToFolderFailure =
@@ -68,6 +69,8 @@ export interface ExportAlbumToFolderDeps {
 
 export type ExportAlbumToFolder = (event: Event, folder: string) => Promise<ExportToFolderOutcome>
 
+const STAGING_SUFFIX = '.partial'
+
 const FAILURE_OF: Readonly<Record<string, ExportToFolderFailure>> = {
   'export.corrupt': 'corrupt',
   'export.noRoom': 'noRoom',
@@ -92,8 +95,11 @@ export const makeExportAlbumToFolder = ({
   }
 
   const run = async (event: Event, folder: string): Promise<ExportToFolderOutcome> => {
+    // Each run is written beside the final folder and moved in only once verified: the name is
+    // stable from night to night, so a failing run must never touch the previous verified copy.
+    const staging = `${folder}${STAGING_SUFFIX}`
     const failed = async (code: ExportToFolderFailure): Promise<ExportToFolderOutcome> => {
-      await folders.delete(folder)
+      await folders.delete(staging)
       logger.warn('album copy failed', { eventId: event.id, code })
       return { kind: 'failed', folder, code }
     }
@@ -142,7 +148,7 @@ export const makeExportAlbumToFolder = ({
 
     let size: number
     try {
-      size = await folders.write(folder, hashedZip(), { maxBytes: Number.MAX_SAFE_INTEGER })
+      size = await folders.write(staging, hashedZip(), { maxBytes: Number.MAX_SAFE_INTEGER })
     } catch (error) {
       if (!DomainError.is(error)) logger.error('album copy write failed', { eventId: event.id })
       return failed((DomainError.is(error) ? FAILURE_OF[error.code] : undefined) ?? 'unexpected')
@@ -155,8 +161,8 @@ export const makeExportAlbumToFolder = ({
     }
 
     const reader: ArchiveReader = {
-      stat: () => folders.stat(folder),
-      openRead: (range) => folders.openRead(folder, range),
+      stat: () => folders.stat(staging),
+      openRead: (range) => folders.openRead(staging, range),
     }
     if (
       !(await verifiedOnDisk(reader, streamHasher, { bytes: size, sha256, entries: found.written }))
@@ -164,7 +170,8 @@ export const makeExportAlbumToFolder = ({
       return failed('unverified')
     }
 
-    await folders.writeManifest(folder, manifest)
+    await folders.writeManifest(staging, manifest)
+    await folders.publish(staging, folder)
     return {
       kind: 'written',
       folder,
@@ -183,7 +190,7 @@ export const makeExportAlbumToFolder = ({
         eventId: event.id,
         error: error instanceof Error ? error.message : String(error),
       })
-      await folders.delete(folder).catch(() => undefined)
+      await folders.delete(`${folder}${STAGING_SUFFIX}`).catch(() => undefined)
       return { kind: 'failed', folder, code: 'unexpected' }
     }
   }

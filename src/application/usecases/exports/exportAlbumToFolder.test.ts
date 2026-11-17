@@ -236,4 +236,71 @@ describe('exportAlbumToFolder', () => {
     expect(await go()).toEqual({ kind: 'failed', folder: FOLDER, code: 'unexpected' })
     expect(folders.folders()).toEqual([])
   })
+
+  describe('a re-run over an earlier verified copy', () => {
+    const firstGood = async (): Promise<{ zip: Uint8Array; manifest: string }> => {
+      await scene.photo({ id: 'p1' })
+      expect(await go()).toMatchObject({ kind: 'written' })
+      return {
+        zip: folders.bytesOf(FOLDER) ?? new Uint8Array(),
+        manifest: folders.manifestOf(FOLDER) ?? '',
+      }
+    }
+
+    it('replaces it by the new verified copy, and leaves no staging behind', async () => {
+      await firstGood()
+      await scene.photo({ id: 'p2', createdAt: atPlus(1_000_000) })
+
+      expect(await go()).toMatchObject({ kind: 'written' })
+
+      expect(folders.folders()).toEqual([FOLDER])
+      expect(folders.manifestOf(FOLDER)).toContain('0002-')
+    })
+
+    it.each([
+      [
+        'a write that fails',
+        () => {
+          folders.failNextWriteWith = new Error('ENOSPC')
+        },
+        'unexpected',
+      ],
+      [
+        'a file read back short',
+        () => {
+          folders.alterNextWrite = (b) => b.slice(0, b.byteLength - 7)
+        },
+        'unverified',
+      ],
+    ] as const)(
+      'keeps the previous copy and its manifest when %s',
+      async (_name, arrange, code) => {
+        const before = await firstGood()
+        arrange()
+
+        expect(await go()).toMatchObject({ kind: 'failed', code })
+
+        expect(folders.bytesOf(FOLDER)).toEqual(before.zip)
+        expect(folders.manifestOf(FOLDER)).toBe(before.manifest)
+        expect(folders.folders()).toEqual([FOLDER])
+      },
+    )
+
+    it('keeps the previous copy when the album changed under the write', async () => {
+      const before = await firstGood()
+      const list = scene.photos.list.bind(scene.photos)
+      let pages = 0
+      scene.photos.list = async (...args) => {
+        const page = await list(...args)
+        pages += 1
+        if (pages === 1) await scene.photo({ id: 'late', createdAt: atPlus(9_000_000) })
+        return page
+      }
+
+      expect(await go()).toMatchObject({ kind: 'failed', code: 'stale' })
+
+      expect(folders.bytesOf(FOLDER)).toEqual(before.zip)
+      expect(folders.manifestOf(FOLDER)).toBe(before.manifest)
+    })
+  })
 })

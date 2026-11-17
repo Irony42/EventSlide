@@ -77,6 +77,20 @@ export const createFsExportFolderStore = (root: string): ExportFolderStore => {
       await writeFile(join(dirOf(folder), EXPORT_FOLDER_MANIFEST), text, 'utf8')
     },
 
+    publish: async (staging, folder) => {
+      const from = dirOf(staging)
+      const to = dirOf(folder)
+      await mkdir(to, { recursive: true })
+      await rm(join(to, EXPORT_FOLDER_MANIFEST), { force: true })
+      await rename(join(from, EXPORT_FOLDER_ARCHIVE), join(to, EXPORT_FOLDER_ARCHIVE))
+      try {
+        await rename(join(from, EXPORT_FOLDER_MANIFEST), join(to, EXPORT_FOLDER_MANIFEST))
+      } catch (error) {
+        if (!isMissing(error)) throw error
+      }
+      await rmdir(from).catch(() => undefined)
+    },
+
     delete: async (folder) => {
       const dir = dirOf(folder)
       await rm(archivePath(folder), { force: true })

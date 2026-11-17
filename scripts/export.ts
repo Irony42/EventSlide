@@ -197,7 +197,7 @@ const execute = async (
       if (outcome.kind === 'failed') {
         failures += 1
         console.error(
-          `  FAILED  ${event.slug.value}  ${outcome.code}  (nothing was kept in ${folder}/)`,
+          `  FAILED  ${event.slug.value}  ${outcome.code}  (an earlier copy in ${folder}/ is untouched)`,
         )
         continue
       }
