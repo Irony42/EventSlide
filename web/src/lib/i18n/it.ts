@@ -2458,6 +2458,14 @@ export const it: UiText = {
     templateOff: 'Nessuna rivelazione differita',
     templateFilmOn: 'Aspetto da rullino sullo schermo',
     templateFilmOff: 'Senza aspetto da rullino',
+    wallAt: (time: string) => `Rivelazione alle ${time}`,
+    wallOn: (when: string) => `Rivelazione il ${when}`,
+    wallSoon: 'Rivelazione a breve',
+    developing: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto in sviluppo`,
+        other: `${t.number(count)} foto in sviluppo`,
+      }),
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

@@ -363,3 +363,40 @@ describe('the timed challenge (spec 10)', () => {
     expect(sameSettings(kept, fresh)).toBe(true)
   })
 })
+
+describe('the reveal gate of a disposable-camera evening (spec 23)', () => {
+  // `reveal` is not in `aWallResponse`'s shape (absent is what an ordinary evening sends), so the
+  // sweep above cannot see it, and a reveal that moves no photograph moves no `revision`.
+  const block = {
+    enabled: true,
+    revealed: false,
+    atMs: 1_800_000_060_000,
+    serverNowMs: 1_800_000_000_000,
+    film: false,
+    readyCount: 12,
+  }
+  const withReveal = (overrides: Partial<typeof block> = {}) => ({
+    ...aWallResponse(),
+    reveal: { ...block, ...overrides },
+  })
+
+  it.each([
+    ['enabled', { enabled: false }],
+    ['revealed', { revealed: true }],
+    ['atMs', { atMs: 1_800_000_120_000 }],
+    ['film', { film: true }],
+    ['readyCount', { readyCount: 13 }],
+  ] as const)('notices a change to reveal.%s', (_field, moved) => {
+    expect(sameSettings(withReveal(), withReveal(moved))).toBe(false)
+  })
+
+  it('does not notice the server’s clock moving: the reveal timer is armed from the first reading', () => {
+    expect(sameSettings(withReveal(), withReveal({ serverNowMs: 1_800_000_010_000 }))).toBe(true)
+  })
+
+  it('notices the block appearing or disappearing', () => {
+    expect(sameSettings(aWallResponse(), withReveal())).toBe(false)
+    expect(sameSettings(withReveal(), aWallResponse())).toBe(false)
+    expect(sameSettings(aWallResponse(), aWallResponse())).toBe(true)
+  })
+})

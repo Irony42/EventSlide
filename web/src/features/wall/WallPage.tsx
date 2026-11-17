@@ -52,6 +52,8 @@ import { useWallOwner } from './hooks/useWallOwner'
 import { useWakeLock } from './hooks/useWakeLock'
 import { useWallKeyboard } from './hooks/useWallKeyboard'
 import { useWallPlaylist } from './hooks/useWallPlaylist'
+import { useRevealSwitch } from './hooks/useRevealSwitch'
+import { awaitsReveal } from './revealGate'
 import { useWallChrome } from './hooks/useWallChrome'
 import styles from './WallPage.module.css'
 
@@ -209,6 +211,10 @@ export function WallPage() {
     refresh,
   } = useWallPlaylist(eventSlug, observeReads)
   const text = useTranslations()
+  // Spec 23: while the evening waits for its reveal the room sees the invitation, the hour and a
+  // count; at the hour this screen reads the playlist again on its own timer (nothing announces it).
+  const waitingForReveal = awaitsReveal(wall?.reveal)
+  useRevealSwitch(wall?.reveal, refresh)
   // A stream that is down says nothing about the network while the wall's own reads keep
   // coming back: a proxy that buffers event streams leaves it down all night. The room is told
   // only when the reads fail too.
@@ -555,6 +561,15 @@ export function WallPage() {
           acceptsGuests={acceptsGuests}
           welcomeMessage={wall.brand?.welcomeMessage ?? null}
           logoUrl={wall.brand?.logoUrl ?? null}
+          reveal={
+            waitingForReveal
+              ? {
+                  atMs: wall.reveal?.atMs ?? null,
+                  readyCount: wall.reveal?.readyCount ?? null,
+                  offsetMs: serverOffsetMs,
+                }
+              : null
+          }
         />
       ) : (
         <WallScene
@@ -606,8 +621,9 @@ export function WallPage() {
               announcement={announcementBand}
               offsetMs={serverOffsetMs}
             />
-          ) : /* Spec 11: the host's switch, and the server's total (never `items.length`, which is capped). */ wall?.souvenirCounter ===
-              true && typeof wall.souvenirCount === 'number' ? (
+          ) : /* Spec 11: the host's switch, and the server's total (never `items.length`, which is capped). Silent before a reveal (spec 23). */ !waitingForReveal &&
+            wall?.souvenirCounter === true &&
+            typeof wall.souvenirCount === 'number' ? (
             <SouvenirCounter count={wall.souvenirCount} />
           ) : null
         }

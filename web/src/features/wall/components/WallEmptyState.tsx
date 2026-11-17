@@ -2,6 +2,7 @@ import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { joinHost } from '../../../lib/joinHost'
 import { HostLogo } from '../../../design-system/components/HostLogo'
 import { JoinQr } from './JoinQr'
+import { WallRevealWait, type WallRevealWaitProps } from './WallRevealWait'
 import styles from './WallEmptyState.module.css'
 
 export interface WallEmptyStateProps {
@@ -26,6 +27,12 @@ export interface WallEmptyStateProps {
   readonly welcomeMessage?: string | null
   /** The host's logo (spec 03): only ever on this empty wall, gone once photographs arrive. */
   readonly logoUrl?: string | null
+  /**
+   * Set while a disposable-camera evening waits for its reveal (spec 23): the hour, the time left
+   * and how many photographs are being developed, under the title. The invitation stays: guests
+   * still have to be able to join.
+   */
+  readonly reveal?: WallRevealWaitProps | null
 }
 
 /**
@@ -42,6 +49,7 @@ export function WallEmptyState({
   acceptsGuests = true,
   welcomeMessage = null,
   logoUrl = null,
+  reveal = null,
 }: WallEmptyStateProps) {
   const text = useTranslations()
   const invites = acceptsGuests
@@ -60,6 +68,7 @@ export function WallEmptyState({
           </p>
         )}
         <p className={styles['title']}>{invites ? text.wall.empty : text.wall.emptyClosed}</p>
+        {reveal === null ? null : <WallRevealWait {...reveal} />}
         {shown === null ? null : <p className={styles['hint']}>{text.wall.emptyHint}</p>}
       </div>
 

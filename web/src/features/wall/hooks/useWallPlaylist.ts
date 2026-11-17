@@ -169,7 +169,6 @@ const sameMissions = (kept: WallResponse, fresh: WallResponse): boolean => {
 }
 
 /**
-/**
  * The timed challenge, compared field by field (spec 10).
  *
  * A challenge starts, ends or is stopped without moving a photograph, so `revision` never sees
@@ -223,6 +222,28 @@ const sameAnnouncements = (kept: WallResponse, fresh: WallResponse): boolean => 
       item.countdownSeconds === now.countdownSeconds
     )
   })
+}
+
+/**
+ * The reveal gate of a disposable-camera evening (spec 23), compared field by field.
+ *
+ * The hour passing moves no photograph until the wall reads again, and the host's "Révéler
+ * maintenant" or a moved hour moves none either while the playlist is still empty, so `revision`
+ * never sees it. `readyCount` is compared too: it is the number on the waiting screen.
+ * `serverNowMs` is **not**: it moves at every read, and the reveal timer is armed from the first
+ * reading of an unchanged hour, so comparing it would restart the wait at every signal.
+ */
+const sameReveal = (kept: WallResponse, fresh: WallResponse): boolean => {
+  const before = kept.reveal ?? null
+  const after = fresh.reveal ?? null
+  if (before === null || after === null) return before === after
+  return (
+    before.enabled === after.enabled &&
+    before.revealed === after.revealed &&
+    before.atMs === after.atMs &&
+    before.film === after.film &&
+    before.readyCount === after.readyCount
+  )
 }
 
 /**
@@ -329,6 +350,7 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   sameMissions(kept, fresh) &&
   sameChallenge(kept, fresh) &&
   sameAnnouncements(kept, fresh) &&
+  sameReveal(kept, fresh) &&
   sameGuestbook(kept, fresh)
 
 /**
