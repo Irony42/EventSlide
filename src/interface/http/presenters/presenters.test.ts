@@ -261,6 +261,7 @@ describe('toEventDto', () => {
     counts: { photoCount: 42, pendingCount: 7, guestCount: 18, usedBytes: 900_000 },
     limits: { quotaBytes: 5_000_000_000, liveWindowEnd: null },
     purge: { at: null, notice: null },
+    serverNowMs: 1_700_000_000_000,
   }
 
   it('gives a host the join code and the link behind the QR code', () => {
@@ -313,13 +314,17 @@ describe('toEventDto', () => {
 
     const dto = toEventDto({ ...input, purge: { at, notice: 3 } }, context)
 
-    expect(dto.purge).toEqual({ at: '2026-12-12T10:00:00.000Z', notice: 3 })
+    expect(dto.purge).toEqual({
+      at: '2026-12-12T10:00:00.000Z',
+      notice: 3,
+      serverNowMs: 1_700_000_000_000,
+    })
   })
 
   it('renders an album that is not on a clock as a null date, not as a missing key', () => {
     const dto = toEventDto(input, context)
 
-    expect(dto.purge).toEqual({ at: null, notice: null })
+    expect(dto.purge).toEqual({ at: null, notice: null, serverNowMs: 1_700_000_000_000 })
   })
 
   it('serialises timestamps as ISO strings', () => {

@@ -3354,7 +3354,7 @@ The shape every route in the table that answers `200` returns.
   "joinCode": "H7K2QM",
   "joinUrl": "https://photos.example/join/H7K2QM",
   "quotaBytes": 21474836480,
-  "purge": { "at": null, "notice": null },
+  "purge": { "at": null, "notice": null, "serverNowMs": 1782000000000 },
   "settings": {
     "moderation": "manual",
     "allowCaptions": true,
@@ -3411,7 +3411,9 @@ retention, the client's ceilings and an offboarding's `purge_after`), and **`nul
 a clock: the event is not closed yet, or it is kept until a person deletes it. `notice` is the threshold of the
 last warning e-mail sent to the owners (`14`, `3` or `1` day(s) before), or `null` when none was sent (and always
 when `at` is `null`). It says **nothing** about the operator's hold on a purge (`purge_held_at`): that is invisible to
-a host, who may be the person concerned, and `at` is shown whether or not the album is held. Every route that
+a host, who may be the person concerned, and `at` is shown whether or not the album is held. `serverNowMs` is the
+server's clock when it answered, in milliseconds: the console counts `at` down against it (the offset between the two
+clocks, as for the timed challenge), so a phone with the wrong time does not misstate the day. Every route that
 answers with this event carries it.
 
 ### `PATCH /api/events/:slug`

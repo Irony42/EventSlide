@@ -1208,6 +1208,7 @@ describe('the host event routes', () => {
         expect(response.body.purge).toEqual({
           at: new Date(AT.getTime() + 30 * 86_400_000).toISOString(),
           notice: null,
+          serverNowMs: AT.getTime(),
         })
       })
 
@@ -1226,7 +1227,7 @@ describe('the host event routes', () => {
         const response = await agent.get(`/api/events/${SLUG}`)
 
         // Live: the clock starts when the event closes.
-        expect(response.body.purge).toEqual({ at: null, notice: null })
+        expect(response.body.purge).toEqual({ at: null, notice: null, serverNowMs: AT.getTime() })
       })
 
       it('says nothing of the operator hold on the purge, and still gives the date', async () => {
@@ -1236,7 +1237,7 @@ describe('the host event routes', () => {
 
         const response = await agent.get(`/api/events/${SLUG}`)
 
-        expect(Object.keys(response.body.purge).sort()).toEqual(['at', 'notice'])
+        expect(Object.keys(response.body.purge).sort()).toEqual(['at', 'notice', 'serverNowMs'])
         expect(response.body.purge.at).not.toBeNull()
         expect(JSON.stringify(response.body)).not.toMatch(/held|hold/i)
       })

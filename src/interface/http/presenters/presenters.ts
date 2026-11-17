@@ -466,9 +466,10 @@ export const toEventSummaryDto = (summary: HostEventSummary): EventSummaryDto =>
 })
 
 /** The date the album will be deleted, as the host's page reads it (spec 22). */
-export const toEventPurgeDto = (purge: EventPurgeView): EventPurgeDto => ({
+export const toEventPurgeDto = (purge: EventPurgeView, serverNowMs: number): EventPurgeDto => ({
   at: isoOrNull(purge.at),
   notice: purge.notice,
+  serverNowMs,
 })
 
 export interface EventDtoInput {
@@ -479,10 +480,12 @@ export interface EventDtoInput {
   readonly limits: EventLimits
   /** When the album will be deleted and the last warning sent (`getEventView`, spec 22). */
   readonly purge: EventPurgeView
+  /** The server's clock when the answer is made: the date above is counted down against it. */
+  readonly serverNowMs: number
 }
 
 export const toEventDto = (
-  { event, role, counts, limits, purge }: EventDtoInput,
+  { event, role, counts, limits, purge, serverNowMs }: EventDtoInput,
   context: PresenterContext,
 ): EventDto => ({
   id: event.id,
@@ -498,7 +501,7 @@ export const toEventDto = (
   joinUrl: joinUrl(context.publicUrl, event.joinCode.value),
   quotaBytes: limits.quotaBytes,
   ...(limits.liveWindowEnd === null ? {} : { liveWindowEnd: iso(limits.liveWindowEnd) }),
-  purge: toEventPurgeDto(purge),
+  purge: toEventPurgeDto(purge, serverNowMs),
   settings: toEventSettingsDto(event.settings, event.slug.value),
   startsAt: isoOrNull(event.startsAt),
   closedAt: isoOrNull(event.closedAt),

@@ -617,6 +617,12 @@ export interface EventSummaryDto {
 export interface EventPurgeDto {
   readonly at: string | null
   readonly notice: 14 | 3 | 1 | null
+  /**
+   * The server's clock when it answered, in milliseconds: what `at` is to be counted down against, so
+   * a phone with a wrong clock does not lie about the day the album goes (the same field the timed
+   * challenge carries).
+   */
+  readonly serverNowMs: number
 }
 
 export interface EventDto extends EventSummaryDto {
