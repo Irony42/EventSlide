@@ -102,7 +102,12 @@ const buildWorld = async ({
           deps,
           hostExportLimiter: hostExportLimiter ?? buildHostExportLimiter(),
           usecases: {
-            getPhotoMedia: makeGetPhotoMedia({ photos, media }),
+            getPhotoMedia: makeGetPhotoMedia({
+              photos,
+              media,
+              events: base.events,
+              clock: deps.clock,
+            }),
             getVenuePhotoMedia: makeGetVenuePhotoMedia({ media }),
             getEventLogoMedia: makeGetEventLogoMedia({ media }),
             identifyMediaViewer: makeIdentifyMediaViewer({
@@ -357,6 +362,90 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant', () => {
 
     expect(response.status).toBe(404)
     expect(response.body.error.code).toBe('photo.notFound')
+  })
+})
+
+/**
+ * The bytes of a disposable-camera evening (spec 23): before the hour, a published photograph is a
+ * `404` for the public and for the other guests exactly as an unknown id is, because **the door is
+ * on the bytes and the metadata, not on the identifiers** (which the public signals carry); the
+ * photograph's own author and the moderators keep reading it.
+ */
+describe('GET /events/:eventSlug/photos/:photoId/:variant: the reveal gate (spec 23)', () => {
+  const HOUR = 3_600_000
+  let world: World
+
+  beforeEach(async () => {
+    world = await buildWorld()
+    world.events.seed(
+      anEvent({
+        id: WEDDING,
+        slug: 'mariage',
+        ownerId: HOST,
+        joinCode: 'H7K2QM',
+        settings: { reveal: { enabled: true, at: new Date(AT.getTime() + HOUR) } },
+      }),
+    )
+    await seedPhoto(world, {
+      id: 'aaaa1111-2222-4333-8444-555566667777',
+      eventId: WEDDING,
+      status: 'published',
+      author: { kind: 'guest', id: GUEST },
+    })
+  })
+
+  it.each(['thumb', 'display'])(
+    'answers 404 for %s of somebody else’s published photograph to the public, as for an unknown id',
+    async (variant) => {
+      const real = await getJson(world, mediaPath(PUBLISHED, variant))
+      const unknown = await getJson(
+        world,
+        mediaPath('99999999-9999-4999-8999-999999999999', variant),
+      )
+
+      expect(real.status).toBe(404)
+      expect(real.body).toEqual(unknown.body)
+    },
+  )
+
+  it('answers 404 to another guest of the same event too', async () => {
+    const response = await getJson(world, mediaPath(PUBLISHED, 'thumb')).set(
+      'Cookie',
+      asGuestOf(world, WEDDING, OTHER_GUEST),
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  it('still serves a guest their own published photograph before the hour: it is theirs', async () => {
+    const response = await getBytes(
+      world,
+      mediaPath('aaaa1111-2222-4333-8444-555566667777', 'thumb'),
+    ).set('Cookie', asGuestOf(world, WEDDING, GUEST))
+
+    expect(response.status).toBe(200)
+  })
+
+  it('still serves a moderator everything before the hour: the console is the relecture', async () => {
+    const host = await signedIn(world, 'host')
+
+    const response = await host.get(mediaPath(PUBLISHED, 'display')).responseType('blob')
+
+    expect(response.status).toBe(200)
+  })
+
+  it('never reads a photograph of another event through this event’s gate', async () => {
+    const response = await getJson(world, mediaPath(IN_THE_GALA, 'thumb', 'mariage'))
+
+    expect(response.status).toBe(404)
+  })
+
+  it('serves the published photograph to the public from the instant of the hour', async () => {
+    world.clock.advance(HOUR)
+
+    const response = await getBytes(world, mediaPath(PUBLISHED, 'thumb'))
+
+    expect(response.status).toBe(200)
   })
 })
 

@@ -4,6 +4,7 @@ import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { EventSettings } from '../../../domain/events/eventSettings'
 import type { ThemeCustom } from '../../../domain/events/eventTheme'
+import { awaitsReveal, isRevealed } from '../../../domain/events/eventRevealSettings'
 import { acceptsGuests } from '../../../domain/events/eventStatus'
 import type { Guest } from '../../../domain/guests/guest'
 import type { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
@@ -40,6 +41,8 @@ import type {
   EventThemeDto,
   ThemeCustomDto,
   GalleryDto,
+  RevealDto,
+  WallRevealDto,
   GalleryPageDto,
   AnnouncementDto,
   AnnouncementListResponseDto,
@@ -364,6 +367,11 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
     soundTone: settings.wall.soundTone,
     soundVolume: settings.wall.soundVolume,
   },
+  reveal: {
+    enabled: settings.reveal.enabled,
+    at: isoOrNull(settings.reveal.at),
+    film: settings.reveal.film,
+  },
 })
 
 /**
@@ -423,6 +431,10 @@ export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => (
   ...(notice.operator === null ? {} : { operator: notice.operator }),
   // Present only when true, like the operator: a box without a guestbook answers what it always did.
   ...(notice.guestbook ? { guestbook: true as const } : {}),
+  // Spec 23, the same way: present only when told, so an event without the mode answers what it always did.
+  ...(notice.deferredReveal ? { reveal: true as const } : {}),
+  ...(notice.shotLimit === null ? {} : { shotLimit: notice.shotLimit }),
+  ...(notice.film ? { film: true as const } : {}),
 })
 
 export const toPrivacyNoticeStateDto = ({
@@ -487,13 +499,39 @@ export interface GuestPhotoDtoInput {
   readonly canDelete: boolean
   /** The words of the mission this was filed under, when it still exists. */
   readonly missionPrompt?: string | null
+  /** Whether the evening is shown to everybody now (`true` by default: no mode, nothing waits). */
+  readonly revealed?: boolean
 }
+
+/**
+ * **The one presenter of the reveal gate** (spec 23): the wall, the guest's phone and the gallery
+ * carry the block this builds, from the event and one instant read from the server's clock, so a
+ * rule is not restated three times and the three cannot disagree. `film` is `true` only with the
+ * mode on (a stored `film` on an event whose mode is off shows nothing, as `enabled: false` is
+ * "the evening as it always was"). `readyCount` is the wall's alone: see {@link toWallRevealDto}.
+ */
+export const revealView = (event: Event, now: Date): RevealDto => {
+  const { reveal } = event.settings
+  return {
+    enabled: reveal.enabled,
+    revealed: isRevealed(reveal, now),
+    atMs: reveal.at === null ? null : reveal.at.getTime(),
+    serverNowMs: now.getTime(),
+    film: reveal.enabled && reveal.film,
+  }
+}
+
+const toWallRevealDto = (view: WallPlaylistView): WallRevealDto => ({
+  ...revealView(view.event, new Date(view.serverNowMs)),
+  readyCount: view.readyCount,
+})
 
 export const toGuestPhotoDto = ({
   photo,
   slug,
   canDelete,
   missionPrompt = null,
+  revealed = true,
 }: GuestPhotoDtoInput): GuestPhotoDto => ({
   id: photo.id,
   status: photo.status,
@@ -503,6 +541,7 @@ export const toGuestPhotoDto = ({
   canDelete,
   missionPrompt,
   answeredChallenge: photo.challengeId !== null,
+  awaitsReveal: awaitsReveal(photo.status, revealed),
   ...toMediaFacetDto(photo, slug),
 })
 
@@ -882,6 +921,7 @@ export const toWallResponseDto = (
     mixed: view.mixed,
     souvenirCount: view.souvenirCount,
     souvenirCounter: view.souvenirCounter,
+    reveal: toWallRevealDto(view),
     newPhotoSignal: view.newPhotoSignal,
     freshLane: view.event.settings.wall.freshLane,
     tilt: view.event.settings.wall.tilt,
@@ -1151,6 +1191,7 @@ export const toGalleryDto = (view: GalleryView): GalleryDto => ({
   photoCount: view.photoCount,
   expiresAt: view.link.expiresAt.toISOString(),
   archiveUrl: galleryArchiveUrl(view.archive),
+  reveal: revealView(view.event, view.now),
 })
 
 /**
@@ -1177,6 +1218,7 @@ export const toGalleryPhotoDto = ({
 export const toGalleryPageDto = (page: GalleryPage): GalleryPageDto => ({
   items: page.items.map(toGalleryPhotoDto),
   nextCursor: page.nextCursor,
+  reveal: revealView(page.event, page.now),
 })
 
 // ----------------------------------------------------------------- client space --

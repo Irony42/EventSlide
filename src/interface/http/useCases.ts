@@ -119,6 +119,7 @@ import type { DeleteAnnouncement } from '../../application/usecases/announcement
 import type { LaunchAnnouncement } from '../../application/usecases/announcements/launchAnnouncement'
 import type { ListAnnouncements } from '../../application/usecases/announcements/listAnnouncements'
 import type { UpdateAnnouncement } from '../../application/usecases/announcements/updateAnnouncement'
+import type { RevealEvent } from '../../application/usecases/events/revealEvent'
 import type { StartChallenge } from '../../application/usecases/challenges/startChallenge'
 import type { GetChallenge } from '../../application/usecases/challenges/getChallenge'
 import type { StopChallenge } from '../../application/usecases/challenges/stopChallenge'
@@ -299,6 +300,8 @@ export interface HttpUseCases {
   readonly updateMission: UpdateMission
   readonly deleteMission: DeleteMission
   // timed photo challenges (spec 10)
+  /** "Révéler maintenant" (spec 23). */
+  readonly revealEvent: RevealEvent
   readonly startChallenge: StartChallenge
   readonly stopChallenge: StopChallenge
   readonly getChallenge: GetChallenge

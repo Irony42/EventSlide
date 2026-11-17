@@ -201,6 +201,7 @@ const usecasesFor = (
     createMission: notWired,
     updateMission: notWired,
     deleteMission: notWired,
+    revealEvent: notWired,
     startChallenge: notWired,
     stopChallenge: notWired,
     getChallenge: notWired,
@@ -226,7 +227,7 @@ const usecasesFor = (
     reactToPhoto: notWired,
     withdrawReaction: notWired,
     getPhotoReactions: notWired,
-    getTopPhotos: makeGetTopPhotos({ events, photos, reactions }),
+    getTopPhotos: makeGetTopPhotos({ events, photos, reactions, clock }),
     setPhotoHighlight: makeSetPhotoHighlight({ events, photos, clock }),
     preselectHighlights: makePreselectHighlights({ events, photos, reactions, clock }),
     requestAlbumBook: async () => {
