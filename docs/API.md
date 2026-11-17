@@ -2484,6 +2484,56 @@ one). A copy the host already downloaded is out of reach, as with the ZIP.
 `book.changed` is a signal for the host's screen only: the moderation stream carries it, the
 wall's stream never does, replay included.
 
+### The verified archive (spec 22)
+
+One ZIP of the album, prepared on the box (one at a time, behind video transcodes), checked, and kept
+until the first of `EXPORT_TTL_DAYS` after it was made, 48 hours after it was sent in full and the album's
+deletion date. Every route is a moderator of the event, like `album.zip`; none is reachable by a guest or the
+public, and nothing in them names a path. The archive holds the album as `album.zip` does (published and hidden
+photographs, clips as their transcode, `guestbook.txt`) and ends with `MANIFEST.sha256`, one line per file in the
+format `sha256sum -c` reads, plus a `# missing: N` comment.
+
+| Method | Path                           | Answers                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST` | `/api/events/:slug/export`     | `202` + the archive (`queued`). The body is **strictly empty**: a key is a `400`. `Cache-Control: no-store`. Asking again replaces the archive.                                                                                                                                                                                                                                                                |
+| `GET`  | `/api/events/:slug/export`     | `200` the archive: `status` (`queued`, `running`, `sealed`, `stale`, `failed`), `requestedAt`, `sealedAt`, `expiresAt`, `entries`, `skipped`, `bytes`, `sha256`, `servedAt`, `staleReason`, `failure`, `canDeleteWithoutConfirmation`. `404 export.notFound` when there is none (or it expired). `no-store`.                                                                                                   |
+| `GET`  | `/api/events/:slug/export.zip` | `200 application/zip` as an attachment named `<slug>-album.zip` (the slug), `Content-Length` known, `ETag: "<sha256>"` (strong; `304` on a match), `Range` accepted (`206`, `416`), `no-store`, `nosniff`. Passes through the **same concurrency bound as `album.zip`** (2 per account, 4 on the box: `429 rate.limited` / `503 service.notReady`, `Retry-After`); a `HEAD` is the preflight (`204`, no slot). |
+
+`status` is `sealed` only for an archive whose **four checks all passed** (each file against its digest as it was
+written, the rows of the album against the files, the finished file read again from the disk, the room on the
+disk); anything else is no archive. `skipped` counts the rows whose file was missing from the disk: such an archive is
+**verified but not complete**, and `canDeleteWithoutConfirmation` is the domain's verdict, true only for a sealed
+archive with `skipped = 0` that was **sent in full after it was sealed** (`servedAt >= sealedAt`). `servedAt` is
+stamped only by a `200` whose every byte reached the socket: not a `206`, a `304`, a refusal or a download the client
+abandoned. The server sees the last byte leave and cannot know the host's disk received it: say "sent", never
+"received". `failure` is a closed code (`corrupt`, `noRoom`, `tooLarge`, `unavailable`, `unverified`, `unexpected`)
+and `staleReason` another (`photoRemoved`, `guestErased`, `guestbookChanged`, `takenDown`, `reopened`,
+`albumChanged`, `fileMissing`), neutral on purpose: neither says who acted.
+
+Refusals of `POST`: `400 request.invalid`, `401`, `404 event.notFound` (not a member, or taken down by the operator,
+whatever else is true), `403 client.suspended` (a suspended client **that is not being offboarded**: a client in its
+offboarding grace period may export), `409 export.notClosed` (the event is a draft or still live),
+`409 export.alreadyRunning`, `409 export.noRoom` (the free disk cannot take it and still leave `MIN_FREE_DISK_BYTES`,
+an unreadable disk, or the box's `EXPORT_MAX_TOTAL_BYTES`), `413 export.tooLarge` (`EXPORT_MAX_BYTES`),
+`429 export.dailyLimitReached` (three per event per rolling day, `EXPORT_MAX_PER_EVENT_PER_DAY`, counted apart from the
+archive so replacing it does not reset it; `Retry-After`), `429 rate.limited` (twenty an hour per account),
+`503 export.unavailable` (`EXPORT_ENABLED=false`). Every refusal is answered before anything is written.
+
+`GET export.zip` answers **one** `404 export.notFound` for every reason there is nothing to give (never made, not
+sealed, stale, expired, file gone), `403 client.suspended` with the file kept, and `404 event.notFound` for an event the
+operator took down.
+
+**Privacy.** The archive is a copy of the album on the same disk, so it never outlives it and never holds what was removed:
+a deletion, a rejection of a published photograph or a batch, a guest's erasure (photographs, clips, messages), the operator's
+takedown of a photograph, a message or the event, a rejection of a published message and the reopening of the event each
+retire it. The row goes `stale` and the file is deleted **before** the bytes of the content (the hook is awaited, not a
+signal on the bus). An archive being written at that moment ends `stale`. The purge of an event deletes the file whatever
+state the archive is in (it lives in `MEDIA_ROOT/.exports/`, outside the event's folder, so the hourly backup never holds
+one), and the purge never waits for one. A copy the host already downloaded is out of reach.
+
+`export.changed` is a signal for the host's screen only, like `book.changed`: the moderation stream carries it, the wall's
+stream never does, replay included.
+
 ---
 
 ## 5. Authentication
@@ -3027,6 +3077,9 @@ event_, never "is logged in".
 | `GET`    | `/api/events/:slug/book`                      | moderator | 200 | The book's state, or `none`                     |
 | `GET`    | `/api/events/:slug/book.pdf`                  | moderator | 200 | The finished book, Range accepted               |
 | `DELETE` | `/api/events/:slug/book`                      | moderator | 204 | Throw the book away; idempotent                 |
+| `POST`   | `/api/events/:slug/export`                    | moderator | 202 | Ask for the verified archive (empty body)       |
+| `GET`    | `/api/events/:slug/export`                    | moderator | 200 | The archive's state; `404` when there is none   |
+| `GET`    | `/api/events/:slug/export.zip`                | moderator | 200 | The sealed archive: Range, ETag, one allowance  |
 
 Five routes answer the **whole event** rather than `204`, and that is worth stating
 because it is not obvious from the verb: rename, settings, status, schedule and

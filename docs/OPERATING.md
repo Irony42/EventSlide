@@ -88,8 +88,20 @@ archive, not for a download. What the box does so that nobody loses an album wit
   event's wall language.
 - **The purge says what it left behind.** Each purged album is logged with `archive=…` (`served`, `sealed`, `incomplete`, `stale` or
   `none`), and one that left without an archive sent in full is a **`warn`** with its id, in the timer's log and in the lines of
-  `npm run purge`. On this version no archive is prepared on the box, so every album reads `none`: the line is the trace that
-  the album left, and a host who downloaded the ZIP directly is invisible to it.
+  `npm run purge`. The word is what the box held: an archive a host asked for and downloaded in full is `served`, one never sent
+  is `sealed`, one with files missing from the disk is `incomplete`, one withdrawn because the album changed is `stale`, and an album
+  nobody asked an archive of is `none` (a host who downloaded the ZIP directly is invisible to it).
+- **The host can ask the box to prepare a verified archive** (`POST /api/events/:slug/export`; the page for it is a later change of
+  the same work, the routes are in [API.md](API.md#the-verified-archive-spec-22)). It is a ZIP of the album with a `MANIFEST.sha256`
+  that the host checks at home with `sha256sum -c`, written by a worker **one at a time, behind the video transcodes**, read back from
+  the disk before it is offered, and kept in `<MEDIA_ROOT>/.exports/`, **outside the event's folder, the quota and the backups**.
+  It is a second copy of the album on the same disk, so **budget the disk**: an archive of a 6 GB album doubles the album's footprint
+  while it is written. The box refuses early rather than fill the disk (`409 export.noRoom` against `MIN_FREE_DISK_BYTES`,
+  `EXPORT_MAX_BYTES` for one archive, `EXPORT_MAX_TOTAL_BYTES` for all of them, default 12 GB), and abandons a write if a wedding fills
+  the disk meanwhile. It lives until the first of `EXPORT_TTL_DAYS` (7), 48 hours after the host downloaded it in full, and the album's
+  deletion date, and **never outlives the album**; a guest who erases themselves, a photograph removed, a reopening or your takedown
+  deletes it at once. `EXPORT_ENABLED=false` (restart) turns the preparation off and leaves the direct download. If your off-box backup
+  copies the volume whole with its hidden folders, exclude `.exports`: a purged archive must not survive in the repository.
 - **During an offboarding the client's members can export** (`album.zip`), for the whole grace period. A client suspended for an abuse
   cannot, and an event you took down never can: cut an abuse by taking the event down.
 

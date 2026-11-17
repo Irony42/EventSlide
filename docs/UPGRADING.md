@@ -1011,6 +1011,20 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 - The host's `album.zip` gains a last file, `MANIFEST.sha256`, and a clip that is corrupt on disk now aborts the download
   instead of being delivered. The purge's log lines gain `archive=…`.
 
+### The verified archive of the album, on the box (spec 22)
+
+- **One migration (031)**: two new tables, `event_exports` (one row per event) and `event_export_requests` (what the three-a-day
+  ceiling counts), with their indexes, both removed with their event. Nothing existing is rewritten. Back up first, as for any
+  upgrade: the migration only goes forward. (Numbers 029 and 030 are the announcements and the deletion warnings above.)
+- **Five settings, all optional**: `EXPORT_ENABLED` (`true`; `false` turns the preparation off for the box, read at boot, and leaves the
+  direct download), `EXPORT_TTL_DAYS` (7, 1 to 90), `EXPORT_MAX_BYTES` (10 GB, one archive), `EXPORT_MAX_TOTAL_BYTES` (12 GB, every archive
+  made or in the making) and `EXPORT_MAX_PER_EVENT_PER_DAY` (3). An archive is a copy of the album kept in `<MEDIA_ROOT>/.exports/`,
+  outside the event folders and the backups: **budget the disk for it**, and make sure an off-box backup that copies hidden folders skips it.
+- Three routes under an event (`export` to ask and to read, `export.zip` to download; see [API.md](API.md#the-verified-archive-spec-22)),
+  a `409 export.noRoom` / `413 export.tooLarge` / `429 export.dailyLimitReached` / `503 export.unavailable` family of refusals and one
+  console-only signal (`export.changed`). No page uses them yet. Nothing changes for a box whose hosts do not ask: no archive is
+  prepared by itself.
+
 ### Scheduled announcements on the wall (spec 21)
 
 - **One migration (029)**: a new table, `event_announcements`, with its index. Nothing existing is rewritten. Back up

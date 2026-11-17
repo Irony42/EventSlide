@@ -121,6 +121,7 @@ src/
     slideshow/     Playlist building, layouts, transitions (pure)
     reactions/     Reaction rules
     clients/       Client entity, ceilings, roles, ceiling levels (roadmap §10.2, §10.5), the purge deadline and its warning thresholds, who may export (`exportAllowed`, spec 22)
+    exports/       The verified archive of an album (spec 22): its life (`queued` to `sealed` or `stale`), when it must stop being served, what may be refused before it is written, and the end of a ZIP read by hand
     audit/         Audit entries, their allow-listed details, retention (roadmap §10.8; an owner reads their client's, G2-16)
     mail/          Outgoing message rules: one mailbox, a one-line subject (roadmap §10.3)
     legal/         The terms of use an invitation's acceptance agrees to: a URL and a short version (G2-20)
