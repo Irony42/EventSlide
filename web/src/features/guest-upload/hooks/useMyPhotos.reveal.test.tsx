@@ -214,8 +214,12 @@ describe('the roll and the gate on the guest’s own list', () => {
       const { api } = serving(
         { items: [veiled('a'), veiled('b'), veiled('c')], reveal: held(null) },
         {
-          items: [developed('a'), developed('b'), veiled('c')],
-          reveal: aRevealBlock({ atMs: null }),
+          items: [
+            developed('a'),
+            developed('b'),
+            aGuestPhoto({ id: 'c', status: 'hidden', awaitsReveal: false }),
+          ],
+          reveal: revealed,
         },
       )
       const { result } = await mounted(api)
@@ -225,6 +229,24 @@ describe('the roll and the gate on the guest’s own list', () => {
 
       expect(result.current.developed).toEqual({ count: 2, whileAway: false })
     })
+
+    it.each(['hidden', 'rejected'] as const)(
+      'is not a development when the host makes a veiled photograph %s in a held evening',
+      async (status) => {
+        const { api } = serving(
+          { items: [veiled('a'), veiled('b')], reveal: held(3_600_000) },
+          {
+            items: [aGuestPhoto({ id: 'a', status, awaitsReveal: false }), veiled('b')],
+            reveal: held(3_600_000),
+          },
+        )
+        const { result } = await mounted(api)
+
+        await elapse(12_000)
+
+        expect(result.current.developed).toBeNull()
+      },
+    )
 
     it('says nothing on a first sight of an evening already revealed: it is not a moment', async () => {
       const { api } = serving({ items: [developed('a'), developed('b')], reveal: revealed })

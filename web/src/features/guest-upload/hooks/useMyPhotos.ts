@@ -299,12 +299,16 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
               before.get(photo.id)?.status === 'pending',
           )
         // The reveal, seen from here: photographs this screen saw veiled and now come in colour.
+        // A photo the host hides or refuses mid-evening also stops awaiting the reveal, with the
+        // evening still held: it is not developed, so only a published one counts.
         const developedCount =
           before === null
             ? 0
             : response.items.filter(
                 (photo) =>
-                  photo.awaitsReveal !== true && before.get(photo.id)?.awaitsReveal === true,
+                  photo.status === 'published' &&
+                  photo.awaitsReveal !== true &&
+                  before.get(photo.id)?.awaitsReveal === true,
               ).length
         const whileAway = returnedRef.current
         returnedRef.current = false
