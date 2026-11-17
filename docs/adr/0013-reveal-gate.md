@@ -81,7 +81,16 @@ Four designs were weighed.
 - Aggregates that count published photographs (the mission and challenge counters of the wall) are not gated: they carry
   no photograph, no identifier and no author.
 
-### Rejected
+### Neutral
 
-See spec 23 §10 (a second capture surface, a new status, "reveal is publish", a sweeper, a server-side film render, two
-hours, an album mode, an operator switch, a paid tier).
+- The film look is a display filter measured in a later pull request; this one carries only its flag.
+
+## Alternatives considered
+
+- A new photo status, "reveal is publish", a column or table on photos: the first three designs of the Context, rejected there.
+- A second capture surface, a sweeper, a server-side film render, two hours, an album mode, an operator switch and a paid
+  tier: rejected in spec 23 section 10.
+
+## Related
+
+- Spec 23 (disposable camera); ROADMAP 2.11; docs/API.md (the reveal blocks, POST /events/:slug/reveal); docs/SECURITY.md section 26.
