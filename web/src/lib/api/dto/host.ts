@@ -105,6 +105,25 @@ export type AlbumBookDto =
       readonly failureCode: string | null
       readonly staleReason: string | null
     }
+/**
+ * The event's verified archive (spec 22): numbers, instants, the digest of the whole ZIP and closed
+ * codes, with the domain's own verdict on whether the album may be deleted without typing the word.
+ * Transcribed from `AlbumExportDto` on the server, which the web app cannot import.
+ */
+export interface AlbumExportDto {
+  readonly status: 'queued' | 'running' | 'sealed' | 'stale' | 'failed'
+  readonly requestedAt: string
+  readonly sealedAt: string | null
+  readonly expiresAt: string | null
+  readonly entries: number | null
+  readonly skipped: number | null
+  readonly bytes: number | null
+  readonly sha256: string | null
+  readonly servedAt: string | null
+  readonly staleReason: string | null
+  readonly failure: string | null
+  readonly canDeleteWithoutConfirmation: boolean
+}
 /** The best-of panel's read: how many favourites can be exported (spec 08). */
 export interface HighlightsDto {
   readonly count: number
@@ -208,6 +227,14 @@ export interface EventSummaryDto {
    */
   readonly role: EventRole
 }
+export interface EventPurgeDto {
+  readonly at: string | null
+  readonly notice: 14 | 3 | 1 | null
+  /** The event's client is being offboarded: the deletion band shows however far the date is. */
+  readonly offboarding: boolean
+  /** The server's clock when it answered: `at` is counted down against it, not the machine's. */
+  readonly serverNowMs: number
+}
 export interface EventDto extends EventSummaryDto {
   readonly joinCode: string
   readonly joinUrl: string
@@ -219,6 +246,13 @@ export interface EventDto extends EventSummaryDto {
   readonly quotaBytes: number
   /** When the live window closes, an ISO-8601 instant. **Absent** when there is none to announce. */
   readonly liveWindowEnd?: string
+  /**
+   * When the album will be deleted (an ISO-8601 instant, or `null` when it is not on a clock) and
+   * the threshold of the last warning e-mail (14, 3 or 1 day before, or `null`). Says nothing of the
+   * operator's hold on the purge. Optional in the type only so that a fixture older than this field
+   * still compiles; every host answer carries it.
+   */
+  readonly purge?: EventPurgeDto
   readonly settings: EventSettingsDto
   readonly startsAt: string | null
   readonly closedAt: string | null

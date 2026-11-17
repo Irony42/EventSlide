@@ -677,6 +677,22 @@ export interface EventSummaryDto {
   readonly role: EventRole
 }
 
+export interface EventPurgeDto {
+  readonly at: string | null
+  readonly notice: 14 | 3 | 1 | null
+  /**
+   * The event's client is being offboarded: the band says so from the first day, however far the
+   * date is (a grace period may be a year).
+   */
+  readonly offboarding: boolean
+  /**
+   * The server's clock when it answered, in milliseconds: what `at` is to be counted down against, so
+   * a phone with a wrong clock does not lie about the day the album goes (the same field the timed
+   * challenge carries).
+   */
+  readonly serverNowMs: number
+}
+
 export interface EventDto extends EventSummaryDto {
   readonly joinCode: string
   /** Built from PUBLIC_URL here, so the QR code and the printed card cannot disagree. */
@@ -695,6 +711,16 @@ export interface EventDto extends EventSummaryDto {
    * with no window to announce: no client, no `max_live_days`, or one that has not opened yet.
    */
   readonly liveWindowEnd?: string
+  /**
+   * When the album will be deleted, and the last warning its owners were sent (spec 22). Never on a
+   * guest's answer and never on the wall's: a host's own page only. `at` is an ISO-8601 instant, the
+   * date the retention sweep acts on, or `null` when the album is not on a clock (a live event, or
+   * one kept until a person deletes it); `notice` is the threshold of the last e-mail, 14, 3 or 1
+   * day(s) before, or `null`. It says **nothing** of the operator's hold on the purge: a hold is
+   * invisible to a host, who may be the person concerned. Optional in the type only so that a
+   * fixture older than this field still compiles; every host answer carries it.
+   */
+  readonly purge?: EventPurgeDto
   readonly settings: EventSettingsDto
   readonly startsAt: string | null
   readonly closedAt: string | null
@@ -1622,6 +1648,27 @@ export type AlbumBookDto =
       readonly failureCode: string | null
       readonly staleReason: string | null
     }
+
+/**
+ * The event's verified archive as the host's page reads it (spec 22). Numbers, instants, a digest
+ * and closed codes: no guest text, no path and no photograph id. `canDeleteWithoutConfirmation` is
+ * the domain's verdict (a complete archive sent in full after it was sealed), so the page does not
+ * restate the rule. It says nothing of an operator's hold on the purge.
+ */
+export interface AlbumExportDto {
+  readonly status: 'queued' | 'running' | 'sealed' | 'stale' | 'failed'
+  readonly requestedAt: string
+  readonly sealedAt: string | null
+  readonly expiresAt: string | null
+  readonly entries: number | null
+  readonly skipped: number | null
+  readonly bytes: number | null
+  readonly sha256: string | null
+  readonly servedAt: string | null
+  readonly staleReason: string | null
+  readonly failure: string | null
+  readonly canDeleteWithoutConfirmation: boolean
+}
 
 /**
  * The host's highlight reel as the panel reads it (spec 08). Numbers and a state: never a photo id

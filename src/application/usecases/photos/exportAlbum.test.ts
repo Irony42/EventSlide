@@ -23,6 +23,11 @@ import { CapturingLogger } from '../../testing/capturingLogger'
 import { makeExportAlbum, type ExportAlbum } from './exportAlbum'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { FakeArchiveWriter } from '../../testing/fakeArchiveWriter'
+import { MANIFEST_NAME } from '../../../domain/photos/albumManifest'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
+import { FakeClock } from '../../testing/fakeClock'
+import { FakeContentHasher } from '../../testing/fakeContentHasher'
+import { FakeStreamHasher } from '../../testing/fakeStreamHasher'
 
 /** One byte per unit of length, so a test can tell the variants apart by size. */
 const BYTES_PER_VARIANT: Readonly<Record<PhotoVariant, number>> = {
@@ -44,6 +49,7 @@ describe('exportAlbum', () => {
   let media: InMemoryMediaStore
   let archive: FakeArchiveWriter
   let logger: CapturingLogger
+  let clients: FakeClientRepository
   let exportAlbum: ExportAlbum
 
   beforeEach(() => {
@@ -54,11 +60,23 @@ describe('exportAlbum', () => {
     media = new InMemoryMediaStore().forbidEnumeration('an album export')
     archive = new FakeArchiveWriter()
     logger = new CapturingLogger()
+    clients = new FakeClientRepository()
     events.seed(
       anEvent({ id: 'event-1', slug: 'camille-et-sacha' }),
       anEvent({ id: 'event-2', slug: 'gala-acme', joinCode: '2AB3CD' }),
     )
-    exportAlbum = makeExportAlbum({ events, photos, guestbook, guests, media, archive, logger })
+    exportAlbum = makeExportAlbum({
+      events,
+      photos,
+      guestbook,
+      guests,
+      media,
+      archive,
+      clients,
+      streamHasher: new FakeStreamHasher(),
+      clock: new FakeClock(AT),
+      logger,
+    })
   })
 
   /** A row with every variant on the disk, which is what ingest guarantees. */
@@ -78,10 +96,22 @@ describe('exportAlbum', () => {
 
   /** A published clip with both of its files on the disk, which is what a finished transcode leaves. */
   const seedClip = async (input: PhotoInput): Promise<ContentHash> => {
-    const clip = aClip({ eventId: 'event-1', ...input })
+    const hasher = new FakeContentHasher()
+    // Bytes of their own, so that two clips never share a digest (they would be one row).
+    const id = input.id ?? 'photo-1'
+    const bytesOf = (kind: string, length: number): Uint8Array =>
+      Uint8Array.from({ length }, (_, index) => (`${id}/${kind}`.charCodeAt(index % 8) + index) % 256)
+    const video = bytesOf('video', BYTES_PER_CLIP_FILE.video)
+    const poster = bytesOf('poster', BYTES_PER_CLIP_FILE.poster)
+    const clip = aClip({
+      eventId: 'event-1',
+      contentHash: hasher.sha256Hex(video),
+      clip: { posterHash: hasher.sha256Hex(poster) },
+      ...input,
+    })
     photos.seed(clip)
-    await media.put(clip.eventId, clip.contentHash, 'video', new Uint8Array(BYTES_PER_CLIP_FILE.video))
-    await media.put(clip.eventId, clip.hashFor('poster'), 'poster', new Uint8Array(BYTES_PER_CLIP_FILE.poster))
+    await media.put(clip.eventId, clip.contentHash, 'video', video)
+    await media.put(clip.eventId, clip.hashFor('poster'), 'poster', poster)
     return clip.contentHash
   }
 
@@ -93,7 +123,10 @@ describe('exportAlbum', () => {
     return bytes
   }
 
-  const namesInArchive = (): readonly string[] => archive.entries.map((entry) => entry.name)
+  /** The manifest closes every archive; the tests about contents look at what precedes it. */
+  const files = () => archive.entries.filter((entry) => !entry.name.endsWith(`/${MANIFEST_NAME}`))
+
+  const namesInArchive = (): readonly string[] => files().map((entry) => entry.name)
 
   it('includes the photos that are on the wall and the ones taken off it', async () => {
     await seedPhoto({ id: 'shown', status: 'published', createdAt: atPlus(1_000) })
@@ -101,7 +134,7 @@ describe('exportAlbum', () => {
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries).toHaveLength(2)
+    expect(files()).toHaveLength(2)
   })
 
   it('leaves a rejected photo out of the album the host hands over', async () => {
@@ -109,7 +142,7 @@ describe('exportAlbum', () => {
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries).toEqual([])
+    expect(files()).toEqual([])
   })
 
   it('leaves a photo still awaiting moderation out of the album', async () => {
@@ -117,7 +150,7 @@ describe('exportAlbum', () => {
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries).toEqual([])
+    expect(files()).toEqual([])
   })
 
   it('names every entry from the slug, a counter and the digest, never from a guest', async () => {
@@ -137,7 +170,7 @@ describe('exportAlbum', () => {
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries.map((entry) => entry.bytesRead)).toEqual([BYTES_PER_VARIANT.original])
+    expect(files().map((entry) => entry.bytesRead)).toEqual([BYTES_PER_VARIANT.original])
   })
 
   it('stamps each entry with the moment the photo was taken in', async () => {
@@ -145,7 +178,7 @@ describe('exportAlbum', () => {
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries.map((entry) => entry.modifiedAt)).toEqual([atPlus(5_000)])
+    expect(files().map((entry) => entry.modifiedAt)).toEqual([atPlus(5_000)])
   })
 
   // ---------------------------------------------------------------- clips --
@@ -168,7 +201,7 @@ describe('exportAlbum', () => {
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries.map((entry) => entry.bytesRead)).toEqual([BYTES_PER_CLIP_FILE.video])
+    expect(files().map((entry) => entry.bytesRead)).toEqual([BYTES_PER_CLIP_FILE.video])
   })
 
   it('does not warn that it skipped a clip that is there', async () => {
@@ -205,7 +238,7 @@ describe('exportAlbum', () => {
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries).toEqual([])
+    expect(files()).toEqual([])
     expect(logger.lines.map((line) => line.level)).toEqual(['warn'])
   })
 
@@ -215,7 +248,8 @@ describe('exportAlbum', () => {
 
     const bytes = await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(bytes).toBe(2)
+    // One marker byte per entry in the fake writer: the two photographs and the manifest.
+    expect(bytes).toBe(3)
   })
 
   it('never puts another event photo in this album', async () => {
@@ -226,7 +260,7 @@ describe('exportAlbum', () => {
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries).toHaveLength(1)
+    expect(files()).toHaveLength(1)
   })
 
   it('skips a row whose file was never written instead of failing the download', async () => {
@@ -235,7 +269,7 @@ describe('exportAlbum', () => {
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries).toHaveLength(1)
+    expect(files()).toHaveLength(1)
     expect(logger.lines.map((line) => line.level)).toEqual(['warn'])
   })
 
@@ -290,10 +324,10 @@ describe('exportAlbum', () => {
   })
 
   it('produces an empty archive for an event whose album is empty', async () => {
-    const bytes = await drain(await exportAlbum({ eventId: EVENT }))
+    await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(bytes).toBe(0)
-    expect(archive.entries).toEqual([])
+    expect(files()).toEqual([])
+    expect(archive.names).toEqual([`camille-et-sacha/${MANIFEST_NAME}`])
   })
 
   it('exports nothing of an event the operator took down, or of a suspended client (launch review S5)', async () => {
@@ -309,6 +343,9 @@ describe('exportAlbum', () => {
       guests,
       media,
       archive,
+      clients,
+      streamHasher: new FakeStreamHasher(),
+      clock: new FakeClock(AT),
       logger,
     })({ eventId: asEventId('event-1') })
 
@@ -340,6 +377,9 @@ describe('exportAlbum: the guestbook', () => {
       guests,
       media: new InMemoryMediaStore().forbidEnumeration('an album export'),
       archive,
+      clients: new FakeClientRepository(),
+      streamHasher: new FakeStreamHasher(),
+      clock: new FakeClock(AT),
       logger: new CapturingLogger(),
     })
     const text = async (): Promise<string> => {
@@ -368,7 +408,7 @@ describe('exportAlbum: the guestbook', () => {
 
     const written = await text()
 
-    expect(archive.names).toEqual(['camille-et-sacha/guestbook.txt'])
+    expect(archive.names).toEqual(['camille-et-sacha/guestbook.txt', `camille-et-sacha/${MANIFEST_NAME}`])
     expect(written).toContain('Camille et Sacha\n\n')
     expect(written).toContain('Léa, ')
     expect(written).toContain('texte m-pub')
@@ -385,6 +425,6 @@ describe('exportAlbum: the guestbook', () => {
 
     await text()
 
-    expect(archive.names).toEqual([])
+    expect(archive.names).toEqual([`camille-et-sacha/${MANIFEST_NAME}`])
   })
 })

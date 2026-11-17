@@ -1,7 +1,9 @@
+import type { ArchiveState } from '../../../domain/clients/archiveState'
 import type { EventId } from '../../../domain/shared/ids'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { BookFileStore } from '../../ports/bookFileStore'
+import type { ExportFileStore } from '../../ports/exportFileStore'
 import type { MediaStore } from '../../ports/mediaStore'
 
 /**
@@ -22,6 +24,12 @@ export interface PurgeExpiredEventsReport {
   readonly purged: readonly EventId[]
   /** Left on disk for the next run. An operator needs the ids to know what to look at. */
   readonly failed: readonly EventId[]
+  /**
+   * What the box held for each purged album (spec 22, section 8), read **before** the row went.
+   * The purge never waits for an archive and never looks at one to decide: this is only what the log
+   * says afterwards, `archive=…`, so that "the album left and nobody had taken it" has a trace.
+   */
+  readonly archives: Readonly<Record<string, ArchiveState>>
 }
 
 export interface PurgeExpiredEventsDeps {
@@ -35,6 +43,19 @@ export interface PurgeExpiredEventsDeps {
   readonly capNoticeDays: number
   /** The photo book's PDF, outside the event's folder (spec 04): deleted explicitly. */
   readonly bookFiles?: Pick<BookFileStore, 'delete'>
+  /**
+   * The verified archive's ZIP, outside the event's folder (spec 22): deleted explicitly, next to
+   * the row, **whatever state the archive is in**. The purge never waits for an archive and never
+   * asks whether one was sent; the date promised to the guests does not move.
+   */
+  readonly exportFiles?: Pick<ExportFileStore, 'delete'>
+  /**
+   * What the box holds for an event, for the log only. Absent, every album is `none`: there is
+   * nothing prepared on a box that does not prepare archives. It must not throw; if it does, the
+   * album is reported `none` and purged all the same, because the date promised to the guests
+   * does not move.
+   */
+  readonly archiveStateOf?: (eventId: EventId) => Promise<ArchiveState>
 }
 
 /**
@@ -52,18 +73,32 @@ export const makePurgeExpiredEvents =
     clock,
     capNoticeDays,
     bookFiles,
+    exportFiles,
+    archiveStateOf,
   }: PurgeExpiredEventsDeps): PurgeExpiredEvents =>
   async () => {
+    const archiveOf = async (eventId: EventId): Promise<ArchiveState> => {
+      try {
+        return (await archiveStateOf?.(eventId)) ?? 'none'
+      } catch {
+        return 'none'
+      }
+    }
+
     const due = await events.listDueForPurge(clock.now(), { capNoticeDays })
 
     const purged: EventId[] = []
     const failed: EventId[] = []
+    const archives: Record<string, ArchiveState> = {}
 
     // Sequentially, on purpose. This runs on the same box that may be serving a live
     // event, and forty concurrent recursive directory deletions would take the disk
     // away from the party in progress.
     for (const event of due) {
       try {
+        // What the box holds for it, for the log, read before the row goes (the row's deletion
+        // cascades to whatever describes an archive) and never allowed to stop the purge.
+        const archive = await archiveOf(event.id)
         // **The row first, conditionally, then the bytes** (launch review S5). The listing above
         // is a snapshot, and the operator may hold this event's purge after it was taken: the
         // delete refuses a held row in the same statement, and the bytes are only touched once it
@@ -72,6 +107,7 @@ export const makePurgeExpiredEvents =
         // `sweepOrphanedMedia` collects once they are old enough; it is reported as failed.
         if (!(await events.deleteUnlessHeld(event.id))) continue
         await bookFiles?.delete(event.id).catch(() => undefined)
+        await exportFiles?.delete(event.id).catch(() => undefined)
         try {
           await media.deleteEvent(event.id)
         } catch {
@@ -79,10 +115,11 @@ export const makePurgeExpiredEvents =
           continue
         }
         purged.push(event.id)
+        archives[event.id] = archive
       } catch {
         failed.push(event.id)
       }
     }
 
-    return { purged, failed }
+    return { purged, failed, archives }
   }

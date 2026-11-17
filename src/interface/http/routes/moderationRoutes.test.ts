@@ -230,6 +230,9 @@ const usecasesFor = (
     getTopPhotos: makeGetTopPhotos({ events, photos, reactions, clock }),
     setPhotoHighlight: makeSetPhotoHighlight({ events, photos, clock }),
     preselectHighlights: makePreselectHighlights({ events, photos, reactions, clock }),
+    requestAlbumExport: notWired,
+    getAlbumExport: notWired,
+    downloadAlbumExport: notWired,
     requestAlbumBook: async () => {
       throw new Error('requestAlbumBook is not wired in this suite')
     },

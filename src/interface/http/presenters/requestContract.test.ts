@@ -668,6 +668,12 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // ring 4, but nothing in `web/src` calls it yet; the console reads the moderation
   // queue instead. `dtoContract.test.ts` records the same gap from the response side.
   photoListQuery: 'GET /api/events/:eventSlug/photos has no client method',
+  // `POST /api/events/:slug/export` (spec 22) asks for the verified archive and takes no option: an
+  // empty strict body. The route is held at ring 4 (`exportRoutes.test.ts`: a body with a key is a
+  // 400); the button that sends it is the host page's, a later pull request of the same spec, and
+  // its entry leaves this list the day `web/src` calls it.
+  requestExportBody:
+    'POST /api/events/:eventSlug/export: the host page that sends it is not built yet',
   // `PATCH /api/events/:slug` (rename) and `PATCH /api/events/:slug/photos/:photoId/caption`: both
   // routes are written and held at ring 4, and no screen sends either. The client methods were
   // deleted for having no caller (`web/src/lib/api/apiCallers.guard.test.ts` keeps it that way); a

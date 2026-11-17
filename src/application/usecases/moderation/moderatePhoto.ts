@@ -15,7 +15,9 @@ import type { MembershipRepository } from '../../ports/userRepository'
 import { isHighlightable } from '../../../domain/highlights/highlightEligibility'
 import type { InvalidateReel } from '../highlights/invalidateReel'
 import type { InvalidateBook } from '../book/invalidateAlbumBook'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { isInBook } from '../../../domain/book/isInBook'
+import { isInAlbum } from '../../../domain/photos/photoStatus'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
@@ -52,6 +54,11 @@ export interface ModeratePhotoDeps {
    * must never still hold what was removed.
    */
   readonly invalidateBook?: InvalidateBook
+  /**
+   * Retires the verified archive the box may hold (spec 22) when a photograph leaves the album, awaited and before anything
+   * goes: an archive must never still hold what was removed.
+   */
+  readonly invalidateExport?: InvalidateExport
 }
 
 export interface ModeratedPhoto {
@@ -72,6 +79,7 @@ export const makeModeratePhoto =
     clock,
     invalidateReel,
     invalidateBook,
+    invalidateExport,
   }: ModeratePhotoDeps): ModeratePhoto =>
   async ({ eventId, photoId, decision, actor }) => {
     const event = await events.findById(eventId)
@@ -109,6 +117,10 @@ export const makeModeratePhoto =
     // Only a photograph that was in the book can spoil it: moving a pending one is not a removal.
     if (isInBook(photo.status) && !isInBook(moved.value.status)) {
       await invalidateBook?.(eventId, 'photoRemoved')
+    }
+    // The archive keeps published and hidden photographs: only leaving the album spoils it.
+    if (isInAlbum(photo.status) && !isInAlbum(moved.value.status)) {
+      await invalidateExport?.(eventId, 'photoRemoved')
     }
     await photos.save(moved.value)
     bus.publish({ type: 'photo.moderated', eventId, photoId, status: moved.value.status })

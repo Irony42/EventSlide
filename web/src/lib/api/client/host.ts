@@ -22,6 +22,7 @@ import type {
   MissionListResponse,
   MissionScope,
   AlbumBookDto,
+  AlbumExportDto,
   HighlightsDto,
   ReelDto,
   ModerationDecision,
@@ -300,6 +301,14 @@ export const hostApi = (transport: Transport) => ({
   deleteAlbumBook: (slug: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/book`),
 
+  /** The verified archive of the album (spec 22): its state (`404 export.notFound` when there is none), and asking for one. */
+  albumExport: (slug: string, signal?: AbortSignal): Promise<AlbumExportDto> =>
+    transport.get(`/api/events/${encode(slug)}/export`, undefined, signal),
+
+  /** `202`: the archive is queued, the host's screen is told by `export.changed` when it moves. */
+  requestAlbumExport: (slug: string): Promise<AlbumExportDto> =>
+    transport.post(`/api/events/${encode(slug)}/export`),
+
   highlights: (slug: string, signal?: AbortSignal): Promise<HighlightsDto> =>
     transport.get(`/api/events/${encode(slug)}/highlights`, undefined, signal),
 
@@ -416,6 +425,9 @@ export const hostApi = (transport: Transport) => ({
 
   /** Built here so the ZIP link and the wall link cannot drift from the API doc. */
   albumUrl: (slug: string): string => `/api/events/${encode(slug)}/album.zip`,
+
+  /** The sealed archive (spec 22): a file of known size, an `ETag`, resumable. */
+  albumExportUrl: (slug: string): string => `/api/events/${encode(slug)}/export.zip`,
 
   /** The finished photo book (spec 04). */
   albumBookUrl: (slug: string): string => `/api/events/${encode(slug)}/book.pdf`,

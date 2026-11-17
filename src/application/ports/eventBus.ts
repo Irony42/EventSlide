@@ -100,6 +100,13 @@ export type DomainEvent =
    * replay. The book worker also wakes on it, to pick up a request without waiting for its tick.
    */
   | { readonly type: 'book.changed'; readonly eventId: EventId }
+  /**
+   * The verified archive of the event moved (spec 22): asked for, started, sealed, failed, voided,
+   * sent in full or gone. An invalidation signal with no data, like `book.changed`: the console
+   * refetches. **For the host's console only**: `signalAudience.ts` keeps it off the public wall's
+   * stream. The archive worker wakes on it, to pick up a request without waiting for its tick.
+   */
+  | { readonly type: 'export.changed'; readonly eventId: EventId }
 
   /**
    * The host asked for a highlight reel (spec 08): wakes the worker, as `clip.queued` does. Never

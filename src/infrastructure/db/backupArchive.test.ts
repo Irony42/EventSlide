@@ -482,6 +482,20 @@ describe('backup and restore', () => {
       expect((await verify()).ok).toBe(true)
     })
 
+    it('leaves the box’s verified archives out of the backup: a copy of the album must not outlive the album in a restic repository (spec 22)', async () => {
+      await seedAnEvening()
+      await mkdir(join(mediaRoot, '.exports', '.tmp'), { recursive: true })
+      await writeFile(join(mediaRoot, '.exports', `${EVENT}.zip`), 'a finished archive')
+      await writeFile(join(mediaRoot, '.exports', '.tmp', `${EVENT}.1.tmp`), 'half of one')
+
+      const { manifest } = await backup()
+
+      expect(manifest.counts.mediaFiles).toBe(3)
+      expect(manifest.media.entries.some((entry) => entry.path.includes('.exports'))).toBe(false)
+      expect(manifest.skipped.join(' ')).not.toContain('.exports')
+      expect((await verify()).ok).toBe(true)
+    })
+
     it('leaves an event’s highlight reel out of the archive: the host can make it again (spec 08)', async () => {
       await seedAnEvening()
       const reelDir = join(mediaRoot, EVENT, 'reel', 'ab')

@@ -273,6 +273,23 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       BOOK_MAX_PER_EVENT_PER_DAY: positiveInt(3, 100),
 
       /**
+       * The verified archive of the album, prepared on the box for the host to download (spec 22).
+       * `EXPORT_ENABLED=false` turns the preparation off for the box (read once at boot: a
+       * restart); the streamed download and the deletion date stay. An archive is a copy of the
+       * album on the same disk and dies with it: the first of `EXPORT_TTL_DAYS`, 48 hours after a
+       * complete send and the album's purge date.
+       */
+      EXPORT_ENABLED: boolishWithDefault('true'),
+      /** Days a sealed archive can be downloaded (never past the album's purge date). */
+      EXPORT_TTL_DAYS: positiveInt(7, 90),
+      /** Most bytes of **one** archive (default 10 GB), judged before writing and while writing. */
+      EXPORT_MAX_BYTES: positiveInt(10 * 1024 * 1024 * 1024),
+      /** Most bytes of archives, sealed and in the making, kept on the box at once (default 12 GB). */
+      EXPORT_MAX_TOTAL_BYTES: positiveInt(12 * 1024 * 1024 * 1024),
+      /** Archives one event may have prepared in a rolling day. */
+      EXPORT_MAX_PER_EVENT_PER_DAY: positiveInt(3, 100),
+
+      /**
        * How many upload requests — photos and clips together — may be in flight at
        * once, process-wide (G3-06 / P4-10). Past it: `429 upload.busy` with
        * `Retry-After`. A slot is held from admission to response, which spans both the

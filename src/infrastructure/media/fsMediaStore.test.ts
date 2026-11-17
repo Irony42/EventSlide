@@ -351,6 +351,17 @@ describe('fsMediaStore: the inventory the reconciliation sweep reads', () => {
     expect(await store.listEvents()).toEqual([WEDDING])
   })
 
+  it('leaves the finished books and the verified archives out of the event list (spec 22)', async () => {
+    // `.books` and `.exports` are derived copies kept beside the events, named by the event id: an
+    // archive listed as an event would be counted against nobody and swept as an orphan.
+    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(3))
+    await mkdir(join(root, '.books'), { recursive: true })
+    await mkdir(join(root, '.exports', '.tmp'), { recursive: true })
+    await writeFile(join(root, '.exports', `${WEDDING}.zip`), 'an archive')
+
+    expect(await store.listEvents()).toEqual([WEDDING])
+  })
+
   it('reports each object with its digest, variant, size and write time', async () => {
     const before = Date.now() - 1_000
     await store.put(WEDDING, HASH_A, 'display', new Uint8Array(7))
