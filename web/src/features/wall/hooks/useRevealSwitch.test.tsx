@@ -121,7 +121,9 @@ describe('useRevealSwitch (spec 23)', () => {
     )
 
     vi.advanceTimersByTime(30_000)
-    rerender({ block: reveal({ atMs: SERVER_NOW + 10 * 60_000, serverNowMs: SERVER_NOW + 30_000 }) })
+    rerender({
+      block: reveal({ atMs: SERVER_NOW + 10 * 60_000, serverNowMs: SERVER_NOW + 30_000 }),
+    })
 
     vi.advanceTimersByTime(10 * 60_000 - 30_000 - 1)
     expect(read).not.toHaveBeenCalled()
