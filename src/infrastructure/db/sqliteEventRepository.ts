@@ -11,6 +11,7 @@ import { ContentHash } from '../../domain/photos/contentHash'
 import { Event } from '../../domain/events/event'
 import { EventName, foldName } from '../../domain/events/eventName'
 import { restoreWallSettings } from '../../domain/events/eventWallSettings'
+import { restoreRevealSettings, type EventRevealSettings } from '../../domain/events/eventRevealSettings'
 import { restoreWelcomeMessage } from '../../domain/events/welcomeMessage'
 import {
   EventSettings,
@@ -409,6 +410,12 @@ const decodeJson = (raw: string): unknown => {
  * absent one. A missing key means the stored policy is not the policy the host chose,
  * and defaulting it is how a retention window silently becomes "keep forever".
  */
+const settingsRevealAddedLater = (raw: unknown): EventRevealSettings => {
+  const reveal = restoreRevealSettings(raw)
+  if (reveal === null) throw corrupt('settings', 'reveal is not the stored shape')
+  return reveal
+}
+
 const settingsOf = (raw: string): EventSettings => {
   const decoded = decodeJson(raw)
   if (!isRecord(decoded)) throw corrupt('settings', 'not a JSON object')
@@ -494,6 +501,13 @@ const settingsOf = (raw: string): EventSettings => {
      * cannot be read must not be able to take the wall down (same principle as `useLayoutParam`).
      */
     wall: restoreWallSettings(decoded['wall']),
+    /**
+     * Added by spec 23, and the **opposite** of `wall` above: an absent key is the default (off,
+     * the event as it always was, a read and not a migration), but a key that is present and not
+     * the stored shape is `corrupt`. This group is a gate in front of the photographs: reading it
+     * as "off" when it cannot be read would publish an evening its host meant to hold back.
+     */
+    reveal: settingsRevealAddedLater(decoded['reveal']),
   }
 
   // `restore`, not `create`: a stored theme is judged on its shape and not on the

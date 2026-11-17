@@ -15,6 +15,13 @@ import {
   type EventWallSettings,
   type EventWallSettingsPatch,
 } from './eventWallSettings'
+import {
+  DEFAULT_REVEAL_SETTINGS,
+  mergeRevealSettings,
+  revealSettingsViolation,
+  type EventRevealSettings,
+  type EventRevealSettingsPatch,
+} from './eventRevealSettings'
 import { normalizeWelcomeMessage, restoreWelcomeMessage } from './welcomeMessage'
 
 /**
@@ -154,6 +161,13 @@ export interface EventSettingsProps {
    * Merged field by field, never replaced whole; `eventWallSettings.ts` has the argument.
    */
   readonly wall: EventWallSettings
+  /**
+   * The reveal gate of the "appareil jetable" mode (spec 23): whether the public sees the
+   * published photographs yet. Merged field by field like `wall`; `eventRevealSettings.ts` has
+   * the argument, and `eventSettings.revealDone` / `revealInPast` are judged by the use case,
+   * which has the clock.
+   */
+  readonly reveal: EventRevealSettings
 }
 
 /**
@@ -161,9 +175,11 @@ export interface EventSettingsProps {
  * different intents from the same settings form, which is why
  * `exactOptionalPropertyTypes` is on and why these fields are not merged with `??`.
  */
-export type EventSettingsPatch = Partial<Omit<EventSettingsProps, 'wall'>> & {
+export type EventSettingsPatch = Partial<Omit<EventSettingsProps, 'wall' | 'reveal'>> & {
   /** Partial: only the keys present are written (spec 13). */
   readonly wall?: EventWallSettingsPatch
+  /** Partial too (spec 23): `at` is the one key a host may name with the clock watching. */
+  readonly reveal?: EventRevealSettingsPatch
 }
 
 const DEFAULTS: EventSettingsProps = {
@@ -186,6 +202,7 @@ const DEFAULTS: EventSettingsProps = {
   welcomeMessage: null,
   logo: null,
   wall: DEFAULT_WALL_SETTINGS,
+  reveal: DEFAULT_REVEAL_SETTINGS,
 }
 
 const pick = <T>(update: T | undefined, current: T): T => (update === undefined ? current : update)
@@ -316,11 +333,13 @@ export class EventSettings {
       welcomeMessage: pick(patch.welcomeMessage, base.welcomeMessage),
       logo: pick(patch.logo, base.logo),
       wall: mergeWallSettings(base.wall, patch.wall),
+      reveal: mergeRevealSettings(base.reveal, patch.reveal),
     }
 
     const failure =
       languageViolation(merged.wallLanguage) ??
       wallSettingsViolation(merged.wall) ??
+      revealSettingsViolation(merged.reveal) ??
       violation(
         merged.guestSelfDeleteGraceSeconds,
         GRACE_SECONDS,
@@ -415,6 +434,10 @@ export class EventSettings {
 
   get wall(): EventWallSettings {
     return this.props.wall
+  }
+
+  get reveal(): EventRevealSettings {
+    return this.props.reveal
   }
 
   /** The same settings with the host's logo named, or cleared with `null`: `withVenuePhoto`'s reasoning. */
