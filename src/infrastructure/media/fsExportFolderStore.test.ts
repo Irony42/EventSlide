@@ -1,7 +1,10 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+
+// Permission bits and symlinks are how a real disk fails on POSIX; Windows answers "missing" instead.
+const posixUser = process.platform !== 'win32' && process.getuid?.() !== 0
 import { createFsExportFolderStore } from './fsExportFolderStore'
 
 const bytes = (text: string): AsyncIterable<Uint8Array> =>
@@ -136,4 +139,42 @@ describe('createFsExportFolderStore', () => {
       await expect(store.write(name, bytes('x'), { maxBytes: 10 })).rejects.toThrow(/unsafe name/)
     }),
   )
+
+  it.skipIf(!posixUser)('reports a folder that is a regular file as an error, not as an absent archive', () =>
+    withRoot(async (root) => {
+      const store = createFsExportFolderStore(root)
+      writeFileSync(join(root, 'a'), 'not a directory')
+
+      await expect(store.stat('a')).rejects.toMatchObject({ code: 'ENOTDIR' })
+    }))
+
+  it.skipIf(!posixUser)('refuses to read an archive through a folder that is a regular file instead of answering absent', () =>
+    withRoot(async (root) => {
+      const store = createFsExportFolderStore(root)
+      writeFileSync(join(root, 'a'), 'not a directory')
+
+      await expect(store.openRead('a')).rejects.toMatchObject({ code: 'ENOTDIR' })
+    }))
+
+  it('does not swallow a delete that cannot list the folder, and leaves what is there untouched', () =>
+    withRoot(async (root) => {
+      const store = createFsExportFolderStore(root)
+      writeFileSync(join(root, 'a'), 'not a directory')
+
+      await expect(store.delete('a')).rejects.toMatchObject({ code: 'ENOTDIR' })
+      expect(readFileSync(join(root, 'a'), 'utf8')).toBe('not a directory')
+    }))
+
+  it.skipIf(!posixUser)('does not swallow a delete that removed the files but cannot list the folder', () =>
+    withRoot(async (root) => {
+      const store = createFsExportFolderStore(root)
+      await store.write('a', bytes('z'), { maxBytes: 100 })
+      chmodSync(join(root, 'a'), 0o300)
+      try {
+        await expect(store.delete('a')).rejects.toMatchObject({ code: 'EACCES' })
+      } finally {
+        chmodSync(join(root, 'a'), 0o700)
+      }
+      expect(readdirSync(join(root, 'a'))).toEqual([])
+    }))
 })
