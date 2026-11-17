@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WallRevealDto } from '../../../lib/api/dto'
-import { useRevealSwitch } from './useRevealSwitch'
+import { REVEAL_RETRY_MAX, REVEAL_RETRY_MS, useRevealSwitch } from './useRevealSwitch'
 
 const SERVER_NOW = 1_800_000_000_000
 
@@ -84,6 +84,33 @@ describe('useRevealSwitch (spec 23)', () => {
     expect(vi.getTimerCount()).toBe(0)
     vi.advanceTimersByTime(120_000)
     expect(read).not.toHaveBeenCalled()
+  })
+
+  it('asks again when the read at the hour still finds the evening waiting, a bounded number of times', () => {
+    const read = vi.fn()
+    renderHook(() => useRevealSwitch(reveal(), read, noJitter))
+
+    vi.advanceTimersByTime(60_000)
+    expect(read).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(REVEAL_RETRY_MS)
+    expect(read).toHaveBeenCalledTimes(2)
+
+    vi.advanceTimersByTime(60 * 60_000)
+    expect(read).toHaveBeenCalledTimes(1 + REVEAL_RETRY_MAX)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('stops retrying once the answer moves', () => {
+    const read = vi.fn()
+    const { rerender } = renderHook(
+      ({ block }: { block: WallRevealDto }) => useRevealSwitch(block, read, noJitter),
+      { initialProps: { block: reveal() } },
+    )
+    vi.advanceTimersByTime(60_000)
+    rerender({ block: reveal({ revealed: true }) })
+
+    vi.advanceTimersByTime(60 * 60_000)
+    expect(read).toHaveBeenCalledTimes(1)
   })
 
   it('waits again when the host moves the hour', () => {
