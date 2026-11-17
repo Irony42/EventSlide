@@ -474,6 +474,7 @@ const GUEST_SESSION_ROUTES: ReadonlySet<string> = new Set([
   'get /api/events/:eventSlug/guestbook/mine',
   'get /api/events/:eventSlug/missions/mine',
   'get /api/events/:eventSlug/photos/:photoId/reactions',
+  'get /api/events/:eventSlug/photos/:photoId/save',
   'get /api/events/:eventSlug/photos/mine',
   'get /api/events/:eventSlug/privacy-notice',
   'patch /api/events/:eventSlug/guests/:guestId',

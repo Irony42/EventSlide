@@ -12,6 +12,11 @@ import {
   guestWriteLimiter,
   reactionGuestLimiter,
   reactionLimiter,
+  SAVES_PER_ADDRESS_PER_MINUTE,
+  SAVES_PER_GUEST_PER_MINUTE,
+  saveAddressLimiter,
+  saveConcurrencyLimiter,
+  saveGuestLimiter,
   uploadBodyDeadline,
   uploadConcurrencyLimiter,
   uploadGuestLimiter,
@@ -28,6 +33,7 @@ import {
   toUploadResponseDto,
 } from '../presenters/presenters'
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
+import { serveRanged } from '../presenters/serveRanged'
 import {
   captionBody,
   guestParams,
@@ -90,6 +96,7 @@ export interface GuestRouteDeps {
     | 'eraseGuestContribution'
     | 'getPhotoReactions'
     | 'getGuestChecklist'
+    | 'saveGuestPhoto'
   >
   /**
    * The aggregate byte bound, overridable so a test can reach it in bytes rather than
@@ -134,6 +141,16 @@ export interface GuestRouteDeps {
    * Optional only so a test can mount this router alone; production passes it.
    */
   readonly uploadConcurrencyLimiter?: RequestHandler
+  /**
+   * The three bounds of `GET .../photos/:photoId/save` (spec 24, section 5.4): per address and
+   * event ahead of `requireGuest`, per guest right after it, and the concurrency of the route.
+   * Built here from the constants when absent; a parameter so that a test reaches a limit in three
+   * requests instead of forty or six hundred. Only this route uses them, so there is no second
+   * router to share an instance with.
+   */
+  readonly saveAddressRateLimiter?: RequestHandler
+  readonly saveGuestRateLimiter?: RequestHandler
+  readonly saveConcurrencyLimiter?: RequestHandler
   /** The deadline for the body to arrive (review S2). Built from `deps` when absent. */
   readonly bodyDeadline?: RequestHandler
   /**
@@ -274,6 +291,9 @@ export const guestRoutes = ({
     max: deps.config.uploads.maxConcurrentRequests,
     perEvent: deps.config.uploads.maxConcurrentRequestsPerEvent,
   }),
+  saveAddressRateLimiter = saveAddressLimiter(SAVES_PER_ADDRESS_PER_MINUTE),
+  saveGuestRateLimiter = saveGuestLimiter(SAVES_PER_GUEST_PER_MINUTE),
+  saveConcurrencyLimiter: saveOpenLimiter = saveConcurrencyLimiter(),
   bodyDeadline = uploadBodyDeadline(deps.config.uploads.bodyTimeoutMs),
   diskSpaceGuard = createDiskSpaceGuard({
     checker: deps.diskSpaceChecker,
@@ -601,6 +621,59 @@ export const guestRoutes = ({
           messages: erased.messages,
         }
         sendJson(response, dto)
+      })
+    }),
+  )
+
+  /**
+   * A guest keeping a photograph from the feed (spec 24): `display`, as an attachment, one at a time.
+   *
+   * **Here and not in `mediaRoutes`**, and the placement is a control. `server.ts` mounts this
+   * router before `mediaRoutes`, whose `/events/:eventSlug/photos/:photoId/:variant` would otherwise
+   * catch `save` as a rendition name and answer 400; the order is the mount's, not this file's, and a
+   * named test holds it. It is also the reason for the route being its own: it is reserved to
+   * guests (`requireGuest`), it applies the host's switch, and it has bounds of its own.
+   *
+   * The identity is the guest's cookie, never a signed address (a signature is a bearer anyone could
+   * paste, and would outlive a revocation): `requireGuest` reads the guest row on every request, so
+   * a revoked guest stops at once. `requireGuest` ignores the event's lifecycle, so the use case
+   * checks it. Three bounds, in the order a request meets them: the address and event before any
+   * token is checked, the guest right after, then how many may be open at once (counted per guest,
+   * never per address, because a room shares an address).
+   *
+   * The server keeps nothing: no row of who saved what, no file, no cache (`no-store`). `Range` is
+   * honoured because a phone's download manager resumes with it, and a descriptor is opened only
+   * once the whole decision is made, as on the media route.
+   */
+  router.get(
+    '/events/:eventSlug/photos/:photoId/save',
+    saveAddressRateLimiter,
+    requireGuest(deps),
+    saveGuestRateLimiter,
+    saveOpenLimiter,
+    withGuest(async ({ event }, req, res) => {
+      const params = photoParams.parse(req.params)
+
+      const result = await usecases.saveGuestPhoto({
+        eventId: event.id,
+        photoId: asPhotoId(params.photoId),
+      })
+      if (!result.ok) return sendError(res, result.error)
+      const saved = result.value
+
+      res.setHeader('X-Content-Type-Options', 'nosniff')
+
+      await serveRanged(req, res, saved, {
+        contentType: saved.contentType,
+        // Not content-addressed for the cache's sake here: a removed photograph must answer 404 on
+        // the next request, so no copy of this response may be served in its place.
+        cacheControl: 'private, no-store',
+        // The name is the server's (`<slug>-<short digest>.jpg`), a validated slug and hex, so it
+        // carries neither a quote nor a line break into the header.
+        contentDisposition: `attachment; filename="${saved.fileName}"`,
+        etag: `"${saved.contentHash.value}-${saved.variant}"`,
+        refusalCacheControl: 'no-store',
+        failureMessage: 'guest photo save failed mid-stream',
       })
     }),
   )

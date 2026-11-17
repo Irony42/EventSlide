@@ -31,6 +31,7 @@ import type {
   UploadPhotosResult,
 } from '../../../application/usecases/photos/uploadPhotos'
 import { makeGetGuestChecklist } from '../../../application/usecases/missions/getGuestChecklist'
+import { makeSaveGuestPhoto } from '../../../application/usecases/photos/saveGuestPhoto'
 import { makeGetPhotoReactions } from '../../../application/usecases/reactions/getPhotoReactions'
 import {
   makeReactToPhoto,
@@ -253,6 +254,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               clock: deps.clock,
             }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
+            saveGuestPhoto: makeSaveGuestPhoto({ events: deps.events, photos, media }),
             getGuestChecklist: makeGetGuestChecklist({
               events: deps.events,
               missions,
