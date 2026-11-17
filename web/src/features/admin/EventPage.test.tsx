@@ -1113,7 +1113,8 @@ describe('the reveal band on the console (spec 23)', () => {
 
     expect(await screen.findByRole('heading', { name: fr.reveal.title })).toBeVisible()
     expect(screen.getByRole('heading', { name: fr.challenge.title })).toBeVisible()
-    expect(screen.getByRole('button', { name: fr.reveal.revealNow })).toBeVisible()
+    // The banner at the top and the section lower down: two buttons, one question.
+    expect(screen.getAllByRole('button', { name: fr.reveal.revealNow })).toHaveLength(2)
   })
 
   it('shows no band while the mode is off', async () => {
@@ -1127,7 +1128,11 @@ describe('the reveal band on the console (spec 23)', () => {
   it('lets a moderator reveal but sends them to no settings page', async () => {
     renderPage(fakeApi({ getEvent: vi.fn(async () => heldEvent({ role: 'moderator' })) }))
 
-    expect(await screen.findByRole('button', { name: fr.reveal.revealNow })).toBeVisible()
+    expect(
+      within(await screen.findByTestId('reveal-banner')).getByRole('button', {
+        name: fr.reveal.revealNow,
+      }),
+    ).toBeVisible()
     expect(screen.queryByRole('link', { name: fr.reveal.editTime })).toBeNull()
   })
 
@@ -1157,13 +1162,130 @@ describe('the reveal band on the console (spec 23)', () => {
     })
 
     renderPage(api)
-    await userEvent.click(await screen.findByRole('button', { name: fr.reveal.revealNow }))
+    const section = (await screen.findByRole('heading', { name: fr.reveal.title })).closest(
+      'section',
+    )
+    await userEvent.click(
+      within(section as HTMLElement).getByRole('button', { name: fr.reveal.revealNow }),
+    )
     await userEvent.click(inDialog(fr.reveal.revealNow))
 
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: fr.reveal.revealNow })).toBeNull(),
     )
+    expect(api.revealEvent).toHaveBeenCalledTimes(1)
     expect(api.getEvent).toHaveBeenCalledTimes(1)
+  })
+
+  describe('the banner at the top of the page (spec 23b, point 4)', () => {
+    const banner = () => screen.findByTestId('reveal-banner')
+
+    it('says the hour, the time left and how many photographs wait, above "Tout l’évènement"', async () => {
+      // Half a minute short of the hour, so the rounding up of a started minute lands on "1 h 00".
+      const soon = heldEvent({
+        reveal: {
+          enabled: true,
+          revealed: false,
+          atMs: NOW + 3_570_000,
+          serverNowMs: NOW,
+          film: true,
+          readyCount: 12,
+        },
+      })
+      renderPage(fakeApi({ getEvent: vi.fn(async () => soon) }))
+
+      const line = await banner()
+      expect(line).toHaveTextContent(fr.reveal.title)
+      expect(line).toHaveTextContent(fr.reveal.guestLeft(1, 0))
+      expect(line).toHaveTextContent(fr.reveal.bannerWaiting(12))
+      expect(
+        line.compareDocumentPosition(
+          screen.getByRole('heading', { name: fr.admin.overviewTitle }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+    })
+
+    it('says the reveal is at the button when no hour is set', async () => {
+      renderPage(
+        fakeApi({
+          getEvent: vi.fn(async () =>
+            heldEvent({
+              reveal: {
+                enabled: true,
+                revealed: false,
+                atMs: null,
+                serverNowMs: NOW,
+                film: true,
+                readyCount: 3,
+              },
+            }),
+          ),
+        }),
+      )
+
+      expect(await banner()).toHaveTextContent(fr.reveal.bannerManual)
+    })
+
+    it('reveals with the same confirmation and the same call as the section, from the banner', async () => {
+      const revealed = heldEvent({
+        reveal: {
+          enabled: true,
+          revealed: true,
+          atMs: NOW,
+          serverNowMs: NOW,
+          film: true,
+          readyCount: null,
+        },
+      })
+      const api = fakeApi({
+        getEvent: vi.fn(async () => heldEvent()),
+        revealEvent: vi.fn(async () => revealed),
+      })
+      renderPage(api)
+
+      await userEvent.click(
+        within(await banner()).getByRole('button', { name: fr.reveal.revealNow }),
+      )
+      expect(api.revealEvent).not.toHaveBeenCalled()
+      const dialog = within(screen.getByRole('dialog'))
+      expect(dialog.getByText(fr.reveal.confirmTitle)).toBeVisible()
+      expect(dialog.getByText(new RegExp(fr.reveal.definitive))).toBeVisible()
+      await userEvent.click(inDialog(fr.reveal.revealNow))
+
+      await waitFor(() => expect(screen.queryByTestId('reveal-banner')).toBeNull())
+      expect(api.revealEvent).toHaveBeenCalledTimes(1)
+      expect(api.getEvent).toHaveBeenCalledTimes(1)
+    })
+
+    it('is gone once the evening is revealed, and the section says when', async () => {
+      renderPage(
+        fakeApi({
+          getEvent: vi.fn(async () =>
+            heldEvent({
+              reveal: {
+                enabled: true,
+                revealed: true,
+                atMs: NOW - 60_000,
+                serverNowMs: NOW,
+                film: true,
+                readyCount: null,
+              },
+            }),
+          ),
+        }),
+      )
+
+      expect(await screen.findByRole('heading', { name: fr.reveal.title })).toBeVisible()
+      expect(screen.queryByTestId('reveal-banner')).toBeNull()
+    })
+
+    it('is not there on an evening without the mode', async () => {
+      renderPage(fakeApi())
+
+      await screen.findByRole('heading', { name: fr.challenge.title })
+
+      expect(screen.queryByTestId('reveal-banner')).toBeNull()
+    })
   })
 })
 

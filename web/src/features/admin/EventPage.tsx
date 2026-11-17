@@ -27,7 +27,9 @@ import { GuestListPanel } from './GuestListPanel'
 import { GuestbookPanel } from './GuestbookPanel'
 import { AnnouncementsPanel } from './AnnouncementsPanel'
 import { ChallengePanel } from './ChallengePanel'
+import { RevealBanner } from './RevealBanner'
 import { RevealPanel } from './RevealPanel'
+import { useRevealControl } from './useRevealControl'
 import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
@@ -77,6 +79,8 @@ export function EventPage() {
   const refresh = useCallback(() => {
     api.getEvent(slug).then(replace, () => undefined)
   }, [api, slug, replace])
+  // One reveal state for the banner at the top and the section lower down (spec 23b).
+  const revealControl = useRevealControl({ event, onChanged: replace, onReload: refresh })
   const rotate = useRotateJoinCode()
   const purge = usePurgeEvent()
   const toast = useToast()
@@ -276,6 +280,12 @@ export function EventPage() {
         )}
       </header>
 
+      {/* The disposable camera's reveal, where the host looks first (spec 23b): nothing while the
+          mode is off or once the evening is revealed. */}
+      <div className={styles['screenOnly']}>
+        <RevealBanner control={revealControl} />
+      </div>
+
       <div className={styles['lead']}>
         <div className={styles['screenOnly']}>
           <EventNowCard
@@ -376,12 +386,8 @@ export function EventPage() {
         ) : null}
         {/* The disposable camera's band (spec 23), where the challenge is: any moderator reveals, the owner
             alone moves the hour. Nothing at all while the mode is off. */}
-        <RevealPanel
-          event={event}
-          onChanged={replace}
-          onReload={refresh}
-          settingsPath={isOwner ? settingsPath : null}
-        />
+        <RevealPanel control={revealControl} settingsPath={isOwner ? settingsPath : null} />
+        {revealControl.dialog}
         {/* Any moderator launches or stops a timed challenge (spec 10): the person with the laptop
             at the evening is usually the moderator, and it writes no new sentence. */}
         <div id={panelId('challenge')}>
