@@ -3354,7 +3354,12 @@ The shape every route in the table that answers `200` returns.
   "joinCode": "H7K2QM",
   "joinUrl": "https://photos.example/join/H7K2QM",
   "quotaBytes": 21474836480,
-  "purge": { "at": null, "notice": null, "offboarding": false, "serverNowMs": 1782000000000 },
+  "purge": {
+    "at": null,
+    "notice": null,
+    "offboarding": false,
+    "serverNowMs": 1782000000000
+  },
   "settings": {
     "moderation": "manual",
     "allowCaptions": true,
