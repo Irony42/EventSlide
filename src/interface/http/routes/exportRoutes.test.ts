@@ -52,6 +52,8 @@ const SEAL: ExportSeal = {
 interface Held {
   release: () => void
   opened: number
+  /** Streams the route has finished with (read to the end or destroyed under it). */
+  closed: number
   holding: boolean
 }
 
@@ -70,7 +72,7 @@ const world = (): World => {
   const photos = new FakePhotoRepository()
   const state = { enabled: true, freeDisk: 1_000_000_000 as number | null }
   const album = new HeldExport()
-  const held: Held = { release: () => undefined, opened: 0, holding: false }
+  const held: Held = { release: () => undefined, opened: 0, closed: 0, holding: false }
   const limiter = hostExportLimiter()
 
   const harness = buildHarness({
@@ -92,17 +94,21 @@ const world = (): World => {
         return (async function* () {
           held.opened += 1
           let paused = false
-          for await (const part of bytes) {
-            for (let at = 0; at < part.length; at += 65_536) {
-              yield part.subarray(at, at + 65_536)
-              // Held **before the last byte**: a client that has every byte of a response with a
-              // declared length takes the connection for free and sends its next request down it,
-              // which the server queues behind the response it has not finished.
-              if (held.holding && !paused) {
-                paused = true
-                await new Promise<void>((resolve) => (held.release = resolve))
+          try {
+            for await (const part of bytes) {
+              for (let at = 0; at < part.length; at += 65_536) {
+                yield part.subarray(at, at + 65_536)
+                // Held **before the last byte**: a client that has every byte of a response with a
+                // declared length takes the connection for free and sends its next request down it,
+                // which the server queues behind the response it has not finished.
+                if (held.holding && !paused) {
+                  paused = true
+                  await new Promise<void>((resolve) => (held.release = resolve))
+                }
               }
             }
+          } finally {
+            held.closed += 1
           }
         })()
       }
@@ -736,7 +742,7 @@ describe('served_at: stamped only by a 200 whose every byte reached the socket (
         res.once('close', () => resolve())
       })
     })
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve) => {
       const outgoing = http.get(
         { port, path: ZIP_URL, headers: { Cookie: cookie } },
         (incoming) => {
@@ -748,11 +754,13 @@ describe('served_at: stamped only by a 200 whose every byte reached the socket (
         },
       )
       outgoing.on('error', () => undefined)
-      outgoing.on('timeout', () => reject(new Error('no data')))
     })
     await serverSawClose
     subject.held.release()
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    // The stream is closed once the route is done with it; the passes that follow let the handler's
+    // own continuation (the only place served_at could be stamped) run to its end.
+    await vi.waitFor(() => expect(subject.held.closed).toBe(1))
+    for (let pass = 0; pass < 5; pass += 1) await new Promise((resolve) => setImmediate(resolve))
 
     expect(await servedAt()).toBeNull()
     await new Promise<void>((resolve) => server.close(() => resolve()))

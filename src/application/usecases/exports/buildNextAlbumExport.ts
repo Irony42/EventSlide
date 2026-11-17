@@ -8,6 +8,7 @@ import {
   checkExportTotal,
   estimateExportBytes,
 } from '../../../domain/exports/exportCaps'
+import { retentionApplies } from '../../../domain/events/eventStatus'
 import { exportExpiresAt } from '../../../domain/exports/exportExpiry'
 import { readZipEnd, ZIP_TAIL_BYTES } from '../../../domain/exports/zipEndRecord'
 import { DomainError } from '../../../domain/shared/errors'
@@ -175,6 +176,9 @@ export const makeBuildNextAlbumExport = ({
   ): Promise<{ readonly event: Event; readonly purgeDate: Date | null } | null> => {
     const event = await events.findById(eventId)
     if (event === null) return null
+    // An archive is for an evening that is over: a request queued before the event was reopened
+    // (which only stamps the queued row) must not be sealed for an album that grows again.
+    if (!retentionApplies(event.status)) return null
     if (!(await checkExportAccess(clients, event)).ok) return null
     const client = event.clientId === null ? null : await clients.findById(event.clientId)
     return { event, purgeDate: purgeDeadline(event, client, policy.capNoticeDays) }

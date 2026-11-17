@@ -575,6 +575,27 @@ describe('buildNextAlbumExport', () => {
       expect(scene.archive.entries).toEqual([])
     })
 
+    it('gives up as unavailable when the event was reopened while the request was queued', async () => {
+      scene.events.seed(anEvent({ id: 'event-1', slug: 'camille-et-sacha', status: 'live' }))
+
+      const outcome = await run()
+
+      expect(outcome).toEqual({ kind: 'failed', eventId: EXPORT_EVENT, code: 'unavailable' })
+      expect(scene.archive.entries).toEqual([])
+      expect(scene.exportFiles.has(EXPORT_EVENT)).toBe(false)
+    })
+
+    it('gives up as unavailable, and deletes the file, when the event was reopened while it was written', async () => {
+      scene.exportFiles.duringWrite = async () => {
+        scene.events.seed(anEvent({ id: 'event-1', slug: 'camille-et-sacha', status: 'live' }))
+      }
+
+      const outcome = await run()
+
+      expect(outcome).toMatchObject({ kind: 'failed', code: 'unavailable' })
+      expect(scene.exportFiles.has(EXPORT_EVENT)).toBe(false)
+    })
+
     it('gives up as unavailable, and deletes the file, when it was taken down while it was written', async () => {
       scene.exportFiles.duringWrite = async () => {
         await scene.events.setTakenDown(EXPORT_EVENT, atPlus(0))
