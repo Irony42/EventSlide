@@ -484,6 +484,17 @@ export const de: UiText = {
     'book.titleEmpty': 'Geben Sie dem Fotobuch einen Titel.',
     'book.titleTooLong': 'Dieser Titel ist zu lang.',
     'book.subtitleTooLong': 'Dieser Untertitel ist zu lang.',
+    'export.alreadyRunning': 'Ein Archiv wird bereits vorbereitet.',
+    'export.notClosed': 'Das Archiv lässt sich vorbereiten, sobald die Veranstaltung beendet ist.',
+    'export.noRoom':
+      'Der Server hat nicht genug Platz, um das Archiv vorzubereiten. Laden Sie das Album direkt herunter oder informieren Sie den Betreiber.',
+    'export.tooLarge':
+      'Das Archiv wäre größer, als der Server vorzubereiten bereit ist. Laden Sie das Album direkt herunter.',
+    'export.dailyLimitReached':
+      'Die Tagesgrenze für Archive dieser Veranstaltung ist erreicht. Versuchen Sie es morgen erneut oder laden Sie das Album direkt herunter.',
+    'export.unavailable':
+      'Die Archivvorbereitung ist auf diesem Server abgeschaltet. Laden Sie das Album direkt herunter.',
+    'export.notFound': 'Dieses Archiv ist nicht mehr verfügbar. Bereiten Sie es neu vor.',
     'reel.notEnoughPhotos': 'Für ein Video braucht es mindestens drei veröffentlichte Favoriten.',
     'reel.tooManyPhotos': 'Zu viele Favoriten für ein Video: Entfernen Sie einige.',
     'reel.alreadyRunning': 'Ein Video wird bereits erstellt.',
@@ -2503,6 +2514,51 @@ export const de: UiText = {
       showing: 'Auf dem Bildschirm',
       over: 'Vorbei',
     },
+  },
+  exportPurge: {
+    title: 'Löschung des Albums',
+    deletesOn: (date: string, days: number) =>
+      `Dieses Album wird am ${date} gelöscht (${t.count(days, { one: 'in 1 Tag', other: `in ${t.number(days)} Tagen` })}).`,
+    deletesToday: (date: string) => `Dieses Album wird heute gelöscht, am ${date}.`,
+    passed: 'Das vorgesehene Löschdatum ist verstrichen.',
+    downloadFirst: 'Laden Sie es vorher herunter: Danach existiert es nirgends mehr.',
+    downloadAlbum: 'Album herunterladen',
+    directNote:
+      'Der Server kann diesen direkten Download nicht prüfen: Mit der enthaltenen Datei MANIFEST.sha256 prüfen Sie ihn selbst.',
+    prepare: 'Geprüftes Archiv vorbereiten',
+    downloadArchive: 'Archiv herunterladen',
+    rebuild: 'Archiv neu erstellen',
+    working:
+      'Archiv wird vorbereitet. Sie können diese Seite verlassen: Sie aktualisiert sich selbst.',
+    digest: 'SHA-256-Prüfsumme',
+    ready: (entries: number, size: string, sealedOn: string, until: string | null) =>
+      `Archiv bereit: ${t.count(entries, { one: `${t.number(entries)} Datei`, other: `${t.number(entries)} Dateien` })}, ${size}, geprüft am ${sealedOn}.${until === null ? '' : ` Verfügbar bis ${until}.`}`,
+    sent: (date: string) =>
+      `Archiv am ${date} vollständig gesendet. Prüfen Sie Ihre Datei, bevor Sie irgendetwas löschen.`,
+    incomplete: (missing: number) =>
+      `Archiv bereit, aber ${t.count(missing, { one: `${t.number(missing)} Datei fehlte`, other: `${t.number(missing)} Dateien fehlten` })} auf dem Datenträger des Servers: ${t.count(missing, { one: 'sie ist nicht enthalten.', other: 'sie sind nicht enthalten.' })}`,
+    retired:
+      'Das Archiv wurde zurückgezogen, weil ein Foto gelöscht wurde. Bereiten Sie es neu vor.',
+    changed:
+      'Das Album hat sich seit der Erstellung des Archivs geändert, deshalb wird es nicht mehr angeboten. Bereiten Sie es neu vor.',
+    noRoom:
+      'Der Server hat nicht genug Platz, um das Archiv vorzubereiten. Laden Sie das Album direkt herunter oder informieren Sie den Betreiber.',
+    tooLarge:
+      'Das Archiv wäre größer, als der Server vorzubereiten bereit ist. Laden Sie das Album direkt herunter.',
+    failed:
+      'Das Archiv konnte nicht vorbereitet werden. Versuchen Sie es erneut; wenn es sich wiederholt, wenden Sie sich an den Betreiber.',
+    deleteNow: 'Jetzt löschen',
+    deleteWithout: 'Ohne Archiv löschen …',
+    needsArchive:
+      'Um das Album jetzt zu löschen, bereiten Sie zuerst das geprüfte Archiv vor und laden es vollständig herunter.',
+    needsDownload:
+      'Um das Album jetzt zu löschen, laden Sie zuerst das Archiv vollständig herunter.',
+    needsComplete:
+      'Das Archiv ist unvollständig: Dateien fehlten auf dem Datenträger des Servers. Sie können das Album trotzdem löschen, nach einer Bestätigung.',
+    wordPrompt: (word: string) =>
+      `Dieses Album wurde nicht vollständig archiviert. Um es trotzdem zu löschen, tippen Sie ${word}.`,
+    confirmWord: 'LÖSCHEN',
+    wordLabel: 'Bestätigungswort',
   },
   titles: {
     print: 'Tischkarten und Plakat',
