@@ -555,6 +555,21 @@ export const updateSettingsBody = z.strictObject({
     })
     .optional(),
   /**
+   * The reveal gate of the disposable-camera mode (spec 23). Partial and strict, like `wall`: only
+   * the keys sent are written, merged into the stored group, so a save that names `film` cannot
+   * forget the hour. `at` is an instant with its offset (the browser resolves the host's local
+   * hour before sending), or `null` to reveal with the button. That it is a future hour, and that a
+   * reveal already done cannot be moved back, are the domain's (`eventSettings.revealInPast`,
+   * `eventSettings.revealDone`): they need the clock, which is a port.
+   */
+  reveal: z
+    .strictObject({
+      enabled: z.boolean().optional(),
+      at: instant({ offset: true }).nullable().optional(),
+      film: z.boolean().optional(),
+    })
+    .optional(),
+  /**
    * **Read and ignored.** `GET` answers the brand in `settings`, so a tab that sends settings back
    * as it received them must not get a 400. The route never forwards it: it cannot set a logo.
    */

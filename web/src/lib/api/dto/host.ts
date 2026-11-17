@@ -202,6 +202,12 @@ export interface EventSettingsDto {
     readonly soundTone: 'bell' | 'chime' | 'drop' | 'pop'
     readonly soundVolume: number
   }
+  /** The disposable-camera mode (spec 23), as stored; `at` is an instant. Absent from an older server. */
+  readonly reveal?: {
+    readonly enabled: boolean
+    readonly at: string | null
+    readonly film: boolean
+  }
 }
 export interface EventSummaryDto {
   readonly id: string

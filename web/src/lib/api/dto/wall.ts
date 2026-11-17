@@ -8,6 +8,7 @@ import type {
   MediaKind,
   MissionScope,
   WallLayout,
+  WallRevealDto,
 } from './common'
 
 /**
@@ -129,6 +130,8 @@ export interface WallResponse {
    * The sound the wall may play for a new photo (spec 12). Optional: an older server sends none
    * and the wall stays silent.
    */
+  /** The reveal gate and what waits for it (spec 23). Absent from an older server: nothing is held back. */
+  readonly reveal?: WallRevealDto
   readonly sound?: {
     readonly enabled: boolean
     readonly tone: 'bell' | 'chime' | 'drop' | 'pop'

@@ -547,6 +547,10 @@ export const de: UiText = {
     'eventSettings.welcomeTooManyLines': 'Diese Nachricht hat zu viele Zeilen.',
     'eventSettings.saveFailed':
       'Die Einstellungen konnten nicht gespeichert werden. Versuchen Sie es erneut.',
+    'eventSettings.revealInPast': 'Die Enthüllung muss in der Zukunft liegen.',
+    'eventSettings.revealDone':
+      'Der Abend ist bereits enthüllt: die Uhrzeit lässt sich nicht mehr verschieben oder löschen.',
+    'eventSettings.revealInstantInvalid': 'Diese Uhrzeit für die Enthüllung ist ungültig.',
     'eventSettings.graceSecondsInvalid': 'Diese Löschfrist ist nicht zulässig.',
     'eventSettings.retentionDaysInvalid': 'Diese Aufbewahrungsdauer ist nicht zulässig.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Diese Anzahl an Fotos pro Gast ist nicht zulässig.',

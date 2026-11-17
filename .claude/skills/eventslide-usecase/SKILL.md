@@ -250,5 +250,6 @@ Use the builders in `src/application/testing/builders.ts` (`anEvent`, `aPhoto`,
 - [ ] `Result` returned; no throw for expected failures.
 - [ ] New port → new fake → added to the shared contract suite.
 - [ ] Tests: happy, not-found, cross-event, domain-refused.
+- [ ] A use case that reads photographs for a non-moderator asks `visibleStatuses(event.settings.reveal, clock.now())` (the reveal gate; `src/main/publicReaders.guard.test.ts`).
 - [ ] Wired in `src/main/container.ts`.
 - [ ] 100% branch coverage for `src/application` still holds.

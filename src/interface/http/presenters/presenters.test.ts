@@ -398,6 +398,7 @@ describe('toEventSettingsDto', () => {
           soundTone: 'bell',
           soundVolume: 30,
         },
+        reveal: { enabled: true, at: new Date('2026-11-20T22:00:00.000Z'), film: true },
       },
     })
 
@@ -421,6 +422,7 @@ describe('toEventSettingsDto', () => {
       },
       wallLanguage: 'es',
       brand: { welcomeMessage: null, logoUrl: null },
+      reveal: { enabled: true, at: '2026-11-20T22:00:00.000Z', film: true },
       wall: {
         layout: 'collage',
         slideIntervalMs: 20_000,

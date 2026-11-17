@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_REVEAL_SETTINGS } from './eventRevealSettings'
 import { DEFAULT_WALL_SETTINGS } from './eventWallSettings'
 import { ContentHash } from '../photos/contentHash'
 import type { DomainError } from '../shared/errors'
@@ -134,6 +135,7 @@ describe('EventSettings.create', () => {
       welcomeMessage: null,
       logo: null,
       wall: { ...DEFAULT_WALL_SETTINGS, layout: 'mosaic', slideIntervalMs: 12_000 },
+      reveal: DEFAULT_REVEAL_SETTINGS,
     })
   })
 

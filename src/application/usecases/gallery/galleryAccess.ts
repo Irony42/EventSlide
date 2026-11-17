@@ -1,9 +1,10 @@
 import type { Event } from '../../../domain/events/event'
+import { visibleStatuses } from '../../../domain/events/eventRevealSettings'
 import { canManageEvent } from '../../../domain/events/eventRole'
 import { isInSharedGallery, unlockExpiresAt } from '../../../domain/gallery/galleryMedia'
 import type { ShareLink } from '../../../domain/gallery/shareLink'
 import type { ServedVariant } from '../../../domain/photos/mediaVariant'
-import { PHOTO_STATUSES, type PhotoStatus } from '../../../domain/photos/photoStatus'
+import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import { DomainError } from '../../../domain/shared/errors'
 import type { PhotoId, ShareLinkId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
@@ -40,10 +41,14 @@ export interface GalleryAccessDeps {
 }
 
 /**
- * The statuses a gallery reads, asked of the domain once rather than restated as a list:
- * the grid, the count and the archive all take them from here.
+ * The statuses a gallery reads **at `now`**, asked of the domain once rather than restated as a
+ * list: the grid, the count, the archive and each photograph's bytes all take them from here.
+ * What the shared gallery shows is what the wall shows (`isInSharedGallery`), and like the wall
+ * it shows nothing before the reveal of a disposable-camera evening (spec 23, `visibleStatuses`):
+ * the link opens, the grid is empty, and no error is invented for it.
  */
-export const GALLERY_STATUSES: readonly PhotoStatus[] = PHOTO_STATUSES.filter(isInSharedGallery)
+export const galleryStatuses = (event: Event, now: Date): readonly PhotoStatus[] =>
+  visibleStatuses(event.settings.reveal, now).filter(isInSharedGallery)
 
 /** Every refusal on this surface, whatever the reason. See the file comment. */
 export const notAvailable = (): DomainError => DomainError.notFound('gallery.notAvailable')

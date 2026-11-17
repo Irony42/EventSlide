@@ -2224,6 +2224,10 @@ export const fr = {
     'eventSettings.welcomeTooLong': 'Ce message est trop long.',
     'eventSettings.welcomeTooManyLines': 'Ce message compte trop de lignes.',
     'eventSettings.saveFailed': 'Les réglages n’ont pas pu être enregistrés. Réessayez.',
+    'eventSettings.revealInPast': 'L’heure de la révélation doit être dans le futur.',
+    'eventSettings.revealDone':
+      'La soirée est déjà révélée : l’heure ne peut plus être déplacée ni effacée.',
+    'eventSettings.revealInstantInvalid': 'Cette heure de révélation n’est pas valide.',
     'eventSettings.graceSecondsInvalid': 'Ce délai de suppression n’est pas accepté.',
     'eventSettings.retentionDaysInvalid': 'Ce délai de conservation n’est pas accepté.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Ce nombre de photos par invité n’est pas accepté.',

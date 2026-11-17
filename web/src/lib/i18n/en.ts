@@ -508,6 +508,10 @@ export const en: UiText = {
     'eventSettings.welcomeTooLong': 'This message is too long.',
     'eventSettings.welcomeTooManyLines': 'This message has too many lines.',
     'eventSettings.saveFailed': 'The settings could not be saved. Try again.',
+    'eventSettings.revealInPast': 'The reveal time must be in the future.',
+    'eventSettings.revealDone':
+      'The evening is already revealed: the time can no longer be moved or cleared.',
+    'eventSettings.revealInstantInvalid': 'This reveal time is not valid.',
     'eventSettings.graceSecondsInvalid': 'This deletion window is not accepted.',
     'eventSettings.retentionDaysInvalid': 'This retention period is not accepted.',
     'eventSettings.maxPhotosPerGuestInvalid': 'This number of photos per guest is not accepted.',

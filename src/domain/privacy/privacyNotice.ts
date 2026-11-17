@@ -102,6 +102,10 @@ export interface NoticePolicy {
   readonly guestSelfDeleteGraceSeconds: number
   /** The guestbook switch (spec 01): when on, a message is one more thing the notice covers. */
   readonly allowGuestbook: boolean
+  /** The roll of a disposable-camera evening (spec 23): the cap a guest is told about. */
+  readonly maxPhotosPerGuest: number | null
+  /** The reveal gate (spec 23): whether the photographs are held back, and the film look on screen. */
+  readonly reveal: { readonly enabled: boolean; readonly film: boolean }
 }
 
 /**
@@ -167,6 +171,26 @@ export interface PrivacyNotice {
    * mid-evening shows the notice once more to every guest before their next photo or message.
    */
   readonly guestbook: boolean
+  /**
+   * Whether the guests' photographs are held back from the other guests and the room until the
+   * host reveals the evening (spec 23): then the notice says so, and that the host and the
+   * moderators see them as they arrive. **A clause of the notice only, never of the hour**: the
+   * hour is told by the reveal block of the guest's own read, and an hour that moved (or became
+   * "now") must not ask every guest to read the notice again. Part of the revision only when true.
+   */
+  readonly deferredReveal: boolean
+  /**
+   * The number of poses a guest has, **told only on a disposable-camera evening** (spec 23), or
+   * `null`. A plain cap on an ordinary event is not a clause: telling it would change the
+   * revision of every event that has one and ask its guests to read again for nothing. Part of
+   * the revision only when present.
+   */
+  readonly shotLimit: number | null
+  /**
+   * That the film look exists on screen only and the original is kept as it is (spec 23), told
+   * with the reveal, and part of the revision only when true.
+   */
+  readonly film: boolean
   /**
    * The notice's identity: two notices with the same revision say the same thing.
    *
@@ -249,6 +273,10 @@ const revisionOf = (notice: Omit<PrivacyNotice, 'revision'>): string =>
     'selfErase=phone',
     // Before the operator: the free-text name stays the last clause, as above.
     ...(notice.guestbook ? ['guestbook=on'] : []),
+    // Spec 23: each clause only when it is told, so an event without the mode keeps its revision.
+    ...(notice.deferredReveal ? ['reveal=on'] : []),
+    ...(notice.shotLimit === null ? [] : [`shots=${notice.shotLimit}`]),
+    ...(notice.film ? ['film=on'] : []),
     ...(notice.operator === null ? [] : [`operator=${notice.operator}`]),
   ].join(';')
 
@@ -270,6 +298,11 @@ export const privacyNoticeFor = (
     selfRemovalSeconds: selfRemovalFor(policy),
     operator,
     guestbook: policy.allowGuestbook,
+    // The three clauses of the disposable camera hang on the mode being on: with it off the event
+    // is the one it always was, and its notice says what it always said.
+    deferredReveal: policy.reveal.enabled,
+    shotLimit: policy.reveal.enabled ? policy.maxPhotosPerGuest : null,
+    film: policy.reveal.enabled && policy.reveal.film,
   }
   return { ...clauses, revision: revisionOf(clauses) }
 }

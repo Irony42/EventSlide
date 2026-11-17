@@ -13,6 +13,9 @@ import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
 import { AT, aClient, aClientCeilings, anEvent, atPlus } from '../builders'
 
 /** A digest to round-trip: the host's own venue photograph (ADR 0010). */
+/** An instant that is not a round hour, so a store that truncated it would be caught. */
+const REVEAL_AT = new Date('2026-11-20T22:30:15.250Z')
+
 const venueDigest = ((): ContentHash => {
   const made = ContentHash.create('ab'.repeat(32))
   if (!made.ok) throw new Error('fixture digest')
@@ -217,6 +220,9 @@ export const eventRepositoryContract = (
               soundTone: 'drop',
               soundVolume: 80,
             },
+            // Off the default on all three keys, the hour an instant: a store that dropped the group,
+            // or wrote the hour as something it cannot read back, is caught (spec 23).
+            reveal: { enabled: true, at: REVEAL_AT, film: true },
           },
         }),
       )
@@ -244,6 +250,7 @@ export const eventRepositoryContract = (
         venuePhoto: venueDigest,
         welcomeMessage: 'Bienvenue !',
         logo: logoDigest,
+        reveal: { enabled: true, at: REVEAL_AT, film: true },
         wall: {
           layout: 'polaroid',
           slideIntervalMs: 12_000,

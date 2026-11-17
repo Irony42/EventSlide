@@ -1,5 +1,5 @@
 import type { Photo } from '../../../domain/photos/photo'
-import { isVisibleOnWall } from '../../../domain/photos/photoStatus'
+import { visibleStatuses } from '../../../domain/events/eventRevealSettings'
 import {
   checkTopLimit,
   rankedPhotos,
@@ -9,6 +9,7 @@ import {
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
+import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import { requireReadable } from '../shared/eventRole'
 import type { PhotoRepository } from '../../ports/photoRepository'
@@ -26,6 +27,9 @@ import type { ReactionRepository } from '../../ports/reactionRepository'
  * the rows the room left on it — putting that back on the projector as the photo of the
  * night would undo the host's decision at the loudest possible moment.
  *
+ * **Nobody is crowned before the reveal** (spec 23): the panel is projected, and a ranking of the
+ * evening is a look at it. The statuses are `visibleStatuses`, empty until the evening is shown.
+ *
  * **The limit counts what is shown, so it is applied last.** It used to cut the ranking
  * first and drop the photos that are no longer on the wall afterwards, so a rejected photo
  * with two reactions took the one slot of a panel asked for one photo, and the panel
@@ -42,6 +46,7 @@ export interface GetTopPhotosDeps {
   readonly events: Pick<EventRepository, 'findById'>
   readonly photos: PhotoRepository
   readonly reactions: ReactionRepository
+  readonly clock: Clock
 }
 
 export interface RankedPhoto {
@@ -55,7 +60,7 @@ export type GetTopPhotos = (
 ) => Promise<Result<readonly RankedPhoto[], DomainError>>
 
 export const makeGetTopPhotos =
-  ({ events, photos, reactions }: GetTopPhotosDeps): GetTopPhotos =>
+  ({ events, photos, reactions, clock }: GetTopPhotosDeps): GetTopPhotos =>
   async ({ eventId, limit }) => {
     const wanted = checkTopLimit(limit)
     if (!wanted.ok) return wanted
@@ -66,6 +71,10 @@ export const makeGetTopPhotos =
     const readable = requireReadable(event)
     if (!readable.ok) return readable
 
+    // Before the reveal the public sees nothing, so there is nothing to rank: no read at all.
+    const visible = visibleStatuses(event.settings.reveal, clock.now())
+    if (visible.length === 0) return ok([])
+
     const byPhoto = await reactions.countsForEvent(eventId)
 
     const items: RankedPhoto[] = []
@@ -75,7 +84,7 @@ export const makeGetTopPhotos =
       // Scoped read, and it also settles the two cases the ranking cannot: a photo
       // deleted between the two reads, and one that is no longer on the wall.
       const photo = await photos.findById(eventId, photoId)
-      if (photo === null || !isVisibleOnWall(photo.status)) continue
+      if (photo === null || !visible.includes(photo.status)) continue
 
       const counts = await reactions.countsFor(eventId, photoId)
       items.push({ photo, counts, total: totalReactions(counts) })

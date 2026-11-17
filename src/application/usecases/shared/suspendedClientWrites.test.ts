@@ -24,6 +24,7 @@ import { makeRenameEvent } from '../events/renameEvent'
 import { makeRevokeModerator } from '../events/revokeModerator'
 import { makeRotateJoinCode } from '../events/rotateJoinCode'
 import { makeScheduleEvent } from '../events/scheduleEvent'
+import { makeRevealEvent } from '../events/revealEvent'
 import { makeUpdateEventSettings } from '../events/updateEventSettings'
 import { makeCreateShareLink } from '../gallery/createShareLink'
 import { makeRevokeShareLink } from '../gallery/revokeShareLink'
@@ -207,6 +208,18 @@ const CASES: readonly Case[] = [
         missionId: asMissionId('mission-1'),
         actorId,
       }),
+  },
+  {
+    name: 'revealEvent',
+    member: 'moderator',
+    ask: ({ events, memberships }, actorId) =>
+      makeRevealEvent({
+        events,
+        memberships,
+        audit: gone(),
+        bus: gone(),
+        clock: gone(),
+      })({ eventId: EVENT, actorId }),
   },
   {
     name: 'startChallenge',

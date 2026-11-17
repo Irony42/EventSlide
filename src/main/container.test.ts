@@ -10,9 +10,10 @@ import { loadConfig } from '../infrastructure/config/env'
 import { closeDatabase, openDatabase } from '../infrastructure/db/connection'
 import { migrations } from '../infrastructure/db/migrations'
 import { migrate, status } from '../infrastructure/db/migrator'
-import { anAuditEntry, anEvent, anEventSettings } from '../application/testing/builders'
+import { anAuditEntry, anEvent, anEventSettings, aPhoto } from '../application/testing/builders'
 import { SqliteAuditLog } from '../infrastructure/db/sqliteAuditLog'
 import { SqliteEventRepository } from '../infrastructure/db/sqliteEventRepository'
+import { SqlitePhotoRepository } from '../infrastructure/db/sqlitePhotoRepository'
 import { createContainer, type Container } from './container'
 import { appVersion } from './version'
 import type { OutgoingMail } from '../application/ports/mailer'
@@ -2637,4 +2638,100 @@ describe('createContainer: the audit retention default warning', () => {
 
     expect(output).not.toContain('AUDIT_RETENTION_DAYS is not set')
   })
+})
+
+/**
+ * The reveal gate of the disposable-camera mode (spec 23) through the real composition root, over a
+ * database written by a build that did not have it, in both modes of `SITE_ADMIN` (surface, never
+ * schema): **no migration**, the event with no `reveal` key reads as off and serves its published
+ * photograph, and the same evening with the mode on serves none (and no identifier) until its hour.
+ */
+describe('createContainer: the reveal gate on a database that predates it', () => {
+  const OLD_SLUG = 'mariage-existant'
+  const NEW_SLUG = 'appareil-jetable'
+
+  it.each(['off', 'on'] as const)(
+    'reads an old event as off, holds back a new one until its hour, with SITE_ADMIN=%s',
+    async (mode) => {
+      workDir = await mkdtemp(join(tmpdir(), 'eventslide-container-'))
+      const databasePath = join(workDir, 'eventslide.sqlite')
+      const old = openDatabase({ path: databasePath })
+      migrate(old, migrations)
+      old
+        .prepare(
+          `INSERT INTO users (id, email, password_hash, created_at)
+                VALUES ('u-host', 'hote@example.test', 'hash:x', '2026-06-20T11:00:00.000Z')`,
+        )
+        .run()
+      const hourFromNow = new Date(Date.now() + 3_600_000)
+      const events = new SqliteEventRepository(old)
+      await events.save(
+        anEvent({ id: 'evt-old', ownerId: 'u-host', slug: OLD_SLUG, joinCode: 'H7K2QM' }),
+      )
+      await events.save(
+        anEvent({
+          id: 'evt-new',
+          ownerId: 'u-host',
+          slug: NEW_SLUG,
+          joinCode: 'Z3N9PT',
+          settings: { reveal: { enabled: true, at: hourFromNow, film: true } },
+        }),
+      )
+      // What a build before the gate wrote: no `reveal` key at all.
+      const stored = old.prepare('SELECT settings FROM events WHERE id = ?').get('evt-old') as {
+        settings: string
+      }
+      const { reveal: _gone, ...before } = JSON.parse(stored.settings) as Record<string, unknown>
+      old
+        .prepare('UPDATE events SET settings = ? WHERE id = ?')
+        .run(JSON.stringify(before), 'evt-old')
+      const photos = new SqlitePhotoRepository(old)
+      for (const [id, eventId] of [
+        ['p-old', 'evt-old'],
+        ['p-new', 'evt-new'],
+      ] as const) {
+        await photos.save(
+          aPhoto({
+            id,
+            eventId,
+            status: 'published',
+            author: { kind: 'host', id: 'u-host' },
+          }),
+        )
+      }
+      const applied = status(old, migrations).applied.length
+      closeDatabase(old)
+
+      container = await createContainer(
+        loadConfig({
+          NODE_ENV: 'test',
+          LOG_LEVEL: 'fatal',
+          DATABASE_PATH: databasePath,
+          MEDIA_ROOT: join(workDir, 'media'),
+          FFMPEG_PATH: join(workDir, 'no-ffmpeg-here'),
+          FFPROBE_PATH: join(workDir, 'no-ffprobe-here'),
+          SITE_ADMIN: mode,
+        }),
+      )
+      const { db, app } = container
+
+      // Nothing new to apply: the mode is a key of the settings JSON.
+      expect(status(db, migrations).applied).toHaveLength(applied)
+      const oldWall = await request(app).get(`/api/events/${OLD_SLUG}/wall`)
+      expect(oldWall.body.items.map((item: { id: string }) => item.id)).toEqual(['p-old'])
+      expect(oldWall.body.reveal).toMatchObject({ enabled: false, revealed: true, atMs: null })
+
+      const newWall = await request(app).get(`/api/events/${NEW_SLUG}/wall`)
+      expect(newWall.body.items).toEqual([])
+      expect(newWall.body.reveal).toMatchObject({
+        enabled: true,
+        revealed: false,
+        atMs: hourFromNow.getTime(),
+        film: true,
+        readyCount: 1,
+      })
+      // Neither the photograph's identifier nor its address leaves the box before the hour.
+      expect(JSON.stringify(newWall.body)).not.toContain('p-new')
+    },
+  )
 })

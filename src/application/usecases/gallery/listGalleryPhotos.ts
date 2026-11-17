@@ -3,13 +3,14 @@ import {
   grantExpiresAt,
   type GalleryRendition,
 } from '../../../domain/gallery/galleryMedia'
+import type { Event } from '../../../domain/events/event'
 import type { Photo } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { PhotoQuery, PhotoRepository } from '../../ports/photoRepository'
 import {
   enterGallery,
-  GALLERY_STATUSES,
+  galleryStatuses,
   grantMedia,
   openCursor,
   sealCursor,
@@ -21,7 +22,8 @@ import {
  * One page of a shared gallery: the published photographs, newest first, each with the
  * three signed URLs a viewer needs — the grid tile, the larger view, the download.
  *
- * **Only what the wall shows.** The status filter is the domain's (`isInSharedGallery`),
+ * **Only what the wall shows, and only once the evening is revealed** (spec 23). The status
+ * filter is the domain's (`isInSharedGallery` and the reveal gate, `galleryStatuses`),
  * applied in the query, so a pending, rejected or hidden photograph never reaches a
  * grant — and a photograph unpublished after the link was sent is gone from the next
  * page, because nothing about the link snapshotted the album.
@@ -46,6 +48,9 @@ export interface GalleryPage {
   readonly items: readonly GalleryItem[]
   /** Sealed for this link. `null` on the last page. */
   readonly nextCursor: string | null
+  /** For the reveal block (spec 23): empty `items` before the reveal is an evening to wait for. */
+  readonly event: Event
+  readonly now: Date
 }
 
 export interface ListGalleryPhotosInput {
@@ -78,7 +83,7 @@ export const makeListGalleryPhotos =
     }
 
     const query: PhotoQuery = {
-      statuses: GALLERY_STATUSES,
+      statuses: galleryStatuses(event, now),
       limit: GALLERY_PAGE_SIZE,
       ...(after === null ? {} : { cursor: after }),
     }
@@ -102,5 +107,7 @@ export const makeListGalleryPhotos =
         download: grant(photo, 'download'),
       })),
       nextCursor: page.nextCursor === null ? null : sealCursor(deps.signer, link, page.nextCursor),
+      event,
+      now,
     })
   }

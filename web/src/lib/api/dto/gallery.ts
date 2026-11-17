@@ -1,5 +1,5 @@
 // The shared gallery and its link.
-import type { EventThemeDto, MediaKind } from './common'
+import type { EventThemeDto, MediaKind, RevealDto } from './common'
 
 /**
  * The event's shared gallery link as its owner sees it (roadmap §4.1). No address: only the
@@ -29,6 +29,8 @@ export interface GalleryDto {
   readonly photoCount: number
   readonly expiresAt: string
   readonly archiveUrl: string
+  /** Before the reveal the link opens with an empty grid (spec 23). Absent from an older server. */
+  readonly reveal?: RevealDto
 }
 /** One tile. Three signed URLs, each good for an hour. */
 export interface GalleryPhotoDto {
@@ -45,4 +47,5 @@ export interface GalleryPhotoDto {
 export interface GalleryPage {
   readonly items: readonly GalleryPhotoDto[]
   readonly nextCursor: string | null
+  readonly reveal?: RevealDto
 }
