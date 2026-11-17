@@ -1368,6 +1368,8 @@ export const fr = {
     templatePreviewSample: 'Votre évènement',
     templateClipsOn: 'Vidéos autorisées',
     templateClipsOff: 'Vidéos désactivées',
+    templateGuestSaveOn: 'Les invités peuvent enregistrer les photos',
+    templateGuestSaveOff: 'Enregistrement des photos par les invités désactivé',
     templateNames: {
       wedding: 'Mariage',
       birthday: 'Anniversaire',

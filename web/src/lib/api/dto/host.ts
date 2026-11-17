@@ -168,6 +168,8 @@ export interface EventSettingsDto {
   readonly allowClips: boolean
   /** The guestbook (spec 01): open for guests, and whether its published messages reach the wall. */
   readonly allowGuestbook: boolean
+  /** Guests may save another guest's photograph from the feed (spec 24). */
+  readonly allowGuestSave: boolean
   readonly guestbookOnWall: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number

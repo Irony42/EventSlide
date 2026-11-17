@@ -14,6 +14,7 @@ const wallOf = (overrides: Partial<WallResponse> = {}): WallResponse => ({
   kenBurnsDurationMs: 8000,
   layout: 'spotlight',
   reactionsEnabled: false,
+  guestSaveEnabled: false,
   ...overrides,
 })
 

@@ -135,6 +135,8 @@ export interface WallResponse {
     readonly volume: number
   }
   readonly reactionsEnabled: boolean
+  /** Guests may save a photograph from the feed (spec 24); read at the time of the request. */
+  readonly guestSaveEnabled: boolean
   /**
    * What the room is meant to look like.
    *

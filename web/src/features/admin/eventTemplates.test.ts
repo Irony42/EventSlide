@@ -31,6 +31,7 @@ const FIELD_MARKS: readonly (readonly [field: string, mark: string])[] = [
   ['moderation', fr.admin.moderationAuto],
   ['moderation', fr.admin.moderationManual],
   ['allowClips', 'Vidéos'],
+  ['allowGuestSave', 'invités'],
   ['guestSelfDeleteGraceSeconds', fr.admin.selfDeleteGrace],
   ['retentionDays', fr.admin.retention],
   ['maxPhotosPerGuest', fr.admin.maxPhotosPerGuest],
@@ -99,6 +100,11 @@ describe('the template summary', () => {
   it('says which way a video switch was thrown, not that it was touched', () => {
     expect(templateSummary({ allowClips: false }, fr)).toEqual([fr.admin.templateClipsOff])
     expect(templateSummary({ allowClips: true }, fr)).toEqual([fr.admin.templateClipsOn])
+  })
+
+  it('says which way the guest-save switch was thrown, not that it was touched', () => {
+    expect(templateSummary({ allowGuestSave: false }, fr)).toEqual([fr.admin.templateGuestSaveOff])
+    expect(templateSummary({ allowGuestSave: true }, fr)).toEqual([fr.admin.templateGuestSaveOn])
   })
 
   it('words a grace window in the unit the settings form uses', () => {

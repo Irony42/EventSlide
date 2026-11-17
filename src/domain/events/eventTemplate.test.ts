@@ -174,6 +174,16 @@ describe('what a conference starts from', () => {
     expect(settingsOf('conference').moderation).toBe('manual')
   })
 
+  it('turns guest saving off, because colleagues keep a copy the thirty-day purge cannot reach (spec 24)', () => {
+    expect(settingsOf('conference').allowGuestSave).toBe(false)
+  })
+
+  it('leaves guest saving to its default in every other template', () => {
+    for (const key of EVENT_TEMPLATE_KEYS.filter((other) => other !== 'conference')) {
+      expect(settingsOf(key).allowGuestSave).toBe(true)
+    }
+  })
+
   it('turns video off, because a clip during a talk is a distraction and 80 MB', () => {
     expect(settingsOf('conference').allowClips).toBe(false)
   })

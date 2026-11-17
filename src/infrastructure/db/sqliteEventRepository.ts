@@ -450,6 +450,11 @@ const settingsOf = (raw: string): EventSettings => {
      */
     allowGuestbook: settingsBooleanAddedLater(decoded['allowGuestbook'], 'allowGuestbook', false),
     /**
+     * Added by spec 24, and **off** when the key is absent: an event that predates it has a host
+     * who was never asked, and an upgrade does not let guests carry each other's photographs away.
+     */
+    allowGuestSave: settingsBooleanAddedLater(decoded['allowGuestSave'], 'allowGuestSave', false),
+    /**
      * Added with it, and **on** when absent: the opposite concession, because the wall showing
      * published messages is only reachable once the host has turned the guestbook on, and the
      * host who did has agreed to what it shows.

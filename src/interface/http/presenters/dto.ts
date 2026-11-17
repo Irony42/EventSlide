@@ -420,6 +420,8 @@ export interface WallResponseDto {
     readonly volume: number
   }
   readonly reactionsEnabled: boolean
+  /** Guests may save a photograph from the feed (spec 24); read at the time of the request. */
+  readonly guestSaveEnabled: boolean
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
    *
@@ -555,6 +557,8 @@ export interface EventSettingsDto {
   readonly allowClips: boolean
   /** The host's switch over written guestbook messages (spec 01). */
   readonly allowGuestbook: boolean
+  /** The host's switch over saving another guest's photograph from the feed (spec 24). */
+  readonly allowGuestSave: boolean
   /** Whether published messages appear on the projected wall (spec 01). */
   readonly guestbookOnWall: boolean
   readonly allowGuestSelfDelete: boolean

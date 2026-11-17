@@ -1333,6 +1333,30 @@ describe('the host event routes', () => {
       })
     })
 
+    it('persists allowGuestSave, which the route forwards field by field (spec 24)', async () => {
+      // The route lists the fields it passes on; one left out is ignored without an error.
+      const agent = await signedIn(world, 'owner')
+
+      const patched = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ allowGuestSave: false })
+      const read = await agent.get(`/api/events/${SLUG}`)
+
+      expect(patched.status).toBe(200)
+      expect(patched.body.settings.allowGuestSave).toBe(false)
+      expect(read.body.settings.allowGuestSave).toBe(false)
+    })
+
+    it('refuses a non-boolean allowGuestSave', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ allowGuestSave: 'oui' })
+
+      expect(response.status).toBe(400)
+    })
+
     it('merges the wall group key by key, never replacing it whole (spec 13)', async () => {
       const agent = await signedIn(world, 'owner')
 
@@ -1481,6 +1505,7 @@ describe('the host event routes', () => {
         allowReactions: false,
         allowClips: false,
         allowGuestbook: true,
+        allowGuestSave: false,
         guestbookOnWall: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
@@ -1502,6 +1527,7 @@ describe('the host event routes', () => {
         allowReactions: false,
         allowClips: false,
         allowGuestbook: true,
+        allowGuestSave: false,
         guestbookOnWall: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,

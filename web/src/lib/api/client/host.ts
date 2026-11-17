@@ -47,6 +47,7 @@ export interface EventSettingsPatch {
   readonly allowCaptions?: boolean
   readonly allowReactions?: boolean
   readonly allowClips?: boolean
+  readonly allowGuestSave?: boolean
   readonly guestbookOnWall?: boolean
   readonly allowGuestSelfDelete?: boolean
   readonly guestSelfDeleteGraceSeconds?: number

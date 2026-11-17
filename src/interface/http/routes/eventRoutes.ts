@@ -220,6 +220,7 @@ export const eventRoutes = ({
           ...(body.allowReactions === undefined ? {} : { allowReactions: body.allowReactions }),
           ...(body.allowClips === undefined ? {} : { allowClips: body.allowClips }),
           ...(body.allowGuestbook === undefined ? {} : { allowGuestbook: body.allowGuestbook }),
+          ...(body.allowGuestSave === undefined ? {} : { allowGuestSave: body.allowGuestSave }),
           ...(body.guestbookOnWall === undefined ? {} : { guestbookOnWall: body.guestbookOnWall }),
           ...(body.allowGuestSelfDelete === undefined
             ? {}
