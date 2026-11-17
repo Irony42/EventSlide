@@ -93,13 +93,12 @@ export const eventRoutes = ({
       sendError(res, result.error)
       return
     }
-    const { event, counts, limits, purge } = await usecases.getEventView({ event: result.value })
+    const { event, counts, limits, purge, now, readyCount } = await usecases.getEventView({
+      event: result.value,
+    })
     sendJson(
       res,
-      toEventDto(
-        { event, role: actor.role, counts, limits, purge, serverNowMs: deps.clock.now().getTime() },
-        presenter,
-      ),
+      toEventDto({ event, role: actor.role, counts, limits, purge, now, readyCount }, presenter),
       status,
     )
   }

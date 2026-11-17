@@ -4,7 +4,7 @@ import type { EventSettingsDto, EventTemplateKey, EventThemeDto } from '../../li
 import type { UiText } from '../../lib/i18n/translations'
 
 /**
- * The four presets the create form offers (roadmap 3.5), as the host sees them.
+ * The five presets the create form offers (roadmap 3.5, spec 23), as the host sees them.
  *
  * The **rule** is server-side, in `src/domain/events/eventTemplate.ts`: what each
  * template sets and why. This file knows how to show one, which is a different job and
@@ -40,7 +40,17 @@ export const EVENT_TEMPLATE_KEYS: readonly EventTemplateKey[] = [
   'birthday',
   'conference',
   'party',
+  'disposable',
 ]
+
+/**
+ * What a template may change: the settings as the wire carries them, except that the reveal group
+ * is partial, as in the domain (a template names `enabled` and `film` and no hour: the hour is
+ * the host's, and a restated `at: null` would be a default restated).
+ */
+export type TemplatePatch = Partial<Omit<EventSettingsDto, 'reveal'>> & {
+  readonly reveal?: Partial<NonNullable<EventSettingsDto['reveal']>>
+}
 
 /**
  * What each template changes, mirroring `TEMPLATES` in the domain.
@@ -49,50 +59,63 @@ export const EVENT_TEMPLATE_KEYS: readonly EventTemplateKey[] = [
  * you, and it reads this literal out of this file's source. Keep it a plain literal —
  * a value computed here would be invisible to it.
  */
-export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<EventSettingsDto>>> =
-  {
-    wedding: {
-      guestSelfDeleteGraceSeconds: 3600,
-      retentionDays: 365,
-      theme: {
-        accentHue: 345,
-        fonts: 'serif',
-        frame: 'round',
-        ambiance: 'champs',
-      },
+export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, TemplatePatch>> = {
+  wedding: {
+    guestSelfDeleteGraceSeconds: 3600,
+    retentionDays: 365,
+    theme: {
+      accentHue: 345,
+      fonts: 'serif',
+      frame: 'round',
+      ambiance: 'champs',
     },
-    birthday: {
-      moderation: 'auto',
-      retentionDays: 90,
-      theme: {
-        accentHue: 305,
-        fonts: 'sans',
-        frame: 'round',
-        ambiance: 'eventslide',
-      },
+  },
+  birthday: {
+    moderation: 'auto',
+    retentionDays: 90,
+    theme: {
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'round',
+      ambiance: 'eventslide',
     },
-    conference: {
-      allowClips: false,
-      retentionDays: 30,
-      maxPhotosPerGuest: 25,
-      theme: {
-        accentHue: 250,
-        fonts: 'sans',
-        frame: 'square',
-        ambiance: 'eventslide',
-      },
+  },
+  conference: {
+    allowClips: false,
+    retentionDays: 30,
+    maxPhotosPerGuest: 25,
+    theme: {
+      accentHue: 250,
+      fonts: 'sans',
+      frame: 'square',
+      ambiance: 'eventslide',
     },
-    party: {
-      moderation: 'auto',
-      retentionDays: 30,
-      theme: {
-        accentHue: 195,
-        fonts: 'sans',
-        frame: 'soft',
-        ambiance: 'bivouac',
-      },
+  },
+  party: {
+    moderation: 'auto',
+    retentionDays: 30,
+    theme: {
+      accentHue: 195,
+      fonts: 'sans',
+      frame: 'soft',
+      ambiance: 'bivouac',
     },
-  }
+  },
+  disposable: {
+    moderation: 'auto',
+    allowClips: false,
+    allowGuestSelfDelete: false,
+    retentionDays: 90,
+    maxPhotosPerGuest: 27,
+    reveal: { enabled: true, film: true },
+    theme: {
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'square',
+      ambiance: 'guinguette',
+    },
+  },
+}
 
 const MODERATION_LABELS: Readonly<
   Record<EventSettingsDto['moderation'], (text: UiText) => string>
@@ -149,15 +172,19 @@ const themeLine = (theme: EventSettingsDto['theme'], text: UiText): string | nul
  * produces a line, so adding a field to a preset without a sentence for it fails there
  * rather than shipping a card that quietly under-reports what the host is agreeing to.
  */
-export const templateSummary = (
-  patch: Partial<EventSettingsDto>,
-  text: UiText,
-): readonly string[] => {
+export const templateSummary = (patch: TemplatePatch, text: UiText): readonly string[] => {
   const lines: string[] = []
 
   if (patch.moderation !== undefined) lines.push(MODERATION_LABELS[patch.moderation](text))
   if (patch.allowClips !== undefined) {
     lines.push(patch.allowClips ? text.admin.templateClipsOn : text.admin.templateClipsOff)
+  }
+  if (patch.allowGuestSelfDelete !== undefined) {
+    lines.push(
+      patch.allowGuestSelfDelete
+        ? text.admin.templateSelfDeleteOn
+        : text.admin.templateSelfDeleteOff,
+    )
   }
   if (patch.guestSelfDeleteGraceSeconds !== undefined) {
     lines.push(
@@ -186,6 +213,15 @@ export const templateSummary = (
       }`,
     )
   }
+  if (patch.reveal !== undefined) {
+    // The two switches of the group, each said when the template names it: the mode and the film look.
+    if (patch.reveal.enabled !== undefined) {
+      lines.push(patch.reveal.enabled ? text.reveal.templateOn : text.reveal.templateOff)
+    }
+    if (patch.reveal.film !== undefined) {
+      lines.push(patch.reveal.film ? text.reveal.templateFilmOn : text.reveal.templateFilmOff)
+    }
+  }
   if (patch.theme !== undefined) {
     const theme = themeLine(patch.theme, text)
     if (theme !== null) lines.push(theme)
@@ -211,7 +247,7 @@ export const templateSummary = (
  * The values are not softened by this. A host who is told what `auto` does and picks it
  * anyway has allowed it, which is the same standard the settings page holds them to.
  */
-export const templateWarning = (patch: Partial<EventSettingsDto>, text: UiText): string | null =>
+export const templateWarning = (patch: TemplatePatch, text: UiText): string | null =>
   patch.moderation === 'auto' ? text.admin.moderationAutoWarning : null
 
 /**

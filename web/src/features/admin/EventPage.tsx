@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
@@ -10,6 +10,7 @@ import { cx } from '../../design-system/classNames'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { useAbout } from '../../lib/useAbout'
+import { useApi } from '../../lib/useApi'
 import { useServerNow } from '../../lib/useServerNow'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
@@ -26,6 +27,7 @@ import { GuestListPanel } from './GuestListPanel'
 import { GuestbookPanel } from './GuestbookPanel'
 import { AnnouncementsPanel } from './AnnouncementsPanel'
 import { ChallengePanel } from './ChallengePanel'
+import { RevealPanel } from './RevealPanel'
 import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
@@ -68,6 +70,13 @@ export function EventPage() {
   const { slug = '' } = useParams()
   const { data: event, loading, error, reload, replace, offsetMs } = useEvent(slug)
   const transition = useLifecycleTransition(replace)
+  const api = useApi()
+  // The hour has come: the band reads the event again **without** `reload`, whose pending state
+  // would swap the whole console for the loading page (a half-typed announcement, an open dialog
+  // and the scroll position would go with it). A failed read changes nothing on screen.
+  const refresh = useCallback(() => {
+    api.getEvent(slug).then(replace, () => undefined)
+  }, [api, slug, replace])
   const rotate = useRotateJoinCode()
   const purge = usePurgeEvent()
   const toast = useToast()
@@ -213,6 +222,7 @@ export function EventPage() {
               eventName: event.name,
               from: event.status,
               to: action.to,
+              heldReveal: event.reveal?.enabled === true && !event.reveal.revealed,
             })
           }
         >
@@ -364,6 +374,14 @@ export function EventPage() {
             <GuestbookPanel slug={event.slug} canDecide={allowsModeration(event.status)} />
           </div>
         ) : null}
+        {/* The disposable camera's band (spec 23), where the challenge is: any moderator reveals, the owner
+            alone moves the hour. Nothing at all while the mode is off. */}
+        <RevealPanel
+          event={event}
+          onChanged={replace}
+          onReload={refresh}
+          settingsPath={isOwner ? settingsPath : null}
+        />
         {/* Any moderator launches or stops a timed challenge (spec 10): the person with the laptop
             at the evening is usually the moderator, and it writes no new sentence. */}
         <div id={panelId('challenge')}>

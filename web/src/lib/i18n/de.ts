@@ -1312,11 +1312,14 @@ export const de: UiText = {
     templatePreviewSample: 'Ihre Veranstaltung',
     templateClipsOn: 'Videos erlaubt',
     templateClipsOff: 'Videos deaktiviert',
+    templateSelfDeleteOn: 'Einzelne Fotos löschen erlaubt',
+    templateSelfDeleteOff: 'Einzelne Fotos löschen deaktiviert',
     templateNames: {
       wedding: 'Hochzeit',
       birthday: 'Geburtstag',
       conference: 'Konferenz',
       party: 'Party',
+      disposable: 'Einwegkamera',
     },
 
     retention: 'Automatische Löschung',
@@ -2454,6 +2457,66 @@ export const de: UiText = {
     /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
     participate: 'Ich nehme an der Challenge teil',
     announceEnd: 'Foto-Challenge beendet',
+  },
+  /** The disposable camera (spec 23): the host's section, band and confirmation. The guest's and the wall's sentences come with their own surfaces. */
+  reveal: {
+    title: 'Einwegkamera',
+    hint: 'Die Fotos bleiben für Gäste und Saal verborgen, bis sie enthüllt werden. Sie selbst sehen sie sofort nach dem Eintreffen.',
+    enabled: 'Einwegkamera aktivieren',
+    timed: 'Zu einer bestimmten Uhrzeit enthüllen',
+    timedHint:
+      'Ohne Uhrzeit enthüllen Sie selbst, mit der Schaltfläche „Jetzt enthüllen“ auf der Seite der Veranstaltung.',
+    at: 'Uhrzeit der Enthüllung',
+    atLocked: 'Der Abend ist bereits enthüllt: die Uhrzeit lässt sich nicht mehr verschieben.',
+    shots: 'Aufnahmen pro Gast',
+    shotsHint:
+      'Eine Aufnahme ist ein gesendetes Foto. Ohne Limit schickt jeder Gast so viele Fotos, wie er möchte. Dieses Limit gilt auch ohne Enthüllung.',
+    film: 'Filmlook',
+    filmHint:
+      'Auf den Bildschirmen sehen die Fotos aus wie von einem Film. Ihre Originale und Downloads bleiben unverändert.',
+    liveWarning:
+      'Es sind schon Fotos eingetroffen: die, die gerade auf dem Bildschirm sind, verschwinden bis zur Enthüllung.',
+    countdown: (hours: number, minutes: number) =>
+      hours > 0
+        ? `Enthüllung in ${t.number(hours)} Std. ${String(minutes).padStart(2, '0')} Min.`
+        : `Enthüllung in ${t.number(minutes)} Min.`,
+    soon: 'Enthüllung in weniger als einer Minute',
+    manual: 'Die Fotos bleiben verborgen, bis Sie sie enthüllen.',
+    scheduledFor: (when: string) => `Enthüllung geplant für ${when}`,
+    waiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} veröffentlichtes Foto wartet auf die Enthüllung`,
+        other: `${t.number(count)} veröffentlichte Fotos warten auf die Enthüllung`,
+      }),
+    revealNow: 'Jetzt enthüllen',
+    editTime: 'Uhrzeit ändern',
+    revealedAt: (time: string) => `Enthüllt um ${time}`,
+    revealedOn: (when: string) => `Enthüllt am ${when}`,
+    confirmTitle: 'Jetzt enthüllen?',
+    confirmPublished: (count: number) =>
+      count === 0
+        ? 'Noch kein Foto ist veröffentlicht.'
+        : t.count(count, {
+            one: 'Das veröffentlichte Foto erscheint an der Wand und auf den Handys.',
+            other: `Die ${t.number(count)} veröffentlichten Fotos erscheinen an der Wand und auf den Handys.`,
+          }),
+    confirmPending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto wartet noch auf eine Entscheidung: es bleibt verborgen.`,
+        other: `${t.number(count)} Fotos warten noch auf eine Entscheidung: sie bleiben verborgen.`,
+      }),
+    definitive: 'Dies lässt sich nicht rückgängig machen.',
+    closeTitle: (name: string) => `„${name}“ beenden?`,
+    closeHeld:
+      'Die Fotos wurden noch nicht enthüllt. Nach dem Ende des Events bleiben sie verborgen, bis Sie sie enthüllen, und die Aufbewahrungsfrist der Fotos beginnt mit dem Abschluss.',
+    closedNotRevealed:
+      'Die Fotos wurden nicht enthüllt. Die Veranstaltung ist beendet: sie bleiben verborgen, bis Sie sie enthüllen.',
+    closesBefore:
+      'Das geplante Ende liegt vor der Enthüllung. Ohne Enthüllung bleiben die Fotos verborgen.',
+    templateOn: 'Fotos verborgen bis zur Enthüllung',
+    templateOff: 'Keine verzögerte Enthüllung',
+    templateFilmOn: 'Filmlook auf dem Bildschirm',
+    templateFilmOff: 'Kein Filmlook',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

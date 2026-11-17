@@ -96,6 +96,14 @@ export const formatDateTime = (iso: string, locale: Locale): string | null => {
   })
 }
 
+/** A time of day for the reader's own screen (`23:02` in French, `11:02 PM` in English), or `null`. */
+export const formatTime = (iso: string | number, locale: Locale): string | null => {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+
+  return date.toLocaleTimeString(locale, { timeStyle: 'short' })
+}
+
 /**
  * A calendar day written out, "12 décembre 2026": for a date a host must not misread (the day an
  * album is deleted), where the short form's `12/12/26` is read as a month in the wrong language.

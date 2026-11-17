@@ -12,6 +12,7 @@ import {
   aSessionUser,
   anAbout,
   anEventDto,
+  eventSettings,
   fakeApi,
   renderWithProviders,
 } from '../../testing/renderWithProviders'
@@ -1086,5 +1087,160 @@ describe('EventPage: the first visit’s guided tour', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.ui.tourNext }))
 
     expect(await screen.findByRole('dialog', { name: fr.admin.tourEveningTitle })).toBeVisible()
+  })
+})
+
+describe('the reveal band on the console (spec 23)', () => {
+  const NOW = Date.now()
+  const heldEvent = (overrides: Partial<EventDto> = {}): EventDto =>
+    anEventDto({
+      settings: eventSettings({
+        reveal: { enabled: true, at: new Date(NOW + 3_600_000).toISOString(), film: true },
+      }),
+      reveal: {
+        enabled: true,
+        revealed: false,
+        atMs: NOW + 3_600_000,
+        serverNowMs: NOW,
+        film: true,
+        readyCount: 12,
+      },
+      ...overrides,
+    })
+
+  it('shows the band beside the challenge when the mode is on', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => heldEvent()) }))
+
+    expect(await screen.findByRole('heading', { name: fr.reveal.title })).toBeVisible()
+    expect(screen.getByRole('heading', { name: fr.challenge.title })).toBeVisible()
+    expect(screen.getByRole('button', { name: fr.reveal.revealNow })).toBeVisible()
+  })
+
+  it('shows no band while the mode is off', async () => {
+    renderPage(fakeApi())
+
+    await screen.findByRole('heading', { name: fr.challenge.title })
+
+    expect(screen.queryByRole('heading', { name: fr.reveal.title })).toBeNull()
+  })
+
+  it('lets a moderator reveal but sends them to no settings page', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => heldEvent({ role: 'moderator' })) }))
+
+    expect(await screen.findByRole('button', { name: fr.reveal.revealNow })).toBeVisible()
+    expect(screen.queryByRole('link', { name: fr.reveal.editTime })).toBeNull()
+  })
+
+  it('lets the owner move the hour from the band', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => heldEvent()) }))
+
+    expect(await screen.findByRole('link', { name: fr.reveal.editTime })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha/settings',
+    )
+  })
+
+  it('replaces the page’s event with the answer to "Révéler maintenant"', async () => {
+    const revealed = heldEvent({
+      reveal: {
+        enabled: true,
+        revealed: true,
+        atMs: NOW,
+        serverNowMs: NOW,
+        film: true,
+        readyCount: null,
+      },
+    })
+    const api = fakeApi({
+      getEvent: vi.fn(async () => heldEvent()),
+      revealEvent: vi.fn(async () => revealed),
+    })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.reveal.revealNow }))
+    await userEvent.click(inDialog(fr.reveal.revealNow))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: fr.reveal.revealNow })).toBeNull(),
+    )
+    expect(api.getEvent).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the reveal band, at the hour and at the closing (spec 23)', () => {
+  const NOW = new Date('2026-06-20T21:00:00.000Z').getTime()
+  const held = (overrides: Partial<EventDto> = {}, inMs = 10_000): EventDto =>
+    anEventDto({
+      settings: eventSettings({
+        reveal: { enabled: true, at: new Date(NOW + inMs).toISOString(), film: true },
+      }),
+      reveal: {
+        enabled: true,
+        revealed: false,
+        atMs: NOW + inMs,
+        serverNowMs: NOW,
+        film: true,
+        readyCount: 12,
+      },
+      ...overrides,
+    })
+
+  it('re-reads the event at the hour without swapping the console for the loading page', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(NOW)
+    try {
+      const getEvent = vi.fn(async () => held())
+      getEvent.mockResolvedValueOnce(held())
+      const past = held({}, -1_000)
+      const revealedNow: EventDto = {
+        ...past,
+        ...(past.reveal === undefined
+          ? {}
+          : { reveal: { ...past.reveal, revealed: true, readyCount: null } }),
+      }
+      getEvent.mockResolvedValueOnce(revealedNow)
+      renderPage(fakeApi({ getEvent }))
+
+      const draft = await screen.findByLabelText(fr.announcement.text)
+      await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).type(draft, 'Le gâteau')
+
+      await act(async () => {
+        vi.advanceTimersByTime(15_000)
+      })
+
+      await waitFor(() => expect(getEvent).toHaveBeenCalledTimes(2))
+      // The panels never unmounted: the half-typed announcement is still there, and the page
+      // never said it was loading.
+      expect(screen.queryByText(fr.admin.eventLoading)).toBeNull()
+      expect(screen.getByLabelText(fr.announcement.text)).toHaveValue('Le gâteau')
+      expect(screen.getByLabelText(fr.announcement.text)).toBe(draft)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('asks before ending an evening whose photos were never revealed, and says why', async () => {
+    const setEventStatus = vi.fn(async () => held({ status: 'closed' }))
+    renderPage(fakeApi({ getEvent: vi.fn(async () => held({}, 3_600_000)), setEventStatus }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(setEventStatus).not.toHaveBeenCalled()
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(fr.reveal.closeHeld)).toBeVisible()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'closed')
+  })
+
+  it('ends a revealed or ordinary evening on one press, as before', async () => {
+    const setEventStatus = vi.fn(async () => anEventDto({ status: 'closed' }))
+    renderPage(fakeApi({ setEventStatus }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'closed')
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

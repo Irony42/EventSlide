@@ -3,6 +3,8 @@ import { asEventId } from '../../../domain/shared/ids'
 import { AT, aClient, anEvent } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeClock } from '../../testing/fakeClock'
+import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { FakePurgeNoticeLedger } from '../../testing/fakePurgeNoticeLedger'
 import { makeGetEventLimits } from './getEventLimits'
 import { makeGetEventView } from './getEventView'
@@ -21,6 +23,8 @@ const aWorld = () => {
   const notices = new FakePurgeNoticeLedger().withEvents(WEDDING)
   const getEventView = makeGetEventView({
     events,
+    photos: new FakePhotoRepository(),
+    clock: new FakeClock(AT),
     clients,
     notices,
     capNoticeDays: 30,

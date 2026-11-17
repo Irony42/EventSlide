@@ -89,6 +89,8 @@ describe('the answers that carry an event', () => {
     event: MARIAGE,
     counts: { photoCount: 777, pendingCount: 7, guestCount: 77, usedBytes: 7_777 },
     limits: { quotaBytes: 4_242, liveWindowEnd: null },
+    now: new Date('2026-06-20T18:00:00.000Z'),
+    readyCount: null,
     purge: { at: null, notice: null, offboarding: false },
   }
   const OWN_RESULT = async () => ok(MARIAGE)

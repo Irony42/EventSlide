@@ -9,6 +9,7 @@ import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { makeGetEventLimits } from '../../../application/usecases/events/getEventLimits'
 import { makeUpdateEventSettings } from '../../../application/usecases/events/updateEventSettings'
 import { makeGetEventView } from '../../../application/usecases/events/getEventView'
+import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { makeIdentifyMediaViewer } from '../../../application/usecases/photos/identifyMediaViewer'
 import { makeGetEventLogoMedia } from '../../../application/usecases/brand/getEventLogoMedia'
 import { makeRemoveEventLogo } from '../../../application/usecases/brand/removeEventLogo'
@@ -97,6 +98,8 @@ const buildWorld = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World =
         }),
         getEventView: makeGetEventView({
           events: deps.events,
+          photos: new FakePhotoRepository(),
+          clock: deps.clock,
           clients: base.clients,
           notices: new FakePurgeNoticeLedger(),
           capNoticeDays: 30,

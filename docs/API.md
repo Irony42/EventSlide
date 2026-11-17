@@ -3344,11 +3344,11 @@ A quota above a **client's** `max_event_quota_bytes` is the same `400 event.quot
 
 #### `template` — what the settings start from
 
-`"wedding" | "birthday" | "conference" | "party"`, optional. Absent means the product
+`"wedding" | "birthday" | "conference" | "party" | "disposable"`, optional. Absent means the product
 defaults, which is what every event created before this field existed has. Unlike
 `startsAt` and `quotaBytes` it is **not nullable**: there is no "no template" value to
 send, only the absence of one, and `"template": null` is `400 request.invalid` like any
-other unexpected shape. A name outside the four is the same refusal — no error code of its
+other unexpected shape. A name outside the five is the same refusal — no error code of its
 own, because an unknown enum value already has one.
 
 **The template is applied once and then does not exist.** The response carries the
@@ -3361,12 +3361,13 @@ holds the reasoning and the alternative it rejects.
 What each one sets — and it sets **only** these, leaving every other setting at its
 default:
 
-| Template     | Changes                                                                                        |
-| ------------ | ---------------------------------------------------------------------------------------------- |
-| `wedding`    | `guestSelfDeleteGraceSeconds: 3600`, `retentionDays: 365`, theme rose / serif / round          |
-| `birthday`   | `moderation: "auto"`, `retentionDays: 90`, theme violet / sans / round                         |
-| `conference` | `allowClips: false`, `retentionDays: 30`, `maxPhotosPerGuest: 25`, theme azure / sans / square |
-| `party`      | `moderation: "auto"`, `retentionDays: 30`, theme teal / sans / soft                            |
+| Template     | Changes                                                                                                                                                                                                                                                                                                   |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wedding`    | `guestSelfDeleteGraceSeconds: 3600`, `retentionDays: 365`, theme rose / serif / round                                                                                                                                                                                                                     |
+| `birthday`   | `moderation: "auto"`, `retentionDays: 90`, theme violet / sans / round                                                                                                                                                                                                                                    |
+| `conference` | `allowClips: false`, `retentionDays: 30`, `maxPhotosPerGuest: 25`, theme azure / sans / square                                                                                                                                                                                                            |
+| `party`      | `moderation: "auto"`, `retentionDays: 30`, theme teal / sans / soft                                                                                                                                                                                                                                       |
+| `disposable` | the disposable camera (spec 23): `moderation: "auto"`, `allowClips: false`, `allowGuestSelfDelete: false`, `maxPhotosPerGuest: 27`, `retentionDays: 90`, `reveal: { "enabled": true, "film": true }` (no hour: the host reveals with the button), theme violet / sans / square on the Guinguette ambiance |
 
 Nothing here restates a default, which is why `wedding` and `conference` say nothing about
 `moderation`: `manual` is already the default and both want it. Every accent is one of the
@@ -3385,8 +3386,8 @@ these templates must say what the number does rather than printing the duration 
 
 `moderation: "auto"` publishes without review, and that covers **clips as well as
 photographs** — `transcodeNextClip` stamps a finished clip with an `automatic` reviewer
-under `auto` exactly as photo ingest does, and neither template touches `allowClips`. The
-console discloses this on the two cards that set it, in the same words the settings page
+under `auto` exactly as photo ingest does, and `birthday` and `party` leave `allowClips` alone (`disposable` turns it off). The
+console discloses this on the three cards that set it, in the same words the settings page
 uses when a host selects `auto` there.
 
 There is no `layout` in this table although the roadmap entry names one: no event stores a
@@ -3439,9 +3440,24 @@ The shape every route in the table that answers `200` returns.
   "scheduledOpenAt": null,
   "scheduledCloseAt": null,
   "scheduleDiscardedAt": null,
+  "reveal": {
+    "enabled": false,
+    "revealed": true,
+    "atMs": null,
+    "serverNowMs": 1782000000000,
+    "film": false,
+    "readyCount": null
+  },
   "role": "owner"
 }
 ```
+
+`reveal` is the reveal gate of the disposable-camera mode (spec 23) as the host's console reads it: the block of `GET
+/wall` (see there), built by the same presenter from one read of the server's clock. The console draws its band from it
+and counts down against `serverNowMs`, never the laptop's. `readyCount` is the published photographs the gate holds back,
+read **only** while the evening is held (mode on, not yet revealed) and `null` otherwise; the photographs waiting for a
+decision are `pendingCount`, which stay hidden after the reveal. Every answer that carries an event carries it, so
+`POST .../reveal` and `PATCH .../settings` hand the console the new state.
 
 `startsAt` and `scheduledOpenAt` are **not** the same field and neither is derived from
 the other. `startsAt` is the printed start of the party, set when the event is created,

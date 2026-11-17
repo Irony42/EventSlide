@@ -737,6 +737,12 @@ export interface EventDto extends EventSummaryDto {
    * this is the only thing that says so. Saving any schedule clears it.
    */
   readonly scheduleDiscardedAt: string | null
+  /**
+   * The reveal gate at the server's clock (spec 23), for the console's band: the same block as the
+   * wall's, with `readyCount` the published photographs held back (`null` once revealed or with the
+   * mode off). The pending ones are `pendingCount`, which stay hidden after the reveal.
+   */
+  readonly reveal: WallRevealDto
 }
 
 export interface GuestDto {

@@ -87,17 +87,21 @@ export const lifecycleActions = (from: EventStatus, text: UiText): readonly Life
  * - `archive`: terminal, so it always asks and says what stops.
  * - `open`: opening a draft cannot be undone either (there is no way back to "not started
  *   yet", guests may hold the link), so it asks once, lightly.
+ * - `close`: ending an evening whose photos were never revealed (spec 23 §3.5): the one ending that
+ *   asks, because the photos stay hidden and the retention starts counting from the closure.
  * - `null`: ending the evening and reopening it are each undone by the other, so they go
  *   through on one press and the toast says what happened.
  */
-export type TransitionConfirmation = 'archive' | 'open'
+export type TransitionConfirmation = 'archive' | 'open' | 'close'
 
 export const confirmationFor = (
   from: EventStatus,
   to: EventStatus,
+  heldReveal = false,
 ): TransitionConfirmation | null => {
   if (to === 'archived') return 'archive'
   if (from === 'draft' && to === 'live') return 'open'
+  if (from === 'live' && to === 'closed' && heldReveal) return 'close'
   return null
 }
 

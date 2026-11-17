@@ -90,7 +90,8 @@ describe('EventTemplatePicker', () => {
     renderPicker()
 
     expect(screen.getByText(`${fr.admin.retention} : ${fr.admin.retentionDays(365)}`)).toBeVisible()
-    expect(screen.getByText(fr.admin.templateClipsOff)).toBeVisible()
+    // Two cards turn video off: the conference and the disposable camera.
+    expect(screen.getAllByText(fr.admin.templateClipsOff)).toHaveLength(2)
   })
 
   it('says what "Sans modèle" does, since it is the option a host lands on', () => {
@@ -107,7 +108,7 @@ describe('EventTemplatePicker', () => {
     )
   })
 
-  it.each(['birthday', 'party'] as const)(
+  it.each(['birthday', 'party', 'disposable'] as const)(
     'discloses what publishing without validation does, on %s',
     (key) => {
       // The assertion that would have caught it. The settings page announces this exact

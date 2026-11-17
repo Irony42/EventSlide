@@ -1283,11 +1283,14 @@ export const it: UiText = {
     templatePreviewSample: 'Il tuo evento',
     templateClipsOn: 'Video consentiti',
     templateClipsOff: 'Video disattivati',
+    templateSelfDeleteOn: 'Cancellazione foto per foto consentita',
+    templateSelfDeleteOff: 'Cancellazione foto per foto disattivata',
     templateNames: {
       wedding: 'Matrimonio',
       birthday: 'Compleanno',
       conference: 'Conferenza',
       party: 'Festa',
+      disposable: 'Fotocamera usa e getta',
     },
 
     retention: 'Eliminazione automatica',
@@ -2407,6 +2410,66 @@ export const it: UiText = {
     /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
     participate: 'Partecipo alla sfida',
     announceEnd: 'Fine della sfida fotografica',
+  },
+  /** The disposable camera (spec 23): the host's section, band and confirmation. The guest's and the wall's sentences come with their own surfaces. */
+  reveal: {
+    title: 'Fotocamera usa e getta',
+    hint: 'Le foto restano nascoste agli ospiti e alla sala fino alla rivelazione. Lei le vede appena arrivano.',
+    enabled: 'Attiva la fotocamera usa e getta',
+    timed: 'Rivela a un’ora precisa',
+    timedHint:
+      'Senza orario, la rivelazione la fa lei, con il pulsante «Rivela ora» della pagina dell’evento.',
+    at: 'Ora della rivelazione',
+    atLocked: 'La serata è già rivelata: l’ora non si può più spostare.',
+    shots: 'Pose per ospite',
+    shotsHint:
+      'Una posa è una foto inviata. Senza limite, ogni ospite invia tutte le foto che vuole. Questo limite vale anche senza rivelazione.',
+    film: 'Aspetto da rullino',
+    filmHint:
+      'Sugli schermi le foto prendono l’aspetto di un rullino. Gli originali e i download restano intatti.',
+    liveWarning:
+      'Sono già arrivate delle foto: quelle sullo schermo scompariranno fino alla rivelazione.',
+    countdown: (hours: number, minutes: number) =>
+      hours > 0
+        ? `Rivelazione tra ${t.number(hours)} h ${String(minutes).padStart(2, '0')} min`
+        : `Rivelazione tra ${t.number(minutes)} min`,
+    soon: 'Rivelazione tra meno di un minuto',
+    manual: 'Le foto restano nascoste finché non le rivela.',
+    scheduledFor: (when: string) => `Rivelazione prevista il ${when}`,
+    waiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto pubblicata attende la rivelazione`,
+        other: `${t.number(count)} foto pubblicate attendono la rivelazione`,
+      }),
+    revealNow: 'Rivela ora',
+    editTime: 'Cambia l’ora',
+    revealedAt: (time: string) => `Rivelato alle ${time}`,
+    revealedOn: (when: string) => `Rivelato il ${when}`,
+    confirmTitle: 'Rivelare ora?',
+    confirmPublished: (count: number) =>
+      count === 0
+        ? 'Nessuna foto è ancora pubblicata.'
+        : t.count(count, {
+            one: 'La foto pubblicata apparirà sul muro e sui telefoni.',
+            other: `Le ${t.number(count)} foto pubblicate appariranno sul muro e sui telefoni.`,
+          }),
+    confirmPending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto attende ancora una decisione: resterà nascosta.`,
+        other: `${t.number(count)} foto attendono ancora una decisione: resteranno nascoste.`,
+      }),
+    definitive: 'Questa azione è definitiva.',
+    closeTitle: (name: string) => `Terminare «${name}»?`,
+    closeHeld:
+      'Le foto non sono ancora state rivelate. Quando l’evento è finito restano nascoste finché non le riveli, e la conservazione delle foto parte dalla chiusura.',
+    closedNotRevealed:
+      'Le foto non sono state rivelate. L’evento è chiuso: restano nascoste finché non le rivela.',
+    closesBefore:
+      'La chiusura programmata arriva prima della rivelazione. Senza rivelazione, le foto resteranno nascoste.',
+    templateOn: 'Foto nascoste fino alla rivelazione',
+    templateOff: 'Nessuna rivelazione differita',
+    templateFilmOn: 'Aspetto da rullino sullo schermo',
+    templateFilmOff: 'Senza aspetto da rullino',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

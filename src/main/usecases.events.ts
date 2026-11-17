@@ -50,6 +50,8 @@ export const eventsUseCases = (
   getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
   getEventView: makeGetEventView({
     events: adapters.events,
+    photos: adapters.photos,
+    clock: adapters.clock,
     clients: adapters.clients,
     notices: adapters.purgeNotices,
     getEventLimits: makeGetEventLimits({ clients: adapters.clients }),

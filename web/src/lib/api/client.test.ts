@@ -359,6 +359,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
       }),
   },
   {
+    name: 'revealEvent',
+    verb: 'post',
+    path: `/api/events/${SLUG}/reveal`,
+    invoke: (client) => client.revealEvent(SLUG),
+  },
+  {
     name: 'rotateJoinCode',
     verb: 'post',
     path: `/api/events/${SLUG}/join-code`,
