@@ -630,6 +630,18 @@ export const it: UiText = {
     'challenge.limit': 'Questo evento ha raggiunto il numero di sfide consentito.',
     'challenge.eventNotOpen': 'Una sfida si può lanciare solo mentre l’evento è aperto.',
     'challenge.durationInvalid': 'Questa durata non è valida.',
+    'announcement.textInvalid': 'Scrivete il testo dell’annuncio (80 caratteri al massimo).',
+    'announcement.atInvalid': 'Quest’ora è già passata. Usate «Lancia ora».',
+    'announcement.kindInvalid': 'Questo tipo di annuncio non è valido.',
+    'announcement.durationInvalid': 'Questa durata non è valida per questo tipo di annuncio.',
+    'announcement.countdownInvalid':
+      'Questo conto alla rovescia non è valido per questo tipo di annuncio.',
+    'announcement.notFound': 'Questo annuncio non esiste più. Ricaricate la pagina.',
+    'announcement.overlap': 'È già previsto un altro annuncio in quel momento.',
+    'announcement.showing': 'C’è già un annuncio sullo schermo.',
+    'announcement.locked': 'Questo annuncio è sullo schermo: toglietelo per correggerlo.',
+    'announcement.limit': 'Avete raggiunto 50 annunci. Eliminatene qualcuno.',
+    'announcement.eventNotOpen': 'La serata non è aperta: l’annuncio non sarà mostrato.',
 
     'eventTheme.accentHueInvalid': 'Questo colore non è riconosciuto. Scegline uno dall’elenco.',
     'eventTheme.accentUnreadable':
@@ -2379,6 +2391,66 @@ export const it: UiText = {
     /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
     participate: 'Partecipo alla sfida',
     announceEnd: 'Fine della sfida fotografica',
+  },
+  /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
+  announcement: {
+    title: 'Annunci',
+    hint: 'Una frase per tutta la sala, all’ora scelta. Compare solo al momento giusto.',
+    text: 'Testo dell’annuncio',
+    /** The text box's counter: how much of the eighty characters is used. */
+    textCount: (used, max) => `${t.number(used)} / ${t.number(max)}`,
+    ideasTitle: 'Idee',
+    /** Ready-made texts for a full-screen card; each is at most 80 characters. */
+    ideas: ['Torta', 'Discorsi', 'Primo ballo', 'Apre il buffet', 'Ultima canzone'],
+    /** The same for a discreet one, which says something that stays true for a while; each at most 80 characters. */
+    ideasDiscreet: ['Il buffet è aperto', 'La photo booth vi aspetta', 'Ultimo giro al bar'],
+    time: 'Ora',
+    timeHint: 'Lasciate vuoto per usare «Lancia ora».',
+    /** The line that says which moment the typed time is: the day, the time, and how far away it is. */
+    resolvedToday: (time, lead) => `Oggi ${time}, tra ${lead}`,
+    resolvedTomorrow: (time, lead) => `Domani ${time}, tra ${lead}`,
+    resolvedOn: (date, time, lead) => `${date} ${time}, tra ${lead}`,
+    /** How far away, from whole minutes: "1 h 12", "45 min". */
+    lead: (minutes) => {
+      if (minutes <= 0) return 'un istante'
+      if (minutes < 60) return `${minutes} min`
+      const rest = minutes % 60
+      const hours = Math.floor(minutes / 60)
+      return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, '0')}`
+    },
+    far: 'Mancano più di 12 ore: controllate l’ora e il giorno.',
+    kind: 'Tipo di annuncio',
+    kindFullscreen: 'Schermo intero',
+    kindFullscreenHelp: 'Una scheda al centro dello schermo, per qualche secondo.',
+    kindDiscreet: 'Discreto',
+    kindDiscreetHelp: 'Un testo discreto sulle foto, da 5 a 30 minuti.',
+    countdown: 'Conto alla rovescia',
+    countdownNone: 'Nessuno',
+    duration: 'Durata sullo schermo',
+    /** A span of seconds as the chips say it: under a minute in seconds, from a minute in minutes. */
+    span: (seconds) => (seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min`),
+    schedule: 'Programma',
+    launchNow: 'Lancia ora',
+    save: 'Salva',
+    cancel: 'Annulla',
+    edit: 'Modifica',
+    relaunch: 'Rilancia',
+    remove: 'Elimina',
+    withdraw: 'Togli dallo schermo',
+    editing: 'Modifica di un annuncio',
+    textOnly: 'Questo annuncio è sullo schermo: può cambiare solo il suo testo.',
+    listLabel: 'Annunci della serata',
+    empty: 'Ancora nessun annuncio.',
+    loadFailed: 'Impossibile caricare gli annunci.',
+    notLive:
+      'La serata non è ancora aperta: l’annuncio sarà mostrato solo quando lo schermo sarà aperto.',
+    /** The state the row is in, in words: never by colour alone. */
+    states: {
+      upcoming: 'In arrivo',
+      counting: 'Conto alla rovescia',
+      showing: 'Sullo schermo',
+      over: 'Passato',
+    },
   },
   titles: {
     print: 'Segnaposto e locandina',

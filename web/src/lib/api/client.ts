@@ -21,6 +21,8 @@ export type { InvitationAcceptance } from './client/account'
 export type { SiteProvisionInput, SiteInvitationInput, SiteResetInput } from './client/site'
 export type {
   AlbumBookInput,
+  AnnouncementInput,
+  AnnouncementPatchInput,
   ChallengeInput,
   CreateEventInput,
   EventScheduleInput,

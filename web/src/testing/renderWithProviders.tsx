@@ -19,6 +19,7 @@ import type {
 import type { Locale } from '../lib/i18n/locale'
 import type {
   About,
+  AnnouncementDto,
   ClientLimitsDto,
   ClipJobDto,
   CurrentUserDto,
@@ -204,6 +205,18 @@ export const aMission = (overrides: Partial<MissionDto> = {}): MissionDto => ({
   achieved: false,
   publishedPhotos: 0,
   completedByGuests: 0,
+  ...overrides,
+})
+
+/** One announcement on the host's console: a fullscreen card, thirty seconds, a five-minute countdown, upcoming. */
+export const anAnnouncement = (overrides: Partial<AnnouncementDto> = {}): AnnouncementDto => ({
+  id: 'announcement-1',
+  text: 'Le gâteau arrive',
+  kind: 'fullscreen',
+  at: '2026-06-20T21:30:00.000Z',
+  durationSeconds: 30,
+  countdownSeconds: 300,
+  state: 'upcoming',
   ...overrides,
 })
 
@@ -735,6 +748,11 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
     state: 'running' as const,
   })),
   stopChallenge: vi.fn(async () => undefined),
+  listAnnouncements: vi.fn(async () => ({ announcements: [], serverNowMs: Date.now() })),
+  createAnnouncement: vi.fn(async () => ({ announcement: anAnnouncement() })),
+  updateAnnouncement: vi.fn(async () => ({ announcement: anAnnouncement() })),
+  launchAnnouncement: vi.fn(async () => ({ announcement: anAnnouncement() })),
+  deleteAnnouncement: vi.fn(async () => undefined),
 
   // No link by default: the panel's first state is the one a host meets first.
   shareLink: vi.fn(async () => ({ link: null })),

@@ -82,6 +82,7 @@ describe('the scope', () => {
       [
         'about',
         'admin',
+        'announcement',
         'app',
         'auth',
         'challenge',

@@ -609,6 +609,41 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.stopChallenge(SLUG),
   },
   {
+    name: 'listAnnouncements',
+    verb: 'get',
+    path: `/api/events/${SLUG}/announcements`,
+    invoke: (client) => client.listAnnouncements(SLUG),
+  },
+  {
+    name: 'createAnnouncement',
+    verb: 'post',
+    path: `/api/events/${SLUG}/announcements`,
+    invoke: (client) =>
+      client.createAnnouncement(SLUG, {
+        text: 'Le gâteau',
+        kind: 'discreet',
+        durationSeconds: 900,
+      }),
+  },
+  {
+    name: 'updateAnnouncement',
+    verb: 'patch',
+    path: `/api/events/${SLUG}/announcements/announcement-1`,
+    invoke: (client) => client.updateAnnouncement(SLUG, 'announcement-1', { text: 'Le discours' }),
+  },
+  {
+    name: 'launchAnnouncement',
+    verb: 'post',
+    path: `/api/events/${SLUG}/announcements/announcement-1/launch`,
+    invoke: (client) => client.launchAnnouncement(SLUG, 'announcement-1'),
+  },
+  {
+    name: 'deleteAnnouncement',
+    verb: 'del',
+    path: `/api/events/${SLUG}/announcements/announcement-1`,
+    invoke: (client) => client.deleteAnnouncement(SLUG, 'announcement-1'),
+  },
+  {
     name: 'shareLink',
     verb: 'get',
     path: `/api/events/${SLUG}/share-link`,
