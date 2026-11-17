@@ -18,8 +18,9 @@ import { fr } from '../../../web/src/lib/i18n/fr'
  *
  * The time is a **minute** (`<input type="time">`), so the host cannot ask for "in 40 seconds":
  * the journey types the next whole minute that is at least fifteen seconds away, with the
- * shortest countdown the form offers (1 min), so the band is on screen from the moment of
- * scheduling and the card follows at the minute. The rules of resolving a time of day (midnight,
+ * shortest countdown the form offers (1 min). That minute is fifteen to seventy-five seconds
+ * away, so the countdown, and with it the band, starts at most fifteen seconds after scheduling,
+ * and the card follows at the minute. The rules of resolving a time of day (midnight,
  * a scheduled opening, the twelve-hour warning) are one ring down. No `waitForTimeout`.
  */
 
@@ -104,9 +105,10 @@ test.describe('the announcements console', () => {
       await expect(host.getByText(/, dans /u)).toBeVisible()
       await host.getByRole('button', { name: copy.schedule }).click()
 
-      // It is in the list at once, and not on the wall as a card yet: its countdown is running.
+      // It is in the list at once, and not on the wall as a card yet. Its countdown starts within
+      // fifteen seconds: the minute typed can be up to seventy-five seconds away, the countdown one.
       const row = host.getByRole('group', { name: 'Le gâteau arrive' })
-      await expect(row.getByText(copy.states.counting)).toBeVisible()
+      await expect(row.getByText(copy.states.counting)).toBeVisible({ timeout: 20_000 })
       await expect(projector.locator(CARD)).toHaveCount(0)
       await expect(projector.locator(BAND)).toContainText('Le gâteau arrive', { timeout: 20_000 })
       await expect(other.locator(BAND)).toContainText('Le gâteau arrive', { timeout: 20_000 })
