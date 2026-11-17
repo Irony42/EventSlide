@@ -120,7 +120,7 @@ src/
     guestbook/     Written guest messages: text, entry, ceilings, the closed-event window (spec 01)
     slideshow/     Playlist building, layouts, transitions (pure)
     reactions/     Reaction rules
-    clients/       Client entity, ceilings, roles, ceiling levels (roadmap §10.2, §10.5)
+    clients/       Client entity, ceilings, roles, ceiling levels (roadmap §10.2, §10.5), the purge deadline and its warning thresholds, who may export (`exportAllowed`, spec 22)
     audit/         Audit entries, their allow-listed details, retention (roadmap §10.8; an owner reads their client's, G2-16)
     mail/          Outgoing message rules: one mailbox, a one-line subject (roadmap §10.3)
     legal/         The terms of use an invitation's acceptance agrees to: a URL and a short version (G2-20)
@@ -503,6 +503,15 @@ Learned the hard way. Do not rediscover them.
     npm ci --ignore-scripts
     npm rebuild ffmpeg-static esbuild bcrypt
     ```
+
+12. **A photograph's `content_hash` is the digest of its _display_ rendition, and it names three files.**
+    `uploadPhotos` hashes the rendered `display` bytes (so that a retried upload is idempotent), and the
+    `original` and the `thumb` are stored under the same name with other bytes. "The name of a file is the
+    digest of that file" is true of a clip's `video` and `poster` and of a photograph's `display`, and of
+    nothing else: a check that hashes an `original` and compares it with its name condemns every healthy
+    photograph. Spec 22 first assumed the universal form and would have made the host's ZIP abort on the
+    first photograph. `digestVouchesForVariant` (`src/domain/photos/storedDigest.ts`) says which files a
+    digest can vouch for; a verification of the others needs a digest the row does not store yet.
 
 ---
 

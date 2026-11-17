@@ -201,6 +201,10 @@ export interface EventSummaryDto {
    */
   readonly role: EventRole
 }
+export interface EventPurgeDto {
+  readonly at: string | null
+  readonly notice: 14 | 3 | 1 | null
+}
 export interface EventDto extends EventSummaryDto {
   readonly joinCode: string
   readonly joinUrl: string
@@ -212,6 +216,13 @@ export interface EventDto extends EventSummaryDto {
   readonly quotaBytes: number
   /** When the live window closes, an ISO-8601 instant. **Absent** when there is none to announce. */
   readonly liveWindowEnd?: string
+  /**
+   * When the album will be deleted (an ISO-8601 instant, or `null` when it is not on a clock) and
+   * the threshold of the last warning e-mail (14, 3 or 1 day before, or `null`). Says nothing of the
+   * operator's hold on the purge. Optional in the type only so that a fixture older than this field
+   * still compiles; every host answer carries it.
+   */
+  readonly purge?: EventPurgeDto
   readonly settings: EventSettingsDto
   readonly startsAt: string | null
   readonly closedAt: string | null

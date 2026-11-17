@@ -26,6 +26,8 @@ import { SqliteAccountHoldings } from '../infrastructure/db/sqliteAccountHolding
 import { SqliteSiteOverview } from '../infrastructure/db/sqliteSiteOverview'
 import { SqliteAccountTokenRepository } from '../infrastructure/db/sqliteAccountTokenRepository'
 import { SqliteSecondFactorRepository } from '../infrastructure/db/sqliteSecondFactorRepository'
+import { sha256StreamHasher } from '../infrastructure/crypto/sha256StreamHasher'
+import { SqlitePurgeNoticeLedger } from '../infrastructure/db/sqlitePurgeNoticeLedger'
 import { SqliteTourLedger } from '../infrastructure/db/sqliteTourLedger'
 import { createAesGcmMfaVault } from '../infrastructure/crypto/aesGcmMfaVault'
 import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
@@ -471,6 +473,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     mailer,
     secondFactors: new SqliteSecondFactorRepository(db),
     tours: new SqliteTourLedger(db),
+    purgeNotices: new SqlitePurgeNoticeLedger(db),
+    streamHasher: sha256StreamHasher,
     totpEngine: nodeTotpEngine,
     // Chosen once, from configuration: no key, no vault, and the enrolment routes answer
     // `404 feature.unavailable`. A recovery code still opens an enrolled account on such a box,
@@ -543,6 +547,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
           purge: usecases.purgeExpiredEvents,
           pruneAuditLog: usecases.pruneAuditLog,
           finalizeOffboardedClients: usecases.finalizeOffboardedClients,
+          sweepPurgeNotices: usecases.sweepPurgeNotices,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,

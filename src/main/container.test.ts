@@ -296,6 +296,93 @@ describe('createContainer: migration 029 on a database at 028', () => {
 })
 
 /**
+ * Migration 030 (spec 22) on a database that is at 029 and already holds a closed album: the box
+ * that upgrades with an album on it, in both modes of `SITE_ADMIN`. The table appears empty, the
+ * event is untouched, the schema's own guards answer, the row goes with its event, and on a box with
+ * no relay the sweep sends nothing and notes nothing.
+ */
+describe('createContainer: migration 030 on a database at 029', () => {
+  const SLUG = 'mariage-existant'
+  const EVENT_ID = 'evt-existing'
+
+  it.each(['off', 'on'] as const)(
+    'adds event_purge_notices to a populated 029 database with SITE_ADMIN=%s, and keeps what was there',
+    async (mode) => {
+      workDir = await mkdtemp(join(tmpdir(), 'eventslide-container-'))
+      const databasePath = join(workDir, 'eventslide.sqlite')
+      const old = openDatabase({ path: databasePath })
+      migrate(
+        old,
+        migrations.filter((migration) => migration.id < 30),
+      )
+      old
+        .prepare(
+          `INSERT INTO users (id, email, password_hash, created_at)
+                VALUES ('u-host', 'hote@example.test', 'hash:x', '2026-06-20T11:00:00.000Z')`,
+        )
+        .run()
+      const closedAt = new Date(Date.now() - 24 * 3_600_000)
+      await new SqliteEventRepository(old).save(
+        anEvent({
+          id: EVENT_ID,
+          ownerId: 'u-host',
+          slug: SLUG,
+          joinCode: 'H7K2QM',
+          status: 'closed',
+          closedAt,
+          settings: { retentionDays: 2 },
+        }),
+      )
+      expect(
+        old
+          .prepare<[], { readonly name: string }>(
+            `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'event_purge_notices'`,
+          )
+          .all(),
+      ).toEqual([])
+      closeDatabase(old)
+
+      container = await createContainer(
+        loadConfig({
+          NODE_ENV: 'test',
+          LOG_LEVEL: 'fatal',
+          DATABASE_PATH: databasePath,
+          MEDIA_ROOT: join(workDir, 'media'),
+          FFMPEG_PATH: join(workDir, 'no-ffmpeg-here'),
+          FFPROBE_PATH: join(workDir, 'no-ffprobe-here'),
+          SITE_ADMIN: mode,
+        }),
+      )
+      const { db } = container
+
+      expect(status(db, migrations).applied.map((row) => row.id)).toContain(30)
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_purge_notices').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT slug FROM events').all()).toEqual([{ slug: SLUG }])
+
+      // The schema's own guards: only the three thresholds, and the row follows its event.
+      const insert = db.prepare(
+        'INSERT INTO event_purge_notices (event_id, level, sent_at) VALUES (?, ?, ?)',
+      )
+      expect(() => insert.run(EVENT_ID, 7, closedAt.toISOString())).toThrow(
+        /CHECK constraint failed/,
+      )
+      insert.run(EVENT_ID, 1, closedAt.toISOString())
+      expect(() => insert.run('evt-nobody', 1, closedAt.toISOString())).toThrow(/FOREIGN KEY/)
+      db.prepare('DELETE FROM event_purge_notices').run()
+
+      // No relay on this box: the album goes in a day, and nothing is sent or noted.
+      const report = await container.usecases.sweepPurgeNotices()
+      expect(report).toEqual({ noticed: [], sent: 0, unsent: 0, failed: [] })
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_purge_notices').get()).toEqual({ n: 0 })
+
+      insert.run(EVENT_ID, 3, closedAt.toISOString())
+      db.prepare('DELETE FROM events WHERE id = ?').run(EVENT_ID)
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_purge_notices').get()).toEqual({ n: 0 })
+    },
+  )
+})
+
+/**
  * The same gap, for the source offer (roadmap G1-04 / P1-05).
  *
  * `env.test.ts` proves `SOURCE_CODE_URL` and `SOURCE_REF` parse and `aboutRoutes.test.ts`

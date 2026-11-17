@@ -18,6 +18,7 @@ import type { AuditPage } from '../../../application/ports/auditLog'
 import type { ClientLimits } from '../../../application/usecases/clients/getClientLimits'
 import type { PendingInvitation } from '../../../application/usecases/clients/listPendingInvitations'
 import type { EventLimits } from '../../../application/usecases/events/getEventLimits'
+import type { EventPurgeView } from '../../../application/usecases/events/getEventView'
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
   AlbumBookDto,
@@ -34,6 +35,7 @@ import type {
   CurrentUserDto,
   ReelDto,
   EventDto,
+  EventPurgeDto,
   EventSettingsDto,
   EventSummaryDto,
   EventBrandDto,
@@ -446,16 +448,24 @@ export const toEventSummaryDto = (summary: HostEventSummary): EventSummaryDto =>
   role: summary.role,
 })
 
+/** The date the album will be deleted, as the host's page reads it (spec 22). */
+export const toEventPurgeDto = (purge: EventPurgeView): EventPurgeDto => ({
+  at: isoOrNull(purge.at),
+  notice: purge.notice,
+})
+
 export interface EventDtoInput {
   readonly event: Event
   readonly role: EventRole
   readonly counts: EventCounts
   /** What the event's client makes of its quota and its live window (`getEventView`). */
   readonly limits: EventLimits
+  /** When the album will be deleted and the last warning sent (`getEventView`, spec 22). */
+  readonly purge: EventPurgeView
 }
 
 export const toEventDto = (
-  { event, role, counts, limits }: EventDtoInput,
+  { event, role, counts, limits, purge }: EventDtoInput,
   context: PresenterContext,
 ): EventDto => ({
   id: event.id,
@@ -471,6 +481,7 @@ export const toEventDto = (
   joinUrl: joinUrl(context.publicUrl, event.joinCode.value),
   quotaBytes: limits.quotaBytes,
   ...(limits.liveWindowEnd === null ? {} : { liveWindowEnd: iso(limits.liveWindowEnd) }),
+  purge: toEventPurgeDto(purge),
   settings: toEventSettingsDto(event.settings, event.slug.value),
   startsAt: isoOrNull(event.startsAt),
   closedAt: isoOrNull(event.closedAt),

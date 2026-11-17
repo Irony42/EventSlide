@@ -20,6 +20,7 @@ import { makeRotateJoinCode } from '../application/usecases/events/rotateJoinCod
 import { makeScheduleEvent } from '../application/usecases/events/scheduleEvent'
 import { makeUpdateEventSettings } from '../application/usecases/events/updateEventSettings'
 import { makeGetEventLimits } from '../application/usecases/events/getEventLimits'
+import { makeSweepPurgeNotices } from '../application/usecases/events/sweepPurgeNotices'
 import { makeGetEventView } from '../application/usecases/events/getEventView'
 import type { Adapters, UseCasePolicy } from './usecases'
 
@@ -42,7 +43,25 @@ export const eventsUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
   getEventView: makeGetEventView({
     events: adapters.events,
+    clients: adapters.clients,
+    notices: adapters.purgeNotices,
     getEventLimits: makeGetEventLimits({ clients: adapters.clients }),
+    capNoticeDays: policy.retention.capNoticeDays,
+  }),
+  /**
+   * The warning to the owners of albums about to be deleted (spec 22), run by the retention
+   * follow-up and by nothing else: no route reaches it.
+   */
+  sweepPurgeNotices: makeSweepPurgeNotices({
+    events: adapters.events,
+    clients: adapters.clients,
+    memberships: adapters.memberships,
+    notices: adapters.purgeNotices,
+    mailer: adapters.mailer,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    capNoticeDays: policy.retention.capNoticeDays,
+    publicUrl: policy.publicUrl,
   }),
   listEventsForHost: makeListEventsForHost({
     events: adapters.events,

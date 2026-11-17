@@ -455,19 +455,19 @@ was. **404** `client.notFound`. `resume` refuses a client whose engagement has e
 
 What a suspended client is told, per surface (docs/SECURITY.md §22):
 
-| Surface                                                                                                               | Answer                                                                                        |
-| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| join by code, guest upload, guest photographs, missions, privacy notice                                               | the answer an event that does not exist gets (`404`), whatever the event's status             |
-| the wall, its playlist and its live feed; a published photograph by slug; a gallery link and its media                | the same `404` as an unknown event or a dead link                                             |
-| an open live feed                                                                                                     | closed at the next heartbeat, told to retry in 60 s, and answered with the `404` when it does |
-| a member of the client, on any event route                                                                            | **reads** its account and its event as before; every **write** is `403 client.suspended`      |
-| a member reading **photographs**: the grid, the moderation queue, the album download, the top photos, the media route | `403 client.suspended` (since 3.3: they used to read)                                         |
-| a member's moderation feed                                                                                            | stays open (it carries signals, never content), and only an event that is gone ends it        |
-| a malformed photograph id or variant on the media route                                                               | the same `404`, answered before the ids are judged                                            |
-| an invitation into the client, or a moderator invitation to one of its events                                         | `404 invitation.notFound`, to preview and to accept, until the client is resumed              |
-| a member creating an event, or attaching one to the client                                                            | `403 client.suspended`, under either `EVENT_CREATION` policy                                  |
-| an owner approving an operator's invitation or reset request                                                          | `403 client.suspended`; a stranger is still told `404`                                        |
-| `GET /api/me/limits`                                                                                                  | `suspended: true`, so the screen can say so                                                   |
+| Surface                                                                                                               | Answer                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| join by code, guest upload, guest photographs, missions, privacy notice                                               | the answer an event that does not exist gets (`404`), whatever the event's status                                                             |
+| the wall, its playlist and its live feed; a published photograph by slug; a gallery link and its media                | the same `404` as an unknown event or a dead link                                                                                             |
+| an open live feed                                                                                                     | closed at the next heartbeat, told to retry in 60 s, and answered with the `404` when it does                                                 |
+| a member of the client, on any event route                                                                            | **reads** its account and its event as before; every **write** is `403 client.suspended`                                                      |
+| a member reading **photographs**: the grid, the moderation queue, the album download, the top photos, the media route | `403 client.suspended` (since 3.3: they used to read); **the album download alone stays open while the client is being offboarded** (spec 22) |
+| a member's moderation feed                                                                                            | stays open (it carries signals, never content), and only an event that is gone ends it                                                        |
+| a malformed photograph id or variant on the media route                                                               | the same `404`, answered before the ids are judged                                                                                            |
+| an invitation into the client, or a moderator invitation to one of its events                                         | `404 invitation.notFound`, to preview and to accept, until the client is resumed                                                              |
+| a member creating an event, or attaching one to the client                                                            | `403 client.suspended`, under either `EVENT_CREATION` policy                                                                                  |
+| an owner approving an operator's invitation or reset request                                                          | `403 client.suspended`; a stranger is still told `404`                                                                                        |
+| `GET /api/me/limits`                                                                                                  | `suspended: true`, so the screen can say so                                                                                                   |
 
 #### The operator's "remove without viewing" routes (launch review S5, G8-03)
 
@@ -2369,6 +2369,20 @@ Each photograph is archived as its stored original (`.jpg`) and each clip as its
 (`.mp4`, the transcode: a clip's upload is never kept), the same file the shared gallery's own archive carries; a row whose
 file is gone is skipped with a warning rather than aborting the download.
 
+**`<slug>/MANIFEST.sha256` closes the archive** (spec 22): one line per file, `<sha-256 in 64 hex>  <name>` (two
+spaces, names relative to the folder: what `sha256sum -c MANIFEST.sha256` reads), the guestbook included, and a last
+comment line `# missing: N` counting the rows whose file was not on the server's disk and which the archive therefore
+does not carry (`0` when none). The digest is of the bytes that went by, computed as they were streamed. A clip's
+file that is not what its stored digest says aborts the stream (`export.corrupt` in the log, the socket destroyed, no
+manifest written) instead of being handed over; a photograph's **original** cannot be held against its stored
+digest, which is taken over its _display_ rendition, so it is listed in the manifest and not verified by the server.
+
+**Who may**: the same refusals as before (`401`, `404 event.notFound` for a non-member and for an event the
+operator took down), with one change in the suspension rule. A suspended client's members get
+`403 client.suspended` **except while the client is being offboarded** (`clients.purge_after` is set): offboarding
+suspends the client _and_ promises `graceDays` to export, and the export used to be refused for the whole window. A
+suspension without an offboarding keeps the `403`; an event the operator took down is `404` whatever else is true.
+
 `Content-Disposition: attachment; filename="<slug>-album.zip"`, from the resolved event's
 canonical slug and never from the path, so the download cannot be called something the
 wall and the printed card do not. `Cache-Control: no-store` and no `Content-Length`: the
@@ -3287,6 +3301,7 @@ The shape every route in the table that answers `200` returns.
   "joinCode": "H7K2QM",
   "joinUrl": "https://photos.example/join/H7K2QM",
   "quotaBytes": 21474836480,
+  "purge": { "at": null, "notice": null },
   "settings": {
     "moderation": "manual",
     "allowCaptions": true,
@@ -3335,6 +3350,16 @@ event with no client — every event on a box without clients — it is the stor
 `liveWindowEnd` (an ISO-8601 instant) is the end of the event's live window, `opened_at + max_live_days`;
 it is **absent**, not `null`, when there is none to announce (no client, no `max_live_days`, an event that
 has never opened), so a box without clients answers byte for byte as it did.
+
+**`purge` (spec 22) is when the album will be deleted**, on the host's answer and on no other: not on a
+guest's, not on the public view, not on `/wall` (a test fails the build if another shape declares it).
+`at` is an ISO-8601 instant, the date the retention sweep acts on (`purgeDeadline`: the earliest of the host's
+retention, the client's ceilings and an offboarding's `purge_after`), and **`null`** when the album is not on
+a clock: the event is not closed yet, or it is kept until a person deletes it. `notice` is the threshold of the
+last warning e-mail sent to the owners (`14`, `3` or `1` day(s) before), or `null` when none was sent (and always
+when `at` is `null`). It says **nothing** about the operator's hold on a purge (`purge_held_at`): that is invisible to
+a host, who may be the person concerned, and `at` is shown whether or not the album is held. Every route that
+answers with this event carries it.
 
 ### `PATCH /api/events/:slug`
 

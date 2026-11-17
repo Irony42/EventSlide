@@ -280,6 +280,7 @@ describe('the real schema', () => {
       'event_challenges',
       'event_memberships',
       'event_missions',
+      'event_purge_notices',
       'event_stats_counters',
       'events',
       'guestbook_entries',

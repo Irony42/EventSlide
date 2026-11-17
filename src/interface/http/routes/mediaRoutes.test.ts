@@ -1,3 +1,4 @@
+import { FakeStreamHasher } from '../../../application/testing/fakeStreamHasher'
 import type { StreamLimiter } from '../middleware/rateLimit'
 import request from '../testing/request'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -120,6 +121,9 @@ const buildWorld = async ({
                 guests: new FakeGuestRepository(),
                 media,
                 archive,
+                clients: base.clients,
+                streamHasher: new FakeStreamHasher(),
+                clock: deps.clock,
                 logger: deps.logger,
               }),
           },

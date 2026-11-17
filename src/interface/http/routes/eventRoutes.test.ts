@@ -1,3 +1,4 @@
+import { FakePurgeNoticeLedger } from '../../../application/testing/fakePurgeNoticeLedger'
 import type { Express } from 'express'
 import request from '../testing/request'
 import type { Agent, Test } from 'supertest'
@@ -288,6 +289,9 @@ const buildWorld = ({
         getEventBySlug: makeGetEventBySlug({ events }),
         getEventView: makeGetEventView({
           events,
+          clients,
+          notices: new FakePurgeNoticeLedger(),
+          capNoticeDays: 30,
           getEventLimits: makeGetEventLimits({ clients }),
         }),
         listEventsForHost: makeListEventsForHost({ events, memberships }),
@@ -1179,6 +1183,70 @@ describe('the host event routes', () => {
 
       expect(response.body.joinCode).toBe('H7K2QM')
       expect(response.body.joinUrl).toBe('http://localhost:4300/join/H7K2QM')
+    })
+
+    describe('the date the album will be deleted (spec 22)', () => {
+      /** The wedding (a draft in this world), closed at AT, with the host's own retention of 30 days. */
+      const closeWedding = async (): Promise<void> => {
+        const wedding = await world.events.findById(asEventId(WEDDING))
+        if (wedding === null) throw new Error('fixture')
+        await world.events.save(
+          Event.restore({ ...wedding.toProps(), status: 'closed', openedAt: AT, closedAt: AT }),
+        )
+      }
+
+      it('gives the owner the date, which is the close plus the retention, and no warning yet', async () => {
+        await closeWedding()
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent.get(`/api/events/${SLUG}`)
+
+        expect(response.status).toBe(200)
+        expect(response.body.purge).toEqual({
+          at: new Date(AT.getTime() + 30 * 86_400_000).toISOString(),
+          notice: null,
+        })
+      })
+
+      it('gives a moderator the same date', async () => {
+        await closeWedding()
+        const agent = await signedIn(world, 'moderator')
+
+        const response = await agent.get(`/api/events/${SLUG}`)
+
+        expect(response.body.purge.at).toBe(new Date(AT.getTime() + 30 * 86_400_000).toISOString())
+      })
+
+      it('says when no date is set, as a null and not as a missing key', async () => {
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent.get(`/api/events/${SLUG}`)
+
+        // Live: the clock starts when the event closes.
+        expect(response.body.purge).toEqual({ at: null, notice: null })
+      })
+
+      it('says nothing of the operator hold on the purge, and still gives the date', async () => {
+        await closeWedding()
+        await world.events.setPurgeHeld(asEventId(WEDDING), AT)
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent.get(`/api/events/${SLUG}`)
+
+        expect(Object.keys(response.body.purge).sort()).toEqual(['at', 'notice'])
+        expect(response.body.purge.at).not.toBeNull()
+        expect(JSON.stringify(response.body)).not.toMatch(/held|hold/i)
+      })
+
+      it('is not offered to a stranger, who is answered as for an event that is not there', async () => {
+        await closeWedding()
+        const agent = await signedIn(world, 'newcomer')
+
+        const response = await agent.get(`/api/events/${SLUG}`)
+
+        expect(response.status).toBe(404)
+        expect(JSON.stringify(response.body)).not.toContain('purge')
+      })
     })
 
     it('an event taken down by the operator answers 404 to its owner', async () => {

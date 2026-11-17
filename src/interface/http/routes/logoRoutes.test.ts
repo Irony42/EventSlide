@@ -1,3 +1,4 @@
+import { FakePurgeNoticeLedger } from '../../../application/testing/fakePurgeNoticeLedger'
 import request from '../testing/request'
 import { hostExportLimiter } from '../middleware/rateLimit'
 import type { Agent } from 'supertest'
@@ -96,6 +97,9 @@ const buildWorld = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World =
         }),
         getEventView: makeGetEventView({
           events: deps.events,
+          clients: base.clients,
+          notices: new FakePurgeNoticeLedger(),
+          capNoticeDays: 30,
           getEventLimits: makeGetEventLimits({ clients: base.clients }),
         }),
         identifyMediaViewer: makeIdentifyMediaViewer({

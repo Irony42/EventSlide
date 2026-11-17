@@ -997,6 +997,20 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 
 ## Upgrading to 3.14 (not released yet)
 
+### Export before the purge: the date, the warning, the manifest (spec 22)
+
+- **One migration (030)**: a new table, `event_purge_notices` (one row per event: the last warning threshold sent, and when),
+  removed with its event. Nothing existing is rewritten. Back up first, as for any upgrade: the migration only goes forward.
+- **Nothing to set in `.env`.** An album that is on a clock now shows its deletion date to its host (`purge` on
+  `GET /api/events/:slug`), and **with `SMTP_URL` configured** its owners are written to 14, 3 and 1 day before (see
+  [OPERATING.md](OPERATING.md#before-an-album-is-deleted)). Without it nothing is sent and nothing changes.
+- **A fix to apply before the next offboarding.** A client being offboarded could not export its albums during the
+  grace period: the suspension that comes with the offboarding answered `403 client.suspended`. It can now. A client
+  suspended for any other reason is still refused. If you offboarded a client on 3.13 or earlier and its grace period is
+  still running, it can export as soon as this version runs.
+- The host's `album.zip` gains a last file, `MANIFEST.sha256`, and a clip that is corrupt on disk now aborts the download
+  instead of being delivered. The purge's log lines gain `archive=…`.
+
 ### Scheduled announcements on the wall (spec 21)
 
 - **One migration (029)**: a new table, `event_announcements`, with its index. Nothing existing is rewritten. Back up

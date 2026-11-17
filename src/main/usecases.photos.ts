@@ -80,6 +80,9 @@ export const photosUseCases = (
     guests: adapters.guests,
     media: adapters.media,
     archive: adapters.archive,
+    clients: adapters.clients,
+    streamHasher: adapters.streamHasher,
+    clock: adapters.clock,
     logger: adapters.logger,
   }),
 
