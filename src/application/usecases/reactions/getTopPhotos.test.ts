@@ -3,6 +3,7 @@ import { makeGetTopPhotos, type GetTopPhotos } from './getTopPhotos'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import { asEventId } from '../../../domain/shared/ids'
 import { AT, anEvent, aPhoto, aReaction } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../testing/fakeReactionRepository'
@@ -19,7 +20,7 @@ describe('getTopPhotos', () => {
     events = new FakeEventRepository().seed(anEvent({ id: 'event-1', slug: 'event-1' }))
     photos = new FakePhotoRepository()
     reactions = new FakeReactionRepository()
-    getTopPhotos = makeGetTopPhotos({ events, photos, reactions })
+    getTopPhotos = makeGetTopPhotos({ events, photos, reactions, clock: new FakeClock() })
   })
 
   const seedTwoPublished = (): void => {
@@ -45,6 +46,7 @@ describe('getTopPhotos', () => {
       ),
       photos,
       reactions,
+      clock: new FakeClock(),
     })({ eventId: EVENT, limit: 5 })
 
     expect(!unknown.ok && unknown.error.code).toBe('event.notFound')
@@ -260,5 +262,46 @@ describe('getTopPhotos', () => {
     const result = await rank(1.5)
 
     expect(!result.ok && result.error.code).toBe('reaction.limitNotInteger')
+  })
+
+  describe('the reveal gate (spec 23)', () => {
+    const reactedTo = (): void => {
+      seedTwoPublished()
+      reactions.seed(aReaction({ id: 'reaction-1', photoId: 'photo-1', guestId: 'guest-1' }))
+    }
+
+    it('crowns nobody before the reveal, and reads no ranking at all', async () => {
+      reactedTo()
+      const clock = new FakeClock()
+      events = new FakeEventRepository().seed(
+        anEvent({
+          id: 'event-1',
+          slug: 'event-1',
+          settings: { reveal: { enabled: true, at: new Date(clock.now().getTime() + 60_000) } },
+        }),
+      )
+      getTopPhotos = makeGetTopPhotos({ events, photos, reactions, clock })
+
+      const result = await rank()
+
+      expect(result.ok && result.value).toEqual([])
+    })
+
+    it('ranks again from the instant of the reveal', async () => {
+      reactedTo()
+      const clock = new FakeClock()
+      events = new FakeEventRepository().seed(
+        anEvent({
+          id: 'event-1',
+          slug: 'event-1',
+          settings: { reveal: { enabled: true, at: clock.now() } },
+        }),
+      )
+      getTopPhotos = makeGetTopPhotos({ events, photos, reactions, clock })
+
+      const result = await rank()
+
+      expect(result.ok && result.value.map((entry) => entry.photo.id)).toEqual(['photo-1'])
+    })
   })
 })

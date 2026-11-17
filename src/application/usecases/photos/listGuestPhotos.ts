@@ -1,6 +1,9 @@
+import type { Event } from '../../../domain/events/event'
+import { isRevealed } from '../../../domain/events/eventRevealSettings'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
+import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
 import type { PhotoPage, PhotoQuery, PhotoRepository } from '../../ports/photoRepository'
@@ -13,6 +16,12 @@ import type { PhotoPage, PhotoQuery, PhotoRepository } from '../../ports/photoRe
  * alternative — an upload that succeeded and then vanished from their phone — is the
  * single most common support question a host gets during an event, and it makes the
  * guest send the photo again.
+ *
+ * **The reveal does not hide a guest's own photograph from them** (spec 23). It stays in the
+ * list, `status` stays exact (a `rejected` photograph is still shown as declined), and the page
+ * says whether the evening is revealed so that the presenter can mark a `published` photograph
+ * that is still waiting (`awaitsReveal`): the phone draws it undeveloped. What is protected is
+ * what *others* can read, not what a guest sent.
  *
  * Both the event and the guest are part of the query. A device token is issued for one
  * event, and this read cannot be widened past it.
@@ -29,6 +38,8 @@ export interface ListGuestPhotosDeps {
   readonly events: EventRepository
   readonly photos: PhotoRepository
   readonly missions: MissionRepository
+  /** The reveal is judged with the server's clock, never a phone's. */
+  readonly clock: Clock
 }
 
 /**
@@ -39,6 +50,17 @@ export interface ListGuestPhotosDeps {
  */
 export interface GuestPhotoPage extends PhotoPage {
   readonly missionPrompts: ReadonlyMap<string, string>
+  /** The event and the instant the page was read at: what the presenter builds the reveal block from. */
+  readonly event: Event
+  readonly now: Date
+  /** Whether the evening is shown to everybody at `now`: `false` makes a published photograph `awaitsReveal`. */
+  readonly revealed: boolean
+  /**
+   * The roll: how many poses the guest may take and how many the server counts as taken (the
+   * count the upload cap itself uses, `countByAuthor`: every row of theirs, whatever its status),
+   * or `null` for an event with no cap. A pose given back by an erasure is given back here too.
+   */
+  readonly shots: { readonly max: number; readonly taken: number } | null
 }
 
 export type ListGuestPhotos = (
@@ -49,6 +71,7 @@ export const makeListGuestPhotos = ({
   events,
   photos,
   missions,
+  clock,
 }: ListGuestPhotosDeps): ListGuestPhotos => {
   return async ({ eventId, guestId, limit, cursor }) => {
     const event = await events.findById(eventId)
@@ -72,6 +95,15 @@ export const makeListGuestPhotos = ({
         missionPrompts.set(mission.id, mission.prompt.value)
       }
     }
-    return ok({ ...page, missionPrompts })
+    const max = event.settings.maxPhotosPerGuest
+    const now = clock.now()
+    return ok({
+      ...page,
+      missionPrompts,
+      event,
+      now,
+      revealed: isRevealed(event.settings.reveal, now),
+      shots: max === null ? null : { max, taken: await photos.countByAuthor(eventId, guestId) },
+    })
   }
 }

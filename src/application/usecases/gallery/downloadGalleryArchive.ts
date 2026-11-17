@@ -13,7 +13,7 @@ import type { RecordEngagement } from '../stats/recordEngagement'
 import { albumEntries } from '../shared/albumEntries'
 import {
   eventBehind,
-  GALLERY_STATUSES,
+  galleryStatuses,
   isArchiveGrantSigned,
   notAvailable,
   stillGrants,
@@ -137,7 +137,7 @@ export const makeDownloadGalleryArchive =
       photos: deps.photos,
       eventId,
       slug: event.slug.value,
-      statuses: GALLERY_STATUSES,
+      statuses: galleryStatuses(event, deps.clock.now()),
       open,
       skipped: (photo) => {
         deps.logger.warn('gallery archive skipped a photo with no stored download', {

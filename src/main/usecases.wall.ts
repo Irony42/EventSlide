@@ -215,5 +215,6 @@ export const wallUseCases = (
     events: adapters.events,
     photos: adapters.photos,
     reactions: adapters.reactions,
+    clock: adapters.clock,
   }),
 })

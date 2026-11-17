@@ -293,3 +293,66 @@ describe('privacyNoticeFor — the guestbook (spec 01)', () => {
     expect(notice.revision.endsWith(';operator=Association X')).toBe(true)
   })
 })
+
+describe('privacyNoticeFor — the disposable camera (spec 23)', () => {
+  const ON = { reveal: { enabled: true, film: true }, maxPhotosPerGuest: 27 }
+
+  it('says nothing and keeps the revision exactly as it was when the mode is off', () => {
+    const plain = privacyNoticeFor(settings())
+    // Even a cap and a stored film look say nothing without the mode: an ordinary event keeps its notice.
+    const capped = privacyNoticeFor(
+      settings({ maxPhotosPerGuest: 27, reveal: { enabled: false, film: true } }),
+    )
+
+    expect([capped.deferredReveal, capped.shotLimit, capped.film]).toEqual([false, null, false])
+    expect(capped.revision).toBe(plain.revision)
+  })
+
+  it('says the photographs are held back, the poses and the film look, once the mode is on', () => {
+    const notice = privacyNoticeFor(settings(ON))
+
+    expect([notice.deferredReveal, notice.shotLimit, notice.film]).toEqual([true, 27, true])
+    expect(notice.revision).toContain('reveal=on;shots=27;film=on')
+  })
+
+  it('tells no pose count for an evening with no cap', () => {
+    const notice = privacyNoticeFor(settings({ reveal: { enabled: true } }))
+
+    expect(notice.shotLimit).toBeNull()
+    expect(notice.revision).not.toContain('shots=')
+  })
+
+  it('changes the revision when the mode is switched on mid-evening: the guests read it again', () => {
+    const before = privacyNoticeFor(settings())
+    const after = privacyNoticeFor(settings({ reveal: { enabled: true } }))
+
+    expect(after.revision).not.toBe(before.revision)
+  })
+
+  it('changes the revision when the number of poses changes while the mode is on', () => {
+    expect(privacyNoticeFor(settings({ ...ON, maxPhotosPerGuest: 12 })).revision).not.toBe(
+      privacyNoticeFor(settings(ON)).revision,
+    )
+  })
+
+  it('never changes with the hour: moving it, or revealing now, asks nobody to read again', () => {
+    const waiting = privacyNoticeFor(
+      settings({ reveal: { enabled: true, at: new Date('2026-11-20T23:00:00Z') } }),
+    )
+    const later = privacyNoticeFor(
+      settings({ reveal: { enabled: true, at: new Date('2026-11-21T01:00:00Z') } }),
+    )
+    const none = privacyNoticeFor(settings({ reveal: { enabled: true, at: null } }))
+    const now = privacyNoticeFor(
+      settings({ reveal: { enabled: true, at: new Date('2026-11-20T21:07:00Z') } }),
+    )
+
+    expect(new Set([waiting.revision, later.revision, none.revision, now.revision]).size).toBe(1)
+  })
+
+  it('keeps the operator as the last clause', () => {
+    const notice = privacyNoticeFor(settings(ON), 'Association X')
+
+    expect(notice.revision.endsWith(';operator=Association X')).toBe(true)
+  })
+})

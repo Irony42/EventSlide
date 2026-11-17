@@ -66,11 +66,19 @@ const PUBLIC_STATUSES: readonly PhotoStatus[] = PHOTO_STATUSES.filter(isVisibleO
  * The statuses a **public** reader (the wall, the guests' feed, the podium, the reactions, the
  * shared gallery, the media route for a non-moderator) may ask for at `now`: none before the
  * reveal, `published` after it. A reader asks this instead of holding a constant, so there is one
- * door and not eight; `publicReaders.guard.test.ts` fails on a use case that reads published
+ * door and not eight; `src/main/publicReaders.guard.test.ts` fails on a use case that reads published
  * photographs without it.
  */
 export const visibleStatuses = (reveal: EventRevealSettings, now: Date): readonly PhotoStatus[] =>
   isRevealed(reveal, now) ? PUBLIC_STATUSES : []
+
+/**
+ * Whether a photograph the guest sent is waiting for the reveal: `published`, and the evening not
+ * shown yet (spec 23 rule 8). The guest's own phone draws it undeveloped; its `status` stays what
+ * the host decided, never altered, so a `rejected` photograph is still shown as declined.
+ */
+export const awaitsReveal = (status: PhotoStatus, revealed: boolean): boolean =>
+  status === 'published' && !revealed
 
 const sameInstant = (a: Date | null, b: Date | null): boolean =>
   a === null || b === null ? a === b : a.getTime() === b.getTime()
