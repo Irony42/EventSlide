@@ -27,7 +27,17 @@ test('a guest uses a roll of two poses, sees veiled photographs, and finds them 
   expect(saved.ok()).toBe(true)
 
   await joinAsGuest(guest, app, event.joinCode, 'Invité')
+  // The notice says what the mode does to a photograph (spec 23b): replaced, not completed.
+  const notice = guest.getByTestId('privacy-notice')
+  await expect(notice).toContainText(fr.reveal.noticeHeld.immediate)
+  await expect(notice).toContainText(fr.reveal.noticeShots(2))
+  await expect(notice).toContainText(fr.reveal.noticeFilm)
+  await expect(notice).not.toContainText(fr.upload.noticePublication.immediate)
   await passPrivacyNotice(guest)
+
+  // Under the event's name, the promise is the mode's, not "straight onto the screen".
+  await expect(guest.getByTestId('guest-intro-held')).toHaveText(fr.reveal.guestIntro)
+  await expect(guest.getByText(fr.upload.introImmediate)).toHaveCount(0)
 
   // The roll starts fresh, the hour is the host's to give, and the one button opens the camera.
   await expect(guest.getByTestId('guest-poses')).toHaveText(fr.reveal.freshRoll(2))
@@ -73,6 +83,9 @@ test('a guest uses a roll of two poses, sees veiled photographs, and finds them 
   await expect(guest.getByText(fr.reveal.developedNow(2))).toBeVisible({ timeout: 30_000 })
   await expect(mine.getByText(fr.reveal.undeveloped)).toHaveCount(0)
   await expect(guest.getByTestId('guest-reveal')).toHaveCount(0)
+  // The usual sentence is back once the evening is revealed.
+  await expect(guest.getByTestId('guest-intro-held')).toHaveCount(0)
+  await expect(guest.getByText(fr.upload.introImmediate)).toBeVisible()
   // Developed: the veil's grayscale(1) is gone (the film look keeps a grayscale(0) to fade from).
   await expect(thumb).not.toHaveCSS('filter', /grayscale\(1\)/)
 })

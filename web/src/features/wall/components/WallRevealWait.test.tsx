@@ -103,4 +103,65 @@ describe('WallRevealWait (spec 23)', () => {
 
     expect(screen.queryByTestId('wall-reveal')).toBeNull()
   })
+
+  describe('the line under the name (spec 23b, point 2)', () => {
+    it('drops "the first photos will arrive soon" when photographs already wait for the reveal', () => {
+      render(
+        <WallEmptyState
+          eventName="Camille & Sacha"
+          join={JOIN}
+          reveal={{ atMs: NOW + HOUR, readyCount: 14, offsetMs: 0 }}
+        />,
+      )
+
+      expect(screen.queryByText(fr.wall.empty)).toBeNull()
+      expect(screen.queryByTestId('wall-empty-title')).toBeNull()
+      expect(screen.getByTestId('wall-reveal-count')).toHaveTextContent(fr.reveal.developing(14))
+    })
+
+    it('says the photographs will be developed at the reveal when none waits yet, not the empty wall’s line', () => {
+      render(
+        <WallEmptyState
+          eventName="Camille & Sacha"
+          join={JOIN}
+          reveal={{ atMs: NOW + HOUR, readyCount: 0, offsetMs: 0 }}
+        />,
+      )
+
+      expect(screen.getByTestId('wall-empty-title')).toHaveTextContent(fr.reveal.wallDeveloping)
+      expect(screen.queryByText(fr.wall.empty)).toBeNull()
+    })
+
+    it('says the same while the server has no count yet', () => {
+      render(
+        <WallEmptyState
+          eventName="Camille & Sacha"
+          join={JOIN}
+          reveal={{ atMs: null, readyCount: null, offsetMs: 0 }}
+        />,
+      )
+
+      expect(screen.getByTestId('wall-empty-title')).toHaveTextContent(fr.reveal.wallDeveloping)
+    })
+
+    it('keeps the empty wall’s own line, word for word, on an evening without the mode', () => {
+      render(<WallEmptyState eventName="Camille & Sacha" join={JOIN} />)
+
+      expect(screen.getByTestId('wall-empty-title')).toHaveTextContent(fr.wall.empty)
+      expect(screen.queryByText(fr.reveal.wallDeveloping)).toBeNull()
+    })
+
+    it('keeps the thanks of a closed evening, whatever waits', () => {
+      render(
+        <WallEmptyState
+          eventName="Camille & Sacha"
+          join={JOIN}
+          acceptsGuests={false}
+          reveal={{ atMs: NOW + HOUR, readyCount: 0, offsetMs: 0 }}
+        />,
+      )
+
+      expect(screen.getByTestId('wall-empty-title')).toHaveTextContent(fr.wall.emptyClosed)
+    })
+  })
 })

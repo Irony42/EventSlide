@@ -2528,6 +2528,31 @@ export const es: UiText = {
         : `dentro de ${t.number(minutes)} min`,
     guestSoon: 'en menos de un minuto',
     guestManual: 'Los anfitriones revelarán las fotos durante la velada.',
+    bannerManual: 'Revelación con el botón',
+    bannerWaiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto espera`,
+        other: `${t.number(count)} fotos esperan`,
+      }),
+    guestIntro: 'Haga sus fotos: se revelarán en el momento de la revelación.',
+    guestIntroAt: (time: string) =>
+      `Haga sus fotos: se revelarán en el momento de la revelación, a las ${time}.`,
+    guestIntroOn: (when: string) =>
+      `Haga sus fotos: se revelarán en el momento de la revelación, el ${when}.`,
+    noticeHeld: {
+      afterReview:
+        'El organizador aprueba cada foto, y las fotos aprobadas solo aparecen en la pantalla en la revelación. Él y sus moderadores las ven en cuanto llegan.',
+      immediate:
+        'Aparecen en la pantalla en la revelación, no antes. El organizador y sus moderadores las ven en cuanto llegan y pueden retirar cualquiera en todo momento.',
+    },
+    noticeShots: (count: number) =>
+      t.count(count, {
+        one: `Dispone de ${t.number(count)} toma: una toma es una foto enviada.`,
+        other: `Dispone de ${t.number(count)} tomas: una toma es una foto enviada.`,
+      }),
+    noticeFilm:
+      'El aspecto de carrete solo existe en la pantalla: su foto original se conserva tal cual.',
+    wallDeveloping: 'Las fotos se revelarán en el momento de la revelación',
     developedNow: (count: number) =>
       t.count(count, {
         one: 'Tu foto acaba de revelarse.',

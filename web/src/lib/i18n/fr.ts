@@ -3193,6 +3193,32 @@ export const fr = {
         : `dans ${t.number(minutes)} min`,
     guestSoon: 'dans moins d’une minute',
     guestManual: 'Les organisateurs révéleront les photos pendant la soirée.',
+    /* Retouches 17/11: the console banner, the guest's line under the title, the notice's clauses, the waiting wall. */
+    bannerManual: 'Révélation au bouton',
+    bannerWaiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo attend`,
+        other: `${t.number(count)} photos attendent`,
+      }),
+    guestIntro: 'Prenez vos photos : elles seront développées à la révélation.',
+    guestIntroAt: (time: string) =>
+      `Prenez vos photos : elles seront développées à la révélation, à ${time}.`,
+    guestIntroOn: (when: string) =>
+      `Prenez vos photos : elles seront développées à la révélation, le ${when}.`,
+    noticeHeld: {
+      afterReview:
+        'L’organisateur valide chaque photo, et les photos validées ne passent à l’écran qu’à la révélation. Lui et ses modérateurs les voient dès leur envoi.',
+      immediate:
+        'Elles passent à l’écran à la révélation, pas avant. L’organisateur et ses modérateurs les voient dès leur envoi et peuvent en retirer à tout moment.',
+    } satisfies Record<NoticePublication, string>,
+    noticeShots: (count: number) =>
+      t.count(count, {
+        one: `Vous avez ${t.number(count)} pose : une pose, c’est une photo envoyée.`,
+        other: `Vous avez ${t.number(count)} poses : une pose, c’est une photo envoyée.`,
+      }),
+    noticeFilm:
+      'Le rendu pellicule n’existe qu’à l’écran : votre photo d’origine est conservée telle quelle.',
+    wallDeveloping: 'Les photos se développeront à la révélation',
     developedNow: (count: number) =>
       t.count(count, {
         one: 'Votre photo vient d’être développée.',

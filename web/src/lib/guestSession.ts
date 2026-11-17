@@ -212,6 +212,9 @@ export const readNoticeState = (value: unknown): PrivacyNoticeState | null => {
   const selfRemovalSeconds = field(notice, 'selfRemovalSeconds')
   const operator = field(notice, 'operator')
   const guestbook = field(notice, 'guestbook')
+  const reveal = field(notice, 'reveal')
+  const shotLimit = field(notice, 'shotLimit')
+  const film = field(notice, 'film')
 
   if (typeof revision !== 'string' || !isOneOf(PUBLICATIONS, publication)) return null
   if (!Array.isArray(audiences)) return null
@@ -227,6 +230,15 @@ export const readNoticeState = (value: unknown): PrivacyNoticeState | null => {
     return null
   }
 
+  // Spec 23: the three clauses of a disposable-camera evening, absent on every other. A cap that is
+  // not a count worth printing is refused like the operator above: refetched, never shown wrong.
+  if (
+    shotLimit !== undefined &&
+    (typeof shotLimit !== 'number' || !Number.isInteger(shotLimit) || shotLimit < 1)
+  ) {
+    return null
+  }
+
   return {
     notice: {
       revision,
@@ -237,6 +249,10 @@ export const readNoticeState = (value: unknown): PrivacyNoticeState | null => {
       ...(operator === undefined ? {} : { operator }),
       // Spec 01: kept, or the notice a reopened tab shows would not mention the messages.
       ...(guestbook === true ? { guestbook: true as const } : {}),
+      // Spec 23b: kept, or the notice a guest reads would never state what the mode does to a photo.
+      ...(reveal === true ? { reveal: true as const } : {}),
+      ...(typeof shotLimit === 'number' ? { shotLimit } : {}),
+      ...(film === true ? { film: true as const } : {}),
     },
     acknowledgement,
   }

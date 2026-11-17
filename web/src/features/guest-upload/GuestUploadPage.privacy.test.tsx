@@ -103,6 +103,27 @@ describe('the privacy notice', () => {
     expect(screen.queryByText(fr.upload.intro)).toBeNull()
   })
 
+  it('tells a guest of a disposable-camera evening that photos wait for the reveal, how many shots they have and what the film look is', () => {
+    const state = aPrivacyNoticeState({
+      notice: aPrivacyNotice({
+        publication: 'immediate',
+        reveal: true,
+        shotLimit: 5,
+        film: true,
+      }),
+      acknowledgement: 'none',
+    })
+    havingJoined({}, state)
+    renderUpload(answering(state))
+
+    const region = within(screen.getByRole('region', { name: fr.upload.noticeTitle }))
+    expect(region.getByText(fr.reveal.noticeHeld.immediate)).toBeVisible()
+    expect(region.getByText(fr.reveal.noticeShots(5))).toBeVisible()
+    expect(region.getByText(fr.reveal.noticeFilm)).toBeVisible()
+    // Replaced, not completed: the sentence that says "as soon as they arrive" is gone.
+    expect(region.queryByText(fr.upload.noticePublication.immediate)).toBeNull()
+  })
+
   it('records the reading with the revision the screen showed, and hands the guest the picker', async () => {
     const api = answering(unread)
     havingJoined({}, unread)

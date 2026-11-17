@@ -55,6 +55,19 @@ export function WallEmptyState({
   const invites = acceptsGuests
   const shown = invites ? join : null
   const host = shown === null ? null : joinHost(shown.url)
+  /**
+   * The line under the name. "The first photos will arrive soon" is the empty wall's, and on an
+   * evening held for its reveal it is wrong twice (spec 23b): photographs have arrived and wait, or
+   * none has and none will show before the hour. So the held wall says nothing above the count when
+   * photographs wait, and its own sentence when none does. A closed evening keeps its thanks.
+   */
+  const title = !invites
+    ? text.wall.emptyClosed
+    : reveal === null
+      ? text.wall.empty
+      : (reveal.readyCount ?? 0) > 0
+        ? null
+        : text.reveal.wallDeveloping
 
   return (
     <section className={styles['empty']} data-testid="wall-empty">
@@ -67,7 +80,11 @@ export function WallEmptyState({
             {welcomeMessage}
           </p>
         )}
-        <p className={styles['title']}>{invites ? text.wall.empty : text.wall.emptyClosed}</p>
+        {title === null ? null : (
+          <p className={styles['title']} data-testid="wall-empty-title">
+            {title}
+          </p>
+        )}
         {reveal === null ? null : <WallRevealWait {...reveal} />}
         {shown === null ? null : <p className={styles['hint']}>{text.wall.emptyHint}</p>}
       </div>

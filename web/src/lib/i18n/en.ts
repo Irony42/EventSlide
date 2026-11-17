@@ -2456,6 +2456,30 @@ export const en: UiText = {
         : `in ${t.number(minutes)} min`,
     guestSoon: 'in under a minute',
     guestManual: 'The hosts will reveal the photos during the evening.',
+    bannerManual: 'Reveal at the press of a button',
+    bannerWaiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo waiting`,
+        other: `${t.number(count)} photos waiting`,
+      }),
+    guestIntro: 'Take your photos: they will be developed at the reveal.',
+    guestIntroAt: (time: string) =>
+      `Take your photos: they will be developed at the reveal, at ${time}.`,
+    guestIntroOn: (when: string) =>
+      `Take your photos: they will be developed at the reveal, on ${when}.`,
+    noticeHeld: {
+      afterReview:
+        'The organiser approves each photo, and approved photos reach the screen only at the reveal. The organiser and the moderators see them as they arrive.',
+      immediate:
+        'They reach the screen at the reveal, not before. The organiser and the moderators see them as they arrive and can take any of them down at any time.',
+    },
+    noticeShots: (count: number) =>
+      t.count(count, {
+        one: `You have ${t.number(count)} shot: a shot is one photo sent.`,
+        other: `You have ${t.number(count)} shots: a shot is one photo sent.`,
+      }),
+    noticeFilm: 'The film look exists only on screen: your original photo is kept as it is.',
+    wallDeveloping: 'The photos will be developed at the reveal',
     developedNow: (count: number) =>
       t.count(count, {
         one: 'Your photo has just been developed.',
