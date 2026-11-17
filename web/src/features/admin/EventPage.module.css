@@ -69,6 +69,18 @@
   align-items: center;
 }
 
+/* "Supprimer maintenant" while the archive is not complete: reachable, explained, and inert. */
+.blocked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.blockedHint {
+  flex-basis: 100%;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}
+
 .archived {
   font-size: var(--text-sm);
   color: var(--text-muted);

@@ -10,6 +10,7 @@ import { cx } from '../../design-system/classNames'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { useAbout } from '../../lib/useAbout'
+import { useServerNow } from '../../lib/useServerNow'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
@@ -29,6 +30,8 @@ import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
 import { AlbumBookPanel } from './AlbumBookPanel'
+import { AlbumDeletionBand } from './AlbumDeletionBand'
+import { deleteGate, deletionMoment } from './albumDeletion'
 import { BestOfPanel } from './BestOfPanel'
 import { ShareLinkPanel } from './ShareLinkPanel'
 import {
@@ -41,6 +44,7 @@ import {
 import { scheduleMoment, upcomingMoves } from './eventSchedule'
 import { overviewTiles } from './eventOverview'
 import { bringIntoView } from './bringIntoView'
+import { useAlbumExport } from './hooks/useAlbumExport'
 import { useAlbumUrl, useEvent } from './hooks/useEventData'
 import { useEventTour } from './hooks/useEventTour'
 import { eventTourSteps } from './eventTour'
@@ -62,7 +66,7 @@ export function EventPage() {
   const t = useTranslations()
   const { locale } = useLocale()
   const { slug = '' } = useParams()
-  const { data: event, loading, error, reload, replace } = useEvent(slug)
+  const { data: event, loading, error, reload, replace, offsetMs } = useEvent(slug)
   const transition = useLifecycleTransition(replace)
   const rotate = useRotateJoinCode()
   const purge = usePurgeEvent()
@@ -74,6 +78,15 @@ export function EventPage() {
 
   const [rotating, setRotating] = useState(false)
   const [purging, setPurging] = useState(false)
+
+  // When the album goes, on the server's clock (spec 22). The band is on the page from 30 days before,
+  // and only then is the archive read: an event with no date in reach asks the server nothing.
+  const nowMs = useServerNow(offsetMs)
+  const purgeAt = event?.purge?.at ?? null
+  const moment = deletionMoment(purgeAt, nowMs, event?.purge?.offboarding === true)
+  const archive = useAlbumExport(slug, moment !== null)
+  const gate = deleteGate(moment !== null, archive.data)
+  const blockedHintId = useId()
 
   // The first visit's guided tour of this page, once the event is there to show.
   const tour = useEventTour(
@@ -294,6 +307,18 @@ export function EventPage() {
       </div>
 
       <div className={cx(styles['column'], styles['screenOnly'])}>
+        {/* Under the status card, from 30 days before the album's date (spec 22): any moderator, like
+            the ZIP. Absent when the album is not on a clock. */}
+        {moment !== null && purgeAt !== null ? (
+          <AlbumDeletionBand
+            slug={event.slug}
+            at={purgeAt}
+            moment={moment}
+            archive={archive}
+            albumUrl={albumUrl}
+          />
+        ) : null}
+
         {/* Once the event is closed, and only where the operator set `DONATION_URL` (roadmap
             G4-02): a card that can be closed and stays closed for this event. It is in the host's
             console and nowhere a guest or the room can see. */}
@@ -384,9 +409,35 @@ export function EventPage() {
         ) : null}
         {isOwner ? (
           <div className={styles['actions']}>
-            <Button variant="danger" onClick={() => setPurging(true)} aria-haspopup="dialog">
-              {t.admin.purge}
-            </Button>
+            {gate.kind === 'open' ? (
+              <Button variant="danger" onClick={() => setPurging(true)} aria-haspopup="dialog">
+                {moment === null ? t.admin.purge : t.exportPurge.deleteNow}
+              </Button>
+            ) : (
+              <>
+                {/* Not `disabled`: a disabled button leaves the tab order and says nothing. This one
+                    stays reachable and points at the sentence that says what is missing. */}
+                <Button
+                  variant="danger"
+                  className={styles['blocked']}
+                  aria-disabled="true"
+                  aria-describedby={blockedHintId}
+                  onClick={(press) => press.preventDefault()}
+                >
+                  {t.exportPurge.deleteNow}
+                </Button>
+                <Button variant="secondary" onClick={() => setPurging(true)} aria-haspopup="dialog">
+                  {t.exportPurge.deleteWithout}
+                </Button>
+                <p id={blockedHintId} className={styles['blockedHint']}>
+                  {gate.because === 'needsComplete'
+                    ? t.exportPurge.needsComplete
+                    : gate.because === 'needsDownload'
+                      ? t.exportPurge.needsDownload
+                      : t.exportPurge.needsArchive}
+                </p>
+              </>
+            )}
           </div>
         ) : null}
       </div>
@@ -431,6 +482,7 @@ export function EventPage() {
         slug={event.slug}
         eventName={event.name}
         busy={purge.busy}
+        confirmWith={gate.kind === 'word' ? 'word' : 'address'}
         onConfirm={confirmPurge}
         onCancel={() => setPurging(false)}
       />

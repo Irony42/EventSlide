@@ -11,7 +11,9 @@ import { LocaleProvider } from '../lib/i18n/LocaleProvider'
 import { installDialogStub } from './dialogStub'
 import { aSiteClientDefaults, aSiteInvitation, CLIENT_ID, noCeilings } from './siteFixtures'
 import type { Api } from '../lib/api/client'
+import { ApiError } from '../lib/http'
 import type {
+  AlbumExportDto,
   InvitationAcceptedDto,
   InvitationPreviewDto,
   ModeratorInviteResponse,
@@ -504,6 +506,23 @@ export const anEventDto = (overrides: Partial<EventDto> = {}): EventDto => ({
   ...overrides,
 })
 
+/** The event's archive, `sealed` and complete by default: the case the host wants. */
+export const anAlbumExport = (overrides: Partial<AlbumExportDto> = {}): AlbumExportDto => ({
+  status: 'sealed',
+  requestedAt: '2026-12-02T14:00:00.000Z',
+  sealedAt: '2026-12-02T14:03:00.000Z',
+  expiresAt: '2026-12-09T14:03:00.000Z',
+  entries: 4812,
+  skipped: 0,
+  bytes: 6_200_000_000,
+  sha256: '9f2c'.repeat(16),
+  servedAt: null,
+  staleReason: null,
+  failure: null,
+  canDeleteWithoutConfirmation: false,
+  ...overrides,
+})
+
 /**
  * A clip job, as `POST .../clips` and `GET .../clips/:id` both answer it.
  *
@@ -712,6 +731,11 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   unhighlightPhoto: vi.fn(async () => undefined),
   preselectHighlights: vi.fn(async () => ({ added: 0 })),
   highlights: vi.fn(async () => ({ count: 0 })),
+  // No archive yet: the server's own answer, so a test of the band states only what it cares about.
+  albumExport: vi.fn(async (): Promise<AlbumExportDto> => {
+    throw new ApiError(404, 'export.notFound')
+  }),
+  requestAlbumExport: vi.fn(async () => anAlbumExport({ status: 'queued' })),
   albumBook: vi.fn(async () => ({ status: 'none' as const })),
   requestAlbumBook: vi.fn(async () => ({ status: 'none' as const })),
   deleteAlbumBook: vi.fn(async () => undefined),
@@ -771,6 +795,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   albumUrl: vi.fn((slug: string) => `/api/events/${slug}/album.zip`),
   reelUrl: vi.fn((slug: string) => `/api/events/${slug}/highlights/reel.mp4`),
   bestOfUrl: vi.fn((slug: string) => `/api/events/${slug}/best-of.zip`),
+  albumExportUrl: vi.fn((slug: string) => `/api/events/${slug}/export.zip`),
   albumBookUrl: vi.fn((slug: string) => `/api/events/${slug}/book.pdf`),
   streamUrl: vi.fn((slug: string) => `/api/events/${slug}/stream`),
   moderationStreamUrl: vi.fn((slug: string) => `/api/events/${slug}/moderation/stream`),

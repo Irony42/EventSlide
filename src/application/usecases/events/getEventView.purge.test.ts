@@ -57,7 +57,7 @@ describe('getEventView: the date the album will be deleted', () => {
 
     const { purge } = await getEventView({ event: wedding })
 
-    expect(purge).toEqual({ at: null, notice: null })
+    expect(purge).toEqual({ at: null, notice: null, offboarding: false })
   })
 
   it('is no date while the event is live: the clock starts when it closes', async () => {
@@ -91,6 +91,16 @@ describe('getEventView: the date the album will be deleted', () => {
     const { purge } = await getEventView({ event: wedding })
 
     expect(purge.at).toEqual(goes)
+    expect(purge.offboarding).toBe(true)
+  })
+
+  it('is not an offboarding for a suspended client that has no purge date, nor for no client', async () => {
+    const { getEventView, events, clients } = aWorld()
+    clients.seed(aClient({ id: 'client-1', suspendedAt: AT, purgeAfter: null }))
+    const abused = closedWedding({ clientId: 'client-1' })
+    events.seed(abused)
+
+    expect((await getEventView({ event: abused })).purge.offboarding).toBe(false)
   })
 
   it('shows the date of an album the operator holds, and gives no sign that it is held', async () => {
@@ -101,8 +111,12 @@ describe('getEventView: the date the album will be deleted', () => {
 
     const held = await getEventView({ event: (await events.findById(WEDDING)) ?? wedding })
 
-    expect(held.purge).toEqual({ at: new Date(AT.getTime() + 30 * DAY), notice: null })
-    expect(Object.keys(held.purge).sort()).toEqual(['at', 'notice'])
+    expect(held.purge).toEqual({
+      at: new Date(AT.getTime() + 30 * DAY),
+      notice: null,
+      offboarding: false,
+    })
+    expect(Object.keys(held.purge).sort()).toEqual(['at', 'notice', 'offboarding'])
   })
 })
 
@@ -131,6 +145,10 @@ describe('getEventView: the last warning sent', () => {
     events.seed(wedding)
     await notices.note(WEDDING, 14, AT)
 
-    expect((await getEventView({ event: wedding })).purge).toEqual({ at: null, notice: null })
+    expect((await getEventView({ event: wedding })).purge).toEqual({
+      at: null,
+      notice: null,
+      offboarding: false,
+    })
   })
 })
