@@ -1166,3 +1166,81 @@ describe('the reveal band on the console (spec 23)', () => {
     expect(api.getEvent).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('the reveal band, at the hour and at the closing (spec 23)', () => {
+  const NOW = new Date('2026-06-20T21:00:00.000Z').getTime()
+  const held = (overrides: Partial<EventDto> = {}, inMs = 10_000): EventDto =>
+    anEventDto({
+      settings: eventSettings({
+        reveal: { enabled: true, at: new Date(NOW + inMs).toISOString(), film: true },
+      }),
+      reveal: {
+        enabled: true,
+        revealed: false,
+        atMs: NOW + inMs,
+        serverNowMs: NOW,
+        film: true,
+        readyCount: 12,
+      },
+      ...overrides,
+    })
+
+  it('re-reads the event at the hour without swapping the console for the loading page', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(NOW)
+    try {
+      const getEvent = vi.fn(async () => held())
+      getEvent.mockResolvedValueOnce(held())
+      const past = held({}, -1_000)
+      const revealedNow: EventDto = {
+        ...past,
+        ...(past.reveal === undefined
+          ? {}
+          : { reveal: { ...past.reveal, revealed: true, readyCount: null } }),
+      }
+      getEvent.mockResolvedValueOnce(revealedNow)
+      renderPage(fakeApi({ getEvent }))
+
+      const draft = await screen.findByLabelText(fr.announcement.text)
+      await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).type(draft, 'Le gâteau')
+
+      await act(async () => {
+        vi.advanceTimersByTime(15_000)
+      })
+
+      await waitFor(() => expect(getEvent).toHaveBeenCalledTimes(2))
+      // The panels never unmounted: the half-typed announcement is still there, and the page
+      // never said it was loading.
+      expect(screen.queryByText(fr.admin.eventLoading)).toBeNull()
+      expect(screen.getByLabelText(fr.announcement.text)).toHaveValue('Le gâteau')
+      expect(screen.getByLabelText(fr.announcement.text)).toBe(draft)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('asks before ending an evening whose photos were never revealed, and says why', async () => {
+    const setEventStatus = vi.fn(async () => held({ status: 'closed' }))
+    renderPage(fakeApi({ getEvent: vi.fn(async () => held({}, 3_600_000)), setEventStatus }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(setEventStatus).not.toHaveBeenCalled()
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(fr.reveal.closeHeld)).toBeVisible()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'closed')
+  })
+
+  it('ends a revealed or ordinary evening on one press, as before', async () => {
+    const setEventStatus = vi.fn(async () => anEventDto({ status: 'closed' }))
+    renderPage(fakeApi({ setEventStatus }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'closed')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})

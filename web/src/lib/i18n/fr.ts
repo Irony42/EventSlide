@@ -3136,6 +3136,9 @@ export const fr = {
         other: `${t.number(count)} photos attendent encore une décision : elles resteront cachées.`,
       }),
     definitive: 'Cette action est définitive.',
+    closeTitle: (name: string) => `Terminer « ${name} » ?`,
+    closeHeld:
+      'Les photos n’ont pas encore été révélées. Une fois la soirée terminée, elles restent cachées tant que vous ne les révélez pas, et la conservation des photos court à partir de la fin de la soirée.',
     closedNotRevealed:
       'Les photos n’ont pas été révélées. La soirée est terminée : elles restent cachées tant que vous ne les révélez pas.',
     closesBefore:

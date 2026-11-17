@@ -2447,6 +2447,9 @@ export const it: UiText = {
         other: `${t.number(count)} foto attendono ancora una decisione: resteranno nascoste.`,
       }),
     definitive: 'Questa azione è definitiva.',
+    closeTitle: (name: string) => `Terminare «${name}»?`,
+    closeHeld:
+      'Le foto non sono ancora state rivelate. Quando l’evento è finito restano nascoste finché non le riveli, e la conservazione delle foto parte dalla chiusura.',
     closedNotRevealed:
       'Le foto non sono state rivelate. L’evento è chiuso: restano nascoste finché non le rivela.',
     closesBefore:

@@ -2400,6 +2400,9 @@ export const en: UiText = {
         other: `${t.number(count)} photos are still waiting for a decision: they will stay hidden.`,
       }),
     definitive: 'This cannot be undone.',
+    closeTitle: (name: string) => `End “${name}”?`,
+    closeHeld:
+      'The photos have not been revealed yet. Once the event is over they stay hidden until you reveal them, and photo retention counts from the closing.',
     closedNotRevealed:
       'The photos have not been revealed. The event is closed: they stay hidden until you reveal them.',
     closesBefore:

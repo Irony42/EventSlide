@@ -2495,6 +2495,9 @@ export const de: UiText = {
         other: `${t.number(count)} Fotos warten noch auf eine Entscheidung: sie bleiben verborgen.`,
       }),
     definitive: 'Dies lässt sich nicht rückgängig machen.',
+    closeTitle: (name: string) => `„${name}“ beenden?`,
+    closeHeld:
+      'Die Fotos wurden noch nicht enthüllt. Nach dem Ende des Events bleiben sie verborgen, bis Sie sie enthüllen, und die Aufbewahrungsfrist der Fotos beginnt mit dem Abschluss.',
     closedNotRevealed:
       'Die Fotos wurden nicht enthüllt. Die Veranstaltung ist beendet: sie bleiben verborgen, bis Sie sie enthüllen.',
     closesBefore:

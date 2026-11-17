@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
@@ -10,6 +10,7 @@ import { cx } from '../../design-system/classNames'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { useAbout } from '../../lib/useAbout'
+import { useApi } from '../../lib/useApi'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
@@ -65,6 +66,13 @@ export function EventPage() {
   const { slug = '' } = useParams()
   const { data: event, loading, error, reload, replace } = useEvent(slug)
   const transition = useLifecycleTransition(replace)
+  const api = useApi()
+  // The hour has come: the band reads the event again **without** `reload`, whose pending state
+  // would swap the whole console for the loading page (a half-typed announcement, an open dialog
+  // and the scroll position would go with it). A failed read changes nothing on screen.
+  const refresh = useCallback(() => {
+    api.getEvent(slug).then(replace, () => undefined)
+  }, [api, slug, replace])
   const rotate = useRotateJoinCode()
   const purge = usePurgeEvent()
   const toast = useToast()
@@ -201,6 +209,7 @@ export function EventPage() {
               eventName: event.name,
               from: event.status,
               to: action.to,
+              heldReveal: event.reveal?.enabled === true && !event.reveal.revealed,
             })
           }
         >
@@ -345,7 +354,7 @@ export function EventPage() {
         <RevealPanel
           event={event}
           onChanged={replace}
-          onReload={reload}
+          onReload={refresh}
           settingsPath={isOwner ? settingsPath : null}
         />
         {/* Any moderator launches or stops a timed challenge (spec 10): the person with the laptop

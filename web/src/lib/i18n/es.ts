@@ -2430,7 +2430,8 @@ export const es: UiText = {
     hint: 'Las fotos permanecen ocultas para los invitados y la sala hasta la revelación. Usted las ve en cuanto llegan.',
     enabled: 'Activar la cámara desechable',
     timed: 'Revelar a una hora concreta',
-    timedHint: 'Sin hora, la revelación la hace usted, con el botón «Revelar ahora» de la página del evento.',
+    timedHint:
+      'Sin hora, la revelación la hace usted, con el botón «Revelar ahora» de la página del evento.',
     at: 'Hora de la revelación',
     atLocked: 'La velada ya está revelada: la hora ya no se puede cambiar.',
     shots: 'Poses por invitado',
@@ -2471,6 +2472,9 @@ export const es: UiText = {
         other: `${t.number(count)} fotos esperan todavía una decisión: seguirán ocultas.`,
       }),
     definitive: 'Esta acción es definitiva.',
+    closeTitle: (name: string) => `¿Terminar «${name}»?`,
+    closeHeld:
+      'Las fotos aún no se han revelado. Al terminar el evento siguen ocultas hasta que las reveles, y la conservación de las fotos cuenta desde el cierre.',
     closedNotRevealed:
       'Las fotos no se han revelado. El evento está cerrado: siguen ocultas mientras no las revele.',
     closesBefore:
