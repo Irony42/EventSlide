@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { mkdir, open, readdir, rename, rm, rmdir, stat, writeFile } from 'node:fs/promises'
-import { join, resolve, sep } from 'node:path'
+import { join, resolve } from 'node:path'
 import type { ExportFolderStore } from '../../application/ports/exportFolderStore'
 import { EXPORT_FOLDER_ARCHIVE, EXPORT_FOLDER_MANIFEST } from '../../domain/exports/exportFolder'
 import { DomainError } from '../../domain/shared/errors'
@@ -23,9 +23,7 @@ export const createFsExportFolderStore = (root: string): ExportFolderStore => {
 
   const dirOf = (folder: string): string => {
     if (!SAFE_SEGMENT.test(folder)) throw new Error('export folder store received an unsafe name')
-    const candidate = resolve(base, folder)
-    if (!candidate.startsWith(base + sep)) throw new Error('export folder store refused a path')
-    return candidate
+    return resolve(base, folder)
   }
   const archivePath = (folder: string): string => join(dirOf(folder), EXPORT_FOLDER_ARCHIVE)
 
