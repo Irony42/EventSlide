@@ -7,6 +7,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { makeGetEventLimits } from '../../../application/usecases/events/getEventLimits'
 import { makeGetEventView } from '../../../application/usecases/events/getEventView'
+import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { makeIdentifyMediaViewer } from '../../../application/usecases/photos/identifyMediaViewer'
 import { makeGetVenuePhotoMedia } from '../../../application/usecases/venue/getVenuePhotoMedia'
 import { makeRemoveVenuePhoto } from '../../../application/usecases/venue/removeVenuePhoto'
@@ -88,6 +89,8 @@ const buildWorld = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World =
         getVenuePhotoMedia: makeGetVenuePhotoMedia({ media }),
         getEventView: makeGetEventView({
           events: deps.events,
+          photos: new FakePhotoRepository(),
+          clock: deps.clock,
           getEventLimits: makeGetEventLimits({ clients: base.clients }),
         }),
         identifyMediaViewer: makeIdentifyMediaViewer({

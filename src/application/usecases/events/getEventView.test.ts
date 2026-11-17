@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { asClientId, asEventId } from '../../../domain/shared/ids'
 import { AT, aClient, aGuest, aPhoto, anEvent, atPlus } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
@@ -34,11 +35,14 @@ const aWorld = () => {
   const wedding = anEvent({ id: WEDDING, slug: 'mariage', quotaBytes: 5_000 })
   const gala = anEvent({ id: GALA, slug: 'gala', joinCode: 'ZZZZZZ' })
   const events = new FakeEventRepository({ photos, guests, clients }).seed(wedding, gala)
+  const clock = new FakeClock(AT)
   const getEventView = makeGetEventView({
     events,
+    photos,
+    clock,
     getEventLimits: makeGetEventLimits({ clients }),
   })
-  return { getEventView, clients, wedding, gala }
+  return { getEventView, clients, wedding, gala, clock }
 }
 
 describe('getEventView', () => {
@@ -104,5 +108,51 @@ describe('getEventView', () => {
     const view = await getEventView({ event })
 
     expect(view.limits.quotaBytes).toBe(2_000)
+  })
+
+  it('answers with the server’s clock, which is what a console counts the reveal down against', async () => {
+    const { getEventView, wedding, clock } = aWorld()
+    clock.set(atPlus(90_000))
+
+    const view = await getEventView({ event: wedding })
+
+    expect(view.now).toEqual(atPlus(90_000))
+  })
+
+  describe('the reveal of a disposable-camera evening (spec 23)', () => {
+    const held = (reveal: { enabled: boolean; at: Date | null }) =>
+      anEvent({
+        id: GALA,
+        slug: 'gala',
+        joinCode: 'ZZZZZZ',
+        settings: { reveal: { ...reveal, film: false } },
+      })
+
+    it('counts the published photographs the gate holds back, and only the published ones', async () => {
+      const { getEventView } = aWorld()
+
+      const view = await getEventView({ event: held({ enabled: true, at: null }) })
+
+      // The gala has two published and one pending: the pending one is not held by the gate, it
+      // waits for a decision and stays hidden after the reveal (it is `counts.pendingCount`).
+      expect(view.readyCount).toBe(2)
+      expect(view.counts.pendingCount).toBe(1)
+    })
+
+    it('counts nothing once the hour has gone by', async () => {
+      const { getEventView } = aWorld()
+
+      const view = await getEventView({ event: held({ enabled: true, at: atPlus(-1_000) }) })
+
+      expect(view.readyCount).toBeNull()
+    })
+
+    it('counts nothing with the mode off, which is every event that predates it', async () => {
+      const { getEventView } = aWorld()
+
+      const view = await getEventView({ event: held({ enabled: false, at: null }) })
+
+      expect(view.readyCount).toBeNull()
+    })
   })
 })

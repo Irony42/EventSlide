@@ -292,6 +292,8 @@ const buildWorld = ({
         getEventBySlug: makeGetEventBySlug({ events }),
         getEventView: makeGetEventView({
           events,
+          photos,
+          clock: deps.clock,
           getEventLimits: makeGetEventLimits({ clients }),
         }),
         listEventsForHost: makeListEventsForHost({ events, memberships }),
@@ -1095,6 +1097,16 @@ describe('the host event routes', () => {
       ['birthday', { moderation: 'auto', retentionDays: 90 }],
       ['conference', { retentionDays: 30, allowClips: false, maxPhotosPerGuest: 25 }],
       ['party', { moderation: 'auto', retentionDays: 30 }],
+      [
+        'disposable',
+        {
+          moderation: 'auto',
+          maxPhotosPerGuest: 27,
+          allowGuestSelfDelete: false,
+          allowClips: false,
+          reveal: { enabled: true, at: null, film: true },
+        },
+      ],
     ])('applies the %s template to the settings it answers with', async (template, expected) => {
       // The wire half of roadmap 3.5: the host is shown what they got in the same
       // response that created it, so the first screen after the form is already the truth.

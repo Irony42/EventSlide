@@ -1,5 +1,8 @@
 import type { Event } from '../../../domain/events/event'
+import { isRevealed } from '../../../domain/events/eventRevealSettings'
+import type { Clock } from '../../ports/clock'
 import type { EventCounts, EventRepository } from '../../ports/eventRepository'
+import type { PhotoRepository } from '../../ports/photoRepository'
 import type { EventLimits, GetEventLimits } from './getEventLimits'
 
 /**
@@ -24,6 +27,13 @@ export interface EventView {
   readonly event: Event
   readonly counts: EventCounts
   readonly limits: EventLimits
+  /** The server's clock at this answer: what a console counts the reveal down against. */
+  readonly now: Date
+  /**
+   * Published photographs the reveal gate is holding back, or `null` when nothing is held (mode off,
+   * or already revealed). The pending ones are `counts.pendingCount`: they stay hidden after the reveal.
+   */
+  readonly readyCount: number | null
 }
 
 export interface GetEventViewInput {
@@ -32,15 +42,23 @@ export interface GetEventViewInput {
 
 export interface GetEventViewDeps {
   readonly events: Pick<EventRepository, 'countsOf'>
+  readonly photos: Pick<PhotoRepository, 'countsByStatus'>
+  readonly clock: Clock
   readonly getEventLimits: GetEventLimits
 }
 
 export type GetEventView = (input: GetEventViewInput) => Promise<EventView>
 
 export const makeGetEventView =
-  ({ events, getEventLimits }: GetEventViewDeps): GetEventView =>
-  async ({ event }) => ({
-    event,
-    counts: await events.countsOf(event.id),
-    limits: await getEventLimits({ event }),
-  })
+  ({ events, photos, clock, getEventLimits }: GetEventViewDeps): GetEventView =>
+  async ({ event }) => {
+    const now = clock.now()
+    const held = event.settings.reveal.enabled && !isRevealed(event.settings.reveal, now)
+    return {
+      event,
+      counts: await events.countsOf(event.id),
+      limits: await getEventLimits({ event }),
+      now,
+      readyCount: held ? (await photos.countsByStatus(event.id)).published : null,
+    }
+  }

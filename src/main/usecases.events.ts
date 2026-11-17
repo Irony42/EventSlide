@@ -43,6 +43,8 @@ export const eventsUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
   getEventView: makeGetEventView({
     events: adapters.events,
+    photos: adapters.photos,
+    clock: adapters.clock,
     getEventLimits: makeGetEventLimits({ clients: adapters.clients }),
   }),
   listEventsForHost: makeListEventsForHost({

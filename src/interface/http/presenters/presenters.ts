@@ -464,10 +464,13 @@ export interface EventDtoInput {
   readonly counts: EventCounts
   /** What the event's client makes of its quota and its live window (`getEventView`). */
   readonly limits: EventLimits
+  /** The server's clock at this answer, and what the reveal gate holds back (spec 23). */
+  readonly now: Date
+  readonly readyCount: number | null
 }
 
 export const toEventDto = (
-  { event, role, counts, limits }: EventDtoInput,
+  { event, role, counts, limits, now, readyCount }: EventDtoInput,
   context: PresenterContext,
 ): EventDto => ({
   id: event.id,
@@ -489,6 +492,8 @@ export const toEventDto = (
   scheduledOpenAt: isoOrNull(event.scheduledOpenAt),
   scheduledCloseAt: isoOrNull(event.scheduledCloseAt),
   scheduleDiscardedAt: isoOrNull(event.scheduleDiscardedAt),
+  // The host's console counts the reveal down against this clock, never its own (spec 23).
+  reveal: { ...revealView(event, now), readyCount },
   role,
 })
 
@@ -508,7 +513,8 @@ export interface GuestPhotoDtoInput {
  * carry the block this builds, from the event and one instant read from the server's clock, so a
  * rule is not restated three times and the three cannot disagree. `film` is `true` only with the
  * mode on (a stored `film` on an event whose mode is off shows nothing, as `enabled: false` is
- * "the evening as it always was"). `readyCount` is the wall's alone: see {@link toWallRevealDto}.
+ * "the evening as it always was"). `readyCount` belongs to the wall and the host's console: see
+ * {@link toWallRevealDto}.
  */
 export const revealView = (event: Event, now: Date): RevealDto => {
   const { reveal } = event.settings
