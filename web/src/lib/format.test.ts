@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatBytes, formatDateTime } from './format'
+import { formatBytes, formatDateTime, formatDay } from './format'
 
 /** What `formatBytes` substitutes for every ordinary space, so a figure never wraps. */
 const NBSP = String.fromCodePoint(0x00a0)
@@ -96,5 +96,16 @@ describe('formatDateTime', () => {
 
   it('reports an unreadable value rather than rendering "Invalid Date"', () => {
     expect(formatDateTime('pas-une-date', 'fr')).toBeNull()
+  })
+})
+
+describe('formatDay', () => {
+  it('writes the month out, so a day is not read as a month in the wrong language', () => {
+    expect(formatDay('2026-12-12T12:00:00.000Z', 'fr')).toBe('12 décembre 2026')
+    expect(formatDay('2026-12-12T12:00:00.000Z', 'en')).toMatch(/December 12, 2026/)
+  })
+
+  it('says nothing for an instant it cannot read, so the caller words the gap', () => {
+    expect(formatDay('not a date', 'fr')).toBeNull()
   })
 })

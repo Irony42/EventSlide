@@ -455,19 +455,19 @@ was. **404** `client.notFound`. `resume` refuses a client whose engagement has e
 
 What a suspended client is told, per surface (docs/SECURITY.md §22):
 
-| Surface                                                                                                               | Answer                                                                                        |
-| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| join by code, guest upload, guest photographs, missions, privacy notice                                               | the answer an event that does not exist gets (`404`), whatever the event's status             |
-| the wall, its playlist and its live feed; a published photograph by slug; a gallery link and its media                | the same `404` as an unknown event or a dead link                                             |
-| an open live feed                                                                                                     | closed at the next heartbeat, told to retry in 60 s, and answered with the `404` when it does |
-| a member of the client, on any event route                                                                            | **reads** its account and its event as before; every **write** is `403 client.suspended`      |
-| a member reading **photographs**: the grid, the moderation queue, the album download, the top photos, the media route | `403 client.suspended` (since 3.3: they used to read)                                         |
-| a member's moderation feed                                                                                            | stays open (it carries signals, never content), and only an event that is gone ends it        |
-| a malformed photograph id or variant on the media route                                                               | the same `404`, answered before the ids are judged                                            |
-| an invitation into the client, or a moderator invitation to one of its events                                         | `404 invitation.notFound`, to preview and to accept, until the client is resumed              |
-| a member creating an event, or attaching one to the client                                                            | `403 client.suspended`, under either `EVENT_CREATION` policy                                  |
-| an owner approving an operator's invitation or reset request                                                          | `403 client.suspended`; a stranger is still told `404`                                        |
-| `GET /api/me/limits`                                                                                                  | `suspended: true`, so the screen can say so                                                   |
+| Surface                                                                                                               | Answer                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| join by code, guest upload, guest photographs, missions, privacy notice                                               | the answer an event that does not exist gets (`404`), whatever the event's status                                                             |
+| the wall, its playlist and its live feed; a published photograph by slug; a gallery link and its media                | the same `404` as an unknown event or a dead link                                                                                             |
+| an open live feed                                                                                                     | closed at the next heartbeat, told to retry in 60 s, and answered with the `404` when it does                                                 |
+| a member of the client, on any event route                                                                            | **reads** its account and its event as before; every **write** is `403 client.suspended`                                                      |
+| a member reading **photographs**: the grid, the moderation queue, the album download, the top photos, the media route | `403 client.suspended` (since 3.3: they used to read); **the album download alone stays open while the client is being offboarded** (spec 22) |
+| a member's moderation feed                                                                                            | stays open (it carries signals, never content), and only an event that is gone ends it                                                        |
+| a malformed photograph id or variant on the media route                                                               | the same `404`, answered before the ids are judged                                                                                            |
+| an invitation into the client, or a moderator invitation to one of its events                                         | `404 invitation.notFound`, to preview and to accept, until the client is resumed                                                              |
+| a member creating an event, or attaching one to the client                                                            | `403 client.suspended`, under either `EVENT_CREATION` policy                                                                                  |
+| an owner approving an operator's invitation or reset request                                                          | `403 client.suspended`; a stranger is still told `404`                                                                                        |
+| `GET /api/me/limits`                                                                                                  | `suspended: true`, so the screen can say so                                                                                                   |
 
 #### The operator's "remove without viewing" routes (launch review S5, G8-03)
 
@@ -2425,6 +2425,20 @@ Each photograph is archived as its stored original (`.jpg`) and each clip as its
 (`.mp4`, the transcode: a clip's upload is never kept), the same file the shared gallery's own archive carries; a row whose
 file is gone is skipped with a warning rather than aborting the download.
 
+**`<slug>/MANIFEST.sha256` closes the archive** (spec 22): one line per file, `<sha-256 in 64 hex>  <name>` (two
+spaces, names relative to the folder: what `sha256sum -c MANIFEST.sha256` reads), the guestbook included, and a last
+comment line `# missing: N` counting the rows whose file was not on the server's disk and which the archive therefore
+does not carry (`0` when none). The digest is of the bytes that went by, computed as they were streamed. A clip's
+file that is not what its stored digest says aborts the stream (`export.corrupt` in the log, the socket destroyed, no
+manifest written) instead of being handed over; a photograph's **original** cannot be held against its stored
+digest, which is taken over its _display_ rendition, so it is listed in the manifest and not verified by the server.
+
+**Who may**: the same refusals as before (`401`, `404 event.notFound` for a non-member and for an event the
+operator took down), with one change in the suspension rule. A suspended client's members get
+`403 client.suspended` **except while the client is being offboarded** (`clients.purge_after` is set): offboarding
+suspends the client _and_ promises `graceDays` to export, and the export used to be refused for the whole window. A
+suspension without an offboarding keeps the `403`; an event the operator took down is `404` whatever else is true.
+
 `Content-Disposition: attachment; filename="<slug>-album.zip"`, from the resolved event's
 canonical slug and never from the path, so the download cannot be called something the
 wall and the printed card do not. `Cache-Control: no-store` and no `Content-Length`: the
@@ -2525,6 +2539,56 @@ one). A copy the host already downloaded is out of reach, as with the ZIP.
 
 `book.changed` is a signal for the host's screen only: the moderation stream carries it, the
 wall's stream never does, replay included.
+
+### The verified archive (spec 22)
+
+One ZIP of the album, prepared on the box (one at a time, behind video transcodes), checked, and kept
+until the first of `EXPORT_TTL_DAYS` after it was made, 48 hours after it was sent in full and the album's
+deletion date. Every route is a moderator of the event, like `album.zip`; none is reachable by a guest or the
+public, and nothing in them names a path. The archive holds the album as `album.zip` does (published and hidden
+photographs, clips as their transcode, `guestbook.txt`) and ends with `MANIFEST.sha256`, one line per file in the
+format `sha256sum -c` reads, plus a `# missing: N` comment.
+
+| Method | Path                           | Answers                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST` | `/api/events/:slug/export`     | `202` + the archive (`queued`). The body is **strictly empty**: a key is a `400`. `Cache-Control: no-store`. Asking again replaces the archive.                                                                                                                                                                                                                                                                |
+| `GET`  | `/api/events/:slug/export`     | `200` the archive: `status` (`queued`, `running`, `sealed`, `stale`, `failed`), `requestedAt`, `sealedAt`, `expiresAt`, `entries`, `skipped`, `bytes`, `sha256`, `servedAt`, `staleReason`, `failure`, `canDeleteWithoutConfirmation`. `404 export.notFound` when there is none (or it expired). `no-store`.                                                                                                   |
+| `GET`  | `/api/events/:slug/export.zip` | `200 application/zip` as an attachment named `<slug>-album.zip` (the slug), `Content-Length` known, `ETag: "<sha256>"` (strong; `304` on a match), `Range` accepted (`206`, `416`), `no-store`, `nosniff`. Passes through the **same concurrency bound as `album.zip`** (2 per account, 4 on the box: `429 rate.limited` / `503 service.notReady`, `Retry-After`); a `HEAD` is the preflight (`204`, no slot). |
+
+`status` is `sealed` only for an archive whose **four checks all passed** (each file against its digest as it was
+written, the rows of the album against the files, the finished file read again from the disk, the room on the
+disk); anything else is no archive. `skipped` counts the rows whose file was missing from the disk: such an archive is
+**verified but not complete**, and `canDeleteWithoutConfirmation` is the domain's verdict, true only for a sealed
+archive with `skipped = 0` that was **sent in full after it was sealed** (`servedAt >= sealedAt`). `servedAt` is
+stamped only by a `200` whose every byte reached the socket: not a `206`, a `304`, a refusal or a download the client
+abandoned. The server sees the last byte leave and cannot know the host's disk received it: say "sent", never
+"received". `failure` is a closed code (`corrupt`, `noRoom`, `tooLarge`, `unavailable`, `unverified`, `unexpected`)
+and `staleReason` another (`photoRemoved`, `guestErased`, `guestbookChanged`, `takenDown`, `reopened`,
+`albumChanged`, `fileMissing`), neutral on purpose: neither says who acted.
+
+Refusals of `POST`: `400 request.invalid`, `401`, `404 event.notFound` (not a member, or taken down by the operator,
+whatever else is true), `403 client.suspended` (a suspended client **that is not being offboarded**: a client in its
+offboarding grace period may export), `409 export.notClosed` (the event is a draft or still live),
+`409 export.alreadyRunning`, `409 export.noRoom` (the free disk cannot take it and still leave `MIN_FREE_DISK_BYTES`,
+an unreadable disk, or the box's `EXPORT_MAX_TOTAL_BYTES`), `413 export.tooLarge` (`EXPORT_MAX_BYTES`),
+`429 export.dailyLimitReached` (three per event per rolling day, `EXPORT_MAX_PER_EVENT_PER_DAY`, counted apart from the
+archive so replacing it does not reset it; `Retry-After`), `429 rate.limited` (twenty an hour per account),
+`503 export.unavailable` (`EXPORT_ENABLED=false`). Every refusal is answered before anything is written.
+
+`GET export.zip` answers **one** `404 export.notFound` for every reason there is nothing to give (never made, not
+sealed, stale, expired, file gone), `403 client.suspended` with the file kept, and `404 event.notFound` for an event the
+operator took down.
+
+**Privacy.** The archive is a copy of the album on the same disk, so it never outlives it and never holds what was removed:
+a deletion, a rejection of a published photograph or a batch, a guest's erasure (photographs, clips, messages), the operator's
+takedown of a photograph, a message or the event, a rejection of a published message and the reopening of the event each
+retire it. The row goes `stale` and the file is deleted **before** the bytes of the content (the hook is awaited, not a
+signal on the bus). An archive being written at that moment ends `stale`. The purge of an event deletes the file whatever
+state the archive is in (it lives in `MEDIA_ROOT/.exports/`, outside the event's folder, so the hourly backup never holds
+one), and the purge never waits for one. A copy the host already downloaded is out of reach.
+
+`export.changed` is a signal for the host's screen only, like `book.changed`: the moderation stream carries it, the wall's
+stream never does, replay included.
 
 ---
 
@@ -3069,6 +3133,9 @@ event_, never "is logged in".
 | `GET`    | `/api/events/:slug/book`                      | moderator | 200 | The book's state, or `none`                     |
 | `GET`    | `/api/events/:slug/book.pdf`                  | moderator | 200 | The finished book, Range accepted               |
 | `DELETE` | `/api/events/:slug/book`                      | moderator | 204 | Throw the book away; idempotent                 |
+| `POST`   | `/api/events/:slug/export`                    | moderator | 202 | Ask for the verified archive (empty body)       |
+| `GET`    | `/api/events/:slug/export`                    | moderator | 200 | The archive's state; `404` when there is none   |
+| `GET`    | `/api/events/:slug/export.zip`                | moderator | 200 | The sealed archive: Range, ETag, one allowance  |
 
 Five routes answer the **whole event** rather than `204`, and that is worth stating
 because it is not obvious from the verb: rename, settings, status, schedule and
@@ -3343,6 +3410,12 @@ The shape every route in the table that answers `200` returns.
   "joinCode": "H7K2QM",
   "joinUrl": "https://photos.example/join/H7K2QM",
   "quotaBytes": 21474836480,
+  "purge": {
+    "at": null,
+    "notice": null,
+    "offboarding": false,
+    "serverNowMs": 1782000000000
+  },
   "settings": {
     "moderation": "manual",
     "allowCaptions": true,
@@ -3391,6 +3464,20 @@ event with no client — every event on a box without clients — it is the stor
 `liveWindowEnd` (an ISO-8601 instant) is the end of the event's live window, `opened_at + max_live_days`;
 it is **absent**, not `null`, when there is none to announce (no client, no `max_live_days`, an event that
 has never opened), so a box without clients answers byte for byte as it did.
+
+**`purge` (spec 22) is when the album will be deleted**, on the host's answer and on no other: not on a
+guest's, not on the public view, not on `/wall` (a test fails the build if another shape declares it).
+`at` is an ISO-8601 instant, the date the retention sweep acts on (`purgeDeadline`: the earliest of the host's
+retention, the client's ceilings and an offboarding's `purge_after`), and **`null`** when the album is not on
+a clock: the event is not closed yet, or it is kept until a person deletes it. `notice` is the threshold of the
+last warning e-mail sent to the owners (`14`, `3` or `1` day(s) before), or `null` when none was sent (and always
+when `at` is `null`). It says **nothing** about the operator's hold on a purge (`purge_held_at`): that is invisible to
+a host, who may be the person concerned, and `at` is shown whether or not the album is held. `offboarding` is `true`
+when the event's client is being offboarded (it has a `purge_after`): the console then shows the deletion band from
+the first day, however far `at` is, and `false` otherwise. `serverNowMs` is the
+server's clock when it answered, in milliseconds: the console counts `at` down against it (the offset between the two
+clocks, as for the timed challenge), so a phone with the wrong time does not misstate the day. Every route that
+answers with this event carries it.
 
 ### `PATCH /api/events/:slug`
 

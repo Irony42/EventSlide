@@ -7,6 +7,7 @@ import {
 import { FakeClock } from '../application/testing/fakeClock'
 import { asClientId, asEventId } from '../domain/shared/ids'
 import { CapturingLogger, type LoggedLine } from '../application/testing/capturingLogger'
+import type { SweepPurgeNoticesReport } from '../application/usecases/events/sweepPurgeNotices'
 import type {
   PurgeExpiredEvents,
   PurgeExpiredEventsReport,
@@ -37,7 +38,7 @@ const AT = new Date('2026-09-11T20:00:00.000Z')
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
 
-const nothingPurged: PurgeExpiredEventsReport = { purged: [], failed: [] }
+const nothingPurged: PurgeExpiredEventsReport = { purged: [], failed: [], archives: {} }
 const nothingPruned: PruneAuditLogReport = { pruned: 0, cutoff: AT }
 
 const at = (lines: readonly LoggedLine[], level: LoggedLine['level']): readonly LoggedLine[] =>
@@ -70,6 +71,7 @@ const controllableSweep = (): {
 }
 
 const nothingFinalized = { finalized: [], accountsDeleted: 0, failed: [], reasons: [] }
+const nobodyWarned: SweepPurgeNoticesReport = { noticed: [], sent: 0, unsent: 0, failed: [] }
 
 const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
   const logger = new CapturingLogger()
@@ -79,6 +81,7 @@ const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
     purge: async () => nothingPurged,
     pruneAuditLog: async () => nothingPruned,
     finalizeOffboardedClients: async () => nothingFinalized,
+    sweepPurgeNotices: async () => nobodyWarned,
     logger,
     clock,
     intervalMs: INTERVAL_MS,
@@ -241,7 +244,7 @@ describe('createRetentionSweeper', () => {
   describe('the report reaches the operator', () => {
     it('logs the purged ids, which are the last record those albums existed', async () => {
       const { sweeper, lines } = build({
-        purge: async () => ({ purged: [WEDDING, GALA], failed: [] }),
+        purge: async () => ({ purged: [WEDDING, GALA], failed: [], archives: {} }),
       })
 
       await sweeper.runOnce()
@@ -256,7 +259,7 @@ describe('createRetentionSweeper', () => {
 
     it('logs failed ids at error level, the only signal an operator gets that a disk is wedged', async () => {
       const { sweeper, lines } = build({
-        purge: async () => ({ purged: [], failed: [GALA] }),
+        purge: async () => ({ purged: [], failed: [GALA], archives: {} }),
       })
 
       await sweeper.runOnce()
@@ -268,7 +271,7 @@ describe('createRetentionSweeper', () => {
 
     it('reports both halves of a mixed run', async () => {
       const { sweeper, lines } = build({
-        purge: async () => ({ purged: [WEDDING], failed: [GALA] }),
+        purge: async () => ({ purged: [WEDDING], failed: [GALA], archives: {} }),
       })
 
       await sweeper.runOnce()
@@ -293,7 +296,7 @@ describe('createRetentionSweeper', () => {
         clock,
         purge: async () => {
           clock.advance(4_000)
-          return { purged: [WEDDING], failed: [] }
+          return { purged: [WEDDING], failed: [], archives: {} }
         },
       })
 
@@ -443,7 +446,7 @@ describe('createRetentionSweeper', () => {
     })
 
     it('does not turn a failed prune into a failed event purge: the outcome is still the purge’s own', async () => {
-      const report: PurgeExpiredEventsReport = { purged: [WEDDING], failed: [] }
+      const report: PurgeExpiredEventsReport = { purged: [WEDDING], failed: [], archives: {} }
       const { sweeper } = build({
         purge: async () => report,
         pruneAuditLog: async () => {
@@ -725,6 +728,10 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
         order.push('finalize')
         return nothingFinalized
       },
+      sweepPurgeNotices: async () => {
+        order.push('warn')
+        return nobodyWarned
+      },
       pruneAuditLog: async () => {
         order.push('prune')
         return nothingPruned
@@ -734,7 +741,7 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
 
     await followUp()
 
-    expect(order).toEqual(['finalize', 'prune'])
+    expect(order).toEqual(['warn', 'finalize', 'prune'])
   })
 
   it('still prunes when finalising throws, and never rejects', async () => {
@@ -744,6 +751,7 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
       finalizeOffboardedClients: async () => {
         throw new Error('database is locked')
       },
+      sweepPurgeNotices: async () => nobodyWarned,
       pruneAuditLog: async () => {
         pruned = true
         return nothingPruned
@@ -757,5 +765,153 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
     expect(at(logger.lines, 'error').map((line) => line.message)).toEqual([
       'offboarded clients could not be finalised',
     ])
+  })
+})
+
+describe('the purge notices ride the follow-up (spec 22)', () => {
+  const warned: SweepPurgeNoticesReport = {
+    noticed: [
+      { eventId: WEDDING, level: 14 },
+      { eventId: GALA, level: 1 },
+    ],
+    sent: 3,
+    unsent: 1,
+    failed: [],
+  }
+
+  it('tells the log which albums were warned, at which threshold, and how many messages left', async () => {
+    const { sweeper, lines } = build({ sweepPurgeNotices: async () => warned })
+
+    await sweeper.runOnce()
+
+    const line = lines.find((entry) => entry.message.startsWith('retention sweep warned'))
+    expect(line?.level).toBe('info')
+    expect(line?.context).toMatchObject({
+      albums: 2,
+      levels: 'evt-wedding:14 evt-gala:1',
+      sent: 3,
+      unsent: 1,
+    })
+  })
+
+  it('stays silent when nobody was warned, so an hourly timer does not become the log file', async () => {
+    const { sweeper, lines } = build()
+
+    await sweeper.runOnce()
+
+    expect(lines.filter((entry) => entry.message.includes('warned'))).toEqual([])
+  })
+
+  it('reports an album it could not examine as an error with its id', async () => {
+    const { sweeper, lines } = build({
+      sweepPurgeNotices: async () => ({ ...nobodyWarned, failed: [GALA] }),
+    })
+
+    await sweeper.runOnce()
+
+    const line = lines.find((entry) => entry.message.startsWith('purge notices could not examine'))
+    expect(line?.level).toBe('error')
+    expect(line?.context).toMatchObject({ failed: 1, failedIds: 'evt-gala' })
+  })
+
+  it('never lets a failure of the warning change the purge outcome nor stop the steps after it', async () => {
+    let finalized = 0
+    let pruned = 0
+    const { sweeper, lines } = build({
+      purge: async () => ({ purged: [WEDDING], failed: [], archives: { [WEDDING]: 'served' } }),
+      sweepPurgeNotices: async () => {
+        throw new Error('database is locked')
+      },
+      finalizeOffboardedClients: async () => {
+        finalized += 1
+        return nothingFinalized
+      },
+      pruneAuditLog: async () => {
+        pruned += 1
+        return nothingPruned
+      },
+    })
+
+    const outcome = await sweeper.runOnce()
+
+    expect(outcome.status).toBe('completed')
+    expect([finalized, pruned]).toEqual([1, 1])
+    expect(lines.find((entry) => entry.message === 'purge notices failed')?.level).toBe('error')
+  })
+
+  it('does not flatten a thrown value that is not an Error into nothing', async () => {
+    const { sweeper, lines } = build({
+      sweepPurgeNotices: async () => {
+        throw 'plain string'
+      },
+    })
+
+    await sweeper.runOnce()
+
+    expect(lines.find((entry) => entry.message === 'purge notices failed')?.context).toMatchObject({
+      error: 'plain string',
+    })
+  })
+})
+
+describe('what the purge says of the archive an album left with (spec 22)', () => {
+  it('names the archive state of every purged album in the info line', async () => {
+    const { sweeper, lines } = build({
+      purge: async () => ({
+        purged: [WEDDING, GALA],
+        failed: [],
+        archives: { [WEDDING]: 'served', [GALA]: 'sealed' },
+      }),
+    })
+
+    await sweeper.runOnce()
+
+    const info = at(lines, 'info').find((entry) => entry.message.includes('purged expired events'))
+    expect(info?.context).toMatchObject({
+      archives: 'evt-wedding archive=served; evt-gala archive=sealed',
+    })
+  })
+
+  it('warns, with the ids, about an album that left with no archive sent in full', async () => {
+    const { sweeper, lines } = build({
+      purge: async () => ({
+        purged: [WEDDING, GALA],
+        failed: [],
+        archives: { [WEDDING]: 'served', [GALA]: 'incomplete' },
+      }),
+    })
+
+    await sweeper.runOnce()
+
+    const warnings = at(lines, 'warn')
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]?.context).toMatchObject({
+      purged: 1,
+      archives: 'evt-gala archive=incomplete',
+    })
+  })
+
+  it('treats an album the box knows no archive for as none, and warns', async () => {
+    const { sweeper, lines } = build({
+      purge: async () => ({ purged: [WEDDING], failed: [], archives: {} }),
+    })
+
+    await sweeper.runOnce()
+
+    expect(at(lines, 'warn')[0]?.context).toMatchObject({ archives: 'evt-wedding archive=none' })
+  })
+
+  it('does not warn when every purged album left with an archive that was sent', async () => {
+    const { sweeper, lines } = build({
+      purge: async () => ({
+        purged: [WEDDING],
+        failed: [],
+        archives: { [WEDDING]: 'served' },
+      }),
+    })
+
+    await sweeper.runOnce()
+
+    expect(at(lines, 'warn')).toEqual([])
   })
 })

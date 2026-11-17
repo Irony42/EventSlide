@@ -1,3 +1,4 @@
+import { asEventId } from '../src/domain/shared/ids'
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
@@ -53,7 +54,7 @@ vi.mock('../src/application/usecases/audit/pruneAuditLog', async (importActual) 
 })
 
 // Imported after the mocks are declared (vi.mock is hoisted, so this is for the reader).
-import { run } from './purge'
+import { reportPurged, run } from './purge'
 
 /**
  * The purge command as an operator runs it: argument parsing, what is printed, the exit code,
@@ -95,6 +96,27 @@ const treeHash = (root: string, base = root): string[] =>
         : [`${path.slice(base.length)}:${sha(path)}`]
     })
     .sort()
+
+describe('reportPurged', () => {
+  it('prints a served archive as a plain line, and anything else as a warning', () => {
+    const said: string[] = []
+    const out = {
+      log: (line: string) => void said.push(`log ${line}`),
+      warn: (line: string) => void said.push(`warn ${line}`),
+    }
+
+    reportPurged(
+      { purged: ['a', 'b', 'c'].map(asEventId), archives: { a: 'served', b: 'sealed' } },
+      out,
+    )
+
+    expect(said).toEqual([
+      'log   a  archive=served',
+      'warn   b  archive=sealed',
+      'warn   c  archive=none',
+    ])
+  })
+})
 
 describe('npm run purge', () => {
   let root: string
@@ -242,6 +264,38 @@ describe('npm run purge', () => {
         expect(count(db, `events WHERE id = 'due-event'`)).toBe(0)
         expect(count(db, `events WHERE id = 'live-event'`)).toBe(1)
       })
+    })
+
+    it('says, as a warning, that the album left with no archive sent to its host (spec 22)', async () => {
+      const lines: { level: 'log' | 'warn'; text: string }[] = []
+      const spies = [
+        vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+          lines.push({ level: 'log', text: args.map(String).join(' ') })
+        }),
+        vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+          lines.push({ level: 'warn', text: args.map(String).join(' ') })
+        }),
+        vi.spyOn(console, 'error').mockImplementation(() => undefined),
+      ]
+      try {
+        await run([], env())
+      } finally {
+        for (const spy of spies) spy.mockRestore()
+      }
+
+      expect(lines).toContainEqual({ level: 'warn', text: '  due-event  archive=none' })
+    })
+
+    it('builds the box mailer when SMTP_URL is set, and a purge with nothing to warn about still exits 0', async () => {
+      const { code } = await capture(() =>
+        run([], {
+          ...env(),
+          SMTP_URL: 'smtp://relay.example.test:25',
+          MAIL_FROM: 'EventSlide <photos@example.test>',
+        }),
+      )
+
+      expect(code).toBe(0)
     })
 
     it('deletes the purged event book file with the album, as the timer does', async () => {

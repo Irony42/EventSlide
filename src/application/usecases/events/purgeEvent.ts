@@ -3,6 +3,7 @@ import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { BookFileStore } from '../../ports/bookFileStore'
+import type { ExportFileStore } from '../../ports/exportFileStore'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
@@ -28,12 +29,18 @@ export interface PurgeEventDeps {
    * `media.deleteEvent` does not reach it (spec 04): the purge deletes it explicitly.
    */
   readonly bookFiles?: Pick<BookFileStore, 'delete'>
+  /**
+   * The verified archive lives in `MEDIA_ROOT/.exports`, outside the event's folder too (spec 22):
+   * the purge deletes it explicitly, **with the album and without looking at its state**. An archive
+   * never outlives the album it copies.
+   */
+  readonly exportFiles?: Pick<ExportFileStore, 'delete'>
 }
 
 export type PurgeEvent = (input: PurgeEventInput) => Promise<Result<void, DomainError>>
 
 export const makePurgeEvent =
-  ({ events, memberships, media, bookFiles }: PurgeEventDeps): PurgeEvent =>
+  ({ events, memberships, media, bookFiles, exportFiles }: PurgeEventDeps): PurgeEvent =>
   async ({ eventId, actorId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -62,6 +69,8 @@ export const makePurgeEvent =
     // The book first and on its own: a failure here only leaves a file no row names, which the
     // book sweep collects, and must not hide whether the photographs themselves went.
     await bookFiles?.delete(event.id).catch(() => undefined)
+    // The archive the same way: a file no row names is collected by the archive sweep.
+    await exportFiles?.delete(event.id).catch(() => undefined)
     try {
       await media.deleteEvent(event.id)
     } catch {

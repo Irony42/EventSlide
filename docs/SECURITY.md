@@ -589,11 +589,12 @@ routine as `deletePhoto` (`removePhotoRecord`: bytes before the row, and only di
 clip shares survives). The guest row goes last, so a half-finished run is retried by pressing the button again, and a
 transcode running at that moment is caught by a final sweep just before the guest row goes; one that lands in the instant after that read leaves orphan files for `sweepOrphanedMedia`. **On an event whose purge is **held** (operator takedown, launch review S5) it answers the generic `photo.deleteFailed` and touches nothing; a photograph the operator **took down** is skipped by every read the erasure makes, so it is neither deleted nor counted, and the guest row stays (nameless) because its cascading foreign key would otherwise delete that evidence. **No audit line is written**: the audit
 log is about accounts and clients, content-free by construction, and a guest has no account to attribute it to; the moderation
-decision lived on the photograph row and goes with it. It **does** reach the photo book (spec 04), the one file the server keeps of the album: the
-book goes stale and its PDF is deleted before the bytes of the photographs, by a call that is awaited
-(`invalidateBook`; `src/main/bookInvalidation.guard.test.ts` fails the build when a new removing path
-forgets it). It cannot reach a copy the host exported or downloaded (the album archive is streamed,
-never stored), a download from the shared gallery link, a screenshot, or the hourly backup, which keeps a deleted photograph for
+decision lived on the photograph row and goes with it. It **does** reach the two files the server keeps of the album: the photo book (spec 04) and the verified
+archive (spec 22). Each goes stale and its file is deleted before the bytes of the photographs, by a call that is awaited
+(`invalidateBook`, `invalidateExport`; `src/main/bookInvalidation.guard.test.ts` and
+`src/main/exportInvalidation.guard.test.ts` fail the build when a new removing path forgets it). It cannot reach a copy the
+host already downloaded (an export streamed to the browser keeps nothing; **an archive the box prepared is deleted with the
+photograph**, but not the file the host saved from it), a download from the shared gallery link, a screenshot, or the hourly backup, which keeps a deleted photograph for
 the retention the privacy notice states; the confirmation dialog names the organiser's copy and screenshots in plain words; the other two are for this page.
 
 ### Middleware table
@@ -2135,15 +2136,73 @@ What the sweep guarantees, and what it does not:
 - **It is off by default under `NODE_ENV=test`**, because the end-to-end suite boots this
   same binary and a background deletion mid-journey would be both a flaky test and a
   misleading one.
-- **It deletes; it does not export.** Retention and the backup/restore path in this
+- **It deletes; it does not wait for an export.** Retention and the backup/restore path in this
   section are two halves of one control. Purging on a schedule without a tested restore
-  is how a wedding album disappears for good — take the archive first.
+  is how a wedding album disappears for good — take the archive first. The sweep never looks at
+  whether the host has prepared or downloaded one: the date promised to the guests does not move,
+  and what is made impossible is a _silent_ loss (the date on the host's page, the warning
+  e-mails, the verified archive below), not a loss. Its log line says `archive=…` for each album it took
+  (`served`, `sealed`, `incomplete`, `stale`, `none`), and a purge with no archive sent in full is a `warn`.
 
 Running the purge while the server is up is safe, which is why in the image it is a
 `docker compose exec` into the running container rather than a one-off beside a stopped
 one: the deletions are per-event and idempotent, so the worst a race with the in-process
 sweep produces is an event reported as failed by one of them because the other had
 already removed it.
+
+### The verified archive: a copy of the album that never outlives it (spec 22)
+
+A host can ask the box to prepare **one ZIP of the album** (`POST /api/events/:slug/export`), written to
+`<MEDIA_ROOT>/.exports/<eventId>.zip` by a worker, checked, and downloaded from the application
+(`GET /api/events/:slug/export.zip`). It is the one place this product keeps a second copy of the guests'
+photographs for a person other than the guest, and its whole design is that it **cannot be the reason an album
+lasts longer or a guest's erasure fails**.
+
+- **It is bounded by the album, and by nothing of its own.** An archive expires at the first of three dates: `EXPORT_TTL_DAYS`
+  after it was sealed, 48 hours after it was sent in full, and the album's purge date (`exportExpiresAt`). The purge deletes
+  the file next to the row **whatever state the archive is in** (`purgeExpiredEvents` and `purgeEvent` never ask), the foreign
+  keys of `event_exports` and `event_export_requests` cascade with the event, and a sweep collects any file no sealed or
+  running row owns and any temporary file older than 15 minutes. Because it dies no later than the album, **the privacy
+  notice does not change** (`revisionOf` is pinned by a golden test): "N days after the event closes" stays true for every
+  guest, which is the legal reason an archive kept after the deadline, or in a folder with a life of its own, is refused.
+- **It is not in the backups, the quota or the event list.** `.exports` is a dot-folder at the root of `MEDIA_ROOT`, like `.books`:
+  `backupArchive` skips it, `fsMediaStore.listEvents` does not report it, no event's quota counts it
+  (`backupArchive.test.ts`, `fsMediaStore.test.ts`). A managed deployment must check that its off-box backup does not copy the
+  volume's hidden folders, or a purged archive survives in the repository.
+- **A guest who erased themselves does not survive in it.** Every path that takes content out of the evening retires the archive
+  **before the bytes go**, by a call that is awaited (`invalidateExport`): deleting a photograph, rejecting one or a batch,
+  a guest's "delete everything I sent" (photographs, clips and the messages `guestbook.txt` holds), the operator taking down a
+  photograph, a message or the whole event, rejecting a message, and reopening the event (the album then keeps growing and the
+  deadline it was bounded by is cleared). The row goes `stale`, **the file is deleted at once** (not at the next sweep), and
+  the call never throws: a failure leaves an archive needlessly stale, never one that still holds what was removed, because
+  `downloadAlbumExport` answers only for a `sealed` row. `src/main/exportInvalidation.guard.test.ts` fails the build when a new
+  removing path forgets the call, or when an exemption no longer applies. An archive being written while a removal lands is
+  voided too: the verdict is read again, atomically, after the file exists, and `stale` wins.
+- **Under the operator's purge hold** an erasure is refused (`photo.deleteFailed`) and nothing changes, so the archive stays; the hold
+  hides nothing, so the archive can still be prepared and downloaded, and the host's page never mentions it.
+- **What "verified" means** is four checks of the server's and no more: each file against its digest while it is written (a
+  clip's two files can be held to their names, a photograph's `original` cannot, see CLAUDE.md trap 12), the rows of the album
+  against the files written and skipped (a photograph that arrived or left makes it `stale`), the finished file **read again from the
+  disk** (SHA-256 equal to the one computed while writing, size, and an end-of-central-directory record, read by hand with no new
+  dependency, announcing the files and the manifest), and the room on the disk before writing and every 200 entries
+  (an unreadable disk is a refusal). A missed check is no archive. It does not say the host's disk received anything: the page says
+  "sent", never "received", and the host is told to check the file against `MANIFEST.sha256`.
+- **The disk is the risk.** An archive of a 6 GB album doubles its footprint while it is written, on the disk the guests of another
+  event upload to. The request refuses early (`409 export.noRoom`, `413 export.tooLarge`) on a conservative estimate against the free
+  space, `EXPORT_MAX_BYTES` and `EXPORT_MAX_TOTAL_BYTES`; one archive is written at a time, behind the video transcodes; the write
+  stops and removes its temporary file past the ceiling. The download passes through the same concurrency bound as `album.zip`
+  (`hostExportLimiter`: two per account, four on the box), is `Cache-Control: no-store` with the digest as a strong `ETag`, and
+  an account may ask for twenty archives an hour and an event for three a day.
+- **Who may.** Any moderator of the event, by `exportAllowed` (the one rule the streamed ZIP uses too): an event the operator took
+  down is `404`, a suspended client without an offboarding `403 client.suspended`, a client being offboarded may export. The operator
+  learns nothing from it: `siteRoutes.contentFree.test.ts` is unchanged.
+- **What no archive can reach**, and the copy a guest-facing sentence must keep saying: the ZIP the host already downloaded (that is
+  the point of it), a screenshot, and the operator's backups. An export streamed straight to the browser keeps nothing; **a prepared
+  archive is deleted with the photograph**.
+
+Named tests: `albumExport.test.ts`, `exportExpiry.test.ts`, `zipEndRecord.test.ts` (ring 1), `buildNextAlbumExport.test.ts`,
+`exportInvalidation.test.ts`, `requestAlbumExport.test.ts` (ring 2), `exportArchive.test.ts` (a real ZIP, a truncated one refused),
+`export.container.test.ts` (a host exports, a guest erases, the archive and its file are gone), `exportRoutes.test.ts` (ring 4).
 
 ### Backup and restore
 
@@ -3754,6 +3813,14 @@ queue, the album download, the top photos and the media route ("members keep the
 found: the host of the frozen client kept looking at the content that froze it. They are now `403 client.suspended`
 there, and keep the dashboard, the settings, the counts and the audit trail. A taken-down photograph and a held event
 are separate levers: the suspension still does not stop the retention clock, and the hold is what does.
+
+**One exception, and it is the grace period (spec 22).** A client being offboarded (`clients.purge_after` set) is suspended
+and told it has `graceDays` to export; the album download used to be refused for that whole window, so the window was a
+countdown with no door out. `exportAllowed` (`src/domain/clients/exportAllowed.ts`) now lets the album download through
+when the suspension comes with an offboarding, and only that: a suspension without one keeps the `403`, and an event the
+operator took down is `404` whatever else is true, so the lever against an abuse is the take-down, never the suspension.
+Named tests: `exportAllowed.test.ts` (ring 1), `exportAlbum.manifest.test.ts` (ring 2), `offboarding.container.test.ts`
+(over the real composition root).
 
 **What it does not do.**
 

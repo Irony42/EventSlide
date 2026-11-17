@@ -1,3 +1,5 @@
+import { FakeStreamHasher } from '../../../application/testing/fakeStreamHasher'
+import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
 import http from 'node:http'
 import { hostExportLimiter } from '../middleware/rateLimit'
 import type { AddressInfo } from 'node:net'
@@ -133,6 +135,9 @@ export const hostAlbum = async (): Promise<AbortableAlbum> => {
               guests: new FakeGuestRepository(),
               media,
               archive: archiverWriter,
+              clients: new FakeClientRepository(),
+              streamHasher: new FakeStreamHasher(),
+              clock: deps.clock,
               logger: deps.logger,
             }),
           },

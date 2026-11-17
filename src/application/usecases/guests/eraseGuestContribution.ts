@@ -14,6 +14,8 @@ import type { PhotoRepository } from '../../ports/photoRepository'
 import type { ReactionRepository } from '../../ports/reactionRepository'
 import type { InvalidateReel } from '../highlights/invalidateReel'
 import type { InvalidateBook } from '../book/invalidateAlbumBook'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
+import { isInAlbum } from '../../../domain/photos/photoStatus'
 import { isInBook } from '../../../domain/book/isInBook'
 import { makeRemovePhotoRecord } from '../photos/removePhotoRecord'
 
@@ -38,7 +40,7 @@ import { makeRemovePhotoRecord } from '../photos/removePhotoRecord'
  * archived event is the most likely time somebody asks, and erasing is not uploading.
  *
  * **What it cannot reach**, and the guest-facing copy says so: a copy the host already
- * exported (`exportAlbum` streams an archive and keeps nothing), a screenshot, a download
+ * downloaded (an export streamed to the browser keeps nothing; an archive the box prepared is deleted with the photograph, but not the file the host saved from it), a screenshot, a download
  * from the shared gallery link, and the hourly backup, which holds a deleted photograph for
  * at most the retention the privacy notice states. There is no audit line: the audit log is
  * about accounts and clients and is content-free by construction (`auditAction.ts`), and a
@@ -90,6 +92,12 @@ export interface EraseGuestContributionDeps {
    * must never still hold what was removed.
    */
   readonly invalidateBook?: InvalidateBook
+  /**
+   * Retires the verified archive the box may hold (spec 22): the guest's photographs, clips and
+   * messages are in it. Awaited and before anything goes, and **why a guest who erased themselves
+   * does not survive in a copy the box keeps**. A copy the host already downloaded is out of reach.
+   */
+  readonly invalidateExport?: InvalidateExport
 }
 
 export type EraseGuestContribution = (
@@ -111,6 +119,7 @@ export const makeEraseGuestContribution = ({
   clock,
   invalidateReel,
   invalidateBook,
+  invalidateExport,
 }: EraseGuestContributionDeps): EraseGuestContribution => {
   const removePhotoRecord = makeRemovePhotoRecord({ photos, media, clock })
 
@@ -162,6 +171,14 @@ export const makeEraseGuestContribution = ({
     // erasure must reach (a copy the host already downloaded is out of reach, as with the ZIP).
     if ((await authoredBy(eventId, guestId)).some((photo) => isInBook(photo.status))) {
       await invalidateBook?.(eventId, 'photoRemoved')
+    }
+    // The archive too, and for both halves of what it holds of this guest: the photographs and
+    // clips (`guestErased`) and the messages that `guestbook.txt` carries (`guestbookChanged`).
+    if ((await authoredBy(eventId, guestId)).some((photo) => isInAlbum(photo.status))) {
+      await invalidateExport?.(eventId, 'guestErased')
+    }
+    if ((await guestbook.countByGuest(eventId, guestId)) > 0) {
+      await invalidateExport?.(eventId, 'guestbookChanged')
     }
     await removeAll()
 

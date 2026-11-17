@@ -21,11 +21,18 @@ import { makeScheduleEvent } from '../application/usecases/events/scheduleEvent'
 import { makeRevealEvent } from '../application/usecases/events/revealEvent'
 import { makeUpdateEventSettings } from '../application/usecases/events/updateEventSettings'
 import { makeGetEventLimits } from '../application/usecases/events/getEventLimits'
+import { makeSweepPurgeNotices } from '../application/usecases/events/sweepPurgeNotices'
 import { makeGetEventView } from '../application/usecases/events/getEventView'
+import { archiveStateOf } from '../domain/exports/albumExport'
 import type { Adapters, UseCasePolicy } from './usecases'
+import type { SharedHooks } from './usecases.shared'
 
 /** The events slice of the use-case bag: composition only, built by `buildUseCases`. */
-export const eventsUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
+export const eventsUseCases = (
+  adapters: Adapters,
+  policy: UseCasePolicy,
+  { invalidateExport }: SharedHooks,
+) => ({
   // events
   createEvent: makeCreateEvent({
     events: adapters.events,
@@ -43,7 +50,25 @@ export const eventsUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
   getEventView: makeGetEventView({
     events: adapters.events,
+    clients: adapters.clients,
+    notices: adapters.purgeNotices,
     getEventLimits: makeGetEventLimits({ clients: adapters.clients }),
+    capNoticeDays: policy.retention.capNoticeDays,
+  }),
+  /**
+   * The warning to the owners of albums about to be deleted (spec 22), run by the retention
+   * follow-up and by nothing else: no route reaches it.
+   */
+  sweepPurgeNotices: makeSweepPurgeNotices({
+    events: adapters.events,
+    clients: adapters.clients,
+    memberships: adapters.memberships,
+    notices: adapters.purgeNotices,
+    mailer: adapters.mailer,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    capNoticeDays: policy.retention.capNoticeDays,
+    publicUrl: policy.publicUrl,
   }),
   listEventsForHost: makeListEventsForHost({
     events: adapters.events,
@@ -73,6 +98,7 @@ export const eventsUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     joinCodeLength: policy.events.joinCodeLength,
   }),
   changeEventStatus: makeChangeEventStatus({
+    invalidateExport,
     events: adapters.events,
     clients: adapters.clients,
     memberships: adapters.memberships,
@@ -84,6 +110,7 @@ export const eventsUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     memberships: adapters.memberships,
     media: adapters.media,
     bookFiles: adapters.bookFiles,
+    exportFiles: adapters.exportFiles,
   }),
   // Built here, with the others, since the route module composed them from `deps` until now
   // (HTTP-M-05): a logger, an audit line or a clock added to the rest reaches these three too, and a
@@ -102,6 +129,9 @@ export const eventsUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     events: adapters.events,
     media: adapters.media,
     bookFiles: adapters.bookFiles,
+    exportFiles: adapters.exportFiles,
+    // What the box held, for the log line only: read before the row goes, never consulted to decide.
+    archiveStateOf: async (eventId) => archiveStateOf(await adapters.exports.find(eventId)),
     clock: adapters.clock,
     capNoticeDays: policy.retention.capNoticeDays,
   }),
@@ -169,6 +199,7 @@ export const eventsUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   }),
   /** The sweep behind the two scheduled instants. No actor: `src/main` drives it. */
   applyEventSchedules: makeApplyEventSchedules({
+    invalidateExport,
     events: adapters.events,
     clients: adapters.clients,
     bus: adapters.bus,

@@ -415,6 +415,18 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.highlights(SLUG),
   },
   {
+    name: 'albumExport',
+    verb: 'get',
+    path: `/api/events/${SLUG}/export`,
+    invoke: (client) => client.albumExport(SLUG),
+  },
+  {
+    name: 'requestAlbumExport',
+    verb: 'post',
+    path: `/api/events/${SLUG}/export`,
+    invoke: (client) => client.requestAlbumExport(SLUG),
+  },
+  {
     name: 'albumBook',
     verb: 'get',
     path: `/api/events/${SLUG}/book`,
@@ -848,6 +860,7 @@ describe('every endpoint addresses the documented method and path', () => {
     // pinned in their own block below instead.
     expect(missing).toEqual([
       'albumBookUrl',
+      'albumExportUrl',
       'albumUrl',
       'bestOfUrl',
       'moderationStreamUrl',
@@ -1313,6 +1326,11 @@ describe('links the app builds rather than requests', () => {
     expect(subject().albumBookUrl(SLUG)).toBe(`/api/events/${SLUG}/book.pdf`)
   })
 
+  it('points the archive download at the documented ZIP endpoint, not at the streamed one', () => {
+    expect(subject().albumExportUrl(SLUG)).toBe(`/api/events/${SLUG}/export.zip`)
+    expect(subject().albumExportUrl(SLUG)).not.toBe(subject().albumUrl(SLUG))
+  })
+
   it('points the montage player at the documented MP4 endpoint', () => {
     expect(subject().reelUrl(SLUG)).toBe(`/api/events/${SLUG}/highlights/reel.mp4`)
   })
@@ -1334,6 +1352,7 @@ describe('links the app builds rather than requests', () => {
   it.each([
     'albumUrl',
     'albumBookUrl',
+    'albumExportUrl',
     'bestOfUrl',
     'reelUrl',
     'streamUrl',

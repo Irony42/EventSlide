@@ -2162,6 +2162,17 @@ export const fr = {
     'book.titleEmpty': 'Donnez un titre au livre.',
     'book.titleTooLong': 'Ce titre est trop long.',
     'book.subtitleTooLong': 'Ce sous-titre est trop long.',
+    'export.alreadyRunning': 'Une archive est déjà en préparation.',
+    'export.notClosed': 'L’archive se prépare une fois l’évènement terminé.',
+    'export.noRoom':
+      'Le serveur n’a pas assez de place pour préparer l’archive. Téléchargez l’album directement, ou prévenez l’exploitant.',
+    'export.tooLarge':
+      'L’archive dépasserait la taille que le serveur accepte de préparer. Téléchargez l’album directement.',
+    'export.dailyLimitReached':
+      'La limite d’archives préparées par jour est atteinte pour cet évènement. Réessayez demain, ou téléchargez l’album directement.',
+    'export.unavailable':
+      'La préparation d’archives est désactivée sur ce serveur. Téléchargez l’album directement.',
+    'export.notFound': 'Cette archive n’est plus disponible. Préparez-la de nouveau.',
     'reel.notEnoughPhotos': 'Il faut au moins trois favoris publiés pour faire un montage.',
     'reel.tooManyPhotos': 'Trop de favoris pour un montage : retirez-en quelques-uns.',
     'reel.alreadyRunning': 'Un montage est déjà en cours.',
@@ -3143,6 +3154,50 @@ export const fr = {
       showing: 'À l’écran',
       over: 'Passée',
     },
+  },
+  /** The deletion of the album and its verified archive, on the host's event page (spec 22). The date is the server's, never the machine's; no sentence here says why a date has passed. */
+  exportPurge: {
+    title: 'Suppression de l’album',
+    deletesOn: (date: string, days: number) =>
+      `Cet album sera supprimé le ${date} (${t.count(days, { one: 'dans 1 jour', other: `dans ${t.number(days)} jours` })}).`,
+    deletesToday: (date: string) => `Cet album sera supprimé aujourd’hui, le ${date}.`,
+    passed: 'La date de suppression prévue est passée.',
+    downloadFirst: 'Téléchargez-le avant : après cette date il n’existera plus nulle part.',
+    downloadAlbum: 'Télécharger l’album',
+    directNote:
+      'Le serveur ne peut pas vérifier ce téléchargement direct : le fichier MANIFEST.sha256 qu’il contient vous permet de le vérifier chez vous.',
+    prepare: 'Préparer une archive vérifiée',
+    downloadArchive: 'Télécharger l’archive',
+    rebuild: 'Refaire l’archive',
+    working:
+      'Archive en préparation. Vous pouvez quitter cette page : elle se met à jour toute seule.',
+    digest: 'Empreinte SHA-256',
+    ready: (entries: number, size: string, sealedOn: string, until: string | null) =>
+      `Archive prête : ${t.count(entries, { one: `${t.number(entries)} fichier`, other: `${t.number(entries)} fichiers` })}, ${size}, vérifiée le ${sealedOn}.${until === null ? '' : ` Disponible jusqu’au ${until}.`}`,
+    sent: (date: string) =>
+      `Archive envoyée en entier le ${date}. Vérifiez votre fichier avant de supprimer quoi que ce soit.`,
+    incomplete: (missing: number) =>
+      `Archive prête, mais ${t.count(missing, { one: `${t.number(missing)} fichier manquait`, other: `${t.number(missing)} fichiers manquaient` })} sur le disque du serveur : ${t.count(missing, { one: 'il n’y est pas.', other: 'ils n’y sont pas.' })}`,
+    retired: 'L’archive a été retirée parce qu’une photo a été effacée. Préparez-la de nouveau.',
+    changed:
+      'L’album a changé depuis la préparation de l’archive, elle n’est donc plus proposée. Préparez-la de nouveau.',
+    noRoom:
+      'Le serveur n’a pas assez de place pour préparer l’archive. Téléchargez l’album directement, ou prévenez l’exploitant.',
+    tooLarge:
+      'L’archive dépasserait la taille que le serveur accepte de préparer. Téléchargez l’album directement.',
+    failed:
+      'L’archive n’a pas pu être préparée. Réessayez ; si cela se répète, contactez l’exploitant.',
+    deleteNow: 'Supprimer maintenant',
+    deleteWithout: 'Supprimer sans archive…',
+    needsArchive:
+      'Pour supprimer l’album maintenant, préparez d’abord l’archive vérifiée et téléchargez-la en entier.',
+    needsDownload: 'Pour supprimer l’album maintenant, téléchargez d’abord l’archive en entier.',
+    needsComplete:
+      'L’archive est incomplète : des fichiers manquaient sur le disque du serveur. Vous pouvez tout de même supprimer l’album, après confirmation.',
+    wordPrompt: (word: string) =>
+      `Cet album n’a pas été archivé complètement. Pour le supprimer quand même, tapez ${word}.`,
+    confirmWord: 'SUPPRIMER',
+    wordLabel: 'Mot de confirmation',
   },
   titles: {
     print: 'Cartes de table et affiche',

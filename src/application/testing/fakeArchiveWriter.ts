@@ -19,8 +19,12 @@ export interface FakeArchiveWriterOptions {
    * - `'content'`: a ZIP local file header, then each entry's name and bytes as they arrive.
    *   For a route test, whose concern is that the chunks reach the socket in order and that a
    *   failure does not become a truncated 200.
+   * - `'zip'`: the `'content'` bytes, then the 22-byte end-of-central-directory record a ZIP ends
+   *   with, announcing the number of entries. Not a ZIP a tool could open, but one whose end the
+   *   archive's re-reading (`readZipEnd`) can check, which is all a use case test of the box's own
+   *   archive needs.
    */
-  readonly emits?: 'marker' | 'content'
+  readonly emits?: 'marker' | 'content' | 'zip'
   /**
    * Rejects the stream when it meets its first entry — the rejection `archiverWriter.test.ts`
    * already proves the real writer performs when an entry's bytes disappear part-way through
@@ -56,20 +60,30 @@ export class FakeArchiveWriter implements ArchiveWriter {
     const { emits = 'marker', failsWith } = this.options
     const recorded = this.entries
     return (async function* () {
-      if (emits === 'content') yield new Uint8Array(ZIP_LOCAL_FILE_HEADER)
+      const content = emits === 'content' || emits === 'zip'
+      if (content) yield new Uint8Array(ZIP_LOCAL_FILE_HEADER)
 
       for await (const entry of entries) {
         if (failsWith !== undefined) throw failsWith
-        if (emits === 'content') yield new TextEncoder().encode(entry.name)
+        if (content) yield new TextEncoder().encode(entry.name)
 
         let bytesRead = 0
         for await (const chunk of entry.bytes) {
           bytesRead += chunk.length
-          if (emits === 'content') yield chunk
+          if (content) yield chunk
         }
 
         recorded.push({ name: entry.name, modifiedAt: entry.modifiedAt, bytesRead })
         if (emits === 'marker') yield Uint8Array.of(recorded.length)
+      }
+
+      if (emits === 'zip') {
+        const end = new Uint8Array(22)
+        const view = new DataView(end.buffer)
+        view.setUint32(0, 0x06054b50, true)
+        view.setUint16(8, recorded.length, true)
+        view.setUint16(10, recorded.length, true)
+        yield end
       }
     })()
   }
