@@ -3156,6 +3156,42 @@ export const fr = {
         one: `${t.number(count)} photo en cours de développement`,
         other: `${t.number(count)} photos en cours de développement`,
       }),
+    /* The guest's phone (spec 23): the roll, the veiled photographs, the hour and the moment of the reveal. */
+    poses: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} pose restante`,
+        other: `${t.number(count)} poses restantes`,
+      }),
+    freshRoll: (count: number) =>
+      t.count(count, {
+        one: `Pellicule neuve : ${t.number(count)} pose`,
+        other: `Pellicule neuve : ${t.number(count)} poses`,
+      }),
+    rollEmpty: 'Pellicule terminée : votre appareil est vide',
+    rollKept: (kept: number) =>
+      t.count(kept, {
+        one: 'Vous aviez 1 pose, la première est gardée.',
+        other: `Vous aviez ${t.number(kept)} poses, les ${t.number(kept)} premières sont gardées.`,
+      }),
+    undeveloped: 'Sera développée à la révélation',
+    guestAt: (time: string) => `Révélation à ${time}`,
+    guestOn: (when: string) => `Révélation le ${when}`,
+    guestLeft: (hours: number, minutes: number) =>
+      hours > 0
+        ? `dans ${t.number(hours)} h ${String(minutes).padStart(2, '0')}`
+        : `dans ${t.number(minutes)} min`,
+    guestSoon: 'dans moins d’une minute',
+    guestManual: 'Les organisateurs révéleront les photos pendant la soirée.',
+    developedNow: (count: number) =>
+      t.count(count, {
+        one: 'Votre photo vient d’être développée.',
+        other: `Vos ${t.number(count)} photos viennent d’être développées.`,
+      }),
+    feedAt: (time: string) => `Les photos seront révélées à ${time}`,
+    feedOn: (when: string) => `Les photos seront révélées le ${when}`,
+    feedSoon: 'Les photos seront bientôt révélées',
+    feedHint:
+      'Elles apparaîtront ici à la révélation. Vos propres photos restent dans votre liste.',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

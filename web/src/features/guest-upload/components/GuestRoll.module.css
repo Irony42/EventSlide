@@ -1,0 +1,24 @@
+.roll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-block-size: var(--touch-min);
+  justify-content: center;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.poses {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}

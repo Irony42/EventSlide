@@ -2491,6 +2491,41 @@ export const es: UiText = {
         one: `${t.number(count)} foto en revelado`,
         other: `${t.number(count)} fotos en revelado`,
       }),
+    /* The guest's phone (spec 23): the roll, the veiled photographs, the hour and the moment of the reveal. */
+    poses: (count: number) =>
+      t.count(count, {
+        one: `Te queda ${t.number(count)} foto`,
+        other: `Te quedan ${t.number(count)} fotos`,
+      }),
+    freshRoll: (count: number) =>
+      t.count(count, {
+        one: `Carrete nuevo: ${t.number(count)} foto`,
+        other: `Carrete nuevo: ${t.number(count)} fotos`,
+      }),
+    rollEmpty: 'Carrete terminado: tu cámara está vacía',
+    rollKept: (kept: number) =>
+      t.count(kept, {
+        one: 'Te quedaba 1 foto, así que se conserva la primera.',
+        other: `Te quedaban ${t.number(kept)} fotos, así que se conservan las ${t.number(kept)} primeras.`,
+      }),
+    undeveloped: 'Se revelará en la revelación',
+    guestAt: (time: string) => `Revelación a las ${time}`,
+    guestOn: (when: string) => `Revelación el ${when}`,
+    guestLeft: (hours: number, minutes: number) =>
+      hours > 0
+        ? `dentro de ${t.number(hours)} h ${String(minutes).padStart(2, '0')}`
+        : `dentro de ${t.number(minutes)} min`,
+    guestSoon: 'en menos de un minuto',
+    guestManual: 'Los anfitriones revelarán las fotos durante la velada.',
+    developedNow: (count: number) =>
+      t.count(count, {
+        one: 'Tu foto acaba de revelarse.',
+        other: `Tus ${t.number(count)} fotos acaban de revelarse.`,
+      }),
+    feedAt: (time: string) => `Las fotos se revelarán a las ${time}`,
+    feedOn: (when: string) => `Las fotos se revelarán el ${when}`,
+    feedSoon: 'Las fotos se revelarán pronto',
+    feedHint: 'Aparecerán aquí en la revelación. Tus propias fotos siguen en tu lista.',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

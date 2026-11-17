@@ -13,7 +13,7 @@ import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { UiText } from '../../../lib/i18n/translations'
 import type { StatusTone } from '../../../design-system/components/StatusIcon'
 import type { GuestPhotoDto, PhotoStatus } from '../../../lib/api/dto'
-import type { Arrival } from '../hooks/useMyPhotos'
+import type { Arrival, Developed } from '../hooks/useMyPhotos'
 import styles from './MyPhotos.module.css'
 
 /**
@@ -44,6 +44,10 @@ const TONES: Record<PhotoStatus, StatusTone> = {
   hidden: 'neutral',
 }
 
+/** A published photograph the room cannot see yet: the evening is held until its reveal (spec 23). */
+const awaiting = (photo: GuestPhotoDto): boolean =>
+  photo.status === 'published' && photo.awaitsReveal === true
+
 export interface MyPhotosProps {
   readonly photos: readonly GuestPhotoDto[]
   readonly loading: boolean
@@ -64,6 +68,12 @@ export interface MyPhotosProps {
    * because the photo developing from black and white into colour is a picture and a screen reader gets none.
    */
   readonly arrival?: Arrival | null
+  /**
+   * The evening has just been revealed and these photographs came in colour (spec 23). Said politely
+   * in a live region, because the black and white turning to colour is a picture and a screen reader
+   * gets none.
+   */
+  readonly developed?: Developed | null
 }
 
 export function MyPhotos({
@@ -76,6 +86,7 @@ export function MyPhotos({
   highlighted = [],
   onHighlightEnd,
   arrival = null,
+  developed = null,
 }: MyPhotosProps) {
   const t = useTranslations()
   const labels = labelsFor(t)
@@ -110,6 +121,12 @@ export function MyPhotos({
       {arrival === null ? null : (
         <Notice tone="success" role="status" variant="boxed">
           {arrival.whileAway ? t.upload.photoDevelopedAway : t.upload.photoDeveloped}
+        </Notice>
+      )}
+
+      {developed === null ? null : (
+        <Notice tone="success" role="status" variant="boxed">
+          {t.reveal.developedNow(developed.count)}
         </Notice>
       )}
 
@@ -163,14 +180,22 @@ export function MyPhotos({
                 <img
                   className={cx(
                     styles['thumb'],
-                    photo.status === 'pending' && styles['undeveloped'],
+                    // Waiting for the host, or published into an evening not yet revealed (spec 23):
+                    // the filter says "not developed" and the badge beside it says so in words.
+                    (photo.status === 'pending' || awaiting(photo)) && styles['undeveloped'],
                   )}
                   src={photo.thumbUrl}
                   alt={photo.caption ?? t.upload.mineAlt}
                 />
               )}
               <div className={styles['detail']}>
-                <Badge tone={TONES[photo.status]}>{labels[photo.status]}</Badge>
+                {/* `status` stays exact (a refusal is shown as a refusal): only a published photograph
+                    of a held evening says it will be developed, instead of "À l'écran", which it is not. */}
+                {awaiting(photo) ? (
+                  <Badge tone="neutral">{t.reveal.undeveloped}</Badge>
+                ) : (
+                  <Badge tone={TONES[photo.status]}>{labels[photo.status]}</Badge>
+                )}
                 {/* Said as well as shown: the host's decision and "this one is a video"
                     are different facts, and the badge above only carries the first. */}
                 {photo.kind === 'clip' ? (

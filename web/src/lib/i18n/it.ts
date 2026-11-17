@@ -2466,6 +2466,41 @@ export const it: UiText = {
         one: `${t.number(count)} foto in sviluppo`,
         other: `${t.number(count)} foto in sviluppo`,
       }),
+    /* The guest's phone (spec 23): the roll, the veiled photographs, the hour and the moment of the reveal. */
+    poses: (count: number) =>
+      t.count(count, {
+        one: `Ti resta ${t.number(count)} scatto`,
+        other: `Ti restano ${t.number(count)} scatti`,
+      }),
+    freshRoll: (count: number) =>
+      t.count(count, {
+        one: `Rullino nuovo: ${t.number(count)} scatto`,
+        other: `Rullino nuovo: ${t.number(count)} scatti`,
+      }),
+    rollEmpty: 'Rullino finito: la tua macchina è vuota',
+    rollKept: (kept: number) =>
+      t.count(kept, {
+        one: 'Ti restava 1 scatto, quindi si tiene la prima foto.',
+        other: `Ti restavano ${t.number(kept)} scatti, quindi si tengono le prime ${t.number(kept)} foto.`,
+      }),
+    undeveloped: 'Verrà sviluppata alla rivelazione',
+    guestAt: (time: string) => `Rivelazione alle ${time}`,
+    guestOn: (when: string) => `Rivelazione il ${when}`,
+    guestLeft: (hours: number, minutes: number) =>
+      hours > 0
+        ? `tra ${t.number(hours)} h ${String(minutes).padStart(2, '0')}`
+        : `tra ${t.number(minutes)} min`,
+    guestSoon: 'tra meno di un minuto',
+    guestManual: 'Gli organizzatori riveleranno le foto durante la serata.',
+    developedNow: (count: number) =>
+      t.count(count, {
+        one: 'La tua foto è appena stata sviluppata.',
+        other: `Le tue ${t.number(count)} foto sono appena state sviluppate.`,
+      }),
+    feedAt: (time: string) => `Le foto saranno rivelate alle ${time}`,
+    feedOn: (when: string) => `Le foto saranno rivelate il ${when}`,
+    feedSoon: 'Le foto saranno rivelate a breve',
+    feedHint: 'Appariranno qui alla rivelazione. Le tue foto restano nella tua lista.',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

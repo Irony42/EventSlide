@@ -6,6 +6,7 @@ import notice from '../../../design-system/components/Notice.module.css'
 import { fr } from '../../../lib/i18n/fr'
 import { classesOf, cls } from '../../../testing/classesOf'
 import { MyPhotos } from './MyPhotos'
+import type { Developed } from '../hooks/useMyPhotos'
 import styles from './MyPhotos.module.css'
 
 describe('MyPhotos', () => {
@@ -155,6 +156,86 @@ describe('MyPhotos', () => {
       renderWith({ whileAway: false })
 
       expect(classesOf(document.querySelector('img'))).toEqual([cls(styles, 'thumb')])
+    })
+  })
+})
+
+describe('MyPhotos on a disposable-camera evening (spec 23)', () => {
+  const renderList = (
+    photos: Parameters<typeof aGuestPhoto>[0][],
+    developed: Developed | null = null,
+  ) =>
+    renderWithProviders(
+      <MyPhotos
+        photos={photos.map((photo) => aGuestPhoto(photo))}
+        loading={false}
+        error={null}
+        onRetry={vi.fn()}
+        onDelete={vi.fn(() => Promise.resolve())}
+        developed={developed}
+      />,
+    )
+
+  it('draws a published photograph of a held evening undeveloped, and says in words it will be developed', () => {
+    renderList([{ id: 'photo-1', status: 'published', awaitsReveal: true }])
+
+    expect(classesOf(document.querySelector('img'))).toEqual([
+      cls(styles, 'thumb'),
+      cls(styles, 'undeveloped'),
+    ])
+    const row = screen.getByRole('listitem')
+    expect(within(row).getByText(fr.reveal.undeveloped)).toBeVisible()
+    // "À l'écran" would be false: the room cannot see it yet.
+    expect(within(row).queryByText(fr.upload.statusPublished)).toBeNull()
+  })
+
+  it('draws a published photograph of an evening that is not held in colour, with "À l’écran"', () => {
+    renderList([{ id: 'photo-1', status: 'published', awaitsReveal: false }])
+
+    expect(classesOf(document.querySelector('img'))).toEqual([cls(styles, 'thumb')])
+    expect(screen.getByText(fr.upload.statusPublished)).toBeVisible()
+    expect(screen.queryByText(fr.reveal.undeveloped)).toBeNull()
+  })
+
+  it('shows a refusal as a refusal, in words: the server does not lie about what the host decided', () => {
+    renderList([{ id: 'photo-1', status: 'rejected', awaitsReveal: false }])
+
+    const row = screen.getByRole('listitem')
+    expect(within(row).getByText(fr.upload.statusRejected)).toBeVisible()
+    expect(within(row).queryByText(fr.reveal.undeveloped)).toBeNull()
+  })
+
+  it('does not turn a refusal into a promise, even if a server sent it as awaiting', () => {
+    renderList([{ id: 'photo-1', status: 'rejected', awaitsReveal: true }])
+
+    expect(screen.getByText(fr.upload.statusRejected)).toBeVisible()
+    expect(screen.queryByText(fr.reveal.undeveloped)).toBeNull()
+  })
+
+  it('keeps a photograph waiting for the host as it was: waiting, and veiled', () => {
+    renderList([{ id: 'photo-1', status: 'pending', awaitsReveal: false }])
+
+    expect(screen.getByText(fr.upload.statusPending)).toBeVisible()
+    expect(classesOf(document.querySelector('img'))).toContain(cls(styles, 'undeveloped'))
+  })
+
+  describe('when the evening is revealed', () => {
+    it('says how many photographs were developed, politely, in a status region', () => {
+      renderList([{ id: 'photo-1', status: 'published' }], { count: 14, whileAway: false })
+
+      expect(screen.getByRole('status')).toHaveTextContent(fr.reveal.developedNow(14))
+    })
+
+    it('says it in the singular for one photograph', () => {
+      renderList([{ id: 'photo-1', status: 'published' }], { count: 1, whileAway: false })
+
+      expect(screen.getByRole('status')).toHaveTextContent(fr.reveal.developedNow(1))
+    })
+
+    it('says nothing the rest of the time', () => {
+      renderList([{ id: 'photo-1', status: 'published' }])
+
+      expect(screen.queryByRole('status')).toBeNull()
     })
   })
 })

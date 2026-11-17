@@ -11,6 +11,7 @@ import { useInstallPrompt } from './useInstallPrompt'
 import { useMissions } from './useMissions'
 import { useMyPhotos } from './useMyPhotos'
 import { useOutbox } from './useOutbox'
+import { useRoll } from './useRoll'
 import { useOversizedPane } from './useOversizedPane'
 import { usePrivacyNotice } from './usePrivacyNotice'
 import { useUploadQueue, type SettledOutcome } from './useUploadQueue'
@@ -130,6 +131,16 @@ export function useUploadScreen({ slug, event, privacyNotice }: UploadScreenInpu
 
   const outbox = useOutbox({ slug, onDrained })
   const queue = useUploadQueue({ slug, outbox, onSettled: onQueueSettled })
+  /**
+   * The roll of a disposable-camera evening (spec 23): poses left by this phone's count, which adds
+   * to the server's the photographs it cannot know yet (chosen, in flight, kept by the outbox).
+   */
+  const roll = useRoll({
+    shots: mine.shots,
+    items: queue.items,
+    outboxWaiting: outbox.waiting,
+    add: queue.add,
+  })
   /** Whether "you can close this page" is true on this phone: it is not on an iPhone (INV-8). */
   const canCloseSafely = useBackgroundSync()
 
@@ -284,6 +295,7 @@ export function useUploadScreen({ slug, event, privacyNotice }: UploadScreenInpu
     missions,
     outbox,
     queue,
+    roll,
     canCloseSafely,
     clip,
     install,

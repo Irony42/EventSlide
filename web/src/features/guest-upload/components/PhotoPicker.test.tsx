@@ -75,4 +75,32 @@ describe('PhotoPicker', () => {
     expect(onPick).toHaveBeenCalledWith([file])
     expect(libraryInput().value).toBe('')
   })
+
+  describe('on a disposable-camera evening', () => {
+    it('is one button, and it opens the camera', () => {
+      render(<PhotoPicker onPick={vi.fn()} cameraFirst />)
+
+      expect(libraryInput()).toHaveAttribute('capture', 'environment')
+      expect(screen.getByLabelText(fr.upload.takePhoto)).toBe(libraryInput())
+      expect(screen.queryByLabelText(fr.upload.addPhotos)).toBeNull()
+      expect(screen.getAllByLabelText(/./)).toHaveLength(1)
+    })
+
+    it('still hands the picked files to the queue', () => {
+      const onPick = vi.fn()
+      render(<PhotoPicker onPick={onPick} cameraFirst />)
+      const file = new File(['x'], 'a.jpg', { type: 'image/jpeg' })
+
+      fireEvent.change(libraryInput(), { target: { files: [file] } })
+
+      expect(onPick).toHaveBeenCalledWith([file])
+    })
+
+    it('keeps the library and the camera as two buttons otherwise', () => {
+      render(<PhotoPicker onPick={vi.fn()} />)
+
+      expect(libraryInput()).not.toHaveAttribute('capture')
+      expect(screen.getByLabelText(fr.upload.takePhoto)).toHaveAttribute('capture', 'environment')
+    })
+  })
 })
