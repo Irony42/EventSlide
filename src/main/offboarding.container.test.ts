@@ -4,9 +4,10 @@ import { join } from 'node:path'
 import request from '../interface/http/testing/request'
 import { afterEach, describe, expect, it } from 'vitest'
 import { aClient, aUser } from '../application/testing/builders'
-import { asClientId, asUserId } from '../domain/shared/ids'
+import { asClientId, asEventId, asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
 import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
+import { SqliteEventRepository } from '../infrastructure/db/sqliteEventRepository'
 import { SqliteUserRepository } from '../infrastructure/db/sqliteUserRepository'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
 import { createContainer, type Container } from './container'
@@ -77,6 +78,8 @@ const aBrowser = async (booted: Container) => {
   }
   return {
     get: async (path: string) => note(await agent.get(path)),
+    /** A download: kept as bytes, not parsed. */
+    download: async (path: string) => note(await agent.get(path).responseType('blob')),
     post: async (path: string, body: object = {}) =>
       note(await agent.post(path).set(CSRF_HEADER, csrf).send(body)),
     delete: async (path: string) => note(await agent.delete(path).set(CSRF_HEADER, csrf).send({})),
@@ -296,5 +299,106 @@ describe('offboarding a client, through the real composition root', () => {
       password: PASSWORD,
     })
     expect(attempt.status).toBe(401)
+  })
+
+  /**
+   * Spec 22, finding 1: offboarding promised a grace period "to export" and the suspension that comes
+   * with it refused the export. A member of the client takes the album out during the window, a
+   * suspension on its own still refuses, and an event the operator took down is never there.
+   */
+  describe('exporting during the grace period (spec 22)', () => {
+    const ALBUM = '/api/events/mariage-de-camille/album.zip'
+
+    it('lets a member of an offboarded client export, where the suspension used to answer 403', async () => {
+      const s = await scene()
+      await s.operator.post(`/api/site/clients/${CLIENT}/offboard`, { graceDays: 30 })
+
+      const response = await s.operator.download(ALBUM)
+
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toBe('application/zip')
+      // The manifest closes the archive: its name is in the central directory.
+      expect((response.body as Buffer).includes(Buffer.from('MANIFEST.sha256'))).toBe(true)
+    })
+
+    it('still refuses a client that is suspended and not being offboarded: an abuse suspension cuts the export', async () => {
+      const s = await scene()
+      await s.operator.post(`/api/site/clients/${CLIENT}/suspend`)
+
+      const response = await s.operator.get(ALBUM)
+
+      expect(response.status).toBe(403)
+      expect(response.body.error.code).toBe('client.suspended')
+    })
+
+    const ARCHIVE = '/api/events/mariage-de-camille/export'
+
+    it('lets a member of an offboarded client prepare the verified archive and download it (spec 22, PR 2)', async () => {
+      const s = await scene()
+      await s.operator.post(`/api/site/clients/${CLIENT}/offboard`, { graceDays: 30 })
+
+      const asked = await s.operator.post(ARCHIVE)
+      expect(asked.status, JSON.stringify(asked.body)).toBe(202)
+      const worked = await s.booted.albumExportWorker?.runOnce()
+      expect(worked?.status).toBe('completed')
+      const state = await s.operator.get(ARCHIVE)
+      expect(state.body).toMatchObject({ status: 'sealed', skipped: 0 })
+
+      const response = await s.operator.download(`${ARCHIVE}.zip`)
+
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toBe('application/zip')
+      expect(response.headers['content-length']).toBe(String((response.body as Buffer).length))
+      expect(response.headers['etag']).toBe(`"${state.body.sha256}"`)
+      expect((response.body as Buffer).includes(Buffer.from('MANIFEST.sha256'))).toBe(true)
+    })
+
+    it('still refuses the archive to a client that is suspended and not being offboarded', async () => {
+      const s = await scene()
+      await s.operator.post(`/api/site/clients/${CLIENT}/suspend`)
+
+      const asked = await s.operator.post(ARCHIVE)
+      const read = await s.operator.get(ARCHIVE)
+      const downloaded = await s.operator.get(`${ARCHIVE}.zip`)
+
+      for (const response of [asked, read, downloaded]) {
+        expect(response.status).toBe(403)
+        expect(response.body.error.code).toBe('client.suspended')
+      }
+    })
+
+    it('answers 404 to every archive route for an event the operator took down, offboarding or not', async () => {
+      const s = await scene()
+      await s.operator.post(`/api/site/clients/${CLIENT}/offboard`, { graceDays: 30 })
+      const id = s.booted.db
+        .prepare<[], { readonly id: string }>(
+          "SELECT id FROM events WHERE slug = 'mariage-de-camille'",
+        )
+        .get()?.id
+      await new SqliteEventRepository(s.booted.db).setTakenDown(asEventId(id ?? ''), new Date())
+
+      for (const response of [
+        await s.operator.post(ARCHIVE),
+        await s.operator.get(ARCHIVE),
+        await s.operator.get(`${ARCHIVE}.zip`),
+      ]) {
+        expect(response.status).toBe(404)
+      }
+    })
+
+    it('answers 404, offboarding or not, for an event the operator took down', async () => {
+      const s = await scene()
+      await s.operator.post(`/api/site/clients/${CLIENT}/offboard`, { graceDays: 30 })
+      const id = s.booted.db
+        .prepare<[], { readonly id: string }>(
+          "SELECT id FROM events WHERE slug = 'mariage-de-camille'",
+        )
+        .get()?.id
+      await new SqliteEventRepository(s.booted.db).setTakenDown(asEventId(id ?? ''), new Date())
+
+      const response = await s.operator.get(ALBUM)
+
+      expect(response.status).toBe(404)
+    })
   })
 })

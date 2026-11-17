@@ -71,6 +71,40 @@ What the link hands out, and what it does not:
   a tab already open either, and a ZIP halfway through downloading is cut off rather than
   finished — so nobody is left holding an archive that looks complete and is not.
 
+## Before an album is deleted
+
+The retention purge deletes an album on the date promised to its guests, and **never waits for anything**: not for an
+archive, not for a download. What the box does so that nobody loses an album without having been told:
+
+- **The host sees the date.** The event's page in the console carries `purge.at` (the earliest of the host's own retention,
+  the client's ceilings and an offboarding's date), and nothing when the album is kept until a person deletes it.
+- **The owners are written to three times: 14, 3 and 1 day before** (constants, not settings), by the same function the
+  timer and `npm run purge` both run after the purge. **It needs a mail relay (`SMTP_URL`): without one nothing is sent and nothing
+  is noted**, so an operator who configures SMTP later does not find a threshold skipped; the console's date is then the
+  only warning. A message carries the album's name, the day and the address of its page, and no photograph. Each threshold is
+  noted **before** the message is sent (a lost message rather than two), an album whose date shows up late (a 7-day retention, an
+  offboarding with 2 days) gets the most urgent threshold that applies, once, and an album you hold (`purge_held_at`) or that has
+  no date is never written about. The recipients are the event's owners, never moderators; the language is the client's, or the
+  event's wall language.
+- **The purge says what it left behind.** Each purged album is logged with `archive=…` (`served`, `sealed`, `incomplete`, `stale` or
+  `none`), and one that left without an archive sent in full is a **`warn`** with its id, in the timer's log and in the lines of
+  `npm run purge`. The word is what the box held: an archive a host asked for and downloaded in full is `served`, one never sent
+  is `sealed`, one with files missing from the disk is `incomplete`, one withdrawn because the album changed is `stale`, and an album
+  nobody asked an archive of is `none` (a host who downloaded the ZIP directly is invisible to it).
+- **The host can ask the box to prepare a verified archive** (`POST /api/events/:slug/export`; the page for it is a later change of
+  the same work, the routes are in [API.md](API.md#the-verified-archive-spec-22)). It is a ZIP of the album with a `MANIFEST.sha256`
+  that the host checks at home with `sha256sum -c`, written by a worker **one at a time, behind the video transcodes**, read back from
+  the disk before it is offered, and kept in `<MEDIA_ROOT>/.exports/`, **outside the event's folder, the quota and the backups**.
+  It is a second copy of the album on the same disk, so **budget the disk**: an archive of a 6 GB album doubles the album's footprint
+  while it is written. The box refuses early rather than fill the disk (`409 export.noRoom` against `MIN_FREE_DISK_BYTES`,
+  `EXPORT_MAX_BYTES` for one archive, `EXPORT_MAX_TOTAL_BYTES` for all of them, default 12 GB), and abandons a write if a wedding fills
+  the disk meanwhile. It lives until the first of `EXPORT_TTL_DAYS` (7), 48 hours after the host downloaded it in full, and the album's
+  deletion date, and **never outlives the album**; a guest who erases themselves, a photograph removed, a reopening or your takedown
+  deletes it at once. `EXPORT_ENABLED=false` (restart) turns the preparation off and leaves the direct download. If your off-box backup
+  copies the volume whole with its hidden folders, exclude `.exports`: a purged archive must not survive in the repository.
+- **During an offboarding the client's members can export** (`album.zip`), for the whole grace period. A client suspended for an abuse
+  cannot, and an event you took down never can: cut an abuse by taking the event down.
+
 ## On the night
 
 1. **Create the event** in `/admin` — a name is enough.

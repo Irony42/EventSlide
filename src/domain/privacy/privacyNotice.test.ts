@@ -145,6 +145,25 @@ describe('privacyNoticeFor — the revision', () => {
     )
   })
 
+  it('reads exactly the same after spec 22 as before it, for a configuration that never changed', () => {
+    // Spec 22 keeps an archive on the box that dies no later than the album: "N days" stays true, so
+    // nothing may be added to what a guest reads, and nobody is asked to read it again. This is the
+    // golden value of a fully loaded notice: a clause appended for the archive changes it.
+    const notice = privacyNoticeFor(
+      settings({
+        moderation: 'auto',
+        retentionDays: 90,
+        guestSelfDeleteGraceSeconds: 600,
+        allowGuestbook: true,
+      }),
+      'Atelier Camille',
+    )
+
+    expect(notice.revision).toBe(
+      'publication=immediate;audiences=wall+guestFeed+organisers+sharedGallery;retention=90;selfRemoval=none;selfErase=phone;guestbook=on;operator=Atelier Camille',
+    )
+  })
+
   it('spells an absent retention and an absent window as words rather than as blanks', () => {
     const notice = privacyNoticeFor(settings({ retentionDays: null, allowGuestSelfDelete: false }))
 

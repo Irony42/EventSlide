@@ -8,6 +8,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { InvalidateReel } from '../highlights/invalidateReel'
 import type { InvalidateBook } from '../book/invalidateAlbumBook'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { recordOperatorAct, type OperatorActInput } from './operatorAct'
 
 /**
@@ -46,6 +47,11 @@ export interface SetPhotoTakedownDeps {
    * must never still hold what was removed.
    */
   readonly invalidateBook?: InvalidateBook
+  /**
+   * Retires the verified archive the box may hold (spec 22) when a photograph is taken down, awaited and before anything
+   * goes: an archive must never still hold what was removed.
+   */
+  readonly invalidateExport?: InvalidateExport
 }
 
 export type SetPhotoTakedown = (input: SetPhotoTakedownInput) => Promise<Result<void, DomainError>>
@@ -58,6 +64,7 @@ export const makeSetPhotoTakedown =
     clock,
     invalidateReel,
     invalidateBook,
+    invalidateExport,
   }: SetPhotoTakedownDeps): SetPhotoTakedown =>
   async ({ photoId, down, reason, actor }) => {
     const why = parseAuditReason(reason)
@@ -79,6 +86,8 @@ export const makeSetPhotoTakedown =
 
     if (down) await invalidateReel?.(located.eventId, [photoId])
     if (down) await invalidateBook?.(located.eventId, 'photoRemoved')
+    // A taken-down photograph is left out of every read, the archive's included.
+    if (down) await invalidateExport?.(located.eventId, 'takenDown')
     await photos.setTakenDown(located.eventId, photoId, down ? at : null)
     // A neutral signal that already means "read again": the stream forwards a signal's type to the
     // host and to every guest, and none of them is told that the operator acted (runbook csam.md).

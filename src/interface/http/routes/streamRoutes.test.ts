@@ -369,6 +369,22 @@ describe('streamRoutes', () => {
       await host.waitFor((text) => text.includes('"type":"book.changed"'), 'the book signal')
     })
 
+    // Spec 22: the verified archive's signal is the book's: a room must not learn the host is exporting.
+    it('keeps export.changed off the public wall channel and delivers it to the console', async () => {
+      const wall = await open('/api/events/mariage/stream')
+      await wall.waitFor((text) => text.includes(': connected'), 'connection')
+      const cookie = await consoleCookie()
+      const host = await open('/api/events/mariage/moderation/stream', { cookie })
+      await host.waitFor((text) => text.includes(': connected'), 'the console')
+
+      subject.deps.bus.publish({ type: 'export.changed', eventId: asEventId(WEDDING) })
+      subject.deps.bus.publish(photoPublished(WEDDING))
+      await wall.waitFor((text) => text.includes('photo.moderated'), 'the signal after it')
+      await host.waitFor((text) => text.includes('"type":"export.changed"'), 'the archive signal')
+
+      expect(wall.frames.join('')).not.toContain('export.changed')
+    })
+
     // Spec 15: the console's guestbook tab lives on this signal. It is not private (the wall
     // reads it too), so it reaches both channels.
     it('delivers guestbook.changed to the moderation channel and to the wall', async () => {
@@ -662,6 +678,16 @@ describe('openStream', () => {
 
     expect(sink.text).toContain('mission.changed')
     expect(sink.text).not.toContain('book.changed')
+  })
+
+  it('is the public wall unless it is told otherwise, so a caller that says nothing never leaks the archive signal', () => {
+    const sink = open()
+
+    world.deps.bus.publish({ type: 'export.changed', eventId: asEventId(WEDDING) })
+    world.deps.bus.publish({ type: 'mission.changed', eventId: asEventId(WEDDING) })
+
+    expect(sink.text).toContain('mission.changed')
+    expect(sink.text).not.toContain('export.changed')
   })
 
   it('carries announcement.changed on the public wall channel, and nothing but its type', () => {

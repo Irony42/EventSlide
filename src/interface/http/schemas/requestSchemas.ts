@@ -803,6 +803,9 @@ export const preselectHighlightsBody = z.strictObject({
  * cleaned by the domain (`parseBookTitle`), so a length decided here could drift from it; the
  * schema only bounds what a body may carry.
  */
+/** Asking for the verified archive takes no option (spec 22): a body that carries one is a `400`. */
+export const requestExportBody = z.strictObject({})
+
 export const requestBookBody = z.strictObject({
   title: z.string().max(400),
   subtitle: z.string().max(400).optional(),

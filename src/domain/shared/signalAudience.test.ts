@@ -6,8 +6,12 @@ describe('signal audience', () => {
     expect(canReceiveSignal('book.changed', 'public')).toBe(false)
     expect(canReceiveSignal('book.changed', 'moderation')).toBe(true)
   })
+  it('keeps the archive signal off the public channel (a room must not learn the host is exporting)', () => {
+    expect(canReceiveSignal('export.changed', 'public')).toBe(false)
+    expect(canReceiveSignal('export.changed', 'moderation')).toBe(true)
+  })
   it('lists exactly the private signals', () => {
-    expect([...MODERATION_ONLY_SIGNALS]).toEqual(['book.changed'])
+    expect([...MODERATION_ONLY_SIGNALS]).toEqual(['book.changed', 'export.changed'])
   })
   it('lets every other signal through to both channels', () => {
     for (const type of [

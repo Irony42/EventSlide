@@ -33,7 +33,7 @@ import { clientCreator, type SharedHooks } from './usecases.shared'
 export const clientsUseCases = (
   adapters: Adapters,
   policy: UseCasePolicy,
-  { invalidateReel, invalidateBook, issueInvitation }: SharedHooks,
+  { invalidateReel, invalidateBook, invalidateExport, issueInvitation }: SharedHooks,
 ) => ({
   // clients
   //
@@ -148,6 +148,7 @@ export const clientsUseCases = (
   getSitePhotoState: makeGetSitePhotoState({ photos: adapters.photos }),
   getSiteGuestbookState: makeGetSiteGuestbookState({ guestbook: adapters.guestbook }),
   setGuestbookTakedown: makeSetGuestbookTakedown({
+    invalidateExport,
     guestbook: adapters.guestbook,
     audit: adapters.audit,
     bus: adapters.bus,
@@ -156,12 +157,14 @@ export const clientsUseCases = (
   setPhotoTakedown: makeSetPhotoTakedown({
     invalidateReel,
     invalidateBook,
+    invalidateExport,
     photos: adapters.photos,
     audit: adapters.audit,
     bus: adapters.bus,
     clock: adapters.clock,
   }),
   setEventTakedown: makeSetEventTakedown({
+    invalidateExport,
     events: adapters.events,
     audit: adapters.audit,
     bus: adapters.bus,

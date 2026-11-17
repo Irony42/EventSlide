@@ -480,6 +480,18 @@ export const it: UiText = {
     'book.titleEmpty': 'Dai un titolo al libro.',
     'book.titleTooLong': 'Questo titolo è troppo lungo.',
     'book.subtitleTooLong': 'Questo sottotitolo è troppo lungo.',
+    'export.alreadyRunning': 'Un archivio è già in preparazione.',
+    'export.notClosed': 'L’archivio si può preparare dopo la chiusura dell’evento.',
+    'export.noRoom':
+      'Il server non ha abbastanza spazio per preparare l’archivio. Scarichi direttamente l’album o avvisi l’operatore.',
+    'export.tooLarge':
+      'L’archivio supererebbe la dimensione che il server accetta di preparare. Scarichi direttamente l’album.',
+    'export.dailyLimitReached':
+      'Il limite giornaliero di archivi per questo evento è stato raggiunto. Riprovi domani o scarichi direttamente l’album.',
+    'export.unavailable':
+      'La preparazione degli archivi è disattivata su questo server. Scarichi direttamente l’album.',
+    'export.notFound': 'Questo archivio non è più disponibile. Lo prepari di nuovo.',
+
     'reel.notEnoughPhotos': 'Servono almeno tre preferiti pubblicati per fare un video.',
     'reel.tooManyPhotos': 'Troppi preferiti per un video: toglietene alcuni.',
     'reel.alreadyRunning': 'Un video è già in preparazione.',
@@ -2526,6 +2538,48 @@ export const it: UiText = {
       showing: 'Sullo schermo',
       over: 'Passato',
     },
+  },
+  exportPurge: {
+    title: 'Eliminazione dell’album',
+    deletesOn: (date: string, days: number) =>
+      `Questo album verrà eliminato il ${date} (${t.count(days, { one: 'tra 1 giorno', other: `tra ${t.number(days)} giorni` })}).`,
+    deletesToday: (date: string) => `Questo album verrà eliminato oggi, ${date}.`,
+    passed: 'La data di eliminazione prevista è passata.',
+    downloadFirst: 'Lo scarichi prima: dopo quella data non esisterà più da nessuna parte.',
+    downloadAlbum: 'Scarica l’album',
+    directNote:
+      'Il server non può verificare questo download diretto: il file MANIFEST.sha256 incluso le permette di verificarlo da sé.',
+    prepare: 'Prepara un archivio verificato',
+    downloadArchive: 'Scarica l’archivio',
+    rebuild: 'Prepara di nuovo l’archivio',
+    working: 'Archivio in preparazione. Può lasciare questa pagina: si aggiorna da sola.',
+    digest: 'Impronta SHA-256',
+    ready: (entries: number, size: string, sealedOn: string, until: string | null) =>
+      `Archivio pronto: ${t.count(entries, { one: `${t.number(entries)} file`, other: `${t.number(entries)} file` })}, ${size}, verificato il ${sealedOn}.${until === null ? '' : ` Disponibile fino al ${until}.`}`,
+    sent: (date: string) =>
+      `Archivio inviato per intero il ${date}. Controlli il suo file prima di eliminare qualsiasi cosa.`,
+    incomplete: (missing: number) =>
+      `Archivio pronto, ma ${t.count(missing, { one: `mancava ${t.number(missing)} file`, other: `mancavano ${t.number(missing)} file` })} sul disco del server: ${t.count(missing, { one: 'non è incluso.', other: 'non sono inclusi.' })}`,
+    retired: 'L’archivio è stato ritirato perché una foto è stata eliminata. Lo prepari di nuovo.',
+    changed:
+      'L’album è cambiato dopo la preparazione dell’archivio, che quindi non viene più offerto. Lo prepari di nuovo.',
+    noRoom:
+      'Il server non ha abbastanza spazio per preparare l’archivio. Scarichi direttamente l’album o avvisi l’operatore.',
+    tooLarge:
+      'L’archivio supererebbe la dimensione che il server accetta di preparare. Scarichi direttamente l’album.',
+    failed:
+      'Non è stato possibile preparare l’archivio. Riprovi; se si ripete, contatti l’operatore.',
+    deleteNow: 'Elimina ora',
+    deleteWithout: 'Elimina senza archivio…',
+    needsArchive:
+      'Per eliminare ora l’album, prepari prima l’archivio verificato e lo scarichi per intero.',
+    needsDownload: 'Per eliminare ora l’album, scarichi prima l’archivio per intero.',
+    needsComplete:
+      'L’archivio è incompleto: mancavano dei file sul disco del server. Può comunque eliminare l’album, dopo averlo confermato.',
+    wordPrompt: (word: string) =>
+      `Questo album non è stato archiviato completamente. Per eliminarlo comunque, digiti ${word}.`,
+    confirmWord: 'ELIMINA',
+    wordLabel: 'Parola di conferma',
   },
   titles: {
     print: 'Segnaposto e locandina',

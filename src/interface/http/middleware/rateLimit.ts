@@ -371,6 +371,21 @@ export const venuePhotoLimiter = (perHour: number): RateLimitRequestHandler =>
 export const bookRequestLimiter = (perHour: number): RateLimitRequestHandler =>
   windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
 
+// ------------------------------------------------------ verified archive --
+
+/**
+ * How many archive requests (`POST /export`) one **account** may send per hour, whatever the
+ * answer (spec 22). The real ceilings are the event's three a day, counted in the database, and
+ * one preparation at a time on the box; this one only stops a script from hammering a route that
+ * reads and writes rows. A constant and not a variable: the feature adds none for it. Keyed by
+ * account for `eventCreationLimiter`'s reason, placed after `requireRole`, and **its own
+ * counter**, so a host's archive requests never spend their photo-book allowance.
+ */
+export const EXPORT_REQUESTS_PER_ACCOUNT_PER_HOUR = 20
+
+export const exportRequestLimiter = (perHour: number): RateLimitRequestHandler =>
+  windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
+
 /**
  * Downloads of the finished PDF per account per minute. A phone on a bad network resumes with
  * `Range` requests, so the budget is generous; a PDF is up to 300 MB, so it is not unlimited.

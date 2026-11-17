@@ -297,65 +297,50 @@ describe('createContainer: migration 029 on a database at 028', () => {
 })
 
 /**
- * The reveal gate of the disposable-camera mode (spec 23) through the real composition root, over a
- * database written by a build that did not have it, in both modes of `SITE_ADMIN` (surface, never
- * schema): **no migration**, the event with no `reveal` key reads as off and serves its published
- * photograph, and the same evening with the mode on serves none (and no identifier) until its hour.
+ * Migration 030 (spec 22) on a database that is at 029 and already holds a closed album: the box
+ * that upgrades with an album on it, in both modes of `SITE_ADMIN`. The table appears empty, the
+ * event is untouched, the schema's own guards answer, the row goes with its event, and on a box with
+ * no relay the sweep sends nothing and notes nothing.
  */
-describe('createContainer: the reveal gate on a database that predates it', () => {
-  const OLD_SLUG = 'mariage-existant'
-  const NEW_SLUG = 'appareil-jetable'
+describe('createContainer: migration 030 on a database at 029', () => {
+  const SLUG = 'mariage-existant'
+  const EVENT_ID = 'evt-existing'
 
   it.each(['off', 'on'] as const)(
-    'reads an old event as off, holds back a new one until its hour, with SITE_ADMIN=%s',
+    'adds event_purge_notices to a populated 029 database with SITE_ADMIN=%s, and keeps what was there',
     async (mode) => {
       workDir = await mkdtemp(join(tmpdir(), 'eventslide-container-'))
       const databasePath = join(workDir, 'eventslide.sqlite')
       const old = openDatabase({ path: databasePath })
-      migrate(old, migrations)
+      migrate(
+        old,
+        migrations.filter((migration) => migration.id < 30),
+      )
       old
         .prepare(
           `INSERT INTO users (id, email, password_hash, created_at)
                 VALUES ('u-host', 'hote@example.test', 'hash:x', '2026-06-20T11:00:00.000Z')`,
         )
         .run()
-      const hourFromNow = new Date(Date.now() + 3_600_000)
-      const events = new SqliteEventRepository(old)
-      await events.save(
-        anEvent({ id: 'evt-old', ownerId: 'u-host', slug: OLD_SLUG, joinCode: 'H7K2QM' }),
-      )
-      await events.save(
+      const closedAt = new Date(Date.now() - 24 * 3_600_000)
+      await new SqliteEventRepository(old).save(
         anEvent({
-          id: 'evt-new',
+          id: EVENT_ID,
           ownerId: 'u-host',
-          slug: NEW_SLUG,
-          joinCode: 'Z3N9PT',
-          settings: { reveal: { enabled: true, at: hourFromNow, film: true } },
+          slug: SLUG,
+          joinCode: 'H7K2QM',
+          status: 'closed',
+          closedAt,
+          settings: { retentionDays: 2 },
         }),
       )
-      // What a build before the gate wrote: no `reveal` key at all.
-      const stored = old.prepare('SELECT settings FROM events WHERE id = ?').get('evt-old') as {
-        settings: string
-      }
-      const { reveal: _gone, ...before } = JSON.parse(stored.settings) as Record<string, unknown>
-      old
-        .prepare('UPDATE events SET settings = ? WHERE id = ?')
-        .run(JSON.stringify(before), 'evt-old')
-      const photos = new SqlitePhotoRepository(old)
-      for (const [id, eventId] of [
-        ['p-old', 'evt-old'],
-        ['p-new', 'evt-new'],
-      ] as const) {
-        await photos.save(
-          aPhoto({
-            id,
-            eventId,
-            status: 'published',
-            author: { kind: 'host', id: 'u-host' },
-          }),
-        )
-      }
-      const applied = status(old, migrations).applied.length
+      expect(
+        old
+          .prepare<[], { readonly name: string }>(
+            `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'event_purge_notices'`,
+          )
+          .all(),
+      ).toEqual([])
       closeDatabase(old)
 
       container = await createContainer(
@@ -369,25 +354,127 @@ describe('createContainer: the reveal gate on a database that predates it', () =
           SITE_ADMIN: mode,
         }),
       )
-      const { db, app } = container
+      const { db } = container
 
-      // Nothing new to apply: the mode is a key of the settings JSON.
-      expect(status(db, migrations).applied).toHaveLength(applied)
-      const oldWall = await request(app).get(`/api/events/${OLD_SLUG}/wall`)
-      expect(oldWall.body.items.map((item: { id: string }) => item.id)).toEqual(['p-old'])
-      expect(oldWall.body.reveal).toMatchObject({ enabled: false, revealed: true, atMs: null })
+      expect(status(db, migrations).applied.map((row) => row.id)).toContain(30)
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_purge_notices').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT slug FROM events').all()).toEqual([{ slug: SLUG }])
 
-      const newWall = await request(app).get(`/api/events/${NEW_SLUG}/wall`)
-      expect(newWall.body.items).toEqual([])
-      expect(newWall.body.reveal).toMatchObject({
-        enabled: true,
-        revealed: false,
-        atMs: hourFromNow.getTime(),
-        film: true,
-        readyCount: 1,
-      })
-      // Neither the photograph's identifier nor its address leaves the box before the hour.
-      expect(JSON.stringify(newWall.body)).not.toContain('p-new')
+      // The schema's own guards: only the three thresholds, and the row follows its event.
+      const insert = db.prepare(
+        'INSERT INTO event_purge_notices (event_id, level, sent_at) VALUES (?, ?, ?)',
+      )
+      expect(() => insert.run(EVENT_ID, 7, closedAt.toISOString())).toThrow(
+        /CHECK constraint failed/,
+      )
+      insert.run(EVENT_ID, 1, closedAt.toISOString())
+      expect(() => insert.run('evt-nobody', 1, closedAt.toISOString())).toThrow(/FOREIGN KEY/)
+      db.prepare('DELETE FROM event_purge_notices').run()
+
+      // No relay on this box: the album goes in a day, and nothing is sent or noted.
+      const report = await container.usecases.sweepPurgeNotices()
+      expect(report).toEqual({ noticed: [], sent: 0, unsent: 0, failed: [] })
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_purge_notices').get()).toEqual({ n: 0 })
+
+      insert.run(EVENT_ID, 3, closedAt.toISOString())
+      db.prepare('DELETE FROM events WHERE id = ?').run(EVENT_ID)
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_purge_notices').get()).toEqual({ n: 0 })
+    },
+  )
+})
+
+/**
+ * Migration 031 (spec 22) on a database that is at 030 and already holds a closed album, in both
+ * modes of `SITE_ADMIN`: the tables appear empty, the event is untouched, the schema's own guards
+ * answer (a status outside the five, a code that is not one, a request for an event that is not
+ * there), and both rows go with their event, which is how the purge reaches them.
+ */
+describe('createContainer: migration 031 on a database at 030', () => {
+  const SLUG = 'mariage-existant'
+  const EVENT_ID = 'evt-existing'
+
+  it.each(['off', 'on'] as const)(
+    'adds event_exports and event_export_requests to a populated 030 database with SITE_ADMIN=%s, and keeps what was there',
+    async (mode) => {
+      workDir = await mkdtemp(join(tmpdir(), 'eventslide-container-'))
+      const databasePath = join(workDir, 'eventslide.sqlite')
+      const old = openDatabase({ path: databasePath })
+      migrate(
+        old,
+        migrations.filter((migration) => migration.id < 31),
+      )
+      old
+        .prepare(
+          `INSERT INTO users (id, email, password_hash, created_at)
+                VALUES ('u-host', 'hote@example.test', 'hash:x', '2026-06-20T11:00:00.000Z')`,
+        )
+        .run()
+      const closedAt = new Date(Date.now() - 24 * 3_600_000)
+      await new SqliteEventRepository(old).save(
+        anEvent({
+          id: EVENT_ID,
+          ownerId: 'u-host',
+          slug: SLUG,
+          joinCode: 'H7K2QM',
+          status: 'closed',
+          closedAt,
+          settings: { retentionDays: 30 },
+        }),
+      )
+      expect(
+        old
+          .prepare<[], { readonly name: string }>(
+            `SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'event_export%'`,
+          )
+          .all(),
+      ).toEqual([])
+      closeDatabase(old)
+
+      container = await createContainer(
+        loadConfig({
+          NODE_ENV: 'test',
+          LOG_LEVEL: 'fatal',
+          DATABASE_PATH: databasePath,
+          MEDIA_ROOT: join(workDir, 'media'),
+          FFMPEG_PATH: join(workDir, 'no-ffmpeg-here'),
+          FFPROBE_PATH: join(workDir, 'no-ffprobe-here'),
+          SITE_ADMIN: mode,
+        }),
+      )
+      const { db } = container
+
+      expect(status(db, migrations).applied.map((row) => row.id)).toContain(31)
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_exports').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_export_requests').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT slug FROM events').all()).toEqual([{ slug: SLUG }])
+
+      const at = closedAt.toISOString()
+      const insert = db.prepare(
+        'INSERT INTO event_exports (event_id, status, requested_at) VALUES (?, ?, ?)',
+      )
+      expect(() => insert.run(EVENT_ID, 'finished', at)).toThrow(/CHECK constraint failed/)
+      expect(() => insert.run('evt-nobody', 'queued', at)).toThrow(/FOREIGN KEY/)
+      insert.run(EVENT_ID, 'queued', at)
+      expect(() =>
+        db
+          .prepare('UPDATE event_exports SET failure = ? WHERE event_id = ?')
+          .run('a sentence', EVENT_ID),
+      ).toThrow(/CHECK constraint failed/)
+      db.prepare('INSERT INTO event_export_requests (event_id, requested_at) VALUES (?, ?)').run(
+        EVENT_ID,
+        at,
+      )
+
+      // The worker is on and nothing is queued by itself: a box that upgrades prepares no archive
+      // for an album nobody asked about.
+      db.prepare('DELETE FROM event_exports').run()
+      expect(await container.albumExportWorker?.runOnce()).toMatchObject({ status: 'completed' })
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_exports').get()).toEqual({ n: 0 })
+
+      insert.run(EVENT_ID, 'queued', at)
+      db.prepare('DELETE FROM events WHERE id = ?').run(EVENT_ID)
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_exports').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_export_requests').get()).toEqual({ n: 0 })
     },
   )
 })
@@ -2551,4 +2638,100 @@ describe('createContainer: the audit retention default warning', () => {
 
     expect(output).not.toContain('AUDIT_RETENTION_DAYS is not set')
   })
+})
+
+/**
+ * The reveal gate of the disposable-camera mode (spec 23) through the real composition root, over a
+ * database written by a build that did not have it, in both modes of `SITE_ADMIN` (surface, never
+ * schema): **no migration**, the event with no `reveal` key reads as off and serves its published
+ * photograph, and the same evening with the mode on serves none (and no identifier) until its hour.
+ */
+describe('createContainer: the reveal gate on a database that predates it', () => {
+  const OLD_SLUG = 'mariage-existant'
+  const NEW_SLUG = 'appareil-jetable'
+
+  it.each(['off', 'on'] as const)(
+    'reads an old event as off, holds back a new one until its hour, with SITE_ADMIN=%s',
+    async (mode) => {
+      workDir = await mkdtemp(join(tmpdir(), 'eventslide-container-'))
+      const databasePath = join(workDir, 'eventslide.sqlite')
+      const old = openDatabase({ path: databasePath })
+      migrate(old, migrations)
+      old
+        .prepare(
+          `INSERT INTO users (id, email, password_hash, created_at)
+                VALUES ('u-host', 'hote@example.test', 'hash:x', '2026-06-20T11:00:00.000Z')`,
+        )
+        .run()
+      const hourFromNow = new Date(Date.now() + 3_600_000)
+      const events = new SqliteEventRepository(old)
+      await events.save(
+        anEvent({ id: 'evt-old', ownerId: 'u-host', slug: OLD_SLUG, joinCode: 'H7K2QM' }),
+      )
+      await events.save(
+        anEvent({
+          id: 'evt-new',
+          ownerId: 'u-host',
+          slug: NEW_SLUG,
+          joinCode: 'Z3N9PT',
+          settings: { reveal: { enabled: true, at: hourFromNow, film: true } },
+        }),
+      )
+      // What a build before the gate wrote: no `reveal` key at all.
+      const stored = old.prepare('SELECT settings FROM events WHERE id = ?').get('evt-old') as {
+        settings: string
+      }
+      const { reveal: _gone, ...before } = JSON.parse(stored.settings) as Record<string, unknown>
+      old
+        .prepare('UPDATE events SET settings = ? WHERE id = ?')
+        .run(JSON.stringify(before), 'evt-old')
+      const photos = new SqlitePhotoRepository(old)
+      for (const [id, eventId] of [
+        ['p-old', 'evt-old'],
+        ['p-new', 'evt-new'],
+      ] as const) {
+        await photos.save(
+          aPhoto({
+            id,
+            eventId,
+            status: 'published',
+            author: { kind: 'host', id: 'u-host' },
+          }),
+        )
+      }
+      const applied = status(old, migrations).applied.length
+      closeDatabase(old)
+
+      container = await createContainer(
+        loadConfig({
+          NODE_ENV: 'test',
+          LOG_LEVEL: 'fatal',
+          DATABASE_PATH: databasePath,
+          MEDIA_ROOT: join(workDir, 'media'),
+          FFMPEG_PATH: join(workDir, 'no-ffmpeg-here'),
+          FFPROBE_PATH: join(workDir, 'no-ffprobe-here'),
+          SITE_ADMIN: mode,
+        }),
+      )
+      const { db, app } = container
+
+      // Nothing new to apply: the mode is a key of the settings JSON.
+      expect(status(db, migrations).applied).toHaveLength(applied)
+      const oldWall = await request(app).get(`/api/events/${OLD_SLUG}/wall`)
+      expect(oldWall.body.items.map((item: { id: string }) => item.id)).toEqual(['p-old'])
+      expect(oldWall.body.reveal).toMatchObject({ enabled: false, revealed: true, atMs: null })
+
+      const newWall = await request(app).get(`/api/events/${NEW_SLUG}/wall`)
+      expect(newWall.body.items).toEqual([])
+      expect(newWall.body.reveal).toMatchObject({
+        enabled: true,
+        revealed: false,
+        atMs: hourFromNow.getTime(),
+        film: true,
+        readyCount: 1,
+      })
+      // Neither the photograph's identifier nor its address leaves the box before the hour.
+      expect(JSON.stringify(newWall.body)).not.toContain('p-new')
+    },
+  )
 })

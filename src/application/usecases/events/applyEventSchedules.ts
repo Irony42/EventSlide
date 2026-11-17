@@ -5,6 +5,7 @@ import type { Clock } from '../../ports/clock'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { ceilingsOf, clientContextOf } from '../clients/clientContextOf'
 
 /**
@@ -83,6 +84,12 @@ export interface ApplyEventSchedulesDeps {
   readonly clients: ClientRepository
   readonly bus: EventBus
   readonly clock: Clock
+  /**
+   * Retires the verified archive the box may hold when a **closed** event is reopened by its own
+   * schedule (spec 22), as a manual reopening does (`changeEventStatus`). Awaited, before the row is
+   * saved.
+   */
+  readonly invalidateExport?: InvalidateExport
 }
 
 /**
@@ -100,7 +107,13 @@ const STATUS_AFTER: Readonly<Record<ScheduledTransition, EventStatus>> = {
 }
 
 export const makeApplyEventSchedules =
-  ({ events, clients, bus, clock }: ApplyEventSchedulesDeps): ApplyEventSchedules =>
+  ({
+    events,
+    clients,
+    bus,
+    clock,
+    invalidateExport,
+  }: ApplyEventSchedulesDeps): ApplyEventSchedules =>
   async () => {
     // Read once, so every event in one pass is judged against the same instant. Two
     // events a millisecond apart being treated differently would be invisible and
@@ -123,6 +136,10 @@ export const makeApplyEventSchedules =
       const outcome = event.applySchedule(now, ceilings)
 
       try {
+        // A closed event the schedule opens again is a reopening, whoever pressed the button.
+        if (event.status === 'closed' && outcome.event.status === 'live') {
+          await invalidateExport?.(event.id, 'reopened')
+        }
         // Persist first. A projector told an event is live before the row says so would
         // refetch and see it shut, and then never hear again.
         await events.save(outcome.event)

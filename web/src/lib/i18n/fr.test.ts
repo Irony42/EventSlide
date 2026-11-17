@@ -53,6 +53,10 @@ const COUNTED: readonly CountedPhrase[] = [
   ['admin.graceHours', fr.admin.graceHours],
   ['admin.shareLinkDays', fr.admin.shareLinkDays],
   ['gallery.photoCount', fr.gallery.photoCount],
+  // The deletion band (spec 22): a day count in the headline, a file count in the archive line.
+  ['exportPurge.deletesOn', (count) => fr.exportPurge.deletesOn('12 décembre 2026', count)],
+  ['exportPurge.ready', (count) => fr.exportPurge.ready(count, '6 Go', '02/12/2026', null)],
+  ['exportPurge.incomplete', fr.exportPurge.incomplete],
 ]
 
 describe('counted French copy', () => {
@@ -293,6 +297,14 @@ const DOCUMENTED_CODES: readonly string[] = [
   'eventTheme.accentTooCloseToStatus',
 
   // The shared gallery (roadmap §4.1). The first is every dead link, whatever killed it.
+  'export.alreadyRunning',
+  'export.notClosed',
+  'export.noRoom',
+  'export.tooLarge',
+  'export.dailyLimitReached',
+  'export.unavailable',
+  'export.notFound',
+
   'gallery.notAvailable',
   'gallery.passwordRequired',
   'gallery.wrongPassword',

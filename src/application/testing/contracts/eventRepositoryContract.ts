@@ -1384,6 +1384,56 @@ export const eventRepositoryContract = (
       })
 
       /**
+       * **The warning before a purge asks the same question with a clock moved 14 days on** (spec 22):
+       * "deadline at most now + 14 days" is "deadline at most now" for another `now`, so the notice
+       * sweep reuses this listing instead of a third spelling of the rule. These cases are the two
+       * whose deadline is not a plain `closed_at + n`: a ceiling lowered recently, whose notice
+       * floor is `retention_cap_since + noticeDays`, and an offboarding's `purge_after`.
+       */
+      describe('listed with a clock moved 14 days on, for the warning before a purge', () => {
+        /** The sweep's own clock, moved on by the furthest threshold. */
+        const shifted = (now: Date): Date => new Date(now.getTime() + 14 * DAY)
+
+        it('lists an event under a lowered ceiling once its notice floor is within 14 days, and not before', async () => {
+          // Closed 60 days ago, ceiling set today to 14: the floor is today + 30 days.
+          const event = await seed({
+            name: 'lowered ceiling',
+            event: { closedAt: at(-60), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: at(0) },
+          })
+          const client = await clients.findById(CLIENT)
+          const deadline = purgeDeadline(event, client, PURGE_POLICY.capNoticeDays)
+          expect(deadline).toEqual(at(30))
+
+          // Sixteen days from today, with the clock moved on, is the instant the floor falls.
+          expect(await dueIds(shifted(at(16, -1)))).toEqual([])
+          expect(await dueIds(shifted(at(16)))).toEqual(['evt-1'])
+        })
+
+        it('lists an offboarded client album once its purge_after is within 14 days', async () => {
+          await seed({
+            name: 'offboarding',
+            event: { closedAt: at(-1), retentionDays: 365 },
+            client: { purgeAfter: at(20) },
+          })
+
+          expect(await dueIds(shifted(at(6, -1)))).toEqual([])
+          expect(await dueIds(shifted(at(6)))).toEqual(['evt-1'])
+        })
+
+        it('still leaves out an album the operator holds, whatever the clock says', async () => {
+          await seed({
+            name: 'held',
+            event: { closedAt: at(-10), retentionDays: 30 },
+            client: null,
+          })
+          await repo.setPurgeHeld(asEventId('evt-1'), at(0))
+
+          expect(await dueIds(at(36_500))).toEqual([])
+        })
+      })
+
+      /**
        * The same rule, twice: every scenario is listed from exactly the instant
        * `purgeDeadline` names, and not a millisecond before; and one the function says is
        * never due is not listed at the end of the century.
