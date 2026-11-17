@@ -270,7 +270,7 @@ describe('getTopPhotos', () => {
       reactions.seed(aReaction({ id: 'reaction-1', photoId: 'photo-1', guestId: 'guest-1' }))
     }
 
-    it('crowns nobody before the reveal, and reads no ranking at all', async () => {
+    it('crowns nobody before the reveal, even a published photograph with reactions', async () => {
       reactedTo()
       const clock = new FakeClock()
       events = new FakeEventRepository().seed(
