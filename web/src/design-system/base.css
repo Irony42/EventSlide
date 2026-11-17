@@ -444,7 +444,7 @@ body:has([data-event-ambiance='noces']:not([data-template-preview])):not(
  * the class is set on the image element only, so a caption, the QR and every text are untouched.
  *
  * Defined here, once, because four surfaces show a photograph (the wall, the guests' feed, the shared
- * gallery, the guest's own list) and none may keep a copy of the recipe. Four functions are
+ * gallery, the guest's own list) and none may keep a copy of the recipe. Five functions are
  * deliberately all that is in it: the wall projects large images, and a filter is the one place this
  * spec can cost a projector frames (`tests/e2e/perf/film-look.spec.ts` measures it).
  *
