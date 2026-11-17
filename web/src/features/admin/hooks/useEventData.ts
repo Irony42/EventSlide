@@ -29,10 +29,40 @@ export const useEventList = (): LoaderState<readonly EventSummaryDto[]> => {
   return useLoader(load)
 }
 
-export const useEvent = (slug: string): LoaderState<EventDto> => {
+/**
+ * One event, with the gap between this machine's clock and the server's, measured at each read (half
+ * the round trip is taken off): the album's deletion date is counted down against the server's.
+ */
+export const useEvent = (slug: string): LoaderState<EventDto> & { readonly offsetMs: number } => {
   const api = useApi()
-  const load = useCallback((signal: AbortSignal) => api.getEvent(slug, signal), [api, slug])
-  return useLoader(load)
+  const [offsetMs, setOffsetMs] = useState(0)
+  const load = useCallback(
+    async (signal: AbortSignal) => {
+      const sentAt = Date.now()
+      const event = await api.getEvent(slug, signal)
+      if (event.purge !== undefined) {
+        setOffsetMs(serverOffsetMs(event.purge.serverNowMs, sentAt, Date.now()))
+      }
+      return event
+    },
+    [api, slug],
+  )
+  const loader = useLoader(load)
+  const { replace: store } = loader
+  // What a host's own action returns (closing the evening, a new date) is the whole event, with a
+  // fresh server clock: the offset is measured again from it, or the new date is counted against a
+  // reading taken before the action and the band appears up to a minute late.
+  const replace = useCallback(
+    (event: EventDto) => {
+      if (event.purge !== undefined) {
+        const now = Date.now()
+        setOffsetMs(serverOffsetMs(event.purge.serverNowMs, now, now))
+      }
+      store(event)
+    },
+    [store],
+  )
+  return { ...loader, replace, offsetMs }
 }
 
 export const useGuests = (slug: string): LoaderState<GuestListResponse> => {

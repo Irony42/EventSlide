@@ -1,3 +1,4 @@
+import { asEventId } from '../src/domain/shared/ids'
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
@@ -11,6 +12,8 @@ import type { MediaStore } from '../src/application/ports/mediaStore'
 import { closeDatabase, openDatabase, type Db } from '../src/infrastructure/db/connection'
 import { migrations } from '../src/infrastructure/db/migrations'
 import { migrate } from '../src/infrastructure/db/migrator'
+import { SqliteAlbumExportRepository } from '../src/infrastructure/db/sqliteAlbumExportRepository'
+import { requestExport } from '../src/domain/exports/albumExport'
 import { SqliteClientRepository } from '../src/infrastructure/db/sqliteClientRepository'
 import { SqliteEventRepository } from '../src/infrastructure/db/sqliteEventRepository'
 
@@ -53,7 +56,7 @@ vi.mock('../src/application/usecases/audit/pruneAuditLog', async (importActual) 
 })
 
 // Imported after the mocks are declared (vi.mock is hoisted, so this is for the reader).
-import { run } from './purge'
+import { consoleLogger, reportPurged, run } from './purge'
 
 /**
  * The purge command as an operator runs it: argument parsing, what is printed, the exit code,
@@ -95,6 +98,46 @@ const treeHash = (root: string, base = root): string[] =>
         : [`${path.slice(base.length)}:${sha(path)}`]
     })
     .sort()
+
+describe('consoleLogger', () => {
+  it('writes what a use case says to the terminal, at the level it said it, and stays quiet for debug', async () => {
+    const { out } = await capture(async () => {
+      consoleLogger.debug('hidden')
+      consoleLogger.info('plain', { eventId: 'e1' })
+      consoleLogger.warn('careful')
+      consoleLogger.error('broken')
+      consoleLogger.child({ scope: 'x' }).info('from a child')
+      return 0
+    })
+
+    expect(out).not.toContain('hidden')
+    expect(out).toContain('plain {"eventId":"e1"}')
+    expect(out).toContain('careful')
+    expect(out).toContain('broken')
+    expect(out).toContain('from a child')
+  })
+})
+
+describe('reportPurged', () => {
+  it('prints a served archive as a plain line, and anything else as a warning', () => {
+    const said: string[] = []
+    const out = {
+      log: (line: string) => void said.push(`log ${line}`),
+      warn: (line: string) => void said.push(`warn ${line}`),
+    }
+
+    reportPurged(
+      { purged: ['a', 'b', 'c'].map(asEventId), archives: { a: 'served', b: 'sealed' } },
+      out,
+    )
+
+    expect(said).toEqual([
+      'log   a  archive=served',
+      'warn   b  archive=sealed',
+      'warn   c  archive=none',
+    ])
+  })
+})
 
 describe('npm run purge', () => {
   let root: string
@@ -200,6 +243,92 @@ describe('npm run purge', () => {
       expect(treeHash(mediaRoot)).toEqual(treeBefore)
     })
 
+    describe('the archive= column (spec 22)', () => {
+      const prepare = async (stage: 'queued' | 'sealed' | 'served'): Promise<void> => {
+        await inDatabase(async (db) => {
+          const archives = new SqliteAlbumExportRepository(db)
+          const id = asEventId('due-event')
+          await archives.request(requestExport(id, null, LONG_AGO))
+          if (stage === 'queued') return
+          await archives.claimNext(LONG_AGO)
+          await archives.finish(
+            id,
+            {
+              kind: 'sealed',
+              seal: {
+                entries: 2,
+                skipped: 0,
+                bytes: 10,
+                sha256: 'a'.repeat(64),
+                expiresAt: FAR_AHEAD,
+              },
+            },
+            LONG_AGO,
+          )
+          if (stage === 'sealed') return
+          await archives.markServed(id, new Date(LONG_AGO.getTime() + 1_000), FAR_AHEAD)
+        })
+      }
+
+      it('says none for an album nobody asked an archive of', async () => {
+        const { out } = await capture(() => run(['--dry-run'], env()))
+
+        expect(out).toMatch(/due-event .*archive=none/)
+      })
+
+      it('says sealed for an archive that was prepared and never sent', async () => {
+        await prepare('sealed')
+
+        const { out } = await capture(() => run(['--dry-run'], env()))
+
+        expect(out).toMatch(/due-event .*archive=sealed/)
+      })
+
+      it('says served for an archive the host took in full', async () => {
+        await prepare('served')
+
+        const { out } = await capture(() => run(['--dry-run'], env()))
+
+        expect(out).toMatch(/due-event .*archive=served/)
+      })
+
+      it('says none, and still lists, on a database whose archive table does not exist yet', async () => {
+        await inDatabase((db) =>
+          db.exec('DROP TABLE event_export_requests; DROP TABLE event_exports'),
+        )
+
+        const { code, out } = await capture(() => run(['--dry-run'], env()))
+
+        expect(code).toBe(0)
+        expect(out).toMatch(/due-event .*archive=none/)
+      })
+
+      it('writes nothing to read it: the database stays byte for byte as it was', async () => {
+        await prepare('sealed')
+        await inDatabase((db) => db.pragma('journal_mode = DELETE'))
+        const before = sha(databasePath)
+
+        await capture(() => run(['--dry-run'], env()))
+
+        expect(sha(databasePath)).toBe(before)
+      })
+    })
+
+    it('says nothing is due, and changes nothing, when the only album past its date is held', async () => {
+      await inDatabase((db) => {
+        db.prepare(
+          `UPDATE events SET purge_held_at = '2020-01-01T00:00:00.000Z' WHERE id = 'due-event'`,
+        ).run()
+      })
+      const treeBefore = treeHash(mediaRoot)
+
+      const { code, out } = await capture(() => run(['--dry-run'], env()))
+
+      expect(code).toBe(0)
+      expect(out).toContain('Nothing is due for purge.')
+      expect(treeHash(mediaRoot)).toEqual(treeBefore)
+    })
+
     it('does not finalise a client or prune the audit log either', async () => {
       await inDatabase(async (db) => {
         await new SqliteClientRepository(db).save(
@@ -242,6 +371,38 @@ describe('npm run purge', () => {
         expect(count(db, `events WHERE id = 'due-event'`)).toBe(0)
         expect(count(db, `events WHERE id = 'live-event'`)).toBe(1)
       })
+    })
+
+    it('says, as a warning, that the album left with no archive sent to its host (spec 22)', async () => {
+      const lines: { level: 'log' | 'warn'; text: string }[] = []
+      const spies = [
+        vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+          lines.push({ level: 'log', text: args.map(String).join(' ') })
+        }),
+        vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+          lines.push({ level: 'warn', text: args.map(String).join(' ') })
+        }),
+        vi.spyOn(console, 'error').mockImplementation(() => undefined),
+      ]
+      try {
+        await run([], env())
+      } finally {
+        for (const spy of spies) spy.mockRestore()
+      }
+
+      expect(lines).toContainEqual({ level: 'warn', text: '  due-event  archive=none' })
+    })
+
+    it('builds the box mailer when SMTP_URL is set, and a purge with nothing to warn about still exits 0', async () => {
+      const { code } = await capture(() =>
+        run([], {
+          ...env(),
+          SMTP_URL: 'smtp://relay.example.test:25',
+          MAIL_FROM: 'EventSlide <photos@example.test>',
+        }),
+      )
+
+      expect(code).toBe(0)
     })
 
     it('deletes the purged event book file with the album, as the timer does', async () => {

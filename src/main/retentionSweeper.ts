@@ -6,6 +6,8 @@ import type {
 } from '../application/usecases/events/purgeExpiredEvents'
 import type { PruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import type { FinalizeOffboardedClients } from '../application/usecases/clients/finalizeOffboardedClients'
+import type { SweepPurgeNotices } from '../application/usecases/events/sweepPurgeNotices'
+import { leftWithArchive } from '../domain/clients/archiveState'
 import { createGuardedJob, type JobOutcome } from './guardedJob'
 import { createRepeater } from './repeater'
 
@@ -48,6 +50,8 @@ export interface RetentionSweeperDeps {
    * **after** the purge, because a client is finalised only once it has no event left.
    */
   readonly finalizeOffboardedClients: FinalizeOffboardedClients
+  /** The warning to the owners of albums about to be deleted (spec 22). Required, like the others. */
+  readonly sweepPurgeNotices: SweepPurgeNotices
   readonly logger: Logger
   /** For the duration in the log line. Injected so that duration is assertable. */
   readonly clock: Clock
@@ -67,6 +71,7 @@ export interface RetentionSweeper {
 
 export interface RetentionFollowUpDeps {
   readonly finalizeOffboardedClients: FinalizeOffboardedClients
+  readonly sweepPurgeNotices: SweepPurgeNotices
   readonly pruneAuditLog: PruneAuditLog
   readonly logger: Logger
 }
@@ -74,16 +79,49 @@ export interface RetentionFollowUpDeps {
 /**
  * **The steps that follow a purge, in one place for the timer and for `npm run purge`.**
  *
- * The offboarded clients are finalised, then the audit log is pruned. The timer
+ * The owners of albums about to be deleted are warned (spec 22), the offboarded clients are
+ * finalised, then the audit log is pruned. The timer
  * (`createRetentionSweeper`) and the command (`scripts/purge.ts`) both call exactly this, so the
  * CLI documented for `RETENTION_SWEEP_INTERVAL_MINUTES=off` cannot do less than the timer. Never
  * rejects: each step catches its own failure.
  */
 export const makeRetentionFollowUp = ({
   finalizeOffboardedClients,
+  sweepPurgeNotices,
   pruneAuditLog,
   logger,
 }: RetentionFollowUpDeps): (() => Promise<void>) => {
+  /**
+   * The warning before a purge: the owners of albums whose deletion is 14, 3 or 1 day away are
+   * written to, once per threshold. Never throws, for the reason `pruneAudit` gives, and it never
+   * changes what the purge it follows did: it runs after it, and an album the purge has just
+   * deleted is no longer listed. A message the relay refused is not an error, the page still shows
+   * the date; the use case has logged it.
+   */
+  const warnOwners = async (): Promise<void> => {
+    try {
+      const report = await sweepPurgeNotices()
+      if (report.noticed.length > 0) {
+        logger.info('retention sweep warned the owners of albums about to be deleted', {
+          albums: report.noticed.length,
+          levels: report.noticed.map(({ eventId, level }) => `${eventId}:${level}`).join(' '),
+          sent: report.sent,
+          unsent: report.unsent,
+        })
+      }
+      if (report.failed.length > 0) {
+        logger.error('purge notices could not examine every album', {
+          failed: report.failed.length,
+          failedIds: report.failed.join(' '),
+        })
+      }
+    } catch (error) {
+      logger.error('purge notices failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
   /**
    * The offboarded clients' half of a sweep. Never throws, for the reason `pruneAudit` gives, and
    * run before it: a finalisation writes audit lines, and those should be in the log the prune reads.
@@ -138,6 +176,7 @@ export const makeRetentionFollowUp = ({
   }
 
   return async () => {
+    await warnOwners()
     // The offboarded clients first, whose audit lines the prune should then see.
     await finalizeClients()
     await pruneAudit()
@@ -148,11 +187,17 @@ export const createRetentionSweeper = ({
   purge,
   pruneAuditLog,
   finalizeOffboardedClients,
+  sweepPurgeNotices,
   logger,
   clock,
   intervalMs,
 }: RetentionSweeperDeps): RetentionSweeper => {
-  const followUp = makeRetentionFollowUp({ finalizeOffboardedClients, pruneAuditLog, logger })
+  const followUp = makeRetentionFollowUp({
+    finalizeOffboardedClients,
+    sweepPurgeNotices,
+    pruneAuditLog,
+    logger,
+  })
 
   /**
    * A sweep is a series of recursive directory removals. Two of them over the same event
@@ -189,8 +234,25 @@ export const createRetentionSweeper = ({
           // The ids, not just the count: this is the only record that these albums
           // existed, and after this line there is nothing left to look them up in.
           purgedIds: report.purged.join(' '),
+          archives: report.purged
+            .map((id) => `${id} archive=${report.archives[id] ?? 'none'}`)
+            .join('; '),
           durationMs,
         })
+        // What the box held for each album when it left (spec 22). An album that went with no
+        // archive sent in full is a warning with its id, the same care as a failure: it is the only
+        // trace that "the album left and nobody had taken it".
+        const unarchived = report.purged.filter(
+          (id) => !leftWithArchive(report.archives[id] ?? 'none'),
+        )
+        if (unarchived.length > 0) {
+          logger.warn('retention sweep purged albums that had no archive sent to their host', {
+            purged: unarchived.length,
+            archives: unarchived
+              .map((id) => `${id} archive=${report.archives[id] ?? 'none'}`)
+              .join('; '),
+          })
+        }
       }
       if (report.failed.length > 0) {
         // An error, not a warning. Photos a host promised to delete are still on disk,

@@ -21,8 +21,8 @@
   },
   /* The operator commands that must run inside the container, and only those.
 
-     `backup`, `restore` and `purge` exist because a Docker install has no other way to
-     back up, verify, restore or purge: the runtime image carries `dist/` and production
+     `backup`, `restore`, `purge` and `export` exist because a Docker install has no other way to
+     back up, verify, restore, copy out or purge: the runtime image carries `dist/` and production
      dependencies, so `scripts/` and `tsx` are not in it and `npm run backup` cannot run
      there. `migrate` is deliberately absent — the server applies pending migrations at
      boot, before it opens the port (`src/main/container.ts`), and a restore brings the
@@ -31,5 +31,5 @@
 
      `files`, not `include`: a name that no longer exists is `error TS6053` rather than
      silence (CLAUDE.md §9 trap 9). */
-  "files": ["scripts/backup.ts", "scripts/restore.ts", "scripts/purge.ts"]
+  "files": ["scripts/backup.ts", "scripts/restore.ts", "scripts/purge.ts", "scripts/export.ts"]
 }

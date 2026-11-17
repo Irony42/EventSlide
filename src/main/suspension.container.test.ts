@@ -434,6 +434,8 @@ describe('a suspended client, through the real composition root', () => {
       body: { title: 'Livre', layout: 'one', showAuthors: true, showCaptions: true },
     },
     { method: 'delete', path: '/api/events/:eventSlug/book', body: {} },
+    // The verified archive (spec 22): a suspension without an offboarding refuses it, like the ZIP.
+    { method: 'post', path: '/api/events/:eventSlug/export', body: {} },
     { method: 'post', path: '/api/events/:eventSlug/highlights/reel', body: {} },
     { method: 'post', path: '/api/events/:eventSlug/share-link', body: {} },
     { method: 'delete', path: '/api/events/:eventSlug/share-link', body: {} },

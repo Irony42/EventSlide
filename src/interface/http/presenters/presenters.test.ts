@@ -262,6 +262,7 @@ describe('toEventDto', () => {
     limits: { quotaBytes: 5_000_000_000, liveWindowEnd: null },
     now: AT,
     readyCount: null,
+    purge: { at: null, notice: null, offboarding: false },
   }
 
   it('gives a host the join code and the link behind the QR code', () => {
@@ -329,6 +330,30 @@ describe('toEventDto', () => {
 
   it('says an event with no mode is revealed, so the console draws no band for it', () => {
     expect(toEventDto(input, context).reveal).toMatchObject({ enabled: false, revealed: true })
+  })
+
+  it('says when the album will be deleted and which warning was last sent, for the host only', () => {
+    const at = new Date('2026-12-12T10:00:00.000Z')
+
+    const dto = toEventDto({ ...input, purge: { at, notice: 3, offboarding: true } }, context)
+
+    expect(dto.purge).toEqual({
+      at: '2026-12-12T10:00:00.000Z',
+      notice: 3,
+      offboarding: true,
+      serverNowMs: AT.getTime(),
+    })
+  })
+
+  it('renders an album that is not on a clock as a null date, not as a missing key', () => {
+    const dto = toEventDto(input, context)
+
+    expect(dto.purge).toEqual({
+      at: null,
+      notice: null,
+      offboarding: false,
+      serverNowMs: AT.getTime(),
+    })
   })
 
   it('serialises timestamps as ISO strings', () => {

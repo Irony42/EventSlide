@@ -103,3 +103,15 @@ export const formatTime = (iso: string | number, locale: Locale): string | null 
 
   return date.toLocaleTimeString(locale, { timeStyle: 'short' })
 }
+
+/**
+ * A calendar day written out, "12 décembre 2026": for a date a host must not misread (the day an
+ * album is deleted), where the short form's `12/12/26` is read as a month in the wrong language.
+ * `null` when the instant cannot be read, like {@link formatDateTime}.
+ */
+export const formatDay = (iso: string, locale: Locale): string | null => {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+
+  return date.toLocaleDateString(locale, { dateStyle: 'long' })
+}

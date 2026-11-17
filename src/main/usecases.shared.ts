@@ -4,6 +4,7 @@ import { makeVerifySecondFactor } from '../application/usecases/auth/verifySecon
 import { makeRecordEngagement } from '../application/usecases/stats/recordEngagement'
 import { makeInvalidateReel } from '../application/usecases/highlights/invalidateReel'
 import { makeInvalidateAlbumBook } from '../application/usecases/book/invalidateAlbumBook'
+import { makeInvalidateAlbumExport } from '../application/usecases/exports/invalidateAlbumExport'
 import { makeCreateClient } from '../application/usecases/clients/createClient'
 import type { Adapters, UseCasePolicy } from './usecases'
 
@@ -79,6 +80,7 @@ export interface SharedHooks {
   readonly issueInvitation: ReturnType<typeof invitationIssuer>
   readonly invalidateReel: ReturnType<typeof makeInvalidateReel>
   readonly invalidateBook: ReturnType<typeof makeInvalidateAlbumBook>
+  readonly invalidateExport: ReturnType<typeof makeInvalidateAlbumExport>
   readonly engagement: ReturnType<typeof makeRecordEngagement>
 }
 
@@ -97,6 +99,11 @@ export interface SharedHooks {
  * photo or change a caption, before the bytes go. `bookInvalidation.guard.test.ts` fails the build
  * when a new path forgets it.
  *
+ * **And for the verified archive the box keeps** (spec 22): awaited, before the bytes go, by every path that
+ * takes a photograph, a clip or a message out of the evening, and by a reopening. A guest who erased
+ * themselves must not survive in a copy the box holds. `exportInvalidation.guard.test.ts` fails the
+ * build when a new path forgets it.
+ *
  * And the after-party counters (spec 05): one writer, shared by the two gallery use cases.
  */
 export const buildSharedHooks = (adapters: Adapters, policy: UseCasePolicy): SharedHooks => ({
@@ -110,6 +117,13 @@ export const buildSharedHooks = (adapters: Adapters, policy: UseCasePolicy): Sha
   invalidateBook: makeInvalidateAlbumBook({
     books: adapters.books,
     bookFiles: adapters.bookFiles,
+    bus: adapters.bus,
+    clock: adapters.clock,
+    logger: adapters.logger,
+  }),
+  invalidateExport: makeInvalidateAlbumExport({
+    exports: adapters.exports,
+    exportFiles: adapters.exportFiles,
     bus: adapters.bus,
     clock: adapters.clock,
     logger: adapters.logger,

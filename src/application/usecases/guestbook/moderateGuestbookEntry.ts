@@ -11,6 +11,8 @@ import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
+import { isInAlbum } from '../../../domain/photos/photoStatus'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
 
@@ -39,6 +41,11 @@ export interface ModerateGuestbookEntryDeps {
   readonly memberships: MembershipRepository
   readonly bus: EventBus
   readonly clock: Clock
+  /**
+   * Retires the verified archive the box may hold (spec 22) when a message leaves the album, awaited and before anything
+   * goes: an archive must never still hold what was removed.
+   */
+  readonly invalidateExport?: InvalidateExport
 }
 
 export interface ModeratedGuestbookEntry {
@@ -57,6 +64,7 @@ export const makeModerateGuestbookEntry =
     memberships,
     bus,
     clock,
+    invalidateExport,
   }: ModerateGuestbookEntryDeps): ModerateGuestbookEntry =>
   async ({ eventId, entryId, decision, actor }) => {
     const event = await events.findById(eventId)
@@ -83,6 +91,9 @@ export const makeModerateGuestbookEntry =
     const moved = entry.transitionTo(targetStatusFor(decision), reviewer, clock.now())
     if (!moved.ok) return moved
 
+    if (isInAlbum(entry.status) && !isInAlbum(moved.value.status)) {
+      await invalidateExport?.(eventId, 'guestbookChanged')
+    }
     await guestbook.save(moved.value)
     bus.publish({ type: 'guestbook.changed', eventId })
 

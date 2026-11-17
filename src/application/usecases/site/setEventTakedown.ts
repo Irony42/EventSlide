@@ -6,6 +6,7 @@ import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { recordOperatorAct, type OperatorActInput } from './operatorAct'
 
 /**
@@ -31,12 +32,17 @@ export interface SetEventTakedownDeps {
   readonly audit: AuditRecorder
   readonly bus: Pick<EventBus, 'publish'>
   readonly clock: Clock
+  /**
+   * Retires the verified archive the box may hold (spec 22) when an event is taken down, awaited and before anything
+   * goes: an archive must never still hold what was removed.
+   */
+  readonly invalidateExport?: InvalidateExport
 }
 
 export type SetEventTakedown = (input: SetEventTakedownInput) => Promise<Result<void, DomainError>>
 
 export const makeSetEventTakedown =
-  ({ events, audit, bus, clock }: SetEventTakedownDeps): SetEventTakedown =>
+  ({ events, audit, bus, clock, invalidateExport }: SetEventTakedownDeps): SetEventTakedown =>
   async ({ eventId, down, reason, actor }) => {
     const why = parseAuditReason(reason)
     if (!why.ok) return why
@@ -55,6 +61,8 @@ export const makeSetEventTakedown =
     })
     if (!recorded.ok) return recorded
 
+    // The event stops being served at once, and so does the copy of its album the box keeps.
+    if (down) await invalidateExport?.(event.id, 'takenDown')
     await events.setTakenDown(event.id, down ? at : null)
     // Neutral, like the photograph's: the stream forwards the type to everyone who listens.
     bus.publish({ type: 'event.settingsChanged', eventId: event.id })

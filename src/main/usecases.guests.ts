@@ -14,7 +14,7 @@ import { type SharedHooks } from './usecases.shared'
 export const guestsUseCases = (
   adapters: Adapters,
   policy: UseCasePolicy,
-  { invalidateReel, invalidateBook }: SharedHooks,
+  { invalidateReel, invalidateBook, invalidateExport }: SharedHooks,
 ) => ({
   // guests
   joinEvent: makeJoinEvent({
@@ -38,6 +38,7 @@ export const guestsUseCases = (
   eraseGuestContribution: makeEraseGuestContribution({
     invalidateReel,
     invalidateBook,
+    invalidateExport,
     events: adapters.events,
     guests: adapters.guests,
     photos: adapters.photos,
