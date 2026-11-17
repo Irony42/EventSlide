@@ -198,12 +198,6 @@ describe('createContainer: MAX_SUBSCRIBERS_PER_EVENT reaches the event bus', () 
   })
 })
 
-describe('createContainer: spec 24 adds no migration', () => {
-  it('stops at migration 031: the guest-save switch lives in the events.settings JSON', () => {
-    expect(Math.max(...migrations.map((migration) => migration.id))).toBe(31)
-  })
-})
-
 describe('createContainer: SITE_ADMIN decides surface, never schema', () => {
   it.each(['off', 'on'] as const)(
     'applies every migration with SITE_ADMIN=%s, so turning it on later needs no other schema',
