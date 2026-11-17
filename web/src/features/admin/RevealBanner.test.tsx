@@ -90,14 +90,27 @@ describe('RevealBanner (spec 23b)', () => {
     expect(banner()).not.toHaveAttribute('role', 'status')
   })
 
-  it('opens the one confirmation of the section, and calls the one reveal, from either button', async () => {
-    const api = fakeApi({ revealEvent: vi.fn(async () => held({ revealed: true })) })
-    renderReveal(held(), { api, banner: true })
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+  it.each(['the banner', 'the section'] as const)(
+    'opens the one shared confirmation from %s, and calls the one reveal once confirmed',
+    async (from) => {
+      const api = fakeApi({ revealEvent: vi.fn(async () => held({ revealed: true })) })
+      renderReveal(held(), { api, banner: true })
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      const buttons = screen.getAllByRole('button', { name: fr.reveal.revealNow })
+      const inBanner = buttons.filter((b) => banner().contains(b))
+      const inSection = buttons.filter((b) => !banner().contains(b))
+      expect(inBanner).toHaveLength(1)
+      expect(inSection).toHaveLength(1)
 
-    await user.click(within(banner()).getByRole('button', { name: fr.reveal.revealNow }))
-    expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    expect(screen.getByRole('dialog')).toHaveTextContent(fr.reveal.confirmTitle)
-    expect(api.revealEvent).not.toHaveBeenCalled()
-  })
+      await user.click((from === 'the banner' ? inBanner : inSection)[0]!)
+      expect(screen.getAllByRole('dialog')).toHaveLength(1)
+      expect(screen.getByRole('dialog')).toHaveTextContent(fr.reveal.confirmTitle)
+      expect(api.revealEvent).not.toHaveBeenCalled()
+
+      await user.click(
+        within(screen.getByRole('dialog')).getByRole('button', { name: fr.reveal.revealNow }),
+      )
+      await vi.waitFor(() => expect(api.revealEvent).toHaveBeenCalledTimes(1))
+    },
+  )
 })

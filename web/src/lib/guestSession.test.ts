@@ -703,9 +703,13 @@ describe('guestSession, the disposable-camera clauses of the notice (spec 23b)',
     expect(stored).not.toHaveProperty('film')
   })
 
-  it('refuses a stored notice whose cap is not a count, so it is read again from the server', () => {
-    expect(roundTrip(aPrivacyNotice({ reveal: true, shotLimit: 0 }))).toBeUndefined()
-  })
+  it.each([0, -1, 2.5, '5', null])(
+    'refuses a stored notice whose cap (%j) is not a count, so it is read again from the server',
+    (shotLimit) => {
+      const notice = aPrivacyNotice({ reveal: true, shotLimit: 5 })
+      expect(roundTrip({ ...notice, shotLimit } as never)).toBeUndefined()
+    },
+  )
 })
 
 describe('leaving an event on a lent phone (QUAL-06)', () => {
