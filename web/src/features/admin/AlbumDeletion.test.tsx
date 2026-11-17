@@ -191,6 +191,31 @@ describe('the deletion band: the server’s clock, not the machine’s', () => {
   })
 })
 
+describe('the deletion band: when the host closes the evening', () => {
+  it('appears at once from the server’s answer, not a minute later', async () => {
+    const live = anEventDto({ purge: { at: null, notice: null, serverNowMs: SERVER_NOW } })
+    // Ten seconds later, on the server's clock, the host closes: the date is exactly thirty days on.
+    const closedAtMs = SERVER_NOW + 10_000
+    const closed = closedEvent(new Date(closedAtMs + 30 * DAY).toISOString(), {
+      purge: {
+        at: new Date(closedAtMs + 30 * DAY).toISOString(),
+        notice: null,
+        serverNowMs: closedAtMs,
+      },
+    })
+    const api = apiWith(live, null, { setEventStatus: vi.fn(async () => closed) })
+    renderPage(api)
+    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+    await userEvent.click(screen.getByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(await screen.findByRole('heading', { name: fr.exportPurge.title })).toBeVisible()
+  })
+})
+
 describe('the deletion band: it never speaks of a hold', () => {
   const STATES: readonly [string, AlbumExportDto | null, number][] = [
     ['no archive', null, 10],

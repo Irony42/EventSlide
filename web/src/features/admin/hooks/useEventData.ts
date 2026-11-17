@@ -47,7 +47,22 @@ export const useEvent = (slug: string): LoaderState<EventDto> & { readonly offse
     },
     [api, slug],
   )
-  return { ...useLoader(load), offsetMs }
+  const loader = useLoader(load)
+  const { replace: store } = loader
+  // What a host's own action returns (closing the evening, a new date) is the whole event, with a
+  // fresh server clock: the offset is measured again from it, or the new date is counted against a
+  // reading taken before the action and the band appears up to a minute late.
+  const replace = useCallback(
+    (event: EventDto) => {
+      if (event.purge !== undefined) {
+        const now = Date.now()
+        setOffsetMs(serverOffsetMs(event.purge.serverNowMs, now, now))
+      }
+      store(event)
+    },
+    [store],
+  )
+  return { ...loader, replace, offsetMs }
 }
 
 export const useGuests = (slug: string): LoaderState<GuestListResponse> => {
