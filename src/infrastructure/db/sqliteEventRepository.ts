@@ -11,7 +11,10 @@ import { ContentHash } from '../../domain/photos/contentHash'
 import { Event } from '../../domain/events/event'
 import { EventName, foldName } from '../../domain/events/eventName'
 import { restoreWallSettings } from '../../domain/events/eventWallSettings'
-import { restoreRevealSettings, type EventRevealSettings } from '../../domain/events/eventRevealSettings'
+import {
+  restoreRevealSettings,
+  type EventRevealSettings,
+} from '../../domain/events/eventRevealSettings'
 import { restoreWelcomeMessage } from '../../domain/events/welcomeMessage'
 import {
   EventSettings,

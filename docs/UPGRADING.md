@@ -997,6 +997,26 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 
 ## Upgrading to 3.14 (not released yet)
 
+### The reveal gate of the disposable-camera mode (spec 23, server)
+
+- **No migration.** The mode lives in the event's settings JSON (`reveal`); an event written before it has no such key and
+  is read as **off**, which is a read and not a rewrite. The mode is **off on every existing event**: nothing changes on
+  a wall, a phone or a gallery until a host switches it on (there is no interface for that yet: the section of settings
+  and the console banner come with the next pull requests, the API takes it today, see `docs/API.md`).
+- **Nothing to set in `.env`.** No operator switch exists for it (`NEW_CLIENT_*` ceilings do not carry it) and
+  `SITE_ADMIN` makes no difference.
+- **An older web bundle** does not know the `reveal` blocks. On an evening whose host has turned the mode on, it would show
+  the wall and the guests' feed **empty without saying why** until the reveal, and a guest's own photographs as ordinary
+  ones. That is the price of upgrading the server during such an evening: reload the screens after the upgrade, or
+  upgrade before the evening (the same advice as for any version).
+- **What a public screen can no longer read before the hour**: the wall and the guests' feed (empty, with how many
+  photographs wait), the podium, the reactions, the shared gallery (the link opens with an empty grid, no new error) and
+  the bytes of somebody else's photograph. A host's ZIP, the moderation console, the best-of and the photo book are not
+  public readers and are untouched.
+- **The privacy notice** gains three clauses, present only when the mode is on (that the photographs are held back, how many
+  poses, the film look): an event without the mode keeps its notice, its revision and the acknowledgements of its guests.
+- `POST /api/events/:slug/reveal` is new, and `PATCH /settings` takes an optional `reveal` group.
+
 ### Scheduled announcements on the wall (spec 21)
 
 - **One migration (029)**: a new table, `event_announcements`, with its index. Nothing existing is rewritten. Back up
