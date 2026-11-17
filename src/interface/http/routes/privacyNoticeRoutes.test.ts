@@ -111,9 +111,32 @@ describe('GET /api/events/:slug/privacy-notice', () => {
         retentionDays: 30,
         selfRemovalSeconds: 900,
         guestbook: true,
+        guestSave: true,
       },
       acknowledgement: 'none',
     })
+  })
+
+  it('names the save clause only when the host allows it, in the DTO and in the revision alike', async () => {
+    harness.events.seed(
+      anEvent({
+        id: 'no-save-event',
+        slug: 'sans-copie',
+        joinCode: 'P4Q8RT',
+        settings: { allowGuestSave: false },
+      }),
+    )
+    harness.guests.seed(aGuest({ id: 'guest-sans', eventId: 'no-save-event' }))
+
+    const off = await request(harness.app)
+      .get('/api/events/sans-copie/privacy-notice')
+      .set('Cookie', cookie(harness.issueGuestToken('no-save-event', 'guest-sans')))
+    const on = await request(harness.app).get(NOTICE).set('Cookie', lea())
+
+    expect(off.body.notice).not.toHaveProperty('guestSave')
+    expect(off.body.notice.revision).not.toContain('guestSave')
+    expect(on.body.notice.guestSave).toBe(true)
+    expect(on.body.notice.revision).toContain('guestSave=on')
   })
 
   it('answers the retention the box applies when the event’s client caps it, not the host’s “for ever”', async () => {

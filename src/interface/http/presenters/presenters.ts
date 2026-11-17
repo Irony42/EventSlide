@@ -443,6 +443,8 @@ export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => (
   ...(notice.operator === null ? {} : { operator: notice.operator }),
   // Present only when true, like the operator: a box without a guestbook answers what it always did.
   ...(notice.guestbook ? { guestbook: true as const } : {}),
+  // Present only when true, for the same reason: an event whose switch is off answers what it always did.
+  ...(notice.guestSave ? { guestSave: true as const } : {}),
 })
 
 export const toPrivacyNoticeStateDto = ({

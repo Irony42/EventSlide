@@ -17,9 +17,12 @@ import {
  */
 
 /** Setup only: a patch the domain refuses is a broken test, not a rule. */
-/** The guestbook defaults to off here: new events open it, and these cases are about the older clauses. */
+/**
+ * The guestbook and the guests' save switch default to off here: new events open both, and these
+ * cases are about the older clauses, whose revisions must read as they always did.
+ */
 const settings = (patch: EventSettingsPatch = {}): NoticePolicy => {
-  const built = EventSettings.create({ allowGuestbook: false, ...patch })
+  const built = EventSettings.create({ allowGuestbook: false, allowGuestSave: false, ...patch })
   if (!built.ok) throw new Error(`test setup: ${built.error.code}`)
   return built.value
 }
@@ -284,7 +287,13 @@ describe('privacyNoticeFor — who hosts it (roadmap G2-17)', () => {
     // operator did nothing wrong. 512 is repeated here on purpose: the schema is in another
     // layer, and this is the number the two layers have to agree on.
     const longest = privacyNoticeFor(
-      settings({ moderation: 'manual', retentionDays: 3650, guestSelfDeleteGraceSeconds: 86_400 }),
+      settings({
+        moderation: 'manual',
+        retentionDays: 3650,
+        guestSelfDeleteGraceSeconds: 86_400,
+        allowGuestbook: true,
+        allowGuestSave: true,
+      }),
       'N'.repeat(OPERATOR_NAME_MAX_LENGTH),
     )
 
@@ -310,5 +319,89 @@ describe('privacyNoticeFor — the guestbook (spec 01)', () => {
   it('keeps the operator as the last clause', () => {
     const notice = privacyNoticeFor(settings({ allowGuestbook: true }), 'Association X')
     expect(notice.revision.endsWith(';operator=Association X')).toBe(true)
+  })
+})
+
+describe('privacyNoticeFor — the guests save switch (spec 24)', () => {
+  it('follows the setting: the notice says guests may save a photo exactly when the host allows it', () => {
+    expect(privacyNoticeFor(settings({ allowGuestSave: true })).guestSave).toBe(true)
+    expect(privacyNoticeFor(settings({ allowGuestSave: false })).guestSave).toBe(false)
+  })
+
+  it('reads character for character as before the clause existed when the switch is off', () => {
+    // The golden values of the configurations an event that predates spec 24 has: that event reads
+    // the switch as off, so nobody who read its notice is asked to read it again.
+    expect(
+      privacyNoticeFor(
+        settings({ moderation: 'manual', retentionDays: 30, guestSelfDeleteGraceSeconds: 900 }),
+      ).revision,
+    ).toBe(
+      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900;selfErase=phone',
+    )
+    expect(
+      privacyNoticeFor(
+        settings({
+          moderation: 'auto',
+          retentionDays: 90,
+          guestSelfDeleteGraceSeconds: 600,
+          allowGuestbook: true,
+        }),
+        'Atelier Camille',
+      ).revision,
+    ).toBe(
+      'publication=immediate;audiences=wall+guestFeed+organisers+sharedGallery;retention=90;selfRemoval=none;selfErase=phone;guestbook=on;operator=Atelier Camille',
+    )
+  })
+
+  it('adds exactly guestSave=on when the switch is on, after the guestbook and before the operator', () => {
+    const off = privacyNoticeFor(settings({ allowGuestbook: true }), 'Atelier Camille')
+    const on = privacyNoticeFor(
+      settings({ allowGuestbook: true, allowGuestSave: true }),
+      'Atelier Camille',
+    )
+
+    expect(on.revision).toBe(off.revision.replace(';operator=', ';guestSave=on;operator='))
+    expect(on.revision).toContain('guestbook=on;guestSave=on;operator=Atelier Camille')
+  })
+
+  it('keeps the operator as the last clause with the switch on', () => {
+    const notice = privacyNoticeFor(settings({ allowGuestSave: true }), 'Association X')
+
+    expect(notice.revision.endsWith(';operator=Association X')).toBe(true)
+  })
+
+  it('changes the revision whichever way the switch moves, so a guest reads the other notice once', () => {
+    const off = privacyNoticeFor(settings({ allowGuestSave: false }))
+    const on = privacyNoticeFor(settings({ allowGuestSave: true }))
+
+    expect(on.revision).not.toBe(off.revision)
+    expect(on.revision).toBe(`${off.revision};guestSave=on`)
+  })
+
+  it('says both things together on an event where nobody may take a photo back one by one', () => {
+    // The disposable-camera tension (spec 24, section 8): self-removal off, saving on. The notice
+    // must not claim one and hide the other.
+    const notice = privacyNoticeFor(settings({ allowGuestSelfDelete: false, allowGuestSave: true }))
+
+    expect(notice.selfRemovalSeconds).toBeNull()
+    expect(notice.guestSave).toBe(true)
+  })
+
+  it.each([
+    [true, true],
+    [true, false],
+    [false, true],
+    [false, false],
+  ])('keeps the clause when selfDelete=%s and moderation manual=%s', (selfDelete, manual) => {
+    const notice = privacyNoticeFor(
+      settings({
+        allowGuestSelfDelete: selfDelete,
+        moderation: manual ? 'manual' : 'auto',
+        allowGuestSave: true,
+      }),
+    )
+
+    expect(notice.guestSave).toBe(true)
+    expect(notice.revision).toContain('guestSave=on')
   })
 })
