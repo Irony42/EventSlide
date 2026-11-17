@@ -1001,8 +1001,8 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 
 - **No migration.** The mode lives in the event's settings JSON (`reveal`); an event written before it has no such key and
   is read as **off**, which is a read and not a rewrite. The mode is **off on every existing event**: nothing changes on
-  a wall, a phone or a gallery until a host switches it on (there is no interface for that yet: the section of settings
-  and the console banner come with the next pull requests, the API takes it today, see `docs/API.md`).
+  a wall, a phone or a gallery until a host switches it on (the "Appareil jetable" section of the event's settings, the
+  console banner and the template; the API takes it too, see `docs/API.md`).
 - **Nothing to set in `.env`.** No operator switch exists for it (`NEW_CLIENT_*` ceilings do not carry it) and
   `SITE_ADMIN` makes no difference.
 - **An older web bundle** does not know the `reveal` blocks. On an evening whose host has turned the mode on, it would show
@@ -1016,6 +1016,11 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 - **The privacy notice** gains three clauses, present only when the mode is on (that the photographs are held back, how many
   poses, the film look): an event without the mode keeps its notice, its revision and the acknowledgements of its guests.
 - `POST /api/events/:slug/reveal` is new, and `PATCH /settings` takes an optional `reveal` group.
+- **The film look is a filter on the display only.** No byte changes: originals, the `display` and `thumb` variants, the ZIPs and
+  every download are exactly what they were, and the shared gallery says so. An older web bundle simply shows the photographs
+  as they are. On the wall the look is one CSS filter function, and only the spotlight pays for it (its zoom animates the
+  filtered image): measured at 46 against 27 frames a second on a software-rendered machine, with the wall's own budget as
+  the net (it gives up the zoom first). `tests/e2e/perf/film-look.spec.ts` is that measurement.
 
 ### Scheduled announcements on the wall (spec 21)
 

@@ -46,6 +46,15 @@ And the parts that only show up on the night:
   selfie with the couple", "the worst dance move", "someone crying" — and guests see them
   as a checklist. It changes the question in their head from "should I bother uploading
   this" to "which one is left".
+- **A disposable camera, if you want one.** Turn on "Appareil jetable" (or start from its template) and the
+  guests photograph without seeing the result: the pictures stay hidden from the other guests and from the room until
+  an hour you choose, or until you press "Révéler maintenant". You still see everything as it arrives, so you can
+  remove a picture before anyone else has. Each guest has a number of poses, shown on their phone (27 in the template),
+  their own photographs wait in black and white until the reveal, and the waiting wall says the hour and how many
+  pictures are being developed. The screens can wear a film look (sepia, a little contrast). It is a filter on the
+  display only: your originals, the ZIP and every download stay exactly as the guests sent them, and the shared gallery
+  says so. On a projector that cannot afford it, the wall gives up the slow zoom before anything else; the look itself
+  costs nothing once the zoom is off.
 - **Short video clips too**, not only photographs. Fifteen seconds, transcoded on the
   box, played on the wall without sound — because a room already has music.
 - **Moderate from your phone.** One photograph at a time, swipe right to publish, left
