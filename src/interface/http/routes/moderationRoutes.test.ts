@@ -190,6 +190,7 @@ const usecasesFor = (
     }),
     setPhotoCaption: notWired,
     getPhotoMedia: notWired,
+    saveGuestPhoto: notWired,
     uploadClip: notWired,
     getClipJob: notWired,
     exportAlbum: notWired,

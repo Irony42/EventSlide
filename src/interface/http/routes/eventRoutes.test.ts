@@ -349,6 +349,7 @@ const buildWorld = ({
         deletePhoto: absent('deletePhoto'),
         setPhotoCaption: absent('setPhotoCaption'),
         getPhotoMedia: absent('getPhotoMedia'),
+        saveGuestPhoto: absent('saveGuestPhoto'),
         uploadClip: absent('uploadClip'),
         getClipJob: absent('getClipJob'),
         exportAlbum: absent('exportAlbum'),

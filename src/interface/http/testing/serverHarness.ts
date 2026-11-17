@@ -133,6 +133,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
   deletePhoto: notWired('deletePhoto'),
   setPhotoCaption: notWired('setPhotoCaption'),
   getPhotoMedia: notWired('getPhotoMedia'),
+  saveGuestPhoto: notWired('saveGuestPhoto'),
   identifyMediaViewer: notWired('identifyMediaViewer'),
 
   uploadClip: notWired('uploadClip'),
