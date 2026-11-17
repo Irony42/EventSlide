@@ -37,6 +37,7 @@ import { makeFinalizeOffboardedClients } from '../src/application/usecases/clien
 import { makePurgeExpiredEvents } from '../src/application/usecases/events/purgeExpiredEvents'
 import { makeSweepPurgeNotices } from '../src/application/usecases/events/sweepPurgeNotices'
 import { leftWithArchive } from '../src/domain/clients/archiveState'
+import { archiveStateOf } from '../src/domain/exports/albumExport'
 import type { PurgeExpiredEventsReport } from '../src/application/usecases/events/purgeExpiredEvents'
 import { makeSweepOrphanedMedia } from '../src/application/usecases/media/sweepOrphanedMedia'
 import type { LogContext, Logger } from '../src/application/ports/logger'
@@ -44,6 +45,7 @@ import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { closeDatabase, openDatabase } from '../src/infrastructure/db/connection'
 import { SqliteAccountHoldings } from '../src/infrastructure/db/sqliteAccountHoldings'
 import { SqliteAuditLog } from '../src/infrastructure/db/sqliteAuditLog'
+import { SqliteAlbumExportRepository } from '../src/infrastructure/db/sqliteAlbumExportRepository'
 import { SqliteClientRepository } from '../src/infrastructure/db/sqliteClientRepository'
 import { SqliteClipJobRepository } from '../src/infrastructure/db/sqliteClipJobRepository'
 import { SqliteReelRepository } from '../src/infrastructure/db/sqliteReelRepository'
@@ -61,7 +63,7 @@ import { isTooDangerousToSweep, MEDIA_SWEEP_MIN_AGE_MS } from '../src/main/media
 import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
 
 /** The sweep wants a `Logger`; on a terminal that is the console. */
-const consoleLogger: Logger = {
+export const consoleLogger: Logger = {
   debug: () => {},
   info: (message: string, context?: LogContext) => console.log(`  ${message}`, context ?? ''),
   warn: (message: string, context?: LogContext) => console.warn(`  ${message}`, context ?? ''),
@@ -257,6 +259,19 @@ const execute = async (
       return failed ? 1 : 0
     }
 
+    // What the box holds for each album (spec 22): the one word the purge will log as `archive=…`, read
+    // here so that the operator sees which albums would go without an archive sent to the host. A
+    // database the server has not migrated yet has no archive table, so nothing was ever prepared.
+    const archives = new SqliteAlbumExportRepository(db)
+    const archiveOf = async (event: (typeof due)[number]): Promise<string> => {
+      try {
+        return archiveStateOf(await archives.find(event.id))
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('no such table')) return 'none'
+        throw error
+      }
+    }
+
     console.log(`Due for purge (${due.length}):`)
     for (const event of due) {
       // `closedAt` is never null for an event this query returns — it is what starts the
@@ -265,7 +280,7 @@ const execute = async (
       const closedAt = event.closedAt === null ? 'never closed' : event.closedAt.toISOString()
       const retentionDays = event.settings.retentionDays
       console.log(
-        `  ${event.id}  ${event.slug.value.padEnd(24)}  closed ${closedAt}  retention ${retentionDays === null ? 'none of its own (its client’s terms apply)' : `${retentionDays}d`}`,
+        `  ${event.id}  ${event.slug.value.padEnd(24)}  closed ${closedAt}  retention ${retentionDays === null ? 'none of its own (its client’s terms apply)' : `${retentionDays}d`}  archive=${await archiveOf(event)}`,
       )
     }
     console.log('')

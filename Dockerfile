@@ -110,7 +110,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=production-deps /app/node_modules ./node_modules
-# `dist/` includes `dist/ops/`: backup, restore and purge compiled to plain JavaScript by
+# `dist/` includes `dist/ops/`: backup, restore, purge and export compiled to plain JavaScript by
 # tsconfig.ops.json. They are the only way to run those commands in this image, because
 # `scripts/` is not copied here and `tsx` is a devDependency the prune above removed.
 COPY --from=build /app/dist ./dist
