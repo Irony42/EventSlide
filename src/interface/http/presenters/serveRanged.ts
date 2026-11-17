@@ -26,12 +26,14 @@ export const streamOrAbandon = async (
   logger: Logger,
   message: string,
   chunks: AsyncIterable<Uint8Array>,
-): Promise<void> => {
+): Promise<'finished' | 'abandoned'> => {
   try {
     await pipeline(Readable.from(chunks), res)
+    return 'finished'
   } catch (error) {
     logger.error(message, { error: error instanceof Error ? error.message : String(error) })
     res.destroy()
+    return 'abandoned'
   }
 }
 
@@ -54,6 +56,19 @@ export interface RangedHeaders {
   /** The log line when the stream breaks after the status line has gone. */
   readonly failureMessage: string
 }
+
+/**
+ * What {@link serveRanged} did, for the route that must know whether a download reached its end
+ * (spec 22: the box notes an archive as sent only when a `200` carried **every byte** to the
+ * socket):
+ *
+ * - `whole`: a `200` whose body was written to the end, `finish` without an abort;
+ * - `partial`: a `206` whose part was written to the end;
+ * - `abandoned`: the stream broke or the client left after the status line had gone;
+ * - `notModified`, `unsatisfiable`, `missing`: nothing of the representation was written.
+ */
+export type RangedOutcome =
+  'whole' | 'partial' | 'abandoned' | 'notModified' | 'unsatisfiable' | 'missing'
 
 /**
  * One place that decides `304`, `206`, `416` and when a descriptor is opened, for every route
@@ -79,7 +94,7 @@ export const serveRanged = async (
   res: Response,
   source: RangedSource,
   headers: RangedHeaders,
-): Promise<void> => {
+): Promise<RangedOutcome> => {
   const verdict = parseByteRange(req.get('range'), source.byteSize)
 
   if (verdict.kind === 'unsatisfiable') {
@@ -92,7 +107,7 @@ export const serveRanged = async (
       res.setHeader('Cache-Control', headers.refusalCacheControl)
     }
     res.status(416).json(errorBody(DomainError.invalid('photo.rangeNotSatisfiable')))
-    return
+    return 'unsatisfiable'
   }
   const range = verdict.kind === 'partial' ? verdict.range : null
 
@@ -111,7 +126,7 @@ export const serveRanged = async (
     // No body, and deliberately no `Content-Length`: a 304 that declares a length is a
     // response some proxies wait on.
     res.status(304).end()
-    return
+    return 'notModified'
   }
 
   // The one open, for the bytes this response is now committed to writing. `null` is not the
@@ -124,7 +139,7 @@ export const serveRanged = async (
     res.removeHeader('Cache-Control')
     res.removeHeader('Content-Disposition')
     sendError(res, DomainError.notFound('photo.mediaMissing'))
-    return
+    return 'missing'
   }
 
   res.setHeader('Content-Type', headers.contentType)
@@ -140,5 +155,7 @@ export const serveRanged = async (
     res.setHeader('Content-Length', String(range.end - range.start + 1))
   }
 
-  await streamOrAbandon(res, req.context.logger, headers.failureMessage, bytes)
+  const written = await streamOrAbandon(res, req.context.logger, headers.failureMessage, bytes)
+  if (written === 'abandoned') return 'abandoned'
+  return range === null ? 'whole' : 'partial'
 }

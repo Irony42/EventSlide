@@ -7,6 +7,7 @@ import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository
 import { makePurgeEvent, type PurgeEvent } from './purgeEvent'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { FakeBookFileStore } from '../../testing/fakeBookFileStore'
+import { FakeExportFileStore } from '../../testing/fakeExportFileStore'
 import { bytesHeld } from '../../testing/bytesHeld'
 
 const WEDDING = asEventId('evt-wedding')
@@ -112,6 +113,36 @@ describe('purgeEvent', () => {
     }
 
     const result = await makePurgeEvent({ events, memberships, media, bookFiles })({
+      eventId: WEDDING,
+      actorId: OWNER,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(await bytesHeld(media, WEDDING)).toBe(0)
+  })
+
+  // ------------------------------------------------ the verified archive (spec 22) --
+
+  it('deletes the archive file of the purged event, and only that one', async () => {
+    const exportFiles = new FakeExportFileStore()
+    exportFiles.seed(WEDDING, Uint8Array.of(1, 2))
+    exportFiles.seed(GALA, Uint8Array.of(1, 2))
+
+    await makePurgeEvent({ events, memberships, media, exportFiles })({
+      eventId: WEDDING,
+      actorId: OWNER,
+    })
+
+    expect(await exportFiles.list()).toEqual([GALA])
+  })
+
+  it('still answers for the photographs when the archive file could not be deleted', async () => {
+    const exportFiles = new FakeExportFileStore()
+    exportFiles.delete = async () => {
+      throw new Error('disk gone')
+    }
+
+    const result = await makePurgeEvent({ events, memberships, media, exportFiles })({
       eventId: WEDDING,
       actorId: OWNER,
     })

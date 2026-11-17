@@ -383,6 +383,102 @@ describe('createContainer: migration 030 on a database at 029', () => {
 })
 
 /**
+ * Migration 031 (spec 22) on a database that is at 030 and already holds a closed album, in both
+ * modes of `SITE_ADMIN`: the tables appear empty, the event is untouched, the schema's own guards
+ * answer (a status outside the five, a code that is not one, a request for an event that is not
+ * there), and both rows go with their event, which is how the purge reaches them.
+ */
+describe('createContainer: migration 031 on a database at 030', () => {
+  const SLUG = 'mariage-existant'
+  const EVENT_ID = 'evt-existing'
+
+  it.each(['off', 'on'] as const)(
+    'adds event_exports and event_export_requests to a populated 030 database with SITE_ADMIN=%s, and keeps what was there',
+    async (mode) => {
+      workDir = await mkdtemp(join(tmpdir(), 'eventslide-container-'))
+      const databasePath = join(workDir, 'eventslide.sqlite')
+      const old = openDatabase({ path: databasePath })
+      migrate(
+        old,
+        migrations.filter((migration) => migration.id < 31),
+      )
+      old
+        .prepare(
+          `INSERT INTO users (id, email, password_hash, created_at)
+                VALUES ('u-host', 'hote@example.test', 'hash:x', '2026-06-20T11:00:00.000Z')`,
+        )
+        .run()
+      const closedAt = new Date(Date.now() - 24 * 3_600_000)
+      await new SqliteEventRepository(old).save(
+        anEvent({
+          id: EVENT_ID,
+          ownerId: 'u-host',
+          slug: SLUG,
+          joinCode: 'H7K2QM',
+          status: 'closed',
+          closedAt,
+          settings: { retentionDays: 30 },
+        }),
+      )
+      expect(
+        old
+          .prepare<[], { readonly name: string }>(
+            `SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'event_export%'`,
+          )
+          .all(),
+      ).toEqual([])
+      closeDatabase(old)
+
+      container = await createContainer(
+        loadConfig({
+          NODE_ENV: 'test',
+          LOG_LEVEL: 'fatal',
+          DATABASE_PATH: databasePath,
+          MEDIA_ROOT: join(workDir, 'media'),
+          FFMPEG_PATH: join(workDir, 'no-ffmpeg-here'),
+          FFPROBE_PATH: join(workDir, 'no-ffprobe-here'),
+          SITE_ADMIN: mode,
+        }),
+      )
+      const { db } = container
+
+      expect(status(db, migrations).applied.map((row) => row.id)).toContain(31)
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_exports').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_export_requests').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT slug FROM events').all()).toEqual([{ slug: SLUG }])
+
+      const at = closedAt.toISOString()
+      const insert = db.prepare(
+        'INSERT INTO event_exports (event_id, status, requested_at) VALUES (?, ?, ?)',
+      )
+      expect(() => insert.run(EVENT_ID, 'finished', at)).toThrow(/CHECK constraint failed/)
+      expect(() => insert.run('evt-nobody', 'queued', at)).toThrow(/FOREIGN KEY/)
+      insert.run(EVENT_ID, 'queued', at)
+      expect(() =>
+        db
+          .prepare('UPDATE event_exports SET failure = ? WHERE event_id = ?')
+          .run('a sentence', EVENT_ID),
+      ).toThrow(/CHECK constraint failed/)
+      db.prepare('INSERT INTO event_export_requests (event_id, requested_at) VALUES (?, ?)').run(
+        EVENT_ID,
+        at,
+      )
+
+      // The worker is on and nothing is queued by itself: a box that upgrades prepares no archive
+      // for an album nobody asked about.
+      db.prepare('DELETE FROM event_exports').run()
+      expect(await container.albumExportWorker?.runOnce()).toMatchObject({ status: 'completed' })
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_exports').get()).toEqual({ n: 0 })
+
+      insert.run(EVENT_ID, 'queued', at)
+      db.prepare('DELETE FROM events WHERE id = ?').run(EVENT_ID)
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_exports').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT COUNT(*) AS n FROM event_export_requests').get()).toEqual({ n: 0 })
+    },
+  )
+})
+
+/**
  * The same gap, for the source offer (roadmap G1-04 / P1-05).
  *
  * `env.test.ts` proves `SOURCE_CODE_URL` and `SOURCE_REF` parse and `aboutRoutes.test.ts`

@@ -104,6 +104,25 @@ export type AlbumBookDto =
       readonly failureCode: string | null
       readonly staleReason: string | null
     }
+/**
+ * The event's verified archive (spec 22): numbers, instants, the digest of the whole ZIP and closed
+ * codes, with the domain's own verdict on whether the album may be deleted without typing the word.
+ * Transcribed from `AlbumExportDto` on the server, which the web app cannot import.
+ */
+export interface AlbumExportDto {
+  readonly status: 'queued' | 'running' | 'sealed' | 'stale' | 'failed'
+  readonly requestedAt: string
+  readonly sealedAt: string | null
+  readonly expiresAt: string | null
+  readonly entries: number | null
+  readonly skipped: number | null
+  readonly bytes: number | null
+  readonly sha256: string | null
+  readonly servedAt: string | null
+  readonly staleReason: string | null
+  readonly failure: string | null
+  readonly canDeleteWithoutConfirmation: boolean
+}
 /** The best-of panel's read: how many favourites can be exported (spec 08). */
 export interface HighlightsDto {
   readonly count: number

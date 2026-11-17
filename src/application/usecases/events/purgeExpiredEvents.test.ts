@@ -10,6 +10,7 @@ import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { makePurgeExpiredEvents, type PurgeExpiredEvents } from './purgeExpiredEvents'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { FakeBookFileStore } from '../../testing/fakeBookFileStore'
+import { FakeExportFileStore } from '../../testing/fakeExportFileStore'
 import { bytesHeld } from '../../testing/bytesHeld'
 
 const WEDDING = asEventId('evt-wedding')
@@ -84,6 +85,65 @@ describe('purgeExpiredEvents', () => {
       clock,
       capNoticeDays: 30,
       bookFiles,
+    })()
+
+    expect(report.purged).toEqual([WEDDING])
+  })
+
+  // ------------------------------------------- the verified archive (spec 22, rule 1) --
+
+  it('deletes the archive file of a purged event with the album, whatever state its archive is in, and keeps the one of an event that stays', async () => {
+    seedExpiredWedding()
+    events.seed(anEvent({ id: GALA, slug: 'gala-annuel', joinCode: 'Z3N9PT', status: 'live' }))
+    const exportFiles = new FakeExportFileStore()
+    exportFiles.seed(WEDDING, Uint8Array.of(1))
+    exportFiles.seed(GALA, Uint8Array.of(1))
+
+    const report = await makePurgeExpiredEvents({
+      events,
+      media,
+      clock,
+      capNoticeDays: 30,
+      exportFiles,
+      // A sealed archive that was never sent: the purge does not wait for it, nor ask.
+      archiveStateOf: async () => 'sealed',
+    })()
+
+    expect(report.purged).toEqual([WEDDING])
+    expect(await exportFiles.list()).toEqual([GALA])
+  })
+
+  it('does not delete the archive file of an event it did not purge: an operator’s hold keeps the album, so the archive too', async () => {
+    seedExpiredWedding()
+    await events.setPurgeHeld(WEDDING, AT)
+    const exportFiles = new FakeExportFileStore()
+    exportFiles.seed(WEDDING, Uint8Array.of(1))
+
+    const report = await makePurgeExpiredEvents({
+      events,
+      media,
+      clock,
+      capNoticeDays: 30,
+      exportFiles,
+    })()
+
+    expect(report.purged).toEqual([])
+    expect(await exportFiles.list()).toEqual([WEDDING])
+  })
+
+  it('still purges when an archive file cannot be deleted: the sweep collects the file no row names', async () => {
+    seedExpiredWedding()
+    const exportFiles = new FakeExportFileStore()
+    exportFiles.delete = async () => {
+      throw new Error('disk gone')
+    }
+
+    const report = await makePurgeExpiredEvents({
+      events,
+      media,
+      clock,
+      capNoticeDays: 30,
+      exportFiles,
     })()
 
     expect(report.purged).toEqual([WEDDING])

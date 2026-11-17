@@ -91,6 +91,9 @@ import type { DeleteAlbumBook } from '../../application/usecases/book/deleteAlbu
 import type { DownloadAlbumBook } from '../../application/usecases/book/downloadAlbumBook'
 import type { GetAlbumBook } from '../../application/usecases/book/getAlbumBook'
 import type { RequestAlbumBook } from '../../application/usecases/book/requestAlbumBook'
+import type { DownloadAlbumExport } from '../../application/usecases/exports/downloadAlbumExport'
+import type { GetAlbumExport } from '../../application/usecases/exports/getAlbumExport'
+import type { RequestAlbumExport } from '../../application/usecases/exports/requestAlbumExport'
 import type { GetHighlights } from '../../application/usecases/highlights/getHighlights'
 import type { PreselectHighlights } from '../../application/usecases/highlights/preselectHighlights'
 import type { SetPhotoHighlight } from '../../application/usecases/highlights/setPhotoHighlight'
@@ -269,6 +272,10 @@ export interface HttpUseCases {
   readonly getAlbumBook: GetAlbumBook
   readonly downloadAlbumBook: DownloadAlbumBook
   readonly deleteAlbumBook: DeleteAlbumBook
+  // the verified archive (spec 22)
+  readonly requestAlbumExport: RequestAlbumExport
+  readonly getAlbumExport: GetAlbumExport
+  readonly downloadAlbumExport: DownloadAlbumExport
 
   readonly getHighlights: GetHighlights
   readonly exportHighlights: ExportHighlights

@@ -263,6 +263,13 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       },
     },
 
+    exports: {
+      enabled: raw.EXPORT_ENABLED,
+      ttlDays: raw.EXPORT_TTL_DAYS,
+      maxBytes: raw.EXPORT_MAX_BYTES,
+      maxTotalBytes: raw.EXPORT_MAX_TOTAL_BYTES,
+      maxPerEventPerDay: raw.EXPORT_MAX_PER_EVENT_PER_DAY,
+    },
     books: {
       enabled: raw.BOOK_ENABLED,
       maxPhotos: raw.BOOK_MAX_PHOTOS,

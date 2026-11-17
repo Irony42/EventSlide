@@ -22,6 +22,7 @@ import type { EventPurgeView } from '../../../application/usecases/events/getEve
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
   AlbumBookDto,
+  AlbumExportDto,
   CreatedGuestbookEntryDto,
   GuestbookQueueItemDto,
   GuestbookEntryDto,
@@ -135,6 +136,7 @@ import type {
 import type { GalleryView } from '../../../application/usecases/gallery/openGallery'
 import type { EventStats } from '../../../application/usecases/stats/getEventStats'
 import type { AlbumBook } from '../../../domain/book/albumBook'
+import { canDeleteWithoutConfirmation, type AlbumExport } from '../../../domain/exports/albumExport'
 import { canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 
 /**
@@ -211,6 +213,21 @@ export const toAlbumBookDto = (book: AlbumBook | null): AlbumBookDto =>
         failureCode: book.failureCode,
         staleReason: book.staleReason,
       }
+
+export const toAlbumExportDto = (archive: AlbumExport): AlbumExportDto => ({
+  status: archive.status,
+  requestedAt: iso(archive.requestedAt),
+  sealedAt: isoOrNull(archive.sealedAt),
+  expiresAt: isoOrNull(archive.expiresAt),
+  entries: archive.entries,
+  skipped: archive.skipped,
+  bytes: archive.bytes,
+  sha256: archive.sha256,
+  servedAt: isoOrNull(archive.servedAt),
+  staleReason: archive.staleReason,
+  failure: archive.failure,
+  canDeleteWithoutConfirmation: canDeleteWithoutConfirmation(archive),
+})
 
 export const mediaUrl = (slug: string, photoId: string, variant: MediaVariant): string =>
   `/api/events/${encodeURIComponent(slug)}/photos/${encodeURIComponent(photoId)}/${variant}`

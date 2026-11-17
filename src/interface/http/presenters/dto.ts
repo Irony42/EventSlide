@@ -1567,6 +1567,27 @@ export type AlbumBookDto =
     }
 
 /**
+ * The event's verified archive as the host's page reads it (spec 22). Numbers, instants, a digest
+ * and closed codes: no guest text, no path and no photograph id. `canDeleteWithoutConfirmation` is
+ * the domain's verdict (a complete archive sent in full after it was sealed), so the page does not
+ * restate the rule. It says nothing of an operator's hold on the purge.
+ */
+export interface AlbumExportDto {
+  readonly status: 'queued' | 'running' | 'sealed' | 'stale' | 'failed'
+  readonly requestedAt: string
+  readonly sealedAt: string | null
+  readonly expiresAt: string | null
+  readonly entries: number | null
+  readonly skipped: number | null
+  readonly bytes: number | null
+  readonly sha256: string | null
+  readonly servedAt: string | null
+  readonly staleReason: string | null
+  readonly failure: string | null
+  readonly canDeleteWithoutConfirmation: boolean
+}
+
+/**
  * The host's highlight reel as the panel reads it (spec 08). Numbers and a state: never a photo id
  * or a hash, and `stale` has no reason (the host must not learn that the operator acted).
  * `durationMs` and `byteSize` only on a montage that can be played, `failureCode` only on a

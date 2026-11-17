@@ -153,6 +153,13 @@ describe('loadConfig', () => {
             tmp: '',
           },
         },
+        exports: {
+          enabled: true,
+          ttlDays: 7,
+          maxBytes: 10_737_418_240,
+          maxTotalBytes: 12_884_901_888,
+          maxPerEventPerDay: 3,
+        },
         books: {
           enabled: true,
           maxPhotos: 300,
@@ -3576,6 +3583,41 @@ describe('loadMaintenanceConfig', () => {
       return
     }
     throw new Error('loadMaintenanceConfig accepted a placeholder secret')
+  })
+})
+
+describe('the verified archive settings (spec 22)', () => {
+  it('read every EXPORT_* variable', () => {
+    const config = loadConfig({
+      ...DEV,
+      EXPORT_ENABLED: 'false',
+      EXPORT_TTL_DAYS: '30',
+      EXPORT_MAX_BYTES: '1000',
+      EXPORT_MAX_TOTAL_BYTES: '2000',
+      EXPORT_MAX_PER_EVENT_PER_DAY: '5',
+    })
+
+    expect(config.exports).toEqual({
+      enabled: false,
+      ttlDays: 30,
+      maxBytes: 1000,
+      maxTotalBytes: 2000,
+      maxPerEventPerDay: 5,
+    })
+  })
+
+  it.each([
+    ['EXPORT_TTL_DAYS', '0'],
+    ['EXPORT_TTL_DAYS', '91'],
+    ['EXPORT_MAX_BYTES', '0'],
+    ['EXPORT_MAX_TOTAL_BYTES', '-1'],
+    ['EXPORT_MAX_PER_EVENT_PER_DAY', '0'],
+    ['EXPORT_MAX_PER_EVENT_PER_DAY', '101'],
+    ['EXPORT_ENABLED', 'maybe'],
+  ])('refuses %s=%s', (name, value) => {
+    const issues = refusalIssues({ ...DEV, [name]: value })
+
+    expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
   })
 })
 
