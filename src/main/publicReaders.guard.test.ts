@@ -67,7 +67,19 @@ const sourcesUnder = (directory: string): readonly string[] =>
   })
 
 const posix = (path: string): string => relative(USE_CASES, path).split('\\').join('/')
-const text = (name: string): string => readFileSync(join(USE_CASES, name), 'utf8')
+/** Code without its comments: a sentence that mentions `visibleStatuses(` must not count as asking the gate. */
+const withoutComments = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1')
+const text = (name: string): string => withoutComments(readFileSync(join(USE_CASES, name), 'utf8'))
+
+describe('the guard reads code, not comments', () => {
+  it('does not take a comment for a call to the gate', () => {
+    const commented = '/** asks visibleStatuses(reveal, now) */\n// isRevealed(x)\nconst a = 1'
+    expect(ASKS_THE_GATE.test(commented)).toBe(true)
+    expect(ASKS_THE_GATE.test(withoutComments(commented))).toBe(false)
+    expect(ASKS_THE_GATE.test(withoutComments('const s = visibleStatuses(r, now)'))).toBe(true)
+  })
+})
 
 describe('the use cases that read photographs by their visibility', () => {
   const sources = sourcesUnder(USE_CASES).map(posix)
