@@ -21,3 +21,23 @@
 .failed {
   visibility: hidden;
 }
+
+/**
+ * The film look on the projector (spec 23): the light version of the shared `.filmLook`
+ * (`design-system/base.css`), one filter function instead of five.
+ *
+ * Measured, not assumed (`tests/e2e/perf/film-look.spec.ts`, ROADMAP 2.11): the shared look is free on
+ * every layout but the spotlight, where the Ken Burns zoom animates the very element the filter is
+ * on, so the compositor filters a full-screen image on every frame. On a software-rendered machine
+ * that took the spotlight from about 46 frames a second to about 19, under the 24 the wall's own
+ * monitor treats as trouble; one function costs about 27. The filter is free again once the zoom is
+ * off (the wall's first rung, `data-wall-budget='still'`), so a machine that cannot even afford this
+ * is already handled by the ladder. The phone, the feed and the gallery keep the full recipe: nothing
+ * animates under it there.
+ *
+ * `:global(.filmLook)` for the specificity: this has to beat the shared class whichever stylesheet the
+ * bundler emits last.
+ */
+.film:global(.filmLook) {
+  filter: sepia(var(--film-sepia));
+}

@@ -11,6 +11,8 @@ import { forgetGuestSession, leaveGuestEvent, readGuestSession } from '../../lib
 import { photoAlt } from '../../lib/photoAlt'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { awaitsReveal } from '../../lib/revealGate'
+import { cx } from '../../design-system/classNames'
+import { filmLook } from '../../design-system/filmLook'
 import { useRevealSwitch } from '../../lib/useRevealSwitch'
 import { FeedWait } from './components/FeedWait'
 import { ReactionBar } from './components/ReactionBar'
@@ -176,7 +178,7 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
           {visible.map((item, index) => (
             <li key={item.id} tabIndex={-1} className={styles['card']}>
               <img
-                className={styles['photo']}
+                className={cx(styles['photo'], filmLook(reveal?.film))}
                 src={item.thumbUrl}
                 width={item.width}
                 height={item.height}

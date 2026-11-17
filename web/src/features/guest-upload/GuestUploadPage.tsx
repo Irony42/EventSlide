@@ -372,6 +372,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           onDelete={mine.remove}
           arrival={mine.arrival}
           developed={mine.developed}
+          film={mine.reveal?.film === true}
           headingRef={mineHeading}
           highlighted={highlighted}
           onHighlightEnd={endHighlight}

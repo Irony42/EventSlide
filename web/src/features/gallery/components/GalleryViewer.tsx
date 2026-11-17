@@ -1,4 +1,6 @@
+import { cx } from '../../../design-system/classNames'
 import { Dialog } from '../../../design-system/components/Dialog'
+import { filmLook } from '../../../design-system/filmLook'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { GalleryPhotoDto } from '../../../lib/api/dto'
 import styles from './GalleryViewer.module.css'
@@ -9,6 +11,8 @@ export interface GalleryViewerProps {
   /** One-based, as the guest counts. */
   readonly position: number
   readonly total: number
+  /** The film look of a disposable-camera evening (spec 23): on the image, never on the download. */
+  readonly film?: boolean
   readonly onClose: () => void
 }
 
@@ -24,7 +28,13 @@ export interface GalleryViewerProps {
  * A clip shows its poster here and downloads as its transcode: the gallery is for keeping
  * the evening, not for watching it in a dialog.
  */
-export function GalleryViewer({ photo, position, total, onClose }: GalleryViewerProps) {
+export function GalleryViewer({
+  photo,
+  position,
+  total,
+  onClose,
+  film = false,
+}: GalleryViewerProps) {
   const t = useTranslations()
   if (photo === null) return null
 
@@ -46,7 +56,7 @@ export function GalleryViewer({ photo, position, total, onClose }: GalleryViewer
     >
       <figure className={styles['figure']}>
         <img
-          className={styles['large']}
+          className={cx(styles['large'], filmLook(film))}
           src={photo.viewUrl}
           alt={alt}
           width={photo.width}

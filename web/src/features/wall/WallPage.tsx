@@ -24,6 +24,7 @@ import { WallEmptyState } from './components/WallEmptyState'
 import { WallControls } from './components/WallControls'
 import { WallLayouts } from './components/WallLayouts'
 import { WallMediaFailureContext } from './components/wallMediaFailure'
+import { FilmLookContext } from './components/filmLookContext'
 import { WallMessage } from './components/WallMessage'
 import { WallChallenge } from './components/WallChallenge'
 import { WallAnnouncementBand } from './components/WallAnnouncementBand'
@@ -578,21 +579,24 @@ export function WallPage() {
           transitionMs={transitionMs}
         >
           <WallMediaFailureContext.Provider value={refresh}>
-            <WallLayouts
-              layout={layout ?? wall.layout}
-              items={items}
-              slideshow={slideshow}
-              kenBurnsDurationMs={wall.kenBurnsDurationMs}
-              transitionMs={transitionMs}
-              tilt={wall.tilt !== false}
-              showTime={wall.showTime === true}
-              // Every layout but the spotlight draws the invitation in a place of its own.
-              invite={
-                showsOverlay && !cornerCard && invitation !== null
-                  ? { join: invitation, onDismiss: hideQr }
-                  : null
-              }
-            />
+            {/* Spec 23: the film look is the server's word for this evening, drawn on the images only. */}
+            <FilmLookContext.Provider value={wall.reveal?.film === true}>
+              <WallLayouts
+                layout={layout ?? wall.layout}
+                items={items}
+                slideshow={slideshow}
+                kenBurnsDurationMs={wall.kenBurnsDurationMs}
+                transitionMs={transitionMs}
+                tilt={wall.tilt !== false}
+                showTime={wall.showTime === true}
+                // Every layout but the spotlight draws the invitation in a place of its own.
+                invite={
+                  showsOverlay && !cornerCard && invitation !== null
+                    ? { join: invitation, onDismiss: hideQr }
+                    : null
+                }
+              />
+            </FilmLookContext.Provider>
           </WallMediaFailureContext.Provider>
         </WallScene>
       )}
