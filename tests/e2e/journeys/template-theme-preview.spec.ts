@@ -78,8 +78,8 @@ test('the miniatures are decorative and do not join the radio group', async ({ a
   const { host } = surfaces
   await host.goto(app.url('/admin/events/new'))
 
-  await expect(host.getByRole('radio')).toHaveCount(5)
-  await expect(host.locator('[data-template-preview]')).toHaveCount(5)
+  await expect(host.getByRole('radio')).toHaveCount(6)
+  await expect(host.locator('[data-template-preview]')).toHaveCount(6)
   for (const preview of await host.locator('[data-template-preview]').all()) {
     await expect(preview).toHaveAttribute('aria-hidden', 'true')
   }
