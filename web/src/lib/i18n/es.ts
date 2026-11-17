@@ -2494,6 +2494,14 @@ export const es: UiText = {
     templateOff: 'Sin revelación diferida',
     templateFilmOn: 'Aspecto de carrete en pantalla',
     templateFilmOff: 'Sin aspecto de carrete',
+    wallAt: (time: string) => `Revelación a las ${time}`,
+    wallOn: (when: string) => `Revelación el ${when}`,
+    wallSoon: 'Revelación pronto',
+    developing: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto en revelado`,
+        other: `${t.number(count)} fotos en revelado`,
+      }),
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

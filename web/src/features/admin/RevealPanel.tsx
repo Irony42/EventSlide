@@ -8,11 +8,12 @@ import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime, formatTime } from '../../lib/format'
 import type { Locale } from '../../lib/i18n/locale'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
+import { countdownParts } from '../../lib/revealCountdown'
 import { serverNowFrom, serverOffsetMs } from '../../lib/serverClock'
 import type { EventDto } from '../../lib/api/dto'
 import type { UiText } from '../../lib/i18n/translations'
 import { useRevealEvent } from './hooks/useEventActions'
-import { countdownParts, revealBandOf, type RevealBand } from './revealBand'
+import { revealBandOf, type RevealBand } from './revealBand'
 import styles from './RevealPanel.module.css'
 
 export interface RevealPanelProps {

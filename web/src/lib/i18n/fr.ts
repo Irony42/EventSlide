@@ -3158,6 +3158,15 @@ export const fr = {
     templateOff: 'Sans révélation différée',
     templateFilmOn: 'Rendu pellicule à l’écran',
     templateFilmOff: 'Sans rendu pellicule',
+    /* The projected wall before the reveal (spec 23): the hour, then what waits for it. */
+    wallAt: (time: string) => `Révélation à ${time}`,
+    wallOn: (when: string) => `Révélation le ${when}`,
+    wallSoon: 'Révélation bientôt',
+    developing: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo en cours de développement`,
+        other: `${t.number(count)} photos en cours de développement`,
+      }),
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

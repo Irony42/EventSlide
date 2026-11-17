@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WallResponse } from '../../../lib/api/dto'
 import { createWallSoundPlayer, type WallSoundPlayer } from '../../../lib/wallSoundPlayer'
 import { detectArrivals, type WallSnapshot } from '../arrivals'
+import { silencedBeforeReveal } from '../revealGate'
 import { INITIAL_SOUND_GATE, decideRing, type SoundGate } from '../soundGate'
 
 export interface WallSound {
@@ -74,7 +75,9 @@ export const useWallSound = (slug: string, makePlayer = createWallSoundPlayer): 
     })
   }, [slug, tryResume, current])
 
-  const observe = useCallback((response: WallResponse) => {
+  const observe = useCallback((read: WallResponse) => {
+    // Spec 23: silent before a reveal, and the first read after the hour rings for nothing.
+    const response = silencedBeforeReveal(read)
     soundRef.current = response.sound
     setSound((previous) =>
       previous?.enabled === response.sound?.enabled &&

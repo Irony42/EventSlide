@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { anEventDto, eventSettings } from '../../testing/renderWithProviders'
-import { countdownParts, revealBandOf } from './revealBand'
+import { revealBandOf } from './revealBand'
 import type { EventDto } from '../../lib/api/dto'
 
 const NOW = 1_000_000_000_000
@@ -27,22 +27,6 @@ const held = (atMs: number | null, overrides: Partial<EventDto> = {}): EventDto 
   })
 
 const closing = (ms: number): string => new Date(NOW + ms).toISOString()
-
-describe('countdownParts', () => {
-  it('says "soon" under a minute and a time from a minute on', () => {
-    expect(countdownParts(59_999)).toBe('soon')
-    expect(countdownParts(MINUTE)).toEqual({ hours: 0, minutes: 1 })
-  })
-
-  it('rounds a started minute up, so zero is never said with time left', () => {
-    expect(countdownParts(MINUTE + 1)).toEqual({ hours: 0, minutes: 2 })
-  })
-
-  it('splits hours and minutes', () => {
-    expect(countdownParts(130 * MINUTE)).toEqual({ hours: 2, minutes: 10 })
-    expect(countdownParts(60 * MINUTE)).toEqual({ hours: 1, minutes: 0 })
-  })
-})
 
 describe('revealBandOf', () => {
   it('has no band with the mode off or unknown', () => {

@@ -2517,6 +2517,14 @@ export const de: UiText = {
     templateOff: 'Keine verzögerte Enthüllung',
     templateFilmOn: 'Filmlook auf dem Bildschirm',
     templateFilmOff: 'Kein Filmlook',
+    wallAt: (time: string) => `Enthüllung um ${time}`,
+    wallOn: (when: string) => `Enthüllung am ${when}`,
+    wallSoon: 'Enthüllung bald',
+    developing: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto wird entwickelt`,
+        other: `${t.number(count)} Fotos werden entwickelt`,
+      }),
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

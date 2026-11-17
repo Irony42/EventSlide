@@ -244,3 +244,72 @@ describe('the wall sound hook (spec 12)', () => {
     expect(hook.player.closed).toBe(1)
   })
 })
+
+describe('the wall sound before a reveal (spec 23)', () => {
+  const waiting = (total: number | null) =>
+    aWallResponse({
+      ...read([], 0),
+      souvenirCount: total,
+      reveal: {
+        enabled: true,
+        revealed: false,
+        atMs: NOW + 60_000,
+        serverNowMs: NOW,
+        film: false,
+        readyCount: 40,
+      },
+    })
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const ready = async () => {
+    const player = fakePlayer()
+    const hook = renderHook(() => useWallSound('mariage', () => player))
+    await act(async () => {
+      hook.result.current.activate()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    player.plays.length = 0
+    return { hook, player }
+  }
+
+  it('rings for nothing while the evening waits for its reveal', async () => {
+    const { hook, player } = await ready()
+    // A server that sent a total before the reveal and let it grow would be announcing the evening.
+    act(() => hook.result.current.observe(waiting(0)))
+    vi.setSystemTime(NOW + 10_000)
+
+    act(() => hook.result.current.observe({ ...waiting(5), items: [aWallItem({ id: 'a' })] }))
+
+    expect(player.plays).toEqual([])
+  })
+
+  it('does not ring either for the whole evening appearing at the hour', async () => {
+    const { hook, player } = await ready()
+    act(() => hook.result.current.observe(waiting(0)))
+    vi.setSystemTime(NOW + 70_000)
+
+    act(() => hook.result.current.observe(read(['c', 'b', 'a'], 40)))
+
+    expect(player.plays).toEqual([])
+  })
+
+  it('still rings for a photograph that arrives after the reveal', async () => {
+    const { hook, player } = await ready()
+    act(() => hook.result.current.observe(waiting(0)))
+    vi.setSystemTime(NOW + 70_000)
+    act(() => hook.result.current.observe(read(['c', 'b', 'a'], 40)))
+    vi.setSystemTime(NOW + 70_000 + WALL_SOUND_MIN_GAP_MS + 1_000)
+
+    act(() => hook.result.current.observe(read(['d', 'c', 'b', 'a'], 41)))
+
+    expect(player.plays).toHaveLength(1)
+  })
+})
