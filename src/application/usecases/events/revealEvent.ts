@@ -45,6 +45,12 @@ export interface RevealEventDeps {
 
 export type RevealEvent = (input: RevealEventInput) => Promise<Result<Event, DomainError>>
 
+/** The event with its hour set to `now`, or the refusal of a clock that gives no real instant. */
+const revealed = (event: Event, now: Date): Result<Event, DomainError> => {
+  const settings = event.settings.with({ reveal: revealNow(event.settings.reveal, now) })
+  return settings.ok ? event.withSettings(settings.value) : settings
+}
+
 export const makeRevealEvent =
   ({ events, memberships, audit, bus, clock }: RevealEventDeps): RevealEvent =>
   async ({ eventId, actorId }) => {
@@ -60,10 +66,9 @@ export const makeRevealEvent =
     const now = clock.now()
     if (isRevealed(event.settings.reveal, now)) return ok(event)
 
-    const settings = event.settings.with({ reveal: revealNow(event.settings.reveal, now) })
-    if (!settings.ok) return settings
-    const revealed = event.withSettings(settings.value)
-    if (!revealed.ok) return revealed
+    // Judged on the copy read at the top, so a refusal (an unreadable instant) comes before the audit line.
+    const judged = revealed(event, now)
+    if (!judged.ok) return judged
 
     // Write-ahead, like the operator's acts: no reveal without the line saying who did it.
     const entry = AuditEntry.create({
@@ -77,9 +82,18 @@ export const makeRevealEvent =
     if (!entry.ok) return entry
     await audit.record(entry.value)
 
-    await events.save(revealed.value)
+    // **Read again, and saved with no await between** (as `updateEventSettings` does): the copy read
+    // at the top is older than the awaits above (the role, the audit line), and `events.save` rewrites
+    // the whole row, so saving it would erase a logo or a setting written in between.
+    const current = await events.findById(eventId)
+    if (current === null) return err(DomainError.notFound('event.notFound'))
+    if (isRevealed(current.settings.reveal, now)) return ok(current)
+    const updated = revealed(current, now)
+    if (!updated.ok) return updated
+
+    await events.save(updated.value)
     // The console, the wall and the phones read the event again; no new signal type (spec 23 §5).
     bus.publish({ type: 'event.settingsChanged', eventId: event.id })
 
-    return ok(revealed.value)
+    return ok(updated.value)
   }
