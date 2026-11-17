@@ -39,7 +39,14 @@ const NOT_PUBLIC_READERS: Readonly<Record<string, string>> = {
     'the photo book is built for the host from a request only a moderator makes, and served through the event to its owner',
   'clips/transcodeNextClip.ts': 'a writer: it publishes a transcoded clip under auto moderation',
   'photos/uploadPhotos.ts': 'a writer: it publishes an arriving photograph under auto moderation',
-  'photos/exportAlbum.ts': 'the host’s own ZIP, behind requireRole("moderator")',
+  'shared/albumArchive.ts':
+    'the album archive of spec 22, written for the host (the ZIP stream, the box\x27s file): every caller is behind requireRole("moderator") or the export worker',
+  'photos/deletePhoto.ts': 'a writer: a deletion retires the archive, it shows nobody anything',
+  'moderation/moderatePhoto.ts': 'a writer: leaving the album retires the archive (spec 22)',
+  'moderation/moderatePhotosBulk.ts': 'a writer: leaving the album retires the archive (spec 22)',
+  'guests/eraseGuestContribution.ts': 'a writer: an erasure retires the archive (spec 22)',
+  'guestbook/moderateGuestbookEntry.ts':
+    'a writer of guestbook messages, which are not photographs: it retires the archive (spec 22)',
   'guestbook/listGuestbookQueue.ts':
     'the host’s queue of guestbook messages, which are not photographs',
   'highlights/exportHighlights.ts': 'the host’s best-of ZIP, behind requireRole("moderator")',
