@@ -531,7 +531,8 @@ export const es: UiText = {
     'eventSettings.welcomeTooManyLines': 'Este mensaje tiene demasiadas líneas.',
     'eventSettings.saveFailed': 'No se han podido guardar los ajustes. Inténtelo de nuevo.',
     'eventSettings.revealInPast': 'La hora de la revelación debe estar en el futuro.',
-    'eventSettings.revealDone': 'La velada ya se ha revelado: la hora ya no se puede mover ni borrar.',
+    'eventSettings.revealDone':
+      'La velada ya se ha revelado: la hora ya no se puede mover ni borrar.',
     'eventSettings.revealInstantInvalid': 'Esta hora de revelación no es válida.',
     'eventSettings.graceSecondsInvalid': 'Este plazo de eliminación no se admite.',
     'eventSettings.retentionDaysInvalid': 'Este plazo de conservación no se admite.',
