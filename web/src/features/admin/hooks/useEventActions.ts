@@ -236,3 +236,13 @@ export const useRemoveVenuePhoto = (): ActionState<[string], EventDto> => {
   const api = useApi()
   return useAction(useCallback((slug: string) => api.removeVenuePhoto(slug), [api]))
 }
+
+/**
+ * "Révéler maintenant" (spec 23): the evening is shown to the guests and the room. Any moderator,
+ * so the console that offers it is mounted for the owner and for a moderator alike. Answers the
+ * event, whose `reveal` block is then the truth.
+ */
+export const useRevealEvent = (): ActionState<[string], EventDto> => {
+  const api = useApi()
+  return useAction(useCallback((slug: string) => api.revealEvent(slug), [api]))
+}

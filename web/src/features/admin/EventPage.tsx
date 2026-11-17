@@ -25,6 +25,7 @@ import { GuestListPanel } from './GuestListPanel'
 import { GuestbookPanel } from './GuestbookPanel'
 import { AnnouncementsPanel } from './AnnouncementsPanel'
 import { ChallengePanel } from './ChallengePanel'
+import { RevealPanel } from './RevealPanel'
 import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
@@ -339,6 +340,14 @@ export function EventPage() {
             <GuestbookPanel slug={event.slug} canDecide={allowsModeration(event.status)} />
           </div>
         ) : null}
+        {/* The disposable camera's band (spec 23), where the challenge is: any moderator reveals, the owner
+            alone moves the hour. Nothing at all while the mode is off. */}
+        <RevealPanel
+          event={event}
+          onChanged={replace}
+          onReload={reload}
+          settingsPath={isOwner ? settingsPath : null}
+        />
         {/* Any moderator launches or stops a timed challenge (spec 10): the person with the laptop
             at the evening is usually the moderator, and it writes no new sentence. */}
         <div id={panelId('challenge')}>
