@@ -51,14 +51,15 @@ const revealedLine = (atMs: number | null, serverNowMs: number, locale: Locale, 
 const confirmationOf = (
   band: Extract<RevealBand, { kind: 'waiting' }> | null,
   text: UiText,
-): string =>
-  [
-    text.reveal.confirmPublished(band?.readyCount ?? 0),
-    ...(band !== null && band.pendingCount > 0
-      ? [text.reveal.confirmPending(band.pendingCount)]
-      : []),
-    text.reveal.definitive,
-  ].join(' ')
+): string => {
+  const pending =
+    band !== null && band.pendingCount > 0
+      ? ' ' + text.reveal.confirmPending(band.pendingCount)
+      : ''
+  return (
+    text.reveal.confirmPublished(band?.readyCount ?? 0) + pending + ' ' + text.reveal.definitive
+  )
+}
 
 /**
  * The console's reveal band (spec 23): where the evening stands, and "Révéler maintenant".
