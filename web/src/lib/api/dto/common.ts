@@ -90,7 +90,7 @@ export interface ThemeCustom {
  * an `EventDto`, the template has stopped being a copy and started being an attachment —
  * see `src/domain/events/eventTemplate.ts` for why that is the wrong product.
  */
-export type EventTemplateKey = 'wedding' | 'birthday' | 'conference' | 'party'
+export type EventTemplateKey = 'wedding' | 'birthday' | 'conference' | 'party' | 'disposable'
 /**
  * Who one of the host's prompts is asked of (roadmap §2.1).
  *

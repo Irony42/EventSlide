@@ -498,7 +498,8 @@ export const en: UiText = {
     'eventSettings.welcomeTooManyLines': 'This message has too many lines.',
     'eventSettings.saveFailed': 'The settings could not be saved. Try again.',
     'eventSettings.revealInPast': 'The reveal time must be in the future.',
-    'eventSettings.revealDone': 'The evening is already revealed: the time can no longer be moved or cleared.',
+    'eventSettings.revealDone':
+      'The evening is already revealed: the time can no longer be moved or cleared.',
     'eventSettings.revealInstantInvalid': 'This reveal time is not valid.',
     'eventSettings.graceSecondsInvalid': 'This deletion window is not accepted.',
     'eventSettings.retentionDaysInvalid': 'This retention period is not accepted.',
@@ -1231,11 +1232,14 @@ export const en: UiText = {
     templatePreviewSample: 'Your event',
     templateClipsOn: 'Videos allowed',
     templateClipsOff: 'Videos turned off',
+    templateSelfDeleteOn: 'Deleting photo by photo allowed',
+    templateSelfDeleteOff: 'Deleting photo by photo turned off',
     templateNames: {
       wedding: 'Wedding',
       birthday: 'Birthday',
       conference: 'Conference',
       party: 'Party',
+      disposable: 'Disposable camera',
     },
 
     retention: 'Automatic deletion',
@@ -2349,6 +2353,61 @@ export const en: UiText = {
     /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
     participate: 'I’m taking part in the challenge',
     announceEnd: 'Photo challenge over',
+  },
+  /** The disposable camera (spec 23): the host's section, band and confirmation. The guest's and the wall's sentences come with their own surfaces. */
+  reveal: {
+    title: 'Disposable camera',
+    hint: 'Photos stay hidden from guests and the room until the reveal. You see them as soon as they arrive.',
+    enabled: 'Turn on the disposable camera',
+    timed: 'Reveal at a set time',
+    timedHint: 'With no time, you reveal yourself, with the “Reveal now” button on the event page.',
+    at: 'Reveal time',
+    atLocked: 'The evening is already revealed: the time can no longer be moved.',
+    shots: 'Shots per guest',
+    shotsHint:
+      'A shot is one photo sent. With no limit, each guest sends as many photos as they like. This limit also applies without a reveal.',
+    film: 'Film look',
+    filmHint:
+      'On screens, photos take on the look of a roll of film. Your originals and downloads stay untouched.',
+    liveWarning: 'Photos have already arrived: the ones on screen will disappear until the reveal.',
+    countdown: (hours: number, minutes: number) =>
+      hours > 0
+        ? `Reveal in ${t.number(hours)} h ${String(minutes).padStart(2, '0')} min`
+        : `Reveal in ${t.number(minutes)} min`,
+    soon: 'Reveal in less than a minute',
+    manual: 'Photos stay hidden until you reveal them.',
+    scheduledFor: (when: string) => `Reveal scheduled for ${when}`,
+    waiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} published photo is waiting for the reveal`,
+        other: `${t.number(count)} published photos are waiting for the reveal`,
+      }),
+    revealNow: 'Reveal now',
+    editTime: 'Change the time',
+    revealedAt: (time: string) => `Revealed at ${time}`,
+    revealedOn: (when: string) => `Revealed on ${when}`,
+    confirmTitle: 'Reveal now?',
+    confirmPublished: (count: number) =>
+      count === 0
+        ? 'No photo is published yet.'
+        : t.count(count, {
+            one: 'The published photo will appear on the wall and on phones.',
+            other: `The ${t.number(count)} published photos will appear on the wall and on phones.`,
+          }),
+    confirmPending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo is still waiting for a decision: it will stay hidden.`,
+        other: `${t.number(count)} photos are still waiting for a decision: they will stay hidden.`,
+      }),
+    definitive: 'This cannot be undone.',
+    closedNotRevealed:
+      'The photos have not been revealed. The event is closed: they stay hidden until you reveal them.',
+    closesBefore:
+      'The scheduled closing comes before the reveal. Without a reveal, the photos will stay hidden.',
+    templateOn: 'Photos hidden until the reveal',
+    templateOff: 'No delayed reveal',
+    templateFilmOn: 'Film look on screen',
+    templateFilmOff: 'No film look',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

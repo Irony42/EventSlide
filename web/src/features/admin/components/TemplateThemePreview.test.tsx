@@ -30,6 +30,7 @@ const APPEARANCE: Readonly<
   birthday: { accent: null, fonts: null, frame: 'round' },
   conference: { accent: '250', fonts: null, frame: 'square' },
   party: { accent: '195', fonts: null, frame: null },
+  disposable: { accent: null, fonts: null, frame: 'square' },
 }
 
 const previewOf = (container: HTMLElement): HTMLElement => {
