@@ -1,36 +1,21 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
-import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { Notice } from '../../design-system/components/Notice'
-import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime, formatTime } from '../../lib/format'
 import type { Locale } from '../../lib/i18n/locale'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { countdownParts } from '../../lib/revealCountdown'
-import { serverNowFrom, serverOffsetMs } from '../../lib/serverClock'
-import type { EventDto } from '../../lib/api/dto'
 import type { UiText } from '../../lib/i18n/translations'
-import { useRevealEvent } from './hooks/useEventActions'
-import { revealBandOf, type RevealBand } from './revealBand'
+import type { RevealControl } from './useRevealControl'
 import styles from './RevealPanel.module.css'
 
 export interface RevealPanelProps {
-  readonly event: EventDto
-  /** The event as the server answered "Révéler maintenant": the page's own copy is replaced. */
-  readonly onChanged: (event: EventDto) => void
-  /** Read the event again: at the hour nothing is announced, so the band asks. */
-  readonly onReload: () => void
+  /** The state the page shares with the banner at its top. */
+  readonly control: RevealControl
   /** The settings page, where the owner moves the hour; a moderator has no such page. */
   readonly settingsPath: string | null
 }
-
-/** This machine's clock. A named read: the panel decides when to ask. */
-const localNow = (): number => Date.now()
-
-/** The band says whole minutes, so a look at the clock every few seconds is plenty. */
-const TICK_MS = 5_000
 
 const countdownText = (leftMs: number, text: UiText): string => {
   const parts = countdownParts(leftMs)
@@ -46,23 +31,6 @@ const revealedLine = (atMs: number | null, serverNowMs: number, locale: Locale, 
 }
 
 /**
- * What pressing the button does, in the host's words: how many published photographs appear, how
- * many still wait for a decision and stay hidden, and that it cannot be taken back.
- */
-const confirmationOf = (
-  band: Extract<RevealBand, { kind: 'waiting' }> | null,
-  text: UiText,
-): string => {
-  const pending =
-    band !== null && band.pendingCount > 0
-      ? ' ' + text.reveal.confirmPending(band.pendingCount)
-      : ''
-  return (
-    text.reveal.confirmPublished(band?.readyCount ?? 0) + pending + ' ' + text.reveal.definitive
-  )
-}
-
-/**
  * The console's reveal band (spec 23): where the evening stands, and "Révéler maintenant".
  *
  * Surface: the host's laptop, and the moderator's at the evening. Same place and same card as the
@@ -75,52 +43,12 @@ const confirmationOf = (
  * raises. At the hour the band reads the event again, because the end of the countdown announces
  * nothing (the reveal is a function of the server's clock, there is no sweep to signal it).
  */
-export function RevealPanel({ event, onChanged, onReload, settingsPath }: RevealPanelProps) {
+export function RevealPanel({ control, settingsPath }: RevealPanelProps) {
   const t = useTranslations()
   const { locale } = useLocale()
-  const toast = useToast()
-  const reveal = useRevealEvent()
-  const [confirming, setConfirming] = useState(false)
-
-  // The gap between this machine's clock and the server's, taken each time the event is read.
-  const serverReadAt = event.reveal?.serverNowMs ?? 0
-  const [anchor, setAnchor] = useState(() => ({ server: serverReadAt, local: localNow() }))
-  if (anchor.server !== serverReadAt) {
-    setAnchor({ server: serverReadAt, local: localNow() })
-  }
-  const offsetMs = serverOffsetMs(anchor.server, anchor.local, anchor.local)
-
-  const [now, setNow] = useState(localNow)
-  const band = revealBandOf(event, serverNowFrom(now, offsetMs))
-
-  const counting = band?.kind === 'waiting' && band.atMs !== null
-  useEffect(() => {
-    if (!counting) return undefined
-    const timer = setInterval(() => setNow(localNow()), TICK_MS)
-    return () => clearInterval(timer)
-  }, [counting])
-
-  // The hour has come by the clock the page measured: ask the server what it says.
-  const due = band?.kind === 'revealed' && event.reveal?.revealed === false
-  useEffect(() => {
-    if (due) onReload()
-  }, [due, onReload])
+  const { band, offsetMs, now, busy, request } = control
 
   if (band === null) return null
-
-  const confirm = () => {
-    void reveal.run('reveal', event.slug).then((result) => {
-      setConfirming(false)
-      if (!result.ok) {
-        toast.show(result.message, { tone: 'danger' })
-        return
-      }
-      onChanged(result.value)
-      const at = result.value.reveal?.atMs
-      const time = at === undefined || at === null ? null : formatTime(at, locale)
-      toast.show(time === null ? t.reveal.title : t.reveal.revealedAt(time), { tone: 'success' })
-    })
-  }
 
   return (
     <Card as="h2" title={t.reveal.title}>
@@ -152,12 +80,7 @@ export function RevealPanel({ event, onChanged, onReload, settingsPath }: Reveal
             ) : null}
 
             <div className={styles['actions']}>
-              <Button
-                variant="primary"
-                loading={reveal.busy}
-                onClick={() => setConfirming(true)}
-                aria-haspopup="dialog"
-              >
+              <Button variant="primary" loading={busy} onClick={request} aria-haspopup="dialog">
                 {t.reveal.revealNow}
               </Button>
               {settingsPath === null ? null : (
@@ -169,17 +92,6 @@ export function RevealPanel({ event, onChanged, onReload, settingsPath }: Reveal
           </>
         )}
       </div>
-
-      <ConfirmDialog
-        open={confirming}
-        title={t.reveal.confirmTitle}
-        description={confirmationOf(band.kind === 'waiting' ? band : null, t)}
-        confirmLabel={t.reveal.revealNow}
-        confirmVariant="primary"
-        busy={reveal.busy}
-        onConfirm={confirm}
-        onCancel={() => setConfirming(false)}
-      />
     </Card>
   )
 }

@@ -2504,6 +2504,31 @@ export const it: UiText = {
         : `tra ${t.number(minutes)} min`,
     guestSoon: 'tra meno di un minuto',
     guestManual: 'Gli organizzatori riveleranno le foto durante la serata.',
+    bannerManual: 'Rivelazione con il pulsante',
+    bannerWaiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto attende`,
+        other: `${t.number(count)} foto attendono`,
+      }),
+    guestIntro: 'Scatti le sue foto: verranno sviluppate alla rivelazione.',
+    guestIntroAt: (time: string) =>
+      `Scatti le sue foto: verranno sviluppate alla rivelazione, alle ${time}.`,
+    guestIntroOn: (when: string) =>
+      `Scatti le sue foto: verranno sviluppate alla rivelazione, il ${when}.`,
+    noticeHeld: {
+      afterReview:
+        'L’organizzatore approva ogni foto, e le foto approvate arrivano sullo schermo solo alla rivelazione. Lui e i suoi moderatori le vedono appena arrivano.',
+      immediate:
+        'Arrivano sullo schermo alla rivelazione, non prima. L’organizzatore e i suoi moderatori le vedono appena arrivano e possono rimuovere qualsiasi foto in ogni momento.',
+    },
+    noticeShots: (count: number) =>
+      t.count(count, {
+        one: `Ha ${t.number(count)} scatto: uno scatto è una foto inviata.`,
+        other: `Ha ${t.number(count)} scatti: uno scatto è una foto inviata.`,
+      }),
+    noticeFilm:
+      'L’effetto pellicola esiste solo sullo schermo: la sua foto originale viene conservata così com’è.',
+    wallDeveloping: 'Le foto verranno sviluppate alla rivelazione',
     developedNow: (count: number) =>
       t.count(count, {
         one: 'La tua foto è appena stata sviluppata.',

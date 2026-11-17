@@ -16,6 +16,7 @@ import { MissionChecklist } from './components/MissionChecklist'
 import { FoldedBar } from './components/FoldedBar'
 import { EraseEverything } from './components/EraseEverything'
 import { GuestbookCard } from './components/GuestbookCard'
+import { GuestIntro } from './components/GuestIntro'
 import { GuestRoll } from './components/GuestRoll'
 import { MyMessages } from './components/MyMessages'
 import { HostGreeting } from '../../design-system/components/HostGreeting'
@@ -263,9 +264,12 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         <h1 className={styles['title']}>{event.name}</h1>
         {/* From the notice rather than written once: "after approval" is false on an
             event that publishes on arrival, and the notice below would say so. */}
-        <p className={styles['intro']}>
-          {publication === 'immediate' ? t.upload.introImmediate : t.upload.intro}
-        </p>
+        <GuestIntro
+          publication={publication}
+          reveal={mine.unavailable ? null : mine.reveal}
+          offsetMs={mine.offsetMs}
+          className={styles['intro']}
+        />
         {/* The host's own words, from the fresh read when there is one: a message changed after the guest joined shows on the next open. */}
         <HostLogo
           url={(mine.brand ?? event.brand)?.logoUrl}

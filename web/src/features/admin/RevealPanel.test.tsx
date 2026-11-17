@@ -4,84 +4,10 @@ import userEvent from '@testing-library/user-event'
 import { ApiError } from '../../lib/http'
 import { formatTime } from '../../lib/format'
 import { fr } from '../../lib/i18n/fr'
-import {
-  anEventDto,
-  eventSettings,
-  fakeApi,
-  renderWithProviders,
-} from '../../testing/renderWithProviders'
-import { RevealPanel, type RevealPanelProps } from './RevealPanel'
-import type { Api } from '../../lib/api/client'
-import type { EventDto } from '../../lib/api/dto'
+import { anEventDto, fakeApi } from '../../testing/renderWithProviders'
+import { HOUR, MINUTE, NOW, SLUG, held, renderReveal } from './testing/revealHarness'
 
-const SLUG = 'camille-et-sacha'
-const NOW = new Date('2026-06-20T21:00:00.000Z').getTime()
-const MINUTE = 60_000
-const HOUR = 60 * MINUTE
-
-interface HeldInput {
-  /** The hour as milliseconds after the server's clock, or `null` for "at the button". */
-  readonly inMs?: number | null
-  /** How far this laptop's clock is ahead of the server's. */
-  readonly laptopAheadMs?: number
-  readonly readyCount?: number | null
-  readonly pendingCount?: number
-  readonly revealed?: boolean
-  readonly status?: EventDto['status']
-  readonly scheduledCloseAt?: string | null
-}
-
-/** An evening held back by the gate, as the server answers it at `serverNowMs`. */
-const held = ({
-  inMs = 2 * HOUR + 10 * MINUTE,
-  readyCount = 128,
-  pendingCount = 14,
-  revealed = false,
-  status = 'live',
-  scheduledCloseAt = null,
-}: HeldInput = {}): EventDto => {
-  const atMs = inMs === null ? null : NOW + inMs
-  return anEventDto({
-    status,
-    pendingCount,
-    scheduledCloseAt,
-    settings: eventSettings({
-      reveal: {
-        enabled: true,
-        at: atMs === null ? null : new Date(atMs).toISOString(),
-        film: true,
-      },
-    }),
-    reveal: {
-      enabled: true,
-      revealed,
-      atMs,
-      serverNowMs: NOW,
-      film: true,
-      readyCount: revealed ? null : readyCount,
-    },
-  })
-}
-
-const renderPanel = (
-  event: EventDto,
-  { api = fakeApi(), ...props }: Partial<RevealPanelProps> & { api?: Api } = {},
-) => {
-  const onChanged = props.onChanged ?? vi.fn()
-  const onReload = props.onReload ?? vi.fn()
-  const view = renderWithProviders(
-    <RevealPanel
-      event={event}
-      onChanged={onChanged}
-      onReload={onReload}
-      settingsPath={
-        props.settingsPath === undefined ? '/admin/events/x/settings' : props.settingsPath
-      }
-    />,
-    { api },
-  )
-  return { ...view, onChanged, onReload, api }
-}
+const renderPanel = renderReveal
 
 describe('RevealPanel (spec 23)', () => {
   beforeEach(() => {

@@ -63,6 +63,8 @@ test('the room sees an invitation and a count, no photograph, then two screens o
       await expect(screen.getByTestId('wall-reveal-count')).toHaveText(
         '1 photo en cours de développement',
       )
+      // A photograph waits, so the empty wall's "soon" has no place above its count (spec 23b).
+      await expect(screen.getByTestId('wall-empty-title')).toHaveCount(0)
       await expect(screen.getByTestId('wall-slide')).toHaveCount(0)
       await expect(screen.locator('img[src*="/photos/"]')).toHaveCount(0)
     }

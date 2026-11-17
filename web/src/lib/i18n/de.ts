@@ -2551,6 +2551,31 @@ export const de: UiText = {
         : `in ${t.number(minutes)} min`,
     guestSoon: 'in weniger als einer Minute',
     guestManual: 'Die Gastgeber enthüllen die Fotos im Laufe des Abends.',
+    bannerManual: 'Enthüllung per Knopfdruck',
+    bannerWaiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto wartet`,
+        other: `${t.number(count)} Fotos warten`,
+      }),
+    guestIntro: 'Machen Sie Ihre Fotos: Sie werden bei der Enthüllung entwickelt.',
+    guestIntroAt: (time: string) =>
+      `Machen Sie Ihre Fotos: Sie werden bei der Enthüllung um ${time} entwickelt.`,
+    guestIntroOn: (when: string) =>
+      `Machen Sie Ihre Fotos: Sie werden bei der Enthüllung am ${when} entwickelt.`,
+    noticeHeld: {
+      afterReview:
+        'Der Veranstalter gibt jedes Foto frei, und freigegebene Fotos erscheinen erst bei der Enthüllung auf dem Bildschirm. Er und seine Moderatoren sehen sie sofort nach dem Eintreffen.',
+      immediate:
+        'Die Fotos erscheinen erst bei der Enthüllung auf dem Bildschirm. Der Veranstalter und seine Moderatoren sehen sie sofort nach dem Eintreffen und können jedes davon jederzeit entfernen.',
+    },
+    noticeShots: (count: number) =>
+      t.count(count, {
+        one: `Sie haben ${t.number(count)} Aufnahme: Eine Aufnahme ist ein gesendetes Foto.`,
+        other: `Sie haben ${t.number(count)} Aufnahmen: Eine Aufnahme ist ein gesendetes Foto.`,
+      }),
+    noticeFilm:
+      'Der Filmlook existiert nur auf dem Bildschirm: Ihr Originalfoto bleibt unverändert gespeichert.',
+    wallDeveloping: 'Die Fotos werden bei der Enthüllung entwickelt',
     developedNow: (count: number) =>
       t.count(count, {
         one: 'Ihr Foto wurde gerade entwickelt.',
