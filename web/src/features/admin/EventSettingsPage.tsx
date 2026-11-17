@@ -75,7 +75,8 @@ const retentionOptions = (text: UiText): readonly SelectOption[] => [
 
 const maxPhotosOptions = (text: UiText): readonly SelectOption[] => [
   { value: NO_LIMIT, label: text.admin.maxPhotosUnlimited },
-  ...[10, 25, 50, 100].map((count) => asOption(count, text.admin.photos(count))),
+  // 27: the length of a roll, which is what the disposable camera template gives (spec 23).
+  ...[10, 25, 27, 50, 100].map((count) => asOption(count, text.admin.photos(count))),
 ]
 
 /**
@@ -160,6 +161,9 @@ export function EventSettingsPage() {
   const [draft, setDraft] = useState<EventSettingsDto | null>(null)
   const [syncedFrom, setSyncedFrom] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
+  // Whether the reveal has an hour: the switch is the host's, the hour field beneath it is empty
+  // until they pick one, so it cannot be read off the draft alone. `null`: follow the draft.
+  const [timedChoice, setTimedChoice] = useState<boolean | null>(null)
 
   const [schedule, setSchedule] = useState<ScheduleDraft>({ open: '', close: '' })
   const [syncedSchedule, setSyncedSchedule] = useState<string | null>(null)
@@ -184,6 +188,7 @@ export function EventSettingsPage() {
   if (event !== null && settingsIdentity(event.settings) !== syncedFrom) {
     setSyncedFrom(settingsIdentity(event.settings))
     setDraft(event.settings)
+    setTimedChoice(null)
   }
 
   // The same adjust-during-render pattern for the schedule.
@@ -290,6 +295,25 @@ export function EventSettingsPage() {
   const retention = settings.retentionDays === null ? NO_LIMIT : String(settings.retentionDays)
   const maxPhotos =
     settings.maxPhotosPerGuest === null ? NO_LIMIT : String(settings.maxPhotosPerGuest)
+
+  // The disposable camera (spec 23). An older server sends no group: the mode is then off.
+  const reveal = settings.reveal ?? { enabled: false, at: null, film: false }
+  const timed = timedChoice ?? reveal.at !== null
+  // Revealed already, by the server's word: the hour cannot move any more (`eventSettings.revealDone`).
+  // The form says so instead of letting the host find out from a refusal.
+  const revealLocked =
+    event.reveal?.revealed === true &&
+    event.reveal.enabled &&
+    event.settings.reveal?.at !== null &&
+    event.settings.reveal?.at !== undefined
+  // Turning the mode on for an evening that already has photographs on screen hides them until the hour.
+  const hidesWhatIsShown =
+    reveal.enabled &&
+    event.settings.reveal?.enabled !== true &&
+    event.status === 'live' &&
+    event.photoCount > 0
+  const updateReveal = (patch: Partial<typeof reveal>) =>
+    update({ reveal: { ...reveal, ...patch } })
 
   return (
     <div className={styles['page']}>
@@ -428,13 +452,66 @@ export function EventSettingsPage() {
           onChange={(value) => update({ retentionDays: numberOrNull(value) })}
         />
 
-        <SelectField
-          label={t.admin.maxPhotosPerGuest}
-          value={maxPhotos}
-          options={withCurrent(maxPhotosOptions(t), maxPhotos, t.admin.photos)}
-          disabled={readOnly}
-          onChange={(value) => update({ maxPhotosPerGuest: numberOrNull(value) })}
-        />
+        {/*
+          The disposable camera (spec 23): photographs hidden from the guests and the room until the
+          reveal, a roll of poses, a film look on screen. The cap on photographs per guest lives here
+          and nowhere else: it is the same setting (`maxPhotosPerGuest`, enforced at upload) and it
+          also works with the mode off, which the hint says. The reveal itself is saved with the
+          button below, per key (settingsPayload); "Révéler maintenant" is the console's.
+        */}
+        <fieldset className={styles['group']} id="reveal">
+          <legend className={styles['legend']}>{t.reveal.title}</legend>
+          <p className={styles['sectionHint']}>{t.reveal.hint}</p>
+          <CheckboxField
+            label={t.reveal.enabled}
+            checked={reveal.enabled}
+            disabled={readOnly}
+            onChange={(enabled) => updateReveal({ enabled })}
+          />
+          <div aria-live="polite">
+            {hidesWhatIsShown ? (
+              <Notice tone="warning" variant="boxed">
+                {t.reveal.liveWarning}
+              </Notice>
+            ) : null}
+          </div>
+          <CheckboxField
+            label={t.reveal.timed}
+            hint={t.reveal.timedHint}
+            checked={timed}
+            disabled={readOnly || !reveal.enabled || revealLocked}
+            onChange={(on) => {
+              setTimedChoice(on)
+              // Off is the button: the hour is cleared, so the save says so.
+              if (!on) updateReveal({ at: null })
+            }}
+          />
+          {timed ? (
+            <DateTimeField
+              label={t.reveal.at}
+              {...(revealLocked ? { hint: t.reveal.atLocked } : {})}
+              value={toLocalInput(reveal.at)}
+              min={earliest}
+              disabled={readOnly || !reveal.enabled || revealLocked}
+              onChange={(local) => updateReveal({ at: toInstant(local) })}
+            />
+          ) : null}
+          <SelectField
+            label={t.reveal.shots}
+            hint={t.reveal.shotsHint}
+            value={maxPhotos}
+            options={withCurrent(maxPhotosOptions(t), maxPhotos, t.admin.photos)}
+            disabled={readOnly}
+            onChange={(value) => update({ maxPhotosPerGuest: numberOrNull(value) })}
+          />
+          <CheckboxField
+            label={t.reveal.film}
+            hint={t.reveal.filmHint}
+            checked={reveal.film}
+            disabled={readOnly || !reveal.enabled}
+            onChange={(film) => updateReveal({ film })}
+          />
+        </fieldset>
 
         {/*
           What the room's screen says, and in which language (roadmap 1.5).

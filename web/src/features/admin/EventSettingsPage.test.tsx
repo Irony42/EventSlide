@@ -187,7 +187,7 @@ describe('EventSettingsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
 
     // No `wall`: the group is sent only when the host changed a key of it.
-    const { wall: _wall, ...unchanged } = eventSettings()
+    const { wall: _wall, reveal: _reveal, ...unchanged } = eventSettings()
     expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
       ...unchanged,
       allowCaptions: false,
@@ -502,7 +502,7 @@ describe('EventSettingsPage', () => {
     const api = fakeApi()
 
     renderPage(api)
-    await userEvent.selectOptions(await screen.findByLabelText(fr.admin.maxPhotosPerGuest), '25')
+    await userEvent.selectOptions(await screen.findByLabelText(fr.reveal.shots), '25')
     await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
 
     expect(api.updateSettings).toHaveBeenCalledWith(
@@ -520,7 +520,7 @@ describe('EventSettingsPage', () => {
 
     renderPage(api)
 
-    expect(await screen.findByLabelText(fr.admin.maxPhotosPerGuest)).toHaveValue('50')
+    expect(await screen.findByLabelText(fr.reveal.shots)).toHaveValue('50')
   })
 
   it('labels a grace delay under a minute in seconds', async () => {
@@ -1154,7 +1154,7 @@ describe('EventSettingsPage', () => {
     it('does not throw away what the host typed in the form when a photograph arrives', async () => {
       const getEvent = vi.fn(async () => guinguette(null))
       renderPage(fakeApi({ getEvent, putVenuePhoto: vi.fn(async () => guinguette(URL_PATH)) }))
-      await userEvent.selectOptions(await screen.findByLabelText(fr.admin.maxPhotosPerGuest), '25')
+      await userEvent.selectOptions(await screen.findByLabelText(fr.reveal.shots), '25')
 
       await userEvent.upload(
         screen.getByTestId('venue-photo-input'),
@@ -1162,7 +1162,7 @@ describe('EventSettingsPage', () => {
       )
       await screen.findByRole('img', { name: fr.admin.venuePhotoPreviewAlt })
 
-      expect(screen.getByLabelText(fr.admin.maxPhotosPerGuest)).toHaveValue('25')
+      expect(screen.getByLabelText(fr.reveal.shots)).toHaveValue('25')
     })
 
     it('never sends the photograph’s URL with the settings, which the server would refuse', async () => {
@@ -1242,5 +1242,214 @@ describe('the invitation card block (spec 14)', () => {
 
     expect(screen.getByRole('button', { name: fr.admin.wallDisplay.qrSizeSmall })).toBeDisabled()
     expect(screen.getByLabelText(fr.admin.wallDisplay.qrCorners['top-start'])).toBeDisabled()
+  })
+})
+
+describe('the disposable camera section (spec 23)', () => {
+  const HOUR = '2026-06-20T21:00:00.000Z'
+  const withReveal = (reveal: { enabled: boolean; at: string | null; film: boolean }) =>
+    fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ settings: eventSettings({ reveal }) })),
+    })
+  const sentReveal = (api: Api) => vi.mocked(api.updateSettings).mock.calls[0]?.[1]?.reveal
+
+  it('is one section with its switch, its hour, its cap and its film look', async () => {
+    renderPage(fakeApi())
+
+    const section = within(await screen.findByRole('group', { name: fr.reveal.title }))
+
+    expect(section.getByLabelText(fr.reveal.enabled)).not.toBeChecked()
+    expect(section.getByLabelText(fr.reveal.timed)).toBeInTheDocument()
+    expect(section.getByLabelText(fr.reveal.shots)).toBeInTheDocument()
+    expect(section.getByLabelText(fr.reveal.film)).toBeInTheDocument()
+    expect(section.getByText(fr.reveal.hint)).toBeVisible()
+  })
+
+  it('holds the cap on photographs per guest once: moved, not copied', async () => {
+    renderPage(fakeApi())
+
+    await screen.findByRole('group', { name: fr.reveal.title })
+
+    expect(screen.getAllByLabelText(fr.reveal.shots)).toHaveLength(1)
+    expect(screen.queryByLabelText(fr.admin.maxPhotosPerGuest)).toBeNull()
+  })
+
+  it('keeps the cap usable with the mode off, which is what a conference does', async () => {
+    renderPage(fakeApi())
+
+    expect(await screen.findByLabelText(fr.reveal.shots)).toBeEnabled()
+  })
+
+  it('offers the twenty-seven poses of a roll', async () => {
+    renderPage(fakeApi())
+
+    expect(await screen.findByRole('option', { name: fr.admin.photos(27) })).toBeInTheDocument()
+  })
+
+  it('greys the hour and the film look until the mode is on', async () => {
+    renderPage(fakeApi())
+
+    expect(await screen.findByLabelText(fr.reveal.timed)).toBeDisabled()
+    expect(screen.getByLabelText(fr.reveal.film)).toBeDisabled()
+
+    await userEvent.click(screen.getByLabelText(fr.reveal.enabled))
+
+    expect(screen.getByLabelText(fr.reveal.timed)).toBeEnabled()
+    expect(screen.getByLabelText(fr.reveal.film)).toBeEnabled()
+  })
+
+  it('reveals at the button when no hour is chosen: the switch shows no hour field', async () => {
+    renderPage(withReveal({ enabled: true, at: null, film: true }))
+
+    expect(await screen.findByLabelText(fr.reveal.timed)).not.toBeChecked()
+    expect(screen.queryByLabelText(new RegExp(fr.reveal.at))).toBeNull()
+  })
+
+  it('asks for an hour once the host wants one, and sends it as an instant', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
+    await userEvent.click(screen.getByLabelText(fr.reveal.timed))
+    fireEvent.change(screen.getByLabelText(new RegExp(fr.reveal.at)), {
+      target: { value: toLocalInput(HOUR) },
+    })
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(sentReveal(api)).toEqual({ enabled: true, at: HOUR })
+  })
+
+  it('sends only the keys the host changed: the film look alone leaves the hour out', async () => {
+    const api = withReveal({ enabled: true, at: HOUR, film: false })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByLabelText(fr.reveal.film))
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(sentReveal(api)).toEqual({ film: true })
+  })
+
+  it('sends no reveal at all when the host touched something else', async () => {
+    const api = withReveal({ enabled: true, at: HOUR, film: true })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByLabelText(fr.admin.allowCaptions))
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(vi.mocked(api.updateSettings).mock.calls[0]?.[1]).not.toHaveProperty('reveal')
+  })
+
+  it('clears the hour when the host goes back to the button', async () => {
+    const api = withReveal({ enabled: true, at: HOUR, film: true })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByLabelText(fr.reveal.timed))
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(sentReveal(api)).toEqual({ at: null })
+  })
+
+  it('says the hour can no longer move once the server says the evening is revealed', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () =>
+        anEventDto({
+          settings: eventSettings({ reveal: { enabled: true, at: HOUR, film: true } }),
+          reveal: {
+            enabled: true,
+            revealed: true,
+            atMs: Date.parse(HOUR),
+            serverNowMs: Date.parse(HOUR) + 60_000,
+            film: true,
+            readyCount: null,
+          },
+        }),
+      ),
+    })
+
+    renderPage(api)
+
+    expect(await screen.findByLabelText(new RegExp(fr.reveal.at))).toBeDisabled()
+    expect(screen.getByText(fr.reveal.atLocked)).toBeVisible()
+    expect(screen.getByLabelText(fr.reveal.timed)).toBeDisabled()
+  })
+
+  it('keeps the hour movable while the evening is still held', async () => {
+    renderPage(withReveal({ enabled: true, at: HOUR, film: true }))
+
+    expect(await screen.findByLabelText(new RegExp(fr.reveal.at))).toBeEnabled()
+    expect(screen.queryByText(fr.reveal.atLocked)).toBeNull()
+  })
+
+  describe('the warning for an evening that already shows photographs', () => {
+    it('is said when the mode is turned on for a live evening that has some', async () => {
+      const api = fakeApi({
+        getEvent: vi.fn(async () => anEventDto({ status: 'live', photoCount: 12 })),
+      })
+
+      renderPage(api)
+      await screen.findByLabelText(fr.reveal.enabled)
+      expect(screen.queryByText(fr.reveal.liveWarning)).toBeNull()
+      await userEvent.click(screen.getByLabelText(fr.reveal.enabled))
+
+      expect(screen.getByText(fr.reveal.liveWarning)).toBeVisible()
+    })
+
+    it('is not said for an evening with no photograph yet', async () => {
+      renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ photoCount: 0 })) }))
+
+      await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
+
+      expect(screen.queryByText(fr.reveal.liveWarning)).toBeNull()
+    })
+
+    it('is not said for an evening that has not opened', async () => {
+      renderPage(
+        fakeApi({
+          getEvent: vi.fn(async () => anEventDto({ status: 'draft', photoCount: 12 })),
+        }),
+      )
+
+      await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
+
+      expect(screen.queryByText(fr.reveal.liveWarning)).toBeNull()
+    })
+
+    it('is not repeated once the mode is already on', async () => {
+      renderPage(
+        fakeApi({
+          getEvent: vi.fn(async () =>
+            anEventDto({
+              status: 'live',
+              photoCount: 12,
+              settings: eventSettings({ reveal: { enabled: true, at: null, film: true } }),
+            }),
+          ),
+        }),
+      )
+
+      await screen.findByLabelText(fr.reveal.enabled)
+
+      expect(screen.queryByText(fr.reveal.liveWarning)).toBeNull()
+    })
+
+    it('is announced politely, in a region that exists before the warning does', async () => {
+      renderPage(
+        fakeApi({
+          getEvent: vi.fn(async () => anEventDto({ status: 'live', photoCount: 12 })),
+        }),
+      )
+      await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
+
+      const region = screen.getByText(fr.reveal.liveWarning).closest('[aria-live]')
+
+      expect(region).toHaveAttribute('aria-live', 'polite')
+    })
+  })
+
+  it('is read-only for a moderator, whose saves the server refuses', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) }))
+
+    expect(await screen.findByLabelText(fr.reveal.enabled)).toBeDisabled()
+    expect(screen.getByLabelText(fr.reveal.shots)).toBeDisabled()
   })
 })

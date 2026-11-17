@@ -2,6 +2,26 @@ import type { EventSettingsPatch } from '../../lib/api/client'
 import type { EventSettingsDto } from '../../lib/api/dto'
 import { wallChanges } from '../../lib/wallDisplayOptions'
 
+type RevealDto = NonNullable<EventSettingsDto['reveal']>
+
+/**
+ * The keys of the reveal group the host changed (spec 23), or `undefined` when none was. Per key, as
+ * `wall`, and for a stronger reason: the hour can be moved by "Révéler maintenant" from the console
+ * while this form is open, and a whole group sent back would carry the old hour against the new one
+ * (`eventSettings.revealDone`). An absent group (an older server) is no change.
+ */
+export const revealChanges = (
+  draft: RevealDto | undefined,
+  loaded: RevealDto | undefined,
+): Partial<RevealDto> | undefined => {
+  if (draft === undefined || loaded === undefined) return undefined
+  const changes: { -readonly [K in keyof RevealDto]?: RevealDto[K] } = {}
+  if (draft.enabled !== loaded.enabled) changes.enabled = draft.enabled
+  if (draft.at !== loaded.at) changes.at = draft.at
+  if (draft.film !== loaded.film) changes.film = draft.film
+  return Object.keys(changes).length === 0 ? undefined : changes
+}
+
 /**
  * The settings form's draft, as `PATCH /settings` reads it: the theme without the
  * photograph's URL.
@@ -20,11 +40,14 @@ export const toSettingsPatch = (
   // The wall group is merged per key on the server, so only the keys this form changed are sent
   // (spec 13): the panel on the wall writes the same group, and a whole object would erase it.
   // A caller that did not load the group (the ambiance page) sends none.
-  const { wall, ...rest } = settings
+  const { wall, reveal, ...rest } = settings
   const wallPatch = loaded === undefined ? undefined : wallChanges(wall, loaded.wall)
+  // Per key too, and never from a caller that did not load the group (the ambiance page).
+  const revealPatch = loaded === undefined ? undefined : revealChanges(reveal, loaded.reveal)
   return {
     ...rest,
     ...(wallPatch === undefined ? {} : { wall: wallPatch }),
+    ...(revealPatch === undefined ? {} : { reveal: revealPatch }),
     // The message goes at the top level, where the route reads it; `brand` stays read-only. Not sent at
     // all when the server did not say (an older build), so a save never clears what it never saw.
     ...(settings.brand === undefined ? {} : { welcomeMessage: settings.brand.welcomeMessage }),
