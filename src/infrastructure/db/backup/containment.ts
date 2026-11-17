@@ -86,7 +86,7 @@ export interface ArchivePlacement {
   readonly archive: string
   readonly mediaRoot: string
   readonly databasePath: string
-  readonly operation: 'backup' | 'restore'
+  readonly operation: 'backup' | 'restore' | 'export'
 }
 
 /**
@@ -110,15 +110,17 @@ export const assertArchiveApart = async ({
     operation === 'restore'
       ? 'Copy the archive somewhere outside both (another directory beside the media root, ' +
         'not under it), then restore from the copy.'
-      : 'Pass --to a directory outside both, such as a sibling of the media root (the ' +
-        'default BACKUP_DIR, /data/backups, is one when MEDIA_ROOT is /data/media).'
+      : operation === 'export'
+        ? 'Pass --to a directory outside both, such as a mounted disk or a sibling of the media root.'
+        : 'Pass --to a directory outside both, such as a sibling of the media root (the ' +
+          'default BACKUP_DIR, /data/backups, is one when MEDIA_ROOT is /data/media).'
 
   if (isWithin(archivePlace, mediaPlace)) {
     throw new BackupError(
       `Refusing: the archive is inside the media root.\n` +
         `  archive   ${archivePlace.shown}\n` +
         `  media     ${mediaPlace.shown}\n` +
-        `${restoring ? 'A restore empties the media root before it copies the archive in, so it would delete the archive it is reading from. ' : 'A backup walks the media root while it writes, so it would copy its own output into itself. '}` +
+        `${restoring ? 'A restore empties the media root before it copies the archive in, so it would delete the archive it is reading from. ' : operation === 'export' ? 'An export would write a copy of the album into the very tree that holds the albums, where the retention purge and the backups would treat it as part of the box. ' : 'A backup walks the media root while it writes, so it would copy its own output into itself. '}` +
         `Nothing was touched. ${advice}`,
     )
   }
@@ -127,7 +129,7 @@ export const assertArchiveApart = async ({
       `Refusing: the media root is inside the archive.\n` +
         `  archive   ${archivePlace.shown}\n` +
         `  media     ${mediaPlace.shown}\n` +
-        `${restoring ? 'A restore empties the media root, which would delete part of the archive it is reading from. ' : 'A backup would be copying the tree it is writing into. '}` +
+        `${restoring ? 'A restore empties the media root, which would delete part of the archive it is reading from. ' : operation === 'export' ? 'An export would be writing into the tree that holds the albums. ' : 'A backup would be copying the tree it is writing into. '}` +
         `Nothing was touched. ${advice}`,
     )
   }
@@ -140,7 +142,7 @@ export const assertArchiveApart = async ({
 ` +
         `  database  ${databasePlace.shown}
 ` +
-        `${restoring ? 'A restore deletes and rewrites the database file, which would damage the archive it is reading from. ' : 'A backup writes its snapshot into the archive, beside the live database. '}` +
+        `${restoring ? 'A restore deletes and rewrites the database file, which would damage the archive it is reading from. ' : operation === 'export' ? 'An export would write beside the live database. ' : 'A backup writes its snapshot into the archive, beside the live database. '}` +
         `Nothing was touched. ${advice}`,
     )
   }
