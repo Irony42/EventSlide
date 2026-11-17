@@ -469,6 +469,7 @@ export const toEventSummaryDto = (summary: HostEventSummary): EventSummaryDto =>
 export const toEventPurgeDto = (purge: EventPurgeView, serverNowMs: number): EventPurgeDto => ({
   at: isoOrNull(purge.at),
   notice: purge.notice,
+  offboarding: purge.offboarding,
   serverNowMs,
 })
 

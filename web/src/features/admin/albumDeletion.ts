@@ -25,16 +25,21 @@ const sameLocalDay = (a: number, b: number): boolean =>
 /**
  * Where the album's date is, measured on the **server's** clock (`serverNowMs`): `null` when there is
  * no band (no date: a live event or an album kept until a person deletes it; or a date further than
- * {@link BAND_WINDOW_DAYS} away), otherwise how far it is. A date in the past is `passed` and nothing
+ * {@link BAND_WINDOW_DAYS} away, unless the client is being offboarded), otherwise how far it is. A date in the past is `passed` and nothing
  * more: the page never says why the album is still there.
  */
-export const deletionMoment = (at: string | null, serverNowMs: number): DeletionMoment | null => {
+export const deletionMoment = (
+  at: string | null,
+  serverNowMs: number,
+  offboarding = false,
+): DeletionMoment | null => {
   if (at === null) return null
   const atMs = Date.parse(at)
   if (!Number.isFinite(atMs)) return null
 
   const left = atMs - serverNowMs
-  if (left > BAND_WINDOW_DAYS * DAY_MS) return null
+  // A client being offboarded is told its date from the first day, however far it is.
+  if (left > BAND_WINDOW_DAYS * DAY_MS && !offboarding) return null
   if (left <= 0) return { kind: 'passed' }
   if (left < DAY_MS && sameLocalDay(atMs, serverNowMs)) return { kind: 'today' }
   return { kind: 'days', days: Math.max(1, Math.ceil(left / DAY_MS)) }

@@ -83,7 +83,7 @@ export function EventPage() {
   // and only then is the archive read: an event with no date in reach asks the server nothing.
   const nowMs = useServerNow(offsetMs)
   const purgeAt = event?.purge?.at ?? null
-  const moment = deletionMoment(purgeAt, nowMs)
+  const moment = deletionMoment(purgeAt, nowMs, event?.purge?.offboarding === true)
   const archive = useAlbumExport(slug, moment !== null)
   const gate = deleteGate(moment !== null, archive.data)
   const blockedHintId = useId()

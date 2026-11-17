@@ -223,6 +223,8 @@ export interface EventSummaryDto {
 export interface EventPurgeDto {
   readonly at: string | null
   readonly notice: 14 | 3 | 1 | null
+  /** The event's client is being offboarded: the deletion band shows however far the date is. */
+  readonly offboarding: boolean
   /** The server's clock when it answered: `at` is counted down against it, not the machine's. */
   readonly serverNowMs: number
 }

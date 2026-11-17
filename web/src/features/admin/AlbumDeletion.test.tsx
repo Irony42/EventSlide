@@ -41,7 +41,7 @@ const closedEvent = (at: string | null, overrides: Partial<EventDto> = {}): Even
   anEventDto({
     status: 'closed',
     closedAt: '2026-11-02T12:00:00.000Z',
-    purge: { at, notice: null, serverNowMs: SERVER_NOW },
+    purge: { at, notice: null, offboarding: false, serverNowMs: SERVER_NOW },
     ...overrides,
   })
 
@@ -93,6 +93,24 @@ describe('the deletion band: when it is on the page', () => {
     expect(section.textContent).toContain(fr.exportPurge.downloadFirst)
   })
 
+  it('is there for a client being offboarded, however far the date is', async () => {
+    const at = atInDays(90)
+    renderPage(
+      apiWith(
+        closedEvent(at, {
+          purge: { at, notice: null, offboarding: true, serverNowMs: SERVER_NOW },
+        }),
+        null,
+      ),
+    )
+
+    const section = await band()
+
+    expect(spaced(section.textContent ?? '')).toContain(
+      spaced(fr.exportPurge.deletesOn(dayOf(at), 90)),
+    )
+  })
+
   it('is not there at thirty-one days', async () => {
     const api = apiWith(closedEvent(atInDays(31)), null)
     renderPage(api)
@@ -115,7 +133,12 @@ describe('the deletion band: when it is on the page', () => {
 
   it('is not there for an event that has not closed: it has no date', async () => {
     renderPage(
-      apiWith(anEventDto({ purge: { at: null, notice: null, serverNowMs: SERVER_NOW } }), null),
+      apiWith(
+        anEventDto({
+          purge: { at: null, notice: null, offboarding: false, serverNowMs: SERVER_NOW },
+        }),
+        null,
+      ),
     )
 
     await screen.findByRole('heading', { name: 'Camille & Sacha' })
@@ -140,7 +163,7 @@ describe('the deletion band: when it is on the page', () => {
         anEventDto({
           status: 'closed',
           closedAt: '2026-11-02T12:00:00.000Z',
-          purge: { at: soon, notice: null, serverNowMs: base },
+          purge: { at: soon, notice: null, offboarding: false, serverNowMs: base },
         }),
         null,
       ),
@@ -193,13 +216,16 @@ describe('the deletion band: the server’s clock, not the machine’s', () => {
 
 describe('the deletion band: when the host closes the evening', () => {
   it('appears at once from the server’s answer, not a minute later', async () => {
-    const live = anEventDto({ purge: { at: null, notice: null, serverNowMs: SERVER_NOW } })
+    const live = anEventDto({
+      purge: { at: null, notice: null, offboarding: false, serverNowMs: SERVER_NOW },
+    })
     // Ten seconds later, on the server's clock, the host closes: the date is exactly thirty days on.
     const closedAtMs = SERVER_NOW + 10_000
     const closed = closedEvent(new Date(closedAtMs + 30 * DAY).toISOString(), {
       purge: {
         at: new Date(closedAtMs + 30 * DAY).toISOString(),
         notice: null,
+        offboarding: false,
         serverNowMs: closedAtMs,
       },
     })
@@ -391,6 +417,24 @@ describe('the archive: what the band says of each state', () => {
       expect(within(section).getByRole('button', { name: fr.exportPurge.rebuild })).toBeVisible()
     },
   )
+
+  it('says when the archive could not be read, and offers to ask again', async () => {
+    const albumExport = vi
+      .fn<() => Promise<AlbumExportDto>>()
+      .mockRejectedValueOnce(new ApiError(503, 'server.unavailable'))
+      .mockResolvedValue(anAlbumExport())
+    renderPage(apiWith(closedEvent(atInDays(10)), null, { albumExport }))
+    const section = await band()
+
+    const retry = await within(section).findByRole('button', { name: fr.app.retry })
+    expect(within(section).queryByRole('button', { name: fr.exportPurge.prepare })).toBeNull()
+    expect(within(section).getByRole('status').textContent).not.toBe('')
+
+    await userEvent.click(retry)
+
+    expect(await within(section).findByText(/Archive prête :/)).toBeVisible()
+    expect(within(section).queryByRole('button', { name: fr.app.retry })).toBeNull()
+  })
 
   it('reads the archive again when the server says it moved, with no polling', async () => {
     const albumExport = vi

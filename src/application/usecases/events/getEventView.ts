@@ -34,6 +34,11 @@ export interface EventPurgeView {
   readonly at: Date | null
   /** The threshold of the last e-mail sent, or `null`: none yet, or no date. */
   readonly notice: PurgeNoticeLevel | null
+  /**
+   * The event's client is being offboarded (it has a `purge_after`): the album's date is the grace
+   * period the client was told, and the host's page shows the deletion band however far it is.
+   */
+  readonly offboarding: boolean
 }
 
 export interface EventView {
@@ -69,6 +74,10 @@ export const makeGetEventView =
       event,
       counts: await events.countsOf(event.id),
       limits: await getEventLimits({ event }),
-      purge: { at, notice: at === null ? null : await notices.lastLevel(event.id) },
+      purge: {
+        at,
+        notice: at === null ? null : await notices.lastLevel(event.id),
+        offboarding: client?.purgeAfter != null,
+      },
     }
   }

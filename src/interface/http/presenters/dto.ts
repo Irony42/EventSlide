@@ -618,6 +618,11 @@ export interface EventPurgeDto {
   readonly at: string | null
   readonly notice: 14 | 3 | 1 | null
   /**
+   * The event's client is being offboarded: the band says so from the first day, however far the
+   * date is (a grace period may be a year).
+   */
+  readonly offboarding: boolean
+  /**
    * The server's clock when it answered, in milliseconds: what `at` is to be counted down against, so
    * a phone with a wrong clock does not lie about the day the album goes (the same field the timed
    * challenge carries).

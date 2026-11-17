@@ -104,7 +104,11 @@ export function AlbumDeletionBand({ slug, at, moment, archive, albumUrl }: Album
     }
   }
 
-  const lines = sentences(view)
+  // The archive could not be read (a refusal, the server down) and there is no archive to show: say so
+  // and offer to ask again, rather than a band that is silent and offers nothing. `none` counts, as the
+  // loader starts from it while the band is not on the page yet: it is not an answer of the server's.
+  const unread = (archive.data === null || archive.data === 'none') && archive.error !== null
+  const lines = unread ? [archive.error ?? ''] : sentences(view)
   const hasArchive = view.kind === 'ready'
 
   return (
@@ -140,7 +144,11 @@ export function AlbumDeletionBand({ slug, at, moment, archive, albumUrl }: Album
             {t.downloadArchive}
           </a>
         ) : null}
-        {view.kind === 'loading' || view.kind === 'working' ? null : (
+        {unread ? (
+          <Button variant="secondary" loading={archive.loading} onClick={archive.reload}>
+            {text.app.retry}
+          </Button>
+        ) : view.kind === 'loading' || view.kind === 'working' ? null : (
           <Button variant="secondary" loading={request.busy} onClick={prepare}>
             {view.kind === 'none' ? t.prepare : t.rebuild}
           </Button>

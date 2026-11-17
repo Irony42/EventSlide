@@ -17,6 +17,12 @@ describe('deletionMoment', () => {
     expect(deletionMoment(null, NOW)).toBeNull()
   })
 
+  it('has the band for an offboarding client whatever the distance', () => {
+    expect(deletionMoment(inMs(90 * DAY), NOW, true)).toEqual({ kind: 'days', days: 90 })
+    expect(deletionMoment(inMs(90 * DAY), NOW, false)).toBeNull()
+    expect(deletionMoment(null, NOW, true)).toBeNull()
+  })
+
   it('has no band for a date that cannot be read', () => {
     expect(deletionMoment('later', NOW)).toBeNull()
   })
