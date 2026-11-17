@@ -150,4 +150,49 @@ describe('revealEvent (spec 23)', () => {
     expect(!result.ok && result.error.code).toBe('client.suspended')
     expect(await lines()).toEqual([])
   })
+
+  it('refuses, and writes nothing, when the clock gives no real instant', async () => {
+    seed({ settings: { reveal: { enabled: true } } })
+    const broken = makeRevealEvent({
+      events,
+      memberships: await grantedTo(OWNER),
+      audit,
+      bus,
+      clock: { now: () => new Date(Number.NaN) },
+    })
+
+    const result = await broken({ eventId: WEDDING, actorId: OWNER })
+
+    expect(!result.ok && result.error.code).toBe('eventSettings.revealInstantInvalid')
+    expect(await lines()).toEqual([])
+  })
+
+  it('refuses before changing anything when the audit log would not accept the entry', async () => {
+    const odd = asEventId('not an opaque id!')
+    events.seed(
+      anEvent({
+        id: odd,
+        slug: 'odd',
+        joinCode: 'K4M7QX',
+        settings: { reveal: { enabled: true } },
+      }),
+    )
+    const memberships = new FakeMembershipRepository()
+    await memberships.grant({ eventId: odd, userId: OWNER, role: 'owner', grantedAt: AT })
+
+    const result = await makeRevealEvent({ events, memberships, audit, bus, clock })({
+      eventId: odd,
+      actorId: OWNER,
+    })
+
+    expect(result.ok).toBe(false)
+    expect((await events.findById(odd))?.settings.reveal.at).toBeNull()
+    expect(bus.published).toEqual([])
+  })
+
+  const grantedTo = async (userId: ReturnType<typeof asUserId>) => {
+    const memberships = new FakeMembershipRepository()
+    await memberships.grant({ eventId: WEDDING, userId, role: 'moderator', grantedAt: AT })
+    return memberships
+  }
 })
