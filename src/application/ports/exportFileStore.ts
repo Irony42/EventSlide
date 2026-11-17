@@ -2,6 +2,16 @@ import type { EventId } from '../../domain/shared/ids'
 import type { ByteRange } from './mediaStore'
 
 /**
+ * A write that has not been renamed into place: what a build in progress, or one a power cut stopped, leaves.
+ * Its size is what an archive in the making already weighs on the disk.
+ */
+export interface TemporaryExportFile {
+  readonly name: string
+  readonly size: number
+  readonly modifiedAt: Date
+}
+
+/**
  * Where a finished archive lives: one ZIP per event, outside the event's own folder and outside the
  * backups (`<MEDIA_ROOT>/.exports/<eventId>.zip`), exactly where the photo book's PDF lives (spec 22).
  * The name comes from the `EventId` alone, never from the title the host typed, and no path ever
@@ -34,14 +44,8 @@ export interface ExportFileStore {
   list(): Promise<readonly EventId[]>
 
   /** Temporary files left by a write that never finished, and how old each is, so the sweep can collect them. */
-  listTemporary(): Promise<readonly { readonly name: string; readonly modifiedAt: Date }[]>
+  listTemporary(): Promise<readonly TemporaryExportFile[]>
 
   /** Deletes one temporary file by the name `listTemporary` gave. Idempotent. */
   deleteTemporary(name: string): Promise<void>
-
-  /**
-   * Bytes on the disk for archives, finished **and in the making** (temporary files included): what
-   * `EXPORT_MAX_TOTAL_BYTES` is judged against, with the rows' own sizes.
-   */
-  totalBytes(): Promise<number>
 }

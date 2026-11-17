@@ -33,11 +33,17 @@ export class FakeAlbumExportRepository implements AlbumExportRepository {
     this.requests.push({ eventId: archive.eventId, at: archive.requestedAt })
   }
 
+  async findNextQueued(): Promise<AlbumExport | null> {
+    return (
+      [...this.exports.values()]
+        .filter((archive) => archive.status === 'queued')
+        .sort((left, right) => left.requestedAt.getTime() - right.requestedAt.getTime())[0] ?? null
+    )
+  }
+
   async claimNext(now: Date): Promise<AlbumExport | null> {
-    const next = [...this.exports.values()]
-      .filter((archive) => archive.status === 'queued')
-      .sort((left, right) => left.requestedAt.getTime() - right.requestedAt.getTime())[0]
-    if (next === undefined) return null
+    const next = await this.findNextQueued()
+    if (next === null) return null
     const started = startExport(next, now)
     if (!started.ok) return null
     this.exports.set(next.eventId, started.value)

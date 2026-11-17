@@ -1,4 +1,3 @@
-import { exportAllowed } from '../../../domain/clients/exportAllowed'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
@@ -12,6 +11,7 @@ import type { Logger } from '../../ports/logger'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { StreamHasher } from '../../ports/streamHasher'
+import { checkExportAccess } from '../exports/exportAccess'
 import { albumArchiveOf } from '../shared/albumArchive'
 
 /**
@@ -95,12 +95,7 @@ export const makeExportAlbum = ({
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    // The client is read only when it can change the answer: a suspended client's event.
-    const client =
-      event.isClientSuspended() && event.clientId !== null
-        ? await clients.findById(event.clientId)
-        : null
-    const allowed = exportAllowed(event, client)
+    const allowed = await checkExportAccess(clients, event)
     if (!allowed.ok) return allowed
 
     // The entries are the same loop the box's own verified archive is written from.

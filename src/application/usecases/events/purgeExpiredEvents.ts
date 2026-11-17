@@ -3,6 +3,7 @@ import type { EventId } from '../../../domain/shared/ids'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { BookFileStore } from '../../ports/bookFileStore'
+import type { ExportFileStore } from '../../ports/exportFileStore'
 import type { MediaStore } from '../../ports/mediaStore'
 
 /**
@@ -43,6 +44,12 @@ export interface PurgeExpiredEventsDeps {
   /** The photo book's PDF, outside the event's folder (spec 04): deleted explicitly. */
   readonly bookFiles?: Pick<BookFileStore, 'delete'>
   /**
+   * The verified archive's ZIP, outside the event's folder (spec 22): deleted explicitly, next to
+   * the row, **whatever state the archive is in**. The purge never waits for an archive and never
+   * asks whether one was sent; the date promised to the guests does not move.
+   */
+  readonly exportFiles?: Pick<ExportFileStore, 'delete'>
+  /**
    * What the box holds for an event, for the log only. Absent, every album is `none`: there is
    * nothing prepared on a box that does not prepare archives. It must not throw; if it does, the
    * album is reported `none` and purged all the same, because the date promised to the guests
@@ -66,6 +73,7 @@ export const makePurgeExpiredEvents =
     clock,
     capNoticeDays,
     bookFiles,
+    exportFiles,
     archiveStateOf,
   }: PurgeExpiredEventsDeps): PurgeExpiredEvents =>
   async () => {
@@ -99,6 +107,7 @@ export const makePurgeExpiredEvents =
         // `sweepOrphanedMedia` collects once they are old enough; it is reported as failed.
         if (!(await events.deleteUnlessHeld(event.id))) continue
         await bookFiles?.delete(event.id).catch(() => undefined)
+        await exportFiles?.delete(event.id).catch(() => undefined)
         try {
           await media.deleteEvent(event.id)
         } catch {

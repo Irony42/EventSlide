@@ -21,6 +21,7 @@ import { SESSION_COOKIE, authRoutes } from './routes/authRoutes'
 import { clientRoutes } from './routes/clientRoutes'
 import { invitationRoutes } from './routes/invitationRoutes'
 import { bookRoutes } from './routes/bookRoutes'
+import { exportRoutes } from './routes/exportRoutes'
 import { clipRoutes } from './routes/clipRoutes'
 import { eventRoutes } from './routes/eventRoutes'
 import { galleryHeaders, galleryRoutes, setGalleryHeaders } from './routes/galleryRoutes'
@@ -346,6 +347,8 @@ export const buildServer = ({
   app.use('/api', highlightRoutes({ ...routeDeps, hostExportLimiter: sharedHostExportLimiter }))
   // The photo book (spec 04): a moderator's PDF of the published album.
   app.use('/api', bookRoutes(routeDeps))
+  // The verified archive shares the host exports' concurrency bound, built once above.
+  app.use('/api', exportRoutes({ ...routeDeps, hostExportLimiter: sharedHostExportLimiter }))
   // After the guest router, which owns 'missions/mine' on the same path prefix, and
   // before the event router for no reason other than reading order: the four routes here
   // are all 'events/:eventSlug/missions' and none of them collides with anything above.

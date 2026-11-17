@@ -1,6 +1,6 @@
 import { DomainError } from '../../domain/shared/errors'
 import type { EventId } from '../../domain/shared/ids'
-import type { ExportFileStore } from '../ports/exportFileStore'
+import type { ExportFileStore, TemporaryExportFile } from '../ports/exportFileStore'
 import type { ByteRange } from '../ports/mediaStore'
 
 /** In-memory `ExportFileStore`: one buffer per event, the same refusal past `maxBytes`. */
@@ -9,6 +9,12 @@ export class FakeExportFileStore implements ExportFileStore {
   private readonly temporaries = new Map<string, { size: number; modifiedAt: Date }>()
   /** Set to make the next `write` fail after reading its stream. */
   failNextWriteWith: unknown = null
+  /**
+   * Makes the disk lie once: the next `write` stores what this returns for the bytes it was given
+   * (cut short, one byte flipped) and still answers the size it was handed, as a disk that fills
+   * up and truncates without an error does.
+   */
+  alterNextWrite: ((bytes: Uint8Array) => Uint8Array) | null = null
   /** Runs while a write is part-way, after the first chunk: where a test makes the world move. */
   duringWrite: (() => Promise<void>) | null = null
 
@@ -40,7 +46,8 @@ export class FakeExportFileStore implements ExportFileStore {
       whole.set(chunk, at)
       at += chunk.byteLength
     }
-    this.files.set(eventId, whole)
+    this.files.set(eventId, this.alterNextWrite === null ? whole : this.alterNextWrite(whole))
+    this.alterNextWrite = null
     return size
   }
 
@@ -66,19 +73,12 @@ export class FakeExportFileStore implements ExportFileStore {
     return [...this.files.keys()]
   }
 
-  async listTemporary(): Promise<readonly { readonly name: string; readonly modifiedAt: Date }[]> {
-    return [...this.temporaries].map(([name, { modifiedAt }]) => ({ name, modifiedAt }))
+  async listTemporary(): Promise<readonly TemporaryExportFile[]> {
+    return [...this.temporaries].map(([name, { size, modifiedAt }]) => ({ name, size, modifiedAt }))
   }
 
   async deleteTemporary(name: string): Promise<void> {
     this.temporaries.delete(name)
-  }
-
-  async totalBytes(): Promise<number> {
-    let total = 0
-    for (const file of this.files.values()) total += file.byteLength
-    for (const temporary of this.temporaries.values()) total += temporary.size
-    return total
   }
 
   /** Test seam: put a file there without going through `write`. */

@@ -63,7 +63,7 @@ describe('createFsExportFileStore', () => {
       expect(await store.list()).toEqual(['evt-a'])
     }))
 
-  it('lists a temporary file with its age, counts it in the total and deletes it by name', () =>
+  it('lists a temporary file with its size and its age, and deletes it by name', () =>
     withRoot(async (root) => {
       const store = createFsExportFileStore(root)
       await store.write(asEventId('evt-a'), bytes('xy'), { maxBytes: 10 })
@@ -72,14 +72,25 @@ describe('createFsExportFileStore', () => {
       const old = new Date('2026-01-01T00:00:00Z')
       utimesSync(half, old, old)
 
-      expect(await store.listTemporary()).toEqual([{ name: 'evt-b.1.tmp', modifiedAt: old }])
-      expect(await store.totalBytes()).toBe(6)
+      expect(await store.listTemporary()).toEqual([
+        { name: 'evt-b.1.tmp', size: 4, modifiedAt: old },
+      ])
 
       await store.deleteTemporary('evt-b.1.tmp')
       await store.deleteTemporary('evt-b.1.tmp')
 
       expect(await store.listTemporary()).toEqual([])
-      expect(await store.totalBytes()).toBe(2)
+    }))
+
+  it('leaves out a file that is not a temporary one, and answers none for a folder that is not there', () =>
+    withRoot(async (root) => {
+      const store = createFsExportFileStore(root)
+      expect(await store.listTemporary()).toEqual([])
+
+      await store.write(asEventId('evt-a'), bytes('x'), { maxBytes: 10 })
+      writeFileSync(join(root, '.exports', '.tmp', 'notes.txt'), 'x')
+
+      expect(await store.listTemporary()).toEqual([])
     }))
 
   it('refuses to delete a temporary file by a name that is a path', () =>

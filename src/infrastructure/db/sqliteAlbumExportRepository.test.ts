@@ -4,10 +4,7 @@ import {
   albumExportRepositoryContract,
 } from '../../application/testing/contracts/albumExportRepositoryContract'
 import { requestExport } from '../../domain/exports/albumExport'
-import {
-  EXPORT_FAILURE_CODES,
-  EXPORT_STALE_REASONS,
-} from '../../domain/exports/albumExportStatus'
+import { EXPORT_FAILURE_CODES, EXPORT_STALE_REASONS } from '../../domain/exports/albumExportStatus'
 import { asEventId, asUserId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrate } from './migrator'
@@ -80,6 +77,20 @@ describe('SqliteAlbumExportRepository', () => {
 
     expect(() => insert.run('a free message', null)).toThrow(/CHECK/)
     expect(() => insert.run(null, 'because I said so')).toThrow(/CHECK/)
+    closeDatabase(db)
+  })
+
+  it.each([
+    ['failure', "UPDATE event_exports SET failure = 'a sentence'"],
+    ['stale_reason', "UPDATE event_exports SET stale_reason = 'because'"],
+  ])('refuses to read a row whose %s was tampered with', async (field, update) => {
+    const db = migratedDatabase()
+    const repo = new SqliteAlbumExportRepository(db)
+    await repo.request(requestExport(WEDDING, HOST, new Date(AT)))
+    db.pragma('ignore_check_constraints = ON')
+    db.prepare(update).run()
+
+    await expect(repo.find(WEDDING)).rejects.toThrow(new RegExp(`unreadable ${field}`))
     closeDatabase(db)
   })
 

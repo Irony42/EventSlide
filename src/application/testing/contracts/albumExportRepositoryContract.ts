@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { requestExport, type AlbumExport, type ExportSeal } from '../../../domain/exports/albumExport'
+import {
+  requestExport,
+  type AlbumExport,
+  type ExportSeal,
+} from '../../../domain/exports/albumExport'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import type { AlbumExportRepository } from '../../ports/albumExportRepository'
 
@@ -53,7 +57,11 @@ export const albumExportRepositoryContract = (
     }
 
     /** Requested, claimed and sealed: the archive a host can download. */
-    const seal = async (eventId = WEDDING, minutes = 0, sealed: ExportSeal = SEAL): Promise<void> => {
+    const seal = async (
+      eventId = WEDDING,
+      minutes = 0,
+      sealed: ExportSeal = SEAL,
+    ): Promise<void> => {
       await request(eventId, minutes)
       await repo.claimNext(at(minutes + 1))
       expect(await repo.finish(eventId, { kind: 'sealed', seal: sealed }, at(minutes + 2))).toBe(
@@ -79,6 +87,15 @@ export const albumExportRepositoryContract = (
 
       expect(await repo.find(WEDDING)).toEqual(again)
       expect((await repo.find(WEDDING))?.sha256).toBeNull()
+    })
+
+    it('looks at the oldest queued archive without claiming it', async () => {
+      expect(await repo.findNextQueued()).toBeNull()
+      await request(GALA, 5)
+      await request(WEDDING, 1)
+
+      expect((await repo.findNextQueued())?.eventId).toBe(WEDDING)
+      expect((await repo.findNextQueued())?.status).toBe('queued')
     })
 
     it('claims the oldest queued archive, running, and never the same one twice', async () => {
@@ -125,9 +142,9 @@ export const albumExportRepositoryContract = (
       await request()
       await repo.claimNext(at(1))
 
-      expect(
-        await repo.finish(WEDDING, { kind: 'stale', reason: 'albumChanged' }, at(2)),
-      ).toBe('stale')
+      expect(await repo.finish(WEDDING, { kind: 'stale', reason: 'albumChanged' }, at(2))).toBe(
+        'stale',
+      )
 
       expect(await repo.find(WEDDING)).toMatchObject({
         status: 'stale',

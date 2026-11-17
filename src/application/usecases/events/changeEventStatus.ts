@@ -7,6 +7,7 @@ import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { ceilingsOf } from '../clients/clientContextOf'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
@@ -39,6 +40,12 @@ export interface ChangeEventStatusDeps {
   readonly memberships: MembershipRepository
   readonly bus: EventBus
   readonly clock: Clock
+  /**
+   * Retires the verified archive the box may hold when a closed event is reopened (spec 22): the
+   * album goes on growing, so an archive of it proves nothing, and reopening clears the deadline it
+   * was bounded by. Awaited, and before the new status is saved.
+   */
+  readonly invalidateExport?: InvalidateExport
 }
 
 export type ChangeEventStatus = (
@@ -46,7 +53,14 @@ export type ChangeEventStatus = (
 ) => Promise<Result<Event, DomainError>>
 
 export const makeChangeEventStatus =
-  ({ events, clients, memberships, bus, clock }: ChangeEventStatusDeps): ChangeEventStatus =>
+  ({
+    events,
+    clients,
+    memberships,
+    bus,
+    clock,
+    invalidateExport,
+  }: ChangeEventStatusDeps): ChangeEventStatus =>
   async ({ eventId, actorId, status }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -65,6 +79,9 @@ export const makeChangeEventStatus =
     const updated = event.transitionTo(status, clock.now(), ceilings)
     if (!updated.ok) return updated
 
+    if (event.status === 'closed' && updated.value.status === 'live') {
+      await invalidateExport?.(eventId, 'reopened')
+    }
     await events.save(updated.value)
     // The wall listens for this: a projector left running unattended has to notice on
     // its own that the event it is playing was closed or archived.

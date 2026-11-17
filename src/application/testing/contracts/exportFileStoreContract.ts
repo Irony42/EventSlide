@@ -56,7 +56,6 @@ export const exportFileStoreContract = (
         expect(await store.stat(A)).toBeNull()
         expect(await store.openRead(A)).toBeNull()
         expect(await store.list()).toEqual([])
-        expect(await store.totalBytes()).toBe(0)
       }))
 
     it('replaces an older archive in one step', () =>
@@ -95,17 +94,15 @@ export const exportFileStoreContract = (
         expect(await store.stat(A)).toBeNull()
         expect(await store.list()).toEqual([])
         expect(await store.listTemporary()).toEqual([])
-        expect(await store.totalBytes()).toBe(0)
       }))
 
-    it('keeps one event’s archive apart from another’s, lists them and adds up their bytes', () =>
+    it('keeps one event’s archive apart from another’s, and lists them', () =>
       withStore(async (store) => {
         await store.write(A, stream('a'), { maxBytes: 100 })
         await store.write(B, stream('bb'), { maxBytes: 100 })
 
         expect(await collect(await store.openRead(B))).toBe('bb')
         expect([...(await store.list())].sort()).toEqual([A, B])
-        expect(await store.totalBytes()).toBe(3)
       }))
 
     it('deletes one event’s archive only, and deleting nothing is fine', () =>

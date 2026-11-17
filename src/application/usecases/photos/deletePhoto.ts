@@ -11,7 +11,9 @@ import type { PhotoRepository } from '../../ports/photoRepository'
 import { requireWritable } from '../shared/eventRole'
 import type { InvalidateReel } from '../highlights/invalidateReel'
 import type { InvalidateBook } from '../book/invalidateAlbumBook'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { isInBook } from '../../../domain/book/isInBook'
+import { isInAlbum } from '../../../domain/photos/photoStatus'
 import { makeRemovePhotoRecord } from './removePhotoRecord'
 
 /**
@@ -53,6 +55,11 @@ export interface DeletePhotoDeps {
    * must never still hold what was removed.
    */
   readonly invalidateBook?: InvalidateBook
+  /**
+   * Retires the verified archive the box may hold (spec 22), awaited and before the bytes go: an
+   * archive must never still hold what was removed.
+   */
+  readonly invalidateExport?: InvalidateExport
 }
 
 export type DeletePhoto = (input: DeletePhotoInput) => Promise<Result<void, DomainError>>
@@ -66,6 +73,7 @@ export const makeDeletePhoto = ({
   clock,
   invalidateReel,
   invalidateBook,
+  invalidateExport,
 }: DeletePhotoDeps): DeletePhoto => {
   const removePhotoRecord = makeRemovePhotoRecord({ photos, media, clock })
 
@@ -99,6 +107,8 @@ export const makeDeletePhoto = ({
     // Bytes first, then the row; `removePhotoRecord` carries the argument and the guards.
     await invalidateReel?.(eventId, [photoId])
     if (isInBook(photo.status)) await invalidateBook?.(eventId, 'photoRemoved')
+    // The archive holds published and hidden photographs alike (`isInAlbum`).
+    if (isInAlbum(photo.status)) await invalidateExport?.(eventId, 'photoRemoved')
     await removePhotoRecord(eventId, photo)
 
     // **And the clip job that produced it, if there was one.** A `done` job blocks the

@@ -1,8 +1,4 @@
-import type {
-  AlbumExport,
-  ExportFinish,
-  ExportVerdict,
-} from '../../domain/exports/albumExport'
+import type { AlbumExport, ExportFinish, ExportVerdict } from '../../domain/exports/albumExport'
 import type { ExportStaleReason } from '../../domain/exports/albumExportStatus'
 import type { EventId } from '../../domain/shared/ids'
 
@@ -27,6 +23,9 @@ export interface AlbumExportRepository {
    * (what the daily ceiling counts), in one step.
    */
   request(archive: AlbumExport): Promise<void>
+
+  /** The oldest `queued` archive, **without** claiming it: what the worker looks at before it decides to wait. */
+  findNextQueued(): Promise<AlbumExport | null>
 
   /**
    * The oldest `queued` archive, now `running` with `startedAt = now`; `null` when none is waiting.

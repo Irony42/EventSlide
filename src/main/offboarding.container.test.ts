@@ -331,6 +331,61 @@ describe('offboarding a client, through the real composition root', () => {
       expect(response.body.error.code).toBe('client.suspended')
     })
 
+    const ARCHIVE = '/api/events/mariage-de-camille/export'
+
+    it('lets a member of an offboarded client prepare the verified archive and download it (spec 22, PR 2)', async () => {
+      const s = await scene()
+      await s.operator.post(`/api/site/clients/${CLIENT}/offboard`, { graceDays: 30 })
+
+      const asked = await s.operator.post(ARCHIVE)
+      expect(asked.status, JSON.stringify(asked.body)).toBe(202)
+      const worked = await s.booted.albumExportWorker?.runOnce()
+      expect(worked?.status).toBe('completed')
+      const state = await s.operator.get(ARCHIVE)
+      expect(state.body).toMatchObject({ status: 'sealed', skipped: 0 })
+
+      const response = await s.operator.download(`${ARCHIVE}.zip`)
+
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toBe('application/zip')
+      expect(response.headers['content-length']).toBe(String((response.body as Buffer).length))
+      expect(response.headers['etag']).toBe(`"${state.body.sha256}"`)
+      expect((response.body as Buffer).includes(Buffer.from('MANIFEST.sha256'))).toBe(true)
+    })
+
+    it('still refuses the archive to a client that is suspended and not being offboarded', async () => {
+      const s = await scene()
+      await s.operator.post(`/api/site/clients/${CLIENT}/suspend`)
+
+      const asked = await s.operator.post(ARCHIVE)
+      const read = await s.operator.get(ARCHIVE)
+      const downloaded = await s.operator.get(`${ARCHIVE}.zip`)
+
+      for (const response of [asked, read, downloaded]) {
+        expect(response.status).toBe(403)
+        expect(response.body.error.code).toBe('client.suspended')
+      }
+    })
+
+    it('answers 404 to every archive route for an event the operator took down, offboarding or not', async () => {
+      const s = await scene()
+      await s.operator.post(`/api/site/clients/${CLIENT}/offboard`, { graceDays: 30 })
+      const id = s.booted.db
+        .prepare<[], { readonly id: string }>(
+          "SELECT id FROM events WHERE slug = 'mariage-de-camille'",
+        )
+        .get()?.id
+      await new SqliteEventRepository(s.booted.db).setTakenDown(asEventId(id ?? ''), new Date())
+
+      for (const response of [
+        await s.operator.post(ARCHIVE),
+        await s.operator.get(ARCHIVE),
+        await s.operator.get(`${ARCHIVE}.zip`),
+      ]) {
+        expect(response.status).toBe(404)
+      }
+    })
+
     it('answers 404, offboarding or not, for an event the operator took down', async () => {
       const s = await scene()
       await s.operator.post(`/api/site/clients/${CLIENT}/offboard`, { graceDays: 30 })

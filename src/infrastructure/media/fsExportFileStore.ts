@@ -36,15 +36,6 @@ export const createFsExportFileStore = (mediaRoot: string): ExportFileStore => {
     return candidate
   }
 
-  const sizeOf = async (path: string): Promise<number> => {
-    try {
-      return (await stat(path)).size
-    } catch (error) {
-      if (isMissing(error)) return 0
-      throw error
-    }
-  }
-
   return {
     write: async (eventId, bytes, { maxBytes }): Promise<number> => {
       const target = finalPath(eventId)
@@ -65,12 +56,8 @@ export const createFsExportFileStore = (mediaRoot: string): ExportFileStore => {
         throw error
       }
       await handle.close()
-      try {
-        await rename(temporary, target)
-      } catch (error) {
-        await rm(temporary, { force: true })
-        throw error
-      }
+      // A rename that fails leaves the temporary file, which the archive sweep collects once it is old.
+      await rename(temporary, target)
       return size
     },
 
@@ -107,33 +94,21 @@ export const createFsExportFileStore = (mediaRoot: string): ExportFileStore => {
     },
 
     listTemporary: async () => {
-      const found: { readonly name: string; readonly modifiedAt: Date }[] = []
-      for (const name of await readdirOrEmpty(tmpDir)) {
-        if (!TEMPORARY_FILE.test(name)) continue
-        try {
-          found.push({ name, modifiedAt: (await stat(join(tmpDir, name))).mtime })
-        } catch (error) {
-          // Renamed into place or removed between the listing and the stat: not temporary any more.
-          if (!isMissing(error)) throw error
-        }
-      }
-      return found
+      const names = (await readdirOrEmpty(tmpDir)).filter((name) => TEMPORARY_FILE.test(name))
+      // A file renamed into place or removed between the listing and the stat is not temporary any
+      // more: it is left out, not an error.
+      const stats = await Promise.allSettled(names.map((name) => stat(join(tmpDir, name))))
+      return names.flatMap((name, index) => {
+        const found = stats[index]
+        return found?.status === 'fulfilled'
+          ? [{ name, size: found.value.size, modifiedAt: found.value.mtime }]
+          : []
+      })
     },
 
     deleteTemporary: async (name) => {
       if (!TEMPORARY_FILE.test(name)) throw new Error('export store received an unsafe file name')
       await rm(join(tmpDir, name), { force: true })
-    },
-
-    totalBytes: async () => {
-      let total = 0
-      for (const name of await readdirOrEmpty(exportsDir)) {
-        if (EXPORT_FILE.test(name)) total += await sizeOf(join(exportsDir, name))
-      }
-      for (const name of await readdirOrEmpty(tmpDir)) {
-        if (TEMPORARY_FILE.test(name)) total += await sizeOf(join(tmpDir, name))
-      }
-      return total
     },
   }
 }

@@ -7,9 +7,9 @@ const hour = (n: number): Date => new Date(SEALED.getTime() + n * 3_600_000)
 
 describe('exportExpiresAt: the first of three dates (spec 22, rule 2)', () => {
   it('is the ttl after the seal when nothing else comes first', () => {
-    expect(exportExpiresAt({ sealedAt: SEALED, servedAt: null, deadline: null, ttlDays: 7 })).toEqual(
-      day(7),
-    )
+    expect(
+      exportExpiresAt({ sealedAt: SEALED, servedAt: null, deadline: null, ttlDays: 7 }),
+    ).toEqual(day(7))
   })
 
   it('is the album deadline when it comes before the ttl', () => {

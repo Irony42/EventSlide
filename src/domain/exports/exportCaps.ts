@@ -56,7 +56,9 @@ export const checkExportDailyLimit = (
   retryAfterSeconds: number,
 ): Result<void, DomainError> =>
   requestsInWindow >= maxPerDay
-    ? err(DomainError.rateLimited('export.dailyLimitReached', { max: maxPerDay, retryAfterSeconds }))
+    ? err(
+        DomainError.rateLimited('export.dailyLimitReached', { max: maxPerDay, retryAfterSeconds }),
+      )
     : ok(undefined)
 
 /** Seconds until the oldest request of the window leaves it: what a refused host is told to wait. */

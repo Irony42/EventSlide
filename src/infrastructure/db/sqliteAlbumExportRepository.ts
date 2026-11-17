@@ -149,6 +149,16 @@ export class SqliteAlbumExportRepository implements AlbumExportRepository {
       .immediate()
   }
 
+  async findNextQueued(): Promise<AlbumExport | null> {
+    const row = this.db
+      .prepare<[], ExportRow>(
+        `SELECT ${COLUMNS} FROM event_exports WHERE status = 'queued'
+          ORDER BY requested_at ASC, event_id ASC LIMIT 1`,
+      )
+      .get()
+    return row === undefined ? null : toExport(row)
+  }
+
   async claimNext(now: Date): Promise<AlbumExport | null> {
     return this.db
       .transaction((): AlbumExport | null => {

@@ -31,7 +31,7 @@ import { type SharedHooks } from './usecases.shared'
 export const wallUseCases = (
   adapters: Adapters,
   policy: UseCasePolicy,
-  { invalidateReel, invalidateBook }: SharedHooks,
+  { invalidateReel, invalidateBook, invalidateExport }: SharedHooks,
 ) => ({
   // moderation
   getModerationQueue: makeGetModerationQueue({
@@ -43,6 +43,7 @@ export const wallUseCases = (
   moderatePhoto: makeModeratePhoto({
     invalidateReel,
     invalidateBook,
+    invalidateExport,
     events: adapters.events,
     photos: adapters.photos,
     memberships: adapters.memberships,
@@ -52,6 +53,7 @@ export const wallUseCases = (
   moderatePhotosBulk: makeModeratePhotosBulk({
     invalidateReel,
     invalidateBook,
+    invalidateExport,
     events: adapters.events,
     photos: adapters.photos,
     memberships: adapters.memberships,
@@ -97,6 +99,7 @@ export const wallUseCases = (
     memberships: adapters.memberships,
   }),
   moderateGuestbookEntry: makeModerateGuestbookEntry({
+    invalidateExport,
     events: adapters.events,
     guestbook: adapters.guestbook,
     memberships: adapters.memberships,

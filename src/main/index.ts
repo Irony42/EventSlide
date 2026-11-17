@@ -115,6 +115,8 @@ const bootstrap = async (): Promise<void> => {
   // standing in the room has already waited once.
   container.clipWorker.start()
   container.albumBookWorker?.start()
+  // Same first pass, same reason: an archive left `running` by a crash goes back to the queue.
+  container.albumExportWorker?.start()
   // Its first pass is immediate too, and for the same reason: whatever killed the last
   // process may have left a reservation charging an event for bytes that never arrived.
   container.reservationReaper.start()

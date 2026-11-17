@@ -71,6 +71,8 @@ export interface AlbumArchiveDeps {
 export interface AlbumArchiveReport {
   /** Files written, the guestbook included and the manifest not. */
   readonly written: number
+  /** Of those, the photographs and clips: one per row of the album that had its file. */
+  readonly photos: number
   /** Rows of the album whose file was not on the disk. */
   readonly missing: number
 }
@@ -89,6 +91,7 @@ export const albumArchiveOf = (
   /** What the manifest lists, in the order the files went by, and the rows that had no file. */
   const manifest: ManifestLine[] = []
   let missing = 0
+  let guestbookWritten = false
 
   /** An entry's name as the manifest, which sits in the same folder, reads it. */
   const manifestName = (entry: ArchiveEntry): string => entry.name.slice(slug.length + 1)
@@ -98,7 +101,12 @@ export const albumArchiveOf = (
    * manifest, or, for a file that has a digest to answer to, held against it first: a mismatch
    * fails the stream here, and the file is never listed.
    */
-  const hashed = (entry: ArchiveEntry, expected: string | null, row: string): ArchiveEntry => ({
+  const hashed = (
+    entry: ArchiveEntry,
+    expected: string | null,
+    row: string,
+    listed?: () => void,
+  ): ArchiveEntry => ({
     ...entry,
     bytes: (async function* () {
       const hash = streamHasher.start()
@@ -115,6 +123,7 @@ export const albumArchiveOf = (
         throw DomainError.unexpected('export.corrupt')
       }
       manifest.push({ digest, name: manifestName(entry) })
+      listed?.()
     })(),
   })
 
@@ -173,6 +182,9 @@ export const albumArchiveOf = (
       },
       null,
       'guestbook',
+      () => {
+        guestbookWritten = true
+      },
     )
   }
 
@@ -188,5 +200,12 @@ export const albumArchiveOf = (
     }
   }
 
-  return { entries: everything(), report: () => ({ written: manifest.length, missing }) }
+  return {
+    entries: everything(),
+    report: () => ({
+      written: manifest.length,
+      photos: manifest.length - (guestbookWritten ? 1 : 0),
+      missing,
+    }),
+  }
 }

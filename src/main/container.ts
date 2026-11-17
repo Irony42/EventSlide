@@ -76,8 +76,12 @@ import type { PresenterContext } from '../interface/http/presenters/presenters'
 import { buildUseCases, type Adapters, type UseCases } from './usecases'
 import { createClipWorker, type ClipWorker } from './clipWorker'
 import { createAlbumBookWorker, type AlbumBookWorker } from './albumBookWorker'
+import { createAlbumExportWorker, type AlbumExportWorker } from './exportWorker'
+import { exportWorkerUseCases } from './usecases.exportWorker'
 import { SqliteAlbumBookRepository } from '../infrastructure/db/sqliteAlbumBookRepository'
+import { SqliteAlbumExportRepository } from '../infrastructure/db/sqliteAlbumExportRepository'
 import { createFsBookFileStore } from '../infrastructure/media/fsBookFileStore'
+import { createFsExportFileStore } from '../infrastructure/media/fsExportFileStore'
 import { createPdfBookRenderer } from '../infrastructure/media/pdfBookRenderer'
 import { bookWorkerUseCases } from './usecases.bookWorker'
 import {
@@ -143,6 +147,8 @@ export interface Container {
   readonly clipWorker: ClipWorker
   /** The photo book's renderer (spec 04); `null` when `BOOK_ENABLED` is off. */
   readonly albumBookWorker: AlbumBookWorker | null
+  /** The verified archive's writer (spec 22); `null` when `EXPORT_ENABLED` is off. */
+  readonly albumExportWorker: AlbumExportWorker | null
   /**
    * The reservation reaper, built here and started by `index.ts` like the rest.
    *
@@ -290,6 +296,11 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       await Promise.all(diskSpacePaths.map((path) => statfsDiskSpaceChecker.freeBytes(path))),
       config.storage.minFreeDiskBytes,
     )
+  /**
+   * Free bytes where an archive is written: the tightest of the two paths, or `null` when one of
+   * them cannot be read, which the archive treats as a refusal (spec 22, section 9).
+   */
+  const freeDiskBytes = async (): Promise<number | null> => (await diskSpaceReport()).freeBytes
   // multer writes a clip here before it is staged, and the encoder writes its scratch
   // files beside it. Both are under MEDIA_ROOT rather than os.tmpdir(), because the
   // container runs read-only with a tmpfs charged to the same memory cgroup.
@@ -446,6 +457,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     reels: new SqliteReelRepository(db),
     books: new SqliteAlbumBookRepository(db),
     bookFiles: createFsBookFileStore(mediaRoot),
+    exports: new SqliteAlbumExportRepository(db),
+    exportFiles: createFsExportFileStore(mediaRoot),
     reelRenderer,
     guests: new SqliteGuestRepository(db),
     reactions: new SqliteReactionRepository(db),
@@ -506,6 +519,15 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     newClientDefaults: config.newClientCeilings,
     reel: config.reel,
     book: { enabled: config.books.enabled, maxPerEventPerDay: config.books.maxPerEventPerDay },
+    export: {
+      enabled: config.exports.enabled,
+      maxBytes: config.exports.maxBytes,
+      maxTotalBytes: config.exports.maxTotalBytes,
+      maxPerEventPerDay: config.exports.maxPerEventPerDay,
+      ttlDays: config.exports.ttlDays,
+      minFreeDiskBytes: config.storage.minFreeDiskBytes,
+      freeDiskBytes,
+    },
     operatorName: config.operator.name,
     termsOfUse: config.termsOfUse,
     mfaIssuer: config.operator.name ?? 'EventSlide',
@@ -696,6 +718,37 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
           intervalMs: CLIP_WORKER_INTERVAL_MS,
         })
 
+  // ----------------------------------------------------- the verified archive --
+
+  // Spec 22. Built only when the function is on: a box that switched it off pays for nothing, and
+  // the streamed download, the deletion date and the purge do not depend on it.
+  const exportUseCases = config.exports.enabled
+    ? exportWorkerUseCases(adapters, {
+        policy: {
+          maxBytes: config.exports.maxBytes,
+          ttlDays: config.exports.ttlDays,
+          maxTotalBytes: config.exports.maxTotalBytes,
+          // Shared with the book, which waits behind the same video transcodes for the same core.
+          maxWaitMs: config.books.maxWaitMs,
+          capNoticeDays: config.retention.capNoticeDays,
+          minFreeDiskBytes: config.storage.minFreeDiskBytes,
+        },
+        freeDiskBytes,
+      })
+    : null
+  const albumExportWorker: AlbumExportWorker | null =
+    exportUseCases === null
+      ? null
+      : createAlbumExportWorker({
+          buildNext: exportUseCases.buildNextAlbumExport,
+          recover: exportUseCases.recoverAlbumExports,
+          sweep: exportUseCases.sweepAlbumExports,
+          bus,
+          logger,
+          clock: adapters.clock,
+          intervalMs: CLIP_WORKER_INTERVAL_MS,
+        })
+
   // ------------------------------------------------------------- first run --
 
   await bootstrapFirstOwner(config, usecases, logger)
@@ -870,6 +923,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     schedule,
     clipWorker,
     albumBookWorker,
+    albumExportWorker,
     readiness,
     streamHub,
     dispose: async () => {
@@ -882,6 +936,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       schedule?.stop()
       clipWorker.stop()
       albumBookWorker?.stop()
+      albumExportWorker?.stop()
       // **Then the encoder itself.** `stop()` above abandons the drain, which leaves the
       // ffmpeg process it started running: a container stop orphans a child rather than
       // stopping it, so a new container would start the same job while the old encoder
