@@ -10,7 +10,6 @@ import {
 } from '../../../domain/exports/exportCaps'
 import { retentionApplies } from '../../../domain/events/eventStatus'
 import { exportExpiresAt } from '../../../domain/exports/exportExpiry'
-import { readZipEnd, ZIP_TAIL_BYTES } from '../../../domain/exports/zipEndRecord'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId } from '../../../domain/shared/ids'
 import type { AlbumExportRepository } from '../../ports/albumExportRepository'
@@ -30,6 +29,7 @@ import type { StreamHasher } from '../../ports/streamHasher'
 import { ALBUM_STATUSES, albumArchiveOf } from '../shared/albumArchive'
 import { checkExportAccess } from './exportAccess'
 import { archiveBytesHeld } from './archiveBytesHeld'
+import { guardedEntries, verifiedOnDisk, type ArchiveReader } from './archiveChecks'
 
 /**
  * One pass of the archive queue: claims the oldest asked-for archive and writes it, **verified**
@@ -67,9 +67,6 @@ import { archiveBytesHeld } from './archiveBytesHeld'
  * **The date promised to the guests does not move.** An event purged while its archive is written
  * has no row to receive a verdict (`superseded`) and the file is deleted with it.
  */
-
-/** Rows per read of the album; the disk is read again every page (`albumEntries` pages the same). */
-const PAGE_SIZE = 200
 
 export interface BuildAlbumExportPolicy {
   readonly maxBytes: number
@@ -135,22 +132,6 @@ const FAILURE_OF: Readonly<Record<string, ExportFailureCode>> = {
 
 const failureCodeOf = (error: unknown): ExportFailureCode =>
   (DomainError.is(error) ? FAILURE_OF[error.code] : undefined) ?? 'unexpected'
-
-const collect = async (bytes: AsyncIterable<Uint8Array>): Promise<Uint8Array> => {
-  const parts: Uint8Array[] = []
-  let length = 0
-  for await (const chunk of bytes) {
-    parts.push(chunk)
-    length += chunk.byteLength
-  }
-  const whole = new Uint8Array(length)
-  let at = 0
-  for (const part of parts) {
-    whole.set(part, at)
-    at += part.byteLength
-  }
-  return whole
-}
 
 export const makeBuildNextAlbumExport = ({
   events,
@@ -220,31 +201,6 @@ export const makeBuildNextAlbumExport = ({
       : { kind: 'failed', eventId, code }
   }
 
-  /**
-   * The finished file read again from the disk (check 4). Answers `true` when the three things the
-   * server can affirm all hold.
-   */
-  const verifiedOnDisk = async (
-    eventId: EventId,
-    written: { readonly bytes: number; readonly sha256: string; readonly entries: number },
-  ): Promise<boolean> => {
-    const stored = await exportFiles.stat(eventId)
-    if (stored === null || stored.size !== written.bytes) return false
-
-    const hash = streamHasher.start()
-    const whole = await exportFiles.openRead(eventId)
-    if (whole === null) return false
-    for await (const chunk of whole) hash.update(chunk)
-    if (hash.digestHex() !== written.sha256) return false
-
-    const start = Math.max(0, written.bytes - ZIP_TAIL_BYTES)
-    const tail = await exportFiles.openRead(eventId, { start, end: written.bytes - 1 })
-    if (tail === null) return false
-    const end = readZipEnd(await collect(tail))
-    // The manifest is the one entry the count in the row leaves out.
-    return end !== null && end.entries === written.entries + 1
-  }
-
   /** Everything after the claim. */
   const buildClaimed = async (
     claimed: { readonly eventId: EventId },
@@ -274,21 +230,8 @@ export const makeBuildNextAlbumExport = ({
       context.event,
     )
 
-    /** The entries, with the room read again every page and the shutdown honoured between two. */
-    const guarded = async function* (): AsyncIterable<ArchiveEntry> {
-      let count = 0
-      for await (const entry of entries) {
-        if (signal?.aborted === true) throw new DOMException('aborted', 'AbortError')
-        count += 1
-        if (count % PAGE_SIZE === 0) {
-          const free = await freeDiskBytes()
-          if (free === null || free < policy.minFreeDiskBytes) {
-            throw DomainError.conflict('export.noRoom')
-          }
-        }
-        yield entry
-      }
-    }
+    const guarded = (): AsyncIterable<ArchiveEntry> =>
+      guardedEntries(entries, { freeDiskBytes, minFreeDiskBytes: policy.minFreeDiskBytes, signal })
 
     const writtenHash = streamHasher.start()
     const hashedZip = async function* (): AsyncIterable<Uint8Array> {
@@ -330,7 +273,12 @@ export const makeBuildNextAlbumExport = ({
     }
 
     // ------------------------------------------------ check 4: read it back again --
-    if (!(await verifiedOnDisk(eventId, { bytes: size, sha256, entries: found.written }))) {
+    const reader: ArchiveReader = {
+      stat: () => exportFiles.stat(eventId),
+      openRead: (range) => exportFiles.openRead(eventId, range),
+    }
+    const written = { bytes: size, sha256, entries: found.written }
+    if (!(await verifiedOnDisk(reader, streamHasher, written))) {
       logger.error('album archive failed its re-reading', { eventId })
       return giveUp(claimed, 'unverified')
     }

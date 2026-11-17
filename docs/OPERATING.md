@@ -102,6 +102,17 @@ archive, not for a download. What the box does so that nobody loses an album wit
   deletion date, and **never outlives the album**; a guest who erases themselves, a photograph removed, a reopening or your takedown
   deletes it at once. `EXPORT_ENABLED=false` (restart) turns the preparation off and leaves the direct download. If your off-box backup
   copies the volume whole with its hidden folders, exclude `.exports`: a purged archive must not survive in the repository.
+- **You can copy the albums that are about to go, outside the box, before the purge.** `npm run export -- --due-within 14 --to /mnt/nas/albums`
+  (in the image, `node dist/ops/scripts/export.js …`) is the step to run from cron ahead of `npm run purge`: for each album whose deletion
+  date falls within the next 14 days (one already due included; one you hold, or with no date, never), it writes the **same verified
+  archive** the host's button makes (same four checks) to `<dir>/<slug>-<deletion date>/album.zip` with `MANIFEST.sha256` beside it, prints
+  files, size, SHA-256 and how many files were missing, and **exits 1 if any album failed**, so cron mails you. `--event <slug>` takes one
+  album, whatever its date once the evening is over; `--dry-run` lists and writes nothing, not even the folder. The folder is named by the
+  deletion date, so a nightly run rewrites one folder per album instead of piling up copies (and rewrites it whole: budget the disk and the
+  time for a 6 GB album each night, or narrow the window). `--to` is refused inside, around or on `DATABASE_PATH` or `MEDIA_ROOT`. The
+  database is opened read-only: **a copy on your disk is not an archive sent to the host**, nothing is marked, and `archive=` in the purge
+  log does not change. The box's `EXPORT_MAX_*` ceilings do not apply (they protect the box's disk); the free room where you write does,
+  against `MIN_FREE_DISK_BYTES`. What you write outside the box is yours to look after: the notice your guests read no longer covers it.
 - **During an offboarding the client's members can export** (`album.zip`), for the whole grace period. A client suspended for an abuse
   cannot, and an event you took down never can: cut an abuse by taking the event down.
 
@@ -149,7 +160,9 @@ Three settings worth a thought before you start:
   `--dry-run` also works on a database whose event-name index the server has not yet filled
   since an upgrade (it never writes).
   `--dry-run` opens the database read-only, and a `DATABASE_PATH` that does not exist is
-  refused rather than created.
+  refused rather than created. Each album it lists ends with `archive=…`, the word the real run will
+  log (see [Before an album is deleted](#before-an-album-is-deleted)): an album listed `archive=none`
+  or `archive=sealed` would go without the host having taken an archive of it.
 - **Opening and closing on their own.** The settings page takes an opening time and a
   closing time; leave either empty and you do that one yourself. The times are read on
   your own computer's clock, so 18:00 means 18:00 where the party is. If the server was

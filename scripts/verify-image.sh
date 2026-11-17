@@ -186,8 +186,8 @@ fi
 # Promise 8's precondition. The devDependency check above is right to refuse `tsx`, and
 # `scripts/` is not copied into the runtime stage, so these compiled files are the only
 # way an operator on this image can back up, restore or purge at all.
-if in_image '[ -f dist/ops/scripts/backup.js ] && [ -f dist/ops/scripts/restore.js ] && [ -f dist/ops/scripts/purge.js ]'; then
-  pass "the backup, restore and purge commands are compiled into the image"
+if in_image '[ -f dist/ops/scripts/backup.js ] && [ -f dist/ops/scripts/restore.js ] && [ -f dist/ops/scripts/purge.js ] && [ -f dist/ops/scripts/export.js ]'; then
+  pass "the backup, restore, purge and export commands are compiled into the image"
 else
   fail "dist/ops/scripts is missing a command — a Docker install would have no way to back up or restore"
 fi
