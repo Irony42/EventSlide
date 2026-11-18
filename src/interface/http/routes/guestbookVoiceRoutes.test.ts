@@ -8,7 +8,7 @@ import { guestbookRoutes } from './guestbookRoutes'
 import { guestbookVoiceRoutes } from './guestbookVoiceRoutes'
 import { GUEST_COOKIE } from '../middleware/authz'
 import { guestbookGuestLimiter } from '../middleware/rateLimit'
-import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
+import { buildHarness, signInAs, testHttpConfig, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
 import {
   AT,
@@ -553,24 +553,7 @@ describe('POST /api/events/:eventSlug/guestbook/voice', () => {
     it('sits behind the upload bucket by address and event: a second request is refused before its token is read', async () => {
       const subject = buildSubject({
         config: {
-          rateLimits: {
-            uploadPerMinute: 12,
-            uploadPerIpPerMinute: 1,
-            joinPerMinute: 20,
-            loginPerMinute: 10,
-            reactionPerMinute: 30,
-            reactionPerIpPerMinute: 600,
-            guestWritePerMinute: 300,
-            galleryPerMinute: 60,
-            galleryMediaPerMinute: 600,
-            galleryUnlockPerClient: 10,
-            galleryUnlockPerLink: 50,
-            eventCreationPerHour: 20,
-            invitationsPerHour: 30,
-            venuePhotosPerHour: 10,
-            bookRequestsPerHour: 20,
-            logosPerHour: 10,
-          },
+          rateLimits: { ...testHttpConfig().rateLimits, uploadPerIpPerMinute: 1 },
         },
       })
 
@@ -583,6 +566,22 @@ describe('POST /api/events/:eventSlug/guestbook/voice', () => {
 
       expect(first.status).toBe(401)
       expect(second.status).toBe(429)
+      expect(second.body.error.code).toBe('rate.limited')
+    })
+
+    it('sits behind the per-guest upload budget, shared with photographs and clips: the guest’s second recording of the minute is refused', async () => {
+      const subject = buildSubject({
+        config: { rateLimits: { ...testHttpConfig().rateLimits, uploadPerMinute: 1 } },
+      })
+
+      const first = await sendVoice(subject, aRecording('a'))
+      const second = await sendVoice(subject, aRecording('b'))
+      const other = await request(subject.app)
+        .post(`${BASE}/guestbook/voice`)
+        .set('Cookie', cookie(subject.harness.issueGuestToken(WEDDING, OTHER_GUEST)))
+        .attach('voice', aRecording('c'), 'voice.m4a')
+
+      expect([first.status, second.status, other.status]).toEqual([202, 429, 202])
       expect(second.body.error.code).toBe('rate.limited')
     })
 

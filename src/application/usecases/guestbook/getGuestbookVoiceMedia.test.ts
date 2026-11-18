@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Event } from '../../../domain/events/event'
+import { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
+import { GuestbookVoice } from '../../../domain/guestbook/guestbookVoice'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import { VOICE_VARIANT } from '../../../domain/photos/mediaVariant'
@@ -217,6 +219,26 @@ describe('getGuestbookVoiceMedia', () => {
       'is guestbook.notFound for a recording that is %s, since only a ready one can be heard',
       async (state) => {
         guestbook.seed(aVoiceEntry({ id: 'v1', state, eventId: 'event-1' }))
+
+        expect(await codeOf(run())).toBe('guestbook.notFound')
+      },
+    )
+
+    it.each(['queued', 'running', 'failed'] as const)(
+      'is guestbook.notFound for a recording that is %s even if a file is on disk under its name: ready is asked on its own',
+      async (state) => {
+        // The invariant says only a ready voice carries an output, so a fixture cannot spell this;
+        // a row and a file that disagreed (a restored backup, a future state) must still be refused.
+        const ready = aVoiceEntry({ id: 'v1', state: 'ready', eventId: 'event-1' })
+        const props = ready.toProps()
+        if (props.voice === null) throw new Error('fixture')
+        guestbook.seed(
+          GuestbookEntry.restore({
+            ...props,
+            voice: GuestbookVoice.restore({ ...props.voice.toProps(), state }),
+          }),
+        )
+        await media.put(EVENT, props.voice.audioHash as ContentHash, VOICE_VARIANT, BYTES)
 
         expect(await codeOf(run())).toBe('guestbook.notFound')
       },
