@@ -9,7 +9,6 @@ import {
   type EventGuestbookVoiceSettings,
 } from './eventGuestbookVoiceSettings'
 import { EventSettings } from './eventSettings'
-import { EVENT_STATUSES } from './eventStatus'
 
 const NOW = new Date('2026-06-20T22:00:00.000Z')
 const NOW_MS = NOW.getTime()
@@ -109,12 +108,16 @@ describe('isVoiceOpen', () => {
     ).toBe(true)
   })
 
-  it.each(EVENT_STATUSES.filter((status) => status !== 'live'))(
+  it.each(['closed', 'archived'] as const)(
     'opens by itself when the party is over (%s), with nothing written at closing',
     (status) => {
       expect(isVoiceOpen(settings({ sealed: true }), { status }, NOW)).toBe(true)
     },
   )
+
+  it('stays sealed on a draft, which cannot hold voices and is not a finished party', () => {
+    expect(isVoiceOpen(settings({ sealed: true }), { status: 'draft' }, NOW)).toBe(false)
+  })
 
   it('seals again when a closed event is reopened and was not opened by hand', () => {
     const sealed = settings({ sealed: true })

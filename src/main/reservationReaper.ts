@@ -72,7 +72,7 @@ export const createReservationReaper = ({
     failedMessage: 'reservation reap failed',
     describe: (report, durationMs) => {
       if (report.reaped > 0) {
-        logger.info('reaped clip reservations left by requests that died', {
+        logger.info('reaped clip and voice reservations left by requests that died', {
           reaped: report.reaped,
           durationMs,
         })

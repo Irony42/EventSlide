@@ -90,7 +90,7 @@ export const isVoiceOpen = (
 ): boolean => {
   if (!settings.sealed) return true
   if (settings.opensAtMs !== null && settings.opensAtMs <= now.getTime()) return true
-  return event.status !== 'live'
+  return event.status === 'closed' || event.status === 'archived'
 }
 
 /** Reads the stored `guestbookVoice` object tolerantly: absent or unreadable fields take their default. */

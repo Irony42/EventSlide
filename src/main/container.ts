@@ -644,8 +644,17 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // One timer for both queues: a stranded clip reservation and a stranded voice reservation hold
     // the same three things, on the same five-minute window (spec 25, rule 2).
     reap: async () => {
-      const clips = await usecases.reapStaleReservations()
+      // Independent passes: a persistent fault in one queue must not starve the other. The clip
+      // fault is rethrown after the voice pass so the guarded job still logs it.
+      let clips: Awaited<ReturnType<typeof usecases.reapStaleReservations>> | null = null
+      let clipFault: unknown = null
+      try {
+        clips = await usecases.reapStaleReservations()
+      } catch (error) {
+        clipFault = error
+      }
       const voices = await usecases.reapStaleVoiceReservations()
+      if (clips === null) throw clipFault
       return { reaped: clips.reaped + voices.reserved + voices.failed }
     },
     logger,
