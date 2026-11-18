@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   EVENT_TEMPLATE_KEYS,
   EVENT_TEMPLATE_PATCHES,
+  type TemplatePatch,
   templateSummary,
   templateTheme,
   templateWarning,
@@ -9,7 +10,6 @@ import {
 import { DEFAULT_EVENT_THEME } from '../../design-system/eventTheme'
 import { fr } from '../../lib/i18n/fr'
 import type { EventSettingsDto } from '../../lib/api/dto'
-import type { TemplatePatch } from './eventTemplates'
 
 const DEFAULT_THEME: EventSettingsDto['theme'] = DEFAULT_EVENT_THEME
 
@@ -32,6 +32,9 @@ const FIELD_MARKS: readonly (readonly [field: string, mark: string])[] = [
   ['moderation', fr.admin.moderationAuto],
   ['moderation', fr.admin.moderationManual],
   ['allowClips', 'Vidéos'],
+  ['allowGuestSelfDelete', 'Effacement'],
+  ['reveal', fr.reveal.templateOn],
+  ['reveal', fr.reveal.templateFilmOn],
   ['allowGuestSave', 'invités'],
   ['guestbookVoice', 'vocaux'],
   ['guestSelfDeleteGraceSeconds', fr.admin.selfDeleteGrace],
@@ -47,7 +50,13 @@ describe('the template summary', () => {
     // incomplete.
     const patch = EVENT_TEMPLATE_PATCHES[key]
 
-    expect(templateSummary(patch, fr)).toHaveLength(Object.keys(patch).length)
+    // The reveal group is one key on the wire and one line per switch it names on the card.
+    const expected = Object.entries(patch).reduce(
+      (sum, [field, value]) => sum + (field === 'reveal' ? Object.keys(value as object).length : 1),
+      0,
+    )
+
+    expect(templateSummary(patch, fr)).toHaveLength(expected)
   })
 
   it.each(EVENT_TEMPLATE_KEYS)('says nothing about a setting %s leaves alone', (key) => {
@@ -79,6 +88,8 @@ describe('the template summary', () => {
       expect.arrayContaining([
         'moderation',
         'allowClips',
+        'allowGuestSelfDelete',
+        'reveal',
         'guestSelfDeleteGraceSeconds',
         'retentionDays',
         'maxPhotosPerGuest',
@@ -102,6 +113,24 @@ describe('the template summary', () => {
   it('says which way a video switch was thrown, not that it was touched', () => {
     expect(templateSummary({ allowClips: false }, fr)).toEqual([fr.admin.templateClipsOff])
     expect(templateSummary({ allowClips: true }, fr)).toEqual([fr.admin.templateClipsOn])
+  })
+
+  it('says which way the photo-by-photo erasure was thrown (spec 23)', () => {
+    expect(templateSummary({ allowGuestSelfDelete: false }, fr)).toEqual([
+      fr.admin.templateSelfDeleteOff,
+    ])
+    expect(templateSummary({ allowGuestSelfDelete: true }, fr)).toEqual([
+      fr.admin.templateSelfDeleteOn,
+    ])
+  })
+
+  it('says the mode and the film look, each only when the template names it (spec 23)', () => {
+    expect(templateSummary({ reveal: { enabled: true, film: true } }, fr)).toEqual([
+      fr.reveal.templateOn,
+      fr.reveal.templateFilmOn,
+    ])
+    expect(templateSummary({ reveal: { film: false } }, fr)).toEqual([fr.reveal.templateFilmOff])
+    expect(templateSummary({ reveal: { enabled: false } }, fr)).toEqual([fr.reveal.templateOff])
   })
 
   it('says which way the guest-save switch was thrown, not that it was touched', () => {

@@ -217,7 +217,12 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
             : { maxUploadBytesPerRequest: options.maxUploadBytesPerRequest }),
           usecases: {
             uploadPhotos: upload.run,
-            listGuestPhotos: makeListGuestPhotos({ events: deps.events, photos, missions }),
+            listGuestPhotos: makeListGuestPhotos({
+              events: deps.events,
+              photos,
+              missions,
+              clock: deps.clock,
+            }),
             deletePhoto: makeDeletePhoto({
               events: deps.events,
               photos,
@@ -261,6 +266,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               photos,
               media,
               engagement: async () => undefined,
+              clock: deps.clock,
             }),
             getGuestChecklist: makeGetGuestChecklist({
               events: deps.events,
@@ -1043,11 +1049,84 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       canDelete: true,
       missionPrompt: null,
       answeredChallenge: false,
+      awaitsReveal: false,
       // The clip facet, `null` on a photograph rather than absent, so no client has to
       // test for a missing key before deciding what to render.
       kind: 'photo',
       videoUrl: null,
       durationMs: null,
+    })
+  })
+
+  describe('the reveal gate and the roll of a disposable-camera evening (spec 23)', () => {
+    /** One hour after the harness clock (AT): the evening is still held back. */
+    const WAITING = {
+      reveal: { enabled: true, at: new Date(AT.getTime() + 3_600_000), film: true },
+      maxPhotosPerGuest: 5,
+    }
+    const mine = (subject: Subject) =>
+      request(subject.app).get(`${BASE}/photos/mine`).set('Cookie', cookie(subject.token))
+
+    it('keeps the guest’s own photographs, marks the published one undeveloped and never alters a status', async () => {
+      const subject = buildSubject({ settings: WAITING })
+
+      const response = await mine(subject)
+
+      const byId = Object.fromEntries(
+        response.body.items.map((item: { id: string }) => [item.id, item]),
+      )
+      expect(byId[PUBLISHED]).toMatchObject({ status: 'published', awaitsReveal: true })
+      expect(byId[PENDING]).toMatchObject({ status: 'pending', awaitsReveal: false })
+      expect(byId[REJECTED]).toMatchObject({ status: 'rejected', awaitsReveal: false })
+    })
+
+    it('carries the reveal block and the roll as the server counts them', async () => {
+      const subject = buildSubject({ settings: WAITING })
+
+      const response = await mine(subject)
+
+      expect(response.body.reveal).toEqual({
+        enabled: true,
+        revealed: false,
+        atMs: AT.getTime() + 3_600_000,
+        serverNowMs: AT.getTime(),
+        film: true,
+      })
+      expect(response.body.shots).toEqual({ max: 5, taken: 3 })
+    })
+
+    it('stops saying a photograph awaits once the evening is revealed', async () => {
+      const subject = buildSubject({
+        settings: { ...WAITING, reveal: { enabled: true, at: AT, film: true } },
+      })
+
+      const response = await mine(subject)
+
+      expect(response.body.reveal.revealed).toBe(true)
+      expect(
+        response.body.items.filter((item: { awaitsReveal: boolean }) => item.awaitsReveal),
+      ).toEqual([])
+    })
+
+    it('has no roll and no held-back evening for an event that never chose the mode', async () => {
+      const subject = buildSubject()
+
+      const response = await mine(subject)
+
+      expect(response.body.shots).toBeNull()
+      expect(response.body.reveal).toMatchObject({ enabled: false, revealed: true, atMs: null })
+    })
+
+    it('refuses a reaction before the reveal as a photograph that does not exist', async () => {
+      const subject = buildSubject({ settings: WAITING })
+
+      const response = await request(subject.app)
+        .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
+        .set('Cookie', cookie(subject.token))
+        .send({ kind: 'love' })
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('photo.notFound')
     })
   })
 

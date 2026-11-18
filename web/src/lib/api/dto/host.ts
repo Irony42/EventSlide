@@ -13,6 +13,7 @@ import type {
   PhotoStatus,
   ReactionCounts,
   WallLayout,
+  WallRevealDto,
 } from './common'
 
 /**
@@ -240,6 +241,12 @@ export interface EventSettingsDto {
     readonly soundTone: 'bell' | 'chime' | 'drop' | 'pop'
     readonly soundVolume: number
   }
+  /** The disposable-camera mode (spec 23), as stored; `at` is an instant. Absent from an older server. */
+  readonly reveal?: {
+    readonly enabled: boolean
+    readonly at: string | null
+    readonly film: boolean
+  }
 }
 export interface EventSummaryDto {
   readonly id: string
@@ -309,6 +316,14 @@ export interface EventDto extends EventSummaryDto {
    * gone, and this is the only thing that says so. Saving any schedule clears it.
    */
   readonly scheduleDiscardedAt: string | null
+  /**
+   * The reveal gate at the server's clock (spec 23), for the console's band: `revealed` is the
+   * server's word and `serverNowMs` the clock a countdown is anchored on, never the laptop's.
+   * `readyCount` is the published photographs the gate holds back (`null` once revealed or with the
+   * mode off); the pending ones are `pendingCount`, which stay hidden after the reveal. Absent from
+   * an older server: read as an evening with nothing held back.
+   */
+  readonly reveal?: WallRevealDto
 }
 export interface GuestDto {
   readonly id: string

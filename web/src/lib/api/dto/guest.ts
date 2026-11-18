@@ -7,6 +7,7 @@ import type {
   PhotoStatus,
   ReactionCounts,
   ReactionKind,
+  RevealDto,
 } from './common'
 
 /** What a guest may know about an event before and after joining. */
@@ -81,6 +82,12 @@ export interface PrivacyNoticeDto {
   readonly operator?: string
   /** Present only when guests may leave guestbook messages (spec 01): the notice reads for a message too. */
   readonly guestbook?: true
+  /** Present only on a disposable-camera evening (spec 23): photographs are held back until the reveal. */
+  readonly reveal?: true
+  /** Present only on that evening, with a cap: how many poses a guest has. */
+  readonly shotLimit?: number
+  /** Present only on that evening with the film look: it exists on screen only. */
+  readonly film?: true
   /** Present only when the other guests may save a photo from the feed (spec 24): the notice says a saved copy cannot be taken back. */
   readonly guestSave?: true
   /** Present only when guests may leave voice messages (spec 25): who hears them, never the room, the microphone only while recording. */
@@ -128,6 +135,13 @@ export interface MyPhotosDto {
   readonly theme?: EventThemeDto
   /** The host's welcome message (spec 03). Optional: a server build that predates it sends none. */
   readonly brand?: EventBrandDto
+  /**
+   * The roll (spec 23): poses allowed and taken as the server counts them, or `null` with no cap.
+   * Absent from an older server.
+   */
+  readonly shots?: { readonly max: number; readonly taken: number } | null
+  /** The reveal gate. Absent from an older server: read as an evening with nothing held back. */
+  readonly reveal?: RevealDto
 }
 /** What `DELETE /api/events/:slug/guests/me` removed. */
 export interface ErasedContributionDto {
@@ -197,6 +211,8 @@ export interface GuestPhotoDto {
   readonly missionPrompt?: string | null
   /** Whether it answers a timed challenge. Absent from an older server: read as no. */
   readonly answeredChallenge?: boolean
+  /** `published` but the evening is not revealed yet (spec 23); `status` stays exact. Absent: no. */
+  readonly awaitsReveal?: boolean
   /** See `WallItemDto` (wall.ts). `thumbUrl` is the poster when this row is a clip. */
   readonly kind: MediaKind
   readonly videoUrl: string | null

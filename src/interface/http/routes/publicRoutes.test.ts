@@ -1390,6 +1390,151 @@ const playlistOf = (photos: readonly Photo[]): Playlist => {
   return built.value
 }
 
+/**
+ * The wall of a disposable-camera evening (spec 23), through the route: **nothing of the guests'
+ * photographs leaves the box before the hour**, neither a photograph, nor an identifier, nor a
+ * count of the evening, and the usual wall from the instant of it. The guests' feed
+ * (`/e/:slug/photos`) is the wall's own read, so an empty wall is an empty feed.
+ */
+describe('GET /api/events/:eventSlug/wall, the reveal gate (spec 23)', () => {
+  const HOUR = 3_600_000
+  const withReveal = (
+    w: ReturnType<typeof world>,
+    reveal: { enabled: boolean; at?: Date | null; film?: boolean },
+    wall: object = {},
+  ): void => {
+    w.subject.events.seed(
+      anEvent({
+        id: WEDDING,
+        slug: 'mariage',
+        name: 'Camille & Sacha',
+        joinCode: 'H7K2QM',
+        status: 'live',
+        settings: { reveal, wall },
+      }),
+    )
+  }
+  const get = (w: ReturnType<typeof world>) =>
+    request(w.subject.app).get('/api/events/mariage/wall')
+
+  it('serves no photograph and no identifier before the hour, whatever the event holds', async () => {
+    const w = world()
+    seedWall(w.photos)
+    withReveal(w, { enabled: true, at: new Date(AT.getTime() + HOUR) })
+
+    const response = await get(w)
+
+    expect(response.status).toBe(200)
+    expect(response.body.items).toEqual([])
+    const wire = JSON.stringify(response.body)
+    // The wedding's own photographs, published or not, and the other events': none is named.
+    for (const id of [
+      'photo-1',
+      'photo-2',
+      'photo-3',
+      'photo-4',
+      'photo-5',
+      'photo-6',
+      'photo-7',
+    ]) {
+      expect(wire).not.toContain(id)
+    }
+    expect(wire).not.toContain('/photos/')
+  })
+
+  it('carries the one reveal block: the hour, the server’s clock, the film look and how many wait', async () => {
+    const w = world()
+    seedWall(w.photos)
+    const at = new Date(AT.getTime() + HOUR)
+    withReveal(w, { enabled: true, at, film: true })
+
+    const response = await get(w)
+
+    expect(response.body.reveal).toEqual({
+      enabled: true,
+      revealed: false,
+      atMs: at.getTime(),
+      serverNowMs: AT.getTime(),
+      film: true,
+      // Two published photographs of this event: the pending, rejected, hidden and other events' are not counted.
+      readyCount: 2,
+    })
+  })
+
+  it('keeps the souvenir counter and the new-photo signal silent before the hour', async () => {
+    const w = world()
+    seedWall(w.photos)
+    withReveal(
+      w,
+      { enabled: true, at: null },
+      { souvenirCounter: true, newPhotoSignal: true, soundEnabled: true },
+    )
+
+    const response = await get(w)
+
+    // `null` is "no switch needs it": the counter shows nothing and the arrival detector has no
+    // total to compare, so a photograph sent in the dark announces nothing (specs 11 and 12).
+    expect(response.body.souvenirCount).toBeNull()
+    expect(response.body.souvenirCounter).toBe(true)
+    expect(response.body.newPhotoSignal).toBe(true)
+  })
+
+  it('serves the published photographs at the instant of the hour, and says nothing waits', async () => {
+    const w = world()
+    seedWall(w.photos)
+    withReveal(w, { enabled: true, at: new Date(AT.getTime() + HOUR) })
+    expect((await get(w)).body.items).toEqual([])
+
+    w.subject.clock.advance(HOUR)
+    const response = await get(w)
+
+    expect(response.body.items.map((item: { id: string }) => item.id)).toEqual([
+      'photo-2',
+      'photo-1',
+    ])
+    expect(response.body.reveal).toMatchObject({ revealed: true, readyCount: null })
+  })
+
+  it('never lets another event’s identifiers through, before or after the hour', async () => {
+    const w = world()
+    seedWall(w.photos)
+    withReveal(w, { enabled: true, at: new Date(AT.getTime() + HOUR) })
+
+    const before = JSON.stringify((await get(w)).body)
+    w.subject.clock.advance(HOUR)
+    const after = JSON.stringify((await get(w)).body)
+
+    for (const wire of [before, after]) {
+      expect(wire).not.toContain('photo-6')
+      expect(wire).not.toContain('photo-7')
+    }
+  })
+
+  it('is the wall it always was for an event that never chose the mode', async () => {
+    const w = world()
+    seedWall(w.photos)
+
+    const response = await get(w)
+
+    expect(response.body.items).toHaveLength(2)
+    expect(response.body.reveal).toEqual({
+      enabled: false,
+      revealed: true,
+      atMs: null,
+      serverNowMs: AT.getTime(),
+      film: false,
+      readyCount: null,
+    })
+  })
+
+  it('does not mark a stored film look as on when the mode is off', async () => {
+    const w = world()
+    withReveal(w, { enabled: false, film: true })
+
+    expect((await get(w)).body.reveal.film).toBe(false)
+  })
+})
+
 describe('toWallResponseDto', () => {
   it('drops a playlist entry with no photo behind it rather than emitting a hole', () => {
     // Unreachable through the use case, which builds both from one read — but the
@@ -1416,6 +1561,7 @@ describe('toWallResponseDto', () => {
       announcements: null,
       serverNowMs: 0,
       souvenirCount: null,
+      readyCount: null,
       souvenirCounter: false,
       newPhotoSignal: false,
     }
@@ -1451,6 +1597,7 @@ describe('toWallResponseDto', () => {
       announcements: null,
       serverNowMs: 0,
       souvenirCount: null,
+      readyCount: null,
       souvenirCounter: false,
       newPhotoSignal: false,
     }

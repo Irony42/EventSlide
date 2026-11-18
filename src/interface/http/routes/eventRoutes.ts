@@ -93,13 +93,12 @@ export const eventRoutes = ({
       sendError(res, result.error)
       return
     }
-    const { event, counts, limits, purge } = await usecases.getEventView({ event: result.value })
+    const { event, counts, limits, purge, now, readyCount } = await usecases.getEventView({
+      event: result.value,
+    })
     sendJson(
       res,
-      toEventDto(
-        { event, role: actor.role, counts, limits, purge, serverNowMs: deps.clock.now().getTime() },
-        presenter,
-      ),
+      toEventDto({ event, role: actor.role, counts, limits, purge, now, readyCount }, presenter),
       status,
     )
   }
@@ -319,7 +318,46 @@ export const eventRoutes = ({
               }),
           // Absent leaves the message alone, `null` clears it: never defaulted here.
           ...(body.welcomeMessage === undefined ? {} : { welcomeMessage: body.welcomeMessage }),
+          // Spec 23: only the keys the body names; the hour arrives as text and leaves as an instant.
+          ...(body.reveal === undefined
+            ? {}
+            : {
+                reveal: {
+                  ...(body.reveal.enabled === undefined ? {} : { enabled: body.reveal.enabled }),
+                  ...(body.reveal.at === undefined
+                    ? {}
+                    : { at: body.reveal.at === null ? null : new Date(body.reveal.at) }),
+                  ...(body.reveal.film === undefined ? {} : { film: body.reveal.film }),
+                },
+              }),
         },
+      })
+
+      await sendEvent(res, result, { role: scope.role })
+    }),
+  )
+
+  /**
+   * `POST /events/:eventSlug/reveal` — "Révéler maintenant" (spec 23).
+   *
+   * **Any moderator**, like a challenge: the person at the evening with the laptop (the DJ, the
+   * witness) is rarely the owner, and the act writes an hour that is now and nothing else. No body:
+   * the instant is the server's (`clock.now()`), so a request cannot choose it. The confirmation
+   * ("14 photos attendent encore une décision") is the console's; the act is audited and cannot be
+   * taken back. **Idempotent**: an evening already revealed answers `200` with the event as it is.
+   * A guest's token is a `401` (no session), a non-member a `404`, a frozen client a
+   * `403 client.suspended`, all by the use case and `requireRole`.
+   */
+  router.post(
+    '/events/:eventSlug/reveal',
+    requireRole('moderator', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+      eventSlugParams.parse(req.params)
+
+      const result = await usecases.revealEvent({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
       })
 
       await sendEvent(res, result, { role: scope.role })

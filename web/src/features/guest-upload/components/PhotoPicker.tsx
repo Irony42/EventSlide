@@ -14,6 +14,11 @@ import styles from './PhotoPicker.module.css'
  * `capture="environment"` on the second one is what lets a guest shoot without
  * leaving the page. Without it they leave for the camera app, come back to a reloaded
  * page, and the queue is gone.
+ *
+ * **On a disposable-camera evening (spec 23) there is one button, and it opens the camera**
+ * (`cameraFirst`): the attribute is a best effort, with nothing enforced on the server (the EXIF is
+ * stripped and the origin of a file cannot be verified), so a browser that ignores it simply opens
+ * the picker. The roll's cap is what keeps a guest with a broken camera from any drift.
  */
 
 export interface PhotoPickerProps {
@@ -24,9 +29,11 @@ export interface PhotoPickerProps {
    * starting again from the top of the document.
    */
   readonly libraryRef?: Ref<HTMLInputElement>
+  /** A disposable-camera evening: the one button opens the camera, as the one-shot film it is. */
+  readonly cameraFirst?: boolean
 }
 
-export function PhotoPicker({ onPick, libraryRef }: PhotoPickerProps) {
+export function PhotoPicker({ onPick, libraryRef, cameraFirst = false }: PhotoPickerProps) {
   const t = useTranslations()
   const libraryId = useId()
   const cameraId = useId()
@@ -37,6 +44,27 @@ export function PhotoPicker({ onPick, libraryRef }: PhotoPickerProps) {
     // guest who removed a photo by mistake cannot re-select it.
     event.target.value = ''
     if (files.length > 0) onPick(files)
+  }
+
+  if (cameraFirst) {
+    return (
+      <div className={styles['picker']}>
+        <label className={cx(styles['action'], styles['library'])} htmlFor={libraryId}>
+          <span>{t.upload.takePhoto}</span>
+          <input
+            ref={libraryRef}
+            id={libraryId}
+            className={styles['input']}
+            data-testid="photo-input"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            onChange={handle}
+          />
+        </label>
+      </div>
+    )
   }
 
   return (

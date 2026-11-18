@@ -1,0 +1,23 @@
+/* The reveal's own lines under the empty wall's title (spec 23): the hour first, in the accent,
+   then the time left and the count, quieter. Sized for the back of the room like their neighbours. */
+.wait {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.at {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--accent);
+}
+
+.left,
+.developing {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+}
+
+.developing {
+  font-variant-numeric: tabular-nums;
+}

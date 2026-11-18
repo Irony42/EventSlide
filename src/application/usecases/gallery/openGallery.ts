@@ -7,7 +7,7 @@ import type { PhotoRepository } from '../../ports/photoRepository'
 import type { RecordEngagement } from '../stats/recordEngagement'
 import {
   enterGallery,
-  GALLERY_STATUSES,
+  galleryStatuses,
   grantArchive,
   type ArchiveGrant,
   type GalleryAccessDeps,
@@ -29,6 +29,8 @@ export interface GalleryView {
   /** What the grid will show in total: the published photographs, nothing else. */
   readonly photoCount: number
   readonly archive: ArchiveGrant
+  /** The server's clock at this read: what the reveal block is computed with (spec 23). */
+  readonly now: Date
 }
 
 export interface OpenGalleryInput {
@@ -52,10 +54,13 @@ export const makeOpenGallery =
     if (!entered.ok) return entered
     const { link, event, now } = entered.value
 
-    // Summed over the statuses the domain says a gallery shows, rather than read off
+    // Summed over the statuses the domain says a gallery shows (none before the reveal), rather than read off
     // `published` by name: the count and the grid are then the same rule.
     const counts = await deps.photos.countsByStatus(event.id)
-    const photoCount = GALLERY_STATUSES.reduce((total, status) => total + counts[status], 0)
+    const photoCount = galleryStatuses(event, now).reduce(
+      (total, status) => total + counts[status],
+      0,
+    )
 
     // Only here, once everything that can refuse has agreed: a revoked, expired or locked link,
     // and a password nobody entered, return above and are not counted.
@@ -66,5 +71,6 @@ export const makeOpenGallery =
       link,
       photoCount,
       archive: grantArchive(deps.signer, link.id, grantExpiresAt(now, link)),
+      now,
     })
   }

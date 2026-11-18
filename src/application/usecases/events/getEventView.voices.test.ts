@@ -5,6 +5,7 @@ import { AT, aGuestbookEntry, aVoiceEntry, anEvent } from '../../testing/builder
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakePurgeNoticeLedger } from '../../testing/fakePurgeNoticeLedger'
 import { makeGetEventLimits } from './getEventLimits'
@@ -43,6 +44,7 @@ const aWorld = () => {
   }
   const getEventView = makeGetEventView({
     events,
+    photos: new FakePhotoRepository(),
     clients,
     notices: new FakePurgeNoticeLedger().withEvents(WEDDING),
     guestbook,

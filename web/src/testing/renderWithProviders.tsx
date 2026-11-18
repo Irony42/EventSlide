@@ -456,6 +456,8 @@ export const eventSettings = (
     guestSelfDeleteGraceSeconds: 300,
     retentionDays: null,
     maxPhotosPerGuest: null,
+    // Spec 23: off until the host turns the mode on.
+    reveal: { enabled: false, at: null, film: false },
     theme: DEFAULT_EVENT_THEME,
     // French, which is what an event created before this setting existed reads back as —
     // and what a host who has not touched the control still has. A test that wants the
@@ -746,6 +748,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   removeEventLogo: vi.fn(async () => anEventDto()),
   setEventStatus: vi.fn(async () => anEventDto()),
   setSchedule: vi.fn(async () => anEventDto()),
+  revealEvent: vi.fn(async () => anEventDto()),
   rotateJoinCode: vi.fn(async () => anEventDto()),
   purgeEvent: vi.fn(async () => undefined),
 

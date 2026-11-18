@@ -171,6 +171,16 @@ export interface PrivacyNoticeDto {
    */
   readonly guestbook?: true
   /**
+   * Present (and `true`) only on a disposable-camera evening (spec 23): the guests' photographs
+   * are not shown to the other guests and the room until the host reveals them, and the host and
+   * the moderators see them as they arrive. The hour is not here: it is the reveal block's.
+   */
+  readonly reveal?: true
+  /** Present only on that evening, with a cap: how many poses a guest has. */
+  readonly shotLimit?: number
+  /** Present (and `true`) only on that evening with the film look: it exists on screen only. */
+  readonly film?: true
+  /**
    * Present (and `true`) only when the other guests may save a photo from the feed (spec 24): the
    * notice then says a saved copy cannot be taken back. Part of `revision` only in that case.
    */
@@ -464,6 +474,8 @@ export interface WallResponseDto {
   readonly souvenirCount: number | null
   /** The host's switch for the counter « n souvenirs partagés » (spec 11). */
   readonly souvenirCounter: boolean
+  /** The reveal gate of a disposable-camera evening and what waits for it (spec 23). */
+  readonly reveal: WallRevealDto
   /** The host's switch for the brief « nouvelle photo » signal (spec 11). */
   readonly newPhotoSignal: boolean
   /** Whether a published photo takes the next slide (spec 13). */
@@ -567,6 +579,42 @@ export interface MyPhotosDto {
   readonly theme: EventThemeDto
   /** The host's own words to their guests (spec 03): content, never translated. */
   readonly brand: EventBrandDto
+  /**
+   * The roll (spec 23): how many poses this guest may take and how many the server counts as taken
+   * (the count the upload cap itself uses), or `null` when the event has no cap. Read by the guest
+   * about themselves only.
+   */
+  readonly shots: { readonly max: number; readonly taken: number } | null
+  /** The reveal gate, as the wall and the gallery carry it. */
+  readonly reveal: RevealDto
+}
+
+/**
+ * The reveal gate of a disposable-camera evening, as every surface reads it (spec 23): **one
+ * rule, one shape** (`revealView`). The wall, the guest's phone and the gallery carry the same
+ * block, built from the same event and the same instant, so they cannot disagree about whether
+ * the evening is shown. The clock is the server's (`serverNowMs`): a client anchors its own
+ * countdown on it and never on its own clock.
+ */
+export interface RevealDto {
+  /** The host's switch. `false`: the evening is the one it always was and every other field is moot. */
+  readonly enabled: boolean
+  /** `isRevealed` at `serverNowMs`: always `true` when the mode is off. */
+  readonly revealed: boolean
+  /** The hour, as an instant; `null` while the host reveals with the button. */
+  readonly atMs: number | null
+  readonly serverNowMs: number
+  /** The film look on screen: `true` only with the mode on. Never a change to the bytes. */
+  readonly film: boolean
+}
+
+/** The wall's block: the reveal, and how many published photographs are waiting for it. */
+export interface WallRevealDto extends RevealDto {
+  /**
+   * An aggregate with no author and no name: the published photographs, until the reveal, so the
+   * room can wait for them. `null` once revealed or with the mode off.
+   */
+  readonly readyCount: number | null
 }
 
 export interface GuestPhotoDto {
@@ -585,6 +633,12 @@ export interface GuestPhotoDto {
   readonly missionPrompt: string | null
   /** Whether this photo answers a timed challenge (spec 18). */
   readonly answeredChallenge: boolean
+  /**
+   * `status` is `published` but the evening is not revealed yet (spec 23): the phone draws the
+   * photograph undeveloped and says it will be developed at the reveal. `status` itself stays
+   * exact: the server never lies about what the host decided.
+   */
+  readonly awaitsReveal: boolean
   /** See {@link WallItemDto}. `thumbUrl` is the poster when this row is a clip. */
   readonly kind: MediaKind
   readonly videoUrl: string | null
@@ -682,6 +736,15 @@ export interface EventSettingsDto {
     readonly soundTone: 'bell' | 'chime' | 'drop' | 'pop'
     readonly soundVolume: number
   }
+  /**
+   * The reveal gate of the disposable-camera mode (spec 23), as stored: the hour is an instant
+   * (`null` while the host reveals with the button). Partial on the way in (`PATCH`), whole here.
+   */
+  readonly reveal: {
+    readonly enabled: boolean
+    readonly at: string | null
+    readonly film: boolean
+  }
 }
 
 export interface EventSummaryDto {
@@ -774,6 +837,12 @@ export interface EventDto extends EventSummaryDto {
    * this is the only thing that says so. Saving any schedule clears it.
    */
   readonly scheduleDiscardedAt: string | null
+  /**
+   * The reveal gate at the server's clock (spec 23), for the console's band: the same block as the
+   * wall's, with `readyCount` the published photographs held back (`null` once revealed or with the
+   * mode off). The pending ones are `pendingCount`, which stay hidden after the reveal.
+   */
+  readonly reveal: WallRevealDto
 }
 
 export interface GuestDto {
@@ -1238,6 +1307,8 @@ export interface GalleryDto {
   readonly expiresAt: string
   /** The whole album as a ZIP. Signed, and good for an hour. */
   readonly archiveUrl: string
+  /** Before the reveal the link opens and the grid is empty: the page says when (spec 23). */
+  readonly reveal: RevealDto
 }
 
 /** One tile of the gallery's grid, with the three signed URLs a viewer needs. */
@@ -1257,6 +1328,7 @@ export interface GalleryPhotoDto {
 export interface GalleryPageDto {
   readonly items: readonly GalleryPhotoDto[]
   readonly nextCursor: string | null
+  readonly reveal: RevealDto
 }
 
 /**

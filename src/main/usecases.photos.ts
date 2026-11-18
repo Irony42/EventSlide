@@ -52,6 +52,7 @@ export const photosUseCases = (
     events: adapters.events,
     photos: adapters.photos,
     missions: adapters.missions,
+    clock: adapters.clock,
   }),
   deletePhoto: makeDeletePhoto({
     invalidateReel,
@@ -71,12 +72,18 @@ export const photosUseCases = (
     clock: adapters.clock,
     invalidateBook,
   }),
-  getPhotoMedia: makeGetPhotoMedia({ photos: adapters.photos, media: adapters.media }),
+  getPhotoMedia: makeGetPhotoMedia({
+    photos: adapters.photos,
+    media: adapters.media,
+    events: adapters.events,
+    clock: adapters.clock,
+  }),
   saveGuestPhoto: makeSaveGuestPhoto({
     events: adapters.events,
     photos: adapters.photos,
     media: adapters.media,
     engagement,
+    clock: adapters.clock,
   }),
   identifyMediaViewer: makeIdentifyMediaViewer({
     guests: adapters.guests,

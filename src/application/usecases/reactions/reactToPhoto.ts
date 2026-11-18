@@ -1,4 +1,4 @@
-import { isVisibleOnWall } from '../../../domain/photos/photoStatus'
+import { isRevealed, visibleStatuses } from '../../../domain/events/eventRevealSettings'
 import { Reaction } from '../../../domain/reactions/reaction'
 import { canReact } from '../../../domain/reactions/reactionBudget'
 import { DomainError } from '../../../domain/shared/errors'
@@ -66,10 +66,18 @@ export const makeReactToPhoto =
     const photo = await photos.findById(eventId, photoId)
     if (photo === null) return err(DomainError.notFound('photo.notFound'))
 
+    // Before the reveal of a disposable-camera evening (spec 23) nothing of anybody else's is on
+    // any screen, so a reaction is a vote on a photograph the room has not seen: refused as a
+    // photograph that does not exist, which says nothing about its status.
+    const now = clock.now()
+    if (!isRevealed(event.settings.reveal, now)) {
+      return err(DomainError.notFound('photo.notFound'))
+    }
+
     // You react to what is on the wall. A pending photo has had no decision, so a
     // reaction to it would be a vote on something the host never showed the room — and
     // the count would already be waiting on the projector if it were later published.
-    if (!isVisibleOnWall(photo.status)) {
+    if (!visibleStatuses(event.settings.reveal, now).includes(photo.status)) {
       return err(DomainError.conflict('reaction.notPublished', { status: photo.status }))
     }
 
@@ -82,7 +90,6 @@ export const makeReactToPhoto =
       return err(DomainError.forbidden('reaction.ownPhoto'))
     }
 
-    const now = clock.now()
     const reaction = Reaction.create({ eventId, photoId, guestId, kind }, ids.reactionId(), now)
     if (!reaction.ok) return reaction
 

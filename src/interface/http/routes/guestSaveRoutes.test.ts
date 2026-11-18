@@ -139,6 +139,7 @@ const buildSubject = (
               photos,
               media,
               engagement: async () => undefined,
+              clock: deps.clock,
             }),
           } as unknown as GuestRouteDeps['usecases'],
         }),
@@ -449,6 +450,7 @@ describe('through the assembled server', () => {
       photos,
       media,
       engagement: async () => undefined,
+      clock: assembled.clock,
     })
     const harness = assembled
     harness.events.seed(anEvent({ id: WEDDING, slug: SLUG, joinCode: 'H7K2QM' }))

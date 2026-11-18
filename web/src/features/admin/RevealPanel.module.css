@@ -1,0 +1,31 @@
+/* The reveal band: where the evening stands, and the one button that shows it. */
+.band {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.state {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+/* A link beside a button is a target like the button: at least a finger tall. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+}

@@ -121,6 +121,13 @@ describe('which moves ask first', () => {
     expect(confirmationFor('draft', 'live')).toBe('open')
   })
 
+  // Spec 23 §3.5: the photos stay hidden and the retention starts at the closure.
+  it('asks before ending an evening whose photos were never revealed', () => {
+    expect(confirmationFor('live', 'closed', true)).toBe('close')
+    expect(confirmationFor('live', 'closed', false)).toBeNull()
+    expect(confirmationFor('closed', 'live', true)).toBeNull()
+  })
+
   it('lets ending the evening and reopening it go through, since each undoes the other', () => {
     expect(confirmationFor('live', 'closed')).toBeNull()
     expect(confirmationFor('closed', 'live')).toBeNull()

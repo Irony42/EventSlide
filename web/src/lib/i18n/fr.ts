@@ -1500,6 +1500,8 @@ export const fr = {
     templatePreviewSample: 'Votre évènement',
     templateClipsOn: 'Vidéos autorisées',
     templateClipsOff: 'Vidéos désactivées',
+    templateSelfDeleteOn: 'Effacement photo par photo autorisé',
+    templateSelfDeleteOff: 'Effacement photo par photo désactivé',
     templateGuestSaveOn: 'Les invités peuvent enregistrer les photos',
     templateGuestSaveOff: 'Enregistrement des photos par les invités désactivé',
     templateVoiceOn: 'Messages vocaux dans le livre d’or activés',
@@ -1509,6 +1511,7 @@ export const fr = {
       birthday: 'Anniversaire',
       conference: 'Conférence',
       party: 'Soirée',
+      disposable: 'Appareil jetable',
     } satisfies Record<EventTemplateKey, string>,
 
     retention: 'Suppression automatique',
@@ -2405,6 +2408,10 @@ export const fr = {
     'eventSettings.welcomeTooLong': 'Ce message est trop long.',
     'eventSettings.welcomeTooManyLines': 'Ce message compte trop de lignes.',
     'eventSettings.saveFailed': 'Les réglages n’ont pas pu être enregistrés. Réessayez.',
+    'eventSettings.revealInPast': 'L’heure de la révélation doit être dans le futur.',
+    'eventSettings.revealDone':
+      'La soirée est déjà révélée : l’heure ne peut plus être déplacée ni effacée.',
+    'eventSettings.revealInstantInvalid': 'Cette heure de révélation n’est pas valide.',
     'eventSettings.graceSecondsInvalid': 'Ce délai de suppression n’est pas accepté.',
     'eventSettings.retentionDaysInvalid': 'Ce délai de conservation n’est pas accepté.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Ce nombre de photos par invité n’est pas accepté.',
@@ -3272,6 +3279,141 @@ export const fr = {
     /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
     participate: 'Je participe au défi',
     announceEnd: 'Fin du défi photo',
+  },
+  /** The disposable camera (spec 23): the host's section, band and confirmation. The guest's and the wall's sentences come with their own surfaces. */
+  reveal: {
+    title: 'Appareil jetable',
+    hint: 'Les photos restent cachées pour les invités et la salle jusqu’à la révélation. Vous les voyez dès leur arrivée.',
+    enabled: 'Activer l’appareil jetable',
+    timed: 'Révéler à une heure précise',
+    timedHint:
+      'Sans heure, c’est vous qui révélez, avec le bouton « Révéler maintenant » de la page de l’évènement.',
+    at: 'Heure de la révélation',
+    atLocked: 'La soirée est déjà révélée : l’heure ne peut plus être déplacée.',
+    shots: 'Poses par invité',
+    shotsHint:
+      'Une pose, c’est une photo envoyée. Sans limite, chaque invité envoie autant de photos qu’il le souhaite. Cette limite vaut aussi sans révélation.',
+    film: 'Rendu pellicule',
+    filmHint:
+      'Sur les écrans, les photos prennent l’aspect d’une pellicule. Vos originaux et les téléchargements restent intacts.',
+    liveWarning:
+      'Des photos sont déjà arrivées : celles qui sont à l’écran disparaîtront jusqu’à la révélation.',
+    countdown: (hours: number, minutes: number) =>
+      hours > 0
+        ? `Révélation dans ${t.number(hours)} h ${String(minutes).padStart(2, '0')}`
+        : `Révélation dans ${t.number(minutes)} min`,
+    soon: 'Révélation dans moins d’une minute',
+    manual: 'Les photos restent cachées jusqu’à ce que vous les révéliez.',
+    scheduledFor: (when: string) => `Révélation prévue le ${when}`,
+    waiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo publiée attend la révélation`,
+        other: `${t.number(count)} photos publiées attendent la révélation`,
+      }),
+    revealNow: 'Révéler maintenant',
+    editTime: 'Modifier l’heure',
+    revealedAt: (time: string) => `Révélé à ${time}`,
+    revealedOn: (when: string) => `Révélé le ${when}`,
+    confirmTitle: 'Révéler maintenant ?',
+    confirmPublished: (count: number) =>
+      count === 0
+        ? 'Aucune photo n’est encore publiée.'
+        : t.count(count, {
+            one: 'La photo publiée apparaîtra sur le mur et dans les téléphones.',
+            other: `Les ${t.number(count)} photos publiées apparaîtront sur le mur et dans les téléphones.`,
+          }),
+    confirmPending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo attend encore une décision : elle restera cachée.`,
+        other: `${t.number(count)} photos attendent encore une décision : elles resteront cachées.`,
+      }),
+    definitive: 'Cette action est définitive.',
+    closeTitle: (name: string) => `Terminer « ${name} » ?`,
+    closeHeld:
+      'Les photos n’ont pas encore été révélées. Une fois la soirée terminée, elles restent cachées tant que vous ne les révélez pas, et la conservation des photos court à partir de la fin de la soirée.',
+    closedNotRevealed:
+      'Les photos n’ont pas été révélées. La soirée est terminée : elles restent cachées tant que vous ne les révélez pas.',
+    closesBefore:
+      'La fin programmée de la soirée arrive avant la révélation. Sans révélation, les photos resteront cachées.',
+    templateOn: 'Photos cachées jusqu’à la révélation',
+    templateOff: 'Sans révélation différée',
+    templateFilmOn: 'Rendu pellicule à l’écran',
+    templateFilmOff: 'Sans rendu pellicule',
+    /* The projected wall before the reveal (spec 23): the hour, then what waits for it. */
+    wallAt: (time: string) => `Révélation à ${time}`,
+    wallOn: (when: string) => `Révélation le ${when}`,
+    wallSoon: 'Révélation bientôt',
+    developing: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo en cours de développement`,
+        other: `${t.number(count)} photos en cours de développement`,
+      }),
+    /* The guest's phone (spec 23): the roll, the veiled photographs, the hour and the moment of the reveal. */
+    poses: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} pose restante`,
+        other: `${t.number(count)} poses restantes`,
+      }),
+    freshRoll: (count: number) =>
+      t.count(count, {
+        one: `Pellicule neuve : ${t.number(count)} pose`,
+        other: `Pellicule neuve : ${t.number(count)} poses`,
+      }),
+    rollEmpty: 'Pellicule terminée : votre appareil est vide',
+    rollKept: (kept: number) =>
+      t.count(kept, {
+        one: 'Vous aviez 1 pose, la première est gardée.',
+        other: `Vous aviez ${t.number(kept)} poses, les ${t.number(kept)} premières sont gardées.`,
+      }),
+    undeveloped: 'Sera développée à la révélation',
+    guestAt: (time: string) => `Révélation à ${time}`,
+    guestOn: (when: string) => `Révélation le ${when}`,
+    guestLeft: (hours: number, minutes: number) =>
+      hours > 0
+        ? `dans ${t.number(hours)} h ${String(minutes).padStart(2, '0')}`
+        : `dans ${t.number(minutes)} min`,
+    guestSoon: 'dans moins d’une minute',
+    guestManual: 'Les organisateurs révéleront les photos pendant la soirée.',
+    /* Retouches 17/11: the console banner, the guest's line under the title, the notice's clauses, the waiting wall. */
+    bannerManual: 'Révélation au bouton',
+    bannerWaiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo attend`,
+        other: `${t.number(count)} photos attendent`,
+      }),
+    guestIntro: 'Prenez vos photos : elles seront développées à la révélation.',
+    guestIntroAt: (time: string) =>
+      `Prenez vos photos : elles seront développées à la révélation, à ${time}.`,
+    guestIntroOn: (when: string) =>
+      `Prenez vos photos : elles seront développées à la révélation, le ${when}.`,
+    noticeHeld: {
+      afterReview:
+        'L’organisateur valide chaque photo, et les photos validées ne passent à l’écran qu’à la révélation. Lui et ses modérateurs les voient dès leur envoi.',
+      immediate:
+        'Elles passent à l’écran à la révélation, pas avant. L’organisateur et ses modérateurs les voient dès leur envoi et peuvent en retirer à tout moment.',
+    } satisfies Record<NoticePublication, string>,
+    noticeShots: (count: number) =>
+      t.count(count, {
+        one: `Vous avez ${t.number(count)} pose : une pose, c’est une photo envoyée.`,
+        other: `Vous avez ${t.number(count)} poses : une pose, c’est une photo envoyée.`,
+      }),
+    noticeFilm:
+      'Le rendu pellicule n’existe qu’à l’écran : votre photo d’origine est conservée telle quelle.',
+    wallDeveloping: 'Les photos se développeront à la révélation',
+    developedNow: (count: number) =>
+      t.count(count, {
+        one: 'Votre photo vient d’être développée.',
+        other: `Vos ${t.number(count)} photos viennent d’être développées.`,
+      }),
+    feedAt: (time: string) => `Les photos seront révélées à ${time}`,
+    feedOn: (when: string) => `Les photos seront révélées le ${when}`,
+    feedSoon: 'Les photos seront bientôt révélées',
+    feedHint:
+      'Elles apparaîtront ici à la révélation. Vos propres photos restent dans votre liste.',
+    /* The shared gallery (spec 23): a link that opens before the reveal, and what a download is. */
+    galleryHeld: (when: string) => `Les photos seront révélées le ${when}.`,
+    galleryHeldSoon: 'Les photos seront bientôt révélées.',
+    galleryOriginal: 'Le téléchargement donne l’original, sans effet pellicule.',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

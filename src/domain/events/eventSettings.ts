@@ -16,6 +16,13 @@ import {
   type EventWallSettingsPatch,
 } from './eventWallSettings'
 import {
+  DEFAULT_REVEAL_SETTINGS,
+  mergeRevealSettings,
+  revealSettingsViolation,
+  type EventRevealSettings,
+  type EventRevealSettingsPatch,
+} from './eventRevealSettings'
+import {
   DEFAULT_GUESTBOOK_VOICE_SETTINGS,
   mergeGuestbookVoiceSettings,
   voiceOpensAtViolation,
@@ -171,6 +178,13 @@ export interface EventSettingsProps {
    */
   readonly wall: EventWallSettings
   /**
+   * The reveal gate of the "appareil jetable" mode (spec 23): whether the public sees the
+   * published photographs yet. Merged field by field like `wall`; `eventRevealSettings.ts` has
+   * the argument, and `eventSettings.revealDone` / `revealInPast` are judged by the use case,
+   * which has the clock.
+   */
+  readonly reveal: EventRevealSettings
+  /**
    * Voice messages in the guestbook (spec 25): off, not sealed, no opening time for every event
    * that exists and every new one. Merged field by field, like `wall`; see
    * `eventGuestbookVoiceSettings.ts` for the rule of a sealed book.
@@ -183,9 +197,13 @@ export interface EventSettingsProps {
  * different intents from the same settings form, which is why
  * `exactOptionalPropertyTypes` is on and why these fields are not merged with `??`.
  */
-export type EventSettingsPatch = Partial<Omit<EventSettingsProps, 'wall' | 'guestbookVoice'>> & {
+export type EventSettingsPatch = Partial<
+  Omit<EventSettingsProps, 'wall' | 'reveal' | 'guestbookVoice'>
+> & {
   /** Partial: only the keys present are written (spec 13). */
   readonly wall?: EventWallSettingsPatch
+  /** Partial too (spec 23): `at` is the one key a host may name with the clock watching. */
+  readonly reveal?: EventRevealSettingsPatch
   /** Partial as well: the settings page and "open now" write different keys (spec 25). */
   readonly guestbookVoice?: EventGuestbookVoiceSettingsPatch
 }
@@ -212,6 +230,7 @@ const DEFAULTS: EventSettingsProps = {
   welcomeMessage: null,
   logo: null,
   wall: DEFAULT_WALL_SETTINGS,
+  reveal: DEFAULT_REVEAL_SETTINGS,
   guestbookVoice: DEFAULT_GUESTBOOK_VOICE_SETTINGS,
 }
 
@@ -344,12 +363,14 @@ export class EventSettings {
       welcomeMessage: pick(patch.welcomeMessage, base.welcomeMessage),
       logo: pick(patch.logo, base.logo),
       wall: mergeWallSettings(base.wall, patch.wall),
+      reveal: mergeRevealSettings(base.reveal, patch.reveal),
       guestbookVoice: mergeGuestbookVoiceSettings(base.guestbookVoice, patch.guestbookVoice),
     }
 
     const failure =
       languageViolation(merged.wallLanguage) ??
       wallSettingsViolation(merged.wall) ??
+      revealSettingsViolation(merged.reveal) ??
       voiceOpensAtViolation(merged.guestbookVoice) ??
       violation(
         merged.guestSelfDeleteGraceSeconds,
@@ -467,6 +488,10 @@ export class EventSettings {
   /** Whether the voices are kept secret until the end of the evening (the group's `sealed`). */
   get guestbookVoiceSealed(): boolean {
     return this.props.guestbookVoice.sealed
+  }
+
+  get reveal(): EventRevealSettings {
+    return this.props.reveal
   }
 
   /** The same settings with the host's logo named, or cleared with `null`: `withVenuePhoto`'s reasoning. */

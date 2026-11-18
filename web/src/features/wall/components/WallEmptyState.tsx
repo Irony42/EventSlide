@@ -2,6 +2,7 @@ import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { joinHost } from '../../../lib/joinHost'
 import { HostLogo } from '../../../design-system/components/HostLogo'
 import { JoinQr } from './JoinQr'
+import { WallRevealWait, type WallRevealWaitProps } from './WallRevealWait'
 import styles from './WallEmptyState.module.css'
 
 export interface WallEmptyStateProps {
@@ -26,6 +27,12 @@ export interface WallEmptyStateProps {
   readonly welcomeMessage?: string | null
   /** The host's logo (spec 03): only ever on this empty wall, gone once photographs arrive. */
   readonly logoUrl?: string | null
+  /**
+   * Set while a disposable-camera evening waits for its reveal (spec 23): the hour, the time left
+   * and how many photographs are being developed, under the title. The invitation stays: guests
+   * still have to be able to join.
+   */
+  readonly reveal?: WallRevealWaitProps | null
 }
 
 /**
@@ -42,11 +49,25 @@ export function WallEmptyState({
   acceptsGuests = true,
   welcomeMessage = null,
   logoUrl = null,
+  reveal = null,
 }: WallEmptyStateProps) {
   const text = useTranslations()
   const invites = acceptsGuests
   const shown = invites ? join : null
   const host = shown === null ? null : joinHost(shown.url)
+  /**
+   * The line under the name. "The first photos will arrive soon" is the empty wall's, and on an
+   * evening held for its reveal it is wrong twice (spec 23b): photographs have arrived and wait, or
+   * none has and none will show before the hour. So the held wall says nothing above the count when
+   * photographs wait, and its own sentence when none does. A closed evening keeps its thanks.
+   */
+  const title = !invites
+    ? text.wall.emptyClosed
+    : reveal === null
+      ? text.wall.empty
+      : (reveal.readyCount ?? 0) > 0
+        ? null
+        : text.reveal.wallDeveloping
 
   return (
     <section className={styles['empty']} data-testid="wall-empty">
@@ -59,7 +80,12 @@ export function WallEmptyState({
             {welcomeMessage}
           </p>
         )}
-        <p className={styles['title']}>{invites ? text.wall.empty : text.wall.emptyClosed}</p>
+        {title === null ? null : (
+          <p className={styles['title']} data-testid="wall-empty-title">
+            {title}
+          </p>
+        )}
+        {reveal === null ? null : <WallRevealWait {...reveal} />}
         {shown === null ? null : <p className={styles['hint']}>{text.wall.emptyHint}</p>}
       </div>
 

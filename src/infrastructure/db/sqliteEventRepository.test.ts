@@ -835,6 +835,57 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.wallLanguage).toBe('fr')
     })
 
+    it('reads an event written before the reveal gate (spec 23) as off: a read, not a migration', async () => {
+      // The upgrade path of the disposable-camera mode: no `reveal` key means the evening as it
+      // always was, every published photograph public. Defaulting it is a **read**; the schema
+      // is untouched (`container.test.ts` holds the migration count).
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ reveal: undefined }),
+        'evt-1',
+      )
+
+      const reveal = (await repo.findById(asEventId('evt-1')))?.settings.reveal
+      expect(reveal).toEqual({ enabled: false, at: null, film: false })
+    })
+
+    it('stores the reveal hour as an instant and reads the very same instant back', async () => {
+      const at = new Date('2026-11-20T22:30:15.250Z')
+      await repo.save(anEvent({ id: 'evt-1', settings: { reveal: { enabled: true, at } } }))
+
+      const stored = (await repo.findById(asEventId('evt-1')))?.settings.reveal
+      expect(stored?.at?.getTime()).toBe(at.getTime())
+      const raw = db.prepare('SELECT settings FROM events WHERE id = ?').get('evt-1') as {
+        settings: string
+      }
+      expect(JSON.parse(raw.settings).reveal.at).toBe('2026-11-20T22:30:15.250Z')
+    })
+
+    it.each([
+      { holds: 'a reveal that is not an object', reveal: 'oui' },
+      { holds: 'a reveal that is null', reveal: null },
+      { holds: 'a reveal missing a flag', reveal: { enabled: true, at: null } },
+      { holds: 'a reveal with a non-boolean flag', reveal: { enabled: 1, at: null, film: false } },
+      {
+        holds: 'a reveal hour that is a number',
+        reveal: { enabled: true, at: 1_800_000_000_000, film: false },
+      },
+      {
+        holds: 'a reveal hour that is no date',
+        reveal: { enabled: true, at: 'soon', film: false },
+      },
+    ])(
+      'refuses to read an event whose settings hold $holds, rather than open the gate',
+      async ({ reveal }) => {
+        // The opposite of the wall group: a gate that read "off" when it could not be read would
+        // publish an evening its host meant to hold back.
+        await repo.save(anEvent({ id: 'evt-1' }))
+        db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(json({ reveal }), 'evt-1')
+
+        await expect(repo.findById(asEventId('evt-1'))).rejects.toThrow(/reveal/)
+      },
+    )
+
     it('reads an event that never uploaded a venue photograph as having none', async () => {
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(

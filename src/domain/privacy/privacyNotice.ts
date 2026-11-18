@@ -102,6 +102,10 @@ export interface NoticePolicy {
   readonly guestSelfDeleteGraceSeconds: number
   /** The guestbook switch (spec 01): when on, a message is one more thing the notice covers. */
   readonly allowGuestbook: boolean
+  /** The roll of a disposable-camera evening (spec 23): the cap a guest is told about. */
+  readonly maxPhotosPerGuest: number | null
+  /** The reveal gate (spec 23): whether the photographs are held back, and the film look on screen. */
+  readonly reveal: { readonly enabled: boolean; readonly film: boolean }
   /** The guests' save switch (spec 24): when on, another guest may keep a copy of a published photo. */
   readonly allowGuestSave: boolean
   /**
@@ -176,6 +180,26 @@ export interface PrivacyNotice {
    * mid-evening shows the notice once more to every guest before their next photo or message.
    */
   readonly guestbook: boolean
+  /**
+   * Whether the guests' photographs are held back from the other guests and the room until the
+   * host reveals the evening (spec 23): then the notice says so, and that the host and the
+   * moderators see them as they arrive. **A clause of the notice only, never of the hour**: the
+   * hour is told by the reveal block of the guest's own read, and an hour that moved (or became
+   * "now") must not ask every guest to read the notice again. Part of the revision only when true.
+   */
+  readonly deferredReveal: boolean
+  /**
+   * The number of poses a guest has, **told only on a disposable-camera evening** (spec 23), or
+   * `null`. A plain cap on an ordinary event is not a clause: telling it would change the
+   * revision of every event that has one and ask its guests to read again for nothing. Part of
+   * the revision only when present.
+   */
+  readonly shotLimit: number | null
+  /**
+   * That the film look exists on screen only and the original is kept as it is (spec 23), told
+   * with the reveal, and part of the revision only when true.
+   */
+  readonly film: boolean
   /**
    * Whether the other guests may save a photo from the feed onto their phone (spec 24). The notice
    * then says so, and says a saved copy cannot be taken back: a guest who read "the other guests
@@ -309,6 +333,10 @@ const revisionOf = (notice: Omit<PrivacyNotice, 'revision'>): string =>
     // Before the operator: the free-text name stays the last clause, as above.
     ...(notice.guestbook ? ['guestbook=on'] : []),
     ...(notice.guestSave ? ['guestSave=on'] : []),
+    // Spec 23: each clause only when it is told, so an event without the mode keeps its revision.
+    ...(notice.deferredReveal ? ['reveal=on'] : []),
+    ...(notice.shotLimit === null ? [] : [`shots=${notice.shotLimit}`]),
+    ...(notice.film ? ['film=on'] : []),
     // The voice clause, after the other switches and before the operator, which stays last. Its two
     // sub-clauses are the two facts the notice words that no other clause carries: a book kept secret,
     // and the voice's own removal window, which differs from the photograph's under automatic publication.
@@ -341,6 +369,11 @@ export const privacyNoticeFor = (
     operator,
     guestbook: policy.allowGuestbook,
     guestSave: policy.allowGuestSave,
+    // The three clauses of the disposable camera hang on the mode being on: with it off the event
+    // is the one it always was, and its notice says what it always said.
+    deferredReveal: policy.reveal.enabled,
+    shotLimit: policy.reveal.enabled ? policy.maxPhotosPerGuest : null,
+    film: policy.reveal.enabled && policy.reveal.film,
     voice: policy.allowGuestbookVoice,
     // Read only when voice is on: a sealed book on an event without voice says nothing to a guest.
     voiceSealed: policy.allowGuestbookVoice && policy.guestbookVoiceSealed,

@@ -5,6 +5,7 @@ import { es } from '../../lib/i18n/es'
 import { fr } from '../../lib/i18n/fr'
 import { it as italian } from '../../lib/i18n/it'
 import { aPrivacyNotice } from '../../testing/renderWithProviders'
+import type { UiText } from '../../lib/i18n/translations'
 import { noticeSections, selfRemovalSentence, voiceRemovalSentence } from './noticeWording'
 
 /**
@@ -165,6 +166,67 @@ describe('noticeSections with a guestbook (spec 01)', () => {
   })
 })
 
+describe('noticeSections on a disposable-camera evening (spec 23, 23b point 3)', () => {
+  const held = { reveal: true as const, shotLimit: 5, film: true as const }
+  const whatHappens = (notice: ReturnType<typeof aPrivacyNotice>, table: UiText = fr) =>
+    noticeSections(notice, table)[0]?.sentences ?? []
+
+  it('replaces "as soon as they arrive" with the mode’s sentence, instead of adding to it', () => {
+    const sentences = whatHappens(aPrivacyNotice({ ...held, publication: 'immediate' }))
+
+    expect(sentences).toContain(fr.reveal.noticeHeld.immediate)
+    expect(sentences).not.toContain(fr.upload.noticePublication.immediate)
+    expect(sentences.join(' ')).not.toContain('dès leur arrivée')
+  })
+
+  it('does the same for an evening where the organiser approves each photo', () => {
+    const sentences = whatHappens(aPrivacyNotice({ ...held, publication: 'afterReview' }))
+
+    expect(sentences).toContain(fr.reveal.noticeHeld.afterReview)
+    expect(sentences).not.toContain(fr.upload.noticePublication.afterReview)
+  })
+
+  it('states the number of shots and the film look, the three clauses the server decided', () => {
+    const sentences = whatHappens(aPrivacyNotice(held))
+
+    expect(sentences).toContain(fr.reveal.noticeShots(5))
+    expect(sentences).toContain(fr.reveal.noticeFilm)
+  })
+
+  it('says only the clauses the server sent', () => {
+    const sentences = whatHappens(aPrivacyNotice({ reveal: true }))
+
+    expect(sentences).toContain(fr.reveal.noticeHeld.afterReview)
+    expect(sentences.join(' ')).not.toContain('pose')
+    expect(sentences).not.toContain(fr.reveal.noticeFilm)
+  })
+
+  it('leaves the notice of an evening without the mode word for word what it was', () => {
+    expect(whatHappens(aPrivacyNotice({ publication: 'immediate' }))).toEqual([
+      fr.upload.noticeMetadataStripped,
+      fr.upload.noticePublication.immediate,
+    ])
+    expect(whatHappens(aPrivacyNotice())).toEqual([
+      fr.upload.noticeMetadataStripped,
+      fr.upload.noticePublication.afterReview,
+    ])
+  })
+
+  it.each([
+    { name: 'en', table: en },
+    { name: 'de', table: de },
+    { name: 'es', table: es },
+    { name: 'it', table: italian },
+  ])('speaks the same three clauses in $name', ({ table }) => {
+    const sentences = whatHappens(aPrivacyNotice({ ...held, publication: 'immediate' }), table)
+
+    expect(sentences).toContain(table.reveal.noticeHeld.immediate)
+    expect(sentences).toContain(table.reveal.noticeShots(5))
+    expect(sentences).toContain(table.reveal.noticeFilm)
+    expect(sentences).not.toContain(table.upload.noticePublication.immediate)
+  })
+})
+
 describe('noticeSections with saving on (spec 24)', () => {
   const whoSees = (notice: ReturnType<typeof aPrivacyNotice>) =>
     noticeSections(notice, fr)[1]?.sentences ?? []
@@ -317,5 +379,46 @@ describe('voiceRemovalSentence', () => {
 
   it('rounds a window down, as a promise that overstates it stops working early', () => {
     expect(voiceRemovalSentence(90, fr)).toBe(fr.guestbookVoice.noticeVoiceRemovalMinutes(1))
+  })
+})
+
+describe('noticeSections on a disposable-camera evening where guests may save (spec 24 section 8)', () => {
+  const sentencesOf = (notice: ReturnType<typeof aPrivacyNotice>, table: UiText = fr) =>
+    noticeSections(notice, table).flatMap((section) => section.sentences)
+  const disposable = {
+    reveal: true as const,
+    shotLimit: 27,
+    film: true as const,
+    guestSave: true as const,
+    selfRemovalSeconds: null,
+    publication: 'immediate' as const,
+  }
+
+  it('says both sentences together: no removal one by one, and the others may keep the photo', () => {
+    const sentences = sentencesOf(aPrivacyNotice(disposable))
+
+    expect(sentences).toContain(fr.upload.noticeRemovalAskHost)
+    expect(sentences).toContain(fr.upload.noticeGuestSave)
+    expect(sentences).toContain(fr.reveal.noticeHeld.immediate)
+  })
+
+  it.each([
+    { name: 'en', table: en },
+    { name: 'de', table: de },
+    { name: 'es', table: es },
+    { name: 'it', table: italian },
+  ])('says both sentences together in $name', ({ table }) => {
+    const sentences = sentencesOf(aPrivacyNotice(disposable), table)
+
+    expect(sentences).toContain(table.upload.noticeRemovalAskHost)
+    expect(sentences).toContain(table.upload.noticeGuestSave)
+    expect(sentences).toContain(table.reveal.noticeHeld.immediate)
+  })
+
+  it('says nothing of saving when the server did not send the clause', () => {
+    const { guestSave: _save, ...unsaved } = disposable
+    const sentences = sentencesOf(aPrivacyNotice(unsaved))
+
+    expect(sentences).not.toContain(fr.upload.noticeGuestSave)
   })
 })

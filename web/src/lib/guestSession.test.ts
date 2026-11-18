@@ -677,6 +677,41 @@ describe('guestSession, the guestbook flag of the notice (spec 01)', () => {
   })
 })
 
+describe('guestSession, the disposable-camera clauses of the notice (spec 23b)', () => {
+  const roundTrip = (notice: ReturnType<typeof aPrivacyNotice>) => {
+    sessionStorage.clear()
+    localStorage.clear()
+    rememberGuestSession({
+      event: aPublicEvent(),
+      displayName: 'Léa',
+      privacyNotice: { notice, acknowledgement: 'none' },
+    })
+    return readGuestSession('camille-et-sacha')?.privacyNotice?.notice
+  }
+
+  it('keeps the three clauses a stored notice carries, so a reload still states them', () => {
+    const stored = roundTrip(aPrivacyNotice({ reveal: true, shotLimit: 5, film: true }))
+
+    expect(stored).toMatchObject({ reveal: true, shotLimit: 5, film: true })
+  })
+
+  it('adds no key to the notice of an evening without the mode', () => {
+    const stored = roundTrip(aPrivacyNotice())
+
+    expect(stored).not.toHaveProperty('reveal')
+    expect(stored).not.toHaveProperty('shotLimit')
+    expect(stored).not.toHaveProperty('film')
+  })
+
+  it.each([0, -1, 2.5, '5', null])(
+    'refuses a stored notice whose cap (%j) is not a count, so it is read again from the server',
+    (shotLimit) => {
+      const notice = aPrivacyNotice({ reveal: true, shotLimit: 5 })
+      expect(roundTrip({ ...notice, shotLimit } as never)).toBeUndefined()
+    },
+  )
+})
+
 describe('leaving an event on a lent phone (QUAL-06)', () => {
   const aPhoto = (slug: string) => ({
     slug,

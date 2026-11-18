@@ -532,3 +532,88 @@ describe('the notice on a box whose operator named themselves (roadmap G2-17)', 
     expect(response.body.acknowledgement).toBe('current')
   })
 })
+
+/**
+ * **A notice must say nothing the configuration contradicts** (spec 23): the disposable camera adds
+ * three clauses and the eight combinations of the mode, the guest's own removal and the cap are
+ * each asked of the route, with the answer written out from the configuration rather than from the
+ * function under test. In particular, an evening that turns off the removal of a single photograph
+ * (the template does) promises none.
+ */
+describe('the notice of a disposable-camera evening (spec 23)', () => {
+  const combinations = [true, false].flatMap((reveal) =>
+    [true, false].flatMap((removal) => [true, false].map((cap) => ({ reveal, removal, cap }))),
+  )
+
+  it.each(combinations)(
+    'with the reveal $reveal, the guest’s own removal $removal and a cap $cap, says what the configuration does',
+    async ({ reveal, removal, cap }) => {
+      const target = buildNoticeHarness(null)
+      target.events.seed(
+        anEvent({
+          id: WEDDING,
+          slug: 'mariage',
+          joinCode: 'H7K2QM',
+          settings: {
+            moderation: 'manual',
+            allowGuestSelfDelete: removal,
+            guestSelfDeleteGraceSeconds: 900,
+            maxPhotosPerGuest: cap ? 27 : null,
+            reveal: { enabled: reveal, film: reveal },
+          },
+        }),
+      )
+      target.guests.seed(aGuest({ id: LEA, eventId: WEDDING }))
+
+      const response = await request(target.app)
+        .get(NOTICE)
+        .set('Cookie', cookie(target.issueGuestToken(WEDDING, LEA)))
+
+      expect(response.status).toBe(200)
+      const { notice } = response.body
+      // Present only when told, so an ordinary event answers what it always answered.
+      expect(notice.reveal).toBe(reveal ? true : undefined)
+      expect(notice.film).toBe(reveal ? true : undefined)
+      expect(notice.shotLimit).toBe(reveal && cap ? 27 : undefined)
+      // The removal promised is the removal there is: none without the switch.
+      expect(notice.selfRemovalSeconds).toBe(removal ? 900 : null)
+    },
+  )
+
+  it('shows the notice again to a guest when the host turns the mode on, and not when the hour moves', async () => {
+    const target = buildNoticeHarness(null)
+    const configure = (settings: object) =>
+      target.events.seed(
+        anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', settings: settings as never }),
+      )
+    configure({ allowGuestbook: false })
+    target.guests.seed(aGuest({ id: LEA, eventId: WEDDING }))
+    const lea = cookie(target.issueGuestToken(WEDDING, LEA))
+    const read = await request(target.app).get(NOTICE).set('Cookie', lea)
+    await request(target.app)
+      .post(ACKNOWLEDGE)
+      .set('Cookie', lea)
+      .send({ revision: read.body.notice.revision })
+      .expect(200)
+
+    configure({
+      allowGuestbook: false,
+      reveal: { enabled: true, at: new Date(AT.getTime() + 3_600_000) },
+    })
+    const turnedOn = await request(target.app).get(NOTICE).set('Cookie', lea)
+    await request(target.app)
+      .post(ACKNOWLEDGE)
+      .set('Cookie', lea)
+      .send({ revision: turnedOn.body.notice.revision })
+      .expect(200)
+    configure({
+      allowGuestbook: false,
+      reveal: { enabled: true, at: new Date(AT.getTime() + 7_200_000) },
+    })
+    const moved = await request(target.app).get(NOTICE).set('Cookie', lea)
+
+    expect(read.body.acknowledgement).toBe('none')
+    expect(turnedOn.body.acknowledgement).toBe('outdated')
+    expect(moved.body.acknowledgement).toBe('current')
+  })
+})

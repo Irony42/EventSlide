@@ -376,6 +376,8 @@ describe('a suspended client, through the real composition root', () => {
       body: { scheduledOpenAt: null, scheduledCloseAt: null },
     },
     { method: 'post', path: '/api/events/:eventSlug/join-code', body: {} },
+    // "Révéler maintenant" (spec 23): a frozen event cannot be revealed.
+    { method: 'post', path: '/api/events/:eventSlug/reveal', body: {} },
     { method: 'delete', path: '/api/events/:eventSlug', body: {} },
     { method: 'post', path: '/api/events/:eventSlug/guests/:guestId/revoke', body: {} },
     {

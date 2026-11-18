@@ -2,7 +2,6 @@ import {
   DOWNLOAD_EXTENSION,
   isGalleryDownload,
   isGalleryVariant,
-  isInSharedGallery,
 } from '../../../domain/gallery/galleryMedia'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { ServedVariant } from '../../../domain/photos/mediaVariant'
@@ -13,6 +12,7 @@ import type { MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import {
   eventBehind,
+  galleryStatuses,
   isMediaGrantSigned,
   notAvailable,
   type GalleryAccessDeps,
@@ -91,7 +91,9 @@ export const makeGetGalleryMedia =
     if (event === null) return err(notAvailable())
 
     const photo = await deps.photos.findById(link.eventId, photoId)
-    if (photo === null || !isInSharedGallery(photo.status)) return err(notAvailable())
+    if (photo === null || !galleryStatuses(event, now).includes(photo.status)) {
+      return err(notAvailable())
+    }
     if (!isGalleryVariant(photo.kind, variant)) return err(notAvailable())
 
     const hash = photo.hashFor(variant)

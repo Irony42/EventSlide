@@ -104,6 +104,9 @@ Rationale and rejected alternatives: [docs/adr/](docs/adr/).
 9. **Migrations are append-only.** Never edit a migration that exists on `main`.
 10. **Secrets come from the environment**, validated once in
     `src/infrastructure/config/env.ts`. Nothing else reads `process.env`.
+11. **A use case that reads photographs for someone who is not a moderator asks the reveal gate**
+    (`visibleStatuses(event.settings.reveal, clock.now())`, spec 23, ADR 0013), never a constant list of
+    statuses. `src/main/publicReaders.guard.test.ts` fails on one that does not.
 
 ---
 

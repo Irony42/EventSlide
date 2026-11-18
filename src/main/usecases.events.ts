@@ -18,6 +18,7 @@ import { makeSweepOrphanedMedia } from '../application/usecases/media/sweepOrpha
 import { makeResolveJoinCode } from '../application/usecases/events/resolveJoinCode'
 import { makeRotateJoinCode } from '../application/usecases/events/rotateJoinCode'
 import { makeScheduleEvent } from '../application/usecases/events/scheduleEvent'
+import { makeRevealEvent } from '../application/usecases/events/revealEvent'
 import { makeUpdateEventSettings } from '../application/usecases/events/updateEventSettings'
 import { makeGetEventLimits } from '../application/usecases/events/getEventLimits'
 import { makeSweepPurgeNotices } from '../application/usecases/events/sweepPurgeNotices'
@@ -49,10 +50,11 @@ export const eventsUseCases = (
   getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
   getEventView: makeGetEventView({
     events: adapters.events,
+    photos: adapters.photos,
+    clock: adapters.clock,
     clients: adapters.clients,
     notices: adapters.purgeNotices,
     guestbook: adapters.guestbook,
-    clock: adapters.clock,
     getEventLimits: makeGetEventLimits({ clients: adapters.clients }),
     capNoticeDays: policy.retention.capNoticeDays,
   }),
@@ -82,6 +84,14 @@ export const eventsUseCases = (
     clients: adapters.clients,
     memberships: adapters.memberships,
     bus: adapters.bus,
+  }),
+  // "Révéler maintenant" (spec 23): an audited act of any moderator.
+  revealEvent: makeRevealEvent({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    clock: adapters.clock,
   }),
   rotateJoinCode: makeRotateJoinCode({
     events: adapters.events,

@@ -93,7 +93,17 @@ export const noticeSections = (
       // is no setting it could contradict.
       sentences: [
         copy.noticeMetadataStripped,
-        copy.noticePublication[notice.publication],
+        // A disposable-camera evening (spec 23b): the mode's sentence **replaces** "as soon as they arrive",
+        // which is false there. The same revision as before, so nobody is asked to read it again.
+        ...(notice.reveal === true
+          ? [
+              text.reveal.noticeHeld[notice.publication],
+              ...(notice.shotLimit === undefined
+                ? []
+                : [text.reveal.noticeShots(notice.shotLimit)]),
+              ...(notice.film === true ? [text.reveal.noticeFilm] : []),
+            ]
+          : [copy.noticePublication[notice.publication]]),
         ...(withBook ? [text.guestbook.noticeMessagePublication[notice.publication]] : []),
         ...(withVoice
           ? [voice.noticeVoicePublication[notice.publication], voice.noticeVoiceMicrophone]

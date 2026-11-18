@@ -566,6 +566,21 @@ export const updateSettingsBody = z.strictObject({
     })
     .optional(),
   /**
+   * The reveal gate of the disposable-camera mode (spec 23). Partial and strict, like `wall`: only
+   * the keys sent are written, merged into the stored group, so a save that names `film` cannot
+   * forget the hour. `at` is an instant with its offset (the browser resolves the host's local
+   * hour before sending), or `null` to reveal with the button. That it is a future hour, and that a
+   * reveal already done cannot be moved back, are the domain's (`eventSettings.revealInPast`,
+   * `eventSettings.revealDone`): they need the clock, which is a port.
+   */
+  reveal: z
+    .strictObject({
+      enabled: z.boolean().optional(),
+      at: instant({ offset: true }).nullable().optional(),
+      film: z.boolean().optional(),
+    })
+    .optional(),
+  /**
    * What the host decides about voice messages in the guestbook (spec 25). Partial and strict, like
    * `wall`: only the keys sent are written, merged field by field into the stored group, so the
    * switch and the "open now" button cannot erase each other's choice. A key outside the group is a

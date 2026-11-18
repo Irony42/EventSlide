@@ -266,3 +266,41 @@ describe('what a party starts from', () => {
     })
   })
 })
+
+describe('what a disposable camera starts from (spec 23)', () => {
+  it('holds the evening until the host reveals it: the gate is on, with no hour', () => {
+    // No hour on purpose: the host chooses it, and "no hour" is "at the button".
+    expect(settingsOf('disposable').reveal).toEqual({ enabled: true, at: null, film: true })
+  })
+
+  it('publishes on ingest, because no manual queue holds five thousand photographs', () => {
+    expect(settingsOf('disposable').moderation).toBe('auto')
+  })
+
+  it('gives a guest a roll of twenty-seven poses', () => {
+    expect(settingsOf('disposable').maxPhotosPerGuest).toBe(27)
+  })
+
+  it('does not hand a pose back: the photo-by-photo erasure is off', () => {
+    expect(settingsOf('disposable').allowGuestSelfDelete).toBe(false)
+  })
+
+  it('turns video off, a film being photographs', () => {
+    expect(settingsOf('disposable').allowClips).toBe(false)
+  })
+
+  it('wears the Guinguette, an ambiance the catalogue already has', () => {
+    expect(settingsOf('disposable').theme).toEqual({
+      accentHue: CURATED_ACCENT_HUES.violet,
+      fonts: 'sans',
+      frame: 'square',
+      ambiance: 'guinguette',
+    })
+  })
+
+  it('leaves the reveal of every other template off, so no evening is hidden by surprise', () => {
+    for (const key of EVENT_TEMPLATE_KEYS.filter((other) => other !== 'disposable')) {
+      expect(settingsOf(key).reveal.enabled).toBe(false)
+    }
+  })
+})

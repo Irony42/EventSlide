@@ -1,0 +1,305 @@
+import { beforeEach, describe, expect, it } from 'vitest'
+import { ContentHash } from '../../../domain/photos/contentHash'
+import { isRevealed } from '../../../domain/events/eventRevealSettings'
+import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
+import { AT, aClient, anEvent } from '../../testing/builders'
+import { FakeAuditLog } from '../../testing/fakeAuditLog'
+import { FakeClock } from '../../testing/fakeClock'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
+import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
+import { RecordingEventBus } from '../../testing/recordingEventBus'
+import { makeRevealEvent, type RevealEvent } from './revealEvent'
+
+const WEDDING = asEventId('evt-wedding')
+const GALA = asEventId('evt-gala')
+const OWNER = asUserId('user-host')
+const MODERATOR = asUserId('user-mod')
+const STRANGER = asUserId('user-stranger')
+const minutes = (n: number): Date => new Date(AT.getTime() + n * 60_000)
+
+describe('revealEvent (spec 23)', () => {
+  let clients: FakeClientRepository
+  let events: FakeEventRepository
+  let audit: FakeAuditLog
+  let bus: RecordingEventBus
+  let clock: FakeClock
+  let reveal: RevealEvent
+
+  const seed = (input: Parameters<typeof anEvent>[0] = {}) =>
+    events.seed(anEvent({ id: WEDDING, ownerId: OWNER, ...input }))
+  const lines = async () => (await audit.list({ limit: 10 })).items
+
+  beforeEach(async () => {
+    clients = new FakeClientRepository()
+    events = new FakeEventRepository({ clients })
+    audit = new FakeAuditLog().withAccounts(OWNER, MODERATOR, STRANGER)
+    bus = new RecordingEventBus()
+    clock = new FakeClock()
+    const memberships = new FakeMembershipRepository()
+    await memberships.grant({ eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT })
+    await memberships.grant({
+      eventId: WEDDING,
+      userId: MODERATOR,
+      role: 'moderator',
+      grantedAt: AT,
+    })
+    await memberships.grant({ eventId: GALA, userId: STRANGER, role: 'owner', grantedAt: AT })
+    events.seed(anEvent({ id: GALA, ownerId: STRANGER, slug: 'gala', joinCode: 'Z3N9PT' }))
+    reveal = makeRevealEvent({ events, memberships, audit, bus, clock })
+  })
+
+  it('writes the hour as now, and the evening is revealed from that instant', async () => {
+    seed({ settings: { reveal: { enabled: true, at: minutes(180), film: true } } })
+
+    const result = await reveal({ eventId: WEDDING, actorId: MODERATOR })
+
+    expect(result.ok).toBe(true)
+    const stored = await events.findById(WEDDING)
+    expect(stored?.settings.reveal.at).toEqual(AT)
+    expect(stored?.settings.reveal.film).toBe(true)
+    expect(stored !== null && isRevealed(stored.settings.reveal, AT)).toBe(true)
+  })
+
+  it('reveals an evening that was waiting for the button (no hour)', async () => {
+    seed({ settings: { reveal: { enabled: true } } })
+
+    await reveal({ eventId: WEDDING, actorId: OWNER })
+
+    expect((await events.findById(WEDDING))?.settings.reveal.at).toEqual(AT)
+  })
+
+  it('is idempotent: a second press writes nothing and keeps the hour the room was shown', async () => {
+    seed({ settings: { reveal: { enabled: true } } })
+    await reveal({ eventId: WEDDING, actorId: OWNER })
+    clock.advance(60_000)
+
+    const again = await reveal({ eventId: WEDDING, actorId: MODERATOR })
+
+    expect(again.ok).toBe(true)
+    expect((await events.findById(WEDDING))?.settings.reveal.at).toEqual(AT)
+    expect(await lines()).toHaveLength(1)
+    expect(bus.published.filter((e) => e.type === 'event.settingsChanged')).toHaveLength(1)
+  })
+
+  it('answers success and writes nothing for an event whose mode is off', async () => {
+    seed({})
+
+    const result = await reveal({ eventId: WEDDING, actorId: OWNER })
+
+    expect(result.ok).toBe(true)
+    expect((await events.findById(WEDDING))?.settings.reveal.at).toBeNull()
+    expect(await lines()).toEqual([])
+    expect(bus.published).toEqual([])
+  })
+
+  it('records who revealed, once, with the event and its client, and announces it', async () => {
+    clients.seed(aClient({ id: 'client-1' }))
+    seed({ clientId: 'client-1', settings: { reveal: { enabled: true } } })
+
+    await reveal({ eventId: WEDDING, actorId: MODERATOR })
+
+    const written = await lines()
+    expect(written).toHaveLength(1)
+    expect(written[0]).toMatchObject({
+      action: 'event.revealed',
+      actor: { kind: 'member', userId: MODERATOR },
+      subject: { type: 'event', id: WEDDING },
+      clientId: asClientId('client-1'),
+      details: {},
+    })
+    expect(bus.published).toEqual([{ type: 'event.settingsChanged', eventId: WEDDING }])
+  })
+
+  it('refuses a stranger as an event that does not exist, and changes nothing', async () => {
+    seed({ settings: { reveal: { enabled: true } } })
+
+    const result = await reveal({ eventId: WEDDING, actorId: STRANGER })
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+    expect((await events.findById(WEDDING))?.settings.reveal.at).toBeNull()
+    expect(await lines()).toEqual([])
+  })
+
+  it('answers not found for an unknown event', async () => {
+    const result = await reveal({ eventId: asEventId('nope'), actorId: OWNER })
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
+  it('refuses an archived event, which is a record', async () => {
+    seed({ status: 'archived', settings: { reveal: { enabled: true } } })
+
+    const result = await reveal({ eventId: WEDDING, actorId: OWNER })
+
+    expect(!result.ok && result.error.code).toBe('event.immutable')
+  })
+
+  it('can reveal a closed evening: the photographs were never shown', async () => {
+    seed({ status: 'closed', settings: { reveal: { enabled: true } } })
+
+    const result = await reveal({ eventId: WEDDING, actorId: OWNER })
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('leaves a frozen client’s event alone: the sweep in suspendedClientWrites asks it too', async () => {
+    clients.seed(aClient({ id: 'client-1', suspendedAt: AT }))
+    seed({ clientId: 'client-1', settings: { reveal: { enabled: true } } })
+
+    const result = await reveal({ eventId: WEDDING, actorId: OWNER })
+
+    expect(!result.ok && result.error.code).toBe('client.suspended')
+    expect(await lines()).toEqual([])
+  })
+
+  it('refuses, and writes nothing, when the clock gives no real instant', async () => {
+    seed({ settings: { reveal: { enabled: true } } })
+    const broken = makeRevealEvent({
+      events,
+      memberships: await grantedTo(OWNER),
+      audit,
+      bus,
+      clock: { now: () => new Date(Number.NaN) },
+    })
+
+    const result = await broken({ eventId: WEDDING, actorId: OWNER })
+
+    expect(!result.ok && result.error.code).toBe('eventSettings.revealInstantInvalid')
+    expect(await lines()).toEqual([])
+  })
+
+  it('refuses before changing anything when the audit log would not accept the entry', async () => {
+    const odd = asEventId('not an opaque id!')
+    events.seed(
+      anEvent({
+        id: odd,
+        slug: 'odd',
+        joinCode: 'K4M7QX',
+        settings: { reveal: { enabled: true } },
+      }),
+    )
+    const memberships = new FakeMembershipRepository()
+    await memberships.grant({ eventId: odd, userId: OWNER, role: 'owner', grantedAt: AT })
+
+    const result = await makeRevealEvent({ events, memberships, audit, bus, clock })({
+      eventId: odd,
+      actorId: OWNER,
+    })
+
+    expect(result.ok).toBe(false)
+    expect((await events.findById(odd))?.settings.reveal.at).toBeNull()
+    expect(bus.published).toEqual([])
+  })
+
+  it('does not erase a logo written while the audit line was being recorded', async () => {
+    const logo = ContentHash.create('ab'.repeat(32))
+    if (!logo.ok) throw new Error('fixture digest')
+    seed({ settings: { reveal: { enabled: true } } })
+    const racing = new (class extends FakeAuditLog {
+      override async record(...args: Parameters<FakeAuditLog['record']>) {
+        await super.record(...args)
+        const stored = await events.findById(WEDDING)
+        if (stored === null) throw new Error('fixture event')
+        const withLogo = stored.withSettings(stored.settings.withLogo(logo.value))
+        if (!withLogo.ok) throw new Error('fixture event')
+        await events.save(withLogo.value)
+      }
+    })().withAccounts(OWNER, MODERATOR, STRANGER)
+    const memberships = await grantedTo(MODERATOR)
+
+    const result = await makeRevealEvent({ events, memberships, audit: racing, bus, clock })({
+      eventId: WEDDING,
+      actorId: MODERATOR,
+    })
+
+    expect(result.ok && result.value.settings.logo?.value).toBe(logo.value.value)
+    const stored = await events.findById(WEDDING)
+    expect(stored?.settings.logo?.value).toBe(logo.value.value)
+    expect(stored?.settings.reveal.at).toEqual(AT)
+  })
+
+  /** An audit log that runs `during` while the line is being recorded: the window of a concurrent write. */
+  const duringAudit = (during: () => Promise<void>) =>
+    new (class extends FakeAuditLog {
+      override async record(...args: Parameters<FakeAuditLog['record']>) {
+        await super.record(...args)
+        await during()
+      }
+    })().withAccounts(OWNER, MODERATOR, STRANGER)
+
+  it('answers not found, and saves nothing, when the event is deleted while the line is recorded', async () => {
+    seed({ settings: { reveal: { enabled: true } } })
+    const racing = duringAudit(() => events.delete(WEDDING))
+
+    const result = await makeRevealEvent({
+      events,
+      memberships: await grantedTo(MODERATOR),
+      audit: racing,
+      bus,
+      clock,
+    })({ eventId: WEDDING, actorId: MODERATOR })
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+    expect(await events.findById(WEDDING)).toBeNull()
+    expect(bus.published).toEqual([])
+  })
+
+  it('keeps the first hour when another press reveals while the line is recorded', async () => {
+    seed({ settings: { reveal: { enabled: true } } })
+    const racing = duringAudit(async () => {
+      const stored = await events.findById(WEDDING)
+      if (stored === null) throw new Error('fixture event')
+      const settings = stored.settings.with({
+        reveal: { ...stored.settings.reveal, at: minutes(-1) },
+      })
+      if (!settings.ok) throw new Error('fixture event')
+      const first = stored.withSettings(settings.value)
+      if (!first.ok) throw new Error('fixture event')
+      await events.save(first.value)
+    })
+
+    const result = await makeRevealEvent({
+      events,
+      memberships: await grantedTo(MODERATOR),
+      audit: racing,
+      bus,
+      clock,
+    })({ eventId: WEDDING, actorId: MODERATOR })
+
+    expect(result.ok).toBe(true)
+    expect((await events.findById(WEDDING))?.settings.reveal.at).toEqual(minutes(-1))
+    expect(bus.published).toEqual([])
+  })
+
+  it('refuses, and saves nothing, when the event is archived while the line is recorded', async () => {
+    seed({ settings: { reveal: { enabled: true } } })
+    const racing = duringAudit(async () => {
+      events.seed(
+        anEvent({
+          id: WEDDING,
+          ownerId: OWNER,
+          status: 'archived',
+          settings: { reveal: { enabled: true } },
+        }),
+      )
+    })
+
+    const result = await makeRevealEvent({
+      events,
+      memberships: await grantedTo(MODERATOR),
+      audit: racing,
+      bus,
+      clock,
+    })({ eventId: WEDDING, actorId: MODERATOR })
+
+    expect(!result.ok && result.error.code).toBe('event.immutable')
+    expect((await events.findById(WEDDING))?.settings.reveal.at).toBeNull()
+    expect(bus.published).toEqual([])
+  })
+
+  const grantedTo = async (userId: ReturnType<typeof asUserId>) => {
+    const memberships = new FakeMembershipRepository()
+    await memberships.grant({ eventId: WEDDING, userId, role: 'moderator', grantedAt: AT })
+    return memberships
+  }
+})

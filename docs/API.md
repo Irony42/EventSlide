@@ -1220,6 +1220,14 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
   "tilt": true,
   "joinCard": { "visible": true, "scale": 1, "placement": "bottom-end" },
   "sound": { "enabled": false, "tone": "chime", "volume": 50 },
+  "reveal": {
+    "enabled": false,
+    "revealed": true,
+    "atMs": null,
+    "serverNowMs": 1782000000000,
+    "film": false,
+    "readyCount": null
+  },
   "reactionsEnabled": true,
   "guestSaveEnabled": true,
   "theme": {
@@ -1290,6 +1298,20 @@ fifteen minutes after `serverNowMs`: the wall reads again then. It is thirty sec
 still to come appears when that is sooner, and otherwise the fifteen-minute cap, so the response does not say when
 the next one is. `revision` does **not** cover `announcements`: a wall compares it field by field. The
 `announcement.changed` signal (public, no data) makes it read again.
+
+**`reveal` is the reveal gate of the disposable-camera mode** (spec 23), the same block the guest's phone and the
+shared gallery carry (without `readyCount`), built by one presenter from the event and one read of the server's clock:
+`enabled` is the host's switch, `revealed` whether the evening is shown at `serverNowMs` (always `true` with the mode
+off; a stored hour is inclusive, so at the exact instant it is revealed), `atMs` the hour as an instant or `null` while
+the host reveals with the button, `film` the film look on screen (`true` only with the mode on; it never touches a byte).
+**Before the reveal the wall serves no photograph: `items` is empty, no photograph identifier, address or credit
+appears anywhere in the response, and `souvenirCount` is `null`** (so the souvenir counter and the new-photo signal
+of specs 11 and 12 have nothing to show or compare, and stay silent). `readyCount` is the one thing it says of the
+evening: how many published photographs of this event are waiting (the `published` count the counter reads: nothing
+pending, hidden, refused, taken down or from another event; an aggregate with no author), and `null` once revealed or with
+the mode off. No signal announces the hour: nothing sweeps, so each client counts down against `serverNowMs` and reads
+again (`event.settingsChanged` announces "Révéler maintenant"). The guests' feed (`/e/:slug/photos`) is this same
+read: an empty wall is an empty feed. The moderation console is not a public reader and sees everything as it arrives.
 
 `layout` is the **effective** layout: the one the host chose for the event (spec 13) when there is one, the
 default `spotlight` otherwise. `layoutChosen` says which: true when the host chose it, so the wall lets the
@@ -1461,6 +1483,13 @@ inline rendition, to `private, max-age=<seconds until its URL expires>`. The SPA
 `pending`, `rejected` or `hidden` — narrower than the host's own `album.zip` (§4),
 which keeps hidden ones. Status is read on every request, so a photograph unpublished
 after the page loaded is refused although its URL is correctly signed.
+
+**Before the reveal of a disposable-camera evening (spec 23) the link opens and shows nothing.** `GET
+/api/gallery/:token` and `GET /api/gallery/:token/photos` answer **200** with `reveal` (the block of `GET /wall`, without
+`readyCount`), `photoCount: 0` and no item, no signed address and no cursor; a media URL signed before the hour is refused
+`404 gallery.notAvailable` by the media route (the status is read on every request), and the ZIP is empty. **No error
+code was added**: `gallery.notAvailable` stays reserved for dead links, so a holder learns nothing a valid link did not
+say. The gallery follows the same hour as the wall.
 
 #### `GET /api/gallery/:token`
 
@@ -1669,13 +1698,22 @@ the evening is over instead of offering a form the server would refuse with `409
       "canDelete": true,
       "missionPrompt": null,
       "answeredChallenge": false,
+      "awaitsReveal": false,
       "kind": "photo",
       "videoUrl": null,
       "durationMs": null
     }
   ],
   "acceptingUploads": true,
-  "theme": { "accentHue": 305, "fonts": "sans", "frame": "soft" }
+  "theme": { "accentHue": 305, "fonts": "sans", "frame": "soft" },
+  "shots": null,
+  "reveal": {
+    "enabled": false,
+    "revealed": true,
+    "atMs": null,
+    "serverNowMs": 1782000000000,
+    "film": false
+  }
 }
 ```
 
@@ -1686,6 +1724,16 @@ has no readable "event by slug" to ask. This is the read it already makes, so th
 still painted from the stored copy and a changed theme costs one repaint when this answers, never
 a request. The client writes the new theme back into the session it keeps, so the next visit's
 first frame is the new one. A client that predates the field keeps the join's theme.
+
+**The disposable camera (spec 23).** `reveal` is the block of `GET /wall` (without `readyCount`). `awaitsReveal` is `true` on a
+photograph whose `status` is `published` while the evening is not revealed: the phone draws it undeveloped and says it will
+be developed at the reveal. **`status` stays exact** (a `rejected` photograph is still shown as declined, a `pending` one as
+waiting): the server never lies about what the host decided, and the guest's own photographs are listed before and after
+the reveal, because the secret is against the others and not against oneself. `shots` is `null` for an event with no cap,
+otherwise `{ "max", "taken" }`: `max` is `maxPhotosPerGuest` and `taken` is **the count the upload cap itself uses**
+(`countByAuthor`: every photograph and clip row of this guest, whatever its status, refused ones included; a clip still
+being transcoded is not a row yet), so a pose given back by a deletion or an erasure is given back here. It is read by the
+guest about themselves only. Both fields are absent from a server build that predates them.
 
 `canDelete` is computed server-side from the grace window, the current status **and the
 event's `allowGuestSelfDelete` switch**, so the client does not re-implement the rule and
@@ -1974,6 +2022,9 @@ guest's language, so the notice cannot promise something the configuration contr
 | `selfRemovalSeconds`  | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation`         | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `operator`            | `OPERATOR_NAME` (not the event)                                             | who hosts the photograph, said as "Hébergé par <name>" (roadmap G2-17). **Absent** — the key is not there, and the revision is unchanged — on a box whose operator set none, which is every self-hosted box                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `guestbook`           | `allowGuestbook`                                                            | **Present (`true`) only when guests may leave guestbook messages** (spec 01): the notice then reads for a message too, and `revision` gains `guestbook=on`. Absent otherwise, so a box without a guestbook asks nobody to read the notice again                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `reveal`              | `reveal.enabled`                                                            | **Present (`true`) only on a disposable-camera evening** (spec 23): the guests' photographs are not shown to the other guests and the room until the host reveals them, and the host and moderators see them as they arrive. Revision `reveal=on`. **Never the hour**: it is the reveal block's, so moving it, or revealing now, asks nobody to read the notice again                                                                                                                                                                                                                                                                                                                    |
+| `shotLimit`           | `maxPhotosPerGuest`, only with the mode on                                  | **Present only on that evening, with a cap**: how many poses a guest has. Revision `shots=<n>`. A plain cap on an ordinary event is not a clause (it would ask every such event's guests to read again)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `film`                | `reveal.film`, only with the mode on                                        | **Present (`true`) only on that evening with the film look**: it exists on screen only and the original is kept as it is. Revision `film=on`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `guestSave`           | `allowGuestSave`                                                            | **Present (`true`) only when the other guests may save a photograph from the feed onto their phone** (spec 24): the notice then says so, and says a saved copy cannot be taken back; `revision` gains `guestSave=on`. Absent otherwise, so an event that predates the switch (which reads it off) produces the revision it always produced and asks nobody to read the notice again                                                                                                                                                                                                                                                                                                      |
 | `voice`               | `allowGuestbook` **and** `guestbookVoice.enabled`                           | **Present (`true`) only when guests may leave voice messages** (spec 25): the notice then says who hears them (the organiser and their team, never the room or the other guests), what the moderation does with them, how long they are kept, that the microphone only runs while recording, and how to take one back; `revision` gains `voice=on`. Absent otherwise, so an event without voice produces the revision it always produced and asks nobody to read the notice again. It does **not** read the box's capability (an audio encoder): that is a fact about the box, not a promise to a guest                                                                                  |
 | `voiceSealed`         | `guestbookVoice.sealed`, read only with `voice`                             | **Present (`true`) only with `voice`, when the host keeps the voices secret until the end of the evening** (the notice says so, "unless the organiser decides otherwise"); `revision` gains `voiceSealed=on` after `voice=on`                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -2205,7 +2256,8 @@ carries it), `429 rate.limited` with a `Retry-After` (the guest-write bucket of 
 
 `kind` ∈ `love | laugh | wow | cheers | clap` — a closed set, because arbitrary emoji
 projected in front of a family is not acceptable. One of each kind per guest per photo.
-Only on a **published** photo: you react to what is on the wall.
+Only on a **published** photo: you react to what is on the wall. **Before the reveal of a disposable-camera evening
+(spec 23) nothing is on any screen, so a reaction is `404 photo.notFound`** (which says nothing of the photograph's status).
 
 Not on one's **own** photograph: the photo of the night is the one the room liked most, and
 a guest voting for their own is not the room. ("Own" is the guest the token names: a guest
@@ -2305,22 +2357,24 @@ The file name is the server's: the event's slug and the first characters of the 
 name, a caption or a date.
 
 **The photograph must be one the public wall shows right now**: `published`, not taken down by the
-operator, in this event. A photograph awaiting moderation, hidden or refused is not saveable, **its
+operator, in this event, and, on a disposable-camera evening (spec 23), **revealed**: before the reveal nothing is
+saveable (`404 photo.notFound`, the same answer as an unknown identifier), and an author does not get their own
+photograph through this route either (the media route lets them see it, this one never does). A photograph awaiting moderation, hidden or refused is not saveable, **its
 author included**. **Nothing is kept**: no table, no file, no cache, no real-time signal.
 
 **Errors**
 
-| Status | Code                                    | When                                                                                                                                                                                     |
-| ------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 400    | `request.invalid`                       | an identifier that is not one (checked first, whatever the event's state)                                                                                                                |
-| 401    | `auth.required`, `guestToken.malformed` | no cookie, or a token that does not verify (one older than 36 hours included)                                                                                                            |
-| 403    | `guest.revoked`                         | the host removed this guest: the host's lever against someone who abuses the feature                                                                                                     |
-| 403    | `save.disabled`                         | the host switched `allowGuestSave` off. **The one refusal that says what it is**: a feed that was open when the host switched it off has no live channel, and learns it from this answer |
-| 404    | `event.notFound`                        | another event's token, an unknown, draft or archived event, one the operator took down, a suspended client                                                                               |
-| 404    | `photo.notFound`                        | unknown; another event's; not `published`; a clip; taken down by the operator. **All the same answer**: the route is no oracle for which identifiers exist                               |
-| 404    | `photo.mediaMissing`                    | the row points at a file that is gone (a corruption the operator should see in the log)                                                                                                  |
-| 429    | `rate.limited`                          | a bound of §1 ☆, with `Retry-After`                                                                                                                                                      |
-| 503    | `service.notReady`                      | the box is serving its ceiling of saves, with `Retry-After: 30`                                                                                                                          |
+| Status | Code                                    | When                                                                                                                                                                                         |
+| ------ | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400    | `request.invalid`                       | an identifier that is not one (checked first, whatever the event's state)                                                                                                                    |
+| 401    | `auth.required`, `guestToken.malformed` | no cookie, or a token that does not verify (one older than 36 hours included)                                                                                                                |
+| 403    | `guest.revoked`                         | the host removed this guest: the host's lever against someone who abuses the feature                                                                                                         |
+| 403    | `save.disabled`                         | the host switched `allowGuestSave` off. **The one refusal that says what it is**: a feed that was open when the host switched it off has no live channel, and learns it from this answer     |
+| 404    | `event.notFound`                        | another event's token, an unknown, draft or archived event, one the operator took down, a suspended client                                                                                   |
+| 404    | `photo.notFound`                        | unknown; another event's; not `published`; **held back by the reveal gate**; a clip; taken down by the operator. **All the same answer**: the route is no oracle for which identifiers exist |
+| 404    | `photo.mediaMissing`                    | the row points at a file that is gone (a corruption the operator should see in the log)                                                                                                      |
+| 429    | `rate.limited`                          | a bound of §1 ☆, with `Retry-After`                                                                                                                                                          |
+| 503    | `service.notReady`                      | the box is serving its ceiling of saves, with `Retry-After: 30`                                                                                                                              |
 
 **The switch is not an access control.** `display` is already served to the public by §4, so
 `allowGuestSave` governs what the product offers and promises to guests (a button, a sentence in the
@@ -2426,6 +2480,10 @@ Asking a row for a rendition its **kind** does not have is `404 photo.notFound` 
 miss is on the row, not on the disk, because `photo.mediaMissing` is the code that means
 "a row points at bytes that are gone" and that is a corruption worth an operator's
 attention.
+
+**Before the reveal of a disposable-camera evening (spec 23)** a photograph of someone else is `404 photo.notFound`, as an
+unknown id is, for the public and for the other guests: the gate is on the bytes and the metadata, not on the identifiers
+(which the public signals may carry). The photograph's own author and the event's moderators keep reading it.
 
 There is deliberately no spelling that reaches a clip's **staged upload**. Those bytes
 still carry whatever the phone wrote into the container, including location; they are
@@ -3436,11 +3494,11 @@ A quota above a **client's** `max_event_quota_bytes` is the same `400 event.quot
 
 #### `template` — what the settings start from
 
-`"wedding" | "birthday" | "conference" | "party"`, optional. Absent means the product
+`"wedding" | "birthday" | "conference" | "party" | "disposable"`, optional. Absent means the product
 defaults, which is what every event created before this field existed has. Unlike
 `startsAt` and `quotaBytes` it is **not nullable**: there is no "no template" value to
 send, only the absence of one, and `"template": null` is `400 request.invalid` like any
-other unexpected shape. A name outside the four is the same refusal — no error code of its
+other unexpected shape. A name outside the five is the same refusal — no error code of its
 own, because an unknown enum value already has one.
 
 **The template is applied once and then does not exist.** The response carries the
@@ -3453,12 +3511,13 @@ holds the reasoning and the alternative it rejects.
 What each one sets — and it sets **only** these, leaving every other setting at its
 default:
 
-| Template     | Changes                                                                                                                    |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `wedding`    | `guestSelfDeleteGraceSeconds: 3600`, `retentionDays: 365`, `guestbookVoice: { enabled: true }`, theme rose / serif / round |
-| `birthday`   | `moderation: "auto"`, `retentionDays: 90`, theme violet / sans / round                                                     |
-| `conference` | `allowClips: false`, `retentionDays: 30`, `maxPhotosPerGuest: 25`, theme azure / sans / square                             |
-| `party`      | `moderation: "auto"`, `retentionDays: 30`, theme teal / sans / soft                                                        |
+| Template     | Changes                                                                                                                                                                                                                                                                                                   |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wedding`    | `guestSelfDeleteGraceSeconds: 3600`, `retentionDays: 365`, `guestbookVoice: { enabled: true }`, theme rose / serif / round                                                                                                                                                                                |
+| `birthday`   | `moderation: "auto"`, `retentionDays: 90`, theme violet / sans / round                                                                                                                                                                                                                                    |
+| `conference` | `allowClips: false`, `retentionDays: 30`, `maxPhotosPerGuest: 25`, theme azure / sans / square                                                                                                                                                                                                            |
+| `party`      | `moderation: "auto"`, `retentionDays: 30`, theme teal / sans / soft                                                                                                                                                                                                                                       |
+| `disposable` | the disposable camera (spec 23): `moderation: "auto"`, `allowClips: false`, `allowGuestSelfDelete: false`, `maxPhotosPerGuest: 27`, `retentionDays: 90`, `reveal: { "enabled": true, "film": true }` (no hour: the host reveals with the button), theme violet / sans / square on the Guinguette ambiance |
 
 Nothing here restates a default, which is why `wedding` and `conference` say nothing about
 `moderation`: `manual` is already the default and both want it. `guestbookVoice` is a **patch of its
@@ -3481,8 +3540,8 @@ these templates must say what the number does rather than printing the duration 
 
 `moderation: "auto"` publishes without review, and that covers **clips as well as
 photographs** — `transcodeNextClip` stamps a finished clip with an `automatic` reviewer
-under `auto` exactly as photo ingest does, and neither template touches `allowClips`. The
-console discloses this on the two cards that set it, in the same words the settings page
+under `auto` exactly as photo ingest does, and `birthday` and `party` leave `allowClips` alone (`disposable` turns it off). The
+console discloses this on the three cards that set it, in the same words the settings page
 uses when a host selects `auto` there.
 
 There is no `layout` in this table although the roadmap entry names one: no event stores a
@@ -3537,9 +3596,24 @@ The shape every route in the table that answers `200` returns.
   "scheduledOpenAt": null,
   "scheduledCloseAt": null,
   "scheduleDiscardedAt": null,
+  "reveal": {
+    "enabled": false,
+    "revealed": true,
+    "atMs": null,
+    "serverNowMs": 1782000000000,
+    "film": false,
+    "readyCount": null
+  },
   "role": "owner"
 }
 ```
+
+`reveal` is the reveal gate of the disposable-camera mode (spec 23) as the host's console reads it: the block of `GET
+/wall` (see there), built by the same presenter from one read of the server's clock. The console draws its band from it
+and counts down against `serverNowMs`, never the laptop's. `readyCount` is the published photographs the gate holds back,
+read **only** while the evening is held (mode on, not yet revealed) and `null` otherwise; the photographs waiting for a
+decision are `pendingCount`, which stay hidden after the reveal. Every answer that carries an event carries it, so
+`POST .../reveal` and `PATCH .../settings` hand the console the new state.
 
 `startsAt` and `scheduledOpenAt` are **not** the same field and neither is derived from
 the other. `startsAt` is the printed start of the party, set when the event is created,
@@ -3725,6 +3799,7 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 | `theme`                       | object — all five keys required, plus `custom` when the ambiance is `custom`, see below; `groundUrl` is **read and ignored** (it is what `GET` answers, so a client echoing the theme back is not refused; it is set only by `PUT /venue-photo`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `wall`                        | object, **strict and partial**, merged **key by key** into the stored group (never replaced whole, unlike `theme`): `layout` is a layout name or `null` (nothing chosen for the event), `slideIntervalMs` is an integer 2000..600000 or `null` (8 s), `freshLane` (boolean, default true: a published photo takes the next slide) and `tilt` (boolean, default true: prints lean a few degrees). An unknown key is **400**; an interval outside the bounds is **400** `slideInterval.tooShort`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `slideInterval.tooLong`. `GET` answers the whole group in `settings.wall` (spec 13). Spec 14 adds `qrVisible` (boolean), `qrScale` (number 0.8..1.5 on a 0.05 grid, 1 = today; **400** `eventSettings.wallQrScaleInvalid` otherwise) and `qrPlacement` (`bottom-end`, `bottom-start`, `top-end` or `top-start`; anything else is **400**), all optional. Spec 11 adds `souvenirCounter` and `newPhotoSignal` (booleans, **off** when never set, for an existing event and a new one alike: the counter « n souvenirs partagés » and the brief new-photo signal on the wall) **Mixed wall (spec 09)**: `mixedEnabled` (boolean, off), `mixedWallSeconds` (integer 30..3600, 180) and `mixedSlideshowSeconds` (integer 15..1800, 60); a duration outside the bounds is **400** `wallMixed.wallTooShort` / `wallTooLong` / `slideshowTooShort` / `slideshowTooLong`. The phase anchor is set by the server when the mode is turned on or a duration changes, is not a body key (**400**) and is not in `GET` |
+| `reveal`                      | object, **strict and partial**, merged **key by key** (spec 23): `enabled` (boolean, off), `at` (an instant with its offset, or `null` to reveal with the button) and `film` (boolean, off). **A future hour only**: an hour that has gone by is **400** `eventSettings.revealInPast`; **one way**: once the hour has gone by it cannot be moved to the future or cleared, **409** `eventSettings.revealDone` (the mode can still be switched off, and the same form sent back with the hour it already holds passes); an unreadable instant is **400** `eventSettings.revealInstantInvalid`; an unknown key is **400**. `GET` answers the whole group in `settings.reveal` (`at` as ISO 8601). An event that predates it reads `{ enabled: false, at: null, film: false }`: no migration                                                                                                                                                                                                                                                               |
 | `welcomeMessage`              | string up to 280 code points and 4 lines, or `null` to clear; absent leaves it alone. Cleaned by the server; **400** `eventSettings.welcomeInvalid`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `welcomeTooLong`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `welcomeTooManyLines`. Changing it under a purge hold is **500** `eventSettings.saveFailed`. `brand` (what `GET` answers) is **read and ignored**. |
 
 **A client's ceilings (roadmap §10.5 / G2-05).** For an event that belongs to a client, an edit is
@@ -3847,11 +3922,27 @@ before a change learns of it on the next read.
 `400 eventSettings.graceSecondsInvalid`, `400 eventSettings.retentionDaysInvalid`,
 `400 eventSettings.maxPhotosPerGuestInvalid`, `400 eventTheme.accentHueInvalid`,
 `400 eventTheme.accentUnreadable`, `400 eventTheme.accentTooCloseToStatus` (never for `ambiance: "custom"`, ADR 0011 decision 8),
-`400 eventTheme.customRequired`, `400 eventTheme.customNotAllowed`, `400 eventTheme.customInvalid`.
+`400 eventTheme.customRequired`, `400 eventTheme.customNotAllowed`, `400 eventTheme.customInvalid`,
+`400 eventSettings.revealInPast`, `400 eventSettings.revealInstantInvalid`, `409 eventSettings.revealDone`.
 
 There is no per-event wall `layout` here, and no API accepts one anywhere: the layout is
 chosen at the screen — `?layout=` on the display URL, or the host's `L` key — and
 nothing persists it (§2).
+
+### `POST /api/events/:slug/reveal`
+
+**`moderator`** (any moderator, or the owner; the owner alone changes the hour, in settings). "Révéler maintenant" on a
+disposable-camera evening (spec 23): it writes **an hour that is now** (`reveal.at = the server's clock`) and nothing
+else, announces `event.settingsChanged` and is **audited** (`event.revealed`, with the member who did it and the event's
+client, no hour and no count). **No body**: the instant is the server's and a request cannot choose it. **No photograph
+changes status**: what a moderator had not approved stays hidden, what one hid stays hidden; the reveal opens the public
+door of the event, moderation stays the door of each photograph. The confirmation ("14 photos attendent encore une
+décision") is the console's. It cannot be taken back.
+
+**Idempotent**: an evening already revealed (the hour went by, the mode is off) answers **200** with the event as it is,
+writes nothing, adds no audit line and keeps the hour the room was shown. **200** answers the event (`EventDto`, with
+`settings.reveal`). **Errors** — `401 auth.required` (a guest's token is not a session), `404 event.notFound` (another
+event's member, or none), `409 event.immutable` (archived), `403 client.suspended`.
 
 ### `POST /api/events/:slug/status`
 
