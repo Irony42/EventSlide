@@ -245,7 +245,7 @@ export class InMemoryMediaStore implements MediaStore {
 /**
  * The declared type of each rendition, as `infrastructure/media/mediaLayout.ts` declares it (the
  * application layer cannot import it, and `mediaStoreContract` holds the two together): a still
- * is a JPEG, a clip an mp4, and a staged source, which nothing serves, is just bytes.
+ * is a JPEG, a clip an mp4, a guestbook voice AAC in mp4, and a staged source, which nothing serves, is just bytes.
  */
 const CONTENT_TYPE: Readonly<Record<MediaVariant, string>> = {
   original: 'image/jpeg',
@@ -257,6 +257,7 @@ const CONTENT_TYPE: Readonly<Record<MediaVariant, string>> = {
   ground: 'image/webp',
   logo: 'image/webp',
   reel: 'video/mp4',
+  voice: 'audio/mp4',
 }
 
 const once = (bytes: Uint8Array): AsyncIterable<Uint8Array> =>

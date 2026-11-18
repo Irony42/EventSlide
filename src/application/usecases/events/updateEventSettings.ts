@@ -1,5 +1,6 @@
 import type { Event } from '../../../domain/events/event'
 import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
+import { voiceSettingsViolation } from '../../../domain/events/eventGuestbookVoiceSettings'
 import { mergeWallSettings } from '../../../domain/events/eventWallSettings'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
@@ -57,6 +58,16 @@ const judge = (
 ): Result<Event, DomainError> => {
   const settings = event.settings.with(withMixedAnchor(event, patch, nowMs))
   if (!settings.ok) return settings
+
+  // An opening time that has already passed is the secret lifted for good (spec 25, rule 10):
+  // it cannot be moved into the future. It needs the clock and the stored value, so it is judged
+  // here and not by the settings entity.
+  const voice = voiceSettingsViolation(
+    event.settings.guestbookVoice,
+    settings.value.guestbookVoice,
+    nowMs,
+  )
+  if (voice !== null) return err(voice)
 
   // A purge hold keeps evidence: changing or clearing the welcome message destroys the previous
   // text, so it is refused while the value changes (the same text sent back, as a full form does,

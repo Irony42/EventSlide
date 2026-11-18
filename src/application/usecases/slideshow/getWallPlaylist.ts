@@ -289,7 +289,7 @@ const readGuestbook = async (
 ): Promise<WallGuestbook | null> => {
   if (!event.settings.allowGuestbook || !event.settings.guestbookOnWall) return null
 
-  const published = await guestbook.listByStatuses(event.id, ['published'], MAX_BOOK_ROWS)
+  const published = await guestbook.listWrittenByStatuses(event.id, ['published'], MAX_BOOK_ROWS)
   if (published.length === 0) return null
 
   const shown = published.slice(-GUESTBOOK_WALL_MAX_MESSAGES)

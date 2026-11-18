@@ -106,7 +106,7 @@ export const guestbookRepositoryContract = (
       const manual = await repo.findById(WEDDING, entryId('e1'))
       const auto = await repo.findById(WEDDING, entryId('e2'))
 
-      expect(manual?.text.value).toBe('Bravo\n\nBonne route')
+      expect(manual?.text?.value).toBe('Bravo\n\nBonne route')
       expect(manual?.status).toBe('pending')
       expect(manual?.review).toBeNull()
       expect(manual?.createdAt.toISOString()).toBe(at(5).toISOString())

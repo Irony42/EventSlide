@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asEventId, asGuestId, asGuestbookEntryId } from '../../../domain/shared/ids'
-import { AT, aGuestbookEntry, anEvent } from '../../testing/builders'
+import { AT, aGuestbookEntry, aVoiceEntry, anEvent } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
@@ -135,5 +135,47 @@ describe('listMyGuestbookEntries', () => {
     await events.setTakenDown(EVENT, new Date(0))
     const down = await list({ eventId: EVENT, guestId: LEA })
     expect(!down.ok && down.error.code).toBe('event.notFound')
+  })
+
+  describe('a voice message', () => {
+    const voice = (
+      id: string,
+      state: 'queued' | 'ready' | 'failed',
+      moderation: 'manual' | 'auto',
+    ) => aVoiceEntry({ id, state, guestId: 'guest-lea', eventId: 'event-1', moderation })
+
+    it('is listed with no text, a failed one included, since that is how its author learns it did not save', async () => {
+      guestbook.seed(voice('v1', 'ready', 'manual'), voice('v2', 'failed', 'manual'))
+
+      const result = await list({ eventId: EVENT, guestId: LEA })
+
+      expect(result.ok && result.value.items.map((item) => item.entry.text)).toEqual([null, null])
+      expect(result.ok && result.value.items.map((item) => item.entry.voice?.state).sort()).toEqual(
+        ['failed', 'ready'],
+      )
+    })
+
+    it('can be removed by its author while published on arrival, which a photograph cannot', async () => {
+      guestbook.seed(voice('v1', 'ready', 'auto'))
+
+      const result = await list({ eventId: EVENT, guestId: LEA })
+
+      expect(result.ok && result.value.items[0]?.canDelete).toBe(true)
+    })
+
+    it('can be removed when it failed, even where the host switched self-removal off', async () => {
+      events.seed(
+        anEvent({ id: 'event-1', settings: { allowGuestbook: true, allowGuestSelfDelete: false } }),
+      )
+      guestbook.seed(voice('v1', 'failed', 'manual'), voice('v2', 'ready', 'manual'))
+
+      const result = await list({ eventId: EVENT, guestId: LEA })
+
+      const byId = new Map<string, boolean>(
+        result.ok ? result.value.items.map((item) => [item.entry.id, item.canDelete]) : [],
+      )
+      expect(byId.get('v1')).toBe(true)
+      expect(byId.get('v2')).toBe(false)
+    })
   })
 })

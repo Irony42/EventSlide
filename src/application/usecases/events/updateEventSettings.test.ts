@@ -103,6 +103,63 @@ describe('updateEventSettings', () => {
     expect(result.ok && result.value.settings.allowCaptions).toBe(true)
   })
 
+  describe('the voice messages (spec 25)', () => {
+    const save = (guestbookVoice: Record<string, unknown>, actorId = OWNER) =>
+      updateEventSettings({ eventId: WEDDING, actorId, patch: { guestbookVoice } })
+    const stored = async () => (await events.findById(WEDDING))?.settings.guestbookVoice
+
+    it('are off, not sealed and with no opening time on an event nobody changed', async () => {
+      expect(await stored()).toEqual({ enabled: false, sealed: false, opensAtMs: null })
+    })
+
+    it('are turned on by the owner, and a patch of one field keeps the others', async () => {
+      await save({ enabled: true, sealed: true })
+      await save({ opensAtMs: AT.getTime() + 3_600_000 })
+
+      expect(await stored()).toEqual({
+        enabled: true,
+        sealed: true,
+        opensAtMs: AT.getTime() + 3_600_000,
+      })
+    })
+
+    it('are the owner’s alone, like every setting: a moderator cannot change them', async () => {
+      const result = await save({ enabled: true }, MODERATOR)
+
+      expect(!result.ok && result.error.code).toBe('auth.forbidden')
+      expect((await stored())?.enabled).toBe(false)
+    })
+
+    it('let the owner move an opening time that is still to come, and clear it', async () => {
+      await save({ sealed: true, opensAtMs: AT.getTime() + 3_600_000 })
+
+      expect((await save({ opensAtMs: AT.getTime() + 7_200_000 })).ok).toBe(true)
+      expect((await save({ opensAtMs: null })).ok).toBe(true)
+      expect((await stored())?.opensAtMs).toBeNull()
+    })
+
+    it('refuse to move an opening time into the future once it has passed: opening is one-way', async () => {
+      await save({ sealed: true, opensAtMs: AT.getTime() })
+      clock.advance(1_000)
+
+      const later = await save({ opensAtMs: AT.getTime() + 3_600_000 })
+      const cleared = await save({ opensAtMs: null })
+
+      expect(!later.ok && later.error.code).toBe('eventSettings.voiceOpenDone')
+      expect(!cleared.ok && cleared.error.code).toBe('eventSettings.voiceOpenDone')
+      expect((await stored())?.opensAtMs).toBe(AT.getTime())
+    })
+
+    it('accept the form of an opened book sent back unchanged: that is not a move', async () => {
+      await save({ sealed: true, opensAtMs: AT.getTime() })
+      clock.advance(1_000)
+
+      const same = await save({ enabled: true, sealed: true, opensAtMs: AT.getTime() })
+
+      expect(same.ok).toBe(true)
+    })
+  })
+
   describe('the mixed wall anchor (spec 09)', () => {
     const save = (wall: Record<string, unknown>) =>
       updateEventSettings({ eventId: WEDDING, actorId: OWNER, patch: { wall } })

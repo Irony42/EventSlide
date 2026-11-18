@@ -5,7 +5,7 @@ import {
   GUESTBOOK_WALL_MAX_MESSAGES,
   messageDisplayMs,
 } from '../../../domain/guestbook/guestbookWall'
-import { aGuest, aGuestbookEntry, anEvent, atPlus } from '../../testing/builders'
+import { aGuest, aGuestbookEntry, aVoiceEntry, anEvent, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeAnnouncementRepository } from '../../testing/fakeAnnouncementRepository'
@@ -60,6 +60,33 @@ describe('getWallPlaylist — the guestbook', () => {
     guestbook.seed(aGuestbookEntry({ id: 'e-pending', moderation: 'manual' }))
 
     expect(await book()).toBeNull()
+  })
+
+  it('never carries a voice message, even a published one the host would put on the wall', async () => {
+    open()
+    guestbook.seed(
+      aVoiceEntry({ id: 'v-ready', state: 'ready', moderation: 'auto', caption: 'une voix' }),
+      aVoiceEntry({
+        id: 'v-queued',
+        state: 'queued',
+        moderation: 'auto',
+        sourceHash: 'b'.repeat(64),
+      }),
+    )
+
+    expect(await book()).toBeNull()
+  })
+
+  it('still carries the written messages of a book that also holds voices, and counts only them', async () => {
+    open()
+    guestbook.seed(
+      aVoiceEntry({ id: 'v-ready', state: 'ready', moderation: 'auto', createdAt: atPlus(1) }),
+      aGuestbookEntry({ id: 'e-shown', text: 'Bravo', moderation: 'auto', createdAt: atPlus(2) }),
+    )
+
+    const carried = await book()
+
+    expect(carried?.messages.map((message) => message.id)).toEqual(['e-shown'])
   })
 
   it('carries only published messages, signed by the guest’s name, with the server’s rhythm', async () => {
