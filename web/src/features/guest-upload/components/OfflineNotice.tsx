@@ -25,6 +25,12 @@ export interface OfflineNoticeProps {
    * saying they may close it: see `useBackgroundSync`.
    */
   readonly canCloseSafely: boolean
+  /**
+   * Voice recordings waiting beside the photos (spec 25). The voice queue is drained by the page alone,
+   * so while one waits the sentence is the strictest of the two ("gardez cette page ouverte"), which is
+   * true for both.
+   */
+  readonly voiceWaiting?: number
   /** One line, for the folded bar: the icon and the count, without the hint and the button. */
   readonly compact?: boolean
 }
@@ -34,6 +40,7 @@ export function OfflineNotice({
   draining,
   onSendNow,
   canCloseSafely,
+  voiceWaiting = 0,
   compact = false,
 }: OfflineNoticeProps) {
   const t = useTranslations()
@@ -61,9 +68,11 @@ export function OfflineNotice({
           <p className={styles['hint']}>
             {draining
               ? t.upload.offlineSending
-              : canCloseSafely
-                ? t.upload.offlineHint
-                : t.upload.offlineHintNoSync}
+              : voiceWaiting > 0
+                ? t.guestbookVoice.offlineHintKeepOpen
+                : canCloseSafely
+                  ? t.upload.offlineHint
+                  : t.upload.offlineHintNoSync}
           </p>
         )}
       </div>

@@ -188,6 +188,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               guestbook,
               transcoder,
               clock: deps.clock,
+              voiceMaxDurationMs: 60_000,
             }),
             deleteGuestbookEntry: makeDeleteGuestbookEntry({
               events: deps.events,
@@ -664,6 +665,7 @@ describe('GET /api/events/:eventSlug/guestbook/mine, for a voice message', () =>
 
     expect(response.status).toBe(200)
     expect(response.body.voiceAvailable).toBe(true)
+    expect(response.body.voiceMaxSeconds).toBe(60)
     expect(response.body.items[0]).toMatchObject({
       id: READY,
       text: null,

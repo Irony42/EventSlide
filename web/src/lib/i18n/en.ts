@@ -674,7 +674,16 @@ export const en: UiText = {
       'guestbook.empty': 'Write at least one word.',
       'guestbook.invalid': 'This message cannot be sent as it is.',
       'guestbook.tooManyLines': 'Message too tall: please keep it shorter.',
-      'guestbook.limitReached': 'You have already left 3 messages. Remove one to write another.',
+      'guestbook.limitReached':
+        'You have already left 3 messages, written or voice. Remove one to leave another.',
+      'guestbook.voiceDisabled': 'Voice messages are switched off for now.',
+      'guestbook.voiceEventFull': 'The guestbook is full.',
+      'voice.queueFull': 'Please try again in a moment.',
+      'voice.unsupportedFormat': 'This file is not a readable voice message.',
+      'voice.notAudio': 'This file is not a readable voice message.',
+      'voice.corrupt': 'This file is not a readable voice message.',
+      'voice.tooLong': 'This voice message is too long.',
+      'voice.tooShort': 'This voice message is too short.',
       'guestbook.eventFull': 'The guestbook is full.',
       'guestbook.disabled': 'The guestbook is not open right now.',
       'event.notAcceptingUploads': 'The guestbook is not open right now.',
@@ -687,7 +696,7 @@ export const en: UiText = {
       'rate.limited': 'Too many messages at once, try again in a minute.',
     },
     eraseBody:
-      'Your photos, videos, captions, guestbook messages, reactions and first name will be erased from the event: from the screen, the album and the organiser’s list. This cannot be undone.',
+      'Your photos, videos, captions, guestbook messages, including your voice messages, reactions and first name will be erased from the event: from the screen, the album and the organiser’s list. This cannot be undone.',
     noticeWhatHappens: 'What happens to your photos and messages',
     noticeWhoSees: 'Who sees your photos and messages',
     noticeHowLong: 'How long they are kept',
@@ -702,6 +711,93 @@ export const en: UiText = {
     noticeMessageRetention: 'Your messages are kept as long as the photos, and erased with them.',
     noticeMessageRemoval:
       'A message is removed like a photo, from “My messages” and under the same conditions.',
+  },
+
+  /**
+   * The voice message of the guestbook, guest side (spec 25): recording it, listening before sending,
+   * where it stands afterwards and what the privacy notice says about it. What a guest says is never
+   * translated and never appears here, only the words around it. Never "IA", "intelligent" or
+   * "transcription" in a sentence of this table: nothing listens to a voice but the organiser.
+   */
+  guestbookVoice: {
+    open: 'Leave a voice message',
+    record: 'Record',
+    stop: 'Stop',
+    clock: (elapsed: string, max: string) => `${elapsed} / ${max}`,
+    recordingAnnounce: 'Recording',
+    nearEnd: '10 seconds left',
+    recordedAnnounce: (duration: string) => `Recording finished, ${duration}`,
+    closeToTheMicrophone: 'Speak close to the phone: people around you may be heard',
+    listen: 'Listen',
+    listenPause: 'Pause',
+    restart: 'Start over',
+    send: 'Send my voice message',
+    cancel: 'Cancel',
+    captionLabel: 'A few words to go with it',
+    micBlocked:
+      'The microphone is blocked. Allow it in your browser settings, then come back here.',
+    micUnavailableHere: 'The microphone is not available on this page. Reopen the event link.',
+    micMissing: 'No microphone could be used on this device. You can write a note instead.',
+    tooShort: 'Too short: speak for at least a second.',
+    writeInstead: 'Write a note instead',
+    openInBrowser: 'To leave a voice message, open this page in Safari or Chrome.',
+    previewFailed: 'The preview will not play here, but you can still send it',
+    interrupted: (duration: string) =>
+      `The recording stopped because the page was left. It lasts ${duration}.`,
+    notKept: 'The recording could not be kept on your phone. Please start over.',
+    helpManual: 'The organiser decides whether to keep your message.',
+    helpAuto:
+      'Your message is kept in the guestbook. Only the organiser and their team can listen to it.',
+    thanksManual: 'Thank you! The organiser will decide whether to keep your message.',
+    thanksAuto: 'Thank you! Your voice message has been received.',
+    waitingNetwork: 'Your voice message is waiting for a network.',
+    offlineHintKeepOpen:
+      'Keep this page open: your photos and your voice message will go as soon as the network is back.',
+    keptOnPhone: 'Your recording stays on your phone.',
+    messageLabel: (duration: string | null) =>
+      duration === null ? 'Voice message' : `Voice message, ${duration}`,
+    statusProcessing: 'Processing',
+    statusPublished: 'In the guestbook',
+    failed: 'Your voice message could not be saved. Please record it again.',
+    retry: 'Try again',
+    localWaiting: 'Waiting for a network',
+    localBlocked: 'Kept on your phone',
+    saveToPhone: 'Save to my phone',
+    deleteLocal: 'Delete',
+    noticeVoiceAudience: 'Your voice message can only be heard by the organiser and their team.',
+    noticeVoiceNeverRoom: 'It is never played on the room’s screen or heard by the other guests.',
+    noticeVoicePublication: {
+      afterReview: 'The organiser decides whether to keep your message.',
+      immediate:
+        'Your message is kept in the album straight away, without being listened to first.',
+    },
+    noticeVoiceRetention:
+      'It is kept like your photos and goes into the album the organiser downloads.',
+    noticeVoiceRetentionDays: (count: number) =>
+      t.count(count, {
+        one: 'It is kept like your photos (1 day after the event closes) and goes into the album the organiser downloads.',
+        other: `It is kept like your photos (${t.number(count)} days after the event closes) and goes into the album the organiser downloads.`,
+      }),
+    noticeVoiceMicrophone:
+      'The microphone only runs while you record. The recording stays on your phone until you send it.',
+    noticeVoiceSealed:
+      'Voice messages stay secret until the end of the evening, unless the organiser decides otherwise.',
+    noticeVoiceRemovalSeconds: (count: number) =>
+      t.count(count, {
+        one: 'You can remove your voice message for 1 second after sending it.',
+        other: `You can remove your voice message for ${t.number(count)} seconds after sending it.`,
+      }),
+    noticeVoiceRemovalMinutes: (count: number) =>
+      t.count(count, {
+        one: 'You can remove your voice message for 1 minute after sending it.',
+        other: `You can remove your voice message for ${t.number(count)} minutes after sending it.`,
+      }),
+    noticeVoiceRemovalHours: (count: number) =>
+      t.count(count, {
+        one: 'You can remove your voice message for 1 hour after sending it.',
+        other: `You can remove your voice message for ${t.number(count)} hours after sending it.`,
+      }),
+    noticeVoiceRemovalAskHost: 'To remove a voice message, ask the organiser.',
   },
 
   moderation: {

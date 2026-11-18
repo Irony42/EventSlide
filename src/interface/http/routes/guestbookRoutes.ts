@@ -140,6 +140,7 @@ export const guestbookRoutes = ({
           accepting: mine.accepting,
           onWall: mine.onWall,
           voiceAvailable: mine.voiceAvailable,
+          voiceMaxSeconds: mine.voiceMaxSeconds,
         }
         sendJson(response, dto)
       })

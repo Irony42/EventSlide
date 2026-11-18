@@ -42,6 +42,7 @@ const mineWith = (
     accepting: true,
     onWall: true,
     voiceAvailable: false,
+    voiceMaxSeconds: 60,
     ...overrides,
   })),
 })

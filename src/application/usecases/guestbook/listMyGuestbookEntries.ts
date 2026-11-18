@@ -44,6 +44,12 @@ export interface MyGuestbook {
   readonly onWall: boolean
   /** Whether a voice message would be taken now: both switches, the window, and an encoder. */
   readonly voiceAvailable: boolean
+  /**
+   * The longest voice message this box takes (`MAX_VOICE_SECONDS`), in whole seconds: the phone stops
+   * its recording there, because a recording the server then refused as too long is one the guest
+   * has lost.
+   */
+  readonly voiceMaxSeconds: number
 }
 
 export interface ListMyGuestbookEntriesDeps {
@@ -52,6 +58,8 @@ export interface ListMyGuestbookEntriesDeps {
   /** Only asked whether this box can encode: a Null Object on a box with no ffmpeg says no. */
   readonly transcoder: Pick<AudioTranscoder, 'available'>
   readonly clock: Clock
+  /** The longest voice message in milliseconds (`MAX_VOICE_SECONDS`), said to the phone. */
+  readonly voiceMaxDurationMs: number
 }
 
 export type ListMyGuestbookEntries = (
@@ -59,7 +67,13 @@ export type ListMyGuestbookEntries = (
 ) => Promise<Result<MyGuestbook, DomainError>>
 
 export const makeListMyGuestbookEntries =
-  ({ events, guestbook, transcoder, clock }: ListMyGuestbookEntriesDeps): ListMyGuestbookEntries =>
+  ({
+    events,
+    guestbook,
+    transcoder,
+    clock,
+    voiceMaxDurationMs,
+  }: ListMyGuestbookEntriesDeps): ListMyGuestbookEntries =>
   async ({ eventId, guestId }) => {
     const event = await events.findById(eventId)
     if (event === null || !event.isReachable()) {
@@ -82,6 +96,7 @@ export const makeListMyGuestbookEntries =
       })),
       accepting,
       voiceAvailable: accepting && event.settings.guestbookVoice.enabled && transcoder.available(),
+      voiceMaxSeconds: Math.floor(voiceMaxDurationMs / 1_000),
       onWall: event.settings.guestbookOnWall,
     })
   }

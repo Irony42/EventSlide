@@ -246,6 +246,15 @@ describe('createContainer: a voice message through the worker, with the real enc
     expect(sources).toEqual([])
   })
 
+  it('tells the phone the box limit from MAX_VOICE_SECONDS, so it stops before a refusal', async () => {
+    const booted = await boot({ ...WITH_FFMPEG, MAX_VOICE_SECONDS: '30' })
+    seedEventAndGuest(booted)
+
+    const mine = await booted.usecases.listMyGuestbookEntries({ eventId: EVENT, guestId: GUEST })
+
+    expect(mine.ok && mine.value.voiceMaxSeconds).toBe(30)
+  })
+
   it('bounds a long recording at MAX_VOICE_SECONDS, whatever the file says: it declares nothing', async () => {
     const booted = await boot({ ...WITH_FFMPEG, MAX_VOICE_SECONDS: '10' })
     seedEventAndGuest(booted)

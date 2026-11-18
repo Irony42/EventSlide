@@ -4,6 +4,9 @@ import {
   acceptsFileType,
   MAX_AGE_MS,
   MAX_ATTEMPTS,
+  PHOTO_POLICY,
+  TERMINAL_CODES,
+  type OutboxPolicy,
   backoffMs,
   isDue,
   isLeased,
@@ -236,5 +239,32 @@ describe('acceptsFileType', () => {
     // those would drop ordinary photographs for a check the photo route does properly,
     // from the signature.
     expect(acceptsFileType('')).toBe(true)
+  })
+})
+
+describe('the policy a store is judged by', () => {
+  it('is, for the photo queue, exactly what it was before the voice queue existed', () => {
+    // Forty to an event, twelve hours, and the one terminal list. Parameterising the policy must
+    // not move a photo's rules by a single entry.
+    expect(PHOTO_POLICY.maxEntriesPerEvent).toBe(40)
+    expect(PHOTO_POLICY.maxAgeMs).toBe(12 * 60 * 60 * 1000)
+    expect(PHOTO_POLICY.terminalCodes).toBe(TERMINAL_CODES)
+  })
+
+  it('expires an entry by the policy it is given and not by the photo queue’s', () => {
+    const short: OutboxPolicy = { ...PHOTO_POLICY, maxAgeMs: 1_000 }
+
+    expect(isSpent(anEntry(), t + 999, short)).toBe(false)
+    expect(isSpent(anEntry(), t + 1_000, short)).toBe(true)
+    // The default is still the photo's twelve hours.
+    expect(isSpent(anEntry(), t + 1_000)).toBe(false)
+  })
+
+  it('discards the codes of the policy it is given and no others', () => {
+    const own: OutboxPolicy = { ...PHOTO_POLICY, terminalCodes: new Set(['voice.corrupt']) }
+
+    expect(isTerminal('voice.corrupt', own)).toBe(true)
+    expect(isTerminal('image.corrupt', own)).toBe(false)
+    expect(isTerminal('voice.corrupt')).toBe(false)
   })
 })

@@ -735,7 +735,15 @@ export const de: UiText = {
       'guestbook.invalid': 'Diese Nachricht kann so nicht gesendet werden.',
       'guestbook.tooManyLines': 'Nachricht zu hoch: Bitte fassen Sie sich kürzer.',
       'guestbook.limitReached':
-        'Sie haben bereits 3 Nachrichten hinterlassen. Entfernen Sie eine, um eine neue zu schreiben.',
+        'Sie haben bereits 3 Nachrichten hinterlassen, als Text oder als Sprache. Entfernen Sie eine, um eine neue zu hinterlassen.',
+      'guestbook.voiceDisabled': 'Sprachnachrichten sind im Moment ausgeschaltet.',
+      'guestbook.voiceEventFull': 'Das Gästebuch ist voll.',
+      'voice.queueFull': 'Versuchen Sie es gleich noch einmal.',
+      'voice.unsupportedFormat': 'Diese Datei ist keine lesbare Sprachnachricht.',
+      'voice.notAudio': 'Diese Datei ist keine lesbare Sprachnachricht.',
+      'voice.corrupt': 'Diese Datei ist keine lesbare Sprachnachricht.',
+      'voice.tooLong': 'Diese Sprachnachricht ist zu lang.',
+      'voice.tooShort': 'Diese Sprachnachricht ist zu kurz.',
       'guestbook.eventFull': 'Das Gästebuch ist voll.',
       'guestbook.disabled': 'Das Gästebuch ist im Moment nicht geöffnet.',
       'event.notAcceptingUploads': 'Das Gästebuch ist im Moment nicht geöffnet.',
@@ -749,7 +757,7 @@ export const de: UiText = {
       'rate.limited': 'Zu viele Nachrichten auf einmal, versuchen Sie es in einer Minute erneut.',
     },
     eraseBody:
-      'Ihre Fotos, Videos, Bildunterschriften, Gästebuch-Nachrichten, Reaktionen und Ihr Vorname werden aus der Feier gelöscht: von der Leinwand, aus dem Album und aus der Liste des Veranstalters. Das lässt sich nicht rückgängig machen.',
+      'Ihre Fotos, Videos, Bildunterschriften, Gästebuch-Nachrichten einschließlich Ihrer Sprachnachrichten, Reaktionen und Ihr Vorname werden aus der Feier gelöscht: von der Leinwand, aus dem Album und aus der Liste des Veranstalters. Das lässt sich nicht rückgängig machen.',
     noticeWhatHappens: 'Was mit Ihren Fotos und Nachrichten geschieht',
     noticeWhoSees: 'Wer Ihre Fotos und Nachrichten sieht',
     noticeHowLong: 'Wie lange sie aufbewahrt werden',
@@ -766,6 +774,99 @@ export const de: UiText = {
       'Ihre Nachrichten werden so lange aufbewahrt wie die Fotos und mit ihnen gelöscht.',
     noticeMessageRemoval:
       'Eine Nachricht wird wie ein Foto entfernt, unter „Meine Nachrichten“ und unter denselben Bedingungen.',
+  },
+
+  /**
+   * The voice message of the guestbook, guest side (spec 25): recording it, listening before sending,
+   * where it stands afterwards and what the privacy notice says about it. What a guest says is never
+   * translated and never appears here, only the words around it. Never "IA", "intelligent" or
+   * "transcription" in a sentence of this table: nothing listens to a voice but the organiser.
+   */
+  guestbookVoice: {
+    open: 'Sprachnachricht hinterlassen',
+    record: 'Aufnehmen',
+    stop: 'Stopp',
+    clock: (elapsed: string, max: string) => `${elapsed} / ${max}`,
+    recordingAnnounce: 'Aufnahme läuft',
+    nearEnd: 'Noch 10 Sekunden',
+    recordedAnnounce: (duration: string) => `Aufnahme beendet, ${duration}`,
+    closeToTheMicrophone:
+      'Sprechen Sie nah ans Telefon: Menschen um Sie herum sind eventuell zu hören',
+    listen: 'Anhören',
+    listenPause: 'Pause',
+    restart: 'Neu aufnehmen',
+    send: 'Meine Sprachnachricht senden',
+    cancel: 'Abbrechen',
+    captionLabel: 'Ein paar Worte dazu',
+    micBlocked:
+      'Das Mikrofon ist blockiert. Erlauben Sie es in den Browsereinstellungen und kommen Sie dann hierher zurück.',
+    micUnavailableHere:
+      'Das Mikrofon ist auf dieser Seite nicht verfügbar. Öffnen Sie den Link zur Veranstaltung erneut.',
+    micMissing:
+      'Auf diesem Gerät ließ sich kein Mikrofon verwenden. Sie können stattdessen eine Nachricht schreiben.',
+    tooShort: 'Zu kurz: Sprechen Sie mindestens eine Sekunde.',
+    writeInstead: 'Stattdessen eine Nachricht schreiben',
+    openInBrowser:
+      'Um eine Sprachnachricht zu hinterlassen, öffnen Sie diese Seite in Safari oder Chrome.',
+    previewFailed: 'Die Vorschau lässt sich hier nicht abspielen, Sie können trotzdem senden',
+    interrupted: (duration: string) =>
+      `Die Aufnahme wurde beendet, weil die Seite verlassen wurde. Sie dauert ${duration}.`,
+    notKept:
+      'Die Aufnahme konnte nicht auf Ihrem Telefon gespeichert werden. Bitte nehmen Sie sie neu auf.',
+    helpManual: 'Der Veranstalter entscheidet, ob Ihre Nachricht behalten wird.',
+    helpAuto:
+      'Ihre Nachricht wird im Gästebuch aufbewahrt. Nur der Veranstalter und sein Team können sie anhören.',
+    thanksManual: 'Danke! Der Veranstalter entscheidet, ob Ihre Nachricht behalten wird.',
+    thanksAuto: 'Danke! Ihre Sprachnachricht ist angekommen.',
+    waitingNetwork: 'Ihre Sprachnachricht wartet auf ein Netz.',
+    offlineHintKeepOpen:
+      'Lassen Sie diese Seite geöffnet: Ihre Fotos und Ihre Sprachnachricht werden gesendet, sobald das Netz wieder da ist.',
+    keptOnPhone: 'Ihre Aufnahme bleibt auf Ihrem Telefon.',
+    messageLabel: (duration: string | null) =>
+      duration === null ? 'Sprachnachricht' : `Sprachnachricht, ${duration}`,
+    statusProcessing: 'Wird verarbeitet',
+    statusPublished: 'Im Gästebuch',
+    failed: 'Ihre Sprachnachricht konnte nicht gespeichert werden. Bitte nehmen Sie sie neu auf.',
+    retry: 'Erneut versuchen',
+    localWaiting: 'Wartet auf ein Netz',
+    localBlocked: 'Auf Ihrem Telefon behalten',
+    saveToPhone: 'Auf meinem Telefon speichern',
+    deleteLocal: 'Löschen',
+    noticeVoiceAudience: 'Ihre Sprachnachricht können nur der Veranstalter und sein Team anhören.',
+    noticeVoiceNeverRoom:
+      'Sie wird nie auf der Leinwand im Saal abgespielt und von den anderen Gästen nicht gehört.',
+    noticeVoicePublication: {
+      afterReview: 'Der Veranstalter entscheidet, ob Ihre Nachricht behalten wird.',
+      immediate: 'Ihre Nachricht wird sofort im Album aufbewahrt, ohne vorher angehört zu werden.',
+    },
+    noticeVoiceRetention:
+      'Sie wird wie Ihre Fotos aufbewahrt und kommt in das Album, das der Veranstalter herunterlädt.',
+    noticeVoiceRetentionDays: (count: number) =>
+      t.count(count, {
+        one: 'Sie wird wie Ihre Fotos aufbewahrt (1 Tag nach Abschluss des Abends) und kommt in das Album, das der Veranstalter herunterlädt.',
+        other: `Sie wird wie Ihre Fotos aufbewahrt (${t.number(count)} Tage nach Abschluss des Abends) und kommt in das Album, das der Veranstalter herunterlädt.`,
+      }),
+    noticeVoiceMicrophone:
+      'Das Mikrofon läuft nur während der Aufnahme. Die Aufnahme bleibt auf Ihrem Telefon, bis Sie sie senden.',
+    noticeVoiceSealed:
+      'Sprachnachrichten bleiben bis zum Ende des Abends geheim, außer der Veranstalter entscheidet anders.',
+    noticeVoiceRemovalSeconds: (count: number) =>
+      t.count(count, {
+        one: 'Sie können Ihre Sprachnachricht innerhalb einer Sekunde nach dem Senden entfernen.',
+        other: `Sie können Ihre Sprachnachricht innerhalb von ${t.number(count)} Sekunden nach dem Senden entfernen.`,
+      }),
+    noticeVoiceRemovalMinutes: (count: number) =>
+      t.count(count, {
+        one: 'Sie können Ihre Sprachnachricht innerhalb einer Minute nach dem Senden entfernen.',
+        other: `Sie können Ihre Sprachnachricht innerhalb von ${t.number(count)} Minuten nach dem Senden entfernen.`,
+      }),
+    noticeVoiceRemovalHours: (count: number) =>
+      t.count(count, {
+        one: 'Sie können Ihre Sprachnachricht innerhalb einer Stunde nach dem Senden entfernen.',
+        other: `Sie können Ihre Sprachnachricht innerhalb von ${t.number(count)} Stunden nach dem Senden entfernen.`,
+      }),
+    noticeVoiceRemovalAskHost:
+      'Um eine Sprachnachricht entfernen zu lassen, fragen Sie den Veranstalter.',
   },
 
   moderation: {

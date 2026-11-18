@@ -88,6 +88,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               guestbook,
               transcoder: new FakeAudioTranscoder(),
               clock: deps.clock,
+              voiceMaxDurationMs: 60_000,
             }),
             // The host's half is held at its own file (`guestbookHostRoutes.test.ts`).
             listGuestbookQueue: async () => err(DomainError.unexpected('test.useCaseNotWired')),
@@ -365,6 +366,7 @@ describe('GET /api/events/:eventSlug/guestbook/mine', () => {
       onWall: true,
       // The voice is off for this event (and the harness's encoder is a Null Object away): no button.
       voiceAvailable: false,
+      voiceMaxSeconds: 60,
     })
   })
 

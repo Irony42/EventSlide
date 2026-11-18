@@ -260,6 +260,8 @@ export interface MyGuestbookDto {
   readonly onWall: boolean
   /** Whether a voice message would be taken now: the button is shown on this and on nothing else. */
   readonly voiceAvailable: boolean
+  /** The longest voice message this box takes, in seconds (`MAX_VOICE_SECONDS`): the phone stops there. */
+  readonly voiceMaxSeconds: number
 }
 
 /**

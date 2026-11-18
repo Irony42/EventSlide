@@ -65,13 +65,17 @@ export const backoffMs = (attempts: number): number => {
   return BACKOFF_STEPS_MS[attempts] ?? last
 }
 
-const isExpired = (entry: OutboxEntry, now: number): boolean => now - entry.enqueuedAt >= MAX_AGE_MS
+const isExpired = (entry: OutboxEntry, now: number, maxAgeMs: number): boolean =>
+  now - entry.enqueuedAt >= maxAgeMs
 
 const isExhausted = (entry: OutboxEntry): boolean => entry.attempts >= MAX_ATTEMPTS
 
 /** Whether this entry must be dropped rather than sent. */
-export const isSpent = (entry: OutboxEntry, now: number): boolean =>
-  isExpired(entry, now) || isExhausted(entry)
+export const isSpent = (
+  entry: OutboxEntry,
+  now: number,
+  policy: OutboxPolicy = PHOTO_POLICY,
+): boolean => isExpired(entry, now, policy.maxAgeMs) || isExhausted(entry)
 
 /** Whether another drain still holds this entry. */
 export const isLeased = (entry: OutboxEntry, now: number, leaseMs = CLAIM_LEASE_MS): boolean =>
@@ -176,7 +180,34 @@ export const TERMINAL_CODES: ReadonlySet<string> = new Set([
   'guest.revoked',
 ])
 
-export const isTerminal = (code: string): boolean => TERMINAL_CODES.has(code)
+/**
+ * What differs between two stores that share one drain: how long an entry is worth sending, how
+ * many one event may hold, and which refusals mean the bytes are never going to be taken.
+ *
+ * The photo queue and the voice queue (spec 25) run the same `drainOutbox` over the same
+ * `OutboxStore` contract, and a recording is the one thing a guest cannot make again, so the two do
+ * not share a rule: a photo queue holds forty to an event, a voice queue three, and the codes that
+ * discard are different lists. Passed as one object, never read from a module constant, so a store
+ * cannot quietly judge by the other's numbers.
+ */
+export interface OutboxPolicy {
+  /** The oldest entry of an event is dropped when one more would exceed this. */
+  readonly maxEntriesPerEvent: number
+  /** How long an entry is kept unsent. */
+  readonly maxAgeMs: number
+  /** The refusals that discard an entry. Everything else is kept. */
+  readonly terminalCodes: ReadonlySet<string>
+}
+
+/** The photo queue's rules: the constants above, unchanged by the voice queue's arrival. */
+export const PHOTO_POLICY: OutboxPolicy = {
+  maxEntriesPerEvent: MAX_ENTRIES_PER_EVENT,
+  maxAgeMs: MAX_AGE_MS,
+  terminalCodes: TERMINAL_CODES,
+}
+
+export const isTerminal = (code: string, policy: OutboxPolicy = PHOTO_POLICY): boolean =>
+  policy.terminalCodes.has(code)
 
 /**
  * Whether the outbox may hold these bytes at all.

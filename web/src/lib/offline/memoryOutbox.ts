@@ -1,5 +1,5 @@
 import { newOutboxId } from './outboxId'
-import { MAX_ENTRIES_PER_EVENT } from './outboxPolicy'
+import { PHOTO_POLICY, type OutboxPolicy } from './outboxPolicy'
 import type { NewOutboxEntry, OutboxAddition, OutboxEntry, OutboxStore } from './outbox'
 
 /**
@@ -17,6 +17,9 @@ import type { NewOutboxEntry, OutboxAddition, OutboxEntry, OutboxStore } from '.
  */
 export class MemoryOutbox implements OutboxStore {
   private entries: OutboxEntry[] = []
+
+  /** The cap is the store's own: the voice queue passes its three, the photo queue keeps forty. */
+  constructor(private readonly policy: Pick<OutboxPolicy, 'maxEntriesPerEvent'> = PHOTO_POLICY) {}
 
   async add(entry: NewOutboxEntry, now: number): Promise<OutboxAddition> {
     const stored: OutboxEntry = {
@@ -78,6 +81,21 @@ export class MemoryOutbox implements OutboxStore {
     this.entries = this.entries.filter((candidate) => candidate.id !== id)
   }
 
+  async block(id: string, code: string): Promise<void> {
+    const index = this.entries.findIndex((candidate) => candidate.id === id)
+    const current = this.entries[index]
+    if (current === undefined) return
+    this.entries[index] = { ...current, claimedAt: null, blockedCode: code }
+  }
+
+  async unblock(slug: string): Promise<void> {
+    this.entries = this.entries.map((candidate) =>
+      candidate.slug === slug && candidate.blockedCode != null
+        ? { ...candidate, blockedCode: null }
+        : candidate,
+    )
+  }
+
   async clear(slug: string): Promise<void> {
     this.entries = this.entries.filter((candidate) => candidate.slug !== slug)
   }
@@ -97,7 +115,7 @@ export class MemoryOutbox implements OutboxStore {
     const mine = this.entries
       .filter((candidate) => candidate.slug === slug)
       .sort((left, right) => left.enqueuedAt - right.enqueuedAt)
-    const excess = mine.length - MAX_ENTRIES_PER_EVENT
+    const excess = mine.length - this.policy.maxEntriesPerEvent
     if (excess <= 0) return []
     const doomed = new Set(mine.slice(0, excess).map((candidate) => candidate.id))
     this.entries = this.entries.filter((candidate) => !doomed.has(candidate.id))

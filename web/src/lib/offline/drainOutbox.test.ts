@@ -177,6 +177,7 @@ describe('drainOutbox', () => {
     expect(await drain(store, async () => sent())).toEqual({
       sent: [],
       discarded: [],
+      refusals: [],
       remaining: 0,
       retryAfterMs: null,
     })

@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { useApi } from '../../../lib/useApi'
 import { forgetGuestSession } from '../../../lib/guestSession'
 import { ApiError } from '../../../lib/http'
-import { openOutbox } from '../../../lib/offline/openOutbox'
+import { clearOutboxFor } from '../../../lib/offline/clearOutbox'
 
 /**
  * "Delete everything I sent" (roadmap §5.2): the one request, and what the device forgets after it.
@@ -11,7 +11,8 @@ import { openOutbox } from '../../../lib/offline/openOutbox'
  * On success the device drops the event's session, because the guest it described no longer
  * exists on the server, and the photographs still waiting in the offline outbox for this event,
  * because they would only be sent in the name of a guest who asked for everything to go. The
- * outbox part is best effort: a browser with no IndexedDB has nothing to clear.
+ * outbox part is best effort: a browser with no IndexedDB has nothing to clear. The voice recordings
+ * still on the phone go with the photographs (spec 25).
  */
 export interface EraseEverythingState {
   readonly busy: boolean
@@ -42,16 +43,9 @@ export function useEraseEverything(slug: string): EraseEverythingState {
         return
       }
     }
-    try {
-      const outbox = await openOutbox()
-      try {
-        await outbox.clear(slug)
-      } finally {
-        outbox.close()
-      }
-    } catch {
-      // Nothing to clear, or nowhere to clear it from: the server's answer is what matters.
-    }
+    // Both queues, the photos and the voice recordings (spec 25): one that survived would bring back
+    // a message its author asked to erase. Never rejects: a store that will not open has nothing to clear.
+    await clearOutboxFor(slug)
     forgetGuestSession(slug)
     setBusy(false)
     setDone(true)

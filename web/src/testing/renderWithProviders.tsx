@@ -627,6 +627,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
     accepting: true,
     onWall: true,
     voiceAvailable: false,
+    voiceMaxSeconds: 60,
   })),
   writeGuestbookEntry: vi.fn(async (_slug: string, text: string) => ({
     id: 'entry-1',
@@ -635,6 +636,17 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
     createdAt: CREATED_AT,
     duplicate: false,
     voice: null,
+  })),
+  // Accepted and queued, which is what the route answers: nothing is heard before the worker has run.
+  leaveVoiceMessage: vi.fn(async () => ({
+    entry: {
+      id: 'voice-1',
+      text: null,
+      status: 'pending' as const,
+      createdAt: CREATED_AT,
+      duplicate: false,
+      voice: { state: 'queued' as const, durationMs: null, caption: null },
+    },
   })),
   deleteMyGuestbookEntry: vi.fn(async () => undefined),
   deleteMyPhoto: vi.fn(async () => undefined),

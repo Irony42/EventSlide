@@ -715,7 +715,15 @@ export const it: UiText = {
       'guestbook.invalid': 'Questo messaggio non può essere inviato così com’è.',
       'guestbook.tooManyLines': 'Messaggio troppo alto: lo accorci.',
       'guestbook.limitReached':
-        'Ha già lasciato 3 messaggi. Ne rimuova uno per scriverne un altro.',
+        'Ha già lasciato 3 messaggi, scritti o vocali. Ne rimuova uno per lasciarne un altro.',
+      'guestbook.voiceDisabled': 'I messaggi vocali sono disattivati per il momento.',
+      'guestbook.voiceEventFull': 'Il libro degli ospiti è pieno.',
+      'voice.queueFull': 'Riprovi tra un istante.',
+      'voice.unsupportedFormat': 'Questo file non è un messaggio vocale leggibile.',
+      'voice.notAudio': 'Questo file non è un messaggio vocale leggibile.',
+      'voice.corrupt': 'Questo file non è un messaggio vocale leggibile.',
+      'voice.tooLong': 'Questo messaggio vocale è troppo lungo.',
+      'voice.tooShort': 'Questo messaggio vocale è troppo breve.',
       'guestbook.eventFull': 'Il libro degli ospiti è pieno.',
       'guestbook.disabled': 'Il libro degli ospiti non è aperto al momento.',
       'event.notAcceptingUploads': 'Il libro degli ospiti non è aperto al momento.',
@@ -729,7 +737,7 @@ export const it: UiText = {
       'rate.limited': 'Troppi messaggi in una volta, riprovi tra un minuto.',
     },
     eraseBody:
-      'Le sue foto, i video, le didascalie, i messaggi del libro degli ospiti, le reazioni e il suo nome saranno cancellati dalla serata: dallo schermo, dall’album e dall’elenco dell’organizzatore. L’operazione è definitiva.',
+      'Le sue foto, i video, le didascalie, i messaggi del libro degli ospiti, compresi i suoi messaggi vocali, le reazioni e il suo nome saranno cancellati dalla serata: dallo schermo, dall’album e dall’elenco dell’organizzatore. L’operazione è definitiva.',
     noticeWhatHappens: 'Cosa succede alle sue foto e ai suoi messaggi',
     noticeWhoSees: 'Chi vede le sue foto e i suoi messaggi',
     noticeHowLong: 'Per quanto tempo vengono conservati',
@@ -745,6 +753,96 @@ export const it: UiText = {
     noticeMessageRetention: 'I suoi messaggi sono conservati quanto le foto e cancellati con esse.',
     noticeMessageRemoval:
       'Un messaggio si rimuove come una foto, da «I miei messaggi» e alle stesse condizioni.',
+  },
+
+  /**
+   * The voice message of the guestbook, guest side (spec 25): recording it, listening before sending,
+   * where it stands afterwards and what the privacy notice says about it. What a guest says is never
+   * translated and never appears here, only the words around it. Never "IA", "intelligent" or
+   * "transcription" in a sentence of this table: nothing listens to a voice but the organiser.
+   */
+  guestbookVoice: {
+    open: 'Lascia un messaggio vocale',
+    record: 'Registra',
+    stop: 'Ferma',
+    clock: (elapsed: string, max: string) => `${elapsed} / ${max}`,
+    recordingAnnounce: 'Registrazione in corso',
+    nearEnd: 'Mancano 10 secondi',
+    recordedAnnounce: (duration: string) => `Registrazione terminata, ${duration}`,
+    closeToTheMicrophone: 'Parli vicino al telefono: le persone intorno a Lei possono sentirsi',
+    listen: 'Ascolta',
+    listenPause: 'Pausa',
+    restart: 'Ricomincia',
+    send: 'Invia il mio messaggio vocale',
+    cancel: 'Annulla',
+    captionLabel: 'Due parole per accompagnarlo',
+    micBlocked:
+      'Il microfono è bloccato. Lo autorizzi nelle impostazioni del browser, poi torni qui.',
+    micUnavailableHere:
+      'Il microfono non è disponibile in questa pagina. Riapra il link dell’evento.',
+    micMissing:
+      'Non è stato possibile usare alcun microfono su questo dispositivo. Può scrivere un messaggio al suo posto.',
+    tooShort: 'Troppo breve: parli per almeno un secondo.',
+    writeInstead: 'Scrivere un messaggio al suo posto',
+    openInBrowser: 'Per lasciare un messaggio vocale, apra questa pagina in Safari o Chrome.',
+    previewFailed: 'L’anteprima non si riproduce qui, ma può comunque inviarlo',
+    interrupted: (duration: string) =>
+      `La registrazione si è interrotta perché la pagina è stata abbandonata. Dura ${duration}.`,
+    notKept: 'Non è stato possibile conservare la registrazione sul suo telefono. La rifaccia.',
+    helpManual: 'L’organizzatore decide se conservare il suo messaggio.',
+    helpAuto:
+      'Il suo messaggio è conservato nel libro degli ospiti. Solo l’organizzatore e il suo team possono ascoltarlo.',
+    thanksManual: 'Grazie! L’organizzatore deciderà se conservare il suo messaggio.',
+    thanksAuto: 'Grazie! Il suo messaggio vocale è stato ricevuto.',
+    waitingNetwork: 'Il suo messaggio vocale attende una rete.',
+    offlineHintKeepOpen:
+      'Tenga aperta questa pagina: le sue foto e il suo messaggio vocale partiranno appena torna la rete.',
+    keptOnPhone: 'La sua registrazione resta sul suo telefono.',
+    messageLabel: (duration: string | null) =>
+      duration === null ? 'Messaggio vocale' : `Messaggio vocale, ${duration}`,
+    statusProcessing: 'In elaborazione',
+    statusPublished: 'Nel libro degli ospiti',
+    failed: 'Il suo messaggio vocale non è stato salvato. Lo registri di nuovo.',
+    retry: 'Riprova',
+    localWaiting: 'In attesa di una rete',
+    localBlocked: 'Conservato sul suo telefono',
+    saveToPhone: 'Salva sul mio telefono',
+    deleteLocal: 'Elimina',
+    noticeVoiceAudience:
+      'Il suo messaggio vocale può essere ascoltato solo dall’organizzatore e dal suo team.',
+    noticeVoiceNeverRoom:
+      'Non viene mai trasmesso sullo schermo della sala né ascoltato dagli altri ospiti.',
+    noticeVoicePublication: {
+      afterReview: 'L’organizzatore decide se conservare il suo messaggio.',
+      immediate: 'Il suo messaggio è conservato subito nell’album, senza ascolto preventivo.',
+    },
+    noticeVoiceRetention:
+      'È conservato come le sue foto e finisce nell’album che l’organizzatore scarica.',
+    noticeVoiceRetentionDays: (count: number) =>
+      t.count(count, {
+        one: 'È conservato come le sue foto (1 giorno dopo la chiusura) e finisce nell’album che l’organizzatore scarica.',
+        other: `È conservato come le sue foto (${t.number(count)} giorni dopo la chiusura) e finisce nell’album che l’organizzatore scarica.`,
+      }),
+    noticeVoiceMicrophone:
+      'Il microfono funziona solo durante la registrazione. La registrazione resta sul suo telefono finché non la invia.',
+    noticeVoiceSealed:
+      'I messaggi vocali restano segreti fino alla fine della serata, salvo decisione dell’organizzatore.',
+    noticeVoiceRemovalSeconds: (count: number) =>
+      t.count(count, {
+        one: 'Può ritirare il suo messaggio vocale entro 1 secondo dall’invio.',
+        other: `Può ritirare il suo messaggio vocale entro ${t.number(count)} secondi dall’invio.`,
+      }),
+    noticeVoiceRemovalMinutes: (count: number) =>
+      t.count(count, {
+        one: 'Può ritirare il suo messaggio vocale entro 1 minuto dall’invio.',
+        other: `Può ritirare il suo messaggio vocale entro ${t.number(count)} minuti dall’invio.`,
+      }),
+    noticeVoiceRemovalHours: (count: number) =>
+      t.count(count, {
+        one: 'Può ritirare il suo messaggio vocale entro 1 ora dall’invio.',
+        other: `Può ritirare il suo messaggio vocale entro ${t.number(count)} ore dall’invio.`,
+      }),
+    noticeVoiceRemovalAskHost: 'Per far ritirare un messaggio vocale, chieda all’organizzatore.',
   },
 
   moderation: {

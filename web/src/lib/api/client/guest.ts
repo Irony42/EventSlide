@@ -5,6 +5,7 @@ import type {
   ErasedContributionDto,
   GuestMissionListResponse,
   CreatedGuestbookEntryDto,
+  CreatedGuestbookVoiceDto,
   MyGuestbookDto,
   MyPhotosDto,
   JoinResponse,
@@ -56,6 +57,17 @@ export interface ClipUploadInput {
   readonly onProgress?: (progress: UploadProgress) => void
   readonly signal?: AbortSignal
 }
+/**
+ * One voice message (spec 25). Singular like a clip: the route takes exactly one file, under the
+ * field `voice`, and nothing else a phone could say about it (a duration, a size, a name) is read.
+ */
+export interface VoiceUploadInput {
+  readonly file: File
+  /** The optional line that goes with it, 140 characters; omitted when empty. */
+  readonly caption?: string | null
+  readonly signal?: AbortSignal
+}
+
 export const guestApi = (transport: Transport) => ({
   /**
    * What this box is, its licence and where its source is. Public, and answered with no
@@ -185,6 +197,19 @@ export const guestApi = (transport: Transport) => ({
 
   writeGuestbookEntry: (slug: string, text: string): Promise<CreatedGuestbookEntryDto> =>
     transport.post(`/api/events/${encode(slug)}/guestbook`, { text }),
+
+  /** `202`: the recording is queued on the server, nothing is heard yet (see `docs/API.md`). */
+  leaveVoiceMessage: (slug: string, input: VoiceUploadInput): Promise<CreatedGuestbookVoiceDto> => {
+    const form = new FormData()
+    // The text part before the file, as the clip does it: a part after a large file is the one a proxy may cut.
+    if (input.caption !== undefined && input.caption !== null && input.caption !== '') {
+      form.append('caption', input.caption)
+    }
+    form.append('voice', input.file)
+    return transport.upload(`/api/events/${encode(slug)}/guestbook/voice`, form, {
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+  },
 
   deleteMyGuestbookEntry: (slug: string, entryId: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/guestbook/${encode(entryId)}`),

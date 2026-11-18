@@ -89,6 +89,7 @@ export const wallUseCases = (
     guestbook: adapters.guestbook,
     transcoder: adapters.audioTranscoder,
     clock: adapters.clock,
+    voiceMaxDurationMs: policy.voice.maxDurationMs,
   }),
   deleteGuestbookEntry: makeDeleteGuestbookEntry({
     invalidateExport,

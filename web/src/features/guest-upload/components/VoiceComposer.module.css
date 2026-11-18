@@ -1,0 +1,100 @@
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* The press and the clock side by side: the one control, and the one fact about it. */
+.recordRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* Round, 56 px: a label always beside it, never the colour or the glyph alone. */
+.record {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-record);
+  min-height: var(--touch-record);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.record[data-recording] {
+  background: var(--danger);
+  color: var(--accent-contrast);
+}
+
+.record:focus-visible {
+  outline: 3px solid var(--text-primary);
+  outline-offset: 3px;
+}
+
+.clock {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.clock[data-near] {
+  color: var(--warning);
+}
+
+/* A discreet bar that follows the voice. Under `prefers-reduced-motion` it does not move at all. */
+.meter {
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--border-subtle);
+  overflow: hidden;
+}
+
+.bar {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  transform-origin: left center;
+  transform: scaleX(var(--level, 0));
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transform: none;
+    opacity: 0.4;
+    transition: none;
+  }
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.link {
+  align-self: flex-start;
+}

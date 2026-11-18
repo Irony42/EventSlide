@@ -185,6 +185,15 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.writeGuestbookEntry(SLUG, 'Bravo'),
   },
   {
+    name: 'leaveVoiceMessage',
+    verb: 'upload',
+    path: `/api/events/${SLUG}/guestbook/voice`,
+    invoke: (client) =>
+      client.leaveVoiceMessage(SLUG, {
+        file: new File(['bytes'], 'message-vocal.webm', { type: 'audio/webm' }),
+      }),
+  },
+  {
     name: 'guestbookQueue',
     verb: 'get',
     path: `/api/events/${SLUG}/guestbook`,
@@ -1230,6 +1239,39 @@ describe('the multipart upload', () => {
     await subject().uploadPhotos(SLUG, { files: [aFile('un.jpg')], signal: controller.signal })
 
     expect(only().signal).toBe(controller.signal)
+  })
+})
+
+describe('the voice message upload', () => {
+  const aRecording = (): File => new File(['bytes'], 'message-vocal.webm', { type: 'audio/webm' })
+
+  it('sends the recording under the voice field, the only one the route accepts', async () => {
+    // `photos` or `clip` here is `upload.unexpectedField` after a megabyte has gone up a venue's Wi-Fi.
+    await subject().leaveVoiceMessage(SLUG, { file: aRecording() })
+
+    const part = only().form?.get('voice')
+    expect(part instanceof File ? part.name : null).toBe('message-vocal.webm')
+    expect(only().form?.has('photos')).toBe(false)
+    expect(only().form?.has('clip')).toBe(false)
+  })
+
+  it('sends the caption ahead of the file, and nothing else about the recording', async () => {
+    // The route refuses any other part (`request.invalid`): a duration or a size the phone
+    // measured is not believed, so it is not sent.
+    await subject().leaveVoiceMessage(SLUG, { file: aRecording(), caption: 'Pour vous deux' })
+
+    const names = [...(only().form?.keys() ?? [])]
+    expect(names).toEqual(['caption', 'voice'])
+    expect(only().form?.get('caption')).toBe('Pour vous deux')
+  })
+
+  it.each([
+    ['null', null],
+    ['an empty line', ''],
+  ])('omits the caption for %s', async (_case, caption) => {
+    await subject().leaveVoiceMessage(SLUG, { file: aRecording(), caption })
+
+    expect(only().form?.has('caption')).toBe(false)
   })
 })
 

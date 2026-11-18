@@ -773,6 +773,7 @@ describe('useUploadQueue', () => {
           sent: ['entry-1'],
           discarded: [],
           remaining: 0,
+          refusals: [],
           retryAfterMs: null,
         }),
       )
@@ -798,6 +799,7 @@ describe('useUploadQueue', () => {
           sent: ['entry-from-yesterday'],
           discarded: [],
           remaining: 1,
+          refusals: [],
           retryAfterMs: 1_000,
         }),
       )
@@ -821,6 +823,7 @@ describe('useUploadQueue', () => {
           sent: [],
           discarded: ['entry-1'],
           remaining: 0,
+          refusals: [],
           retryAfterMs: null,
         }),
       )
@@ -962,7 +965,13 @@ describe('useUploadQueue: the batch summary', () => {
     expect(result.current.batch.settledOk).toBe(false)
 
     act(() =>
-      result.current.settle({ sent: ['entry-1'], discarded: [], remaining: 0, retryAfterMs: null }),
+      result.current.settle({
+        sent: ['entry-1'],
+        discarded: [],
+        refusals: [],
+        remaining: 0,
+        retryAfterMs: null,
+      }),
     )
 
     // Arrived, but the drain does not say which photo the server made of it.
