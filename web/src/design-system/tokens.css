@@ -288,6 +288,9 @@
 
   /* ---- Targets. 44 px is the floor, not the aspiration. ---- */
   --touch-min: 2.75rem;
+  /* The record / stop button of a voice message (spec 25): the one control a guest presses while
+     holding the phone in one hand and a drink in the other. */
+  --touch-record: 3.5rem;
 
   /* ---- Spinner. Three sizes and the ring's thickness at the largest. ---- */
   --spinner-sm: 0.875rem;
