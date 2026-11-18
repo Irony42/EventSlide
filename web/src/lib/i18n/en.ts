@@ -1876,6 +1876,7 @@ export const en: UiText = {
     settingsEnabledHint:
       'Turning voice messages on during the evening makes every guest read the notice again before their next message: better to turn them on beforehand.',
     settingsSealed: 'Keep voice messages secret until the end of the evening',
+    settingsSealedReveal: 'Keep voice messages secret until the reveal',
     settingsSealedHint:
       'You will not be able to listen before then. You can still decide to keep or refuse them.',
     settingsSealedRevealHint:

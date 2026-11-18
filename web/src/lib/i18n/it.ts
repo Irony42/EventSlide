@@ -1923,6 +1923,7 @@ export const it: UiText = {
     settingsEnabledHint:
       'Attivare i messaggi vocali durante la serata fa rileggere l’informativa a ogni ospite prima del suo prossimo invio: meglio attivarli prima.',
     settingsSealed: 'Tenere segreti i messaggi vocali fino alla fine della serata',
+    settingsSealedReveal: 'Tenere segreti i messaggi vocali fino alla rivelazione',
     settingsSealedHint:
       'Non potrà ascoltarli prima. Può comunque decidere di tenerli o rifiutarli.',
     settingsSealedRevealHint:

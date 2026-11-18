@@ -2078,6 +2078,7 @@ export const fr = {
     settingsEnabledHint:
       'Allumer les messages vocaux en cours de soirée fait relire la notice à chaque invité avant son prochain envoi : mieux vaut les allumer avant.',
     settingsSealed: 'Garder les messages vocaux secrets jusqu’à la fin de la soirée',
+    settingsSealedReveal: 'Garder les messages vocaux secrets jusqu’à la révélation',
     settingsSealedHint:
       'Vous ne pourrez pas les écouter avant. Vous pouvez quand même décider de les garder ou de les refuser.',
     settingsSealedRevealHint:

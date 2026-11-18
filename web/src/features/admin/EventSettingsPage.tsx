@@ -493,7 +493,11 @@ export function EventSettingsPage() {
         />
 
         <CheckboxField
-          label={t.guestbookVoiceHost.settingsSealed}
+          label={
+            reveal.enabled
+              ? t.guestbookVoiceHost.settingsSealedReveal
+              : t.guestbookVoiceHost.settingsSealed
+          }
           hint={
             reveal.enabled
               ? t.guestbookVoiceHost.settingsSealedRevealHint

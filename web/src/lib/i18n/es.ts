@@ -1940,6 +1940,7 @@ export const es: UiText = {
     settingsEnabledHint:
       'Activar los mensajes de voz durante la velada obliga a cada invitado a volver a leer el aviso antes de su próximo envío: mejor activarlos antes.',
     settingsSealed: 'Guardar los mensajes de voz en secreto hasta el final de la velada',
+    settingsSealedReveal: 'Guardar los mensajes de voz en secreto hasta la revelación',
     settingsSealedHint:
       'No podrá escucharlos antes. Aun así puede decidir conservarlos o rechazarlos.',
     settingsSealedRevealHint:

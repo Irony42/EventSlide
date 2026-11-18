@@ -170,6 +170,18 @@ describe('EventSettingsPage, voice messages', () => {
       expect(await screen.findByText(fr.guestbookVoiceHost.settingsSealedHint)).toBeVisible()
     })
 
+    it('words the checkbox "until the reveal" while the mode is on, and "until the end" otherwise', async () => {
+      stubSecureContext(true)
+      const on = render(fakeApi({ getEvent: vi.fn(async () => disposable(false)) }))
+      expect(await screen.findByLabelText(fr.guestbookVoiceHost.settingsSealedReveal)).toBeVisible()
+      expect(screen.queryByLabelText(fr.guestbookVoiceHost.settingsSealed)).toBeNull()
+      on.unmount()
+
+      render(fakeApi({ getEvent: vi.fn(async () => eventWith({ enabled: true, sealed: true })) }))
+      expect(await screen.findByLabelText(fr.guestbookVoiceHost.settingsSealed)).toBeVisible()
+      expect(screen.queryByLabelText(fr.guestbookVoiceHost.settingsSealedReveal)).toBeNull()
+    })
+
     it('offers "Ouvrir maintenant" before the reveal and not after it: the reveal opened the book', async () => {
       stubSecureContext(true)
       const before = render(fakeApi({ getEvent: vi.fn(async () => disposable(false)) }))
@@ -179,7 +191,7 @@ describe('EventSettingsPage, voice messages', () => {
       before.unmount()
 
       render(fakeApi({ getEvent: vi.fn(async () => disposable(true)) }))
-      await screen.findByLabelText(fr.guestbookVoiceHost.settingsSealed)
+      await screen.findByLabelText(fr.guestbookVoiceHost.settingsSealedReveal)
       expect(screen.queryByRole('button', { name: fr.guestbookVoiceHost.openNow })).toBeNull()
     })
   })

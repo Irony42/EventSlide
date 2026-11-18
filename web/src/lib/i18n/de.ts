@@ -1963,6 +1963,7 @@ export const de: UiText = {
     settingsEnabledHint:
       'Wenn Sie Sprachnachrichten im Lauf des Abends einschalten, muss jeder Gast vor seiner nächsten Nachricht den Hinweis erneut lesen: besser vorher einschalten.',
     settingsSealed: 'Sprachnachrichten bis zum Ende des Abends geheim halten',
+    settingsSealedReveal: 'Sprachnachrichten bis zur Enthüllung geheim halten',
     settingsSealedHint:
       'Sie können sie bis dahin nicht anhören. Sie können trotzdem entscheiden, sie zu behalten oder abzulehnen.',
     settingsSealedRevealHint:
