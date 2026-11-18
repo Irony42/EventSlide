@@ -371,10 +371,12 @@ export const startTestApp = async ({
     slug,
     name,
     wallLanguage,
+    template,
   }: {
     slug?: string
     name?: string
     wallLanguage?: EventLanguage
+    template?: 'wedding' | 'birthday' | 'conference' | 'party'
   }): Promise<SeededEvent> => {
     const api = await sessionOn(baseUrl)
 
@@ -403,6 +405,7 @@ export const startTestApp = async ({
           attempt === 1 ? (name ?? 'Camille & Sacha') : `${name ?? 'Camille & Sacha'} ${attempt}`,
         ...(slug === undefined ? {} : { slug: attempt === 1 ? slug : `${slug}-${attempt}` }),
         ...(wallLanguage === undefined ? {} : { wallLanguage }),
+        ...(template === undefined ? {} : { template }),
       })
       if (response.status === 409 && attempt < 25) return create(attempt + 1)
       return response
