@@ -99,6 +99,7 @@ import type { PreselectHighlights } from '../../application/usecases/highlights/
 import type { SetPhotoHighlight } from '../../application/usecases/highlights/setPhotoHighlight'
 import type { ExportAlbum } from '../../application/usecases/photos/exportAlbum'
 import type { GetPhotoMedia } from '../../application/usecases/photos/getPhotoMedia'
+import type { SaveGuestPhoto } from '../../application/usecases/photos/saveGuestPhoto'
 import type { IdentifyMediaViewer } from '../../application/usecases/photos/identifyMediaViewer'
 import type { ListEventPhotos } from '../../application/usecases/photos/listEventPhotos'
 import type { ListGuestPhotos } from '../../application/usecases/photos/listGuestPhotos'
@@ -114,9 +115,13 @@ import type { GetWallPlaylist } from '../../application/usecases/slideshow/getWa
 
 import type { CreateGuestbookEntry } from '../../application/usecases/guestbook/createGuestbookEntry'
 import type { DeleteGuestbookEntry } from '../../application/usecases/guestbook/deleteGuestbookEntry'
+import type { GetGuestbookVoiceMedia } from '../../application/usecases/guestbook/getGuestbookVoiceMedia'
+import type { KeepPendingGuestbookVoices } from '../../application/usecases/guestbook/keepPendingGuestbookVoices'
 import type { ListGuestbookQueue } from '../../application/usecases/guestbook/listGuestbookQueue'
 import type { ListMyGuestbookEntries } from '../../application/usecases/guestbook/listMyGuestbookEntries'
 import type { ModerateGuestbookEntry } from '../../application/usecases/guestbook/moderateGuestbookEntry'
+import type { OpenGuestbookVoice } from '../../application/usecases/guestbook/openGuestbookVoice'
+import type { StageGuestbookVoice } from '../../application/usecases/guestbook/stageGuestbookVoice'
 import type { CreateAnnouncement } from '../../application/usecases/announcements/createAnnouncement'
 import type { DeleteAnnouncement } from '../../application/usecases/announcements/deleteAnnouncement'
 import type { LaunchAnnouncement } from '../../application/usecases/announcements/launchAnnouncement'
@@ -261,6 +266,8 @@ export interface HttpUseCases {
   readonly deletePhoto: DeletePhoto
   readonly setPhotoCaption: SetPhotoCaption
   readonly getPhotoMedia: GetPhotoMedia
+  /** What a guest may keep of a photograph in the feed (spec 24): the display rendition, behind the host's switch. */
+  readonly saveGuestPhoto: SaveGuestPhoto
   /** Who is asking for the bytes: the media route's one answer to "who is this" (HTTP-H-02). */
   readonly identifyMediaViewer: IdentifyMediaViewer
   readonly exportAlbum: ExportAlbum
@@ -301,6 +308,11 @@ export interface HttpUseCases {
   readonly deleteGuestbookEntry: DeleteGuestbookEntry
   readonly listGuestbookQueue: ListGuestbookQueue
   readonly moderateGuestbookEntry: ModerateGuestbookEntry
+  // voice messages of the guestbook (spec 25)
+  readonly stageGuestbookVoice: StageGuestbookVoice
+  readonly getGuestbookVoiceMedia: GetGuestbookVoiceMedia
+  readonly openGuestbookVoice: OpenGuestbookVoice
+  readonly keepPendingGuestbookVoices: KeepPendingGuestbookVoices
   // missions
   readonly listMissions: ListMissions
   readonly createMission: CreateMission

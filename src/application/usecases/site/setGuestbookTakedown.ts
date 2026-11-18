@@ -21,7 +21,10 @@ import { recordOperatorAct, type OperatorActInput } from './operatorAct'
  * and an instant, which is all it needs, so the operator never sees the text.
  *
  * An id no message holds is `404 guestbook.notFound`: a typo must not read as success. Every
- * screen is told by the neutral `guestbook.changed` signal, which never says why.
+ * screen is told by the neutral `guestbook.changed` signal, which never says why, and the console by
+ * `guestbook.voice` for a recording (spec 25). **A voice message is taken down the same way**: the
+ * row stays, **its bytes stay** (preserved evidence, like a photograph's), and every read leaves it
+ * out: the listening route, the archive and the count of what is open.
  */
 
 export interface SetGuestbookTakedownInput extends OperatorActInput {
@@ -74,6 +77,11 @@ export const makeSetGuestbookTakedown =
 
     if (down) await invalidateExport?.(located.eventId, 'takenDown')
     await guestbook.setTakenDown(located.eventId, entryId, down ? at : null)
-    bus.publish({ type: 'guestbook.changed', eventId: located.eventId })
+    // A recording is announced on the signal only the console hears (spec 25): the wall re-reads on
+    // `guestbook.changed`, and would be told, for nothing, that a voice it never plays has moved.
+    bus.publish({
+      type: located.voice ? 'guestbook.voice' : 'guestbook.changed',
+      eventId: located.eventId,
+    })
     return ok(undefined)
   }

@@ -9,6 +9,7 @@ import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { makeGetEventLimits } from './getEventLimits'
 import { makeGetEventView } from './getEventView'
+import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 
 /**
  * What a host's answer about one event carries besides the event (HTTP-M-06): its counts, and the
@@ -44,6 +45,7 @@ const aWorld = () => {
     clock,
     clients,
     notices,
+    guestbook: new FakeGuestbookRepository(),
     capNoticeDays: 30,
     getEventLimits: makeGetEventLimits({ clients }),
   })

@@ -246,7 +246,17 @@ server's join link, in the language of the evening, and hands it to the browser'
 dialog ("Save as PDF" included): no server PDF, no new route. Numbered 2.10 because spec 03's
 host brand took 2.9.
 
-### 2.11 Disposable camera (P2, effort L, risk: medium)
+### 2.11 Voice message in the guestbook (P2, effort L, risk: medium)
+
+Spec 25. A guest records up to a minute and the host hears it from the moderation console; it is **never** on the
+wall and never in the shared gallery or the book. It is a line of the guestbook of 2.4 (same moderation, same
+ceilings, same erasure), an AAC/MP4 file made by the box's `ffmpeg`, kept secret on request until the evening is closed
+or the owner opens it, carried by the verified archive, and queued on the phone when there is no network. The
+**Mariage** template turns it on; an https address is required. No transcription: this is not what 9.6 declined,
+which sent the sound to a recognition service; a recording stays on the box, and the optional caption is the
+text for a host who cannot listen. A real iPhone recording is a manual check, not an automated one.
+
+### 2.12 Disposable camera (P2, effort L, risk: medium)
 
 Spec 23. A mode in which the guests photograph without seeing the result and everything is shown at once ("on envoie
 la pellicule au développement"): the photographs stay hidden from the other guests and the room until a moment the host
@@ -413,6 +423,24 @@ orientations without looking automatic.
 Retention already purges. The missing half is one action that writes the archive
 somewhere the host chooses, verifies it, and _then_ deletes — so honouring a retention
 promise does not mean losing the album.
+
+### 4.5 Saving from the feed (P1, effort M, risk: medium)
+
+> **In progress** (spec 24, four pull requests): the setting and the route have landed, the buttons have not.
+
+A guest sees the evening's photographs on their phone and could only ask the host for one, or take a
+screenshot of a 480 px thumbnail. A guest can now keep a photograph, one at a time, from the feed: **the
+`display` rendition (2560 px, no location, no device), never the original**, which stays the host's and the
+shared gallery's (§4.1). It is the gesture of the evening, as the gallery link is the gesture of the morning
+after: the guest's token lives 36 hours, then the link takes over.
+
+What it deliberately is not: **not a second gallery** (no ZIP, no clip, no full resolution, no link to hand
+on), **not an access control** (the `display` rendition is public already, so the host's switch governs what the
+product offers and promises, and says so), and **nothing kept on the server** (no row of who saved what).
+The route is the guest's own (`GET …/photos/:id/save`, cookie only, no signed address), refuses like a
+photograph that does not exist, and carries three bounds sized for a room that shares one address. The
+notice gains a clause the host's switch decides (a copy a guest saved cannot be taken back), so the
+revision moves with the switch.
 
 ---
 
@@ -1527,6 +1555,8 @@ nothing. Deterministic ids under `E2E_HOOKS` fixed it, and this point's green vi
 is what proved it.
 
 ### 9.6 Spoken captions — **Considered and declined**
+
+_Recording a voice message is a different thing, and was built: see [2.11](#211-voice-message-in-the-guestbook-p2-effort-l-risk-medium)._
 
 _Recorded in [#12](https://github.com/Irony42/EventSlide/pull/12). Not built, and this is the reasoning, kept so it is not rediscovered._
 

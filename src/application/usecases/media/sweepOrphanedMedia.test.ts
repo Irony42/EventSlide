@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { asEventId, asPhotoId, asReelId } from '../../../domain/shared/ids'
-import { AT, aClip, aClipJob, anEvent, aPhoto, atPlus } from '../../testing/builders'
+import { AT, aClip, aClipJob, anEvent, aPhoto, aVoiceEntry, atPlus } from '../../testing/builders'
 import type { ContentHasher } from '../../ports/contentHasher'
 import { CallLog } from '../../testing/callLog'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
+import { FakeGuestbookVoiceRepository } from '../../testing/fakeGuestbookVoiceRepository'
 import { FakeVideoTranscoder } from '../../testing/fakeVideoTranscoder'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makeTranscodeNextClip } from '../clips/transcodeNextClip'
@@ -57,6 +59,8 @@ describe('sweepOrphanedMedia', () => {
   let photos: FakePhotoRepository
   let clips: FakeClipJobRepository
   let reels: FakeReelRepository
+  let book: FakeGuestbookRepository
+  let voices: FakeGuestbookVoiceRepository
   let media: InMemoryMediaStore
   /** The store's own clock, so `modifiedAt` is a fact a test sets rather than wall time. */
   let written: FakeClock
@@ -70,6 +74,7 @@ describe('sweepOrphanedMedia', () => {
       photos,
       clips,
       reels,
+      voices,
       media,
       clock: now,
       logger,
@@ -82,6 +87,8 @@ describe('sweepOrphanedMedia', () => {
     photos = new FakePhotoRepository()
     clips = new FakeClipJobRepository()
     reels = new FakeReelRepository(photos)
+    book = new FakeGuestbookRepository()
+    voices = new FakeGuestbookVoiceRepository(book)
     written = new FakeClock(AT)
     media = new InMemoryMediaStore(written)
     // An hour after everything the tests write, so the freshness guard is off unless a
@@ -223,6 +230,7 @@ describe('sweepOrphanedMedia', () => {
         photos,
         clips,
         reels: racing,
+        voices,
         media,
         clock: now,
         logger,
@@ -507,6 +515,106 @@ describe('sweepOrphanedMedia', () => {
     })
   })
 
+  describe('a guestbook voice (spec 25)', () => {
+    const voice = (state: 'reserved' | 'queued' | 'running' | 'ready' | 'failed', id = 'v1') =>
+      aVoiceEntry({
+        id,
+        state,
+        eventId: 'event-1',
+        sourceHash: hexOf(`50${id.slice(1)}`),
+        audioHash: hexOf(`a0${id.slice(1)}`),
+      })
+
+    it.each(['reserved', 'queued', 'running'] as const)(
+      'never collects the source of a voice that is %s, however old: it is the only copy',
+      async (state) => {
+        book.seed(voice(state))
+        await media.put(EVENT, hashOf('501'), 'source', Uint8Array.of(1, 2))
+
+        const report = await sweep()
+
+        expect(report).toMatchObject({ scanned: 1, collected: 0 })
+        expect(await media.exists(EVENT, hashOf('501'), 'source')).toBe(true)
+      },
+    )
+
+    it('never collects the output of a ready voice, which the row names and nothing else does', async () => {
+      book.seed(voice('ready'))
+      await media.put(EVENT, hashOf('a01'), 'voice', Uint8Array.of(1, 2, 3))
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ collected: 0 })
+      expect(await media.exists(EVENT, hashOf('a01'), 'voice')).toBe(true)
+    })
+
+    it('collects the source a ready voice gave back, which no row names any more', async () => {
+      book.seed(voice('ready'))
+      await media.put(EVENT, hashOf('501'), 'source', Uint8Array.of(1, 2))
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ collected: 1, bytes: 2 })
+      expect(await media.exists(EVENT, hashOf('501'), 'source')).toBe(false)
+    })
+
+    it('collects the bytes of a voice that failed: its row names nothing', async () => {
+      book.seed(voice('failed'))
+      await media.put(EVENT, hashOf('501'), 'source', Uint8Array.of(1, 2))
+
+      expect((await sweep()).collected).toBe(1)
+    })
+
+    it('collects a recording no row names, once it is old enough', async () => {
+      await media.put(EVENT, hashOf('d0d0'), 'voice', Uint8Array.of(1, 2, 3, 4))
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ collected: 1, bytes: 4 })
+      expect(await media.exists(EVENT, hashOf('d0d0'), 'voice')).toBe(false)
+    })
+
+    it('asks again just before the unlink: a voice that names the digest in between survives', async () => {
+      await media.put(EVENT, hashOf('502'), 'source', Uint8Array.of(1))
+      const names = [new Set<string>(), new Set<string>([hashOf('502').value])]
+      let asked = 0
+      const racing = {
+        listReferencedDigests: async () =>
+          names[Math.min(asked++, names.length - 1)] ?? new Set<string>(),
+      }
+      sweep = makeSweepOrphanedMedia({
+        events,
+        photos,
+        clips,
+        reels,
+        voices: racing,
+        media,
+        clock: now,
+        logger,
+        policy: { minimumAgeMs: FIFTEEN_MINUTES, maxDigestsPerPass: 50_000 },
+      })
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ collected: 0 })
+      expect(await media.exists(EVENT, hashOf('502'), 'source')).toBe(true)
+    })
+
+    it('collects the recording that only another event’s voice names: the store is addressed by event, never shared', async () => {
+      book.seed(
+        aVoiceEntry({
+          id: 'v1',
+          state: 'ready',
+          eventId: 'event-2',
+          audioHash: hexOf('a01'),
+        }),
+      )
+      await media.put(EVENT, hashOf('a01'), 'voice', Uint8Array.of(1, 2, 3))
+
+      expect((await sweep()).collected).toBe(1)
+    })
+  })
+
 describe('what one pass costs', () => {
     it('asks the disk and the database only about the digests it is about to delete', async () => {
       // **The whole reason the bulk pass exists, and it is a performance guarantee rather
@@ -546,6 +654,36 @@ describe('what one pass costs', () => {
       expect(
         calls.sequenceOf('photos.findIdsReferencing', 'clips.findBySourceHash', 'media.stat'),
       ).toEqual(['photos.findIdsReferencing', 'clips.findBySourceHash', 'media.stat'])
+    })
+
+    it('asks the voices once for the event, and again only for the digest it is about to delete', async () => {
+      // A performance guarantee no outcome shows: a referenced recording that fell through the
+      // bulk set would still be spared by the per-digest question, at the price of one more query
+      // for every recording on every pass.
+      book.seed(aVoiceEntry({ id: 'v1', state: 'ready', eventId: 'event-1', audioHash: hexOf('a01') }))
+      book.seed(
+        aVoiceEntry({
+          id: 'v2',
+          state: 'ready',
+          eventId: 'event-1',
+          sourceHash: hexOf('502'),
+          audioHash: hexOf('a02'),
+        }),
+      )
+      await media.put(EVENT, hashOf('a01'), 'voice', Uint8Array.of(1))
+      await media.put(EVENT, hashOf('a02'), 'voice', Uint8Array.of(2))
+      await media.put(EVENT, hashOf('dd4'), 'voice', Uint8Array.of(4))
+      const calls = new CallLog()
+      voices = calls.watch('voices', voices)
+      build()
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ scanned: 3, collected: 1 })
+      expect(calls.sequenceOf('voices.listReferencedDigests')).toEqual([
+        'voices.listReferencedDigests',
+        'voices.listReferencedDigests',
+      ])
     })
 
     it('stops at its budget and says which events it did not reach', async () => {

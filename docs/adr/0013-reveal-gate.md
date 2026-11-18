@@ -93,4 +93,4 @@ Four designs were weighed.
 
 ## Related
 
-- Spec 23 (disposable camera); ROADMAP 2.11; docs/API.md (the reveal blocks, POST /events/:slug/reveal); docs/SECURITY.md section 26.
+- Spec 23 (disposable camera); ROADMAP 2.12; docs/API.md (the reveal blocks, POST /events/:slug/reveal); docs/SECURITY.md section 27.

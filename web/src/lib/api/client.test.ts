@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, createApi, type Api } from './client'
-import { ApiError, type Transport, type UploadProgress } from '../http'
+import { ApiError, type DownloadedFile, type Transport, type UploadProgress } from '../http'
 
 /**
  * One test per endpoint would be thirty-four near-identical tests, so this pins the
@@ -13,7 +13,7 @@ import { ApiError, type Transport, type UploadProgress } from '../http'
  * nobody asserts is a path that can drift.
  */
 
-type Verb = 'get' | 'post' | 'put' | 'patch' | 'del' | 'upload'
+type Verb = 'get' | 'post' | 'put' | 'patch' | 'del' | 'upload' | 'download'
 
 interface RecordedCall {
   readonly verb: Verb
@@ -75,6 +75,10 @@ const recorder: Transport = {
     })
     return reply as T
   },
+  download: async (path: string, signal?: AbortSignal): Promise<DownloadedFile> => {
+    calls.push({ verb: 'download', path, ...(signal ? { signal } : {}) })
+    return reply as DownloadedFile
+  },
 }
 
 const refuses = (error: ApiError): Transport => ({
@@ -84,6 +88,7 @@ const refuses = (error: ApiError): Transport => ({
   patch: () => Promise.reject(error),
   del: () => Promise.reject(error),
   upload: () => Promise.reject(error),
+  download: () => Promise.reject(error),
 })
 
 const only = (): RecordedCall => {
@@ -180,6 +185,15 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.writeGuestbookEntry(SLUG, 'Bravo'),
   },
   {
+    name: 'leaveVoiceMessage',
+    verb: 'upload',
+    path: `/api/events/${SLUG}/guestbook/voice`,
+    invoke: (client) =>
+      client.leaveVoiceMessage(SLUG, {
+        file: new File(['bytes'], 'message-vocal.webm', { type: 'audio/webm' }),
+      }),
+  },
+  {
     name: 'guestbookQueue',
     verb: 'get',
     path: `/api/events/${SLUG}/guestbook`,
@@ -190,6 +204,18 @@ const ENDPOINTS: readonly EndpointCase[] = [
     verb: 'patch',
     path: `/api/events/${SLUG}/guestbook/entry-1/status`,
     invoke: (client) => client.decideGuestbookEntry(SLUG, 'entry-1', 'publish'),
+  },
+  {
+    name: 'openGuestbookVoice',
+    verb: 'post',
+    path: `/api/events/${SLUG}/guestbook/voice/open`,
+    invoke: (client) => client.openGuestbookVoice(SLUG),
+  },
+  {
+    name: 'keepPendingVoices',
+    verb: 'post',
+    path: `/api/events/${SLUG}/guestbook/voice/keep-pending`,
+    invoke: (client) => client.keepPendingVoices(SLUG),
   },
   {
     name: 'deleteMyGuestbookEntry',
@@ -232,6 +258,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
     verb: 'del',
     path: `/api/events/${SLUG}/photos/${PHOTO}/reactions/love`,
     invoke: (client) => client.withdrawReaction(SLUG, PHOTO, 'love'),
+  },
+  {
+    name: 'savePhoto',
+    verb: 'download',
+    path: `/api/events/${SLUG}/photos/${PHOTO}/save`,
+    invoke: (client) => client.savePhoto(SLUG, PHOTO),
   },
   {
     name: 'reactions',
@@ -869,6 +901,7 @@ describe('every endpoint addresses the documented method and path', () => {
       'albumExportUrl',
       'albumUrl',
       'bestOfUrl',
+      'guestbookVoiceUrl',
       'moderationStreamUrl',
       'reelUrl',
       'streamUrl',
@@ -1228,6 +1261,39 @@ describe('the multipart upload', () => {
   })
 })
 
+describe('the voice message upload', () => {
+  const aRecording = (): File => new File(['bytes'], 'message-vocal.webm', { type: 'audio/webm' })
+
+  it('sends the recording under the voice field, the only one the route accepts', async () => {
+    // `photos` or `clip` here is `upload.unexpectedField` after a megabyte has gone up a venue's Wi-Fi.
+    await subject().leaveVoiceMessage(SLUG, { file: aRecording() })
+
+    const part = only().form?.get('voice')
+    expect(part instanceof File ? part.name : null).toBe('message-vocal.webm')
+    expect(only().form?.has('photos')).toBe(false)
+    expect(only().form?.has('clip')).toBe(false)
+  })
+
+  it('sends the caption ahead of the file, and nothing else about the recording', async () => {
+    // The route refuses any other part (`request.invalid`): a duration or a size the phone
+    // measured is not believed, so it is not sent.
+    await subject().leaveVoiceMessage(SLUG, { file: aRecording(), caption: 'Pour vous deux' })
+
+    const names = [...(only().form?.keys() ?? [])]
+    expect(names).toEqual(['caption', 'voice'])
+    expect(only().form?.get('caption')).toBe('Pour vous deux')
+  })
+
+  it.each([
+    ['null', null],
+    ['an empty line', ''],
+  ])('omits the caption for %s', async (_case, caption) => {
+    await subject().leaveVoiceMessage(SLUG, { file: aRecording(), caption })
+
+    expect(only().form?.has('caption')).toBe(false)
+  })
+})
+
 describe('the clip upload', () => {
   const aClip = (name: string): File => new File(['bytes'], name, { type: 'video/mp4' })
 
@@ -1353,6 +1419,15 @@ describe('links the app builds rather than requests', () => {
     // are different addresses.
     expect(subject().moderationStreamUrl(SLUG)).toBe(`/api/events/${SLUG}/moderation/stream`)
     expect(subject().moderationStreamUrl(SLUG)).not.toBe(subject().streamUrl(SLUG))
+  })
+
+  it('reads a voice message from its own route, scoped by event and escaped', () => {
+    expect(subject().guestbookVoiceUrl(SLUG, 'entry-1')).toBe(
+      `/api/events/${SLUG}/guestbook/entry-1/voice`,
+    )
+    expect(subject().guestbookVoiceUrl('gala/autre', 'a/b')).toBe(
+      '/api/events/gala%2Fautre/guestbook/a%2Fb/voice',
+    )
   })
 
   it.each([

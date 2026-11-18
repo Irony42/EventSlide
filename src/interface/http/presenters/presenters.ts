@@ -8,6 +8,7 @@ import { awaitsReveal, isRevealed } from '../../../domain/events/eventRevealSett
 import { acceptsGuests } from '../../../domain/events/eventStatus'
 import type { Guest } from '../../../domain/guests/guest'
 import type { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
+import type { GuestbookVoice } from '../../../domain/guestbook/guestbookVoice'
 import { GUESTBOOK_TEXT_MAX_LENGTH } from '../../../domain/guestbook/guestbookText'
 import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
@@ -25,6 +26,9 @@ import type {
   AlbumBookDto,
   AlbumExportDto,
   CreatedGuestbookEntryDto,
+  CreatedGuestbookVoiceDto,
+  GuestbookQueueVoiceDto,
+  GuestbookVoiceDto,
   GuestbookQueueItemDto,
   GuestbookEntryDto,
   CeilingMeterDto,
@@ -38,6 +42,7 @@ import type {
   ReelDto,
   EventDto,
   EventPurgeDto,
+  PurgeVoicesDto,
   EventSettingsDto,
   EventSummaryDto,
   EventBrandDto,
@@ -360,7 +365,13 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
   allowReactions: settings.allowReactions,
   allowClips: settings.allowClips,
   allowGuestbook: settings.allowGuestbook,
+  allowGuestSave: settings.allowGuestSave,
   guestbookOnWall: settings.guestbookOnWall,
+  guestbookVoice: {
+    enabled: settings.guestbookVoice.enabled,
+    sealed: settings.guestbookVoice.sealed,
+    opensAtMs: settings.guestbookVoice.opensAtMs,
+  },
   allowGuestSelfDelete: settings.allowGuestSelfDelete,
   guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
   retentionDays: settings.retentionDays,
@@ -450,10 +461,18 @@ export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => (
   ...(notice.operator === null ? {} : { operator: notice.operator }),
   // Present only when true, like the operator: a box without a guestbook answers what it always did.
   ...(notice.guestbook ? { guestbook: true as const } : {}),
+  // Present only when true, for the same reason: an event whose switch is off answers what it always did.
+  ...(notice.guestSave ? { guestSave: true as const } : {}),
   // Spec 23, the same way: present only when told, so an event without the mode answers what it always did.
   ...(notice.deferredReveal ? { reveal: true as const } : {}),
   ...(notice.shotLimit === null ? {} : { shotLimit: notice.shotLimit }),
   ...(notice.film ? { film: true as const } : {}),
+  // Voice (spec 25), present only when on, for the same reason: an event without it answers what it always did.
+  ...(notice.voice ? { voice: true as const } : {}),
+  ...(notice.voiceSealed ? { voiceSealed: true as const } : {}),
+  ...(notice.voiceRemovalSeconds === null
+    ? {}
+    : { voiceRemovalSeconds: notice.voiceRemovalSeconds }),
 })
 
 export const toPrivacyNoticeStateDto = ({
@@ -477,11 +496,17 @@ export const toEventSummaryDto = (summary: HostEventSummary): EventSummaryDto =>
   role: summary.role,
 })
 
+const toPurgeVoicesDto = ({ secret, pending }: EventPurgeView['voices']): PurgeVoicesDto => ({
+  secret,
+  pending,
+})
+
 /** The date the album will be deleted, as the host's page reads it (spec 22). */
 export const toEventPurgeDto = (purge: EventPurgeView, serverNowMs: number): EventPurgeDto => ({
   at: isoOrNull(purge.at),
   notice: purge.notice,
   offboarding: purge.offboarding,
+  voices: toPurgeVoicesDto(purge.voices),
   serverNowMs,
 })
 
@@ -969,6 +994,7 @@ export const toWallResponseDto = (
       volume: view.event.settings.wall.soundVolume,
     },
     reactionsEnabled: view.event.settings.allowReactions,
+    guestSaveEnabled: view.event.settings.allowGuestSave,
     missions: view.missions.map(toWallMissionDto),
     // Absent rather than empty: an older wall and a room with nothing to read look alike.
     ...(view.guestbook === null ? {} : { guestbook: toWallGuestbookDto(view.guestbook) }),
@@ -1358,16 +1384,41 @@ export const toPendingInvitationsDto = (
   invitations: readonly PendingInvitation[],
 ): PendingInvitationsDto => ({ items: invitations.map(toPendingInvitationDto) })
 
+/**
+ * A voice message's recording as its author reads it: the state, the **measured** duration and the
+ * line they wrote. Never a digest, a path or a size (spec 25): the phone has no use for them.
+ */
+const toGuestbookVoiceDto = (voice: GuestbookVoice | null): GuestbookVoiceDto | null =>
+  voice === null
+    ? null
+    : {
+        state: voice.state,
+        durationMs: voice.durationMs,
+        caption: voice.caption?.value ?? null,
+      }
+
+/** The same, for the host's console, with the size the card shows. Still no digest and no path. */
+const toGuestbookQueueVoiceDto = (voice: GuestbookVoice | null): GuestbookQueueVoiceDto | null =>
+  voice === null
+    ? null
+    : {
+        state: voice.state,
+        durationMs: voice.durationMs,
+        bytes: voice.audioByteSize,
+        caption: voice.caption?.value ?? null,
+      }
+
 /** A guest's own message: no author (it is theirs), and `canDelete` is the server's verdict. */
 export const toGuestbookEntryDto = (
   entry: GuestbookEntry,
   canDelete: boolean,
 ): GuestbookEntryDto => ({
   id: entry.id,
-  text: entry.text.value,
+  text: entry.text?.value ?? null,
   status: entry.status,
   createdAt: entry.createdAt.toISOString(),
   canDelete,
+  voice: toGuestbookVoiceDto(entry.voice),
 })
 
 /** The host's row: with the author's first name (or `null`) and the decisions that are legal now. */
@@ -1376,11 +1427,13 @@ export const toGuestbookQueueItemDto = (
   authorName: string | null,
 ): GuestbookQueueItemDto => ({
   id: entry.id,
-  text: entry.text.value,
+  text: entry.text?.value ?? null,
   authorName,
   status: entry.status,
   createdAt: entry.createdAt.toISOString(),
-  allowedDecisions: allowedDecisionsFrom(entry.status),
+  // The entity's answer, not the status machine's alone: a voice is never offered `hide`.
+  allowedDecisions: entry.allowedDecisions(),
+  voice: toGuestbookQueueVoiceDto(entry.voice),
 })
 
 /** The answer to writing one: what was stored and whether it was the same message again. */
@@ -1389,11 +1442,18 @@ export const toCreatedGuestbookEntryDto = (
   duplicate: boolean,
 ): CreatedGuestbookEntryDto => ({
   id: entry.id,
-  text: entry.text.value,
+  text: entry.text?.value ?? null,
   status: entry.status,
   createdAt: entry.createdAt.toISOString(),
   duplicate,
+  voice: toGuestbookVoiceDto(entry.voice),
 })
+
+/** What a voice message just sent answers: the entry, the recording `queued`, nothing heard yet. */
+export const toCreatedGuestbookVoiceDto = (
+  entry: GuestbookEntry,
+  duplicate: boolean,
+): CreatedGuestbookVoiceDto => ({ entry: toCreatedGuestbookEntryDto(entry, duplicate) })
 
 /** The one field list of the statistics page, so a field cannot reach the wire by accident. */
 export const toEventStatsDto = (stats: EventStats): EventStatsResponseDto => ({

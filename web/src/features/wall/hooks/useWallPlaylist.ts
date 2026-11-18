@@ -324,6 +324,7 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.sound?.tone === fresh.sound?.tone &&
   kept.sound?.volume === fresh.sound?.volume &&
   kept.reactionsEnabled === fresh.reactionsEnabled &&
+  kept.guestSaveEnabled === fresh.guestSaveEnabled &&
   kept.event.name === fresh.event.name &&
   kept.theme?.accentHue === fresh.theme?.accentHue &&
   kept.theme?.fonts === fresh.theme?.fonts &&

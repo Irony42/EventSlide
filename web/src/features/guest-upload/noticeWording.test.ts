@@ -6,7 +6,7 @@ import { fr } from '../../lib/i18n/fr'
 import { it as italian } from '../../lib/i18n/it'
 import { aPrivacyNotice } from '../../testing/renderWithProviders'
 import type { UiText } from '../../lib/i18n/translations'
-import { noticeSections, selfRemovalSentence } from './noticeWording'
+import { noticeSections, selfRemovalSentence, voiceRemovalSentence } from './noticeWording'
 
 /**
  * The notice's wording, as a pure function of what the server said. `fr` is the table
@@ -224,5 +224,160 @@ describe('noticeSections on a disposable-camera evening (spec 23, 23b point 3)',
     expect(sentences).toContain(table.reveal.noticeShots(5))
     expect(sentences).toContain(table.reveal.noticeFilm)
     expect(sentences).not.toContain(table.upload.noticePublication.immediate)
+  })
+})
+
+describe('noticeSections with saving on (spec 24)', () => {
+  const whoSees = (notice: ReturnType<typeof aPrivacyNotice>) =>
+    noticeSections(notice, fr)[1]?.sentences ?? []
+
+  it('says other guests can keep the photo, after the audiences, only when the server says so', () => {
+    const audiences = aPrivacyNotice().audiences.map(
+      (audience) => fr.upload.noticeAudiences[audience],
+    )
+
+    expect(whoSees(aPrivacyNotice({ guestSave: true }))).toEqual([
+      ...audiences,
+      fr.upload.noticeGuestSave,
+    ])
+  })
+
+  it('leaves an event without it exactly as it was', () => {
+    expect(JSON.stringify(noticeSections(aPrivacyNotice(), fr))).not.toContain(
+      fr.upload.noticeGuestSave,
+    )
+  })
+
+  it('says it with the guestbook’s sentences as well, in the same section', () => {
+    const sentences = whoSees(aPrivacyNotice({ guestSave: true, guestbook: true }))
+
+    expect(sentences).toContain(fr.upload.noticeGuestSave)
+    expect(sentences).toContain(fr.guestbook.noticeMessageAudience)
+  })
+
+  it.each([
+    ['en', en],
+    ['de', de],
+    ['es', es],
+    ['it', italian],
+  ])('has the sentence in %s, and not the French one', (_name, table) => {
+    const sentence = noticeSections(aPrivacyNotice({ guestSave: true }), table)[1]?.sentences.at(-1)
+
+    expect(sentence).toBe(table.upload.noticeGuestSave)
+    expect(sentence).not.toBe(fr.upload.noticeGuestSave)
+  })
+})
+
+describe('noticeSections with voice messages (spec 25)', () => {
+  const book = { guestbook: true as const }
+  const voice = { ...book, voice: true as const }
+  const copy = fr.guestbookVoice
+  const sentencesOf = (notice: ReturnType<typeof aPrivacyNotice>) =>
+    noticeSections(notice, fr).flatMap((section) => section.sentences)
+
+  it('leaves the notice of an event without voice messages exactly as it was', () => {
+    // An event that does not take them says nothing about them, and nobody is asked to read it again.
+    // The flags that qualify a voice (secret, a window) add nothing without `voice` itself.
+    const plain = noticeSections(aPrivacyNotice({ ...book }), fr)
+
+    expect(
+      noticeSections(aPrivacyNotice({ ...book, voiceSealed: true, voiceRemovalSeconds: 900 }), fr),
+    ).toEqual(plain)
+    const flagless = plain.flatMap((section) => section.sentences)
+    for (const sentence of [
+      copy.noticeVoiceAudience,
+      copy.noticeVoiceNeverRoom,
+      copy.noticeVoiceMicrophone,
+      copy.noticeVoiceSealed,
+      copy.noticeVoiceRemovalAskHost,
+    ]) {
+      expect(flagless).not.toContain(sentence)
+    }
+  })
+
+  it('says who hears it, that the room never does, and that the microphone only runs while recording', () => {
+    const [whatHappens, whoSees] = noticeSections(aPrivacyNotice({ ...voice }), fr)
+
+    expect(whoSees?.sentences).toContain(copy.noticeVoiceAudience)
+    expect(whoSees?.sentences).toContain(copy.noticeVoiceNeverRoom)
+    expect(whatHappens?.sentences).toContain(copy.noticeVoiceMicrophone)
+  })
+
+  it('says the organiser decides on a moderated event, and that nobody listens first on an automatic one', () => {
+    const manual = sentencesOf(aPrivacyNotice({ ...voice, publication: 'afterReview' }))
+    const auto = sentencesOf(aPrivacyNotice({ ...voice, publication: 'immediate' }))
+
+    expect(manual).toContain(copy.noticeVoicePublication.afterReview)
+    expect(manual).not.toContain(copy.noticeVoicePublication.immediate)
+    expect(auto).toContain(copy.noticeVoicePublication.immediate)
+    expect(auto).not.toContain(copy.noticeVoicePublication.afterReview)
+  })
+
+  it('says the voices stay secret only when the host keeps them so', () => {
+    expect(sentencesOf(aPrivacyNotice({ ...voice, voiceSealed: true }))).toContain(
+      copy.noticeVoiceSealed,
+    )
+    expect(sentencesOf(aPrivacyNotice({ ...voice }))).not.toContain(copy.noticeVoiceSealed)
+  })
+
+  it('says how long it is kept, with the days of the event when there are any', () => {
+    expect(sentencesOf(aPrivacyNotice({ ...voice, retentionDays: 30 }))).toContain(
+      copy.noticeVoiceRetentionDays(30),
+    )
+    expect(sentencesOf(aPrivacyNotice({ ...voice, retentionDays: null }))).toContain(
+      copy.noticeVoiceRetention,
+    )
+  })
+
+  it('says a guest may take it back for the window the server sent, and otherwise to ask the organiser', () => {
+    const withWindow = sentencesOf(aPrivacyNotice({ ...voice, voiceRemovalSeconds: 900 }))
+    const without = sentencesOf(aPrivacyNotice({ ...voice }))
+
+    expect(withWindow).toContain(copy.noticeVoiceRemovalMinutes(15))
+    expect(withWindow).not.toContain(copy.noticeVoiceRemovalAskHost)
+    expect(without).toContain(copy.noticeVoiceRemovalAskHost)
+  })
+
+  it('keeps its removal sentence in the removal section, before the guest’s own delete-everything line', () => {
+    const removal = noticeSections(aPrivacyNotice({ ...voice, voiceRemovalSeconds: 900 }), fr).at(
+      -1,
+    )
+
+    expect(removal?.sentences.at(-1)).toBe(
+      fr.upload.noticeErasure(fr.upload.eraseOpen, fr.upload.mine),
+    )
+    expect(removal?.sentences.at(-2)).toBe(copy.noticeVoiceRemovalMinutes(15))
+  })
+
+  it.each([
+    ['fr', fr],
+    ['en', en],
+    ['de', de],
+    ['es', es],
+    ['it', italian],
+  ])('words every clause of a voice notice in %s', (_locale, table) => {
+    const sentences = noticeSections(
+      aPrivacyNotice({ ...voice, voiceSealed: true, voiceRemovalSeconds: 900, retentionDays: 30 }),
+      table,
+    ).flatMap((section) => section.sentences)
+
+    expect(sentences).toContain(table.guestbookVoice.noticeVoiceAudience)
+    expect(sentences).toContain(table.guestbookVoice.noticeVoiceSealed)
+    expect(sentences).toContain(table.guestbookVoice.noticeVoiceRetentionDays(30))
+  })
+})
+
+describe('voiceRemovalSentence', () => {
+  it.each([
+    { seconds: 30, expected: fr.guestbookVoice.noticeVoiceRemovalSeconds(30) },
+    { seconds: 60, expected: fr.guestbookVoice.noticeVoiceRemovalMinutes(1) },
+    { seconds: 900, expected: fr.guestbookVoice.noticeVoiceRemovalMinutes(15) },
+    { seconds: 3_600, expected: fr.guestbookVoice.noticeVoiceRemovalHours(1) },
+  ])('says $seconds seconds in the unit a guest reads', ({ seconds, expected }) => {
+    expect(voiceRemovalSentence(seconds, fr)).toBe(expected)
+  })
+
+  it('rounds a window down, as a promise that overstates it stops working early', () => {
+    expect(voiceRemovalSentence(90, fr)).toBe(fr.guestbookVoice.noticeVoiceRemovalMinutes(1))
   })
 })

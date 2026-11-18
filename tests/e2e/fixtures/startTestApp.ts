@@ -43,6 +43,8 @@ export interface TestApp {
      * settings blob directly would be building state the application cannot.
      */
     wallLanguage?: EventLanguage
+    /** The preset the create form's "Modèle" picker sends, in the create body as the form does (the wedding turns voice on, spec 25). */
+    template?: 'wedding' | 'birthday' | 'conference' | 'party'
   }): Promise<SeededEvent>
   /**
    * Adds a photo mission to an already-seeded event, through the API exactly as the
@@ -371,10 +373,12 @@ export const startTestApp = async ({
     slug,
     name,
     wallLanguage,
+    template,
   }: {
     slug?: string
     name?: string
     wallLanguage?: EventLanguage
+    template?: 'wedding' | 'birthday' | 'conference' | 'party'
   }): Promise<SeededEvent> => {
     const api = await sessionOn(baseUrl)
 
@@ -403,6 +407,7 @@ export const startTestApp = async ({
           attempt === 1 ? (name ?? 'Camille & Sacha') : `${name ?? 'Camille & Sacha'} ${attempt}`,
         ...(slug === undefined ? {} : { slug: attempt === 1 ? slug : `${slug}-${attempt}` }),
         ...(wallLanguage === undefined ? {} : { wallLanguage }),
+        ...(template === undefined ? {} : { template }),
       })
       if (response.status === 409 && attempt < 25) return create(attempt + 1)
       return response

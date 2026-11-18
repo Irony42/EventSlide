@@ -175,6 +175,7 @@ export const eventRepositoryContract = (
             allowClips: false,
             // Both off their defaults (false and true), so a store that dropped one is caught.
             allowGuestbook: true,
+            allowGuestSave: false,
             guestbookOnWall: false,
             allowGuestSelfDelete: false,
             guestSelfDeleteGraceSeconds: 60,
@@ -200,6 +201,9 @@ export const eventRepositoryContract = (
             // Off the default (null) for the same reason.
             welcomeMessage: 'Bienvenue !',
             logo: logoDigest,
+            // Off the default in all three fields (spec 25): a store that dropped one of them
+            // would otherwise round-trip clean against the defaults.
+            guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_800_000_000_000 },
             // Off the default (null, null) so a store that dropped the group is caught (spec 13).
             wall: {
               layout: 'polaroid',
@@ -235,6 +239,7 @@ export const eventRepositoryContract = (
         allowReactions: false,
         allowClips: false,
         allowGuestbook: true,
+        allowGuestSave: false,
         guestbookOnWall: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
@@ -270,6 +275,7 @@ export const eventRepositoryContract = (
           soundTone: 'drop',
           soundVolume: 80,
         },
+        guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_800_000_000_000 },
       })
     })
 

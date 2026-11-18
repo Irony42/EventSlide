@@ -106,12 +106,15 @@ describe('getEventStats', () => {
     await stats.bump(EVENT, 'galleryViews', '2026-11-15', 4)
     await stats.bump(EVENT, 'galleryViews', '2026-11-14', 1)
     await stats.bump(EVENT, 'galleryArchiveDownloads', '2026-11-16', 2)
+    await stats.bump(EVENT, 'guestSaves', '2026-11-16', 3)
+    await stats.bump(EVENT, 'guestSaves', '2026-11-17', 4)
 
     const after = await read()
     expect(after.ok && after.value.engagement).toEqual({
       since: '2026-11-14',
       galleryViews: 5,
       galleryArchiveDownloads: 2,
+      guestSaves: 7,
     })
   })
 

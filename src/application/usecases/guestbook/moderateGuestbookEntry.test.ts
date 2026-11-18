@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Event } from '../../../domain/events/event'
 import type { PhotoActor } from '../../../domain/photos/photo'
-import { asEventId, asGuestId, asGuestbookEntryId, asUserId } from '../../../domain/shared/ids'
-import { aGuestbookEntry, anEvent, AT } from '../../testing/builders'
+import {
+  asEventId,
+  asGuestId,
+  asGuestbookEntryId,
+  asUserId,
+  type GuestbookEntryId,
+} from '../../../domain/shared/ids'
+import { aGuestbookEntry, aVoiceEntry, anEvent, AT } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
@@ -43,7 +49,7 @@ describe('moderateGuestbookEntry', () => {
 
   const run = (
     decision: 'publish' | 'hide' | 'reject',
-    overrides: { actor?: PhotoActor; eventId?: typeof EVENT; entryId?: typeof M1 } = {},
+    overrides: { actor?: PhotoActor; eventId?: typeof EVENT; entryId?: GuestbookEntryId } = {},
   ) => moderate({ eventId: EVENT, entryId: M1, decision, actor: moderator, ...overrides })
 
   const codeOf = async (promise: ReturnType<typeof run>): Promise<string | null> => {
@@ -123,5 +129,48 @@ describe('moderateGuestbookEntry', () => {
     events.seed(Event.restore({ ...anEvent({ id: 'event-1' }).toProps(), clientSuspendedAt: AT }))
 
     expect(await codeOf(run('publish'))).toBe('client.suspended')
+  })
+
+  describe('a voice message', () => {
+    beforeEach(() => {
+      guestbook.seed(aVoiceEntry({ id: 'm1', eventId: 'event-1', state: 'ready' }))
+    })
+
+    it('is published or refused like a written one', async () => {
+      expect((await run('publish')).ok).toBe(true)
+      expect((await guestbook.findById(EVENT, M1))?.status).toBe('published')
+      expect((await run('reject')).ok).toBe(true)
+      expect((await guestbook.findById(EVENT, M1))?.status).toBe('rejected')
+    })
+
+    it('is never hidden, which would change nothing on a screen and keep it in the album', async () => {
+      await run('publish')
+
+      expect(await codeOf(run('hide'))).toBe('guestbook.voiceCannotHide')
+      expect((await guestbook.findById(EVENT, M1))?.status).toBe('published')
+      expect(bus.published).toEqual([{ type: 'guestbook.voice', eventId: EVENT }])
+    })
+
+    it('is announced to the console alone, never as the signal every wall re-reads on', async () => {
+      await run('publish')
+
+      expect(bus.published.map((fact) => fact.type)).toEqual(['guestbook.voice'])
+      expect(bus.published.map((fact) => fact.type)).not.toContain('guestbook.changed')
+    })
+
+    it.each(['reserved', 'queued', 'running', 'failed'] as const)(
+      'cannot be decided while its recording is %s, and nothing is written or announced',
+      async (state) => {
+        guestbook.seed(
+          aVoiceEntry({ id: 'm2', eventId: 'event-1', state, sourceHash: 'c'.repeat(64) }),
+        )
+
+        const refusal = await codeOf(run('publish', { entryId: asGuestbookEntryId('m2') }))
+
+        expect(refusal).toBe('guestbook.voiceNotReady')
+        expect((await guestbook.findById(EVENT, asGuestbookEntryId('m2')))?.status).toBe('pending')
+        expect(bus.published).toEqual([])
+      },
+    )
   })
 })

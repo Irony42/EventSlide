@@ -133,6 +133,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
   deletePhoto: notWired('deletePhoto'),
   setPhotoCaption: notWired('setPhotoCaption'),
   getPhotoMedia: notWired('getPhotoMedia'),
+  saveGuestPhoto: notWired('saveGuestPhoto'),
   identifyMediaViewer: notWired('identifyMediaViewer'),
 
   uploadClip: notWired('uploadClip'),
@@ -170,6 +171,10 @@ export const notWiredUseCases = (): HttpUseCases => ({
   deleteGuestbookEntry: notWired('deleteGuestbookEntry'),
   listGuestbookQueue: notWired('listGuestbookQueue'),
   moderateGuestbookEntry: notWired('moderateGuestbookEntry'),
+  stageGuestbookVoice: notWired('stageGuestbookVoice'),
+  getGuestbookVoiceMedia: notWired('getGuestbookVoiceMedia'),
+  openGuestbookVoice: notWired('openGuestbookVoice'),
+  keepPendingGuestbookVoices: notWired('keepPendingGuestbookVoices'),
 
   createShareLink: notWired('createShareLink'),
   getShareLink: notWired('getShareLink'),

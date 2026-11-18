@@ -997,6 +997,40 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 
 ## Upgrading to 3.14 (not released yet)
 
+### The guestbook's voice messages: the server side (spec 25)
+
+- **One migration (032)**: a new table, `guestbook_voices` (one row per voice message, removed with its entry), with its
+  indexes. Nothing existing is rewritten. Back up first, as for any upgrade: the migration only goes forward.
+- **Three settings, all optional**: `GUESTBOOK_VOICE_ENABLED` (`true`; `false` turns voice messages off for the whole box,
+  read at boot), `MAX_VOICE_SECONDS` (60, 10 to 180) and `MAX_VOICE_BYTES` (4 000 000, one upload). A message is stored as
+  AAC mono in an MP4, made by the same `ffmpeg` as the clips: **a box with no `ffmpeg` offers no voice message and its
+  `/api/ready` is unchanged**, as for video.
+- **Off on every existing event**: `guestbookVoice.enabled` reads off for an event created before this version,
+  so an upgrade opens no microphone on a room whose host was never asked, and does not change the privacy notice
+  its guests have read. The **Mariage** template turns it on for the events created from it, and the host switches
+  it from the settings page ("Messages vocaux"), where an address that is not https is flagged. Turning it on
+  makes each guest read the notice once more before their next send, so turn it on before the evening.
+- **Needs https and a microphone the browser grants.** A box served over plain `http://` on a local network offers
+  no microphone: the button is absent and the guestbook stays as it was (`docs/INSTALL.md`). The response header
+  `Permissions-Policy` now says `microphone=(self)` on the guest's pages and `microphone=()` on the console, the
+  wall and the API: a reverse proxy that sets this header itself must not overwrite it with a blanket `microphone=()`.
+- The disk a voice message occupies (a few hundred kilobytes a minute) is counted in the event's quota like a
+  photograph, and the archive, the erasure and the purge carry it (`docs/OPERATING.md`).
+
+### Guests save photographs from the feed (spec 24)
+
+- **No migration.** The setting lives in the event's settings (`allowGuestSave`).
+- **Off on existing events, on for new ones.** An event created before this version
+  reads `allowGuestSave` as **off**, so an upgrade changes neither what a running event does nor the notice its
+  guests have already read; a new event is created with it **on**, except from the "Conférence" template. The host
+  switches it on or off from the settings page. Switching it, either way, makes each guest read the privacy
+  notice once more before their next photograph.
+- **A new guest route**, `GET /api/events/:slug/photos/:photoId/save`, and three additive fields (`guestSaveEnabled` on
+  `GET /wall`, `allowGuestSave` in the event's settings, `guestSave` in the privacy notice, present only when true). A
+  phone or a wall left open across the upgrade ignores them until it is reloaded. **Nothing to set in `.env`**: the limits
+  of the route are constants (see [OPERATING.md](OPERATING.md#guests-saving-photographs)).
+- **The upgrade changes the revision of the notice only where the switch is on**, which is no event that already existed.
+
 ### Export before the purge: the date, the warning, the manifest (spec 22)
 
 - **One migration (030)**: a new table, `event_purge_notices` (one row per event: the last warning threshold sent, and when),

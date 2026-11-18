@@ -57,6 +57,7 @@ const world = (): World => {
               guestbook,
               guests: base.guests,
               memberships,
+              clock,
             }),
             moderateGuestbookEntry: makeModerateGuestbookEntry({
               events,
@@ -133,8 +134,16 @@ describe('GET /api/events/:eventSlug/guestbook', () => {
       status: 'pending',
       createdAt: AT.toISOString(),
       allowedDecisions: ['publish', 'reject'],
+      voice: null,
     })
     expect(response.body.pendingCount).toBe(2)
+    // A book with no voice message says so, in every field a console reads.
+    expect(response.body).toMatchObject({
+      voiceProcessing: 0,
+      voiceSealed: false,
+      voiceOpensAtMs: null,
+      serverNowMs: AT.getTime(),
+    })
   })
 
   it('never carries a guest id, whatever the row', async () => {

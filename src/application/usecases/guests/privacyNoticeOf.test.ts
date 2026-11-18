@@ -67,9 +67,61 @@ describe('privacyNoticeOf', () => {
       aClient({ id: 'client-1', ceilings: { maxRetentionDays: 30 } }),
     )
     const event = anEvent({ clientId: 'client-1', settings: { allowGuestbook: true } })
+    // Seeded through the repository that knows its client, or the fake finds no ceilings and this
+    // would take the uncapped path it claims to differ from.
+    new FakeEventRepository({ clients }).seed(event)
 
     expect((await privacyNoticeOf(clients, event, null)).guestbook).toBe(true)
   })
+
+  it.each([true, false])(
+    'carries the guests save switch (%s) through both paths, with and without a ceiling',
+    async (allowGuestSave) => {
+      const clients = new FakeClientRepository().seed(
+        aClient({ id: 'client-1', ceilings: { maxRetentionDays: 30 } }),
+      )
+      const capped = anEvent({
+        id: 'event-capped',
+        clientId: 'client-1',
+        settings: { allowGuestSave },
+      })
+      new FakeEventRepository({ clients }).seed(capped)
+      const free = anEvent({ settings: { allowGuestSave } })
+
+      expect((await privacyNoticeOf(clients, capped, null)).guestSave).toBe(allowGuestSave)
+      expect((await privacyNoticeOf(new FakeClientRepository(), free, null)).guestSave).toBe(
+        allowGuestSave,
+      )
+    },
+  )
+
+  it.each([
+    [true, true, true],
+    [true, false, false],
+    [false, true, false],
+  ])(
+    'carries voice (guestbook %s, switch %s: %s) and a sealed book through both paths',
+    async (allowGuestbook, enabled, expected) => {
+      // The event is seeded through the repository that knows its client: without it the fake finds
+      // no ceilings and the "capped" event would take the uncapped path, which proves nothing.
+      const clients = new FakeClientRepository().seed(
+        aClient({ id: 'client-1', ceilings: { maxRetentionDays: 30 } }),
+      )
+      const settings = { allowGuestbook, guestbookVoice: { enabled, sealed: true } }
+      const capped = anEvent({ id: 'event-capped', clientId: 'client-1', settings })
+      new FakeEventRepository({ clients }).seed(capped)
+      const free = anEvent({ settings })
+
+      for (const notice of [
+        await privacyNoticeOf(clients, capped, null),
+        await privacyNoticeOf(new FakeClientRepository(), free, null),
+      ]) {
+        expect(notice.voice).toBe(expected)
+        expect(notice.voiceSealed).toBe(expected)
+        expect(notice.revision.includes('voiceSealed=on')).toBe(expected)
+      }
+    },
+  )
 
   it('gives a different revision when the ceiling changes what is promised, so guests are asked again', async () => {
     const lowered = world({ maxRetentionDays: 14 }, null)

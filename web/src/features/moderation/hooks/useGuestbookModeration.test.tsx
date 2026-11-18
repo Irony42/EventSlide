@@ -8,6 +8,8 @@ import { SIGNAL_DEBOUNCE_MS, useGuestbookModeration } from './useGuestbookModera
 import { deferred } from '../../../testing/deferred'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
+import type { GuestbookQueueDto } from '../../../lib/api/dto'
+import { QUIET_VOICE_BOOK } from '../../../testing/guestbookVoiceFixtures'
 import type { GuestbookQueueItemDto } from '../../../lib/api/dto'
 import type { GuestbookModerationOptions } from './useGuestbookModeration'
 
@@ -20,10 +22,15 @@ const aMessage = (overrides: Partial<GuestbookQueueItemDto> = {}): GuestbookQueu
   status: 'pending',
   createdAt: '2026-11-04T20:00:00.000Z',
   allowedDecisions: ['publish', 'reject'],
+  voice: null,
   ...overrides,
 })
 
-const oneMessage = vi.fn(async () => ({ items: [aMessage()], pendingCount: 1 }))
+const oneMessage = vi.fn(async () => ({
+  items: [aMessage()],
+  pendingCount: 1,
+  ...QUIET_VOICE_BOOK,
+}))
 
 const mount = (api: Api, options: GuestbookModerationOptions = { active: true }) => {
   const wrapper = ({ children }: { readonly children: ReactNode }) => (
@@ -54,7 +61,11 @@ describe('useGuestbookModeration', () => {
 
   it('reads only the badge, with limit 1, while its tab is not the active one', async () => {
     const api = fakeApi({
-      guestbookQueue: vi.fn(async () => ({ items: [aMessage()], pendingCount: 4 })),
+      guestbookQueue: vi.fn(async () => ({
+        items: [aMessage()],
+        pendingCount: 4,
+        ...QUIET_VOICE_BOOK,
+      })),
     })
     const { result } = mount(api, { active: false })
     await waitFor(() => expect(result.current.pendingCount).toBe(4))
@@ -99,7 +110,7 @@ describe('useGuestbookModeration', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const guestbookQueue = vi
       .fn()
-      .mockResolvedValueOnce({ items: [aMessage()], pendingCount: 1 })
+      .mockResolvedValueOnce({ items: [aMessage()], pendingCount: 1, ...QUIET_VOICE_BOOK })
       .mockRejectedValue(new ApiError(500, 'unknown'))
     const { result } = mount(fakeApi({ guestbookQueue }))
     await waitFor(() => expect(result.current.items).toHaveLength(1))
@@ -198,7 +209,7 @@ describe('useGuestbookModeration', () => {
       guestbookQueue: vi.fn(async () => {
         reads += 1
         if (reads > 1) throw new ApiError(503, 'unavailable')
-        return { items: [aMessage()], pendingCount: 1 }
+        return { items: [aMessage()], pendingCount: 1, ...QUIET_VOICE_BOOK }
       }),
       decideGuestbookEntry: vi.fn(async () => {
         throw new ApiError(503, 'unavailable')
@@ -224,6 +235,7 @@ describe('useGuestbookModeration', () => {
         return {
           items: [aMessage({ id: 'm1' }), aMessage({ id: 'm2' }), aMessage({ id: 'm3' })],
           pendingCount: 3,
+          ...QUIET_VOICE_BOOK,
         }
       }),
       decideGuestbookEntry: vi.fn(async () => {
@@ -253,13 +265,13 @@ describe('useGuestbookModeration', () => {
 
   it('does not restart a read that is in flight when a signal arrives', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
-    const first = deferred<{ items: GuestbookQueueItemDto[]; pendingCount: number }>()
+    const first = deferred<GuestbookQueueDto>()
     const calls: AbortSignal[] = []
     const api = fakeApi({
       guestbookQueue: vi.fn(async (_slug: string, signal?: AbortSignal) => {
         calls.push(signal ?? new AbortController().signal)
         if (calls.length === 1) return first.promise
-        return { items: [aMessage()], pendingCount: 1 }
+        return { items: [aMessage()], pendingCount: 1, ...QUIET_VOICE_BOOK }
       }),
     })
     const { result } = mount(api)
@@ -273,7 +285,7 @@ describe('useGuestbookModeration', () => {
     expect(calls[0]?.aborted).toBe(false)
 
     await act(async () => {
-      first.resolve({ items: [aMessage()], pendingCount: 1 })
+      first.resolve({ items: [aMessage()], pendingCount: 1, ...QUIET_VOICE_BOOK })
       await vi.advanceTimersByTimeAsync(SIGNAL_DEBOUNCE_MS)
     })
     // One replay once it has answered.
@@ -287,7 +299,7 @@ describe('useGuestbookModeration', () => {
       guestbookQueue: vi.fn(async () => {
         reads += 1
         if (reads === 2) throw new ApiError(503, 'unavailable')
-        return { items: [aMessage()], pendingCount: 1 }
+        return { items: [aMessage()], pendingCount: 1, ...QUIET_VOICE_BOOK }
       }),
     })
     const { result } = mount(api)

@@ -15,6 +15,7 @@ import {
 import { makeGetEventBySlug } from '../../../application/usecases/events/getEventBySlug'
 import { makeGetEventLimits } from '../../../application/usecases/events/getEventLimits'
 import { makeGetEventView } from '../../../application/usecases/events/getEventView'
+import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
 import { makeListEventsForHost } from '../../../application/usecases/events/listEventsForHost'
 import { makeListModerators } from '../../../application/usecases/events/listModerators'
 import { makePurgeEvent } from '../../../application/usecases/events/purgeEvent'
@@ -297,6 +298,7 @@ const buildWorld = ({
           clock: deps.clock,
           clients,
           notices: new FakePurgeNoticeLedger(),
+          guestbook: new FakeGuestbookRepository(),
           capNoticeDays: 30,
           getEventLimits: makeGetEventLimits({ clients }),
         }),
@@ -355,6 +357,7 @@ const buildWorld = ({
         deletePhoto: absent('deletePhoto'),
         setPhotoCaption: absent('setPhotoCaption'),
         getPhotoMedia: absent('getPhotoMedia'),
+        saveGuestPhoto: absent('saveGuestPhoto'),
         uploadClip: absent('uploadClip'),
         getClipJob: absent('getClipJob'),
         exportAlbum: absent('exportAlbum'),
@@ -389,6 +392,10 @@ const buildWorld = ({
         deleteGuestbookEntry: absent('deleteGuestbookEntry'),
         listGuestbookQueue: absent('listGuestbookQueue'),
         moderateGuestbookEntry: absent('moderateGuestbookEntry'),
+        stageGuestbookVoice: absent('stageGuestbookVoice'),
+        getGuestbookVoiceMedia: absent('getGuestbookVoiceMedia'),
+        openGuestbookVoice: absent('openGuestbookVoice'),
+        keepPendingGuestbookVoices: absent('keepPendingGuestbookVoices'),
 
         createShareLink: absent('createShareLink'),
         getShareLink: absent('getShareLink'),
@@ -729,6 +736,17 @@ const INVALID_INPUTS: readonly InputCase[] = [
   {
     name: 'PATCH /events/:slug/settings with a retention out of range',
     call: (client) => client.patch(`/api/events/${SLUG}/settings`).send({ retentionDays: 0 }),
+  },
+  {
+    // The group is strict, like `wall`: a key outside it is a typo the host would otherwise never hear about.
+    name: 'PATCH /events/:slug/settings with a key outside the guestbookVoice group',
+    call: (client) =>
+      client.patch(`/api/events/${SLUG}/settings`).send({ guestbookVoice: { loud: true } }),
+  },
+  {
+    name: 'PATCH /events/:slug/settings with a non-boolean guestbookVoice.enabled',
+    call: (client) =>
+      client.patch(`/api/events/${SLUG}/settings`).send({ guestbookVoice: { enabled: 'oui' } }),
   },
   {
     name: 'POST /events/:slug/status with a status outside the enum',
@@ -1100,8 +1118,17 @@ describe('the host event routes', () => {
     })
 
     it.each([
-      ['wedding', { moderation: 'manual', retentionDays: 365, guestSelfDeleteGraceSeconds: 3_600 }],
-      ['birthday', { moderation: 'auto', retentionDays: 90 }],
+      [
+        'wedding',
+        {
+          moderation: 'manual',
+          retentionDays: 365,
+          guestSelfDeleteGraceSeconds: 3_600,
+          // Voice on and nothing else of the group (spec 25): the secret is the couple's own choice.
+          guestbookVoice: { enabled: true, sealed: false, opensAtMs: null },
+        },
+      ],
+      ['birthday', { moderation: 'auto', retentionDays: 90, guestbookVoice: { enabled: false } }],
       ['conference', { retentionDays: 30, allowClips: false, maxPhotosPerGuest: 25 }],
       ['party', { moderation: 'auto', retentionDays: 30 }],
       [
@@ -1253,6 +1280,7 @@ describe('the host event routes', () => {
           at: new Date(AT.getTime() + 30 * 86_400_000).toISOString(),
           notice: null,
           offboarding: false,
+          voices: { secret: 0, pending: 0 },
           serverNowMs: AT.getTime(),
         })
       })
@@ -1276,6 +1304,7 @@ describe('the host event routes', () => {
           at: null,
           notice: null,
           offboarding: false,
+          voices: { secret: 0, pending: 0 },
           serverNowMs: AT.getTime(),
         })
       })
@@ -1292,6 +1321,7 @@ describe('the host event routes', () => {
           'notice',
           'offboarding',
           'serverNowMs',
+          'voices',
         ])
         expect(response.body.purge.at).not.toBeNull()
         expect(JSON.stringify(response.body)).not.toMatch(/held|hold/i)
@@ -1525,6 +1555,102 @@ describe('the host event routes', () => {
       })
     })
 
+    it('persists allowGuestSave, which the route forwards field by field (spec 24)', async () => {
+      // The route lists the fields it passes on; one left out is ignored without an error.
+      const agent = await signedIn(world, 'owner')
+
+      const patched = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ allowGuestSave: false })
+      const read = await agent.get(`/api/events/${SLUG}`)
+
+      expect(patched.status).toBe(200)
+      expect(patched.body.settings.allowGuestSave).toBe(false)
+      expect(read.body.settings.allowGuestSave).toBe(false)
+    })
+
+    it('refuses a non-boolean allowGuestSave', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ allowGuestSave: 'oui' })
+
+      expect(response.status).toBe(400)
+    })
+
+    describe('guestbookVoice (spec 25)', () => {
+      const patch = (agent: Agent, guestbookVoice: unknown) =>
+        agent.patch(`/api/events/${SLUG}/settings`).send({ guestbookVoice })
+
+      it('answers the group off, not sealed and with no opening time on an event that never set it', async () => {
+        const agent = await signedIn(world, 'owner')
+
+        const read = await agent.get(`/api/events/${SLUG}`)
+
+        expect(read.body.settings.guestbookVoice).toEqual({
+          enabled: false,
+          sealed: false,
+          opensAtMs: null,
+        })
+      })
+
+      it('merges the group key by key, so one choice never erases the other', async () => {
+        // The switch and the "open now" button write at different moments, each sending only what it
+        // changed. Replacing the group whole would let the second erase the first.
+        const agent = await signedIn(world, 'owner')
+
+        await patch(agent, { enabled: true, opensAtMs: AT.getTime() + 3_600_000 })
+        const response = await patch(agent, { sealed: true })
+
+        expect(response.status).toBe(200)
+        expect(response.body.settings.guestbookVoice).toEqual({
+          enabled: true,
+          sealed: true,
+          opensAtMs: AT.getTime() + 3_600_000,
+        })
+        const read = await agent.get(`/api/events/${SLUG}`)
+        expect(read.body.settings.guestbookVoice).toEqual(response.body.settings.guestbookVoice)
+      })
+
+      it('moves an opening time that is still in the future, and clears it', async () => {
+        const agent = await signedIn(world, 'owner')
+        await patch(agent, { sealed: true, opensAtMs: AT.getTime() + 3_600_000 })
+
+        const later = await patch(agent, { opensAtMs: AT.getTime() + 7_200_000 })
+        const cleared = await patch(agent, { opensAtMs: null })
+
+        expect(later.body.settings.guestbookVoice.opensAtMs).toBe(AT.getTime() + 7_200_000)
+        expect(cleared.status).toBe(200)
+        expect(cleared.body.settings.guestbookVoice.opensAtMs).toBeNull()
+      })
+
+      it('refuses to move an opening time that has passed into the future: the secret is lifted for good', async () => {
+        const agent = await signedIn(world, 'owner')
+        await patch(agent, { sealed: true, opensAtMs: AT.getTime() - 60_000 })
+
+        const toFuture = await patch(agent, { opensAtMs: AT.getTime() + 3_600_000 })
+        const cleared = await patch(agent, { opensAtMs: null })
+
+        expect(toFuture.status).toBe(409)
+        expect(toFuture.body.error.code).toBe('eventSettings.voiceOpenDone')
+        expect(cleared.status).toBe(409)
+        const read = await agent.get(`/api/events/${SLUG}`)
+        expect(read.body.settings.guestbookVoice.opensAtMs).toBe(AT.getTime() - 60_000)
+      })
+
+      it('leaves the group alone when a patch does not name it', async () => {
+        const agent = await signedIn(world, 'owner')
+        await patch(agent, { enabled: true })
+
+        const response = await agent
+          .patch(`/api/events/${SLUG}/settings`)
+          .send({ moderation: 'auto' })
+
+        expect(response.body.settings.guestbookVoice.enabled).toBe(true)
+      })
+    })
+
     it('merges the wall group key by key, never replacing it whole (spec 13)', async () => {
       const agent = await signedIn(world, 'owner')
 
@@ -1673,7 +1799,9 @@ describe('the host event routes', () => {
         allowReactions: false,
         allowClips: false,
         allowGuestbook: true,
+        allowGuestSave: false,
         guestbookOnWall: false,
+        guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_900_000_000_000 },
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
@@ -1695,7 +1823,9 @@ describe('the host event routes', () => {
         allowReactions: false,
         allowClips: false,
         allowGuestbook: true,
+        allowGuestSave: false,
         guestbookOnWall: false,
+        guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_900_000_000_000 },
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,

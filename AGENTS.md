@@ -138,3 +138,6 @@ npm run test:e2e   # Playwright journeys (needs `npx playwright install` once; o
 - [ ] `npm run verify` green, output read.
 - [ ] No new untokenised style value, no new `any`, no new `process.env` read.
 - [ ] `docs/API.md` updated if the HTTP contract moved.
+- [ ] A new environment variable is named in the unreleased `## Upgrading to 3.x` section of
+      `docs/UPGRADING.md`, besides `schema.ts`, `load.ts` and `.env.example`: only
+      `scripts/upgradingDocs.test.ts` checks it, so only `npm run verify` goes red without it.

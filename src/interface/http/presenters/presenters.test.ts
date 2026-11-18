@@ -5,7 +5,11 @@ import {
   toClientAuditPageDto,
   toEventDto,
   toEventBrandDto,
+  toCreatedGuestbookEntryDto,
+  toCreatedGuestbookVoiceDto,
   toEventSettingsDto,
+  toGuestbookEntryDto,
+  toGuestbookQueueItemDto,
   toGuestDto,
   toGuestPhotoDto,
   toInvitationAcceptedDto,
@@ -20,7 +24,14 @@ import {
   venueGroundUrl,
 } from './presenters'
 import type { AuditRecord } from '../../../application/ports/auditLog'
-import { AT, aGuest, aPhoto, anEvent } from '../../../application/testing/builders'
+import {
+  AT,
+  aGuest,
+  aGuestbookEntry,
+  aPhoto,
+  aVoiceEntry,
+  anEvent,
+} from '../../../application/testing/builders'
 import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
 import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
 import { ContentHash } from '../../../domain/photos/contentHash'
@@ -262,7 +273,7 @@ describe('toEventDto', () => {
     limits: { quotaBytes: 5_000_000_000, liveWindowEnd: null },
     now: AT,
     readyCount: null,
-    purge: { at: null, notice: null, offboarding: false },
+    purge: { at: null, notice: null, offboarding: false, voices: { secret: 0, pending: 0 } },
   }
 
   it('gives a host the join code and the link behind the QR code', () => {
@@ -335,14 +346,32 @@ describe('toEventDto', () => {
   it('says when the album will be deleted and which warning was last sent, for the host only', () => {
     const at = new Date('2026-12-12T10:00:00.000Z')
 
-    const dto = toEventDto({ ...input, purge: { at, notice: 3, offboarding: true } }, context)
+    const dto = toEventDto(
+      { ...input, purge: { at, notice: 3, offboarding: true, voices: { secret: 0, pending: 0 } } },
+      context,
+    )
 
     expect(dto.purge).toEqual({
       at: '2026-12-12T10:00:00.000Z',
       notice: 3,
       offboarding: true,
+      voices: { secret: 0, pending: 0 },
       serverNowMs: AT.getTime(),
     })
+  })
+
+  it('carries the voice messages the purge would take unheard or undecided, as plain numbers (spec 25)', () => {
+    const at = new Date('2026-12-12T10:00:00.000Z')
+
+    const dto = toEventDto(
+      {
+        ...input,
+        purge: { at, notice: null, offboarding: false, voices: { secret: 2, pending: 37 } },
+      },
+      context,
+    )
+
+    expect(dto.purge?.voices).toEqual({ secret: 2, pending: 37 })
   })
 
   it('renders an album that is not on a clock as a null date, not as a missing key', () => {
@@ -352,6 +381,7 @@ describe('toEventDto', () => {
       at: null,
       notice: null,
       offboarding: false,
+      voices: { secret: 0, pending: 0 },
       serverNowMs: AT.getTime(),
     })
   })
@@ -394,7 +424,9 @@ describe('toEventSettingsDto', () => {
         allowReactions: true,
         allowClips: false,
         allowGuestbook: true,
+        allowGuestSave: false,
         guestbookOnWall: false,
+        guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_700_000_000_000 },
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 30,
@@ -431,7 +463,9 @@ describe('toEventSettingsDto', () => {
       allowReactions: true,
       allowClips: false,
       allowGuestbook: true,
+      allowGuestSave: false,
       guestbookOnWall: false,
+      guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_700_000_000_000 },
       allowGuestSelfDelete: false,
       guestSelfDeleteGraceSeconds: 60,
       retentionDays: 30,
@@ -823,5 +857,74 @@ describe('a per-file upload refusal', () => {
       status: 'rejected',
       code: 'image.renderUnavailable',
     })
+  })
+})
+
+describe('the guestbook DTOs and a voice message (spec 25)', () => {
+  const written = aGuestbookEntry({ id: 'w1', text: 'Merci pour tout', createdAt: AT })
+  const voice = aVoiceEntry({ id: 'v1', state: 'ready', caption: 'Pour Camille', createdAt: AT })
+
+  it('carries the words of a written message, as it always did', () => {
+    expect(toGuestbookEntryDto(written, true)).toEqual({
+      id: 'w1',
+      text: 'Merci pour tout',
+      status: 'pending',
+      createdAt: AT.toISOString(),
+      canDelete: true,
+      voice: null,
+    })
+    expect(toGuestbookQueueItemDto(written, 'Léa').text).toBe('Merci pour tout')
+    expect(toGuestbookQueueItemDto(written, 'Léa').voice).toBeNull()
+    expect(toCreatedGuestbookEntryDto(written, false).voice).toBeNull()
+    expect(toCreatedGuestbookEntryDto(written, false).text).toBe('Merci pour tout')
+  })
+
+  it('says null where a voice message has no words, on the guest’s row, the host’s and the answer', () => {
+    expect(toGuestbookEntryDto(voice, false).text).toBeNull()
+    expect(toGuestbookQueueItemDto(voice, null).text).toBeNull()
+    expect(toCreatedGuestbookEntryDto(voice, true).text).toBeNull()
+  })
+
+  it('carries the state, the measured duration and the caption in the declared voice field, and nowhere else', () => {
+    const mine = toGuestbookEntryDto(voice, false)
+    const queued = toGuestbookQueueItemDto(voice, 'Léa')
+
+    expect(mine.voice).toEqual({ state: 'ready', durationMs: 12_000, caption: 'Pour Camille' })
+    expect(queued.voice).toEqual({
+      state: 'ready',
+      durationMs: 12_000,
+      bytes: 240_000,
+      caption: 'Pour Camille',
+    })
+    expect(toCreatedGuestbookEntryDto(voice, false).voice).toEqual(mine.voice)
+    expect(JSON.stringify({ ...mine, voice: null })).not.toContain('Pour Camille')
+  })
+
+  it('never leaks a digest, a path or the file into the wire, whatever the audience', () => {
+    const wire = JSON.stringify([
+      toGuestbookEntryDto(voice, false),
+      toGuestbookQueueItemDto(voice, 'Léa'),
+      toCreatedGuestbookEntryDto(voice, false),
+      toCreatedGuestbookVoiceDto(voice, false),
+    ])
+
+    expect(wire).not.toContain(voice.voice?.sourceHash.value ?? 'x')
+    expect(wire).not.toContain(voice.voice?.audioHash?.value ?? 'x')
+    expect(wire).not.toContain('Hash')
+    expect(wire).not.toContain('audio')
+  })
+
+  it('wraps what a voice upload answers in an entry, the duplicate flag inside it', () => {
+    expect(toCreatedGuestbookVoiceDto(voice, true)).toEqual({
+      entry: toCreatedGuestbookEntryDto(voice, true),
+    })
+    expect(toCreatedGuestbookVoiceDto(voice, true).entry.duplicate).toBe(true)
+  })
+
+  it('offers a voice every decision but hide, and a written message the status machine’s', () => {
+    expect(toGuestbookQueueItemDto(voice, 'Léa').allowedDecisions).toEqual(['publish', 'reject'])
+    expect(toGuestbookQueueItemDto(written, 'Léa').allowedDecisions).toEqual(['publish', 'reject'])
+    const published = aVoiceEntry({ id: 'v2', state: 'ready', moderation: 'auto' })
+    expect(toGuestbookQueueItemDto(published, 'Léa').allowedDecisions).toEqual(['reject'])
   })
 })

@@ -270,6 +270,66 @@ export const GUESTBOOK_WRITES_PER_GUEST_PER_MINUTE = 6
 export const guestbookGuestLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'rate.limited', guestKey)
 
+// ------------------------------------------------------------ saving from the feed --
+
+/**
+ * How many photographs one **guest** may save per minute (spec 24, section 5.4).
+ *
+ * A constant and not a setting, like {@link GUESTBOOK_WRITES_PER_GUEST_PER_MINUTE}: no variable to
+ * document, and sized by what a person does (one share sheet per photograph, a batch of ten
+ * and retries after a bad connection) with room to spare, against a loop that wants hundreds.
+ * **Not measured**: the figure is a starting value and `docs/OPERATING.md` says so.
+ */
+export const SAVES_PER_GUEST_PER_MINUTE = 40
+
+/**
+ * How many saves one address **and** event may make per minute, whoever the guests behind it are.
+ *
+ * A venue shares one address, so this sits far above what a room does (a hundred guests at ten
+ * photographs each in a minute is the pessimistic evening) and below what a script does; at about
+ * 1 MB a photograph it caps the worst minute of a box at roughly 600 MB. The first stage, ahead of
+ * `requireGuest`, for the reason {@link uploadLimiter} gives.
+ */
+export const SAVES_PER_ADDRESS_PER_MINUTE = 600
+
+/**
+ * How many saves one guest may have **open** at the same time.
+ *
+ * Counted per guest and **never per address**: a whole room shares the venue's address
+ * (`clientKey`), and a ceiling of a few per address would refuse most of two hundred guests at the
+ * end of the evening. The guest is the key the cookie proves, and two is a phone finishing one
+ * photograph while it asks for the next.
+ */
+export const SAVES_OPEN_PER_GUEST = 2
+
+/**
+ * How many saves the box serves at once, across every guest and event: the backstop that protects
+ * the machine, as {@link SAVES_PER_GUEST_PER_MINUTE} protects against one phone. A starting value,
+ * **to be measured** against the offer's real bandwidth (spec 24, section 5.4).
+ */
+export const SAVES_OPEN_TOTAL = 64
+
+/** The first stage of the save limit, per address and event, **ahead of `requireGuest`**. */
+export const saveAddressLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited', (req) => `${clientKey(req)}:${eventKey(req)}`)
+
+/** The second stage, per **guest** and event, mounted right after `requireGuest`. */
+export const saveGuestLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited', guestKey)
+
+/**
+ * The concurrency bound of the save route: {@link SAVES_OPEN_PER_GUEST} per guest, {@link SAVES_OPEN_TOTAL}
+ * on the box, with **counters of its own** so that guests cannot fill the places of the shared
+ * gallery's ZIP or of the host's exports, nor the reverse. Mount it **after `requireGuest`**, which
+ * is what puts the guest on the request; a slot goes back when the response closes, a refusal by
+ * the use case included.
+ */
+export const saveConcurrencyLimiter = ({
+  perGuest = SAVES_OPEN_PER_GUEST,
+  total = SAVES_OPEN_TOTAL,
+}: { readonly perGuest?: number; readonly total?: number } = {}): StreamLimiter =>
+  streamConnectionLimiter({ perClient: perGuest, total, key: guestKey })
+
 // -------------------------------------------------------------- event creation --
 
 /**

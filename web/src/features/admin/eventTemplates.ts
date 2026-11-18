@@ -44,12 +44,14 @@ export const EVENT_TEMPLATE_KEYS: readonly EventTemplateKey[] = [
 ]
 
 /**
- * What a template may change: the settings as the wire carries them, except that the reveal group
- * is partial, as in the domain (a template names `enabled` and `film` and no hour: the hour is
- * the host's, and a restated `at: null` would be a default restated).
+ * What a template may change: the settings as the wire carries them, except that two groups are partial,
+ * as in the domain. The reveal group (a template names `enabled` and `film` and no hour: the hour is the
+ * host's, and a restated `at: null` would be a default restated); and the voice group, which the server
+ * merges key by key (a template that turns voice on does not restate `sealed` and `opensAtMs`).
  */
-export type TemplatePatch = Partial<Omit<EventSettingsDto, 'reveal'>> & {
+export type TemplatePatch = Partial<Omit<EventSettingsDto, 'reveal' | 'guestbookVoice'>> & {
   readonly reveal?: Partial<NonNullable<EventSettingsDto['reveal']>>
+  readonly guestbookVoice?: Partial<EventSettingsDto['guestbookVoice']>
 }
 
 /**
@@ -63,6 +65,7 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, TemplateP
   wedding: {
     guestSelfDeleteGraceSeconds: 3600,
     retentionDays: 365,
+    guestbookVoice: { enabled: true },
     theme: {
       accentHue: 345,
       fonts: 'serif',
@@ -81,6 +84,7 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, TemplateP
     },
   },
   conference: {
+    allowGuestSave: false,
     allowClips: false,
     retentionDays: 30,
     maxPhotosPerGuest: 25,
@@ -184,6 +188,18 @@ export const templateSummary = (patch: TemplatePatch, text: UiText): readonly st
       patch.allowGuestSelfDelete
         ? text.admin.templateSelfDeleteOn
         : text.admin.templateSelfDeleteOff,
+    )
+  }
+  if (patch.allowGuestSave !== undefined) {
+    lines.push(
+      patch.allowGuestSave ? text.admin.templateGuestSaveOn : text.admin.templateGuestSaveOff,
+    )
+  }
+  // The voice group is one line, about the one switch a template may flip: `sealed` is the couple's own
+  // choice and no template sets it.
+  if (patch.guestbookVoice?.enabled !== undefined) {
+    lines.push(
+      patch.guestbookVoice.enabled ? text.admin.templateVoiceOn : text.admin.templateVoiceOff,
     )
   }
   if (patch.guestSelfDeleteGraceSeconds !== undefined) {

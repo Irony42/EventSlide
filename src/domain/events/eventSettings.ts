@@ -22,6 +22,13 @@ import {
   type EventRevealSettings,
   type EventRevealSettingsPatch,
 } from './eventRevealSettings'
+import {
+  DEFAULT_GUESTBOOK_VOICE_SETTINGS,
+  mergeGuestbookVoiceSettings,
+  voiceOpensAtViolation,
+  type EventGuestbookVoiceSettings,
+  type EventGuestbookVoiceSettingsPatch,
+} from './eventGuestbookVoiceSettings'
 import { normalizeWelcomeMessage, restoreWelcomeMessage } from './welcomeMessage'
 
 /**
@@ -96,6 +103,15 @@ export interface EventSettingsProps {
    */
   readonly allowGuestbook: boolean
   /**
+   * Whether a guest may save another guest's photograph from the feed (spec 24).
+   *
+   * The host's switch over the feature. **Off for an event that exists**: an absent key reads as
+   * `false` (`sqliteEventRepository.settingsOf`), because letting guests carry copies of each
+   * other's photographs home is not a change an upgrade may make for a host who was never asked.
+   * A new event gets `true` (the Conference template turns it off).
+   */
+  readonly allowGuestSave: boolean
+  /**
    * Whether published messages are shown on the projected wall. The reverse concession: an event
    * that predates the field reads `true`, because the host who turns the guestbook on has not
    * been asked to turn the wall on as well. It only matters once `allowGuestbook` has been on.
@@ -168,6 +184,12 @@ export interface EventSettingsProps {
    * which has the clock.
    */
   readonly reveal: EventRevealSettings
+  /**
+   * Voice messages in the guestbook (spec 25): off, not sealed, no opening time for every event
+   * that exists and every new one. Merged field by field, like `wall`; see
+   * `eventGuestbookVoiceSettings.ts` for the rule of a sealed book.
+   */
+  readonly guestbookVoice: EventGuestbookVoiceSettings
 }
 
 /**
@@ -175,11 +197,15 @@ export interface EventSettingsProps {
  * different intents from the same settings form, which is why
  * `exactOptionalPropertyTypes` is on and why these fields are not merged with `??`.
  */
-export type EventSettingsPatch = Partial<Omit<EventSettingsProps, 'wall' | 'reveal'>> & {
+export type EventSettingsPatch = Partial<
+  Omit<EventSettingsProps, 'wall' | 'reveal' | 'guestbookVoice'>
+> & {
   /** Partial: only the keys present are written (spec 13). */
   readonly wall?: EventWallSettingsPatch
   /** Partial too (spec 23): `at` is the one key a host may name with the clock watching. */
   readonly reveal?: EventRevealSettingsPatch
+  /** Partial as well: the settings page and "open now" write different keys (spec 25). */
+  readonly guestbookVoice?: EventGuestbookVoiceSettingsPatch
 }
 
 const DEFAULTS: EventSettingsProps = {
@@ -191,6 +217,8 @@ const DEFAULTS: EventSettingsProps = {
   // event that already exists is read back as off (`settingsBooleanAddedLater`), so an upgrade
   // opens nothing for a host who was never asked.
   allowGuestbook: true,
+  // On for a **new** event (spec 24); an event that already exists reads back as off.
+  allowGuestSave: true,
   guestbookOnWall: true,
   allowGuestSelfDelete: true,
   guestSelfDeleteGraceSeconds: 900,
@@ -203,6 +231,7 @@ const DEFAULTS: EventSettingsProps = {
   logo: null,
   wall: DEFAULT_WALL_SETTINGS,
   reveal: DEFAULT_REVEAL_SETTINGS,
+  guestbookVoice: DEFAULT_GUESTBOOK_VOICE_SETTINGS,
 }
 
 const pick = <T>(update: T | undefined, current: T): T => (update === undefined ? current : update)
@@ -317,6 +346,7 @@ export class EventSettings {
       allowReactions: pick(patch.allowReactions, base.allowReactions),
       allowClips: pick(patch.allowClips, base.allowClips),
       allowGuestbook: pick(patch.allowGuestbook, base.allowGuestbook),
+      allowGuestSave: pick(patch.allowGuestSave, base.allowGuestSave),
       guestbookOnWall: pick(patch.guestbookOnWall, base.guestbookOnWall),
       allowGuestSelfDelete: pick(patch.allowGuestSelfDelete, base.allowGuestSelfDelete),
       guestSelfDeleteGraceSeconds: pick(
@@ -334,12 +364,14 @@ export class EventSettings {
       logo: pick(patch.logo, base.logo),
       wall: mergeWallSettings(base.wall, patch.wall),
       reveal: mergeRevealSettings(base.reveal, patch.reveal),
+      guestbookVoice: mergeGuestbookVoiceSettings(base.guestbookVoice, patch.guestbookVoice),
     }
 
     const failure =
       languageViolation(merged.wallLanguage) ??
       wallSettingsViolation(merged.wall) ??
       revealSettingsViolation(merged.reveal) ??
+      voiceOpensAtViolation(merged.guestbookVoice) ??
       violation(
         merged.guestSelfDeleteGraceSeconds,
         GRACE_SECONDS,
@@ -385,6 +417,10 @@ export class EventSettings {
 
   get allowGuestbook(): boolean {
     return this.props.allowGuestbook
+  }
+
+  get allowGuestSave(): boolean {
+    return this.props.allowGuestSave
   }
 
   get guestbookOnWall(): boolean {
@@ -434,6 +470,24 @@ export class EventSettings {
 
   get wall(): EventWallSettings {
     return this.props.wall
+  }
+  get guestbookVoice(): EventGuestbookVoiceSettings {
+    return this.props.guestbookVoice
+  }
+
+  /**
+   * Whether voice messages are on **for the guests of this event** (spec 25, rule 13): the host's
+   * switch, and only while the guestbook is open, which they depend on. What a guest is told in the
+   * privacy notice, and so deliberately not the box's capability (`voice.available`, the transcoder):
+   * that is a fact about the box, not a promise made to a guest.
+   */
+  get allowGuestbookVoice(): boolean {
+    return this.props.allowGuestbook && this.props.guestbookVoice.enabled
+  }
+
+  /** Whether the voices are kept secret until the end of the evening (the group's `sealed`). */
+  get guestbookVoiceSealed(): boolean {
+    return this.props.guestbookVoice.sealed
   }
 
   get reveal(): EventRevealSettings {

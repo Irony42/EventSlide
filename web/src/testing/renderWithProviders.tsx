@@ -12,6 +12,7 @@ import { installDialogStub } from './dialogStub'
 import { aSiteClientDefaults, aSiteInvitation, CLIENT_ID, noCeilings } from './siteFixtures'
 import type { Api } from '../lib/api/client'
 import { ApiError } from '../lib/http'
+import { QUIET_VOICE_BOOK } from './guestbookVoiceFixtures'
 import type {
   AlbumExportDto,
   InvitationAcceptedDto,
@@ -346,6 +347,7 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
   sound: { enabled: false, tone: 'chime', volume: 50 },
   reactionsEnabled: true,
+  guestSaveEnabled: true,
   // The product's own look, which spreads no attribute at all — so a wall built from this
   // renders the DOM it rendered before theming existed, and every negative assertion about
   // that DOM still means what it says. It is here rather than omitted because `theme` is
@@ -447,7 +449,9 @@ export const eventSettings = (
     allowReactions: true,
     allowClips: true,
     allowGuestbook: true,
+    allowGuestSave: true,
     guestbookOnWall: true,
+    guestbookVoice: { enabled: false, sealed: false, opensAtMs: null },
     allowGuestSelfDelete: true,
     guestSelfDeleteGraceSeconds: 300,
     retentionDays: null,
@@ -620,17 +624,41 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   privacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   acknowledgePrivacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   // No messages, and no longer accepting: the guestbook card is off unless a test turns it on.
-  myGuestbook: vi.fn(async () => ({ items: [], accepting: true, onWall: true })),
+  myGuestbook: vi.fn(async () => ({
+    items: [],
+    accepting: true,
+    onWall: true,
+    voiceAvailable: false,
+    voiceMaxSeconds: 60,
+  })),
   writeGuestbookEntry: vi.fn(async (_slug: string, text: string) => ({
     id: 'entry-1',
     text,
     status: 'pending' as const,
     createdAt: CREATED_AT,
     duplicate: false,
+    voice: null,
+  })),
+  // Accepted and queued, which is what the route answers: nothing is heard before the worker has run.
+  leaveVoiceMessage: vi.fn(async () => ({
+    entry: {
+      id: 'voice-1',
+      text: null,
+      status: 'pending' as const,
+      createdAt: CREATED_AT,
+      duplicate: false,
+      voice: { state: 'queued' as const, durationMs: null, caption: null },
+    },
   })),
   deleteMyGuestbookEntry: vi.fn(async () => undefined),
   deleteMyPhoto: vi.fn(async () => undefined),
   eraseMyContribution: vi.fn(async () => ({ photos: 0, clips: 0 })),
+  // A JPEG-typed blob under the name the server would choose, which is what every save test
+  // starts from; a test that is about a refusal overrides it.
+  savePhoto: vi.fn(async () => ({
+    blob: new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], { type: 'image/jpeg' }),
+    fileName: 'camille-et-sacha-0123456789ab.jpg',
+  })),
   react: vi.fn(async () => undefined),
   withdrawReaction: vi.fn(async () => undefined),
   reactions: vi.fn(async () => ({
@@ -725,8 +753,12 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   purgeEvent: vi.fn(async () => undefined),
 
   moderationQueue: vi.fn(async () => ({ items: [], pendingCount: 0, nextCursor: null })),
-  guestbookQueue: vi.fn(async () => ({ items: [], pendingCount: 0 })),
+  guestbookQueue: vi.fn(async () => ({ items: [], pendingCount: 0, ...QUIET_VOICE_BOOK })),
   decideGuestbookEntry: vi.fn(async () => undefined),
+  guestbookVoiceUrl: (slug: string, entryId: string) =>
+    `/api/events/${slug}/guestbook/${entryId}/voice`,
+  openGuestbookVoice: vi.fn(async () => undefined),
+  keepPendingVoices: vi.fn(async () => ({ kept: 0 })),
   moderate: vi.fn(async () => undefined),
   moderateBulk: vi.fn(async () => ({ applied: [], skipped: [] })),
   topPhotos: vi.fn(async () => ({ items: [] })),

@@ -180,6 +180,25 @@ export interface PrivacyNoticeDto {
   readonly shotLimit?: number
   /** Present (and `true`) only on that evening with the film look: it exists on screen only. */
   readonly film?: true
+  /**
+   * Present (and `true`) only when the other guests may save a photo from the feed (spec 24): the
+   * notice then says a saved copy cannot be taken back. Part of `revision` only in that case.
+   */
+  readonly guestSave?: true
+  /**
+   * Present (and `true`) only when guests may leave voice messages (spec 25): the notice then says
+   * who hears them, that the room never does, and that the microphone only runs while recording.
+   * Part of `revision` only in that case.
+   */
+  readonly voice?: true
+  /** Present (and `true`) only with `voice`, when the host keeps the voices secret until the end of the evening. */
+  readonly voiceSealed?: true
+  /**
+   * Present only with `voice`, when a guest may take a voice message back themselves: the window in
+   * seconds. Absent: they cannot, and the notice says to ask the organiser. Not `selfRemovalSeconds`: a
+   * voice is never on a screen, so it can be taken back whatever its status.
+   */
+  readonly voiceRemovalSeconds?: number
 }
 
 /** A notice and where this device stands with it: every read of the notice answers this. */
@@ -218,14 +237,29 @@ export interface ErasedContributionDto {
   readonly messages: number
 }
 
+/**
+ * The recording behind a voice message, as its **author** reads it (spec 25): where its processing
+ * stands and how long it is. The duration is the one measured on the output, `null` until `ready`.
+ * Never a hash, a path or a size: the phone has no use for them and a DTO is a contract.
+ */
+export interface GuestbookVoiceDto {
+  readonly state: 'reserved' | 'queued' | 'running' | 'ready' | 'failed'
+  readonly durationMs: number | null
+  /** The optional line the guest wrote with it (140 characters): content, never interface. */
+  readonly caption: string | null
+}
+
 /** One of a guest's own guestbook messages (`GET /api/events/:slug/guestbook/mine`). */
 export interface GuestbookEntryDto {
   readonly id: string
-  readonly text: string
+  /** `null` for a voice message (spec 25), whose words are its recording; a written one always has it. */
+  readonly text: string | null
   readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
   readonly createdAt: string
   /** The server's verdict (`GuestbookEntry.deletionVerdict`): the phone never recomputes it. */
   readonly canDelete: boolean
+  /** The recording of a voice message, `null` for a written one (spec 25). */
+  readonly voice: GuestbookVoiceDto | null
 }
 
 export interface MyGuestbookDto {
@@ -234,34 +268,70 @@ export interface MyGuestbookDto {
   readonly accepting: boolean
   /** Whether published messages appear on the wall: said to their authors in the status. */
   readonly onWall: boolean
+  /** Whether a voice message would be taken now: the button is shown on this and on nothing else. */
+  readonly voiceAvailable: boolean
+  /** The longest voice message this box takes, in seconds (`MAX_VOICE_SECONDS`): the phone stops there. */
+  readonly voiceMaxSeconds: number
+}
+
+/**
+ * The recording behind a voice message, as the **host's console** reads it (spec 25): the author's
+ * view plus the size, for the card. Only `ready` voices are listed, so `durationMs` is always there
+ * on a row; it stays nullable because the shape is the author's.
+ */
+export interface GuestbookQueueVoiceDto {
+  readonly state: 'reserved' | 'queued' | 'running' | 'ready' | 'failed'
+  readonly durationMs: number | null
+  readonly bytes: number | null
+  /** The optional line the guest wrote with it (140 characters): content, never interface. */
+  readonly caption: string | null
 }
 
 /** One message in the host's reading of the guestbook (`GET /api/events/:slug/guestbook`). */
 export interface GuestbookQueueItemDto {
   readonly id: string
-  readonly text: string
+  /** `null` for a voice message (spec 25), whose words are its recording; a written one always has it. */
+  readonly text: string | null
   /** `null` for a guest who gave no name or whose row is gone; the client words that. */
   readonly authorName: string | null
   readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
   readonly createdAt: string
   /** The decisions this message may take now, from the status machine: the buttons the panel shows. */
   readonly allowedDecisions: readonly ModerationDecision[]
+  /** The recording of a voice message, `null` for a written one (spec 25). */
+  readonly voice: GuestbookQueueVoiceDto | null
 }
 
 export interface GuestbookQueueDto {
   readonly items: readonly GuestbookQueueItemDto[]
   /** The whole book's, not the page's: the badge on the panel. */
   readonly pendingCount: number
+  /** Recordings still being processed, left out of `items`: "2 messages vocaux en traitement". */
+  readonly voiceProcessing: number
+  /** The secret is on: no recording may be heard yet, and the card shows no player. */
+  readonly voiceSealed: boolean
+  /** When the host set the secret to lift (an instant), or `null` for "when the event ends". */
+  readonly voiceOpensAtMs: number | null
+  /** The server's now, in milliseconds: a countdown never trusts the console's own clock. */
+  readonly serverNowMs: number
 }
 
 /** What a message just written answers (`POST /api/events/:slug/guestbook`). */
 export interface CreatedGuestbookEntryDto {
   readonly id: string
-  readonly text: string
+  /** `null` for a voice message (spec 25), whose words are its recording; a written one always has it. */
+  readonly text: string | null
   readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
   readonly createdAt: string
   /** True when this was the same message sent a moment ago: nothing new was stored. */
   readonly duplicate: boolean
+  /** The recording of a voice message, `null` for a written one (spec 25). */
+  readonly voice: GuestbookVoiceDto | null
+}
+
+/** What a voice message just sent answers, `202`: the recording is queued, nothing is heard yet. */
+export interface CreatedGuestbookVoiceDto {
+  readonly entry: CreatedGuestbookEntryDto
 }
 
 export interface JoinResponseDto {
@@ -432,6 +502,8 @@ export interface WallResponseDto {
     readonly volume: number
   }
   readonly reactionsEnabled: boolean
+  /** Guests may save a photograph from the feed (spec 24); read at the time of the request. */
+  readonly guestSaveEnabled: boolean
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
    *
@@ -592,6 +664,11 @@ export interface ModerationPhotoDto {
   readonly highlighted: boolean
 }
 
+/** `POST …/guestbook/voice/keep-pending` (spec 25): how many ready, pending voice messages were published. */
+export interface KeepPendingVoicesResponseDto {
+  readonly kept: number
+}
+
 export interface BulkModerationResponseDto {
   readonly applied: readonly string[]
   readonly skipped: readonly string[]
@@ -609,8 +686,20 @@ export interface EventSettingsDto {
   readonly allowClips: boolean
   /** The host's switch over written guestbook messages (spec 01). */
   readonly allowGuestbook: boolean
+  /** The host's switch over saving another guest's photograph from the feed (spec 24). */
+  readonly allowGuestSave: boolean
   /** Whether published messages appear on the projected wall (spec 01). */
   readonly guestbookOnWall: boolean
+  /**
+   * What the host decides about voice messages (spec 25), as stored: off, not sealed and no opening
+   * time on an event that predates them. `enabled` only has an effect while `allowGuestbook` is on.
+   * `opensAtMs` is an instant in milliseconds, or `null` for "when the event ends".
+   */
+  readonly guestbookVoice: {
+    readonly enabled: boolean
+    readonly sealed: boolean
+    readonly opensAtMs: number | null
+  }
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null
@@ -686,11 +775,22 @@ export interface EventPurgeDto {
    */
   readonly offboarding: boolean
   /**
+   * The voice messages the purge would take unheard or undecided, in the **last week** before `at`
+   * and `{ secret: 0, pending: 0 }` otherwise (spec 25): how many published recordings are still
+   * kept secret, and how many wait for a decision and so will not be in the album.
+   */
+  readonly voices: PurgeVoicesDto
+  /**
    * The server's clock when it answered, in milliseconds: what `at` is to be counted down against, so
    * a phone with a wrong clock does not lie about the day the album goes (the same field the timed
    * challenge carries).
    */
   readonly serverNowMs: number
+}
+
+export interface PurgeVoicesDto {
+  readonly secret: number
+  readonly pending: number
 }
 
 export interface EventDto extends EventSummaryDto {
@@ -1718,6 +1818,7 @@ export interface EngagementDto {
   readonly since: string
   readonly galleryViews: number
   readonly galleryArchiveDownloads: number
+  readonly guestSaves: number
 }
 
 /**

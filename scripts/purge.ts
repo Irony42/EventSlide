@@ -48,6 +48,7 @@ import { SqliteAuditLog } from '../src/infrastructure/db/sqliteAuditLog'
 import { SqliteAlbumExportRepository } from '../src/infrastructure/db/sqliteAlbumExportRepository'
 import { SqliteClientRepository } from '../src/infrastructure/db/sqliteClientRepository'
 import { SqliteClipJobRepository } from '../src/infrastructure/db/sqliteClipJobRepository'
+import { SqliteGuestbookVoiceRepository } from '../src/infrastructure/db/sqliteGuestbookVoiceRepository'
 import { SqliteReelRepository } from '../src/infrastructure/db/sqliteReelRepository'
 import { SqliteEventRepository } from '../src/infrastructure/db/sqliteEventRepository'
 import { SqliteMembershipRepository } from '../src/infrastructure/db/sqliteMembershipRepository'
@@ -223,6 +224,9 @@ const execute = async (
         clips: new SqliteClipJobRepository(db),
         // The montage's file is named by its row: without this the script would collect it.
         reels: new SqliteReelRepository(db),
+        // A guestbook voice's files are named by its row (spec 25): without this the script would
+        // collect every recording.
+        voices: new SqliteGuestbookVoiceRepository(db),
         media,
         clock: systemClock,
         logger: consoleLogger,

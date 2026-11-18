@@ -29,6 +29,8 @@ import { makeUpdateEventSettings } from '../events/updateEventSettings'
 import { makeCreateShareLink } from '../gallery/createShareLink'
 import { makeRevokeShareLink } from '../gallery/revokeShareLink'
 import { makeRevokeGuest } from '../guests/revokeGuest'
+import { makeKeepPendingGuestbookVoices } from '../guestbook/keepPendingGuestbookVoices'
+import { makeOpenGuestbookVoice } from '../guestbook/openGuestbookVoice'
 import { makeCreateMission } from '../missions/createMission'
 import { makeStartChallenge } from '../challenges/startChallenge'
 import { makeStopChallenge } from '../challenges/stopChallenge'
@@ -349,6 +351,33 @@ const CASES: readonly Case[] = [
         decision: 'publish',
         actor: host(actorId),
       }),
+  },
+  {
+    name: 'openGuestbookVoice',
+    member: 'owner',
+    ask: ({ events, memberships }, actorId) =>
+      makeOpenGuestbookVoice({
+        events,
+        memberships,
+        audit: gone(),
+        bus: gone(),
+        clock: gone(),
+        invalidateExport: gone(),
+      })({ eventId: EVENT, actor: host(actorId) }),
+  },
+  {
+    name: 'keepPendingGuestbookVoices',
+    member: 'moderator',
+    ask: ({ events, memberships }, actorId) =>
+      makeKeepPendingGuestbookVoices({
+        events,
+        memberships,
+        guestbook: gone(),
+        audit: gone(),
+        bus: gone(),
+        clock: gone(),
+        invalidateExport: gone(),
+      })({ eventId: EVENT, actor: host(actorId) }),
   },
   {
     name: 'revokeGuest',

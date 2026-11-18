@@ -140,6 +140,47 @@ describe('the upload refusals after which the outbox deletes a photo', () => {
   })
 })
 
+describe('the voice queue’s answers to the server’s refusals (spec 25)', () => {
+  const codesOf = async (name: string): Promise<string[]> => {
+    const module = await loadWeb('web/src/lib/offline/voicePolicy.ts')
+    const codes = module[name]
+    if (!(codes instanceof Set)) throw new Error(`voicePolicy no longer exports ${name}`)
+    return [...codes].map(String)
+  }
+
+  it.each(['VOICE_TERMINAL_CODES', 'VOICE_BLOCKED_CODES'])(
+    'only names codes the server still sends, in %s',
+    async (name) => {
+      const listed = await codesOf(name)
+      expect(listed.length).toBeGreaterThan(2)
+
+      const sources = serverSources()
+      const unknownToServer = listed.filter(
+        (code) => !sources.includes(`'${code}'`) && !sources.includes(`"${code}"`),
+      )
+      expect(unknownToServer).toEqual([])
+    },
+  )
+
+  it('never discards a recording for a refusal of the moment: a host who unticks a box by mistake must not cost a guest their message', async () => {
+    const terminal = await codesOf('VOICE_TERMINAL_CODES')
+
+    // Every code of the voice route that says "not now" is kept, not dropped.
+    for (const code of [
+      'guestbook.voiceDisabled',
+      'guestbook.disabled',
+      'event.notAcceptingUploads',
+      'guestbook.limitReached',
+      'guestbook.eventFull',
+      'guestbook.voiceEventFull',
+      'voice.queueFull',
+      'voice.transcoderUnavailable',
+    ]) {
+      expect(terminal, code).not.toContain(code)
+    }
+  })
+})
+
 /**
  * Server values the browser copies, read from the browser's source (ARCH-03 / WEBGUEST-10).
  *

@@ -96,7 +96,7 @@ export const it: UiText = {
     eraseBody:
       'Le sue foto, i video, le didascalie, le reazioni e il suo nome saranno cancellati dalla serata: dallo schermo, dall’album e dall’elenco dell’organizzatore. L’operazione è definitiva.',
     eraseLimits:
-      'Una copia già salvata dall’organizzatore, o catturata da qualcuno con uno screenshot, non si può riprendere.',
+      'Una copia già salvata dall’organizzatore o da un altro invitato, o catturata da qualcuno con uno screenshot, non si può riprendere.',
     eraseConfirm: 'Sì, elimina tutto',
     eraseCancel: 'No, le tengo',
     eraseFailed:
@@ -299,6 +299,9 @@ export const it: UiText = {
       sharedGallery:
         'Le persone a cui l’organizzatore invia un link privato all’album, se ne crea uno, e quelle a cui il link viene inoltrato: possono vedere e scaricare in piena risoluzione le foto mostrate sullo schermo, finché il link non scade o viene ritirato.',
     },
+    /** Said after the audiences, only on an evening where saving is on (spec 24). */
+    noticeGuestSave:
+      'Gli altri invitati possono salvare la sua foto sul proprio telefono, senza il luogo né la fotocamera con cui è stata scattata. Una copia salvata non si può riprendere.',
     noticeRetentionDays: (days: number) =>
       t.count(days, {
         one: `Vengono eliminate automaticamente ${t.number(days)} giorno dopo che l’organizzatore ha terminato la serata.`,
@@ -716,7 +719,15 @@ export const it: UiText = {
       'guestbook.invalid': 'Questo messaggio non può essere inviato così com’è.',
       'guestbook.tooManyLines': 'Messaggio troppo alto: lo accorci.',
       'guestbook.limitReached':
-        'Ha già lasciato 3 messaggi. Ne rimuova uno per scriverne un altro.',
+        'Ha già lasciato 3 messaggi, scritti o vocali. Ne rimuova uno per lasciarne un altro.',
+      'guestbook.voiceDisabled': 'I messaggi vocali sono disattivati per il momento.',
+      'guestbook.voiceEventFull': 'Il libro degli ospiti è pieno.',
+      'voice.queueFull': 'Riprovi tra un istante.',
+      'voice.unsupportedFormat': 'Questo file non è un messaggio vocale leggibile.',
+      'voice.notAudio': 'Questo file non è un messaggio vocale leggibile.',
+      'voice.corrupt': 'Questo file non è un messaggio vocale leggibile.',
+      'voice.tooLong': 'Questo messaggio vocale è troppo lungo.',
+      'voice.tooShort': 'Questo messaggio vocale è troppo breve.',
       'guestbook.eventFull': 'Il libro degli ospiti è pieno.',
       'guestbook.disabled': 'Il libro degli ospiti non è aperto al momento.',
       'event.notAcceptingUploads': 'Il libro degli ospiti non è aperto al momento.',
@@ -730,7 +741,7 @@ export const it: UiText = {
       'rate.limited': 'Troppi messaggi in una volta, riprovi tra un minuto.',
     },
     eraseBody:
-      'Le sue foto, i video, le didascalie, i messaggi del libro degli ospiti, le reazioni e il suo nome saranno cancellati dalla serata: dallo schermo, dall’album e dall’elenco dell’organizzatore. L’operazione è definitiva.',
+      'Le sue foto, i video, le didascalie, i messaggi del libro degli ospiti, compresi i suoi messaggi vocali, le reazioni e il suo nome saranno cancellati dalla serata: dallo schermo, dall’album e dall’elenco dell’organizzatore. L’operazione è definitiva.',
     noticeWhatHappens: 'Cosa succede alle sue foto e ai suoi messaggi',
     noticeWhoSees: 'Chi vede le sue foto e i suoi messaggi',
     noticeHowLong: 'Per quanto tempo vengono conservati',
@@ -746,6 +757,96 @@ export const it: UiText = {
     noticeMessageRetention: 'I suoi messaggi sono conservati quanto le foto e cancellati con esse.',
     noticeMessageRemoval:
       'Un messaggio si rimuove come una foto, da «I miei messaggi» e alle stesse condizioni.',
+  },
+
+  /**
+   * The voice message of the guestbook, guest side (spec 25): recording it, listening before sending,
+   * where it stands afterwards and what the privacy notice says about it. What a guest says is never
+   * translated and never appears here, only the words around it. Never "IA", "intelligent" or
+   * "transcription" in a sentence of this table: nothing listens to a voice but the organiser.
+   */
+  guestbookVoice: {
+    open: 'Lascia un messaggio vocale',
+    record: 'Registra',
+    stop: 'Ferma',
+    clock: (elapsed: string, max: string) => `${elapsed} / ${max}`,
+    recordingAnnounce: 'Registrazione in corso',
+    nearEnd: 'Mancano 10 secondi',
+    recordedAnnounce: (duration: string) => `Registrazione terminata, ${duration}`,
+    closeToTheMicrophone: 'Parli vicino al telefono: le persone intorno a Lei possono sentirsi',
+    listen: 'Ascolta',
+    listenPause: 'Pausa',
+    restart: 'Ricomincia',
+    send: 'Invia il mio messaggio vocale',
+    cancel: 'Annulla',
+    captionLabel: 'Due parole per accompagnarlo',
+    micBlocked:
+      'Il microfono è bloccato. Lo autorizzi nelle impostazioni del browser, poi torni qui.',
+    micUnavailableHere:
+      'Il microfono non è disponibile in questa pagina. Riapra il link dell’evento.',
+    micMissing:
+      'Non è stato possibile usare alcun microfono su questo dispositivo. Può scrivere un messaggio al suo posto.',
+    tooShort: 'Troppo breve: parli per almeno un secondo.',
+    writeInstead: 'Scrivere un messaggio al suo posto',
+    openInBrowser: 'Per lasciare un messaggio vocale, apra questa pagina in Safari o Chrome.',
+    previewFailed: 'L’anteprima non si riproduce qui, ma può comunque inviarlo',
+    interrupted: (duration: string) =>
+      `La registrazione si è interrotta perché la pagina è stata abbandonata. Dura ${duration}.`,
+    notKept: 'Non è stato possibile conservare la registrazione sul suo telefono. La rifaccia.',
+    helpManual: 'L’organizzatore decide se conservare il suo messaggio.',
+    helpAuto:
+      'Il suo messaggio è conservato nel libro degli ospiti. Solo l’organizzatore e il suo team possono ascoltarlo.',
+    thanksManual: 'Grazie! L’organizzatore deciderà se conservare il suo messaggio.',
+    thanksAuto: 'Grazie! Il suo messaggio vocale è stato ricevuto.',
+    waitingNetwork: 'Il suo messaggio vocale attende una rete.',
+    offlineHintKeepOpen:
+      'Tenga aperta questa pagina: le sue foto e il suo messaggio vocale partiranno appena torna la rete.',
+    keptOnPhone: 'La sua registrazione resta sul suo telefono.',
+    messageLabel: (duration: string | null) =>
+      duration === null ? 'Messaggio vocale' : `Messaggio vocale, ${duration}`,
+    statusProcessing: 'In elaborazione',
+    statusPublished: 'Nel libro degli ospiti',
+    failed: 'Il suo messaggio vocale non è stato salvato. Lo registri di nuovo.',
+    retry: 'Riprova',
+    localWaiting: 'In attesa di una rete',
+    localBlocked: 'Conservato sul suo telefono',
+    saveToPhone: 'Salva sul mio telefono',
+    deleteLocal: 'Elimina',
+    noticeVoiceAudience:
+      'Il suo messaggio vocale può essere ascoltato solo dall’organizzatore e dal suo team.',
+    noticeVoiceNeverRoom:
+      'Non viene mai trasmesso sullo schermo della sala né ascoltato dagli altri ospiti.',
+    noticeVoicePublication: {
+      afterReview: 'L’organizzatore decide se conservare il suo messaggio.',
+      immediate: 'Il suo messaggio è conservato subito nell’album, senza ascolto preventivo.',
+    },
+    noticeVoiceRetention:
+      'È conservato come le sue foto e finisce nell’album che l’organizzatore scarica.',
+    noticeVoiceRetentionDays: (count: number) =>
+      t.count(count, {
+        one: 'È conservato come le sue foto (1 giorno dopo la chiusura) e finisce nell’album che l’organizzatore scarica.',
+        other: `È conservato come le sue foto (${t.number(count)} giorni dopo la chiusura) e finisce nell’album che l’organizzatore scarica.`,
+      }),
+    noticeVoiceMicrophone:
+      'Il microfono funziona solo durante la registrazione. La registrazione resta sul suo telefono finché non la invia.',
+    noticeVoiceSealed:
+      'I messaggi vocali restano segreti fino alla fine della serata, salvo decisione dell’organizzatore.',
+    noticeVoiceRemovalSeconds: (count: number) =>
+      t.count(count, {
+        one: 'Può ritirare il suo messaggio vocale entro 1 secondo dall’invio.',
+        other: `Può ritirare il suo messaggio vocale entro ${t.number(count)} secondi dall’invio.`,
+      }),
+    noticeVoiceRemovalMinutes: (count: number) =>
+      t.count(count, {
+        one: 'Può ritirare il suo messaggio vocale entro 1 minuto dall’invio.',
+        other: `Può ritirare il suo messaggio vocale entro ${t.number(count)} minuti dall’invio.`,
+      }),
+    noticeVoiceRemovalHours: (count: number) =>
+      t.count(count, {
+        one: 'Può ritirare il suo messaggio vocale entro 1 ora dall’invio.',
+        other: `Può ritirare il suo messaggio vocale entro ${t.number(count)} ore dall’invio.`,
+      }),
+    noticeVoiceRemovalAskHost: 'Per far ritirare un messaggio vocale, chieda all’organizzatore.',
   },
 
   moderation: {
@@ -914,6 +1015,26 @@ export const it: UiText = {
     unavailable: 'Questa serata non viene più mostrata.',
     unavailableHint:
       'La serata è finita, quindi qui non ci sono foto da vedere. Chieda agli organizzatori il link dell’album.',
+    /* Spec 24: saving a photograph from the feed. */
+    saving: 'Salvataggio…',
+    saveReady: 'Tocchi per salvarla',
+    /** The accessible name of a save button: its word, then the photograph it is under. */
+    saveNamed: (action: string, description: string) => `${action}: ${description}`,
+    saveDownloaded: 'Foto scaricata.',
+    saveNetworkFailed: 'Non è stato possibile recuperare la foto. Riprovi quando la rete torna.',
+    saveBusy: 'Molti invitati stanno salvando contemporaneamente. Riprovi tra un momento.',
+    saveGone: 'Questa foto non è più disponibile.',
+    saveMediaMissing: 'Non è stato possibile recuperare la foto.',
+    saveDisabled: 'L’organizzatore ha disattivato il salvataggio.',
+    saveRevoked: 'L’organizzatore ha revocato il suo accesso.',
+    /** A lapsed access reads by the state of the evening: open, the code reopens it; over, only the album's link is left. */
+    saveExpiredOpen:
+      'Il suo accesso alla serata è scaduto. Riapra la serata con il codice o il link ricevuto.',
+    saveExpiredClosed:
+      'Il suo accesso alla serata è scaduto. Chieda agli organizzatori il link dell’album.',
+    saveHelpSheet: 'Nel foglio che si apre, scelga «Salva immagine» per metterla in Foto.',
+    saveHelpFiles:
+      'La foto è nell’app File, nella cartella Download. Perché finisca in Foto, apra la serata in Safari: nell’app di messaggistica, tocchi Condividi e poi «Apri in Safari».',
   },
 
   wall: {
@@ -1130,7 +1251,8 @@ export const it: UiText = {
       anonymous: (guests: number, photos: number) =>
         `Gli invitati senza nome sono raggruppati: ${t.count(guests, { one: `${t.number(guests)} invitato`, other: `${t.number(guests)} invitati` })}, ${t.count(photos, { one: `${t.number(photos)} invio`, other: `${t.number(photos)} invii` })}.`,
       engagementTitle: 'Dopo la serata',
-      engagementNone: 'Non ancora misurato: nessun link dell’album aperto e nessuno ZIP avviato.',
+      engagementNone:
+        'Non ancora misurato: nessun link dell’album aperto, nessuno ZIP avviato e nessuna foto salvata.',
       albumOpens: (count: number) =>
         t.count(count, {
           one: `${t.number(count)} apertura del link dell’album`,
@@ -1141,9 +1263,14 @@ export const it: UiText = {
           one: `${t.number(count)} ZIP avviato`,
           other: `${t.number(count)} ZIP avviati`,
         }),
+      guestSaves: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} foto salvata dagli ospiti`,
+          other: `${t.number(count)} foto salvate dagli ospiti`,
+        }),
       measuredSince: (date: string) => `Misurato dal ${date}. Prima non veniva contato nulla.`,
       engagementNote:
-        'Un’apertura è il caricamento della pagina dell’album, non una persona. Uno ZIP avviato non è necessariamente completato. Questi numeri sono indicativi.',
+        'Un’apertura è il caricamento della pagina dell’album, non una persona. Uno ZIP avviato non è necessariamente completato. Un salvataggio è una richiesta accettata, non necessariamente una foto arrivata sul telefono. Questi numeri sono indicativi.',
       retention:
         'Questi numeri scompaiono con l’evento, alla sua eliminazione o alla scadenza del periodo di conservazione.',
     },
@@ -1159,6 +1286,10 @@ export const it: UiText = {
     allowClips: 'Consenti i video',
     allowClipsHint:
       'Gli invitati possono inviare brevi video, oltre alle foto. Quando la casella non è selezionata, i video vengono rifiutati: perché l’ha deselezionata, perché il modello scelto alla creazione l’ha impostata così, oppure perché l’evento è anteriore a questa funzionalità. La selezioni per consentirli.',
+    /** The host's switch over saving from the feed (spec 24). */
+    allowGuestSave: 'Gli invitati possono salvare le foto della serata',
+    allowGuestSaveHint:
+      'Ogni invitato può tenere sul proprio telefono una foto mostrata sullo schermo, in alta qualità, senza il luogo né la fotocamera con cui è stata scattata. Lei mantiene il controllo dell’album: una foto che toglie non può più essere salvata, ma una foto già salvata resta sul telefono della persona, e non può impedire la copia di una sola foto senza toglierla. Cambiare questa impostazione durante la serata fa rileggere l’informativa agli invitati prima della loro prossima foto. A serata finita, un invitato il cui accesso è scaduto non può più salvare: gli invii il link dell’album, che dà anche la piena risoluzione.',
     allowGuestbook: 'Apri il libro degli ospiti',
     allowGuestbookHint:
       'Gli invitati lasciano un breve messaggio. Se deselezionata: il libro è chiuso e i messaggi già scritti restano.',
@@ -1285,6 +1416,10 @@ export const it: UiText = {
     templateClipsOff: 'Video disattivati',
     templateSelfDeleteOn: 'Cancellazione foto per foto consentita',
     templateSelfDeleteOff: 'Cancellazione foto per foto disattivata',
+    templateGuestSaveOn: 'Gli ospiti possono salvare le foto',
+    templateGuestSaveOff: 'Salvataggio delle foto disattivato per gli ospiti',
+    templateVoiceOn: 'Messaggi vocali nel libro degli ospiti attivati',
+    templateVoiceOff: 'Messaggi vocali disattivati',
     templateNames: {
       wedding: 'Matrimonio',
       birthday: 'Compleanno',
@@ -1746,6 +1881,51 @@ export const it: UiText = {
     copyFailed: 'Copia impossibile: selezioni l’identificativo a mano.',
     openMessages: 'Modera i messaggi',
     onWall: (count: number) => `${t.number(count)} sullo schermo`,
+  },
+
+  /**
+   * The voice messages in the host's console and settings (spec 25): the card, the secret, the
+   * action that keeps what waits, and the settings section. What a guest says is never here.
+   * The interface says "gardé secret" / "kept secret", never the code's word for it. Never "IA",
+   * "intelligent" or "transcription" in a sentence of this table.
+   */
+  guestbookVoiceHost: {
+    cardLabel: (author: string, duration: string) => `Messaggio vocale di ${author}, ${duration}`,
+    duration: (duration: string) => `Durata: ${duration}`,
+    voiceBadge: 'Messaggio vocale',
+    processing: 'In elaborazione',
+    processingCount: (count: number) =>
+      t.count(count, {
+        one: '1 messaggio vocale in elaborazione',
+        other: `${t.number(count)} messaggi vocali in elaborazione`,
+      }),
+    sealedCard: 'Tenuto segreto fino alla fine della serata',
+    sealedUntil: (time: string) => `Tenuto segreto fino alle ${time}`,
+    notListened: 'Non ha ascoltato questo messaggio',
+    cannotHide: 'Un messaggio vocale non si nasconde: non è mai sullo schermo.',
+    keepPending: (count: number) =>
+      t.count(count, {
+        one: 'Tenere il messaggio in attesa',
+        other: `Tenere i ${t.number(count)} messaggi in attesa`,
+      }),
+    keepConfirm: 'Non ha ascoltato tutti questi messaggi. Tenerli nell’album?',
+    keepConfirmLabel: 'Tienili',
+    kept: (count: number) =>
+      t.count(count, {
+        one: '1 messaggio vocale tenuto.',
+        other: `${t.number(count)} messaggi vocali tenuti.`,
+      }),
+    settingsEnabled: 'Messaggi vocali',
+    settingsEnabledHint:
+      'Attivare i messaggi vocali durante la serata fa rileggere l’informativa a ogni ospite prima del suo prossimo invio: meglio attivarli prima.',
+    settingsSealed: 'Tenere segreti i messaggi vocali fino alla fine della serata',
+    settingsSealedHint:
+      'Non potrà ascoltarli prima. Può comunque decidere di tenerli o rifiutarli.',
+    openNow: 'Apri ora',
+    openConfirmTitle: 'Aprire i messaggi vocali?',
+    openConfirmBody: 'Potrà ascoltarli subito. Questa azione è definitiva.',
+    opened: 'I messaggi vocali sono aperti.',
+    insecure: 'Questo indirizzo non è sicuro: i suoi ospiti non potranno registrare',
   },
 
   auth: {
@@ -2624,6 +2804,16 @@ export const it: UiText = {
       `Archivio inviato per intero il ${date}. Controlli il suo file prima di eliminare qualsiasi cosa.`,
     incomplete: (missing: number) =>
       `Archivio pronto, ma ${t.count(missing, { one: `mancava ${t.number(missing)} file`, other: `mancavano ${t.number(missing)} file` })} sul disco del server: ${t.count(missing, { one: 'non è incluso.', other: 'non sono inclusi.' })}`,
+    voiceSecret: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} messaggio vocale è ancora tenuto segreto: verrebbe eliminato senza essere stato ascoltato.`,
+        other: `${t.number(count)} messaggi vocali sono ancora tenuti segreti: verrebbero eliminati senza essere stati ascoltati.`,
+      }),
+    voicePending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} messaggio vocale attende la sua decisione: non sarà nell’album.`,
+        other: `${t.number(count)} messaggi vocali attendono la sua decisione: non saranno nell’album.`,
+      }),
     retired: 'L’archivio è stato ritirato perché una foto è stata eliminata. Lo prepari di nuovo.',
     changed:
       'L’album è cambiato dopo la preparazione dell’archivio, che quindi non viene più offerto. Lo prepari di nuovo.',

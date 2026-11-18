@@ -16,21 +16,43 @@ import type {
   WallRevealDto,
 } from './common'
 
+/**
+ * The recording behind a voice message as the host's console reads it (spec 25): the author's view
+ * plus the size, for the card.
+ */
+export interface GuestbookQueueVoiceDto {
+  readonly state: 'reserved' | 'queued' | 'running' | 'ready' | 'failed'
+  readonly durationMs: number | null
+  readonly bytes: number | null
+  /** The optional line the guest wrote with it (140 characters): content, never interface. */
+  readonly caption: string | null
+}
 /** One message in the host's reading of the guestbook (spec 01). */
 export interface GuestbookQueueItemDto {
   readonly id: string
-  readonly text: string
+  /** `null` for a voice message (spec 25), whose words are its recording; a written one always has it. */
+  readonly text: string | null
   /** `null` for a guest who gave no name or whose row is gone; the client words that. */
   readonly authorName: string | null
   readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
   readonly createdAt: string
   /** The decisions this message may take now, from the status machine: the buttons the panel shows. */
   readonly allowedDecisions: readonly ModerationDecision[]
+  /** The recording of a voice message, `null` for a written one (spec 25). */
+  readonly voice: GuestbookQueueVoiceDto | null
 }
 export interface GuestbookQueueDto {
   readonly items: readonly GuestbookQueueItemDto[]
   /** The whole book's, not the page's: the badge on the panel. */
   readonly pendingCount: number
+  /** Recordings still being processed, left out of `items`: "2 messages vocaux en traitement". */
+  readonly voiceProcessing: number
+  /** The secret is on: no recording may be heard yet, and the card shows no player. */
+  readonly voiceSealed: boolean
+  /** When the host set the secret to lift (an instant), or `null` for "when the event ends". */
+  readonly voiceOpensAtMs: number | null
+  /** The server's now, in milliseconds: a countdown never trusts the console's own clock. */
+  readonly serverNowMs: number
 }
 /**
  * One row of `GET /api/events/:slug/moderation`.
@@ -153,6 +175,10 @@ export interface BulkModerationResponse {
   readonly applied: readonly string[]
   readonly skipped: readonly string[]
 }
+/** `POST …/guestbook/voice/keep-pending` (spec 25): how many ready, pending voices were published. */
+export interface KeepPendingVoicesResponse {
+  readonly kept: number
+}
 export interface EventSettingsDto {
   readonly moderation: 'manual' | 'auto'
   readonly allowCaptions: boolean
@@ -169,7 +195,19 @@ export interface EventSettingsDto {
   readonly allowClips: boolean
   /** The guestbook (spec 01): open for guests, and whether its published messages reach the wall. */
   readonly allowGuestbook: boolean
+  /** Guests may save another guest's photograph from the feed (spec 24). */
+  readonly allowGuestSave: boolean
   readonly guestbookOnWall: boolean
+  /**
+   * What the host decides about voice messages (spec 25): off, not sealed, no opening time on an
+   * event that predates them. `enabled` only has an effect while `allowGuestbook` is on;
+   * `opensAtMs` is an instant in milliseconds, or `null` for "when the event ends".
+   */
+  readonly guestbookVoice: {
+    readonly enabled: boolean
+    readonly sealed: boolean
+    readonly opensAtMs: number | null
+  }
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null
@@ -232,8 +270,17 @@ export interface EventPurgeDto {
   readonly notice: 14 | 3 | 1 | null
   /** The event's client is being offboarded: the deletion band shows however far the date is. */
   readonly offboarding: boolean
+  /**
+   * The voice messages the purge would take unheard or undecided, from a week before `at` (0 and 0
+   * otherwise): how many are still kept secret, how many wait for a decision.
+   */
+  readonly voices: PurgeVoicesDto
   /** The server's clock when it answered: `at` is counted down against it, not the machine's. */
   readonly serverNowMs: number
+}
+export interface PurgeVoicesDto {
+  readonly secret: number
+  readonly pending: number
 }
 export interface EventDto extends EventSummaryDto {
   readonly joinCode: string
@@ -395,6 +442,7 @@ export interface EngagementDto {
   readonly since: string
   readonly galleryViews: number
   readonly galleryArchiveDownloads: number
+  readonly guestSaves: number
 }
 /**
  * The host statistics page (spec 05). Everything is derived from the album at read time.

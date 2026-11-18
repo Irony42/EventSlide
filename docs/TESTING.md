@@ -93,7 +93,10 @@ own: `FakeEventSource` (a controllable `EventSource`: `vi.stubGlobal('EventSourc
 `FakeEventSource.reset()` first, then `latest()` and the `emit*` helpers), `deferred()` (a promise the
 test settles by hand, to hold a request open at the moment under test), and `flushPromises()` (an async
 `act` that lets in-flight promises finish, so "nothing happened" is asserted after settling and not
-after a real sleep).
+after a real sleep), and `useFakeDevice({ kind: 'iphone' | 'android' | 'desktop' })` (a phone or a
+laptop as far as the save button can tell: `navigator.share` and `canShare`, the user agent, the
+pointer, and the download manager, each put back by `restore()` in the test's `afterEach`; what it
+cannot stand in for is a real share sheet, see "Appareils réels" in §9).
 
 ---
 
@@ -794,6 +797,65 @@ tests/e2e/
   machine is broken. Causes, in frequency order: a missing auto-retrying assertion, a
   `waitForTimeout`, state shared between workers, an unseeded clock. Never `test.skip` a
   red e2e without an issue link and a comment saying what broke.
+
+### Appareils réels
+
+Some behaviour cannot be tested by any ring, because no automated browser has it. **Playwright's
+WebKit does not emulate the iOS share sheet** (`navigator.share()` and its "Enregistrer
+l'image" action), and neither Chromium nor jsdom has what decides where a downloaded file lands
+on a phone. Those are measured by hand, on a real iPhone and a real Android phone, and the
+result is written here. A claim about a device that is not in the table below is a claim from
+memory: say so in the pull request that makes it.
+
+**What the code does today, and what is measured.** `web/src/lib/saveStrategy.ts` opens the
+share sheet only for a touch device with a coarse pointer, that can share a file, **and that is
+made by Apple** (its one platform test, argued in the file). Everywhere else the save button
+downloads. Its tests (ring 5, `web/src/lib/saveStrategy.test.ts` and
+`web/src/features/guest-feed/components/SaveButton.test.tsx`) pin the decision with a fake
+`navigator` (`web/src/testing/fakeDevice.ts`); the e2e journey `guest-save.spec.ts` reads the file
+a Chromium phone downloads and, on `webkit-mobile`, only asserts that the button answers a tap.
+What the sheet really offers is below.
+
+**The protocol.** One run per device, on the app served over HTTPS from a real instance (a share
+sheet and a download manager behave differently on `localhost`), with an event that holds at least
+one photograph of someone else's, shot on that phone or sent from a phone, so that its size is a
+real one. Write the date, the OS version and the browser version next to each result.
+
+| #   | Measure                                            | How                                                                                                                                                              |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Where the file lands after one tap                 | Tap "Enregistrer". Photos, Files, Downloads or the gallery? How many gestures after the tap?                                                                     |
+| 2   | "Enregistrer l'image" in the share sheet (iPhone)  | Is it in the first row of actions, or does it need a scroll? Same on iPadOS.                                                                                     |
+| 3   | How long the gesture stays valid after a `fetch`   | iPhone, Wi-Fi throttled (Network Link Conditioner, "Very Bad Network"): the second tap state ("Appuyez pour l'enregistrer") must appear and then open the sheet. |
+| 4   | The same photograph shared twice                   | Does the system save a second copy, ask, or refuse? What does the guest see?                                                                                     |
+| 5   | Android Chrome: share sheet against download       | Question 13 of spec 24. Force the sheet on a build with the platform test removed and compare: gestures to reach the gallery, and whether the file shows there.  |
+| 6   | A messaging app's own browser (WKWebView)          | Open the evening from a link inside the app: is `navigator.canShare({ files })` false? Does the help line about "Ouvrir dans Safari" match the app's own menu?   |
+| 7   | The notice read again in the middle of a gesture   | Spec 24, question 15: switch the setting while a guest has a photo chosen. Is the chosen photo still there when the notice has been read?                        |
+| 8   | The real weight of `display` on a phone photograph | Note `Content-Length` of three photographs; write the average in `docs/OPERATING.md`, next to the bandwidth figure.                                              |
+
+**Results.** Not measured yet: the pull request that introduced the save button was written
+without a phone in hand, and the rows below are what the person who holds one fills in before
+that pull request is merged (it ships in the same version as the route and the notice, so an
+unfilled table is a reason to wait, not to merge).
+
+| Device and OS | Browser | Date | #1  | #2  | #3  | #4  | #5  | #6  | #7  | #8  |
+| ------------- | ------- | ---- | --- | --- | --- | --- | --- | --- | --- | --- |
+| iPhone, iOS   | Safari  |      |     |     |     |     | -   |     |     |     |
+| Android       | Chrome  |      |     | -   | -   | -   |     | -   |     |     |
+
+**Sources** (what the design leans on, to be read again when a measure disagrees with it):
+
+- MDN, [`Navigator.share()`](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/share)
+  and [`Navigator.canShare()`](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/canShare):
+  sharing files, the `NotAllowedError` raised when the call is not made from a user gesture, the
+  `AbortError` raised when the person closes the sheet.
+- MDN, [User activation](https://developer.mozilla.org/en-US/docs/Web/Security/User_activation):
+  transient activation is time-limited, which is why a photograph fetched over a slow network can
+  outlive the tap that asked for it (the second-tap state of `usePhotoSave`).
+- WebKit's bug tracker (bugs.webkit.org) for `navigator.share` and user gestures, and Apple's
+  Safari release notes for the version that added file sharing (15): not read for this change,
+  **to cite by number when row #3 is measured**.
+- iPadOS Safari presents itself as a Mac when it asks for desktop sites; hence
+  `platform === 'MacIntel' && maxTouchPoints > 1` in `saveStrategy.ts`.
 
 ---
 

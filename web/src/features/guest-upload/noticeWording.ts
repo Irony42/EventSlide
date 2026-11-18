@@ -38,6 +38,20 @@ export const selfRemovalSentence = (seconds: number, text: UiText): string => {
 }
 
 /**
+ * The window in which a guest may take their **voice message** back, in the same three tiers and
+ * with the same rule: minutes are rounded down, never up (spec 25, rule 1 bis). Its own phrases and
+ * not the photo's: a voice is never on a screen, so the window holds whatever its status, and the
+ * sentence says "votre message vocal" and not "une photo ... tant qu'elle n'a pas été validée".
+ */
+export const voiceRemovalSentence = (seconds: number, text: UiText): string => {
+  if (seconds < SECONDS_PER_MINUTE) return text.guestbookVoice.noticeVoiceRemovalSeconds(seconds)
+  if (seconds % SECONDS_PER_HOUR === 0) {
+    return text.guestbookVoice.noticeVoiceRemovalHours(seconds / SECONDS_PER_HOUR)
+  }
+  return text.guestbookVoice.noticeVoiceRemovalMinutes(Math.floor(seconds / SECONDS_PER_MINUTE))
+}
+
+/**
  * The four answers, in the order the roadmap asks them: what happens to a photo, who sees
  * it, how long it is kept, and how to have it removed.
  *
@@ -67,6 +81,10 @@ export const noticeSections = (
   // An event with a guestbook (spec 01): the same four questions, titled for photos *and* messages,
   // each with one sentence for a message. Nothing changes for an event without one.
   const withBook = notice.guestbook === true
+  // A voice message (spec 25): the server sends the flag only when the event takes them, and each
+  // sentence below is a fact of that configuration (who hears it, whether it is kept secret, how long).
+  const voice = text.guestbookVoice
+  const withVoice = notice.voice === true
 
   return [
     {
@@ -87,13 +105,24 @@ export const noticeSections = (
             ]
           : [copy.noticePublication[notice.publication]]),
         ...(withBook ? [text.guestbook.noticeMessagePublication[notice.publication]] : []),
+        ...(withVoice
+          ? [voice.noticeVoicePublication[notice.publication], voice.noticeVoiceMicrophone]
+          : []),
       ],
     },
     {
       term: withBook ? text.guestbook.noticeWhoSees : copy.noticeWhoSees,
       sentences: [
         ...notice.audiences.map((audience) => copy.noticeAudiences[audience]),
+        // After the audiences, because it is what they may then do with the photo they see: the
+        // server sends the flag only when saving is on, so the sentence cannot contradict the
+        // switch (spec 24).
+        ...(notice.guestSave === true ? [copy.noticeGuestSave] : []),
         ...(withBook ? [text.guestbook.noticeMessageAudience] : []),
+        ...(withVoice ? [voice.noticeVoiceAudience, voice.noticeVoiceNeverRoom] : []),
+        // Only when the host keeps the voices secret: the sentence describes the setting, not a
+        // stronger promise.
+        ...(withVoice && notice.voiceSealed === true ? [voice.noticeVoiceSealed] : []),
       ],
     },
     {
@@ -103,11 +132,29 @@ export const noticeSections = (
           ? copy.noticeRetentionNone
           : copy.noticeRetentionDays(notice.retentionDays),
         ...(withBook ? [text.guestbook.noticeMessageRetention] : []),
+        ...(withVoice
+          ? [
+              notice.retentionDays === null
+                ? voice.noticeVoiceRetention
+                : voice.noticeVoiceRetentionDays(notice.retentionDays),
+            ]
+          : []),
       ],
     },
     {
       term: withBook ? text.guestbook.noticeRemoval : copy.noticeRemoval,
-      sentences: [...removal, ...(withBook ? [text.guestbook.noticeMessageRemoval] : []), erasure],
+      sentences: [
+        ...removal,
+        ...(withBook ? [text.guestbook.noticeMessageRemoval] : []),
+        ...(withVoice
+          ? [
+              notice.voiceRemovalSeconds === undefined
+                ? voice.noticeVoiceRemovalAskHost
+                : voiceRemovalSentence(notice.voiceRemovalSeconds, text),
+            ]
+          : []),
+        erasure,
+      ],
     },
     ...(notice.operator === undefined
       ? []

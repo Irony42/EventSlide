@@ -10,6 +10,7 @@ import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
+import { FakeGuestbookVoiceRepository } from '../../testing/fakeGuestbookVoiceRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
@@ -223,6 +224,7 @@ describe('the photo book and the ways out of the evening', () => {
       reactions: new FakeReactionRepository(),
       clips: new FakeClipJobRepository(),
       guestbook: new FakeGuestbookRepository(),
+      voices: new FakeGuestbookVoiceRepository(new FakeGuestbookRepository()),
       media,
       bus,
       clock,

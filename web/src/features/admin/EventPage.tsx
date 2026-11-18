@@ -336,6 +336,7 @@ export function EventPage() {
             moment={moment}
             archive={archive}
             albumUrl={albumUrl}
+            {...(event.purge === undefined ? {} : { voices: event.purge.voices })}
           />
         ) : null}
 

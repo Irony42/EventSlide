@@ -369,6 +369,119 @@ describe('backup and restore', () => {
       expect((await verify()).ok).toBe(true)
     })
 
+    /** A guestbook voice message: its entry, then the recording row behind it. */
+    const insertVoice = (
+      db: Db,
+      input: {
+        id: string
+        state: 'reserved' | 'queued' | 'running' | 'ready' | 'failed'
+        sourceHash: string
+        audioHash?: string
+      },
+    ): void => {
+      db.prepare(
+        `INSERT INTO guestbook_entries (id, event_id, guest_id, body, status, created_at)
+         VALUES (?, ?, 'guest-1', '', 'pending', '2026-09-01T20:05:00.000Z')`,
+      ).run(input.id, EVENT)
+      db.prepare(
+        `INSERT INTO guestbook_voices (entry_id, event_id, state, source_hash, source_byte_size,
+                                       audio_hash, audio_byte_size, duration_ms, failure, queued_at)
+         VALUES (?, ?, ?, ?, 9, ?, ?, ?, ?, '2026-09-01T20:05:00.000Z')`,
+      ).run(
+        input.id,
+        EVENT,
+        input.state,
+        input.sourceHash,
+        input.audioHash ?? null,
+        input.audioHash === undefined ? null : 7,
+        input.audioHash === undefined ? null : 4_000,
+        input.state === 'failed' ? 'corrupt' : null,
+      )
+    }
+
+    it('accounts for a voice message that is ready, whose output no photo row names', async () => {
+      // Spec 25. Without the `voices` read every recording would be counted in
+      // `unreferencedMediaFiles`, the figure that signals a leak, and a restore could not tell
+      // a recording that belongs from a file nobody owns.
+      const db = openLive()
+      insertOwner(db)
+      insertEvent(db)
+      insertGuest(db, 'guest-1')
+      const audioHash = hashOf('a-voice-output')
+      insertVoice(db, { id: 'v1', state: 'ready', sourceHash: hashOf('a-voice-source'), audioHash })
+      db.close()
+
+      await writeMedia(EVENT, audioHash, 'voice', 'm4a-bytes')
+
+      const { manifest } = await backup()
+
+      expect(manifest.counts.mediaFiles).toBe(1)
+      expect(manifest.unreferencedMediaFiles).toBe(0)
+      expect(manifest.missingMedia).toEqual([])
+      expect((await verify()).ok).toBe(true)
+    })
+
+    it('accounts for the source of a voice still being processed, as it does a clip’s', async () => {
+      const db = openLive()
+      insertOwner(db)
+      insertEvent(db)
+      insertGuest(db, 'guest-1')
+      const queued = hashOf('queued-voice-source')
+      const reserved = hashOf('reserved-voice-source')
+      insertVoice(db, { id: 'v1', state: 'queued', sourceHash: queued })
+      insertVoice(db, { id: 'v2', state: 'reserved', sourceHash: reserved })
+      db.close()
+
+      await writeMedia(EVENT, queued, 'source', 'webm bytes')
+      await writeMedia(EVENT, reserved, 'source', 'ogg bytes')
+
+      const { manifest } = await backup()
+
+      expect(manifest.counts.mediaFiles).toBe(2)
+      expect(manifest.unreferencedMediaFiles).toBe(0)
+      // Never an alarm: a source's window between "queued" and "gone" is as narrow as a clip's.
+      expect(manifest.missingMedia).toEqual([])
+    })
+
+    it('reports a ready voice whose recording is not on the disk, as it does a photograph', async () => {
+      const db = openLive()
+      insertOwner(db)
+      insertEvent(db)
+      insertGuest(db, 'guest-1')
+      const audioHash = hashOf('a-lost-voice-output')
+      insertVoice(db, { id: 'v1', state: 'ready', sourceHash: hashOf('lost-source'), audioHash })
+      db.close()
+
+      const { manifest } = await backup()
+
+      expect(manifest.missingMedia).toEqual([
+        { photoId: 'v1', eventId: EVENT, contentHash: audioHash, variant: 'voice' },
+      ])
+    })
+
+    it('does not name the source of a voice that is ready or failed: those bytes are nobody’s any more', async () => {
+      const db = openLive()
+      insertOwner(db)
+      insertEvent(db)
+      insertGuest(db, 'guest-1')
+      const readySource = hashOf('ready-voice-source')
+      const failedSource = hashOf('failed-voice-source')
+      const audioHash = hashOf('ready-voice-output')
+      insertVoice(db, { id: 'v1', state: 'ready', sourceHash: readySource, audioHash })
+      insertVoice(db, { id: 'v2', state: 'failed', sourceHash: failedSource })
+      db.close()
+
+      await writeMedia(EVENT, audioHash, 'voice', 'm4a-bytes')
+      await writeMedia(EVENT, readySource, 'source', 'left behind')
+      await writeMedia(EVENT, failedSource, 'source', 'left behind too')
+
+      const { manifest } = await backup()
+
+      // The two leftovers are exactly what the sweep collects, and what the figure is for.
+      expect(manifest.counts.mediaFiles).toBe(3)
+      expect(manifest.unreferencedMediaFiles).toBe(2)
+    })
+
     it('accounts for a host’s venue photograph, which an event’s settings name and no row does', async () => {
       // ADR 0010, decision 8. Without the events read every backup taken after a host
       // uploaded one reported it as an unreferenced file, the number an operator is told

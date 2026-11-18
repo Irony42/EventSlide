@@ -29,6 +29,8 @@ const REMOVES_OR_REOPENS = new RegExp(
     String.raw`\.setTakenDown\(`,
     String.raw`\bphotos\.save\(`,
     String.raw`\bguestbook\.(?:delete|deleteByGuest|save)\(`,
+    // A recording's own removal (spec 25): the entry and its voice together.
+    String.raw`\bvoices\.deleteByEntry\(`,
     String.raw`\bevent\.transitionTo\(`,
     String.raw`\.applySchedule\(`,
   ].join('|'),
@@ -43,8 +45,8 @@ const CANNOT_SPOIL_AN_ARCHIVE: Readonly<Record<string, string>> = {
     'the helper the removing paths call; each of them retires the archive first (the guard below counts them)',
   'photos/setPhotoCaption.ts':
     'a caption is not in the archive (a file, its digest and the guest first names of guestbook.txt only): no content leaves',
-  'guestbook/deleteGuestbookEntry.ts':
-    'a guest takes back a message only while it is `pending` or `rejected` (`authorMayTakeBack`), and the archive holds published and hidden messages: it cannot remove one it holds',
+  'guestbook/stageGuestbookVoice.ts':
+    'it only removes the reservation of an upload that failed before its bytes landed: a recording that never became `ready` is in no archive',
 }
 
 const sourcesUnder = (directory: string): readonly string[] =>
@@ -79,6 +81,8 @@ describe('the use cases that can take content out of the evening, or reopen it',
     expect(hooked).toEqual([
       'events/applyEventSchedules.ts',
       'events/changeEventStatus.ts',
+      'guestbook/deleteGuestbookEntry.ts',
+      'guestbook/keepPendingGuestbookVoices.ts',
       'guestbook/moderateGuestbookEntry.ts',
       'guests/eraseGuestContribution.ts',
       'moderation/moderatePhoto.ts',

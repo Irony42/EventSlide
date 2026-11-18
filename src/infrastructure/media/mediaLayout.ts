@@ -39,6 +39,8 @@ export const CONTENT_TYPE: Readonly<Record<MediaVariant, string>> = {
   logo: 'image/webp',
   // The host's highlight reel (spec 08), served only by its own route.
   reel: 'video/mp4',
+  // A guestbook voice (spec 25): AAC in MP4, served by its own route and by none other.
+  voice: 'audio/mp4',
 }
 
 export const EXTENSION: Readonly<Record<MediaVariant, string>> = {
@@ -51,6 +53,7 @@ export const EXTENSION: Readonly<Record<MediaVariant, string>> = {
   ground: 'webp',
   logo: 'webp',
   reel: 'mp4',
+  voice: 'm4a',
 }
 
 /** The characters of the shard directory: the first two of the hash. */

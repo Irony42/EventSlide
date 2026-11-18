@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { readZipEnd } from '../../../domain/exports/zipEndRecord'
-import { aGuestbookEntry, anEvent, aPhoto, atPlus } from '../../testing/builders'
+import { aGuestbookEntry, aVoiceEntry, anEvent, aPhoto, atPlus } from '../../testing/builders'
 import { DEFAULT_EXPORT_POLICY, ExportScene } from '../../testing/exportScene'
 import { FakeExportFolderStore } from '../../testing/fakeExportFolderStore'
 import { makeExportAlbumToFolder, type ExportAlbumToFolder } from './exportAlbumToFolder'
@@ -22,6 +22,7 @@ const wire = (event = anEvent({ id: 'event-1', slug: 'camille-et-sacha', status:
   exportToFolder = makeExportAlbumToFolder({
     photos: scene.photos,
     guestbook: scene.guestbook,
+    voices: scene.voices,
     guests: scene.guests,
     media: scene.media,
     archive: scene.archive,
@@ -110,6 +111,16 @@ describe('exportAlbumToFolder', () => {
       expect(folders.writes).toEqual([])
     })
 
+    it('counts the voice messages in the estimate: a disk that holds the photographs alone is refused (spec 25)', async () => {
+      await scene.photo({ id: 'p1', byteSize: 1_000 })
+      await scene.voice({ id: 'v1', audioByteSize: 2_000 })
+      // 1 000 + 100 for the photograph alone; with the recording, 3 000 + 200.
+      scene.freeDisk = 1_100 + DEFAULT_EXPORT_POLICY.minFreeDiskBytes
+
+      expect(await go()).toEqual({ kind: 'failed', folder: FOLDER, code: 'noRoom' })
+      expect(folders.writes).toEqual([])
+    })
+
     it('refuses when the disk cannot be read', async () => {
       await scene.photo({ id: 'p1' })
       scene.freeDisk = null
@@ -131,6 +142,7 @@ describe('exportAlbumToFolder', () => {
       exportToFolder = makeExportAlbumToFolder({
         photos: scene.photos,
         guestbook: scene.guestbook,
+        voices: scene.voices,
         guests: scene.guests,
         media: scene.media,
         archive: scene.archive,
@@ -177,6 +189,18 @@ describe('exportAlbumToFolder', () => {
     it('says how many files were missing from the disk and still writes the copy', async () => {
       await scene.photo({ id: 'p1' })
       scene.photos.seed(aPhoto({ id: 'lost', eventId: 'event-1', status: 'published' }))
+
+      const outcome = await go()
+
+      expect(outcome).toMatchObject({ kind: 'written', skipped: 1 })
+      expect(folders.manifestOf(FOLDER)).toContain('# missing: 1')
+    })
+
+    it('writes the copy, and does not call it stale, when a recording’s file is gone: counted as missing, the photographs still balance', async () => {
+      await scene.photo({ id: 'p1' })
+      scene.guestbook.seed(
+        aVoiceEntry({ id: 'v-lost', eventId: 'event-1', state: 'ready', moderation: 'auto' }),
+      )
 
       const outcome = await go()
 

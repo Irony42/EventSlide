@@ -4,6 +4,7 @@ import { acceptsGuestbookEntries } from '../../../domain/guestbook/guestbookWind
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
+import type { AudioTranscoder } from '../../ports/audioTranscoder'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
@@ -19,6 +20,11 @@ import type { GuestbookRepository } from '../../ports/guestbookRepository'
  * rule), so the phone is never shown a button the delete route then refuses. `accepting` is the
  * rule the write route applies (the switch, the event's state and the closed-event window), so the
  * card can disappear instead of offering a form the server will refuse.
+ *
+ * **A voice message** (spec 25) is listed in any state, a failed one included: this is where its
+ * author learns the recording did not save and is offered to record it again. `voiceAvailable` is
+ * the rule the voice route applies before it reads a byte: the host's two switches (the book and
+ * the voice) **and** an encoder on this box, so the phone shows the button only when it would work.
  */
 
 export interface ListMyGuestbookEntriesInput {
@@ -36,12 +42,24 @@ export interface MyGuestbook {
   readonly accepting: boolean
   /** Whether published messages are shown on the wall: what "published" means to the author. */
   readonly onWall: boolean
+  /** Whether a voice message would be taken now: both switches, the window, and an encoder. */
+  readonly voiceAvailable: boolean
+  /**
+   * The longest voice message this box takes (`MAX_VOICE_SECONDS`), in whole seconds: the phone stops
+   * its recording there, because a recording the server then refused as too long is one the guest
+   * has lost.
+   */
+  readonly voiceMaxSeconds: number
 }
 
 export interface ListMyGuestbookEntriesDeps {
   readonly events: EventRepository
   readonly guestbook: GuestbookRepository
+  /** Only asked whether this box can encode: a Null Object on a box with no ffmpeg says no. */
+  readonly transcoder: Pick<AudioTranscoder, 'available'>
   readonly clock: Clock
+  /** The longest voice message in milliseconds (`MAX_VOICE_SECONDS`), said to the phone. */
+  readonly voiceMaxDurationMs: number
 }
 
 export type ListMyGuestbookEntries = (
@@ -49,7 +67,13 @@ export type ListMyGuestbookEntries = (
 ) => Promise<Result<MyGuestbook, DomainError>>
 
 export const makeListMyGuestbookEntries =
-  ({ events, guestbook, clock }: ListMyGuestbookEntriesDeps): ListMyGuestbookEntries =>
+  ({
+    events,
+    guestbook,
+    transcoder,
+    clock,
+    voiceMaxDurationMs,
+  }: ListMyGuestbookEntriesDeps): ListMyGuestbookEntries =>
   async ({ eventId, guestId }) => {
     const event = await events.findById(eventId)
     if (event === null || !event.isReachable()) {
@@ -59,6 +83,7 @@ export const makeListMyGuestbookEntries =
     const now = clock.now()
     const actor = { kind: 'guest', guestId } as const
     const entries = await guestbook.listByGuest(eventId, guestId, MAX_ENTRIES_PER_GUEST)
+    const accepting = event.settings.allowGuestbook && acceptsGuestbookEntries(event, now)
 
     return ok({
       items: entries.map((entry) => ({
@@ -69,7 +94,9 @@ export const makeListMyGuestbookEntries =
             guestSelfDeleteGraceMs: event.settings.guestSelfDeleteGraceSeconds * 1_000,
           }) === 'allowed',
       })),
-      accepting: event.settings.allowGuestbook && acceptsGuestbookEntries(event, now),
+      accepting,
+      voiceAvailable: accepting && event.settings.guestbookVoice.enabled && transcoder.available(),
+      voiceMaxSeconds: Math.floor(voiceMaxDurationMs / 1_000),
       onWall: event.settings.guestbookOnWall,
     })
   }

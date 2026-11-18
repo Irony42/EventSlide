@@ -435,6 +435,7 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
             sent: [],
             discarded: added.evicted,
             remaining: 0,
+            refusals: [],
             retryAfterMs: null,
           })
         }

@@ -93,3 +93,13 @@
 .emptyFocus {
   outline: none;
 }
+
+.processing {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.bulk {
+  display: flex;
+}

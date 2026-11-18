@@ -146,7 +146,7 @@ export const fr = {
     eraseBody:
       'Vos photos, vos vidéos, vos légendes, vos réactions et votre prénom seront effacés de la soirée : de l’écran, de l’album et de la liste de l’organisateur. C’est définitif.',
     eraseLimits:
-      'Une copie déjà enregistrée par l’organisateur, ou par quelqu’un qui a fait une capture, ne peut pas être reprise.',
+      'Une copie déjà enregistrée par l’organisateur, par un autre invité ou par quelqu’un qui a fait une capture, ne peut pas être reprise.',
     eraseConfirm: 'Oui, tout supprimer',
     eraseCancel: 'Non, je garde',
     eraseFailed: 'La suppression n’a pas abouti. Réessayez, ou demandez à l’organisateur.',
@@ -519,6 +519,9 @@ export const fr = {
       sharedGallery:
         'Les personnes à qui l’organisateur envoie un lien privé vers l’album, s’il en crée un, et celles à qui ce lien est transféré : elles peuvent voir et télécharger en pleine résolution les photos affichées à l’écran, jusqu’à ce que le lien expire ou soit retiré.',
     } satisfies Record<NoticeAudience, string>,
+    /** Said after the audiences, only on an evening where saving is on (spec 24). */
+    noticeGuestSave:
+      'Les autres invités peuvent enregistrer votre photo sur leur téléphone, sans le lieu ni l’appareil de prise de vue. Une copie enregistrée ne peut pas être reprise.',
     /**
      * "après que l’organisateur a terminé la soirée", for the reason `admin.retentionHint`
      * spells out: the clock starts when the host ends the event, and "après la fête" would
@@ -626,7 +629,15 @@ export const fr = {
       'guestbook.invalid': 'Ce message ne peut pas être envoyé tel quel.',
       'guestbook.tooManyLines': 'Message trop haut : gardez-le plus court.',
       'guestbook.limitReached':
-        'Vous avez déjà laissé 3 messages. Retirez-en un pour en écrire un autre.',
+        'Vous avez déjà laissé 3 messages, texte ou vocaux. Retirez-en un pour en laisser un autre.',
+      'guestbook.voiceDisabled': 'Les messages vocaux sont désactivés pour l’instant.',
+      'guestbook.voiceEventFull': 'Le livre d’or est plein.',
+      'voice.queueFull': 'Réessayez dans un instant.',
+      'voice.unsupportedFormat': 'Ce fichier n’est pas un message vocal lisible.',
+      'voice.notAudio': 'Ce fichier n’est pas un message vocal lisible.',
+      'voice.corrupt': 'Ce fichier n’est pas un message vocal lisible.',
+      'voice.tooLong': 'Ce message vocal est trop long.',
+      'voice.tooShort': 'Ce message vocal est trop court.',
       'guestbook.eventFull': 'Le livre d’or est complet.',
       'guestbook.disabled': 'Le livre d’or n’est pas ouvert pour le moment.',
       'event.notAcceptingUploads': 'Le livre d’or n’est pas ouvert pour le moment.',
@@ -641,7 +652,7 @@ export const fr = {
     },
     /** `upload.eraseBody` for an event with a guestbook. */
     eraseBody:
-      'Vos photos, vos vidéos, vos légendes, vos messages du livre d’or, vos réactions et votre prénom seront effacés de la soirée : de l’écran, de l’album et de la liste de l’organisateur. C’est définitif.',
+      'Vos photos, vos vidéos, vos légendes, vos messages du livre d’or, y compris vos messages vocaux, vos réactions et votre prénom seront effacés de la soirée : de l’écran, de l’album et de la liste de l’organisateur. C’est définitif.',
     /** The notice's four titles, and one added sentence each, for an event with a guestbook. */
     noticeWhatHappens: 'Ce que deviennent vos photos et vos messages',
     noticeWhoSees: 'Qui voit vos photos et vos messages',
@@ -659,6 +670,96 @@ export const fr = {
       'Vos messages sont gardés aussi longtemps que les photos, et effacés avec elles.',
     noticeMessageRemoval:
       'Un message se retire comme une photo, depuis « Mes messages » et dans les mêmes conditions.',
+  },
+
+  /**
+   * The voice message of the guestbook, guest side (spec 25): recording it, listening before sending,
+   * where it stands afterwards and what the privacy notice says about it. What a guest says is never
+   * translated and never appears here, only the words around it. Never "IA", "intelligent" or
+   * "transcription" in a sentence of this table: nothing listens to a voice but the organiser.
+   */
+  guestbookVoice: {
+    open: 'Laisser un message vocal',
+    record: 'Enregistrer',
+    stop: 'Arrêter',
+    clock: (elapsed: string, max: string) => `${elapsed} / ${max}`,
+    recordingAnnounce: 'Enregistrement en cours',
+    nearEnd: 'Il reste 10 secondes',
+    recordedAnnounce: (duration: string) => `Enregistrement terminé, ${duration}`,
+    closeToTheMicrophone: 'Parlez de près : les personnes autour de vous peuvent s’entendre',
+    listen: 'Écouter',
+    listenPause: 'Mettre en pause',
+    restart: 'Recommencer',
+    send: 'Envoyer mon message vocal',
+    cancel: 'Annuler',
+    captionLabel: 'Un mot pour l’accompagner',
+    micBlocked:
+      'Le micro est bloqué. Autorisez-le dans les réglages du navigateur, puis revenez ici.',
+    micUnavailableHere:
+      'Le micro n’est pas disponible sur cette page. Rouvrez le lien de l’évènement.',
+    micMissing:
+      'Aucun micro n’a pu être utilisé sur cet appareil. Vous pouvez écrire un mot à la place.',
+    tooShort: 'Message trop court : parlez au moins une seconde.',
+    writeInstead: 'Écrire un mot à la place',
+    openInBrowser: 'Pour laisser un message vocal, ouvrez cette page dans Safari ou Chrome.',
+    previewFailed: 'L’aperçu ne se lit pas ici, vous pouvez quand même envoyer',
+    interrupted: (duration: string) =>
+      `L’enregistrement s’est arrêté parce que la page a été quittée. Il dure ${duration}.`,
+    notKept: 'L’enregistrement n’a pas pu être gardé sur votre téléphone. Recommencez.',
+    helpManual: 'L’organisateur décide de garder votre message.',
+    helpAuto:
+      'Votre message est gardé dans le livre d’or. Seuls l’organisateur et son équipe peuvent l’écouter.',
+    thanksManual: 'Merci ! L’organisateur décidera de garder votre message.',
+    thanksAuto: 'Merci ! Votre message vocal est bien reçu.',
+    waitingNetwork: 'Votre message vocal attend un réseau.',
+    offlineHintKeepOpen:
+      'Gardez cette page ouverte : vos photos et votre message vocal partiront dès que le réseau revient.',
+    keptOnPhone: 'Votre enregistrement reste sur votre téléphone.',
+    messageLabel: (duration: string | null) =>
+      duration === null ? 'Message vocal' : `Message vocal, ${duration}`,
+    statusProcessing: 'En traitement',
+    statusPublished: 'Dans le livre d’or',
+    failed: 'Votre message vocal n’a pas pu être enregistré. Réenregistrez-le.',
+    retry: 'Réessayer',
+    localWaiting: 'En attente d’un réseau',
+    localBlocked: 'Gardé sur votre téléphone',
+    saveToPhone: 'Enregistrer sur mon téléphone',
+    deleteLocal: 'Supprimer',
+    noticeVoiceAudience:
+      'Votre message vocal est visible de l’organisateur et de son équipe seulement.',
+    noticeVoiceNeverRoom:
+      'Il n’est jamais diffusé sur l’écran de la salle ni entendu par les autres invités.',
+    noticeVoicePublication: {
+      afterReview: 'L’organisateur décide de garder votre message.',
+      immediate: 'Votre message est gardé tout de suite dans l’album, sans écoute préalable.',
+    } satisfies Record<NoticePublication, string>,
+    noticeVoiceRetention:
+      'Il est gardé comme vos photos et il part dans l’album que l’organisateur télécharge.',
+    noticeVoiceRetentionDays: (count: number) =>
+      t.count(count, {
+        one: 'Il est gardé comme vos photos (1 jour après que l’organisateur a terminé la soirée) et il part dans l’album que l’organisateur télécharge.',
+        other: `Il est gardé comme vos photos (${t.number(count)} jours après que l’organisateur a terminé la soirée) et il part dans l’album que l’organisateur télécharge.`,
+      }),
+    noticeVoiceMicrophone:
+      'Le micro ne sert que pendant l’enregistrement. L’enregistrement reste sur votre téléphone tant que vous n’avez pas envoyé.',
+    noticeVoiceSealed:
+      'Les messages vocaux restent secrets jusqu’à la fin de la soirée, sauf décision de l’organisateur.',
+    noticeVoiceRemovalSeconds: (count: number) =>
+      t.count(count, {
+        one: 'Vous pouvez retirer votre message vocal pendant 1 seconde après l’envoi.',
+        other: `Vous pouvez retirer votre message vocal pendant ${t.number(count)} secondes après l’envoi.`,
+      }),
+    noticeVoiceRemovalMinutes: (count: number) =>
+      t.count(count, {
+        one: 'Vous pouvez retirer votre message vocal pendant 1 minute après l’envoi.',
+        other: `Vous pouvez retirer votre message vocal pendant ${t.number(count)} minutes après l’envoi.`,
+      }),
+    noticeVoiceRemovalHours: (count: number) =>
+      t.count(count, {
+        one: 'Vous pouvez retirer votre message vocal pendant 1 heure après l’envoi.',
+        other: `Vous pouvez retirer votre message vocal pendant ${t.number(count)} heures après l’envoi.`,
+      }),
+    noticeVoiceRemovalAskHost: 'Pour retirer un message vocal, demandez à l’organisateur.',
   },
 
   moderation: {
@@ -882,6 +983,27 @@ export const fr = {
     unavailable: 'Cette soirée n’est plus affichée.',
     unavailableHint:
       'Elle est terminée, et il n’y a plus de photos à voir ici. Demandez le lien de l’album aux organisateurs.',
+    /* Spec 24: saving a photograph from the feed. */
+    saving: 'Enregistrement…',
+    saveReady: 'Appuyez pour l’enregistrer',
+    /** The accessible name of a save button: its word, then the photograph it is under. */
+    saveNamed: (action: string, description: string) => `${action} : ${description}`,
+    saveDownloaded: 'Photo téléchargée.',
+    saveNetworkFailed: 'La photo n’a pas pu être récupérée. Réessayez quand le réseau revient.',
+    saveBusy: 'Beaucoup d’invités enregistrent en même temps. Réessayez dans un instant.',
+    saveGone: 'Cette photo n’est plus disponible.',
+    saveMediaMissing: 'La photo n’a pas pu être récupérée.',
+    saveDisabled: 'L’organisateur a désactivé l’enregistrement.',
+    saveRevoked: 'L’organisateur a retiré votre accès.',
+    /** A lapsed access reads by the state of the evening: open, the code reopens it; over, only the album's link is left. */
+    saveExpiredOpen:
+      'Votre accès à la soirée a expiré. Rouvrez la soirée depuis le code ou le lien reçu.',
+    saveExpiredClosed:
+      'Votre accès à la soirée a expiré. Demandez le lien de l’album aux organisateurs.',
+    saveHelpSheet:
+      'Dans la feuille qui s’ouvre, choisissez « Enregistrer l’image » pour la mettre dans Photos.',
+    saveHelpFiles:
+      'La photo est dans l’app Fichiers, dossier Téléchargements. Pour qu’elle aille dans Photos, ouvrez la soirée dans Safari : dans la messagerie, touchez Partager, puis « Ouvrir dans Safari ».',
   },
 
   wall: {
@@ -1150,7 +1272,8 @@ export const fr = {
       anonymous: (guests: number, photos: number) =>
         `Les invités sans prénom sont regroupés : ${t.count(guests, { one: `${t.number(guests)} invité`, other: `${t.number(guests)} invités` })}, ${t.count(photos, { one: `${t.number(photos)} envoi`, other: `${t.number(photos)} envois` })}.`,
       engagementTitle: 'Après la soirée',
-      engagementNone: 'Pas encore mesuré : aucune ouverture du lien d’album ni aucun ZIP lancé.',
+      engagementNone:
+        'Pas encore mesuré : aucune ouverture du lien d’album, aucun ZIP lancé ni aucune photo enregistrée.',
       albumOpens: (count: number) =>
         t.count(count, {
           one: `${t.number(count)} ouverture du lien d’album`,
@@ -1161,9 +1284,14 @@ export const fr = {
           one: `${t.number(count)} ZIP lancé`,
           other: `${t.number(count)} ZIP lancés`,
         }),
+      guestSaves: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} photo enregistrée par les invités`,
+          other: `${t.number(count)} photos enregistrées par les invités`,
+        }),
       measuredSince: (date: string) => `Mesuré depuis le ${date}. Avant, rien n’était compté.`,
       engagementNote:
-        'Une ouverture est un chargement de la page d’album, pas une personne. Un ZIP lancé n’est pas forcément terminé. Ces chiffres sont indicatifs.',
+        'Une ouverture est un chargement de la page d’album, pas une personne. Un ZIP lancé n’est pas forcément terminé. Un enregistrement est une demande acceptée, pas une photo forcément arrivée sur le téléphone. Ces chiffres sont indicatifs.',
       retention:
         'Ces chiffres disparaissent avec l’évènement, à sa suppression ou à l’échéance de conservation.',
     },
@@ -1206,6 +1334,10 @@ export const fr = {
     allowClips: 'Autoriser les vidéos',
     allowClipsHint:
       'Les invités peuvent envoyer de courtes vidéos, en plus des photos. Quand la case est décochée, les vidéos sont refusées : parce que vous l’avez décochée, parce que le modèle choisi à la création l’a réglé ainsi, ou parce que l’évènement est antérieur à cette fonctionnalité. Cochez-la pour les autoriser.',
+    /** The host's switch over saving from the feed (spec 24). */
+    allowGuestSave: 'Les invités peuvent enregistrer les photos de la soirée',
+    allowGuestSaveHint:
+      'Chaque invité peut garder sur son téléphone une photo affichée à l’écran, en haute qualité, sans le lieu ni l’appareil de prise de vue. Vous gardez la main sur l’album : une photo que vous retirez ne peut plus être enregistrée, mais une photo déjà enregistrée reste sur le téléphone de la personne, et vous ne pouvez pas empêcher la copie d’une seule photo sans la retirer. Changer ce réglage pendant la soirée fait relire la notice aux invités avant leur prochaine photo. Une fois la soirée terminée, un invité dont l’accès a expiré ne peut plus enregistrer : envoyez-lui le lien de l’album, qui donne aussi la pleine résolution.',
     allowGuestbook: 'Ouvrir le livre d’or',
     allowGuestbookHint:
       'Les invités laissent un court message. Décoché : le livre d’or est fermé, les messages déjà écrits sont conservés.',
@@ -1370,6 +1502,10 @@ export const fr = {
     templateClipsOff: 'Vidéos désactivées',
     templateSelfDeleteOn: 'Effacement photo par photo autorisé',
     templateSelfDeleteOff: 'Effacement photo par photo désactivé',
+    templateGuestSaveOn: 'Les invités peuvent enregistrer les photos',
+    templateGuestSaveOff: 'Enregistrement des photos par les invités désactivé',
+    templateVoiceOn: 'Messages vocaux dans le livre d’or activés',
+    templateVoiceOff: 'Messages vocaux désactivés',
     templateNames: {
       wedding: 'Mariage',
       birthday: 'Anniversaire',
@@ -1900,6 +2036,51 @@ export const fr = {
     copyFailed: 'Copie impossible : sélectionnez l’identifiant à la main.',
     openMessages: 'Modérer les messages',
     onWall: (count: number) => `${t.number(count)} à l’écran`,
+  },
+
+  /**
+   * The voice messages in the host's console and settings (spec 25): the card, the secret, the
+   * action that keeps what waits, and the settings section. What a guest says is never here.
+   * The interface says "gardé secret" / "kept secret", never the code's word for it. Never "IA",
+   * "intelligent" or "transcription" in a sentence of this table.
+   */
+  guestbookVoiceHost: {
+    cardLabel: (author: string, duration: string) => `Message vocal de ${author}, ${duration}`,
+    duration: (duration: string) => `Durée : ${duration}`,
+    voiceBadge: 'Message vocal',
+    processing: 'En traitement',
+    processingCount: (count: number) =>
+      t.count(count, {
+        one: '1 message vocal en traitement',
+        other: `${t.number(count)} messages vocaux en traitement`,
+      }),
+    sealedCard: 'Gardé secret jusqu’à la fin de la soirée',
+    sealedUntil: (time: string) => `Gardé secret jusqu’à ${time}`,
+    notListened: 'Vous n’avez pas écouté ce message',
+    cannotHide: 'Un message vocal ne se masque pas : il n’est jamais à l’écran.',
+    keepPending: (count: number) =>
+      t.count(count, {
+        one: 'Garder le message en attente',
+        other: `Garder les ${t.number(count)} messages en attente`,
+      }),
+    keepConfirm: 'Vous n’avez pas écouté tous ces messages. Les garder dans l’album ?',
+    keepConfirmLabel: 'Les garder',
+    kept: (count: number) =>
+      t.count(count, {
+        one: '1 message vocal gardé.',
+        other: `${t.number(count)} messages vocaux gardés.`,
+      }),
+    settingsEnabled: 'Messages vocaux',
+    settingsEnabledHint:
+      'Allumer les messages vocaux en cours de soirée fait relire la notice à chaque invité avant son prochain envoi : mieux vaut les allumer avant.',
+    settingsSealed: 'Garder les messages vocaux secrets jusqu’à la fin de la soirée',
+    settingsSealedHint:
+      'Vous ne pourrez pas les écouter avant. Vous pouvez quand même décider de les garder ou de les refuser.',
+    openNow: 'Ouvrir maintenant',
+    openConfirmTitle: 'Ouvrir les messages vocaux ?',
+    openConfirmBody: 'Vous pourrez les écouter dès maintenant. Cette action est définitive.',
+    opened: 'Les messages vocaux sont ouverts.',
+    insecure: 'Cette adresse n’est pas sécurisée : vos invités ne pourront pas enregistrer',
   },
 
   auth: {
@@ -3317,6 +3498,16 @@ export const fr = {
       `Archive envoyée en entier le ${date}. Vérifiez votre fichier avant de supprimer quoi que ce soit.`,
     incomplete: (missing: number) =>
       `Archive prête, mais ${t.count(missing, { one: `${t.number(missing)} fichier manquait`, other: `${t.number(missing)} fichiers manquaient` })} sur le disque du serveur : ${t.count(missing, { one: 'il n’y est pas.', other: 'ils n’y sont pas.' })}`,
+    voiceSecret: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} message vocal est encore gardé secret : il partirait sans avoir été écouté.`,
+        other: `${t.number(count)} messages vocaux sont encore gardés secrets : ils partiraient sans avoir été écoutés.`,
+      }),
+    voicePending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} message vocal attend votre décision : il ne sera pas dans l’album.`,
+        other: `${t.number(count)} messages vocaux attendent votre décision : ils ne seront pas dans l’album.`,
+      }),
     retired: 'L’archive a été retirée parce qu’une photo a été effacée. Préparez-la de nouveau.',
     changed:
       'L’album a changé depuis la préparation de l’archive, elle n’est donc plus proposée. Préparez-la de nouveau.',

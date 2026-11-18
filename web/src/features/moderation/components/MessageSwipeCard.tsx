@@ -1,3 +1,4 @@
+import { VoiceMessageBody } from './VoiceMessageBody'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { useSwipeDecision } from '../hooks/useSwipeDecision'
 import type { SwipeIntent } from '../swipe/swipeGesture'
@@ -15,12 +16,23 @@ import styles from './MessageSwipeCard.module.css'
  * only a horizontal one reaches the gesture.
  */
 export interface MessageSwipeCardProps {
+  readonly slug: string
+  /** The secret is on (spec 25): a voice card shows no player. */
+  readonly voiceSealed?: boolean
+  readonly voiceOpensAtMs?: number | null
   readonly message: GuestbookQueueItemDto
   readonly onDecide: (decision: SwipeIntent, entryId: string) => void
   readonly disabled?: boolean
 }
 
-export function MessageSwipeCard({ message, onDecide, disabled = false }: MessageSwipeCardProps) {
+export function MessageSwipeCard({
+  slug,
+  message,
+  onDecide,
+  disabled = false,
+  voiceSealed = false,
+  voiceOpensAtMs = null,
+}: MessageSwipeCardProps) {
   const t = useTranslations()
   const swipe = useSwipeDecision({
     onDecide: (decision) => onDecide(decision, message.id),
@@ -48,12 +60,28 @@ export function MessageSwipeCard({ message, onDecide, disabled = false }: Messag
       className={cardStyles['card']}
       style={{ transform: `translateX(${swipe.offset}px)` }}
       aria-label={t.moderation.messageOf(author)}
-      onPointerDown={swipe.onPointerDown}
+      onPointerDown={(event) => {
+        // The player's own seek bar and buttons are a drag of their own: they are not a swipe.
+        if (event.target instanceof Element && event.target.closest('audio') !== null) return
+        swipe.onPointerDown(event)
+      }}
     >
       {/* Guest content: whole, as text, in the language it was written in. */}
-      <p className={styles['text']} translate="no">
-        {message.text}
-      </p>
+      {message.voice === null ? (
+        <p className={styles['text']} translate="no">
+          {message.text}
+        </p>
+      ) : (
+        <div className={styles['voice']}>
+          <VoiceMessageBody
+            slug={slug}
+            message={message}
+            author={author}
+            sealed={voiceSealed}
+            opensAtMs={voiceOpensAtMs}
+          />
+        </div>
+      )}
       <div className={cardStyles['meta']}>
         <p
           className={cardStyles['author']}

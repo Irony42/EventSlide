@@ -88,6 +88,14 @@ export interface PrivacyNoticeDto {
   readonly shotLimit?: number
   /** Present only on that evening with the film look: it exists on screen only. */
   readonly film?: true
+  /** Present only when the other guests may save a photo from the feed (spec 24): the notice says a saved copy cannot be taken back. */
+  readonly guestSave?: true
+  /** Present only when guests may leave voice messages (spec 25): who hears them, never the room, the microphone only while recording. */
+  readonly voice?: true
+  /** Present only with `voice`: the host keeps the voices secret until the end of the evening. */
+  readonly voiceSealed?: true
+  /** Present only with `voice`, when a guest may take a voice message back themselves: the window in seconds. Absent: they cannot. */
+  readonly voiceRemovalSeconds?: number
 }
 /** A notice and where this device stands with it: the answer of every notice route. */
 export interface PrivacyNoticeState {
@@ -142,14 +150,27 @@ export interface ErasedContributionDto {
   /** Guestbook messages removed with them; absent from an older server. */
   readonly messages?: number
 }
+/**
+ * The recording behind a voice message as its author reads it (spec 25): where its processing
+ * stands and how long it is, measured on the server's output (`null` until `ready`).
+ */
+export interface GuestbookVoiceDto {
+  readonly state: 'reserved' | 'queued' | 'running' | 'ready' | 'failed'
+  readonly durationMs: number | null
+  /** The optional line the guest wrote with it (140 characters): content, never interface. */
+  readonly caption: string | null
+}
 /** One of the guest's own guestbook messages (spec 01). */
 export interface GuestbookEntryDto {
   readonly id: string
-  readonly text: string
+  /** `null` for a voice message (spec 25), whose words are its recording; a written one always has it. */
+  readonly text: string | null
   readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
   readonly createdAt: string
   /** The server's verdict: the phone never recomputes it. */
   readonly canDelete: boolean
+  /** The recording of a voice message, `null` for a written one (spec 25). */
+  readonly voice: GuestbookVoiceDto | null
 }
 export interface MyGuestbookDto {
   readonly items: readonly GuestbookEntryDto[]
@@ -157,15 +178,26 @@ export interface MyGuestbookDto {
   readonly accepting: boolean
   /** Whether published messages appear on the wall: said to their authors in the status. */
   readonly onWall: boolean
+  /** Whether a voice message would be taken now: the button is shown on this and on nothing else. */
+  readonly voiceAvailable: boolean
+  /** The longest voice message the box takes, in seconds: the recorder stops there (never above 60). */
+  readonly voiceMaxSeconds: number
 }
 /** What a message just written answers. */
 export interface CreatedGuestbookEntryDto {
   readonly id: string
-  readonly text: string
+  /** `null` for a voice message (spec 25), whose words are its recording; a written one always has it. */
+  readonly text: string | null
   readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
   readonly createdAt: string
   /** True when this was the same message sent a moment ago: nothing new was stored. */
   readonly duplicate: boolean
+  /** The recording of a voice message, `null` for a written one (spec 25). */
+  readonly voice: GuestbookVoiceDto | null
+}
+/** What a voice message just sent answers, `202`: the recording is queued, nothing is heard yet. */
+export interface CreatedGuestbookVoiceDto {
+  readonly entry: CreatedGuestbookEntryDto
 }
 export interface GuestPhotoDto {
   readonly id: string

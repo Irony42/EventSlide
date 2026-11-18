@@ -35,6 +35,8 @@ const FIELD_MARKS: readonly (readonly [field: string, mark: string])[] = [
   ['allowGuestSelfDelete', 'Effacement'],
   ['reveal', fr.reveal.templateOn],
   ['reveal', fr.reveal.templateFilmOn],
+  ['allowGuestSave', 'invités'],
+  ['guestbookVoice', 'vocaux'],
   ['guestSelfDeleteGraceSeconds', fr.admin.selfDeleteGrace],
   ['retentionDays', fr.admin.retention],
   ['maxPhotosPerGuest', fr.admin.maxPhotosPerGuest],
@@ -129,6 +131,22 @@ describe('the template summary', () => {
     ])
     expect(templateSummary({ reveal: { film: false } }, fr)).toEqual([fr.reveal.templateFilmOff])
     expect(templateSummary({ reveal: { enabled: false } }, fr)).toEqual([fr.reveal.templateOff])
+  })
+
+  it('says which way the guest-save switch was thrown, not that it was touched', () => {
+    expect(templateSummary({ allowGuestSave: false }, fr)).toEqual([fr.admin.templateGuestSaveOff])
+    expect(templateSummary({ allowGuestSave: true }, fr)).toEqual([fr.admin.templateGuestSaveOn])
+  })
+
+  it('says which way the voice switch was thrown, and says nothing of the keys it leaves alone', () => {
+    expect(templateSummary({ guestbookVoice: { enabled: true } }, fr)).toEqual([
+      fr.admin.templateVoiceOn,
+    ])
+    expect(templateSummary({ guestbookVoice: { enabled: false } }, fr)).toEqual([
+      fr.admin.templateVoiceOff,
+    ])
+    // A group that names no switch (the card never shows `sealed`: no template sets it) is not a line.
+    expect(templateSummary({ guestbookVoice: { sealed: true } }, fr)).toEqual([])
   })
 
   it('words a grace window in the unit the settings form uses', () => {

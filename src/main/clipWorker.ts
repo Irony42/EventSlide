@@ -5,6 +5,8 @@ import type { RecoverReels } from '../application/usecases/highlights/recoverRee
 import type { TranscodeNextReel } from '../application/usecases/highlights/transcodeNextReel'
 import type { RecoverClipJobs } from '../application/usecases/clips/recoverClipJobs'
 import type { TranscodeNextClip } from '../application/usecases/clips/transcodeNextClip'
+import type { RecoverVoiceJobs } from '../application/usecases/guestbook/recoverVoiceJobs'
+import type { TranscodeNextVoice } from '../application/usecases/guestbook/transcodeNextVoice'
 import { createGuardedJob, type JobOutcome } from './guardedJob'
 import { createRepeater } from './repeater'
 
@@ -23,7 +25,7 @@ import { createRepeater } from './repeater'
  *    stays as the backstop: an announcement can be missed (a bus with no subscriber at
  *    the instant of the publish, a drain that was already finishing) and a queue that
  *    only ever moves on a fact would stall silently.
- * 2. **It drains rather than making one pass.** A sweep asks "what is due" once an hour;
+ * 2. **It drains rather than making one pass, and alternates.** A sweep asks "what is due" once an hour;
  *    this asks "what is next" until there is nothing, because ten guests filming the
  *    first dance is the normal case and one clip per interval would be a queue that
  *    never empties.
@@ -50,6 +52,14 @@ export interface ClipWorkerDeps {
    */
   readonly transcodeNextReel?: TranscodeNextReel
   readonly recoverReels?: RecoverReels
+  /**
+   * The guestbook's voice messages (spec 25), drained by the **same** loop for the same reason:
+   * one encoder at a time on a two-core box. A voice is a few hundred milliseconds of work and its
+   * guest waits on "En traitement", a clip is seconds and its guest waits on "Merci", so the loop
+   * **alternates** between the two (see `drain`). Absent, the worker is the clip worker it was.
+   */
+  readonly transcodeNextVoice?: TranscodeNextVoice
+  readonly recoverVoices?: RecoverVoiceJobs
   readonly bus: EventBus
   readonly logger: Logger
   /** For the duration in the log line. Injected so that duration is assertable. */
@@ -68,6 +78,8 @@ export interface ClipWorkerDeps {
 
 export interface DrainReport {
   readonly transcoded: number
+  /** Voice messages made ready in this drain. */
+  readonly voices: number
   readonly failed: number
   /** Highlight reels made in this drain. */
   readonly rendered: number
@@ -91,6 +103,8 @@ export const createClipWorker = ({
   recover,
   transcodeNextReel,
   recoverReels,
+  transcodeNextVoice,
+  recoverVoices,
   bus,
   logger,
   clock,
@@ -100,30 +114,84 @@ export const createClipWorker = ({
   let unsubscribe: Unsubscribe | null = null
   let stopping = false
 
+  /** What one step of the loop found: it made progress, it found nothing due, or it must stop the drain. */
+  type Pass = 'worked' | 'idle' | 'refused'
+  type Step = readonly ['voice' | 'clip', () => Promise<Pass>]
+
+  /**
+   * One drain, **alternating voice and clip**, and a montage only when both are empty.
+   *
+   * A voice is a few hundred milliseconds of encoder and a guest waits on "En traitement"; a clip is
+   * seconds and its guest waits on "Merci". Voices first would let a burst of sixty (the end of a
+   * meal) hold every clip back for a minute, and `maxPerDrain` does not prevent it: it restarts from
+   * zero at every drain, so a queue refilled as fast as it empties never yields. Strict alternation
+   * does: whichever of the two just ran, the **other** is asked next, so a clip waits behind at most
+   * one voice and a voice behind at most one clip. If the one asked has nothing due the other is
+   * taken at once: an idle queue costs a single indexed read, never a turn.
+   */
   const drain = async (): Promise<DrainReport> => {
     let transcoded = 0
+    let voices = 0
     let failed = 0
     let rendered = 0
 
-    for (let taken = 0; taken < maxPerDrain; taken += 1) {
-      if (stopping) break
-
+    const clipPass = async (): Promise<Pass> => {
       const outcome = await transcodeNext()
       if (!outcome.ok) {
         // A `Result` failure here is a transition the entity refused, which means a
         // repository handed back something impossible. Logged and the drain stops: the
         // next pass will meet the same row, and hammering it would fill a log instead.
         logger.error('clip worker could not complete a pass', { code: outcome.error.code })
-        break
+        return 'refused'
       }
+      if (outcome.value.kind === 'idle') return 'idle'
+      if (outcome.value.kind === 'transcoded') transcoded += 1
+      else failed += 1
+      return 'worked'
+    }
 
-      if (outcome.value.kind !== 'idle') {
-        if (outcome.value.kind === 'transcoded') transcoded += 1
-        else failed += 1
+    const voicePass = async (): Promise<Pass> => {
+      if (transcodeNextVoice === undefined) return 'idle'
+      const outcome = await transcodeNextVoice()
+      if (!outcome.ok) {
+        logger.error('clip worker could not complete a voice pass', { code: outcome.error.code })
+        return 'refused'
+      }
+      if (outcome.value.kind === 'idle') return 'idle'
+      if (outcome.value.kind === 'transcoded') voices += 1
+      else if (outcome.value.kind === 'failed') failed += 1
+      // `retired`: erased while it ran. Progress was made (a row left the queue), nothing to count.
+      return 'worked'
+    }
+
+    let voiceTurn = true
+
+    for (let taken = 0; taken < maxPerDrain; taken += 1) {
+      if (stopping) break
+
+      const voiceStep: Step = ['voice', voicePass]
+      const clipStep: Step = ['clip', clipPass]
+      const steps: readonly Step[] = voiceTurn ? [voiceStep, clipStep] : [clipStep, voiceStep]
+      let worked: 'voice' | 'clip' | null = null
+      let refused = false
+      for (const [name, pass] of steps) {
+        const found = await pass()
+        if (found === 'refused') {
+          refused = true
+          break
+        }
+        if (found === 'worked') {
+          worked = name
+          break
+        }
+      }
+      if (refused) break
+      if (worked !== null) {
+        voiceTurn = worked === 'clip'
         continue
       }
 
-      // No clip is due: one montage, then clips are looked at again before the next.
+      // Neither is due: one montage, then voices and clips are looked at again before the next.
       if (transcodeNextReel === undefined) break
       const reel = await transcodeNextReel()
       if (!reel.ok) {
@@ -135,7 +203,7 @@ export const createClipWorker = ({
       else if (reel.value.kind === 'failed') failed += 1
     }
 
-    return { transcoded, failed, rendered }
+    return { transcoded, voices, failed, rendered }
   }
 
   /**
@@ -160,9 +228,10 @@ export const createClipWorker = ({
     // could not be read would be a far worse outcome than a skipped drain.
     failedMessage: 'clip drain failed',
     describe: (report, durationMs) => {
-      if (report.transcoded > 0 || report.failed > 0 || report.rendered > 0) {
+      if (report.transcoded > 0 || report.voices > 0 || report.failed > 0 || report.rendered > 0) {
         logger.info('clip drain finished', {
           transcoded: report.transcoded,
+          voices: report.voices,
           failed: report.failed,
           rendered: report.rendered,
           durationMs,
@@ -190,7 +259,13 @@ export const createClipWorker = ({
        * subscriber there would be a slow upload for the guest who caused it.
        */
       unsubscribe = bus.subscribeAll((event) => {
-        if (event.type !== 'clip.queued' && event.type !== 'reel.queued') return
+        if (
+          event.type !== 'clip.queued' &&
+          event.type !== 'reel.queued' &&
+          event.type !== 'voice.queued'
+        ) {
+          return
+        }
         void job.runOnce()
       })
 
@@ -208,15 +283,17 @@ export const createClipWorker = ({
        * puts it back, so recovery has to be first and has to be here.
        */
       void (async () => {
-        try {
-          await recover()
-          await recoverReels?.()
-        } catch (error) {
-          // Not fatal: an unrecovered job is picked up by the next boot, and refusing to
-          // start the worker over it would strand every *new* clip as well.
-          logger.error('clip worker could not recover interrupted jobs', {
-            error: error instanceof Error ? error.message : String(error),
-          })
+        // Each queue on its own: a fault recovering the clips must not leave the voices `running`.
+        for (const recovery of [recover, recoverVoices, recoverReels]) {
+          try {
+            await recovery?.()
+          } catch (error) {
+            // Not fatal: an unrecovered job is picked up by the next boot, and refusing to
+            // start the worker over it would strand every *new* clip as well.
+            logger.error('clip worker could not recover interrupted jobs', {
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
         }
         await job.runOnce()
       })()

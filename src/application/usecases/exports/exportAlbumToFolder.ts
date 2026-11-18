@@ -1,18 +1,20 @@
 import { retentionApplies } from '../../../domain/events/eventStatus'
 import type { Event } from '../../../domain/events/event'
-import { checkExportRoom, estimateExportBytes } from '../../../domain/exports/exportCaps'
+import { checkExportRoom } from '../../../domain/exports/exportCaps'
 import { MANIFEST_NAME } from '../../../domain/photos/albumManifest'
 import { DomainError } from '../../../domain/shared/errors'
 import type { ArchiveEntry, ArchiveWriter } from '../../ports/archiveWriter'
 import type { ExportFolderStore } from '../../ports/exportFolderStore'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
+import type { GuestbookVoiceRepository } from '../../ports/guestbookVoiceRepository'
 import type { Logger } from '../../ports/logger'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { StreamHasher } from '../../ports/streamHasher'
 import type { Clock } from '../../ports/clock'
 import { ALBUM_STATUSES, albumArchiveOf } from '../shared/albumArchive'
+import { albumEstimateOf } from './albumEstimate'
 import { guardedEntries, verifiedOnDisk, type ArchiveReader } from './archiveChecks'
 
 /**
@@ -55,6 +57,8 @@ export type ExportToFolderOutcome =
 export interface ExportAlbumToFolderDeps {
   readonly photos: PhotoRepository
   readonly guestbook: GuestbookRepository
+  /** Only the recordings' size and count: the copy's estimate counts them (spec 25). */
+  readonly voices: Pick<GuestbookVoiceRepository, 'totalBytes' | 'countReady'>
   readonly guests: GuestRepository
   readonly media: MediaStore
   readonly archive: ArchiveWriter
@@ -79,6 +83,7 @@ const FAILURE_OF: Readonly<Record<string, ExportToFolderFailure>> = {
 export const makeExportAlbumToFolder = ({
   photos,
   guestbook,
+  voices,
   guests,
   media,
   archive,
@@ -107,7 +112,7 @@ export const makeExportAlbumToFolder = ({
 
     // Check 1: the room, before a byte is written.
     const rowsAtStart = await albumRows(event)
-    const estimate = estimateExportBytes(await photos.totalBytes(event.id), rowsAtStart)
+    const estimate = await albumEstimateOf({ photos, voices }, event.id, rowsAtStart)
     if (!checkExportRoom(await freeDiskBytes(), estimate, minFreeDiskBytes).ok) {
       return { kind: 'failed', folder, code: 'noRoom' }
     }
@@ -156,7 +161,10 @@ export const makeExportAlbumToFolder = ({
     const sha256 = writtenHash.digestHex()
     const found = report()
 
-    if ((await albumRows(event)) !== rowsAtStart || found.photos + found.missing !== rowsAtStart) {
+    if (
+      (await albumRows(event)) !== rowsAtStart ||
+      found.photos + found.missingPhotos !== rowsAtStart
+    ) {
       return failed('stale')
     }
 

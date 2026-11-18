@@ -60,6 +60,14 @@ export interface GuestbookModeration {
   readonly canUndo: boolean
   /** A decision is in flight: a surface that advances on its own waits. */
   readonly busy: boolean
+  /** Voice messages still being processed: not listed, not decidable (spec 25). */
+  readonly voiceProcessing: number
+  /** The secret is on: a voice card shows no player. */
+  readonly voiceSealed: boolean
+  /** When the secret lifts by itself (an instant), or `null` for the end of the evening. */
+  readonly voiceOpensAtMs: number | null
+  /** "Garder les N messages en attente": publishes every ready, pending voice; the number kept. */
+  keepPendingVoices: () => Promise<number | null>
   setFilter: (filter: GuestbookFilter) => void
   refresh: () => void
   decide: (entryId: string, decision: ModerationDecision) => Promise<void>
@@ -100,6 +108,9 @@ export const useGuestbookModeration = (
   const [loading, setLoading] = useState(live)
   const [error, setError] = useState<Error | null>(null)
   const [canUndo, setCanUndo] = useState(false)
+  const [voiceProcessing, setVoiceProcessing] = useState(0)
+  const [voiceSealed, setVoiceSealed] = useState(false)
+  const [voiceOpensAtMs, setVoiceOpensAtMs] = useState<number | null>(null)
   const {
     busy,
     startRead,
@@ -162,6 +173,9 @@ export const useGuestbookModeration = (
           const pending = answer.pendingCount + pendingDelta
           loadedRef.current = true
           setPendingCount(Math.max(0, pending))
+          setVoiceProcessing(answer.voiceProcessing)
+          setVoiceSealed(answer.voiceSealed)
+          setVoiceOpensAtMs(answer.voiceOpensAtMs)
           if (active) setItems(rows.filter((row) => matches(filter, row.status)))
           setFreshPublishedCount(
             watching
@@ -196,7 +210,10 @@ export const useGuestbookModeration = (
 
   const onSignal = useCallback(
     (signal: StreamSignal) => {
-      if (signal.type !== 'guestbook.changed' || !live) return
+      // A voice message announces itself on its own signal (spec 25): the console hears it.
+      if ((signal.type !== 'guestbook.changed' && signal.type !== 'guestbook.voice') || !live) {
+        return
+      }
       signalReads.request()
     },
     [live, signalReads],
@@ -289,6 +306,22 @@ export const useGuestbookModeration = (
     await send(entry.id, entry.restoreWith)
   }, [send, toast, text])
 
+  const keepPendingVoices = useCallback(async (): Promise<number | null> => {
+    if (slug === undefined) return null
+    beginBusy()
+    try {
+      const { kept } = await api.keepPendingVoices(slug)
+      readRef.current(false)
+      return kept
+    } catch (cause) {
+      toast.show(messageForError(cause, text), { tone: 'danger' })
+      readRef.current(false)
+      return null
+    } finally {
+      endBusy()
+    }
+  }, [api, slug, toast, text, beginBusy, endBusy])
+
   const setFilter = useCallback((next: GuestbookFilter) => {
     undoRef.current = null
     setCanUndo(false)
@@ -311,6 +344,10 @@ export const useGuestbookModeration = (
       filter,
       canUndo,
       busy,
+      voiceProcessing,
+      voiceSealed,
+      voiceOpensAtMs,
+      keepPendingVoices,
       setFilter,
       refresh,
       decide,
@@ -328,6 +365,10 @@ export const useGuestbookModeration = (
       filter,
       canUndo,
       busy,
+      voiceProcessing,
+      voiceSealed,
+      voiceOpensAtMs,
+      keepPendingVoices,
       setFilter,
       refresh,
       decide,

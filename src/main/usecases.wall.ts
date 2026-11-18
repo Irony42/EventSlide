@@ -8,9 +8,12 @@ import { makeWithdrawReaction } from '../application/usecases/reactions/withdraw
 import { makeGetWallPlaylist } from '../application/usecases/slideshow/getWallPlaylist'
 import { makeCreateGuestbookEntry } from '../application/usecases/guestbook/createGuestbookEntry'
 import { makeDeleteGuestbookEntry } from '../application/usecases/guestbook/deleteGuestbookEntry'
+import { makeGetGuestbookVoiceMedia } from '../application/usecases/guestbook/getGuestbookVoiceMedia'
+import { makeKeepPendingGuestbookVoices } from '../application/usecases/guestbook/keepPendingGuestbookVoices'
 import { makeListGuestbookQueue } from '../application/usecases/guestbook/listGuestbookQueue'
 import { makeListMyGuestbookEntries } from '../application/usecases/guestbook/listMyGuestbookEntries'
 import { makeModerateGuestbookEntry } from '../application/usecases/guestbook/moderateGuestbookEntry'
+import { makeOpenGuestbookVoice } from '../application/usecases/guestbook/openGuestbookVoice'
 import { makeCreateAnnouncement } from '../application/usecases/announcements/createAnnouncement'
 import { makeDeleteAnnouncement } from '../application/usecases/announcements/deleteAnnouncement'
 import { makeLaunchAnnouncement } from '../application/usecases/announcements/launchAnnouncement'
@@ -84,11 +87,16 @@ export const wallUseCases = (
   listMyGuestbookEntries: makeListMyGuestbookEntries({
     events: adapters.events,
     guestbook: adapters.guestbook,
+    transcoder: adapters.audioTranscoder,
     clock: adapters.clock,
+    voiceMaxDurationMs: policy.voice.maxDurationMs,
   }),
   deleteGuestbookEntry: makeDeleteGuestbookEntry({
+    invalidateExport,
     events: adapters.events,
     guestbook: adapters.guestbook,
+    voices: adapters.voices,
+    media: adapters.media,
     bus: adapters.bus,
     clock: adapters.clock,
   }),
@@ -97,12 +105,40 @@ export const wallUseCases = (
     guestbook: adapters.guestbook,
     guests: adapters.guests,
     memberships: adapters.memberships,
+    clock: adapters.clock,
   }),
   moderateGuestbookEntry: makeModerateGuestbookEntry({
     invalidateExport,
     events: adapters.events,
     guestbook: adapters.guestbook,
     memberships: adapters.memberships,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+
+  // voice messages of the guestbook (spec 25): the listening, the secret and the bulk keep. The
+  // recording's staging is composed with the transcoding slice (`usecases.clips.ts`).
+  getGuestbookVoiceMedia: makeGetGuestbookVoiceMedia({
+    events: adapters.events,
+    guestbook: adapters.guestbook,
+    memberships: adapters.memberships,
+    media: adapters.media,
+    clock: adapters.clock,
+  }),
+  openGuestbookVoice: makeOpenGuestbookVoice({
+    invalidateExport,
+    events: adapters.events,
+    memberships: adapters.memberships,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  keepPendingGuestbookVoices: makeKeepPendingGuestbookVoices({
+    invalidateExport,
+    events: adapters.events,
+    guestbook: adapters.guestbook,
+    memberships: adapters.memberships,
+    audit: adapters.audit,
     bus: adapters.bus,
     clock: adapters.clock,
   }),

@@ -1,4 +1,13 @@
-import { CLAIM_LEASE_MS, backoffMs, dueInMs, isDue, isLeased, isSpent } from './outboxPolicy'
+import {
+  CLAIM_LEASE_MS,
+  PHOTO_POLICY,
+  backoffMs,
+  dueInMs,
+  isDue,
+  isLeased,
+  isSpent,
+  type OutboxPolicy,
+} from './outboxPolicy'
 import type { OutboxSender, OutboxStore } from './outbox'
 
 /**
@@ -23,6 +32,11 @@ export interface DrainOptions {
   readonly now: () => number
   readonly leaseMs?: number
   /**
+   * The rules of the store being drained (how long an entry lives). The photo queue's when omitted:
+   * the voice queue passes its own, and the drain never reads a constant of either.
+   */
+  readonly policy?: OutboxPolicy
+  /**
    * Take entries another drain appears to be holding.
    *
    * For the page's first drain after it mounts, and nothing else. A service worker
@@ -39,6 +53,13 @@ export interface DrainOptions {
   readonly reclaim?: boolean
 }
 
+/** An entry a drain did not send and why: refused outright (`rejected`, dropped) or kept and stopped (`blocked`). */
+export interface DrainRefusal {
+  readonly id: string
+  readonly kind: 'rejected' | 'blocked'
+  readonly code: string
+}
+
 export interface DrainReport {
   /**
    * The entries the server accepted, duplicates included: those photos are in the
@@ -52,6 +73,12 @@ export interface DrainReport {
   readonly sent: readonly string[]
   /** Dropped unsent — expired, out of attempts, or refused on its merits. */
   readonly discarded: readonly string[]
+  /**
+   * The server's refusals by name: the entries it would not take (`rejected`, also in `discarded`)
+   * and the ones it refused for the moment and that are now held, stopped (`blocked`, in neither
+   * `discarded` nor `remaining`: a blocked entry is waiting for a person or a setting, not a timer).
+   */
+  readonly refusals: readonly DrainRefusal[]
   /** Still held, either deferred by this drain or not yet due. */
   readonly remaining: number
   /**
@@ -79,6 +106,7 @@ export const drainOutbox = async ({
   send,
   now,
   leaseMs = CLAIM_LEASE_MS,
+  policy = PHOTO_POLICY,
   reclaim = false,
 }: DrainOptions): Promise<DrainReport> => {
   // A zero-length lease is one that has always already expired, which is exactly what
@@ -87,6 +115,7 @@ export const drainOutbox = async ({
   const entries = await store.list(slug)
   const sent: string[] = []
   const discarded: string[] = []
+  const refusals: DrainRefusal[] = []
   let remaining = 0
   /**
    * How long the photo that stopped this drain is waiting, or `null` while nothing has.
@@ -115,9 +144,13 @@ export const drainOutbox = async ({
 
     const at = now()
 
+    // Stopped by a refusal of the moment: kept for the guest, and nobody's timer. It is neither
+    // sent nor counted as waiting, and it does not hold up the entries behind it.
+    if (entry.blockedCode != null) continue
+
     // Spent entries are dropped before anything else, and without a claim: an entry
     // past its expiry is not work another drain might be doing better.
-    if (isSpent(entry, at)) {
+    if (isSpent(entry, at, policy)) {
       await store.remove(entry.id)
       discarded.push(entry.id)
       continue
@@ -154,6 +187,15 @@ export const drainOutbox = async ({
       // past an access point.
       await store.remove(claimed.id)
       discarded.push(claimed.id)
+      refusals.push({ id: claimed.id, kind: 'rejected', code: outcome.code })
+      continue
+    }
+
+    if (outcome.kind === 'blocked') {
+      // Not the bytes' fault and not the network's: keep them, say why, and stop asking. The next
+      // page open (or the host's setting changing) unblocks the entry.
+      await store.block(claimed.id, outcome.code)
+      refusals.push({ id: claimed.id, kind: 'blocked', code: outcome.code })
       continue
     }
 
@@ -169,6 +211,7 @@ export const drainOutbox = async ({
   return {
     sent,
     discarded,
+    refusals,
     remaining,
     retryAfterMs:
       remaining === 0 ? null : Math.min(RETRY_CEILING_MS, Math.max(RETRY_FLOOR_MS, soonest)),

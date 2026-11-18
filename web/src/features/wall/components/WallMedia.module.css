@@ -26,7 +26,7 @@
  * The film look on the projector (spec 23): the light version of the shared `.filmLook`
  * (`design-system/base.css`), one filter function instead of five.
  *
- * Measured, not assumed (`tests/e2e/perf/film-look.spec.ts`, ROADMAP 2.11): the shared look is free on
+ * Measured, not assumed (`tests/e2e/perf/film-look.spec.ts`, ROADMAP 2.12): the shared look is free on
  * every layout but the spotlight, where the Ken Burns zoom animates the very element the filter is
  * on, so the compositor filters a full-screen image on every frame. On a software-rendered machine
  * that took the spotlight from about 46 frames a second to about 19, under the 24 the wall's own

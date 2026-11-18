@@ -115,3 +115,9 @@ export const formatDay = (iso: string, locale: Locale): string | null => {
 
   return date.toLocaleDateString(locale, { dateStyle: 'long' })
 }
+
+/** `0:07`, `1:00`: a recording's length, from its milliseconds. Never from `audio.duration` (a WebM recording reports `Infinity`). */
+export const formatClock = (ms: number): string => {
+  const seconds = Math.max(0, Math.floor(ms / 1_000))
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}

@@ -1,11 +1,21 @@
 import { purgeDeadline } from '../../../domain/clients/purgeDeadline'
-import type { PurgeNoticeLevel } from '../../../domain/clients/purgeNotice'
+import { daysLeftUntil, type PurgeNoticeLevel } from '../../../domain/clients/purgeNotice'
 import type { Event } from '../../../domain/events/event'
+import { isVoiceOpen } from '../../../domain/events/eventGuestbookVoiceSettings'
 import { isRevealed } from '../../../domain/events/eventRevealSettings'
+import { MAX_ENTRIES_PER_EVENT } from '../../../domain/guestbook/guestbookLimits'
+import {
+  NO_VOICES_AT_RISK,
+  voiceWarningApplies,
+  voicesAtRisk,
+  type VoicesAtRisk,
+} from '../../../domain/guestbook/voicesAtRisk'
+import { PHOTO_STATUSES } from '../../../domain/photos/photoStatus'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventCounts, EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
+import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { PurgeNoticeLedger } from '../../ports/purgeNoticeLedger'
 import type { EventLimits, GetEventLimits } from './getEventLimits'
 
@@ -31,6 +41,11 @@ import type { EventLimits, GetEventLimits } from './getEventLimits'
  * clock; and the last warning its owners were sent (`notice`). It says nothing about the
  * operator's hold on the purge: that is invisible to a host, who may be the person concerned,
  * and the date is shown whether or not it is held.
+ *
+ * **`purge.voices` (spec 25) is what the band says about the voice messages** in the last week before
+ * that date: how many are still kept secret (they would leave unheard) and how many wait for a
+ * decision (they will not be in the album). Both are 0 outside that week and for an event with no
+ * voice messages, and the book is read only inside it.
  */
 
 export interface EventPurgeView {
@@ -42,6 +57,8 @@ export interface EventPurgeView {
    * period the client was told, and the host's page shows the deletion band however far it is.
    */
   readonly offboarding: boolean
+  /** The recordings the purge would take unheard or undecided, from a week before the date. */
+  readonly voices: VoicesAtRisk
 }
 
 export interface EventView {
@@ -65,9 +82,11 @@ export interface GetEventViewInput {
 export interface GetEventViewDeps {
   readonly events: Pick<EventRepository, 'countsOf'>
   readonly photos: Pick<PhotoRepository, 'countsByStatus'>
-  readonly clock: Clock
   readonly clients: Pick<ClientRepository, 'findById'>
   readonly notices: Pick<PurgeNoticeLedger, 'lastLevel'>
+  /** The book, read once and only in the last week before the date (spec 25). */
+  readonly guestbook: Pick<GuestbookRepository, 'listByStatuses'>
+  readonly clock: Clock
   readonly getEventLimits: GetEventLimits
   /** `RETENTION_CAP_NOTICE_DAYS`, the number the purge itself lists with. */
   readonly capNoticeDays: number
@@ -75,22 +94,42 @@ export interface GetEventViewDeps {
 
 export type GetEventView = (input: GetEventViewInput) => Promise<EventView>
 
-export const makeGetEventView =
-  ({
-    events,
-    photos,
-    clock,
-    clients,
-    notices,
-    getEventLimits,
-    capNoticeDays,
-  }: GetEventViewDeps): GetEventView =>
-  async ({ event }) => {
-    const now = clock.now()
-    const held = event.settings.reveal.enabled && !isRevealed(event.settings.reveal, now)
+export const makeGetEventView = ({
+  events,
+  photos,
+  clients,
+  notices,
+  guestbook,
+  clock,
+  getEventLimits,
+  capNoticeDays,
+}: GetEventViewDeps): GetEventView => {
+  /**
+   * The voice messages the purge would lose unheard or undecided. Read **only inside the last week**
+   * (and not at all for an album with no date): every route that answers with an `EventDto` runs this,
+   * and the book is a read the other three weeks have no use for.
+   */
+  const voicesOf = async (
+    event: Event,
+    daysLeft: number | null,
+    now: Date,
+  ): Promise<VoicesAtRisk> => {
+    if (!voiceWarningApplies(daysLeft)) return NO_VOICES_AT_RISK
+    const book = await guestbook.listByStatuses(event.id, PHOTO_STATUSES, MAX_ENTRIES_PER_EVENT)
+    return voicesAtRisk({
+      daysLeft,
+      recordings: book.filter((entry) => entry.voice?.isReady() === true),
+      secretLifted: isVoiceOpen(event.settings.guestbookVoice, event, now),
+    })
+  }
+
+  return async ({ event }) => {
     // An event with no client asks nothing of the clients table, as everywhere else.
     const client = event.clientId === null ? null : await clients.findById(event.clientId)
     const at = purgeDeadline(event, client, capNoticeDays)
+    const now = clock.now()
+    const held = event.settings.reveal.enabled && !isRevealed(event.settings.reveal, now)
+    const daysLeft = at === null ? null : daysLeftUntil(at, now)
 
     return {
       event,
@@ -102,6 +141,8 @@ export const makeGetEventView =
         at,
         notice: at === null ? null : await notices.lastLevel(event.id),
         offboarding: client?.purgeAfter != null,
+        voices: await voicesOf(event, daysLeft, now),
       },
     }
   }
+}

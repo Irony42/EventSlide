@@ -34,4 +34,10 @@ const openTracked = async (): Promise<IndexedDbOutbox> => {
   return store
 }
 
-outboxStoreContract('indexeddb', openTracked, openTracked)
+const openCapped = async (maxEntriesPerEvent: number): Promise<IndexedDbOutbox> => {
+  const store = await IndexedDbOutbox.open({ maxEntriesPerEvent })
+  opened.push(store)
+  return store
+}
+
+outboxStoreContract('indexeddb', openTracked, openTracked, openCapped)

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { detectImageFormat, detectVideoContainer, identifySuspicious } from './magicBytes'
+import {
+  AUDIO_MP4_BRANDS,
+  IMAGE_BRANDS,
+  detectAudioContainer,
+  detectImageFormat,
+  detectVideoContainer,
+  identifySuspicious,
+} from './magicBytes'
 import { PAYLOADS, asBytes, withHeader } from './testPayloads'
 
 const ascii = (text: string): number[] => [...asBytes(text)]
@@ -211,5 +218,72 @@ describe('detectVideoContainer', () => {
       expect(detectImageFormat(isoBox(brand))).toBeNull()
       expect(detectVideoContainer(isoBox(brand))).toBe('mp4')
     }
+  })
+})
+
+describe('detectAudioContainer', () => {
+  it('recognises a WebM or Matroska header, which is what Chrome and Edge record', () => {
+    expect(detectAudioContainer(Uint8Array.from([0x1a, 0x45, 0xdf, 0xa3, 0x01, 0x02]))).toBe(
+      'matroska',
+    )
+  })
+
+  it('recognises an Ogg page, which is what desktop Firefox records', () => {
+    expect(detectAudioContainer(asBytes('OggS '))).toBe('ogg')
+  })
+
+  it.each(['isom', 'iso5', 'mp42', 'M4A ', 'm4a ', 'M4B '])(
+    'recognises the %s brand as an mp4, which is what Safari records',
+    (brand) => {
+      expect(detectAudioContainer(isoBox(brand))).toBe('mp4')
+    },
+  )
+
+  it.each(['heic', 'heix', 'mif1', 'msf1', 'hevc', 'avif', 'avis'])(
+    'refuses the %s brand: a guest’s photograph must never be queued as a recording',
+    (brand) => {
+      expect(detectAudioContainer(isoBox(brand))).toBeNull()
+    },
+  )
+
+  it('keeps the audio brands and the image brands disjoint, since they are one container format', () => {
+    for (const brand of AUDIO_MP4_BRANDS) expect(IMAGE_BRANDS.has(brand)).toBe(false)
+    for (const brand of IMAGE_BRANDS) expect(AUDIO_MP4_BRANDS.has(brand)).toBe(false)
+    expect(IMAGE_BRANDS.size).toBeGreaterThan(0)
+  })
+
+  it('adds only the two audio-only brands to what a clip is allowed', () => {
+    // A video container is a possible voice container (an iPhone may write any of them for an
+    // audio/mp4), and nothing but `M4A ` and `M4B ` is new: a brand silently added here is a new
+    // kind of file reaching the encoder.
+    const added = [...AUDIO_MP4_BRANDS].filter((brand) => detectVideoContainer(isoBox(brand)) === null)
+
+    expect(added.sort()).toEqual(['m4a ', 'm4b '])
+  })
+
+  it('does not widen the video gate: a clip is still not an audio-only file', () => {
+    expect(detectVideoContainer(isoBox('M4A '))).toBeNull()
+    expect(detectVideoContainer(isoBox('M4B '))).toBeNull()
+  })
+
+  it('refuses an SVG and a Windows executable, whatever the client claimed', () => {
+    expect(detectAudioContainer(textFile(PAYLOADS.svg))).toBeNull()
+    expect(detectAudioContainer(withHeader(0x4d, 0x5a, 0x90, 0x00))).toBeNull()
+  })
+
+  it('refuses a JPEG, a PDF and a PHP file', () => {
+    expect(detectAudioContainer(Uint8Array.from([0xff, 0xd8, 0xff, 0xe0]))).toBeNull()
+    expect(detectAudioContainer(new TextEncoder().encode('%PDF-1.7 not a voice'))).toBeNull()
+    expect(detectAudioContainer(textFile(PAYLOADS.phpWebShell))).toBeNull()
+  })
+
+  it('refuses a prefix too short to hold a signature', () => {
+    expect(detectAudioContainer(new Uint8Array(0))).toBeNull()
+    expect(detectAudioContainer(Uint8Array.from([0x4f, 0x67, 0x67]))).toBeNull()
+    expect(detectAudioContainer(Uint8Array.from([0x00, 0x00]))).toBeNull()
+  })
+
+  it('refuses a RIFF container: a WAV is not a format this pipeline opens', () => {
+    expect(detectAudioContainer(asBytes('RIFF....WAVE'))).toBeNull()
   })
 })

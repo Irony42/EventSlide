@@ -186,8 +186,8 @@ describe('EventSettingsPage', () => {
     await userEvent.selectOptions(screen.getByLabelText(fr.admin.retention), '90')
     await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
 
-    // No `wall`: the group is sent only when the host changed a key of it.
-    const { wall: _wall, reveal: _reveal, ...unchanged } = eventSettings()
+    // No `wall`, `reveal` and `guestbookVoice`: a group is sent only when the host changed a key of it.
+    const { wall: _wall, reveal: _reveal, guestbookVoice: _voice, ...unchanged } = eventSettings()
     expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
       ...unchanged,
       allowCaptions: false,
@@ -283,6 +283,34 @@ describe('EventSettingsPage', () => {
     expect(await screen.findByText(fr.admin.settingsSaved)).toBeVisible()
     expect(screen.getByLabelText(fr.admin.retention)).toHaveValue('365')
     expect(screen.getByLabelText(fr.admin.allowCaptions)).not.toBeChecked()
+  })
+
+  it('offers the switch over saving from the feed, with what it can and cannot do', async () => {
+    renderPage(fakeApi())
+
+    const box = await screen.findByLabelText(fr.admin.allowGuestSave)
+
+    expect(box).toBeChecked()
+    expect(box).toHaveAccessibleDescription(fr.admin.allowGuestSaveHint)
+  })
+
+  it('reads an event that predates the feature as unticked, and saves the host’s tick', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () =>
+        anEventDto({ settings: eventSettings({ allowGuestSave: false }) }),
+      ),
+    })
+
+    renderPage(api)
+    const box = await screen.findByLabelText(fr.admin.allowGuestSave)
+    expect(box).not.toBeChecked()
+    await userEvent.click(box)
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(api.updateSettings).toHaveBeenCalledWith(
+      'camille-et-sacha',
+      expect.objectContaining({ allowGuestSave: true }),
+    )
   })
 
   it('saves the host’s choice about reactions', async () => {

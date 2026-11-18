@@ -5,7 +5,7 @@ import { MIN_FRAMES_PER_SECOND } from '../../../web/src/design-system/budget'
 import { record, sampleCadence } from './cadence'
 
 /**
- * The film look's measured budget — spec 23 section 8, roadmap 11.3 and 2.11.
+ * The film look's measured budget — spec 23 section 8, roadmap 11.3 and 2.12.
  *
  * `.filmLook` is a CSS filter on the image the wall draws. It is the one place the disposable-camera
  * mode can cost a projector frames, so the spec asked for a measurement **before** the look shipped on

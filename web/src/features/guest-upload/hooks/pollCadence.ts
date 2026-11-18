@@ -25,3 +25,28 @@ export const pollDelayMs = (slow: boolean, random: () => number): number => {
   const base = slow ? POLL_SLOW_EVERY_MS : POLL_EVERY_MS
   return Math.round(base + (random() * 2 - 1) * POLL_JITTER_MS)
 }
+
+/**
+ * The short cadence of a guest whose **voice message** is being processed (spec 25).
+ *
+ * "En traitement" is a few hundred milliseconds of ffmpeg on the server, and nothing is pushed to a
+ * phone (no hook of the guest screen opens a stream), so a read every nine seconds would show it for
+ * nine. Three seconds, spread by a second either way, is used **only while one of the guest's own
+ * voices is `reserved`, `queued` or `running`, and for at most a minute**: past that the ordinary
+ * cadence takes over. At the worst (sixty guests sending at the end of the meal) it is about twenty
+ * simple reads a second for a minute, on an index of the guest.
+ */
+export const POLL_VOICE_EVERY_MS = 3_000
+export const POLL_VOICE_JITTER_MS = 1_000
+export const POLL_VOICE_FAST_FOR_MS = 60_000
+
+/**
+ * The wait before the next read of `mine`, for a guest with a voice in flight, `inFlightForMs` after it
+ * began to be. `random` is injected, as for {@link pollDelayMs}.
+ */
+export const voicePollDelayMs = (inFlightForMs: number, random: () => number): number => {
+  if (inFlightForMs >= POLL_VOICE_FAST_FOR_MS) {
+    return pollDelayMs(inFlightForMs >= POLL_SLOW_AFTER_MS, random)
+  }
+  return Math.round(POLL_VOICE_EVERY_MS + (random() * 2 - 1) * POLL_VOICE_JITTER_MS)
+}

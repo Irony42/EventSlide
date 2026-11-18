@@ -17,3 +17,16 @@ import type { ServedVariant } from './mediaVariant'
  */
 export const digestVouchesForVariant = (kind: MediaKind, variant: ServedVariant): boolean =>
   kind === 'clip' || variant === 'display'
+
+/**
+ * The voice's twin of {@link digestVouchesForVariant} (spec 25, section 8). A voice message's
+ * `audio_hash` is the SHA-256 of the **output** `transcodeNextVoice` stored, so unlike a
+ * photograph's it is the digest of the very bytes the file holds and can always be held against
+ * them: a file that is not what its digest says aborts the archive (`export.corrupt`).
+ *
+ * A function of its own, constant on purpose, rather than a third kind in `MediaKind` (which runs
+ * through every photograph's code) or a widening of {@link digestVouchesForVariant}'s signature.
+ * Its test is what stops someone "making it consistent" by returning `false`, which would stop
+ * every recording from being verified without any test going red.
+ */
+export const voiceDigestVouches = (): boolean => true

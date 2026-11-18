@@ -418,6 +418,10 @@ describe('a suspended client, through the real composition root', () => {
       path: '/api/events/:eventSlug/guestbook/:entryId/status',
       body: { decision: 'publish' },
     },
+    // The voice messages of the guestbook (spec 25): the owner's opening and the moderator's bulk
+    // keep are writes on the event like any other, and a frozen client's members are refused both.
+    { method: 'post', path: '/api/events/:eventSlug/guestbook/voice/open', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/guestbook/voice/keep-pending', body: {} },
     {
       method: 'post',
       path: '/api/events/:eventSlug/moderation/bulk',
@@ -462,6 +466,7 @@ describe('a suspended client, through the real composition root', () => {
     'DELETE /api/events/:eventSlug/photos/:photoId/reactions/:kind',
     'POST /api/events/:eventSlug/privacy-notice/acknowledgement',
     'POST /api/events/:eventSlug/guestbook',
+    'POST /api/events/:eventSlug/guestbook/voice',
     'DELETE /api/events/:eventSlug/guestbook/:entryId',
   ]
 

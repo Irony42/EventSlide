@@ -20,6 +20,7 @@ import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepos
 import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
+import { FakeGuestbookVoiceRepository } from '../../../application/testing/fakeGuestbookVoiceRepository'
 import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
 import { makeDeletePhoto } from '../../../application/usecases/photos/deletePhoto'
 import { makeListGuestPhotos } from '../../../application/usecases/photos/listGuestPhotos'
@@ -31,6 +32,7 @@ import type {
   UploadPhotosResult,
 } from '../../../application/usecases/photos/uploadPhotos'
 import { makeGetGuestChecklist } from '../../../application/usecases/missions/getGuestChecklist'
+import { makeSaveGuestPhoto } from '../../../application/usecases/photos/saveGuestPhoto'
 import { makeGetPhotoReactions } from '../../../application/usecases/reactions/getPhotoReactions'
 import {
   makeReactToPhoto,
@@ -253,11 +255,19 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               reactions,
               clips: new FakeClipJobRepository(),
               guestbook: new FakeGuestbookRepository(),
+              voices: new FakeGuestbookVoiceRepository(new FakeGuestbookRepository()),
               media,
               bus: deps.bus,
               clock: deps.clock,
             }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
+            saveGuestPhoto: makeSaveGuestPhoto({
+              events: deps.events,
+              photos,
+              media,
+              engagement: async () => undefined,
+              clock: deps.clock,
+            }),
             getGuestChecklist: makeGetGuestChecklist({
               events: deps.events,
               missions,

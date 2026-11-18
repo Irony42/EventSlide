@@ -18,6 +18,7 @@ import type {
   ChallengeDto,
   HostChallengeResponse,
   GuestbookQueueDto,
+  KeepPendingVoicesResponse,
   MissionDto,
   MissionListResponse,
   MissionScope,
@@ -47,7 +48,10 @@ export interface EventSettingsPatch {
   readonly allowCaptions?: boolean
   readonly allowReactions?: boolean
   readonly allowClips?: boolean
+  readonly allowGuestSave?: boolean
   readonly guestbookOnWall?: boolean
+  /** Only the keys changed (spec 25): the server merges the group per key. */
+  readonly guestbookVoice?: Partial<EventSettingsDto['guestbookVoice']>
   readonly allowGuestSelfDelete?: boolean
   readonly guestSelfDeleteGraceSeconds?: number
   readonly retentionDays?: number | null
@@ -272,6 +276,23 @@ export const hostApi = (transport: Transport) => ({
     transport.patch(`/api/events/${encode(slug)}/guestbook/${encode(entryId)}/status`, {
       decision,
     }),
+
+  /**
+   * Where a voice message's recording is read from (spec 25): the `src` of the console's `<audio>`.
+   * A URL and not a fetch: the browser streams it with ranges and the session cookie goes with it.
+   * The server answers `403 guestbook.voiceSealed` while the secret holds, which the card never asks
+   * for: it shows no player then.
+   */
+  guestbookVoiceUrl: (slug: string, entryId: string): string =>
+    `/api/events/${encode(slug)}/guestbook/${encode(entryId)}/voice`,
+
+  /** "Ouvrir maintenant" (spec 25): the owner lifts the secret for good. `200` with no body, also when it was open. */
+  openGuestbookVoice: (slug: string): Promise<void> =>
+    transport.post(`/api/events/${encode(slug)}/guestbook/voice/open`),
+
+  /** "Garder les N messages en attente" (spec 25): every ready, pending voice is published at once. */
+  keepPendingVoices: (slug: string): Promise<KeepPendingVoicesResponse> =>
+    transport.post(`/api/events/${encode(slug)}/guestbook/voice/keep-pending`),
 
   moderateBulk: (
     slug: string,

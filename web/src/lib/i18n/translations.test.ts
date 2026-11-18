@@ -93,6 +93,8 @@ describe('the scope', () => {
         'gallery',
         'guestbook',
         'guestbookHost',
+        'guestbookVoice',
+        'guestbookVoiceHost',
         'join',
         'mobileModeration',
         'moderation',

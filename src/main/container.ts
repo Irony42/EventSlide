@@ -17,6 +17,7 @@ import { SqliteUserRepository } from '../infrastructure/db/sqliteUserRepository'
 import { SqliteMembershipRepository } from '../infrastructure/db/sqliteMembershipRepository'
 import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepository'
 import { SqliteGuestbookRepository } from '../infrastructure/db/sqliteGuestbookRepository'
+import { SqliteGuestbookVoiceRepository } from '../infrastructure/db/sqliteGuestbookVoiceRepository'
 import { SqliteAnnouncementRepository } from '../infrastructure/db/sqliteAnnouncementRepository'
 import { SqliteChallengeRepository } from '../infrastructure/db/sqliteChallengeRepository'
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
@@ -47,8 +48,13 @@ import {
   type FfmpegVideoTranscoder,
 } from '../infrastructure/media/ffmpegVideoTranscoder'
 import { minimalChildEnv } from '../infrastructure/media/runProcess'
+import {
+  createFfmpegAudioTranscoder,
+  type FfmpegAudioTranscoder,
+} from '../infrastructure/media/ffmpegAudioTranscoder'
+import { nullAudioTranscoder } from '../infrastructure/media/nullAudioTranscoder'
 import { nullVideoTranscoder } from '../infrastructure/media/nullVideoTranscoder'
-import { detectVideoContainer } from '../infrastructure/media/magicBytes'
+import { detectAudioContainer, detectVideoContainer } from '../infrastructure/media/magicBytes'
 import { archiverWriter } from '../infrastructure/media/archiverWriter'
 import { createBcryptPasswordHasher } from '../infrastructure/crypto/bcryptPasswordHasher'
 import { createHmacGuestTokenService } from '../infrastructure/crypto/hmacGuestTokenService'
@@ -66,6 +72,7 @@ import { createSmtpMailer } from '../infrastructure/mail/smtpMailer'
 import { systemClock } from '../infrastructure/time/systemClock'
 import { fsStagedUploadStore } from '../infrastructure/system/fsStagedUploadStore'
 import { statfsDiskSpaceChecker } from '../infrastructure/system/statfsDiskSpaceChecker'
+import { voiceOutputCeilingBytes } from '../domain/guestbook/guestbookVoiceLimits'
 import { evaluateDiskSpace, type DiskSpaceStatus } from '../domain/shared/diskSpaceGuard'
 import type { Logger } from '../application/ports/logger'
 import type { Mailer } from '../application/ports/mailer'
@@ -145,6 +152,12 @@ export interface Container {
    * queue of clips nobody can process into a queue that empties and tells the guests why.
    */
   readonly clipWorker: ClipWorker
+  /**
+   * Whether this box offers voice messages: an audio encoder is on it **and** the operator left
+   * `GUESTBOOK_VOICE_ENABLED` on. Decided once at boot, like the encoder it reports; the guest's
+   * `guestbookVoice.available` is this, and it is false (never an error) on a box with no ffmpeg.
+   */
+  readonly voiceAvailable: boolean
   /** The photo book's renderer (spec 04); `null` when `BOOK_ENABLED` is off. */
   readonly albumBookWorker: AlbumBookWorker | null
   /** The verified archive's writer (spec 22); `null` when `EXPORT_ENABLED` is off. */
@@ -425,6 +438,27 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   const videoTranscoder = ffmpeg ?? nullVideoTranscoder(detectVideoContainer)
 
+  // The voice messages' encoder (spec 25): the same binary and the same environment, its own
+  // scratch directories. **Off by configuration or absent from the box, it is the Null Object**, whose
+  // `available()` is false: the button is not offered and a request that arrives anyway is refused
+  // before any byte is written. Neither fails the boot or `/api/ready`: a photo wall with no voice
+  // still serves the room.
+  const audioFfmpeg: FfmpegAudioTranscoder | null =
+    capability.available && config.voice.enabled
+      ? createFfmpegAudioTranscoder({
+          paths: capability.paths,
+          scratchRoot: resolve(mediaRoot, '.scratch'),
+          env: ffmpegChildEnv,
+        })
+      : null
+  const audioTranscoder = audioFfmpeg ?? nullAudioTranscoder(detectAudioContainer)
+  if (audioFfmpeg === null && config.voice.enabled) {
+    logger.warn('no usable audio encoder; voice messages will not be offered', {
+      reason: capability.available ? '' : capability.reason,
+      detail: 'photo uploads are unaffected; install ffmpeg or set FFMPEG_PATH',
+    })
+  }
+
   // The highlight reel's encoder (spec 08): the same binary, its own scratch directories, and the
   // Null Object when the box has none.
   const reelFfmpeg: FfmpegReelRenderer | null = capability.available
@@ -467,11 +501,13 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     challenges: new SqliteChallengeRepository(db),
     announcements: new SqliteAnnouncementRepository(db),
     guestbook: new SqliteGuestbookRepository(db),
+    voices: new SqliteGuestbookVoiceRepository(db),
     users: new SqliteUserRepository(db),
     memberships: new SqliteMembershipRepository(db),
     media: createFsMediaStore({ root: mediaRoot }),
     imageProcessor: createSharpImageProcessor({ maxPixels: config.uploads.maxPixels }),
     videoTranscoder,
+    audioTranscoder,
     contentHasher: sha256ContentHasher,
     archive: archiverWriter,
     passwordHasher: createBcryptPasswordHasher({ cost: config.crypto.bcryptCost }),
@@ -531,6 +567,10 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     operatorName: config.operator.name,
     termsOfUse: config.termsOfUse,
     mfaIssuer: config.operator.name ?? 'EventSlide',
+    voice: {
+      maxDurationMs: config.voice.maxDurationMs,
+      maxOutputBytes: voiceOutputCeilingBytes(config.voice.maxDurationMs),
+    },
     clips: {
       maxQueuedClips: config.clips.maxQueuedClips,
       maxQueuedClipsPerEvent: config.clips.maxQueuedClipsPerEvent,
@@ -635,7 +675,22 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
    * windows rather than an evening.
    */
   const reservationReaper = createReservationReaper({
-    reap: usecases.reapStaleReservations,
+    // One timer for both queues: a stranded clip reservation and a stranded voice reservation hold
+    // the same three things, on the same five-minute window (spec 25, rule 2).
+    reap: async () => {
+      // Independent passes: a persistent fault in one queue must not starve the other. The clip
+      // fault is rethrown after the voice pass so the guarded job still logs it.
+      let clips: Awaited<ReturnType<typeof usecases.reapStaleReservations>> | null = null
+      let clipFault: unknown = null
+      try {
+        clips = await usecases.reapStaleReservations()
+      } catch (error) {
+        clipFault = error
+      }
+      const voices = await usecases.reapStaleVoiceReservations()
+      if (clips === null) throw clipFault
+      return { reaped: clips.reaped + voices.reserved + voices.failed }
+    },
     logger,
     clock: adapters.clock,
     intervalMs: CLIP_RESERVATION_TIMEOUT_MS,
@@ -682,6 +737,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     recover: usecases.recoverClipJobs,
     transcodeNextReel: usecases.transcodeNextReel,
     recoverReels: usecases.recoverReels,
+    transcodeNextVoice: usecases.transcodeNextVoice,
+    recoverVoices: usecases.recoverVoiceJobs,
     bus,
     logger,
     clock: adapters.clock,
@@ -798,6 +855,11 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       maxBytes: config.clips.maxBytes,
       maxSeconds: Math.floor(config.clips.maxDurationMs / 1000),
       supported: ffmpeg !== null,
+      uploadTempDir: clipUploadTempDir(mediaRoot),
+    },
+    voice: {
+      maxBytes: config.voice.maxBytes,
+      // The same directory a clip stages in: emptied at boot, under the volume the operator gave.
       uploadTempDir: clipUploadTempDir(mediaRoot),
     },
     rateLimits: config.rateLimits,
@@ -922,6 +984,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     reservationReaper,
     schedule,
     clipWorker,
+    voiceAvailable: audioTranscoder.available(),
     albumBookWorker,
     albumExportWorker,
     readiness,
@@ -942,6 +1005,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       // stopping it, so a new container would start the same job while the old encoder
       // holds a core for the rest of the evening.
       ffmpeg?.close()
+      audioFfmpeg?.close()
       reelFfmpeg?.close()
       sessionStore.close()
       bus.close()

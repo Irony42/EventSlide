@@ -15,3 +15,11 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* A voice message in the same space: its body is a column, so it gets the text's padding. */
+.voice {
+  padding: var(--space-4);
+  min-height: calc(var(--touch-min) * 3);
+  max-height: 50vh;
+  overflow-y: auto;
+}

@@ -85,7 +85,7 @@ export const en: UiText = {
     eraseBody:
       'Your photos, videos, captions, reactions and first name will be erased from the event: from the screen, the album and the organiser’s list. This cannot be undone.',
     eraseLimits:
-      'A copy the organiser has already saved, or that someone captured with a screenshot, cannot be taken back.',
+      'A copy the organiser or another guest has already saved, or that someone captured with a screenshot, cannot be taken back.',
     eraseConfirm: 'Yes, delete everything',
     eraseCancel: 'No, keep them',
     eraseFailed: 'The deletion did not go through. Try again, or ask the organiser.',
@@ -281,6 +281,9 @@ export const en: UiText = {
       sharedGallery:
         'Anyone the organiser sends a private link to the album, if they make one, and anyone that link is forwarded to: they can view and download the photos shown on the screen in full resolution, until the link expires or is withdrawn.',
     },
+    /** Said after the audiences, only on an evening where saving is on (spec 24). */
+    noticeGuestSave:
+      'The other guests can save your photo on their phone, without the place or the camera it was taken with. A saved copy cannot be taken back.',
     noticeRetentionDays: (days: number) =>
       t.count(days, {
         one: `They are deleted automatically ${t.number(days)} day after the organiser ends the event.`,
@@ -675,7 +678,16 @@ export const en: UiText = {
       'guestbook.empty': 'Write at least one word.',
       'guestbook.invalid': 'This message cannot be sent as it is.',
       'guestbook.tooManyLines': 'Message too tall: please keep it shorter.',
-      'guestbook.limitReached': 'You have already left 3 messages. Remove one to write another.',
+      'guestbook.limitReached':
+        'You have already left 3 messages, written or voice. Remove one to leave another.',
+      'guestbook.voiceDisabled': 'Voice messages are switched off for now.',
+      'guestbook.voiceEventFull': 'The guestbook is full.',
+      'voice.queueFull': 'Please try again in a moment.',
+      'voice.unsupportedFormat': 'This file is not a readable voice message.',
+      'voice.notAudio': 'This file is not a readable voice message.',
+      'voice.corrupt': 'This file is not a readable voice message.',
+      'voice.tooLong': 'This voice message is too long.',
+      'voice.tooShort': 'This voice message is too short.',
       'guestbook.eventFull': 'The guestbook is full.',
       'guestbook.disabled': 'The guestbook is not open right now.',
       'event.notAcceptingUploads': 'The guestbook is not open right now.',
@@ -688,7 +700,7 @@ export const en: UiText = {
       'rate.limited': 'Too many messages at once, try again in a minute.',
     },
     eraseBody:
-      'Your photos, videos, captions, guestbook messages, reactions and first name will be erased from the event: from the screen, the album and the organiser’s list. This cannot be undone.',
+      'Your photos, videos, captions, guestbook messages, including your voice messages, reactions and first name will be erased from the event: from the screen, the album and the organiser’s list. This cannot be undone.',
     noticeWhatHappens: 'What happens to your photos and messages',
     noticeWhoSees: 'Who sees your photos and messages',
     noticeHowLong: 'How long they are kept',
@@ -703,6 +715,93 @@ export const en: UiText = {
     noticeMessageRetention: 'Your messages are kept as long as the photos, and erased with them.',
     noticeMessageRemoval:
       'A message is removed like a photo, from “My messages” and under the same conditions.',
+  },
+
+  /**
+   * The voice message of the guestbook, guest side (spec 25): recording it, listening before sending,
+   * where it stands afterwards and what the privacy notice says about it. What a guest says is never
+   * translated and never appears here, only the words around it. Never "IA", "intelligent" or
+   * "transcription" in a sentence of this table: nothing listens to a voice but the organiser.
+   */
+  guestbookVoice: {
+    open: 'Leave a voice message',
+    record: 'Record',
+    stop: 'Stop',
+    clock: (elapsed: string, max: string) => `${elapsed} / ${max}`,
+    recordingAnnounce: 'Recording',
+    nearEnd: '10 seconds left',
+    recordedAnnounce: (duration: string) => `Recording finished, ${duration}`,
+    closeToTheMicrophone: 'Speak close to the phone: people around you may be heard',
+    listen: 'Listen',
+    listenPause: 'Pause',
+    restart: 'Start over',
+    send: 'Send my voice message',
+    cancel: 'Cancel',
+    captionLabel: 'A few words to go with it',
+    micBlocked:
+      'The microphone is blocked. Allow it in your browser settings, then come back here.',
+    micUnavailableHere: 'The microphone is not available on this page. Reopen the event link.',
+    micMissing: 'No microphone could be used on this device. You can write a note instead.',
+    tooShort: 'Too short: speak for at least a second.',
+    writeInstead: 'Write a note instead',
+    openInBrowser: 'To leave a voice message, open this page in Safari or Chrome.',
+    previewFailed: 'The preview will not play here, but you can still send it',
+    interrupted: (duration: string) =>
+      `The recording stopped because the page was left. It lasts ${duration}.`,
+    notKept: 'The recording could not be kept on your phone. Please start over.',
+    helpManual: 'The organiser decides whether to keep your message.',
+    helpAuto:
+      'Your message is kept in the guestbook. Only the organiser and their team can listen to it.',
+    thanksManual: 'Thank you! The organiser will decide whether to keep your message.',
+    thanksAuto: 'Thank you! Your voice message has been received.',
+    waitingNetwork: 'Your voice message is waiting for a network.',
+    offlineHintKeepOpen:
+      'Keep this page open: your photos and your voice message will go as soon as the network is back.',
+    keptOnPhone: 'Your recording stays on your phone.',
+    messageLabel: (duration: string | null) =>
+      duration === null ? 'Voice message' : `Voice message, ${duration}`,
+    statusProcessing: 'Processing',
+    statusPublished: 'In the guestbook',
+    failed: 'Your voice message could not be saved. Please record it again.',
+    retry: 'Try again',
+    localWaiting: 'Waiting for a network',
+    localBlocked: 'Kept on your phone',
+    saveToPhone: 'Save to my phone',
+    deleteLocal: 'Delete',
+    noticeVoiceAudience: 'Your voice message can only be heard by the organiser and their team.',
+    noticeVoiceNeverRoom: 'It is never played on the room’s screen or heard by the other guests.',
+    noticeVoicePublication: {
+      afterReview: 'The organiser decides whether to keep your message.',
+      immediate:
+        'Your message is kept in the album straight away, without being listened to first.',
+    },
+    noticeVoiceRetention:
+      'It is kept like your photos and goes into the album the organiser downloads.',
+    noticeVoiceRetentionDays: (count: number) =>
+      t.count(count, {
+        one: 'It is kept like your photos (1 day after the event closes) and goes into the album the organiser downloads.',
+        other: `It is kept like your photos (${t.number(count)} days after the event closes) and goes into the album the organiser downloads.`,
+      }),
+    noticeVoiceMicrophone:
+      'The microphone only runs while you record. The recording stays on your phone until you send it.',
+    noticeVoiceSealed:
+      'Voice messages stay secret until the end of the evening, unless the organiser decides otherwise.',
+    noticeVoiceRemovalSeconds: (count: number) =>
+      t.count(count, {
+        one: 'You can remove your voice message for 1 second after sending it.',
+        other: `You can remove your voice message for ${t.number(count)} seconds after sending it.`,
+      }),
+    noticeVoiceRemovalMinutes: (count: number) =>
+      t.count(count, {
+        one: 'You can remove your voice message for 1 minute after sending it.',
+        other: `You can remove your voice message for ${t.number(count)} minutes after sending it.`,
+      }),
+    noticeVoiceRemovalHours: (count: number) =>
+      t.count(count, {
+        one: 'You can remove your voice message for 1 hour after sending it.',
+        other: `You can remove your voice message for ${t.number(count)} hours after sending it.`,
+      }),
+    noticeVoiceRemovalAskHost: 'To remove a voice message, ask the organiser.',
   },
 
   moderation: {
@@ -871,6 +970,26 @@ export const en: UiText = {
     unavailable: 'This event is no longer on display.',
     unavailableHint:
       'The evening is over, so there are no photos to see here. Ask the organisers for the album link.',
+    /* Spec 24: saving a photograph from the feed. */
+    saving: 'Saving…',
+    saveReady: 'Tap to save it',
+    /** The accessible name of a save button: its word, then the photograph it is under. */
+    saveNamed: (action: string, description: string) => `${action}: ${description}`,
+    saveDownloaded: 'Photo downloaded.',
+    saveNetworkFailed: 'The photo could not be retrieved. Try again when the network is back.',
+    saveBusy: 'Many guests are saving at the same time. Try again in a moment.',
+    saveGone: 'This photo is no longer available.',
+    saveMediaMissing: 'The photo could not be retrieved.',
+    saveDisabled: 'The organiser has turned saving off.',
+    saveRevoked: 'The organiser has removed your access.',
+    /** A lapsed access reads by the state of the evening: open, the code reopens it; over, only the album's link is left. */
+    saveExpiredOpen:
+      'Your access to the evening has expired. Reopen the evening from the code or the link you received.',
+    saveExpiredClosed:
+      'Your access to the evening has expired. Ask the organisers for the album link.',
+    saveHelpSheet: 'In the sheet that opens, choose “Save Image” to put it in Photos.',
+    saveHelpFiles:
+      'The photo is in the Files app, in the Downloads folder. To have it go to Photos, open the evening in Safari: in your messaging app, tap Share, then “Open in Safari”.',
   },
 
   wall: {
@@ -1089,7 +1208,7 @@ export const en: UiText = {
       anonymous: (guests: number, photos: number) =>
         `Guests without a first name are grouped: ${t.count(guests, { one: `${t.number(guests)} guest`, other: `${t.number(guests)} guests` })}, ${t.count(photos, { one: `${t.number(photos)} upload`, other: `${t.number(photos)} uploads` })}.`,
       engagementTitle: 'After the party',
-      engagementNone: 'Not measured yet: no album link opened and no ZIP launched.',
+      engagementNone: 'Not measured yet: no album link opened, no ZIP launched and no photo saved.',
       albumOpens: (count: number) =>
         t.count(count, {
           one: `${t.number(count)} album link opening`,
@@ -1100,9 +1219,14 @@ export const en: UiText = {
           one: `${t.number(count)} ZIP launched`,
           other: `${t.number(count)} ZIPs launched`,
         }),
+      guestSaves: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} photo saved by guests`,
+          other: `${t.number(count)} photos saved by guests`,
+        }),
       measuredSince: (date: string) => `Measured since ${date}. Nothing was counted before.`,
       engagementNote:
-        'An opening is a load of the album page, not a person. A launched ZIP is not necessarily finished. These figures are indicative.',
+        'An opening is a load of the album page, not a person. A launched ZIP is not necessarily finished. A save is an accepted request, not necessarily a photo that reached the phone. These figures are indicative.',
       retention:
         'These figures disappear with the event, when it is deleted or when its retention period ends.',
     },
@@ -1118,6 +1242,10 @@ export const en: UiText = {
     allowClips: 'Allow videos',
     allowClipsHint:
       'Guests can send short videos as well as photos. When the box is unticked, videos are refused: because you unticked it, because the template chosen when the event was created set it that way, or because the event is older than this feature. Tick it to allow them.',
+    /** The host's switch over saving from the feed (spec 24). */
+    allowGuestSave: 'Guests can save the photos of the evening',
+    allowGuestSaveHint:
+      'Each guest can keep on their phone a photo shown on the screen, in high quality, without the place or the camera it was taken with. You stay in control of the album: a photo you remove can no longer be saved, but a photo already saved stays on the person’s phone, and you cannot stop a single photo from being copied without removing it. Changing this setting during the evening makes guests read the notice again before their next photo. Once the evening is over, a guest whose access has expired can no longer save: send them the album link, which also gives the full resolution.',
     allowGuestbook: 'Open the guestbook',
     allowGuestbookHint:
       'Guests leave a short message. Unticked: the guestbook is closed; messages already written are kept.',
@@ -1245,6 +1373,10 @@ export const en: UiText = {
     templateClipsOff: 'Videos turned off',
     templateSelfDeleteOn: 'Deleting photo by photo allowed',
     templateSelfDeleteOff: 'Deleting photo by photo turned off',
+    templateGuestSaveOn: 'Guests can save photos',
+    templateGuestSaveOff: 'Saving photos turned off for guests',
+    templateVoiceOn: 'Voice messages in the guestbook turned on',
+    templateVoiceOff: 'Voice messages turned off',
     templateNames: {
       wedding: 'Wedding',
       birthday: 'Birthday',
@@ -1702,6 +1834,51 @@ export const en: UiText = {
     copyFailed: 'Could not copy: select the identifier by hand.',
     openMessages: 'Moderate the messages',
     onWall: (count: number) => `${t.number(count)} on screen`,
+  },
+
+  /**
+   * The voice messages in the host's console and settings (spec 25): the card, the secret, the
+   * action that keeps what waits, and the settings section. What a guest says is never here.
+   * The interface says "gardé secret" / "kept secret", never the code's word for it. Never "IA",
+   * "intelligent" or "transcription" in a sentence of this table.
+   */
+  guestbookVoiceHost: {
+    cardLabel: (author: string, duration: string) => `Voice message from ${author}, ${duration}`,
+    duration: (duration: string) => `Length: ${duration}`,
+    voiceBadge: 'Voice message',
+    processing: 'Processing',
+    processingCount: (count: number) =>
+      t.count(count, {
+        one: '1 voice message being processed',
+        other: `${t.number(count)} voice messages being processed`,
+      }),
+    sealedCard: 'Kept secret until the end of the evening',
+    sealedUntil: (time: string) => `Kept secret until ${time}`,
+    notListened: 'You have not listened to this message',
+    cannotHide: 'A voice message cannot be hidden: it is never on the screen.',
+    keepPending: (count: number) =>
+      t.count(count, {
+        one: 'Keep the waiting message',
+        other: `Keep the ${t.number(count)} waiting messages`,
+      }),
+    keepConfirm: 'You have not listened to all of these messages. Keep them in the album?',
+    keepConfirmLabel: 'Keep them',
+    kept: (count: number) =>
+      t.count(count, {
+        one: '1 voice message kept.',
+        other: `${t.number(count)} voice messages kept.`,
+      }),
+    settingsEnabled: 'Voice messages',
+    settingsEnabledHint:
+      'Turning voice messages on during the evening makes every guest read the notice again before their next message: better to turn them on beforehand.',
+    settingsSealed: 'Keep voice messages secret until the end of the evening',
+    settingsSealedHint:
+      'You will not be able to listen before then. You can still decide to keep or refuse them.',
+    openNow: 'Open now',
+    openConfirmTitle: 'Open the voice messages?',
+    openConfirmBody: 'You will be able to listen to them right away. This cannot be undone.',
+    opened: 'The voice messages are open.',
+    insecure: 'This address is not secure: your guests will not be able to record',
   },
 
   auth: {
@@ -2579,6 +2756,16 @@ export const en: UiText = {
       `Archive sent in full on ${date}. Check your file before deleting anything.`,
     incomplete: (missing: number) =>
       `Archive ready, but ${t.count(missing, { one: `${t.number(missing)} file was`, other: `${t.number(missing)} files were` })} missing from the server’s disk: ${t.count(missing, { one: 'it is not in it.', other: 'they are not in it.' })}`,
+    voiceSecret: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} voice message is still kept secret: it would go without having been heard.`,
+        other: `${t.number(count)} voice messages are still kept secret: they would go without having been heard.`,
+      }),
+    voicePending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} voice message is waiting for your decision: it will not be in the album.`,
+        other: `${t.number(count)} voice messages are waiting for your decision: they will not be in the album.`,
+      }),
     retired: 'The archive was withdrawn because a photo was deleted. Prepare it again.',
     changed:
       'The album changed after the archive was prepared, so it is no longer offered. Prepare it again.',

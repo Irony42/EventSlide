@@ -1,6 +1,6 @@
 import { OUTBOX_DB_NAME } from './names'
 import { newOutboxId } from './outboxId'
-import { MAX_ENTRIES_PER_EVENT } from './outboxPolicy'
+import { PHOTO_POLICY } from './outboxPolicy'
 import type { NewOutboxEntry, OutboxAddition, OutboxEntry, OutboxStore } from './outbox'
 
 /**
@@ -36,13 +36,26 @@ const promisify = <T>(request: IDBRequest<T>): Promise<T> =>
     request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'))
   })
 
-const openOutboxDb = (): Promise<IDBDatabase> =>
+/**
+ * Which database, and how many entries an event may hold in it.
+ *
+ * The voice queue (spec 25) is this same adapter over **its own database**: a store added to
+ * `eventslide-outbox` would never be created for a phone that already has the v1 database (the
+ * upgrade handler leaves as soon as `entries` exists), and the kill switch deletes that database
+ * whole. Both default to the photo queue's.
+ */
+export interface IndexedDbOutboxOptions {
+  readonly dbName?: string
+  readonly maxEntriesPerEvent?: number
+}
+
+const openOutboxDb = (dbName: string): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
     if (!hasIndexedDb()) {
       reject(new Error('this browser has no IndexedDB'))
       return
     }
-    const request = indexedDB.open(OUTBOX_DB_NAME, DB_VERSION)
+    const request = indexedDB.open(dbName, DB_VERSION)
     request.onupgradeneeded = () => {
       const db = request.result
       if (db.objectStoreNames.contains(STORE)) return
@@ -67,10 +80,14 @@ const committed = (tx: IDBTransaction): Promise<void> =>
   })
 
 export class IndexedDbOutbox implements OutboxStore {
-  constructor(private readonly db: IDBDatabase) {}
+  constructor(
+    private readonly db: IDBDatabase,
+    private readonly maxEntriesPerEvent: number = PHOTO_POLICY.maxEntriesPerEvent,
+  ) {}
 
-  static async open(): Promise<IndexedDbOutbox> {
-    return new IndexedDbOutbox(await openOutboxDb())
+  static async open(options: IndexedDbOutboxOptions = {}): Promise<IndexedDbOutbox> {
+    const db = await openOutboxDb(options.dbName ?? OUTBOX_DB_NAME)
+    return new IndexedDbOutbox(db, options.maxEntriesPerEvent)
   }
 
   async add(entry: NewOutboxEntry, now: number): Promise<OutboxAddition> {
@@ -167,6 +184,24 @@ export class IndexedDbOutbox implements OutboxStore {
     await committed(tx)
   }
 
+  async block(id: string, code: string): Promise<void> {
+    const tx = this.db.transaction(STORE, 'readwrite')
+    const store = tx.objectStore(STORE)
+    const current = await promisify<OutboxEntry | undefined>(store.get(id))
+    if (current !== undefined) store.put({ ...current, claimedAt: null, blockedCode: code })
+    await committed(tx)
+  }
+
+  async unblock(slug: string): Promise<void> {
+    const tx = this.db.transaction(STORE, 'readwrite')
+    const store = tx.objectStore(STORE)
+    const rows = await promisify<OutboxEntry[]>(store.index(BY_SLUG).getAll(IDBKeyRange.only(slug)))
+    for (const row of rows) {
+      if (row.blockedCode != null) store.put({ ...row, blockedCode: null })
+    }
+    await committed(tx)
+  }
+
   async clear(slug: string): Promise<void> {
     const tx = this.db.transaction(STORE, 'readwrite')
     const store = tx.objectStore(STORE)
@@ -184,7 +219,7 @@ export class IndexedDbOutbox implements OutboxStore {
   /** Drops the oldest entries once one event holds more than the cap allows. */
   private async evictOverflow(slug: string): Promise<readonly string[]> {
     const mine = await this.list(slug)
-    const excess = mine.length - MAX_ENTRIES_PER_EVENT
+    const excess = mine.length - this.maxEntriesPerEvent
     if (excess <= 0) return []
     const doomed = mine.slice(0, excess)
     for (const entry of doomed) await this.remove(entry.id)

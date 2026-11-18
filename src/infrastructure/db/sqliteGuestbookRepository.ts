@@ -1,12 +1,12 @@
-import { GuestbookEntry, type EntryStatus } from '../../domain/guestbook/guestbookEntry'
+import {
+  isWritten,
+  type EntryStatus,
+  type GuestbookEntry,
+  type WrittenGuestbookEntry,
+} from '../../domain/guestbook/guestbookEntry'
 import { DUPLICATE_WINDOW_MS, guestbookRefusalFor } from '../../domain/guestbook/guestbookLimits'
-import { GuestbookText } from '../../domain/guestbook/guestbookText'
-import { isPhotoStatus } from '../../domain/photos/photoStatus'
 import {
   asEventId,
-  asGuestId,
-  asGuestbookEntryId,
-  asUserId,
   type EventId,
   type GuestId,
   type GuestbookEntryId,
@@ -17,10 +17,17 @@ import type {
   GuestbookRepository,
 } from '../../application/ports/guestbookRepository'
 import type { Db } from './connection'
-import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
+import {
+  ENTRY_COLUMNS,
+  ENTRY_FROM,
+  HOLDS_A_PLACE,
+  toEntry,
+  type EntryRow,
+} from './guestbookEntryRows'
+import { fromNullableIsoText, toIsoText } from './rowMapping'
 
 /**
- * `guestbook_entries`.
+ * `guestbook_entries`, joined to `guestbook_voices` where a message is a voice (spec 25).
  *
  * **Every statement names `event_id`.** An entry id arrives in a URL, so a `WHERE id = ?` here
  * would be a route by which a guest at one event removes a message at another.
@@ -30,53 +37,15 @@ import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
  * The two counts a ceiling is judged on are deliberate exceptions: `countByGuest` includes them
  * (so a taken-down message does not free its author's place) and `countTakenDownBy` is about
  * nothing else.
+ *
+ * **A voice whose processing failed holds no place** (`HOLDS_A_PLACE`): the two counts and the
+ * lists leave it out, so three failures of a file the transcoder refuses do not close the door on
+ * the guest. `findById` and `listByGuest` keep it, because that is where it is removed and told.
  */
 
-const COLUMNS = `id, event_id, guest_id, body, status, review_kind, reviewed_at,
+/** What `admit` writes: the columns of `guestbook_entries` alone, a voice has its own door. */
+const INSERT_COLUMNS = `id, event_id, guest_id, body, status, review_kind, reviewed_at,
                  reviewed_by_user_id, created_at, taken_down_at`
-
-interface EntryRow {
-  readonly id: string
-  readonly event_id: string
-  readonly guest_id: string
-  readonly body: string
-  readonly status: string
-  readonly review_kind: string | null
-  readonly reviewed_at: string | null
-  readonly reviewed_by_user_id: string | null
-  readonly created_at: string
-  readonly taken_down_at: string | null
-}
-
-const corruptRow = (id: string, what: string): Error =>
-  new Error(`guestbook_entries row ${id} ${what}; the database is corrupt`)
-
-const toEntry = (row: EntryRow): GuestbookEntry => {
-  const text = GuestbookText.create(row.body)
-  // A stored body the domain now refuses is a corrupt row rather than a guest error: the
-  // alternative is a screen rendering whatever the column holds.
-  if (!text.ok) throw corruptRow(row.id, `has a body the domain refuses (${text.error.code})`)
-  if (!isPhotoStatus(row.status)) throw corruptRow(row.id, `has an unknown status (${row.status})`)
-
-  const reviewedAt = fromNullableIsoText(row.reviewed_at)
-  let review: GuestbookEntry['review'] = null
-  if (row.review_kind === 'host' && reviewedAt !== null && row.reviewed_by_user_id !== null) {
-    review = { kind: 'host', userId: asUserId(row.reviewed_by_user_id), at: reviewedAt }
-  } else if (row.review_kind === 'automatic' && reviewedAt !== null) {
-    review = { kind: 'automatic', at: reviewedAt }
-  }
-
-  return GuestbookEntry.restore({
-    id: asGuestbookEntryId(row.id),
-    eventId: asEventId(row.event_id),
-    guestId: asGuestId(row.guest_id),
-    text: text.value,
-    status: row.status,
-    review,
-    createdAt: fromIsoText(row.created_at),
-    takenDownAt: fromNullableIsoText(row.taken_down_at),
-  })
-}
 
 export class SqliteGuestbookRepository implements GuestbookRepository {
   constructor(private readonly db: Db) {}
@@ -84,8 +53,8 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
   async findById(eventId: EventId, entryId: GuestbookEntryId): Promise<GuestbookEntry | null> {
     const row = this.db
       .prepare<[string, string], EntryRow>(
-        `SELECT ${COLUMNS} FROM guestbook_entries
-          WHERE event_id = ? AND id = ? AND taken_down_at IS NULL`,
+        `SELECT ${ENTRY_COLUMNS} FROM ${ENTRY_FROM}
+          WHERE e.event_id = ? AND e.id = ? AND e.taken_down_at IS NULL`,
       )
       .get(eventId, entryId)
     return row === undefined ? null : toEntry(row)
@@ -93,24 +62,32 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
 
   async admit(entry: GuestbookEntry): Promise<GuestbookAdmission> {
     const props = entry.toProps()
+    const text = props.text
+    // A voice has its own door (admitVoice), which reserves its bytes too.
+    if (text === null) {
+      throw new Error('admit takes a written message; a voice goes through admitVoice')
+    }
     const sinceIso = toIsoText(new Date(props.createdAt.getTime() - DUPLICATE_WINDOW_MS))
 
+    // A voice whose caption equals these words is not "the same message": only written ones match.
     const findDuplicate = this.db.prepare<[string, string, string, string], EntryRow>(
-      `SELECT ${COLUMNS} FROM guestbook_entries
-        WHERE event_id = ? AND guest_id = ? AND body = ? AND created_at > ?
-          AND taken_down_at IS NULL
-        ORDER BY created_at DESC, id DESC
+      `SELECT ${ENTRY_COLUMNS} FROM ${ENTRY_FROM}
+        WHERE e.event_id = ? AND e.guest_id = ? AND e.body = ? AND e.created_at > ?
+          AND e.taken_down_at IS NULL AND v.entry_id IS NULL
+        ORDER BY e.created_at DESC, e.id DESC
         LIMIT 1`,
     )
     const countHeld = this.db.prepare<[string, string], { readonly n: number }>(
-      `SELECT COUNT(*) AS n FROM guestbook_entries WHERE event_id = ? AND guest_id = ?`,
+      `SELECT COUNT(*) AS n FROM ${ENTRY_FROM}
+        WHERE e.event_id = ? AND e.guest_id = ? AND ${HOLDS_A_PLACE}`,
     )
     const countOpen = this.db.prepare<[string], { readonly n: number }>(
-      `SELECT COUNT(*) AS n FROM guestbook_entries
-        WHERE event_id = ? AND status <> 'rejected' AND taken_down_at IS NULL`,
+      `SELECT COUNT(*) AS n FROM ${ENTRY_FROM}
+        WHERE e.event_id = ? AND e.status <> 'rejected' AND e.taken_down_at IS NULL
+          AND ${HOLDS_A_PLACE}`,
     )
     const insert = this.db.prepare<Record<string, string | null>>(
-      `INSERT INTO guestbook_entries (${COLUMNS})
+      `INSERT INTO guestbook_entries (${INSERT_COLUMNS})
             VALUES (@id, @event_id, @guest_id, @body, @status, @review_kind, @reviewed_at,
                     @reviewed_by_user_id, @created_at, @taken_down_at)`,
     )
@@ -121,12 +98,7 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
     // `await` can be written inside.
     return this.db
       .transaction((): GuestbookAdmission => {
-        const duplicate = findDuplicate.get(
-          props.eventId,
-          props.guestId,
-          props.text.value,
-          sinceIso,
-        )
+        const duplicate = findDuplicate.get(props.eventId, props.guestId, text.value, sinceIso)
         if (duplicate !== undefined) return { kind: 'duplicate', entry: toEntry(duplicate) }
 
         const refusal = guestbookRefusalFor({
@@ -139,7 +111,7 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
           id: props.id,
           event_id: props.eventId,
           guest_id: props.guestId,
-          body: props.text.value,
+          body: text.value,
           status: props.status,
           review_kind: props.review?.kind ?? null,
           reviewed_at: props.review === null ? null : toIsoText(props.review.at),
@@ -180,13 +152,36 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
     const marks = statuses.map(() => '?').join(', ')
     return this.db
       .prepare<(string | number)[], EntryRow>(
-        `SELECT ${COLUMNS} FROM guestbook_entries
-          WHERE event_id = ? AND status IN (${marks}) AND taken_down_at IS NULL
-          ORDER BY created_at ASC, id ASC
+        `SELECT ${ENTRY_COLUMNS} FROM ${ENTRY_FROM}
+          WHERE e.event_id = ? AND e.status IN (${marks}) AND e.taken_down_at IS NULL
+            AND ${HOLDS_A_PLACE}
+          ORDER BY e.created_at ASC, e.id ASC
           LIMIT ?`,
       )
       .all(eventId, ...statuses, limit)
       .map(toEntry)
+  }
+
+  async listWrittenByStatuses(
+    eventId: EventId,
+    statuses: readonly EntryStatus[],
+    limit: number,
+  ): Promise<readonly WrittenGuestbookEntry[]> {
+    if (statuses.length === 0) return []
+    const marks = statuses.map(() => '?').join(', ')
+    // Voices are left out in the query, so the LIMIT counts messages the wall can read; the
+    // filter after it is the type's proof, not a second rule.
+    return this.db
+      .prepare<(string | number)[], EntryRow>(
+        `SELECT ${ENTRY_COLUMNS} FROM ${ENTRY_FROM}
+          WHERE e.event_id = ? AND e.status IN (${marks}) AND e.taken_down_at IS NULL
+            AND v.entry_id IS NULL
+          ORDER BY e.created_at ASC, e.id ASC
+          LIMIT ?`,
+      )
+      .all(eventId, ...statuses, limit)
+      .map(toEntry)
+      .filter(isWritten)
   }
 
   async listByGuest(
@@ -194,11 +189,12 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
     guestId: GuestId,
     limit: number,
   ): Promise<readonly GuestbookEntry[]> {
+    // A failed voice stays in the guest's own list: it is how they learn it could not be saved.
     return this.db
       .prepare<[string, string, number], EntryRow>(
-        `SELECT ${COLUMNS} FROM guestbook_entries
-          WHERE event_id = ? AND guest_id = ? AND taken_down_at IS NULL
-          ORDER BY created_at DESC, id DESC
+        `SELECT ${ENTRY_COLUMNS} FROM ${ENTRY_FROM}
+          WHERE e.event_id = ? AND e.guest_id = ? AND e.taken_down_at IS NULL
+          ORDER BY e.created_at DESC, e.id DESC
           LIMIT ?`,
       )
       .all(eventId, guestId, limit)
@@ -206,11 +202,12 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
   }
 
   async countByGuest(eventId: EventId, guestId: GuestId): Promise<number> {
-    // No `taken_down_at` filter, on purpose: see the class comment.
+    // No taken_down_at filter, on purpose: see the class comment. A failed voice is not counted.
     return (
       this.db
         .prepare<[string, string], { readonly n: number }>(
-          `SELECT COUNT(*) AS n FROM guestbook_entries WHERE event_id = ? AND guest_id = ?`,
+          `SELECT COUNT(*) AS n FROM ${ENTRY_FROM}
+            WHERE e.event_id = ? AND e.guest_id = ? AND ${HOLDS_A_PLACE}`,
         )
         .get(eventId, guestId)?.n ?? 0
     )
@@ -220,8 +217,9 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
     return (
       this.db
         .prepare<[string], { readonly n: number }>(
-          `SELECT COUNT(*) AS n FROM guestbook_entries
-            WHERE event_id = ? AND status <> 'rejected' AND taken_down_at IS NULL`,
+          `SELECT COUNT(*) AS n FROM ${ENTRY_FROM}
+            WHERE e.event_id = ? AND e.status <> 'rejected' AND e.taken_down_at IS NULL
+              AND ${HOLDS_A_PLACE}`,
         )
         .get(eventId)?.n ?? 0
     )
@@ -244,13 +242,26 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
 
   async locate(entryId: GuestbookEntryId): Promise<GuestbookLocation | null> {
     const row = this.db
-      .prepare<[string], { readonly event_id: string; readonly taken_down_at: string | null }>(
-        `SELECT event_id, taken_down_at FROM guestbook_entries WHERE id = ?`,
+      .prepare<
+        [string],
+        {
+          readonly event_id: string
+          readonly taken_down_at: string | null
+          readonly is_voice: number
+        }
+      >(
+        `SELECT e.event_id, e.taken_down_at, v.entry_id IS NOT NULL AS is_voice
+           FROM guestbook_entries e LEFT JOIN guestbook_voices v ON v.entry_id = e.id
+          WHERE e.id = ?`,
       )
       .get(entryId)
     return row === undefined
       ? null
-      : { eventId: asEventId(row.event_id), takenDownAt: fromNullableIsoText(row.taken_down_at) }
+      : {
+          eventId: asEventId(row.event_id),
+          takenDownAt: fromNullableIsoText(row.taken_down_at),
+          voice: row.is_voice === 1,
+        }
   }
 
   async setTakenDown(eventId: EventId, entryId: GuestbookEntryId, at: Date | null): Promise<void> {

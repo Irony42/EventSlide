@@ -10,7 +10,14 @@
  */
 export type SignalAudience = 'public' | 'moderation'
 
-export const MODERATION_ONLY_SIGNALS: readonly string[] = ['book.changed', 'export.changed']
+export const MODERATION_ONLY_SIGNALS: readonly string[] = [
+  'book.changed',
+  'export.changed',
+  // A voice message of the guestbook (spec 25). The wall re-reads its playlist on every public
+  // signal, so a type left off this list would make every room read for a sound it never plays.
+  'guestbook.voice',
+  'voice.queued',
+]
 
 export const canReceiveSignal = (type: string, audience: SignalAudience): boolean =>
   audience === 'moderation' || !MODERATION_ONLY_SIGNALS.includes(type)

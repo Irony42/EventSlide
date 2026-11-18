@@ -5,9 +5,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import request from '../interface/http/testing/request'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { asEventId, asUserId } from '../domain/shared/ids'
+import { asEventId, asGuestId, asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
-import { closeDatabase, openDatabase } from '../infrastructure/db/connection'
+import { closeDatabase, openDatabase, type Db } from '../infrastructure/db/connection'
+import type { Event } from '../domain/events/event'
 import { migrations } from '../infrastructure/db/migrations'
 import { migrate, status } from '../infrastructure/db/migrator'
 import { anAuditEntry, anEvent, anEventSettings, aPhoto } from '../application/testing/builders'
@@ -24,6 +25,54 @@ import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
 import { parseMessage, startSmtpSink, type SmtpSink } from '../infrastructure/mail/testing/smtpSink'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
 import { captureDescriptorOutputWhile } from '../infrastructure/logging/testing/captureOutput'
+import { utimes } from 'node:fs/promises'
+import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
+import { mediaObjectPath } from '../infrastructure/media/mediaLayout'
+import { ContentHash } from '../domain/photos/contentHash'
+
+/**
+ * Writes an event into a database that is **behind** the schema, which is what an upgrade test
+ * starts from: the box as it was before the migration under test.
+ *
+ * `SqliteEventRepository` cannot be built on such a database. It prepares its statements at
+ * construction, and its byte sum (`eventHoldingBytesSum`, one expression for every reader of "what
+ * an event holds") reads every table that holds bytes, so a table a later migration adds (the voice
+ * messages' of 032) makes the constructor throw on a database that predates it. The event is
+ * therefore saved through the repository on a database at the head, and its row is copied across
+ * by the columns the old table has: the repository stays the one place that knows how an event is
+ * written, and the old database stays at the version the test is about.
+ */
+const seedEventOnto = async (old: Db, event: Event): Promise<void> => {
+  const head = openDatabase({ path: ':memory:' })
+  try {
+    migrate(head, migrations)
+    const owner = event.toProps().ownerId
+    head
+      .prepare(
+        `INSERT INTO users (id, email, password_hash, created_at)
+              VALUES (?, 'hote@example.test', 'hash:x', '2026-06-20T11:00:00.000Z')`,
+      )
+      .run(owner)
+    await new SqliteEventRepository(head).save(event)
+
+    const row = head.prepare<[], Record<string, unknown>>(`SELECT * FROM events`).get()
+    if (row === undefined) throw new Error('the event was not written')
+    const oldColumns = new Set(
+      old
+        .prepare<[], { readonly name: string }>(`PRAGMA table_info(events)`)
+        .all()
+        .map((column) => column.name),
+    )
+    const columns = Object.keys(row).filter((name) => oldColumns.has(name))
+    old
+      .prepare(
+        `INSERT INTO events (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
+      )
+      .run(...columns.map((name) => row[name]))
+  } finally {
+    closeDatabase(head)
+  }
+}
 
 /**
  * The one line of `SITE_ADMIN` that no other test reaches: the composition root handing
@@ -240,7 +289,8 @@ describe('createContainer: migration 029 on a database at 028', () => {
                 VALUES ('u-host', 'hote@example.test', 'hash:x', '2026-06-20T11:00:00.000Z')`,
         )
         .run()
-      await new SqliteEventRepository(old).save(
+      await seedEventOnto(
+        old,
         anEvent({
           id: EVENT_ID,
           ownerId: 'u-host',
@@ -323,7 +373,8 @@ describe('createContainer: migration 030 on a database at 029', () => {
         )
         .run()
       const closedAt = new Date(Date.now() - 24 * 3_600_000)
-      await new SqliteEventRepository(old).save(
+      await seedEventOnto(
+        old,
         anEvent({
           id: EVENT_ID,
           ownerId: 'u-host',
@@ -410,7 +461,8 @@ describe('createContainer: migration 031 on a database at 030', () => {
         )
         .run()
       const closedAt = new Date(Date.now() - 24 * 3_600_000)
-      await new SqliteEventRepository(old).save(
+      await seedEventOnto(
+        old,
         anEvent({
           id: EVENT_ID,
           ownerId: 'u-host',
@@ -2734,4 +2786,147 @@ describe('createContainer: the reveal gate on a database that predates it', () =
       expect(JSON.stringify(newWall.body)).not.toContain('p-new')
     },
   )
+})
+
+/**
+ * The voice messages of the guestbook (spec 25) reach the real composition root: the audio
+ * transcoder is the Null Object until its adapter exists, the reservation reaper takes the stale
+ * voices as well as the stale clips, and the media sweep names a recording by its row. Each of the
+ * three is a line of `container.ts` or `usecases.*.ts` that a use case over fakes cannot reach, and
+ * a line left out of any of them is silent: a voice message that cannot be staged says so, a
+ * reservation nothing reaps keeps a guest's place for good, and a sweep that does not know voices
+ * collects every recording an hour after it is made.
+ *
+ * Both modes of `SITE_ADMIN`, which decides surface and never schema.
+ */
+describe.each(['off', 'on'] as const)('createContainer: voice messages, SITE_ADMIN=%s', (mode) => {
+  const EVENT_ID = 'evt-voices'
+  const GUEST_ID = 'guest-1'
+  const FIVE_MINUTES_AND_ONE = 5 * 60_000 + 1_000
+  const HASH_A = 'a'.repeat(64)
+  const HASH_B = 'b'.repeat(64)
+
+  const bootWithEvent = async (): Promise<Container> => {
+    const booted = await boot({ SITE_ADMIN: mode })
+    booted.db
+      .prepare(
+        `INSERT INTO users (id, email, password_hash, created_at)
+         VALUES ('u-host', 'hote@example.test', 'hash:x', '2026-06-20T11:00:00.000Z')`,
+      )
+      .run()
+    await new SqliteEventRepository(booted.db).save(
+      anEvent({
+        id: EVENT_ID,
+        ownerId: 'u-host',
+        slug: 'mariage-voix',
+        joinCode: 'V0ICE2',
+        status: 'live',
+        settings: { allowGuestbook: true, guestbookVoice: { enabled: true } },
+      }),
+    )
+    booted.db
+      .prepare(
+        `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at)
+         VALUES (?, ?, NULL, '2026-06-20T11:00:00.000Z', '2026-06-20T11:00:00.000Z')`,
+      )
+      .run(GUEST_ID, EVENT_ID)
+    return booted
+  }
+
+  const insertVoice = (
+    booted: Container,
+    id: string,
+    state: 'reserved' | 'ready',
+    queuedAt: Date,
+    hashes: { readonly source: string; readonly audio?: string },
+  ): void => {
+    booted.db
+      .prepare(
+        `INSERT INTO guestbook_entries (id, event_id, guest_id, body, status, created_at)
+         VALUES (?, ?, ?, '', 'pending', ?)`,
+      )
+      .run(id, EVENT_ID, GUEST_ID, queuedAt.toISOString())
+    booted.db
+      .prepare(
+        `INSERT INTO guestbook_voices (entry_id, event_id, state, source_hash, source_byte_size,
+                                       audio_hash, audio_byte_size, duration_ms, queued_at)
+         VALUES (?, ?, ?, ?, 9, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        EVENT_ID,
+        state,
+        hashes.source,
+        hashes.audio ?? null,
+        hashes.audio === undefined ? null : 5,
+        hashes.audio === undefined ? null : 3_000,
+        queuedAt.toISOString(),
+      )
+  }
+
+  const voiceRows = (booted: Container): number =>
+    (
+      booted.db.prepare(`SELECT COUNT(*) AS n FROM guestbook_voices`).get() as {
+        readonly n: number
+      }
+    ).n
+
+  it('refuses a voice message before any byte when the box has no audio encoder, and stays ready', async () => {
+    const booted = await bootWithEvent()
+    // A WebM header: the signature is recognised, so the refusal is the box's and not the file's.
+    const webm = Uint8Array.from([0x1a, 0x45, 0xdf, 0xa3, 0x01, 0x02, 0x03, 0x04])
+
+    const result = await booted.usecases.stageGuestbookVoice({
+      eventId: asEventId(EVENT_ID),
+      guestId: asGuestId(GUEST_ID),
+      file: { bytes: webm },
+    })
+
+    expect(!result.ok && result.error.code).toBe('voice.transcoderUnavailable')
+    expect(voiceRows(booted)).toBe(0)
+    expect((await request(booted.app).get('/api/ready')).status).toBe(200)
+  })
+
+  it('wires the reservation reaper to the voices: a stale reservation goes, a fresh one stays', async () => {
+    const booted = await bootWithEvent()
+    const stale = new Date(Date.now() - FIVE_MINUTES_AND_ONE)
+    insertVoice(booted, 'v-stale', 'reserved', stale, { source: HASH_A })
+    insertVoice(booted, 'v-fresh', 'reserved', new Date(), { source: HASH_B })
+
+    const outcome = await booted.reservationReaper.runOnce()
+
+    expect(outcome.status).toBe('completed')
+    expect(
+      booted.db.prepare(`SELECT entry_id FROM guestbook_voices ORDER BY entry_id`).all(),
+    ).toEqual([{ entry_id: 'v-fresh' }])
+    expect(booted.db.prepare(`SELECT id FROM guestbook_entries ORDER BY id`).all()).toEqual([
+      { id: 'v-fresh' },
+    ])
+  })
+
+  it('wires the media sweep to the voices: a recording a row names survives, one nobody names goes', async () => {
+    const booted = await bootWithEvent()
+    const old = new Date(Date.now() - 24 * 3_600_000)
+    insertVoice(booted, 'v-ready', 'ready', old, { source: HASH_A, audio: HASH_B })
+    const media = createFsMediaStore({ root: join(workDir ?? '', 'media') })
+    const kept = ContentHash.create(HASH_B)
+    const orphan = ContentHash.create('c'.repeat(64))
+    if (!kept.ok || !orphan.ok) throw new Error('fixture')
+    const eventId = asEventId(EVENT_ID)
+    await media.put(eventId, kept.value, 'voice', Uint8Array.of(1, 2, 3))
+    await media.put(eventId, orphan.value, 'voice', Uint8Array.of(4, 5))
+    for (const hash of [kept.value, orphan.value]) {
+      await utimes(
+        join(workDir ?? '', 'media', ...mediaObjectPath(EVENT_ID, hash.value, 'voice').split('/')),
+        old,
+        old,
+      )
+    }
+
+    const report = await booted.usecases.sweepOrphanedMedia()
+
+    expect(report.collected).toBe(1)
+    expect(await media.exists(eventId, kept.value, 'voice')).toBe(true)
+    expect(await media.exists(eventId, orphan.value, 'voice')).toBe(false)
+  })
 })

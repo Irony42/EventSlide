@@ -214,6 +214,17 @@ export interface HttpConfig {
     /** Where multer writes a clip before it is staged. Under `MEDIA_ROOT`. */
     readonly uploadTempDir: string
   }
+  /**
+   * The voice half (spec 25), separate from `uploads` and `clips` for the reason `clips` is: a
+   * recording has its own ceiling (4 MB) and goes to disk through its own multer, and a number
+   * somebody else calculated is never raised by sharing the field.
+   */
+  readonly voice: {
+    /** `MAX_VOICE_BYTES`: what one upload may weigh, enforced by multer. */
+    readonly maxBytes: number
+    /** Where multer writes a recording before it is staged. Under `MEDIA_ROOT`, like a clip's. */
+    readonly uploadTempDir: string
+  }
   readonly rateLimits: {
     /** Photos and clips together, per **guest** and event, after `requireGuest`. */
     readonly uploadPerMinute: number

@@ -14,4 +14,5 @@ outboxStoreContract(
   // The page keeps one memory store for its whole life (`openOutbox.ts`): a later visit to the
   // screen is handed the very store the earlier one closed.
   async (previous) => previous,
+  async (maxEntriesPerEvent) => new MemoryOutbox({ maxEntriesPerEvent }),
 )

@@ -47,6 +47,10 @@ const NOT_PUBLIC_READERS: Readonly<Record<string, string>> = {
   'guests/eraseGuestContribution.ts': 'a writer: an erasure retires the archive (spec 22)',
   'guestbook/moderateGuestbookEntry.ts':
     'a writer of guestbook messages, which are not photographs: it retires the archive (spec 22)',
+  'guestbook/deleteGuestbookEntry.ts':
+    'a writer of guestbook messages, which are not photographs: a removal retires the archive (spec 25)',
+  'guestbook/transcodeNextVoice.ts':
+    'a writer of a voice message, which is never on a screen: finishing one retires the archive (spec 25)',
   'guestbook/listGuestbookQueue.ts':
     'the host’s queue of guestbook messages, which are not photographs',
   'highlights/exportHighlights.ts': 'the host’s best-of ZIP, behind requireRole("moderator")',
@@ -57,6 +61,7 @@ const NOT_PUBLIC_READERS: Readonly<Record<string, string>> = {
 const PUBLIC_READERS: readonly string[] = [
   'slideshow/getWallPlaylist.ts', // the wall, and through it the guests' feed (`/photos` reads the wall)
   'photos/getPhotoMedia.ts', // the media route for a viewer who is no moderator
+  'photos/saveGuestPhoto.ts', // a guest saving another guest's photograph (spec 24, 5.7): the author gets no exception here
   'photos/listGuestPhotos.ts', // the guest's own list: it asks `isRevealed` to say `awaitsReveal`
   'reactions/getTopPhotos.ts', // the podium
   'reactions/reactToPhoto.ts', // the reactions

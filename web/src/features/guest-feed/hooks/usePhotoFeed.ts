@@ -54,6 +54,12 @@ export interface PhotoFeedState {
    * upload screen's own-photos read cannot claim the same (see `useMyPhotos`).
    */
   readonly unavailable: boolean
+  /**
+   * The host removed this guest's access (`403 guest.revoked` on their own list). Like
+   * `signedOut`, an answer and not a failure: the feed stays readable and only what needs the
+   * guest's identity (here, saving a photograph) is withdrawn.
+   */
+  readonly revoked: boolean
   /** The host's switch, as the wall says it now. */
   readonly reactionsEnabled: boolean
   /**
@@ -64,6 +70,14 @@ export interface PhotoFeedState {
   readonly reveal: RevealDto | null
   /** The server's clock less this phone's, as of the wall's last read: what the countdown uses. */
   readonly offsetMs: number
+  /**
+   * Whether guests may save a photograph, as the wall says it now (spec 24). Read with the wall,
+   * so a feed that stays open keeps the answer it had until the next refresh: the route is the
+   * door, and its `403 save.disabled` is how a switch thrown meanwhile is found.
+   */
+  readonly guestSaveEnabled: boolean
+  /** The evening still takes photographs (live); false once the host ended it. Reads as open when unsaid. */
+  readonly acceptsGuests: boolean
   /**
    * The event's look as the wall says it now, or `null` until it has answered (or when it
    * carries none this build can read). It is the answer the screen prefers to the join's
@@ -109,14 +123,25 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
   const loadMine = useCallback(
     async (
       signal: AbortSignal,
-    ): Promise<{ readonly items: readonly GuestPhotoDto[]; readonly signedOut: boolean }> => {
+    ): Promise<{
+      readonly items: readonly GuestPhotoDto[]
+      readonly signedOut: boolean
+      readonly revoked: boolean
+    }> => {
       try {
         const answer = await api.myPhotos(slug, signal)
-        return { items: answer.items, signedOut: false }
+        return { items: answer.items, signedOut: false, revoked: false }
       } catch (cause) {
         // The guest's access is gone (no cookie, or one past its 36 hours). The feed is public and
         // still reads, so this is an answer, not a failure: the screen reports it to the device.
-        if (cause instanceof ApiError && cause.status === 401) return { items: [], signedOut: true }
+        if (cause instanceof ApiError && cause.status === 401) {
+          return { items: [], signedOut: true, revoked: false }
+        }
+        // Access the host withdrew: also an answer, so that the screen can say so instead of
+        // offering what the server would refuse.
+        if (cause instanceof ApiError && cause.status === 403 && cause.code === 'guest.revoked') {
+          return { items: [], signedOut: false, revoked: true }
+        }
         throw cause
       }
     },
@@ -155,9 +180,12 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
     items: served === null ? null : served.items,
     unavailable: wall.data?.gone === true,
     signedOut: mine.data?.signedOut === true,
+    revoked: mine.data?.revoked === true,
     reactionsEnabled: served?.reactionsEnabled ?? false,
     reveal: served?.reveal ?? null,
     offsetMs: offsetMs ?? 0,
+    guestSaveEnabled: served?.guestSaveEnabled ?? false,
+    acceptsGuests: served?.acceptsGuests ?? true,
     theme,
     ownIds,
     settling: (wall.data === null && wall.loading) || (mine.data === null && mine.loading),

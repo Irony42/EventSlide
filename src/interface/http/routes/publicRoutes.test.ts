@@ -366,12 +366,13 @@ describe('POST /api/join', () => {
       privacyNotice: {
         notice: {
           revision:
-            'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=900;selfErase=phone;guestbook=on',
+            'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=900;selfErase=phone;guestbook=on;guestSave=on',
           publication: 'afterReview',
           audiences: ['wall', 'guestFeed', 'organisers', 'sharedGallery'],
           retentionDays: null,
           selfRemovalSeconds: 900,
           guestbook: true,
+          guestSave: true,
         },
         acknowledgement: 'none',
       },
@@ -1012,6 +1013,27 @@ describe('GET /api/events/:eventSlug/wall', () => {
       ambiance: 'eventslide',
       groundUrl: null,
     })
+  })
+
+  it('tells the wall whether guests may save a photograph, as the setting reads now (spec 24)', async () => {
+    const { subject, photos } = world()
+    seedWall(photos)
+
+    const on = await request(subject.app).get('/api/events/mariage/wall')
+    expect(on.body.guestSaveEnabled).toBe(true)
+
+    subject.events.seed(
+      anEvent({
+        id: WEDDING,
+        slug: 'mariage',
+        joinCode: 'H7K2QM',
+        status: 'live',
+        settings: { allowGuestSave: false },
+      }),
+    )
+    const off = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(off.body.guestSaveEnabled).toBe(false)
   })
 
   it('carries the event’s own look to the projector', async () => {

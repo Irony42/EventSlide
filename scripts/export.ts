@@ -32,6 +32,7 @@ import { freeBytesOnFilesystemOf } from '../src/infrastructure/db/backup/createB
 import { SqliteClientRepository } from '../src/infrastructure/db/sqliteClientRepository'
 import { SqliteEventRepository } from '../src/infrastructure/db/sqliteEventRepository'
 import { SqliteGuestbookRepository } from '../src/infrastructure/db/sqliteGuestbookRepository'
+import { SqliteGuestbookVoiceRepository } from '../src/infrastructure/db/sqliteGuestbookVoiceRepository'
 import { SqliteGuestRepository } from '../src/infrastructure/db/sqliteGuestRepository'
 import { SqlitePhotoRepository } from '../src/infrastructure/db/sqlitePhotoRepository'
 import { archiverWriter } from '../src/infrastructure/media/archiverWriter'
@@ -180,6 +181,7 @@ const execute = async (
     const exportToFolder = makeExportAlbumToFolder({
       photos: new SqlitePhotoRepository(db),
       guestbook: new SqliteGuestbookRepository(db),
+      voices: new SqliteGuestbookVoiceRepository(db),
       guests: new SqliteGuestRepository(db),
       media: createFsMediaStore({ root: mediaRoot }),
       archive: archiverWriter,

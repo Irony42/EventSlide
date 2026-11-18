@@ -19,6 +19,7 @@ import { makeGetPhotoMedia } from '../application/usecases/photos/getPhotoMedia'
 import { makeIdentifyMediaViewer } from '../application/usecases/photos/identifyMediaViewer'
 import { makeListEventPhotos } from '../application/usecases/photos/listEventPhotos'
 import { makeListGuestPhotos } from '../application/usecases/photos/listGuestPhotos'
+import { makeSaveGuestPhoto } from '../application/usecases/photos/saveGuestPhoto'
 import { makeSetPhotoCaption } from '../application/usecases/photos/setPhotoCaption'
 import { makeUploadPhotos } from '../application/usecases/photos/uploadPhotos'
 import type { Adapters, UseCasePolicy } from './usecases'
@@ -28,7 +29,7 @@ import { type SharedHooks } from './usecases.shared'
 export const photosUseCases = (
   adapters: Adapters,
   policy: UseCasePolicy,
-  { invalidateReel, invalidateBook, invalidateExport }: SharedHooks,
+  { invalidateReel, invalidateBook, invalidateExport, engagement }: SharedHooks,
 ) => ({
   // photos
   uploadPhotos: makeUploadPhotos({
@@ -77,6 +78,13 @@ export const photosUseCases = (
     events: adapters.events,
     clock: adapters.clock,
   }),
+  saveGuestPhoto: makeSaveGuestPhoto({
+    events: adapters.events,
+    photos: adapters.photos,
+    media: adapters.media,
+    engagement,
+    clock: adapters.clock,
+  }),
   identifyMediaViewer: makeIdentifyMediaViewer({
     guests: adapters.guests,
     tokens: adapters.guestTokens,
@@ -102,6 +110,7 @@ export const photosUseCases = (
     events: adapters.events,
     clients: adapters.clients,
     photos: adapters.photos,
+    voices: adapters.voices,
     exports: adapters.exports,
     exportFiles: adapters.exportFiles,
     bus: adapters.bus,

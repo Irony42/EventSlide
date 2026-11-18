@@ -8,7 +8,10 @@ import { GUEST_COOKIE } from '../middleware/authz'
 import { buildHarness, testHttpConfig, type Harness } from '../testing/middlewareHarness'
 import { asEventId } from '../../../domain/shared/ids'
 import { AT, aGuest, aGuestbookEntry, anEvent } from '../../../application/testing/builders'
+import { FakeAudioTranscoder } from '../../../application/testing/fakeAudioTranscoder'
 import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
+import { FakeGuestbookVoiceRepository } from '../../../application/testing/fakeGuestbookVoiceRepository'
+import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 import { makeCreateGuestbookEntry } from '../../../application/usecases/guestbook/createGuestbookEntry'
 import { makeDeleteGuestbookEntry } from '../../../application/usecases/guestbook/deleteGuestbookEntry'
 import { makeListMyGuestbookEntries } from '../../../application/usecases/guestbook/listMyGuestbookEntries'
@@ -83,7 +86,9 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
             listMyGuestbookEntries: makeListMyGuestbookEntries({
               events: deps.events,
               guestbook,
+              transcoder: new FakeAudioTranscoder(),
               clock: deps.clock,
+              voiceMaxDurationMs: 60_000,
             }),
             // The host's half is held at its own file (`guestbookHostRoutes.test.ts`).
             listGuestbookQueue: async () => err(DomainError.unexpected('test.useCaseNotWired')),
@@ -91,6 +96,8 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
             deleteGuestbookEntry: makeDeleteGuestbookEntry({
               events: deps.events,
               guestbook,
+              voices: new FakeGuestbookVoiceRepository(guestbook),
+              media: new InMemoryMediaStore(),
               bus: deps.bus,
               clock: deps.clock,
             }),
@@ -153,6 +160,7 @@ describe('POST /api/events/:eventSlug/guestbook', () => {
       status: 'pending',
       createdAt: AT.toISOString(),
       duplicate: false,
+      voice: null,
     })
     expect(response.headers['cache-control']).toBe('no-store')
     expect(subject.harness.bus.published).toEqual([
@@ -351,10 +359,14 @@ describe('GET /api/events/:eventSlug/guestbook/mine', () => {
           status: 'pending',
           createdAt: AT.toISOString(),
           canDelete: true,
+          voice: null,
         },
       ],
       accepting: true,
       onWall: true,
+      // The voice is off for this event (and the harness's encoder is a Null Object away): no button.
+      voiceAvailable: false,
+      voiceMaxSeconds: 60,
     })
   })
 

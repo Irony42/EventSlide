@@ -35,13 +35,16 @@ const WRONG_LOCAL_NOW = SERVER_NOW + 28 * DAY
 const spaced = (value: string) => value.replace(/\s/g, ' ')
 const dayOf = (at: string) => spaced(formatDay(at, 'fr') ?? '')
 
+/** A purge with no voice message in the way: what every band without the voice clause reads. */
+const NO_VOICES = { secret: 0, pending: 0 } as const
+
 const atInDays = (days: number): string => new Date(SERVER_NOW + days * DAY).toISOString()
 
 const closedEvent = (at: string | null, overrides: Partial<EventDto> = {}): EventDto =>
   anEventDto({
     status: 'closed',
     closedAt: '2026-11-02T12:00:00.000Z',
-    purge: { at, notice: null, offboarding: false, serverNowMs: SERVER_NOW },
+    purge: { at, notice: null, offboarding: false, voices: NO_VOICES, serverNowMs: SERVER_NOW },
     ...overrides,
   })
 
@@ -98,7 +101,13 @@ describe('the deletion band: when it is on the page', () => {
     renderPage(
       apiWith(
         closedEvent(at, {
-          purge: { at, notice: null, offboarding: true, serverNowMs: SERVER_NOW },
+          purge: {
+            at,
+            notice: null,
+            offboarding: true,
+            voices: NO_VOICES,
+            serverNowMs: SERVER_NOW,
+          },
         }),
         null,
       ),
@@ -135,7 +144,13 @@ describe('the deletion band: when it is on the page', () => {
     renderPage(
       apiWith(
         anEventDto({
-          purge: { at: null, notice: null, offboarding: false, serverNowMs: SERVER_NOW },
+          purge: {
+            at: null,
+            notice: null,
+            offboarding: false,
+            voices: NO_VOICES,
+            serverNowMs: SERVER_NOW,
+          },
         }),
         null,
       ),
@@ -163,7 +178,13 @@ describe('the deletion band: when it is on the page', () => {
         anEventDto({
           status: 'closed',
           closedAt: '2026-11-02T12:00:00.000Z',
-          purge: { at: soon, notice: null, offboarding: false, serverNowMs: base },
+          purge: {
+            at: soon,
+            notice: null,
+            offboarding: false,
+            voices: NO_VOICES,
+            serverNowMs: base,
+          },
         }),
         null,
       ),
@@ -217,7 +238,13 @@ describe('the deletion band: the server’s clock, not the machine’s', () => {
 describe('the deletion band: when the host closes the evening', () => {
   it('appears at once from the server’s answer, not a minute later', async () => {
     const live = anEventDto({
-      purge: { at: null, notice: null, offboarding: false, serverNowMs: SERVER_NOW },
+      purge: {
+        at: null,
+        notice: null,
+        offboarding: false,
+        voices: NO_VOICES,
+        serverNowMs: SERVER_NOW,
+      },
     })
     // Ten seconds later, on the server's clock, the host closes: the date is exactly thirty days on.
     const closedAtMs = SERVER_NOW + 10_000
@@ -226,6 +253,7 @@ describe('the deletion band: when the host closes the evening', () => {
         at: new Date(closedAtMs + 30 * DAY).toISOString(),
         notice: null,
         offboarding: false,
+        voices: NO_VOICES,
         serverNowMs: closedAtMs,
       },
     })
@@ -655,5 +683,68 @@ describe('the early deletion without a complete archive that was sent', () => {
 
     expect(screen.getByLabelText(fr.admin.purgeConfirmLabel)).toBeVisible()
     expect(screen.queryByRole('button', { name: fr.exportPurge.deleteWithout })).toBeNull()
+  })
+})
+
+describe('the deletion band and the voice messages (spec 25)', () => {
+  const withVoices = (secret: number, pending: number, days = 5): EventDto => {
+    const at = atInDays(days)
+    return closedEvent(at, {
+      purge: {
+        at,
+        notice: null,
+        offboarding: false,
+        voices: { secret, pending },
+        serverNowMs: SERVER_NOW,
+      },
+    })
+  }
+
+  it('says how many recordings are waiting for a decision and will not be in the album', async () => {
+    renderPage(apiWith(withVoices(0, 37), null))
+
+    const section = await band()
+
+    expect(section.textContent).toContain(fr.exportPurge.voicePending(37))
+    expect(section.textContent).not.toContain(fr.exportPurge.voiceSecret(1))
+  })
+
+  it('says how many are still kept secret and would leave unheard', async () => {
+    renderPage(apiWith(withVoices(14, 0), null))
+
+    const section = await band()
+
+    expect(section.textContent).toContain(fr.exportPurge.voiceSecret(14))
+    expect(section.textContent).not.toContain(fr.exportPurge.voicePending(1))
+  })
+
+  it('says both, as two items of a list, each with its own number', async () => {
+    renderPage(apiWith(withVoices(2, 3), null))
+
+    const section = await band()
+    const items = within(within(section).getByRole('list')).getAllByRole('listitem')
+
+    expect(items.map((item) => item.textContent)).toEqual([
+      fr.exportPurge.voiceSecret(2),
+      fr.exportPurge.voicePending(3),
+    ])
+  })
+
+  it('says one in the singular, and in the language of the screen', async () => {
+    renderPage(apiWith(withVoices(0, 1), null), 'en')
+
+    const section = await screen.findByRole('heading', { name: en.exportPurge.title })
+
+    expect(section.closest('section')?.textContent).toContain(en.exportPurge.voicePending(1))
+    expect(en.exportPurge.voicePending(1)).toMatch(/^1 voice message is /)
+  })
+
+  it('says nothing about voices when the server counted none, which is every day but the last week', async () => {
+    renderPage(apiWith(withVoices(0, 0), null))
+
+    const section = await band()
+
+    expect(within(section).queryByRole('list')).toBeNull()
+    expect(section.textContent).not.toMatch(/vocal|vocaux/)
   })
 })

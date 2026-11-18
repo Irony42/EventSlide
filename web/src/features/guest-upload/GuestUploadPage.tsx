@@ -19,6 +19,7 @@ import { GuestbookCard } from './components/GuestbookCard'
 import { GuestIntro } from './components/GuestIntro'
 import { GuestRoll } from './components/GuestRoll'
 import { MyMessages } from './components/MyMessages'
+import { saveRecordingToPhone } from './saveRecording'
 import { HostGreeting } from '../../design-system/components/HostGreeting'
 import { HostLogo } from '../../design-system/components/HostLogo'
 import { MyPhotos } from './components/MyPhotos'
@@ -142,6 +143,9 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
     mine,
     messages,
     writer,
+    voice,
+    voiceRetry,
+    retryVoice,
     erasure,
     notice,
     publication,
@@ -224,7 +228,8 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
   /** What the closed evening thanks the guest for: not the photos the host refused. */
   const thanked = mine.photos.filter((photo) => photo.status !== 'rejected').length
   const showMine = !mine.unavailable && (hasPhotos || mine.error !== null)
-  const hasMessages = !messages.unavailable && messages.items.length > 0
+  const hasMessages =
+    !messages.unavailable && (messages.items.length > 0 || voice.entries.length > 0)
   /** Where a guest who may write is offered the card (spec 01): never behind the notice. */
   const bookOpen = !messages.unavailable && messages.accepting && !mine.unavailable
 
@@ -388,6 +393,10 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           onWall={messages.onWall}
           error={messages.error}
           onDelete={messages.remove}
+          local={voice.entries}
+          onRetryVoice={retryVoice}
+          onSaveLocal={saveRecordingToPhone}
+          onDiscardLocal={(entryId) => void voice.discard(entryId)}
         />
       ) : null}
       {(showMine && hasPhotos) || hasMessages ? (
@@ -418,6 +427,12 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           writer={writer}
           maxLength={event.guestbookMaxLength}
           publication={publication ?? 'afterReview'}
+          voice={{
+            offered: messages.voiceAvailable,
+            maxSeconds: messages.voiceMaxSeconds,
+            outbox: voice,
+            openRequest: voiceRetry,
+          }}
         />
       ) : null}
 
@@ -450,6 +465,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
               <OfflineNotice
                 compact
                 waiting={outbox.waiting}
+                voiceWaiting={voice.waiting}
                 draining={outbox.draining}
                 onSendNow={outbox.drain}
                 canCloseSafely={canCloseSafely}
@@ -466,6 +482,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           {mine.acceptingUploads && !mine.unavailable ? (
             <OfflineNotice
               waiting={outbox.waiting}
+              voiceWaiting={voice.waiting}
               draining={outbox.draining}
               onSendNow={outbox.drain}
               canCloseSafely={canCloseSafely}

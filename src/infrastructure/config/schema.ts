@@ -241,6 +241,24 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * schema; this is the box-wide cap, judged in the admission transaction like the clips'.
        */
       MAX_QUEUED_REELS: positiveInt(2, 50),
+      /**
+       * Voice messages in the guestbook (spec 25). `false` switches the whole function off for the
+       * box, as `BOOK_ENABLED` does for the book: the button disappears (`voice.available` is false)
+       * and a request that arrives anyway is refused before any byte is written. Read at boot.
+       */
+      GUESTBOOK_VOICE_ENABLED: boolishWithDefault('true'),
+      /**
+       * The longest voice message, in seconds. The phone stops at it and the server never trusts
+       * that: a file declaring more than this plus five seconds is refused unread, and the output
+       * is bounded by `-t` whatever the header claims. Ten seconds to three minutes.
+       */
+      MAX_VOICE_SECONDS: z.coerce.number().int().min(10).max(180).default(60),
+      /**
+       * What one voice upload may weigh. A minute is about 1 MB in AAC at 128 kbit/s (an iPhone) and
+       * 250 kB in Opus at 32 kbit/s (Chrome), so 4 MB leaves room without letting a film through.
+       * Its own limit, never `MAX_UPLOAD_BYTES`, for the reason `MAX_CLIP_BYTES` is.
+       */
+      MAX_VOICE_BYTES: positiveInt(4_000_000),
       /** The projected height of a clip. 720p reads well at 3 m and encodes quickly. */
       CLIP_MAX_HEIGHT: positiveInt(720, 2_160),
       /**

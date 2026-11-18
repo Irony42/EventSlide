@@ -81,12 +81,24 @@ export const EVENT_LOGO = 'logo'
  */
 export const REEL_VARIANT = 'reel'
 
+/**
+ * The transcoded recording of a guestbook voice message (spec 25): AAC mono in an MP4 container,
+ * the only thing ever stored for a voice besides its `source` while it waits.
+ *
+ * Outside {@link SERVED_VARIANTS} like the reel: the photo route takes a `ServedVariant`, so
+ * **nothing a client puts in that URL reaches a voice**. It has a route of its own (a later change)
+ * that re-checks the role, the seal, the state and the operator's takedown on every request. It is
+ * in {@link ALL_MEDIA_VARIANTS}, so the sweeps, `usedBytes` and an event's deletion cover it.
+ */
+export const VOICE_VARIANT = 'voice'
+
 export type MediaVariant =
   | ServedVariant
   | typeof STAGED_SOURCE
   | typeof VENUE_GROUND
   | typeof EVENT_LOGO
   | typeof REEL_VARIANT
+  | typeof VOICE_VARIANT
 
 /** Everything the store can hold, for the operations that must cover all of it. */
 export const ALL_MEDIA_VARIANTS = [
@@ -95,6 +107,7 @@ export const ALL_MEDIA_VARIANTS = [
   VENUE_GROUND,
   EVENT_LOGO,
   REEL_VARIANT,
+  VOICE_VARIANT,
 ] as const
 
 /**

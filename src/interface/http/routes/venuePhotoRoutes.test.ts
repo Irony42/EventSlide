@@ -9,6 +9,7 @@ import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { makeGetEventLimits } from '../../../application/usecases/events/getEventLimits'
 import { makeGetEventView } from '../../../application/usecases/events/getEventView'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
+import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
 import { makeIdentifyMediaViewer } from '../../../application/usecases/photos/identifyMediaViewer'
 import { makeGetVenuePhotoMedia } from '../../../application/usecases/venue/getVenuePhotoMedia'
 import { makeRemoveVenuePhoto } from '../../../application/usecases/venue/removeVenuePhoto'
@@ -94,6 +95,7 @@ const buildWorld = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World =
           clock: deps.clock,
           clients: base.clients,
           notices: new FakePurgeNoticeLedger(),
+          guestbook: new FakeGuestbookRepository(),
           capNoticeDays: 30,
           getEventLimits: makeGetEventLimits({ clients: base.clients }),
         }),

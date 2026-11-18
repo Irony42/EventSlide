@@ -1,4 +1,5 @@
 import type { ImageFormat } from '../../application/ports/imageProcessor'
+import type { VoiceContainer } from '../../application/ports/audioTranscoder'
 import type { ClipContainer } from '../../application/ports/videoTranscoder'
 
 /**
@@ -132,6 +133,44 @@ export const detectVideoContainer = (bytes: Uint8Array): ClipContainer | null =>
   if (asciiAt(bytes, 4, 4) === 'ftyp') {
     const brand = asciiAt(bytes, 8, 4).toLowerCase()
     if (MP4_BRANDS.has(brand)) return 'mp4'
+  }
+
+  return null
+}
+
+/**
+ * The brands of an MP4 that may hold a **voice message** (spec 25): every video brand above, which
+ * an iPhone's `MediaRecorder` may write for an `audio/mp4`, **plus** `M4A ` and `M4B `, the
+ * audio-only ones. The trailing space is not a typo: `asciiAt` is read through a `toLowerCase`,
+ * so these are `m4a ` and `m4b `, padded to four characters like `qt  `.
+ *
+ * Exported so a test can hold this set **disjoint from the image brands** (HEIC and AVIF are the
+ * same container format, and a guest's photograph must never be queued as a recording).
+ */
+export const AUDIO_MP4_BRANDS: ReadonlySet<string> = new Set([...MP4_BRANDS, 'm4a ', 'm4b '])
+
+/** The image brands, exported for the same disjointness test. */
+export const IMAGE_BRANDS: ReadonlySet<string> = new Set([...HEIF_BRANDS, ...AVIF_BRANDS])
+
+/**
+ * Which container these bytes are for a **voice message**, from the signature alone: the twin of
+ * {@link detectVideoContainer}, **not a row of it** (spec 25). They answer different questions and
+ * feed different pipelines, which is the argument this file makes for images and video. It starts
+ * no process and reads a handful of bytes, so a renamed PDF is refused before a byte is written.
+ *
+ * Three containers: Matroska (`1A 45 DF A3`, which covers WebM, what Chrome and Edge record),
+ * MP4 (`ftyp` at **offset 4**, an audio-capable brand, what Safari records) and Ogg (`OggS`, what
+ * desktop Firefox records). An unrecognised signature is refused, never "probably fine".
+ */
+export const detectAudioContainer = (bytes: Uint8Array): VoiceContainer | null => {
+  if (startsWith(bytes, [0x1a, 0x45, 0xdf, 0xa3])) return 'matroska'
+
+  // 'OggS'
+  if (startsWith(bytes, [0x4f, 0x67, 0x67, 0x53])) return 'ogg'
+
+  if (asciiAt(bytes, 4, 4) === 'ftyp') {
+    const brand = asciiAt(bytes, 8, 4).toLowerCase()
+    if (AUDIO_MP4_BRANDS.has(brand)) return 'mp4'
   }
 
   return null

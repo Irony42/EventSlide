@@ -38,6 +38,9 @@ const READABLE_TABLES = new Set([
   'photos',
   'clip_jobs',
   'highlight_reels',
+  // Sizes and states only: the voice term of the byte sum (spec 25). The CONTENT net below holds
+  // its caption-bearing neighbours out, and `looksLikeASecret` the digests.
+  'guestbook_voices',
   'users',
 ])
 
@@ -62,6 +65,8 @@ const CONTENT_COLUMNS = new Set([
   'clip_jobs.caption',
   'clip_jobs.author_guest_id',
   'clip_jobs.author_user_id',
+  // Which message a voice is: an id the operator may not read, only the sizes beside it.
+  'guestbook_voices.entry_id',
   'clients.contact_email',
   'users.display_name',
 ])

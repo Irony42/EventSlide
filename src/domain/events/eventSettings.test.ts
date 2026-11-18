@@ -4,7 +4,7 @@ import { DEFAULT_WALL_SETTINGS } from './eventWallSettings'
 import { ContentHash } from '../photos/contentHash'
 import type { DomainError } from '../shared/errors'
 import type { Result } from '../shared/result'
-import { EventSettings, isModerationMode } from './eventSettings'
+import { EventSettings, isModerationMode, type EventSettingsPatch } from './eventSettings'
 import { DEFAULT_EVENT_THEME } from './eventTheme'
 
 const unwrap = (result: Result<EventSettings, DomainError>): EventSettings => {
@@ -13,6 +13,25 @@ const unwrap = (result: Result<EventSettings, DomainError>): EventSettings => {
 }
 
 describe('EventSettings defaults', () => {
+  it('says voice is on for guests only while the guestbook is open as well (spec 25, rule 13)', () => {
+    const on = (patch: EventSettingsPatch): EventSettings => {
+      const built = EventSettings.create({
+        guestbookVoice: { enabled: true, sealed: true },
+        ...patch,
+      })
+      if (!built.ok) throw new Error(built.error.code)
+      return built.value
+    }
+
+    expect(on({ allowGuestbook: true }).allowGuestbookVoice).toBe(true)
+    expect(on({ allowGuestbook: false }).allowGuestbookVoice).toBe(false)
+    expect(EventSettings.default().allowGuestbookVoice).toBe(false)
+    // The switch itself is left as the host set it, and so is the secret.
+    expect(on({ allowGuestbook: false }).guestbookVoice.enabled).toBe(true)
+    expect(on({ allowGuestbook: false }).guestbookVoiceSealed).toBe(true)
+    expect(EventSettings.default().guestbookVoiceSealed).toBe(false)
+  })
+
   it('holds every photo for a decision, so nothing reaches the wall unmoderated', () => {
     expect(EventSettings.default().moderation).toBe('manual')
   })
@@ -23,6 +42,20 @@ describe('EventSettings defaults', () => {
     const settings = EventSettings.default()
 
     expect([settings.allowGuestbook, settings.guestbookOnWall]).toEqual([true, true])
+  })
+
+  it('lets guests save a photograph on a new event (spec 24)', () => {
+    expect(EventSettings.default().allowGuestSave).toBe(true)
+  })
+
+  it('keeps allowGuestSave through a patch that does not name it, and turns it off when told', () => {
+    const off = unwrap(EventSettings.create({ allowGuestSave: false }))
+
+    expect(unwrap(off.with({ moderation: 'auto' })).allowGuestSave).toBe(false)
+    expect(unwrap(EventSettings.default().with({ moderation: 'auto' })).allowGuestSave).toBe(true)
+    expect(unwrap(EventSettings.default().with({ allowGuestSave: false })).allowGuestSave).toBe(
+      false,
+    )
   })
 
   it('lets a guest caption, react and take back their own photo', () => {
@@ -96,6 +129,7 @@ describe('EventSettings.create', () => {
         allowReactions: false,
         allowClips: false,
         allowGuestbook: true,
+        allowGuestSave: false,
         guestbookOnWall: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
@@ -109,6 +143,7 @@ describe('EventSettings.create', () => {
         },
         wallLanguage: 'de',
         wall: { layout: 'mosaic', slideIntervalMs: 12_000 },
+        guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_800_000_000_000 },
       }),
     )
 
@@ -119,6 +154,7 @@ describe('EventSettings.create', () => {
       allowReactions: false,
       allowClips: false,
       allowGuestbook: true,
+      allowGuestSave: false,
       guestbookOnWall: false,
       allowGuestSelfDelete: false,
       guestSelfDeleteGraceSeconds: 60,
@@ -136,6 +172,7 @@ describe('EventSettings.create', () => {
       logo: null,
       wall: { ...DEFAULT_WALL_SETTINGS, layout: 'mosaic', slideIntervalMs: 12_000 },
       reveal: DEFAULT_REVEAL_SETTINGS,
+      guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_800_000_000_000 },
     })
   })
 

@@ -10,6 +10,7 @@ import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { Event } from '../../domain/events/event'
 import { EventName, foldName } from '../../domain/events/eventName'
+import { restoreGuestbookVoiceSettings } from '../../domain/events/eventGuestbookVoiceSettings'
 import { restoreWallSettings } from '../../domain/events/eventWallSettings'
 import {
   restoreRevealSettings,
@@ -460,6 +461,11 @@ const settingsOf = (raw: string): EventSettings => {
      */
     allowGuestbook: settingsBooleanAddedLater(decoded['allowGuestbook'], 'allowGuestbook', false),
     /**
+     * Added by spec 24, and **off** when the key is absent: an event that predates it has a host
+     * who was never asked, and an upgrade does not let guests carry each other's photographs away.
+     */
+    allowGuestSave: settingsBooleanAddedLater(decoded['allowGuestSave'], 'allowGuestSave', false),
+    /**
      * Added with it, and **on** when absent: the opposite concession, because the wall showing
      * published messages is only reachable once the host has turned the guestbook on, and the
      * host who did has agreed to what it shows.
@@ -511,6 +517,8 @@ const settingsOf = (raw: string): EventSettings => {
      * as "off" when it cannot be read would publish an evening its host meant to hold back.
      */
     reveal: settingsRevealAddedLater(decoded['reveal']),
+    /** Added by spec 25 and read tolerantly like `wall`: absent is off, not sealed, no opening time. */
+    guestbookVoice: restoreGuestbookVoiceSettings(decoded['guestbookVoice']),
   }
 
   // `restore`, not `create`: a stored theme is judged on its shape and not on the

@@ -30,6 +30,7 @@ const wire = (
     events: scene.events,
     clients: scene.clients,
     photos: scene.photos,
+    voices: scene.voices,
     exports: scene.exports,
     exportFiles: scene.exportFiles,
     bus: scene.bus,
@@ -295,6 +296,28 @@ describe('requestAlbumExport', () => {
         'conflict',
         'export.noRoom',
       ])
+      await expectNothingWritten()
+    })
+
+    it('counts the voice messages in the estimate: the disk that holds the photographs alone is refused (spec 25)', async () => {
+      await seedAlbum()
+      await scene.voice({ id: 'v1', audioByteSize: 2_000 })
+      scene.freeDisk = ESTIMATE + DEFAULT_EXPORT_POLICY.minFreeDiskBytes
+
+      const result = await ask()
+
+      expect(!result.ok && result.error.code).toBe('export.noRoom')
+      await expectNothingWritten()
+    })
+
+    it('refuses with export.tooLarge an archive that fits the ceiling only without its recordings', async () => {
+      wire({ ...DEFAULT_EXPORT_POLICY, maxBytes: ESTIMATE })
+      await seedAlbum()
+      await scene.voice({ id: 'v1', audioByteSize: 2_000 })
+
+      const result = await ask()
+
+      expect(!result.ok && result.error.code).toBe('export.tooLarge')
       await expectNothingWritten()
     })
 

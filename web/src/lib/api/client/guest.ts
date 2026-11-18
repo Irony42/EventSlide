@@ -1,10 +1,11 @@
-import type { Transport, UploadProgress } from '../../http'
+import type { DownloadedFile, Transport, UploadProgress } from '../../http'
 import type {
   About,
   ClipJobDto,
   ErasedContributionDto,
   GuestMissionListResponse,
   CreatedGuestbookEntryDto,
+  CreatedGuestbookVoiceDto,
   MyGuestbookDto,
   MyPhotosDto,
   JoinResponse,
@@ -56,6 +57,17 @@ export interface ClipUploadInput {
   readonly onProgress?: (progress: UploadProgress) => void
   readonly signal?: AbortSignal
 }
+/**
+ * One voice message (spec 25). Singular like a clip: the route takes exactly one file, under the
+ * field `voice`, and nothing else a phone could say about it (a duration, a size, a name) is read.
+ */
+export interface VoiceUploadInput {
+  readonly file: File
+  /** The optional line that goes with it, 140 characters; omitted when empty. */
+  readonly caption?: string | null
+  readonly signal?: AbortSignal
+}
+
 export const guestApi = (transport: Transport) => ({
   /**
    * What this box is, its licence and where its source is. Public, and answered with no
@@ -186,6 +198,19 @@ export const guestApi = (transport: Transport) => ({
   writeGuestbookEntry: (slug: string, text: string): Promise<CreatedGuestbookEntryDto> =>
     transport.post(`/api/events/${encode(slug)}/guestbook`, { text }),
 
+  /** `202`: the recording is queued on the server, nothing is heard yet (see `docs/API.md`). */
+  leaveVoiceMessage: (slug: string, input: VoiceUploadInput): Promise<CreatedGuestbookVoiceDto> => {
+    const form = new FormData()
+    // The text part before the file, as the clip does it: a part after a large file is the one a proxy may cut.
+    if (input.caption !== undefined && input.caption !== null && input.caption !== '') {
+      form.append('caption', input.caption)
+    }
+    form.append('voice', input.file)
+    return transport.upload(`/api/events/${encode(slug)}/guestbook/voice`, form, {
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+  },
+
   deleteMyGuestbookEntry: (slug: string, entryId: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/guestbook/${encode(entryId)}`),
 
@@ -200,6 +225,15 @@ export const guestApi = (transport: Transport) => ({
     transport.del(
       `/api/events/${encode(slug)}/photos/${encode(photoId)}/reactions/${encode(kind)}`,
     ),
+
+  /**
+   * One photograph, to keep (spec 24): the `display` rendition as a file, never the original,
+   * `GET /api/events/:slug/photos/:photoId/save`. The cookie is the guest's key, so there is
+   * no address worth copying. Held in memory (about a megabyte), and never asked for twice by
+   * this client: a refusal for load carries its `Retry-After` and is the caller's to wait out.
+   */
+  savePhoto: (slug: string, photoId: string, signal?: AbortSignal): Promise<DownloadedFile> =>
+    transport.download(`/api/events/${encode(slug)}/photos/${encode(photoId)}/save`, signal),
 
   reactions: (slug: string, photoId: string, signal?: AbortSignal): Promise<ReactionsResponse> =>
     transport.get(

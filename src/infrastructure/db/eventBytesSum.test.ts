@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { AT, aClipJob, aPhoto, anEvent } from '../../application/testing/builders'
+import { AT, aClipJob, aPhoto, aVoiceEntry, anEvent } from '../../application/testing/builders'
 import type { ClipJobStatus } from '../../domain/clips/clipJobStatus'
 import { asClientId, asClipJobId, asEventId, asUserId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrations } from './migrations'
 import { migrate } from './migrator'
 import { SqliteClipJobRepository } from './sqliteClipJobRepository'
+import { SqliteGuestbookVoiceRepository } from './sqliteGuestbookVoiceRepository'
 import { SqliteEventRepository } from './sqliteEventRepository'
 import { SqlitePhotoRepository } from './sqlitePhotoRepository'
 import { SqliteSiteOverview } from './sqliteSiteOverview'
@@ -48,11 +49,29 @@ const CLIP_BYTES: Readonly<Record<ClipJobStatus, number>> = {
   failed: 1_600_000,
 }
 
-/** Photographs (all statuses) plus the three states in which a source is still on disk. */
-const WEDDING_USED = 2_000 + 1_000 + 500 + (100_000 + 200_000 + 400_000)
+/**
+ * What the wedding's voice messages (spec 25) are charged: the source while a recording is
+ * processed (reserved, queued, running) and the **output** once it is ready, nothing for a failed
+ * one. The figures are chosen so that charging a ready voice for its source (7 777), or a failed one
+ * at all (31 313), lands on a number no subset of the others sums to.
+ */
+const VOICE_BYTES = {
+  reserved: 7,
+  queued: 70,
+  running: 700,
+  readySource: 7_777,
+  readyOutput: 17_171,
+  failed: 31_313,
+} as const
+const WEDDING_VOICES_USED =
+  VOICE_BYTES.reserved + VOICE_BYTES.queued + VOICE_BYTES.running + VOICE_BYTES.readyOutput
 
-/** What the gala holds: a published photograph and a queued clip source. */
-const GALA_USED = 7_000_000 + 3_000_000
+/** Photographs (all statuses), the three states in which a clip source is on disk, and the voices. */
+const WEDDING_USED = 2_000 + 1_000 + 500 + (100_000 + 200_000 + 400_000) + WEDDING_VOICES_USED
+
+/** What the gala holds: a published photograph, a queued clip source and a queued voice. */
+const GALA_VOICE_BYTES = 5_005
+const GALA_USED = 7_000_000 + 3_000_000 + GALA_VOICE_BYTES
 
 /** Far above anything the fixtures hold, so a probe is refused for its own size alone. */
 const QUOTA = 50_000_000
@@ -84,6 +103,39 @@ describe('the event byte sum', () => {
       status,
       Buffer.from(id).toString('hex').padEnd(64, '0').slice(0, 64),
       byteSize,
+      AT.toISOString(),
+    )
+  }
+
+  /**
+   * A voice message row in a state, as the repository would leave it: the entry of the book and
+   * the recording behind it, written raw so that every state is reachable without a worker.
+   */
+  const insertVoice = (
+    id: string,
+    eventId: string,
+    state: 'reserved' | 'queued' | 'running' | 'ready' | 'failed',
+    sourceBytes: number,
+    outputBytes: number | null = null,
+  ): void => {
+    db.prepare(
+      `INSERT INTO guestbook_entries (id, event_id, guest_id, body, status, created_at)
+       VALUES (?, ?, ?, '', 'pending', ?)`,
+    ).run(id, eventId, `guest-${eventId}`, AT.toISOString())
+    db.prepare(
+      `INSERT INTO guestbook_voices (entry_id, event_id, state, source_hash, source_byte_size,
+                                     audio_hash, audio_byte_size, duration_ms, failure, queued_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id,
+      eventId,
+      state,
+      Buffer.from(id).toString('hex').padEnd(64, '0').slice(0, 64),
+      sourceBytes,
+      outputBytes === null ? null : 'f'.repeat(64),
+      outputBytes,
+      outputBytes === null ? null : 5_000,
+      state === 'failed' ? 'corrupt' : null,
       AT.toISOString(),
     )
   }
@@ -148,9 +200,17 @@ describe('the event byte sum', () => {
       await stageClip(WEDDING, status, CLIP_BYTES[status])
     }
 
-    // Another event's bytes, in both tables, that no reader may fold in.
+    // And one voice message in each of the five states.
+    insertVoice('v-reserved', WEDDING, 'reserved', VOICE_BYTES.reserved)
+    insertVoice('v-queued', WEDDING, 'queued', VOICE_BYTES.queued)
+    insertVoice('v-running', WEDDING, 'running', VOICE_BYTES.running)
+    insertVoice('v-ready', WEDDING, 'ready', VOICE_BYTES.readySource, VOICE_BYTES.readyOutput)
+    insertVoice('v-failed', WEDDING, 'failed', VOICE_BYTES.failed)
+
+    // Another event's bytes, in every table, that no reader may fold in.
     insertPhoto('g-published', GALA, 'published', 7_000_000)
     await stageClip(GALA, 'queued', 3_000_000)
+    insertVoice('g-voice', GALA, 'queued', GALA_VOICE_BYTES)
 
     // The client sum: the wedding and the gala are one client's. The brunch belongs to
     // another client and the solo event to none, and both hold a great deal, so a sum that
@@ -272,7 +332,11 @@ describe('the event byte sum', () => {
     const photographsOnly = PHOTO_BYTES.published + PHOTO_BYTES.pending + PHOTO_BYTES.rejected
 
     expect(await dashboardBytes()).toBe(
-      photographsOnly + CLIP_BYTES.reserved + CLIP_BYTES.queued + CLIP_BYTES.running,
+      photographsOnly +
+        CLIP_BYTES.reserved +
+        CLIP_BYTES.queued +
+        CLIP_BYTES.running +
+        WEDDING_VOICES_USED,
     )
   })
 
@@ -283,10 +347,76 @@ describe('the event byte sum', () => {
     expect(withTerminalClips).toBe(WEDDING_USED)
   })
 
+  describe('the voice messages (spec 25)', () => {
+    /** What a voice admission works out the wedding has used, read off `remaining` as the others are. */
+    const voiceAdmissionBytes = async (): Promise<number | undefined> => {
+      // A guest of its own: the wedding's guest already holds five voices, and the three-per-guest
+      // ceiling would refuse the probe before the quota is asked.
+      insertGuest('guest-probe', WEDDING)
+      const admission = await new SqliteGuestbookVoiceRepository(db).admitVoice(
+        aVoiceEntry({
+          id: 'probe-voice',
+          state: 'reserved',
+          eventId: WEDDING,
+          guestId: 'guest-probe',
+          sourceByteSize: TOO_BIG,
+        }),
+        {
+          quotaBytes: QUOTA,
+          maxQueuedVoices: UNLIMITED_QUEUE,
+          maxQueuedVoicesPerEvent: UNLIMITED_QUEUE,
+        },
+      )
+      return admission.kind === 'refused' && admission.refusal.reason === 'quotaExceeded'
+        ? QUOTA - admission.refusal.remaining
+        : undefined
+    }
+
+    it('is one figure for the dashboard, the photo, clip and voice admissions, and the operator, voices included', async () => {
+      expect([
+        await dashboardBytes(),
+        await photoAdmissionBytes(),
+        await clipAdmissionBytes(),
+        await voiceAdmissionBytes(),
+        await overviewBytes(WEDDING),
+        await photos.totalBytes(WEDDING),
+        (await events.countsOf(WEDDING)).usedBytes,
+      ]).toEqual([
+        WEDDING_USED,
+        WEDDING_USED,
+        WEDDING_USED,
+        WEDDING_USED,
+        WEDDING_USED,
+        WEDDING_USED,
+        WEDDING_USED,
+      ])
+    })
+
+    it('charges the source while a recording is processed, and the output once it is ready', async () => {
+      const voices = new SqliteGuestbookVoiceRepository(db)
+
+      expect(await voices.voiceBytes(WEDDING)).toBe(WEDDING_VOICES_USED)
+    })
+
+    it('charges nothing for a voice that failed, whose bytes are gone', async () => {
+      // WEDDING_USED has no failed voice in it, by construction, and the failed row is there.
+      expect(await dashboardBytes()).toBe(WEDDING_USED)
+      expect(
+        db.prepare(`SELECT COUNT(*) AS n FROM guestbook_voices WHERE state = 'failed'`).get(),
+      ).toEqual({ n: 1 })
+    })
+
+    it('folds another event’s voices in that event only, and in the client’s total', async () => {
+      expect(await overviewBytes(GALA)).toBe(GALA_USED)
+      expect(await photos.clientTotalBytes(ATELIER)).toBe(WEDDING_USED + GALA_USED)
+      expect(await photos.clientTotalBytes(OTHER_ATELIER)).toBe(40_000_000)
+    })
+  })
+
   it('counts another event’s photographs and clips on that event only', async () => {
     const gala = (await events.listForUser(HOST)).find((row) => row.id === GALA)?.usedBytes
 
-    expect(gala).toBe(7_000_000 + 3_000_000)
+    expect(gala).toBe(7_000_000 + 3_000_000 + GALA_VOICE_BYTES)
     expect(await photos.totalBytes(GALA)).toBe(gala)
   })
 
@@ -360,7 +490,16 @@ describe('the event byte sum', () => {
       // The gala's queued source is in; the wedding's done and failed ones are not. The hand
       // figure is WEDDING_USED (reserved + queued + running + photographs) + GALA_USED.
       expect(await photos.clientTotalBytes(ATELIER)).toBe(
-        2_000 + 1_000 + 500 + 100_000 + 200_000 + 400_000 + 7_000_000 + 3_000_000,
+        2_000 +
+          1_000 +
+          500 +
+          100_000 +
+          200_000 +
+          400_000 +
+          7_000_000 +
+          3_000_000 +
+          WEDDING_VOICES_USED +
+          GALA_VOICE_BYTES,
       )
     })
 

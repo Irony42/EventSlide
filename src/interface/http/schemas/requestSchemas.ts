@@ -257,6 +257,16 @@ export const clipUploadFields = z
   })
 
 /**
+ * The text parts of a voice message upload (`POST /guestbook/voice`, spec 25): the caption and
+ * nothing else, `strict` so a part the sender believes took effect (a duration, a size, a name) is a
+ * `400` and never silently ignored: **nothing a phone says about its recording is believed**, the
+ * server measures it. The 140-character rule is the domain's (`Caption`).
+ */
+export const voiceUploadFields = z.strictObject({
+  caption: z.string().max(1_000).nullish(),
+})
+
+/**
  * A guestbook message. The 500-character rule is the domain's (`GuestbookText`), which answers
  * `guestbook.tooLong`; the bound here is only a sanity ceiling against a body that is not a
  * message at all, answered `request.invalid`.
@@ -460,6 +470,7 @@ export const updateSettingsBody = z.strictObject({
   allowReactions: z.boolean().optional(),
   allowClips: z.boolean().optional(),
   allowGuestbook: z.boolean().optional(),
+  allowGuestSave: z.boolean().optional(),
   guestbookOnWall: z.boolean().optional(),
   allowGuestSelfDelete: z.boolean().optional(),
   guestSelfDeleteGraceSeconds: z.number().int().min(0).max(86_400).optional(),
@@ -567,6 +578,20 @@ export const updateSettingsBody = z.strictObject({
       enabled: z.boolean().optional(),
       at: instant({ offset: true }).nullable().optional(),
       film: z.boolean().optional(),
+    })
+    .optional(),
+  /**
+   * What the host decides about voice messages in the guestbook (spec 25). Partial and strict, like
+   * `wall`: only the keys sent are written, merged field by field into the stored group, so the
+   * switch and the "open now" button cannot erase each other's choice. A key outside the group is a
+   * 400. `opensAtMs` is an instant in milliseconds (`null` clears it); that a time which has already
+   * passed cannot move into the future is the domain's rule (`eventSettings.voiceOpenDone`).
+   */
+  guestbookVoice: z
+    .strictObject({
+      enabled: z.boolean().optional(),
+      sealed: z.boolean().optional(),
+      opensAtMs: z.number().int().nullable().optional(),
     })
     .optional(),
   /**

@@ -613,6 +613,7 @@ describe('SqliteEventRepository', () => {
       { holds: 'an unknown moderation mode', stored: json({ moderation: 'ai' }) },
       { holds: 'a non-boolean flag', stored: json({ allowCaptions: 'oui' }) },
       { holds: 'a missing flag', stored: json({ allowGuestSelfDelete: undefined }) },
+      { holds: 'a guest-save flag that is not a boolean', stored: json({ allowGuestSave: 'oui' }) },
       { holds: 'a non-numeric window', stored: json({ guestSelfDeleteGraceSeconds: '900' }) },
       { holds: 'a retention the domain refuses', stored: json({ retentionDays: 0 }) },
       { holds: 'a theme that is not an object', stored: json({ theme: 'rose' }) },
@@ -746,6 +747,72 @@ describe('SqliteEventRepository', () => {
 
       expect(settings?.allowGuestbook).toBe(true)
       expect(settings?.guestbookOnWall).toBe(false)
+    })
+
+    it('reads an event written before guests could save a photograph as closed to saving (spec 24)', async () => {
+      // The absent key is "a host never asked", and an upgrade does not let guests carry each
+      // other's photographs away. `settingsOf` would otherwise throw `Corrupt events.settings` on
+      // the first read of every event on the box.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ allowGuestSave: undefined }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.allowGuestSave).toBe(false)
+    })
+
+    it.each([true, false])(
+      'keeps a stored allowGuestSave of %s through the JSON column',
+      async (stored) => {
+        await repo.save(anEvent({ id: 'evt-1' }))
+        db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+          json({ allowGuestSave: stored }),
+          'evt-1',
+        )
+
+        expect((await repo.findById(asEventId('evt-1')))?.settings.allowGuestSave).toBe(stored)
+      },
+    )
+
+    it('reads an event written before voice messages as off, not sealed and with no opening time (spec 25)', async () => {
+      // An absent key reads as "never asked": opening a voice channel onto a room whose host
+      // was not consulted is not a change an upgrade may make, and the group is read tolerantly
+      // so a display preference can never fail `findById` for the whole box.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ guestbookVoice: undefined }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.guestbookVoice).toEqual({
+        enabled: false,
+        sealed: false,
+        opensAtMs: null,
+      })
+    })
+
+    it('keeps what a host chose for voice messages, and falls back field by field on what it cannot read', async () => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_800_000_000_000 } }),
+        'evt-1',
+      )
+      expect((await repo.findById(asEventId('evt-1')))?.settings.guestbookVoice).toEqual({
+        enabled: true,
+        sealed: true,
+        opensAtMs: 1_800_000_000_000,
+      })
+
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ guestbookVoice: { enabled: 'yes', sealed: true, opensAtMs: 'soon' } }),
+        'evt-1',
+      )
+      expect((await repo.findById(asEventId('evt-1')))?.settings.guestbookVoice).toEqual({
+        enabled: false,
+        sealed: true,
+        opensAtMs: null,
+      })
     })
 
     it('reads an event written before the wall had a language as French', async () => {

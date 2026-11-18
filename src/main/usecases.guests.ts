@@ -45,6 +45,7 @@ export const guestsUseCases = (
     reactions: adapters.reactions,
     clips: adapters.clips,
     guestbook: adapters.guestbook,
+    voices: adapters.voices,
     media: adapters.media,
     bus: adapters.bus,
     clock: adapters.clock,

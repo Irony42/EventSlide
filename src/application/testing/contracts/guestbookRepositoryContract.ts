@@ -106,7 +106,7 @@ export const guestbookRepositoryContract = (
       const manual = await repo.findById(WEDDING, entryId('e1'))
       const auto = await repo.findById(WEDDING, entryId('e2'))
 
-      expect(manual?.text.value).toBe('Bravo\n\nBonne route')
+      expect(manual?.text?.value).toBe('Bravo\n\nBonne route')
       expect(manual?.status).toBe('pending')
       expect(manual?.review).toBeNull()
       expect(manual?.createdAt.toISOString()).toBe(at(5).toISOString())
@@ -331,12 +331,24 @@ export const guestbookRepositoryContract = (
           entry({ id: 'g1', eventId: 'evt-gala', guestId: 'guest-sam', createdAt: at(1) }),
         )
 
-        expect(await repo.locate(entryId('e1'))).toEqual({ eventId: WEDDING, takenDownAt: null })
-        expect(await repo.locate(entryId('g1'))).toEqual({ eventId: GALA, takenDownAt: null })
+        expect(await repo.locate(entryId('e1'))).toEqual({
+          eventId: WEDDING,
+          takenDownAt: null,
+          voice: false,
+        })
+        expect(await repo.locate(entryId('g1'))).toEqual({
+          eventId: GALA,
+          takenDownAt: null,
+          voice: false,
+        })
         expect(await repo.locate(entryId('nope'))).toBeNull()
 
         await repo.setTakenDown(WEDDING, entryId('e1'), at(5))
-        expect(await repo.locate(entryId('e1'))).toEqual({ eventId: WEDDING, takenDownAt: at(5) })
+        expect(await repo.locate(entryId('e1'))).toEqual({
+          eventId: WEDDING,
+          takenDownAt: at(5),
+          voice: false,
+        })
       })
 
       it('takes a message out of every read, and puts it back', async () => {

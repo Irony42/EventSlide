@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { CSRF_COOKIE, CSRF_HEADER, KILL_MESSAGE, OUTBOX_DB_NAME, OUTBOX_SYNC_TAG } from './names'
+import {
+  CSRF_COOKIE,
+  CSRF_HEADER,
+  KILL_MESSAGE,
+  OUTBOX_DB_NAME,
+  OUTBOX_SYNC_TAG,
+  VOICE_DB_NAME,
+} from './names'
 
 /**
  * The shared names, and the proof that nobody spells them a second time.
@@ -22,12 +29,15 @@ describe('the wire values', () => {
       CSRF_COOKIE,
       CSRF_HEADER,
       OUTBOX_DB_NAME,
+      VOICE_DB_NAME,
     }).toEqual({
       OUTBOX_SYNC_TAG: 'eventslide-outbox',
       KILL_MESSAGE: 'eventslide:kill',
       CSRF_COOKIE: 'es_csrf',
       CSRF_HEADER: 'x-csrf-token',
       OUTBOX_DB_NAME: 'eventslide-outbox',
+      // Its own database (spec 25): never a store of the photo one, which the kill switch deletes.
+      VOICE_DB_NAME: 'eventslide-voice',
     })
   })
 })
