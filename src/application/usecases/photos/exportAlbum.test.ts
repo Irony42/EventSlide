@@ -10,7 +10,6 @@ import {
   aClip,
   aGuest,
   aGuestbookEntry,
-  aVoiceEntry,
   anEvent,
   aPhoto,
   atPlus,
@@ -417,37 +416,6 @@ describe('exportAlbum: the guestbook', () => {
     expect(written).toContain('texte m-hidden')
     expect(written).not.toContain('m-pending')
     expect(written).not.toContain('m-other')
-  })
-
-  it('does not carry a voice message yet: guestbook.txt has no block for one, and an all-voice book writes no file', async () => {
-    const { guestbook, archive, text } = build()
-    guestbook.seed(
-      aVoiceEntry({ id: 'v1', state: 'ready', guestId: 'guest-lea', eventId: 'event-1', moderation: 'auto' }),
-    )
-
-    await text()
-
-    expect(archive.names).toEqual([`camille-et-sacha/${MANIFEST_NAME}`])
-  })
-
-  it('writes the words of a book that holds voices too, and none of their captions', async () => {
-    const { guestbook, text } = build()
-    guestbook.seed(
-      entry('m-pub', 'guest-lea', 'auto'),
-      aVoiceEntry({
-        id: 'v1',
-        state: 'ready',
-        guestId: 'guest-lea',
-        eventId: 'event-1',
-        moderation: 'auto',
-        caption: 'une voix, pas un texte',
-      }),
-    )
-
-    const written = await text()
-
-    expect(written).toContain('texte m-pub')
-    expect(written).not.toContain('une voix')
   })
 
   it('leaves out a message the operator took down, and writes no file for an empty book', async () => {

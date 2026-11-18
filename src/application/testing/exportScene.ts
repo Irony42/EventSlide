@@ -3,7 +3,16 @@ import type { Event } from '../../domain/events/event'
 import { requestExport } from '../../domain/exports/albumExport'
 import { asEventId, asUserId } from '../../domain/shared/ids'
 import type { Photo } from '../../domain/photos/photo'
-import { AT, atPlus, anEvent, aPhoto, aClip, type PhotoInput } from './builders'
+import {
+  AT,
+  atPlus,
+  anEvent,
+  aPhoto,
+  aClip,
+  aVoiceEntry,
+  type GuestbookVoiceEntryInput,
+  type PhotoInput,
+} from './builders'
 import { CapturingLogger } from './capturingLogger'
 import { FakeAlbumExportRepository } from './fakeAlbumExportRepository'
 import { FakeArchiveWriter } from './fakeArchiveWriter'
@@ -14,6 +23,7 @@ import { FakeContentHasher } from './fakeContentHasher'
 import { FakeEventRepository } from './fakeEventRepository'
 import { FakeExportFileStore } from './fakeExportFileStore'
 import { FakeGuestbookRepository } from './fakeGuestbookRepository'
+import { FakeGuestbookVoiceRepository } from './fakeGuestbookVoiceRepository'
 import { FakeGuestRepository } from './fakeGuestRepository'
 import { FakePhotoRepository } from './fakePhotoRepository'
 import { FakeStreamHasher } from './fakeStreamHasher'
@@ -60,6 +70,8 @@ export class ExportScene {
   readonly photos = new FakePhotoRepository()
   readonly guests = new FakeGuestRepository(this.photos)
   readonly guestbook = new FakeGuestbookRepository()
+  /** The recordings over the same rows: what the archive's estimate counts (spec 25). */
+  readonly voices = new FakeGuestbookVoiceRepository(this.guestbook)
   readonly media = new InMemoryMediaStore()
   /** A writer whose stream ends with a real end-of-central-directory record, which the build reads back. */
   readonly archive = new FakeArchiveWriter({ emits: 'zip' })
@@ -119,6 +131,27 @@ export class ExportScene {
     await this.media.put(clip.eventId, clip.contentHash, 'video', video)
     await this.media.put(clip.eventId, clip.hashFor('poster'), 'poster', poster)
     return clip
+  }
+
+  /**
+   * A voice message the box finished (spec 25): published, `ready`, its output on the disk under
+   * the digest of its own bytes, which is what a finished transcode leaves.
+   */
+  async voice(
+    input: GuestbookVoiceEntryInput & { id: string },
+    bytes = new Uint8Array([5, 5, 5, 5]),
+  ): Promise<void> {
+    const entry = aVoiceEntry({
+      eventId: 'event-1',
+      state: 'ready',
+      moderation: 'auto',
+      audioHash: this.hasher.sha256Hex(bytes),
+      ...input,
+    })
+    this.guestbook.seed(entry)
+    const hash = entry.voice?.audioHash
+    if (hash !== null && hash !== undefined)
+      await this.media.put(entry.eventId, hash, 'voice', bytes)
   }
 
   /** A photograph whose row exists and whose file does not: a photo already lost. */

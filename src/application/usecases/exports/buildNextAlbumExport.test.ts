@@ -4,7 +4,14 @@ import { requestExport } from '../../../domain/exports/albumExport'
 import { readZipEnd } from '../../../domain/exports/zipEndRecord'
 import { DomainError } from '../../../domain/shared/errors'
 import type { ArchiveWriter } from '../../ports/archiveWriter'
-import { aClient, aClipJob, aGuestbookEntry, anEvent, atPlus } from '../../testing/builders'
+import {
+  aClient,
+  aClipJob,
+  aGuestbookEntry,
+  aVoiceEntry,
+  anEvent,
+  atPlus,
+} from '../../testing/builders'
 import {
   DEFAULT_EXPORT_POLICY,
   EXPORT_EVENT,
@@ -43,6 +50,7 @@ const wire = (
     clients: scene.clients,
     guests: scene.guests,
     guestbook: scene.guestbook,
+    voices: scene.voices,
     photos: scene.photos,
     media: scene.media,
     archive: options.archive ?? scene.archive,
@@ -482,6 +490,77 @@ describe('buildNextAlbumExport', () => {
 
       expect(await run()).toMatchObject({ kind: 'failed', code: 'tooLarge' })
       expect(scene.archive.entries).toEqual([])
+    })
+
+    describe('with voice messages (spec 25)', () => {
+      /** Three photographs of 1 000 bytes and a recording of 2 000: 5 000 stored bytes over 4 entries. */
+      const WITH_VOICE = 3_000 + 2_000 + 4 * 100
+
+      const seedVoice = async (): Promise<void> => {
+        await scene.voice({ id: 'v1', audioByteSize: 2_000 })
+      }
+
+      it('judges tooLarge on an estimate that counts the recordings: an archive that fits only without them is refused', async () => {
+        // 3 300 is what the three photographs alone would need; the recording takes it past.
+        wire({ policy: { ...DEFAULT_EXPORT_POLICY, maxBytes: ESTIMATE } })
+        for (const id of ['p1', 'p2', 'p3']) await scene.photo({ id, byteSize: 1_000 })
+        await seedVoice()
+        await ask()
+
+        expect(await run()).toMatchObject({ kind: 'failed', code: 'tooLarge' })
+        expect(scene.archive.entries).toEqual([])
+      })
+
+      it('judges noRoom on the same estimate: the disk that holds the photographs alone is not enough', async () => {
+        for (const id of ['p1', 'p2', 'p3']) await scene.photo({ id, byteSize: 1_000 })
+        await seedVoice()
+        scene.freeDisk = ESTIMATE + DEFAULT_EXPORT_POLICY.minFreeDiskBytes
+
+        expect(await run()).toMatchObject({ kind: 'failed', code: 'noRoom' })
+        expect(scene.archive.entries).toEqual([])
+      })
+
+      it('judges the box-wide total on it too', async () => {
+        wire({ policy: { ...DEFAULT_EXPORT_POLICY, maxTotalBytes: ESTIMATE + 4_999 } })
+        for (const id of ['p1', 'p2', 'p3']) await scene.photo({ id, byteSize: 1_000 })
+        await seedVoice()
+        scene.exportFiles.seedTemporary('event-other.1.tmp', 5_000, scene.clock.now())
+        await ask()
+
+        expect(await run()).toMatchObject({ kind: 'failed', code: 'noRoom' })
+      })
+
+      it('takes the archive when exactly that much is free, recordings included', async () => {
+        for (const id of ['p1', 'p2', 'p3']) await scene.photo({ id, byteSize: 1_000 })
+        await seedVoice()
+        scene.freeDisk = WITH_VOICE + DEFAULT_EXPORT_POLICY.minFreeDiskBytes
+
+        expect(await run()).toMatchObject({ kind: 'sealed' })
+      })
+
+      it('seals an album whose recording is on the disk, counting its file among the entries and not among the photographs', async () => {
+        for (const id of ['p1', 'p2', 'p3']) await scene.photo({ id, byteSize: 1_000 })
+        await seedVoice()
+
+        const outcome = await run()
+
+        // Three photographs, the recording; no guestbook entry... the book carries the recording's line.
+        expect(outcome).toMatchObject({ kind: 'sealed', entries: 5, skipped: 0 })
+      })
+
+      it('seals, and does not call the album changed, when a recording’s file is gone: it is skipped and counted, the photographs still balance', async () => {
+        for (const id of ['p1', 'p2', 'p3']) await scene.photo({ id, byteSize: 1_000 })
+        // The row is there and its file is not: a recording the disk lost.
+        scene.guestbook.seed(
+          aVoiceEntry({ id: 'v-lost', eventId: 'event-1', state: 'ready', moderation: 'auto' }),
+        )
+        await ask()
+
+        const outcome = await run()
+
+        expect(outcome).toMatchObject({ kind: 'sealed', skipped: 1 })
+        expect(textOfStoredFile()).toContain('# missing: 1')
+      })
     })
 
     it('fails tooLarge when the real archive outgrows the ceiling the estimate let through', async () => {

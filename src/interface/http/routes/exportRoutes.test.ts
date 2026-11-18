@@ -13,6 +13,8 @@ import type { HttpUseCases } from '../useCases'
 import { AT, aClient, aGuest, aPhoto, anEvent, atPlus } from '../../../application/testing/builders'
 import { FakeAlbumExportRepository } from '../../../application/testing/fakeAlbumExportRepository'
 import { FakeExportFileStore } from '../../../application/testing/fakeExportFileStore'
+import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
+import { FakeGuestbookVoiceRepository } from '../../../application/testing/fakeGuestbookVoiceRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { makeDownloadAlbumExport } from '../../../application/usecases/exports/downloadAlbumExport'
 import { makeGetAlbumExport } from '../../../application/usecases/exports/getAlbumExport'
@@ -70,6 +72,7 @@ const world = (): World => {
   const exports = new FakeAlbumExportRepository()
   const files = new FakeExportFileStore()
   const photos = new FakePhotoRepository()
+  const voices = new FakeGuestbookVoiceRepository(new FakeGuestbookRepository())
   const state = { enabled: true, freeDisk: 1_000_000_000 as number | null }
   const album = new HeldExport()
   const held: Held = { release: () => undefined, opened: 0, closed: 0, holding: false }
@@ -120,6 +123,7 @@ const world = (): World => {
           events: deps.events,
           clients: base.clients,
           photos,
+          voices,
           exports,
           exportFiles: files,
           bus: deps.bus,

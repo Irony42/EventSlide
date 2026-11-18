@@ -6,7 +6,6 @@ import {
   checkExportBytes,
   checkExportRoom,
   checkExportTotal,
-  estimateExportBytes,
 } from '../../../domain/exports/exportCaps'
 import { retentionApplies } from '../../../domain/events/eventStatus'
 import { exportExpiresAt } from '../../../domain/exports/exportExpiry'
@@ -22,12 +21,14 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { ExportFileStore } from '../../ports/exportFileStore'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
+import type { GuestbookVoiceRepository } from '../../ports/guestbookVoiceRepository'
 import type { Logger } from '../../ports/logger'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { StreamHasher } from '../../ports/streamHasher'
 import { ALBUM_STATUSES, albumArchiveOf } from '../shared/albumArchive'
 import { checkExportAccess } from './exportAccess'
+import { albumEstimateOf } from './albumEstimate'
 import { archiveBytesHeld } from './archiveBytesHeld'
 import { guardedEntries, verifiedOnDisk, type ArchiveReader } from './archiveChecks'
 
@@ -86,6 +87,8 @@ export interface BuildNextAlbumExportDeps {
   readonly clients: ClientRepository
   readonly guests: GuestRepository
   readonly guestbook: GuestbookRepository
+  /** Only the recordings' size and count: the archive's estimate counts them (spec 25). */
+  readonly voices: Pick<GuestbookVoiceRepository, 'totalBytes' | 'countReady'>
   readonly photos: PhotoRepository
   readonly media: MediaStore
   readonly archive: ArchiveWriter
@@ -138,6 +141,7 @@ export const makeBuildNextAlbumExport = ({
   clients,
   guests,
   guestbook,
+  voices,
   photos,
   media,
   archive,
@@ -215,7 +219,7 @@ export const makeBuildNextAlbumExport = ({
 
     // ------------------------------------------------------- check 1: the room --
     const rowsAtStart = await albumRows(eventId)
-    const estimate = estimateExportBytes(await photos.totalBytes(eventId), rowsAtStart)
+    const estimate = await albumEstimateOf({ photos, voices }, eventId, rowsAtStart)
     if (!checkExportBytes(estimate, policy.maxBytes).ok) return giveUp(claimed, 'tooLarge')
     // Judged the way the request judged it.
     const held = await archiveBytesHeld(exports, exportFiles)
@@ -258,7 +262,7 @@ export const makeBuildNextAlbumExport = ({
 
     // ---------------------------------------------------------- check 3: the count --
     const rowsAtEnd = await albumRows(eventId)
-    if (rowsAtStart !== rowsAtEnd || found.photos + found.missing !== rowsAtStart) {
+    if (rowsAtStart !== rowsAtEnd || found.photos + found.missingPhotos !== rowsAtStart) {
       const finished = await exports.finish(
         eventId,
         { kind: 'stale', reason: 'albumChanged' },
