@@ -6,7 +6,7 @@ import { fr } from '../../../web/src/lib/i18n/fr'
  * The guest's voice message, driven through the real recorder (spec 25).
  *
  * Chromium's own fake capture device stands in for the microphone: `--use-fake-device-for-media-stream`
- * gives `getUserMedia` a stream (a beep), and `--use-fake-ui-for-media-stream` answers the permission
+ * gives the page's capture request a stream (a beep), and `--use-fake-ui-for-media-stream` answers the permission
  * prompt, so the real `MediaRecorder` produces a real WebM/Opus file. A spec that wants it says
  * `test.use({ launchOptions: { args: FAKE_MICROPHONE } })`, which is why this is not a project of
  * its own: nothing else in the suite asks for a microphone, and a flag on a browser nobody records

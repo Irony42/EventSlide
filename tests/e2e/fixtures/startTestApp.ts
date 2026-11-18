@@ -43,6 +43,8 @@ export interface TestApp {
      * settings blob directly would be building state the application cannot.
      */
     wallLanguage?: EventLanguage
+    /** The preset the create form's "Modèle" picker sends, in the create body as the form does (the wedding turns voice on, spec 25). */
+    template?: 'wedding' | 'birthday' | 'conference' | 'party'
   }): Promise<SeededEvent>
   /**
    * Adds a photo mission to an already-seeded event, through the API exactly as the
