@@ -451,6 +451,7 @@ export const eventSettings = (
     allowGuestbook: true,
     allowGuestSave: true,
     guestbookOnWall: true,
+    guestbookVoice: { enabled: false, sealed: false, opensAtMs: null },
     allowGuestSelfDelete: true,
     guestSelfDeleteGraceSeconds: 300,
     retentionDays: null,

@@ -405,3 +405,128 @@ describe('privacyNoticeFor — the guests save switch (spec 24)', () => {
     expect(notice.revision).toContain('guestSave=on')
   })
 })
+
+describe('privacyNoticeFor — voice messages (spec 25)', () => {
+  /** Voice on, with the group's other keys merged in: `{ sealed: true }` keeps the switch on. */
+  const voiceOn = (patch: EventSettingsPatch = {}): NoticePolicy =>
+    settings({
+      allowGuestbook: true,
+      ...patch,
+      guestbookVoice: { enabled: true, ...patch.guestbookVoice },
+    })
+
+  it('follows the setting: the notice says voice is on exactly when the host switched it on', () => {
+    expect(privacyNoticeFor(voiceOn()).voice).toBe(true)
+    expect(privacyNoticeFor(settings({ allowGuestbook: true })).voice).toBe(false)
+  })
+
+  it('says nothing of voice while the guestbook is closed, which voice depends on', () => {
+    // The host's switch stays as they set it; it has no effect without the book (rule 13).
+    const notice = privacyNoticeFor(
+      settings({ allowGuestbook: false, guestbookVoice: { enabled: true, sealed: true } }),
+    )
+
+    expect(notice.voice).toBe(false)
+    expect(notice.voiceSealed).toBe(false)
+    expect(notice.voiceRemovalSeconds).toBeNull()
+    expect(notice.revision).not.toContain('voice')
+  })
+
+  it('reads character for character as before the clause existed when voice is off', () => {
+    // The golden values of the events that predate spec 25: they read the group as off, so nobody who
+    // read their notice is asked to read it again. A sealed book with the switch off is still silent.
+    expect(
+      privacyNoticeFor(
+        settings({ moderation: 'manual', retentionDays: 30, guestSelfDeleteGraceSeconds: 900 }),
+      ).revision,
+    ).toBe(
+      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900;selfErase=phone',
+    )
+    expect(
+      privacyNoticeFor(
+        settings({
+          moderation: 'auto',
+          retentionDays: 90,
+          guestSelfDeleteGraceSeconds: 600,
+          allowGuestbook: true,
+          allowGuestSave: true,
+          guestbookVoice: { enabled: false, sealed: true, opensAtMs: 1_800_000_000_000 },
+        }),
+        'Atelier Camille',
+      ).revision,
+    ).toBe(
+      'publication=immediate;audiences=wall+guestFeed+organisers+sharedGallery;retention=90;selfRemoval=none;selfErase=phone;guestbook=on;guestSave=on;operator=Atelier Camille',
+    )
+  })
+
+  it('adds the voice clause after the guestbook and the save switch and before the operator', () => {
+    const notice = privacyNoticeFor(
+      voiceOn({ allowGuestSave: true, guestSelfDeleteGraceSeconds: 600 }),
+      'Atelier Camille',
+    )
+
+    expect(notice.revision).toContain(
+      'guestbook=on;guestSave=on;voice=on;voiceRemoval=600;operator=Atelier Camille',
+    )
+  })
+
+  it('keeps the operator as the last clause with every voice sub-clause present', () => {
+    const notice = privacyNoticeFor(voiceOn({ guestbookVoice: { sealed: true } }), 'Association X')
+
+    expect(notice.revision).toContain('voice=on;voiceSealed=on;voiceRemoval=')
+    expect(notice.revision.endsWith(';operator=Association X')).toBe(true)
+  })
+
+  it('changes the revision whichever way the switch moves, so a guest reads the other notice once', () => {
+    const off = privacyNoticeFor(settings({ allowGuestbook: true }))
+    const on = privacyNoticeFor(voiceOn())
+
+    expect(on.revision).not.toBe(off.revision)
+    expect(on.revision.startsWith(off.revision)).toBe(true)
+  })
+
+  it('changes the revision when the host starts keeping the voices secret, because the notice reads differently', () => {
+    const open = privacyNoticeFor(voiceOn())
+    const sealed = privacyNoticeFor(voiceOn({ guestbookVoice: { sealed: true } }))
+
+    expect(open.voiceSealed).toBe(false)
+    expect(sealed.voiceSealed).toBe(true)
+    expect(sealed.revision).not.toBe(open.revision)
+    expect(open.revision).not.toContain('voiceSealed')
+  })
+
+  it('answers the voice window of its own, which the photograph’s rule does not give under automatic publication', () => {
+    // Rule 1 bis: a voice is never on a screen, so the author may take it back inside the window
+    // whatever its status. The photograph cannot be taken back once approved, which is every photo
+    // when the event publishes on arrival.
+    const notice = privacyNoticeFor(
+      voiceOn({ moderation: 'auto', guestSelfDeleteGraceSeconds: 600 }),
+    )
+
+    expect(notice.selfRemovalSeconds).toBeNull()
+    expect(notice.voiceRemovalSeconds).toBe(600)
+  })
+
+  it('says a voice cannot be taken back when the host switched self-removal off, whatever the window', () => {
+    const notice = privacyNoticeFor(voiceOn({ allowGuestSelfDelete: false }))
+
+    expect(notice.voiceRemovalSeconds).toBeNull()
+    expect(notice.revision).toContain('voiceRemoval=none')
+  })
+
+  it('says a voice cannot be taken back when the window is zero', () => {
+    const notice = privacyNoticeFor(voiceOn({ guestSelfDeleteGraceSeconds: 0 }))
+
+    expect(notice.voiceRemovalSeconds).toBeNull()
+  })
+
+  it('changes the revision when the window of a voice moves, even where the photograph’s did not', () => {
+    const short = privacyNoticeFor(
+      voiceOn({ moderation: 'auto', guestSelfDeleteGraceSeconds: 300 }),
+    )
+    const long = privacyNoticeFor(voiceOn({ moderation: 'auto', guestSelfDeleteGraceSeconds: 600 }))
+
+    expect(short.selfRemovalSeconds).toBe(long.selfRemovalSeconds)
+    expect(short.revision).not.toBe(long.revision)
+  })
+})

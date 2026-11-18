@@ -1335,6 +1335,8 @@ export const es: UiText = {
     templateClipsOff: 'Vídeos desactivados',
     templateGuestSaveOn: 'Los invitados pueden guardar las fotos',
     templateGuestSaveOff: 'Guardado de fotos desactivado para los invitados',
+    templateVoiceOn: 'Mensajes de voz en el libro de visitas activados',
+    templateVoiceOff: 'Mensajes de voz desactivados',
     templateNames: {
       wedding: 'Boda',
       birthday: 'Cumpleaños',

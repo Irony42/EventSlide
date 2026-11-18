@@ -3,7 +3,7 @@ import { DEFAULT_WALL_SETTINGS } from './eventWallSettings'
 import { ContentHash } from '../photos/contentHash'
 import type { DomainError } from '../shared/errors'
 import type { Result } from '../shared/result'
-import { EventSettings, isModerationMode } from './eventSettings'
+import { EventSettings, isModerationMode, type EventSettingsPatch } from './eventSettings'
 import { DEFAULT_EVENT_THEME } from './eventTheme'
 
 const unwrap = (result: Result<EventSettings, DomainError>): EventSettings => {
@@ -12,6 +12,25 @@ const unwrap = (result: Result<EventSettings, DomainError>): EventSettings => {
 }
 
 describe('EventSettings defaults', () => {
+  it('says voice is on for guests only while the guestbook is open as well (spec 25, rule 13)', () => {
+    const on = (patch: EventSettingsPatch): EventSettings => {
+      const built = EventSettings.create({
+        guestbookVoice: { enabled: true, sealed: true },
+        ...patch,
+      })
+      if (!built.ok) throw new Error(built.error.code)
+      return built.value
+    }
+
+    expect(on({ allowGuestbook: true }).allowGuestbookVoice).toBe(true)
+    expect(on({ allowGuestbook: false }).allowGuestbookVoice).toBe(false)
+    expect(EventSettings.default().allowGuestbookVoice).toBe(false)
+    // The switch itself is left as the host set it, and so is the secret.
+    expect(on({ allowGuestbook: false }).guestbookVoice.enabled).toBe(true)
+    expect(on({ allowGuestbook: false }).guestbookVoiceSealed).toBe(true)
+    expect(EventSettings.default().guestbookVoiceSealed).toBe(false)
+  })
+
   it('holds every photo for a decision, so nothing reaches the wall unmoderated', () => {
     expect(EventSettings.default().moderation).toBe('manual')
   })

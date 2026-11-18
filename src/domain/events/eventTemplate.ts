@@ -127,6 +127,11 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
     // stays available to a couple who want that — it is just not a decision a preset
     // should take on a guest's behalf (roadmap section 7).
     retentionDays: 365,
+    // On (spec 25, §7), against a default of off. The one evening where a voice is worth keeping
+    // for ten years, where the host is there to listen, and where competitors sell the option. A
+    // patch of the one key it changes: `sealed` stays a choice of the couple, not a preset, and
+    // `moderation` stays `manual`, so every voice is a decision of the host.
+    guestbookVoice: { enabled: true },
     theme: {
       // The roadmap's wedding pink, as close as a fixed chroma allows.
       accentHue: CURATED_ACCENT_HUES.rose,
@@ -287,6 +292,8 @@ const freezeTemplate = (patch: EventSettingsPatch): EventSettingsPatch => {
   // untouched — it has since ES2015 — so a template with no theme needs no branch here,
   // and a branch no template in the catalogue can take is a branch no test can cover.
   Object.freeze(patch.theme)
+  // Same for the voice group, which is a patch of its own (merged key by key into the defaults).
+  Object.freeze(patch.guestbookVoice)
   return Object.freeze(patch)
 }
 
@@ -311,6 +318,8 @@ const COMPILED: Readonly<Record<EventTemplateKey, EventSettings>> = Object.freez
     EVENT_TEMPLATE_KEYS.map((key) => {
       const settings = compileEventTemplate(key, freezeTemplate(TEMPLATES[key]))
       Object.freeze(settings.toProps())
+      // The merged group is a fresh object, shared by every event created from this template.
+      Object.freeze(settings.toProps().guestbookVoice)
       return [key, settings]
     }),
   ) as Record<EventTemplateKey, EventSettings>,

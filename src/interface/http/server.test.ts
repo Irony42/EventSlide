@@ -993,6 +993,8 @@ describe('buildServer: security headers on a real response', () => {
     const response = await request(buildServerHarness().app).get('/api/health')
 
     expect(response.get('permissions-policy')).toContain('geolocation=()')
+    // And the microphone too, on the API: it is not a page.
+    expect(response.get('permissions-policy')).toContain('microphone=()')
   })
 
   it('pins HSTS in production', async () => {
@@ -1245,6 +1247,50 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
 
     expect(response.status).toBe(200)
     expect(response.text).toContain(SPA_MARKER)
+  })
+
+  /**
+   * The microphone is opened by **path**, with the list inverted (spec 25, section 9): the guest
+   * pages and every point a guest enters by, `/` and `/e/x` among them (a document keeps the
+   * policy of the URL it was loaded from, and the offline fallback of the service worker answers
+   * with the cached `/`), are `(self)`; the pages that never carry a guest are `()`.
+   */
+  it.each([
+    ['the root, where a guest enters and the offline fallback is cached', '/'],
+    ['the join page without a code', '/join'],
+    ['a join link', '/join/ABC123'],
+    ['the front door of an event, which redirects to the upload page', '/e/x'],
+    ['the upload page', '/e/x/upload'],
+    ['the feed', '/e/x/photos'],
+  ])('lets the microphone through on %s', async (_name, path) => {
+    const response = await request(withClient().app).get(path)
+
+    expect(response.status).toBe(200)
+    expect(response.get('permissions-policy')).toContain('microphone=(self)')
+  })
+
+  it.each([
+    ['the wall', '/e/x/display'],
+    ['the host console', '/admin'],
+    ['a page of the host console', '/admin/events/x/moderation'],
+    ['the sign-in', '/login'],
+    ['the shared gallery', '/g/some-token'],
+    ['an invitation', '/invite/some-token'],
+    ['a password reset', '/password/reset/some-token'],
+  ])('keeps the microphone shut on %s', async (_name, path) => {
+    const response = await request(withClient().app).get(path)
+
+    expect(response.status).toBe(200)
+    expect(response.get('permissions-policy')).toContain('microphone=()')
+    expect(response.get('permissions-policy')).not.toContain('microphone=(self)')
+  })
+
+  it('still denies location, payment, usb and the magnetometer on a page that opens the microphone', async () => {
+    const response = await request(withClient().app).get('/e/x/upload')
+
+    expect(response.get('permissions-policy')).toBe(
+      'geolocation=(), microphone=(self), payment=(), usb=(), magnetometer=()',
+    )
   })
 
   it('serves the SPA shell at the root of the site, which a wildcard needs braces to reach', async () => {

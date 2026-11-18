@@ -566,6 +566,20 @@ export const updateSettingsBody = z.strictObject({
     })
     .optional(),
   /**
+   * What the host decides about voice messages in the guestbook (spec 25). Partial and strict, like
+   * `wall`: only the keys sent are written, merged field by field into the stored group, so the
+   * switch and the "open now" button cannot erase each other's choice. A key outside the group is a
+   * 400. `opensAtMs` is an instant in milliseconds (`null` clears it); that a time which has already
+   * passed cannot move into the future is the domain's rule (`eventSettings.voiceOpenDone`).
+   */
+  guestbookVoice: z
+    .strictObject({
+      enabled: z.boolean().optional(),
+      sealed: z.boolean().optional(),
+      opensAtMs: z.number().int().nullable().optional(),
+    })
+    .optional(),
+  /**
    * **Read and ignored.** `GET` answers the brand in `settings`, so a tab that sends settings back
    * as it received them must not get a 400. The route never forwards it: it cannot set a logo.
    */

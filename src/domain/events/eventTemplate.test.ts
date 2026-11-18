@@ -65,6 +65,20 @@ describe('the template catalogue', () => {
     }
   })
 
+  it.each(EVENT_TEMPLATE_KEYS)(
+    '%s restates no default inside its guestbookVoice group either',
+    (key) => {
+      // The test above compares a group as one value, so `{ enabled: false }` over a default of
+      // `{ enabled: false, sealed: false, opensAtMs: null }` would pass it. Each key is judged alone.
+      const group = eventTemplatePatch(key).guestbookVoice ?? {}
+      for (const [field, value] of Object.entries(group)) {
+        expect(value).not.toEqual(
+          DEFAULTS.guestbookVoice[field as keyof typeof DEFAULTS.guestbookVoice],
+        )
+      }
+    },
+  )
+
   it('has no template that is another template under a second name', () => {
     // "A preset that repeats the defaults under a name is worse than no preset", and two
     // presets that resolve identically are the same failure with an extra radio button.
@@ -101,6 +115,7 @@ describe('the template catalogue', () => {
     // makes `eventTemplateSettings` total.
     expect(Object.isFrozen(eventTemplateSettings(key).toProps())).toBe(true)
     expect(Object.isFrozen(eventTemplateSettings(key).toProps().theme)).toBe(true)
+    expect(Object.isFrozen(eventTemplateSettings(key).toProps().guestbookVoice)).toBe(true)
   })
 
   it.each(EVENT_TEMPLATE_KEYS)('hands out a %s patch the caller cannot edit either', (key) => {
@@ -108,6 +123,7 @@ describe('the template catalogue', () => {
     // compiled settings — `EventSettings` replaces a theme whole rather than copying it.
     expect(Object.isFrozen(eventTemplatePatch(key))).toBe(true)
     expect(Object.isFrozen(eventTemplatePatch(key).theme)).toBe(true)
+    expect(Object.isFrozen(eventTemplatePatch(key).guestbookVoice)).toBe(true)
   })
 
   it('refuses to compile a preset the settings rules would reject', () => {
@@ -136,6 +152,18 @@ describe('what a wedding starts from', () => {
     // And then honours the promise to two hundred guests who never chose this software,
     // rather than keeping their faces forever by default.
     expect(settingsOf('wedding').retentionDays).toBe(365)
+  })
+
+  it('turns voice messages on and nothing else of the group: sealing is the couple’s choice (spec 25)', () => {
+    expect(settingsOf('wedding').guestbookVoice).toEqual({
+      enabled: true,
+      sealed: false,
+      opensAtMs: null,
+    })
+  })
+
+  it('keeps moderation manual, so every voice is a decision of the host who asked for it', () => {
+    expect(settingsOf('wedding').moderation).toBe('manual')
   })
 
   it('wears the rose, a display face and a rounded print', () => {
@@ -172,6 +200,12 @@ describe('what a birthday starts from', () => {
 describe('what a conference starts from', () => {
   it('still holds every photo for a decision, which the default already does', () => {
     expect(settingsOf('conference').moderation).toBe('manual')
+  })
+
+  it('leaves voice messages off in every template but the wedding: an open microphone in a room of colleagues is a risk with no gain', () => {
+    for (const key of EVENT_TEMPLATE_KEYS.filter((other) => other !== 'wedding')) {
+      expect(settingsOf(key).guestbookVoice.enabled).toBe(false)
+    }
   })
 
   it('turns guest saving off, because colleagues keep a copy the thirty-day purge cannot reach (spec 24)', () => {

@@ -43,57 +43,66 @@ export const EVENT_TEMPLATE_KEYS: readonly EventTemplateKey[] = [
 ]
 
 /**
+ * What a template changes: a partial of the settings, and the **voice group** a partial of its own,
+ * because the server merges that group key by key (a template that turns voice on does not restate
+ * `sealed` and `opensAtMs`).
+ */
+export type TemplatePatch = Omit<Partial<EventSettingsDto>, 'guestbookVoice'> & {
+  readonly guestbookVoice?: Partial<EventSettingsDto['guestbookVoice']>
+}
+
+/**
  * What each template changes, mirroring `TEMPLATES` in the domain.
  *
  * Do not edit one half of this without the other; the contract test is what will tell
  * you, and it reads this literal out of this file's source. Keep it a plain literal —
  * a value computed here would be invisible to it.
  */
-export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<EventSettingsDto>>> =
-  {
-    wedding: {
-      guestSelfDeleteGraceSeconds: 3600,
-      retentionDays: 365,
-      theme: {
-        accentHue: 345,
-        fonts: 'serif',
-        frame: 'round',
-        ambiance: 'champs',
-      },
+export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, TemplatePatch>> = {
+  wedding: {
+    guestSelfDeleteGraceSeconds: 3600,
+    retentionDays: 365,
+    guestbookVoice: { enabled: true },
+    theme: {
+      accentHue: 345,
+      fonts: 'serif',
+      frame: 'round',
+      ambiance: 'champs',
     },
-    birthday: {
-      moderation: 'auto',
-      retentionDays: 90,
-      theme: {
-        accentHue: 305,
-        fonts: 'sans',
-        frame: 'round',
-        ambiance: 'eventslide',
-      },
+  },
+  birthday: {
+    moderation: 'auto',
+    retentionDays: 90,
+    theme: {
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'round',
+      ambiance: 'eventslide',
     },
-    conference: {
-      allowGuestSave: false,
-      allowClips: false,
-      retentionDays: 30,
-      maxPhotosPerGuest: 25,
-      theme: {
-        accentHue: 250,
-        fonts: 'sans',
-        frame: 'square',
-        ambiance: 'eventslide',
-      },
+  },
+  conference: {
+    allowGuestSave: false,
+    allowClips: false,
+    retentionDays: 30,
+    maxPhotosPerGuest: 25,
+    theme: {
+      accentHue: 250,
+      fonts: 'sans',
+      frame: 'square',
+      ambiance: 'eventslide',
     },
-    party: {
-      moderation: 'auto',
-      retentionDays: 30,
-      theme: {
-        accentHue: 195,
-        fonts: 'sans',
-        frame: 'soft',
-        ambiance: 'bivouac',
-      },
+  },
+  party: {
+    moderation: 'auto',
+    retentionDays: 30,
+    theme: {
+      accentHue: 195,
+      fonts: 'sans',
+      frame: 'soft',
+      ambiance: 'bivouac',
     },
-  }
+  },
+}
 
 const MODERATION_LABELS: Readonly<
   Record<EventSettingsDto['moderation'], (text: UiText) => string>
@@ -150,10 +159,7 @@ const themeLine = (theme: EventSettingsDto['theme'], text: UiText): string | nul
  * produces a line, so adding a field to a preset without a sentence for it fails there
  * rather than shipping a card that quietly under-reports what the host is agreeing to.
  */
-export const templateSummary = (
-  patch: Partial<EventSettingsDto>,
-  text: UiText,
-): readonly string[] => {
+export const templateSummary = (patch: TemplatePatch, text: UiText): readonly string[] => {
   const lines: string[] = []
 
   if (patch.moderation !== undefined) lines.push(MODERATION_LABELS[patch.moderation](text))
@@ -163,6 +169,13 @@ export const templateSummary = (
   if (patch.allowGuestSave !== undefined) {
     lines.push(
       patch.allowGuestSave ? text.admin.templateGuestSaveOn : text.admin.templateGuestSaveOff,
+    )
+  }
+  // The voice group is one line, about the one switch a template may flip: `sealed` is the couple's own
+  // choice and no template sets it.
+  if (patch.guestbookVoice?.enabled !== undefined) {
+    lines.push(
+      patch.guestbookVoice.enabled ? text.admin.templateVoiceOn : text.admin.templateVoiceOff,
     )
   }
   if (patch.guestSelfDeleteGraceSeconds !== undefined) {
@@ -217,7 +230,7 @@ export const templateSummary = (
  * The values are not softened by this. A host who is told what `auto` does and picks it
  * anyway has allowed it, which is the same standard the settings page holds them to.
  */
-export const templateWarning = (patch: Partial<EventSettingsDto>, text: UiText): string | null =>
+export const templateWarning = (patch: TemplatePatch, text: UiText): string | null =>
   patch.moderation === 'auto' ? text.admin.moderationAutoWarning : null
 
 /**

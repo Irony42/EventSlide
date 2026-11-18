@@ -49,6 +49,8 @@ export interface EventSettingsPatch {
   readonly allowClips?: boolean
   readonly allowGuestSave?: boolean
   readonly guestbookOnWall?: boolean
+  /** Only the keys changed (spec 25): the server merges the group per key. */
+  readonly guestbookVoice?: Partial<EventSettingsDto['guestbookVoice']>
   readonly allowGuestSelfDelete?: boolean
   readonly guestSelfDeleteGraceSeconds?: number
   readonly retentionDays?: number | null

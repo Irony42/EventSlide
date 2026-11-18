@@ -1404,6 +1404,8 @@ export const fr = {
     templateClipsOff: 'Vidéos désactivées',
     templateGuestSaveOn: 'Les invités peuvent enregistrer les photos',
     templateGuestSaveOff: 'Enregistrement des photos par les invités désactivé',
+    templateVoiceOn: 'Messages vocaux dans le livre d’or activés',
+    templateVoiceOff: 'Messages vocaux désactivés',
     templateNames: {
       wedding: 'Mariage',
       birthday: 'Anniversaire',

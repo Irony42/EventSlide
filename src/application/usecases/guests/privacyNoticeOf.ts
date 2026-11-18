@@ -58,6 +58,8 @@ export const privacyNoticeUnder = (
       guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
       allowGuestbook: settings.allowGuestbook,
       allowGuestSave: settings.allowGuestSave,
+      allowGuestbookVoice: settings.allowGuestbookVoice,
+      guestbookVoiceSealed: settings.guestbookVoiceSealed,
     },
     operatorName,
   )

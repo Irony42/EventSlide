@@ -161,6 +161,126 @@ describe('GET /api/events/:slug/privacy-notice', () => {
     expect(response.body.notice.retentionDays).toBe(14)
   })
 
+  describe('what it says of voice messages, under every configuration (spec 25)', () => {
+    /**
+     * The contract the notice exists to keep: it says nothing the configuration contradicts. One event
+     * per combination of the four switches that change a sentence, read over HTTP, and the answer
+     * compared with **what the configuration does**, written out here from the rules and not read from
+     * the domain function that computes it.
+     */
+    const GRACE_SECONDS = 600
+    const combos = [true, false].flatMap((voice) =>
+      ['manual', 'auto'].flatMap((moderation) =>
+        [true, false].flatMap((sealed) =>
+          [true, false].map((erasure) => ({
+            voice,
+            moderation: moderation as 'manual' | 'auto',
+            sealed,
+            erasure,
+          })),
+        ),
+      ),
+    )
+    const nameOf = (c: (typeof combos)[number]): string =>
+      `voice=${c.voice} moderation=${c.moderation} sealed=${c.sealed} erasure=${c.erasure}`
+
+    it.each(combos)('answers what the event does: %o', async (c) => {
+      const id = `combo-${nameOf(c)}`
+      harness.events.seed(
+        anEvent({
+          id,
+          slug: 'combo',
+          joinCode: 'C0MB0X',
+          settings: {
+            allowGuestbook: true,
+            moderation: c.moderation,
+            allowGuestSelfDelete: c.erasure,
+            guestSelfDeleteGraceSeconds: GRACE_SECONDS,
+            guestbookVoice: { enabled: c.voice, sealed: c.sealed },
+          },
+        }),
+      )
+      harness.guests.seed(aGuest({ id: 'guest-combo', eventId: id }))
+
+      const response = await request(harness.app)
+        .get('/api/events/combo/privacy-notice')
+        .set('Cookie', cookie(harness.issueGuestToken(id, 'guest-combo')))
+      const { notice } = response.body
+
+      expect(response.status).toBe(200)
+      // The moderation clause is the one the voice sentences ("the organiser decides" / "kept at once")
+      // are chosen by: it must be the event's own mode.
+      expect(notice.publication).toBe(c.moderation === 'manual' ? 'afterReview' : 'immediate')
+      if (!c.voice) {
+        // Off: the answer is the one an event that predates the feature gives, key for key.
+        expect(notice).not.toHaveProperty('voice')
+        expect(notice).not.toHaveProperty('voiceSealed')
+        expect(notice).not.toHaveProperty('voiceRemovalSeconds')
+        expect(notice.revision).not.toContain('voice')
+        return
+      }
+      expect(notice.voice).toBe(true)
+      expect(notice.revision).toContain('voice=on')
+      // A sealed book is said exactly when the host keeps it secret.
+      expect(notice.voiceSealed === true).toBe(c.sealed)
+      expect(notice.revision.includes('voiceSealed=on')).toBe(c.sealed)
+      // A voice can be taken back inside the window when the host allows it, whatever the moderation:
+      // it is never on a screen, so the photograph's "only until it is approved" does not apply. The
+      // photograph's own window is absent under automatic publication; the voice's is not.
+      if (c.erasure) {
+        expect(notice.voiceRemovalSeconds).toBe(GRACE_SECONDS)
+        expect(notice.revision).toContain(`voiceRemoval=${GRACE_SECONDS}`)
+      } else {
+        expect(notice).not.toHaveProperty('voiceRemovalSeconds')
+        expect(notice.revision).toContain('voiceRemoval=none')
+      }
+      expect(notice.selfRemovalSeconds).toBe(
+        c.erasure && c.moderation === 'manual' ? GRACE_SECONDS : null,
+      )
+    })
+
+    it('keeps the voice clause before the operator, which stays last, over HTTP', async () => {
+      const named = buildNoticeHarness('Atelier Camille')
+      named.events.seed(
+        anEvent({
+          id: 'named',
+          slug: 'named',
+          joinCode: 'N4M3DX',
+          settings: { allowGuestbook: true, guestbookVoice: { enabled: true } },
+        }),
+      )
+      named.guests.seed(aGuest({ id: 'guest-named', eventId: 'named' }))
+
+      const response = await request(named.app)
+        .get('/api/events/named/privacy-notice')
+        .set('Cookie', cookie(named.issueGuestToken('named', 'guest-named')))
+
+      expect(response.body.notice.revision).toMatch(
+        /;voice=on;voiceRemoval=[0-9]+;operator=Atelier Camille$/,
+      )
+    })
+
+    it('reads the same on a box with and without a transcoder: that is not a promise to a guest', async () => {
+      // `voice.available` is on the join response's event, never on the notice: the notice is the
+      // configuration, so it cannot differ between two boxes that were configured the same.
+      harness.events.seed(
+        anEvent({
+          id: 'cap',
+          slug: 'cap',
+          joinCode: 'C4P4BL',
+          settings: { allowGuestbook: true, guestbookVoice: { enabled: true } },
+        }),
+      )
+      harness.guests.seed(aGuest({ id: 'guest-cap', eventId: 'cap' }))
+
+      const response = await request(harness.app)
+        .get('/api/events/cap/privacy-notice')
+        .set('Cookie', cookie(harness.issueGuestToken('cap', 'guest-cap')))
+
+      expect(Object.keys(response.body.notice).filter((key) => /available/i.test(key))).toEqual([])
+    })
+  })
+
   it('is never cached, because it is the read that tells a guest the host changed something', async () => {
     const response = await request(harness.app).get(NOTICE).set('Cookie', lea())
 

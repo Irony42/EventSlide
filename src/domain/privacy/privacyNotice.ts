@@ -104,6 +104,13 @@ export interface NoticePolicy {
   readonly allowGuestbook: boolean
   /** The guests' save switch (spec 24): when on, another guest may keep a copy of a published photo. */
   readonly allowGuestSave: boolean
+  /**
+   * Voice messages are on for the event's guests (spec 25): `allowGuestbook` **and** the host's
+   * switch. Not the box's capability: the transcoder is a fact about the box, not a promise to a guest.
+   */
+  readonly allowGuestbookVoice: boolean
+  /** The host keeps the voices secret until the end of the evening. Read only when voice is on. */
+  readonly guestbookVoiceSealed: boolean
 }
 
 /**
@@ -183,6 +190,31 @@ export interface PrivacyNotice {
    */
   readonly guestSave: boolean
   /**
+   * Whether guests may leave voice messages (spec 25). The notice then says who hears them, that the
+   * room never does, what the moderation does with them, how long they are kept, that the microphone
+   * only runs while recording, and how to take one back.
+   *
+   * Part of the revision **only when true**, like {@link PrivacyNotice.guestbook}: an event without
+   * voice produces the revision it produced before this clause existed, character for character, so
+   * nobody who read it is asked to read it again. An event that turns it on mid-evening shows the
+   * notice once more to every guest before their next photo or message (spec 25, question 17).
+   */
+  readonly voice: boolean
+  /**
+   * The host keeps the voices secret until the end of the evening. `false` whenever {@link voice}
+   * is. A fact about the configuration, not a stronger promise than it makes: the notice says "unless
+   * the organiser decides otherwise". Part of the revision only when voice is on and this is true.
+   */
+  readonly voiceSealed: boolean
+  /**
+   * How long a guest may take a voice message back themselves, or `null` when they cannot (or when
+   * voice is off). **Not {@link selfRemovalSeconds}**: a voice is never on a screen, so the rule of the
+   * photograph ("only until it is approved") does not apply and an author may remove it inside the
+   * window whatever its status, under automatic publication too (`GuestbookEntry`, rule 1 bis). Only
+   * the host's veto and the window itself decide.
+   */
+  readonly voiceRemovalSeconds: number | null
+  /**
    * The notice's identity: two notices with the same revision say the same thing.
    *
    * What a guest's acknowledgement is recorded against, and what decides whether they are
@@ -211,6 +243,18 @@ export interface NoticeForGuest {
   readonly notice: PrivacyNotice
   readonly acknowledgement: NoticeAcknowledgementStatus
 }
+
+/**
+ * `null` unless a guest can take a voice message back themselves: the host's veto is off and the
+ * window is not zero. The status of the message and the moderation mode do not enter: see
+ * {@link PrivacyNotice.voiceRemovalSeconds}.
+ */
+const voiceRemovalFor = (policy: NoticePolicy): number | null =>
+  policy.allowGuestbookVoice &&
+  policy.allowGuestSelfDelete &&
+  policy.guestSelfDeleteGraceSeconds > 0
+    ? policy.guestSelfDeleteGraceSeconds
+    : null
 
 const publicationFor = (moderation: ModerationMode): NoticePublication =>
   moderation === 'auto' ? 'immediate' : 'afterReview'
@@ -265,6 +309,16 @@ const revisionOf = (notice: Omit<PrivacyNotice, 'revision'>): string =>
     // Before the operator: the free-text name stays the last clause, as above.
     ...(notice.guestbook ? ['guestbook=on'] : []),
     ...(notice.guestSave ? ['guestSave=on'] : []),
+    // The voice clause, after the other switches and before the operator, which stays last. Its two
+    // sub-clauses are the two facts the notice words that no other clause carries: a book kept secret,
+    // and the voice's own removal window, which differs from the photograph's under automatic publication.
+    ...(notice.voice
+      ? [
+          'voice=on',
+          ...(notice.voiceSealed ? ['voiceSealed=on'] : []),
+          `voiceRemoval=${notice.voiceRemovalSeconds ?? 'none'}`,
+        ]
+      : []),
     ...(notice.operator === null ? [] : [`operator=${notice.operator}`]),
   ].join(';')
 
@@ -287,6 +341,10 @@ export const privacyNoticeFor = (
     operator,
     guestbook: policy.allowGuestbook,
     guestSave: policy.allowGuestSave,
+    voice: policy.allowGuestbookVoice,
+    // Read only when voice is on: a sealed book on an event without voice says nothing to a guest.
+    voiceSealed: policy.allowGuestbookVoice && policy.guestbookVoiceSealed,
+    voiceRemovalSeconds: voiceRemovalFor(policy),
   }
   return { ...clauses, revision: revisionOf(clauses) }
 }

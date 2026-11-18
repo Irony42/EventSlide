@@ -83,6 +83,12 @@ export interface PrivacyNoticeDto {
   readonly guestbook?: true
   /** Present only when the other guests may save a photo from the feed (spec 24): the notice says a saved copy cannot be taken back. */
   readonly guestSave?: true
+  /** Present only when guests may leave voice messages (spec 25): who hears them, never the room, the microphone only while recording. */
+  readonly voice?: true
+  /** Present only with `voice`: the host keeps the voices secret until the end of the evening. */
+  readonly voiceSealed?: true
+  /** Present only with `voice`, when a guest may take a voice message back themselves: the window in seconds. Absent: they cannot. */
+  readonly voiceRemovalSeconds?: number
 }
 /** A notice and where this device stands with it: the answer of every notice route. */
 export interface PrivacyNoticeState {

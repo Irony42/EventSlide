@@ -1273,6 +1273,8 @@ export const en: UiText = {
     templateClipsOff: 'Videos turned off',
     templateGuestSaveOn: 'Guests can save photos',
     templateGuestSaveOff: 'Saving photos turned off for guests',
+    templateVoiceOn: 'Voice messages in the guestbook turned on',
+    templateVoiceOff: 'Voice messages turned off',
     templateNames: {
       wedding: 'Wedding',
       birthday: 'Birthday',
