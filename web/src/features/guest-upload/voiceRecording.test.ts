@@ -7,6 +7,7 @@ import {
   isInAppBrowser,
   microphoneForbiddenByPage,
   pickVoiceFormat,
+  voiceCapSeconds,
   voiceFileName,
   type VoiceEnvironment,
 } from './voiceRecording'
@@ -143,5 +144,25 @@ describe('the browsers that open a link inside an app', () => {
     'Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0',
   ])('does not take %s for one', (userAgent) => {
     expect(isInAppBrowser(userAgent)).toBe(false)
+  })
+})
+
+describe('voiceCapSeconds', () => {
+  it('is the box limit when it is under sixty: the phone is never more generous than the server', () => {
+    expect(voiceCapSeconds(30)).toBe(30)
+    expect(voiceCapSeconds(10)).toBe(10)
+    expect(voiceCapSeconds(45.9)).toBe(45)
+  })
+
+  it('is sixty at the very most, however long the box allows', () => {
+    expect(voiceCapSeconds(180)).toBe(60)
+    expect(voiceCapSeconds(60)).toBe(60)
+  })
+
+  it('is sixty when the server said nothing usable (an older server)', () => {
+    expect(voiceCapSeconds(undefined)).toBe(60)
+    expect(voiceCapSeconds(Number.NaN)).toBe(60)
+    expect(voiceCapSeconds(0)).toBe(60)
+    expect(voiceCapSeconds(-5)).toBe(60)
   })
 })

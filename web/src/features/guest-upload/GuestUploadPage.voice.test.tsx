@@ -70,6 +70,7 @@ const mineWith = (
     accepting: true,
     onWall: true,
     voiceAvailable: true,
+    voiceMaxSeconds: 60,
     ...overrides,
   })),
 })
@@ -397,6 +398,24 @@ describe('GuestUploadPage, recording and sending a voice message', () => {
     expect(await screen.findByRole('button', { name: copy.send })).toBeEnabled()
     expect(screen.getByTestId('voice-announcement')).toHaveTextContent(
       copy.recordedAnnounce('1:00'),
+    )
+    expect(microphone.released()).toBe(true)
+  })
+
+  it('stops at the box limit when the server says it is shorter than sixty: a longer recording would be refused and lost', async () => {
+    havingJoined()
+    const api = fakeApi(mineWith([], { voiceMaxSeconds: 30 }))
+    renderUpload(api)
+    await userEvent.click(await voiceButton())
+    await userEvent.click(screen.getByRole('button', { name: copy.record }))
+    await screen.findByRole('button', { name: copy.stop })
+    expect(screen.getByText(copy.clock('0:00', '0:30'))).toBeVisible()
+
+    nowMs += 30_000
+
+    expect(await screen.findByRole('button', { name: copy.send })).toBeEnabled()
+    expect(screen.getByTestId('voice-announcement')).toHaveTextContent(
+      copy.recordedAnnounce('0:30'),
     )
     expect(microphone.released()).toBe(true)
   })

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createVoiceMeter, type VoiceMeter } from '../voiceMeter'
 import {
-  MAX_VOICE_SECONDS,
   MIN_VOICE_MS,
-  VOICE_WARNING_AT_SECONDS,
+  VOICE_WARNING_BEFORE_END_SECONDS,
+  voiceCapSeconds,
   microphoneForbiddenByPage,
   pickVoiceFormat,
 } from '../voiceRecording'
@@ -14,7 +14,7 @@ import {
  *
  * **No rule of the product lives here.** The ceiling of a message, the count a guest may leave and
  * whether the event takes one are the server's answers; this hook records what the guest says, for at
- * most {@link MAX_VOICE_SECONDS}, and hands the bytes to the screen. The traps it holds, each with a
+ * most the box's own limit ({@link voiceCapSeconds}, sixty at the very most), and hands the bytes to the screen. The traps it holds, each with a
  * test:
  *
  * - **The duration is the phone's own timer**, never `audio.duration`: a WebM from `MediaRecorder`
@@ -48,6 +48,8 @@ export interface VoiceRecording {
 export interface VoiceRecorderOptions {
   /** Epoch milliseconds. Injected so a test never depends on a wall clock. */
   readonly now?: () => number
+  /** The longest message the server said it takes (`voiceMaxSeconds`); the recorder stops at the smaller of it and sixty. */
+  readonly serverMaxSeconds?: number | undefined
 }
 
 export interface VoiceRecorderState {
@@ -69,7 +71,6 @@ export interface VoiceRecorderState {
 const TICK_MS = 250
 /** One `dataavailable` a second, to keep what has been said if the tab dies. */
 const TIMESLICE_MS = 1_000
-const MAX_MS = MAX_VOICE_SECONDS * 1_000
 
 /** The error names a browser raises for "no": a refusal, a policy, or no device at all. */
 const failureOf = (cause: unknown): VoiceFailure => {
@@ -90,6 +91,12 @@ export const useVoiceRecorder = (options: VoiceRecorderOptions = {}): VoiceRecor
   const clock = useRef(options.now ?? Date.now)
   useEffect(() => {
     clock.current = options.now ?? Date.now
+  })
+
+  /** Where the phone stops: a recording the server then refused as too long would be a lost one. */
+  const maxMs = useRef(voiceCapSeconds(options.serverMaxSeconds) * 1_000)
+  useEffect(() => {
+    maxMs.current = voiceCapSeconds(options.serverMaxSeconds) * 1_000
   })
 
   const recorder = useRef<MediaRecorder | null>(null)
@@ -208,7 +215,10 @@ export const useVoiceRecorder = (options: VoiceRecorderOptions = {}): VoiceRecor
     made.onstop = () => {
       if (attempt.current !== mine) return
       const mimeType = made.mimeType === '' ? format : made.mimeType
-      const measured = Math.min(MAX_MS, (stoppedAt.current ?? clock.current()) - startedAt.current)
+      const measured = Math.min(
+        maxMs.current,
+        (stoppedAt.current ?? clock.current()) - startedAt.current,
+      )
       const blob = new Blob(chunks.current, { type: mimeType })
       release()
       recorder.current = null
@@ -233,10 +243,10 @@ export const useVoiceRecorder = (options: VoiceRecorderOptions = {}): VoiceRecor
     setPhase('recording')
     timer.current = setInterval(() => {
       const elapsed = clock.current() - startedAt.current
-      setElapsedMs(Math.min(elapsed, MAX_MS))
+      setElapsedMs(Math.min(elapsed, maxMs.current))
       setLevel(meter.current?.read() ?? 0)
-      // The phone stops at sixty seconds, without losing a word.
-      if (elapsed >= MAX_MS) finish(false)
+      // The phone stops at the box's limit (sixty seconds at most), without losing a word.
+      if (elapsed >= maxMs.current) finish(false)
     }, TICK_MS)
   }, [phase, reset, release, finish])
 
@@ -271,7 +281,10 @@ export const useVoiceRecorder = (options: VoiceRecorderOptions = {}): VoiceRecor
     phase,
     elapsedMs,
     level,
-    nearEnd: phase === 'recording' && elapsedMs >= VOICE_WARNING_AT_SECONDS * 1_000,
+    nearEnd:
+      phase === 'recording' &&
+      elapsedMs >=
+        (voiceCapSeconds(options.serverMaxSeconds) - VOICE_WARNING_BEFORE_END_SECONDS) * 1_000,
     recording,
     failure,
     start,

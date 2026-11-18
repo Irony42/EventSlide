@@ -7,7 +7,7 @@ import { VisuallyHidden } from '../../../design-system/components/VisuallyHidden
 import { characterCount, clampCharacters } from '../../../lib/characters'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
-import { MAX_VOICE_SECONDS, VOICE_CAPTION_MAX, formatClock } from '../voiceRecording'
+import { VOICE_CAPTION_MAX, formatClock, voiceCapSeconds } from '../voiceRecording'
 import type { VoiceSendResult } from '../hooks/useVoiceOutbox'
 import type { VoiceFailure, VoiceRecording } from '../hooks/useVoiceRecorder'
 import styles from './VoiceComposer.module.css'
@@ -28,6 +28,8 @@ import styles from './VoiceComposer.module.css'
  */
 
 export interface VoiceComposerProps {
+  /** The longest message the box takes, from `mine`; the recorder never goes beyond sixty either. */
+  readonly maxSeconds?: number | undefined
   /** Sends the recording (writing it to the phone first); resolves to what became of it. */
   readonly onSend: (recording: VoiceRecording, caption: string | null) => Promise<VoiceSendResult>
   /** The recording is on its way or kept: the card closes this and says so. */
@@ -36,12 +38,16 @@ export interface VoiceComposerProps {
   readonly onWriteInstead: () => void
 }
 
-const MAX_MS = MAX_VOICE_SECONDS * 1_000
-
-export function VoiceComposer({ onSend, onResult, onClose, onWriteInstead }: VoiceComposerProps) {
+export function VoiceComposer({
+  maxSeconds,
+  onSend,
+  onResult,
+  onClose,
+  onWriteInstead,
+}: VoiceComposerProps) {
   const t = useTranslations()
   const copy = t.guestbookVoice
-  const recorder = useVoiceRecorder()
+  const recorder = useVoiceRecorder({ serverMaxSeconds: maxSeconds })
   const { phase, recording, failure } = recorder
   const [sending, setSending] = useState(false)
   const recordButton = useRef<HTMLButtonElement | null>(null)
@@ -121,7 +127,10 @@ export function VoiceComposer({ onSend, onResult, onClose, onWriteInstead }: Voi
             </button>
             {recordingNow ? (
               <p className={styles['clock']} data-near={recorder.nearEnd ? '' : undefined}>
-                {copy.clock(formatClock(recorder.elapsedMs), formatClock(MAX_MS))}
+                {copy.clock(
+                  formatClock(recorder.elapsedMs),
+                  formatClock(voiceCapSeconds(maxSeconds) * 1_000),
+                )}
               </p>
             ) : null}
           </div>

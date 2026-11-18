@@ -409,7 +409,12 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           writer={writer}
           maxLength={event.guestbookMaxLength}
           publication={publication ?? 'afterReview'}
-          voice={{ offered: messages.voiceAvailable, outbox: voice, openRequest: voiceRetry }}
+          voice={{
+            offered: messages.voiceAvailable,
+            maxSeconds: messages.voiceMaxSeconds,
+            outbox: voice,
+            openRequest: voiceRetry,
+          }}
         />
       ) : null}
 

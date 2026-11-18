@@ -166,6 +166,8 @@ export interface MyGuestbookDto {
   readonly onWall: boolean
   /** Whether a voice message would be taken now: the button is shown on this and on nothing else. */
   readonly voiceAvailable: boolean
+  /** The longest voice message the box takes, in seconds: the recorder stops there (never above 60). */
+  readonly voiceMaxSeconds: number
 }
 /** What a message just written answers. */
 export interface CreatedGuestbookEntryDto {

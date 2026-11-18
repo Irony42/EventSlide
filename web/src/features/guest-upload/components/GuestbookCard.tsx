@@ -36,6 +36,8 @@ const NEAR_DENOMINATOR = 5
  */
 export interface GuestbookCardVoice {
   readonly offered: boolean
+  /** The longest message the box takes (`voiceMaxSeconds` of `mine`), so the recorder stops before a refusal. */
+  readonly maxSeconds?: number | undefined
   readonly outbox: VoiceOutbox
   /** Counts up when the guest asks for the recorder from elsewhere ("Réessayer" on a failed recording). */
   readonly openRequest: number
@@ -204,6 +206,7 @@ export function GuestbookCard({ writer, maxLength, publication, voice }: Guestbo
 
       {voiceOpen ? (
         <VoiceComposer
+          maxSeconds={voice?.maxSeconds}
           onSend={(recording, caption) =>
             voice?.outbox.send(recording, caption) ?? Promise.resolve({ kind: 'failed' })
           }

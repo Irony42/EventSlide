@@ -23,7 +23,13 @@ describe('listMyGuestbookEntries', () => {
     clock = new FakeClock()
     events.seed(anEvent({ id: 'event-1', settings: { allowGuestbook: true } }))
     transcoder = new FakeAudioTranscoder()
-    list = makeListMyGuestbookEntries({ events, guestbook, transcoder, clock })
+    list = makeListMyGuestbookEntries({
+      events,
+      guestbook,
+      transcoder,
+      clock,
+      voiceMaxDurationMs: 45_000,
+    })
   })
 
   const mine = (id: string, moderation: 'manual' | 'auto' = 'manual') =>
@@ -188,6 +194,12 @@ describe('listMyGuestbookEntries', () => {
 
       expect(await available()).toBe(false)
     })
+  })
+
+  it('says the longest voice message the box takes, in whole seconds, so the phone stops before a refusal', async () => {
+    const result = await list({ eventId: EVENT, guestId: LEA })
+
+    expect(result.ok && result.value.voiceMaxSeconds).toBe(45)
   })
 
   describe('a voice message', () => {

@@ -111,6 +111,34 @@ describe('useVoiceRecorder', () => {
     expect(result.current.nearEnd).toBe(true)
   })
 
+  it('stops at the box limit when it is under sixty, and says the last ten seconds from there', async () => {
+    const hook = renderHook(() => useVoiceRecorder({ serverMaxSeconds: 30 }))
+    await act(async () => {
+      await hook.result.current.start()
+    })
+
+    await run(19_500)
+    expect(hook.result.current.nearEnd).toBe(false)
+    await run(1_000)
+    expect(hook.result.current.nearEnd).toBe(true)
+    await run(20_000)
+
+    // Never longer than the box takes: the server would refuse it, and a refused recording is lost.
+    expect(hook.result.current.phase).toBe('recorded')
+    expect(hook.result.current.recording?.durationMs).toBe(30_000)
+  })
+
+  it('never goes beyond sixty seconds, whatever the box allows', async () => {
+    const hook = renderHook(() => useVoiceRecorder({ serverMaxSeconds: 180 }))
+    await act(async () => {
+      await hook.result.current.start()
+    })
+
+    await run(70_000)
+
+    expect(hook.result.current.recording?.durationMs).toBe(60_000)
+  })
+
   it('releases the microphone when the guest stops', async () => {
     const { result } = await startRecording()
     await run(3_000)

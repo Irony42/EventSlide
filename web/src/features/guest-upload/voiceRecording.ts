@@ -10,8 +10,19 @@
 /** The phone stops the recording here. The server does not rely on it: it bounds the output itself. */
 export const MAX_VOICE_SECONDS = 60
 
-/** "Il reste 10 secondes" is said once, when the clock reaches this. */
-export const VOICE_WARNING_AT_SECONDS = 50
+/**
+ * Where the phone stops: the box's `MAX_VOICE_SECONDS` as the server said it, and never above
+ * {@link MAX_VOICE_SECONDS}. A recording longer than the server's limit is refused as `voice.tooLong`,
+ * and a refused recording is a lost one, so the phone must never be more generous than the box. Nothing
+ * said (an older server) or nonsense: the constant.
+ */
+export const voiceCapSeconds = (serverMaxSeconds: number | undefined): number =>
+  typeof serverMaxSeconds === 'number' && Number.isFinite(serverMaxSeconds) && serverMaxSeconds >= 1
+    ? Math.min(MAX_VOICE_SECONDS, Math.floor(serverMaxSeconds))
+    : MAX_VOICE_SECONDS
+
+/** "Il reste 10 secondes" is said once, when the clock is this far from the end. */
+export const VOICE_WARNING_BEFORE_END_SECONDS = 10
 
 /** A press by mistake is not a message: the server's floor is one second (`VOICE_MIN_MS`). */
 export const MIN_VOICE_MS = 1_000

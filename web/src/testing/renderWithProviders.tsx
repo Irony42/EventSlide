@@ -627,6 +627,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
     accepting: true,
     onWall: true,
     voiceAvailable: false,
+    voiceMaxSeconds: 60,
   })),
   writeGuestbookEntry: vi.fn(async (_slug: string, text: string) => ({
     id: 'entry-1',

@@ -1844,11 +1844,12 @@ The guest's own messages, newest first, at most three, every status but what the
   ],
   "accepting": true,
   "onWall": true,
-  "voiceAvailable": false
+  "voiceAvailable": false,
+  "voiceMaxSeconds": 60
 }
 ```
 
-**A voice message** (spec 25) is a row of the same list, **in any state, a failed one included** (this is where its author learns the recording did not save), with `text: null` and `"voice": { "state": "queued", "durationMs": null, "caption": null }`: `state` is `reserved`, `queued`, `running`, `ready` or `failed`, `durationMs` is the duration **measured on the server's output** (`null` until `ready`: nothing the phone sent is believed) and `caption` is the optional line the guest wrote (140 characters, content). Never a digest, a path or a size. `voiceAvailable` is the rule the voice route applies before it reads a byte: `accepting`, the host's voice switch **and** an audio encoder on this box, so the phone offers the button only when it would work. A voice's `canDelete` follows its own rule (spec 25, rule 1 bis): the host's veto, then the grace window **whatever the status**, and a `failed` one without condition.
+**A voice message** (spec 25) is a row of the same list, **in any state, a failed one included** (this is where its author learns the recording did not save), with `text: null` and `"voice": { "state": "queued", "durationMs": null, "caption": null }`: `state` is `reserved`, `queued`, `running`, `ready` or `failed`, `durationMs` is the duration **measured on the server's output** (`null` until `ready`: nothing the phone sent is believed) and `caption` is the optional line the guest wrote (140 characters, content). Never a digest, a path or a size. `voiceAvailable` is the rule the voice route applies before it reads a byte: `accepting`, the host's voice switch **and** an audio encoder on this box, so the phone offers the button only when it would work. `voiceMaxSeconds` is the box's `MAX_VOICE_SECONDS` (10 to 180, default 60): the phone stops a recording at the smaller of it and 60 s, since a recording the server refused as `voice.tooLong` would be one the guest has lost. A voice's `canDelete` follows its own rule (spec 25, rule 1 bis): the host's veto, then the grace window **whatever the status**, and a `failed` one without condition.
 
 `canDelete` is the server's verdict (`GuestbookEntry.deletionVerdict`) and the phone never recomputes it: it is
 the photograph's rule, not one of its own — the host's `allowGuestSelfDelete` switch, then the author, inside
