@@ -183,6 +183,37 @@ describe('SaveButton on an iPhone, which can share a file', () => {
     expect(screen.queryByText(fr.feed.saveHelpFiles)).toBeNull()
   })
 
+  it('keeps the help for the next try when the first tap never reached a sheet', async () => {
+    let attempts = 0
+    let told = false
+    const claimHelp = vi.fn(() => {
+      if (told) return false
+      told = true
+      return true
+    })
+    renderWithProviders(
+      <SaveButton slug={SLUG} item={ITEM} onRefused={() => undefined} claimHelp={claimHelp} />,
+      {
+        api: fakeApi({
+          savePhoto: vi.fn(async () => {
+            attempts += 1
+            if (attempts === 1) throw ApiError.network()
+            return { blob: new Blob(['x'], { type: 'image/jpeg' }), fileName: FILE_NAME }
+          }),
+        }),
+      },
+    )
+
+    await userEvent.click(button())
+    await screen.findByRole('alert')
+    expect(screen.queryByText(fr.feed.saveHelpSheet)).toBeNull()
+    expect(claimHelp).not.toHaveBeenCalled()
+
+    await userEvent.click(button())
+    expect(await screen.findByText(fr.feed.saveHelpSheet)).toBeVisible()
+    expect(claimHelp).toHaveBeenCalledTimes(1)
+  })
+
   it('says nothing when this device has been told already', async () => {
     renderButton({}, { claim: false })
 

@@ -203,7 +203,7 @@ export const usePhotoSave = ({
     const env = currentSaveEnvironment()
     const strategy = saveStrategy(env)
     const helpKind = saveHelpFor(env, strategy)
-    setHelp(helpKind !== null && claimHelp() ? helpKind : null)
+    setHelp(null)
     setFailure(null)
     setDownloaded(false)
     setPhase('busy')
@@ -218,6 +218,9 @@ export const usePhotoSave = ({
         const file = new File([saved.blob], saved.fileName ?? `${slug}-${photoId}.jpg`, {
           type: saved.blob.type === '' ? 'image/jpeg' : saved.blob.type,
         })
+        // The device's one help line is spent only now that the sheet is about to open: a
+        // request that failed showed no sheet, and the next try must still get its help.
+        setHelp(helpKind !== null && claimHelp() ? helpKind : null)
         if (strategy === 'share') {
           await share(file)
         } else {
