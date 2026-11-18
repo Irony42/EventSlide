@@ -1177,7 +1177,8 @@ export const de: UiText = {
       anonymous: (guests: number, photos: number) =>
         `Gäste ohne Vornamen werden zusammengefasst: ${t.count(guests, { one: `${t.number(guests)} Gast`, other: `${t.number(guests)} Gäste` })}, ${t.count(photos, { one: `${t.number(photos)} Upload`, other: `${t.number(photos)} Uploads` })}.`,
       engagementTitle: 'Nach der Feier',
-      engagementNone: 'Noch nicht gemessen: kein Albumlink geöffnet und kein ZIP gestartet.',
+      engagementNone:
+        'Noch nicht gemessen: kein Albumlink geöffnet, kein ZIP gestartet und kein Foto gespeichert.',
       albumOpens: (count: number) =>
         t.count(count, {
           one: `${t.number(count)} Öffnung des Albumlinks`,
@@ -1188,9 +1189,14 @@ export const de: UiText = {
           one: `${t.number(count)} ZIP gestartet`,
           other: `${t.number(count)} ZIPs gestartet`,
         }),
+      guestSaves: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} von Gästen gespeichertes Foto`,
+          other: `${t.number(count)} von Gästen gespeicherte Fotos`,
+        }),
       measuredSince: (date: string) => `Gemessen seit ${date}. Davor wurde nichts gezählt.`,
       engagementNote:
-        'Eine Öffnung ist das Laden der Albumseite, keine Person. Ein gestartetes ZIP ist nicht zwingend abgeschlossen. Diese Zahlen sind Richtwerte.',
+        'Eine Öffnung ist das Laden der Albumseite, keine Person. Ein gestartetes ZIP ist nicht zwingend abgeschlossen. Ein Speichern ist eine angenommene Anfrage, nicht zwingend ein Foto, das auf dem Handy angekommen ist. Diese Zahlen sind Richtwerte.',
       retention:
         'Diese Zahlen verschwinden mit der Veranstaltung, bei ihrer Löschung oder zum Ende der Aufbewahrungsfrist.',
     },

@@ -123,6 +123,7 @@ function AfterTheParty({ stats }: { readonly stats: EventStatsResponse }) {
           <ul className={styles['rows']}>
             <li>{text.albumOpens(engagement.galleryViews)}</li>
             <li>{text.zipLaunches(engagement.galleryArchiveDownloads)}</li>
+            <li>{text.guestSaves(engagement.guestSaves)}</li>
           </ul>
           <p className={styles['muted']}>
             {text.measuredSince(dayLabel(engagement.since, locale))}

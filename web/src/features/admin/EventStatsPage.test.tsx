@@ -107,12 +107,17 @@ describe('EventStatsPage', () => {
     expect(document.body.textContent).not.toMatch(/NaN|undefined/)
   })
 
-  it('shows the opens and the ZIPs with the day measuring began, and how to read them', async () => {
+  it('shows the opens, the ZIPs and the saves with the day measuring began, and how to read them', async () => {
     renderPage(
       fakeApi({
         getEventStats: vi.fn(async () =>
           busy({
-            engagement: { since: '2026-11-14', galleryViews: 57, galleryArchiveDownloads: 12 },
+            engagement: {
+              since: '2026-11-14',
+              galleryViews: 57,
+              galleryArchiveDownloads: 12,
+              guestSaves: 42,
+            },
           }),
         ),
       }),
@@ -120,6 +125,7 @@ describe('EventStatsPage', () => {
 
     expect(await screen.findByText(fr.admin.stats.albumOpens(57))).toBeVisible()
     expect(screen.getByText(fr.admin.stats.zipLaunches(12))).toBeVisible()
+    expect(screen.getByText(fr.admin.stats.guestSaves(42))).toBeVisible()
     expect(screen.getByText(/Mesuré depuis le 14 novembre/)).toBeVisible()
     expect(screen.getByText(fr.admin.stats.engagementNote)).toBeVisible()
   })

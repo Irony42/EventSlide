@@ -1108,7 +1108,7 @@ export const en: UiText = {
       anonymous: (guests: number, photos: number) =>
         `Guests without a first name are grouped: ${t.count(guests, { one: `${t.number(guests)} guest`, other: `${t.number(guests)} guests` })}, ${t.count(photos, { one: `${t.number(photos)} upload`, other: `${t.number(photos)} uploads` })}.`,
       engagementTitle: 'After the party',
-      engagementNone: 'Not measured yet: no album link opened and no ZIP launched.',
+      engagementNone: 'Not measured yet: no album link opened, no ZIP launched and no photo saved.',
       albumOpens: (count: number) =>
         t.count(count, {
           one: `${t.number(count)} album link opening`,
@@ -1119,9 +1119,14 @@ export const en: UiText = {
           one: `${t.number(count)} ZIP launched`,
           other: `${t.number(count)} ZIPs launched`,
         }),
+      guestSaves: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} photo saved by guests`,
+          other: `${t.number(count)} photos saved by guests`,
+        }),
       measuredSince: (date: string) => `Measured since ${date}. Nothing was counted before.`,
       engagementNote:
-        'An opening is a load of the album page, not a person. A launched ZIP is not necessarily finished. These figures are indicative.',
+        'An opening is a load of the album page, not a person. A launched ZIP is not necessarily finished. A save is an accepted request, not necessarily a photo that reached the phone. These figures are indicative.',
       retention:
         'These figures disappear with the event, when it is deleted or when its retention period ends.',
     },

@@ -4429,7 +4429,8 @@ videos alike.
   "engagement": {
     "since": "2026-11-14",
     "galleryViews": 57,
-    "galleryArchiveDownloads": 12
+    "galleryArchiveDownloads": 12,
+    "guestSaves": 42
   }
 }
 ```
@@ -4444,7 +4445,7 @@ videos alike.
 - `topContributors`: at most ten guests with a first name and at least one **published** send, most
   sends first, then most reactions received **on those sends**, then guest id. Removed guests are left
   out. Guests without a first name are folded into `anonymousContributors`, never listed.
-- `engagement`: `null` until a first open of the album link or launch of its ZIP was counted, then `{ "since": "2026-11-14", "galleryViews": 57, "galleryArchiveDownloads": 12 }`: the sums over the days, `since` being the first day counted (nothing was measured before it). A view is a **served** load of the album page (a revoked, expired or locked link, or a wrong password, counts nothing); a ZIP is counted at launch, finished or not. Integers per event and UTC day: no identity is stored.
+- `engagement`: `null` until a first open of the album link or launch of its ZIP was counted, then `{ "since": "2026-11-14", "galleryViews": 57, "galleryArchiveDownloads": 12, "guestSaves": 42 }`: the sums over the days, `since` being the first day counted (nothing was measured before it). A view is a **served** load of the album page (a revoked, expired or locked link, or a wrong password, counts nothing); a ZIP is counted at launch, finished or not; a save is one granted request of a guest saving a photograph from the feed (`GET /api/events/:slug/photos/:photoId/save`), counted before the bytes flow and never for a refusal. Integers per event and UTC day: no identity is stored.
 
 `Cache-Control: no-store`.
 
