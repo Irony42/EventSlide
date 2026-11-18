@@ -254,7 +254,7 @@ describe('saveGuestPhoto', () => {
       ])
     })
 
-    it('counts it before a byte is read: a request, not a finished download', async () => {
+    it('counts a granted request without any byte being read: a request, not a finished download', async () => {
       await seed()
 
       const result = await save({ eventId: EVENT, photoId: PHOTO })
