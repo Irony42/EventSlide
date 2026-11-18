@@ -83,6 +83,10 @@ export const noticeSections = (
       term: withBook ? text.guestbook.noticeWhoSees : copy.noticeWhoSees,
       sentences: [
         ...notice.audiences.map((audience) => copy.noticeAudiences[audience]),
+        // After the audiences, because it is what they may then do with the photo they see: the
+        // server sends the flag only when saving is on, so the sentence cannot contradict the
+        // switch (spec 24).
+        ...(notice.guestSave === true ? [copy.noticeGuestSave] : []),
         ...(withBook ? [text.guestbook.noticeMessageAudience] : []),
       ],
     },

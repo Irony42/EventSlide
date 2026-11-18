@@ -164,3 +164,44 @@ describe('noticeSections with a guestbook (spec 01)', () => {
     expect(sections[0]?.sentences).toContain(fr.guestbook.noticeMessagePublication.immediate)
   })
 })
+
+describe('noticeSections with saving on (spec 24)', () => {
+  const whoSees = (notice: ReturnType<typeof aPrivacyNotice>) =>
+    noticeSections(notice, fr)[1]?.sentences ?? []
+
+  it('says other guests can keep the photo, after the audiences, only when the server says so', () => {
+    const audiences = aPrivacyNotice().audiences.map(
+      (audience) => fr.upload.noticeAudiences[audience],
+    )
+
+    expect(whoSees(aPrivacyNotice({ guestSave: true }))).toEqual([
+      ...audiences,
+      fr.upload.noticeGuestSave,
+    ])
+  })
+
+  it('leaves an event without it exactly as it was', () => {
+    expect(JSON.stringify(noticeSections(aPrivacyNotice(), fr))).not.toContain(
+      fr.upload.noticeGuestSave,
+    )
+  })
+
+  it('says it with the guestbook’s sentences as well, in the same section', () => {
+    const sentences = whoSees(aPrivacyNotice({ guestSave: true, guestbook: true }))
+
+    expect(sentences).toContain(fr.upload.noticeGuestSave)
+    expect(sentences).toContain(fr.guestbook.noticeMessageAudience)
+  })
+
+  it.each([
+    ['en', en],
+    ['de', de],
+    ['es', es],
+    ['it', italian],
+  ])('has the sentence in %s, and not the French one', (_name, table) => {
+    const sentence = noticeSections(aPrivacyNotice({ guestSave: true }), table)[1]?.sentences.at(-1)
+
+    expect(sentence).toBe(table.upload.noticeGuestSave)
+    expect(sentence).not.toBe(fr.upload.noticeGuestSave)
+  })
+})
