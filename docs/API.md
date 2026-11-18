@@ -1862,7 +1862,10 @@ told a published message is "published, not shown on the screen".
 ### `DELETE /api/events/:slug/guestbook/:entryId`
 
 A guest takes one of their own messages back. The rule is the photograph's (see `canDelete` above); a guest who
-wants a **published** message gone uses `DELETE /guests/me`, which this rule does not gate. Writing and taking
+wants a **published** written message gone uses `DELETE /guests/me`, which this rule does not gate. **A voice message has a rule
+of its own** (spec 25): inside the grace window **whatever its status** (it is never on a screen), and a failed one without
+condition. Its **bytes go first** (the output, and the source while a transcode still holds it), then the entry and its voice;
+the verified archive is retired first when the recording is in it. Writing and taking
 back share one per-guest budget (§1).
 
 **204**. **Errors** — `404 guestbook.notFound` (also for another guest's message, another event's, an unknown id
@@ -1874,7 +1877,8 @@ answered after the lookup so an unknown id stays a 404); `400 request.invalid` (
 
 Every change to the guestbook (a message written, removed, erased with its guest) announces one
 `{ "type": "guestbook.changed" }` signal on the event's stream: an invalidation without data, like
-`mission.changed`, that makes the host's panel and the wall re-read.
+`mission.changed`, that makes the host's panel and the wall re-read. **A voice message** is announced on `guestbook.voice`
+instead, which only the console hears (the wall re-reads on every public signal and has nothing to read for a recording).
 
 ### `GET /api/events/:slug/guestbook`
 
@@ -2370,7 +2374,8 @@ with and no other guest this could reach. Nothing is read from the body.
 
 What goes, in one operation: every photograph and clip the guest sent (the files in every rendition, the
 thumbnails and the rows, with the caption and the moderation decision that live on the row), every clip of theirs
-still waiting to be transcoded together with its staged source, every reaction they left on any photograph, every guestbook message they wrote, and the
+still waiting to be transcoded together with its staged source, every reaction they left on any photograph, every guestbook message they wrote (**a voice message's bytes first, its output and the
+source a transcode still holds, then its row**: a delete that fails leaves the rows, so pressing the button again finishes), and the
 guest row itself, which is where their display name and device identity live. It is **independent of the
 moderation state** (a photograph on the wall goes too), of `allowGuestSelfDelete` and of the grace window
 (`DELETE …/photos/:photoId` above keeps both rules; this does not), and of the event's lifecycle: it works on a
@@ -2498,10 +2503,20 @@ file is gone is skipped with a warning rather than aborting the download.
 **`<slug>/MANIFEST.sha256` closes the archive** (spec 22): one line per file, `<sha-256 in 64 hex>  <name>` (two
 spaces, names relative to the folder: what `sha256sum -c MANIFEST.sha256` reads), the guestbook included, and a last
 comment line `# missing: N` counting the rows whose file was not on the server's disk and which the archive therefore
-does not carry (`0` when none). The digest is of the bytes that went by, computed as they were streamed. A clip's
-file that is not what its stored digest says aborts the stream (`export.corrupt` in the log, the socket destroyed, no
+does not carry (`0` when none), a lost recording included. The digest is of the bytes that went by, computed as they were streamed. A clip's
+file (and a **recording's**) that is not what its stored digest says aborts the stream (`export.corrupt` in the log, the socket destroyed, no
 manifest written) instead of being handed over; a photograph's **original** cannot be held against its stored
 digest, which is taken over its _display_ rendition, so it is listed in the manifest and not verified by the server.
+
+**Voice messages** (spec 25) come after the photographs and before `guestbook.txt`: one `voice/NNNN-<digest>.m4a` per recording that
+is `ready` and in the album (`isInAlbum`: published and hidden, never pending, refused, still being processed, failed or taken down
+by the operator), named by a counter, the first twelve characters of the digest and the validated slug, never by anything a guest
+sent, and listed in the manifest like the rest. A recording whose file is gone is skipped and counted in `# missing: N`.
+**While the secret holds** (`guestbookVoice.sealed`, not yet opened, event still live) **no recording is in the archive**, or unzipping it
+would lift what the console keeps: `guestbook.txt` ends with `N messages vocaux scellés, non inclus` and says nothing else about
+them. `guestbook.txt` carries a block per message, written ones and recordings together, oldest first; a recording is
+`[message vocal, 0:23, voice/0007-<digest>.m4a]` followed by the guest's caption if there is one. The ZIP is the same loop as
+the verified archive's, so the two cannot disagree.
 
 **Who may**: the same refusals as before (`401`, `404 event.notFound` for a non-member and for an event the
 operator took down), with one change in the suspension rule. A suspended client's members get
@@ -2616,7 +2631,7 @@ One ZIP of the album, prepared on the box (one at a time, behind video transcode
 until the first of `EXPORT_TTL_DAYS` after it was made, 48 hours after it was sent in full and the album's
 deletion date. Every route is a moderator of the event, like `album.zip`; none is reachable by a guest or the
 public, and nothing in them names a path. The archive holds the album as `album.zip` does (published and hidden
-photographs, clips as their transcode, `guestbook.txt`) and ends with `MANIFEST.sha256`, one line per file in the
+photographs, clips as their transcode, the voice messages unless they are still kept secret, `guestbook.txt`) and ends with `MANIFEST.sha256`, one line per file in the
 format `sha256sum -c` reads, plus a `# missing: N` comment.
 
 | Method | Path                           | Answers                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -2635,6 +2650,12 @@ abandoned. The server sees the last byte leave and cannot know the host's disk r
 "received". `failure` is a closed code (`corrupt`, `noRoom`, `tooLarge`, `unavailable`, `unverified`, `unexpected`)
 and `staleReason` another (`photoRemoved`, `guestErased`, `guestbookChanged`, `takenDown`, `reopened`,
 `albumChanged`, `fileMissing`), neutral on purpose: neither says who acted.
+
+**Voice messages count in the room it is judged on** (spec 25): the estimate behind `409 export.noRoom` and `413 export.tooLarge`
+adds the stored bytes and one zip entry per `ready` recording (a secret one included: refusing early is cheap), in the host's
+request, in the box's own build and in the operator's copy to a folder alike. A recording that becomes `ready` after the archive was
+written, one that is taken back by its guest, erased with its guest, refused by the host or taken down by the operator retires the
+archive as `guestbookChanged` (or `takenDown`), before any byte goes.
 
 Refusals of `POST`: `400 request.invalid`, `401`, `404 event.notFound` (not a member, or taken down by the operator,
 whatever else is true), `403 client.suspended` (a suspended client **that is not being offboarded**: a client in its
@@ -3554,6 +3575,12 @@ the first day, however far `at` is, and `false` otherwise. `serverNowMs` is the
 server's clock when it answered, in milliseconds: the console counts `at` down against it (the offset between the two
 clocks, as for the timed challenge), so a phone with the wrong time does not misstate the day. Every route that
 answers with this event carries it.
+
+**`purge.voices` (spec 25)** is `{ "secret": n, "pending": n }`, **`{ 0, 0 }` except in the last week** before `at`: the
+number of `ready` recordings that would be deleted still kept secret (published, never listened to), and the number waiting
+for a decision, which will not be in the album (only a published recording is). The wedding model turns the voices on with a
+manual moderation, so an undecided lot would otherwise be lost in silence. `secret` is a safety net: a purge date exists only for a
+closed or archived event, which is when the secret is lifted. The guestbook is read only inside that week.
 
 ### `PATCH /api/events/:slug`
 
