@@ -1382,6 +1382,8 @@ describe('downloading a file held in memory (spec 24, the photograph a guest sav
       })
 
     it('gives up with a network failure at 45 seconds, not before', async () => {
+      // The figure is the spec's, so it is stated here and not only through the constant.
+      expect(SAVE_REQUEST_TIMEOUT_MS).toBe(45_000)
       stubFetch(hangUntilAborted)
       const state = outcomeOf(http.download(PATH))
 

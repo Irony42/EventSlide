@@ -125,6 +125,9 @@ describe('SaveButton on an iPhone, which can share a file', () => {
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.queryByText(fr.feed.saveNetworkFailed)).toBeNull()
     expect(button()).toBeEnabled()
+    // Closing the sheet is not a reason to download the photograph behind the guest's back.
+    expect(device.downloads).toEqual([])
+    expect(screen.queryByText(fr.feed.saveDownloaded)).toBeNull()
   })
 
   it('keeps the photograph when the system refuses a stale gesture, and opens the sheet on the next tap without asking again', async () => {
