@@ -40,7 +40,8 @@ export function GuestbookMessages({
   const t = useTranslations()
   const { statusLabel, formatDate, copyId, anonymous } = useGuestbookRowFormat()
   const toast = useToast()
-  const [confirmingKeep, setConfirmingKeep] = useState(false)
+  // The count shown when the dialog opened: a re-read behind it must not change the question.
+  const [confirmingKeep, setConfirmingKeep] = useState<number | null>(null)
   const emptyRef = useRef<HTMLDivElement>(null)
   const hadItems = useRef(false)
   const { items, filter } = guestbook
@@ -190,7 +191,7 @@ export function GuestbookMessages({
           <Button
             variant="secondary"
             disabled={guestbook.busy}
-            onClick={() => setConfirmingKeep(true)}
+            onClick={() => setConfirmingKeep(keepable)}
           >
             {voiceCopy.keepPending(keepable)}
           </Button>
@@ -201,14 +202,14 @@ export function GuestbookMessages({
       ) : null}
       {body}
       <ConfirmDialog
-        open={confirmingKeep}
-        title={voiceCopy.keepPending(keepable)}
+        open={confirmingKeep !== null}
+        title={voiceCopy.keepPending(confirmingKeep ?? keepable)}
         description={voiceCopy.keepConfirm}
         confirmLabel={voiceCopy.keepConfirmLabel}
         confirmVariant="primary"
-        onCancel={() => setConfirmingKeep(false)}
+        onCancel={() => setConfirmingKeep(null)}
         onConfirm={() => {
-          setConfirmingKeep(false)
+          setConfirmingKeep(null)
           void guestbook.keepPendingVoices().then((kept) => {
             if (kept !== null) toast.show(voiceCopy.kept(kept), { tone: 'success' })
           })

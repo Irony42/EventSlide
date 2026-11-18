@@ -210,7 +210,7 @@ export const useGuestbookModeration = (
 
   const onSignal = useCallback(
     (signal: StreamSignal) => {
-      // A voice message announces itself on its own signal (spec 25): the console hears it, the wall does not.
+      // A voice message announces itself on its own signal (spec 25): the console hears it.
       if ((signal.type !== 'guestbook.changed' && signal.type !== 'guestbook.voice') || !live) {
         return
       }

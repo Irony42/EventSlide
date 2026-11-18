@@ -154,7 +154,7 @@ describe('ModerationPage, voice cards', () => {
     play.mockRestore()
   })
 
-  it('re-reads on the voice signal, which the console hears and the wall does not', async () => {
+  it('re-reads on the voice signal', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const api = apiWith([])
     renderConsole(api)
@@ -192,6 +192,35 @@ describe('ModerationPage, voice cards', () => {
 
       await waitFor(() => expect(api.keepPendingVoices).toHaveBeenCalledWith(SLUG))
       expect(await screen.findByText(fr.guestbookVoiceHost.kept(2))).toBeVisible()
+    })
+
+    it('keeps the count it asked about when a re-read changes the list behind the dialog', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const items = [aVoice(), aVoice({ id: 'v2' })]
+      const api = apiWith(items)
+      renderConsole(api)
+      await userEvent.click(
+        await screen.findByRole('button', { name: fr.guestbookVoiceHost.keepPending(2) }),
+      )
+      vi.mocked(api.guestbookQueue).mockResolvedValue({
+        items: [],
+        pendingCount: 0,
+        voiceProcessing: 0,
+        voiceSealed: false,
+        voiceOpensAtMs: null,
+        serverNowMs: 0,
+      })
+
+      act(() => {
+        FakeEventSource.latest('the console').emitSignal('guestbook.voice')
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SIGNAL_DEBOUNCE_MS + 50)
+      })
+
+      expect(screen.getByText(fr.guestbookVoiceHost.keepConfirm)).toBeVisible()
+      expect(screen.getAllByText(fr.guestbookVoiceHost.keepPending(2)).length).toBeGreaterThan(0)
+      expect(screen.queryByText(fr.guestbookVoiceHost.keepPending(0))).toBeNull()
     })
 
     it('keeps nothing when the host cancels', async () => {
