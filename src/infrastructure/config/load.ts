@@ -243,6 +243,12 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       maxQueued: raw.MAX_QUEUED_REELS,
     },
 
+    voice: {
+      enabled: raw.GUESTBOOK_VOICE_ENABLED,
+      maxDurationMs: raw.MAX_VOICE_SECONDS * 1000,
+      maxBytes: raw.MAX_VOICE_BYTES,
+    },
+
     clips: {
       maxBytes: raw.MAX_CLIP_BYTES,
       maxDurationMs: raw.MAX_CLIP_SECONDS * 1000,
