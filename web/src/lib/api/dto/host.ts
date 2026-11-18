@@ -259,8 +259,17 @@ export interface EventPurgeDto {
   readonly notice: 14 | 3 | 1 | null
   /** The event's client is being offboarded: the deletion band shows however far the date is. */
   readonly offboarding: boolean
+  /**
+   * The voice messages the purge would take unheard or undecided, from a week before `at` (0 and 0
+   * otherwise): how many are still kept secret, how many wait for a decision.
+   */
+  readonly voices: PurgeVoicesDto
   /** The server's clock when it answered: `at` is counted down against it, not the machine's. */
   readonly serverNowMs: number
+}
+export interface PurgeVoicesDto {
+  readonly secret: number
+  readonly pending: number
 }
 export interface EventDto extends EventSummaryDto {
   readonly joinCode: string

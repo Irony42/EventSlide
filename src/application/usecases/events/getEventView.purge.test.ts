@@ -6,6 +6,8 @@ import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePurgeNoticeLedger } from '../../testing/fakePurgeNoticeLedger'
 import { makeGetEventLimits } from './getEventLimits'
 import { makeGetEventView } from './getEventView'
+import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
+import { FakeClock } from '../../testing/fakeClock'
 
 /**
  * Spec 22: what a host sees of the album's deletion. The date is the one the sweep acts on, and
@@ -23,6 +25,8 @@ const aWorld = () => {
     events,
     clients,
     notices,
+    guestbook: new FakeGuestbookRepository(),
+    clock: new FakeClock(),
     capNoticeDays: 30,
     getEventLimits: makeGetEventLimits({ clients }),
   })
@@ -57,7 +61,12 @@ describe('getEventView: the date the album will be deleted', () => {
 
     const { purge } = await getEventView({ event: wedding })
 
-    expect(purge).toEqual({ at: null, notice: null, offboarding: false })
+    expect(purge).toEqual({
+      at: null,
+      notice: null,
+      offboarding: false,
+      voices: { secret: 0, pending: 0 },
+    })
   })
 
   it('is no date while the event is live: the clock starts when it closes', async () => {
@@ -115,8 +124,9 @@ describe('getEventView: the date the album will be deleted', () => {
       at: new Date(AT.getTime() + 30 * DAY),
       notice: null,
       offboarding: false,
+      voices: { secret: 0, pending: 0 },
     })
-    expect(Object.keys(held.purge).sort()).toEqual(['at', 'notice', 'offboarding'])
+    expect(Object.keys(held.purge).sort()).toEqual(['at', 'notice', 'offboarding', 'voices'])
   })
 })
 
@@ -149,6 +159,7 @@ describe('getEventView: the last warning sent', () => {
       at: null,
       notice: null,
       offboarding: false,
+      voices: { secret: 0, pending: 0 },
     })
   })
 })

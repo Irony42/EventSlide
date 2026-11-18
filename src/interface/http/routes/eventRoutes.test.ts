@@ -15,6 +15,8 @@ import {
 import { makeGetEventBySlug } from '../../../application/usecases/events/getEventBySlug'
 import { makeGetEventLimits } from '../../../application/usecases/events/getEventLimits'
 import { makeGetEventView } from '../../../application/usecases/events/getEventView'
+import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
+import { FakeClock } from '../../../application/testing/fakeClock'
 import { makeListEventsForHost } from '../../../application/usecases/events/listEventsForHost'
 import { makeListModerators } from '../../../application/usecases/events/listModerators'
 import { makePurgeEvent } from '../../../application/usecases/events/purgeEvent'
@@ -291,6 +293,8 @@ const buildWorld = ({
           events,
           clients,
           notices: new FakePurgeNoticeLedger(),
+          guestbook: new FakeGuestbookRepository(),
+          clock: new FakeClock(),
           capNoticeDays: 30,
           getEventLimits: makeGetEventLimits({ clients }),
         }),
@@ -1234,6 +1238,7 @@ describe('the host event routes', () => {
           at: new Date(AT.getTime() + 30 * 86_400_000).toISOString(),
           notice: null,
           offboarding: false,
+          voices: { secret: 0, pending: 0 },
           serverNowMs: AT.getTime(),
         })
       })
@@ -1257,6 +1262,7 @@ describe('the host event routes', () => {
           at: null,
           notice: null,
           offboarding: false,
+          voices: { secret: 0, pending: 0 },
           serverNowMs: AT.getTime(),
         })
       })
@@ -1273,6 +1279,7 @@ describe('the host event routes', () => {
           'notice',
           'offboarding',
           'serverNowMs',
+          'voices',
         ])
         expect(response.body.purge.at).not.toBeNull()
         expect(JSON.stringify(response.body)).not.toMatch(/held|hold/i)

@@ -41,6 +41,7 @@ import type {
   ReelDto,
   EventDto,
   EventPurgeDto,
+  PurgeVoicesDto,
   EventSettingsDto,
   EventSummaryDto,
   EventBrandDto,
@@ -483,11 +484,17 @@ export const toEventSummaryDto = (summary: HostEventSummary): EventSummaryDto =>
   role: summary.role,
 })
 
+const toPurgeVoicesDto = ({ secret, pending }: EventPurgeView['voices']): PurgeVoicesDto => ({
+  secret,
+  pending,
+})
+
 /** The date the album will be deleted, as the host's page reads it (spec 22). */
 export const toEventPurgeDto = (purge: EventPurgeView, serverNowMs: number): EventPurgeDto => ({
   at: isoOrNull(purge.at),
   notice: purge.notice,
   offboarding: purge.offboarding,
+  voices: toPurgeVoicesDto(purge.voices),
   serverNowMs,
 })
 

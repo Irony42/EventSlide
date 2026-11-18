@@ -705,11 +705,22 @@ export interface EventPurgeDto {
    */
   readonly offboarding: boolean
   /**
+   * The voice messages the purge would take unheard or undecided, in the **last week** before `at`
+   * and `{ secret: 0, pending: 0 }` otherwise (spec 25): how many published recordings are still
+   * kept secret, and how many wait for a decision and so will not be in the album.
+   */
+  readonly voices: PurgeVoicesDto
+  /**
    * The server's clock when it answered, in milliseconds: what `at` is to be counted down against, so
    * a phone with a wrong clock does not lie about the day the album goes (the same field the timed
    * challenge carries).
    */
   readonly serverNowMs: number
+}
+
+export interface PurgeVoicesDto {
+  readonly secret: number
+  readonly pending: number
 }
 
 export interface EventDto extends EventSummaryDto {

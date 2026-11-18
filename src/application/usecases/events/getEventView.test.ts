@@ -8,6 +8,8 @@ import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { makeGetEventLimits } from './getEventLimits'
 import { makeGetEventView } from './getEventView'
+import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
+import { FakeClock } from '../../testing/fakeClock'
 
 /**
  * What a host's answer about one event carries besides the event (HTTP-M-06): its counts, and the
@@ -40,6 +42,8 @@ const aWorld = () => {
     events,
     clients,
     notices,
+    guestbook: new FakeGuestbookRepository(),
+    clock: new FakeClock(),
     capNoticeDays: 30,
     getEventLimits: makeGetEventLimits({ clients }),
   })

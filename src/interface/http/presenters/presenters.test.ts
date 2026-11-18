@@ -271,7 +271,7 @@ describe('toEventDto', () => {
     role: 'owner' as const,
     counts: { photoCount: 42, pendingCount: 7, guestCount: 18, usedBytes: 900_000 },
     limits: { quotaBytes: 5_000_000_000, liveWindowEnd: null },
-    purge: { at: null, notice: null, offboarding: false },
+    purge: { at: null, notice: null, offboarding: false, voices: { secret: 0, pending: 0 } },
     serverNowMs: 1_700_000_000_000,
   }
 
@@ -323,14 +323,32 @@ describe('toEventDto', () => {
   it('says when the album will be deleted and which warning was last sent, for the host only', () => {
     const at = new Date('2026-12-12T10:00:00.000Z')
 
-    const dto = toEventDto({ ...input, purge: { at, notice: 3, offboarding: true } }, context)
+    const dto = toEventDto(
+      { ...input, purge: { at, notice: 3, offboarding: true, voices: { secret: 0, pending: 0 } } },
+      context,
+    )
 
     expect(dto.purge).toEqual({
       at: '2026-12-12T10:00:00.000Z',
       notice: 3,
       offboarding: true,
+      voices: { secret: 0, pending: 0 },
       serverNowMs: 1_700_000_000_000,
     })
+  })
+
+  it('carries the voice messages the purge would take unheard or undecided, as plain numbers (spec 25)', () => {
+    const at = new Date('2026-12-12T10:00:00.000Z')
+
+    const dto = toEventDto(
+      {
+        ...input,
+        purge: { at, notice: null, offboarding: false, voices: { secret: 2, pending: 37 } },
+      },
+      context,
+    )
+
+    expect(dto.purge?.voices).toEqual({ secret: 2, pending: 37 })
   })
 
   it('renders an album that is not on a clock as a null date, not as a missing key', () => {
@@ -340,6 +358,7 @@ describe('toEventDto', () => {
       at: null,
       notice: null,
       offboarding: false,
+      voices: { secret: 0, pending: 0 },
       serverNowMs: 1_700_000_000_000,
     })
   })
