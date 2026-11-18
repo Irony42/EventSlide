@@ -346,6 +346,7 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
   sound: { enabled: false, tone: 'chime', volume: 50 },
   reactionsEnabled: true,
+  guestSaveEnabled: true,
   // The product's own look, which spreads no attribute at all — so a wall built from this
   // renders the DOM it rendered before theming existed, and every negative assertion about
   // that DOM still means what it says. It is here rather than omitted because `theme` is
@@ -447,6 +448,7 @@ export const eventSettings = (
     allowReactions: true,
     allowClips: true,
     allowGuestbook: true,
+    allowGuestSave: true,
     guestbookOnWall: true,
     allowGuestSelfDelete: true,
     guestSelfDeleteGraceSeconds: 300,

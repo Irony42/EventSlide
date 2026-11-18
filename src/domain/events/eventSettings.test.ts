@@ -24,6 +24,20 @@ describe('EventSettings defaults', () => {
     expect([settings.allowGuestbook, settings.guestbookOnWall]).toEqual([true, true])
   })
 
+  it('lets guests save a photograph on a new event (spec 24)', () => {
+    expect(EventSettings.default().allowGuestSave).toBe(true)
+  })
+
+  it('keeps allowGuestSave through a patch that does not name it, and turns it off when told', () => {
+    const off = unwrap(EventSettings.create({ allowGuestSave: false }))
+
+    expect(unwrap(off.with({ moderation: 'auto' })).allowGuestSave).toBe(false)
+    expect(unwrap(EventSettings.default().with({ moderation: 'auto' })).allowGuestSave).toBe(true)
+    expect(unwrap(EventSettings.default().with({ allowGuestSave: false })).allowGuestSave).toBe(
+      false,
+    )
+  })
+
   it('lets a guest caption, react and take back their own photo', () => {
     const settings = EventSettings.default()
 
@@ -95,6 +109,7 @@ describe('EventSettings.create', () => {
         allowReactions: false,
         allowClips: false,
         allowGuestbook: true,
+        allowGuestSave: false,
         guestbookOnWall: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
@@ -118,6 +133,7 @@ describe('EventSettings.create', () => {
       allowReactions: false,
       allowClips: false,
       allowGuestbook: true,
+      allowGuestSave: false,
       guestbookOnWall: false,
       allowGuestSelfDelete: false,
       guestSelfDeleteGraceSeconds: 60,

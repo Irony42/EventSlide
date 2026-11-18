@@ -72,6 +72,7 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
       },
     },
     conference: {
+      allowGuestSave: false,
       allowClips: false,
       retentionDays: 30,
       maxPhotosPerGuest: 25,
@@ -158,6 +159,11 @@ export const templateSummary = (
   if (patch.moderation !== undefined) lines.push(MODERATION_LABELS[patch.moderation](text))
   if (patch.allowClips !== undefined) {
     lines.push(patch.allowClips ? text.admin.templateClipsOn : text.admin.templateClipsOff)
+  }
+  if (patch.allowGuestSave !== undefined) {
+    lines.push(
+      patch.allowGuestSave ? text.admin.templateGuestSaveOn : text.admin.templateGuestSaveOff,
+    )
   }
   if (patch.guestSelfDeleteGraceSeconds !== undefined) {
     lines.push(

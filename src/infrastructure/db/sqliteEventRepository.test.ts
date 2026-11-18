@@ -613,6 +613,7 @@ describe('SqliteEventRepository', () => {
       { holds: 'an unknown moderation mode', stored: json({ moderation: 'ai' }) },
       { holds: 'a non-boolean flag', stored: json({ allowCaptions: 'oui' }) },
       { holds: 'a missing flag', stored: json({ allowGuestSelfDelete: undefined }) },
+      { holds: 'a guest-save flag that is not a boolean', stored: json({ allowGuestSave: 'oui' }) },
       { holds: 'a non-numeric window', stored: json({ guestSelfDeleteGraceSeconds: '900' }) },
       { holds: 'a retention the domain refuses', stored: json({ retentionDays: 0 }) },
       { holds: 'a theme that is not an object', stored: json({ theme: 'rose' }) },
@@ -747,6 +748,32 @@ describe('SqliteEventRepository', () => {
       expect(settings?.allowGuestbook).toBe(true)
       expect(settings?.guestbookOnWall).toBe(false)
     })
+
+    it('reads an event written before guests could save a photograph as closed to saving (spec 24)', async () => {
+      // The absent key is "a host never asked", and an upgrade does not let guests carry each
+      // other's photographs away. `settingsOf` would otherwise throw `Corrupt events.settings` on
+      // the first read of every event on the box.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ allowGuestSave: undefined }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.allowGuestSave).toBe(false)
+    })
+
+    it.each([true, false])(
+      'keeps a stored allowGuestSave of %s through the JSON column',
+      async (stored) => {
+        await repo.save(anEvent({ id: 'evt-1' }))
+        db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+          json({ allowGuestSave: stored }),
+          'evt-1',
+        )
+
+        expect((await repo.findById(asEventId('evt-1')))?.settings.allowGuestSave).toBe(stored)
+      },
+    )
 
     it('reads an event written before the wall had a language as French', async () => {
       // The upgrade path for roadmap 1.5, and the **opposite** answer to `allowClips`

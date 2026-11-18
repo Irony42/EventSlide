@@ -1308,6 +1308,8 @@ export const de: UiText = {
     templatePreviewSample: 'Ihre Veranstaltung',
     templateClipsOn: 'Videos erlaubt',
     templateClipsOff: 'Videos deaktiviert',
+    templateGuestSaveOn: 'Gäste können Fotos speichern',
+    templateGuestSaveOff: 'Speichern von Fotos für Gäste deaktiviert',
     templateNames: {
       wedding: 'Hochzeit',
       birthday: 'Geburtstag',

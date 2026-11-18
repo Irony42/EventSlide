@@ -89,6 +89,15 @@ export interface EventSettingsProps {
    */
   readonly allowGuestbook: boolean
   /**
+   * Whether a guest may save another guest's photograph from the feed (spec 24).
+   *
+   * The host's switch over the feature. **Off for an event that exists**: an absent key reads as
+   * `false` (`sqliteEventRepository.settingsOf`), because letting guests carry copies of each
+   * other's photographs home is not a change an upgrade may make for a host who was never asked.
+   * A new event gets `true` (the Conference template turns it off).
+   */
+  readonly allowGuestSave: boolean
+  /**
    * Whether published messages are shown on the projected wall. The reverse concession: an event
    * that predates the field reads `true`, because the host who turns the guestbook on has not
    * been asked to turn the wall on as well. It only matters once `allowGuestbook` has been on.
@@ -175,6 +184,8 @@ const DEFAULTS: EventSettingsProps = {
   // event that already exists is read back as off (`settingsBooleanAddedLater`), so an upgrade
   // opens nothing for a host who was never asked.
   allowGuestbook: true,
+  // On for a **new** event (spec 24); an event that already exists reads back as off.
+  allowGuestSave: true,
   guestbookOnWall: true,
   allowGuestSelfDelete: true,
   guestSelfDeleteGraceSeconds: 900,
@@ -300,6 +311,7 @@ export class EventSettings {
       allowReactions: pick(patch.allowReactions, base.allowReactions),
       allowClips: pick(patch.allowClips, base.allowClips),
       allowGuestbook: pick(patch.allowGuestbook, base.allowGuestbook),
+      allowGuestSave: pick(patch.allowGuestSave, base.allowGuestSave),
       guestbookOnWall: pick(patch.guestbookOnWall, base.guestbookOnWall),
       allowGuestSelfDelete: pick(patch.allowGuestSelfDelete, base.allowGuestSelfDelete),
       guestSelfDeleteGraceSeconds: pick(
@@ -366,6 +378,10 @@ export class EventSettings {
 
   get allowGuestbook(): boolean {
     return this.props.allowGuestbook
+  }
+
+  get allowGuestSave(): boolean {
+    return this.props.allowGuestSave
   }
 
   get guestbookOnWall(): boolean {

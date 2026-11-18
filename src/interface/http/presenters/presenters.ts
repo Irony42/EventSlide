@@ -357,6 +357,7 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
   allowReactions: settings.allowReactions,
   allowClips: settings.allowClips,
   allowGuestbook: settings.allowGuestbook,
+  allowGuestSave: settings.allowGuestSave,
   guestbookOnWall: settings.guestbookOnWall,
   allowGuestSelfDelete: settings.allowGuestSelfDelete,
   guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
@@ -925,6 +926,7 @@ export const toWallResponseDto = (
       volume: view.event.settings.wall.soundVolume,
     },
     reactionsEnabled: view.event.settings.allowReactions,
+    guestSaveEnabled: view.event.settings.allowGuestSave,
     missions: view.missions.map(toWallMissionDto),
     // Absent rather than empty: an older wall and a room with nothing to read look alike.
     ...(view.guestbook === null ? {} : { guestbook: toWallGuestbookDto(view.guestbook) }),

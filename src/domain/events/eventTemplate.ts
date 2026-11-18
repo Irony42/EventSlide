@@ -173,6 +173,9 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
    * is on behind a stage all day.
    */
   conference: {
+    // Off. Colleagues on their own phones, and a thirty-day retention: a copy that leaves the box
+    // cannot be purged with it. The host who wants it turns it on (spec 24 §5.8).
+    allowGuestSave: false,
     // Off. A clip on the wall during a talk is a distraction in a room that is meant to
     // be looking at a speaker, and an eighty-megabyte upload is the wrong use of a venue
     // link three hundred laptops are already sharing. The one template that takes a

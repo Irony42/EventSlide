@@ -1143,7 +1143,8 @@ The projected wall. Public read of **published** photos only — the read path i
 structurally incapable of returning a pending photo.
 
 The guest's phone reads it too, for "Les photos de la soirée" (§3, reactions): the same
-photographs the room sees, and `reactionsEnabled` as the host's switch stands now.
+photographs the room sees, and `reactionsEnabled` as the host's switch stands now. `guestSaveEnabled` (spec 24) is the value of the
+host's `allowGuestSave` at the time of the read: additive, public, and read again at the feed's next refresh.
 
 **No query parameter this endpoint acts on.** In particular there is no `layout`: the
 layout a room sees is a presentation choice belonging to the screen showing it, not a
@@ -1197,6 +1198,7 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
   "joinCard": { "visible": true, "scale": 1, "placement": "bottom-end" },
   "sound": { "enabled": false, "tone": "chime", "volume": 50 },
   "reactionsEnabled": true,
+  "guestSaveEnabled": true,
   "theme": {
     "accentHue": 345,
     "fonts": "serif",
@@ -3366,6 +3368,7 @@ The shape every route in the table that answers `200` returns.
     "allowReactions": true,
     "allowClips": true,
     "allowGuestbook": false,
+    "allowGuestSave": true,
     "guestbookOnWall": true,
     "allowGuestSelfDelete": true,
     "guestSelfDeleteGraceSeconds": 900,
@@ -3531,6 +3534,7 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
   "allowReactions": true,
   "allowClips": true,
   "allowGuestbook": false,
+  "allowGuestSave": true,
   "guestbookOnWall": true,
   "allowGuestSelfDelete": true,
   "guestSelfDeleteGraceSeconds": 900,
@@ -3552,6 +3556,7 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 | `allowCaptions`               | boolean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `allowReactions`              | boolean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `allowClips`                  | boolean — see below                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `allowGuestSave`              | boolean — the host's switch over guests saving another guest's photograph from the feed (spec 24); on for a new event, off for an event that predates it; the Conference template sets it off                                                                                                                                                                                                                                                                                                  |
 | `allowGuestbook`              | boolean — the host's switch over written guestbook messages (spec 01); off for an event that predates it                                                                                                                                                                                                                                                                                                                                                                                       |
 | `guestbookOnWall`             | boolean — whether published messages appear on the projected wall (spec 01)                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `allowGuestSelfDelete`        | boolean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
