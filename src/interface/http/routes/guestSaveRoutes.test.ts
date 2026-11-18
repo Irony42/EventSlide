@@ -134,7 +134,12 @@ const buildSubject = (
           deps,
           ...options.limiters,
           usecases: {
-            saveGuestPhoto: makeSaveGuestPhoto({ events: deps.events, photos, media }),
+            saveGuestPhoto: makeSaveGuestPhoto({
+              events: deps.events,
+              photos,
+              media,
+              engagement: async () => undefined,
+            }),
           } as unknown as GuestRouteDeps['usecases'],
         }),
       )
@@ -439,7 +444,12 @@ describe('through the assembled server', () => {
         },
       },
     })
-    built.current = makeSaveGuestPhoto({ events: assembled.events, photos, media })
+    built.current = makeSaveGuestPhoto({
+      events: assembled.events,
+      photos,
+      media,
+      engagement: async () => undefined,
+    })
     const harness = assembled
     harness.events.seed(anEvent({ id: WEDDING, slug: SLUG, joinCode: 'H7K2QM' }))
     harness.guests.seed(aGuest({ id: GUEST, eventId: WEDDING, displayName: 'Léa' }))

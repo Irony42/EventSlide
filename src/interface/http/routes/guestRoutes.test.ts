@@ -254,7 +254,12 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               clock: deps.clock,
             }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
-            saveGuestPhoto: makeSaveGuestPhoto({ events: deps.events, photos, media }),
+            saveGuestPhoto: makeSaveGuestPhoto({
+              events: deps.events,
+              photos,
+              media,
+              engagement: async () => undefined,
+            }),
             getGuestChecklist: makeGetGuestChecklist({
               events: deps.events,
               missions,

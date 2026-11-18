@@ -267,6 +267,7 @@ export const eventStatsRepositoryContract = (
 
     it('keeps a counter per metric and per day, oldest day first', async () => {
       await repo.bump(A, 'galleryArchiveDownloads', '2026-11-15', 1)
+      await repo.bump(A, 'guestSaves', '2026-11-15', 3)
       await repo.bump(A, 'galleryViews', '2026-11-15', 5)
       await repo.bump(A, 'galleryViews', '2026-11-14', 2)
 
@@ -274,6 +275,7 @@ export const eventStatsRepositoryContract = (
         { metric: 'galleryViews', day: '2026-11-14', value: 2 },
         { metric: 'galleryArchiveDownloads', day: '2026-11-15', value: 1 },
         { metric: 'galleryViews', day: '2026-11-15', value: 5 },
+        { metric: 'guestSaves', day: '2026-11-15', value: 3 },
       ])
     })
 

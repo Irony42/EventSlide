@@ -5,7 +5,13 @@ import { asEventId, asPhotoId } from '../../../domain/shared/ids'
 import { AT, aClip, aPhoto, anEvent, type PhotoInput } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
+import { CapturingLogger } from '../../testing/capturingLogger'
+import { FakeClock } from '../../testing/fakeClock'
+import { FakeEventStatsRepository } from '../../testing/fakeEventStatsRepository'
+import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
+import { FakeReactionRepository } from '../../testing/fakeReactionRepository'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
+import { makeRecordEngagement } from '../stats/recordEngagement'
 import { makeSaveGuestPhoto, type SaveGuestPhoto } from './saveGuestPhoto'
 
 const EVENT = asEventId('event-1')
@@ -19,6 +25,7 @@ describe('saveGuestPhoto', () => {
   let events: FakeEventRepository
   let photos: FakePhotoRepository
   let media: InMemoryMediaStore
+  let stats: FakeEventStatsRepository
   let save: SaveGuestPhoto
 
   beforeEach(() => {
@@ -27,7 +34,21 @@ describe('saveGuestPhoto', () => {
     )
     photos = new FakePhotoRepository()
     media = new InMemoryMediaStore().forbidEnumeration('a guest save')
-    save = makeSaveGuestPhoto({ events, photos, media })
+    stats = new FakeEventStatsRepository(
+      photos,
+      new FakeGuestRepository(photos),
+      new FakeReactionRepository(),
+    )
+    save = makeSaveGuestPhoto({
+      events,
+      photos,
+      media,
+      engagement: makeRecordEngagement({
+        stats,
+        clock: new FakeClock(AT),
+        logger: new CapturingLogger(),
+      }),
+    })
   })
 
   const seed = async (input: PhotoInput = {}) => {
@@ -219,5 +240,62 @@ describe('saveGuestPhoto', () => {
     const bytes = await result.value.open()
     expect(bytes).not.toBeNull()
     expect(media.opened).toBe(1)
+  })
+
+  describe('the guestSaves counter', () => {
+    it('counts one save per granted request, an integer for the event and the UTC day', async () => {
+      await seed()
+
+      await save({ eventId: EVENT, photoId: PHOTO })
+      await save({ eventId: EVENT, photoId: PHOTO })
+
+      expect(await stats.readCounters(EVENT)).toEqual([
+        { metric: 'guestSaves', day: '2026-06-20', value: 2 },
+      ])
+    })
+
+    it('counts it before a byte is read: a request, not a finished download', async () => {
+      await seed()
+
+      const result = await save({ eventId: EVENT, photoId: PHOTO })
+
+      expect(result.ok).toBe(true)
+      expect(media.opened).toBe(0)
+      expect((await stats.readCounters(EVENT)).map(({ value }) => value)).toEqual([1])
+    })
+
+    it('counts nothing for a refusal: hidden, missing bytes, unknown, other event, switch off', async () => {
+      await seed({ id: 'hidden', status: 'hidden' })
+      photos.seed(aPhoto({ id: 'gone', eventId: 'event-1', status: 'published' }))
+
+      await refusal(EVENT, asPhotoId('hidden'))
+      await refusal(EVENT, asPhotoId('gone'))
+      await refusal(EVENT, asPhotoId('nobody'))
+      await refusal(asEventId('other'), PHOTO)
+      events.seed(anEvent({ id: 'event-1', slug: SLUG, settings: { allowGuestSave: false } }))
+      await refusal(EVENT, asPhotoId('hidden'))
+
+      expect(await stats.readCounters(EVENT)).toEqual([])
+    })
+
+    it('does not fail the save when the counter cannot be written', async () => {
+      await seed()
+      const failing = makeSaveGuestPhoto({
+        events,
+        photos,
+        media,
+        engagement: makeRecordEngagement({
+          stats: {
+            bump: async () => {
+              throw new Error('database is locked')
+            },
+          },
+          clock: new FakeClock(AT),
+          logger: new CapturingLogger(),
+        }),
+      })
+
+      expect((await failing({ eventId: EVENT, photoId: PHOTO })).ok).toBe(true)
+    })
   })
 })
