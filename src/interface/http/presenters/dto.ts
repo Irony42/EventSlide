@@ -216,7 +216,8 @@ export interface ErasedContributionDto {
 /** One of a guest's own guestbook messages (`GET /api/events/:slug/guestbook/mine`). */
 export interface GuestbookEntryDto {
   readonly id: string
-  readonly text: string
+  /** `null` for a voice message (spec 25), whose words are its recording; a written one always has it. */
+  readonly text: string | null
   readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
   readonly createdAt: string
   /** The server's verdict (`GuestbookEntry.deletionVerdict`): the phone never recomputes it. */
@@ -234,7 +235,8 @@ export interface MyGuestbookDto {
 /** One message in the host's reading of the guestbook (`GET /api/events/:slug/guestbook`). */
 export interface GuestbookQueueItemDto {
   readonly id: string
-  readonly text: string
+  /** `null` for a voice message (spec 25), whose words are its recording; a written one always has it. */
+  readonly text: string | null
   /** `null` for a guest who gave no name or whose row is gone; the client words that. */
   readonly authorName: string | null
   readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
@@ -252,7 +254,8 @@ export interface GuestbookQueueDto {
 /** What a message just written answers (`POST /api/events/:slug/guestbook`). */
 export interface CreatedGuestbookEntryDto {
   readonly id: string
-  readonly text: string
+  /** `null` for a voice message (spec 25), whose words are its recording; a written one always has it. */
+  readonly text: string | null
   readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
   readonly createdAt: string
   /** True when this was the same message sent a moment ago: nothing new was stored. */

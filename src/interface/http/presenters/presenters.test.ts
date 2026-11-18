@@ -5,7 +5,10 @@ import {
   toClientAuditPageDto,
   toEventDto,
   toEventBrandDto,
+  toCreatedGuestbookEntryDto,
   toEventSettingsDto,
+  toGuestbookEntryDto,
+  toGuestbookQueueItemDto,
   toGuestDto,
   toGuestPhotoDto,
   toInvitationAcceptedDto,
@@ -20,7 +23,14 @@ import {
   venueGroundUrl,
 } from './presenters'
 import type { AuditRecord } from '../../../application/ports/auditLog'
-import { AT, aGuest, aPhoto, anEvent } from '../../../application/testing/builders'
+import {
+  AT,
+  aGuest,
+  aGuestbookEntry,
+  aPhoto,
+  aVoiceEntry,
+  anEvent,
+} from '../../../application/testing/builders'
 import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
 import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
 import { ContentHash } from '../../../domain/photos/contentHash'
@@ -800,5 +810,40 @@ describe('a per-file upload refusal', () => {
       status: 'rejected',
       code: 'image.renderUnavailable',
     })
+  })
+})
+
+describe('the guestbook DTOs and a voice message (spec 25)', () => {
+  const written = aGuestbookEntry({ id: 'w1', text: 'Merci pour tout', createdAt: AT })
+  const voice = aVoiceEntry({ id: 'v1', state: 'ready', caption: 'Pour Camille', createdAt: AT })
+
+  it('carries the words of a written message, as it always did', () => {
+    expect(toGuestbookEntryDto(written, true)).toEqual({
+      id: 'w1',
+      text: 'Merci pour tout',
+      status: 'pending',
+      createdAt: AT.toISOString(),
+      canDelete: true,
+    })
+    expect(toGuestbookQueueItemDto(written, 'Léa').text).toBe('Merci pour tout')
+    expect(toCreatedGuestbookEntryDto(written, false).text).toBe('Merci pour tout')
+  })
+
+  it('says null where a voice message has no words, on the guest’s row, the host’s and the answer', () => {
+    expect(toGuestbookEntryDto(voice, false).text).toBeNull()
+    expect(toGuestbookQueueItemDto(voice, null).text).toBeNull()
+    expect(toCreatedGuestbookEntryDto(voice, true).text).toBeNull()
+  })
+
+  it('never leaks the caption, the digests or the recording into a field that is not declared', () => {
+    const wire = JSON.stringify([
+      toGuestbookEntryDto(voice, false),
+      toGuestbookQueueItemDto(voice, 'Léa'),
+      toCreatedGuestbookEntryDto(voice, false),
+    ])
+
+    expect(wire).not.toContain('Pour Camille')
+    expect(wire).not.toContain(voice.voice?.sourceHash.value ?? 'x')
+    expect(wire).not.toContain('audio')
   })
 })
