@@ -1856,6 +1856,8 @@ export const en: UiText = {
     sealedCard: 'Kept secret until the end of the evening',
     sealedCardReveal: 'Kept secret until the evening is revealed',
     sealedUntil: (time: string) => `Kept secret until ${time}`,
+    sealedUntilOrReveal: (time: string) =>
+      `Kept secret until ${time}, or until the evening is revealed if that comes first`,
     notListened: 'You have not listened to this message',
     cannotHide: 'A voice message cannot be hidden: it is never on the screen.',
     keepPending: (count: number) =>

@@ -1943,6 +1943,8 @@ export const de: UiText = {
     sealedCard: 'Geheim gehalten bis zum Ende des Abends',
     sealedCardReveal: 'Geheim gehalten bis zur Enthüllung des Abends',
     sealedUntil: (time: string) => `Geheim gehalten bis ${time}`,
+    sealedUntilOrReveal: (time: string) =>
+      `Geheim gehalten bis ${time} oder bis zur Enthüllung des Abends`,
     notListened: 'Sie haben diese Nachricht nicht angehört',
     cannotHide: 'Eine Sprachnachricht lässt sich nicht ausblenden: Sie ist nie auf dem Bildschirm.',
     keepPending: (count: number) =>

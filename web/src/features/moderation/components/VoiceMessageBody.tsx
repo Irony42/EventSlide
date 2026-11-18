@@ -51,7 +51,9 @@ export function VoiceMessageBody({
       ? opensWithReveal
         ? copy.sealedCardReveal
         : copy.sealedCard
-      : copy.sealedUntil(guestbookDateFormat(locale)(new Date(opensAtMs).toISOString()))
+      : (opensWithReveal ? copy.sealedUntilOrReveal : copy.sealedUntil)(
+          guestbookDateFormat(locale)(new Date(opensAtMs).toISOString()),
+        )
 
   return (
     <div className={styles['voice']} data-sealed={sealed ? 'true' : undefined}>

@@ -27,8 +27,17 @@ describe('VoiceMessageBody, kept secret', () => {
     expect(screen.queryByText(fr.guestbookVoiceHost.sealedCard)).toBeNull()
   })
 
-  it('names the hour the host chose, reveal or not', () => {
+  it('names the hour, and the reveal if it can come first', () => {
     render({ opensAtMs: 1_800_000_000_000, opensWithReveal: true })
     expect(screen.queryByText(fr.guestbookVoiceHost.sealedCardReveal)).toBeNull()
+    expect(
+      screen.getByText(/ou jusqu’à la révélation de la soirée si elle vient avant/),
+    ).toBeVisible()
+  })
+
+  it('names the hour alone with the reveal off', () => {
+    render({ opensAtMs: 1_800_000_000_000 })
+    expect(screen.queryByText(/si elle vient avant/)).toBeNull()
+    expect(screen.getByText(/^Gardé secret jusqu’à /)).toBeVisible()
   })
 })

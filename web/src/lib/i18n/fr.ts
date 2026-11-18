@@ -2058,6 +2058,8 @@ export const fr = {
     sealedCard: 'Gardé secret jusqu’à la fin de la soirée',
     sealedCardReveal: 'Gardé secret jusqu’à la révélation de la soirée',
     sealedUntil: (time: string) => `Gardé secret jusqu’à ${time}`,
+    sealedUntilOrReveal: (time: string) =>
+      `Gardé secret jusqu’à ${time}, ou jusqu’à la révélation de la soirée si elle vient avant`,
     notListened: 'Vous n’avez pas écouté ce message',
     cannotHide: 'Un message vocal ne se masque pas : il n’est jamais à l’écran.',
     keepPending: (count: number) =>
