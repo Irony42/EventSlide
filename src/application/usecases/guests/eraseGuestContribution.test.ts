@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asEventId, asGuestId, asGuestbookEntryId, asPhotoId } from '../../../domain/shared/ids'
-import { MEDIA_VARIANTS } from '../../../domain/photos/mediaVariant'
+import { MEDIA_VARIANTS, STAGED_SOURCE } from '../../../domain/photos/mediaVariant'
 import {
   aClip,
   aClipJob,
@@ -9,6 +9,7 @@ import {
   anEvent,
   aPhoto,
   aReaction,
+  aVoiceEntry,
   type PhotoInput,
 } from '../../testing/builders'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
@@ -16,6 +17,7 @@ import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
+import { FakeGuestbookVoiceRepository } from '../../testing/fakeGuestbookVoiceRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../testing/fakeReactionRepository'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
@@ -58,6 +60,7 @@ describe('eraseGuestContribution', () => {
       reactions,
       clips,
       guestbook,
+      voices: new FakeGuestbookVoiceRepository(guestbook),
       media,
       bus,
       clock,
@@ -430,6 +433,154 @@ describe('eraseGuestContribution', () => {
 
       expect(!result.ok && result.error.code).toBe('photo.deleteFailed')
       expect(guestbook.all(GUESTBOOK_EVENT)).toHaveLength(1)
+    })
+  })
+
+  describe('the voice messages (spec 25)', () => {
+    const VOICE_EVENT = asEventId('event-1')
+    const bytesOf = (seed: number): Uint8Array => new Uint8Array([seed, seed, seed])
+
+    /** A recording the box finished: the output is on the disk under its digest. */
+    const seedReady = async (id: string, guestId: string, eventId = 'event-1') => {
+      const entry = aVoiceEntry({ id, guestId, eventId, state: 'ready', moderation: 'auto' })
+      guestbook.seed(entry)
+      const hash = entry.voice?.audioHash
+      if (hash === null || hash === undefined) throw new Error('fixture')
+      await media.put(entry.eventId, hash, 'voice', bytesOf(1))
+      return { entry, hash }
+    }
+
+    /** A recording still being processed: its source is on the disk. */
+    const seedQueued = async (id: string, guestId: string, sourceHash?: string) => {
+      const entry = aVoiceEntry({
+        id,
+        guestId,
+        eventId: 'event-1',
+        state: 'queued',
+        ...(sourceHash === undefined ? {} : { sourceHash }),
+      })
+      guestbook.seed(entry)
+      const hash = entry.voice?.sourceHash
+      if (hash === undefined) throw new Error('fixture')
+      await media.put(entry.eventId, hash, STAGED_SOURCE, bytesOf(2))
+      return { entry, hash }
+    }
+
+    it('takes the output of a recording with it, the row and the bytes, and counts it as a message', async () => {
+      const { hash } = await seedReady('v1', 'guest-lea')
+
+      const result = await run()
+
+      expect(result).toEqual({ ok: true, value: { photos: 0, clips: 0, messages: 1 } })
+      expect(guestbook.all(VOICE_EVENT)).toEqual([])
+      expect(await media.exists(VOICE_EVENT, hash, 'voice')).toBe(false)
+      expect(media.objectCount).toBe(0)
+    })
+
+    it('takes the source of a recording the worker has not finished with it', async () => {
+      const { hash } = await seedQueued('v1', 'guest-lea')
+
+      await run()
+
+      expect(await media.exists(VOICE_EVENT, hash, STAGED_SOURCE)).toBe(false)
+      expect(guestbook.all(VOICE_EVENT)).toEqual([])
+    })
+
+    it('deletes the bytes while the row that names them is still there, never the other way round', async () => {
+      await seedReady('v1', 'guest-lea')
+      await seedQueued('v2', 'guest-lea')
+      const rowsWhenBytesWent: number[] = []
+      const deleteBytes = media.delete.bind(media)
+      media.delete = async (...args) => {
+        rowsWhenBytesWent.push(guestbook.all(VOICE_EVENT).length)
+        return deleteBytes(...args)
+      }
+
+      await run()
+
+      expect(rowsWhenBytesWent).toEqual([2, 2])
+    })
+
+    it('stops with the rows still in place when a recording cannot be deleted, so pressing the button again finishes', async () => {
+      await seedReady('v1', 'guest-lea')
+      media.failDeletes()
+
+      await expect(run()).rejects.toThrow()
+
+      expect(guestbook.all(VOICE_EVENT)).toHaveLength(1)
+      expect(await guests.findById(EVENT, LEA)).not.toBeNull()
+    })
+
+    it('leaves the bytes of a fresh attempt alone when the guest’s own failed voice names the same digest', async () => {
+      const failed = aVoiceEntry({
+        id: 'v-failed',
+        guestId: 'guest-lea',
+        eventId: 'event-1',
+        state: 'failed',
+      })
+      guestbook.seed(failed)
+      const digest = failed.voice?.sourceHash.value
+      if (digest === undefined) throw new Error('fixture')
+      // Sam's attempt at the very same bytes, which a failed voice does not block.
+      const { hash } = await seedQueued('v-sam', 'guest-sam', digest)
+
+      const result = await run()
+
+      expect(result.ok && result.value.messages).toBe(1)
+      expect(await media.exists(VOICE_EVENT, hash, STAGED_SOURCE)).toBe(true)
+      expect(guestbook.all(VOICE_EVENT).map((row) => row.id)).toEqual(['v-sam'])
+    })
+
+    it('leaves the recordings of another guest and of another event alone', async () => {
+      await seedReady('v-lea', 'guest-lea')
+      const sam = await seedReady('v-sam', 'guest-sam')
+      guests.seed(aGuest({ id: 'guest-lea', eventId: 'event-2' }))
+      const other = await seedReady('v-other', 'guest-lea', 'event-2')
+
+      await run()
+
+      expect(guestbook.all(VOICE_EVENT).map((row) => row.id)).toEqual(['v-sam'])
+      expect(await media.exists(VOICE_EVENT, sam.hash, 'voice')).toBe(true)
+      expect(guestbook.all(OTHER_EVENT).map((row) => row.id)).toEqual(['v-other'])
+      expect(await media.exists(OTHER_EVENT, other.hash, 'voice')).toBe(true)
+    })
+
+    it('keeps a recording the operator took down, with its bytes, which are evidence', async () => {
+      const { hash } = await seedReady('v-down', 'guest-lea')
+      guestbook.takeDown(VOICE_EVENT, asGuestbookEntryId('v-down'), new Date(0))
+
+      const result = await run()
+
+      expect(result.ok && result.value.messages).toBe(0)
+      expect(guestbook.all(VOICE_EVENT)).toHaveLength(1)
+      expect(await media.exists(VOICE_EVENT, hash, 'voice')).toBe(true)
+    })
+
+    it('touches no byte on a purge-held event, and fails generically', async () => {
+      const { hash } = await seedReady('v1', 'guest-lea')
+      await events.setPurgeHeld(EVENT, new Date(0))
+
+      const result = await run()
+
+      expect(!result.ok && result.error.code).toBe('photo.deleteFailed')
+      expect(await media.exists(VOICE_EVENT, hash, 'voice')).toBe(true)
+      expect(guestbook.all(VOICE_EVENT)).toHaveLength(1)
+    })
+
+    it('tells the console, which reads voices on a signal of its own, and not only the wall', async () => {
+      await seedReady('v1', 'guest-lea')
+
+      await run()
+
+      expect(bus.published.map((event) => event.type)).toContain('guestbook.voice')
+    })
+
+    it('says nothing on that signal when the guest had no recording', async () => {
+      guestbook.seed(aGuestbookEntry({ id: 'm1', guestId: 'guest-lea', moderation: 'auto' }))
+
+      await run()
+
+      expect(bus.published.map((event) => event.type)).not.toContain('guestbook.voice')
     })
   })
 })

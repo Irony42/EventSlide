@@ -6,14 +6,24 @@ import {
   asPhotoId,
   asUserId,
 } from '../../../domain/shared/ids'
-import { AT, aGuest, aGuestbookEntry, aPhoto, anEvent, atPlus } from '../../testing/builders'
+import {
+  AT,
+  aGuest,
+  aGuestbookEntry,
+  aPhoto,
+  aVoiceEntry,
+  anEvent,
+  atPlus,
+} from '../../testing/builders'
 import { EXPORT_EVENT, ExportScene } from '../../testing/exportScene'
 import { FakeAuditLog } from '../../testing/fakeAuditLog'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
+import { FakeGuestbookVoiceRepository } from '../../testing/fakeGuestbookVoiceRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { FakeReactionRepository } from '../../testing/fakeReactionRepository'
 import { makeChangeEventStatus } from '../events/changeEventStatus'
 import { makeApplyEventSchedules } from '../events/applyEventSchedules'
+import { makeDeleteGuestbookEntry } from '../guestbook/deleteGuestbookEntry'
 import { makeModerateGuestbookEntry } from '../guestbook/moderateGuestbookEntry'
 import { makeEraseGuestContribution } from '../guests/eraseGuestContribution'
 import { makeModeratePhoto } from '../moderation/moderatePhoto'
@@ -244,6 +254,7 @@ describe('the archive and the ways out of the evening', () => {
       reactions: new FakeReactionRepository(),
       clips: new FakeClipJobRepository(),
       guestbook,
+      voices: new FakeGuestbookVoiceRepository(guestbook),
       media: scene.media,
       bus: scene.bus,
       clock: scene.clock,
@@ -422,6 +433,146 @@ describe('the archive and the ways out of the evening', () => {
     })
 
     await expectUntouched()
+  })
+
+  // ------------------------------------------------------ the voice messages (spec 25) --
+
+  describe('9. the voice messages', () => {
+    /** A recording the box finished, published on arrival, whose output is on the disk. */
+    const seedVoice = async (
+      id: string,
+      guest: string,
+      input: { readonly moderation?: 'manual' | 'auto'; readonly state?: 'ready' | 'failed' } = {},
+    ) => {
+      const entry = aVoiceEntry({
+        id,
+        guestId: guest,
+        eventId: 'event-1',
+        state: input.state ?? 'ready',
+        moderation: input.moderation ?? 'auto',
+        // Just now: inside the grace window a guest has to take a recording back.
+        createdAt: scene.clock.now(),
+      })
+      scene.guestbook.seed(entry)
+      const hash = entry.voice?.audioHash
+      if (hash !== null && hash !== undefined) {
+        await scene.media.put(entry.eventId, hash, 'voice', new Uint8Array([4, 4]))
+      }
+    }
+
+    const guestDeleter = () =>
+      makeDeleteGuestbookEntry({
+        events: scene.events,
+        guestbook: scene.guestbook,
+        voices: scene.voices,
+        media: scene.media,
+        bus: scene.bus,
+        clock: scene.clock,
+        invalidateExport,
+      })
+
+    it('9a. a guest erasing their contribution retires the archive for the recording it holds, before its bytes go', async () => {
+      await seedVoice('v1', 'guest-new')
+
+      await eraser()({ eventId: EXPORT_EVENT, guestId: asGuestId('guest-new') })
+
+      await expectRetired('guestbookChanged')
+      expectRetiredBeforeTheBytes()
+    })
+
+    it('9b. a guest whose only recording failed leaves the archive alone: it was never in it', async () => {
+      await seedVoice('v1', 'guest-new', { state: 'failed' })
+
+      await eraser()({ eventId: EXPORT_EVENT, guestId: asGuestId('guest-new') })
+
+      await expectUntouched()
+    })
+
+    it('9c. a guest taking back a published recording retires the archive, before its bytes go', async () => {
+      await seedVoice('v1', 'guest-new')
+
+      const result = await guestDeleter()({
+        eventId: EXPORT_EVENT,
+        entryId: asGuestbookEntryId('v1'),
+        guestId: asGuestId('guest-new'),
+      })
+
+      expect(result.ok).toBe(true)
+      await expectRetired('guestbookChanged')
+      expectRetiredBeforeTheBytes()
+    })
+
+    it('9d. a recording waiting for a decision, or one that failed, was not in the archive: removing it leaves it alone', async () => {
+      await seedVoice('v-wait', 'guest-new', { moderation: 'manual' })
+      await seedVoice('v-failed', 'guest-new', { state: 'failed' })
+
+      for (const id of ['v-wait', 'v-failed']) {
+        await guestDeleter()({
+          eventId: EXPORT_EVENT,
+          entryId: asGuestbookEntryId(id),
+          guestId: asGuestId('guest-new'),
+        })
+      }
+
+      await expectUntouched()
+    })
+
+    it('9e. a removal refused under the hold changes nothing: the archive stays', async () => {
+      await seedVoice('v1', 'guest-new')
+      await scene.events.setPurgeHeld(EXPORT_EVENT, AT)
+
+      const result = await guestDeleter()({
+        eventId: EXPORT_EVENT,
+        entryId: asGuestbookEntryId('v1'),
+        guestId: asGuestId('guest-new'),
+      })
+
+      expect(!result.ok && result.error.code).toBe('guestbook.deleteFailed')
+      await expectUntouched()
+    })
+
+    it('9f. the host refusing a published recording retires the archive; hiding it is not possible', async () => {
+      await seedVoice('v1', 'guest-new')
+
+      const hidden = await guestbookModerator()({
+        eventId: EXPORT_EVENT,
+        entryId: asGuestbookEntryId('v1'),
+        decision: 'hide',
+        actor: hostActor,
+      })
+      await expectUntouched()
+      await guestbookModerator()({
+        eventId: EXPORT_EVENT,
+        entryId: asGuestbookEntryId('v1'),
+        decision: 'reject',
+        actor: hostActor,
+      })
+
+      expect(!hidden.ok && hidden.error.code).toBe('guestbook.voiceCannotHide')
+      await expectRetired('guestbookChanged')
+    })
+
+    it('9g. the operator taking a recording down retires the archive, with its bytes left where they are', async () => {
+      await seedVoice('v1', 'guest-new')
+      const audit = new FakeAuditLog().withAccounts(OPERATOR.userId)
+      const takeDown = makeSetGuestbookTakedown({
+        guestbook: scene.guestbook,
+        audit,
+        bus: scene.bus,
+        clock: scene.clock,
+        invalidateExport,
+      })
+
+      await takeDown({
+        entryId: asGuestbookEntryId('v1'),
+        down: true,
+        reason: REASON,
+        actor: OPERATOR,
+      })
+
+      await expectRetired('takenDown')
+      expect(statusWhenBytesWentAt).toEqual([])
+    })
   })
 
   // --------------------------------------------------------------------- reopening --

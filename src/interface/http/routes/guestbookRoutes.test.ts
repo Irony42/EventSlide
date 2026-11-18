@@ -10,6 +10,8 @@ import { asEventId } from '../../../domain/shared/ids'
 import { AT, aGuest, aGuestbookEntry, anEvent } from '../../../application/testing/builders'
 import { FakeAudioTranscoder } from '../../../application/testing/fakeAudioTranscoder'
 import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
+import { FakeGuestbookVoiceRepository } from '../../../application/testing/fakeGuestbookVoiceRepository'
+import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 import { makeCreateGuestbookEntry } from '../../../application/usecases/guestbook/createGuestbookEntry'
 import { makeDeleteGuestbookEntry } from '../../../application/usecases/guestbook/deleteGuestbookEntry'
 import { makeListMyGuestbookEntries } from '../../../application/usecases/guestbook/listMyGuestbookEntries'
@@ -93,6 +95,8 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
             deleteGuestbookEntry: makeDeleteGuestbookEntry({
               events: deps.events,
               guestbook,
+              voices: new FakeGuestbookVoiceRepository(guestbook),
+              media: new InMemoryMediaStore(),
               bus: deps.bus,
               clock: deps.clock,
             }),

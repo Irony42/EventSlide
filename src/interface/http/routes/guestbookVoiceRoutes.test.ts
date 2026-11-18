@@ -192,6 +192,8 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
             deleteGuestbookEntry: makeDeleteGuestbookEntry({
               events: deps.events,
               guestbook,
+              voices,
+              media,
               bus: deps.bus,
               clock: deps.clock,
             }),

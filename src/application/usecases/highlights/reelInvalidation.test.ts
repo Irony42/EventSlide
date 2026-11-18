@@ -6,6 +6,7 @@ import { CapturingLogger } from '../../testing/capturingLogger'
 import { FakeAuditLog } from '../../testing/fakeAuditLog'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
+import { FakeGuestbookVoiceRepository } from '../../testing/fakeGuestbookVoiceRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeContentHasher } from '../../testing/fakeContentHasher'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -230,6 +231,7 @@ describe('the highlight reel and the five ways out of the evening', () => {
       reactions: new FakeReactionRepository(),
       clips: new FakeClipJobRepository(),
       guestbook: new FakeGuestbookRepository(),
+      voices: new FakeGuestbookVoiceRepository(new FakeGuestbookRepository()),
       media,
       bus,
       clock,
@@ -252,6 +254,7 @@ describe('the highlight reel and the five ways out of the evening', () => {
       reactions: new FakeReactionRepository(),
       clips: new FakeClipJobRepository(),
       guestbook: new FakeGuestbookRepository(),
+      voices: new FakeGuestbookVoiceRepository(new FakeGuestbookRepository()),
       media,
       bus,
       clock,
