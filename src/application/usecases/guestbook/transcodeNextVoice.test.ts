@@ -5,9 +5,11 @@ import { VOICE_MIN_MS } from '../../../domain/guestbook/guestbookVoiceLimits'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import { STAGED_SOURCE } from '../../../domain/photos/mediaVariant'
 import { asEventId, asGuestbookEntryId } from '../../../domain/shared/ids'
+import { ok } from '../../../domain/shared/result'
 import {
   AT,
   aClient,
+  aGuestbookEntry,
   aPhoto,
   aVoiceEntry,
   anEvent,
@@ -514,6 +516,59 @@ describe('transcodeNextVoice', () => {
       expect(failedWith(result)).toBe('voice.storageFailed')
       expect(media.objectCount).toBe(1)
       expect((await voiceOf())?.state).toBe('queued')
+    })
+  })
+
+  describe('what the entity and the database refuse', () => {
+    it('refuses an output that cannot say how long it is, takes it back, and tries again', async () => {
+      seedEvent()
+      await stage()
+      transcoder.transcode = async () =>
+        ok({ bytes: new Uint8Array([1, 2, 3]), byteSize: 3, durationMs: 0 })
+
+      const result = await transcodeNext()
+
+      expect(failedWith(result)).toBe('voice.outputInvalid')
+      expect(media.objectCount).toBe(1)
+      expect((await voiceOf())?.state).toBe('queued')
+    })
+
+    it('leaves the output for the sweep when it cannot ask which messages name it', async () => {
+      seedEvent()
+      await stage()
+      const put = media.put.bind(media)
+      media.put = async (...args) => {
+        await put(...args)
+        await voices.deleteByEntry(EVENT, ENTRY)
+      }
+      voices.listReferencedDigests = async () => {
+        throw new Error('database is locked')
+      }
+
+      const result = await transcodeNext()
+
+      expect(result.ok && result.value.kind).toBe('retired')
+      // Source and output both stay: a lookup that cannot answer proves nothing, and deleting on
+      // a guess is how a shared output is lost.
+      expect(media.objectCount).toBe(2)
+    })
+
+    it('answers with the entity’s refusal when the queue hands it a voice that is not running', async () => {
+      // No event is seeded, so the pass gives up at once, and a voice that was never claimed cannot
+      // be failed: the entity refuses and the pass says so rather than writing it back.
+      voices.claimNext = async () =>
+        aVoiceEntry({ id: 'voice-1', eventId: 'event-1', state: 'queued' })
+
+      const result = await transcodeNext()
+
+      expect(!result.ok && result.error.code).toBe('guestbookVoice.illegalTransition')
+    })
+
+    it('fails the pass loudly when the queue hands it a message that carries no recording', async () => {
+      seedEvent()
+      voices.claimNext = async () => aGuestbookEntry({ id: 'text-1', eventId: 'event-1' })
+
+      await expect(transcodeNext()).rejects.toThrow('without a voice')
     })
   })
 
