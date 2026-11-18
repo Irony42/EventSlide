@@ -454,6 +454,12 @@ export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => (
   ...(notice.guestbook ? { guestbook: true as const } : {}),
   // Present only when true, for the same reason: an event whose switch is off answers what it always did.
   ...(notice.guestSave ? { guestSave: true as const } : {}),
+  // Voice (spec 25), present only when on, for the same reason: an event without it answers what it always did.
+  ...(notice.voice ? { voice: true as const } : {}),
+  ...(notice.voiceSealed ? { voiceSealed: true as const } : {}),
+  ...(notice.voiceRemovalSeconds === null
+    ? {}
+    : { voiceRemovalSeconds: notice.voiceRemovalSeconds }),
 })
 
 export const toPrivacyNoticeStateDto = ({

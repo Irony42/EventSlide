@@ -454,6 +454,21 @@ export class EventSettings {
     return this.props.guestbookVoice
   }
 
+  /**
+   * Whether voice messages are on **for the guests of this event** (spec 25, rule 13): the host's
+   * switch, and only while the guestbook is open, which they depend on. What a guest is told in the
+   * privacy notice, and so deliberately not the box's capability (`voice.available`, the transcoder):
+   * that is a fact about the box, not a promise made to a guest.
+   */
+  get allowGuestbookVoice(): boolean {
+    return this.props.allowGuestbook && this.props.guestbookVoice.enabled
+  }
+
+  /** Whether the voices are kept secret until the end of the evening (the group's `sealed`). */
+  get guestbookVoiceSealed(): boolean {
+    return this.props.guestbookVoice.sealed
+  }
+
   /** The same settings with the host's logo named, or cleared with `null`: `withVenuePhoto`'s reasoning. */
   withLogo(logo: ContentHash | null): EventSettings {
     return new EventSettings({ ...this.props, logo })

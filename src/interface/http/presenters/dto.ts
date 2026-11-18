@@ -175,6 +175,20 @@ export interface PrivacyNoticeDto {
    * notice then says a saved copy cannot be taken back. Part of `revision` only in that case.
    */
   readonly guestSave?: true
+  /**
+   * Present (and `true`) only when guests may leave voice messages (spec 25): the notice then says
+   * who hears them, that the room never does, and that the microphone only runs while recording.
+   * Part of `revision` only in that case.
+   */
+  readonly voice?: true
+  /** Present (and `true`) only with `voice`, when the host keeps the voices secret until the end of the evening. */
+  readonly voiceSealed?: true
+  /**
+   * Present only with `voice`, when a guest may take a voice message back themselves: the window in
+   * seconds. Absent: they cannot, and the notice says to ask the organiser. Not `selfRemovalSeconds`: a
+   * voice is never on a screen, so it can be taken back whatever its status.
+   */
+  readonly voiceRemovalSeconds?: number
 }
 
 /** A notice and where this device stands with it: every read of the notice answers this. */
