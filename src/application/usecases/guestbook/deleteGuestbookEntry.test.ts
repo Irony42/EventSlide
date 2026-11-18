@@ -176,6 +176,24 @@ describe('deleteGuestbookEntry', () => {
       expect(bus.published).toEqual([{ type: 'guestbook.voice', eventId: EVENT }])
     })
 
+    it('keeps the file another recording of the event still names: two can come out as the same bytes', async () => {
+      const hash = await seedReady()
+      const other = aVoiceEntry({
+        id: 'm2',
+        guestId: 'guest-sam',
+        eventId: 'event-1',
+        state: 'ready',
+        audioHash: hash.value,
+      })
+      guestbook.seed(other)
+      expect(other.voice?.audioHash?.value).toBe(hash.value)
+
+      expect((await run()).ok).toBe(true)
+
+      expect(await media.exists(EVENT, hash, 'voice')).toBe(true)
+      expect(guestbook.all(EVENT).map((entry) => entry.id)).toEqual([asGuestbookEntryId('m2')])
+    })
+
     it('deletes the source a recording still being processed holds', async () => {
       const entry = aVoiceEntry({
         id: 'm1',

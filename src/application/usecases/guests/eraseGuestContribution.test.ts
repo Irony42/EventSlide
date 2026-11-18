@@ -531,6 +531,23 @@ describe('eraseGuestContribution', () => {
       expect(guestbook.all(VOICE_EVENT).map((row) => row.id)).toEqual(['v-sam'])
     })
 
+    it('keeps the file another guest’s recording still names when two came out as the same bytes', async () => {
+      const lea = await seedReady('v-lea', 'guest-lea')
+      const sam = aVoiceEntry({
+        id: 'v-sam',
+        guestId: 'guest-sam',
+        eventId: 'event-1',
+        state: 'ready',
+        audioHash: lea.hash.value,
+      })
+      guestbook.seed(sam)
+
+      await run()
+
+      expect(guestbook.all(VOICE_EVENT).map((row) => row.id)).toEqual(['v-sam'])
+      expect(await media.exists(VOICE_EVENT, lea.hash, 'voice')).toBe(true)
+    })
+
     it('leaves the recordings of another guest and of another event alone', async () => {
       await seedReady('v-lea', 'guest-lea')
       const sam = await seedReady('v-sam', 'guest-sam')

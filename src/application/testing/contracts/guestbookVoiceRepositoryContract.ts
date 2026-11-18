@@ -853,6 +853,21 @@ export const guestbookVoiceRepositoryContract = (
       expect([...named].sort()).toEqual([digest('1'), digest('d')].sort())
     })
 
+    it('leaves out the named entries, so a digest two ready voices share stays named by the other', async () => {
+      const one = reservation({ id: 'v1', sourceHash: digest('1') })
+      const two = reservation({ id: 'v2', sourceHash: digest('2') })
+      for (const entry of [one, two]) await admit(entry)
+      await finish(one, 'ready', 10)
+      await finish(two, 'ready', 20)
+
+      expect([...(await voices.listReferencedDigests(WEDDING, [entryId('v1')]))]).toEqual([
+        digest('d'),
+      ])
+      expect([
+        ...(await voices.listReferencedDigests(WEDDING, [entryId('v1'), entryId('v2')])),
+      ]).toEqual([])
+    })
+
     it('adds up the outputs of the ready voices, and counts them, for the archive’s estimate', async () => {
       const one = reservation({ id: 'v1', sourceHash: digest('1') })
       const two = reservation({ id: 'v2', sourceHash: digest('2') })

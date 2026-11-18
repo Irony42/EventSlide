@@ -87,7 +87,7 @@ export interface EraseGuestContributionDeps {
   readonly clips: ClipJobRepository
   readonly guestbook: GuestbookRepository
   /** Only the guest's own recordings, whose bytes go before the rows that name them (spec 25). */
-  readonly voices: Pick<GuestbookVoiceRepository, 'listByGuest'>
+  readonly voices: Pick<GuestbookVoiceRepository, 'listByGuest' | 'listReferencedDigests'>
   readonly media: MediaStore
   readonly bus: EventBus
   readonly clock: Clock
@@ -132,7 +132,7 @@ export const makeEraseGuestContribution = ({
   invalidateExport,
 }: EraseGuestContributionDeps): EraseGuestContribution => {
   const removePhotoRecord = makeRemovePhotoRecord({ photos, media, clock })
-  const removeVoiceBytes = makeRemoveVoiceBytes({ media })
+  const removeVoiceBytes = makeRemoveVoiceBytes({ media, voices })
 
   /** Every photograph and clip the guest sent, whatever its status, read before any is removed. */
   const authoredBy = async (eventId: EventId, guestId: GuestId): Promise<readonly Photo[]> => {
@@ -214,9 +214,13 @@ export const makeEraseGuestContribution = ({
     // button again finishes. What the operator took down is not listed and its bytes stay, which is
     // the evidence. One that is in the worker's hands finishes against a row that is gone.
     const voiceMessages = await voices.listByGuest(eventId, guestId)
-    for (const message of voiceMessages.filter(isVoiceMessage)) {
-      await removeVoiceBytes(eventId, message.voice)
-    }
+    await removeVoiceBytes(
+      eventId,
+      voiceMessages.filter(isVoiceMessage).map((message) => ({
+        entryId: message.id,
+        voice: message.voice,
+      })),
+    )
 
     // The guest's written messages, whatever their moderation state: erasure is not the host's to
     // switch off. Skips (and does not count) a message the operator took down, which is evidence.

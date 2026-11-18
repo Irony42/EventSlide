@@ -45,7 +45,7 @@ export interface DeleteGuestbookEntryDeps {
   readonly events: EventRepository
   readonly guestbook: GuestbookRepository
   /** Removes a voice message's entry and its voice together, after its bytes. */
-  readonly voices: Pick<GuestbookVoiceRepository, 'deleteByEntry'>
+  readonly voices: Pick<GuestbookVoiceRepository, 'deleteByEntry' | 'listReferencedDigests'>
   readonly media: Pick<MediaStore, 'delete'>
   readonly bus: EventBus
   readonly clock: Clock
@@ -70,7 +70,7 @@ export const makeDeleteGuestbookEntry = ({
   clock,
   invalidateExport,
 }: DeleteGuestbookEntryDeps): DeleteGuestbookEntry => {
-  const removeVoiceBytes = makeRemoveVoiceBytes({ media })
+  const removeVoiceBytes = makeRemoveVoiceBytes({ media, voices })
 
   return async ({ eventId, entryId, guestId }) => {
     const event = await events.findById(eventId)
@@ -108,7 +108,7 @@ export const makeDeleteGuestbookEntry = ({
     }
 
     // The bytes, then the row (spec 25): the row is the only record of where the recording is.
-    await removeVoiceBytes(eventId, voice)
+    await removeVoiceBytes(eventId, [{ entryId, voice }])
     await voices.deleteByEntry(eventId, entryId)
     bus.publish({ type: 'guestbook.voice', eventId })
     return ok(undefined)

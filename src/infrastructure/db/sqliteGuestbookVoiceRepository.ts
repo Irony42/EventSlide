@@ -355,17 +355,23 @@ export class SqliteGuestbookVoiceRepository implements GuestbookVoiceRepository 
       .run(eventId, entryId, entryId)
   }
 
-  async listReferencedDigests(eventId: EventId): Promise<ReadonlySet<string>> {
+  async listReferencedDigests(
+    eventId: EventId,
+    excludingEntries: readonly GuestbookEntryId[] = [],
+  ): Promise<ReadonlySet<string>> {
     // Taken-down voices included: their bytes stay (preserved evidence) and are named by the row.
+    const excluded = JSON.stringify(excludingEntries)
     const rows = this.db
-      .prepare<[string, string], { readonly digest: string }>(
+      .prepare<[string, string, string, string], { readonly digest: string }>(
         `SELECT source_hash AS digest FROM guestbook_voices
           WHERE event_id = ? AND state IN (${VOICE_IN_FLIGHT_SQL})
+            AND entry_id NOT IN (SELECT value FROM json_each(?))
          UNION
          SELECT audio_hash AS digest FROM guestbook_voices
-          WHERE event_id = ? AND state = 'ready' AND audio_hash IS NOT NULL`,
+          WHERE event_id = ? AND state = 'ready' AND audio_hash IS NOT NULL
+            AND entry_id NOT IN (SELECT value FROM json_each(?))`,
       )
-      .all(eventId, eventId)
+      .all(eventId, excluded, eventId, excluded)
     return new Set(rows.map((row) => row.digest))
   }
 

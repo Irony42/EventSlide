@@ -1,6 +1,8 @@
 import type { GuestbookVoice } from '../../../domain/guestbook/guestbookVoice'
 import { holdsVoiceSource } from '../../../domain/guestbook/guestbookVoiceState'
-import type { EventId } from '../../../domain/shared/ids'
+import type { ContentHash } from '../../../domain/photos/contentHash'
+import type { EventId, GuestbookEntryId } from '../../../domain/shared/ids'
+import type { GuestbookVoiceRepository } from '../../ports/guestbookVoiceRepository'
 import type { MediaStore } from '../../ports/mediaStore'
 
 /**
@@ -22,13 +24,42 @@ import type { MediaStore } from '../../ports/mediaStore'
  *
  * A recording **in the worker's hands** when this runs finishes against a row that is gone, which
  * `transcodeNextVoice` treats as "retired under me" and cleans up after.
+ *
+ * **A digest another recording still names stays** (`listReferencedDigests` without the entries
+ * leaving): two recordings of the same sound can come out as identical bytes, and the file of the one
+ * that stays must not go with the one that leaves (the guard `transcodeNextVoice` has on its own unwind).
  */
-export type RemoveVoiceBytes = (eventId: EventId, voice: GuestbookVoice) => Promise<void>
+export interface VoiceToRemove {
+  readonly entryId: GuestbookEntryId
+  readonly voice: GuestbookVoice
+}
+
+export type RemoveVoiceBytes = (
+  eventId: EventId,
+  leaving: readonly VoiceToRemove[],
+) => Promise<void>
 
 export const makeRemoveVoiceBytes =
-  ({ media }: { readonly media: Pick<MediaStore, 'delete'> }): RemoveVoiceBytes =>
-  async (eventId, voice) => {
-    if (holdsVoiceSource(voice.state)) await media.delete(eventId, voice.sourceHash)
-    const output = voice.output()
-    if (output !== null) await media.delete(eventId, output.hash)
+  ({
+    media,
+    voices,
+  }: {
+    readonly media: Pick<MediaStore, 'delete'>
+    readonly voices: Pick<GuestbookVoiceRepository, 'listReferencedDigests'>
+  }): RemoveVoiceBytes =>
+  async (eventId, leaving) => {
+    if (leaving.length === 0) return
+    const staying = await voices.listReferencedDigests(
+      eventId,
+      leaving.map((one) => one.entryId),
+    )
+    const digests = new Map<string, ContentHash>()
+    for (const { voice } of leaving) {
+      if (holdsVoiceSource(voice.state)) digests.set(voice.sourceHash.value, voice.sourceHash)
+      const output = voice.output()
+      if (output !== null) digests.set(output.hash.value, output.hash)
+    }
+    for (const [value, hash] of digests) {
+      if (!staying.has(value)) await media.delete(eventId, hash)
+    }
   }
