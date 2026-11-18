@@ -100,6 +100,22 @@ describe('GuestbookVoice transitions', () => {
     expect(done.finishedAt).toEqual(later(900))
   })
 
+  it('hands back its output once ready, and nothing before', () => {
+    expect(must(running().finish(OUTPUT, later(900))).output()).toEqual(OUTPUT)
+    expect(reserved().output()).toBeNull()
+    expect(running().output()).toBeNull()
+  })
+
+  it('has no output for a ready row that lacks one, which the database refuses but a reader must not trust', () => {
+    const ready = must(running().finish(OUTPUT, later(900)))
+    const withhold = (changes: Partial<ReturnType<GuestbookVoice['toProps']>>) =>
+      GuestbookVoice.restore({ ...ready.toProps(), ...changes }).output()
+
+    expect(withhold({ audioHash: null })).toBeNull()
+    expect(withhold({ audioByteSize: null })).toBeNull()
+    expect(withhold({ durationMs: null })).toBeNull()
+  })
+
   it.each([
     ['a zero size', { ...OUTPUT, byteSize: 0 }],
     ['a size that is not a whole number', { ...OUTPUT, byteSize: 12.5 }],

@@ -1,5 +1,6 @@
+import type { GuestbookVoice } from '../../../domain/guestbook/guestbookVoice'
 import { holdsVoiceSource } from '../../../domain/guestbook/guestbookVoiceState'
-import type { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
+import type { EventId } from '../../../domain/shared/ids'
 import type { MediaStore } from '../../ports/mediaStore'
 
 /**
@@ -22,15 +23,12 @@ import type { MediaStore } from '../../ports/mediaStore'
  * A recording **in the worker's hands** when this runs finishes against a row that is gone, which
  * `transcodeNextVoice` treats as "retired under me" and cleans up after.
  */
-export type RemoveVoiceBytes = (entry: GuestbookEntry) => Promise<void>
+export type RemoveVoiceBytes = (eventId: EventId, voice: GuestbookVoice) => Promise<void>
 
 export const makeRemoveVoiceBytes =
   ({ media }: { readonly media: Pick<MediaStore, 'delete'> }): RemoveVoiceBytes =>
-  async (entry) => {
-    const voice = entry.voice
-    if (voice === null) return
-    if (holdsVoiceSource(voice.state)) await media.delete(entry.eventId, voice.sourceHash)
-    if (voice.state === 'ready' && voice.audioHash !== null) {
-      await media.delete(entry.eventId, voice.audioHash)
-    }
+  async (eventId, voice) => {
+    if (holdsVoiceSource(voice.state)) await media.delete(eventId, voice.sourceHash)
+    const output = voice.output()
+    if (output !== null) await media.delete(eventId, output.hash)
   }

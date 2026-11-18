@@ -19,6 +19,7 @@ import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { isInAlbum } from '../../../domain/photos/photoStatus'
 import { isInBook } from '../../../domain/book/isInBook'
 import { makeRemovePhotoRecord } from '../photos/removePhotoRecord'
+import { isVoiceMessage } from '../../../domain/guestbook/guestbookEntry'
 import { makeRemoveVoiceBytes } from '../guestbook/removeVoiceBytes'
 
 /**
@@ -213,7 +214,9 @@ export const makeEraseGuestContribution = ({
     // button again finishes. What the operator took down is not listed and its bytes stay, which is
     // the evidence. One that is in the worker's hands finishes against a row that is gone.
     const voiceMessages = await voices.listByGuest(eventId, guestId)
-    for (const voice of voiceMessages) await removeVoiceBytes(voice)
+    for (const message of voiceMessages.filter(isVoiceMessage)) {
+      await removeVoiceBytes(eventId, message.voice)
+    }
 
     // The guest's written messages, whatever their moderation state: erasure is not the host's to
     // switch off. Skips (and does not count) a message the operator took down, which is evidence.

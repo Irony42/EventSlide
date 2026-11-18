@@ -100,14 +100,15 @@ export const makeDeleteGuestbookEntry = ({
       await invalidateExport?.(eventId, 'guestbookChanged')
     }
 
-    if (entry.voice === null) {
+    const voice = entry.voice
+    if (voice === null) {
       await guestbook.delete(eventId, entryId)
       bus.publish({ type: 'guestbook.changed', eventId })
       return ok(undefined)
     }
 
     // The bytes, then the row (spec 25): the row is the only record of where the recording is.
-    await removeVoiceBytes(entry)
+    await removeVoiceBytes(eventId, voice)
     await voices.deleteByEntry(eventId, entryId)
     bus.publish({ type: 'guestbook.voice', eventId })
     return ok(undefined)

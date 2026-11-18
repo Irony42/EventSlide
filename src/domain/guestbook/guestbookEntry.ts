@@ -265,6 +265,13 @@ export class GuestbookEntry {
 /** A written message: the entry whose `text` is known to be there, for what only reads words. */
 export type WrittenGuestbookEntry = GuestbookEntry & { readonly text: GuestbookText }
 
+/** A voice message: the entry whose recording is known to be there, for what reads or removes it. */
+export type VoiceGuestbookEntry = GuestbookEntry & { readonly voice: GuestbookVoice }
+
+/** Narrows an entry to a voice message, `false` for a written one. */
+export const isVoiceMessage = (entry: GuestbookEntry): entry is VoiceGuestbookEntry =>
+  entry.voice !== null
+
 /** Narrows an entry to a written message, `false` for a voice. */
 export const isWritten = (entry: GuestbookEntry): entry is WrittenGuestbookEntry =>
   entry.text !== null

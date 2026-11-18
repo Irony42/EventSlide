@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ContentHash } from '../photos/contentHash'
 import { asEventId, asGuestId, asGuestbookEntryId, asUserId } from '../shared/ids'
-import { GuestbookEntry, isWritten, type EntryActor } from './guestbookEntry'
+import { GuestbookEntry, isVoiceMessage, isWritten, type EntryActor } from './guestbookEntry'
 import { GuestbookText } from './guestbookText'
 import { GuestbookVoice } from './guestbookVoice'
 import type { VoiceState } from './guestbookVoiceState'
@@ -82,6 +82,8 @@ describe('a voice message as an entry', () => {
     expect(written.voice).toBeNull()
     expect(isWritten(voice)).toBe(false)
     expect(isWritten(written)).toBe(true)
+    expect(isVoiceMessage(voice)).toBe(true)
+    expect(isVoiceMessage(written)).toBe(false)
   })
 
   it('meets the moderation of the event as a written message does', () => {

@@ -1,10 +1,16 @@
 import type { Event } from '../../../domain/events/event'
 import { isVoiceOpen } from '../../../domain/events/eventGuestbookVoiceSettings'
-import type { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
+import {
+  isVoiceMessage,
+  isWritten,
+  type GuestbookEntry,
+  type VoiceGuestbookEntry,
+} from '../../../domain/guestbook/guestbookEntry'
 import {
   renderGuestbookText,
   type GuestbookExportLine,
 } from '../../../domain/guestbook/guestbookExport'
+import type { VoiceOutput } from '../../../domain/guestbook/guestbookVoice'
 import { MAX_ENTRIES_PER_EVENT } from '../../../domain/guestbook/guestbookLimits'
 import {
   MANIFEST_NAME,
@@ -69,6 +75,9 @@ const GUESTBOOK_ALBUM_STATUSES = ALBUM_STATUSES
 
 /** The recordings' extension in the archive: what `mediaLayout` stores (`audio/mp4`). */
 const VOICE_EXTENSION = 'm4a'
+
+/** The digest a file is held against, or `null` where the digest does not vouch for the bytes. */
+const heldAgainst = (vouches: boolean, digest: string): string | null => (vouches ? digest : null)
 
 async function* oneChunk(bytes: Uint8Array): AsyncIterable<Uint8Array> {
   yield bytes
@@ -176,14 +185,18 @@ export const albumArchiveOf = (
       })
     },
     decorate: (entry, { photo, hash, variant }) =>
-      hashed(entry, digestVouchesForVariant(photo.kind, variant) ? hash.value : null, photo.id),
+      hashed(
+        entry,
+        heldAgainst(digestVouchesForVariant(photo.kind, variant), hash.value),
+        photo.id,
+      ),
   })
 
   /**
    * What the album's guestbook holds, read once: every message `isInAlbum` accepts, written ones
-   * and voice messages together and oldest first, which is the order `guestbook.txt` keeps. A
-   * voice whose processing has not finished is not in the album yet (nobody can listen to it, so
-   * nobody can have decided on it) and a failed one is not listed by the repository at all.
+   * and voice messages together and oldest first. A voice whose processing has not finished is not
+   * in the album yet (nobody can listen to it, so nobody can have decided on it) and a failed one is
+   * not listed by the repository at all.
    */
   let album: Promise<readonly GuestbookEntry[]> | null = null
   const albumBook = (): Promise<readonly GuestbookEntry[]> => {
@@ -191,8 +204,25 @@ export const albumArchiveOf = (
     return album
   }
 
-  /** Where each recording of the album went, by entry, for the line `guestbook.txt` says about it. */
-  const voiceFiles = new Map<string, string | null>()
+  /** A recording the album may carry: the entry and what the box stored for it. */
+  interface Recording {
+    readonly entry: VoiceGuestbookEntry
+    readonly output: VoiceOutput
+  }
+
+  /** The recordings that are `ready`, oldest first: the only ones that can be heard or archived. */
+  const readyRecordings = async (): Promise<readonly Recording[]> =>
+    (await albumBook()).flatMap((entry) => {
+      if (!isVoiceMessage(entry)) return []
+      const output = entry.voice.output()
+      return output === null ? [] : [{ entry, output }]
+    })
+  /**
+   * The recordings that went by, with the file each is archived as, or `null` when the disk had
+   * lost it: what `guestbook.txt` says about each. Filled while the recordings are walked, which is
+   * before the book is written, and left empty while the secret holds.
+   */
+  const walked: { readonly recording: Recording; readonly file: string | null }[] = []
   let sealedVoices = 0
 
   /**
@@ -201,21 +231,20 @@ export const albumArchiveOf = (
    * happens while a long archive is written is seen by the entries that follow it.
    */
   const voiceEntries = async function* (): AsyncIterable<ArchiveEntry> {
-    const recordings = (await albumBook()).filter((entry) => entry.voice?.isReady() === true)
+    const recordings = await readyRecordings()
     if (!isVoiceOpen(event.settings.guestbookVoice, event, clock.now())) {
       sealedVoices = recordings.length
       return
     }
     let sequence = 0
-    for (const entry of recordings) {
-      const hash = entry.voice?.audioHash
-      if (hash === null || hash === undefined) continue
-      const bytes = await media.openRead(eventId, hash, 'voice')
+    for (const recording of recordings) {
+      const { entry, output } = recording
+      const bytes = await media.openRead(eventId, output.hash, 'voice')
       if (bytes === null) {
         // A recording the disk lost: skipped and counted, never fatal (headers are long gone).
         missing += 1
         missingVoices += 1
-        voiceFiles.set(entry.id, null)
+        walked.push({ recording, file: null })
         logger.warn('album export skipped a voice message with no stored file', {
           eventId,
           entryId: entry.id,
@@ -223,11 +252,11 @@ export const albumArchiveOf = (
         continue
       }
       sequence += 1
-      const file = `voice/${String(sequence).padStart(4, '0')}-${hash.short}.${VOICE_EXTENSION}`
-      voiceFiles.set(entry.id, file)
+      const file = `voice/${String(sequence).padStart(4, '0')}-${output.hash.short}.${VOICE_EXTENSION}`
+      walked.push({ recording, file })
       yield hashed(
         { name: `${slug}/${file}`, bytes, modifiedAt: entry.createdAt },
-        voiceDigestVouches() ? hash.value : null,
+        heldAgainst(voiceDigestVouches(), output.hash.value),
         entry.id,
         () => {
           voicesWritten += 1
@@ -236,46 +265,44 @@ export const albumArchiveOf = (
     }
   }
 
-  /** One message of the book as a line of `guestbook.txt`. */
-  const lineOf = (entry: GuestbookEntry, author: string | null): GuestbookExportLine => {
-    const voice = entry.voice
-    if (voice === null) return { author, at: entry.createdAt, text: entry.text?.value ?? '' }
-    return {
-      author,
-      at: entry.createdAt,
-      voice: {
-        durationMs: voice.durationMs ?? 0,
-        file: voiceFiles.get(entry.id) ?? null,
-        caption: voice.caption?.value ?? null,
-      },
-    }
-  }
-
   /** The book, as one entry, or nothing when no message is in the album and none is kept secret. */
   const guestbookEntry = async (): Promise<ArchiveEntry | null> => {
-    // A written message, or a recording the archive has a line for: one that was walked above,
-    // found or lost. A recording kept secret has no line, only the count at the end.
-    const entries = (await albumBook()).filter(
-      (entry) => entry.voice === null || voiceFiles.has(entry.id),
-    )
-    if (entries.length === 0 && sealedVoices === 0) return null
+    const written = (await albumBook()).filter(isWritten)
+    if (written.length === 0 && walked.length === 0 && sealedVoices === 0) return null
     const names = await guests.findNamesByIds(eventId, [
-      ...new Set(entries.map((entry) => entry.guestId)),
+      ...new Set([
+        ...written.map((entry) => entry.guestId),
+        ...walked.map(({ recording }) => recording.entry.guestId),
+      ]),
     ])
-    const text = renderGuestbookText(
-      event.name.value,
-      entries.map((entry) => lineOf(entry, names.get(entry.guestId) ?? null)),
-      sealedVoices,
-    )
+    // A recording kept secret has no line, only the count at the end; one the disk lost has a line
+    // that says so. The two kinds are interleaved by when they were written.
+    const lines: GuestbookExportLine[] = [
+      ...written.map((entry) => ({
+        author: names.get(entry.guestId) ?? null,
+        at: entry.createdAt,
+        text: entry.text.value,
+      })),
+      ...walked.map(({ recording, file }) => ({
+        author: names.get(recording.entry.guestId) ?? null,
+        at: recording.entry.createdAt,
+        voice: {
+          durationMs: recording.output.durationMs,
+          file,
+          caption: recording.entry.voice.caption?.value ?? null,
+        },
+      })),
+    ].sort((left, right) => left.at.getTime() - right.at.getTime())
+    const text = renderGuestbookText(event.name.value, lines, sealedVoices)
     return hashed(
       {
         name: `${slug}/guestbook.txt`,
         bytes: oneChunk(new TextEncoder().encode(text)),
         // A book of secret voices alone is dated by the box's clock: it says when it was written.
         modifiedAt:
-          entries.length === 0
+          lines.length === 0
             ? clock.now()
-            : new Date(Math.max(...entries.map((entry) => entry.createdAt.getTime()))),
+            : new Date(Math.max(...lines.map((line) => line.at.getTime()))),
       },
       null,
       'guestbook',
