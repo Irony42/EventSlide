@@ -1916,7 +1916,7 @@ A guest leaves a **voice message** (spec 25): a line of the guestbook that carri
 
 ### `POST /api/events/:slug/guestbook/voice/open`
 
-"Ouvrir maintenant": the **owner** lifts the secret over the voice messages for good (it writes `opensAt = now`, the server's). **A moderator is `403 auth.forbidden`**: a delegated moderator (a DJ, a witness) must not spoil the surprise. **200** with no body, and the same **200** when it was already open (nothing is written, audited or announced the second time). One audit line `event.voiceOpened` (the event, the account, no content), the verified archive retired before the change, and one `guestbook.voice` signal. **Errors** — `401` (a guest's token, no session), `403 auth.forbidden`, `403 client.suspended`, `404 event.notFound`.
+"Ouvrir maintenant": the **owner** lifts the secret over the voice messages for good (it writes `opensAt = now`, the server's). **A moderator is `403 auth.forbidden`**: a delegated moderator (a DJ, a witness) must not spoil the surprise. **200** with no body, and the same **200** when it was already open (nothing is written, audited or announced the second time). One audit line `event.voiceOpened` (the event, the account, no content), the verified archive retired before the change, and one `guestbook.voice` signal. **Errors** — `401` (a guest's token, no session), `403 auth.forbidden`, `403 client.suspended`, `404 event.notFound`, `409 event.immutable` (the event was archived between the two reads).
 
 ### `POST /api/events/:slug/guestbook/voice/keep-pending`
 
