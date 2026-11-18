@@ -5,6 +5,7 @@ import {
 } from '../../application/testing/contracts/guestbookRepositoryContract'
 import { guestbookVoiceRepositoryContract } from '../../application/testing/contracts/guestbookVoiceRepositoryContract'
 import { AT, aVoiceEntry } from '../../application/testing/builders'
+import { ContentHash } from '../../domain/photos/contentHash'
 import { asClientId, asEventId, asGuestbookEntryId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrate } from './migrator'
@@ -157,6 +158,65 @@ describe('SqliteGuestbookVoiceRepository schema behaviour', () => {
       kind: 'refused',
       refusal: { reason: 'clientStorageFull', remaining: 100 },
     })
+    closeDatabase(db)
+  })
+
+  it('judges a result on the client ceiling over all its events, crediting the source it replaces', async () => {
+    const db = migratedDatabase()
+    db.prepare(
+      `INSERT INTO clients (id, name, created_at, max_total_bytes)
+       VALUES ('client-1', 'Atelier', ?, 1000)`,
+    ).run(ISO_AT)
+    db.prepare(`UPDATE events SET client_id = 'client-1'`).run()
+    db.prepare(
+      `INSERT INTO photos (id, event_id, author_guest_id, status, content_hash,
+                           width, height, byte_size, created_at)
+       VALUES ('p1', 'evt-gala', 'guest-lea', 'published', ?, 100, 100, 900, ?)`,
+    ).run('c'.repeat(64), ISO_AT)
+    const voices = new SqliteGuestbookVoiceRepository(db)
+    const entry = aVoiceEntry({
+      id: 'v1',
+      state: 'reserved',
+      eventId: 'evt-wedding',
+      guestId: 'guest-lea',
+      sourceByteSize: 50,
+    })
+    await voices.admitVoice(entry, limits)
+    await voices.saveVoice(WEDDING, asGuestbookEntryId('v1'), entry.voice!.queue(AT))
+    const claimed = (await voices.claimNext(AT))?.voice
+    if (claimed === undefined || claimed === null) throw new Error('fixture')
+    const done = (output: number) => {
+      const ready = claimed.finish({ hash: aHash(), byteSize: output, durationMs: 2_000 }, AT)
+      if (!ready.ok) throw new Error('fixture')
+      return ready.value
+    }
+    const ceiling = { clientId: asClientId('client-1'), maxBytes: 1_000 }
+
+    expect(
+      await voices.markReady(WEDDING, asGuestbookEntryId('v1'), done(101), {
+        quotaBytes: 1_000_000,
+        clientBytes: ceiling,
+      }),
+    ).toEqual({ kind: 'refused', refusal: { reason: 'clientStorageFull', remaining: 100 } })
+    expect(
+      await voices.markReady(WEDDING, asGuestbookEntryId('v1'), done(100), {
+        quotaBytes: 1_000_000,
+        clientBytes: ceiling,
+      }),
+    ).toEqual({ kind: 'saved' })
+    closeDatabase(db)
+  })
+
+  it('refuses to be handed a voice that is not ready', async () => {
+    const db = migratedDatabase()
+    const running = aVoiceEntry({ id: 'v1', state: 'running' }).voice
+    if (running === null) throw new Error('fixture')
+
+    await expect(
+      new SqliteGuestbookVoiceRepository(db).markReady(WEDDING, asGuestbookEntryId('v1'), running, {
+        quotaBytes: 1_000,
+      }),
+    ).rejects.toThrow('ready voice')
     closeDatabase(db)
   })
 
@@ -316,3 +376,9 @@ describe('SqliteGuestbookVoiceRepository schema behaviour', () => {
     closeDatabase(db)
   })
 })
+
+const aHash = (): ContentHash => {
+  const hash = ContentHash.create('a'.repeat(64))
+  if (!hash.ok) throw new Error('fixture')
+  return hash.value
+}

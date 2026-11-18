@@ -14,7 +14,10 @@ import type {
   GuestbookVoiceRepository,
   VoiceAdmission,
   VoiceAdmissionLimits,
+  VoiceFinish,
+  VoiceFinishLimits,
 } from '../ports/guestbookVoiceRepository'
+import type { ClientByteLimit } from '../ports/clientRepository'
 import type { ClientEventSource } from './fakeClientRepository'
 import type { PhotoByteSource } from './fakeClipJobRepository'
 import type { FakeGuestbookRepository } from './fakeGuestbookRepository'
@@ -67,6 +70,26 @@ export class FakeGuestbookVoiceRepository implements GuestbookVoiceRepository {
     return this
   }
 
+  /**
+   * The events of a client and what their photographs hold, fetched before the synchronous part of
+   * a decision (a client ceiling with no wired source throws rather than pass).
+   */
+  private async clientHoldings(
+    clientBytes: ClientByteLimit | null,
+  ): Promise<{ events: readonly EventId[]; photoBytes: number }> {
+    if (clientBytes === null) return { events: [], photoBytes: 0 }
+    if (this.clientEvents === null) {
+      throw new Error(
+        'FakeGuestbookVoiceRepository: a client byte ceiling needs chargeClientEventsFrom(clients), or it would be judged against a client with no events',
+      )
+    }
+    const events = this.clientEvents.eventsOf(clientBytes.clientId)
+    const perEvent = await Promise.all(
+      events.map(async (id) => (await this.photos?.photoBytes(id)) ?? 0),
+    )
+    return { events, photoBytes: perEvent.reduce((total, bytes) => total + bytes, 0) }
+  }
+
   private voiceBytesNow(eventId: EventId): number {
     return rowsOf(this.book, eventId).reduce((total, row) => {
       const voice = voiceOf(row)
@@ -87,20 +110,8 @@ export class FakeGuestbookVoiceRepository implements GuestbookVoiceRepository {
 
     const photoBytes = (await this.photos?.photoBytes(eventId)) ?? 0
     const clientBytes = limits.clientBytes ?? null
-    let clientEvents: readonly EventId[] = []
-    let clientPhotoBytes = 0
-    if (clientBytes !== null) {
-      if (this.clientEvents === null) {
-        throw new Error(
-          'FakeGuestbookVoiceRepository: a client byte ceiling needs chargeClientEventsFrom(clients), or it would be judged against a client with no events',
-        )
-      }
-      clientEvents = this.clientEvents.eventsOf(clientBytes.clientId)
-      const perEvent = await Promise.all(
-        clientEvents.map(async (id) => (await this.photos?.photoBytes(id)) ?? 0),
-      )
-      clientPhotoBytes = perEvent.reduce((total, bytes) => total + bytes, 0)
-    }
+    const { events: clientEvents, photoBytes: clientPhotoBytes } =
+      await this.clientHoldings(clientBytes)
 
     // From here on there is no `await`: the counts and the write are one step, as in the adapter.
     const duplicate = rowsOf(this.book, eventId).find((row) => {
@@ -169,6 +180,57 @@ export class FakeGuestbookVoiceRepository implements GuestbookVoiceRepository {
     if (current === undefined) return false
     this.book.put(withVoice(current, voice))
     return true
+  }
+
+  async markReady(
+    eventId: EventId,
+    entryId: GuestbookEntryId,
+    voice: GuestbookVoice,
+    limits: VoiceFinishLimits,
+  ): Promise<VoiceFinish> {
+    const output = voice.audioByteSize
+    if (!voice.isReady() || output === null) {
+      throw new Error('FakeGuestbookVoiceRepository.markReady takes a ready voice')
+    }
+
+    const photoBytes = (await this.photos?.photoBytes(eventId)) ?? 0
+    const clientBytes = limits.clientBytes ?? null
+    const { events: clientEvents, photoBytes: clientPhotoBytes } =
+      await this.clientHoldings(clientBytes)
+
+    // From here on there is no `await`: the sums and the write are one step, as in the adapter.
+    const current = this.book.all(eventId).find((row) => row.id === entryId && row.voice !== null)
+    if (current === undefined) return { kind: 'gone' }
+
+    // The source this output replaces: charged while the voice ran, so left out of the figure the
+    // output is judged against.
+    const held = voiceOf(current)
+    const credit = !holdsVoiceBytes(held.state)
+      ? 0
+      : held.state === 'ready'
+        ? (held.audioByteSize ?? 0)
+        : held.sourceByteSize
+
+    const storage = storageRefusalFor(
+      output,
+      {
+        quotaBytes: limits.quotaBytes,
+        usedBytes: photoBytes + this.voiceBytesNow(eventId) - credit,
+      },
+      clientBytes === null
+        ? null
+        : {
+            maxBytes: clientBytes.maxBytes,
+            usedBytes:
+              clientPhotoBytes +
+              clientEvents.reduce((total, id) => total + this.voiceBytesNow(id), 0) -
+              credit,
+          },
+    )
+    if (storage !== null) return { kind: 'refused', refusal: storage }
+
+    this.book.put(withVoice(current, voice))
+    return { kind: 'saved' }
   }
 
   async findBySourceHash(

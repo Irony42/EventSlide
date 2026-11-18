@@ -65,6 +65,10 @@ const FAILURE_BY_CODE = new Map<string, VoiceFailure>([
   ['voice.storageFailed', 'storageFailed'],
   // The box had no encoder when the job ran: the machine, not the recording.
   ['voice.transcoderUnavailable', 'transcodeFailed'],
+  // The output did not fit the quota once the work was done: the box's room, not the recording's
+  // fault, so it is retried: the host may have made room by the next attempt.
+  ['event.quotaExceeded', 'storageFailed'],
+  ['client.storageFull', 'storageFailed'],
 ])
 
 export const voiceFailureOf = (code: string): VoiceFailure =>

@@ -525,6 +525,113 @@ export const guestbookVoiceRepositoryContract = (
       expect(failed?.audioHash).toBeNull()
     })
 
+    // ------------------------------------------------------------- the result --
+
+    /** A voice claimed by the worker and the `ready` form of it, as `transcodeNextVoice` builds it. */
+    const claimedAndFinished = async (
+      entry: GuestbookEntry,
+      outputBytes: number,
+    ): Promise<GuestbookVoice> => {
+      const voice = entry.voice
+      if (voice === null) throw new Error('fixture')
+      await voices.saveVoice(entry.eventId, entry.id, voice.queue(at(10)))
+      const claimed = (await voices.claimNext(at(11)))?.voice
+      if (claimed === undefined || claimed === null) throw new Error('nothing was claimed')
+      const ready = claimed.finish(
+        { hash: must(ContentHash.create(digest('e'))), byteSize: outputBytes, durationMs: 4_000 },
+        at(12),
+      )
+      if (!ready.ok) throw new Error(ready.error.code)
+      return ready.value
+    }
+
+    it('writes the result of a voice that exists: ready, with its output, and says so', async () => {
+      const entry = reservation({ id: 'v1', sourceByteSize: 600 })
+      await admit(entry)
+      const ready = await claimedAndFinished(entry, 400)
+
+      const finished = await voices.markReady(WEDDING, entryId('v1'), ready, {
+        quotaBytes: 1_000,
+      })
+
+      expect(finished).toEqual({ kind: 'saved' })
+      const stored = (await voices.findByEntry(WEDDING, entryId('v1')))?.voice
+      expect(stored?.state).toBe('ready')
+      expect(stored?.audioByteSize).toBe(400)
+      expect(await voices.voiceBytes(WEDDING)).toBe(400)
+    })
+
+    it('does not resurrect a voice that is gone, or write another event’s: the answer is gone', async () => {
+      const entry = reservation({ id: 'v1' })
+      await admit(entry)
+      const ready = await claimedAndFinished(entry, 400)
+
+      expect(await voices.markReady(GALA, entryId('v1'), ready, { quotaBytes: 1_000 })).toEqual({
+        kind: 'gone',
+      })
+      await voices.deleteByEntry(WEDDING, entryId('v1'))
+      expect(await voices.markReady(WEDDING, entryId('v1'), ready, { quotaBytes: 1_000 })).toEqual({
+        kind: 'gone',
+      })
+      expect(await book.findById(WEDDING, entryId('v1'))).toBeNull()
+    })
+
+    it('credits the source the output replaces: a recording that fits is not refused for its own source', async () => {
+      // 600 held as a source, quota 1 000: an output of 900 fits (900 held after), though 600 + 900
+      // does not. Without the credit an event near its quota would refuse the very file it is
+      // finishing, and a permanent refusal at that.
+      const entry = reservation({ id: 'v1', sourceByteSize: 600 })
+      await admit(entry, { ...ROOMY, quotaBytes: 1_000 })
+      const ready = await claimedAndFinished(entry, 900)
+
+      expect(await voices.markReady(WEDDING, entryId('v1'), ready, { quotaBytes: 1_000 })).toEqual({
+        kind: 'saved',
+      })
+    })
+
+    it('refuses an output that does not fit what the rest of the event holds, and writes nothing', async () => {
+      await subject.chargePhotoBytes('evt-wedding', 700)
+      const entry = reservation({ id: 'v1', sourceByteSize: 200 })
+      await admit(entry, { ...ROOMY, quotaBytes: 1_000 })
+      const ready = await claimedAndFinished(entry, 400)
+
+      const finished = await voices.markReady(WEDDING, entryId('v1'), ready, {
+        quotaBytes: 1_000,
+      })
+
+      expect(finished).toEqual({
+        kind: 'refused',
+        refusal: { reason: 'quotaExceeded', remaining: 300 },
+      })
+      // Still the running voice it was, still charged for its source.
+      const stored = (await voices.findByEntry(WEDDING, entryId('v1')))?.voice
+      expect(stored?.state).toBe('running')
+      expect(await voices.voiceBytes(WEDDING)).toBe(200)
+    })
+
+    it('counts the event’s other voices when it judges an output', async () => {
+      const first = reservation({ id: 'v1', sourceByteSize: 300 })
+      const second = reservation({ id: 'v2', guestId: 'guest-sam', sourceByteSize: 300 })
+      await admit(first)
+      await admit(second)
+      await finish(first, 'ready')
+      expect(await voices.voiceBytes(WEDDING)).toBe(1_300)
+
+      await voices.saveVoice(WEDDING, entryId('v2'), second.voice!.queue(at(20)))
+      const claimed = (await voices.claimNext(at(21)))?.voice
+      if (claimed === undefined || claimed === null) throw new Error('nothing was claimed')
+      const ready = claimed.finish(
+        { hash: must(ContentHash.create(digest('f'))), byteSize: 800, durationMs: 4_000 },
+        at(22),
+      )
+      if (!ready.ok) throw new Error(ready.error.code)
+
+      // 1 000 for the first voice's output, 800 for this one: 1 800 against a quota of 1 500.
+      expect(
+        await voices.markReady(WEDDING, entryId('v2'), ready.value, { quotaBytes: 1_500 }),
+      ).toEqual({ kind: 'refused', refusal: { reason: 'quotaExceeded', remaining: 500 } })
+    })
+
     // ------------------------------------------------------------------ queue --
 
     it('claims the oldest due voice, across events, and marks it running with one attempt', async () => {
