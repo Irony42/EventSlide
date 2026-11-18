@@ -1916,6 +1916,51 @@ export const de: UiText = {
     onWall: (count: number) => `${t.number(count)} auf dem Bildschirm`,
   },
 
+  /**
+   * The voice messages in the host's console and settings (spec 25): the card, the secret, the
+   * action that keeps what waits, and the settings section. What a guest says is never here.
+   * The interface says "gardé secret" / "kept secret", never the code's word for it. Never "IA",
+   * "intelligent" or "transcription" in a sentence of this table.
+   */
+  guestbookVoiceHost: {
+    cardLabel: (author: string, duration: string) => `Sprachnachricht von ${author}, ${duration}`,
+    duration: (duration: string) => `Dauer: ${duration}`,
+    voiceBadge: 'Sprachnachricht',
+    processing: 'Wird verarbeitet',
+    processingCount: (count: number) =>
+      t.count(count, {
+        one: '1 Sprachnachricht wird verarbeitet',
+        other: `${t.number(count)} Sprachnachrichten werden verarbeitet`,
+      }),
+    sealedCard: 'Geheim gehalten bis zum Ende des Abends',
+    sealedUntil: (time: string) => `Geheim gehalten bis ${time}`,
+    notListened: 'Sie haben diese Nachricht nicht angehört',
+    cannotHide: 'Eine Sprachnachricht lässt sich nicht ausblenden: Sie ist nie auf dem Bildschirm.',
+    keepPending: (count: number) =>
+      t.count(count, {
+        one: 'Die wartende Nachricht behalten',
+        other: `Die ${t.number(count)} wartenden Nachrichten behalten`,
+      }),
+    keepConfirm: 'Sie haben nicht alle diese Nachrichten angehört. Im Album behalten?',
+    keepConfirmLabel: 'Behalten',
+    kept: (count: number) =>
+      t.count(count, {
+        one: '1 Sprachnachricht behalten.',
+        other: `${t.number(count)} Sprachnachrichten behalten.`,
+      }),
+    settingsEnabled: 'Sprachnachrichten',
+    settingsEnabledHint:
+      'Wenn Sie Sprachnachrichten im Lauf des Abends einschalten, muss jeder Gast vor seiner nächsten Nachricht den Hinweis erneut lesen: besser vorher einschalten.',
+    settingsSealed: 'Sprachnachrichten bis zum Ende des Abends geheim halten',
+    settingsSealedHint:
+      'Sie können sie bis dahin nicht anhören. Sie können trotzdem entscheiden, sie zu behalten oder abzulehnen.',
+    openNow: 'Jetzt öffnen',
+    openConfirmTitle: 'Sprachnachrichten öffnen?',
+    openConfirmBody: 'Sie können sie sofort anhören. Das lässt sich nicht rückgängig machen.',
+    opened: 'Die Sprachnachrichten sind geöffnet.',
+    insecure: 'Diese Adresse ist nicht sicher: Ihre Gäste können nichts aufnehmen',
+  },
+
   auth: {
     title: 'Anmeldung',
     email: 'E-Mail-Adresse',

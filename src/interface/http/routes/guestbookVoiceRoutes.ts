@@ -15,6 +15,7 @@ import {
   uploadLimiter,
 } from '../middleware/rateLimit'
 import { withGuest, withModerator } from '../middleware/scope'
+import type { KeepPendingVoicesResponseDto } from '../presenters/dto'
 import { toCreatedGuestbookVoiceDto } from '../presenters/presenters'
 import { serveRanged } from '../presenters/serveRanged'
 import { sendError, sendJson, sendResult } from '../presenters/send'
@@ -245,7 +246,8 @@ export const guestbookVoiceRoutes = ({
 
       sendResult(res, result, (response, kept) => {
         response.setHeader('Cache-Control', 'no-store')
-        sendJson(response, { kept: kept.kept })
+        const body: KeepPendingVoicesResponseDto = { kept: kept.kept }
+        sendJson(response, body)
       })
     }),
   )

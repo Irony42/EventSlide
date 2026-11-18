@@ -610,6 +610,11 @@ export interface ModerationPhotoDto {
   readonly highlighted: boolean
 }
 
+/** `POST …/guestbook/voice/keep-pending` (spec 25): how many ready, pending voice messages were published. */
+export interface KeepPendingVoicesResponseDto {
+  readonly kept: number
+}
+
 export interface BulkModerationResponseDto {
   readonly applied: readonly string[]
   readonly skipped: readonly string[]

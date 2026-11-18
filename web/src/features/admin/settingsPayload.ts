@@ -3,6 +3,24 @@ import type { EventSettingsDto } from '../../lib/api/dto'
 import { wallChanges } from '../../lib/wallDisplayOptions'
 
 /**
+ * The keys of the voice group this form changed (spec 25), or `undefined` when none.
+ *
+ * Only the changed keys go, like the wall's: the server merges the group per key, and an opening
+ * time that has passed cannot be written back to anything but itself (`voiceOpenDone`), so a save
+ * that only touched the wall must not carry a stale `opensAtMs` along.
+ */
+export const voiceChanges = (
+  draft: EventSettingsDto['guestbookVoice'],
+  loaded: EventSettingsDto['guestbookVoice'],
+): Partial<EventSettingsDto['guestbookVoice']> | undefined => {
+  const changed: { enabled?: boolean; sealed?: boolean; opensAtMs?: number | null } = {}
+  if (draft.enabled !== loaded.enabled) changed.enabled = draft.enabled
+  if (draft.sealed !== loaded.sealed) changed.sealed = draft.sealed
+  if (draft.opensAtMs !== loaded.opensAtMs) changed.opensAtMs = draft.opensAtMs
+  return Object.keys(changed).length === 0 ? undefined : changed
+}
+
+/**
  * The settings form's draft, as `PATCH /settings` reads it: the theme without the
  * photograph's URL.
  *
@@ -20,11 +38,14 @@ export const toSettingsPatch = (
   // The wall group is merged per key on the server, so only the keys this form changed are sent
   // (spec 13): the panel on the wall writes the same group, and a whole object would erase it.
   // A caller that did not load the group (the ambiance page) sends none.
-  const { wall, ...rest } = settings
+  const { wall, guestbookVoice, ...rest } = settings
+  const voicePatch =
+    loaded === undefined ? undefined : voiceChanges(guestbookVoice, loaded.guestbookVoice)
   const wallPatch = loaded === undefined ? undefined : wallChanges(wall, loaded.wall)
   return {
     ...rest,
     ...(wallPatch === undefined ? {} : { wall: wallPatch }),
+    ...(voicePatch === undefined ? {} : { guestbookVoice: voicePatch }),
     // The message goes at the top level, where the route reads it; `brand` stays read-only. Not sent at
     // all when the server did not say (an older build), so a save never clears what it never saw.
     ...(settings.brand === undefined ? {} : { welcomeMessage: settings.brand.welcomeMessage }),

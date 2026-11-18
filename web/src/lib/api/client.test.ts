@@ -206,6 +206,18 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.decideGuestbookEntry(SLUG, 'entry-1', 'publish'),
   },
   {
+    name: 'openGuestbookVoice',
+    verb: 'post',
+    path: `/api/events/${SLUG}/guestbook/voice/open`,
+    invoke: (client) => client.openGuestbookVoice(SLUG),
+  },
+  {
+    name: 'keepPendingVoices',
+    verb: 'post',
+    path: `/api/events/${SLUG}/guestbook/voice/keep-pending`,
+    invoke: (client) => client.keepPendingVoices(SLUG),
+  },
+  {
     name: 'deleteMyGuestbookEntry',
     verb: 'del',
     path: `/api/events/${SLUG}/guestbook/entry-1`,
@@ -883,6 +895,7 @@ describe('every endpoint addresses the documented method and path', () => {
       'albumExportUrl',
       'albumUrl',
       'bestOfUrl',
+      'guestbookVoiceUrl',
       'moderationStreamUrl',
       'reelUrl',
       'streamUrl',
@@ -1400,6 +1413,15 @@ describe('links the app builds rather than requests', () => {
     // are different addresses.
     expect(subject().moderationStreamUrl(SLUG)).toBe(`/api/events/${SLUG}/moderation/stream`)
     expect(subject().moderationStreamUrl(SLUG)).not.toBe(subject().streamUrl(SLUG))
+  })
+
+  it('reads a voice message from its own route, scoped by event and escaped', () => {
+    expect(subject().guestbookVoiceUrl(SLUG, 'entry-1')).toBe(
+      `/api/events/${SLUG}/guestbook/entry-1/voice`,
+    )
+    expect(subject().guestbookVoiceUrl('gala/autre', 'a/b')).toBe(
+      '/api/events/gala%2Fautre/guestbook/a%2Fb/voice',
+    )
   })
 
   it.each([

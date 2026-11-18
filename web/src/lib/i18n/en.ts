@@ -1829,6 +1829,51 @@ export const en: UiText = {
     onWall: (count: number) => `${t.number(count)} on screen`,
   },
 
+  /**
+   * The voice messages in the host's console and settings (spec 25): the card, the secret, the
+   * action that keeps what waits, and the settings section. What a guest says is never here.
+   * The interface says "gardé secret" / "kept secret", never the code's word for it. Never "IA",
+   * "intelligent" or "transcription" in a sentence of this table.
+   */
+  guestbookVoiceHost: {
+    cardLabel: (author: string, duration: string) => `Voice message from ${author}, ${duration}`,
+    duration: (duration: string) => `Length: ${duration}`,
+    voiceBadge: 'Voice message',
+    processing: 'Processing',
+    processingCount: (count: number) =>
+      t.count(count, {
+        one: '1 voice message being processed',
+        other: `${t.number(count)} voice messages being processed`,
+      }),
+    sealedCard: 'Kept secret until the end of the evening',
+    sealedUntil: (time: string) => `Kept secret until ${time}`,
+    notListened: 'You have not listened to this message',
+    cannotHide: 'A voice message cannot be hidden: it is never on the screen.',
+    keepPending: (count: number) =>
+      t.count(count, {
+        one: 'Keep the waiting message',
+        other: `Keep the ${t.number(count)} waiting messages`,
+      }),
+    keepConfirm: 'You have not listened to all of these messages. Keep them in the album?',
+    keepConfirmLabel: 'Keep them',
+    kept: (count: number) =>
+      t.count(count, {
+        one: '1 voice message kept.',
+        other: `${t.number(count)} voice messages kept.`,
+      }),
+    settingsEnabled: 'Voice messages',
+    settingsEnabledHint:
+      'Turning voice messages on during the evening makes every guest read the notice again before their next message: better to turn them on beforehand.',
+    settingsSealed: 'Keep voice messages secret until the end of the evening',
+    settingsSealedHint:
+      'You will not be able to listen before then. You can still decide to keep or refuse them.',
+    openNow: 'Open now',
+    openConfirmTitle: 'Open the voice messages?',
+    openConfirmBody: 'You will be able to listen to them right away. This cannot be undone.',
+    opened: 'The voice messages are open.',
+    insecure: 'This address is not secure: your guests will not be able to record',
+  },
+
   auth: {
     title: 'Sign in',
     email: 'Email address',
