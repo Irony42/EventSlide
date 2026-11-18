@@ -3987,7 +3987,7 @@ when it is `published` **and** `isRevealed(reveal, now)` (the server's clock, th
 `visibleStatuses(reveal, now)` instead of holding a constant.
 
 - **The public readers**: the wall (and so the guests' feed, which is the wall's read), the media route for a viewer who is not
-  a moderator, the podium, the reactions, the shared gallery (open, grid, bytes, archive). `src/main/publicReaders.guard.test.ts`
+  a moderator, the guest save (§26: `saveGuestPhoto` asks the same door, and gives its author no exception), the podium, the reactions, the shared gallery (open, grid, bytes, archive). `src/main/publicReaders.guard.test.ts`
   fails on a use case that reads photographs by their visibility without asking the gate, unless it is listed with the reason
   it is a host's reader (the album ZIP, the best-of, the book, a writer).
 - **Before the hour** the wall answers no photograph, no identifier, no address and no credit, `souvenirCount: null` and only an
@@ -4004,7 +4004,7 @@ when it is `published` **and** `isRevealed(reveal, now)` (the server's clock, th
   idempotent, with an instant that is the server's. It is one way: a reveal that is done cannot be moved to the future.
 
 Named tests: `eventRevealSettings.test.ts` (ring 1), `getWallPlaylist.reveal.test.ts`, `gallery.reveal.test.ts`,
-`reactToPhoto.test.ts`, `getTopPhotos.test.ts`, `getPhotoMedia.test.ts`, `revealEvent.test.ts` (ring 2),
+`reactToPhoto.test.ts`, `getTopPhotos.test.ts`, `getPhotoMedia.test.ts`, `saveGuestPhoto.test.ts`, `revealEvent.test.ts` (ring 2),
 `sqliteEventRepository.test.ts` and `sqlitePhotoRepository.test.ts` (ring 3), the wall, media, gallery, guest and event route
 suites and `revealView.contract.test.ts` (ring 4), `container.test.ts` (the composition root over a database that predates it,
 in both modes of `SITE_ADMIN`) and `suspension.container.test.ts` (a frozen client cannot reveal).

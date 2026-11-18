@@ -27,6 +27,7 @@ describe('saveGuestPhoto', () => {
   let media: InMemoryMediaStore
   let stats: FakeEventStatsRepository
   let save: SaveGuestPhoto
+  let clock: FakeClock
 
   beforeEach(() => {
     events = new FakeEventRepository().seed(
@@ -39,11 +40,12 @@ describe('saveGuestPhoto', () => {
       new FakeGuestRepository(photos),
       new FakeReactionRepository(),
     )
+    clock = new FakeClock(AT)
     save = makeSaveGuestPhoto({
       events,
       photos,
       media,
-      clock: new FakeClock(AT),
+      clock,
       engagement: makeRecordEngagement({
         stats,
         clock: new FakeClock(AT),
@@ -178,6 +180,81 @@ describe('saveGuestPhoto', () => {
     await seed({ author: { kind: 'guest', id: 'guest-1' } })
 
     expect(await refusal()).toBeNull()
+  })
+
+  describe('on a disposable-camera evening (spec 23, spec 24 section 5.7)', () => {
+    const HOUR = 3_600_000
+    const heldUntil = (at: Date | null) =>
+      events.seed(
+        anEvent({
+          id: 'event-1',
+          slug: SLUG,
+          settings: { allowGuestSave: true, reveal: { enabled: true, at } },
+        }),
+      )
+
+    it('answers photo.notFound before the reveal, identical to an unknown id', async () => {
+      heldUntil(new Date(AT.getTime() + HOUR))
+      await seed({ author: { kind: 'guest', id: 'guest-2' } })
+
+      expect(await refusal()).toBe('photo.notFound')
+      expect(await refusal(EVENT, asPhotoId('unknown'))).toBe('photo.notFound')
+    })
+
+    it('answers photo.notFound for a reveal the host has not scheduled (the button)', async () => {
+      heldUntil(null)
+      await seed({ author: { kind: 'guest', id: 'guest-2' } })
+
+      expect(await refusal()).toBe('photo.notFound')
+    })
+
+    it('does not give an author their own photograph before the reveal either', async () => {
+      // getPhotoMedia lets the author see their own unrevealed photograph; the save route has no
+      // viewer and must not widen that into a copy they could hand on.
+      heldUntil(new Date(AT.getTime() + HOUR))
+      await seed({ author: { kind: 'guest', id: 'guest-1' } })
+
+      expect(await refusal()).toBe('photo.notFound')
+    })
+
+    it('serves the file once the hour has come, read from the clock at each request', async () => {
+      heldUntil(new Date(AT.getTime() + HOUR))
+      await seed({ author: { kind: 'guest', id: 'guest-2' } })
+      expect(await refusal()).toBe('photo.notFound')
+
+      clock.advance(HOUR)
+
+      expect(await refusal()).toBeNull()
+    })
+
+    it('still refuses a photograph that is not published after the reveal', async () => {
+      heldUntil(new Date(AT.getTime() - HOUR))
+      await seed({ status: 'pending' })
+
+      expect(await refusal()).toBe('photo.notFound')
+    })
+
+    it('keeps an event whose mode is off exactly as it was', async () => {
+      events.seed(
+        anEvent({
+          id: 'event-1',
+          slug: SLUG,
+          settings: { allowGuestSave: true, reveal: { enabled: false, at: new Date(AT.getTime() + HOUR) } },
+        }),
+      )
+      await seed()
+
+      expect(await refusal()).toBeNull()
+    })
+
+    it('counts nothing for a refusal before the reveal', async () => {
+      heldUntil(new Date(AT.getTime() + HOUR))
+      await seed()
+
+      await refusal()
+
+      expect(await stats.readCounters(EVENT)).toEqual([])
+    })
   })
 
   it('saves a photograph the host sent, whose author is no guest', async () => {

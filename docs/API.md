@@ -2357,22 +2357,24 @@ The file name is the server's: the event's slug and the first characters of the 
 name, a caption or a date.
 
 **The photograph must be one the public wall shows right now**: `published`, not taken down by the
-operator, in this event. A photograph awaiting moderation, hidden or refused is not saveable, **its
+operator, in this event, and, on a disposable-camera evening (spec 23), **revealed**: before the reveal nothing is
+saveable (`404 photo.notFound`, the same answer as an unknown identifier), and an author does not get their own
+photograph through this route either (the media route lets them see it, this one never does). A photograph awaiting moderation, hidden or refused is not saveable, **its
 author included**. **Nothing is kept**: no table, no file, no cache, no real-time signal.
 
 **Errors**
 
-| Status | Code                                    | When                                                                                                                                                                                     |
-| ------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 400    | `request.invalid`                       | an identifier that is not one (checked first, whatever the event's state)                                                                                                                |
-| 401    | `auth.required`, `guestToken.malformed` | no cookie, or a token that does not verify (one older than 36 hours included)                                                                                                            |
-| 403    | `guest.revoked`                         | the host removed this guest: the host's lever against someone who abuses the feature                                                                                                     |
-| 403    | `save.disabled`                         | the host switched `allowGuestSave` off. **The one refusal that says what it is**: a feed that was open when the host switched it off has no live channel, and learns it from this answer |
-| 404    | `event.notFound`                        | another event's token, an unknown, draft or archived event, one the operator took down, a suspended client                                                                               |
-| 404    | `photo.notFound`                        | unknown; another event's; not `published`; a clip; taken down by the operator. **All the same answer**: the route is no oracle for which identifiers exist                               |
-| 404    | `photo.mediaMissing`                    | the row points at a file that is gone (a corruption the operator should see in the log)                                                                                                  |
-| 429    | `rate.limited`                          | a bound of §1 ☆, with `Retry-After`                                                                                                                                                      |
-| 503    | `service.notReady`                      | the box is serving its ceiling of saves, with `Retry-After: 30`                                                                                                                          |
+| Status | Code                                    | When                                                                                                                                                                                         |
+| ------ | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400    | `request.invalid`                       | an identifier that is not one (checked first, whatever the event's state)                                                                                                                    |
+| 401    | `auth.required`, `guestToken.malformed` | no cookie, or a token that does not verify (one older than 36 hours included)                                                                                                                |
+| 403    | `guest.revoked`                         | the host removed this guest: the host's lever against someone who abuses the feature                                                                                                         |
+| 403    | `save.disabled`                         | the host switched `allowGuestSave` off. **The one refusal that says what it is**: a feed that was open when the host switched it off has no live channel, and learns it from this answer     |
+| 404    | `event.notFound`                        | another event's token, an unknown, draft or archived event, one the operator took down, a suspended client                                                                                   |
+| 404    | `photo.notFound`                        | unknown; another event's; not `published`; **held back by the reveal gate**; a clip; taken down by the operator. **All the same answer**: the route is no oracle for which identifiers exist |
+| 404    | `photo.mediaMissing`                    | the row points at a file that is gone (a corruption the operator should see in the log)                                                                                                      |
+| 429    | `rate.limited`                          | a bound of §1 ☆, with `Retry-After`                                                                                                                                                          |
+| 503    | `service.notReady`                      | the box is serving its ceiling of saves, with `Retry-After: 30`                                                                                                                              |
 
 **The switch is not an access control.** `display` is already served to the public by §4, so
 `allowGuestSave` governs what the product offers and promises to guests (a button, a sentence in the
