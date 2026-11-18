@@ -60,11 +60,8 @@ export const voiceFileName = (mimeType: string): string => {
 /** The type without its codecs: `audio/webm;codecs=opus` is a `File` of type `audio/webm`. */
 export const baseMimeType = (mimeType: string): string => mimeType.split(';')[0]?.trim() ?? mimeType
 
-/** `0:07`, `1:00`. From the phone's own timer, never from `audio.duration` (a WebM recording reports `Infinity`). */
-export const formatClock = (ms: number): string => {
-  const seconds = Math.max(0, Math.floor(ms / 1_000))
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
-}
+/** `0:07`, `1:00` (shared with the host's console: it lives in `lib/format.ts`). */
+export { formatClock } from '../../lib/format'
 
 /** What this browser has, as plain values, so the rule below is testable without a browser. */
 export interface VoiceEnvironment {

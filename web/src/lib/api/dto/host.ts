@@ -174,6 +174,10 @@ export interface BulkModerationResponse {
   readonly applied: readonly string[]
   readonly skipped: readonly string[]
 }
+/** `POST …/guestbook/voice/keep-pending` (spec 25): how many ready, pending voices were published. */
+export interface KeepPendingVoicesResponse {
+  readonly kept: number
+}
 export interface EventSettingsDto {
   readonly moderation: 'manual' | 'auto'
   readonly allowCaptions: boolean

@@ -752,6 +752,10 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   moderationQueue: vi.fn(async () => ({ items: [], pendingCount: 0, nextCursor: null })),
   guestbookQueue: vi.fn(async () => ({ items: [], pendingCount: 0, ...QUIET_VOICE_BOOK })),
   decideGuestbookEntry: vi.fn(async () => undefined),
+  guestbookVoiceUrl: (slug: string, entryId: string) =>
+    `/api/events/${slug}/guestbook/${entryId}/voice`,
+  openGuestbookVoice: vi.fn(async () => undefined),
+  keepPendingVoices: vi.fn(async () => ({ kept: 0 })),
   moderate: vi.fn(async () => undefined),
   moderateBulk: vi.fn(async () => ({ applied: [], skipped: [] })),
   topPhotos: vi.fn(async () => ({ items: [] })),
