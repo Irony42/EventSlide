@@ -144,3 +144,42 @@ describe('the feed of a disposable-camera evening', () => {
     })
   })
 })
+
+describe('the feed of a disposable-camera evening where guests may save (spec 24, section 5.7)', () => {
+  beforeEach(() => {
+    rememberGuestSession({
+      event: aPublicEvent(),
+      displayName: 'Léa',
+      privacyNotice: aPrivacyNoticeState(),
+    })
+  })
+
+  const saveButtons = () =>
+    screen.queryAllByRole('button').filter((node) => node.textContent === fr.app.save)
+
+  it('offers no Save button while the evening is held, even if the answer carried a photograph', async () => {
+    const now = Date.now()
+    const { api } = serving({
+      guestSaveEnabled: true,
+      reveal: wallReveal({ serverNowMs: now, atMs: now + 3_600_000 }),
+      items: [aWallItem({ id: 'a', caption: 'Les confettis' })],
+    })
+    renderFeed(api)
+
+    await screen.findByTestId('feed-reveal')
+    expect(saveButtons()).toHaveLength(0)
+  })
+
+  it('offers the Save button once the evening is revealed', async () => {
+    const now = Date.now()
+    const { api } = serving({
+      guestSaveEnabled: true,
+      reveal: wallReveal({ revealed: true, serverNowMs: now, atMs: now - 1_000 }),
+      items: [aWallItem({ id: 'a', caption: 'Les confettis' })],
+    })
+    renderFeed(api)
+
+    await screen.findAllByRole('img')
+    expect(saveButtons()).toHaveLength(1)
+  })
+})

@@ -232,8 +232,10 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
                 <ReactionBar slug={slug} photoId={item.id} position={index + 1} />
               ) : null}
               {/* A photograph of somebody else's: one's own is already on one's phone, in better
-                  quality, and a clip is not saved in this version. */}
-              {gate.offered && item.kind === 'photo' && !feed.ownIds.has(item.id) ? (
+                  quality, and a clip is not saved in this version. Nothing is offered while the evening is held
+                  back (spec 24, section 5.7): the server refuses it too, this is the screen not offering what the
+                  route would refuse. */}
+              {gate.offered && !held && item.kind === 'photo' && !feed.ownIds.has(item.id) ? (
                 <SaveButton
                   slug={slug}
                   item={item}
