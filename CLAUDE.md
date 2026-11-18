@@ -117,7 +117,7 @@ src/
     guests/        Guest identity, display names
     photos/        Photo entity, status machine, captions, quotas
     moderation/    Queue ordering and decisions (pure)
-    guestbook/     Written guest messages: text, entry, ceilings, the closed-event window (spec 01)
+    guestbook/     Guest messages: text, entry, ceilings, the closed-event window (spec 01), and the voice message that rides the same entry: its processing state, its ceilings, what the purge band says about it, how `guestbook.txt` writes it (spec 25)
     slideshow/     Playlist building, layouts, transitions (pure)
     reactions/     Reaction rules
     clients/       Client entity, ceilings, roles, ceiling levels (roadmap §10.2, §10.5), the purge deadline and its warning thresholds, who may export (`exportAllowed`, spec 22)
