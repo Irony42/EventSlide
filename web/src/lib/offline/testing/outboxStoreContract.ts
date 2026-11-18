@@ -32,13 +32,66 @@ export const anEntry = (overrides: Partial<NewOutboxEntry> = {}): NewOutboxEntry
 /**
  * @param reopen gives the store a later visit to the screen would get after `previous` was closed:
  *   a fresh handle on the same database for IndexedDB, the page's one store for the memory fallback.
+ * @param capped a store whose cap is the given number of entries per event (spec 25: the voice queue
+ *   holds three, the photo queue forty, and both are this contract).
  */
 export const outboxStoreContract = (
   name: string,
   makeSubject: () => Promise<OutboxStore>,
   reopen: (previous: OutboxStore) => Promise<OutboxStore>,
+  capped: (maxEntriesPerEvent: number) => Promise<OutboxStore>,
 ): void => {
   describe(`OutboxStore contract: ${name}`, () => {
+    it('holds as many entries per event as it was told to, and drops the oldest past that', async () => {
+      // The cap is the store's own parameter and not a constant it reads: a voice queue judging
+      // by the photo queue's forty would hold ten recordings the server must refuse.
+      const store = await capped(2)
+      const first = (await store.add(anEntry({ fileName: 'un.webm' }), t)).entry
+      await store.add(anEntry({ fileName: 'deux.webm' }), t + 1)
+
+      const third = await store.add(anEntry({ fileName: 'trois.webm' }), t + 2)
+
+      expect(third.evicted).toEqual([first.id])
+      expect((await store.list('camille-et-sacha')).map((held) => held.fileName)).toEqual([
+        'deux.webm',
+        'trois.webm',
+      ])
+    })
+
+    it('keeps a blocked entry, says why, and does not count a try', async () => {
+      // A recording the host switched off a minute too early is kept and shown with its reason,
+      // not retried on a timer and not destroyed.
+      const store = await makeSubject()
+      const { entry: stored } = await store.add(anEntry(), t)
+      await store.claim(stored.id, t, 60_000)
+
+      await store.block(stored.id, 'guestbook.voiceDisabled')
+
+      const [held] = await store.list('camille-et-sacha')
+      expect(held?.blockedCode).toBe('guestbook.voiceDisabled')
+      expect(held?.attempts).toBe(0)
+      expect(held?.claimedAt).toBeNull()
+    })
+
+    it('lets every blocked entry of one event be tried again, and only that event', async () => {
+      const store = await makeSubject()
+      const { entry: mine } = await store.add(anEntry({ slug: 'mariage' }), t)
+      const { entry: theirs } = await store.add(anEntry({ slug: 'gala' }), t)
+      await store.block(mine.id, 'guestbook.disabled')
+      await store.block(theirs.id, 'guestbook.disabled')
+
+      await store.unblock('mariage')
+
+      expect((await store.list('mariage'))[0]?.blockedCode ?? null).toBeNull()
+      expect((await store.list('gala'))[0]?.blockedCode).toBe('guestbook.disabled')
+    })
+
+    it('ignores blocking an entry that is already gone', async () => {
+      const store = await makeSubject()
+
+      await expect(store.block('never-existed', 'guestbook.disabled')).resolves.toBeUndefined()
+    })
+
     it('keeps its entries when it is closed and a later visit reopens the same store kind', async () => {
       // The upload screen closes its store when it unmounts, and a guest offline with photos
       // waiting who taps the feed link unmounts it. `close` releases a handle; it never forgets.

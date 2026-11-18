@@ -73,6 +73,16 @@ export interface OutboxEntry {
    * mid-flight does not strand the entry for the rest of the evening.
    */
   readonly claimedAt: number | null
+  /**
+   * The refusal that stopped this entry, or absent/`null` while it is still being sent.
+   *
+   * A third state beside "sent" and "dropped" (spec 25): the server refused the moment, not the
+   * bytes, and the bytes are worth more than a retry loop. A voice message the host switched off
+   * a minute too early is **kept**, shown to the guest with the reason, and sent again only when
+   * the page is next opened or the host's setting changes (`OutboxStore.unblock`). Photos never
+   * reach it: their refusals either defer or discard.
+   */
+  readonly blockedCode?: string | null
 }
 
 /** What a caller hands over; the store fills in the rest. */
@@ -142,6 +152,13 @@ export interface OutboxStore {
   /** Gives the entry back after a deferred attempt, counting the attempt. */
   release(id: string, now: number): Promise<void>
   remove(id: string): Promise<void>
+  /**
+   * Stops sending an entry **without** forgetting it, and says why (`OutboxEntry.blockedCode`).
+   * The lease is given back; the attempt is not counted, because nothing was wrong with the network.
+   */
+  block(id: string, code: string): Promise<void>
+  /** Lets every blocked entry of one event be sent again: what opening the page, or a setting that changed, does. */
+  unblock(slug: string): Promise<void>
   /** Every entry for one event. Used by the kill switch and after a purge. */
   clear(slug: string): Promise<void>
   close(): void
@@ -160,6 +177,11 @@ export type OutboxSendOutcome =
   | { readonly kind: 'sent'; readonly photoId: string | null; readonly duplicate: boolean }
   /** The server judged the file or the request itself. Never retried. */
   | { readonly kind: 'rejected'; readonly code: string }
+  /**
+   * The server refused the moment and not the bytes (spec 25, the voice queue): not retried on a
+   * timer, **not discarded** either. The entry is kept, marked with the code.
+   */
+  | { readonly kind: 'blocked'; readonly code: string }
   /** Nothing reached the server, or the server could not answer. Retried later. */
   | { readonly kind: 'deferred' }
 
