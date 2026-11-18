@@ -207,6 +207,23 @@ Priority order, and it is not a suggestion:
 `data-testid` values are part of the contract. Renaming one is a breaking change: grep
 before you touch it.
 
+## A microphone, and what a wall must not hear
+
+A journey that records (`tests/e2e/journeys/voice-guestbook.spec.ts`, `tests/e2e/offline/voice-offline.spec.ts`) needs
+a capture device, and a headless browser has none. Chromium has a fake one, set by **launch flags**, which a context
+cannot carry: `test.use({ launchOptions: { args: FAKE_MICROPHONE } })` at the top of the file (`fixtures/voice.ts`, with
+`openRecorder`, `recordTake` and `sendTake`), not a project of its own. The real `MediaRecorder` then writes a real
+WebM/Opus file. WebKit has no dependable fake microphone: its spec (`voice-detection.spec.ts`) asserts only that the
+button is present exactly when the engine can record, and recording on a real iPhone stays a manual check.
+
+`test.skip(cb)` at file level receives **fixtures only**, not `testInfo`: to skip on a project name, call
+`test.skip(condition, reason)` inside a `test.beforeEach(({ browserName }, info) => …)`.
+
+To prove a surface **receives nothing**, count what reaches it from inside the page, with no sleep: wrap `EventSource`
+in `page.addInitScript` to record the `change` frames, and count the requests with `page.on('request')`. Take the
+baseline **late** (the wall makes two reads of its own when it opens), then compare at the end. The check only means
+something because a mutation (removing the signal from `MODERATION_ONLY_SIGNALS`) turns it red: run it.
+
 ## Waiting
 
 - `await expect(locator).toBeVisible()` — auto-retrying, use this.

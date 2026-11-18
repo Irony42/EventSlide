@@ -65,6 +65,12 @@ binds the port to `127.0.0.1` for the proxy to reach and sets `TRUST_PROXY_HOPS=
 match; if your proxy is a container on the same Docker network, delete the `ports:` block
 and point it at `eventslide:4300`.
 
+**The microphone depends on it too.** Guests can leave voice messages in the guestbook, and a browser lends a
+web page its microphone only on an https address. Behind the proxy above it works; served over plain `http://` on a
+local network it does not, and the voice button is simply absent (the written message is unaffected). There is no
+browser setting that gets around this. If your proxy sets `Permissions-Policy` on its own, pass the application's
+header through rather than replacing it, or the guest's pages lose their microphone.
+
 With Caddy, the whole proxy is one line in a `Caddyfile` next to the compose file:
 
 ```
