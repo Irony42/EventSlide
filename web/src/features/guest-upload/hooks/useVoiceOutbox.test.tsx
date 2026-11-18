@@ -7,6 +7,7 @@ import { fakeApi } from '../../../testing/renderWithProviders'
 import { useVoiceOutbox, type UseVoiceOutboxOptions } from './useVoiceOutbox'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
+import type { CreatedGuestbookVoiceDto } from '../../../lib/api/dto'
 import type { OutboxStore } from '../../../lib/offline/outbox'
 import type { VoiceRecording } from './useVoiceRecorder'
 
@@ -444,7 +445,7 @@ describe('useVoiceOutbox, the moments it tries again', () => {
     const api = fakeApi({
       leaveVoiceMessage: vi.fn(
         () =>
-          new Promise((resolve) => {
+          new Promise<CreatedGuestbookVoiceDto>((resolve) => {
             release = () =>
               resolve({
                 entry: {
