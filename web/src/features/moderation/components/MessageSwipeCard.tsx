@@ -72,13 +72,15 @@ export function MessageSwipeCard({
           {message.text}
         </p>
       ) : (
-        <VoiceMessageBody
-          slug={slug}
-          message={message}
-          author={author}
-          sealed={voiceSealed}
-          opensAtMs={voiceOpensAtMs}
-        />
+        <div className={styles['voice']}>
+          <VoiceMessageBody
+            slug={slug}
+            message={message}
+            author={author}
+            sealed={voiceSealed}
+            opensAtMs={voiceOpensAtMs}
+          />
+        </div>
       )}
       <div className={cardStyles['meta']}>
         <p
