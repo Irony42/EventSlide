@@ -1174,7 +1174,8 @@ export const fr = {
       anonymous: (guests: number, photos: number) =>
         `Les invités sans prénom sont regroupés : ${t.count(guests, { one: `${t.number(guests)} invité`, other: `${t.number(guests)} invités` })}, ${t.count(photos, { one: `${t.number(photos)} envoi`, other: `${t.number(photos)} envois` })}.`,
       engagementTitle: 'Après la soirée',
-      engagementNone: 'Pas encore mesuré : aucune ouverture du lien d’album ni aucun ZIP lancé.',
+      engagementNone:
+        'Pas encore mesuré : aucune ouverture du lien d’album, aucun ZIP lancé ni aucune photo enregistrée.',
       albumOpens: (count: number) =>
         t.count(count, {
           one: `${t.number(count)} ouverture du lien d’album`,
@@ -1185,9 +1186,14 @@ export const fr = {
           one: `${t.number(count)} ZIP lancé`,
           other: `${t.number(count)} ZIP lancés`,
         }),
+      guestSaves: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} photo enregistrée par les invités`,
+          other: `${t.number(count)} photos enregistrées par les invités`,
+        }),
       measuredSince: (date: string) => `Mesuré depuis le ${date}. Avant, rien n’était compté.`,
       engagementNote:
-        'Une ouverture est un chargement de la page d’album, pas une personne. Un ZIP lancé n’est pas forcément terminé. Ces chiffres sont indicatifs.',
+        'Une ouverture est un chargement de la page d’album, pas une personne. Un ZIP lancé n’est pas forcément terminé. Un enregistrement est une demande acceptée, pas une photo forcément arrivée sur le téléphone. Ces chiffres sont indicatifs.',
       retention:
         'Ces chiffres disparaissent avec l’évènement, à sa suppression ou à l’échéance de conservation.',
     },

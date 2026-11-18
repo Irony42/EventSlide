@@ -1149,7 +1149,8 @@ export const it: UiText = {
       anonymous: (guests: number, photos: number) =>
         `Gli invitati senza nome sono raggruppati: ${t.count(guests, { one: `${t.number(guests)} invitato`, other: `${t.number(guests)} invitati` })}, ${t.count(photos, { one: `${t.number(photos)} invio`, other: `${t.number(photos)} invii` })}.`,
       engagementTitle: 'Dopo la serata',
-      engagementNone: 'Non ancora misurato: nessun link dell’album aperto e nessuno ZIP avviato.',
+      engagementNone:
+        'Non ancora misurato: nessun link dell’album aperto, nessuno ZIP avviato e nessuna foto salvata.',
       albumOpens: (count: number) =>
         t.count(count, {
           one: `${t.number(count)} apertura del link dell’album`,
@@ -1160,9 +1161,14 @@ export const it: UiText = {
           one: `${t.number(count)} ZIP avviato`,
           other: `${t.number(count)} ZIP avviati`,
         }),
+      guestSaves: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} foto salvata dagli ospiti`,
+          other: `${t.number(count)} foto salvate dagli ospiti`,
+        }),
       measuredSince: (date: string) => `Misurato dal ${date}. Prima non veniva contato nulla.`,
       engagementNote:
-        'Un’apertura è il caricamento della pagina dell’album, non una persona. Uno ZIP avviato non è necessariamente completato. Questi numeri sono indicativi.',
+        'Un’apertura è il caricamento della pagina dell’album, non una persona. Uno ZIP avviato non è necessariamente completato. Un salvataggio è una richiesta accettata, non necessariamente una foto arrivata sul telefono. Questi numeri sono indicativi.',
       retention:
         'Questi numeri scompaiono con l’evento, alla sua eliminazione o alla scadenza del periodo di conservazione.',
     },

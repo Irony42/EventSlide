@@ -8,6 +8,7 @@ import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
+import type { RecordEngagement } from '../stats/recordEngagement'
 import type { PhotoMedia } from './getPhotoMedia'
 
 /**
@@ -39,7 +40,9 @@ import type { PhotoMedia } from './getPhotoMedia'
  * not an oracle for which ids exist or what state they are in. `photo.mediaMissing` is the one
  * exception, the code the project already uses for a row whose file is gone.
  *
- * Nothing is kept: no row of who saved what, no copy, no cache.
+ * Nothing is kept: no row of who saved what, no copy, no cache. The one trace is the
+ * `guestSaves` counter, an integer per event and UTC day (spec 24), bumped once every check has
+ * passed and never on a refusal.
  */
 
 export interface SaveGuestPhotoInput {
@@ -63,12 +66,13 @@ export interface SaveGuestPhotoDeps {
   readonly events: EventRepository
   readonly photos: PhotoRepository
   readonly media: MediaStore
+  readonly engagement: RecordEngagement
 }
 
 export type SaveGuestPhoto = (input: SaveGuestPhotoInput) => Promise<Result<GuestSave, DomainError>>
 
 export const makeSaveGuestPhoto =
-  ({ events, photos, media }: SaveGuestPhotoDeps): SaveGuestPhoto =>
+  ({ events, photos, media, engagement }: SaveGuestPhotoDeps): SaveGuestPhoto =>
   async ({ eventId, photoId }) => {
     const event = await events.findById(eventId)
     if (event === null || !event.servesPublicWall()) {
@@ -89,6 +93,10 @@ export const makeSaveGuestPhoto =
     const hash: ContentHash = photo.hashFor(variant)
     const metadata = await media.stat(eventId, hash, variant)
     if (metadata === null) return err(DomainError.notFound('photo.mediaMissing'))
+
+    // A request granted, not a finished download: counted once the decision is taken and before
+    // the bytes flow, as the ZIP of the shared album is. An integer for the day, nobody's name.
+    await engagement({ eventId, metric: 'guestSaves', delta: 1 })
 
     return ok({
       contentHash: hash,

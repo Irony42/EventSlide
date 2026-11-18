@@ -3,6 +3,6 @@
  * schema cannot extend a `CHECK` without a rebuild, so a metric the domain does not name is
  * never written (spec 05).
  */
-export const STATS_METRICS = ['galleryViews', 'galleryArchiveDownloads'] as const
+export const STATS_METRICS = ['galleryViews', 'galleryArchiveDownloads', 'guestSaves'] as const
 
 export type StatsMetric = (typeof STATS_METRICS)[number]

@@ -29,7 +29,7 @@ import { type SharedHooks } from './usecases.shared'
 export const photosUseCases = (
   adapters: Adapters,
   policy: UseCasePolicy,
-  { invalidateReel, invalidateBook, invalidateExport }: SharedHooks,
+  { invalidateReel, invalidateBook, invalidateExport, engagement }: SharedHooks,
 ) => ({
   // photos
   uploadPhotos: makeUploadPhotos({
@@ -76,6 +76,7 @@ export const photosUseCases = (
     events: adapters.events,
     photos: adapters.photos,
     media: adapters.media,
+    engagement,
   }),
   identifyMediaViewer: makeIdentifyMediaViewer({
     guests: adapters.guests,

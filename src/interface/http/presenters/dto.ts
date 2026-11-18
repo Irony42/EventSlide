@@ -1655,6 +1655,7 @@ export interface EngagementDto {
   readonly since: string
   readonly galleryViews: number
   readonly galleryArchiveDownloads: number
+  readonly guestSaves: number
 }
 
 /**

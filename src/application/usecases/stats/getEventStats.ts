@@ -2,6 +2,7 @@ import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import { DomainError } from '../../../domain/shared/errors'
 import { engagementSince } from '../../../domain/stats/engagementWindow'
+import type { StatsMetric } from '../../../domain/stats/statsMetric'
 import { rankContributors, type ContributorRanking } from '../../../domain/stats/contributorRanking'
 import type { Clock } from '../../ports/clock'
 import type { DerivedStats } from '../../ports/eventStatsRepository'
@@ -39,6 +40,7 @@ export interface Engagement {
   readonly since: string
   readonly galleryViews: number
   readonly galleryArchiveDownloads: number
+  readonly guestSaves: number
 }
 
 export interface EventStats {
@@ -77,7 +79,7 @@ export const makeGetEventStats =
 
     const counters = await stats.readCounters(eventId)
     const first = engagementSince(counters.map((counter) => counter.day))
-    const total = (metric: 'galleryViews' | 'galleryArchiveDownloads'): number =>
+    const total = (metric: StatsMetric): number =>
       counters.filter((counter) => counter.metric === metric).reduce((sum, c) => sum + c.value, 0)
 
     return ok({
@@ -89,6 +91,7 @@ export const makeGetEventStats =
               since: first,
               galleryViews: total('galleryViews'),
               galleryArchiveDownloads: total('galleryArchiveDownloads'),
+              guestSaves: total('guestSaves'),
             },
       uploadsTotal: byStatus.pending + byStatus.published + byStatus.rejected + byStatus.hidden,
       activeNow: await guests.countActive(eventId, since),

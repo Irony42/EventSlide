@@ -382,6 +382,7 @@ export interface EngagementDto {
   readonly since: string
   readonly galleryViews: number
   readonly galleryArchiveDownloads: number
+  readonly guestSaves: number
 }
 /**
  * The host statistics page (spec 05). Everything is derived from the album at read time.

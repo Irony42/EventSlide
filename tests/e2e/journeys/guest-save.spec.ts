@@ -135,6 +135,16 @@ test('a guest saves another guestâ€™s photo as a clean, smaller file; the hostâ€
       await closeQuietly(stranger)
     }
 
+    // --- The host reads one number on the statistics page: the granted requests so far, and no
+    // refusal (the stranger's 401 above) in it. An integer, with nobody's name beside it.
+    const savesNow = async (): Promise<number | null> => {
+      const response = await host.request.get(app.url(`/api/events/${event.slug}/stats`))
+      const body = (await response.json()) as { engagement: { guestSaves: number } | null }
+      return body.engagement?.guestSaves ?? null
+    }
+    const savesBefore = await savesNow()
+    expect(savesBefore).toBe(1)
+
     // --- The host cuts it while the feed is open. The buttons stay (the feed has no live
     // channel) until the next tap, and then they go once, with one sentence: the route is
     // the door, and the page learns it there.
@@ -148,6 +158,7 @@ test('a guest saves another guestâ€™s photo as a clean, smaller file; the hostâ€
     const refused = await reader.request.get(app.url(savePath(event.slug, photoId)))
     expect(refused.status()).toBe(403)
     expect(await refused.json()).toMatchObject({ error: { code: 'save.disabled' } })
+    expect(await savesNow()).toBe(savesBefore)
 
     await button.click()
     await expect(reader.getByText(fr.feed.saveDisabled)).toBeVisible()
