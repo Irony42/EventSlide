@@ -175,7 +175,7 @@ settings are new in `.env.example`, all optional.
 - **Off on every existing event**: voice messages (`guestbookVoice.enabled`), guest saving (`allowGuestSave`) and the
   disposable camera (`reveal.enabled`) read off for an event created before this version, so the upgrade changes neither
   what a running event does nor the notice its guests have read. A new event has saving on (not from the "Conférence" template) and voice on only from
-  "Mariage". Switching either on makes each guest read the privacy notice once more before the next send.
+  "Mariage". Switching any of them on makes each guest read the privacy notice once more before the next send.
 - **No migration beyond 032 for the disposable camera**: the mode lives in the event's settings, read as off when the key is
   absent, and nothing is set in `.env`. A web page left open across the upgrade does not know the new `reveal` blocks:
   reload the screens, or upgrade before an evening where the mode is on.
