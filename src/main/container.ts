@@ -17,6 +17,7 @@ import { SqliteUserRepository } from '../infrastructure/db/sqliteUserRepository'
 import { SqliteMembershipRepository } from '../infrastructure/db/sqliteMembershipRepository'
 import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepository'
 import { SqliteGuestbookRepository } from '../infrastructure/db/sqliteGuestbookRepository'
+import { SqliteGuestbookVoiceRepository } from '../infrastructure/db/sqliteGuestbookVoiceRepository'
 import { SqliteAnnouncementRepository } from '../infrastructure/db/sqliteAnnouncementRepository'
 import { SqliteChallengeRepository } from '../infrastructure/db/sqliteChallengeRepository'
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
@@ -47,8 +48,9 @@ import {
   type FfmpegVideoTranscoder,
 } from '../infrastructure/media/ffmpegVideoTranscoder'
 import { minimalChildEnv } from '../infrastructure/media/runProcess'
+import { nullAudioTranscoder } from '../infrastructure/media/nullAudioTranscoder'
 import { nullVideoTranscoder } from '../infrastructure/media/nullVideoTranscoder'
-import { detectVideoContainer } from '../infrastructure/media/magicBytes'
+import { detectAudioContainer, detectVideoContainer } from '../infrastructure/media/magicBytes'
 import { archiverWriter } from '../infrastructure/media/archiverWriter'
 import { createBcryptPasswordHasher } from '../infrastructure/crypto/bcryptPasswordHasher'
 import { createHmacGuestTokenService } from '../infrastructure/crypto/hmacGuestTokenService'
@@ -467,11 +469,15 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     challenges: new SqliteChallengeRepository(db),
     announcements: new SqliteAnnouncementRepository(db),
     guestbook: new SqliteGuestbookRepository(db),
+    voices: new SqliteGuestbookVoiceRepository(db),
     users: new SqliteUserRepository(db),
     memberships: new SqliteMembershipRepository(db),
     media: createFsMediaStore({ root: mediaRoot }),
     imageProcessor: createSharpImageProcessor({ maxPixels: config.uploads.maxPixels }),
     videoTranscoder,
+    // The audio adapter (ffmpeg) is a later change; until then a voice message is not offered and
+    // a request that arrives is refused before any byte is written (`voice.transcoderUnavailable`).
+    audioTranscoder: nullAudioTranscoder(detectAudioContainer),
     contentHasher: sha256ContentHasher,
     archive: archiverWriter,
     passwordHasher: createBcryptPasswordHasher({ cost: config.crypto.bcryptCost }),
@@ -635,7 +641,13 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
    * windows rather than an evening.
    */
   const reservationReaper = createReservationReaper({
-    reap: usecases.reapStaleReservations,
+    // One timer for both queues: a stranded clip reservation and a stranded voice reservation hold
+    // the same three things, on the same five-minute window (spec 25, rule 2).
+    reap: async () => {
+      const clips = await usecases.reapStaleReservations()
+      const voices = await usecases.reapStaleVoiceReservations()
+      return { reaped: clips.reaped + voices.reserved + voices.failed }
+    },
     logger,
     clock: adapters.clock,
     intervalMs: CLIP_RESERVATION_TIMEOUT_MS,

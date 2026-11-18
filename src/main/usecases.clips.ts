@@ -3,6 +3,13 @@ import { makeReapStaleReservations } from '../application/usecases/clips/reapSta
 import { makeRecoverClipJobs } from '../application/usecases/clips/recoverClipJobs'
 import { makeTranscodeNextClip } from '../application/usecases/clips/transcodeNextClip'
 import { makeUploadClip } from '../application/usecases/clips/uploadClip'
+import { makeReapStaleVoiceReservations } from '../application/usecases/guestbook/reapStaleVoiceReservations'
+import { makeStageGuestbookVoice } from '../application/usecases/guestbook/stageGuestbookVoice'
+import {
+  MAX_QUEUED_VOICES,
+  MAX_QUEUED_VOICES_PER_EVENT,
+  VOICE_FAILED_RETENTION_MS,
+} from '../domain/guestbook/guestbookVoiceLimits'
 import type { Adapters, UseCasePolicy } from './usecases'
 
 /** The clips slice of the use-case bag: composition only, built by `buildUseCases`. */
@@ -28,6 +35,36 @@ export const clipsUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     },
   }),
   getClipJob: makeGetClipJob({ clips: adapters.clips }),
+
+  // A guestbook voice message (spec 25) is staged and queued like a clip, so its use cases are
+  // composed here with the rest of the transcoding slice. No route reaches them yet.
+  stageGuestbookVoice: makeStageGuestbookVoice({
+    events: adapters.events,
+    clients: adapters.clients,
+    guestbook: adapters.guestbook,
+    voices: adapters.voices,
+    media: adapters.media,
+    transcoder: adapters.audioTranscoder,
+    hasher: adapters.contentHasher,
+    bus: adapters.bus,
+    clock: adapters.clock,
+    ids: adapters.ids,
+    logger: adapters.logger,
+    limits: {
+      maxQueuedVoices: MAX_QUEUED_VOICES,
+      maxQueuedVoicesPerEvent: MAX_QUEUED_VOICES_PER_EVENT,
+    },
+  }),
+  /** A reservation a dead request left, and a failed voice after its day: the box's, no route's. */
+  reapStaleVoiceReservations: makeReapStaleVoiceReservations({
+    voices: adapters.voices,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    policy: {
+      reservationTimeoutMs: policy.clips.reservationTimeoutMs,
+      failedRetentionMs: VOICE_FAILED_RETENTION_MS,
+    },
+  }),
   /**
    * The two the HTTP layer deliberately does not list.
    *
