@@ -61,3 +61,33 @@ export const voiceQueueFull = (depth: number, maxDepth: number): DomainError =>
     maxDepth,
     retryAfterSeconds: voiceRetryAfterSecondsFor(depth),
   })
+
+/**
+ * How far past the cap a file may **declare** itself before it is refused unread (`voice.tooLong`):
+ * the phone stops at the cap, so a header that says more than five seconds over is not our client.
+ * A header is a claim by the file, so this only spares the encoder; the output is bounded by `-t`
+ * whatever it says.
+ */
+export const VOICE_DECLARED_SLACK_MS = 5_000
+
+/** Whether a declared duration is past the cap by more than the slack. `null` is no claim at all. */
+export const voiceDeclaredTooLong = (declaredMs: number | null, maxDurationMs: number): boolean =>
+  declaredMs !== null && declaredMs > maxDurationMs + VOICE_DECLARED_SLACK_MS
+
+/** The floor of the output's size ceiling (`-fs`): 1 MB, which a default minute fills a third of. */
+const VOICE_OUTPUT_FLOOR_BYTES = 1_000_000
+
+/** Twice the nominal rate of the encoder (48 kbit/s mono is 6 kB a second), for the longest message. */
+const VOICE_OUTPUT_BYTES_PER_SECOND = 12_000
+
+/**
+ * The ceiling on what the encoder may write for a message of at most `maxDurationMs`: 1 MB, or
+ * twice the nominal rate when the operator allows more than a minute and a half. At the default
+ * 60 seconds a message is about 360 kB, so the ceiling is a bound on a pathological source and
+ * never something a real recording meets; and a 180-second setting still fits its own output.
+ */
+export const voiceOutputCeilingBytes = (maxDurationMs: number): number =>
+  Math.max(
+    VOICE_OUTPUT_FLOOR_BYTES,
+    Math.ceil((maxDurationMs / 1000) * VOICE_OUTPUT_BYTES_PER_SECOND),
+  )
