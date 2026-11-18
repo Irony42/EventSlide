@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -156,6 +157,7 @@ const aBrowser = async (booted: Container) => {
       note(await agent.post(path).set(CSRF_HEADER, csrf).send(body)),
     patch: async (path: string, body: object = {}) =>
       note(await agent.patch(path).set(CSRF_HEADER, csrf).send(body)),
+    delete: async (path: string) => note(await agent.delete(path).set(CSRF_HEADER, csrf)),
     sendVoice: async (path: string, bytes: Buffer, name = 'voice.webm') =>
       note(await agent.post(path).set(CSRF_HEADER, csrf).attach('voice', bytes, name)),
   }
@@ -458,5 +460,205 @@ describe('no other route serves a voice recording', () => {
     expect(asked).toBeGreaterThan(100)
     // The one door: the owner, on the guestbook's own voice route, and nobody else anywhere.
     expect([...new Set(served)]).toEqual([`the owner ${VOICE_ROUTE} (${ALL_MEDIA_VARIANTS[0]})`])
+  })
+})
+
+describe('the life of a recording after the evening (spec 25, section 10)', () => {
+  /** Every file the media root holds for the event: what the purge and the erasure must reach. */
+  const mediaOf = async (s: Scene): Promise<string[]> =>
+    filesUnder(join(workDir ?? '', 'media', s.eventId))
+
+  const closeLongAgo = (s: Scene, days: number, retention = 30): void => {
+    const closed = new Date(Date.now() - days * 86_400_000).toISOString()
+    s.booted.db
+      .prepare(`UPDATE events SET status = 'closed', closed_at = ?, settings = ? WHERE id = ?`)
+      .run(
+        closed,
+        JSON.stringify(
+          anEventSettings({
+            allowGuestbook: true,
+            guestbookVoice: { enabled: true },
+            retentionDays: retention,
+          }).toProps(),
+        ),
+        s.eventId,
+      )
+  }
+
+  const voiceRows = (s: Scene): number =>
+    s.booted.db
+      .prepare<[], { readonly n: number }>('SELECT COUNT(*) AS n FROM guestbook_voices')
+      .get()?.n ?? 0
+
+  it('removes the event’s whole folder with the recordings in it when the retention has run out', async () => {
+    const s = await scene()
+    await aReadyVoice(s)
+    expect((await mediaOf(s)).some((path) => path.endsWith('.m4a'))).toBe(true)
+    closeLongAgo(s, 40)
+
+    const report = await s.booted.usecases.purgeExpiredEvents()
+
+    expect(report.purged).toEqual([s.eventId])
+    expect(await mediaOf(s)).toEqual([])
+    expect(voiceRows(s)).toBe(0)
+  })
+
+  it('leaves the recordings alone while the retention has not run out', async () => {
+    const s = await scene()
+    await aReadyVoice(s)
+    closeLongAgo(s, 5)
+
+    const report = await s.booted.usecases.purgeExpiredEvents()
+
+    expect(report.purged).toEqual([])
+    expect((await mediaOf(s)).some((path) => path.endsWith('.m4a'))).toBe(true)
+    expect(voiceRows(s)).toBe(1)
+  })
+
+  it('leaves the recordings alone under the operator’s hold on the purge, whatever the date says', async () => {
+    const s = await scene()
+    await aReadyVoice(s)
+    closeLongAgo(s, 40)
+    s.booted.db
+      .prepare('UPDATE events SET purge_held_at = ? WHERE id = ?')
+      .run(new Date().toISOString(), s.eventId)
+
+    const report = await s.booted.usecases.purgeExpiredEvents()
+
+    expect(report.purged).toEqual([])
+    expect((await mediaOf(s)).some((path) => path.endsWith('.m4a'))).toBe(true)
+  })
+
+  it('takes the recording off the disk when its guest erases everything they sent, and the row with it', async () => {
+    const s = await scene()
+    await aReadyVoice(s)
+
+    const erased = await s.guest.delete(`/api/events/${SLUG}/guests/me`)
+
+    expect(erased.status).toBe(200)
+    expect(erased.body).toMatchObject({ messages: 1 })
+    expect(await mediaOf(s)).toEqual([])
+    expect(voiceRows(s)).toBe(0)
+  })
+
+  it('takes the recording off the disk when its guest takes the one message back inside the grace window', async () => {
+    const s = await scene()
+    const entryId = await aReadyVoice(s)
+
+    const removed = await s.guest.delete(`/api/events/${SLUG}/guestbook/${entryId}`)
+
+    expect(removed.status).toBe(204)
+    expect(await mediaOf(s)).toEqual([])
+    expect(voiceRows(s)).toBe(0)
+  })
+
+  it('keeps the bytes of a recording the operator took down, through its guest’s erasure: they are evidence', async () => {
+    const s = await scene()
+    const entryId = await aReadyVoice(s)
+    const down = await s.operator.post(`/api/site/guestbook-entries/${entryId}/take-down`, {
+      reason: 'Signalement reçu, retrait conservatoire',
+    })
+    expect(down.status, JSON.stringify(down.body)).toBeLessThan(300)
+
+    await s.guest.delete(`/api/events/${SLUG}/guests/me`)
+
+    expect((await mediaOf(s)).some((path) => path.endsWith('.m4a'))).toBe(true)
+    expect(voiceRows(s)).toBe(1)
+  })
+})
+
+describe('the host’s ZIP and the recordings (spec 25, section 8)', () => {
+  /** The names a ZIP lists in its central directory, read by hand. */
+  const entryNamesOf = (zip: Buffer): readonly string[] => {
+    const end = zip.length - 22
+    const count = zip.readUInt16LE(end + 10)
+    let at = zip.readUInt32LE(end + 16)
+    const names: string[] = []
+    for (let n = 0; n < count; n += 1) {
+      const nameLength = zip.readUInt16LE(at + 28)
+      const extraLength = zip.readUInt16LE(at + 30)
+      const commentLength = zip.readUInt16LE(at + 32)
+      names.push(zip.toString('utf8', at + 46, at + 46 + nameLength))
+      at += 46 + nameLength + extraLength + commentLength
+    }
+    return names
+  }
+
+  const album = async (s: Scene): Promise<Buffer> => {
+    const response = await s.operator.getBytes(`/api/events/${SLUG}/album.zip`)
+    expect(response.status).toBe(200)
+    return response.body as Buffer
+  }
+
+  const sealed = (s: Scene): void => {
+    s.booted.db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
+      JSON.stringify(
+        anEventSettings({
+          allowGuestbook: true,
+          guestbookVoice: { enabled: true, sealed: true },
+        }).toProps(),
+      ),
+      s.eventId,
+    )
+  }
+
+  const publish = async (s: Scene, entryId: string): Promise<void> => {
+    const decided = await s.operator.patch(`/api/events/${SLUG}/guestbook/${entryId}/status`, {
+      decision: 'publish',
+    })
+    expect(decided.status, JSON.stringify(decided.body)).toBe(204)
+  }
+
+  const voiceNames = (zip: Buffer): readonly string[] =>
+    entryNamesOf(zip).filter((name) => name.includes('/voice/'))
+
+  it('carries a published recording as an .m4a listed in the manifest with the digest of the file on the disk, and a line in guestbook.txt', async () => {
+    const s = await scene()
+    const entryId = await aReadyVoice(s)
+    await publish(s, entryId)
+    const row = s.booted.db
+      .prepare<[string], { readonly audio_hash: string }>(
+        'SELECT audio_hash FROM guestbook_voices WHERE entry_id = ?',
+      )
+      .get(entryId)
+    const file = (await filesUnder(join(workDir ?? '', 'media', s.eventId))).find((path) =>
+      path.endsWith('.m4a'),
+    )
+    const stored = await readFile(file ?? '')
+
+    const zip = await album(s)
+
+    expect(voiceNames(zip)).toHaveLength(1)
+    expect(voiceNames(zip)[0]).toMatch(new RegExp(`^${SLUG}/voice/0001-[0-9a-f]{12}\\.m4a$`))
+    expect(voiceNames(zip)[0]).toContain((row?.audio_hash ?? '').slice(0, 12))
+    // The ZIP is stored, not deflated: the recording's own bytes and the book's own text are in it.
+    expect(zip.includes(stored)).toBe(true)
+    const text = zip.toString('latin1')
+    expect(text).toContain(`${createHash('sha256').update(stored).digest('hex')}  voice/0001-`)
+    expect(text).toMatch(/\[message vocal, 0:0\d, voice\/0001-[0-9a-f]{12}\.m4a\]/)
+  })
+
+  it('leaves out a recording that was not published, which only the host’s decision brings in', async () => {
+    const s = await scene()
+    await aReadyVoice(s)
+
+    expect(voiceNames(await album(s))).toEqual([])
+  })
+
+  it('keeps a secret recording out of the ZIP, says how many are left out, and brings it in once the owner opens it', async () => {
+    const s = await scene()
+    const entryId = await aReadyVoice(s)
+    await publish(s, entryId)
+    sealed(s)
+
+    const before = await album(s)
+    const opened = await s.operator.post(`${VOICE}/open`)
+    const after = await album(s)
+
+    expect(voiceNames(before)).toEqual([])
+    expect(before.toString('latin1')).toContain('1 message vocal scell')
+    expect(opened.status).toBe(200)
+    expect(voiceNames(after)).toHaveLength(1)
+    expect(after.toString('latin1')).not.toContain('scell')
   })
 })
