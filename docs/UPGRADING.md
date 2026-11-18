@@ -995,9 +995,16 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 
 - A clip declared above 60 frames per second is stored at 60. Clips already stored are not re-encoded.
 
-## Upgrading to 3.14 (not released yet)
+## Upgrading to 3.14
 
-### The guestbook's voice messages: the server side (spec 25)
+3.14.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no `BREAKING`
+section. It applies **four migrations** (029 `event_announcements`, 030 `event_purge_notices`, 031 `event_exports` and
+`event_export_requests`, 032 `guestbook_voices`: new tables, nothing existing is rewritten) and adds eight optional settings
+(`GUESTBOOK_VOICE_ENABLED`, `MAX_VOICE_SECONDS`, `MAX_VOICE_BYTES`, `EXPORT_ENABLED`, `EXPORT_TTL_DAYS`, `EXPORT_MAX_BYTES`,
+`EXPORT_MAX_TOTAL_BYTES`, `EXPORT_MAX_PER_EVENT_PER_DAY`). Take the steps of [Upgrading with Docker](#upgrading-with-docker),
+or [without](#without-docker), with `vX.Y.Z` as `v3.14.0`; the image is `ghcr.io/irony42/eventslide:3.14.0`.
+
+### The guestbook's voice messages (spec 25)
 
 - **One migration (032)**: a new table, `guestbook_voices` (one row per voice message, removed with its entry), with its
   indexes. Nothing existing is rewritten. Back up first, as for any upgrade: the migration only goes forward.
@@ -1056,7 +1063,7 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
   outside the event folders and the backups: **budget the disk for it**, and make sure an off-box backup that copies hidden folders skips it.
 - Three routes under an event (`export` to ask and to read, `export.zip` to download; see [API.md](API.md#the-verified-archive-spec-22)),
   a `409 export.noRoom` / `413 export.tooLarge` / `429 export.dailyLimitReached` / `503 export.unavailable` family of refusals and one
-  console-only signal (`export.changed`). No page uses them yet. Nothing changes for a box whose hosts do not ask: no archive is
+  console-only signal (`export.changed`). The host's event page uses them (the deletion band and the archive button). Nothing changes for a box whose hosts do not ask: no archive is
   prepared by itself.
 
 ### Scheduled announcements on the wall (spec 21)
