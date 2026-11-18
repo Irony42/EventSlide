@@ -2242,7 +2242,7 @@ author included**. **Nothing is kept**: no table, no file, no cache, no real-tim
 
 | Status | Code                                    | When                                                                                                                                                                                     |
 | ------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 400    | `request.invalid`                       | an identifier that is not one, on an event that serves                                                                                                                                   |
+| 400    | `request.invalid`                       | an identifier that is not one (checked first, whatever the event's state)                                                                                                                |
 | 401    | `auth.required`, `guestToken.malformed` | no cookie, or a token that does not verify (one older than 36 hours included)                                                                                                            |
 | 403    | `guest.revoked`                         | the host removed this guest: the host's lever against someone who abuses the feature                                                                                                     |
 | 403    | `save.disabled`                         | the host switched `allowGuestSave` off. **The one refusal that says what it is**: a feed that was open when the host switched it off has no live channel, and learns it from this answer |

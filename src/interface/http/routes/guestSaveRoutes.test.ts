@@ -63,6 +63,16 @@ const bytesOf = (variant: PhotoVariant): Uint8Array =>
 class GatedMediaStore extends InMemoryMediaStore {
   private gate: Promise<void> = Promise.resolve()
   private release: () => void = () => undefined
+  private reached = 0
+  private waiters: { readonly count: number; readonly resolve: () => void }[] = []
+
+  /** Resolves once `openRead` has been reached `count` times: no timer, no polling. */
+  whenOpened(count: number): Promise<void> {
+    if (this.reached >= count) return Promise.resolve()
+    return new Promise<void>((resolve) => {
+      this.waiters.push({ count, resolve })
+    })
+  }
 
   hold(): void {
     this.gate = new Promise<void>((resolve) => {
@@ -83,6 +93,8 @@ class GatedMediaStore extends InMemoryMediaStore {
     const inner = await super.openRead(eventId, hash, variant, range)
     if (inner === null) return null
     const gate = this.gate
+    this.reached += 1
+    for (const waiter of this.waiters) if (this.reached >= waiter.count) waiter.resolve()
     return (async function* () {
       await gate
       yield* inner
@@ -299,7 +311,17 @@ describe('GET /api/events/:eventSlug/photos/:photoId/save', () => {
     expect(response.status).toBe(404)
   })
 
-  it('answers 400 to an identifier that is not one, on an event that serves', async () => {
+  it('answers 400 to an identifier that is not one', async () => {
+    const response = await save(subject, 'not-an-id')
+
+    expect(response.status).toBe(400)
+  })
+
+  it('answers 400 to an identifier that is not one before looking at the event', async () => {
+    subject.harness.events.seed(
+      anEvent({ id: WEDDING, slug: SLUG, joinCode: 'H7K2QM', status: 'archived' }),
+    )
+
     const response = await save(subject, 'not-an-id')
 
     expect(response.status).toBe(400)
@@ -383,7 +405,7 @@ describe('the concurrency of the save route', () => {
 
     const first = start()
     const second = start()
-    await waitUntil(() => held.media.opened >= 2)
+    await held.media.whenOpened(2)
 
     const third = await request(held.harness.app)
       .get(`${BASE}/photos/${OTHERS_PUBLISHED}/save`)
@@ -392,7 +414,7 @@ describe('the concurrency of the save route', () => {
       .get(`${BASE}/photos/${OTHERS_PUBLISHED}/save`)
       .set('Cookie', cookie(held.otherToken))
       .then((response) => response)
-    await waitUntil(() => held.media.opened >= 3)
+    await held.media.whenOpened(3)
 
     expect(third.status).toBe(429)
     expect(third.headers['retry-after']).toBe('30')
@@ -438,11 +460,3 @@ describe('through the assembled server', () => {
     expect(response.headers['content-disposition']).toContain('attachment')
   })
 })
-
-const waitUntil = async (condition: () => boolean): Promise<void> => {
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    if (condition()) return
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
-  throw new Error('the condition never became true')
-}
