@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createClipWorker, type ClipWorkerDeps } from './clipWorker'
 import { FakeClock } from '../application/testing/fakeClock'
 import { RecordingEventBus } from '../application/testing/recordingEventBus'
-import { asClipJobId, asEventId, asPhotoId } from '../domain/shared/ids'
+import { asClipJobId, asEventId, asGuestbookEntryId, asPhotoId } from '../domain/shared/ids'
 import { DomainError } from '../domain/shared/errors'
 import { ok, type Result } from '../domain/shared/result'
 import { CapturingLogger } from '../application/testing/capturingLogger'
 import type { RecoverClipJobsReport } from '../application/usecases/clips/recoverClipJobs'
 import type { TranscodeNextClipOutcome } from '../application/usecases/clips/transcodeNextClip'
 import type { TranscodeNextReelOutcome } from '../application/usecases/highlights/transcodeNextReel'
+import type { TranscodeNextVoiceOutcome } from '../application/usecases/guestbook/transcodeNextVoice'
 
 /**
  * The drain loop, driven from a test.
@@ -108,6 +109,7 @@ describe('clipWorker', () => {
       expect(outcome.status).toBe('completed')
       expect(outcome.status === 'completed' && outcome.report).toEqual({
         transcoded: 3,
+        voices: 0,
         failed: 0,
         rendered: 0,
       })
@@ -131,6 +133,7 @@ describe('clipWorker', () => {
 
       expect(outcome.status === 'completed' && outcome.report).toEqual({
         transcoded: 1,
+        voices: 0,
         failed: 1,
         rendered: 0,
       })
@@ -276,6 +279,7 @@ describe('clipWorker', () => {
       expect(order).toEqual(['clip', 'clip', 'reel', 'clip', 'clip', 'reel', 'clip', 'reel'])
       expect(outcome.status === 'completed' && outcome.report).toEqual({
         transcoded: 2,
+        voices: 0,
         failed: 0,
         rendered: 2,
       })
@@ -289,6 +293,7 @@ describe('clipWorker', () => {
 
       expect(outcome.status === 'completed' && outcome.report).toEqual({
         transcoded: 0,
+        voices: 0,
         failed: 1,
         rendered: 1,
       })
@@ -327,6 +332,209 @@ describe('clipWorker', () => {
       const outcome = await worker.runOnce()
 
       expect(outcome.status === 'completed' && outcome.report.rendered).toBe(0)
+    })
+  })
+
+  describe('voice messages (spec 25)', () => {
+    const voiceDone = (id: string): TranscodeNextVoiceOutcome => ({
+      kind: 'transcoded',
+      entryId: asGuestbookEntryId(id),
+      eventId: EVENT,
+    })
+    const voiceFailed: TranscodeNextVoiceOutcome = {
+      kind: 'failed',
+      entryId: asGuestbookEntryId('x'),
+      eventId: EVENT,
+      code: 'voice.corrupt',
+      willRetry: false,
+    }
+    const voiceRetired: TranscodeNextVoiceOutcome = {
+      kind: 'retired',
+      entryId: asGuestbookEntryId('x'),
+      eventId: EVENT,
+    }
+    const voiceQueue = (...outcomes: readonly TranscodeNextVoiceOutcome[]) => {
+      const pending = [...outcomes]
+      const state = {
+        calls: 0,
+        take: async (): Promise<Result<TranscodeNextVoiceOutcome, DomainError>> => {
+          state.calls += 1
+          return ok(pending.shift() ?? { kind: 'idle' })
+        },
+      }
+      return state
+    }
+
+    /** Both queues as ordered lists, and the order in which work was **done** (idle looks are not work). */
+    const twoQueues = (
+      voices: readonly TranscodeNextVoiceOutcome[],
+      clips: readonly TranscodeNextClipOutcome[],
+    ) => {
+      const done: string[] = []
+      const pendingVoices = [...voices]
+      const pendingClips = [...clips]
+      return {
+        done,
+        transcodeNextVoice: async (): Promise<Result<TranscodeNextVoiceOutcome, DomainError>> => {
+          const next = pendingVoices.shift() ?? { kind: 'idle' as const }
+          if (next.kind !== 'idle') done.push('voice')
+          return ok(next)
+        },
+        transcodeNext: async (): Promise<Result<TranscodeNextClipOutcome, DomainError>> => {
+          const next = pendingClips.shift() ?? IDLE
+          if (next.kind !== 'idle') done.push('clip')
+          return ok(next)
+        },
+      }
+    }
+
+    it('takes a voice first, then a clip, when both are due', async () => {
+      const { done, ...steps } = twoQueues([voiceDone('a')], [transcoded('c1')])
+      const { worker } = build(steps)
+
+      await worker.runOnce()
+
+      expect(done).toEqual(['voice', 'clip'])
+    })
+
+    it('does not let a burst of voices hold a clip back by more than one voice', async () => {
+      // Sixty people sending at the end of a meal, and a clip among them: the clip waits for
+      // one voice, not for the sixty. maxPerDrain cannot promise that, it restarts every drain.
+      const burst = Array.from({ length: 6 }, (_, n) => voiceDone(`v${n}`))
+      const { done, ...steps } = twoQueues(burst, [transcoded('c1')])
+      const { worker } = build(steps)
+
+      await worker.runOnce()
+
+      expect(done.slice(0, 2)).toEqual(['voice', 'clip'])
+      expect(done.filter((step) => step === 'voice')).toHaveLength(6)
+    })
+
+    it('does not let a burst of clips starve the voices either', async () => {
+      const clips = Array.from({ length: 4 }, (_, n) => transcoded(`c${n}`))
+      const { done, ...steps } = twoQueues([voiceDone('v1'), voiceDone('v2')], clips)
+      const { worker } = build(steps)
+
+      await worker.runOnce()
+
+      expect(done).toEqual(['voice', 'clip', 'voice', 'clip', 'clip', 'clip'])
+    })
+
+    it('carries on with the other queue at once when the one it asked has nothing due', async () => {
+      const { done, ...steps } = twoQueues([voiceDone('v1'), voiceDone('v2'), voiceDone('v3')], [])
+      const { worker } = build(steps)
+
+      await worker.runOnce()
+
+      expect(done).toEqual(['voice', 'voice', 'voice'])
+    })
+
+    it('makes a montage only once both the voices and the clips are empty', async () => {
+      const order: string[] = []
+      const voices = [voiceDone('v1')]
+      const clips = [transcoded('c1')]
+      const { worker } = build({
+        transcodeNextVoice: async () => {
+          const next = voices.shift() ?? { kind: 'idle' as const }
+          if (next.kind !== 'idle') order.push('voice')
+          return ok(next)
+        },
+        transcodeNext: async () => {
+          const next = clips.shift() ?? IDLE
+          if (next.kind !== 'idle') order.push('clip')
+          return ok(next)
+        },
+        transcodeNextReel: async () => {
+          order.push('reel')
+          return ok({ kind: 'idle' })
+        },
+      })
+
+      await worker.runOnce()
+
+      expect(order).toEqual(['voice', 'clip', 'reel'])
+    })
+
+    it('counts the voices made, counts a failed one as failed, and counts an erased one as nothing', async () => {
+      const voices = voiceQueue(voiceDone('a'), voiceFailed, voiceRetired, voiceDone('b'))
+      const { worker } = build({ transcodeNextVoice: voices.take })
+
+      const outcome = await worker.runOnce()
+
+      expect(outcome.status === 'completed' && outcome.report).toEqual({
+        transcoded: 0,
+        voices: 2,
+        failed: 1,
+        rendered: 0,
+      })
+    })
+
+    it('stops the drain when a voice pass answers with a refusal rather than an outcome', async () => {
+      const { worker, lines } = build({
+        transcodeNextVoice: async () => ({
+          ok: false,
+          error: DomainError.unexpected('voice.boom'),
+        }),
+      })
+
+      await worker.runOnce()
+
+      expect(lines.some((line) => line.level === 'error')).toBe(true)
+    })
+
+    it('wakes on a staged voice message rather than waiting for the next tick', async () => {
+      const voices = voiceQueue()
+      const { worker, bus } = build({ transcodeNextVoice: voices.take })
+      worker.start()
+      await vi.advanceTimersByTimeAsync(0)
+      const before = voices.calls
+
+      bus.publish({ type: 'voice.queued', eventId: EVENT })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(voices.calls).toBeGreaterThan(before)
+      worker.stop()
+    })
+
+    it('does not wake on the console signal: a voice that became ready is not work', async () => {
+      const voices = voiceQueue()
+      const { worker, bus } = build({ transcodeNextVoice: voices.take })
+      worker.start()
+      await vi.advanceTimersByTimeAsync(0)
+      const before = voices.calls
+
+      bus.publish({ type: 'guestbook.voice', eventId: EVENT })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(voices.calls).toBe(before)
+      worker.stop()
+    })
+
+    it('recovers interrupted voice messages at start, even when recovering the clips fails', async () => {
+      const recoverVoices = vi.fn(async () => ({ requeued: 1, abandoned: 0 }))
+      const { worker, lines } = build({
+        recover: async () => {
+          throw new Error('database is locked')
+        },
+        recoverVoices,
+        transcodeNextVoice: voiceQueue().take,
+      })
+
+      worker.start()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(recoverVoices).toHaveBeenCalledTimes(1)
+      expect(lines.some((line) => line.level === 'error')).toBe(true)
+      worker.stop()
+    })
+
+    it('is the clip worker it always was when no voice step is given', async () => {
+      const queue = queueOf(transcoded('a'))
+      const { worker } = build({ transcodeNext: queue.take })
+
+      const outcome = await worker.runOnce()
+
+      expect(outcome.status === 'completed' && outcome.report.voices).toBe(0)
     })
   })
 
