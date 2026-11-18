@@ -24,7 +24,7 @@ In an entry:
 
 Everything merged to `main` after the tag `v3.13.0`: pull requests #466 to #476, #478, #481 and #485 to #496. This is a
 minor release with four features: scheduled announcements on the wall, a verified album archive with a deletion date and
-warning e-mails before the purge, a "Save" button for guests on the photo feed, and voice messages in the guestbook. Four
+warning e-mails before the purge, an « Enregistrer » button for guests on the photo feed, and voice messages in the guestbook. Four
 migrations, 029 (`event_announcements`), 030 (`event_purge_notices`), 031 (`event_exports` and `event_export_requests`)
 and 032 (`guestbook_voices`), applied at start-up. Eight settings are new in `.env.example`, all optional.
 
@@ -42,7 +42,7 @@ and 032 (`guestbook_voices`), applied at start-up. Eight settings are new in `.e
 
 ### Guests
 
-- **A "Save" button under the photos of the others, on the feed** (#485, #486, #487, #488). One tap puts the photo on
+- **An « Enregistrer » button under the photos of the others, on the feed** (#485, #486, #487, #488). One tap puts the photo on
   the phone: on an iPhone through the share sheet to Photos, elsewhere as a download. The host can switch it off. A
   photo that was taken down is not saveable, and the route answers the same way for a photo that does not exist and one
   that is not the guest's to take. The privacy notice gains a sentence, only where the switch is on.
@@ -107,7 +107,6 @@ and 032 (`guestbook_voices`), applied at start-up. Eight settings are new in `.e
   media reconciliation the next time `npm run purge` runs, even with nothing due.
 - **New bounds** (#486, #476): the guest-save route answers `429` past 40 a minute per guest and `503` with
   `Retry-After` past its concurrency or the box's ceiling; archives are limited to three a day per event.
-- **The test hook `e2e_phase_ms` is bounded** (#470): 100 to 600 000 ms; anything else is ignored.
 
 ### Under the hood
 
@@ -116,6 +115,7 @@ and 032 (`guestbook_voices`), applied at start-up. Eight settings are new in `.e
   `StatementSigner`. Cookies, keys and bytes are unchanged.
 - **Tests and docs** (#496, #466): the voice guestbook's end-to-end journeys (offline recording, one entry on
   reconnect, a 375 px phone, the wall hearing nothing); the release recipe holds the Discussion command used for 3.13.0.
+- **The test hook `e2e_phase_ms` is bounded** (#470): 100 to 600 000 ms; anything else is ignored.
 
 ### Dependencies and security
 
