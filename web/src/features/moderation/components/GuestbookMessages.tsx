@@ -22,6 +22,8 @@ export interface GuestbookMessagesProps {
   readonly selection: QueueSelection
   /** False when the event is archived: the messages are read, not decided on. */
   readonly canDecide: boolean
+  /** The reveal is on for this evening: a secret voice opens with it (spec 25 section 7). */
+  readonly opensWithReveal?: boolean
   readonly onDecide: (entryId: string, decision: ModerationDecision) => void
 }
 
@@ -35,6 +37,7 @@ export function GuestbookMessages({
   guestbook,
   selection,
   canDecide,
+  opensWithReveal = false,
   onDecide,
 }: GuestbookMessagesProps) {
   const t = useTranslations()
@@ -127,6 +130,7 @@ export function GuestbookMessages({
                   author={author}
                   sealed={guestbook.voiceSealed}
                   opensAtMs={guestbook.voiceOpensAtMs}
+                  opensWithReveal={opensWithReveal}
                 />
               )}
               <p className={styles['meta']}>

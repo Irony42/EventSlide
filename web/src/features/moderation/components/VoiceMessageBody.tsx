@@ -15,6 +15,8 @@ export interface VoiceMessageBodyProps {
   readonly sealed: boolean
   /** When the secret lifts by itself, or `null` for the end of the evening. */
   readonly opensAtMs: number | null
+  /** The evening is a disposable camera with the reveal on: the secret lifts when it is revealed. */
+  readonly opensWithReveal?: boolean
 }
 
 /**
@@ -33,6 +35,7 @@ export function VoiceMessageBody({
   author,
   sealed,
   opensAtMs,
+  opensWithReveal = false,
 }: VoiceMessageBodyProps) {
   const t = useTranslations()
   const copy = t.guestbookVoiceHost
@@ -45,7 +48,9 @@ export function VoiceMessageBody({
   const duration = voice.durationMs === null ? null : formatClock(voice.durationMs)
   const until =
     opensAtMs === null
-      ? copy.sealedCard
+      ? opensWithReveal
+        ? copy.sealedCardReveal
+        : copy.sealedCard
       : copy.sealedUntil(guestbookDateFormat(locale)(new Date(opensAtMs).toISOString()))
 
   return (

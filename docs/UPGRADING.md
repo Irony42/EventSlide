@@ -1075,6 +1075,7 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
   photographs wait), the podium, the reactions, the shared gallery (the link opens with an empty grid, no new error), the guest save route (`GET /photos/:id/save`,
   `404 photo.notFound` for everyone, the author included) and the bytes of somebody else's photograph. A host's ZIP, the moderation console, the best-of and the photo book are not
   public readers and are untouched.
+- **A sealed voice book opens at the reveal** (spec 25 section 7). On an evening whose `reveal.enabled` is on, `guestbookVoice.sealed` lifts when the evening is revealed, by the hour or by the button, as it does when the event is closed. It is derived (`isVoiceOpen`), so `revealEvent` writes nothing and no stored event changes; with the mode off nothing differs. The "Appareil jetable" template now also turns the voice book on and keeps it secret; an event already created is untouched. The console says "Gardé secret jusqu'à la révélation de la soirée" on such an evening, and "Ouvrir maintenant" disappears once it is revealed.
 - **The privacy notice** gains three clauses, present only when the mode is on (that the photographs are held back, how many
   poses, the film look): an event without the mode keeps its notice, its revision and the acknowledgements of its guests. A disposable evening
   says "no removal one by one" and "others may save" together; the clause order of the revision is guestbook, guest save,

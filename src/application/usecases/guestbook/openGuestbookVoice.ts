@@ -81,7 +81,8 @@ export const makeOpenGuestbookVoice =
 
     const now = clock.now()
     // Already open, whichever way: nothing to write, nothing to say.
-    if (isVoiceOpen(event.settings.guestbookVoice, event, now)) return ok(undefined)
+    if (isVoiceOpen(event.settings.guestbookVoice, event, now, event.settings.reveal))
+      return ok(undefined)
 
     const entry = AuditEntry.create({
       at: now,

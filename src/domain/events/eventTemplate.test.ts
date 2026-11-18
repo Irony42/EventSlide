@@ -202,8 +202,10 @@ describe('what a conference starts from', () => {
     expect(settingsOf('conference').moderation).toBe('manual')
   })
 
-  it('leaves voice messages off in every template but the wedding: an open microphone in a room of colleagues is a risk with no gain', () => {
-    for (const key of EVENT_TEMPLATE_KEYS.filter((other) => other !== 'wedding')) {
+  it('leaves voice messages off in every template but the wedding and the disposable camera: an open microphone in a room of colleagues is a risk with no gain', () => {
+    for (const key of EVENT_TEMPLATE_KEYS.filter(
+      (other) => other !== 'wedding' && other !== 'disposable',
+    )) {
       expect(settingsOf(key).guestbookVoice.enabled).toBe(false)
     }
   })
@@ -268,6 +270,14 @@ describe('what a party starts from', () => {
 })
 
 describe('what a disposable camera starts from (spec 23)', () => {
+  it('turns the voice book on and keeps it secret until the reveal (spec 25 section 7)', () => {
+    expect(settingsOf('disposable').guestbookVoice).toEqual({
+      enabled: true,
+      sealed: true,
+      opensAtMs: null,
+    })
+  })
+
   it('holds the evening until the host reveals it: the gate is on, with no hour', () => {
     // No hour on purpose: the host chooses it, and "no hour" is "at the button".
     expect(settingsOf('disposable').reveal).toEqual({ enabled: true, at: null, film: true })

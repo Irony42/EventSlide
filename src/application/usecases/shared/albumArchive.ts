@@ -232,7 +232,7 @@ export const albumArchiveOf = (
    */
   const voiceEntries = async function* (): AsyncIterable<ArchiveEntry> {
     const recordings = await readyRecordings()
-    if (!isVoiceOpen(event.settings.guestbookVoice, event, clock.now())) {
+    if (!isVoiceOpen(event.settings.guestbookVoice, event, clock.now(), event.settings.reveal)) {
       sealedVoices = recordings.length
       return
     }

@@ -1440,6 +1440,7 @@ export const es: UiText = {
     templateGuestSaveOff: 'Guardado de fotos desactivado para los invitados',
     templateVoiceOn: 'Mensajes de voz en el libro de visitas activados',
     templateVoiceOff: 'Mensajes de voz desactivados',
+    templateVoiceSealed: 'Mensajes de voz guardados en secreto hasta la revelación',
     templateNames: {
       wedding: 'Boda',
       birthday: 'Cumpleaños',
@@ -1917,6 +1918,7 @@ export const es: UiText = {
         other: `${t.number(count)} mensajes de voz en proceso`,
       }),
     sealedCard: 'Guardado en secreto hasta el final de la velada',
+    sealedCardReveal: 'Guardado en secreto hasta la revelación de la velada',
     sealedUntil: (time: string) => `Guardado en secreto hasta las ${time}`,
     notListened: 'No ha escuchado este mensaje',
     cannotHide: 'Un mensaje de voz no se oculta: nunca está en la pantalla.',
@@ -1938,6 +1940,8 @@ export const es: UiText = {
     settingsSealed: 'Guardar los mensajes de voz en secreto hasta el final de la velada',
     settingsSealedHint:
       'No podrá escucharlos antes. Aun así puede decidir conservarlos o rechazarlos.',
+    settingsSealedRevealHint:
+      'En una velada que se revela más tarde, se abren cuando reveles la velada, o al terminar. No podrás escucharlos antes. Aun así puedes decidir conservarlos o rechazarlos.',
     openNow: 'Abrir ahora',
     openConfirmTitle: '¿Abrir los mensajes de voz?',
     openConfirmBody: 'Podrá escucharlos ahora mismo. Esta acción es definitiva.',

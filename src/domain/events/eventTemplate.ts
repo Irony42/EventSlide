@@ -272,6 +272,9 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
     // The mode itself: held until the host reveals (no hour, the button), the film look on screen.
     // The hour is the host's choice, so the template names none.
     reveal: { enabled: true, film: true },
+    // The voice book is on and kept secret: on this evening it opens at the reveal (`isVoiceOpen`), one
+    // moment when everything develops (spec 25 section 7). The hour is the host's, so none is named.
+    guestbookVoice: { enabled: true, sealed: true },
     theme: {
       // The product's own violet, restated because `EventSettings` replaces a theme whole.
       accentHue: CURATED_ACCENT_HUES.violet,

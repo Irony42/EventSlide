@@ -1377,6 +1377,7 @@ export const en: UiText = {
     templateGuestSaveOff: 'Saving photos turned off for guests',
     templateVoiceOn: 'Voice messages in the guestbook turned on',
     templateVoiceOff: 'Voice messages turned off',
+    templateVoiceSealed: 'Voice messages kept secret until the reveal',
     templateNames: {
       wedding: 'Wedding',
       birthday: 'Birthday',
@@ -1853,6 +1854,7 @@ export const en: UiText = {
         other: `${t.number(count)} voice messages being processed`,
       }),
     sealedCard: 'Kept secret until the end of the evening',
+    sealedCardReveal: 'Kept secret until the evening is revealed',
     sealedUntil: (time: string) => `Kept secret until ${time}`,
     notListened: 'You have not listened to this message',
     cannotHide: 'A voice message cannot be hidden: it is never on the screen.',
@@ -1874,6 +1876,8 @@ export const en: UiText = {
     settingsSealed: 'Keep voice messages secret until the end of the evening',
     settingsSealedHint:
       'You will not be able to listen before then. You can still decide to keep or refuse them.',
+    settingsSealedRevealHint:
+      'On a develop-later evening they open when you reveal the evening, or when it ends. You will not be able to listen before then. You can still decide to keep or decline them.',
     openNow: 'Open now',
     openConfirmTitle: 'Open the voice messages?',
     openConfirmBody: 'You will be able to listen to them right away. This cannot be undone.',

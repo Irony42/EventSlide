@@ -119,7 +119,7 @@ export const makeGetEventView = ({
     return voicesAtRisk({
       daysLeft,
       recordings: book.filter((entry) => entry.voice?.isReady() === true),
-      secretLifted: isVoiceOpen(event.settings.guestbookVoice, event, now),
+      secretLifted: isVoiceOpen(event.settings.guestbookVoice, event, now, event.settings.reveal),
     })
   }
 

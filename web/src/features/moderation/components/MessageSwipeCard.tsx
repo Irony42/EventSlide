@@ -20,6 +20,8 @@ export interface MessageSwipeCardProps {
   /** The secret is on (spec 25): a voice card shows no player. */
   readonly voiceSealed?: boolean
   readonly voiceOpensAtMs?: number | null
+  /** The reveal is on: a secret voice opens with it (spec 25 section 7). */
+  readonly opensWithReveal?: boolean
   readonly message: GuestbookQueueItemDto
   readonly onDecide: (decision: SwipeIntent, entryId: string) => void
   readonly disabled?: boolean
@@ -32,6 +34,7 @@ export function MessageSwipeCard({
   disabled = false,
   voiceSealed = false,
   voiceOpensAtMs = null,
+  opensWithReveal = false,
 }: MessageSwipeCardProps) {
   const t = useTranslations()
   const swipe = useSwipeDecision({
@@ -79,6 +82,7 @@ export function MessageSwipeCard({
             author={author}
             sealed={voiceSealed}
             opensAtMs={voiceOpensAtMs}
+            opensWithReveal={opensWithReveal}
           />
         </div>
       )}

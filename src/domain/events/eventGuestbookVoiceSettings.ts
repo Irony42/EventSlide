@@ -1,4 +1,5 @@
 import { DomainError } from '../shared/errors'
+import { isRevealed, type EventRevealSettings } from './eventRevealSettings'
 import type { EventStatus } from './eventStatus'
 
 /**
@@ -78,18 +79,27 @@ export const voiceSettingsViolation = (
  * Whether the voices may be listened to now.
  *
  * True when the book is **not sealed**, when its `opensAt` has come (the instant itself included),
- * or when the **event is no longer `live`**: "until the end of the party", read literally and
+ * when the **event is no longer `live`**: "until the end of the party", read literally and
  * derived from the status, so no write happens at closing and no closing path (by hand, scheduled,
- * offboarding) needs to know about it. A reopened event is `live` again and re-seals unless the
- * host opened it by hand, which is the assumed consequence of deriving rather than recording.
+ * offboarding) needs to know about it, or when a **disposable-camera evening has been revealed**
+ * (spec 25 section 7, spec 23): one moment when everything develops, no second hour. A reopened
+ * event is `live` again and re-seals unless the host opened it by hand, which is the assumed
+ * consequence of deriving rather than recording.
+ *
+ * The reveal clause is **guarded by `reveal.enabled`**: `isRevealed` is `true` when the mode is
+ * off, and without the guard every sealed book on an ordinary evening would be open. It is derived
+ * like the status, so `revealEvent` writes nothing for the voices, and it adds no reader: who may
+ * listen stays the host and the moderators (rule 11).
  */
 export const isVoiceOpen = (
   settings: EventGuestbookVoiceSettings,
   event: { readonly status: EventStatus },
   now: Date,
+  reveal: EventRevealSettings,
 ): boolean => {
   if (!settings.sealed) return true
   if (settings.opensAtMs !== null && settings.opensAtMs <= now.getTime()) return true
+  if (reveal.enabled && isRevealed(reveal, now)) return true
   return event.status === 'closed' || event.status === 'archived'
 }
 

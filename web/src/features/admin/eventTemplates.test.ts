@@ -50,9 +50,13 @@ describe('the template summary', () => {
     // incomplete.
     const patch = EVENT_TEMPLATE_PATCHES[key]
 
-    // The reveal group is one key on the wire and one line per switch it names on the card.
+    // The reveal and voice groups are one key on the wire and one line per switch they name on the card.
     const expected = Object.entries(patch).reduce(
-      (sum, [field, value]) => sum + (field === 'reveal' ? Object.keys(value as object).length : 1),
+      (sum, [field, value]) =>
+        sum +
+        (field === 'reveal' || field === 'guestbookVoice'
+          ? Object.keys(value as object).length
+          : 1),
       0,
     )
 
@@ -145,8 +149,14 @@ describe('the template summary', () => {
     expect(templateSummary({ guestbookVoice: { enabled: false } }, fr)).toEqual([
       fr.admin.templateVoiceOff,
     ])
-    // A group that names no switch (the card never shows `sealed`: no template sets it) is not a line.
-    expect(templateSummary({ guestbookVoice: { sealed: true } }, fr)).toEqual([])
+    // The one evening that keeps the book secret says so in a line of its own (spec 25 section 7).
+    expect(templateSummary({ guestbookVoice: { sealed: true } }, fr)).toEqual([
+      fr.admin.templateVoiceSealed,
+    ])
+    expect(templateSummary({ guestbookVoice: { enabled: true, sealed: true } }, fr)).toEqual([
+      fr.admin.templateVoiceOn,
+      fr.admin.templateVoiceSealed,
+    ])
   })
 
   it('words a grace window in the unit the settings form uses', () => {
