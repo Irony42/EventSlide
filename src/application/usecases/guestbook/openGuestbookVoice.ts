@@ -3,7 +3,7 @@ import { isVoiceOpen } from '../../../domain/events/eventGuestbookVoiceSettings'
 import { DomainError } from '../../../domain/shared/errors'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import type { EventId } from '../../../domain/shared/ids'
-import { err, ok, type Result } from '../../../domain/shared/result'
+import { err, flatMap, ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
@@ -102,9 +102,10 @@ export const makeOpenGuestbookVoice =
     // `events.save` rewrites the row, which would erase a logo written in the gap.
     const current = await events.findById(eventId)
     if (current === null) return err(DomainError.notFound('event.notFound'))
-    const settings = current.settings.with({ guestbookVoice: { opensAtMs: now.getTime() } })
-    if (!settings.ok) return settings
-    const updated = current.withSettings(settings.value)
+    const updated = flatMap(
+      current.settings.with({ guestbookVoice: { opensAtMs: now.getTime() } }),
+      (settings) => current.withSettings(settings),
+    )
     if (!updated.ok) return updated
 
     await events.save(updated.value)

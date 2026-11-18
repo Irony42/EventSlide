@@ -212,6 +212,19 @@ describe('keepPendingGuestbookVoices', () => {
     })
   })
 
+  it('refuses the act, and decides nothing, when the audit log would refuse its line', async () => {
+    const odd = asEventId('event 1')
+    events.seed(anEvent({ id: 'event 1', slug: 'autre-soiree', joinCode: 'ZZ9ZZ9' }))
+    memberships.seed({ eventId: odd, userId: MODERATOR, role: 'moderator', grantedAt: AT })
+    guestbook.seed(aVoiceEntry({ id: 'odd-1', state: 'ready', eventId: 'event 1' }))
+
+    const result = await keep({ eventId: odd, actor: host(MODERATOR) })
+
+    expect(!result.ok && result.error.code).toBe('audit.subjectIdInvalid')
+    expect((await guestbook.findById(odd, idOf('odd-1')))?.status).toBe('pending')
+    expect(log).toEqual([])
+  })
+
   describe('who may', () => {
     beforeEach(() => {
       guestbook.seed(voice('a1', 'ready'))

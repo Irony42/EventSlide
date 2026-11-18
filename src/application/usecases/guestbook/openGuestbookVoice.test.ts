@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { Event } from '../../../domain/events/event'
 import { isVoiceOpen } from '../../../domain/events/eventGuestbookVoiceSettings'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import { asClientId, asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
@@ -247,6 +248,45 @@ describe('openGuestbookVoice', () => {
       'client.suspended',
     ])
     expect(log).toEqual([])
+  })
+
+  it('refuses the act, and writes nothing, when the audit log would refuse its line', async () => {
+    // An id the log refuses (it holds ids of letters, digits, _ and -): the line is built before
+    // anything moves, so the opening does not happen without a record of it.
+    const odd = asEventId('event 1')
+    events.seed(
+      anEvent({
+        id: 'event 1',
+        slug: 'autre-soiree',
+        joinCode: 'ZZ9ZZ9',
+        settings: { allowGuestbook: true, guestbookVoice: { enabled: true, sealed: true } },
+      }),
+    )
+    memberships.seed({ eventId: odd, userId: OWNER, role: 'owner', grantedAt: AT })
+
+    const result = await open({ eventId: odd, actor: host(OWNER) })
+
+    expect(!result.ok && result.error.code).toBe('audit.subjectIdInvalid')
+    expect(log).toEqual([])
+    expect(bus.published).toEqual([])
+  })
+
+  it('refuses an event archived in the instant between its two readings, which no opening can change', async () => {
+    const find = events.findById.bind(events)
+    let reads = 0
+    events.findById = async (id) => {
+      reads += 1
+      const event = await find(id)
+      return reads === 1 || event === null
+        ? event
+        : Event.restore({ ...event.toProps(), status: 'archived' })
+    }
+
+    const result = await run()
+
+    expect(!result.ok && result.error.code).toBe('event.immutable')
+    expect((await stored()).settings.guestbookVoice.opensAtMs).toBeNull()
+    expect(bus.published).toEqual([])
   })
 
   it('refuses nothing it cannot explain: an event that vanishes during the awaits is event.notFound', async () => {

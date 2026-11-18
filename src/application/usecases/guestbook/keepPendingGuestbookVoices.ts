@@ -88,20 +88,22 @@ export const makeKeepPendingGuestbookVoices =
     }
 
     const waiting = await guestbook.listByStatuses(eventId, ['pending'], MAX_ENTRIES_PER_EVENT)
-    const candidates = waiting.filter((entry) => entry.voice?.isReady() === true)
-    if (candidates.length === 0) return ok({ kept: 0 })
 
     const now = clock.now()
     const reviewer: Reviewer = { kind: 'host', userId: actor.userId }
 
-    // Every decision is built, and so judged, before anything is written: one the entity refuses
-    // refuses the act, and nothing is half done.
+    // Every decision is built, and so judged, before anything is written. **The entity is the one
+    // judge of "ready"**: it refuses a decision on a recording still being processed
+    // (`guestbook.voiceNotReady`), and such a one is left as it is, not counted and not an error. A
+    // written message is not a voice and is not this act's.
     const decided = []
-    for (const entry of candidates) {
+    for (const entry of waiting) {
+      if (entry.voice === null) continue
       const moved = entry.publish(reviewer, now)
-      if (!moved.ok) return moved
+      if (!moved.ok) continue
       decided.push(moved.value)
     }
+    if (decided.length === 0) return ok({ kept: 0 })
 
     const line = AuditEntry.create({
       at: now,
