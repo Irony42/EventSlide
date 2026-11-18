@@ -631,6 +631,12 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   deleteMyGuestbookEntry: vi.fn(async () => undefined),
   deleteMyPhoto: vi.fn(async () => undefined),
   eraseMyContribution: vi.fn(async () => ({ photos: 0, clips: 0 })),
+  // A JPEG-typed blob under the name the server would choose, which is what every save test
+  // starts from; a test that is about a refusal overrides it.
+  savePhoto: vi.fn(async () => ({
+    blob: new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], { type: 'image/jpeg' }),
+    fileName: 'camille-et-sacha-0123456789ab.jpg',
+  })),
   react: vi.fn(async () => undefined),
   withdrawReaction: vi.fn(async () => undefined),
   reactions: vi.fn(async () => ({

@@ -1,4 +1,4 @@
-import type { Transport, UploadProgress } from '../../http'
+import type { DownloadedFile, Transport, UploadProgress } from '../../http'
 import type {
   About,
   ClipJobDto,
@@ -200,6 +200,15 @@ export const guestApi = (transport: Transport) => ({
     transport.del(
       `/api/events/${encode(slug)}/photos/${encode(photoId)}/reactions/${encode(kind)}`,
     ),
+
+  /**
+   * One photograph, to keep (spec 24): the `display` rendition as a file, never the original,
+   * `GET /api/events/:slug/photos/:photoId/save`. The cookie is the guest's key, so there is
+   * no address worth copying. Held in memory (about a megabyte), and never asked for twice by
+   * this client: a refusal for load carries its `Retry-After` and is the caller's to wait out.
+   */
+  savePhoto: (slug: string, photoId: string, signal?: AbortSignal): Promise<DownloadedFile> =>
+    transport.download(`/api/events/${encode(slug)}/photos/${encode(photoId)}/save`, signal),
 
   reactions: (slug: string, photoId: string, signal?: AbortSignal): Promise<ReactionsResponse> =>
     transport.get(

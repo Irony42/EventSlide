@@ -3,6 +3,8 @@ import {
   ApiError,
   JSON_REQUEST_TIMEOUT_MS,
   MULTIPART_REQUEST_TIMEOUT_MS,
+  RETRY_AFTER_DETAIL,
+  SAVE_REQUEST_TIMEOUT_MS,
   UPLOAD_RESPONSE_WAIT_MS,
   UPLOAD_STALL_MS,
   asError,
@@ -1275,5 +1277,139 @@ describe('an upload that goes quiet', () => {
 
     expect(state.reason).toBeInstanceOf(DOMException)
     expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('downloading a file held in memory (spec 24, the photograph a guest saves)', () => {
+  const PATH = '/api/events/gala/photos/p1/save'
+
+  const jpeg = (headers: Record<string, string> = {}): Response =>
+    new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), {
+      status: 200,
+      headers: { 'content-type': 'image/jpeg', ...headers },
+    })
+
+  it('sends the guest’s cookie and nothing else, with a plain GET', async () => {
+    answerWith(() => jpeg())
+
+    await http.download(PATH)
+
+    expect(lastRequest().url).toBe(PATH)
+    expect(lastRequest().init).toMatchObject({ method: 'GET', credentials: 'same-origin' })
+  })
+
+  it('hands back the bytes and the name the server chose', async () => {
+    answerWith(() =>
+      jpeg({ 'content-disposition': 'attachment; filename="gala-0123456789ab.jpg"' }),
+    )
+
+    const file = await http.download(PATH)
+
+    expect(file.fileName).toBe('gala-0123456789ab.jpg')
+    expect(file.blob.size).toBe(4)
+    expect(file.blob.type).toBe('image/jpeg')
+  })
+
+  it.each([
+    ['no header at all', undefined],
+    ['a path', 'attachment; filename="../../etc/passwd"'],
+    ['a name with a space', 'attachment; filename="my photo.jpg"'],
+    ['a name that begins with a dot', 'attachment; filename=".htaccess"'],
+  ])(
+    'reads no name from %s, so the server cannot steer where the browser writes',
+    async (_label, header) => {
+      answerWith(() => jpeg(header === undefined ? {} : { 'content-disposition': header }))
+
+      expect((await http.download(PATH)).fileName).toBeNull()
+    },
+  )
+
+  it('turns the server’s refusal into an ApiError, with the wait it asked for', async () => {
+    answerWith(
+      () =>
+        new Response(JSON.stringify({ error: { code: 'rate.limited' } }), {
+          status: 429,
+          headers: { 'content-type': 'application/json', 'retry-after': '30' },
+        }),
+    )
+
+    const failure = asApiError(await http.download(PATH).catch((cause: unknown) => cause))
+
+    expect(failure.status).toBe(429)
+    expect(failure.code).toBe('rate.limited')
+    expect(failure.details[RETRY_AFTER_DETAIL]).toBe(30)
+  })
+
+  it('keeps a refusal that says nothing about waiting free of the detail', async () => {
+    answerWith(() => jsonBody(403, { error: { code: 'save.disabled' } }))
+
+    const failure = asApiError(await http.download(PATH).catch((cause: unknown) => cause))
+
+    expect(failure.code).toBe('save.disabled')
+    expect(failure.details).not.toHaveProperty(RETRY_AFTER_DETAIL)
+  })
+
+  it('never surfaces the body of a proxy’s error page', async () => {
+    answerWith(() => textBody(502, '<html>Bad gateway</html>'))
+
+    const failure = asApiError(await http.download(PATH).catch((cause: unknown) => cause))
+
+    expect(failure.status).toBe(502)
+    expect(failure.code).toBe('unknown')
+  })
+
+  it('reports a dropped connection as a network failure', async () => {
+    stubFetch(() => Promise.reject(new TypeError('Failed to fetch')))
+
+    const failure = asApiError(await http.download(PATH).catch((cause: unknown) => cause))
+
+    expect(failure.isNetwork).toBe(true)
+  })
+
+  describe('that goes quiet', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    const hangUntilAborted: FetchHandler = (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () =>
+          reject(new DOMException('aborted', 'AbortError')),
+        )
+      })
+
+    it('gives up with a network failure at 45 seconds, not before', async () => {
+      stubFetch(hangUntilAborted)
+      const state = outcomeOf(http.download(PATH))
+
+      await vi.advanceTimersByTimeAsync(SAVE_REQUEST_TIMEOUT_MS - 1)
+      expect(state.settled).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(1)
+      expect(state.settled).toBe(true)
+      expect(asApiError(state.reason).isNetwork).toBe(true)
+    })
+
+    it('leaves the caller’s own cancellation an AbortError', async () => {
+      stubFetch(hangUntilAborted)
+      const controller = new AbortController()
+      const state = outcomeOf(http.download(PATH, controller.signal))
+
+      controller.abort()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(state.reason).toBeInstanceOf(DOMException)
+    })
+
+    it('does not leave its timer behind after an answer', async () => {
+      answerWith(() => jpeg())
+
+      await http.download(PATH)
+
+      expect(vi.getTimerCount()).toBe(0)
+    })
   })
 })

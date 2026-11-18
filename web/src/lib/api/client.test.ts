@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, createApi, type Api } from './client'
-import { ApiError, type Transport, type UploadProgress } from '../http'
+import { ApiError, type DownloadedFile, type Transport, type UploadProgress } from '../http'
 
 /**
  * One test per endpoint would be thirty-four near-identical tests, so this pins the
@@ -13,7 +13,7 @@ import { ApiError, type Transport, type UploadProgress } from '../http'
  * nobody asserts is a path that can drift.
  */
 
-type Verb = 'get' | 'post' | 'put' | 'patch' | 'del' | 'upload'
+type Verb = 'get' | 'post' | 'put' | 'patch' | 'del' | 'upload' | 'download'
 
 interface RecordedCall {
   readonly verb: Verb
@@ -75,6 +75,10 @@ const recorder: Transport = {
     })
     return reply as T
   },
+  download: async (path: string, signal?: AbortSignal): Promise<DownloadedFile> => {
+    calls.push({ verb: 'download', path, ...(signal ? { signal } : {}) })
+    return reply as DownloadedFile
+  },
 }
 
 const refuses = (error: ApiError): Transport => ({
@@ -84,6 +88,7 @@ const refuses = (error: ApiError): Transport => ({
   patch: () => Promise.reject(error),
   del: () => Promise.reject(error),
   upload: () => Promise.reject(error),
+  download: () => Promise.reject(error),
 })
 
 const only = (): RecordedCall => {
@@ -232,6 +237,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
     verb: 'del',
     path: `/api/events/${SLUG}/photos/${PHOTO}/reactions/love`,
     invoke: (client) => client.withdrawReaction(SLUG, PHOTO, 'love'),
+  },
+  {
+    name: 'savePhoto',
+    verb: 'download',
+    path: `/api/events/${SLUG}/photos/${PHOTO}/save`,
+    invoke: (client) => client.savePhoto(SLUG, PHOTO),
   },
   {
     name: 'reactions',
