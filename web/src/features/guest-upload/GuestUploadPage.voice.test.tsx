@@ -329,6 +329,28 @@ describe('GuestUploadPage, recording and sending a voice message', () => {
     )
   })
 
+  it('says there are ten seconds left, once, from the fiftieth, and stops by itself at sixty', async () => {
+    havingJoined()
+    const api = fakeApi(mineWith())
+    renderUpload(api)
+    await userEvent.click(await voiceButton())
+    await userEvent.click(screen.getByRole('button', { name: copy.record }))
+    await screen.findByRole('button', { name: copy.stop })
+
+    nowMs += 50_000
+    await waitFor(() =>
+      expect(screen.getByTestId('voice-announcement')).toHaveTextContent(copy.nearEnd),
+    )
+    expect(screen.getByText(copy.clock('0:50', '1:00'))).toBeVisible()
+
+    nowMs += 10_000
+    expect(await screen.findByRole('button', { name: copy.send })).toBeEnabled()
+    expect(screen.getByTestId('voice-announcement')).toHaveTextContent(
+      copy.recordedAnnounce('1:00'),
+    )
+    expect(microphone.released()).toBe(true)
+  })
+
   it('says the recording stopped because the page was left, and keeps what there is', async () => {
     havingJoined()
     renderUpload(fakeApi(mineWith()))
