@@ -181,7 +181,9 @@ export class FakeGuestbookRepository implements GuestbookRepository {
 
   async locate(entryId: GuestbookEntryId): Promise<GuestbookLocation | null> {
     for (const row of this.rows.values()) {
-      if (row.id === entryId) return { eventId: row.eventId, takenDownAt: row.takenDownAt }
+      if (row.id === entryId) {
+        return { eventId: row.eventId, takenDownAt: row.takenDownAt, voice: row.voice !== null }
+      }
     }
     return null
   }

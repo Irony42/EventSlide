@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { AUDIT_REASON_MAX_LENGTH } from '../../../domain/audit/auditReason'
 import { asEventId, asGuestbookEntryId, asUserId } from '../../../domain/shared/ids'
 import type { AuditRecorder } from '../../ports/auditLog'
-import { aGuestbookEntry, atPlus } from '../../testing/builders'
+import { aGuestbookEntry, aVoiceEntry, atPlus } from '../../testing/builders'
+import { FakeGuestbookVoiceRepository } from '../../testing/fakeGuestbookVoiceRepository'
 import { FakeAuditLog } from '../../testing/fakeAuditLog'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
@@ -149,6 +150,60 @@ describe('setGuestbookTakedown', () => {
     await takeDown({ entryId: ENTRY, down: true, reason: REASON, actor: OPERATOR })
 
     expect(await guestbook.countByGuest(EVENT, aGuestbookEntry().guestId)).toBe(1)
+  })
+})
+
+describe('the operator taking a voice message down (spec 25)', () => {
+  const VOICE = asGuestbookEntryId('voice-1')
+
+  const scene = () => {
+    const guestbook = new FakeGuestbookRepository().seed(
+      aVoiceEntry({ id: 'voice-1', eventId: 'event-1', state: 'ready', moderation: 'auto' }),
+    )
+    const voices = new FakeGuestbookVoiceRepository(guestbook)
+    const bus = new RecordingEventBus()
+    const audit = new FakeAuditLog().withAccounts(OPERATOR.userId)
+    const takeDown = makeSetGuestbookTakedown({ guestbook, audit, bus, clock: new FakeClock(NOW) })
+    return { guestbook, voices, bus, takeDown }
+  }
+
+  it('is told to the console on the voice signal, which the wall never hears, and not on the wall’s', async () => {
+    const { bus, takeDown } = scene()
+
+    await takeDown({ entryId: VOICE, down: true, reason: REASON, actor: OPERATOR })
+
+    expect(bus.published).toEqual([{ type: 'guestbook.voice', eventId: EVENT }])
+  })
+
+  it('leaves the row, and takes the recording out of every read and of the count of what is open', async () => {
+    const { guestbook, voices, takeDown } = scene()
+    expect(await voices.countOpenByEvent(EVENT)).toBe(1)
+
+    await takeDown({ entryId: VOICE, down: true, reason: REASON, actor: OPERATOR })
+
+    expect((await guestbook.locate(VOICE))?.takenDownAt).toEqual(NOW)
+    expect(await voices.findByEntry(EVENT, VOICE)).toBeNull()
+    expect(await guestbook.findById(EVENT, VOICE)).toBeNull()
+    expect(await guestbook.listByStatuses(EVENT, ['published'], 10)).toEqual([])
+    expect(await voices.countOpenByEvent(EVENT)).toBe(0)
+  })
+
+  it('keeps counting it for its guest, as it does a written message', async () => {
+    const { guestbook, takeDown } = scene()
+
+    await takeDown({ entryId: VOICE, down: true, reason: REASON, actor: OPERATOR })
+
+    expect(await guestbook.countByGuest(EVENT, aVoiceEntry().guestId)).toBe(1)
+  })
+
+  it('puts it back on the same signal', async () => {
+    const { bus, voices, takeDown } = scene()
+    await takeDown({ entryId: VOICE, down: true, reason: REASON, actor: OPERATOR })
+
+    await takeDown({ entryId: VOICE, down: false, reason: REASON, actor: OPERATOR })
+
+    expect(bus.published.map((event) => event.type)).toEqual(['guestbook.voice', 'guestbook.voice'])
+    expect((await voices.findByEntry(EVENT, VOICE))?.id).toBe(VOICE)
   })
 })
 

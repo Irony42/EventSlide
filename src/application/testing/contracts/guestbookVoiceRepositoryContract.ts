@@ -936,6 +936,25 @@ export const guestbookVoiceRepositoryContract = (
       expect(await book.countOpenByEvent(WEDDING)).toBe(0)
     })
 
+    it('is located by its id like any message, and says that it is a voice and not what it holds', async () => {
+      await admit(reservation({ id: 'v1', caption: 'un secret' }))
+      await book.admit(aGuestbookEntry({ id: 'w1', eventId: 'evt-wedding', guestId: 'guest-sam' }))
+
+      expect(await book.locate(entryId('v1'))).toEqual({
+        eventId: WEDDING,
+        takenDownAt: null,
+        voice: true,
+      })
+      expect(await book.locate(entryId('w1'))).toMatchObject({ voice: false })
+
+      subject.takeDown('evt-wedding', 'v1', at(5))
+      expect(await book.locate(entryId('v1'))).toEqual({
+        eventId: WEDDING,
+        takenDownAt: at(5),
+        voice: true,
+      })
+    })
+
     it('takes a guest’s voices with their erasure, the entry and the voice', async () => {
       await admit(reservation({ id: 'v1' }))
 

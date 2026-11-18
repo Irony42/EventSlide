@@ -242,13 +242,26 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
 
   async locate(entryId: GuestbookEntryId): Promise<GuestbookLocation | null> {
     const row = this.db
-      .prepare<[string], { readonly event_id: string; readonly taken_down_at: string | null }>(
-        `SELECT event_id, taken_down_at FROM guestbook_entries WHERE id = ?`,
+      .prepare<
+        [string],
+        {
+          readonly event_id: string
+          readonly taken_down_at: string | null
+          readonly is_voice: number
+        }
+      >(
+        `SELECT e.event_id, e.taken_down_at, v.entry_id IS NOT NULL AS is_voice
+           FROM guestbook_entries e LEFT JOIN guestbook_voices v ON v.entry_id = e.id
+          WHERE e.id = ?`,
       )
       .get(entryId)
     return row === undefined
       ? null
-      : { eventId: asEventId(row.event_id), takenDownAt: fromNullableIsoText(row.taken_down_at) }
+      : {
+          eventId: asEventId(row.event_id),
+          takenDownAt: fromNullableIsoText(row.taken_down_at),
+          voice: row.is_voice === 1,
+        }
   }
 
   async setTakenDown(eventId: EventId, entryId: GuestbookEntryId, at: Date | null): Promise<void> {
