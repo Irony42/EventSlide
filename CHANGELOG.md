@@ -20,6 +20,173 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.14.0] - 2026-11-18
+
+Everything merged to `main` after the tag `v3.13.0`: pull requests #466 to #496, #498 and #499 (33 pull requests; the
+disposable camera came in as #477, #479, #480, #482, #483 and #484 through the branch `feat/appareil-jetable`, then #498
+and #499). This is a minor release with five features: scheduled announcements on the wall, a verified album archive
+with a deletion date and warning e-mails before the purge, an « Enregistrer » button for guests on the photo feed, voice
+messages in the guestbook, and the disposable camera (« Appareil jetable »), where the photographs stay hidden until a
+reveal. Four migrations, 029 (`event_announcements`), 030 (`event_purge_notices`), 031 (`event_exports` and
+`event_export_requests`) and 032 (`guestbook_voices`), applied at start-up; the disposable camera adds none. Eight
+settings are new in `.env.example`, all optional.
+
+### The room
+
+- **A scheduled announcement on the wall** (#471, #472, #473, #474). The host writes a sentence and an hour, for
+  example "Gâteau à 22 h". A full-screen announcement shows a countdown band at the top of the wall, then a full-screen
+  card at the hour, for 10 to 120 seconds; a discreet one is a small pill over the photos ("encore n min", then
+  "moins d'1 min") for 5 to 30 minutes while the slideshow goes on. The band gives way to the photo challenge's banner,
+  and the pill never takes the place of the guestbook or the slideshow. A wall with no announcement shows what it showed
+  before.
+- **Voice messages make no sound in the room** (#491, #492, #496): they are listened to in the console only, never
+  played or shown on the wall, and the wall does not re-read for them. The wall and the console also tell the browser
+  that the microphone is not theirs (`Permissions-Policy: microphone=()`).
+
+- **The disposable camera: a waiting wall, then the reveal** (#480, #477). On an evening where a host has turned
+  « Appareil jetable » on, the wall shows no photograph before the reveal. It says the hour (« Révélation à 22:00 »),
+  or « Les photos se développeront à la révélation » when the host reveals with the button, and how many photographs are
+  « en cours de développement ». At the hour, or when the host presses « Révéler maintenant », the wall switches to the
+  slideshow, each screen a moment apart so that a room of projectors does not flash together. A wall of an event
+  without the mode is unchanged.
+- **A film look on the screens** (#483). With « Rendu pellicule » on, the wall, the feed and the gallery show the
+  photographs with a sepia, slightly contrasted look. It is a filter on the display only: originals, the ZIPs and every
+  download are exactly what the guests sent, and the shared gallery says so. On a projector that cannot afford it, the
+  wall gives up the slow zoom first; the look itself stays.
+
+### Guests
+
+- **An « Enregistrer » button under the photos of the others, on the feed** (#485, #486, #487, #488). One tap puts the photo on
+  the phone: on an iPhone through the share sheet to Photos, elsewhere as a download. The host can switch it off. A
+  photo that was taken down is not saveable, and the route answers the same way for a photo that does not exist and one
+  that is not the guest's to take. The privacy notice gains a sentence, only where the switch is on.
+- **A voice message in the guestbook** (#489, #490, #491, #492, #493, #494, #496). Under "Laisser un mot", a guest
+  records up to 60 seconds in the browser, listens to it, adds a caption and sends it. It is stored as AAC mono, goes
+  through the same moderation as a written message, is queued on the phone and sent again on a bad network, and
+  appears in "Mes messages" ("En traitement", "Réessayer"). A guest who takes it back or erases it loses the
+  recording itself, not only the row. A browser with no microphone, or a box served over plain `http://`, sees no
+  button and the guestbook is as it was. The privacy notice says what a voice message is before the guest records.
+- **A disposable camera: a limited roll, and nothing on screen before the reveal** (#482, #477, #484). A guest sees
+  « n poses restantes » (a pose is a photograph sent; 27 in the template, the host may choose another number or none),
+  « Pellicule neuve : n poses » at the start and « Pellicule terminée : votre appareil est vide » at the end. Their own
+  photographs wait in black and white, « Sera développée à la révélation », and the feed of the others says when the
+  photographs will be revealed and shows nothing, not even a count of someone else's. The line under the title says
+  « Prenez vos photos : elles seront développées à la révélation » (with the hour when there is one). At the reveal the
+  photographs appear and the guest is told « Votre photo vient d’être développée ». **Nothing can be saved from the feed
+  before the reveal, the author included** (#498): the guest-save route answers `404 photo.notFound` to everybody until
+  then. The privacy notice says it plainly (photographs held until the reveal, the number of poses, the film look).
+- **Captions, names and challenge prompts no longer cut a composed emoji** (#470): lengths are counted in characters,
+  as the server counts them, instead of letting the browser cut a flag or a family emoji in two.
+
+### Hosts and moderators
+
+- **Announcements from the event page and from the wall's drawer** (#474, #471). A panel on the event page and a
+  section in the drawer: text, kind (full screen or discreet), hour (read in the browser's time zone, with a warning
+  for an hour more than twelve hours away and a minute of grace), countdown and duration, then correct, launch now or
+  delete. A moderator can do it from a phone. The server holds the rules (no overlap, no edit once it is on the wall).
+- **The album's deletion date, and an archive to take before it** (#475, #476, #478). The event page shows a band
+  with the date, counted on the server's clock. The host asks for a **verified archive**: a ZIP of the album with a
+  `MANIFEST.sha256` of every file's SHA-256 digest, which the box reads back in full before it offers it. The page shows
+  its states (working, ready, incomplete, retired, changed, no room, failed, sent). An archive is retired when a photo,
+  a guest's contribution or a take-down changes the album, and it goes at the first of seven days, 48 hours after it
+  was sent in full, and the album's deletion date. Deleting an album early now asks for a word when no complete archive
+  was sent in full, and says what would be lost.
+- **Owners are written to before an album is deleted** (#475): 14, 3 and 1 day before the purge, once per threshold,
+  **if `SMTP_URL` is set**; nothing is sent otherwise.
+- **A client being offboarded can export its albums** (#475). During the grace period it was refused with
+  `403 client.suspended`.
+- **The host's `album.zip` gains a last file, `MANIFEST.sha256`** (#475), and a clip that is corrupt on disk now aborts
+  the download instead of being delivered.
+- **A guest-save switch on the settings page** (#485). On for a new event, off for the "Conférence" template and for
+  every event that already exists. The statistics page counts the photos guests saved from the feed (#488).
+- **Voice messages: settings, console and moderation** (#492, #495, #493). A "Messages vocaux" section in the event's
+  settings (on or off, **sealed** until an hour chosen or the end of the evening), flagged when the address is not
+  https. The "Mariage" template turns it on; **every existing event has it off**. The messages tab of the console plays
+  a message, publishes or refuses it like a written one, offers "Garder les N messages en attente" (with a
+  confirmation) and, to the owner while the box is sealed, "Ouvrir maintenant". The archive carries the recordings,
+  and the deletion band counts the voice messages the purge would lose.
+- **The disposable camera, from the settings, the console and the template** (#479, #477, #484). A section
+  « Appareil jetable » in the event's settings: on or off, « Révéler à une heure précise » (or no hour, and the host
+  reveals with the button), « Poses par invité » and « Rendu pellicule ». The « Appareil jetable » template turns it on,
+  with no hour, 27 poses, the film look, and **voice messages on and kept secret**. The event page and the console
+  carry a banner (« Révélation dans 1 h 20 », « Révélation au bouton », how many photographs wait) and a « Révéler
+  maintenant » button, with a confirmation; once revealed, the hour can no longer be moved. The host and the moderators
+  see every photograph as it arrives and can remove one before anybody else has seen it. A host who closes the evening
+  before a revelation is warned that the photographs would stay hidden.
+- **On a reveal evening, the secret voice messages open at the reveal** (#499). If the mode is on and the voice
+  messages are kept secret, they open at the reveal or at the end of the evening, whichever comes first, and
+  « Ouvrir maintenant » disappears once it has happened. The checkbox then reads « Garder les messages vocaux secrets
+  jusqu’à la révélation », and the console says « Gardé secret jusqu’à la révélation de la soirée ».
+- **A refused export link says why** (#470): `album.zip` and `best-of.zip` ask first, and a limit (`429`) or a box not
+  ready (`503`) becomes a message in the host's language instead of a blank page. The browser's Back button is held on
+  the share link as it already was on the recovery codes.
+
+### Operators
+
+- **`npm run export`** (#481) writes the verified archive and its `MANIFEST.sha256` of each album about to go
+  (`--due-within N`) or of one event (`--event`) to a folder **outside** the box (`--to`), by hand or from a nightly
+  cron: closed events only, a read-only database, `--dry-run` writes nothing. Each run is staged in `<folder>.partial`
+  and verified before it replaces the previous copy, so a failing night never deletes the last good one. The dry run of
+  `npm run purge` gains an `archive=` column, and its log says which archive each album had (#475, #481).
+- **Archives live on the box's disk** (#476): `<MEDIA_ROOT>/.exports/`, outside the event folders and the backups.
+  Budget `EXPORT_MAX_TOTAL_BYTES` for it on top of the albums; a box with no room refuses (`409 export.noRoom`) rather
+  than fill the disk. An off-box backup that copies hidden folders should skip it.
+- **A voice message needs `ffmpeg`, https and a microphone** (#489, #490, #492). The same `ffmpeg` as the clips makes
+  the AAC file; a box without it offers no voice message and its `/api/ready` is unchanged. A reverse proxy that sets
+  `Permissions-Policy` itself must not overwrite `microphone=(self)` on the guest's pages with a blanket
+  `microphone=()`. The disk a voice message takes is counted in the event's quota, in the backups and in the orphan
+  sweep.
+- **`npm run purge --dry-run` no longer fails on a database it opens read-only, and `seedDemo` refuses before it touches
+  anything** (#468): a refused seed no longer empties the upload folders or creates the first owner. The texts of
+  `purge` now say what it does: the row goes first and the bytes second, and a purge cut half way is finished by the
+  media reconciliation the next time `npm run purge` runs, even with nothing due.
+- **New bounds** (#486, #476): the guest-save route answers `429` past 40 a minute per guest and `503` with
+  `Retry-After` past its concurrency or the box's ceiling; archives are limited to three a day per event.
+- **The disposable camera on the server** (#477, #498). `POST /api/events/:slug/reveal` reveals the evening; `PATCH
+/settings` takes an optional `reveal` group; `GET /wall`, the guest's feed and the shared gallery carry a `reveal`
+  block. Before the reveal the wall serves no photograph, no identifier and no address, and the bytes of somebody
+  else's photograph are refused. See [docs/API.md](docs/API.md).
+
+### Under the hood
+
+- **Server-sent events and signatures** (#469): the replay log and the open connections of the live stream belong to
+  one `StreamHub` per server instead of the module, and the gallery's and the trusted device's HMACs use one
+  `StatementSigner`. Cookies, keys and bytes are unchanged.
+- **Tests and docs** (#483, #484, #496, #466): a measurement of the film look's cost on the wall
+  (`tests/e2e/perf/film-look.spec.ts`), the retouches that followed the 17 November demonstration (the guest's and the
+  waiting wall's phrases, the notice, the console banner), and the voice guestbook's end-to-end journeys (offline recording, one entry on
+  reconnect, a 375 px phone, the wall hearing nothing); the release recipe holds the Discussion command used for 3.13.0.
+- **The test hook `e2e_phase_ms` is bounded** (#470): 100 to 600 000 ms; anything else is ignored.
+
+### Dependencies and security
+
+- **`ci.yml` pins its actions by commit and declares read-only permissions** (#467), as `release.yml` already did. No
+  product change.
+
+### Behaviour changes to check before upgrading
+
+- **Four migrations, 029 to 032, applied at start-up** and only going forward: `event_announcements` (029),
+  `event_purge_notices` (030), `event_exports` and `event_export_requests` (031), `guestbook_voices` (032). Nothing
+  existing is rewritten. Back up first.
+- **Eight new optional settings** in `.env.example`: `GUESTBOOK_VOICE_ENABLED` (`true`), `MAX_VOICE_SECONDS` (60, 10 to
+  180), `MAX_VOICE_BYTES` (4 000 000), `EXPORT_ENABLED` (`true`), `EXPORT_TTL_DAYS` (7, 1 to 90), `EXPORT_MAX_BYTES`
+  (10 GB), `EXPORT_MAX_TOTAL_BYTES` (12 GB) and `EXPORT_MAX_PER_EVENT_PER_DAY` (3). Nothing is required.
+- **Disk**: a verified archive is a copy of the album kept for up to seven days on the same disk. Budget for it.
+- **Off on every existing event**: voice messages (`guestbookVoice.enabled`), guest saving (`allowGuestSave`) and the
+  disposable camera (`reveal.enabled`) read off for an event created before this version, so the upgrade changes neither
+  what a running event does nor the notice its guests have read. A new event has saving on (not from the "Conférence" template) and voice on only from
+  "Mariage". Switching any of them on makes each guest read the privacy notice once more before the next send.
+- **No migration beyond 032 for the disposable camera**: the mode lives in the event's settings, read as off when the key is
+  absent, and nothing is set in `.env`. A web page left open across the upgrade does not know the new `reveal` blocks:
+  reload the screens, or upgrade before an evening where the mode is on.
+- **The notice's revision changes only on events that use the new features**: the disposable camera adds three clauses
+  (photographs held until the reveal, the number of poses, the film look), the guest save and the voice messages one
+  each; an event that uses none of them keeps its revision and its guests' acknowledgements. Moving the reveal hour, or
+  revealing now, asks nobody to read it again.
+- **With `SMTP_URL`, owners start receiving purge warnings** 14, 3 and 1 day before an album is deleted.
+- **`Permissions-Policy` now says `microphone=(self)` on the guest's pages**, `microphone=()` elsewhere.
+- **`album.zip` has one more file**, `MANIFEST.sha256`, and aborts on a corrupt clip.
+
 ## [3.13.0] - 2026-11-13
 
 Everything merged to `main` after the tag `v3.12.0`: pull requests #444 to #447 and #449 to #463. This is a minor
