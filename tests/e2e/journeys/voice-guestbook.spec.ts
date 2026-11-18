@@ -141,8 +141,6 @@ test('a wedding turns voice on, a guest leaves a message, the host hears it and 
   const player = host.getByLabel(/^Message vocal de Léa, 0:0[2-4]$/)
   await expect(player).toBeVisible()
   await expect(host.getByText('Tous mes vœux')).toBeVisible()
-  // A voice is never hidden from the screen it never reaches.
-  await expect(host.getByRole('button', { name: /retirer de l’écran|masquer/i })).toHaveCount(0)
 
   const ranged = host.waitForResponse(
     (response) =>
@@ -157,6 +155,12 @@ test('a wedding turns voice on, a guest leaves a message, the host hears it and 
     .toBeGreaterThan(0)
 
   await host.getByRole('button', { name: fr.moderation.publishPhoto('Léa') }).click()
+  // A voice is never hidden from the screen it never reaches: once published, its card (listed
+  // under "À l’écran" for the host) still offers no wall button.
+  await host.getByRole('button', { name: fr.moderation.filterPublished, exact: true }).click()
+  await expect(player).toBeVisible()
+  await expect(host.getByRole('button', { name: fr.moderation.hidePhoto('Léa') })).toHaveCount(0)
+  await expect(host.getByRole('button', { name: fr.moderation.hide, exact: true })).toHaveCount(0)
   // The guest's list reads the server again when the page is opened (nothing is pushed to a phone).
   await guest.reload()
   await expect(guest.getByText(fr.guestbookVoice.statusPublished)).toBeVisible()
@@ -308,4 +312,7 @@ test('recording fits a 375 px phone without a sideways scroll', async ({ app, su
   const box = await send.boundingBox()
   expect(box!.x).toBeGreaterThanOrEqual(0)
   expect(box!.x + box!.width).toBeLessThanOrEqual(375)
+  // Reachable, not just inside the width: a trial click fails if another element would take it.
+  await send.scrollIntoViewIfNeeded()
+  await send.click({ trial: true, timeout: 5000 })
 })
