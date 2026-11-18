@@ -35,13 +35,16 @@ const WRONG_LOCAL_NOW = SERVER_NOW + 28 * DAY
 const spaced = (value: string) => value.replace(/\s/g, ' ')
 const dayOf = (at: string) => spaced(formatDay(at, 'fr') ?? '')
 
+/** A purge with no voice message in the way: what every band without the voice clause reads. */
+const NO_VOICES = { secret: 0, pending: 0 } as const
+
 const atInDays = (days: number): string => new Date(SERVER_NOW + days * DAY).toISOString()
 
 const closedEvent = (at: string | null, overrides: Partial<EventDto> = {}): EventDto =>
   anEventDto({
     status: 'closed',
     closedAt: '2026-11-02T12:00:00.000Z',
-    purge: { at, notice: null, offboarding: false, serverNowMs: SERVER_NOW },
+    purge: { at, notice: null, offboarding: false, voices: NO_VOICES, serverNowMs: SERVER_NOW },
     ...overrides,
   })
 
@@ -98,7 +101,13 @@ describe('the deletion band: when it is on the page', () => {
     renderPage(
       apiWith(
         closedEvent(at, {
-          purge: { at, notice: null, offboarding: true, serverNowMs: SERVER_NOW },
+          purge: {
+            at,
+            notice: null,
+            offboarding: true,
+            voices: NO_VOICES,
+            serverNowMs: SERVER_NOW,
+          },
         }),
         null,
       ),
@@ -135,7 +144,13 @@ describe('the deletion band: when it is on the page', () => {
     renderPage(
       apiWith(
         anEventDto({
-          purge: { at: null, notice: null, offboarding: false, serverNowMs: SERVER_NOW },
+          purge: {
+            at: null,
+            notice: null,
+            offboarding: false,
+            voices: NO_VOICES,
+            serverNowMs: SERVER_NOW,
+          },
         }),
         null,
       ),
@@ -163,7 +178,13 @@ describe('the deletion band: when it is on the page', () => {
         anEventDto({
           status: 'closed',
           closedAt: '2026-11-02T12:00:00.000Z',
-          purge: { at: soon, notice: null, offboarding: false, serverNowMs: base },
+          purge: {
+            at: soon,
+            notice: null,
+            offboarding: false,
+            voices: NO_VOICES,
+            serverNowMs: base,
+          },
         }),
         null,
       ),
@@ -217,7 +238,13 @@ describe('the deletion band: the server’s clock, not the machine’s', () => {
 describe('the deletion band: when the host closes the evening', () => {
   it('appears at once from the server’s answer, not a minute later', async () => {
     const live = anEventDto({
-      purge: { at: null, notice: null, offboarding: false, serverNowMs: SERVER_NOW },
+      purge: {
+        at: null,
+        notice: null,
+        offboarding: false,
+        voices: NO_VOICES,
+        serverNowMs: SERVER_NOW,
+      },
     })
     // Ten seconds later, on the server's clock, the host closes: the date is exactly thirty days on.
     const closedAtMs = SERVER_NOW + 10_000
@@ -226,6 +253,7 @@ describe('the deletion band: when the host closes the evening', () => {
         at: new Date(closedAtMs + 30 * DAY).toISOString(),
         notice: null,
         offboarding: false,
+        voices: NO_VOICES,
         serverNowMs: closedAtMs,
       },
     })

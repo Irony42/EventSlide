@@ -514,6 +514,15 @@ Learned the hard way. Do not rediscover them.
     first photograph. `digestVouchesForVariant` (`src/domain/photos/storedDigest.ts`) says which files a
     digest can vouch for; a verification of the others needs a digest the row does not store yet.
 
+13. **On Windows, `tsc` silently skips a module whose name differs from a neighbour's only by case and
+    extension.** `web/src/features/admin/AlbumDeletion.test.tsx` sat next to `albumDeletion.test.ts`; on a
+    case-blind file system `tsc` reads the two as one root file and keeps the `.ts`, so the page test was
+    never type-checked locally while Linux CI checked it. Spec 25 made a DTO field required, every local
+    `npm run verify` stayed green, and four stacked pull requests went red in CI on fixtures nobody's
+    typecheck had read. The file is now `AlbumDeletionPage.test.tsx`, and `scripts/caseClash.test.ts` fails
+    on any tracked pair a case-blind `tsc` would merge. Name a component's test after the component and a
+    module's test after the module, and when they share a stem, give the page test a distinct one.
+
 ---
 
 ## 10. Definition of done
