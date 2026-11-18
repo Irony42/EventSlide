@@ -26,6 +26,7 @@ import { clientBytesOf, clientContextOf } from '../clients/clientContextOf'
  *
  * The order is the design:
  *
+ * 0. **Do nothing on a box that cannot encode**: the rows stay `queued`, the bytes stay.
  * 1. **Claim atomically**, so two processes during a rolling restart cannot encode to one path.
  * 2. **Read the source and probe it, and refuse at the probe.** The cap is applied to the declared
  *    duration (five seconds of slack: the phone stops at the cap, so a header past it is not our
@@ -187,6 +188,12 @@ export const makeTranscodeNextVoice = ({
   }
 
   return async () => {
+    // **Before the claim, not after the probe.** A box that cannot encode (switch off, ffmpeg gone
+    // after an upgrade) must leave the rows `queued` with their bytes: `voice.transcoderUnavailable`
+    // is transient, but three transient failures are the end of the ladder, and a recording is the
+    // one thing a guest cannot redo. The messages wait until the box can encode again.
+    if (!transcoder.available()) return ok({ kind: 'idle' })
+
     const now = clock.now()
 
     const entry = await voices.claimNext(now)

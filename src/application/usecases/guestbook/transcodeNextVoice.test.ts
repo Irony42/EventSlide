@@ -146,6 +146,26 @@ describe('transcodeNextVoice', () => {
     })
   })
 
+  describe('a box that cannot encode', () => {
+    it('leaves queued voices queued, untouched, with their bytes, however many passes run', async () => {
+      seedEvent()
+      const entry = await stage()
+      transcoder.unavailable()
+
+      for (let pass = 0; pass < 6; pass += 1) {
+        clock.advance(10 * 60_000)
+        const result = await transcodeNext()
+        expect(result.ok && result.value.kind).toBe('idle')
+      }
+
+      const voice = await voiceOf()
+      expect(voice?.state).toBe('queued')
+      expect(voice?.attempts).toBe(0)
+      expect(await sourceIsOnDisk(entry)).toBe(true)
+      expect(transcoder.calls).toEqual([])
+    })
+  })
+
   describe('a recording that is transcoded', () => {
     it('becomes ready with the output’s hash, its size and its measured duration', async () => {
       seedEvent()
