@@ -386,4 +386,118 @@ describe('useVoiceOutbox, the moments it tries again', () => {
 
     expect(close).toHaveBeenCalled()
   })
+
+  it('reads a recording through a FileReader where the browser has no Blob.arrayBuffer', async () => {
+    const { result, store } = mount(fakeApi())
+    await ready(result)
+    setOnline(false)
+    const recording = aRecording()
+    Object.defineProperty(recording.blob, 'arrayBuffer', { value: undefined })
+
+    await act(async () => {
+      await result.current.send(recording, null)
+    })
+
+    const [held] = await store.list(SLUG)
+    expect(new Uint8Array(held?.bytes ?? new ArrayBuffer(0))).toEqual(new Uint8Array([1, 2, 3, 4]))
+  })
+
+  it('tries a deferred recording again once its backoff has passed, by one timer', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    const api = fakeApi({
+      leaveVoiceMessage: vi
+        .fn()
+        .mockRejectedValueOnce(new ApiError(503, 'unknown'))
+        .mockResolvedValue({
+          entry: {
+            id: 'v',
+            text: null,
+            status: 'pending',
+            createdAt: '',
+            duplicate: false,
+            voice: { state: 'queued', durationMs: null, caption: null },
+          },
+        }),
+    })
+    const { result, store } = mount(api)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    await act(async () => {
+      await result.current.send(aRecording(), null)
+    })
+    expect(api.leaveVoiceMessage).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000)
+    })
+
+    expect(api.leaveVoiceMessage).toHaveBeenCalledTimes(2)
+    expect(await store.list(SLUG)).toHaveLength(0)
+    vi.useRealTimers()
+  })
+
+  it('does not send a recording twice when a drain is asked for while one is running', async () => {
+    const store = new MemoryOutbox({ maxEntriesPerEvent: 3 })
+    await seed(store)
+    let release: () => void = () => {}
+    const api = fakeApi({
+      leaveVoiceMessage: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            release = () =>
+              resolve({
+                entry: {
+                  id: 'v',
+                  text: null,
+                  status: 'pending' as const,
+                  createdAt: '',
+                  duplicate: false,
+                  voice: { state: 'queued' as const, durationMs: null, caption: null },
+                },
+              })
+          }),
+      ),
+    })
+    const { result } = mount(api, {}, store)
+    await waitFor(() => expect(api.leaveVoiceMessage).toHaveBeenCalledTimes(1))
+
+    act(() => result.current.drain())
+    await act(async () => {
+      release()
+      await Promise.resolve()
+    })
+
+    await waitFor(async () => expect(await store.list(SLUG)).toHaveLength(0))
+    expect(api.leaveVoiceMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('arms a retry in a minute when the store itself fails, instead of freezing the queue', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    const store = new MemoryOutbox({ maxEntriesPerEvent: 3 })
+    const list = vi.spyOn(store, 'list')
+    const api = fakeApi({
+      leaveVoiceMessage: vi.fn(async () => {
+        throw new ApiError(503, 'unknown')
+      }),
+    })
+    const { result } = mount(api, {}, store)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    await seed(store)
+    list.mockRejectedValueOnce(new Error('the database went away'))
+
+    act(() => result.current.drain())
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(console.warn).toHaveBeenCalled()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+
+    expect(api.leaveVoiceMessage).toHaveBeenCalled()
+    vi.useRealTimers()
+  })
 })

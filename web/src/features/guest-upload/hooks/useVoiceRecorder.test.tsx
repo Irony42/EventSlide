@@ -256,4 +256,52 @@ describe('useVoiceRecorder', () => {
     expect(result.current.failure).toBe('unavailable')
     expect(microphone.released()).toBe(true)
   })
+
+  it('throws a recording in progress away on "Recommencer", and releases the microphone', async () => {
+    const { result } = await startRecording()
+    await run(3_000)
+
+    act(() => result.current.reset())
+    await run(0)
+
+    // The recorder's own stop event must not bring the discarded take back.
+    expect(result.current.phase).toBe('idle')
+    expect(result.current.recording).toBeNull()
+    expect(microphone.released()).toBe(true)
+  })
+
+  it('reports an unavailable microphone, and lets go of it, when no format of the ladder is left', async () => {
+    microphone.uninstall()
+    microphone = installFakeMicrophone({ formats: [] })
+    const { result } = renderHook(() => useVoiceRecorder())
+
+    await act(async () => {
+      await result.current.start()
+    })
+
+    expect(result.current.failure).toBe('unavailable')
+    expect(result.current.phase).toBe('idle')
+    expect(microphone.released()).toBe(true)
+  })
+
+  it('reports an unavailable microphone, and lets go of it, when the recorder cannot be built', async () => {
+    const built = microphone
+    vi.stubGlobal(
+      'MediaRecorder',
+      class {
+        static isTypeSupported = () => true
+        constructor() {
+          throw new Error('NotSupportedError')
+        }
+      },
+    )
+    const { result } = renderHook(() => useVoiceRecorder())
+
+    await act(async () => {
+      await result.current.start()
+    })
+
+    expect(result.current.failure).toBe('unavailable')
+    expect(built.released()).toBe(true)
+  })
 })

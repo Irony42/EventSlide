@@ -329,6 +329,56 @@ describe('GuestUploadPage, recording and sending a voice message', () => {
     )
   })
 
+  it('says no microphone could be used when the device has none', async () => {
+    havingJoined()
+    renderUpload(fakeApi(mineWith()))
+    await userEvent.click(await voiceButton())
+    microphone.refuseWith('NotFoundError')
+
+    await userEvent.click(screen.getByRole('button', { name: copy.record }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(copy.micMissing)
+  })
+
+  it('does not take a press by mistake for a message', async () => {
+    havingJoined()
+    renderUpload(fakeApi(mineWith()))
+    await userEvent.click(await voiceButton())
+    await userEvent.click(screen.getByRole('button', { name: copy.record }))
+    await screen.findByRole('button', { name: copy.stop })
+
+    nowMs += 300
+    await userEvent.click(screen.getByRole('button', { name: copy.stop }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(copy.tooShort)
+    expect(screen.queryByRole('button', { name: copy.send })).toBeNull()
+  })
+
+  it('pauses the preview on a second press, and starts again when it ends', async () => {
+    havingJoined()
+    renderUpload(fakeApi(mineWith()))
+    await recordFor(3)
+
+    await userEvent.click(screen.getByRole('button', { name: copy.listen }))
+    await userEvent.click(screen.getByRole('button', { name: copy.listenPause }))
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: copy.listen }))
+    act(() => void document.querySelector('audio')?.dispatchEvent(new Event('ended')))
+
+    expect(screen.getByRole('button', { name: copy.listen })).toBeVisible()
+  })
+
+  it('says the preview cannot be played when the player reports an error, and still lets the guest send', async () => {
+    havingJoined()
+    renderUpload(fakeApi(mineWith()))
+    await recordFor(3)
+
+    act(() => void document.querySelector('audio')?.dispatchEvent(new Event('error')))
+
+    expect(await screen.findByText(copy.previewFailed)).toBeVisible()
+    expect(screen.getByRole('button', { name: copy.send })).toBeEnabled()
+  })
+
   it('says there are ten seconds left, once, from the fiftieth, and stops by itself at sixty', async () => {
     havingJoined()
     const api = fakeApi(mineWith())
