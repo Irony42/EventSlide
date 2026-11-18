@@ -3,6 +3,7 @@ import {
   blocksReupload,
   holdsStagedBytes,
 } from '../../domain/clips/clipJobStatus'
+import { voiceHoldingBytesSum } from './guestbookVoiceSql'
 
 /**
  * The two status sets, rendered once, from the domain predicates that define them.
@@ -33,7 +34,8 @@ export const BLOCKING_REUPLOAD_SQL = quoted(CLIP_JOB_STATUSES.filter(blocksReupl
 /**
  * **The event byte sum, written once**: what an event has spent, as an SQL expression.
  *
- * Photographs of every status **plus** the staged source of every clip that still holds one
+ * Photographs of every status **plus** the staged source of every clip that still holds one, the
+ * montage, and the voice messages (their source while processed, their output once ready; spec 25)
  * ({@link HOLDING_BYTES_SQL}). A source is on the disk from the moment its row exists and
  * has no `photos` row until the transcode succeeds, so a sum over `photos` alone
  * under-reports an event by the whole contents of its queue, and the byte quota is exactly
@@ -64,7 +66,8 @@ export const eventHoldingBytesSum = (eventIdExpr: string, creditedClipJobExpr?: 
            WHERE event_id = ${eventIdExpr} AND status IN (${HOLDING_BYTES_SQL})${credited})
        + (SELECT COALESCE(SUM(byte_size), 0)
             FROM highlight_reels
-           WHERE event_id = ${eventIdExpr}))`
+           WHERE event_id = ${eventIdExpr})
+       + ${voiceHoldingBytesSum(eventIdExpr)})`
 }
 
 /**

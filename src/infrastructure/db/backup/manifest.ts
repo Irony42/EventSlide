@@ -58,7 +58,11 @@ export const manifestSchema = z.object({
     /** sha256 over the canonical rendering of `entries`. Catches a truncated list. */
     entriesDigest: z.string().regex(/^[0-9a-f]{64}$/),
   }),
-  /** Photo rows whose bytes were not on disk when the media half was copied. */
+  /**
+   * Photo rows whose bytes were not on disk when the media half was copied. A **ready voice
+   * message** (spec 25) is listed the same way: `photoId` then holds its entry id and `variant` is
+   * `voice`, which is what tells the two apart.
+   */
   missingMedia: z.array(
     z.object({
       photoId: z.string(),

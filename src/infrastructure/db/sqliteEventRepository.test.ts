@@ -775,6 +775,46 @@ describe('SqliteEventRepository', () => {
       },
     )
 
+    it('reads an event written before voice messages as off, not sealed and with no opening time (spec 25)', async () => {
+      // An absent key reads as "never asked": opening a voice channel onto a room whose host
+      // was not consulted is not a change an upgrade may make, and the group is read tolerantly
+      // so a display preference can never fail `findById` for the whole box.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ guestbookVoice: undefined }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.guestbookVoice).toEqual({
+        enabled: false,
+        sealed: false,
+        opensAtMs: null,
+      })
+    })
+
+    it('keeps what a host chose for voice messages, and falls back field by field on what it cannot read', async () => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_800_000_000_000 } }),
+        'evt-1',
+      )
+      expect((await repo.findById(asEventId('evt-1')))?.settings.guestbookVoice).toEqual({
+        enabled: true,
+        sealed: true,
+        opensAtMs: 1_800_000_000_000,
+      })
+
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ guestbookVoice: { enabled: 'yes', sealed: true, opensAtMs: 'soon' } }),
+        'evt-1',
+      )
+      expect((await repo.findById(asEventId('evt-1')))?.settings.guestbookVoice).toEqual({
+        enabled: false,
+        sealed: true,
+        opensAtMs: null,
+      })
+    })
+
     it('reads an event written before the wall had a language as French', async () => {
       // The upgrade path for roadmap 1.5, and the **opposite** answer to `allowClips`
       // above: French is what such an event's projector has been rendering since the day
