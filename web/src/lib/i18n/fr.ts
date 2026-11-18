@@ -3213,6 +3213,16 @@ export const fr = {
       `Archive envoyée en entier le ${date}. Vérifiez votre fichier avant de supprimer quoi que ce soit.`,
     incomplete: (missing: number) =>
       `Archive prête, mais ${t.count(missing, { one: `${t.number(missing)} fichier manquait`, other: `${t.number(missing)} fichiers manquaient` })} sur le disque du serveur : ${t.count(missing, { one: 'il n’y est pas.', other: 'ils n’y sont pas.' })}`,
+    voiceSecret: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} message vocal est encore gardé secret : il partirait sans avoir été écouté.`,
+        other: `${t.number(count)} messages vocaux sont encore gardés secrets : ils partiraient sans avoir été écoutés.`,
+      }),
+    voicePending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} message vocal attend votre décision : il ne sera pas dans l’album.`,
+        other: `${t.number(count)} messages vocaux attendent votre décision : ils ne seront pas dans l’album.`,
+      }),
     retired: 'L’archive a été retirée parce qu’une photo a été effacée. Préparez-la de nouveau.',
     changed:
       'L’album a changé depuis la préparation de l’archive, elle n’est donc plus proposée. Préparez-la de nouveau.',

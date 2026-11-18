@@ -4,6 +4,7 @@ import { Card } from '../../design-system/components/Card'
 import { useToast } from '../../design-system/components/useToast'
 import { formatBytes, formatDateTime, formatDay } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
+import type { PurgeVoicesDto } from '../../lib/api/dto'
 import type { LoaderState } from '../../lib/useLoader'
 import { useApi } from '../../lib/useApi'
 import {
@@ -25,6 +26,11 @@ export interface AlbumDeletionBandProps {
   readonly archive: LoaderState<AlbumExportRead>
   /** The streamed ZIP's address, unchanged. */
   readonly albumUrl: string
+  /**
+   * The voice messages the purge would take unheard or undecided, which the server counts in the
+   * last week before the date (spec 25): 0 and 0 before it.
+   */
+  readonly voices?: PurgeVoicesDto
 }
 
 /**
@@ -37,8 +43,19 @@ export interface AlbumDeletionBandProps {
  * as the sentence for its code. It says **sent**, never "received": the server sees the last byte
  * leave, not the host's disk. And it never says why a date has passed or that the operator may hold a
  * purge: a hold is invisible to the host, who may be the person concerned.
+ *
+ * **In the last week** it also says how many voice messages would go unheard (kept secret) and how
+ * many are still waiting for a decision (only a published one is in the album): a host who has not
+ * decided the lot would otherwise lose them in silence. The server counts; this only says.
  */
-export function AlbumDeletionBand({ slug, at, moment, archive, albumUrl }: AlbumDeletionBandProps) {
+export function AlbumDeletionBand({
+  slug,
+  at,
+  moment,
+  archive,
+  albumUrl,
+  voices,
+}: AlbumDeletionBandProps) {
   const text = useTranslations()
   const t = text.exportPurge
   const { locale } = useLocale()
@@ -49,6 +66,10 @@ export function AlbumDeletionBand({ slug, at, moment, archive, albumUrl }: Album
   const statusId = useId()
 
   const view = archiveView(archive.data)
+  const voiceLines = [
+    voices !== undefined && voices.secret > 0 ? t.voiceSecret(voices.secret) : null,
+    voices !== undefined && voices.pending > 0 ? t.voicePending(voices.pending) : null,
+  ].filter((line): line is string => line !== null)
   const day = formatDay(at, locale) ?? at
 
   const prepare = () => {
@@ -117,6 +138,14 @@ export function AlbumDeletionBand({ slug, at, moment, archive, albumUrl }: Album
         {headline}
         {moment.kind === 'passed' ? null : <> {t.downloadFirst}</>}
       </p>
+
+      {voiceLines.length === 0 ? null : (
+        <ul className={styles['voices']}>
+          {voiceLines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
 
       {/* Announced without moving focus: the archive finishes while the host is elsewhere. */}
       <div className={styles['status']} role="status" aria-live="polite" id={statusId}>

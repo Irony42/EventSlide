@@ -56,3 +56,15 @@
     align-items: stretch;
   }
 }
+
+/* The voice messages the purge would lose: the card's own warning colour carries it, and the words
+   say it. A list, so a screen reader hears two items and not one run-on line. */
+.voices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}

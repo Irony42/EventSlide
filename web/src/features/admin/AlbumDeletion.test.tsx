@@ -657,3 +657,66 @@ describe('the early deletion without a complete archive that was sent', () => {
     expect(screen.queryByRole('button', { name: fr.exportPurge.deleteWithout })).toBeNull()
   })
 })
+
+describe('the deletion band and the voice messages (spec 25)', () => {
+  const withVoices = (secret: number, pending: number, days = 5): EventDto => {
+    const at = atInDays(days)
+    return closedEvent(at, {
+      purge: {
+        at,
+        notice: null,
+        offboarding: false,
+        voices: { secret, pending },
+        serverNowMs: SERVER_NOW,
+      },
+    })
+  }
+
+  it('says how many recordings are waiting for a decision and will not be in the album', async () => {
+    renderPage(apiWith(withVoices(0, 37), null))
+
+    const section = await band()
+
+    expect(section.textContent).toContain(fr.exportPurge.voicePending(37))
+    expect(section.textContent).not.toContain(fr.exportPurge.voiceSecret(1))
+  })
+
+  it('says how many are still kept secret and would leave unheard', async () => {
+    renderPage(apiWith(withVoices(14, 0), null))
+
+    const section = await band()
+
+    expect(section.textContent).toContain(fr.exportPurge.voiceSecret(14))
+    expect(section.textContent).not.toContain(fr.exportPurge.voicePending(1))
+  })
+
+  it('says both, as two items of a list, each with its own number', async () => {
+    renderPage(apiWith(withVoices(2, 3), null))
+
+    const section = await band()
+    const items = within(within(section).getByRole('list')).getAllByRole('listitem')
+
+    expect(items.map((item) => item.textContent)).toEqual([
+      fr.exportPurge.voiceSecret(2),
+      fr.exportPurge.voicePending(3),
+    ])
+  })
+
+  it('says one in the singular, and in the language of the screen', async () => {
+    renderPage(apiWith(withVoices(0, 1), null), 'en')
+
+    const section = await screen.findByRole('heading', { name: en.exportPurge.title })
+
+    expect(section.closest('section')?.textContent).toContain(en.exportPurge.voicePending(1))
+    expect(en.exportPurge.voicePending(1)).toMatch(/^1 voice message is /)
+  })
+
+  it('says nothing about voices when the server counted none, which is every day but the last week', async () => {
+    renderPage(apiWith(withVoices(0, 0), null))
+
+    const section = await band()
+
+    expect(within(section).queryByRole('list')).toBeNull()
+    expect(section.textContent).not.toMatch(/vocal|vocaux/)
+  })
+})
