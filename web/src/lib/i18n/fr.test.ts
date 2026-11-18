@@ -40,6 +40,11 @@ const COUNTED: readonly CountedPhrase[] = [
   ['upload.noticeRemovalSeconds', fr.upload.noticeRemovalSeconds],
   ['upload.noticeRemovalMinutes', fr.upload.noticeRemovalMinutes],
   ['upload.noticeRemovalHours', fr.upload.noticeRemovalHours],
+  // The voice message's notice (spec 25): the same two numbers a guest is promised.
+  ['guestbookVoice.noticeVoiceRetentionDays', fr.guestbookVoice.noticeVoiceRetentionDays],
+  ['guestbookVoice.noticeVoiceRemovalSeconds', fr.guestbookVoice.noticeVoiceRemovalSeconds],
+  ['guestbookVoice.noticeVoiceRemovalMinutes', fr.guestbookVoice.noticeVoiceRemovalMinutes],
+  ['guestbookVoice.noticeVoiceRemovalHours', fr.guestbookVoice.noticeVoiceRemovalHours],
   ['moderation.pending', fr.moderation.pending],
   ['moderation.bulkSkipped', fr.moderation.bulkSkipped],
   ['moderation.selected', fr.moderation.selected],

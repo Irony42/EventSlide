@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { POLL_EVERY_MS, POLL_SLOW_EVERY_MS, pollDelayMs } from './pollCadence'
+import {
+  POLL_EVERY_MS,
+  POLL_SLOW_AFTER_MS,
+  POLL_SLOW_EVERY_MS,
+  POLL_VOICE_EVERY_MS,
+  POLL_VOICE_FAST_FOR_MS,
+  POLL_VOICE_JITTER_MS,
+  pollDelayMs,
+  voicePollDelayMs,
+} from './pollCadence'
 
 describe('the wait between two reads of a guest whose photo is waiting', () => {
   it('is spread around the cadence, so phones that started together stop asking together', () => {
@@ -22,5 +31,23 @@ describe('the wait between two reads of a guest whose photo is waiting', () => {
   it('is spread around the slow cadence too, once the host has plainly left it', () => {
     expect(pollDelayMs(true, () => 0)).toBeLessThan(POLL_SLOW_EVERY_MS)
     expect(pollDelayMs(true, () => 1)).toBeGreaterThan(POLL_SLOW_EVERY_MS)
+  })
+})
+
+describe('the wait between two reads of a guest whose voice message is being processed', () => {
+  it('is three seconds, spread by a second, for the first minute', () => {
+    expect(voicePollDelayMs(0, () => 0.5)).toBe(POLL_VOICE_EVERY_MS)
+    expect(voicePollDelayMs(0, () => 0)).toBe(POLL_VOICE_EVERY_MS - POLL_VOICE_JITTER_MS)
+    expect(voicePollDelayMs(POLL_VOICE_FAST_FOR_MS - 1, () => 1)).toBe(
+      POLL_VOICE_EVERY_MS + POLL_VOICE_JITTER_MS,
+    )
+  })
+
+  it('goes back to the ordinary cadence after a minute, and does not stay fast', () => {
+    expect(voicePollDelayMs(POLL_VOICE_FAST_FOR_MS, () => 0.5)).toBe(POLL_EVERY_MS)
+  })
+
+  it('slows down, like the ordinary cadence, after five minutes', () => {
+    expect(voicePollDelayMs(POLL_SLOW_AFTER_MS, () => 0.5)).toBe(POLL_SLOW_EVERY_MS)
   })
 })

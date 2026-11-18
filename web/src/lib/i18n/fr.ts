@@ -629,7 +629,15 @@ export const fr = {
       'guestbook.invalid': 'Ce message ne peut pas être envoyé tel quel.',
       'guestbook.tooManyLines': 'Message trop haut : gardez-le plus court.',
       'guestbook.limitReached':
-        'Vous avez déjà laissé 3 messages. Retirez-en un pour en écrire un autre.',
+        'Vous avez déjà laissé 3 messages, texte ou vocaux. Retirez-en un pour en laisser un autre.',
+      'guestbook.voiceDisabled': 'Les messages vocaux sont désactivés pour l’instant.',
+      'guestbook.voiceEventFull': 'Le livre d’or est plein.',
+      'voice.queueFull': 'Réessayez dans un instant.',
+      'voice.unsupportedFormat': 'Ce fichier n’est pas un message vocal lisible.',
+      'voice.notAudio': 'Ce fichier n’est pas un message vocal lisible.',
+      'voice.corrupt': 'Ce fichier n’est pas un message vocal lisible.',
+      'voice.tooLong': 'Ce message vocal est trop long.',
+      'voice.tooShort': 'Ce message vocal est trop court.',
       'guestbook.eventFull': 'Le livre d’or est complet.',
       'guestbook.disabled': 'Le livre d’or n’est pas ouvert pour le moment.',
       'event.notAcceptingUploads': 'Le livre d’or n’est pas ouvert pour le moment.',
@@ -644,7 +652,7 @@ export const fr = {
     },
     /** `upload.eraseBody` for an event with a guestbook. */
     eraseBody:
-      'Vos photos, vos vidéos, vos légendes, vos messages du livre d’or, vos réactions et votre prénom seront effacés de la soirée : de l’écran, de l’album et de la liste de l’organisateur. C’est définitif.',
+      'Vos photos, vos vidéos, vos légendes, vos messages du livre d’or, y compris vos messages vocaux, vos réactions et votre prénom seront effacés de la soirée : de l’écran, de l’album et de la liste de l’organisateur. C’est définitif.',
     /** The notice's four titles, and one added sentence each, for an event with a guestbook. */
     noticeWhatHappens: 'Ce que deviennent vos photos et vos messages',
     noticeWhoSees: 'Qui voit vos photos et vos messages',
@@ -662,6 +670,96 @@ export const fr = {
       'Vos messages sont gardés aussi longtemps que les photos, et effacés avec elles.',
     noticeMessageRemoval:
       'Un message se retire comme une photo, depuis « Mes messages » et dans les mêmes conditions.',
+  },
+
+  /**
+   * The voice message of the guestbook, guest side (spec 25): recording it, listening before sending,
+   * where it stands afterwards and what the privacy notice says about it. What a guest says is never
+   * translated and never appears here, only the words around it. Never "IA", "intelligent" or
+   * "transcription" in a sentence of this table: nothing listens to a voice but the organiser.
+   */
+  guestbookVoice: {
+    open: 'Laisser un message vocal',
+    record: 'Enregistrer',
+    stop: 'Arrêter',
+    clock: (elapsed: string, max: string) => `${elapsed} / ${max}`,
+    recordingAnnounce: 'Enregistrement en cours',
+    nearEnd: 'Il reste 10 secondes',
+    recordedAnnounce: (duration: string) => `Enregistrement terminé, ${duration}`,
+    closeToTheMicrophone: 'Parlez de près : les personnes autour de vous peuvent s’entendre',
+    listen: 'Écouter',
+    listenPause: 'Mettre en pause',
+    restart: 'Recommencer',
+    send: 'Envoyer mon message vocal',
+    cancel: 'Annuler',
+    captionLabel: 'Un mot pour l’accompagner',
+    micBlocked:
+      'Le micro est bloqué. Autorisez-le dans les réglages du navigateur, puis revenez ici.',
+    micUnavailableHere:
+      'Le micro n’est pas disponible sur cette page. Rouvrez le lien de l’évènement.',
+    micMissing:
+      'Aucun micro n’a pu être utilisé sur cet appareil. Vous pouvez écrire un mot à la place.',
+    tooShort: 'Message trop court : parlez au moins une seconde.',
+    writeInstead: 'Écrire un mot à la place',
+    openInBrowser: 'Pour laisser un message vocal, ouvrez cette page dans Safari ou Chrome.',
+    previewFailed: 'L’aperçu ne se lit pas ici, vous pouvez quand même envoyer',
+    interrupted: (duration: string) =>
+      `L’enregistrement s’est arrêté parce que la page a été quittée. Il dure ${duration}.`,
+    notKept: 'L’enregistrement n’a pas pu être gardé sur votre téléphone. Recommencez.',
+    helpManual: 'L’organisateur décide de garder votre message.',
+    helpAuto:
+      'Votre message est gardé dans le livre d’or. Seuls l’organisateur et son équipe peuvent l’écouter.',
+    thanksManual: 'Merci ! L’organisateur décidera de garder votre message.',
+    thanksAuto: 'Merci ! Votre message vocal est bien reçu.',
+    waitingNetwork: 'Votre message vocal attend un réseau.',
+    offlineHintKeepOpen:
+      'Gardez cette page ouverte : vos photos et votre message vocal partiront dès que le réseau revient.',
+    keptOnPhone: 'Votre enregistrement reste sur votre téléphone.',
+    messageLabel: (duration: string | null) =>
+      duration === null ? 'Message vocal' : `Message vocal, ${duration}`,
+    statusProcessing: 'En traitement',
+    statusPublished: 'Dans le livre d’or',
+    failed: 'Votre message vocal n’a pas pu être enregistré. Réenregistrez-le.',
+    retry: 'Réessayer',
+    localWaiting: 'En attente d’un réseau',
+    localBlocked: 'Gardé sur votre téléphone',
+    saveToPhone: 'Enregistrer sur mon téléphone',
+    deleteLocal: 'Supprimer',
+    noticeVoiceAudience:
+      'Votre message vocal est visible de l’organisateur et de son équipe seulement.',
+    noticeVoiceNeverRoom:
+      'Il n’est jamais diffusé sur l’écran de la salle ni entendu par les autres invités.',
+    noticeVoicePublication: {
+      afterReview: 'L’organisateur décide de garder votre message.',
+      immediate: 'Votre message est gardé tout de suite dans l’album, sans écoute préalable.',
+    } satisfies Record<NoticePublication, string>,
+    noticeVoiceRetention:
+      'Il est gardé comme vos photos et il part dans l’album que l’organisateur télécharge.',
+    noticeVoiceRetentionDays: (count: number) =>
+      t.count(count, {
+        one: 'Il est gardé comme vos photos (1 jour après que l’organisateur a terminé la soirée) et il part dans l’album que l’organisateur télécharge.',
+        other: `Il est gardé comme vos photos (${t.number(count)} jours après que l’organisateur a terminé la soirée) et il part dans l’album que l’organisateur télécharge.`,
+      }),
+    noticeVoiceMicrophone:
+      'Le micro ne sert que pendant l’enregistrement. L’enregistrement reste sur votre téléphone tant que vous n’avez pas envoyé.',
+    noticeVoiceSealed:
+      'Les messages vocaux restent secrets jusqu’à la fin de la soirée, sauf décision de l’organisateur.',
+    noticeVoiceRemovalSeconds: (count: number) =>
+      t.count(count, {
+        one: 'Vous pouvez retirer votre message vocal pendant 1 seconde après l’envoi.',
+        other: `Vous pouvez retirer votre message vocal pendant ${t.number(count)} secondes après l’envoi.`,
+      }),
+    noticeVoiceRemovalMinutes: (count: number) =>
+      t.count(count, {
+        one: 'Vous pouvez retirer votre message vocal pendant 1 minute après l’envoi.',
+        other: `Vous pouvez retirer votre message vocal pendant ${t.number(count)} minutes après l’envoi.`,
+      }),
+    noticeVoiceRemovalHours: (count: number) =>
+      t.count(count, {
+        one: 'Vous pouvez retirer votre message vocal pendant 1 heure après l’envoi.',
+        other: `Vous pouvez retirer votre message vocal pendant ${t.number(count)} heures après l’envoi.`,
+      }),
+    noticeVoiceRemovalAskHost: 'Pour retirer un message vocal, demandez à l’organisateur.',
   },
 
   moderation: {

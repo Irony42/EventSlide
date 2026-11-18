@@ -11,6 +11,7 @@ import { useInstallPrompt } from './useInstallPrompt'
 import { useMissions } from './useMissions'
 import { useMyPhotos } from './useMyPhotos'
 import { useOutbox } from './useOutbox'
+import { useVoiceOutbox } from './useVoiceOutbox'
 import { useOversizedPane } from './useOversizedPane'
 import { usePrivacyNotice } from './usePrivacyNotice'
 import { useUploadQueue, type SettledOutcome } from './useUploadQueue'
@@ -37,6 +38,21 @@ export function useUploadScreen({ slug, event, privacyNotice }: UploadScreenInpu
    */
   const messages = useMyMessages(slug, event.allowGuestbook === true)
   const writer = useGuestbook(slug, messages.refresh)
+  /**
+   * The guest's voice recordings that are on the phone and not yet on the server (spec 25): a queue of
+   * its own, never the photo outbox. The messages already on the server count against the three a guest
+   * may leave, except a recording that failed to be processed, which counts for nothing.
+   */
+  const voice = useVoiceOutbox({
+    slug,
+    enabled: event.allowGuestbook === true,
+    offered: messages.voiceAvailable,
+    heldOnServer: messages.items.filter((entry) => entry.voice?.state !== 'failed').length,
+    onSent: messages.refresh,
+  })
+  /** "Réessayer" on a failed recording asks the card to open the recorder again: a counter, not a flag. */
+  const [voiceRetry, setVoiceRetry] = useState(0)
+  const retryVoice = useCallback(() => setVoiceRetry((count) => count + 1), [])
   /** "Delete everything I sent" (roadmap §5.2): its request, and what the device forgets after. */
   const erasure = useEraseEverything(slug)
   /**
@@ -278,6 +294,9 @@ export function useUploadScreen({ slug, event, privacyNotice }: UploadScreenInpu
     mine,
     messages,
     writer,
+    voice,
+    voiceRetry,
+    retryVoice,
     erasure,
     notice,
     publication,
