@@ -231,6 +231,13 @@ export interface UseCasePolicy {
     readonly posterMaxEdge: number
     readonly maxPixels: number
   }
+  /** Voice messages of the guestbook (spec 25): what the worker judges a recording against. */
+  readonly voice: {
+    /** The longest message (`MAX_VOICE_SECONDS`). */
+    readonly maxDurationMs: number
+    /** What the encoder may write for it, from `voiceOutputCeilingBytes`. */
+    readonly maxOutputBytes: number
+  }
 }
 
 /**
