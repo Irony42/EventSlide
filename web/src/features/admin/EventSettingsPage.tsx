@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { Button } from '../../design-system/components/Button'
+import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { Notice } from '../../design-system/components/Notice'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
@@ -33,7 +34,7 @@ import { toInstant, toLocalInput } from './eventSchedule'
 // window differently.
 import { graceLabel } from './settingsLabels'
 import { useEvent } from './hooks/useEventData'
-import { useSaveSchedule, useSaveSettings } from './hooks/useEventActions'
+import { useOpenGuestbookVoice, useSaveSchedule, useSaveSettings } from './hooks/useEventActions'
 import { useRevalidateWhenVisible } from './hooks/useRevalidateWhenVisible'
 import styles from './EventSettingsPage.module.css'
 import type { EventDto, EventSettingsDto, WallLayout } from '../../lib/api/dto'
@@ -155,6 +156,11 @@ export function EventSettingsPage() {
   const { data: event, loading, error, reload, replace } = useEvent(slug)
   const save = useSaveSettings()
   const saveSchedule = useSaveSchedule()
+  const openVoice = useOpenGuestbookVoice()
+  const [confirmingOpen, setConfirmingOpen] = useState(false)
+  // The page's own reading of "now", taken once and again when the secret is lifted: the render
+  // stays pure, and an opening time the server has just written is in the past of this clock.
+  const [clockMs, setClockMs] = useState(() => Date.now())
   const toast = useToast()
 
   const [draft, setDraft] = useState<EventSettingsDto | null>(null)
@@ -229,6 +235,37 @@ export function EventSettingsPage() {
   const settings = draft
 
   const update = (patch: Partial<EventSettingsDto>) => setDraft({ ...settings, ...patch })
+  const updateVoice = (patch: Partial<EventSettingsDto['guestbookVoice']>) =>
+    update({ guestbookVoice: { ...settings.guestbookVoice, ...patch } })
+
+  // "Ouvrir maintenant" is the owner's alone, and means something only while the secret holds on a
+  // live event (a closed one is already open, derived from its status). The server is the judge:
+  // the button is a convenience and a second press is a harmless 200.
+  const voice = settings.guestbookVoice
+  const voiceOn = settings.allowGuestbook && voice.enabled
+  const canOpenVoice =
+    event.role === 'owner' &&
+    event.status === 'live' &&
+    voiceOn &&
+    event.settings.guestbookVoice.sealed &&
+    (event.settings.guestbookVoice.opensAtMs === null ||
+      event.settings.guestbookVoice.opensAtMs > clockMs)
+  // A box served over plain http on the local network has no microphone to give: a limit of the
+  // browser, said to the host who would otherwise find out from a guest.
+  const insecure = typeof window !== 'undefined' && !window.isSecureContext
+
+  const handleOpenVoice = () => {
+    setConfirmingOpen(false)
+    void openVoice.run('open', slug).then((result) => {
+      if (!result.ok) {
+        setFailure(result.message)
+        return
+      }
+      setClockMs(Date.now())
+      reload()
+      toast.show(t.guestbookVoiceHost.opened, { tone: 'success' })
+    })
+  }
 
   const handleSubmit = (submitEvent: FormEvent<HTMLFormElement>) => {
     submitEvent.preventDefault()
@@ -416,6 +453,44 @@ export function EventSettingsPage() {
           disabled={readOnly || !settings.allowGuestbook}
           onChange={(guestbookOnWall) => update({ guestbookOnWall })}
         />
+
+        {/*
+          The voice messages (spec 25). The sealed switch is the host's wish about their own
+          listening, so it follows the voice switch. The secret is said as "gardé secret" here and
+          never as the code's word for it.
+        */}
+        <CheckboxField
+          label={t.guestbookVoiceHost.settingsEnabled}
+          hint={t.guestbookVoiceHost.settingsEnabledHint}
+          checked={voice.enabled}
+          disabled={readOnly || !settings.allowGuestbook}
+          onChange={(enabled) => updateVoice({ enabled })}
+        />
+
+        <CheckboxField
+          label={t.guestbookVoiceHost.settingsSealed}
+          hint={t.guestbookVoiceHost.settingsSealedHint}
+          checked={voice.sealed}
+          disabled={readOnly || !voiceOn}
+          onChange={(sealed) => updateVoice({ sealed })}
+        />
+
+        {canOpenVoice ? (
+          <Button
+            type="button"
+            variant="secondary"
+            loading={openVoice.busy}
+            onClick={() => setConfirmingOpen(true)}
+          >
+            {t.guestbookVoiceHost.openNow}
+          </Button>
+        ) : null}
+
+        {voiceOn && insecure ? (
+          <Notice tone="warning" role="status" variant="boxed">
+            {t.guestbookVoiceHost.insecure}
+          </Notice>
+        ) : null}
 
         <CheckboxField
           label={t.admin.allowGuestSelfDelete}
@@ -712,6 +787,16 @@ export function EventSettingsPage() {
           </Button>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={confirmingOpen}
+        title={t.guestbookVoiceHost.openConfirmTitle}
+        description={t.guestbookVoiceHost.openConfirmBody}
+        confirmLabel={t.guestbookVoiceHost.openNow}
+        confirmVariant="primary"
+        onCancel={() => setConfirmingOpen(false)}
+        onConfirm={handleOpenVoice}
+      />
     </div>
   )
 }

@@ -62,6 +62,12 @@ export const useSaveSettings = (): ActionState<[string, EventSettingsPatch], Eve
   )
 }
 
+/** "Ouvrir maintenant" (spec 25): the owner lifts the secret over the voice messages for good. */
+export const useOpenGuestbookVoice = (): ActionState<[string], void> => {
+  const api = useApi()
+  return useAction(useCallback((slug: string) => api.openGuestbookVoice(slug), [api]))
+}
+
 /**
  * Separate from `useSaveSettings` because they are two endpoints and two rules: the
  * schedule lives on the event itself, not in `EventSettings`, and its refusals —

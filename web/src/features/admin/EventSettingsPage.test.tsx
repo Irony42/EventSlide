@@ -186,8 +186,8 @@ describe('EventSettingsPage', () => {
     await userEvent.selectOptions(screen.getByLabelText(fr.admin.retention), '90')
     await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
 
-    // No `wall`: the group is sent only when the host changed a key of it.
-    const { wall: _wall, ...unchanged } = eventSettings()
+    // No `wall` and no `guestbookVoice`: a group is sent only when the host changed a key of it.
+    const { wall: _wall, guestbookVoice: _voice, ...unchanged } = eventSettings()
     expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
       ...unchanged,
       allowCaptions: false,
