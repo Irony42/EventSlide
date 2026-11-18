@@ -9,6 +9,7 @@ import {
 import { DEFAULT_EVENT_THEME } from '../../design-system/eventTheme'
 import { fr } from '../../lib/i18n/fr'
 import type { EventSettingsDto } from '../../lib/api/dto'
+import type { TemplatePatch } from './eventTemplates'
 
 const DEFAULT_THEME: EventSettingsDto['theme'] = DEFAULT_EVENT_THEME
 
@@ -32,6 +33,7 @@ const FIELD_MARKS: readonly (readonly [field: string, mark: string])[] = [
   ['moderation', fr.admin.moderationManual],
   ['allowClips', 'Vidéos'],
   ['allowGuestSave', 'invités'],
+  ['guestbookVoice', 'vocaux'],
   ['guestSelfDeleteGraceSeconds', fr.admin.selfDeleteGrace],
   ['retentionDays', fr.admin.retention],
   ['maxPhotosPerGuest', fr.admin.maxPhotosPerGuest],
@@ -57,7 +59,7 @@ describe('the template summary', () => {
     // that set retention to "keep forever", and passed the rest of the time by saying
     // nothing. Now every field the formatter knows about is checked against every
     // template that leaves it alone, which is thirteen real assertions across the four.
-    const patch: Partial<EventSettingsDto> = EVENT_TEMPLATE_PATCHES[key]
+    const patch: TemplatePatch = EVENT_TEMPLATE_PATCHES[key]
     const said = templateSummary(patch, fr).join(' ')
 
     for (const [field, mark] of FIELD_MARKS) {
@@ -105,6 +107,17 @@ describe('the template summary', () => {
   it('says which way the guest-save switch was thrown, not that it was touched', () => {
     expect(templateSummary({ allowGuestSave: false }, fr)).toEqual([fr.admin.templateGuestSaveOff])
     expect(templateSummary({ allowGuestSave: true }, fr)).toEqual([fr.admin.templateGuestSaveOn])
+  })
+
+  it('says which way the voice switch was thrown, and says nothing of the keys it leaves alone', () => {
+    expect(templateSummary({ guestbookVoice: { enabled: true } }, fr)).toEqual([
+      fr.admin.templateVoiceOn,
+    ])
+    expect(templateSummary({ guestbookVoice: { enabled: false } }, fr)).toEqual([
+      fr.admin.templateVoiceOff,
+    ])
+    // A group that names no switch (the card never shows `sealed`: no template sets it) is not a line.
+    expect(templateSummary({ guestbookVoice: { sealed: true } }, fr)).toEqual([])
   })
 
   it('words a grace window in the unit the settings form uses', () => {

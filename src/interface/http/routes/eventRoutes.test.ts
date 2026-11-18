@@ -1082,8 +1082,17 @@ describe('the host event routes', () => {
     })
 
     it.each([
-      ['wedding', { moderation: 'manual', retentionDays: 365, guestSelfDeleteGraceSeconds: 3_600 }],
-      ['birthday', { moderation: 'auto', retentionDays: 90 }],
+      [
+        'wedding',
+        {
+          moderation: 'manual',
+          retentionDays: 365,
+          guestSelfDeleteGraceSeconds: 3_600,
+          // Voice on and nothing else of the group (spec 25): the secret is the couple's own choice.
+          guestbookVoice: { enabled: true, sealed: false, opensAtMs: null },
+        },
+      ],
+      ['birthday', { moderation: 'auto', retentionDays: 90, guestbookVoice: { enabled: false } }],
       ['conference', { retentionDays: 30, allowClips: false, maxPhotosPerGuest: 25 }],
       ['party', { moderation: 'auto', retentionDays: 30 }],
     ])('applies the %s template to the settings it answers with', async (template, expected) => {

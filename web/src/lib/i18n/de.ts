@@ -1344,6 +1344,8 @@ export const de: UiText = {
     templateClipsOff: 'Videos deaktiviert',
     templateGuestSaveOn: 'Gäste können Fotos speichern',
     templateGuestSaveOff: 'Speichern von Fotos für Gäste deaktiviert',
+    templateVoiceOn: 'Sprachnachrichten im Gästebuch aktiviert',
+    templateVoiceOff: 'Sprachnachrichten deaktiviert',
     templateNames: {
       wedding: 'Hochzeit',
       birthday: 'Geburtstag',
