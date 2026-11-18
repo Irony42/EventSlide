@@ -10,8 +10,19 @@ describe('signal audience', () => {
     expect(canReceiveSignal('export.changed', 'public')).toBe(false)
     expect(canReceiveSignal('export.changed', 'moderation')).toBe(true)
   })
+  it('keeps the two voice signals off the public channel (the wall re-reads on every public one)', () => {
+    for (const type of ['guestbook.voice', 'voice.queued']) {
+      expect(canReceiveSignal(type, 'public')).toBe(false)
+      expect(canReceiveSignal(type, 'moderation')).toBe(true)
+    }
+  })
   it('lists exactly the private signals', () => {
-    expect([...MODERATION_ONLY_SIGNALS]).toEqual(['book.changed', 'export.changed'])
+    expect([...MODERATION_ONLY_SIGNALS]).toEqual([
+      'book.changed',
+      'export.changed',
+      'guestbook.voice',
+      'voice.queued',
+    ])
   })
   it('lets every other signal through to both channels', () => {
     for (const type of [
