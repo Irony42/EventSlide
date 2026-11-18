@@ -124,7 +124,10 @@ const CLIENT_SHAPES = ((): ReadonlyMap<string, Keys> => {
 
 type Verb = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
-/** `transport`'s own vocabulary. `del` carries no body, which is why it has no payload. */
+/**
+ * `transport`'s own vocabulary. `del` carries no body, which is why it has no payload, and nor does
+ * `download`: a GET whose answer is a file (the photograph a guest saves, spec 24).
+ */
 const VERBS: Readonly<Record<string, Verb>> = {
   get: 'GET',
   post: 'POST',
@@ -132,6 +135,7 @@ const VERBS: Readonly<Record<string, Verb>> = {
   patch: 'PATCH',
   del: 'DELETE',
   upload: 'POST',
+  download: 'GET',
 }
 
 /** What a call puts in the request, and therefore which schema has to accept it. */
@@ -396,7 +400,11 @@ const { CLIENT_CALLS, CLIENT_LINKS } = ((): {
       }
 
       const payload: Payload =
-        callee.name.text === 'get' ? 'query' : callee.name.text === 'del' ? 'none' : 'body'
+        callee.name.text === 'get'
+          ? 'query'
+          : callee.name.text === 'del' || callee.name.text === 'download'
+            ? 'none'
+            : 'body'
 
       if (payload === 'none' || payloadNode === undefined) {
         calls.push({ name, verb, path, payload: 'none', keys, resolved: true })
