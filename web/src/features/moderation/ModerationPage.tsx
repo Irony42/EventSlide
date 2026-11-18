@@ -208,7 +208,12 @@ export function ModerationPage({ onSwitchView }: ModerationPageProps) {
     if (viaKey) {
       if (item.allowedDecisions.length === 0) return
       if (!item.allowedDecisions.includes(decision)) {
-        toast.show(NOT_ALLOWED_MESSAGE[decision](t), { tone: 'neutral', durationMs: 2_500 })
+        // A voice is never on a screen: H says so in its own words, not the photo's.
+        const refusal =
+          item.voice !== null && decision === 'hide'
+            ? t.guestbookVoiceHost.cannotHide
+            : NOT_ALLOWED_MESSAGE[decision](t)
+        toast.show(refusal, { tone: 'neutral', durationMs: 2_500 })
         return
       }
     }
@@ -222,6 +227,14 @@ export function ModerationPage({ onSwitchView }: ModerationPageProps) {
     )
     void guestbook.decide(entryId, decision)
     if (viaKey) messageSelection.moveFocus(1)
+    else if (item.voice !== null) {
+      // A button on a voice card moves on as the key does: to the next message, with the focus
+      // and never with the sound (the host starts every playback). Without it the card that held
+      // the focus leaves the list and the keyboard falls back to the top of the page.
+      const position = guestbook.items.findIndex((row) => row.id === entryId)
+      const next = guestbook.items[position + 1] ?? guestbook.items[position - 1]
+      if (next !== undefined) messageSelection.focus(next.id)
+    }
   }
 
   const focusedMessage = messageSelection.focusedId
@@ -382,6 +395,7 @@ export function ModerationPage({ onSwitchView }: ModerationPageProps) {
       {onMessages ? (
         <div role="tabpanel" id={panelId('messages')} aria-labelledby={tabId('messages')}>
           <GuestbookMessages
+            slug={slug}
             guestbook={guestbook}
             selection={messageSelection}
             canDecide={canDecideMessages}

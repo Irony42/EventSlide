@@ -58,7 +58,10 @@ export function GuestbookPanel({ slug, canDecide }: GuestbookPanelProps) {
                     const author = item.authorName ?? anonymous
                     return (
                       <li key={item.id} className={styles['row']}>
-                        <p className={styles['text']}>{item.text}</p>
+                        {/* A voice has no text to read here: it is listened to in the console. */}
+                        <p className={styles['text']}>
+                          {item.voice === null ? item.text : t.guestbookVoiceHost.voiceBadge}
+                        </p>
                         <p className={styles['meta']}>
                           <span>{author}</span>
                           <time dateTime={item.createdAt}>{formatDate(item.createdAt)}</time>

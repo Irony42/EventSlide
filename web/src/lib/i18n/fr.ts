@@ -2035,6 +2035,51 @@ export const fr = {
     onWall: (count: number) => `${t.number(count)} à l’écran`,
   },
 
+  /**
+   * The voice messages in the host's console and settings (spec 25): the card, the secret, the
+   * action that keeps what waits, and the settings section. What a guest says is never here.
+   * The interface says "gardé secret" / "kept secret", never the code's word for it. Never "IA",
+   * "intelligent" or "transcription" in a sentence of this table.
+   */
+  guestbookVoiceHost: {
+    cardLabel: (author: string, duration: string) => `Message vocal de ${author}, ${duration}`,
+    duration: (duration: string) => `Durée : ${duration}`,
+    voiceBadge: 'Message vocal',
+    processing: 'En traitement',
+    processingCount: (count: number) =>
+      t.count(count, {
+        one: '1 message vocal en traitement',
+        other: `${t.number(count)} messages vocaux en traitement`,
+      }),
+    sealedCard: 'Gardé secret jusqu’à la fin de la soirée',
+    sealedUntil: (time: string) => `Gardé secret jusqu’à ${time}`,
+    notListened: 'Vous n’avez pas écouté ce message',
+    cannotHide: 'Un message vocal ne se masque pas : il n’est jamais à l’écran.',
+    keepPending: (count: number) =>
+      t.count(count, {
+        one: 'Garder le message en attente',
+        other: `Garder les ${t.number(count)} messages en attente`,
+      }),
+    keepConfirm: 'Vous n’avez pas écouté tous ces messages. Les garder dans l’album ?',
+    keepConfirmLabel: 'Les garder',
+    kept: (count: number) =>
+      t.count(count, {
+        one: '1 message vocal gardé.',
+        other: `${t.number(count)} messages vocaux gardés.`,
+      }),
+    settingsEnabled: 'Messages vocaux',
+    settingsEnabledHint:
+      'Allumer les messages vocaux en cours de soirée fait relire la notice à chaque invité avant son prochain envoi : mieux vaut les allumer avant.',
+    settingsSealed: 'Garder les messages vocaux secrets jusqu’à la fin de la soirée',
+    settingsSealedHint:
+      'Vous ne pourrez pas les écouter avant. Vous pouvez quand même décider de les garder ou de les refuser.',
+    openNow: 'Ouvrir maintenant',
+    openConfirmTitle: 'Ouvrir les messages vocaux ?',
+    openConfirmBody: 'Vous pourrez les écouter dès maintenant. Cette action est définitive.',
+    opened: 'Les messages vocaux sont ouverts.',
+    insecure: 'Cette adresse n’est pas sécurisée : vos invités ne pourront pas enregistrer',
+  },
+
   auth: {
     title: 'Connexion',
     email: 'Adresse e-mail',

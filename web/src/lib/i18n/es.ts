@@ -1893,6 +1893,51 @@ export const es: UiText = {
     onWall: (count: number) => `${t.number(count)} en pantalla`,
   },
 
+  /**
+   * The voice messages in the host's console and settings (spec 25): the card, the secret, the
+   * action that keeps what waits, and the settings section. What a guest says is never here.
+   * The interface says "gardé secret" / "kept secret", never the code's word for it. Never "IA",
+   * "intelligent" or "transcription" in a sentence of this table.
+   */
+  guestbookVoiceHost: {
+    cardLabel: (author: string, duration: string) => `Mensaje de voz de ${author}, ${duration}`,
+    duration: (duration: string) => `Duración: ${duration}`,
+    voiceBadge: 'Mensaje de voz',
+    processing: 'En proceso',
+    processingCount: (count: number) =>
+      t.count(count, {
+        one: '1 mensaje de voz en proceso',
+        other: `${t.number(count)} mensajes de voz en proceso`,
+      }),
+    sealedCard: 'Guardado en secreto hasta el final de la velada',
+    sealedUntil: (time: string) => `Guardado en secreto hasta las ${time}`,
+    notListened: 'No ha escuchado este mensaje',
+    cannotHide: 'Un mensaje de voz no se oculta: nunca está en la pantalla.',
+    keepPending: (count: number) =>
+      t.count(count, {
+        one: 'Conservar el mensaje en espera',
+        other: `Conservar los ${t.number(count)} mensajes en espera`,
+      }),
+    keepConfirm: 'No ha escuchado todos estos mensajes. ¿Conservarlos en el álbum?',
+    keepConfirmLabel: 'Conservarlos',
+    kept: (count: number) =>
+      t.count(count, {
+        one: '1 mensaje de voz conservado.',
+        other: `${t.number(count)} mensajes de voz conservados.`,
+      }),
+    settingsEnabled: 'Mensajes de voz',
+    settingsEnabledHint:
+      'Activar los mensajes de voz durante la velada obliga a cada invitado a volver a leer el aviso antes de su próximo envío: mejor activarlos antes.',
+    settingsSealed: 'Guardar los mensajes de voz en secreto hasta el final de la velada',
+    settingsSealedHint:
+      'No podrá escucharlos antes. Aun así puede decidir conservarlos o rechazarlos.',
+    openNow: 'Abrir ahora',
+    openConfirmTitle: '¿Abrir los mensajes de voz?',
+    openConfirmBody: 'Podrá escucharlos ahora mismo. Esta acción es definitiva.',
+    opened: 'Los mensajes de voz están abiertos.',
+    insecure: 'Esta dirección no es segura: sus invitados no podrán grabar',
+  },
+
   auth: {
     title: 'Inicio de sesión',
     email: 'Dirección de correo',

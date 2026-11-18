@@ -350,6 +350,9 @@ export function MobileModerationPage({ onSwitchView }: MobileModerationPageProps
           ) : (
             <MessageSwipeCard
               key={currentMessage.id}
+              slug={slug}
+              voiceSealed={messages.voiceSealed}
+              voiceOpensAtMs={messages.voiceOpensAtMs}
               message={currentMessage}
               disabled={messages.busy || !canDecideMessages}
               onDecide={decideMessage}
@@ -408,7 +411,8 @@ export function MobileModerationPage({ onSwitchView }: MobileModerationPageProps
         onWallMessages.loading && onWallMessages.items.length === 0 ? null : (
           <OnScreenMessages
             messages={onWallMessages.items
-              .filter((message) => message.status === 'published')
+              // A voice is never on the wall: it has nothing to take down from a screen.
+              .filter((message) => message.status === 'published' && message.voice === null)
               .slice(0, ON_SCREEN_COUNT)}
             busy={onWallMessages.busy}
             onRemove={removeMessage}

@@ -1,12 +1,15 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LoadFailure } from '../../../design-system/components/Async'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { EmptyState } from '../../../design-system/components/EmptyState'
+import { ConfirmDialog } from '../../../design-system/components/ConfirmDialog'
 import { Spinner } from '../../../design-system/components/Spinner'
+import { useToast } from '../../../design-system/components/useToast'
 import { GUESTBOOK_STATUS_TONE, useGuestbookRowFormat } from '../../../app/guestbookRow'
 import { messageForError } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { VoiceMessageBody } from './VoiceMessageBody'
 import { decisionWording, inDisplayOrder } from './decisionWording'
 import styles from './GuestbookMessages.module.css'
 import type { GuestbookFilter, GuestbookModeration } from '../hooks/useGuestbookModeration'
@@ -14,6 +17,7 @@ import type { QueueSelection } from '../hooks/useQueueSelection'
 import type { ModerationDecision } from '../../../lib/api/dto'
 
 export interface GuestbookMessagesProps {
+  readonly slug: string
   readonly guestbook: GuestbookModeration
   readonly selection: QueueSelection
   /** False when the event is archived: the messages are read, not decided on. */
@@ -27,6 +31,7 @@ export interface GuestbookMessagesProps {
  * cut, never translated, never turned into a link.
  */
 export function GuestbookMessages({
+  slug,
   guestbook,
   selection,
   canDecide,
@@ -34,6 +39,8 @@ export function GuestbookMessages({
 }: GuestbookMessagesProps) {
   const t = useTranslations()
   const { statusLabel, formatDate, copyId, anonymous } = useGuestbookRowFormat()
+  const toast = useToast()
+  const [confirmingKeep, setConfirmingKeep] = useState(false)
   const emptyRef = useRef<HTMLDivElement>(null)
   const hadItems = useRef(false)
   const { items, filter } = guestbook
@@ -58,6 +65,11 @@ export function GuestbookMessages({
   ]
 
   const unfiltered = filter === 'pending' || filter === 'all'
+  const voiceCopy = t.guestbookVoiceHost
+  // The voices a bulk keep would publish: ready and waiting. Offered where they are listed.
+  const keepable = items.filter(
+    (item) => item.voice?.state === 'ready' && item.status === 'pending',
+  ).length
 
   let body
   if (guestbook.loading && items.length === 0) {
@@ -102,10 +114,20 @@ export function GuestbookMessages({
               aria-current={active ? 'true' : undefined}
               onFocus={() => selection.focus(item.id, { moveDomFocus: false })}
             >
-              {/* Guest content: kept in the language it was written in. */}
-              <p className={styles['text']} translate="no">
-                {item.text}
-              </p>
+              {item.voice === null ? (
+                // Guest content: kept in the language it was written in.
+                <p className={styles['text']} translate="no">
+                  {item.text}
+                </p>
+              ) : (
+                <VoiceMessageBody
+                  slug={slug}
+                  message={item}
+                  author={author}
+                  sealed={guestbook.voiceSealed}
+                  opensAtMs={guestbook.voiceOpensAtMs}
+                />
+              )}
               <p className={styles['meta']}>
                 <span translate={item.authorName === null ? undefined : 'no'}>{author}</span>
                 <time dateTime={item.createdAt}>{formatDate(item.createdAt)}</time>
@@ -158,10 +180,40 @@ export function GuestbookMessages({
           </Button>
         ))}
       </div>
+      {guestbook.voiceProcessing > 0 ? (
+        <p role="status" className={styles['processing']}>
+          {voiceCopy.processingCount(guestbook.voiceProcessing)}
+        </p>
+      ) : null}
+      {canDecide && unfiltered && keepable > 0 ? (
+        <div className={styles['bulk']}>
+          <Button
+            variant="secondary"
+            disabled={guestbook.busy}
+            onClick={() => setConfirmingKeep(true)}
+          >
+            {voiceCopy.keepPending(keepable)}
+          </Button>
+        </div>
+      ) : null}
       {guestbook.error !== null && items.length > 0 ? (
         <p role="alert">{messageForError(guestbook.error, t)}</p>
       ) : null}
       {body}
+      <ConfirmDialog
+        open={confirmingKeep}
+        title={voiceCopy.keepPending(keepable)}
+        description={voiceCopy.keepConfirm}
+        confirmLabel={voiceCopy.keepConfirmLabel}
+        confirmVariant="primary"
+        onCancel={() => setConfirmingKeep(false)}
+        onConfirm={() => {
+          setConfirmingKeep(false)
+          void guestbook.keepPendingVoices().then((kept) => {
+            if (kept !== null) toast.show(voiceCopy.kept(kept), { tone: 'success' })
+          })
+        }}
+      />
     </div>
   )
 }
