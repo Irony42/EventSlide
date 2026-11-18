@@ -82,7 +82,7 @@ Spec 25 carries the whole argument; this record keeps the few choices whose reas
 
 - The secret is one-way once opened, and the same instant is read by the console, the route and the archive.
 - With the disposable-camera mode (spec 23), one moment may open both the photographs and the voices; that is a
-  clause in `isVoiceOpen` guarded by the reveal's own switch, written when that mode reaches `main`.
+  clause in `isVoiceOpen` guarded by the reveal's own switch, which is spec 25 PR 8 and is still to do.
 
 ## Alternatives considered
 
@@ -103,4 +103,4 @@ Spec 25 carries the whole argument; this record keeps the few choices whose reas
 - Spec 25 (`livre-or-audio`); spec 01 (the guestbook), spec 15 (its moderation), spec 22 (the verified archive).
 - ADR 0007 (the hosted instance's operator and its "remove without viewing" levers), `docs/SECURITY.md` §9 ("Voice messages
   in the guestbook"), `docs/API.md` (the routes, the settings, the notice).
-- ADR 0013 is reserved for the reveal gate of the disposable-camera mode (spec 23), which is not on `main`.
+- ADR 0013 is the reveal gate of the disposable-camera mode (spec 23): `docs/adr/0013-reveal-gate.md`.

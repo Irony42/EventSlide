@@ -1072,11 +1072,13 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
   ones. That is the price of upgrading the server during such an evening: reload the screens after the upgrade, or
   upgrade before the evening (the same advice as for any version).
 - **What a public screen can no longer read before the hour**: the wall and the guests' feed (empty, with how many
-  photographs wait), the podium, the reactions, the shared gallery (the link opens with an empty grid, no new error) and
-  the bytes of somebody else's photograph. A host's ZIP, the moderation console, the best-of and the photo book are not
+  photographs wait), the podium, the reactions, the shared gallery (the link opens with an empty grid, no new error), the guest save route (`GET /photos/:id/save`,
+  `404 photo.notFound` for everyone, the author included) and the bytes of somebody else's photograph. A host's ZIP, the moderation console, the best-of and the photo book are not
   public readers and are untouched.
 - **The privacy notice** gains three clauses, present only when the mode is on (that the photographs are held back, how many
-  poses, the film look): an event without the mode keeps its notice, its revision and the acknowledgements of its guests.
+  poses, the film look): an event without the mode keeps its notice, its revision and the acknowledgements of its guests. A disposable evening
+  says "no removal one by one" and "others may save" together; the clause order of the revision is guestbook, guest save,
+  reveal, poses, film, voice, operator.
 - `POST /api/events/:slug/reveal` is new, and `PATCH /settings` takes an optional `reveal` group.
 - **The film look is a filter on the display only.** No byte changes: originals, the `display` and `thumb` variants, the ZIPs and
   every download are exactly what they were, and the shared gallery says so. An older web bundle simply shows the photographs
