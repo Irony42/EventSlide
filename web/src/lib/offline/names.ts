@@ -27,3 +27,15 @@ export const CSRF_HEADER = 'x-csrf-token'
 
 /** The IndexedDB database holding queued photos, opened by the page and by the worker. */
 export const OUTBOX_DB_NAME = 'eventslide-outbox'
+
+/**
+ * The IndexedDB database holding queued voice messages (spec 25), opened by the page and by
+ * nothing else.
+ *
+ * Its own database and not a second store in {@link OUTBOX_DB_NAME}: the photo database is at
+ * version 1 on phones that already have it and its upgrade handler leaves as soon as the `entries`
+ * store exists, so a store added there would never be created; an installed worker still opens it
+ * at version 1; and the kill switch deletes it whole. A recording is the one thing a guest cannot
+ * make again, so none of those may reach it. `names.test.ts` pins the value.
+ */
+export const VOICE_DB_NAME = 'eventslide-voice'

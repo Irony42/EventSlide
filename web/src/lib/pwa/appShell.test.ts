@@ -210,6 +210,25 @@ describe('respondFromShell', () => {
     expect(await response.text()).toBe('shell')
   })
 
+  it('hands back the cached shell with the headers it was stored with, the microphone policy included', async () => {
+    // Offline, the shell answers a navigation with the document cached for `/`, and a document
+    // keeps the Permissions-Policy of the response it came from (spec 25, section 9). The server
+    // opens the microphone on `/` for exactly this: a guest reopening the page with no network
+    // must still be able to record. A fallback that rebuilt the response without its headers
+    // would lock the microphone at the one moment the voice queue is for.
+    const shell = new Response('shell', { headers: { 'Permissions-Policy': 'microphone=(self)' } })
+
+    const response = await respondFromShell(aNavigation(`${ORIGIN}/e/mariage/upload`), {
+      fetch: async () => {
+        throw new TypeError('Failed to fetch')
+      },
+      match: async (request: Request) =>
+        new URL(request.url).pathname === '/' ? shell : undefined,
+    })
+
+    expect(response.headers.get('Permissions-Policy')).toBe('microphone=(self)')
+  })
+
   it('does not answer an uncached script or stylesheet with the shell document', async () => {
     // A lazy chunk is not in the precache. Answering it with index.html makes the browser
     // report a MIME error ("expected a JavaScript module, got text/html"), which the crash
