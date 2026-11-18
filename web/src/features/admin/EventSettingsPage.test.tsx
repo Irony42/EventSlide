@@ -285,6 +285,34 @@ describe('EventSettingsPage', () => {
     expect(screen.getByLabelText(fr.admin.allowCaptions)).not.toBeChecked()
   })
 
+  it('offers the switch over saving from the feed, with what it can and cannot do', async () => {
+    renderPage(fakeApi())
+
+    const box = await screen.findByLabelText(fr.admin.allowGuestSave)
+
+    expect(box).toBeChecked()
+    expect(box).toHaveAccessibleDescription(fr.admin.allowGuestSaveHint)
+  })
+
+  it('reads an event that predates the feature as unticked, and saves the host’s tick', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () =>
+        anEventDto({ settings: eventSettings({ allowGuestSave: false }) }),
+      ),
+    })
+
+    renderPage(api)
+    const box = await screen.findByLabelText(fr.admin.allowGuestSave)
+    expect(box).not.toBeChecked()
+    await userEvent.click(box)
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(api.updateSettings).toHaveBeenCalledWith(
+      'camille-et-sacha',
+      expect.objectContaining({ allowGuestSave: true }),
+    )
+  })
+
   it('saves the host’s choice about reactions', async () => {
     const api = fakeApi()
 

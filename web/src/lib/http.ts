@@ -487,6 +487,106 @@ const upload = async <T>(
 }
 
 /**
+ * How long a photograph a guest saves may take, end to end, before it is given up as a network
+ * failure (spec 24). Longer than {@link JSON_REQUEST_TIMEOUT_MS}: the body is about a megabyte,
+ * on venue Wi-Fi, and the guest is looking at the button.
+ */
+export const SAVE_REQUEST_TIMEOUT_MS = 45_000
+
+/**
+ * The key, in an `ApiError`'s details, of what the server said to wait (the `Retry-After`
+ * header of a `429` or `503`) in seconds. An `ApiError` carries what the wire said and nothing
+ * else, and a header is part of what the wire said.
+ */
+export const RETRY_AFTER_DETAIL = 'retryAfterSeconds'
+
+/** A file the server sent: its bytes and the name it chose for them. */
+export interface DownloadedFile {
+  readonly blob: Blob
+  /** From `Content-Disposition`; `null` when the header is absent or carries anything odd. */
+  readonly fileName: string | null
+}
+
+/**
+ * The name in `Content-Disposition: attachment; filename="…"`, only when it is a plain file
+ * name. The server builds it from a validated slug and a digest; anything else (a path, a
+ * quote, a space) is not read, so the name cannot steer where the browser writes.
+ */
+const fileNameOf = (header: string | null): string | null => {
+  const match =
+    header === null ? null : /filename="([A-Za-z0-9][A-Za-z0-9._-]{0,127})"/u.exec(header)
+  return match?.[1] ?? null
+}
+
+/** The seconds in `Retry-After`, or `null` when it is absent or is not a plain positive number. */
+const retryAfterOf = (response: Response): number | null => {
+  const raw = response.headers.get('Retry-After')
+  if (raw === null || !/^\d{1,6}$/u.test(raw.trim())) return null
+  const seconds = Number(raw)
+  return seconds > 0 ? seconds : null
+}
+
+/**
+ * A GET whose answer is a file, held in memory (spec 24: one photograph, about a megabyte, a
+ * guest saving it from the feed). Not a JSON request: the body is bytes, and a refusal is
+ * still the server's JSON error, read as an `ApiError` carrying the `Retry-After` it sent.
+ *
+ * Under {@link SAVE_REQUEST_TIMEOUT_MS} for the whole request, body included, and never
+ * repeated: a room of phones retrying together is what the server's limits exist to prevent,
+ * so whether to ask again is the caller's choice.
+ */
+const download = async (path: string, signal?: AbortSignal): Promise<DownloadedFile> => {
+  const controller = new AbortController()
+  let timedOut = false
+  const onCallerAbort = () => controller.abort()
+  if (signal?.aborted) controller.abort()
+  else signal?.addEventListener('abort', onCallerAbort, { once: true })
+  const deadline = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, SAVE_REQUEST_TIMEOUT_MS)
+
+  try {
+    let response: Response
+    try {
+      response = await fetch(path, {
+        method: 'GET',
+        credentials: 'same-origin',
+        signal: controller.signal,
+      })
+    } catch (cause) {
+      if (timedOut) throw ApiError.network()
+      if (isAbortError(cause)) throw cause
+      throw ApiError.network()
+    }
+    if (!response.ok) {
+      const text = await response.text()
+      try {
+        settle<never>(response.status, text)
+      } catch (cause) {
+        const wait = retryAfterOf(response)
+        if (cause instanceof ApiError && wait !== null) {
+          throw new ApiError(cause.status, cause.code, {
+            ...cause.details,
+            [RETRY_AFTER_DETAIL]: wait,
+          })
+        }
+        throw cause
+      }
+      throw new ApiError(response.status, 'unknown')
+    }
+    const blob = await response.blob()
+    return { blob, fileName: fileNameOf(response.headers.get('Content-Disposition')) }
+  } catch (cause) {
+    if (timedOut && isAbortError(cause)) throw ApiError.network()
+    throw cause
+  } finally {
+    clearTimeout(deadline)
+    signal?.removeEventListener('abort', onCallerAbort)
+  }
+}
+
+/**
  * The transport surface. Injected as a whole in tests, so a component test never
  * touches `fetch` or `XMLHttpRequest`.
  */
@@ -505,6 +605,8 @@ export interface Transport {
     form: FormData,
     handlers?: { onProgress?: (progress: UploadProgress) => void; signal?: AbortSignal },
   ): Promise<T>
+  /** A GET whose answer is a file held in memory: the photograph a guest saves (spec 24). */
+  download(path: string, signal?: AbortSignal): Promise<DownloadedFile>
 }
 
 export const http: Transport = {
@@ -527,4 +629,5 @@ export const http: Transport = {
     }),
   del: (path, signal) => request('DELETE', path, signal ? { signal } : {}),
   upload,
+  download,
 }

@@ -85,7 +85,7 @@ export const en: UiText = {
     eraseBody:
       'Your photos, videos, captions, reactions and first name will be erased from the event: from the screen, the album and the organiser’s list. This cannot be undone.',
     eraseLimits:
-      'A copy the organiser has already saved, or that someone captured with a screenshot, cannot be taken back.',
+      'A copy the organiser or another guest has already saved, or that someone captured with a screenshot, cannot be taken back.',
     eraseConfirm: 'Yes, delete everything',
     eraseCancel: 'No, keep them',
     eraseFailed: 'The deletion did not go through. Try again, or ask the organiser.',
@@ -281,6 +281,9 @@ export const en: UiText = {
       sharedGallery:
         'Anyone the organiser sends a private link to the album, if they make one, and anyone that link is forwarded to: they can view and download the photos shown on the screen in full resolution, until the link expires or is withdrawn.',
     },
+    /** Said after the audiences, only on an evening where saving is on (spec 24). */
+    noticeGuestSave:
+      'The other guests can save your photo on their phone, without the place or the camera it was taken with. A saved copy cannot be taken back.',
     noticeRetentionDays: (days: number) =>
       t.count(days, {
         one: `They are deleted automatically ${t.number(days)} day after the organiser ends the event.`,
@@ -867,6 +870,26 @@ export const en: UiText = {
     unavailable: 'This event is no longer on display.',
     unavailableHint:
       'The evening is over, so there are no photos to see here. Ask the organisers for the album link.',
+    /* Spec 24: saving a photograph from the feed. */
+    saving: 'Saving…',
+    saveReady: 'Tap to save it',
+    /** The accessible name of a save button: its word, then the photograph it is under. */
+    saveNamed: (action: string, description: string) => `${action}: ${description}`,
+    saveDownloaded: 'Photo downloaded.',
+    saveNetworkFailed: 'The photo could not be retrieved. Try again when the network is back.',
+    saveBusy: 'Many guests are saving at the same time. Try again in a moment.',
+    saveGone: 'This photo is no longer available.',
+    saveMediaMissing: 'The photo could not be retrieved.',
+    saveDisabled: 'The organiser has turned saving off.',
+    saveRevoked: 'The organiser has removed your access.',
+    /** A lapsed access reads by the state of the evening: open, the code reopens it; over, only the album's link is left. */
+    saveExpiredOpen:
+      'Your access to the evening has expired. Reopen the evening from the code or the link you received.',
+    saveExpiredClosed:
+      'Your access to the evening has expired. Ask the organisers for the album link.',
+    saveHelpSheet: 'In the sheet that opens, choose “Save Image” to put it in Photos.',
+    saveHelpFiles:
+      'The photo is in the Files app, in the Downloads folder. To have it go to Photos, open the evening in Safari: in your messaging app, tap Share, then “Open in Safari”.',
   },
 
   wall: {
@@ -1114,6 +1137,10 @@ export const en: UiText = {
     allowClips: 'Allow videos',
     allowClipsHint:
       'Guests can send short videos as well as photos. When the box is unticked, videos are refused: because you unticked it, because the template chosen when the event was created set it that way, or because the event is older than this feature. Tick it to allow them.',
+    /** The host's switch over saving from the feed (spec 24). */
+    allowGuestSave: 'Guests can save the photos of the evening',
+    allowGuestSaveHint:
+      'Each guest can keep on their phone a photo shown on the screen, in high quality, without the place or the camera it was taken with. You stay in control of the album: a photo you remove can no longer be saved, but a photo already saved stays on the person’s phone, and you cannot stop a single photo from being copied without removing it. Changing this setting during the evening makes guests read the notice again before their next photo. Once the evening is over, a guest whose access has expired can no longer save: send them the album link, which also gives the full resolution.',
     allowGuestbook: 'Open the guestbook',
     allowGuestbookHint:
       'Guests leave a short message. Unticked: the guestbook is closed; messages already written are kept.',

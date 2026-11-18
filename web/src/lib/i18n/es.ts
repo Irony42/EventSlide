@@ -93,7 +93,7 @@ export const es: UiText = {
     eraseBody:
       'Sus fotos, vídeos, leyendas, reacciones y su nombre se borrarán de la fiesta: de la pantalla, del álbum y de la lista del organizador. Es definitivo.',
     eraseLimits:
-      'Una copia que el organizador ya haya guardado, o que alguien haya capturado de la pantalla, no se puede recuperar.',
+      'Una copia que el organizador u otro invitado ya hayan guardado, o que alguien haya capturado de la pantalla, no se puede recuperar.',
     eraseConfirm: 'Sí, eliminar todo',
     eraseCancel: 'No, conservar',
     eraseFailed: 'No se pudo eliminar. Inténtelo de nuevo o pídaselo al organizador.',
@@ -295,6 +295,9 @@ export const es: UiText = {
       sharedGallery:
         'Las personas a las que el organizador envíe un enlace privado al álbum, si lo crea, y aquellas a las que se reenvíe ese enlace: pueden ver y descargar en resolución completa las fotos mostradas en la pantalla, hasta que el enlace caduque o sea retirado.',
     },
+    /** Said after the audiences, only on an evening where saving is on (spec 24). */
+    noticeGuestSave:
+      'Los demás invitados pueden guardar su foto en su teléfono, sin el lugar ni la cámara con la que se tomó. Una copia guardada no se puede recuperar.',
     noticeRetentionDays: (days: number) =>
       t.count(days, {
         one: `Se borran automáticamente ${t.number(days)} día después de que el organizador finalice la fiesta.`,
@@ -903,6 +906,28 @@ export const es: UiText = {
     unavailable: 'Esta fiesta ya no se muestra.',
     unavailableHint:
       'La fiesta ha terminado, así que aquí no hay fotos que ver. Pida a los organizadores el enlace del álbum.',
+    /* Spec 24: saving a photograph from the feed. */
+    saving: 'Guardando…',
+    saveReady: 'Toque para guardarla',
+    /** The accessible name of a save button: its word, then the photograph it is under. */
+    saveNamed: (action: string, description: string) => `${action}: ${description}`,
+    saveDownloaded: 'Foto descargada.',
+    saveNetworkFailed:
+      'No se ha podido recuperar la foto. Vuelva a intentarlo cuando regrese la red.',
+    saveBusy:
+      'Muchos invitados están guardando a la vez. Vuelva a intentarlo dentro de un momento.',
+    saveGone: 'Esta foto ya no está disponible.',
+    saveMediaMissing: 'No se ha podido recuperar la foto.',
+    saveDisabled: 'El organizador ha desactivado el guardado.',
+    saveRevoked: 'El organizador ha retirado su acceso.',
+    /** A lapsed access reads by the state of the evening: open, the code reopens it; over, only the album's link is left. */
+    saveExpiredOpen:
+      'Su acceso a la fiesta ha caducado. Vuelva a abrir la fiesta con el código o el enlace que recibió.',
+    saveExpiredClosed:
+      'Su acceso a la fiesta ha caducado. Pida a los organizadores el enlace del álbum.',
+    saveHelpSheet: 'En la hoja que se abre, elija «Guardar imagen» para ponerla en Fotos.',
+    saveHelpFiles:
+      'La foto está en la app Archivos, en la carpeta Descargas. Para que vaya a Fotos, abra la fiesta en Safari: en la aplicación de mensajería, toque Compartir y luego «Abrir en Safari».',
   },
 
   wall: {
@@ -1166,6 +1191,10 @@ export const es: UiText = {
     allowClips: 'Permitir los vídeos',
     allowClipsHint:
       'Los invitados pueden enviar vídeos cortos, además de fotos. Cuando la casilla está desmarcada, los vídeos se rechazan: porque usted la ha desmarcado, porque la plantilla elegida al crear el evento lo dejó así, o porque el evento es anterior a esta función. Márquela para permitirlos.',
+    /** The host's switch over saving from the feed (spec 24). */
+    allowGuestSave: 'Los invitados pueden guardar las fotos de la fiesta',
+    allowGuestSaveHint:
+      'Cada invitado puede conservar en su teléfono una foto mostrada en la pantalla, en alta calidad, sin el lugar ni la cámara con la que se tomó. Usted mantiene el control del álbum: una foto que retire ya no se puede guardar, pero una foto ya guardada se queda en el teléfono de la persona, y no puede impedir que se copie una sola foto sin retirarla. Cambiar este ajuste durante la fiesta hace que los invitados vuelvan a leer el aviso antes de su próxima foto. Cuando la fiesta ha terminado, un invitado cuyo acceso ha caducado ya no puede guardar: envíele el enlace del álbum, que además da la resolución completa.',
     allowGuestbook: 'Abrir el libro de visitas',
     allowGuestbookHint:
       'Los invitados dejan un mensaje corto. Desmarcado: el libro está cerrado y se conservan los mensajes ya escritos.',

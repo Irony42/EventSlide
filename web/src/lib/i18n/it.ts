@@ -96,7 +96,7 @@ export const it: UiText = {
     eraseBody:
       'Le sue foto, i video, le didascalie, le reazioni e il suo nome saranno cancellati dalla serata: dallo schermo, dall’album e dall’elenco dell’organizzatore. L’operazione è definitiva.',
     eraseLimits:
-      'Una copia già salvata dall’organizzatore, o catturata da qualcuno con uno screenshot, non si può riprendere.',
+      'Una copia già salvata dall’organizzatore o da un altro invitato, o catturata da qualcuno con uno screenshot, non si può riprendere.',
     eraseConfirm: 'Sì, elimina tutto',
     eraseCancel: 'No, le tengo',
     eraseFailed:
@@ -299,6 +299,9 @@ export const it: UiText = {
       sharedGallery:
         'Le persone a cui l’organizzatore invia un link privato all’album, se ne crea uno, e quelle a cui il link viene inoltrato: possono vedere e scaricare in piena risoluzione le foto mostrate sullo schermo, finché il link non scade o viene ritirato.',
     },
+    /** Said after the audiences, only on an evening where saving is on (spec 24). */
+    noticeGuestSave:
+      'Gli altri invitati possono salvare la sua foto sul proprio telefono, senza il luogo né la fotocamera con cui è stata scattata. Una copia salvata non si può riprendere.',
     noticeRetentionDays: (days: number) =>
       t.count(days, {
         one: `Vengono eliminate automaticamente ${t.number(days)} giorno dopo che l’organizzatore ha terminato la serata.`,
@@ -910,6 +913,26 @@ export const it: UiText = {
     unavailable: 'Questa serata non viene più mostrata.',
     unavailableHint:
       'La serata è finita, quindi qui non ci sono foto da vedere. Chieda agli organizzatori il link dell’album.',
+    /* Spec 24: saving a photograph from the feed. */
+    saving: 'Salvataggio…',
+    saveReady: 'Tocchi per salvarla',
+    /** The accessible name of a save button: its word, then the photograph it is under. */
+    saveNamed: (action: string, description: string) => `${action}: ${description}`,
+    saveDownloaded: 'Foto scaricata.',
+    saveNetworkFailed: 'Non è stato possibile recuperare la foto. Riprovi quando la rete torna.',
+    saveBusy: 'Molti invitati stanno salvando contemporaneamente. Riprovi tra un momento.',
+    saveGone: 'Questa foto non è più disponibile.',
+    saveMediaMissing: 'Non è stato possibile recuperare la foto.',
+    saveDisabled: 'L’organizzatore ha disattivato il salvataggio.',
+    saveRevoked: 'L’organizzatore ha revocato il suo accesso.',
+    /** A lapsed access reads by the state of the evening: open, the code reopens it; over, only the album's link is left. */
+    saveExpiredOpen:
+      'Il suo accesso alla serata è scaduto. Riapra la serata con il codice o il link ricevuto.',
+    saveExpiredClosed:
+      'Il suo accesso alla serata è scaduto. Chieda agli organizzatori il link dell’album.',
+    saveHelpSheet: 'Nel foglio che si apre, scelga «Salva immagine» per metterla in Foto.',
+    saveHelpFiles:
+      'La foto è nell’app File, nella cartella Download. Perché finisca in Foto, apra la serata in Safari: nell’app di messaggistica, tocchi Condividi e poi «Apri in Safari».',
   },
 
   wall: {
@@ -1155,6 +1178,10 @@ export const it: UiText = {
     allowClips: 'Consenti i video',
     allowClipsHint:
       'Gli invitati possono inviare brevi video, oltre alle foto. Quando la casella non è selezionata, i video vengono rifiutati: perché l’ha deselezionata, perché il modello scelto alla creazione l’ha impostata così, oppure perché l’evento è anteriore a questa funzionalità. La selezioni per consentirli.',
+    /** The host's switch over saving from the feed (spec 24). */
+    allowGuestSave: 'Gli invitati possono salvare le foto della serata',
+    allowGuestSaveHint:
+      'Ogni invitato può tenere sul proprio telefono una foto mostrata sullo schermo, in alta qualità, senza il luogo né la fotocamera con cui è stata scattata. Lei mantiene il controllo dell’album: una foto che toglie non può più essere salvata, ma una foto già salvata resta sul telefono della persona, e non può impedire la copia di una sola foto senza toglierla. Cambiare questa impostazione durante la serata fa rileggere l’informativa agli invitati prima della loro prossima foto. A serata finita, un invitato il cui accesso è scaduto non può più salvare: gli invii il link dell’album, che dà anche la piena risoluzione.',
     allowGuestbook: 'Apri il libro degli ospiti',
     allowGuestbookHint:
       'Gli invitati lasciano un breve messaggio. Se deselezionata: il libro è chiuso e i messaggi già scritti restano.',

@@ -370,6 +370,20 @@ export function EventSettingsPage() {
         />
 
         {/*
+          Saving from the feed (spec 24). The hint says what the switch does and what it cannot:
+          a photo already saved stays on the phone it was saved to, and the switch is no access
+          control (a published photo's display rendition is public anyway). It also says what a
+          change costs mid-evening, because it changes the notice each guest has read.
+        */}
+        <CheckboxField
+          label={t.admin.allowGuestSave}
+          hint={t.admin.allowGuestSaveHint}
+          checked={settings.allowGuestSave}
+          disabled={readOnly}
+          onChange={(allowGuestSave) => update({ allowGuestSave })}
+        />
+
+        {/*
           The host's switch over video, and the reason it carries a hint where
           "Autoriser les réactions" does not: **it reads off on every gallery that
           existed before clips shipped.** The persistence fallback answers `false` for a
