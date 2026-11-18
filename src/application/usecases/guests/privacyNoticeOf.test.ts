@@ -71,6 +71,22 @@ describe('privacyNoticeOf', () => {
     expect((await privacyNoticeOf(clients, event, null)).guestbook).toBe(true)
   })
 
+  it.each([true, false])(
+    'carries the guests save switch (%s) through both paths, with and without a ceiling',
+    async (allowGuestSave) => {
+      const clients = new FakeClientRepository().seed(
+        aClient({ id: 'client-1', ceilings: { maxRetentionDays: 30 } }),
+      )
+      const capped = anEvent({ clientId: 'client-1', settings: { allowGuestSave } })
+      const free = anEvent({ settings: { allowGuestSave } })
+
+      expect((await privacyNoticeOf(clients, capped, null)).guestSave).toBe(allowGuestSave)
+      expect((await privacyNoticeOf(new FakeClientRepository(), free, null)).guestSave).toBe(
+        allowGuestSave,
+      )
+    },
+  )
+
   it('gives a different revision when the ceiling changes what is promised, so guests are asked again', async () => {
     const lowered = world({ maxRetentionDays: 14 }, null)
     const raised = world({ maxRetentionDays: 30 }, null)

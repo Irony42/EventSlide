@@ -386,6 +386,24 @@ Retention already purges. The missing half is one action that writes the archive
 somewhere the host chooses, verifies it, and _then_ deletes — so honouring a retention
 promise does not mean losing the album.
 
+### 4.5 Saving from the feed (P1, effort M, risk: medium)
+
+> **In progress** (spec 24, four pull requests): the setting and the route have landed, the buttons have not.
+
+A guest sees the evening's photographs on their phone and could only ask the host for one, or take a
+screenshot of a 480 px thumbnail. A guest can now keep a photograph, one at a time, from the feed: **the
+`display` rendition (2560 px, no location, no device), never the original**, which stays the host's and the
+shared gallery's (§4.1). It is the gesture of the evening, as the gallery link is the gesture of the morning
+after: the guest's token lives 36 hours, then the link takes over.
+
+What it deliberately is not: **not a second gallery** (no ZIP, no clip, no full resolution, no link to hand
+on), **not an access control** (the `display` rendition is public already, so the host's switch governs what the
+product offers and promises, and says so), and **nothing kept on the server** (no row of who saved what).
+The route is the guest's own (`GET …/photos/:id/save`, cookie only, no signed address), refuses like a
+photograph that does not exist, and carries three bounds sized for a room that shares one address. The
+notice gains a clause the host's switch decides (a copy a guest saved cannot be taken back), so the
+revision moves with the switch.
+
 ---
 
 ## 5. Security, privacy and trust

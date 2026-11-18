@@ -102,6 +102,8 @@ export interface NoticePolicy {
   readonly guestSelfDeleteGraceSeconds: number
   /** The guestbook switch (spec 01): when on, a message is one more thing the notice covers. */
   readonly allowGuestbook: boolean
+  /** The guests' save switch (spec 24): when on, another guest may keep a copy of a published photo. */
+  readonly allowGuestSave: boolean
 }
 
 /**
@@ -167,6 +169,19 @@ export interface PrivacyNotice {
    * mid-evening shows the notice once more to every guest before their next photo or message.
    */
   readonly guestbook: boolean
+  /**
+   * Whether the other guests may save a photo from the feed onto their phone (spec 24). The notice
+   * then says so, and says a saved copy cannot be taken back: a guest who read "the other guests
+   * see your photo" has not read "and keep it".
+   *
+   * Part of the revision **only when true**, like {@link PrivacyNotice.guestbook}: an event whose
+   * switch is off produces the revision it produced before this clause existed, character for
+   * character, so an event that predates it (which reads `false`) asks nobody to read anything
+   * again. The revision is derived from the configuration with no memory, so switching it on or
+   * off in the middle of the evening shows the notice once more to every guest who had read the
+   * other one, before their next photo.
+   */
+  readonly guestSave: boolean
   /**
    * The notice's identity: two notices with the same revision say the same thing.
    *
@@ -249,6 +264,7 @@ const revisionOf = (notice: Omit<PrivacyNotice, 'revision'>): string =>
     'selfErase=phone',
     // Before the operator: the free-text name stays the last clause, as above.
     ...(notice.guestbook ? ['guestbook=on'] : []),
+    ...(notice.guestSave ? ['guestSave=on'] : []),
     ...(notice.operator === null ? [] : [`operator=${notice.operator}`]),
   ].join(';')
 
@@ -270,6 +286,7 @@ export const privacyNoticeFor = (
     selfRemovalSeconds: selfRemovalFor(policy),
     operator,
     guestbook: policy.allowGuestbook,
+    guestSave: policy.allowGuestSave,
   }
   return { ...clauses, revision: revisionOf(clauses) }
 }

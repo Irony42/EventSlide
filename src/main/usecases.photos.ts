@@ -19,6 +19,7 @@ import { makeGetPhotoMedia } from '../application/usecases/photos/getPhotoMedia'
 import { makeIdentifyMediaViewer } from '../application/usecases/photos/identifyMediaViewer'
 import { makeListEventPhotos } from '../application/usecases/photos/listEventPhotos'
 import { makeListGuestPhotos } from '../application/usecases/photos/listGuestPhotos'
+import { makeSaveGuestPhoto } from '../application/usecases/photos/saveGuestPhoto'
 import { makeSetPhotoCaption } from '../application/usecases/photos/setPhotoCaption'
 import { makeUploadPhotos } from '../application/usecases/photos/uploadPhotos'
 import type { Adapters, UseCasePolicy } from './usecases'
@@ -71,6 +72,11 @@ export const photosUseCases = (
     invalidateBook,
   }),
   getPhotoMedia: makeGetPhotoMedia({ photos: adapters.photos, media: adapters.media }),
+  saveGuestPhoto: makeSaveGuestPhoto({
+    events: adapters.events,
+    photos: adapters.photos,
+    media: adapters.media,
+  }),
   identifyMediaViewer: makeIdentifyMediaViewer({
     guests: adapters.guests,
     tokens: adapters.guestTokens,

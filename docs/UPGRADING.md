@@ -997,6 +997,20 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 
 ## Upgrading to 3.14 (not released yet)
 
+### Guests save photographs from the feed (spec 24)
+
+- **No migration.** The setting lives in the event's settings (`allowGuestSave`).
+- **Off on existing events, on for new ones.** An event created before this version
+  reads `allowGuestSave` as **off**, so an upgrade changes neither what a running event does nor the notice its
+  guests have already read; a new event is created with it **on**, except from the "Conférence" template. The host
+  switches it on or off from the settings page. Switching it, either way, makes each guest read the privacy
+  notice once more before their next photograph.
+- **A new guest route**, `GET /api/events/:slug/photos/:photoId/save`, and three additive fields (`guestSaveEnabled` on
+  `GET /wall`, `allowGuestSave` in the event's settings, `guestSave` in the privacy notice, present only when true). A
+  phone or a wall left open across the upgrade ignores them until it is reloaded. **Nothing to set in `.env`**: the limits
+  of the route are constants (see [OPERATING.md](OPERATING.md#guests-saving-photographs)).
+- **The upgrade changes the revision of the notice only where the switch is on**, which is no event that already existed.
+
 ### Export before the purge: the date, the warning, the manifest (spec 22)
 
 - **One migration (030)**: a new table, `event_purge_notices` (one row per event: the last warning threshold sent, and when),

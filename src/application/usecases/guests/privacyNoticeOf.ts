@@ -57,6 +57,7 @@ export const privacyNoticeUnder = (
       allowGuestSelfDelete: settings.allowGuestSelfDelete,
       guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
       allowGuestbook: settings.allowGuestbook,
+      allowGuestSave: settings.allowGuestSave,
     },
     operatorName,
   )

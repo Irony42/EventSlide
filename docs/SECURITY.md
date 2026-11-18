@@ -1132,22 +1132,24 @@ without its upload ever being judged against a number another event's guests bui
 **(planned: the store. In the first cut the counters are in-process, which is a real gap
 on a restart loop)**.
 
-| Endpoint                                             | Per IP       | Per event              | Per guest token | Window |
-| ---------------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
-| `POST /api/auth/login` †                             | 10           | —                      | —               | 1 min  |
-| `POST /api/events` (create)\*                        | —            | —                      | —               | 1 hour |
-| `GET /api/join/:code` (code lookup)                  | 20 (as join) | —                      | —               | 1 min  |
-| `POST /api/events/:slug/guests` (join)               | 10           | 60                     | —               | 1 min  |
-| `POST /api/events/:slug/photos`                      | **(defect)** | **(defect)**           | —               | 1 min  |
-| `POST /api/events/:slug/clips`                       | **(defect)** | **(defect)**           | —               | 1 min  |
-| `POST /api/events/:slug/photos/:id/reactions`        | 120          | 600                    | 60              | 1 min  |
-| the five other guest writes (below)                  | 300 per pair | (keyed together)       | —               | 1 min  |
-| `GET /api/events/:slug/stream` (SSE)                 | 5 concurrent | 200 concurrent         | —               | —      |
-| `GET /api/gallery/:token`, `…/photos`, unlock        | 120          | —                      | —               | 1 min  |
-| `GET /api/gallery-media/…`                           | 3000         | —                      | —               | 1 min  |
-| `POST /api/gallery/:token/unlock` (failures)         | 10           | 50 per link            | —               | 15 min |
-| `GET /api/gallery-media/:linkId/album.zip`           | 2 concurrent | 4 concurrent, box-wide | —               | —      |
-| `GET /api/events/:slug/album.zip`, `…/best-of.zip` ‡ | 2 concurrent | 4 concurrent, box-wide | —               | —      |
+| Endpoint                                             | Per IP       | Per event              | Per guest token               | Window |
+| ---------------------------------------------------- | ------------ | ---------------------- | ----------------------------- | ------ |
+| `POST /api/auth/login` †                             | 10           | —                      | —                             | 1 min  |
+| `POST /api/events` (create)\*                        | —            | —                      | —                             | 1 hour |
+| `GET /api/join/:code` (code lookup)                  | 20 (as join) | —                      | —                             | 1 min  |
+| `POST /api/events/:slug/guests` (join)               | 10           | 60                     | —                             | 1 min  |
+| `POST /api/events/:slug/photos`                      | **(defect)** | **(defect)**           | —                             | 1 min  |
+| `POST /api/events/:slug/clips`                       | **(defect)** | **(defect)**           | —                             | 1 min  |
+| `POST /api/events/:slug/photos/:id/reactions`        | 120          | 600                    | 60                            | 1 min  |
+| the five other guest writes (below)                  | 300 per pair | (keyed together)       | —                             | 1 min  |
+| `GET /api/events/:slug/photos/:id/save` § (spec 24)  | 600 per pair | (keyed together)       | 40                            | 1 min  |
+| the same save, open at once §                        | —            | —                      | 2 concurrent, **64 box-wide** | —      |
+| `GET /api/events/:slug/stream` (SSE)                 | 5 concurrent | 200 concurrent         | —                             | —      |
+| `GET /api/gallery/:token`, `…/photos`, unlock        | 120          | —                      | —                             | 1 min  |
+| `GET /api/gallery-media/…`                           | 3000         | —                      | —                             | 1 min  |
+| `POST /api/gallery/:token/unlock` (failures)         | 10           | 50 per link            | —                             | 15 min |
+| `GET /api/gallery-media/:linkId/album.zip`           | 2 concurrent | 4 concurrent, box-wide | —                             | —      |
+| `GET /api/events/:slug/album.zip`, `…/best-of.zip` ‡ | 2 concurrent | 4 concurrent, box-wide | —                             | —      |
 
 **Doors that compare the password of a signed-in account** (`/api/auth/password`, `/api/auth/account/delete`, and the second-step doors `login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm`): the sign-in budget per address (a limiter of its own on each route), and **one** budget per account shared by all six, 10 wrong attempts per 15 minutes from every address together (`auth.tooManySecondFactorAttempts`, with `Retry-After`). Failures only; on the password change a failure is the wrong current password alone, not a new password the policy refuses (a `400`), so an invited moderator who must choose a password is not locked out by their own typos. The budget can also be spent by whoever holds a stolen session: the owner is then refused those six doors for a quarter of an hour, as step-up already allowed; accepted, because the alternative is unlimited guessing. Before, `/api/auth/password` had no limiter and a stolen session could guess the current password at bcrypt speed (review 2026-11-13, SEC-01).
 
@@ -1168,6 +1170,8 @@ answered `503` until one ends: a trade accepted, the disk before the availabilit
 eight archives, each read one photograph at a time. The slot is released when the response closes, whichever way it
 ended, so an export the use case refuses (`404`, `409 highlight.empty`) gives it back at once. The reel and the
 photo book are single files served with `Range`, not archives, and are not counted. A `HEAD` on either export (the console's preflight) is answered by the same limiter **without taking a slot** (`preflight`): `204` or the same `429` / `503`, and no use case runs.
+
+**§** Saving a photograph from the feed (spec 24, the section "Saving from the feed" below): a flood ceiling per client address and event, ahead of the token check (600 a minute, a venue being one address); 40 a minute per **guest**, right after it; and the saves **open at once**, counted **per guest and never per address** (two) with a ceiling for the box (64). All three are constants in `middleware/rateLimit.ts` (`SAVES_PER_ADDRESS_PER_MINUTE`, `SAVES_PER_GUEST_PER_MINUTE`, `SAVES_OPEN_PER_GUEST`, `SAVES_OPEN_TOTAL`), not settings, and **starting values that were not measured on a real box**; `docs/OPERATING.md` says how to measure them. A room shares the venue's address, so a concurrency ceiling per address would refuse most of two hundred guests at the end of the evening. The concurrency counters are the route's own, apart from the gallery's ZIP and the host's exports: guests cannot fill the places of a host's export. The refusals carry `Retry-After: 30`, and the client never retries on its own.
 
 **(defect)** The two upload rows describe three independent limits and there are two.
 `uploadLimiter` in `middleware/rateLimit.ts` mints a single bucket keyed by
@@ -1765,16 +1769,19 @@ under test.
 
 ### Data-subject flows a host can actually perform
 
-| Request                    | How                                                                                                                                       | Result                                                                        |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| "Delete that photo of me"  | moderation console → delete, or the guest self-deletes inside the grace window                                                            | row deleted, file unlinked, SSE invalidation removes it from every projector  |
-| "Delete everything I sent" | filter the moderation queue by guest, bulk delete, or the guest's own `DELETE /guests/me`, which also removes their guestbook messages    | all photos and messages for that `guest_id` in that event                     |
-| "Give me my photos"        | `GET /api/events/:slug/archive` (`archiver`, streamed, owner only)                                                                        | zip of the event's photos                                                     |
-| "Send us the photos"       | a shared gallery link (§15) the owner makes, with an expiry and optionally a password, and can revoke at once                             | the published album, full resolution and EXIF-free, to whoever holds the link |
-| "Forget the whole event"   | delete the event → `ON DELETE CASCADE` clears photos, guests, reactions, memberships; the media sweeper removes `<MEDIA_ROOT>/<eventId>/` | nothing left but the audit line that it happened                              |
-| Automatic expiry           | `settings.retentionDays`, swept hourly by `src/main/retentionSweeper.ts` and on demand by `npm run purge` (§11)                           | events age out without the host remembering                                   |
+| Request                                  | How                                                                                                                                       | Result                                                                        |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| "Delete that photo of me"                | moderation console → delete, or the guest self-deletes inside the grace window                                                            | row deleted, file unlinked, SSE invalidation removes it from every projector  |
+| "Delete everything I sent"               | filter the moderation queue by guest, bulk delete, or the guest's own `DELETE /guests/me`, which also removes their guestbook messages    | all photos and messages for that `guest_id` in that event                     |
+| "Give me my photos"                      | `GET /api/events/:slug/archive` (`archiver`, streamed, owner only)                                                                        | zip of the event's photos                                                     |
+| "Send us the photos"                     | a shared gallery link (§15) the owner makes, with an expiry and optionally a password, and can revoke at once                             | the published album, full resolution and EXIF-free, to whoever holds the link |
+| "Forget the whole event"                 | delete the event → `ON DELETE CASCADE` clears photos, guests, reactions, memberships; the media sweeper removes `<MEDIA_ROOT>/<eventId>/` | nothing left but the audit line that it happened                              |
+| "Take back the copy another guest saved" | not possible: the server keeps no copy and no record of who saved what; the notice and the host's hint say so                             | nothing to do on the box; the copy lives on a phone the box does not reach    |
+| Automatic expiry                         | `settings.retentionDays`, swept hourly by `src/main/retentionSweeper.ts` and on demand by `npm run purge` (§11)                           | events age out without the host remembering                                   |
 
 A guestbook message (spec 01) is text a guest typed and is held to the photograph's rules: it follows the event's moderation, it is never logged (only the event id and, at most, a length), it is rendered as a text node and never as markup, the operator sees no message and no count of them, and an operator takedown of one message goes by its id alone. Erasing a guest removes their messages, except one the operator took down, which is kept as evidence and holds the guest row (without its name) exactly as a taken-down photograph does. The ceilings (3 per guest, 500 per event) are fixed in the code and add no `NEW_CLIENT_*` setting.
+
+When the host allows the guests to save a photograph from the feed (spec 24, §26), the notice says so in a clause of its own (`guestSave`: the other guests may keep a copy on their phone, and a saved copy cannot be taken back), which is in the revision only while the switch is on. The revision has no memory, so switching it on or off during the evening makes each guest read the notice once more before their next photograph. An event that predates the switch reads it off and asks nobody anything. The erasure screen's list of what cannot be reached carries the same fact, on every event, because the display rendition is public already.
 
 Deletion is real: `DELETE`, not a `deleted_at` column. A soft-delete of a photo someone
 asked you to remove is not a deletion.
@@ -3851,3 +3858,49 @@ The named tests: `operatorTakedown.test.ts` and `takedownSurfaces.test.ts` (ring
 (`photoRepositoryContract.ts`, `eventRepositoryContract.ts`, against the fake and SQLite), `siteRoutes.test.ts` (the route
 table, the gate and the step-up on each of the six), `takedown.container.test.ts` (every surface, through the real
 composition root) and `suspension.container.test.ts` (the host of a frozen client reads no photograph).
+
+## 26. Saving from the feed (spec 24)
+
+A guest keeps a photograph from "Les photos de la soirée" on their own phone, one at a time:
+`GET /api/events/:slug/photos/:photoId/save` (API.md §3). It is the second place a guest reaches a
+file that is not their own, after the shared gallery (§15), and **it is not a second gallery**: the
+gallery is a link the host sends, in full resolution, with a ZIP, a password and an end date; this is
+a guest of this event, one photograph at a time, while the evening lasts and the guest's token lives.
+
+**The switch is not an access control, and says so.** `display` is already served to the public by the
+media route (the wall's projector has no session), and the feed's response carries its address, so
+`allowGuestSave` governs what the product **offers and promises** (a button, a sentence in the
+notice, this route that refuses when it is off), and not what a determined script can fetch from a
+public address. §12 states the exposure it sits on.
+
+| Control                                  | How                                                                                                                                                                                                                                                                                                                           | Held by                                                                                              |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| No full resolution                       | the rendition is a table of the domain (`GUEST_SAVE_RENDITION`: `display` for a photograph, nothing for a clip); `original` is never asked of the store                                                                                                                                                                       | `guestSave.test.ts`, `saveGuestPhoto.test.ts`, `guestSaveRoutes.test.ts` (the size is the display's) |
+| A guest of this event only               | `requireGuest` resolves the token against the event in the path; another event's token is `404 event.notFound`                                                                                                                                                                                                                | `guestSaveRoutes.test.ts`                                                                            |
+| The cookie is the key, never the address | no signature, no token in the URL: pasted elsewhere the address answers `401`; a revoked guest stops on the next request (`guest.revoked`). The cookie is `SameSite=Lax`, so a link from another site that opens the address makes a guest download one published photograph and nothing else (a `GET` that changes no state) | `guestSaveRoutes.test.ts`, `publicRoutes.test.ts` (the cookie)                                       |
+| The host's switch, on every request      | `403 save.disabled`, read from the event now and never remembered                                                                                                                                                                                                                                                             | `saveGuestPhoto.test.ts`                                                                             |
+| The event still serves its wall          | `requireGuest` deliberately ignores the lifecycle, so the use case asks `servesPublicWall`: a draft, an archived event, one the operator took down and a suspended client's are `404 event.notFound`                                                                                                                          | `saveGuestPhoto.test.ts`                                                                             |
+| No oracle                                | every refusal of a photograph is `404 photo.notFound`, identical to an unknown identifier: not published, a clip, another event's, taken down by the operator, **or the author's own photograph while it is still awaiting moderation**                                                                                       | `saveGuestPhoto.test.ts`, `guestSaveRoutes.test.ts` (the same body)                                  |
+| Nothing kept                             | no table, no file, no cache (`Cache-Control: private, no-store`), no real-time signal: the route writes nothing                                                                                                                                                                                                               | `guestSaveRoutes.test.ts` (rows, files and signals unchanged)                                        |
+| A clean file name                        | `<slug>-<short digest>.jpg`, a validated slug and hex: no first name, no caption, no date                                                                                                                                                                                                                                     | `saveGuestPhoto.test.ts`                                                                             |
+| Bounded                                  | the three bounds of §5                                                                                                                                                                                                                                                                                                        | `rateLimit.test.ts`, `guestSaveRoutes.test.ts`                                                       |
+| The route is not read as a rendition     | it is mounted in `guestRoutes`, before `mediaRoutes`, whose `:variant` would otherwise catch `save`                                                                                                                                                                                                                           | `guestSaveRoutes.test.ts` ("does not fall into :variant", through the assembled server)              |
+| Not in the logs                          | the access log writes the route pattern, never the identifier; the token is not in the address                                                                                                                                                                                                                                | `logCanary.test.ts` (its sweep calls every mounted route)                                            |
+
+**What a guest who saved a photograph cannot be made to give back.** The host's removal, a guest's own
+erasure (`eraseGuestContribution`) and the operator's takedown act on the server; a copy on someone
+else's phone is outside it, as a screenshot always was. The notice now says so to the guest whose photograph it
+is (its `guestSave` clause, §9), and the erasure screen says so too. There is nothing to invalidate: unlike the
+verified archive (§11) or the photo book, the server holds no copy.
+
+**The service worker is not involved.** `isShellRequest` in `web/sw/serviceWorker.ts` refuses anything that is not a
+same-origin `GET` outside `/api/`, and the handler then returns without `respondWith`: this route and its body are
+never put in the cache, so no photograph a host removes survives there.
+
+**Cache of what the feed displays is unchanged**: the thumbnail and the `display` of the public route keep their
+`immutable` year (§12), so a phone that had already seen a photograph keeps showing it after its removal. This
+section does not change that; it states it.
+
+**Bandwidth is the real cost**, and it arrives all at once (every guest wants their photographs at the end of the
+evening, from one Wi-Fi). The bounds of §5 protect the machine, not a venue's access point, and they were set
+before any measurement; the gate before a release is the throughput measured on the demo album (`docs/OPERATING.md`).

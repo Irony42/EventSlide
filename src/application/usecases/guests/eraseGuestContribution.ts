@@ -41,7 +41,9 @@ import { makeRemovePhotoRecord } from '../photos/removePhotoRecord'
  *
  * **What it cannot reach**, and the guest-facing copy says so: a copy the host already
  * downloaded (an export streamed to the browser keeps nothing; an archive the box prepared is deleted with the photograph, but not the file the host saved from it), a screenshot, a download
- * from the shared gallery link, and the hourly backup, which holds a deleted photograph for
+ * from the shared gallery link, a photograph another guest saved from the feed onto their
+ * phone (spec 24: the server keeps no copy and no record of who saved what, so there is
+ * nothing here to invalidate and nothing to reach), and the hourly backup, which holds a deleted photograph for
  * at most the retention the privacy notice states. There is no audit line: the audit log is
  * about accounts and clients and is content-free by construction (`auditAction.ts`), and a
  * guest has no account to attribute it to.

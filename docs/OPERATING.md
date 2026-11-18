@@ -174,6 +174,35 @@ Three settings worth a thought before you start:
   and the first check after you turn it back on applies them all at once — clear them
   first if any event has one.
 
+## Guests saving photographs
+
+A guest can keep a photograph from the feed on their own phone, one at a time (the host's
+**Les invités peuvent enregistrer les photos de la soirée** setting). What the box serves is the
+`display` rendition, about 2560 px at most and **never the original**. **No variable to set**:
+the limits are constants, and the box keeps nothing of who saved what.
+
+**Bandwidth at the end of the evening is the cost to watch.** Everybody wants their photographs at
+the same moment, from one Wi-Fi. Three bounds protect the machine (they are listed in
+[SECURITY.md](SECURITY.md#5-rate-limits-and-quotas) and in API.md): 40 saves a minute per guest, 600 a
+minute per client address and event, and **two saves open at once per guest with 64 for the whole box**.
+A refusal answers `429` or `503` with `Retry-After: 30`, and the guest's phone says so and does not retry
+by itself.
+
+**What was measured, and what was not.** Measured on 17/11/2026, on a developer PC (loopback, one Node
+process, the demo album's three published photographs, 183 KB on average because the demo album is
+synthetic and **not representative of a phone's photographs**): 64 saves open at once were all served, at
+about 155 to 175 MB/s in a burst of 70 ms, which says only that the application is not the limit.
+200 saves open at once (100 guests, two each) served 64 and answered **503 to the other 136**: the box
+ceiling of 64 does what it says, and on a real evening it counts downloads that last seconds on a venue's
+Wi-Fi, not 160 ms on loopback, so it will refuse sooner than this figure suggests.
+**Not measured**: the weight of a real phone's `display` file (the spec guesses 0.6 to 1.5 MB), the
+outgoing bandwidth the hosted offer guarantees (it is not in this repository), and the traffic of a real
+evening. Treat 64 as a starting value. To measure on your own box: open the event with a few real photographs,
+watch the machine's outgoing traffic (`ssh <box>` then `nload` or the provider's graph) while several phones
+save at once, and raise or lower `SAVES_OPEN_TOTAL` in `src/interface/http/middleware/rateLimit.ts` from what the link
+sustains. The figure that matters is how many full-size downloads your uplink carries at once without
+the wall's own stream stalling.
+
 ## Backups
 
 Take one before the event and one the morning after. The server stays up while you do,

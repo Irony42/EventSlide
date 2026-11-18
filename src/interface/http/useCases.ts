@@ -99,6 +99,7 @@ import type { PreselectHighlights } from '../../application/usecases/highlights/
 import type { SetPhotoHighlight } from '../../application/usecases/highlights/setPhotoHighlight'
 import type { ExportAlbum } from '../../application/usecases/photos/exportAlbum'
 import type { GetPhotoMedia } from '../../application/usecases/photos/getPhotoMedia'
+import type { SaveGuestPhoto } from '../../application/usecases/photos/saveGuestPhoto'
 import type { IdentifyMediaViewer } from '../../application/usecases/photos/identifyMediaViewer'
 import type { ListEventPhotos } from '../../application/usecases/photos/listEventPhotos'
 import type { ListGuestPhotos } from '../../application/usecases/photos/listGuestPhotos'
@@ -260,6 +261,8 @@ export interface HttpUseCases {
   readonly deletePhoto: DeletePhoto
   readonly setPhotoCaption: SetPhotoCaption
   readonly getPhotoMedia: GetPhotoMedia
+  /** What a guest may keep of a photograph in the feed (spec 24): the display rendition, behind the host's switch. */
+  readonly saveGuestPhoto: SaveGuestPhoto
   /** Who is asking for the bytes: the media route's one answer to "who is this" (HTTP-H-02). */
   readonly identifyMediaViewer: IdentifyMediaViewer
   readonly exportAlbum: ExportAlbum

@@ -170,6 +170,11 @@ export interface PrivacyNoticeDto {
    * reads for a message too. Part of `revision` only in that case.
    */
   readonly guestbook?: true
+  /**
+   * Present (and `true`) only when the other guests may save a photo from the feed (spec 24): the
+   * notice then says a saved copy cannot be taken back. Part of `revision` only in that case.
+   */
+  readonly guestSave?: true
 }
 
 /** A notice and where this device stands with it: every read of the notice answers this. */

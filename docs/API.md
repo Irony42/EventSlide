@@ -675,29 +675,32 @@ use-case refusals (`invitation.tooManyForAddress`, `reset.tooManyForAddress`,
 `reaction.rateLimited`), because a client that cannot read response headers can read the body; the
 other limiters' bodies carry the header only.
 
-| Endpoint                                                           | Default       | Bucket                     | Code                               |
-| ------------------------------------------------------------------ | ------------- | -------------------------- | ---------------------------------- |
-| `POST /api/join`                                                   | 200           | client IP                  | `rate.limited`                     |
-| `GET /api/join/:code`                                              | 200           | client IP, same as join    | `rate.limited`                     |
-| `POST /api/auth/login` †                                           | 10            | client IP                  | `rate.limited`                     |
-| `POST /api/auth/password-reset/request` †                          | 10            | client IP, own bucket      | `rate.limited`                     |
-| `POST /api/auth/password-reset/confirm`                            | 10            | client IP, own bucket      | `rate.limited`                     |
-| `GET /api/invitations/:token`, `POST …/accept`                     | 10            | client IP, own bucket each | `rate.limited`                     |
-| `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm` | 10            | client IP, own bucket each | `rate.limited`                     |
-| `POST /api/auth/password`, `POST /api/auth/account/delete`         | 10            | client IP, own bucket each | `rate.limited`                     |
-| the same four, and those two ◊                                     | 10 / 15 min   | **account**, failures only | `auth.tooManySecondFactorAttempts` |
-| `POST /api/events` (create)                                        | 20 / **hour** | account                    | `event.creationRateLimited`        |
-| `POST /api/events/:slug/moderators` (invite)                       | 30 / **hour** | account                    | `rate.limited`                     |
-| `POST`, `PATCH`, `DELETE …/announcements…` (spec 21) ♯             | 60            | account, fixed             | `rate.limited`                     |
-| `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §       | 300           | client IP **and** event    | `rate.limited`                     |
-| the same two, photos and clips together §                          | 12            | **guest** and event        | `rate.limited`                     |
-| `POST /api/events/:slug/photos/:id/reactions` (flood ceiling) §    | 600           | client IP **and** event    | `reaction.rateLimited`             |
-| the same reaction §                                                | 30            | **guest** and event        | `reaction.rateLimited`             |
-| the five other guest writes ‡                                      | 300           | client IP **and** event    | `rate.limited`                     |
-| `POST …/guestbook` and `DELETE …/guestbook/:id` ¶                  | 6             | **guest** and event, fixed | `rate.limited`                     |
-| `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                  | `rate.limited`                     |
-| `GET /api/gallery-media/…`                                         | 3000          | client IP                  | `rate.limited`                     |
-| `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min      | `gallery.tooManyAttempts`          |
+| Endpoint                                                           | Default       | Bucket                     | Code                                |
+| ------------------------------------------------------------------ | ------------- | -------------------------- | ----------------------------------- |
+| `POST /api/join`                                                   | 200           | client IP                  | `rate.limited`                      |
+| `GET /api/join/:code`                                              | 200           | client IP, same as join    | `rate.limited`                      |
+| `POST /api/auth/login` †                                           | 10            | client IP                  | `rate.limited`                      |
+| `POST /api/auth/password-reset/request` †                          | 10            | client IP, own bucket      | `rate.limited`                      |
+| `POST /api/auth/password-reset/confirm`                            | 10            | client IP, own bucket      | `rate.limited`                      |
+| `GET /api/invitations/:token`, `POST …/accept`                     | 10            | client IP, own bucket each | `rate.limited`                      |
+| `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm` | 10            | client IP, own bucket each | `rate.limited`                      |
+| `POST /api/auth/password`, `POST /api/auth/account/delete`         | 10            | client IP, own bucket each | `rate.limited`                      |
+| the same four, and those two ◊                                     | 10 / 15 min   | **account**, failures only | `auth.tooManySecondFactorAttempts`  |
+| `POST /api/events` (create)                                        | 20 / **hour** | account                    | `event.creationRateLimited`         |
+| `POST /api/events/:slug/moderators` (invite)                       | 30 / **hour** | account                    | `rate.limited`                      |
+| `POST`, `PATCH`, `DELETE …/announcements…` (spec 21) ♯             | 60            | account, fixed             | `rate.limited`                      |
+| `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §       | 300           | client IP **and** event    | `rate.limited`                      |
+| the same two, photos and clips together §                          | 12            | **guest** and event        | `rate.limited`                      |
+| `POST /api/events/:slug/photos/:id/reactions` (flood ceiling) §    | 600           | client IP **and** event    | `reaction.rateLimited`              |
+| the same reaction §                                                | 30            | **guest** and event        | `reaction.rateLimited`              |
+| the five other guest writes ‡                                      | 300           | client IP **and** event    | `rate.limited`                      |
+| `POST …/guestbook` and `DELETE …/guestbook/:id` ¶                  | 6             | **guest** and event, fixed | `rate.limited`                      |
+| `GET …/photos/:id/save` (flood ceiling) ☆                          | 600, fixed    | client IP **and** event    | `rate.limited`                      |
+| the same save ☆                                                    | 40, fixed     | **guest** and event        | `rate.limited`                      |
+| the same save, open at once ☆                                      | 2 / 64        | **guest** / the box        | `rate.limited` / `service.notReady` |
+| `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                  | `rate.limited`                      |
+| `GET /api/gallery-media/…`                                         | 3000          | client IP                  | `rate.limited`                      |
+| `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min      | `gallery.tooManyAttempts`           |
 
 ◊ One budget for all six doors (a guess at one is spent at the others). On `POST /api/auth/password` a failure is **only** `401 auth.invalidCredentials`, the wrong current password: a `400` (a new password the policy refuses, `password.unchanged`, a malformed body) spends nothing, so a person who is learning the policy, an invited moderator who must choose a password included, cannot lock themselves out. The other five doors count every answer of 400 or more.
 
@@ -712,6 +715,8 @@ the two variables counted per client address and event.
 ♯ **Announcements** (spec 21). The four writes of the host (`POST …/announcements`, `PATCH`, `POST …/launch`, `DELETE`) share one budget of **60 a minute per account**, a constant in the code and not a setting (the feature adds no environment variable). The event's own ceiling is fifty rows; this one only stops a loop from making every open wall read again.
 
 ¶ **Guestbook, two stages** (spec 01). Both routes first spend the guest-write bucket of ‡ (client address and event, before the token is verified), then a second budget of **6 a minute per guest** that writing and taking back share. That number is a constant in the code, not a setting: the ceiling of three messages per guest does not bound the abuse by itself, because writing then removing in a loop never holds more than three rows yet announces a `guestbook.changed` each turn, and every open wall re-reads on it.
+
+☆ **Saving a photograph from the feed** (spec 24). Three bounds, **constants in the code and not settings** (the feature adds no environment variable), and **starting values that were not measured on a real box**: a flood ceiling of 600 a minute per client address and event, checked before the device token is verified (a venue is one address); 40 a minute per **guest**, checked right after it; and the number of saves **open at once**, counted **per guest, never per address** (two) with a ceiling for the box (64). A whole room shares the venue's address, so a ceiling per address would refuse most of two hundred guests at the end of the evening. The counters are the route's own, apart from the shared gallery's ZIP and the host's exports. The concurrency refusals carry `Retry-After: 30`: `429 rate.limited` for a guest over their two, `503 service.notReady` when the box is full. A client must **not** retry on its own.
 
 ‡ **One bucket, six routes**: `PATCH …/photos/:id/caption`, `DELETE …/photos/:id` (a guest taking
 their photo back), `DELETE …/photos/:id/reactions/:kind`, `PATCH …/guests/:guestId` (a guest renaming themself), `DELETE …/guests/me` (a guest erasing what they sent) and
@@ -1904,6 +1909,7 @@ guest's language, so the notice cannot promise something the configuration contr
 | `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation`       | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `operator`           | `OPERATOR_NAME` (not the event)                                           | who hosts the photograph, said as "Hébergé par <name>" (roadmap G2-17). **Absent** — the key is not there, and the revision is unchanged — on a box whose operator set none, which is every self-hosted box                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `guestbook`          | `allowGuestbook`                                                          | **Present (`true`) only when guests may leave guestbook messages** (spec 01): the notice then reads for a message too, and `revision` gains `guestbook=on`. Absent otherwise, so a box without a guestbook asks nobody to read the notice again                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `guestSave`          | `allowGuestSave`                                                          | **Present (`true`) only when the other guests may save a photograph from the feed onto their phone** (spec 24): the notice then says so, and says a saved copy cannot be taken back; `revision` gains `guestSave=on`. Absent otherwise, so an event that predates the switch (which reads it off) produces the revision it always produced and asks nobody to read the notice again                                                                                                                                                                                                                                                                                                      |
 | `revision`           | all of the above                                                          | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 **The retention is the one the box applies.** For an event that belongs to a client, `retentionDays`
@@ -1922,6 +1928,8 @@ sentence for as a notice it cannot show, not as a shorter one — this one shows
 keeps the picker, as for a tab older than the feature, until a newer bundle loads.
 
 **`selfErase=phone` is a constant clause** (roadmap §5.2): every notice now says the guest can delete everything they sent from their own phone, so every guest who acknowledged an earlier revision is asked once more.
+
+**`guestSave=on` follows `guestbook=on` and comes before the operator**, and is in the revision only when the switch is on. **The revision is derived from the configuration with no memory**, so the host turning the switch on _or off_ in the middle of the evening shows the notice once more to every guest who had read the other one, before their next photograph: a guest reads it twice if the host switches on, then off.
 
 **The operator is the last clause of `revision`, and only when there is one**
 (`…;selfRemoval=900;selfErase=phone;operator=<name>`). A box that sets no `OPERATOR_NAME` produces the revision
@@ -2201,6 +2209,57 @@ would then be asked to read again.
 
 ---
 
+### `GET /api/events/:slug/photos/:photoId/save`
+
+A guest keeping a photograph from the feed (spec 24), one at a time. The `es_guest` cookie is the whole
+credential: **no signed address, no token in the URL**, so the address is of no use to anyone who pastes
+it elsewhere, and revoking a guest ends it on the next request. It sits in this section, and is mounted
+before the media routes of §4, so that `save` is never read as a `:variant`.
+
+It serves the **`display` rendition** (2560 px at most, EXIF, GPS and device serial already stripped on
+ingest) of a photograph, **never the `original`**, which only a moderator and the shared gallery
+(§2) read. A clip has no rendition to save in this version.
+
+**200** (or **206** to a `Range`, which a phone's download manager sends to resume; **416** outside the file)
+
+```
+Content-Type: image/jpeg
+Content-Length: <size of the display file>
+Content-Disposition: attachment; filename="<slug>-<short digest>.jpg"
+Cache-Control: private, no-store
+ETag: "<digest>-display"
+X-Content-Type-Options: nosniff
+```
+
+The file name is the server's: the event's slug and the first characters of the digest, never a first
+name, a caption or a date.
+
+**The photograph must be one the public wall shows right now**: `published`, not taken down by the
+operator, in this event. A photograph awaiting moderation, hidden or refused is not saveable, **its
+author included**. **Nothing is kept**: no table, no file, no cache, no real-time signal.
+
+**Errors**
+
+| Status | Code                                    | When                                                                                                                                                                                     |
+| ------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400    | `request.invalid`                       | an identifier that is not one (checked first, whatever the event's state)                                                                                                                |
+| 401    | `auth.required`, `guestToken.malformed` | no cookie, or a token that does not verify (one older than 36 hours included)                                                                                                            |
+| 403    | `guest.revoked`                         | the host removed this guest: the host's lever against someone who abuses the feature                                                                                                     |
+| 403    | `save.disabled`                         | the host switched `allowGuestSave` off. **The one refusal that says what it is**: a feed that was open when the host switched it off has no live channel, and learns it from this answer |
+| 404    | `event.notFound`                        | another event's token, an unknown, draft or archived event, one the operator took down, a suspended client                                                                               |
+| 404    | `photo.notFound`                        | unknown; another event's; not `published`; a clip; taken down by the operator. **All the same answer**: the route is no oracle for which identifiers exist                               |
+| 404    | `photo.mediaMissing`                    | the row points at a file that is gone (a corruption the operator should see in the log)                                                                                                  |
+| 429    | `rate.limited`                          | a bound of §1 ☆, with `Retry-After`                                                                                                                                                      |
+| 503    | `service.notReady`                      | the box is serving its ceiling of saves, with `Retry-After: 30`                                                                                                                          |
+
+**The switch is not an access control.** `display` is already served to the public by §4, so
+`allowGuestSave` governs what the product offers and promises to guests (a button, a sentence in the
+notice, this route), not what a determined script can fetch from a public address. A closed event is
+served as long as the guest's token lives (36 hours); the day after, the shared gallery's link is the
+way to the album.
+
+---
+
 ### `PATCH /api/events/:slug/guests/:guestId`
 
 A guest changing the name their photos are signed with. **Their own, and nobody else's**:
@@ -2290,7 +2349,7 @@ this section), **`500 photo.deleteFailed` on an event whose purge the operator h
 
 ### `GET /api/events/:slug/photos/:photoId/:variant`
 
-`variant` ∈ `thumb | display | original` for a photograph, `video | poster` for a clip.
+`variant` ∈ `thumb | display | original` for a photograph, `video | poster` for a clip. **`save` is not a variant**: `GET …/photos/:photoId/save` is the guest's own route (§3), mounted before this one.
 
 Asking a row for a rendition its **kind** does not have is `404 photo.notFound` — the
 miss is on the row, not on the disk, because `photo.mediaMissing` is the code that means

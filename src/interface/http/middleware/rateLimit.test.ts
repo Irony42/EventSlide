@@ -30,6 +30,13 @@ import {
   passwordResetLimiter,
   reactionGuestLimiter,
   reactionLimiter,
+  SAVES_OPEN_PER_GUEST,
+  SAVES_OPEN_TOTAL,
+  SAVES_PER_ADDRESS_PER_MINUTE,
+  SAVES_PER_GUEST_PER_MINUTE,
+  saveAddressLimiter,
+  saveConcurrencyLimiter,
+  saveGuestLimiter,
   secondFactorAccountLimiter,
   secondFactorLimiter,
   streamConnectionLimiter,
@@ -115,6 +122,8 @@ describe('every limiter answers 429 with the error shape and a Retry-After', () 
     ['uploadLimiter', uploadLimiter(1), 'rate.limited', 60],
     ['reactionLimiter', reactionLimiter(1), 'reaction.rateLimited', 60],
     ['guestWriteLimiter', guestWriteLimiter(1), 'rate.limited', 60],
+    ['saveAddressLimiter', saveAddressLimiter(1), 'rate.limited', 60],
+    ['saveGuestLimiter', saveGuestLimiter(1), 'rate.limited', 60],
     ['announcementWriteLimiter', announcementWriteLimiter(1), 'rate.limited', 60],
     ['eventCreationLimiter', eventCreationLimiter(1), 'event.creationRateLimited', 3_600],
     ['invitationIssueLimiter', invitationIssueLimiter(1), 'rate.limited', 3_600],
@@ -288,6 +297,7 @@ describe('the guest key and the address ceiling of uploads and reactions', () =>
   const STAGES = [
     ['uploads', uploadLimiter, uploadGuestLimiter],
     ['reactions', reactionLimiter, reactionGuestLimiter],
+    ['saves', saveAddressLimiter, saveGuestLimiter],
   ] as const
 
   const send = (app: Express, guest: string, extra: Record<string, string> = {}) =>
@@ -358,6 +368,129 @@ describe('the guest key and the address ceiling of uploads and reactions', () =>
     const other = await send(app, 'guest-a', { 'x-test-event': 'event-2' })
 
     expect(other.status).toBe(204)
+  })
+})
+
+describe('the limits of saving from the feed (spec 24, section 5.4)', () => {
+  it('starts from the figures the spec argues for', () => {
+    expect(SAVES_PER_GUEST_PER_MINUTE).toBe(40)
+    expect(SAVES_PER_ADDRESS_PER_MINUTE).toBe(600)
+    expect(SAVES_OPEN_PER_GUEST).toBe(2)
+    expect(SAVES_OPEN_TOTAL).toBe(64)
+  })
+
+  describe('the concurrency limiter', () => {
+    const servers: http.Server[] = []
+    const open: http.ClientRequest[] = []
+
+    afterEach(async () => {
+      for (const outgoing of open.splice(0)) outgoing.destroy()
+      for (const server of servers.splice(0)) {
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    })
+
+    /** A route that answers its headers and then holds the response, like a slow download. */
+    const listening = async (limits: { perGuest?: number; total?: number }): Promise<number> => {
+      const held: Response[] = []
+      const app = express()
+      app.set('trust proxy', 1)
+      app.get(
+        '/events/:eventSlug/photos/:photoId/save',
+        (req, _res, next) => {
+          const guest = req.header('x-test-guest') ?? 'nobody'
+          req.context = {
+            requestId: 'test',
+            logger: noopLogger,
+            guest: {
+              kind: 'guest',
+              guest: { id: guest },
+              eventId: 'event-1',
+            } as unknown as GuestPrincipal,
+          }
+          next()
+        },
+        saveConcurrencyLimiter(limits),
+        (_req, res) => {
+          res.writeHead(200)
+          res.write('x')
+          held.push(res)
+        },
+      )
+      const server = http.createServer(app)
+      server.on('close', () => {
+        for (const response of held.splice(0)) response.end()
+      })
+      servers.push(server)
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      return (server.address() as AddressInfo).port
+    }
+
+    interface Answer {
+      readonly status: number
+      readonly retryAfter: string | undefined
+    }
+
+    const get = (port: number, guest: string, address = '203.0.113.7'): Promise<Answer> =>
+      new Promise((resolve, reject) => {
+        const outgoing = http.get(
+          {
+            port,
+            path: '/events/mariage/photos/p1/save',
+            headers: { 'X-Forwarded-For': address, 'x-test-guest': guest },
+          },
+          (incoming) => {
+            incoming.resume()
+            resolve({
+              status: incoming.statusCode ?? 0,
+              retryAfter: incoming.headers['retry-after'],
+            })
+          },
+        )
+        open.push(outgoing)
+        outgoing.on('error', reject)
+      })
+
+    it('refuses the third simultaneous save of one guest, with a Retry-After', async () => {
+      const port = await listening({})
+      expect((await get(port, 'guest-a')).status).toBe(200)
+      expect((await get(port, 'guest-a')).status).toBe(200)
+
+      const third = await get(port, 'guest-a')
+
+      expect(third.status).toBe(429)
+      expect(third.retryAfter).toBe('30')
+    })
+
+    it('does not make two guests behind one address wait for each other', async () => {
+      const port = await listening({})
+      await get(port, 'guest-a')
+      await get(port, 'guest-a')
+
+      const other = await get(port, 'guest-b')
+
+      expect(other.status).toBe(200)
+    })
+
+    it('answers 503 with a Retry-After once the box is full, whoever asks', async () => {
+      const port = await listening({ perGuest: 5, total: 2 })
+      await get(port, 'guest-a')
+      await get(port, 'guest-b')
+
+      const refused = await get(port, 'guest-c')
+
+      expect(refused.status).toBe(503)
+      expect(refused.retryAfter).toBe('30')
+    })
+
+    it('keeps its own counters, apart from the ZIP the guests of a gallery share', async () => {
+      // Two instances, two allowances: a guest filling one leaves the other untouched.
+      const first = await listening({ perGuest: 1 })
+      const second = await listening({ perGuest: 1 })
+      await get(first, 'guest-a')
+
+      expect((await get(second, 'guest-a')).status).toBe(200)
+    })
   })
 })
 
