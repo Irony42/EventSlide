@@ -109,6 +109,9 @@ const SECTIONS = LEAVES.filter(({ keys }) => keys[0] !== 'errors')
  * `copy.leaf`.
  */
 const readsLeaf = (section: string, leaf: string, source: string): boolean => {
+  // Every shape below spells the leaf, so a module without it reads nothing: skipping it before
+  // building a dozen patterns is what keeps this under the test timeout as fr.ts grows.
+  if (!source.includes(leaf)) return false
   if (!IDENTIFIER.test(leaf)) return quoted(leaf).test(source)
   if (new RegExp(`\\.${section}\\.${leaf}\\b`).test(source)) return true
   const alias = new RegExp(`\\b(\\w+)\\s*=\\s*[\\w.]*\\.${section}\\b(?!\\.)`, 'g')
