@@ -116,7 +116,7 @@ export const makeListGuestbookQueue =
       pendingCount: pendingGuestbookCount(book),
       voice: {
         processing,
-        sealed: !isVoiceOpen(event.settings.guestbookVoice, event, now),
+        sealed: !isVoiceOpen(event.settings.guestbookVoice, event, now, event.settings.reveal),
         opensAtMs: event.settings.guestbookVoice.opensAtMs,
         nowMs: now.getTime(),
       },

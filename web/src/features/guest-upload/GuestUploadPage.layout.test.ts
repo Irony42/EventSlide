@@ -5,6 +5,7 @@ import CLIP_CSS from './components/ClipComposer.module.css?raw'
 import PICKER_CSS from './components/PhotoPicker.module.css?raw'
 import MINE_CSS from './components/MyPhotos.module.css?raw'
 import QUEUE_CSS from './components/UploadQueue.module.css?raw'
+import ROLL_CSS from './components/GuestRoll.module.css?raw'
 import FIELD_CSS from '../../design-system/components/Field.module.css?raw'
 import TOKENS_CSS from '../../design-system/tokens.css?raw'
 import SHEET_CSS from '../../design-system/sheet.module.css?raw'
@@ -160,5 +161,25 @@ describe('the pinned pane reads as a raised layer, and only while it is pinned',
       expect(TOKENS_CSS, token).toContain(`${token}:`)
       expect(DESIGN_SYSTEM_MD, token).toContain(`${token}:`)
     }
+  })
+
+  it('develops a photograph from black and white to colour only for someone who has not asked for less motion (spec 23)', () => {
+    const css = withoutComments(MINE_CSS)
+    const blocks = [
+      ...css.matchAll(/@media \(prefers-reduced-motion: no-preference\)\s*\{([\s\S]*?\n\})/g),
+    ]
+    const developing = blocks.find((block) =>
+      /\.thumb\s*\{[^}]*transition:\s*filter/.test(block[1] ?? ''),
+    )
+
+    expect(developing).toBeDefined()
+    // Nothing outside a media query animates the filter: with the preference the colour is just there.
+    expect(css.replace(developing?.[0] ?? '', '')).not.toMatch(/transition:[^;}]*filter/)
+  })
+
+  it('gives the roll card a target of at least 44 px and text at the base size, from tokens (spec 23)', () => {
+    expect(declarationsOf(ROLL_CSS, '.roll')).toMatch(/min-block-size:\s*var\(--touch-min\)/)
+    expect(declarationsOf(ROLL_CSS, '.line')).toMatch(/font-size:\s*var\(--text-base\)/)
+    expect(withoutComments(ROLL_CSS)).not.toMatch(/#[0-9a-f]{3,8}|\b\d+(?:rem|ms)\b/i)
   })
 })

@@ -11,6 +11,8 @@ export interface TransitionRequest {
   readonly eventName: string
   readonly from: EventStatus
   readonly to: EventStatus
+  /** The evening is a disposable camera whose photos were not revealed yet (spec 23). */
+  readonly heldReveal?: boolean
 }
 
 /**
@@ -48,7 +50,7 @@ export const useLifecycleTransition = (onChanged: (event: EventDto) => void) => 
 
   const request = useCallback(
     (next: TransitionRequest) => {
-      if (confirmationFor(next.from, next.to) === null) perform(next)
+      if (confirmationFor(next.from, next.to, next.heldReveal) === null) perform(next)
       else setAsking(next)
     },
     [perform],

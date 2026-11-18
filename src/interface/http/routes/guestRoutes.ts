@@ -25,6 +25,7 @@ import {
 import {
   toGuestChallengeDto,
   toGuestMissionDto,
+  revealView,
   toGuestPhotoDto,
   toReactionsDto,
   toEventBrandDto,
@@ -439,6 +440,7 @@ export const guestRoutes = ({
                 photo.missionId === null
                   ? null
                   : (page.missionPrompts.get(photo.missionId) ?? null),
+              revealed: page.revealed,
             }),
           ),
           // The upload rule's own answer (`Event.acceptsUploads`; in practice the status, a suspended client's guests never get here), so the
@@ -448,6 +450,9 @@ export const guestRoutes = ({
           // and this is the one read the upload screen makes that can learn the host changed it.
           theme: toEventThemeDto(event.settings, event.slug.value),
           brand: toEventBrandDto(event.settings, event.slug.value),
+          // The roll and the reveal gate (spec 23), from the same page and the same instant.
+          shots: page.shots,
+          reveal: revealView(page.event, page.now),
         }
         sendJson(response, body)
       })

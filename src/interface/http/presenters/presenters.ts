@@ -4,6 +4,7 @@ import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { EventSettings } from '../../../domain/events/eventSettings'
 import type { ThemeCustom } from '../../../domain/events/eventTheme'
+import { awaitsReveal, isRevealed } from '../../../domain/events/eventRevealSettings'
 import { acceptsGuests } from '../../../domain/events/eventStatus'
 import type { Guest } from '../../../domain/guests/guest'
 import type { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
@@ -48,6 +49,8 @@ import type {
   EventThemeDto,
   ThemeCustomDto,
   GalleryDto,
+  RevealDto,
+  WallRevealDto,
   GalleryPageDto,
   AnnouncementDto,
   AnnouncementListResponseDto,
@@ -394,6 +397,11 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
     soundTone: settings.wall.soundTone,
     soundVolume: settings.wall.soundVolume,
   },
+  reveal: {
+    enabled: settings.reveal.enabled,
+    at: isoOrNull(settings.reveal.at),
+    film: settings.reveal.film,
+  },
 })
 
 /**
@@ -455,6 +463,10 @@ export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => (
   ...(notice.guestbook ? { guestbook: true as const } : {}),
   // Present only when true, for the same reason: an event whose switch is off answers what it always did.
   ...(notice.guestSave ? { guestSave: true as const } : {}),
+  // Spec 23, the same way: present only when told, so an event without the mode answers what it always did.
+  ...(notice.deferredReveal ? { reveal: true as const } : {}),
+  ...(notice.shotLimit === null ? {} : { shotLimit: notice.shotLimit }),
+  ...(notice.film ? { film: true as const } : {}),
   // Voice (spec 25), present only when on, for the same reason: an event without it answers what it always did.
   ...(notice.voice ? { voice: true as const } : {}),
   ...(notice.voiceSealed ? { voiceSealed: true as const } : {}),
@@ -506,12 +518,13 @@ export interface EventDtoInput {
   readonly limits: EventLimits
   /** When the album will be deleted and the last warning sent (`getEventView`, spec 22). */
   readonly purge: EventPurgeView
-  /** The server's clock when the answer is made: the date above is counted down against it. */
-  readonly serverNowMs: number
+  /** The server's clock at this answer, and what the reveal gate holds back (spec 23). */
+  readonly now: Date
+  readonly readyCount: number | null
 }
 
 export const toEventDto = (
-  { event, role, counts, limits, purge, serverNowMs }: EventDtoInput,
+  { event, role, counts, limits, purge, now, readyCount }: EventDtoInput,
   context: PresenterContext,
 ): EventDto => ({
   id: event.id,
@@ -527,13 +540,15 @@ export const toEventDto = (
   joinUrl: joinUrl(context.publicUrl, event.joinCode.value),
   quotaBytes: limits.quotaBytes,
   ...(limits.liveWindowEnd === null ? {} : { liveWindowEnd: iso(limits.liveWindowEnd) }),
-  purge: toEventPurgeDto(purge, serverNowMs),
+  purge: toEventPurgeDto(purge, now.getTime()),
   settings: toEventSettingsDto(event.settings, event.slug.value),
   startsAt: isoOrNull(event.startsAt),
   closedAt: isoOrNull(event.closedAt),
   scheduledOpenAt: isoOrNull(event.scheduledOpenAt),
   scheduledCloseAt: isoOrNull(event.scheduledCloseAt),
   scheduleDiscardedAt: isoOrNull(event.scheduleDiscardedAt),
+  // The host's console counts the reveal down against this clock, never its own (spec 23).
+  reveal: { ...revealView(event, now), readyCount },
   role,
 })
 
@@ -544,13 +559,40 @@ export interface GuestPhotoDtoInput {
   readonly canDelete: boolean
   /** The words of the mission this was filed under, when it still exists. */
   readonly missionPrompt?: string | null
+  /** Whether the evening is shown to everybody now (`true` by default: no mode, nothing waits). */
+  readonly revealed?: boolean
 }
+
+/**
+ * **The one presenter of the reveal gate** (spec 23): the wall, the guest's phone and the gallery
+ * carry the block this builds, from the event and one instant read from the server's clock, so a
+ * rule is not restated three times and the three cannot disagree. `film` is `true` only with the
+ * mode on (a stored `film` on an event whose mode is off shows nothing, as `enabled: false` is
+ * "the evening as it always was"). `readyCount` belongs to the wall and the host's console: see
+ * {@link toWallRevealDto}.
+ */
+export const revealView = (event: Event, now: Date): RevealDto => {
+  const { reveal } = event.settings
+  return {
+    enabled: reveal.enabled,
+    revealed: isRevealed(reveal, now),
+    atMs: reveal.at === null ? null : reveal.at.getTime(),
+    serverNowMs: now.getTime(),
+    film: reveal.enabled && reveal.film,
+  }
+}
+
+const toWallRevealDto = (view: WallPlaylistView): WallRevealDto => ({
+  ...revealView(view.event, new Date(view.serverNowMs)),
+  readyCount: view.readyCount,
+})
 
 export const toGuestPhotoDto = ({
   photo,
   slug,
   canDelete,
   missionPrompt = null,
+  revealed = true,
 }: GuestPhotoDtoInput): GuestPhotoDto => ({
   id: photo.id,
   status: photo.status,
@@ -560,6 +602,7 @@ export const toGuestPhotoDto = ({
   canDelete,
   missionPrompt,
   answeredChallenge: photo.challengeId !== null,
+  awaitsReveal: awaitsReveal(photo.status, revealed),
   ...toMediaFacetDto(photo, slug),
 })
 
@@ -939,6 +982,7 @@ export const toWallResponseDto = (
     mixed: view.mixed,
     souvenirCount: view.souvenirCount,
     souvenirCounter: view.souvenirCounter,
+    reveal: toWallRevealDto(view),
     newPhotoSignal: view.newPhotoSignal,
     freshLane: view.event.settings.wall.freshLane,
     tilt: view.event.settings.wall.tilt,
@@ -1209,6 +1253,7 @@ export const toGalleryDto = (view: GalleryView): GalleryDto => ({
   photoCount: view.photoCount,
   expiresAt: view.link.expiresAt.toISOString(),
   archiveUrl: galleryArchiveUrl(view.archive),
+  reveal: revealView(view.event, view.now),
 })
 
 /**
@@ -1235,6 +1280,7 @@ export const toGalleryPhotoDto = ({
 export const toGalleryPageDto = (page: GalleryPage): GalleryPageDto => ({
   items: page.items.map(toGalleryPhotoDto),
   nextCursor: page.nextCursor,
+  reveal: revealView(page.event, page.now),
 })
 
 // ----------------------------------------------------------------- client space --

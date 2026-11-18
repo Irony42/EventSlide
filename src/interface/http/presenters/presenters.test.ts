@@ -271,8 +271,9 @@ describe('toEventDto', () => {
     role: 'owner' as const,
     counts: { photoCount: 42, pendingCount: 7, guestCount: 18, usedBytes: 900_000 },
     limits: { quotaBytes: 5_000_000_000, liveWindowEnd: null },
+    now: AT,
+    readyCount: null,
     purge: { at: null, notice: null, offboarding: false, voices: { secret: 0, pending: 0 } },
-    serverNowMs: 1_700_000_000_000,
   }
 
   it('gives a host the join code and the link behind the QR code', () => {
@@ -320,6 +321,28 @@ describe('toEventDto', () => {
     expect(Object.keys(silent)).not.toContain('liveWindowEnd')
   })
 
+  it('carries the reveal gate at the server’s clock, with what it holds back (spec 23)', () => {
+    const held = anEvent({
+      slug: 'mariage',
+      settings: { reveal: { enabled: true, at: new Date(AT.getTime() + 3_600_000), film: true } },
+    })
+
+    const dto = toEventDto({ ...input, event: held, readyCount: 128 }, context)
+
+    expect(dto.reveal).toEqual({
+      enabled: true,
+      revealed: false,
+      atMs: AT.getTime() + 3_600_000,
+      serverNowMs: AT.getTime(),
+      film: true,
+      readyCount: 128,
+    })
+  })
+
+  it('says an event with no mode is revealed, so the console draws no band for it', () => {
+    expect(toEventDto(input, context).reveal).toMatchObject({ enabled: false, revealed: true })
+  })
+
   it('says when the album will be deleted and which warning was last sent, for the host only', () => {
     const at = new Date('2026-12-12T10:00:00.000Z')
 
@@ -333,7 +356,7 @@ describe('toEventDto', () => {
       notice: 3,
       offboarding: true,
       voices: { secret: 0, pending: 0 },
-      serverNowMs: 1_700_000_000_000,
+      serverNowMs: AT.getTime(),
     })
   })
 
@@ -359,7 +382,7 @@ describe('toEventDto', () => {
       notice: null,
       offboarding: false,
       voices: { secret: 0, pending: 0 },
-      serverNowMs: 1_700_000_000_000,
+      serverNowMs: AT.getTime(),
     })
   })
 
@@ -430,6 +453,7 @@ describe('toEventSettingsDto', () => {
           soundTone: 'bell',
           soundVolume: 30,
         },
+        reveal: { enabled: true, at: new Date('2026-11-20T22:00:00.000Z'), film: true },
       },
     })
 
@@ -455,6 +479,7 @@ describe('toEventSettingsDto', () => {
       },
       wallLanguage: 'es',
       brand: { welcomeMessage: null, logoUrl: null },
+      reveal: { enabled: true, at: '2026-11-20T22:00:00.000Z', film: true },
       wall: {
         layout: 'collage',
         slideIntervalMs: 20_000,

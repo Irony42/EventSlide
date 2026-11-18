@@ -29,6 +29,41 @@ describe('toSettingsPatch', () => {
     expect(toSettingsPatch(draft)).toMatchObject({ moderation: 'auto', retentionDays: 30 })
   })
 
+  describe('the reveal group (spec 23)', () => {
+    const LOADED = eventSettings({
+      reveal: { enabled: true, at: '2026-06-20T21:00:00.000Z', film: false },
+    })
+
+    it('sends only the keys the host changed, so a save that names the film cannot forget the hour', () => {
+      const draft = eventSettings({
+        reveal: { enabled: true, at: '2026-06-20T21:00:00.000Z', film: true },
+      })
+
+      expect(toSettingsPatch(draft, LOADED).reveal).toEqual({ film: true })
+    })
+
+    it('sends no group at all when nothing in it changed', () => {
+      expect(toSettingsPatch(LOADED, LOADED)).not.toHaveProperty('reveal')
+    })
+
+    it('sends a cleared hour as null, which is the button', () => {
+      const draft = eventSettings({ reveal: { enabled: true, at: null, film: false } })
+
+      expect(toSettingsPatch(draft, LOADED).reveal).toEqual({ at: null })
+    })
+
+    it('never sends the group from a caller that did not load it (the ambiance page)', () => {
+      // That page sends what it holds; a whole group would put its stale hour back after a reveal.
+      expect(toSettingsPatch(LOADED)).not.toHaveProperty('reveal')
+    })
+
+    it('sends nothing for a server that predates the group', () => {
+      const { reveal: _reveal, ...older } = LOADED
+
+      expect(toSettingsPatch(older, older)).not.toHaveProperty('reveal')
+    })
+  })
+
   describe('the voice group (spec 25)', () => {
     const loaded = eventSettings({
       guestbookVoice: { enabled: true, sealed: true, opensAtMs: 5_000 },

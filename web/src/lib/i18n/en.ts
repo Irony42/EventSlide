@@ -511,6 +511,10 @@ export const en: UiText = {
     'eventSettings.welcomeTooLong': 'This message is too long.',
     'eventSettings.welcomeTooManyLines': 'This message has too many lines.',
     'eventSettings.saveFailed': 'The settings could not be saved. Try again.',
+    'eventSettings.revealInPast': 'The reveal time must be in the future.',
+    'eventSettings.revealDone':
+      'The evening is already revealed: the time can no longer be moved or cleared.',
+    'eventSettings.revealInstantInvalid': 'This reveal time is not valid.',
     'eventSettings.graceSecondsInvalid': 'This deletion window is not accepted.',
     'eventSettings.retentionDaysInvalid': 'This retention period is not accepted.',
     'eventSettings.maxPhotosPerGuestInvalid': 'This number of photos per guest is not accepted.',
@@ -1367,15 +1371,19 @@ export const en: UiText = {
     templatePreviewSample: 'Your event',
     templateClipsOn: 'Videos allowed',
     templateClipsOff: 'Videos turned off',
+    templateSelfDeleteOn: 'Deleting photo by photo allowed',
+    templateSelfDeleteOff: 'Deleting photo by photo turned off',
     templateGuestSaveOn: 'Guests can save photos',
     templateGuestSaveOff: 'Saving photos turned off for guests',
     templateVoiceOn: 'Voice messages in the guestbook turned on',
     templateVoiceOff: 'Voice messages turned off',
+    templateVoiceSealed: 'Voice messages kept secret until the reveal',
     templateNames: {
       wedding: 'Wedding',
       birthday: 'Birthday',
       conference: 'Conference',
       party: 'Party',
+      disposable: 'Disposable camera',
     },
 
     retention: 'Automatic deletion',
@@ -1846,7 +1854,10 @@ export const en: UiText = {
         other: `${t.number(count)} voice messages being processed`,
       }),
     sealedCard: 'Kept secret until the end of the evening',
+    sealedCardReveal: 'Kept secret until the evening is revealed',
     sealedUntil: (time: string) => `Kept secret until ${time}`,
+    sealedUntilOrReveal: (time: string) =>
+      `Kept secret until ${time}, or until the evening is revealed if that comes first`,
     notListened: 'You have not listened to this message',
     cannotHide: 'A voice message cannot be hidden: it is never on the screen.',
     keepPending: (count: number) =>
@@ -1865,8 +1876,11 @@ export const en: UiText = {
     settingsEnabledHint:
       'Turning voice messages on during the evening makes every guest read the notice again before their next message: better to turn them on beforehand.',
     settingsSealed: 'Keep voice messages secret until the end of the evening',
+    settingsSealedReveal: 'Keep voice messages secret until the reveal',
     settingsSealedHint:
       'You will not be able to listen before then. You can still decide to keep or refuse them.',
+    settingsSealedRevealHint:
+      'On a develop-later evening they open when you reveal the evening, or when it ends. You will not be able to listen before then. You can still decide to keep or decline them.',
     openNow: 'Open now',
     openConfirmTitle: 'Open the voice messages?',
     openConfirmBody: 'You will be able to listen to them right away. This cannot be undone.',
@@ -2534,6 +2548,135 @@ export const en: UiText = {
     /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
     participate: 'I’m taking part in the challenge',
     announceEnd: 'Photo challenge over',
+  },
+  /** The disposable camera (spec 23): the host's section, band and confirmation. The guest's and the wall's sentences come with their own surfaces. */
+  reveal: {
+    title: 'Disposable camera',
+    hint: 'Photos stay hidden from guests and the room until the reveal. You see them as soon as they arrive.',
+    enabled: 'Turn on the disposable camera',
+    timed: 'Reveal at a set time',
+    timedHint: 'With no time, you reveal yourself, with the “Reveal now” button on the event page.',
+    at: 'Reveal time',
+    atLocked: 'The evening is already revealed: the time can no longer be moved.',
+    shots: 'Shots per guest',
+    shotsHint:
+      'A shot is one photo sent. With no limit, each guest sends as many photos as they like. This limit also applies without a reveal.',
+    film: 'Film look',
+    filmHint:
+      'On screens, photos take on the look of a roll of film. Your originals and downloads stay untouched.',
+    liveWarning: 'Photos have already arrived: the ones on screen will disappear until the reveal.',
+    countdown: (hours: number, minutes: number) =>
+      hours > 0
+        ? `Reveal in ${t.number(hours)} h ${String(minutes).padStart(2, '0')} min`
+        : `Reveal in ${t.number(minutes)} min`,
+    soon: 'Reveal in less than a minute',
+    manual: 'Photos stay hidden until you reveal them.',
+    scheduledFor: (when: string) => `Reveal scheduled for ${when}`,
+    waiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} published photo is waiting for the reveal`,
+        other: `${t.number(count)} published photos are waiting for the reveal`,
+      }),
+    revealNow: 'Reveal now',
+    editTime: 'Change the time',
+    revealedAt: (time: string) => `Revealed at ${time}`,
+    revealedOn: (when: string) => `Revealed on ${when}`,
+    confirmTitle: 'Reveal now?',
+    confirmPublished: (count: number) =>
+      count === 0
+        ? 'No photo is published yet.'
+        : t.count(count, {
+            one: 'The published photo will appear on the wall and on phones.',
+            other: `The ${t.number(count)} published photos will appear on the wall and on phones.`,
+          }),
+    confirmPending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo is still waiting for a decision: it will stay hidden.`,
+        other: `${t.number(count)} photos are still waiting for a decision: they will stay hidden.`,
+      }),
+    definitive: 'This cannot be undone.',
+    closeTitle: (name: string) => `End “${name}”?`,
+    closeHeld:
+      'The photos have not been revealed yet. Once the event is over they stay hidden until you reveal them, and photo retention counts from the closing.',
+    closedNotRevealed:
+      'The photos have not been revealed. The event is closed: they stay hidden until you reveal them.',
+    closesBefore:
+      'The scheduled closing comes before the reveal. Without a reveal, the photos will stay hidden.',
+    templateOn: 'Photos hidden until the reveal',
+    templateOff: 'No delayed reveal',
+    templateFilmOn: 'Film look on screen',
+    templateFilmOff: 'No film look',
+    wallAt: (time: string) => `Reveal at ${time}`,
+    wallOn: (when: string) => `Reveal on ${when}`,
+    wallSoon: 'Reveal coming soon',
+    developing: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo being developed`,
+        other: `${t.number(count)} photos being developed`,
+      }),
+    /* The guest's phone (spec 23): the roll, the veiled photographs, the hour and the moment of the reveal. */
+    poses: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} shot left`,
+        other: `${t.number(count)} shots left`,
+      }),
+    freshRoll: (count: number) =>
+      t.count(count, {
+        one: `Fresh roll: ${t.number(count)} shot`,
+        other: `Fresh roll: ${t.number(count)} shots`,
+      }),
+    rollEmpty: 'Roll finished: your camera is empty',
+    rollKept: (kept: number) =>
+      t.count(kept, {
+        one: 'You had 1 shot left, so the first one is kept.',
+        other: `You had ${t.number(kept)} shots left, so the first ${t.number(kept)} are kept.`,
+      }),
+    undeveloped: 'Will be developed at the reveal',
+    guestAt: (time: string) => `Reveal at ${time}`,
+    guestOn: (when: string) => `Reveal on ${when}`,
+    guestLeft: (hours: number, minutes: number) =>
+      hours > 0
+        ? `in ${t.number(hours)} h ${String(minutes).padStart(2, '0')}`
+        : `in ${t.number(minutes)} min`,
+    guestSoon: 'in under a minute',
+    guestManual: 'The hosts will reveal the photos during the evening.',
+    bannerManual: 'Reveal at the press of a button',
+    bannerWaiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo waiting`,
+        other: `${t.number(count)} photos waiting`,
+      }),
+    guestIntro: 'Take your photos: they will be developed at the reveal.',
+    guestIntroAt: (time: string) =>
+      `Take your photos: they will be developed at the reveal, at ${time}.`,
+    guestIntroOn: (when: string) =>
+      `Take your photos: they will be developed at the reveal, on ${when}.`,
+    noticeHeld: {
+      afterReview:
+        'The organiser approves each photo, and approved photos reach the screen only at the reveal. The organiser and the moderators see them as they arrive.',
+      immediate:
+        'They reach the screen at the reveal, not before. The organiser and the moderators see them as they arrive and can take any of them down at any time.',
+    },
+    noticeShots: (count: number) =>
+      t.count(count, {
+        one: `You have ${t.number(count)} shot: a shot is one photo sent.`,
+        other: `You have ${t.number(count)} shots: a shot is one photo sent.`,
+      }),
+    noticeFilm: 'The film look exists only on screen: your original photo is kept as it is.',
+    wallDeveloping: 'The photos will be developed at the reveal',
+    developedNow: (count: number) =>
+      t.count(count, {
+        one: 'Your photo has just been developed.',
+        other: `Your ${t.number(count)} photos have just been developed.`,
+      }),
+    feedAt: (time: string) => `The photos will be revealed at ${time}`,
+    feedOn: (when: string) => `The photos will be revealed on ${when}`,
+    feedSoon: 'The photos will be revealed soon',
+    feedHint: 'They will appear here at the reveal. Your own photos stay in your list.',
+    /* The shared gallery (spec 23): a link that opens before the reveal, and what a download is. */
+    galleryHeld: (when: string) => `The photos will be revealed on ${when}.`,
+    galleryHeldSoon: 'The photos will be revealed soon.',
+    galleryOriginal: 'The download is the original, without the film look.',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

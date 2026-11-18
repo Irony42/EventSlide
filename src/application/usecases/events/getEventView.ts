@@ -2,6 +2,7 @@ import { purgeDeadline } from '../../../domain/clients/purgeDeadline'
 import { daysLeftUntil, type PurgeNoticeLevel } from '../../../domain/clients/purgeNotice'
 import type { Event } from '../../../domain/events/event'
 import { isVoiceOpen } from '../../../domain/events/eventGuestbookVoiceSettings'
+import { isRevealed } from '../../../domain/events/eventRevealSettings'
 import { MAX_ENTRIES_PER_EVENT } from '../../../domain/guestbook/guestbookLimits'
 import {
   NO_VOICES_AT_RISK,
@@ -10,9 +11,10 @@ import {
   type VoicesAtRisk,
 } from '../../../domain/guestbook/voicesAtRisk'
 import { PHOTO_STATUSES } from '../../../domain/photos/photoStatus'
-import type { Clock } from '../../ports/clock'
 import type { ClientRepository } from '../../ports/clientRepository'
+import type { Clock } from '../../ports/clock'
 import type { EventCounts, EventRepository } from '../../ports/eventRepository'
+import type { PhotoRepository } from '../../ports/photoRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { PurgeNoticeLedger } from '../../ports/purgeNoticeLedger'
 import type { EventLimits, GetEventLimits } from './getEventLimits'
@@ -63,6 +65,13 @@ export interface EventView {
   readonly event: Event
   readonly counts: EventCounts
   readonly limits: EventLimits
+  /** The server's clock at this answer: what a console counts the reveal and the purge date down against. */
+  readonly now: Date
+  /**
+   * Published photographs the reveal gate is holding back, or `null` when nothing is held (mode off,
+   * or already revealed). The pending ones are `counts.pendingCount`: they stay hidden after the reveal.
+   */
+  readonly readyCount: number | null
   readonly purge: EventPurgeView
 }
 
@@ -72,6 +81,7 @@ export interface GetEventViewInput {
 
 export interface GetEventViewDeps {
   readonly events: Pick<EventRepository, 'countsOf'>
+  readonly photos: Pick<PhotoRepository, 'countsByStatus'>
   readonly clients: Pick<ClientRepository, 'findById'>
   readonly notices: Pick<PurgeNoticeLedger, 'lastLevel'>
   /** The book, read once and only in the last week before the date (spec 25). */
@@ -86,6 +96,7 @@ export type GetEventView = (input: GetEventViewInput) => Promise<EventView>
 
 export const makeGetEventView = ({
   events,
+  photos,
   clients,
   notices,
   guestbook,
@@ -108,7 +119,7 @@ export const makeGetEventView = ({
     return voicesAtRisk({
       daysLeft,
       recordings: book.filter((entry) => entry.voice?.isReady() === true),
-      secretLifted: isVoiceOpen(event.settings.guestbookVoice, event, now),
+      secretLifted: isVoiceOpen(event.settings.guestbookVoice, event, now, event.settings.reveal),
     })
   }
 
@@ -117,12 +128,15 @@ export const makeGetEventView = ({
     const client = event.clientId === null ? null : await clients.findById(event.clientId)
     const at = purgeDeadline(event, client, capNoticeDays)
     const now = clock.now()
+    const held = event.settings.reveal.enabled && !isRevealed(event.settings.reveal, now)
     const daysLeft = at === null ? null : daysLeftUntil(at, now)
 
     return {
       event,
       counts: await events.countsOf(event.id),
       limits: await getEventLimits({ event }),
+      now,
+      readyCount: held ? (await photos.countsByStatus(event.id)).published : null,
       purge: {
         at,
         notice: at === null ? null : await notices.lastLevel(event.id),

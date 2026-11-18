@@ -128,6 +128,14 @@ export const AUDIT_ACTIONS = {
   /** An operator released that hold (`setEventPurgeHold`): the event is purged at its deadline again. */
   'event.purgeReleased': { subject: 'event', details: { reason: detail.reason } },
   /**
+   * A moderator or the owner revealed the evening of a disposable-camera event (`revealEvent`,
+   * spec 23): the public door opened, for good. Written once; revealing an evening that is already
+   * revealed is not an act. The actor is the member who pressed the button, and the entry carries
+   * the event's client so that its owner reads it (G2-16). Nothing else is said: not the hour, not
+   * a count of photographs.
+   */
+  'event.revealed': { subject: 'event', details: {} },
+  /**
    * The owner of an event lifted the secret over its voice messages (`openGuestbookVoice`,
    * spec 25, rule 10): from now on the recordings may be heard and the archive carries them. The
    * subject is the event (its opaque id, and its client, so the client's owner reads it); there is

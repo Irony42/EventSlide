@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
 import type { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asGuestId } from '../../../domain/shared/ids'
+import { asEventId, asGuestId, asPhotoId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
 import type { GuestPhotoPage } from './listGuestPhotos'
 import { anEvent, aMission, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
@@ -25,16 +27,18 @@ describe('listGuestPhotos', () => {
   let photos: FakePhotoRepository
   let missions: FakeMissionRepository
   let listGuestPhotos: ListGuestPhotos
+  let clock: FakeClock
 
   beforeEach(() => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
     missions = new FakeMissionRepository(photos)
+    clock = new FakeClock()
     events.seed(
       anEvent({ id: 'event-1' }),
       anEvent({ id: 'event-2', slug: 'gala-acme', joinCode: '2AB3CD' }),
     )
-    listGuestPhotos = makeListGuestPhotos({ events, photos, missions })
+    listGuestPhotos = makeListGuestPhotos({ events, photos, missions, clock })
   })
 
   const seedForGuest = (id: string, guestId: string, overrides: PhotoInput = {}): void => {
@@ -155,5 +159,80 @@ describe('listGuestPhotos', () => {
     const result = await listGuestPhotos({ eventId: asEventId('event-404'), guestId: GUEST })
 
     expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
+  describe('the reveal and the roll (spec 23)', () => {
+    const MINUTE = 60_000
+    const withSettings = (settings: EventSettingsPatch): void => {
+      events.seed(anEvent({ id: 'event-1', settings }))
+    }
+    const ask = async () => pageOf(await listGuestPhotos({ eventId: EVENT, guestId: GUEST }))
+
+    it('keeps the guest’s own photographs in the list before the reveal, status untouched', async () => {
+      withSettings({ reveal: { enabled: true, at: new Date(clock.now().getTime() + MINUTE) } })
+      seedForGuest('mine', 'guest-1', { status: 'published', createdAt: atPlus(0) })
+      seedForGuest('refused', 'guest-1', { status: 'rejected', createdAt: atPlus(1_000) })
+      seedForGuest('waiting', 'guest-1', { status: 'pending', createdAt: atPlus(2_000) })
+
+      const page = await ask()
+
+      expect(page.items.map((photo) => [photo.id, photo.status])).toEqual([
+        ['waiting', 'pending'],
+        ['refused', 'rejected'],
+        ['mine', 'published'],
+      ])
+      expect(page.revealed).toBe(false)
+    })
+
+    it('says the evening is revealed from the instant of the hour, and when the mode is off', async () => {
+      withSettings({ reveal: { enabled: true, at: clock.now() } })
+      expect((await ask()).revealed).toBe(true)
+
+      withSettings({ reveal: { enabled: false } })
+      expect((await ask()).revealed).toBe(true)
+    })
+
+    it('carries the event and the instant the page was read at, for the reveal block', async () => {
+      withSettings({ reveal: { enabled: true, film: true } })
+
+      const page = await ask()
+
+      expect(page.now).toEqual(clock.now())
+      expect(page.event.settings.reveal.film).toBe(true)
+    })
+
+    it('has no roll for an event with no cap', async () => {
+      seedForGuest('a', 'guest-1')
+
+      expect((await ask()).shots).toBeNull()
+    })
+
+    it('counts the poses the server counts for the cap: every photograph of theirs, whatever its status', async () => {
+      withSettings({ maxPhotosPerGuest: 27 })
+      seedForGuest('a', 'guest-1', { status: 'published' })
+      seedForGuest('b', 'guest-1', { status: 'rejected' })
+      seedForGuest('c', 'guest-1', { status: 'pending' })
+      seedForGuest('other', 'guest-2', { status: 'published' })
+
+      expect((await ask()).shots).toEqual({ max: 27, taken: 3 })
+    })
+
+    it('gives a pose back when a photograph is removed: the count follows the rows', async () => {
+      withSettings({ maxPhotosPerGuest: 5 })
+      seedForGuest('a', 'guest-1')
+      seedForGuest('b', 'guest-1')
+      await photos.delete(EVENT, asPhotoId('b'))
+
+      expect((await ask()).shots).toEqual({ max: 5, taken: 1 })
+    })
+
+    it('does not count another event’s photographs of a guest with the same id', async () => {
+      withSettings({ maxPhotosPerGuest: 5 })
+      photos.seed(
+        aPhoto({ id: 'elsewhere', eventId: 'event-2', author: { kind: 'guest', id: 'guest-1' } }),
+      )
+
+      expect((await ask()).shots).toEqual({ max: 5, taken: 0 })
+    })
   })
 })

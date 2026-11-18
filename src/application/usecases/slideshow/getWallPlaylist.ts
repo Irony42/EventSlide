@@ -4,6 +4,7 @@ import type { WallQrPlacement } from '../../../domain/events/wallJoinCard'
 import type { Mission } from '../../../domain/missions/mission'
 import { isAchieved, type MissionProgress } from '../../../domain/missions/missionProgress'
 import type { Photo } from '../../../domain/photos/photo'
+import { isRevealed, visibleStatuses } from '../../../domain/events/eventRevealSettings'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import { firstStillsOfGuests } from '../../../domain/slideshow/firstPhotos'
 import { kenBurnsDurationMs } from '../../../domain/slideshow/kenBurns'
@@ -49,14 +50,16 @@ import { readChallenge, type ChallengeReading } from '../challenges/readChalleng
  * reception at 22:00.
  *
  * The read path is structurally incapable of returning a photo that has had no
- * decision. `WALL_STATUSES` is a module constant, not a parameter, so no caller —
- * present or future, honest or not — can widen the wall's query. That is the product's
- * core promise: nothing appears in front of two hundred people without a host saying
- * so, and in 1.0 it was a `WHERE status = 'accepted'` string repeated per handler.
+ * decision. The statuses it reads are `visibleStatuses(reveal, now)`, asked of the domain and
+ * never taken from a caller, so no caller — present or future, honest or not — can widen the
+ * wall's query. That is the product's core promise: nothing appears in front of two hundred
+ * people without a host saying so, and in 1.0 it was a `WHERE status = 'accepted'` string
+ * repeated per handler.
+ *
+ * **And before the reveal of a disposable-camera evening (spec 23) that list is empty**: the
+ * wall serves no photograph, no identifier and no count of what was taken — only how many are
+ * ready (`readyCount`), an aggregate with no author, to be waited on.
  */
-
-/** The whole read model of the wall. Not a parameter, and never will be. */
-const WALL_STATUSES: readonly PhotoStatus[] = ['published']
 
 /**
  * How many photos stay in rotation by default. An eight-hour reception sends thousands;
@@ -219,6 +222,13 @@ export interface WallPlaylistView {
    * it, so that the query is not paid for (spec 11).
    */
   readonly souvenirCount: number | null
+  /**
+   * How many published photographs are waiting for the reveal (spec 23): the `published` count
+   * the souvenir counter already reads, with no author and no name. `null` once the evening is
+   * revealed (or when the mode is off): there is nothing to wait for and the query is not paid
+   * for. Never the souvenir count, so the counter and the new-photo signal stay silent before.
+   */
+  readonly readyCount: number | null
   /** The two host switches of spec 11, so the wall needs no second read of the settings. */
   readonly souvenirCounter: boolean
   readonly newPhotoSignal: boolean
@@ -360,12 +370,18 @@ const mixedScheduleOf = (
 const readPlaylist = async (
   photos: PhotoRepository,
   event: Event,
+  statuses: readonly PhotoStatus[],
   windowSize: number | null,
   slideIntervalMs: number | null,
 ): Promise<
   Result<{ page: PhotoPage; playlist: Playlist; interval: SlideInterval }, DomainError>
 > => {
-  const page = await photos.list(event.id, { statuses: WALL_STATUSES, limit: MAX_CANDIDATES })
+  // Nothing visible (an evening not yet revealed): not even a query, so no photograph is read
+  // that could be handed on by mistake.
+  const page: PhotoPage =
+    statuses.length === 0
+      ? { items: [], nextCursor: null }
+      : await photos.list(event.id, { statuses, limit: MAX_CANDIDATES })
   const candidates = page.items.map((photo) => ({ id: photo.id, createdAt: photo.createdAt }))
 
   const playlist = buildPlaylist(candidates, {
@@ -434,7 +450,17 @@ export const makeGetWallPlaylist =
       return err(DomainError.notFound('event.notFound'))
     }
 
-    const read = await readPlaylist(photos, event, windowSize, slideIntervalMs)
+    // Taken once and first: the reveal, the challenge's state and `serverNowMs` cannot disagree.
+    const now = clock.now()
+    const revealed = isRevealed(event.settings.reveal, now)
+
+    const read = await readPlaylist(
+      photos,
+      event,
+      visibleStatuses(event.settings.reveal, now),
+      windowSize,
+      slideIntervalMs,
+    )
     if (!read.ok) return read
     const { page, playlist, interval } = read.value
 
@@ -461,15 +487,20 @@ export const makeGetWallPlaylist =
     const book = await readGuestbook(guestbook, guests, event)
 
     // One indexed read of the last challenge; the count of answers only inside the short window
-    // after it ends. `now` is taken once, so the state and `serverNowMs` cannot disagree.
-    const now = clock.now()
+    // after it ends.
     const challenge = await readChallenge(challenges, event.id, now)
     const announcement = await readAnnouncements(announcements, event, now)
     // The same definition as the moderation counters and the album: published, not taken down.
     const wallSettings = event.settings.wall
-    const souvenirCount = wallNeedsSouvenirCount(wallSettings)
-      ? (await photos.countsByStatus(event.id)).published
-      : null
+    // Before the reveal there is no souvenir to count: the total would tell the room how much was
+    // taken, and the counter and the new-photo signal (spec 11, 12) must stay silent. `null` is
+    // "no switch needs it", which is exactly how they already read it.
+    const needsSouvenirs = revealed && wallNeedsSouvenirCount(wallSettings)
+    const waiting = !revealed
+    const published =
+      needsSouvenirs || waiting ? (await photos.countsByStatus(event.id)).published : null
+    const souvenirCount = needsSouvenirs ? published : null
+    const readyCount = waiting ? published : null
 
     return ok({
       event,
@@ -490,6 +521,7 @@ export const makeGetWallPlaylist =
       announcements: announcement,
       serverNowMs: now.getTime(),
       souvenirCount,
+      readyCount,
       souvenirCounter: wallSettings.souvenirCounter,
       newPhotoSignal: wallSettings.newPhotoSignal,
     })

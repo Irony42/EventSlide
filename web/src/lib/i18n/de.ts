@@ -550,6 +550,10 @@ export const de: UiText = {
     'eventSettings.welcomeTooManyLines': 'Diese Nachricht hat zu viele Zeilen.',
     'eventSettings.saveFailed':
       'Die Einstellungen konnten nicht gespeichert werden. Versuchen Sie es erneut.',
+    'eventSettings.revealInPast': 'Die Enthüllung muss in der Zukunft liegen.',
+    'eventSettings.revealDone':
+      'Der Abend ist bereits enthüllt: die Uhrzeit lässt sich nicht mehr verschieben oder löschen.',
+    'eventSettings.revealInstantInvalid': 'Diese Uhrzeit für die Enthüllung ist ungültig.',
     'eventSettings.graceSecondsInvalid': 'Diese Löschfrist ist nicht zulässig.',
     'eventSettings.retentionDaysInvalid': 'Diese Aufbewahrungsdauer ist nicht zulässig.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Diese Anzahl an Fotos pro Gast ist nicht zulässig.',
@@ -1443,15 +1447,19 @@ export const de: UiText = {
     templatePreviewSample: 'Ihre Veranstaltung',
     templateClipsOn: 'Videos erlaubt',
     templateClipsOff: 'Videos deaktiviert',
+    templateSelfDeleteOn: 'Einzelne Fotos löschen erlaubt',
+    templateSelfDeleteOff: 'Einzelne Fotos löschen deaktiviert',
     templateGuestSaveOn: 'Gäste können Fotos speichern',
     templateGuestSaveOff: 'Speichern von Fotos für Gäste deaktiviert',
     templateVoiceOn: 'Sprachnachrichten im Gästebuch aktiviert',
     templateVoiceOff: 'Sprachnachrichten deaktiviert',
+    templateVoiceSealed: 'Sprachnachrichten geheim gehalten bis zur Enthüllung',
     templateNames: {
       wedding: 'Hochzeit',
       birthday: 'Geburtstag',
       conference: 'Konferenz',
       party: 'Party',
+      disposable: 'Einwegkamera',
     },
 
     retention: 'Automatische Löschung',
@@ -1933,7 +1941,10 @@ export const de: UiText = {
         other: `${t.number(count)} Sprachnachrichten werden verarbeitet`,
       }),
     sealedCard: 'Geheim gehalten bis zum Ende des Abends',
+    sealedCardReveal: 'Geheim gehalten bis zur Enthüllung des Abends',
     sealedUntil: (time: string) => `Geheim gehalten bis ${time}`,
+    sealedUntilOrReveal: (time: string) =>
+      `Geheim gehalten bis ${time} oder bis zur Enthüllung des Abends`,
     notListened: 'Sie haben diese Nachricht nicht angehört',
     cannotHide: 'Eine Sprachnachricht lässt sich nicht ausblenden: Sie ist nie auf dem Bildschirm.',
     keepPending: (count: number) =>
@@ -1952,8 +1963,11 @@ export const de: UiText = {
     settingsEnabledHint:
       'Wenn Sie Sprachnachrichten im Lauf des Abends einschalten, muss jeder Gast vor seiner nächsten Nachricht den Hinweis erneut lesen: besser vorher einschalten.',
     settingsSealed: 'Sprachnachrichten bis zum Ende des Abends geheim halten',
+    settingsSealedReveal: 'Sprachnachrichten bis zur Enthüllung geheim halten',
     settingsSealedHint:
       'Sie können sie bis dahin nicht anhören. Sie können trotzdem entscheiden, sie zu behalten oder abzulehnen.',
+    settingsSealedRevealHint:
+      'Bei einem Abend, der erst später entwickelt wird, öffnen sie sich, wenn Sie den Abend enthüllen, oder an seinem Ende. Vorher können Sie sie nicht anhören. Sie können trotzdem entscheiden, sie zu behalten oder abzulehnen.',
     openNow: 'Jetzt öffnen',
     openConfirmTitle: 'Sprachnachrichten öffnen?',
     openConfirmBody: 'Sie können sie sofort anhören. Das lässt sich nicht rückgängig machen.',
@@ -2634,6 +2648,138 @@ export const de: UiText = {
     /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
     participate: 'Ich nehme an der Challenge teil',
     announceEnd: 'Foto-Challenge beendet',
+  },
+  /** The disposable camera (spec 23): the host's section, band and confirmation. The guest's and the wall's sentences come with their own surfaces. */
+  reveal: {
+    title: 'Einwegkamera',
+    hint: 'Die Fotos bleiben für Gäste und Saal verborgen, bis sie enthüllt werden. Sie selbst sehen sie sofort nach dem Eintreffen.',
+    enabled: 'Einwegkamera aktivieren',
+    timed: 'Zu einer bestimmten Uhrzeit enthüllen',
+    timedHint:
+      'Ohne Uhrzeit enthüllen Sie selbst, mit der Schaltfläche „Jetzt enthüllen“ auf der Seite der Veranstaltung.',
+    at: 'Uhrzeit der Enthüllung',
+    atLocked: 'Der Abend ist bereits enthüllt: die Uhrzeit lässt sich nicht mehr verschieben.',
+    shots: 'Aufnahmen pro Gast',
+    shotsHint:
+      'Eine Aufnahme ist ein gesendetes Foto. Ohne Limit schickt jeder Gast so viele Fotos, wie er möchte. Dieses Limit gilt auch ohne Enthüllung.',
+    film: 'Filmlook',
+    filmHint:
+      'Auf den Bildschirmen sehen die Fotos aus wie von einem Film. Ihre Originale und Downloads bleiben unverändert.',
+    liveWarning:
+      'Es sind schon Fotos eingetroffen: die, die gerade auf dem Bildschirm sind, verschwinden bis zur Enthüllung.',
+    countdown: (hours: number, minutes: number) =>
+      hours > 0
+        ? `Enthüllung in ${t.number(hours)} Std. ${String(minutes).padStart(2, '0')} Min.`
+        : `Enthüllung in ${t.number(minutes)} Min.`,
+    soon: 'Enthüllung in weniger als einer Minute',
+    manual: 'Die Fotos bleiben verborgen, bis Sie sie enthüllen.',
+    scheduledFor: (when: string) => `Enthüllung geplant für ${when}`,
+    waiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} veröffentlichtes Foto wartet auf die Enthüllung`,
+        other: `${t.number(count)} veröffentlichte Fotos warten auf die Enthüllung`,
+      }),
+    revealNow: 'Jetzt enthüllen',
+    editTime: 'Uhrzeit ändern',
+    revealedAt: (time: string) => `Enthüllt um ${time}`,
+    revealedOn: (when: string) => `Enthüllt am ${when}`,
+    confirmTitle: 'Jetzt enthüllen?',
+    confirmPublished: (count: number) =>
+      count === 0
+        ? 'Noch kein Foto ist veröffentlicht.'
+        : t.count(count, {
+            one: 'Das veröffentlichte Foto erscheint an der Wand und auf den Handys.',
+            other: `Die ${t.number(count)} veröffentlichten Fotos erscheinen an der Wand und auf den Handys.`,
+          }),
+    confirmPending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto wartet noch auf eine Entscheidung: es bleibt verborgen.`,
+        other: `${t.number(count)} Fotos warten noch auf eine Entscheidung: sie bleiben verborgen.`,
+      }),
+    definitive: 'Dies lässt sich nicht rückgängig machen.',
+    closeTitle: (name: string) => `„${name}“ beenden?`,
+    closeHeld:
+      'Die Fotos wurden noch nicht enthüllt. Nach dem Ende des Events bleiben sie verborgen, bis Sie sie enthüllen, und die Aufbewahrungsfrist der Fotos beginnt mit dem Abschluss.',
+    closedNotRevealed:
+      'Die Fotos wurden nicht enthüllt. Die Veranstaltung ist beendet: sie bleiben verborgen, bis Sie sie enthüllen.',
+    closesBefore:
+      'Das geplante Ende liegt vor der Enthüllung. Ohne Enthüllung bleiben die Fotos verborgen.',
+    templateOn: 'Fotos verborgen bis zur Enthüllung',
+    templateOff: 'Keine verzögerte Enthüllung',
+    templateFilmOn: 'Filmlook auf dem Bildschirm',
+    templateFilmOff: 'Kein Filmlook',
+    wallAt: (time: string) => `Enthüllung um ${time}`,
+    wallOn: (when: string) => `Enthüllung am ${when}`,
+    wallSoon: 'Enthüllung bald',
+    developing: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto wird entwickelt`,
+        other: `${t.number(count)} Fotos werden entwickelt`,
+      }),
+    /* The guest's phone (spec 23): the roll, the veiled photographs, the hour and the moment of the reveal. */
+    poses: (count: number) =>
+      t.count(count, {
+        one: `Noch ${t.number(count)} Aufnahme übrig`,
+        other: `Noch ${t.number(count)} Aufnahmen übrig`,
+      }),
+    freshRoll: (count: number) =>
+      t.count(count, {
+        one: `Neuer Film: ${t.number(count)} Aufnahme`,
+        other: `Neuer Film: ${t.number(count)} Aufnahmen`,
+      }),
+    rollEmpty: 'Film voll: Ihre Kamera ist leer',
+    rollKept: (kept: number) =>
+      t.count(kept, {
+        one: 'Sie hatten noch 1 Aufnahme, das erste Foto wird behalten.',
+        other: `Sie hatten noch ${t.number(kept)} Aufnahmen, die ersten ${t.number(kept)} Fotos werden behalten.`,
+      }),
+    undeveloped: 'Wird bei der Enthüllung entwickelt',
+    guestAt: (time: string) => `Enthüllung um ${time}`,
+    guestOn: (when: string) => `Enthüllung am ${when}`,
+    guestLeft: (hours: number, minutes: number) =>
+      hours > 0
+        ? `in ${t.number(hours)} h ${String(minutes).padStart(2, '0')}`
+        : `in ${t.number(minutes)} min`,
+    guestSoon: 'in weniger als einer Minute',
+    guestManual: 'Die Gastgeber enthüllen die Fotos im Laufe des Abends.',
+    bannerManual: 'Enthüllung per Knopfdruck',
+    bannerWaiting: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto wartet`,
+        other: `${t.number(count)} Fotos warten`,
+      }),
+    guestIntro: 'Machen Sie Ihre Fotos: Sie werden bei der Enthüllung entwickelt.',
+    guestIntroAt: (time: string) =>
+      `Machen Sie Ihre Fotos: Sie werden bei der Enthüllung um ${time} entwickelt.`,
+    guestIntroOn: (when: string) =>
+      `Machen Sie Ihre Fotos: Sie werden bei der Enthüllung am ${when} entwickelt.`,
+    noticeHeld: {
+      afterReview:
+        'Der Veranstalter gibt jedes Foto frei, und freigegebene Fotos erscheinen erst bei der Enthüllung auf dem Bildschirm. Er und seine Moderatoren sehen sie sofort nach dem Eintreffen.',
+      immediate:
+        'Die Fotos erscheinen erst bei der Enthüllung auf dem Bildschirm. Der Veranstalter und seine Moderatoren sehen sie sofort nach dem Eintreffen und können jedes davon jederzeit entfernen.',
+    },
+    noticeShots: (count: number) =>
+      t.count(count, {
+        one: `Sie haben ${t.number(count)} Aufnahme: Eine Aufnahme ist ein gesendetes Foto.`,
+        other: `Sie haben ${t.number(count)} Aufnahmen: Eine Aufnahme ist ein gesendetes Foto.`,
+      }),
+    noticeFilm:
+      'Der Filmlook existiert nur auf dem Bildschirm: Ihr Originalfoto bleibt unverändert gespeichert.',
+    wallDeveloping: 'Die Fotos werden bei der Enthüllung entwickelt',
+    developedNow: (count: number) =>
+      t.count(count, {
+        one: 'Ihr Foto wurde gerade entwickelt.',
+        other: `Ihre ${t.number(count)} Fotos wurden gerade entwickelt.`,
+      }),
+    feedAt: (time: string) => `Die Fotos werden um ${time} enthüllt`,
+    feedOn: (when: string) => `Die Fotos werden am ${when} enthüllt`,
+    feedSoon: 'Die Fotos werden bald enthüllt',
+    feedHint: 'Sie erscheinen hier bei der Enthüllung. Ihre eigenen Fotos bleiben in Ihrer Liste.',
+    /* The shared gallery (spec 23): a link that opens before the reveal, and what a download is. */
+    galleryHeld: (when: string) => `Die Fotos werden am ${when} enthüllt.`,
+    galleryHeldSoon: 'Die Fotos werden bald enthüllt.',
+    galleryOriginal: 'Der Download ist das Original, ohne Filmlook.',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

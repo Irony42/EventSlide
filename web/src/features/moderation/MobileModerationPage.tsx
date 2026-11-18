@@ -353,6 +353,7 @@ export function MobileModerationPage({ onSwitchView }: MobileModerationPageProps
               slug={slug}
               voiceSealed={messages.voiceSealed}
               voiceOpensAtMs={messages.voiceOpensAtMs}
+              opensWithReveal={event?.settings.reveal?.enabled === true}
               message={currentMessage}
               disabled={messages.busy || !canDecideMessages}
               onDecide={decideMessage}

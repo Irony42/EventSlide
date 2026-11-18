@@ -11,6 +11,7 @@ import {
   type SignalState,
   type WallSnapshot,
 } from '../arrivals'
+import { silencedBeforeReveal } from '../revealGate'
 
 export interface NewPhotoSignal {
   /** The one bubble on screen, or `null`. */
@@ -51,7 +52,10 @@ export const useNewPhotoSignal = (): NewPhotoSignal => {
   }, [run])
 
   const observe = useCallback(
-    (response: WallResponse) => {
+    (read: WallResponse) => {
+      // Spec 23: nothing is announced before a reveal, and the first read after the hour does not
+      // announce the whole evening as new either.
+      const response = silencedBeforeReveal(read)
       const taken: WallSnapshot = {
         items: response.items.map((item) => ({ id: item.id, kind: item.kind })),
         total: response.souvenirCount ?? null,

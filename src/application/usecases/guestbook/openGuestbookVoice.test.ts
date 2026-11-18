@@ -97,8 +97,12 @@ describe('openGuestbookVoice', () => {
     expect(result.ok).toBe(true)
     const event = await stored()
     expect(event.settings.guestbookVoice.opensAtMs).toBe(atPlus(5_000).getTime())
-    expect(isVoiceOpen(event.settings.guestbookVoice, event, atPlus(5_000))).toBe(true)
-    expect(isVoiceOpen(event.settings.guestbookVoice, event, atPlus(4_999))).toBe(false)
+    expect(
+      isVoiceOpen(event.settings.guestbookVoice, event, atPlus(5_000), event.settings.reveal),
+    ).toBe(true)
+    expect(
+      isVoiceOpen(event.settings.guestbookVoice, event, atPlus(4_999), event.settings.reveal),
+    ).toBe(false)
   })
 
   it('keeps the host’s other choices: it writes the one field and nothing else', async () => {

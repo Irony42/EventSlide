@@ -10,6 +10,11 @@ import { RootGroundHue } from '../../design-system/useRootGroundHue'
 import { forgetGuestSession, leaveGuestEvent, readGuestSession } from '../../lib/guestSession'
 import { photoAlt } from '../../lib/photoAlt'
 import { useTranslations } from '../../lib/i18n/useTranslations'
+import { awaitsReveal } from '../../lib/revealGate'
+import { cx } from '../../design-system/classNames'
+import { filmLook } from '../../design-system/filmLook'
+import { useRevealSwitch } from '../../lib/useRevealSwitch'
+import { FeedWait } from './components/FeedWait'
 import type { UiText } from '../../lib/i18n/translations'
 import { ReactionBar } from './components/ReactionBar'
 import { SaveButton } from './components/SaveButton'
@@ -95,6 +100,11 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
     if (signedOut) forgetGuestSession(slug)
   }, [signedOut, slug])
   const [shown, setShown] = useState(PAGE_SIZE)
+  // A held evening (spec 23): the hour announces nothing, so this phone reads again on its own
+  // timer, a little late on purpose, and the guest's "Actualiser" covers a reveal by hand.
+  const reveal = feed.reveal
+  const held = awaitsReveal(reveal ?? undefined)
+  useRevealSwitch(reveal ?? undefined, feed.refresh)
 
   const items = feed.items ?? []
   const visible = items.slice(0, shown)
@@ -188,7 +198,11 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
         </div>
       ) : null}
 
-      {!feed.settling && feed.items !== null && items.length === 0 ? (
+      {!feed.settling && !feed.unavailable && held && reveal !== null ? (
+        <FeedWait reveal={reveal} offsetMs={feed.offsetMs} />
+      ) : null}
+
+      {!feed.settling && feed.items !== null && items.length === 0 && !held ? (
         <EmptyState as="h2" title={t.feed.empty} description={t.feed.emptyHint} />
       ) : null}
 
@@ -197,7 +211,7 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
           {visible.map((item, index) => (
             <li key={item.id} tabIndex={-1} className={styles['card']}>
               <img
-                className={styles['photo']}
+                className={cx(styles['photo'], filmLook(reveal?.film))}
                 src={item.thumbUrl}
                 width={item.width}
                 height={item.height}
@@ -218,8 +232,10 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
                 <ReactionBar slug={slug} photoId={item.id} position={index + 1} />
               ) : null}
               {/* A photograph of somebody else's: one's own is already on one's phone, in better
-                  quality, and a clip is not saved in this version. */}
-              {gate.offered && item.kind === 'photo' && !feed.ownIds.has(item.id) ? (
+                  quality, and a clip is not saved in this version. Nothing is offered while the evening is held
+                  back (spec 24, section 5.7): the server refuses it too, this is the screen not offering what the
+                  route would refuse. */}
+              {gate.offered && !held && item.kind === 'photo' && !feed.ownIds.has(item.id) ? (
                 <SaveButton
                   slug={slug}
                   item={item}

@@ -58,6 +58,12 @@ export interface EventSettingsPatch {
   readonly maxPhotosPerGuest?: number | null
   /** Only the keys changed (spec 13): the server merges the group per key. */
   readonly wall?: Partial<EventSettingsDto['wall']>
+  /**
+   * Only the keys changed (spec 23), like `wall`: the server merges the group per key, so a save that
+   * names `film` cannot forget the hour, and a form open since 17:00 cannot send back an hour the
+   * console has since replaced by "Révéler maintenant". `at` is an instant with its offset.
+   */
+  readonly reveal?: Partial<NonNullable<EventSettingsDto['reveal']>>
   readonly theme?: EventThemeDto
   readonly brand?: EventBrandDto
   readonly wallLanguage?: EventSettingsDto['wallLanguage']
@@ -207,6 +213,14 @@ export const hostApi = (transport: Transport) => ({
 
   setEventStatus: (slug: string, status: EventStatus): Promise<EventDto> =>
     transport.post(`/api/events/${encode(slug)}/status`, { status }),
+
+  /**
+   * "Révéler maintenant" (spec 23): no body, the instant is the server's. Any moderator; idempotent
+   * (an evening already revealed answers the event as it is). Answers the event, whose `reveal` is
+   * then the truth.
+   */
+  revealEvent: (slug: string): Promise<EventDto> =>
+    transport.post(`/api/events/${encode(slug)}/reveal`),
 
   setSchedule: (slug: string, schedule: EventScheduleInput): Promise<EventDto> =>
     transport.patch(`/api/events/${encode(slug)}/schedule`, schedule),

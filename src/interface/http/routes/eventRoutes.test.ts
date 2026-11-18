@@ -16,7 +16,6 @@ import { makeGetEventBySlug } from '../../../application/usecases/events/getEven
 import { makeGetEventLimits } from '../../../application/usecases/events/getEventLimits'
 import { makeGetEventView } from '../../../application/usecases/events/getEventView'
 import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
-import { FakeClock } from '../../../application/testing/fakeClock'
 import { makeListEventsForHost } from '../../../application/usecases/events/listEventsForHost'
 import { makeListModerators } from '../../../application/usecases/events/listModerators'
 import { makePurgeEvent } from '../../../application/usecases/events/purgeEvent'
@@ -24,6 +23,8 @@ import { makeRenameEvent } from '../../../application/usecases/events/renameEven
 import { makeRevokeModerator } from '../../../application/usecases/events/revokeModerator'
 import { makeRotateJoinCode } from '../../../application/usecases/events/rotateJoinCode'
 import { makeScheduleEvent } from '../../../application/usecases/events/scheduleEvent'
+import { makeRevealEvent } from '../../../application/usecases/events/revealEvent'
+import { FakeAuditLog } from '../../../application/testing/fakeAuditLog'
 import { makeUpdateEventSettings } from '../../../application/usecases/events/updateEventSettings'
 import { makeGetEventStats } from '../../../application/usecases/stats/getEventStats'
 import { FakeEventStatsRepository } from '../../../application/testing/fakeEventStatsRepository'
@@ -170,6 +171,7 @@ interface World {
   readonly tokens: FakeAccountTokenRepository
   readonly mailer: FakeMailer
   readonly media: InMemoryMediaStore
+  readonly audit: FakeAuditLog
 }
 
 interface BuildWorldOptions {
@@ -199,6 +201,7 @@ const buildWorld = ({
   const clients = new FakeClientRepository()
   const events = new FakeEventRepository({ memberships, photos, guests, clients })
   const media = new InMemoryMediaStore().forbidEnumeration('the host event routes')
+  const audit = new FakeAuditLog().withAccounts(asUserId(OWNER), asUserId(MODERATOR))
   const ids = new SequentialIdGenerator()
   // The foreign keys the real table has: an invitation names an author and an event that exist.
   const tokens = new FakeAccountTokenRepository()
@@ -291,10 +294,11 @@ const buildWorld = ({
         getEventBySlug: makeGetEventBySlug({ events }),
         getEventView: makeGetEventView({
           events,
+          photos,
+          clock: deps.clock,
           clients,
           notices: new FakePurgeNoticeLedger(),
           guestbook: new FakeGuestbookRepository(),
-          clock: new FakeClock(),
           capNoticeDays: 30,
           getEventLimits: makeGetEventLimits({ clients }),
         }),
@@ -367,6 +371,13 @@ const buildWorld = ({
         createMission: absent('createMission'),
         updateMission: absent('updateMission'),
         deleteMission: absent('deleteMission'),
+        revealEvent: makeRevealEvent({
+          events,
+          memberships,
+          audit,
+          bus: deps.bus,
+          clock: deps.clock,
+        }),
         startChallenge: absent('startChallenge'),
         stopChallenge: absent('stopChallenge'),
         getChallenge: absent('getChallenge'),
@@ -543,6 +554,7 @@ const buildWorld = ({
     tokens,
     mailer,
     media,
+    audit,
   }
 }
 
@@ -599,6 +611,11 @@ const ROUTES: readonly RouteCase[] = [
     requires: 'owner',
     call: (client, slug) =>
       client.patch(`/api/events/${slug}/settings`).send({ moderation: 'auto' }),
+  },
+  {
+    name: 'POST /events/:slug/reveal',
+    requires: 'moderator',
+    call: (client, slug) => client.post(`/api/events/${slug}/reveal`),
   },
   {
     name: 'POST /events/:slug/status',
@@ -700,6 +717,21 @@ const INVALID_INPUTS: readonly InputCase[] = [
   {
     name: 'PATCH /events/:slug/settings with a moderation mode outside the enum',
     call: (client) => client.patch(`/api/events/${SLUG}/settings`).send({ moderation: 'parfois' }),
+  },
+  {
+    name: 'PATCH /events/:slug/settings with an unknown key in the reveal group',
+    call: (client) =>
+      client.patch(`/api/events/${SLUG}/settings`).send({ reveal: { enabled: true, hour: 3 } }),
+  },
+  {
+    name: 'PATCH /events/:slug/settings with a reveal hour that is no instant',
+    call: (client) =>
+      client.patch(`/api/events/${SLUG}/settings`).send({ reveal: { at: 'ce soir 23h' } }),
+  },
+  {
+    name: 'PATCH /events/:slug/settings with a reveal hour carrying no timezone',
+    call: (client) =>
+      client.patch(`/api/events/${SLUG}/settings`).send({ reveal: { at: '2026-06-20T23:00:00' } }),
   },
   {
     name: 'PATCH /events/:slug/settings with a retention out of range',
@@ -1099,6 +1131,16 @@ describe('the host event routes', () => {
       ['birthday', { moderation: 'auto', retentionDays: 90, guestbookVoice: { enabled: false } }],
       ['conference', { retentionDays: 30, allowClips: false, maxPhotosPerGuest: 25 }],
       ['party', { moderation: 'auto', retentionDays: 30 }],
+      [
+        'disposable',
+        {
+          moderation: 'auto',
+          maxPhotosPerGuest: 27,
+          allowGuestSelfDelete: false,
+          allowClips: false,
+          reveal: { enabled: true, at: null, film: true },
+        },
+      ],
     ])('applies the %s template to the settings it answers with', async (template, expected) => {
       // The wire half of roadmap 3.5: the host is shown what they got in the same
       // response that created it, so the first screen after the form is already the truth.
@@ -1344,6 +1386,154 @@ describe('the host event routes', () => {
       const response = await agent.patch(`/api/events/${SLUG}`).send({ name: 'Camille et Sacha' })
 
       expect(response.body.slug).toBe(SLUG)
+    })
+  })
+
+  describe('the reveal gate of the disposable-camera mode (spec 23)', () => {
+    const settings = (agent: Agent, body: unknown) =>
+      agent.patch(`/api/events/${SLUG}/settings`).send(body as object)
+    const stored = async () => (await world.events.findById(WEDDING))?.settings.reveal
+
+    it('answers the reveal group in the settings, off for an event that never had one', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent.get(`/api/events/${SLUG}`)
+
+      expect(response.body.settings.reveal).toEqual({ enabled: false, at: null, film: false })
+    })
+
+    it('writes a partial reveal group and merges it key by key', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      await settings(agent, { reveal: { enabled: true, at: SCHEDULED_OPEN_AT } })
+      const response = await settings(agent, { reveal: { film: true } })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.reveal).toEqual({
+        enabled: true,
+        at: SCHEDULED_OPEN_AT,
+        film: true,
+      })
+    })
+
+    it('clears the hour with null while it has not come', async () => {
+      const agent = await signedIn(world, 'owner')
+      await settings(agent, { reveal: { enabled: true, at: SCHEDULED_OPEN_AT } })
+
+      const response = await settings(agent, { reveal: { at: null } })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.reveal.at).toBeNull()
+    })
+
+    it('refuses an hour that has gone by with 400 eventSettings.revealInPast, and stores nothing', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await settings(agent, { reveal: { enabled: true, at: ALREADY_PAST } })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('eventSettings.revealInPast')
+      expect(await stored()).toEqual({ enabled: false, at: null, film: false })
+    })
+
+    it('refuses to move a reveal that is done: 409 eventSettings.revealDone', async () => {
+      const agent = await signedIn(world, 'owner')
+      await settings(agent, { reveal: { enabled: true, at: SCHEDULED_OPEN_AT } })
+      const moderator = await signedIn(world, 'moderator')
+      await moderator.post(`/api/events/${SLUG}/reveal`).expect(200)
+
+      const response = await settings(agent, { reveal: { at: SCHEDULED_OPEN_AT } })
+
+      expect(response.status).toBe(409)
+      expect(response.body.error.code).toBe('eventSettings.revealDone')
+    })
+
+    it('leaves the reveal to the owner when it is a setting: a moderator’s patch is refused', async () => {
+      const moderator = await signedIn(world, 'moderator')
+
+      const response = await settings(moderator, { reveal: { enabled: true } })
+
+      expect(response.status).toBe(403)
+      expect(await stored()).toEqual({ enabled: false, at: null, film: false })
+    })
+
+    describe('POST /api/events/:slug/reveal', () => {
+      const arm = async (): Promise<void> => {
+        const owner = await signedIn(world, 'owner')
+        await settings(owner, { reveal: { enabled: true, at: SCHEDULED_OPEN_AT } })
+      }
+
+      it('lets a moderator reveal now: the hour becomes the server’s clock, and it is audited', async () => {
+        await arm()
+        const moderator = await signedIn(world, 'moderator')
+
+        const response = await moderator.post(`/api/events/${SLUG}/reveal`)
+
+        expect(response.status).toBe(200)
+        expect(response.body.settings.reveal).toEqual({
+          enabled: true,
+          at: AT.toISOString(),
+          film: false,
+        })
+        const lines = (await world.audit.list({ limit: 10 })).items
+        expect(lines.map((line) => [line.action, line.actor.userId])).toEqual([
+          ['event.revealed', MODERATOR],
+        ])
+      })
+
+      it('is idempotent: a second press answers 200, changes nothing and writes no second line', async () => {
+        await arm()
+        const moderator = await signedIn(world, 'moderator')
+        await moderator.post(`/api/events/${SLUG}/reveal`)
+
+        const again = await moderator.post(`/api/events/${SLUG}/reveal`)
+
+        expect(again.status).toBe(200)
+        expect((await world.audit.list({ limit: 10 })).items).toHaveLength(1)
+      })
+
+      it('takes no body: an instant sent by the caller is refused, never obeyed', async () => {
+        await arm()
+        const moderator = await signedIn(world, 'moderator')
+
+        await moderator.post(`/api/events/${SLUG}/reveal`).send({ at: '2000-01-01T00:00:00Z' })
+
+        expect((await stored())?.at?.toISOString()).toBe(AT.toISOString())
+      })
+
+      it('answers 404 for a member of another event, and reveals nothing', async () => {
+        await arm()
+        const stranger = await signedIn(world, 'gala-owner')
+
+        const response = await stranger.post(`/api/events/${SLUG}/reveal`)
+
+        expect(response.status).toBe(404)
+        expect((await stored())?.at?.toISOString()).toBe(SCHEDULED_OPEN_AT)
+      })
+
+      it('answers 403 client.suspended for a frozen client, and writes nothing', async () => {
+        const frozen = anEvent({
+          id: 'evt-frozen',
+          slug: 'gele',
+          ownerId: OWNER,
+          joinCode: 'C5D6EF',
+          settings: { reveal: { enabled: true } },
+        })
+        world.events.seed(Event.restore({ ...frozen.toProps(), clientSuspendedAt: AT }))
+        world.memberships.seed({
+          eventId: asEventId('evt-frozen'),
+          userId: asUserId(MODERATOR),
+          role: 'moderator',
+          grantedAt: AT,
+        })
+        const moderator = await signedIn(world, 'moderator')
+
+        const response = await moderator.post('/api/events/gele/reveal')
+
+        expect(response.status).toBe(403)
+        expect(response.body.error.code).toBe('client.suspended')
+        expect((await world.audit.list({ limit: 10 })).items).toEqual([])
+      })
     })
   })
 
@@ -1627,6 +1817,7 @@ describe('the host event routes', () => {
 
       expect(response.status).toBe(200)
       expect(response.body.settings).toEqual({
+        reveal: { enabled: false, at: null, film: false },
         moderation: 'auto',
         allowCaptions: false,
         allowReactions: false,

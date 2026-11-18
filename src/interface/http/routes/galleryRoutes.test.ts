@@ -1,7 +1,7 @@
 import request from '../testing/request'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ArchiveWriter } from '../../../application/ports/archiveWriter'
-import { AT, aPhoto, aUser } from '../../../application/testing/builders'
+import { AT, anEvent, aPhoto, aUser } from '../../../application/testing/builders'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import {
   browserAgent,
@@ -67,6 +67,94 @@ describe('the shared gallery over HTTP', () => {
       nextCursor: string | null
     }
   }
+
+  /**
+   * A disposable-camera evening before its hour (spec 23): **the link opens**, with the reveal block
+   * and an empty grid, and every dead link is still the one uniform refusal. No error code was
+   * invented for "not revealed yet", so a link holder learns nothing a valid link did not already say.
+   */
+  describe('before the reveal of a disposable-camera evening (spec 23)', () => {
+    const arm = (): void => {
+      subject.events.seed(
+        anEvent({
+          id: WEDDING,
+          ownerId: OWNER,
+          slug: WEDDING_SLUG,
+          status: 'closed',
+          settings: { reveal: { enabled: true, at: new Date(AT.getTime() + HOUR), film: true } },
+        }),
+      )
+    }
+
+    it('opens a valid link with the reveal block, no photograph counted and the archive still signed', async () => {
+      arm()
+      const { token } = subject.seedLink()
+
+      const response = await request(subject.app).get(`/api/gallery/${token}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.photoCount).toBe(0)
+      expect(response.body.reveal).toEqual({
+        enabled: true,
+        revealed: false,
+        atMs: AT.getTime() + HOUR,
+        serverNowMs: AT.getTime(),
+        film: true,
+      })
+    })
+
+    it('lists no photograph and signs no address, with the same reveal block', async () => {
+      arm()
+      const { token } = subject.seedLink()
+
+      const page = await request(subject.app).get(`/api/gallery/${token}/photos`)
+
+      expect(page.status).toBe(200)
+      expect(page.body.items).toEqual([])
+      expect(page.body.nextCursor).toBeNull()
+      expect(page.body.reveal.revealed).toBe(false)
+      expect(JSON.stringify(page.body)).not.toContain(PHOTO)
+    })
+
+    it('refuses the bytes behind an address signed after the reveal, if asked before it', async () => {
+      const { token } = subject.seedLink()
+      const before = await galleryPage(token)
+      arm()
+
+      const response = await request(subject.app).get(before.items[0]?.previewUrl ?? '/nope')
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('gallery.notAvailable')
+    })
+
+    it('answers a dead link as it always did, armed or not', async () => {
+      arm()
+      const revoked = subject.seedLink({ revokedAt: AT })
+
+      const response = await request(subject.app).get(`/api/gallery/${revoked.token}`)
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('gallery.notAvailable')
+    })
+
+    it('lists the photograph from the instant of the hour', async () => {
+      arm()
+      const { token } = subject.seedLink()
+      subject.clock.advance(HOUR)
+
+      const page = await galleryPage(token)
+
+      expect(page.items.map((item) => item.id)).toEqual([PHOTO])
+    })
+
+    it('carries a reveal block that says nothing is held back for an ordinary event', async () => {
+      const { token } = subject.seedLink()
+
+      const response = await request(subject.app).get(`/api/gallery/${token}`)
+
+      expect(response.body.reveal).toMatchObject({ enabled: false, revealed: true, atMs: null })
+    })
+  })
 
   describe('GET /api/gallery/:token', () => {
     it('opens the album of an available link', async () => {

@@ -455,6 +455,75 @@ describe('SqlitePhotoRepository', () => {
     })
   })
 
+  /**
+   * The wall's "ready" count before a reveal (spec 23) is `countsByStatus(...).published`, the
+   * number the souvenir counter already reads. It must be the number the room would be shown, so
+   * it follows every way a photograph stops being shown.
+   */
+  describe('the count of photographs ready for a reveal', () => {
+    const ready = async (eventId: EventId = WEDDING): Promise<number> =>
+      (await repo.countsByStatus(eventId)).published
+
+    it('counts published photographs only, and leaves out one the operator took down', async () => {
+      await saveAll([
+        aPhoto({ id: 'r1', eventId: WEDDING, status: 'published' }),
+        aPhoto({ id: 'r2', eventId: WEDDING, status: 'published' }),
+        aPhoto({ id: 'r3', eventId: WEDDING, status: 'pending' }),
+        aPhoto({ id: 'r4', eventId: WEDDING, status: 'hidden' }),
+        aPhoto({ id: 'r5', eventId: WEDDING, status: 'rejected' }),
+      ])
+      expect(await ready()).toBe(2)
+
+      await repo.setTakenDown(WEDDING, asPhotoId('r1'), AT)
+
+      expect(await ready()).toBe(1)
+    })
+
+    it('goes down when a photograph is deleted, a guest erased or the event purged', async () => {
+      await saveAll([
+        aPhoto({
+          id: 'e1',
+          eventId: WEDDING,
+          status: 'published',
+          author: { kind: 'guest', id: 'guest-1' },
+        }),
+        aPhoto({
+          id: 'e2',
+          eventId: WEDDING,
+          status: 'published',
+          author: { kind: 'guest', id: 'guest-1' },
+        }),
+        aPhoto({
+          id: 'e3',
+          eventId: WEDDING,
+          status: 'published',
+          author: { kind: 'host', id: 'user-host' },
+        }),
+        aPhoto({ id: 'g1', eventId: GALA, status: 'published', author: SAM }),
+      ])
+      expect(await ready()).toBe(3)
+
+      await repo.delete(WEDDING, asPhotoId('e3'))
+      expect(await ready()).toBe(2)
+
+      // Erasing a guest removes each of their photographs, one by one (`eraseGuestContribution`).
+      for (const id of ['e1', 'e2']) await repo.delete(WEDDING, asPhotoId(id))
+      expect(await ready()).toBe(0)
+
+      db.prepare('DELETE FROM events WHERE id = ?').run(GALA)
+      expect(await ready(GALA)).toBe(0)
+    })
+
+    it('never counts another event’s photographs', async () => {
+      await saveAll([
+        aPhoto({ id: 'g1', eventId: GALA, status: 'published', author: SAM }),
+        aPhoto({ id: 'w1', eventId: WEDDING, status: 'published' }),
+      ])
+
+      expect(await ready(WEDDING)).toBe(1)
+    })
+  })
+
   it('sums the bytes of one event only, so a quota is never spent by another party', async () => {
     await seedMixedFixture()
 

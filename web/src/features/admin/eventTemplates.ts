@@ -4,7 +4,7 @@ import type { EventSettingsDto, EventTemplateKey, EventThemeDto } from '../../li
 import type { UiText } from '../../lib/i18n/translations'
 
 /**
- * The four presets the create form offers (roadmap 3.5), as the host sees them.
+ * The five presets the create form offers (roadmap 3.5, spec 23), as the host sees them.
  *
  * The **rule** is server-side, in `src/domain/events/eventTemplate.ts`: what each
  * template sets and why. This file knows how to show one, which is a different job and
@@ -40,14 +40,17 @@ export const EVENT_TEMPLATE_KEYS: readonly EventTemplateKey[] = [
   'birthday',
   'conference',
   'party',
+  'disposable',
 ]
 
 /**
- * What a template changes: a partial of the settings, and the **voice group** a partial of its own,
- * because the server merges that group key by key (a template that turns voice on does not restate
- * `sealed` and `opensAtMs`).
+ * What a template may change: the settings as the wire carries them, except that two groups are partial,
+ * as in the domain. The reveal group (a template names `enabled` and `film` and no hour: the hour is the
+ * host's, and a restated `at: null` would be a default restated); and the voice group, which the server
+ * merges key by key (a template that turns voice on does not restate `sealed` and `opensAtMs`).
  */
-export type TemplatePatch = Omit<Partial<EventSettingsDto>, 'guestbookVoice'> & {
+export type TemplatePatch = Partial<Omit<EventSettingsDto, 'reveal' | 'guestbookVoice'>> & {
+  readonly reveal?: Partial<NonNullable<EventSettingsDto['reveal']>>
   readonly guestbookVoice?: Partial<EventSettingsDto['guestbookVoice']>
 }
 
@@ -100,6 +103,23 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, TemplateP
       fonts: 'sans',
       frame: 'soft',
       ambiance: 'bivouac',
+    },
+  },
+  disposable: {
+    moderation: 'auto',
+    allowClips: false,
+    allowGuestSelfDelete: false,
+    retentionDays: 90,
+    maxPhotosPerGuest: 27,
+    reveal: { enabled: true, film: true },
+    // The voice book is on and kept secret: on this evening it opens at the reveal (`isVoiceOpen`), one
+    // moment when everything develops (spec 25 section 7). The hour is the host's, so none is named.
+    guestbookVoice: { enabled: true, sealed: true },
+    theme: {
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'square',
+      ambiance: 'guinguette',
     },
   },
 }
@@ -166,18 +186,25 @@ export const templateSummary = (patch: TemplatePatch, text: UiText): readonly st
   if (patch.allowClips !== undefined) {
     lines.push(patch.allowClips ? text.admin.templateClipsOn : text.admin.templateClipsOff)
   }
+  if (patch.allowGuestSelfDelete !== undefined) {
+    lines.push(
+      patch.allowGuestSelfDelete
+        ? text.admin.templateSelfDeleteOn
+        : text.admin.templateSelfDeleteOff,
+    )
+  }
   if (patch.allowGuestSave !== undefined) {
     lines.push(
       patch.allowGuestSave ? text.admin.templateGuestSaveOn : text.admin.templateGuestSaveOff,
     )
   }
-  // The voice group is one line, about the one switch a template may flip: `sealed` is the couple's own
-  // choice and no template sets it.
+  // The voice group says its switch, and, on the one evening that keeps the book secret, when it opens.
   if (patch.guestbookVoice?.enabled !== undefined) {
     lines.push(
       patch.guestbookVoice.enabled ? text.admin.templateVoiceOn : text.admin.templateVoiceOff,
     )
   }
+  if (patch.guestbookVoice?.sealed === true) lines.push(text.admin.templateVoiceSealed)
   if (patch.guestSelfDeleteGraceSeconds !== undefined) {
     lines.push(
       `${text.admin.selfDeleteGrace} : ${graceLabel(patch.guestSelfDeleteGraceSeconds, text)}`,
@@ -204,6 +231,15 @@ export const templateSummary = (patch: TemplatePatch, text: UiText): readonly st
           : String(patch.maxPhotosPerGuest)
       }`,
     )
+  }
+  if (patch.reveal !== undefined) {
+    // The two switches of the group, each said when the template names it: the mode and the film look.
+    if (patch.reveal.enabled !== undefined) {
+      lines.push(patch.reveal.enabled ? text.reveal.templateOn : text.reveal.templateOff)
+    }
+    if (patch.reveal.film !== undefined) {
+      lines.push(patch.reveal.film ? text.reveal.templateFilmOn : text.reveal.templateFilmOff)
+    }
   }
   if (patch.theme !== undefined) {
     const theme = themeLine(patch.theme, text)

@@ -1,11 +1,13 @@
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { Photo } from '../../../domain/photos/photo'
-import { isVisibleOnWall } from '../../../domain/photos/photoStatus'
+import { visibleStatuses } from '../../../domain/events/eventRevealSettings'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId, PhotoId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { ByteRange, MediaStore } from '../../ports/mediaStore'
 import type { ServedVariant } from '../../../domain/photos/mediaVariant'
+import type { Clock } from '../../ports/clock'
+import type { EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 
 /**
@@ -75,6 +77,9 @@ export interface PhotoMedia {
 export interface GetPhotoMediaDeps {
   readonly photos: PhotoRepository
   readonly media: MediaStore
+  /** For the reveal gate (spec 23): read only for a published photograph and a viewer who is no moderator. */
+  readonly events: Pick<EventRepository, 'findById'>
+  readonly clock: Clock
 }
 
 export type GetPhotoMedia = (
@@ -86,19 +91,38 @@ export type GetPhotoMedia = (
  * album export archives for a photograph. Everyone else gets the two derived variants only, and only for a
  * photo that is either on the wall or their own — so a guest can see their photo
  * waiting for moderation without being able to see anybody else's.
+ *
+ * **"On the wall" means visible to the public now** (spec 23): before the reveal of a
+ * disposable-camera evening no status is, so the bytes and the metadata of everybody else's
+ * photograph are a `404` like an unknown one, and a guest's own photograph stays theirs.
  */
-const mayRead = (photo: Photo, variant: ServedVariant, viewer: MediaViewer): boolean => {
+const mayRead = async (
+  photo: Photo,
+  variant: ServedVariant,
+  viewer: MediaViewer,
+  { events, clock }: Pick<GetPhotoMediaDeps, 'events' | 'clock'>,
+): Promise<boolean> => {
   if (viewer.kind === 'moderator') return true
   if (variant === 'original') return false
-  if (isVisibleOnWall(photo.status)) return true
-  return viewer.kind === 'guest' && photo.isAuthoredBy({ kind: 'guest', guestId: viewer.guestId })
+  if (viewer.kind === 'guest' && photo.isAuthoredBy({ kind: 'guest', guestId: viewer.guestId })) {
+    return true
+  }
+  // An event that is gone has nothing to show.
+  const event = await events.findById(photo.eventId)
+  return event !== null && visibleStatuses(event.settings.reveal, clock.now()).includes(photo.status)
 }
 
-export const makeGetPhotoMedia = ({ photos, media }: GetPhotoMediaDeps): GetPhotoMedia => {
+export const makeGetPhotoMedia = ({
+  photos,
+  media,
+  events,
+  clock,
+}: GetPhotoMediaDeps): GetPhotoMedia => {
   return async ({ eventId, photoId, variant, viewer }) => {
-    // No event lookup: this runs once per tile in a moderation grid and once per slide
+    // No event lookup here: this runs once per tile in a moderation grid and once per slide
     // on the wall, and the row is already reached through `(eventId, photoId)` — the
-    // event is in the query, which is what scoping means here.
+    // event is in the query, which is what scoping means here. `mayRead` reads it, and only
+    // for a viewer who is not the photograph's author or a moderator (the reveal gate).
     const photo = await photos.findById(eventId, photoId)
     if (photo === null) return err(DomainError.notFound('photo.notFound'))
 
@@ -108,7 +132,9 @@ export const makeGetPhotoMedia = ({ photos, media }: GetPhotoMediaDeps): GetPhot
     // the ordinary case of a client asking a clip for a `display`.
     if (!photo.hasVariant(variant)) return err(DomainError.notFound('photo.notFound'))
 
-    if (!mayRead(photo, variant, viewer)) return err(DomainError.notFound('photo.notFound'))
+    if (!(await mayRead(photo, variant, viewer, { events, clock }))) {
+      return err(DomainError.notFound('photo.notFound'))
+    }
 
     // The poster of a clip is a different file with its own digest; every rendition of a
     // photograph shares one. A lookup on the entity rather than a branch here.

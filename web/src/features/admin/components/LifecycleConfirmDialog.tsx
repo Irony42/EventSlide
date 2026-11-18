@@ -26,10 +26,22 @@ export function LifecycleConfirmDialog({
   onCancel,
 }: LifecycleConfirmDialogProps) {
   const t = useTranslations()
-  const kind = request === null ? null : confirmationFor(request.from, request.to)
+  const kind =
+    request === null ? null : confirmationFor(request.from, request.to, request.heldReveal)
   const name = request?.eventName ?? ''
 
-  return kind === 'open' ? (
+  return kind === 'close' ? (
+    <ConfirmDialog
+      open
+      title={t.reveal.closeTitle(name)}
+      description={t.reveal.closeHeld}
+      confirmLabel={t.admin.closeEvent}
+      confirmVariant="primary"
+      busy={busy}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
+  ) : kind === 'open' ? (
     <ConfirmDialog
       open
       title={t.admin.openTitle(name)}

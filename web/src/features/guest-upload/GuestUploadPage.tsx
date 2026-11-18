@@ -16,6 +16,8 @@ import { MissionChecklist } from './components/MissionChecklist'
 import { FoldedBar } from './components/FoldedBar'
 import { EraseEverything } from './components/EraseEverything'
 import { GuestbookCard } from './components/GuestbookCard'
+import { GuestIntro } from './components/GuestIntro'
+import { GuestRoll } from './components/GuestRoll'
 import { MyMessages } from './components/MyMessages'
 import { saveRecordingToPhone } from './saveRecording'
 import { HostGreeting } from '../../design-system/components/HostGreeting'
@@ -150,6 +152,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
     missions,
     outbox,
     queue,
+    roll,
     canCloseSafely,
     clip,
     install,
@@ -266,9 +269,12 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         <h1 className={styles['title']}>{event.name}</h1>
         {/* From the notice rather than written once: "after approval" is false on an
             event that publishes on arrival, and the notice below would say so. */}
-        <p className={styles['intro']}>
-          {publication === 'immediate' ? t.upload.introImmediate : t.upload.intro}
-        </p>
+        <GuestIntro
+          publication={publication}
+          reveal={mine.unavailable ? null : mine.reveal}
+          offsetMs={mine.offsetMs}
+          className={styles['intro']}
+        />
         {/* The host's own words, from the fresh read when there is one: a message changed after the guest joined shows on the next open. */}
         <HostLogo
           url={(mine.brand ?? event.brand)?.logoUrl}
@@ -279,6 +285,16 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         <p className={styles['signature']}>
           {displayName === null ? t.upload.signedAnonymous : t.upload.signedAs(displayName)}
         </p>
+        {/* The roll and the hour of a disposable-camera evening (spec 23): nothing for any other. */}
+        {mine.unavailable || !mine.acceptingUploads ? null : (
+          <GuestRoll
+            left={roll.left}
+            max={roll.max}
+            fresh={roll.fresh}
+            reveal={mine.reveal}
+            offsetMs={mine.offsetMs}
+          />
+        )}
         {/* What the room is looking at, on a page of its own: a list that grows all evening
             would push the controls below off the bottom of the phone. */}
         {/* Not once the server has stopped serving the gallery: the link would lead to a
@@ -364,6 +380,8 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           onRetry={mine.refresh}
           onDelete={mine.remove}
           arrival={mine.arrival}
+          developed={mine.developed}
+          film={mine.reveal?.film === true}
           headingRef={mineHeading}
           highlighted={highlighted}
           onHighlightEnd={endHighlight}
@@ -589,10 +607,24 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
                 selected={missions.selected}
                 onToggle={missions.toggle}
               />
-              <PhotoPicker
-                onPick={(files) => queue.add(files, missions.selected)}
-                libraryRef={libraryInput}
-              />
+              {roll.empty ? (
+                /* The roll is used up (spec 23): the picker leaves, what was sent stays listed above. */
+                <Notice tone="neutral" variant="boxed" role="status">
+                  <strong>{t.reveal.rollEmpty}</strong>
+                </Notice>
+              ) : (
+                <PhotoPicker
+                  onPick={(files) => roll.pick(files, missions.selected)}
+                  libraryRef={libraryInput}
+                  cameraFirst={mine.reveal?.enabled === true}
+                />
+              )}
+              {/* The pick was cut to the poses left: said, while that batch still waits to be sent. */}
+              {roll.keptNote === null || queue.sendableCount === 0 ? null : (
+                <Notice tone="warning" variant="inline" role="status">
+                  {t.reveal.rollKept(roll.keptNote)}
+                </Notice>
+              )}
               {/* The caption and the video, as labelled buttons that unfold in place: shown in full
                 they took half of a phone before a photo was chosen. The host's settings, from the
                 event the join step returned, decide which exist at all. */}
@@ -600,7 +632,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
                 captions={event.allowCaptions}
                 caption={caption}
                 onCaptionChange={setCaption}
-                clips={event.allowClips}
+                clips={event.allowClips && !roll.empty}
                 clip={clip}
                 limits={{ maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds }}
               />

@@ -8,11 +8,15 @@ import { Field } from '../../design-system/components/Field'
 import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
 import { TextInput } from '../../design-system/components/TextInput'
+import { cx } from '../../design-system/classNames'
+import { filmLook } from '../../design-system/filmLook'
 import { themeSurfaceProps } from '../../design-system/eventTheme'
 import { RootGroundHue } from '../../design-system/useRootGroundHue'
 import { formatDateTime } from '../../lib/format'
+import { awaitsReveal } from '../../lib/revealGate'
 import { messageForError } from '../../lib/i18n/translations'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
+import { useRevealSwitch } from '../../lib/useRevealSwitch'
 import { GalleryViewer } from './components/GalleryViewer'
 import { useGallery } from './hooks/useGallery'
 import styles from './GalleryPage.module.css'
@@ -58,6 +62,8 @@ export function GalleryPage() {
   const { locale } = useLocale()
   const { token = '' } = useParams()
   const state = useGallery(token)
+  // The hour announces nothing (spec 23): a link opened before it reads again when it comes.
+  useRevealSwitch(state.gallery?.reveal, state.retry)
   const [password, setPassword] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
@@ -155,6 +161,12 @@ export function GalleryPage() {
 
   const { gallery, items } = state
   const until = formatDateTime(gallery.expiresAt, locale)
+  const film = gallery.reveal?.film === true
+  const held = awaitsReveal(gallery.reveal)
+  const revealOn =
+    gallery.reveal?.atMs == null
+      ? null
+      : formatDateTime(new Date(gallery.reveal.atMs).toISOString(), locale)
   const openIndex = open === null ? -1 : items.findIndex((photo) => photo.id === open)
   const viewing = openIndex < 0 ? null : (items[openIndex] ?? null)
 
@@ -170,9 +182,17 @@ export function GalleryPage() {
           {until === null ? null : <span>{t.gallery.availableUntil(until)}</span>}
         </p>
         <p className={styles['hint']}>{t.gallery.privacyNote}</p>
+        {/* Spec 23: the look is for the screen. What a guest downloads is the photograph as it was sent. */}
+        {film ? <p className={styles['hint']}>{t.reveal.galleryOriginal}</p> : null}
       </header>
 
-      {items.length === 0 ? (
+      {items.length === 0 && held ? (
+        <EmptyState
+          as="h2"
+          title={revealOn === null ? t.reveal.galleryHeldSoon : t.reveal.galleryHeld(revealOn)}
+          data-testid="gallery-reveal"
+        />
+      ) : items.length === 0 ? (
         <EmptyState as="h2" title={t.gallery.empty} />
       ) : (
         <ul className={styles['grid']}>
@@ -187,7 +207,7 @@ export function GalleryPage() {
               >
                 {/* Decorative inside a labelled button: the viewer carries the caption. */}
                 <img
-                  className={styles['thumb']}
+                  className={cx(styles['thumb'], filmLook(film))}
                   src={photo.previewUrl}
                   alt=""
                   loading="lazy"
@@ -236,6 +256,7 @@ export function GalleryPage() {
         photo={viewing}
         position={openIndex + 1}
         total={gallery.photoCount}
+        film={film}
         onClose={closePhoto}
       />
     </div>

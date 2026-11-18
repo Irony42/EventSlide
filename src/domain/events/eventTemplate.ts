@@ -2,7 +2,8 @@ import { EventSettings, type EventSettingsPatch } from './eventSettings'
 import { CURATED_ACCENT_HUES } from './eventTheme'
 
 /**
- * The four kinds of evening this product is actually used for, as starting settings.
+ * The five kinds of evening this product is actually used for, as starting settings (the fifth, the
+ * disposable camera, is spec 23).
  *
  * Roadmap 3.5. It serves the **host**, and only at one moment: the create form asks for
  * a name and nothing else, so a host setting up a conference at 09:00 gets the same
@@ -66,7 +67,13 @@ import { CURATED_ACCENT_HUES } from './eventTheme'
  *   nothing to preset.
  */
 
-export const EVENT_TEMPLATE_KEYS = ['wedding', 'birthday', 'conference', 'party'] as const
+export const EVENT_TEMPLATE_KEYS = [
+  'wedding',
+  'birthday',
+  'conference',
+  'party',
+  'disposable',
+] as const
 
 export type EventTemplateKey = (typeof EVENT_TEMPLATE_KEYS)[number]
 
@@ -239,6 +246,43 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       frame: 'soft',
       // A fire under the stars: the party that goes on outside, loud and in the dark.
       ambiance: 'bivouac',
+    },
+  },
+
+  /**
+   * A disposable camera (spec 23). The guests photograph without seeing the result and the
+   * evening is shown all at once: "we send the film to be developed".
+   */
+  disposable: {
+    // `auto`, the spec's answer to its own question 2: two hundred guests at twenty-seven poses
+    // send more than five thousand photographs, and no manual queue holds that. The wait is itself
+    // the review: the console sees everything on arrival and can take a photograph down before the
+    // room does. "Nothing appears without a decision" becomes "nothing appears before the reveal,
+    // except what the host removed first", and the notice says so.
+    moderation: 'auto',
+    // A film is photographs. A clip on a roll of twenty-seven would be a second product.
+    allowClips: false,
+    // A roll is authentic only if a pose is spent: a guest who could take a photograph back would
+    // be handed the pose again. Erasing everything (`DELETE /guests/me`) stays possible.
+    allowGuestSelfDelete: false,
+    // The length of a common roll.
+    maxPhotosPerGuest: 27,
+    // Three months, as the birthday: the family pulls what it wants at its own pace.
+    retentionDays: 90,
+    // The mode itself: held until the host reveals (no hour, the button), the film look on screen.
+    // The hour is the host's choice, so the template names none.
+    reveal: { enabled: true, film: true },
+    // The voice book is on and kept secret: on this evening it opens at the reveal (`isVoiceOpen`), one
+    // moment when everything develops (spec 25 section 7). The hour is the host's, so none is named.
+    guestbookVoice: { enabled: true, sealed: true },
+    theme: {
+      // The product's own violet, restated because `EventSettings` replaces a theme whole.
+      accentHue: CURATED_ACCENT_HUES.violet,
+      fonts: 'sans',
+      // A square print is a drugstore print.
+      frame: 'square',
+      // The most "retro party" world of the catalogue (spec 23 §5: no new ambiance).
+      ambiance: 'guinguette',
     },
   },
 }

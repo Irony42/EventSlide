@@ -1066,6 +1066,34 @@ or [without](#without-docker), with `vX.Y.Z` as `v3.14.0`; the image is `ghcr.io
   console-only signal (`export.changed`). The host's event page uses them (the deletion band and the archive button). Nothing changes for a box whose hosts do not ask: no archive is
   prepared by itself.
 
+### The reveal gate of the disposable-camera mode (spec 23, server)
+
+- **No migration.** The mode lives in the event's settings JSON (`reveal`); an event written before it has no such key and
+  is read as **off**, which is a read and not a rewrite. The mode is **off on every existing event**: nothing changes on
+  a wall, a phone or a gallery until a host switches it on (the "Appareil jetable" section of the event's settings, the
+  console banner and the template; the API takes it too, see `docs/API.md`).
+- **Nothing to set in `.env`.** No operator switch exists for it (`NEW_CLIENT_*` ceilings do not carry it) and
+  `SITE_ADMIN` makes no difference.
+- **An older web bundle** does not know the `reveal` blocks. On an evening whose host has turned the mode on, it would show
+  the wall and the guests' feed **empty without saying why** until the reveal, and a guest's own photographs as ordinary
+  ones. That is the price of upgrading the server during such an evening: reload the screens after the upgrade, or
+  upgrade before the evening (the same advice as for any version).
+- **What a public screen can no longer read before the hour**: the wall and the guests' feed (empty, with how many
+  photographs wait), the podium, the reactions, the shared gallery (the link opens with an empty grid, no new error), the guest save route (`GET /photos/:id/save`,
+  `404 photo.notFound` for everyone, the author included) and the bytes of somebody else's photograph. A host's ZIP, the moderation console, the best-of and the photo book are not
+  public readers and are untouched.
+- **A sealed voice book opens at the reveal** (spec 25 section 7). On an evening whose `reveal.enabled` is on, `guestbookVoice.sealed` lifts when the evening is revealed, by the hour or by the button, as it does when the event is closed. It is derived (`isVoiceOpen`), so `revealEvent` writes nothing and no stored event changes; with the mode off nothing differs. The "Appareil jetable" template now also turns the voice book on and keeps it secret; an event already created is untouched. The console says "Gardé secret jusqu'à la révélation de la soirée" on such an evening, and "Ouvrir maintenant" disappears once it is revealed.
+- **The privacy notice** gains three clauses, present only when the mode is on (that the photographs are held back, how many
+  poses, the film look): an event without the mode keeps its notice, its revision and the acknowledgements of its guests. A disposable evening
+  says "no removal one by one" and "others may save" together; the clause order of the revision is guestbook, guest save,
+  reveal, poses, film, voice, operator.
+- `POST /api/events/:slug/reveal` is new, and `PATCH /settings` takes an optional `reveal` group.
+- **The film look is a filter on the display only.** No byte changes: originals, the `display` and `thumb` variants, the ZIPs and
+  every download are exactly what they were, and the shared gallery says so. An older web bundle simply shows the photographs
+  as they are. On the wall the look is one CSS filter function, and only the spotlight pays for it (its zoom animates the
+  filtered image): measured at 46 against 27 frames a second on a software-rendered machine, with the wall's own budget as
+  the net (it gives up the zoom first). `tests/e2e/perf/film-look.spec.ts` is that measurement.
+
 ### Scheduled announcements on the wall (spec 21)
 
 - **One migration (029)**: a new table, `event_announcements`, with its index. Nothing existing is rewritten. Back up

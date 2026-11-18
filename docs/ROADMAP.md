@@ -256,6 +256,34 @@ or the owner opens it, carried by the verified archive, and queued on the phone 
 which sent the sound to a recognition service; a recording stays on the box, and the optional caption is the
 text for a host who cannot listen. A real iPhone recording is a manual check, not an automated one.
 
+### 2.12 Disposable camera (P2, effort L, risk: medium)
+
+Spec 23. A mode in which the guests photograph without seeing the result and everything is shown at once ("on envoie
+la pellicule au développement"): the photographs stay hidden from the other guests and the room until a moment the host
+chooses (an hour, or a button), each guest has a limited number of poses (the existing `maxPhotosPerGuest`), and the screens
+may wear a film look. It answers the one competitor feature the 1 November report marked as partial (POV, Lense:
+deferred reveal, a limited roll, a film filter) **without a second capture surface**: the picker stays the system's.
+
+**Built so as not to be a second product.** The reveal is a **gate on the event in front of the moderation gate of each
+photograph, not a new state of a photograph** (`docs/adr/0013-reveal-gate.md`): `visibleStatuses(reveal, now)` is the
+one door every public reader asks (the wall, the guests' feed, the podium, the reactions, the shared gallery, the media
+route), "revealed" is a function of the server's clock read at the request (no sweeper, no scheduled task, no column on
+`photos`), and the mode is a group of the settings JSON (`reveal`, merged key by key like `wall`): **no migration**. Moderation is
+unchanged and combines with it: the console sees everything as it arrives, which is the review period. The film look is
+a CSS filter on screen, never a re-encode: the originals stay clean. The wall wears a **light** version of it (one filter
+function, `WallMedia.module.css`) because the measurement of 11.3's budget found the shared recipe costs the spotlight, and
+only the spotlight, about 60 % of its frame rate on a software-rendered machine (46 to 19 frames a second, floor 24; one
+function: 27; every other layout unchanged; zoom off, free): see `tests/e2e/perf/film-look.spec.ts`. The wall's own ladder
+(`budget.ts`) is the net under it, since its first rung removes the zoom the filter is expensive under. **Not built:** the
+"first developing screen" on the wall (the same filter animated for 1.5 s), which the spec allowed only if the budget did,
+and which the measurement says it does not on the busiest layout; and the inset vignette, which does not paint on an
+`<img>` and would need a wrapper element around every layout's image.
+
+Delivered in five stacked pull requests: **1** the server (this gate, `POST /events/:slug/reveal`, the `reveal` blocks of the
+wall, the phone and the gallery, the notice clauses), **2** the host (settings section, console banner, the template),
+**3** the room (the waiting wall, the switch at the hour), **4** the guest (the roll, the limited picker, the undeveloped
+thumbnails), **5** the film look and its measured budget. All five are built; see `docs/API.md` and `docs/UPGRADING.md`. The 1 November report's "partial" row for this feature (a cap and moderation existed; no scheduled reveal, no filter) is now complete.
+
 ---
 
 ## 3. Host control

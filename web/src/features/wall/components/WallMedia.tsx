@@ -1,8 +1,10 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { cx } from '../../../design-system/classNames'
+import { filmLook } from '../../../design-system/filmLook'
 import { isAbortError } from '../../../lib/http'
 import type { WallItemDto } from '../../../lib/api/dto'
 import styles from './WallMedia.module.css'
+import { FilmLookContext } from './filmLookContext'
 import { WallMediaFailureContext } from './wallMediaFailure'
 
 /**
@@ -73,6 +75,8 @@ export function WallMedia({ item, plays, paused = false, alt, className }: WallM
   const mounted = useRef<HTMLVideoElement | null>(null)
   const [degraded, setDegraded] = useState(false)
   const imageFailed = useContext(WallMediaFailureContext)
+  /** Spec 23: the film look is drawn on the image or the clip itself, never on a caption around it. */
+  const film = useContext(FilmLookContext)
   /** The address that failed to load, so a fresh one is tried and the same one is not. */
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const failedRef = useRef(imageFailed)
@@ -153,7 +157,16 @@ export function WallMedia({ item, plays, paused = false, alt, className }: WallM
   if (!playable || item.videoUrl === null) {
     return (
       <img
-        className={failedSrc === item.displayUrl ? cx(className, styles['failed']) : className}
+        className={
+          film || failedSrc === item.displayUrl
+            ? cx(
+                className,
+                failedSrc === item.displayUrl && styles['failed'],
+                filmLook(film),
+                film && styles['film'],
+              )
+            : className
+        }
         src={item.displayUrl}
         onError={() => setFailedSrc(item.displayUrl)}
         alt={alt}
@@ -167,7 +180,7 @@ export function WallMedia({ item, plays, paused = false, alt, className }: WallM
   return (
     <video
       ref={attach}
-      className={cx(className, styles['video'])}
+      className={cx(className, styles['video'], filmLook(film), film && styles['film'])}
       src={item.videoUrl}
       // The first frame, on screen before a byte of video has been decoded. Without it
       // the slot is black for as long as the network takes, which on a venue's Wi-Fi is

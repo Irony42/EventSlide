@@ -3,11 +3,12 @@ import { asEventId } from '../../../domain/shared/ids'
 import { AT, aClient, anEvent } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeClock } from '../../testing/fakeClock'
+import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { FakePurgeNoticeLedger } from '../../testing/fakePurgeNoticeLedger'
 import { makeGetEventLimits } from './getEventLimits'
 import { makeGetEventView } from './getEventView'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
-import { FakeClock } from '../../testing/fakeClock'
 
 /**
  * Spec 22: what a host sees of the album's deletion. The date is the one the sweep acts on, and
@@ -23,10 +24,11 @@ const aWorld = () => {
   const notices = new FakePurgeNoticeLedger().withEvents(WEDDING)
   const getEventView = makeGetEventView({
     events,
+    photos: new FakePhotoRepository(),
+    clock: new FakeClock(AT),
     clients,
     notices,
     guestbook: new FakeGuestbookRepository(),
-    clock: new FakeClock(),
     capNoticeDays: 30,
     getEventLimits: makeGetEventLimits({ clients }),
   })

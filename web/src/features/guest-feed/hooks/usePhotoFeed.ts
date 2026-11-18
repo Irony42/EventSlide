@@ -4,7 +4,14 @@ import { readEventTheme } from '../../../design-system/eventTheme'
 import { rememberEventTheme } from '../../../lib/guestSession'
 import { ApiError } from '../../../lib/http'
 import { useLoader } from '../../../lib/useLoader'
-import type { EventThemeDto, GuestPhotoDto, WallItemDto, WallResponse } from '../../../lib/api/dto'
+import type {
+  EventThemeDto,
+  GuestPhotoDto,
+  RevealDto,
+  WallItemDto,
+  WallResponse,
+} from '../../../lib/api/dto'
+import { serverOffsetMs } from '../../../lib/serverClock'
 
 /**
  * What a guest's phone shows of the evening: the published photographs, as the wall has
@@ -32,7 +39,9 @@ import type { EventThemeDto, GuestPhotoDto, WallItemDto, WallResponse } from '..
  * **answer** here and not a failure: the screen says so once and offers no "Réessayer".
  * A closed event still serves its wall, so a closed evening is an ordinary feed.
  */
-type WallAnswer = { readonly gone: false; readonly wall: WallResponse } | { readonly gone: true }
+type WallAnswer =
+  | { readonly gone: false; readonly wall: WallResponse; readonly offsetMs: number | null }
+  | { readonly gone: true }
 
 export interface PhotoFeedState {
   /** `null` until the wall has answered once. Absence is not emptiness. */
@@ -53,6 +62,14 @@ export interface PhotoFeedState {
   readonly revoked: boolean
   /** The host's switch, as the wall says it now. */
   readonly reactionsEnabled: boolean
+  /**
+   * The reveal gate as the wall says it now (spec 23): while it holds the evening the list is empty
+   * by the server's rule, and the screen says when it opens instead of "nothing yet". `null` for a
+   * server that predates it.
+   */
+  readonly reveal: RevealDto | null
+  /** The server's clock less this phone's, as of the wall's last read: what the countdown uses. */
+  readonly offsetMs: number
   /**
    * Whether guests may save a photograph, as the wall says it now (spec 24). Read with the wall,
    * so a feed that stays open keeps the answer it had until the next refresh: the route is the
@@ -87,7 +104,13 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
   const loadWall = useCallback(
     async (signal: AbortSignal): Promise<WallAnswer> => {
       try {
-        return { gone: false, wall: await api.wall(slug, signal) }
+        const sentAt = Date.now()
+        const wall = await api.wall(slug, signal)
+        const offsetMs =
+          wall.reveal === undefined
+            ? null
+            : serverOffsetMs(wall.reveal.serverNowMs, sentAt, Date.now())
+        return { gone: false, wall, offsetMs }
       } catch (cause) {
         if (cause instanceof ApiError && cause.status === 404 && cause.code === 'event.notFound') {
           return { gone: true }
@@ -140,6 +163,7 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
   }, [reloadWall, reloadMine])
 
   const served = wall.data === null || wall.data.gone ? null : wall.data.wall
+  const offsetMs = wall.data === null || wall.data.gone ? null : wall.data.offsetMs
   const answered = useMemo(() => readEventTheme(served?.theme ?? null), [served])
   // What was learned stands: a later answer with no theme this build can read (a server rolled
   // back mid-evening) must not drop the page back to the join's older copy. Adjusted during
@@ -158,6 +182,8 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
     signedOut: mine.data?.signedOut === true,
     revoked: mine.data?.revoked === true,
     reactionsEnabled: served?.reactionsEnabled ?? false,
+    reveal: served?.reveal ?? null,
+    offsetMs: offsetMs ?? 0,
     guestSaveEnabled: served?.guestSaveEnabled ?? false,
     acceptsGuests: served?.acceptsGuests ?? true,
     theme,

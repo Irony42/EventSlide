@@ -9,6 +9,27 @@
  * forbids the import.
  */
 
+/**
+ * The reveal gate of a disposable-camera evening, as the wall, the guest's phone and the gallery
+ * carry it (spec 23): one rule, one shape, built by the server from its own clock. A client anchors
+ * a countdown on `serverNowMs` and never on its own clock, and never recomputes `revealed`.
+ */
+export interface RevealDto {
+  /** The host's switch. `false`: the evening is the one it always was. */
+  readonly enabled: boolean
+  /** Whether the evening is shown at `serverNowMs`; always `true` with the mode off. */
+  readonly revealed: boolean
+  /** The hour, as an instant; `null` while the host reveals with the button. */
+  readonly atMs: number | null
+  readonly serverNowMs: number
+  /** The film look on screen, `true` only with the mode on. Never a change to the bytes. */
+  readonly film: boolean
+}
+/** The wall's block: the reveal, and how many published photographs wait for it. */
+export interface WallRevealDto extends RevealDto {
+  /** An aggregate with no author; `null` once revealed or with the mode off. */
+  readonly readyCount: number | null
+}
 export type PhotoStatus = 'pending' | 'published' | 'rejected' | 'hidden'
 export type EventStatus = 'draft' | 'live' | 'closed' | 'archived'
 export type ModerationDecision = 'publish' | 'reject' | 'hide'
@@ -69,7 +90,7 @@ export interface ThemeCustom {
  * an `EventDto`, the template has stopped being a copy and started being an attachment —
  * see `src/domain/events/eventTemplate.ts` for why that is the wrong product.
  */
-export type EventTemplateKey = 'wedding' | 'birthday' | 'conference' | 'party'
+export type EventTemplateKey = 'wedding' | 'birthday' | 'conference' | 'party' | 'disposable'
 /**
  * Who one of the host's prompts is asked of (roadmap §2.1).
  *

@@ -43,6 +43,14 @@
   line-height: var(--leading-normal);
 }
 
+/*
+ * Inside a fieldset the hint follows its legend and the group's own gap: the pull-up above is for the
+ * schedule form's title, whose gap is larger, and under a legend it slid the hint over it.
+ */
+.group .sectionHint {
+  margin-block-start: 0;
+}
+
 .choice {
   display: flex;
   align-items: center;

@@ -12,6 +12,7 @@ import {
   aSessionUser,
   anAbout,
   anEventDto,
+  eventSettings,
   fakeApi,
   renderWithProviders,
 } from '../../testing/renderWithProviders'
@@ -1086,5 +1087,282 @@ describe('EventPage: the first visit’s guided tour', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.ui.tourNext }))
 
     expect(await screen.findByRole('dialog', { name: fr.admin.tourEveningTitle })).toBeVisible()
+  })
+})
+
+describe('the reveal band on the console (spec 23)', () => {
+  const NOW = Date.now()
+  const heldEvent = (overrides: Partial<EventDto> = {}): EventDto =>
+    anEventDto({
+      settings: eventSettings({
+        reveal: { enabled: true, at: new Date(NOW + 3_600_000).toISOString(), film: true },
+      }),
+      reveal: {
+        enabled: true,
+        revealed: false,
+        atMs: NOW + 3_600_000,
+        serverNowMs: NOW,
+        film: true,
+        readyCount: 12,
+      },
+      ...overrides,
+    })
+
+  it('shows the band beside the challenge when the mode is on', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => heldEvent()) }))
+
+    expect(await screen.findByRole('heading', { name: fr.reveal.title })).toBeVisible()
+    expect(screen.getByRole('heading', { name: fr.challenge.title })).toBeVisible()
+    // The banner at the top and the section lower down: two buttons, one question.
+    expect(screen.getAllByRole('button', { name: fr.reveal.revealNow })).toHaveLength(2)
+  })
+
+  it('shows no band while the mode is off', async () => {
+    renderPage(fakeApi())
+
+    await screen.findByRole('heading', { name: fr.challenge.title })
+
+    expect(screen.queryByRole('heading', { name: fr.reveal.title })).toBeNull()
+  })
+
+  it('lets a moderator reveal but sends them to no settings page', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => heldEvent({ role: 'moderator' })) }))
+
+    expect(
+      within(await screen.findByTestId('reveal-banner')).getByRole('button', {
+        name: fr.reveal.revealNow,
+      }),
+    ).toBeVisible()
+    expect(screen.queryByRole('link', { name: fr.reveal.editTime })).toBeNull()
+  })
+
+  it('lets the owner move the hour from the band', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => heldEvent()) }))
+
+    expect(await screen.findByRole('link', { name: fr.reveal.editTime })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha/settings',
+    )
+  })
+
+  it('replaces the page’s event with the answer to "Révéler maintenant"', async () => {
+    const revealed = heldEvent({
+      reveal: {
+        enabled: true,
+        revealed: true,
+        atMs: NOW,
+        serverNowMs: NOW,
+        film: true,
+        readyCount: null,
+      },
+    })
+    const api = fakeApi({
+      getEvent: vi.fn(async () => heldEvent()),
+      revealEvent: vi.fn(async () => revealed),
+    })
+
+    renderPage(api)
+    const section = (await screen.findByRole('heading', { name: fr.reveal.title })).closest(
+      'section',
+    )
+    await userEvent.click(
+      within(section as HTMLElement).getByRole('button', { name: fr.reveal.revealNow }),
+    )
+    await userEvent.click(inDialog(fr.reveal.revealNow))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: fr.reveal.revealNow })).toBeNull(),
+    )
+    expect(api.revealEvent).toHaveBeenCalledTimes(1)
+    expect(api.getEvent).toHaveBeenCalledTimes(1)
+  })
+
+  describe('the banner at the top of the page (spec 23b, point 4)', () => {
+    const banner = () => screen.findByTestId('reveal-banner')
+
+    it('says the hour, the time left and how many photographs wait, above "Tout l’évènement"', async () => {
+      // Half a minute short of the hour, so the rounding up of a started minute lands on "1 h 00".
+      const soon = heldEvent({
+        reveal: {
+          enabled: true,
+          revealed: false,
+          atMs: NOW + 3_570_000,
+          serverNowMs: NOW,
+          film: true,
+          readyCount: 12,
+        },
+      })
+      renderPage(fakeApi({ getEvent: vi.fn(async () => soon) }))
+
+      const line = await banner()
+      expect(line).toHaveTextContent(fr.reveal.title)
+      expect(line).toHaveTextContent(fr.reveal.guestLeft(1, 0))
+      expect(line).toHaveTextContent(fr.reveal.bannerWaiting(12))
+      expect(
+        line.compareDocumentPosition(
+          screen.getByRole('heading', { name: fr.admin.overviewTitle }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+    })
+
+    it('says the reveal is at the button when no hour is set', async () => {
+      renderPage(
+        fakeApi({
+          getEvent: vi.fn(async () =>
+            heldEvent({
+              reveal: {
+                enabled: true,
+                revealed: false,
+                atMs: null,
+                serverNowMs: NOW,
+                film: true,
+                readyCount: 3,
+              },
+            }),
+          ),
+        }),
+      )
+
+      expect(await banner()).toHaveTextContent(fr.reveal.bannerManual)
+    })
+
+    it('reveals with the same confirmation and the same call as the section, from the banner', async () => {
+      const revealed = heldEvent({
+        reveal: {
+          enabled: true,
+          revealed: true,
+          atMs: NOW,
+          serverNowMs: NOW,
+          film: true,
+          readyCount: null,
+        },
+      })
+      const api = fakeApi({
+        getEvent: vi.fn(async () => heldEvent()),
+        revealEvent: vi.fn(async () => revealed),
+      })
+      renderPage(api)
+
+      await userEvent.click(
+        within(await banner()).getByRole('button', { name: fr.reveal.revealNow }),
+      )
+      expect(api.revealEvent).not.toHaveBeenCalled()
+      const dialog = within(screen.getByRole('dialog'))
+      expect(dialog.getByText(fr.reveal.confirmTitle)).toBeVisible()
+      expect(dialog.getByText(new RegExp(fr.reveal.definitive))).toBeVisible()
+      await userEvent.click(inDialog(fr.reveal.revealNow))
+
+      await waitFor(() => expect(screen.queryByTestId('reveal-banner')).toBeNull())
+      expect(api.revealEvent).toHaveBeenCalledTimes(1)
+      expect(api.getEvent).toHaveBeenCalledTimes(1)
+    })
+
+    it('is gone once the evening is revealed, and the section says when', async () => {
+      renderPage(
+        fakeApi({
+          getEvent: vi.fn(async () =>
+            heldEvent({
+              reveal: {
+                enabled: true,
+                revealed: true,
+                atMs: NOW - 60_000,
+                serverNowMs: NOW,
+                film: true,
+                readyCount: null,
+              },
+            }),
+          ),
+        }),
+      )
+
+      expect(await screen.findByRole('heading', { name: fr.reveal.title })).toBeVisible()
+      expect(screen.queryByTestId('reveal-banner')).toBeNull()
+    })
+
+    it('is not there on an evening without the mode', async () => {
+      renderPage(fakeApi())
+
+      await screen.findByRole('heading', { name: fr.challenge.title })
+
+      expect(screen.queryByTestId('reveal-banner')).toBeNull()
+    })
+  })
+})
+
+describe('the reveal band, at the hour and at the closing (spec 23)', () => {
+  const NOW = new Date('2026-06-20T21:00:00.000Z').getTime()
+  const held = (overrides: Partial<EventDto> = {}, inMs = 10_000): EventDto =>
+    anEventDto({
+      settings: eventSettings({
+        reveal: { enabled: true, at: new Date(NOW + inMs).toISOString(), film: true },
+      }),
+      reveal: {
+        enabled: true,
+        revealed: false,
+        atMs: NOW + inMs,
+        serverNowMs: NOW,
+        film: true,
+        readyCount: 12,
+      },
+      ...overrides,
+    })
+
+  it('re-reads the event at the hour without swapping the console for the loading page', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(NOW)
+    try {
+      const getEvent = vi.fn(async () => held())
+      getEvent.mockResolvedValueOnce(held())
+      const past = held({}, -1_000)
+      const revealedNow: EventDto = {
+        ...past,
+        ...(past.reveal === undefined
+          ? {}
+          : { reveal: { ...past.reveal, revealed: true, readyCount: null } }),
+      }
+      getEvent.mockResolvedValueOnce(revealedNow)
+      renderPage(fakeApi({ getEvent }))
+
+      const draft = await screen.findByLabelText(fr.announcement.text)
+      await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).type(draft, 'Le gâteau')
+
+      await act(async () => {
+        vi.advanceTimersByTime(15_000)
+      })
+
+      await waitFor(() => expect(getEvent).toHaveBeenCalledTimes(2))
+      // The panels never unmounted: the half-typed announcement is still there, and the page
+      // never said it was loading.
+      expect(screen.queryByText(fr.admin.eventLoading)).toBeNull()
+      expect(screen.getByLabelText(fr.announcement.text)).toHaveValue('Le gâteau')
+      expect(screen.getByLabelText(fr.announcement.text)).toBe(draft)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('asks before ending an evening whose photos were never revealed, and says why', async () => {
+    const setEventStatus = vi.fn(async () => held({ status: 'closed' }))
+    renderPage(fakeApi({ getEvent: vi.fn(async () => held({}, 3_600_000)), setEventStatus }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(setEventStatus).not.toHaveBeenCalled()
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(fr.reveal.closeHeld)).toBeVisible()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'closed')
+  })
+
+  it('ends a revealed or ordinary evening on one press, as before', async () => {
+    const setEventStatus = vi.fn(async () => anEventDto({ status: 'closed' }))
+    renderPage(fakeApi({ setEventStatus }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'closed')
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

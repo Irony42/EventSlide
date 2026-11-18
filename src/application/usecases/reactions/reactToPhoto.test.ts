@@ -279,4 +279,69 @@ describe('reactToPhoto', () => {
 
     expect(!result.ok && result.error.code).toBe('event.notFound')
   })
+
+  describe('the reveal gate (spec 23)', () => {
+    const waiting = (at: Date | null) =>
+      events.seed(anEvent({ id: 'event-1', settings: { reveal: { enabled: true, at } } }))
+
+    it('refuses a reaction before the reveal as a photograph that does not exist', async () => {
+      waiting(new Date(clock.now().getTime() + MINUTE))
+
+      const result = await react()
+
+      expect(!result.ok && result.error.code).toBe('photo.notFound')
+      expect(await reactions.findOne(EVENT, PHOTO, GUEST, 'love')).toBeNull()
+      expect(bus.published).toEqual([])
+    })
+
+    it('says nothing of the photograph’s status before the reveal', async () => {
+      waiting(null)
+      photos.seed(
+        aPhoto({
+          id: 'photo-2',
+          eventId: 'event-1',
+          status: 'pending',
+          author: { kind: 'guest', id: 'guest-2' },
+        }),
+      )
+
+      const result = await useCase()({
+        eventId: EVENT,
+        photoId: asPhotoId('photo-2'),
+        guestId: GUEST,
+        kind: 'love',
+      })
+
+      expect(!result.ok && result.error.code).toBe('photo.notFound')
+    })
+
+    it('accepts the reaction at the exact instant of the reveal', async () => {
+      waiting(clock.now())
+
+      const result = await react()
+
+      expect(result.ok).toBe(true)
+    })
+
+    it('still refuses a photograph that had no decision once the evening is revealed', async () => {
+      waiting(new Date(clock.now().getTime() - MINUTE))
+      photos.seed(
+        aPhoto({
+          id: 'photo-2',
+          eventId: 'event-1',
+          status: 'pending',
+          author: { kind: 'guest', id: 'guest-2' },
+        }),
+      )
+
+      const result = await useCase()({
+        eventId: EVENT,
+        photoId: asPhotoId('photo-2'),
+        guestId: GUEST,
+        kind: 'love',
+      })
+
+      expect(!result.ok && result.error.code).toBe('reaction.notPublished')
+    })
+  })
 })

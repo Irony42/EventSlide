@@ -1,5 +1,6 @@
 import type { Event } from '../../../domain/events/event'
 import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
+import { revealChangeViolation } from '../../../domain/events/eventRevealSettings'
 import { voiceSettingsViolation } from '../../../domain/events/eventGuestbookVoiceSettings'
 import { mergeWallSettings } from '../../../domain/events/eventWallSettings'
 import { DomainError } from '../../../domain/shared/errors'
@@ -59,6 +60,14 @@ const judge = (
   const settings = event.settings.with(withMixedAnchor(event, patch, nowMs))
   if (!settings.ok) return settings
 
+  // The reveal hour is judged here and not in the settings: it needs the clock (spec 23 rules 3
+  // and 4), and only when it changes, so the same form sent back whole passes.
+  const revealRefusal = revealChangeViolation(
+    event.settings.reveal,
+    settings.value.reveal,
+    new Date(nowMs),
+  )
+  if (revealRefusal !== null) return err(revealRefusal)
   // An opening time that has already passed is the secret lifted for good (spec 25, rule 10):
   // it cannot be moved into the future. It needs the clock and the stored value, so it is judged
   // here and not by the settings entity.

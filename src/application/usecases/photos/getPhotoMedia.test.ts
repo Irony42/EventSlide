@@ -6,7 +6,9 @@ import { asEventId, asGuestId, asPhotoId, asUserId } from '../../../domain/share
 import type { Result } from '../../../domain/shared/result'
 import { type ByteRange } from '../../ports/mediaStore'
 import { MEDIA_VARIANTS } from '../../../domain/photos/mediaVariant'
-import { aClip, aPhoto, type PhotoInput } from '../../testing/builders'
+import { aClip, anEvent, aPhoto, type PhotoInput } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
+import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import {
   makeGetPhotoMedia,
@@ -45,12 +47,19 @@ const bytesOf = async (result: Result<PhotoMedia, DomainError>): Promise<number>
 describe('getPhotoMedia', () => {
   let photos: FakePhotoRepository
   let media: InMemoryMediaStore
+  let events: FakeEventRepository
+  let clock: FakeClock
   let getPhotoMedia: GetPhotoMedia
 
   beforeEach(() => {
     photos = new FakePhotoRepository()
     media = new InMemoryMediaStore().forbidEnumeration('a media read')
-    getPhotoMedia = makeGetPhotoMedia({ photos, media })
+    events = new FakeEventRepository().seed(
+      anEvent({ id: 'event-1' }),
+      anEvent({ id: 'event-2', slug: 'other', joinCode: 'Z3N9PT' }),
+    )
+    clock = new FakeClock()
+    getPhotoMedia = makeGetPhotoMedia({ photos, media, events, clock })
   })
 
   /** A photo with all three files present, which is what ingest guarantees. */
@@ -326,7 +335,9 @@ describe('getPhotoMedia: byte ranges', () => {
   beforeEach(() => {
     photos = new FakePhotoRepository()
     media = new InMemoryMediaStore().forbidEnumeration('a media read')
-    getPhotoMedia = makeGetPhotoMedia({ photos, media })
+    const events = new FakeEventRepository().seed(anEvent({ id: 'event-1' }))
+    const clock = new FakeClock()
+    getPhotoMedia = makeGetPhotoMedia({ photos, media, events, clock })
   })
 
   const seedClip = async (): Promise<void> => {
