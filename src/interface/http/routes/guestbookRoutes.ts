@@ -42,8 +42,10 @@ import type { HttpUseCases } from '../useCases'
  * `requireGuest`, and it exists because the ceiling of three messages does not bound the abuse:
  * writing then taking back in a loop never holds more than three rows but announces a
  * `guestbook.changed` every turn, which makes every projector in the room re-read the wall, up to
- * 300 times a minute from one address. Writing and taking back spend **the same** budget (one
- * instance, built once here), and its value is a constant in code, not a setting.
+ * 300 times a minute from one address. Writing, taking back **and leaving a voice message**
+ * (`guestbookVoiceRoutes`) spend **the same** budget: one instance, **built once by `server.ts`**
+ * and handed to both routers, since a limiter built inside each would be two budgets under one
+ * constant. Its value is a constant in code, not a setting.
  *
  * There is no `deferToHostSurface` on the `DELETE`: the host has no `DELETE` on this path, so
  * there is no ambiguity about who is calling.
@@ -64,7 +66,14 @@ export interface GuestbookRouteDeps {
    * (HTTP-H-01). Optional only so a test can mount this router alone.
    */
   readonly guestWriteRateLimiter?: RequestHandler
-  /** The per-guest budget, overridable so a test can reach it in a few requests. */
+  /**
+   * The per-guest budget, **shared with `guestbookVoiceRoutes`** and built once by `server.ts`
+   * (spec 25): a guest who writes, records and takes back is one guest. When absent, one is built
+   * here from {@link GuestbookRouteDeps.writesPerGuestPerMinute}, which is what a test that mounts
+   * this router alone gets, as it always did.
+   */
+  readonly guestbookGuestRateLimiter?: RequestHandler
+  /** The per-guest budget a router built on its own uses, overridable so a test can reach it in a few requests. */
   readonly writesPerGuestPerMinute?: number
 }
 
@@ -73,11 +82,12 @@ export const guestbookRoutes = ({
   usecases,
   guestWriteRateLimiter = guestWriteLimiter(deps.config.rateLimits.guestWritePerMinute),
   writesPerGuestPerMinute = GUESTBOOK_WRITES_PER_GUEST_PER_MINUTE,
+  guestbookGuestRateLimiter = guestbookGuestLimiter(writesPerGuestPerMinute),
 }: GuestbookRouteDeps): Router => {
   const router = Router()
 
-  /** One instance for the two writes: a guest who writes and removes is one guest. */
-  const guestWrites = guestbookGuestLimiter(writesPerGuestPerMinute)
+  /** One instance for the writes: a guest who writes and removes is one guest. */
+  const guestWrites = guestbookGuestRateLimiter
 
   /**
    * `POST /events/:eventSlug/guestbook` - a message.
@@ -129,6 +139,7 @@ export const guestbookRoutes = ({
           items: mine.items.map((item) => toGuestbookEntryDto(item.entry, item.canDelete)),
           accepting: mine.accepting,
           onWall: mine.onWall,
+          voiceAvailable: mine.voiceAvailable,
         }
         sendJson(response, dto)
       })
@@ -184,6 +195,10 @@ export const guestbookRoutes = ({
         const dto: GuestbookQueueDto = {
           items: view.items.map((row) => toGuestbookQueueItemDto(row.entry, row.authorName)),
           pendingCount: view.pendingCount,
+          voiceProcessing: view.voice.processing,
+          voiceSealed: view.voice.sealed,
+          voiceOpensAtMs: view.voice.opensAtMs,
+          serverNowMs: view.voice.nowMs,
         }
         sendJson(response, dto)
       })

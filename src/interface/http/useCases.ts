@@ -115,9 +115,13 @@ import type { GetWallPlaylist } from '../../application/usecases/slideshow/getWa
 
 import type { CreateGuestbookEntry } from '../../application/usecases/guestbook/createGuestbookEntry'
 import type { DeleteGuestbookEntry } from '../../application/usecases/guestbook/deleteGuestbookEntry'
+import type { GetGuestbookVoiceMedia } from '../../application/usecases/guestbook/getGuestbookVoiceMedia'
+import type { KeepPendingGuestbookVoices } from '../../application/usecases/guestbook/keepPendingGuestbookVoices'
 import type { ListGuestbookQueue } from '../../application/usecases/guestbook/listGuestbookQueue'
 import type { ListMyGuestbookEntries } from '../../application/usecases/guestbook/listMyGuestbookEntries'
 import type { ModerateGuestbookEntry } from '../../application/usecases/guestbook/moderateGuestbookEntry'
+import type { OpenGuestbookVoice } from '../../application/usecases/guestbook/openGuestbookVoice'
+import type { StageGuestbookVoice } from '../../application/usecases/guestbook/stageGuestbookVoice'
 import type { CreateAnnouncement } from '../../application/usecases/announcements/createAnnouncement'
 import type { DeleteAnnouncement } from '../../application/usecases/announcements/deleteAnnouncement'
 import type { LaunchAnnouncement } from '../../application/usecases/announcements/launchAnnouncement'
@@ -303,6 +307,11 @@ export interface HttpUseCases {
   readonly deleteGuestbookEntry: DeleteGuestbookEntry
   readonly listGuestbookQueue: ListGuestbookQueue
   readonly moderateGuestbookEntry: ModerateGuestbookEntry
+  // voice messages of the guestbook (spec 25)
+  readonly stageGuestbookVoice: StageGuestbookVoice
+  readonly getGuestbookVoiceMedia: GetGuestbookVoiceMedia
+  readonly openGuestbookVoice: OpenGuestbookVoice
+  readonly keepPendingGuestbookVoices: KeepPendingGuestbookVoices
   // missions
   readonly listMissions: ListMissions
   readonly createMission: CreateMission

@@ -6,6 +6,7 @@ import {
   toEventDto,
   toEventBrandDto,
   toCreatedGuestbookEntryDto,
+  toCreatedGuestbookVoiceDto,
   toEventSettingsDto,
   toGuestbookEntryDto,
   toGuestbookQueueItemDto,
@@ -824,8 +825,11 @@ describe('the guestbook DTOs and a voice message (spec 25)', () => {
       status: 'pending',
       createdAt: AT.toISOString(),
       canDelete: true,
+      voice: null,
     })
     expect(toGuestbookQueueItemDto(written, 'Léa').text).toBe('Merci pour tout')
+    expect(toGuestbookQueueItemDto(written, 'Léa').voice).toBeNull()
+    expect(toCreatedGuestbookEntryDto(written, false).voice).toBeNull()
     expect(toCreatedGuestbookEntryDto(written, false).text).toBe('Merci pour tout')
   })
 
@@ -835,15 +839,46 @@ describe('the guestbook DTOs and a voice message (spec 25)', () => {
     expect(toCreatedGuestbookEntryDto(voice, true).text).toBeNull()
   })
 
-  it('never leaks the caption, the digests or the recording into a field that is not declared', () => {
+  it('carries the state, the measured duration and the caption in the declared voice field, and nowhere else', () => {
+    const mine = toGuestbookEntryDto(voice, false)
+    const queued = toGuestbookQueueItemDto(voice, 'Léa')
+
+    expect(mine.voice).toEqual({ state: 'ready', durationMs: 12_000, caption: 'Pour Camille' })
+    expect(queued.voice).toEqual({
+      state: 'ready',
+      durationMs: 12_000,
+      bytes: 240_000,
+      caption: 'Pour Camille',
+    })
+    expect(toCreatedGuestbookEntryDto(voice, false).voice).toEqual(mine.voice)
+    expect(JSON.stringify({ ...mine, voice: null })).not.toContain('Pour Camille')
+  })
+
+  it('never leaks a digest, a path or the file into the wire, whatever the audience', () => {
     const wire = JSON.stringify([
       toGuestbookEntryDto(voice, false),
       toGuestbookQueueItemDto(voice, 'Léa'),
       toCreatedGuestbookEntryDto(voice, false),
+      toCreatedGuestbookVoiceDto(voice, false),
     ])
 
-    expect(wire).not.toContain('Pour Camille')
     expect(wire).not.toContain(voice.voice?.sourceHash.value ?? 'x')
+    expect(wire).not.toContain(voice.voice?.audioHash?.value ?? 'x')
+    expect(wire).not.toContain('Hash')
     expect(wire).not.toContain('audio')
+  })
+
+  it('wraps what a voice upload answers in an entry, the duplicate flag inside it', () => {
+    expect(toCreatedGuestbookVoiceDto(voice, true)).toEqual({
+      entry: toCreatedGuestbookEntryDto(voice, true),
+    })
+    expect(toCreatedGuestbookVoiceDto(voice, true).entry.duplicate).toBe(true)
+  })
+
+  it('offers a voice every decision but hide, and a written message the status machine’s', () => {
+    expect(toGuestbookQueueItemDto(voice, 'Léa').allowedDecisions).toEqual(['publish', 'reject'])
+    expect(toGuestbookQueueItemDto(written, 'Léa').allowedDecisions).toEqual(['publish', 'reject'])
+    const published = aVoiceEntry({ id: 'v2', state: 'ready', moderation: 'auto' })
+    expect(toGuestbookQueueItemDto(published, 'Léa').allowedDecisions).toEqual(['reject'])
   })
 })

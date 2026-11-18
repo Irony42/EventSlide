@@ -694,6 +694,12 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // sends it is not built, and `GuestSession` stores no guest id to put in the path yet.
   renameGuestBody:
     'PATCH /api/events/:eventSlug/guests/:guestId: the rename screen is not built yet',
+  // `POST /api/events/:slug/guestbook/voice` (spec 25) is a multipart upload whose one text part is
+  // the caption. Held at ring 4 (`guestbookVoiceRoutes.test.ts`: a part that is not the caption is
+  // a 400); the recorder that sends it is the phone's, a later pull request of the same spec, and
+  // its entry leaves this list the day `web/src` calls it.
+  voiceUploadFields:
+    'POST /api/events/:eventSlug/guestbook/voice: the recorder that sends it is not built yet',
   // `POST /api/invitations/:token/accept` has a client method (G2-10, `acceptInvitation`), but its
   // body is a **union** of two strict shapes — `{}` from a signed-in account, `{ displayName,
   // password }` from a person choosing how to sign in — and this pairing reads object schemas

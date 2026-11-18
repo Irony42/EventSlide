@@ -29,6 +29,7 @@ const anEntry = (overrides: Partial<GuestbookEntryDto> = {}): GuestbookEntryDto 
   status: 'pending',
   createdAt: '2026-06-20T21:04:11.031Z',
   canDelete: true,
+  voice: null,
   ...overrides,
 })
 
@@ -36,7 +37,13 @@ const mineWith = (
   items: readonly GuestbookEntryDto[] = [],
   overrides: Partial<MyGuestbookDto> = {},
 ): Partial<Api> => ({
-  myGuestbook: vi.fn(async () => ({ items, accepting: true, onWall: true, ...overrides })),
+  myGuestbook: vi.fn(async () => ({
+    items,
+    accepting: true,
+    onWall: true,
+    voiceAvailable: false,
+    ...overrides,
+  })),
 })
 
 const havingJoined = (
@@ -104,6 +111,7 @@ describe('GuestUploadPage, the guestbook', () => {
         status: 'published' as const,
         createdAt: '2026-06-20T21:04:11.031Z',
         duplicate: false,
+        voice: null,
       })),
     })
     renderUpload(api)

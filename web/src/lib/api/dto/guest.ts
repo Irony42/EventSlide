@@ -130,6 +130,16 @@ export interface ErasedContributionDto {
   /** Guestbook messages removed with them; absent from an older server. */
   readonly messages?: number
 }
+/**
+ * The recording behind a voice message as its author reads it (spec 25): where its processing
+ * stands and how long it is, measured on the server's output (`null` until `ready`).
+ */
+export interface GuestbookVoiceDto {
+  readonly state: 'reserved' | 'queued' | 'running' | 'ready' | 'failed'
+  readonly durationMs: number | null
+  /** The optional line the guest wrote with it (140 characters): content, never interface. */
+  readonly caption: string | null
+}
 /** One of the guest's own guestbook messages (spec 01). */
 export interface GuestbookEntryDto {
   readonly id: string
@@ -139,6 +149,8 @@ export interface GuestbookEntryDto {
   readonly createdAt: string
   /** The server's verdict: the phone never recomputes it. */
   readonly canDelete: boolean
+  /** The recording of a voice message, `null` for a written one (spec 25). */
+  readonly voice: GuestbookVoiceDto | null
 }
 export interface MyGuestbookDto {
   readonly items: readonly GuestbookEntryDto[]
@@ -146,6 +158,8 @@ export interface MyGuestbookDto {
   readonly accepting: boolean
   /** Whether published messages appear on the wall: said to their authors in the status. */
   readonly onWall: boolean
+  /** Whether a voice message would be taken now: the button is shown on this and on nothing else. */
+  readonly voiceAvailable: boolean
 }
 /** What a message just written answers. */
 export interface CreatedGuestbookEntryDto {
@@ -156,6 +170,12 @@ export interface CreatedGuestbookEntryDto {
   readonly createdAt: string
   /** True when this was the same message sent a moment ago: nothing new was stored. */
   readonly duplicate: boolean
+  /** The recording of a voice message, `null` for a written one (spec 25). */
+  readonly voice: GuestbookVoiceDto | null
+}
+/** What a voice message just sent answers, `202`: the recording is queued, nothing is heard yet. */
+export interface CreatedGuestbookVoiceDto {
+  readonly entry: CreatedGuestbookEntryDto
 }
 export interface GuestPhotoDto {
   readonly id: string

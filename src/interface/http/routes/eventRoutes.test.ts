@@ -377,6 +377,10 @@ const buildWorld = ({
         deleteGuestbookEntry: absent('deleteGuestbookEntry'),
         listGuestbookQueue: absent('listGuestbookQueue'),
         moderateGuestbookEntry: absent('moderateGuestbookEntry'),
+        stageGuestbookVoice: absent('stageGuestbookVoice'),
+        getGuestbookVoiceMedia: absent('getGuestbookVoiceMedia'),
+        openGuestbookVoice: absent('openGuestbookVoice'),
+        keepPendingGuestbookVoices: absent('keepPendingGuestbookVoices'),
 
         createShareLink: absent('createShareLink'),
         getShareLink: absent('getShareLink'),

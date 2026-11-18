@@ -14,6 +14,7 @@ import { fr } from '../../lib/i18n/fr'
 import type { Api } from '../../lib/api/client'
 import type { EventDto, GuestbookQueueItemDto } from '../../lib/api/dto'
 import { FakeEventSource } from '../../testing/fakeEventSource'
+import { QUIET_VOICE_BOOK } from '../../testing/guestbookVoiceFixtures'
 
 /** The messages tab of the console (spec 15), from the host's side of the laptop. */
 const emitSignal = (type: string): void => {
@@ -32,6 +33,7 @@ const aMessage = (overrides: Partial<GuestbookQueueItemDto> = {}): GuestbookQueu
   status: 'pending',
   createdAt: CREATED,
   allowedDecisions: ['publish', 'reject'],
+  voice: null,
   ...overrides,
 })
 
@@ -50,6 +52,7 @@ const apiWith = (
     guestbookQueue: vi.fn(async (_slug, _signal, query) => ({
       items: query?.status === 'pending' ? items.filter((m) => m.status === 'pending') : items,
       pendingCount: items.filter((m) => m.status === 'pending').length,
+      ...QUIET_VOICE_BOOK,
     })),
     ...overrides,
   })

@@ -7,9 +7,10 @@ import { fakeApi } from '../../../testing/renderWithProviders'
 import { FakeEventSource } from '../../../testing/fakeEventSource'
 import { useGuestbookQueue } from './useGuestbookQueue'
 import type { Api } from '../../../lib/api/client'
+import { QUIET_VOICE_BOOK } from '../../../testing/guestbookVoiceFixtures'
 
 const SLUG = 'camille-et-sacha'
-const empty: GuestbookQueueDto = { items: [], pendingCount: 0 }
+const empty: GuestbookQueueDto = { items: [], pendingCount: 0, ...QUIET_VOICE_BOOK }
 
 const mount = (api: Api) =>
   renderHook(() => useGuestbookQueue(SLUG), {

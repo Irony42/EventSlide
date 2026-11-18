@@ -385,6 +385,69 @@ describe('streamRoutes', () => {
       expect(wall.frames.join('')).not.toContain('export.changed')
     })
 
+    // Spec 25: a voice message reaches no screen. The wall re-reads its playlist on **every** public
+    // signal, so a voice that arrived, became ready or failed would make every room read for a sound it
+    // never plays: the server takes the two facts off the public channel, the wall does not "ignore"
+    // them. Each case below sends a photo signal last and waits for it, so "nothing arrived" is
+    // read after the point where it would have.
+    describe('the voice messages of the guestbook (spec 25)', () => {
+      const voiceFacts: readonly (readonly [string, DomainEvent])[] = [
+        [
+          'a voice that arrives (voice.queued)',
+          { type: 'voice.queued', eventId: asEventId(WEDDING) },
+        ],
+        [
+          'a voice that becomes ready or fails (guestbook.voice)',
+          { type: 'guestbook.voice', eventId: asEventId(WEDDING) },
+        ],
+      ]
+
+      it.each(voiceFacts)(
+        'never reaches a listener of the public wall channel, live: %s',
+        async (_name, fact) => {
+          const wall = await open('/api/events/mariage/stream')
+          await wall.waitFor((text) => text.includes(': connected'), 'connection')
+
+          subject.deps.bus.publish(fact)
+          subject.deps.bus.publish(photoPublished(WEDDING))
+          await wall.waitFor((text) => text.includes('photo.moderated'), 'the signal after it')
+
+          expect(wall.frames.join('')).not.toContain(fact.type)
+        },
+      )
+
+      it.each(voiceFacts)(
+        'is not replayed to a public listener that reconnects: %s',
+        async (_name, fact) => {
+          const cookie = await consoleCookie()
+          const host = await open('/api/events/mariage/moderation/stream', { cookie })
+          await host.waitFor((text) => text.includes(': connected'), 'the console')
+
+          subject.deps.bus.publish(fact)
+          subject.deps.bus.publish(photoPublished(WEDDING))
+          await host.waitFor((text) => text.includes('id: 2'), 'both signals on the console')
+
+          const wall = await open('/api/events/mariage/stream', { 'last-event-id': '0' })
+          await wall.waitFor((text) => text.includes('photo.moderated'), 'the replay')
+
+          expect(wall.frames.join('')).not.toContain(fact.type)
+        },
+      )
+
+      it.each(voiceFacts)(
+        'reaches the moderation channel, which is what the console re-reads on: %s',
+        async (_name, fact) => {
+          const cookie = await consoleCookie()
+          const host = await open('/api/events/mariage/moderation/stream', { cookie })
+          await host.waitFor((text) => text.includes(': connected'), 'the console')
+
+          subject.deps.bus.publish(fact)
+
+          await host.waitFor((text) => text.includes(`"type":"${fact.type}"`), 'the voice signal')
+        },
+      )
+    })
+
     // Spec 15: the console's guestbook tab lives on this signal. It is not private (the wall
     // reads it too), so it reaches both channels.
     it('delivers guestbook.changed to the moderation channel and to the wall', async () => {
