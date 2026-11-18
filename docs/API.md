@@ -455,19 +455,21 @@ was. **404** `client.notFound`. `resume` refuses a client whose engagement has e
 
 What a suspended client is told, per surface (docs/SECURITY.md §22):
 
-| Surface                                                                                                               | Answer                                                                                                                                        |
-| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| join by code, guest upload, guest photographs, missions, privacy notice                                               | the answer an event that does not exist gets (`404`), whatever the event's status                                                             |
-| the wall, its playlist and its live feed; a published photograph by slug; a gallery link and its media                | the same `404` as an unknown event or a dead link                                                                                             |
-| an open live feed                                                                                                     | closed at the next heartbeat, told to retry in 60 s, and answered with the `404` when it does                                                 |
-| a member of the client, on any event route                                                                            | **reads** its account and its event as before; every **write** is `403 client.suspended`                                                      |
-| a member reading **photographs**: the grid, the moderation queue, the album download, the top photos, the media route | `403 client.suspended` (since 3.3: they used to read); **the album download alone stays open while the client is being offboarded** (spec 22) |
-| a member's moderation feed                                                                                            | stays open (it carries signals, never content), and only an event that is gone ends it                                                        |
-| a malformed photograph id or variant on the media route                                                               | the same `404`, answered before the ids are judged                                                                                            |
-| an invitation into the client, or a moderator invitation to one of its events                                         | `404 invitation.notFound`, to preview and to accept, until the client is resumed                                                              |
-| a member creating an event, or attaching one to the client                                                            | `403 client.suspended`, under either `EVENT_CREATION` policy                                                                                  |
-| an owner approving an operator's invitation or reset request                                                          | `403 client.suspended`; a stranger is still told `404`                                                                                        |
-| `GET /api/me/limits`                                                                                                  | `suspended: true`, so the screen can say so                                                                                                   |
+| Surface                                                                                                               | Answer                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| join by code, guest upload, guest photographs, missions, privacy notice                                               | the answer an event that does not exist gets (`404`), whatever the event's status                                                              |
+| the wall, its playlist and its live feed; a published photograph by slug; a gallery link and its media                | the same `404` as an unknown event or a dead link                                                                                              |
+| an open live feed                                                                                                     | closed at the next heartbeat, told to retry in 60 s, and answered with the `404` when it does                                                  |
+| a member of the client, on any event route                                                                            | **reads** its account and its event as before; every **write** is `403 client.suspended`                                                       |
+| a member reading **photographs**: the grid, the moderation queue, the album download, the top photos, the media route | `403 client.suspended` (since 3.3: they used to read); **the album download alone stays open while the client is being offboarded** (spec 22)  |
+| the voice messages of the guestbook (spec 25), a guest: `POST …/guestbook/voice`, `GET …/guestbook/mine`              | the `404 event.notFound` an unknown event gets; an event the operator took down answers the same                                               |
+| the voice messages, a member: listening, the book's reading, `…/voice/open`, `…/voice/keep-pending`                   | `403 client.suspended` (all four, reads included, as for photographs); an event the operator took down is `404 event.notFound` to a member too |
+| a member's moderation feed                                                                                            | stays open (it carries signals, never content), and only an event that is gone ends it                                                         |
+| a malformed photograph id or variant on the media route                                                               | the same `404`, answered before the ids are judged                                                                                             |
+| an invitation into the client, or a moderator invitation to one of its events                                         | `404 invitation.notFound`, to preview and to accept, until the client is resumed                                                               |
+| a member creating an event, or attaching one to the client                                                            | `403 client.suspended`, under either `EVENT_CREATION` policy                                                                                   |
+| an owner approving an operator's invitation or reset request                                                          | `403 client.suspended`; a stranger is still told `404`                                                                                         |
+| `GET /api/me/limits`                                                                                                  | `suspended: true`, so the screen can say so                                                                                                    |
 
 #### The operator's "remove without viewing" routes (launch review S5, G8-03)
 
@@ -675,32 +677,33 @@ use-case refusals (`invitation.tooManyForAddress`, `reset.tooManyForAddress`,
 `reaction.rateLimited`), because a client that cannot read response headers can read the body; the
 other limiters' bodies carry the header only.
 
-| Endpoint                                                           | Default       | Bucket                     | Code                                |
-| ------------------------------------------------------------------ | ------------- | -------------------------- | ----------------------------------- |
-| `POST /api/join`                                                   | 200           | client IP                  | `rate.limited`                      |
-| `GET /api/join/:code`                                              | 200           | client IP, same as join    | `rate.limited`                      |
-| `POST /api/auth/login` †                                           | 10            | client IP                  | `rate.limited`                      |
-| `POST /api/auth/password-reset/request` †                          | 10            | client IP, own bucket      | `rate.limited`                      |
-| `POST /api/auth/password-reset/confirm`                            | 10            | client IP, own bucket      | `rate.limited`                      |
-| `GET /api/invitations/:token`, `POST …/accept`                     | 10            | client IP, own bucket each | `rate.limited`                      |
-| `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm` | 10            | client IP, own bucket each | `rate.limited`                      |
-| `POST /api/auth/password`, `POST /api/auth/account/delete`         | 10            | client IP, own bucket each | `rate.limited`                      |
-| the same four, and those two ◊                                     | 10 / 15 min   | **account**, failures only | `auth.tooManySecondFactorAttempts`  |
-| `POST /api/events` (create)                                        | 20 / **hour** | account                    | `event.creationRateLimited`         |
-| `POST /api/events/:slug/moderators` (invite)                       | 30 / **hour** | account                    | `rate.limited`                      |
-| `POST`, `PATCH`, `DELETE …/announcements…` (spec 21) ♯             | 60            | account, fixed             | `rate.limited`                      |
-| `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §       | 300           | client IP **and** event    | `rate.limited`                      |
-| the same two, photos and clips together §                          | 12            | **guest** and event        | `rate.limited`                      |
-| `POST /api/events/:slug/photos/:id/reactions` (flood ceiling) §    | 600           | client IP **and** event    | `reaction.rateLimited`              |
-| the same reaction §                                                | 30            | **guest** and event        | `reaction.rateLimited`              |
-| the five other guest writes ‡                                      | 300           | client IP **and** event    | `rate.limited`                      |
-| `POST …/guestbook` and `DELETE …/guestbook/:id` ¶                  | 6             | **guest** and event, fixed | `rate.limited`                      |
-| `GET …/photos/:id/save` (flood ceiling) ☆                          | 600, fixed    | client IP **and** event    | `rate.limited`                      |
-| the same save ☆                                                    | 40, fixed     | **guest** and event        | `rate.limited`                      |
-| the same save, open at once ☆                                      | 2 / 64        | **guest** / the box        | `rate.limited` / `service.notReady` |
-| `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                  | `rate.limited`                      |
-| `GET /api/gallery-media/…`                                         | 3000          | client IP                  | `rate.limited`                      |
-| `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min      | `gallery.tooManyAttempts`           |
+| Endpoint                                                           | Default       | Bucket                           | Code                                |
+| ------------------------------------------------------------------ | ------------- | -------------------------------- | ----------------------------------- |
+| `POST /api/join`                                                   | 200           | client IP                        | `rate.limited`                      |
+| `GET /api/join/:code`                                              | 200           | client IP, same as join          | `rate.limited`                      |
+| `POST /api/auth/login` †                                           | 10            | client IP                        | `rate.limited`                      |
+| `POST /api/auth/password-reset/request` †                          | 10            | client IP, own bucket            | `rate.limited`                      |
+| `POST /api/auth/password-reset/confirm`                            | 10            | client IP, own bucket            | `rate.limited`                      |
+| `GET /api/invitations/:token`, `POST …/accept`                     | 10            | client IP, own bucket each       | `rate.limited`                      |
+| `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm` | 10            | client IP, own bucket each       | `rate.limited`                      |
+| `POST /api/auth/password`, `POST /api/auth/account/delete`         | 10            | client IP, own bucket each       | `rate.limited`                      |
+| the same four, and those two ◊                                     | 10 / 15 min   | **account**, failures only       | `auth.tooManySecondFactorAttempts`  |
+| `POST /api/events` (create)                                        | 20 / **hour** | account                          | `event.creationRateLimited`         |
+| `POST /api/events/:slug/moderators` (invite)                       | 30 / **hour** | account                          | `rate.limited`                      |
+| `POST`, `PATCH`, `DELETE …/announcements…` (spec 21) ♯             | 60            | account, fixed                   | `rate.limited`                      |
+| `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §       | 300           | client IP **and** event          | `rate.limited`                      |
+| the same two, photos and clips together §                          | 12            | **guest** and event              | `rate.limited`                      |
+| `POST /api/events/:slug/photos/:id/reactions` (flood ceiling) §    | 600           | client IP **and** event          | `reaction.rateLimited`              |
+| the same reaction §                                                | 30            | **guest** and event              | `reaction.rateLimited`              |
+| the five other guest writes ‡                                      | 300           | client IP **and** event          | `rate.limited`                      |
+| `POST …/guestbook` and `DELETE …/guestbook/:id` ¶                  | 6             | **guest** and event, fixed       | `rate.limited`                      |
+| `POST …/guestbook/voice` (the upload bucket of §, then ¶)          | 300, 12, 6    | IP + event, **guest**, **guest** | `rate.limited`                      |
+| `GET …/photos/:id/save` (flood ceiling) ☆                          | 600, fixed    | client IP **and** event          | `rate.limited`                      |
+| the same save ☆                                                    | 40, fixed     | **guest** and event              | `rate.limited`                      |
+| the same save, open at once ☆                                      | 2 / 64        | **guest** / the box              | `rate.limited` / `service.notReady` |
+| `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                        | `rate.limited`                      |
+| `GET /api/gallery-media/…`                                         | 3000          | client IP                        | `rate.limited`                      |
+| `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min            | `gallery.tooManyAttempts`           |
 
 ◊ One budget for all six doors (a guess at one is spent at the others). On `POST /api/auth/password` a failure is **only** `401 auth.invalidCredentials`, the wrong current password: a `400` (a new password the policy refuses, `password.unchanged`, a malformed body) spends nothing, so a person who is learning the policy, an invited moderator who must choose a password included, cannot lock themselves out. The other five doors count every answer of 400 or more.
 
@@ -715,6 +718,8 @@ the two variables counted per client address and event.
 ♯ **Announcements** (spec 21). The four writes of the host (`POST …/announcements`, `PATCH`, `POST …/launch`, `DELETE`) share one budget of **60 a minute per account**, a constant in the code and not a setting (the feature adds no environment variable). The event's own ceiling is fifty rows; this one only stops a loop from making every open wall read again.
 
 ¶ **Guestbook, two stages** (spec 01). Both routes first spend the guest-write bucket of ‡ (client address and event, before the token is verified), then a second budget of **6 a minute per guest** that writing and taking back share. That number is a constant in the code, not a setting: the ceiling of three messages per guest does not bound the abuse by itself, because writing then removing in a loop never holds more than three rows yet announces a `guestbook.changed` each turn, and every open wall re-reads on it.
+
+**A voice message spends the same budget** (spec 25): `POST …/guestbook/voice` is a file upload, so its first stage is the **upload** bucket of § (the address-and-event flood ceiling shared with photographs and clips, **not** the guest-write bucket of ‡), then the per-guest **upload** budget of §, then this **same per-guest budget of 6** that `POST …/guestbook` and `DELETE …/guestbook/:id` spend: a guest who writes a word, leaves a voice and takes one back is one guest with one budget, so the one instance is built once by the server and handed to both routers.
 
 ☆ **Saving a photograph from the feed** (spec 24). Three bounds, **constants in the code and not settings** (the feature adds no environment variable), and **starting values that were not measured on a real box**: a flood ceiling of 600 a minute per client address and event, checked before the device token is verified (a venue is one address); 40 a minute per **guest**, checked right after it; and the number of saves **open at once**, counted **per guest, never per address** (two) with a ceiling for the box (64). A whole room shares the venue's address, so a ceiling per address would refuse most of two hundred guests at the end of the evening. The counters are the route's own, apart from the shared gallery's ZIP and the host's exports. The concurrency refusals carry `Retry-After: 30`: `429 rate.limited` for a guest over their two, `503 service.notReady` when the box is full. A client must **not** retry on its own.
 
@@ -1820,13 +1825,17 @@ The guest's own messages, newest first, at most three, every status but what the
       "text": "Merci pour cette belle soirée !",
       "status": "pending",
       "createdAt": "2026-06-20T21:00:00.000Z",
-      "canDelete": true
+      "canDelete": true,
+      "voice": null
     }
   ],
   "accepting": true,
-  "onWall": true
+  "onWall": true,
+  "voiceAvailable": false
 }
 ```
+
+**A voice message** (spec 25) is a row of the same list, **in any state, a failed one included** (this is where its author learns the recording did not save), with `text: null` and `"voice": { "state": "queued", "durationMs": null, "caption": null }`: `state` is `reserved`, `queued`, `running`, `ready` or `failed`, `durationMs` is the duration **measured on the server's output** (`null` until `ready`: nothing the phone sent is believed) and `caption` is the optional line the guest wrote (140 characters, content). Never a digest, a path or a size. `voiceAvailable` is the rule the voice route applies before it reads a byte: `accepting`, the host's voice switch **and** an audio encoder on this box, so the phone offers the button only when it would work. A voice's `canDelete` follows its own rule (spec 25, rule 1 bis): the host's veto, then the grace window **whatever the status**, and a `failed` one without condition.
 
 `canDelete` is the server's verdict (`GuestbookEntry.deletionVerdict`) and the phone never recomputes it: it is
 the photograph's rule, not one of its own — the host's `allowGuestSelfDelete` switch, then the author, inside
@@ -1860,11 +1869,13 @@ The host's reading of the guestbook. **Any moderator** of the event (a moderator
 anonymous caller are refused like every moderator route). Query: `limit` (default 500, at most 500). Not paged: a
 book holds 500 messages at most.
 
-**200** — `{ "items": [...], "pendingCount": 2 }`. Items are ordered **pending first**, then newest first; each is
-`{ id, text, authorName, status, createdAt, allowedDecisions }`. `authorName` is `null` when the guest gave none or
+**200** — `{ "items": [...], "pendingCount": 2, "voiceProcessing": 0, "voiceSealed": false, "voiceOpensAtMs": null, "serverNowMs": 1782000000000 }`. Items are ordered **pending first**, then newest first; each is
+`{ id, text, authorName, status, createdAt, allowedDecisions, voice }`. `authorName` is `null` when the guest gave none or
 their row is gone. `allowedDecisions` is the status machine's answer for this message (`publish`, `hide`,
 `reject`): the panel offers those buttons and works out nothing. `pendingCount` is the whole book's, not the page's.
 A message the operator took down is not listed. `Cache-Control: no-store`.
+
+**Voice messages** (spec 25). A voice is listed **only once `ready`**, with `text: null` and `"voice": { "state": "ready", "durationMs": 23000, "bytes": 187000, "caption": null }`; its `allowedDecisions` never holds `hide` (a voice is never on a screen, so hiding it would change nothing visible and keep it in the album). The ones still being processed are **left out of `items` and of `pendingCount`** (there is nothing to listen to or decide yet) and counted in `voiceProcessing`. `voiceSealed` says the secret is on (the console shows no player), `voiceOpensAtMs` the instant the host set it to lift (or `null`: when the event ends) and `serverNowMs` the server's clock, so a countdown never trusts the console's. `voice` is `null` on a written message.
 
 ### `PATCH /api/events/:slug/guestbook/:entryId/status`
 
@@ -1872,8 +1883,44 @@ Decide on a message. Any moderator. Body `{ "decision": "publish" | "hide" | "re
 and the photograph's transitions.
 
 **204**. **Errors** — `404 guestbook.notFound` (another event's id included); the status machine's conflict for a
-move it does not allow; `409 event.notModeratable` (an archived event); `400 request.invalid`. One
-`guestbook.changed` signal on success.
+move it does not allow; `409 event.notModeratable` (an archived event); `400 request.invalid`; and, for a voice message, `409 guestbook.voiceCannotHide` (`hide`) and `409 guestbook.voiceNotReady` (a recording still being processed, or that failed: nothing to decide yet). One `guestbook.changed` signal on success, or `guestbook.voice` for a voice message (the console hears it, the wall does not).
+
+### `POST /api/events/:slug/guestbook/voice`
+
+A guest leaves a **voice message** (spec 25): a line of the guestbook that carries a recording, with the same ceilings (**3 per guest**, 500 per event, counted with the written messages), the same moderation and the same window as a written one, plus **200 voice messages per event**. `multipart/form-data`: the file in the field `voice` (one file, at most `MAX_VOICE_BYTES`, 4 MB) and, optionally, `caption` (140 characters). **Any other part is `400 request.invalid`**: nothing a phone says about its recording (a duration, a size, a name, a type) is believed. The recording is identified by its **bytes** (`voice.unsupportedFormat` for anything that is not WebM, MP4 or Ogg audio, **whatever type the client claims**), re-encoded by the server and only then heard; the author is the `es_guest` token. The route is behind the **upload** bucket of §1 and spends the guestbook's per-guest budget (¶).
+
+**202** — nothing exists yet that a moderator could act on: the recording is `queued`.
+
+```json
+{
+  "entry": {
+    "id": "…",
+    "text": null,
+    "status": "pending",
+    "createdAt": "2026-06-20T21:00:00.000Z",
+    "duplicate": false,
+    "voice": { "state": "queued", "durationMs": null, "caption": null }
+  }
+}
+```
+
+`duplicate: true` answers the same bytes sent again (a retry after a dropped upload): that entry, no new row, no new signal. The guest follows it through `GET …/guestbook/mine`. `Cache-Control: no-store`.
+
+**Errors** — `400 upload.noFiles`; `400 upload.unexpectedField` (a file under another field); `400 request.invalid`; `400 voice.unsupportedFormat`, `voice.notAudio`, `voice.corrupt`, `voice.tooLong`, `voice.tooShort`; `400 caption.*`; `409 guestbook.disabled`; `409 guestbook.voiceDisabled`; `409 event.notAcceptingUploads`; `409 guestbook.limitReached` (`details.max` 3); `409 guestbook.eventFull` (500); `409 guestbook.voiceEventFull` (`details.max` 200); `413 upload.tooLarge` (over `MAX_VOICE_BYTES`, stopped by the parser) and the quota's `413`s; `429 voice.queueFull` (the queue is full, `Retry-After`); `429 upload.busy`; `429 rate.limited`; `500 voice.transcoderUnavailable` (this box has no audio encoder: the button is not offered, `voiceAvailable`); `401 auth.required` / `401 guestToken.*`; `403 guest.revoked`; `404 event.notFound` (a token for another event, a suspended client, an event the operator took down).
+
+### `GET /api/events/:slug/guestbook/:entryId/voice`
+
+**The one door a recording has.** A moderator of the event (a guest's device token is `401`, like on every host route: the phone listens to its recording before it sends it, never after). `200` or `206` (`Range`, which Safari requires for an `<audio>`) with `Content-Type: audio/mp4`, `X-Content-Type-Options: nosniff`, `Accept-Ranges: bytes`, a strong `ETag` (the digest of the output) and `Cache-Control: private, no-cache`: the console revalidates on every play and a `304` costs no byte. Everything is judged again **on every request**, a player's range requests included.
+
+**Errors** — `403 guestbook.voiceSealed`, to **everybody**, the owner included, while the host keeps the voices secret until the end of the evening (the secret lifts by itself when the event is closed or archived, or at `…/voice/open`); `403 client.suspended`; **one single `404 guestbook.notFound`** for an id nobody holds, another event's message, one the operator took down, a written message, a recording not `ready` and a row whose file is gone, so the status says nothing about which; `404 event.notFound` (not a member, or taken down by the operator); `401`; `400 request.invalid` (an id that is not a UUID); `416` for a range beyond the file. Every refusal is `no-store`.
+
+### `POST /api/events/:slug/guestbook/voice/open`
+
+"Ouvrir maintenant": the **owner** lifts the secret over the voice messages for good (it writes `opensAt = now`, the server's). **A moderator is `403 auth.forbidden`**: a delegated moderator (a DJ, a witness) must not spoil the surprise. **200** with no body, and the same **200** when it was already open (nothing is written, audited or announced the second time). One audit line `event.voiceOpened` (the event, the account, no content), the verified archive retired before the change, and one `guestbook.voice` signal. **Errors** — `401` (a guest's token, no session), `403 auth.forbidden`, `403 client.suspended`, `404 event.notFound`.
+
+### `POST /api/events/:slug/guestbook/voice/keep-pending`
+
+"Garder les N messages en attente": any moderator publishes every voice message that is **ready and `pending`**, in one act (a refused one stays refused, a written message is not touched, a recording still processing is not decidable). **200** `{ "kept": 37 }`, `0` when there was nothing to keep, which writes no audit line, retires no archive and announces nothing. Otherwise one audit line `event.voicesKept` (the number, never which), the archive retired first, one `guestbook.voice` signal. **Errors** — `401`, `403 client.suspended`, `404 event.notFound`, `409 event.notModeratable` (an archived event).
 
 ### `GET /api/events/:slug/privacy-notice`
 
@@ -4827,7 +4874,7 @@ wall channel instead, which worked only because the frames are identical.
 
 The console opens **one** such connection and feeds both its photo queue (`photo.*` signals) and its guestbook tab
 (`guestbook.changed`, spec 15). `guestbook.changed` is not a console-only signal: the public wall channel carries it too,
-because the wall reads the guestbook again on it. The same goes for `announcement.changed` (spec 21): public, with no
+because the wall reads the guestbook again on it. **A voice message of the guestbook** (spec 25) announces itself the other way round: `voice.queued` (a recording arrived: it wakes the transcoding worker and is no use to any client) and `guestbook.voice` (a recording became `ready` or failed, a voice was decided on, the secret lifted, a bulk keep) are **moderation-only** signals (`MODERATION_ONLY_SIGNALS`): the server takes them off the public wall channel, and does not rely on the wall to ignore them, because the wall re-reads its playlist on every public signal. The same goes for `announcement.changed` (spec 21): public, with no
 text, no moment and no identifier, published only when an announcement was actually scheduled, changed, launched or
 deleted.
 
