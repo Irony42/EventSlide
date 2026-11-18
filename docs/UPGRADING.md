@@ -1001,7 +1001,8 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 section. It applies **four migrations** (029 `event_announcements`, 030 `event_purge_notices`, 031 `event_exports` and
 `event_export_requests`, 032 `guestbook_voices`: new tables, nothing existing is rewritten) and adds eight optional settings
 (`GUESTBOOK_VOICE_ENABLED`, `MAX_VOICE_SECONDS`, `MAX_VOICE_BYTES`, `EXPORT_ENABLED`, `EXPORT_TTL_DAYS`, `EXPORT_MAX_BYTES`,
-`EXPORT_MAX_TOTAL_BYTES`, `EXPORT_MAX_PER_EVENT_PER_DAY`). Take the steps of [Upgrading with Docker](#upgrading-with-docker),
+`EXPORT_MAX_TOTAL_BYTES`, `EXPORT_MAX_PER_EVENT_PER_DAY`). The disposable camera (« Appareil jetable », spec 23) adds
+**no migration** (the last is still 032) and no setting: it is off on every existing event. Take the steps of [Upgrading with Docker](#upgrading-with-docker),
 or [without](#without-docker), with `vX.Y.Z` as `v3.14.0`; the image is `ghcr.io/irony42/eventslide:3.14.0`.
 
 ### The guestbook's voice messages (spec 25)
@@ -1066,8 +1067,12 @@ or [without](#without-docker), with `vX.Y.Z` as `v3.14.0`; the image is `ghcr.io
   console-only signal (`export.changed`). The host's event page uses them (the deletion band and the archive button). Nothing changes for a box whose hosts do not ask: no archive is
   prepared by itself.
 
-### The reveal gate of the disposable-camera mode (spec 23, server)
+### The disposable camera: the reveal gate, the screens and the template (spec 23)
 
+- **For a host**: a section « Appareil jetable » in the event's settings (on or off, « Révéler à une heure précise » or no
+  hour and the « Révéler maintenant » button, « Poses par invité », « Rendu pellicule »), a banner on the event page and
+  in the console, and an « Appareil jetable » template. The room's waiting wall, the guests' limited roll and the film
+  look follow the same switch. Nothing of it shows on an event that does not turn the mode on.
 - **No migration.** The mode lives in the event's settings JSON (`reveal`); an event written before it has no such key and
   is read as **off**, which is a read and not a rewrite. The mode is **off on every existing event**: nothing changes on
   a wall, a phone or a gallery until a host switches it on (the "Appareil jetable" section of the event's settings, the
