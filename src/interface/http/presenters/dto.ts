@@ -615,6 +615,16 @@ export interface EventSettingsDto {
   readonly allowGuestSave: boolean
   /** Whether published messages appear on the projected wall (spec 01). */
   readonly guestbookOnWall: boolean
+  /**
+   * What the host decides about voice messages (spec 25), as stored: off, not sealed and no opening
+   * time on an event that predates them. `enabled` only has an effect while `allowGuestbook` is on.
+   * `opensAtMs` is an instant in milliseconds, or `null` for "when the event ends".
+   */
+  readonly guestbookVoice: {
+    readonly enabled: boolean
+    readonly sealed: boolean
+    readonly opensAtMs: number | null
+  }
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null

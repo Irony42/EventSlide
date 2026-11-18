@@ -301,6 +301,22 @@ export const eventRoutes = ({
                     : { soundVolume: body.wall.soundVolume }),
                 },
               }),
+          // Only the keys the body names: the domain merges them into the stored group.
+          ...(body.guestbookVoice === undefined
+            ? {}
+            : {
+                guestbookVoice: {
+                  ...(body.guestbookVoice.enabled === undefined
+                    ? {}
+                    : { enabled: body.guestbookVoice.enabled }),
+                  ...(body.guestbookVoice.sealed === undefined
+                    ? {}
+                    : { sealed: body.guestbookVoice.sealed }),
+                  ...(body.guestbookVoice.opensAtMs === undefined
+                    ? {}
+                    : { opensAtMs: body.guestbookVoice.opensAtMs }),
+                },
+              }),
           // Absent leaves the message alone, `null` clears it: never defaulted here.
           ...(body.welcomeMessage === undefined ? {} : { welcomeMessage: body.welcomeMessage }),
         },

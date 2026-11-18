@@ -193,6 +193,16 @@ export interface EventSettingsDto {
   /** Guests may save another guest's photograph from the feed (spec 24). */
   readonly allowGuestSave: boolean
   readonly guestbookOnWall: boolean
+  /**
+   * What the host decides about voice messages (spec 25): off, not sealed, no opening time on an
+   * event that predates them. `enabled` only has an effect while `allowGuestbook` is on;
+   * `opensAtMs` is an instant in milliseconds, or `null` for "when the event ends".
+   */
+  readonly guestbookVoice: {
+    readonly enabled: boolean
+    readonly sealed: boolean
+    readonly opensAtMs: number | null
+  }
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null

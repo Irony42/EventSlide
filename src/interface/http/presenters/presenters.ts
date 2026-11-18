@@ -363,6 +363,11 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
   allowGuestbook: settings.allowGuestbook,
   allowGuestSave: settings.allowGuestSave,
   guestbookOnWall: settings.guestbookOnWall,
+  guestbookVoice: {
+    enabled: settings.guestbookVoice.enabled,
+    sealed: settings.guestbookVoice.sealed,
+    opensAtMs: settings.guestbookVoice.opensAtMs,
+  },
   allowGuestSelfDelete: settings.allowGuestSelfDelete,
   guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
   retentionDays: settings.retentionDays,
