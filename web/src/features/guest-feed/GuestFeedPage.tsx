@@ -10,16 +10,19 @@ import { RootGroundHue } from '../../design-system/useRootGroundHue'
 import { forgetGuestSession, leaveGuestEvent, readGuestSession } from '../../lib/guestSession'
 import { photoAlt } from '../../lib/photoAlt'
 import { useTranslations } from '../../lib/i18n/useTranslations'
+import type { UiText } from '../../lib/i18n/translations'
 import { ReactionBar } from './components/ReactionBar'
+import { SaveButton } from './components/SaveButton'
 import { usePhotoFeed } from './hooks/usePhotoFeed'
+import { useSaveGate, type SaveAccess } from './hooks/useSaveGate'
 import type { PublicEventDto } from '../../lib/api/dto'
 import styles from './GuestFeedPage.module.css'
 
 /**
  * `/e/:slug/photos`: "Les photos de la soirée".
  *
- * What the room is looking at, on the guest's phone, with the five reactions under every
- * photograph that is somebody else's. It is a page of its own rather than a section of the
+ * What the room is looking at, on the guest's phone, with the five reactions and a button to
+ * save the photograph under every one that is somebody else's. It is a page of its own rather than a section of the
  * upload screen because the upload screen's job is to keep its controls under the thumb: a
  * list that grows all evening would push them off the bottom of the phone.
  *
@@ -59,6 +62,22 @@ function NotJoined() {
   )
 }
 
+/**
+ * The sentence for a feed that cannot save, by reason. A lapsed access reads by the state of the
+ * evening: open, the code or the link opens it again; over, the door is shut (only a live evening
+ * takes a guest) and the album's link is the way left.
+ */
+const saveAccessText = (why: SaveAccess, acceptsGuests: boolean, t: UiText): string => {
+  switch (why) {
+    case 'disabled':
+      return t.feed.saveDisabled
+    case 'revoked':
+      return t.feed.saveRevoked
+    case 'expired':
+      return acceptsGuests ? t.feed.saveExpiredOpen : t.feed.saveExpiredClosed
+  }
+}
+
 interface FeedScreenProps {
   readonly slug: string
   readonly event: PublicEventDto
@@ -68,9 +87,10 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
   const t = useTranslations()
   const feed = usePhotoFeed(slug)
   const navigate = useNavigate()
+  const gate = useSaveGate(feed)
   // The feed stays readable, but the device must stop resuming an event the server no longer
-  // knows this phone for.
-  const signedOut = feed.signedOut
+  // knows this phone for: found on load (the guest's own list said `401`) or at a tap on "Enregistrer".
+  const signedOut = gate.expired
   useEffect(() => {
     if (signedOut) forgetGuestSession(slug)
   }, [signedOut, slug])
@@ -108,7 +128,7 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
             {t.feed.back}
           </Link>
           {feed.unavailable ? null : (
-            <Button variant="ghost" size="sm" loading={feed.refreshing} onClick={feed.refresh}>
+            <Button variant="ghost" size="sm" loading={feed.refreshing} onClick={gate.refresh}>
               {t.feed.refresh}
             </Button>
           )}
@@ -125,6 +145,19 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
           {t.join.notYourEvening}
         </Button>
       </header>
+
+      {/* One sentence for a feed that cannot save, under the title, instead of a refusal per photograph. */}
+      {gate.why === null ? null : (
+        <Notice tone="warning" variant="boxed" role="status">
+          {saveAccessText(gate.why, feed.acceptsGuests, t)}
+        </Notice>
+      )}
+
+      {gate.goneNotice ? (
+        <Notice tone="danger" variant="inline" role="alert">
+          {t.feed.saveGone}
+        </Notice>
+      ) : null}
 
       {feed.unavailable ? (
         <EmptyState as="h2" title={t.feed.unavailable} description={t.feed.unavailableHint} />
@@ -183,6 +216,16 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
               </div>
               {feed.reactionsEnabled && !feed.ownIds.has(item.id) ? (
                 <ReactionBar slug={slug} photoId={item.id} position={index + 1} />
+              ) : null}
+              {/* A photograph of somebody else's: one's own is already on one's phone, in better
+                  quality, and a clip is not saved in this version. */}
+              {gate.offered && item.kind === 'photo' && !feed.ownIds.has(item.id) ? (
+                <SaveButton
+                  slug={slug}
+                  item={item}
+                  onRefused={gate.onRefused}
+                  claimHelp={gate.claimHelp}
+                />
               ) : null}
             </li>
           ))}
