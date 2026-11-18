@@ -381,3 +381,44 @@ describe('voiceRemovalSentence', () => {
     expect(voiceRemovalSentence(90, fr)).toBe(fr.guestbookVoice.noticeVoiceRemovalMinutes(1))
   })
 })
+
+describe('noticeSections on a disposable-camera evening where guests may save (spec 24 section 8)', () => {
+  const sentencesOf = (notice: ReturnType<typeof aPrivacyNotice>, table: UiText = fr) =>
+    noticeSections(notice, table).flatMap((section) => section.sentences)
+  const disposable = {
+    reveal: true as const,
+    shotLimit: 27,
+    film: true as const,
+    guestSave: true as const,
+    selfRemovalSeconds: null,
+    publication: 'immediate' as const,
+  }
+
+  it('says both sentences together: no removal one by one, and the others may keep the photo', () => {
+    const sentences = sentencesOf(aPrivacyNotice(disposable))
+
+    expect(sentences).toContain(fr.upload.noticeRemovalAskHost)
+    expect(sentences).toContain(fr.upload.noticeGuestSave)
+    expect(sentences).toContain(fr.reveal.noticeHeld.immediate)
+  })
+
+  it.each([
+    { name: 'en', table: en },
+    { name: 'de', table: de },
+    { name: 'es', table: es },
+    { name: 'it', table: italian },
+  ])('says both sentences together in $name', ({ table }) => {
+    const sentences = sentencesOf(aPrivacyNotice(disposable), table)
+
+    expect(sentences).toContain(table.upload.noticeRemovalAskHost)
+    expect(sentences).toContain(table.upload.noticeGuestSave)
+    expect(sentences).toContain(table.reveal.noticeHeld.immediate)
+  })
+
+  it('says nothing of saving when the server did not send the clause', () => {
+    const { guestSave: _save, ...unsaved } = disposable
+    const sentences = sentencesOf(aPrivacyNotice(unsaved))
+
+    expect(sentences).not.toContain(fr.upload.noticeGuestSave)
+  })
+})

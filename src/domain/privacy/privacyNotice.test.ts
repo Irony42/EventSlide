@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { eventTemplateSettings } from '../events/eventTemplate'
 import { EventSettings, type EventSettingsPatch } from '../events/eventSettings'
 import {
   NOTICE_AUDIENCES,
@@ -591,5 +592,68 @@ describe('privacyNoticeFor — voice messages (spec 25)', () => {
 
     expect(short.selfRemovalSeconds).toBe(long.selfRemovalSeconds)
     expect(short.revision).not.toBe(long.revision)
+  })
+})
+
+describe('privacyNoticeFor — the disposable camera and the guest save together (spec 24 section 8, Q12)', () => {
+  it('the disposable template says both things: no removal one by one, and other guests may save', () => {
+    const notice = privacyNoticeFor(eventTemplateSettings('disposable'))
+
+    // The template leaves the save switch at its default (on) and turns self-removal off.
+    expect(notice.selfRemovalSeconds).toBeNull()
+    expect(notice.guestSave).toBe(true)
+    expect(notice.deferredReveal).toBe(true)
+    expect(notice.revision).toContain('selfRemoval=none')
+    expect(notice.revision).toContain('guestSave=on;reveal=on;shots=27;film=on')
+  })
+
+  it.each([
+    { selfDelete: true, save: true },
+    { selfDelete: true, save: false },
+    { selfDelete: false, save: true },
+    { selfDelete: false, save: false },
+  ])(
+    'tells each fact on its own under the reveal gate (selfDelete=$selfDelete, save=$save)',
+    ({ selfDelete, save }) => {
+      const notice = privacyNoticeFor(
+        settings({
+          moderation: 'auto',
+          allowGuestSelfDelete: selfDelete,
+          allowGuestSave: save,
+          reveal: { enabled: true },
+        }),
+      )
+
+      expect(notice.guestSave).toBe(save)
+      // Under automatic publication a photograph cannot be taken back one by one, whatever the switch.
+      expect(notice.selfRemovalSeconds).toBeNull()
+      expect(notice.deferredReveal).toBe(true)
+      expect(notice.revision.includes('guestSave=on')).toBe(save)
+      expect(notice.revision).toContain('reveal=on')
+    },
+  )
+
+  it('changes nothing for an event that uses none of reveal, save or voice', () => {
+    expect(privacyNoticeFor(settings({ moderation: 'manual', retentionDays: 30 })).revision).toBe(
+      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900;selfErase=phone',
+    )
+  })
+
+  it('puts the guest save, the reveal clauses and the voice clause in one fixed order, operator last', () => {
+    const notice = privacyNoticeFor(
+      settings({
+        allowGuestbook: true,
+        allowGuestSave: true,
+        reveal: { enabled: true, film: true },
+        maxPhotosPerGuest: 27,
+        guestbookVoice: { enabled: true },
+      }),
+      'Atelier Camille',
+    )
+
+    expect(notice.revision).toContain(
+      'guestbook=on;guestSave=on;reveal=on;shots=27;film=on;voice=on;voiceRemoval=',
+    )
+    expect(notice.revision.endsWith(';operator=Atelier Camille')).toBe(true)
   })
 })
