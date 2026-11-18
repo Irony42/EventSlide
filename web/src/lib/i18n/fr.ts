@@ -1506,6 +1506,7 @@ export const fr = {
     templateGuestSaveOff: 'Enregistrement des photos par les invités désactivé',
     templateVoiceOn: 'Messages vocaux dans le livre d’or activés',
     templateVoiceOff: 'Messages vocaux désactivés',
+    templateVoiceSealed: 'Messages vocaux gardés secrets jusqu’à la révélation',
     templateNames: {
       wedding: 'Mariage',
       birthday: 'Anniversaire',
@@ -2055,7 +2056,10 @@ export const fr = {
         other: `${t.number(count)} messages vocaux en traitement`,
       }),
     sealedCard: 'Gardé secret jusqu’à la fin de la soirée',
+    sealedCardReveal: 'Gardé secret jusqu’à la révélation de la soirée',
     sealedUntil: (time: string) => `Gardé secret jusqu’à ${time}`,
+    sealedUntilOrReveal: (time: string) =>
+      `Gardé secret jusqu’à ${time}, ou jusqu’à la révélation de la soirée si elle vient avant`,
     notListened: 'Vous n’avez pas écouté ce message',
     cannotHide: 'Un message vocal ne se masque pas : il n’est jamais à l’écran.',
     keepPending: (count: number) =>
@@ -2074,8 +2078,11 @@ export const fr = {
     settingsEnabledHint:
       'Allumer les messages vocaux en cours de soirée fait relire la notice à chaque invité avant son prochain envoi : mieux vaut les allumer avant.',
     settingsSealed: 'Garder les messages vocaux secrets jusqu’à la fin de la soirée',
+    settingsSealedReveal: 'Garder les messages vocaux secrets jusqu’à la révélation',
     settingsSealedHint:
       'Vous ne pourrez pas les écouter avant. Vous pouvez quand même décider de les garder ou de les refuser.',
+    settingsSealedRevealHint:
+      'Comme la révélation est activée, ils s’ouvrent quand vous révélez la soirée, ou à sa fin. Vous ne pourrez pas les écouter avant. Vous pouvez quand même décider de les garder ou de les refuser.',
     openNow: 'Ouvrir maintenant',
     openConfirmTitle: 'Ouvrir les messages vocaux ?',
     openConfirmBody: 'Vous pourrez les écouter dès maintenant. Cette action est définitive.',

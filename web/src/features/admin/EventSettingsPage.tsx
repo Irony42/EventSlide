@@ -253,6 +253,7 @@ export function EventSettingsPage() {
     event.status === 'live' &&
     voiceOn &&
     event.settings.guestbookVoice.sealed &&
+    !(event.reveal?.enabled === true && event.reveal.revealed) &&
     (event.settings.guestbookVoice.opensAtMs === null ||
       event.settings.guestbookVoice.opensAtMs > clockMs)
   // A box served over plain http on the local network has no microphone to give: a limit of the
@@ -492,8 +493,16 @@ export function EventSettingsPage() {
         />
 
         <CheckboxField
-          label={t.guestbookVoiceHost.settingsSealed}
-          hint={t.guestbookVoiceHost.settingsSealedHint}
+          label={
+            reveal.enabled
+              ? t.guestbookVoiceHost.settingsSealedReveal
+              : t.guestbookVoiceHost.settingsSealed
+          }
+          hint={
+            reveal.enabled
+              ? t.guestbookVoiceHost.settingsSealedRevealHint
+              : t.guestbookVoiceHost.settingsSealedHint
+          }
           checked={voice.sealed}
           disabled={readOnly || !voiceOn}
           onChange={(sealed) => updateVoice({ sealed })}

@@ -1453,6 +1453,7 @@ export const de: UiText = {
     templateGuestSaveOff: 'Speichern von Fotos für Gäste deaktiviert',
     templateVoiceOn: 'Sprachnachrichten im Gästebuch aktiviert',
     templateVoiceOff: 'Sprachnachrichten deaktiviert',
+    templateVoiceSealed: 'Sprachnachrichten geheim gehalten bis zur Enthüllung',
     templateNames: {
       wedding: 'Hochzeit',
       birthday: 'Geburtstag',
@@ -1940,7 +1941,10 @@ export const de: UiText = {
         other: `${t.number(count)} Sprachnachrichten werden verarbeitet`,
       }),
     sealedCard: 'Geheim gehalten bis zum Ende des Abends',
+    sealedCardReveal: 'Geheim gehalten bis zur Enthüllung des Abends',
     sealedUntil: (time: string) => `Geheim gehalten bis ${time}`,
+    sealedUntilOrReveal: (time: string) =>
+      `Geheim gehalten bis ${time} oder bis zur Enthüllung des Abends`,
     notListened: 'Sie haben diese Nachricht nicht angehört',
     cannotHide: 'Eine Sprachnachricht lässt sich nicht ausblenden: Sie ist nie auf dem Bildschirm.',
     keepPending: (count: number) =>
@@ -1959,8 +1963,11 @@ export const de: UiText = {
     settingsEnabledHint:
       'Wenn Sie Sprachnachrichten im Lauf des Abends einschalten, muss jeder Gast vor seiner nächsten Nachricht den Hinweis erneut lesen: besser vorher einschalten.',
     settingsSealed: 'Sprachnachrichten bis zum Ende des Abends geheim halten',
+    settingsSealedReveal: 'Sprachnachrichten bis zur Enthüllung geheim halten',
     settingsSealedHint:
       'Sie können sie bis dahin nicht anhören. Sie können trotzdem entscheiden, sie zu behalten oder abzulehnen.',
+    settingsSealedRevealHint:
+      'Bei einem Abend, der erst später entwickelt wird, öffnen sie sich, wenn Sie den Abend enthüllen, oder an seinem Ende. Vorher können Sie sie nicht anhören. Sie können trotzdem entscheiden, sie zu behalten oder abzulehnen.',
     openNow: 'Jetzt öffnen',
     openConfirmTitle: 'Sprachnachrichten öffnen?',
     openConfirmBody: 'Sie können sie sofort anhören. Das lässt sich nicht rückgängig machen.',

@@ -112,6 +112,9 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, TemplateP
     retentionDays: 90,
     maxPhotosPerGuest: 27,
     reveal: { enabled: true, film: true },
+    // The voice book is on and kept secret: on this evening it opens at the reveal (`isVoiceOpen`), one
+    // moment when everything develops (spec 25 section 7). The hour is the host's, so none is named.
+    guestbookVoice: { enabled: true, sealed: true },
     theme: {
       accentHue: 305,
       fonts: 'sans',
@@ -195,13 +198,13 @@ export const templateSummary = (patch: TemplatePatch, text: UiText): readonly st
       patch.allowGuestSave ? text.admin.templateGuestSaveOn : text.admin.templateGuestSaveOff,
     )
   }
-  // The voice group is one line, about the one switch a template may flip: `sealed` is the couple's own
-  // choice and no template sets it.
+  // The voice group says its switch, and, on the one evening that keeps the book secret, when it opens.
   if (patch.guestbookVoice?.enabled !== undefined) {
     lines.push(
       patch.guestbookVoice.enabled ? text.admin.templateVoiceOn : text.admin.templateVoiceOff,
     )
   }
+  if (patch.guestbookVoice?.sealed === true) lines.push(text.admin.templateVoiceSealed)
   if (patch.guestSelfDeleteGraceSeconds !== undefined) {
     lines.push(
       `${text.admin.selfDeleteGrace} : ${graceLabel(patch.guestSelfDeleteGraceSeconds, text)}`,

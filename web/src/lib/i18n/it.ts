@@ -1420,6 +1420,7 @@ export const it: UiText = {
     templateGuestSaveOff: 'Salvataggio delle foto disattivato per gli ospiti',
     templateVoiceOn: 'Messaggi vocali nel libro degli ospiti attivati',
     templateVoiceOff: 'Messaggi vocali disattivati',
+    templateVoiceSealed: 'Messaggi vocali tenuti segreti fino alla rivelazione',
     templateNames: {
       wedding: 'Matrimonio',
       birthday: 'Compleanno',
@@ -1900,7 +1901,10 @@ export const it: UiText = {
         other: `${t.number(count)} messaggi vocali in elaborazione`,
       }),
     sealedCard: 'Tenuto segreto fino alla fine della serata',
+    sealedCardReveal: 'Tenuto segreto fino alla rivelazione della serata',
     sealedUntil: (time: string) => `Tenuto segreto fino alle ${time}`,
+    sealedUntilOrReveal: (time: string) =>
+      `Tenuto segreto fino alle ${time}, o fino alla rivelazione della serata se arriva prima`,
     notListened: 'Non ha ascoltato questo messaggio',
     cannotHide: 'Un messaggio vocale non si nasconde: non è mai sullo schermo.',
     keepPending: (count: number) =>
@@ -1919,8 +1923,11 @@ export const it: UiText = {
     settingsEnabledHint:
       'Attivare i messaggi vocali durante la serata fa rileggere l’informativa a ogni ospite prima del suo prossimo invio: meglio attivarli prima.',
     settingsSealed: 'Tenere segreti i messaggi vocali fino alla fine della serata',
+    settingsSealedReveal: 'Tenere segreti i messaggi vocali fino alla rivelazione',
     settingsSealedHint:
       'Non potrà ascoltarli prima. Può comunque decidere di tenerli o rifiutarli.',
+    settingsSealedRevealHint:
+      'In una serata da sviluppare dopo, si aprono quando riveli la serata, o alla sua fine. Non potrai ascoltarli prima. Puoi comunque decidere di tenerli o rifiutarli.',
     openNow: 'Apri ora',
     openConfirmTitle: 'Aprire i messaggi vocali?',
     openConfirmBody: 'Potrà ascoltarli subito. Questa azione è definitiva.',

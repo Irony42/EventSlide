@@ -8,10 +8,12 @@ import {
   voiceSettingsViolation,
   type EventGuestbookVoiceSettings,
 } from './eventGuestbookVoiceSettings'
+import { DEFAULT_REVEAL_SETTINGS } from './eventRevealSettings'
 import { EventSettings } from './eventSettings'
 
 const NOW = new Date('2026-06-20T22:00:00.000Z')
 const NOW_MS = NOW.getTime()
+const OFF = DEFAULT_REVEAL_SETTINGS
 
 const settings = (
   overrides: Partial<EventGuestbookVoiceSettings> = {},
@@ -86,50 +88,76 @@ describe('mergeGuestbookVoiceSettings', () => {
 
 describe('isVoiceOpen', () => {
   it('is open when the book is not sealed', () => {
-    expect(isVoiceOpen(settings({ sealed: false }), { status: 'live' }, NOW)).toBe(true)
+    expect(isVoiceOpen(settings({ sealed: false }), { status: 'live' }, NOW, OFF)).toBe(true)
   })
 
   it('is closed when the book is sealed, live, and has no opening time', () => {
-    expect(isVoiceOpen(settings({ sealed: true }), { status: 'live' }, NOW)).toBe(false)
+    expect(isVoiceOpen(settings({ sealed: true }), { status: 'live' }, NOW, OFF)).toBe(false)
   })
 
   it('is closed while the opening time is still to come', () => {
     expect(
-      isVoiceOpen(settings({ sealed: true, opensAtMs: NOW_MS + 1 }), { status: 'live' }, NOW),
+      isVoiceOpen(settings({ sealed: true, opensAtMs: NOW_MS + 1 }), { status: 'live' }, NOW, OFF),
     ).toBe(false)
   })
 
   it('opens exactly at the opening time: the instant itself is included', () => {
     expect(
-      isVoiceOpen(settings({ sealed: true, opensAtMs: NOW_MS }), { status: 'live' }, NOW),
+      isVoiceOpen(settings({ sealed: true, opensAtMs: NOW_MS }), { status: 'live' }, NOW, OFF),
     ).toBe(true)
     expect(
-      isVoiceOpen(settings({ sealed: true, opensAtMs: NOW_MS - 1 }), { status: 'live' }, NOW),
+      isVoiceOpen(settings({ sealed: true, opensAtMs: NOW_MS - 1 }), { status: 'live' }, NOW, OFF),
     ).toBe(true)
   })
 
   it.each(['closed', 'archived'] as const)(
     'opens by itself when the party is over (%s), with nothing written at closing',
     (status) => {
-      expect(isVoiceOpen(settings({ sealed: true }), { status }, NOW)).toBe(true)
+      expect(isVoiceOpen(settings({ sealed: true }), { status }, NOW, OFF)).toBe(true)
     },
   )
 
   it('stays sealed on a draft, which cannot hold voices and is not a finished party', () => {
-    expect(isVoiceOpen(settings({ sealed: true }), { status: 'draft' }, NOW)).toBe(false)
+    expect(isVoiceOpen(settings({ sealed: true }), { status: 'draft' }, NOW, OFF)).toBe(false)
   })
 
   it('seals again when a closed event is reopened and was not opened by hand', () => {
     const sealed = settings({ sealed: true })
 
-    expect(isVoiceOpen(sealed, { status: 'closed' }, NOW)).toBe(true)
-    expect(isVoiceOpen(sealed, { status: 'live' }, NOW)).toBe(false)
+    expect(isVoiceOpen(sealed, { status: 'closed' }, NOW, OFF)).toBe(true)
+    expect(isVoiceOpen(sealed, { status: 'live' }, NOW, OFF)).toBe(false)
   })
 
   it('stays open after a reopening when the host opened it by hand', () => {
     expect(
-      isVoiceOpen(settings({ sealed: true, opensAtMs: NOW_MS - 60_000 }), { status: 'live' }, NOW),
+      isVoiceOpen(
+        settings({ sealed: true, opensAtMs: NOW_MS - 60_000 }),
+        { status: 'live' },
+        NOW,
+        OFF,
+      ),
     ).toBe(true)
+  })
+
+  describe('on a disposable-camera evening (spec 25 section 7)', () => {
+    const ON = { enabled: true, at: null, film: true }
+    const sealed = settings({ sealed: true })
+    const live = { status: 'live' as const }
+
+    it('stays sealed while the evening is held back', () => {
+      expect(isVoiceOpen(sealed, live, NOW, ON)).toBe(false)
+      expect(isVoiceOpen(sealed, live, NOW, { ...ON, at: new Date(NOW_MS + 1) })).toBe(false)
+    })
+
+    it('opens with the reveal, the instant itself included', () => {
+      expect(isVoiceOpen(sealed, live, NOW, { ...ON, at: NOW })).toBe(true)
+      expect(isVoiceOpen(sealed, live, NOW, { ...ON, at: new Date(NOW_MS - 1) })).toBe(true)
+    })
+
+    it('is not opened by isRevealed being true with the mode off: the reveal.enabled guard', () => {
+      expect(isVoiceOpen(sealed, live, NOW, OFF)).toBe(false)
+      expect(isVoiceOpen(sealed, live, NOW, { ...OFF, at: NOW })).toBe(false)
+    })
   })
 })
 

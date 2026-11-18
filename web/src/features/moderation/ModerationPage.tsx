@@ -399,6 +399,7 @@ export function ModerationPage({ onSwitchView }: ModerationPageProps) {
             guestbook={guestbook}
             selection={messageSelection}
             canDecide={canDecideMessages}
+            opensWithReveal={event?.settings.reveal?.enabled === true}
             onDecide={(entryId, decision) => decideMessage(entryId, decision, false)}
           />
         </div>

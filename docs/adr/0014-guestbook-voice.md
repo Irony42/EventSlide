@@ -82,7 +82,8 @@ Spec 25 carries the whole argument; this record keeps the few choices whose reas
 
 - The secret is one-way once opened, and the same instant is read by the console, the route and the archive.
 - With the disposable-camera mode (spec 23), one moment may open both the photographs and the voices; that is a
-  clause in `isVoiceOpen` guarded by the reveal's own switch, which is spec 25 PR 8 and is still to do.
+  clause in `isVoiceOpen` guarded by the reveal's own switch (spec 25 PR 8). It is derived, so `revealEvent` writes nothing, and
+  it adds no reader: only the host and moderators listen. The "Appareil jetable" template turns the voices on and keeps them secret.
 
 ## Alternatives considered
 

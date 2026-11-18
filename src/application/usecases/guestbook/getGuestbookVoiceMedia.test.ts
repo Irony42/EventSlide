@@ -173,6 +173,28 @@ describe('getGuestbookVoiceMedia', () => {
       },
     )
 
+    it('on a disposable-camera evening, lifts when the evening is revealed and not before (spec 25 section 7)', async () => {
+      const guestbookVoice = { enabled: true, sealed: true }
+      seedEvent({
+        settings: { guestbookVoice, reveal: { enabled: true, at: atPlus(1_000), film: false } },
+      })
+
+      expect(await codeOf(run())).toBe('guestbook.voiceSealed')
+      clock.set(atPlus(1_000))
+      expect(await codeOf(run())).toBeNull()
+    })
+
+    it('stays sealed with the reveal switched off, whatever isRevealed says of an evening with no gate', async () => {
+      seedEvent({
+        settings: {
+          guestbookVoice: { enabled: true, sealed: true },
+          reveal: { enabled: false, at: atPlus(-1_000), film: false },
+        },
+      })
+
+      expect(await codeOf(run())).toBe('guestbook.voiceSealed')
+    })
+
     it('is asked after the message is known to be there and ready, so it cannot be used to probe an id', async () => {
       expect(await codeOf(run({ entryId: asGuestbookEntryId('nobody') }))).toBe(
         'guestbook.notFound',

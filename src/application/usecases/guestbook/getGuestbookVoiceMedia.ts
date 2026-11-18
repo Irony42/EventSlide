@@ -94,7 +94,7 @@ export const makeGetGuestbookVoiceMedia =
     const voice = entry?.voice ?? null
     if (voice === null || !voice.isReady() || voice.audioHash === null) return err(notFound())
 
-    if (!isVoiceOpen(event.settings.guestbookVoice, event, clock.now())) {
+    if (!isVoiceOpen(event.settings.guestbookVoice, event, clock.now(), event.settings.reveal)) {
       return err(DomainError.forbidden('guestbook.voiceSealed'))
     }
 
