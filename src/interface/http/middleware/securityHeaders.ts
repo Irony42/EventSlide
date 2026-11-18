@@ -85,14 +85,71 @@ export const securityHeaders = (isProduction: boolean): RequestHandler =>
   })
 
 /**
- * Denies a browser the device permissions this app never uses. The camera is reached
- * through a file input with `capture`, which needs no Permissions-Policy grant, so
- * every entry here can be empty.
+ * The first path segments of the pages that never carry a guest, and an API that is never a page:
+ * the host's console, the sign-in, the shared gallery, the mailed-link pages, and `/api`.
  */
-export const permissionsPolicy: RequestHandler = (_req, res, next) => {
+const NEVER_GUEST_PAGES: ReadonlySet<string> = new Set([
+  'admin',
+  'login',
+  'g',
+  'invite',
+  'password',
+  'api',
+])
+
+/**
+ * Whether a document at this path may ask for the microphone (spec 25, section 9).
+ *
+ * **The list is inverted: it names what is closed, and everything else is open.** A document keeps
+ * the policy of the URL it was loaded from, whatever page it navigates to afterwards, so a list of
+ * the guest pages that may record leaves the microphone blocked, with the guest unable to do
+ * anything about it, wherever a guest *enters*: `/` (which the client redirects to `/join`),
+ * `/e/<slug>` (which it redirects to the upload page), and the offline fallback of the service
+ * worker, which answers a failed navigation with the cached `/` and **the headers stored for
+ * `/`**, which is the bad-Wi-Fi scenario a voice message exists to serve. So the pages that are
+ * closed are the ones that never carry a guest: `/admin/**`, `/login`, `/g/**`, `/invite/**`,
+ * `/password/**`, the wall (`/e/<slug>/display`), and `/api`.
+ *
+ * The guard against widening is not this list but a static test: nothing outside
+ * `web/src/features/guest-upload/` may call the browser's microphone request.
+ *
+ * Express matches these routes without regard to case, so the comparison does too; the path is
+ * decoded and its empty and `.` segments dropped, so `/%61dmin` and `//admin` are the console. A
+ * path that cannot be decoded is closed: it is not a page a guest was sent to.
+ */
+export const microphoneOpenOn = (path: string): boolean => {
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(path)
+  } catch {
+    return false
+  }
+  const segments = decoded
+    .toLowerCase()
+    .split('/')
+    .filter((segment) => segment !== '' && segment !== '.')
+  const [first, , third] = segments
+  if (first !== undefined && NEVER_GUEST_PAGES.has(first)) return false
+  // The projected wall, and anything below it.
+  return !(first === 'e' && third === 'display')
+}
+
+/**
+ * Denies a browser the device permissions this app never uses. The camera is reached
+ * through a file input with `capture`, which needs no Permissions-Policy grant. The microphone
+ * is the exception (voice messages in the guestbook, spec 25): granted to the page's own origin on
+ * the guest's pages, see {@link microphoneOpenOn}, and denied everywhere else.
+ */
+export const permissionsPolicy: RequestHandler = (req, res, next) => {
   res.setHeader(
     'Permissions-Policy',
-    ['geolocation=()', 'microphone=()', 'payment=()', 'usb=()', 'magnetometer=()'].join(', '),
+    [
+      'geolocation=()',
+      microphoneOpenOn(req.path) ? 'microphone=(self)' : 'microphone=()',
+      'payment=()',
+      'usb=()',
+      'magnetometer=()',
+    ].join(', '),
   )
   next()
 }
