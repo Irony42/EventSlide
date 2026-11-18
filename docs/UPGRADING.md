@@ -997,6 +997,19 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 
 ## Upgrading to 3.14 (not released yet)
 
+### The guestbook's voice messages: the server side (spec 25)
+
+- **One migration (032)**: a new table, `guestbook_voices` (one row per voice message, removed with its entry), with its
+  indexes. Nothing existing is rewritten. Back up first, as for any upgrade: the migration only goes forward.
+- **Three settings, all optional**: `GUESTBOOK_VOICE_ENABLED` (`true`; `false` turns voice messages off for the whole box,
+  read at boot), `MAX_VOICE_SECONDS` (60, 10 to 180) and `MAX_VOICE_BYTES` (4 000 000, one upload). A message is stored as
+  AAC mono in an MP4, made by the same `ffmpeg` as the clips: **a box with no `ffmpeg` offers no voice message and its
+  `/api/ready` is unchanged**, as for video.
+- **Off on every event**: the setting that switches voice on (`guestbookVoice` in the event settings) reads off, and no
+  route sets it yet, so nothing in this change adds a route or a page for it. An upgrade changes nothing a guest or a host
+  sees. The disk a voice message occupies (a few hundred kilobytes a minute) is counted in the event's quota like a
+  photograph.
+
 ### Guests save photographs from the feed (spec 24)
 
 - **No migration.** The setting lives in the event's settings (`allowGuestSave`).
