@@ -86,7 +86,7 @@ export const de: UiText = {
     eraseBody:
       'Ihre Fotos, Videos, Bildunterschriften, Reaktionen und Ihr Vorname werden aus der Feier gelöscht: von der Leinwand, aus dem Album und aus der Liste des Veranstalters. Das lässt sich nicht rückgängig machen.',
     eraseLimits:
-      'Eine Kopie, die der Veranstalter bereits gespeichert hat oder die jemand per Screenshot gesichert hat, lässt sich nicht zurückholen.',
+      'Eine Kopie, die der Veranstalter oder ein anderer Gast bereits gespeichert hat oder die jemand per Screenshot gesichert hat, lässt sich nicht zurückholen.',
     eraseConfirm: 'Ja, alles löschen',
     eraseCancel: 'Nein, behalten',
     eraseFailed:
@@ -293,6 +293,9 @@ export const de: UiText = {
       sharedGallery:
         'Alle, denen der Veranstalter einen privaten Link zum Album schickt, falls er einen erstellt, und alle, an die dieser Link weitergeleitet wird: Sie können die auf dem Bildschirm gezeigten Fotos in voller Auflösung ansehen und herunterladen, bis der Link abläuft oder zurückgezogen wird.',
     },
+    /** Said after the audiences, only on an evening where saving is on (spec 24). */
+    noticeGuestSave:
+      'Die anderen Gäste können Ihr Foto auf ihrem Handy speichern, ohne Ort und ohne Angabe der Kamera. Eine gespeicherte Kopie lässt sich nicht zurückholen.',
     noticeRetentionDays: (days: number) =>
       t.count(days, {
         one: `Die Fotos werden ${t.number(days)} Tag, nachdem der Veranstalter die Feier beendet hat, automatisch gelöscht.`,
@@ -932,6 +935,27 @@ export const de: UiText = {
     unavailable: 'Diese Feier wird nicht mehr angezeigt.',
     unavailableHint:
       'Die Feier ist vorbei, hier gibt es keine Fotos mehr zu sehen. Fragen Sie die Veranstalter nach dem Link zum Album.',
+    /* Spec 24: saving a photograph from the feed. */
+    saving: 'Wird gespeichert…',
+    saveReady: 'Tippen Sie, um es zu speichern',
+    /** The accessible name of a save button: its word, then the photograph it is under. */
+    saveNamed: (action: string, description: string) => `${action}: ${description}`,
+    saveDownloaded: 'Foto heruntergeladen.',
+    saveNetworkFailed:
+      'Das Foto konnte nicht abgerufen werden. Versuchen Sie es erneut, wenn das Netz wieder da ist.',
+    saveBusy: 'Viele Gäste speichern gerade gleichzeitig. Versuchen Sie es gleich noch einmal.',
+    saveGone: 'Dieses Foto ist nicht mehr verfügbar.',
+    saveMediaMissing: 'Das Foto konnte nicht abgerufen werden.',
+    saveDisabled: 'Der Veranstalter hat das Speichern deaktiviert.',
+    saveRevoked: 'Der Veranstalter hat Ihren Zugang entfernt.',
+    /** A lapsed access reads by the state of the evening: open, the code reopens it; over, only the album's link is left. */
+    saveExpiredOpen:
+      'Ihr Zugang zur Feier ist abgelaufen. Öffnen Sie die Feier erneut mit dem Code oder dem Link, den Sie erhalten haben.',
+    saveExpiredClosed:
+      'Ihr Zugang zur Feier ist abgelaufen. Fragen Sie die Veranstalter nach dem Link zum Album.',
+    saveHelpSheet: 'Wählen Sie im geöffneten Menü „Bild sichern“, um es in Fotos abzulegen.',
+    saveHelpFiles:
+      'Das Foto liegt in der App „Dateien“, im Ordner „Downloads“. Damit es in Fotos landet, öffnen Sie die Feier in Safari: Tippen Sie in der Messenger-App auf Teilen und dann auf „In Safari öffnen“.',
   },
 
   wall: {
@@ -1182,6 +1206,10 @@ export const de: UiText = {
     allowClips: 'Videos erlauben',
     allowClipsHint:
       'Gäste können zusätzlich zu Fotos kurze Videos senden. Ohne Haken werden Videos abgelehnt: weil Sie den Haken entfernt haben, weil die bei der Erstellung gewählte Vorlage es so eingestellt hat, oder weil die Veranstaltung älter ist als diese Funktion. Setzen Sie den Haken, um Videos zu erlauben.',
+    /** The host's switch over saving from the feed (spec 24). */
+    allowGuestSave: 'Gäste dürfen die Fotos des Abends speichern',
+    allowGuestSaveHint:
+      'Jeder Gast kann ein auf dem Bildschirm gezeigtes Foto in hoher Qualität auf dem eigenen Handy behalten, ohne Ort und ohne Angabe der Kamera. Sie behalten die Kontrolle über das Album: Ein Foto, das Sie entfernen, lässt sich nicht mehr speichern, aber ein bereits gespeichertes Foto bleibt auf dem Handy der Person, und das Kopieren eines einzelnen Fotos können Sie nur verhindern, indem Sie es entfernen. Wenn Sie diese Einstellung während des Abends ändern, müssen die Gäste die Angaben vor ihrem nächsten Foto erneut lesen. Nach dem Ende der Feier kann ein Gast, dessen Zugang abgelaufen ist, nicht mehr speichern: Schicken Sie ihm den Link zum Album, der auch die volle Auflösung liefert.',
     allowGuestbook: 'Gästebuch öffnen',
     allowGuestbookHint:
       'Gäste hinterlassen eine kurze Nachricht. Ohne Haken: das Gästebuch ist geschlossen, bereits geschriebene Nachrichten bleiben erhalten.',

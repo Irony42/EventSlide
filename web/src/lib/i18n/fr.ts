@@ -146,7 +146,7 @@ export const fr = {
     eraseBody:
       'Vos photos, vos vidéos, vos légendes, vos réactions et votre prénom seront effacés de la soirée : de l’écran, de l’album et de la liste de l’organisateur. C’est définitif.',
     eraseLimits:
-      'Une copie déjà enregistrée par l’organisateur, ou par quelqu’un qui a fait une capture, ne peut pas être reprise.',
+      'Une copie déjà enregistrée par l’organisateur, par un autre invité ou par quelqu’un qui a fait une capture, ne peut pas être reprise.',
     eraseConfirm: 'Oui, tout supprimer',
     eraseCancel: 'Non, je garde',
     eraseFailed: 'La suppression n’a pas abouti. Réessayez, ou demandez à l’organisateur.',
@@ -519,6 +519,9 @@ export const fr = {
       sharedGallery:
         'Les personnes à qui l’organisateur envoie un lien privé vers l’album, s’il en crée un, et celles à qui ce lien est transféré : elles peuvent voir et télécharger en pleine résolution les photos affichées à l’écran, jusqu’à ce que le lien expire ou soit retiré.',
     } satisfies Record<NoticeAudience, string>,
+    /** Said after the audiences, only on an evening where saving is on (spec 24). */
+    noticeGuestSave:
+      'Les autres invités peuvent enregistrer votre photo sur leur téléphone, sans le lieu ni l’appareil de prise de vue. Une copie enregistrée ne peut pas être reprise.',
     /**
      * "après que l’organisateur a terminé la soirée", for the reason `admin.retentionHint`
      * spells out: the clock starts when the host ends the event, and "après la fête" would
@@ -882,6 +885,27 @@ export const fr = {
     unavailable: 'Cette soirée n’est plus affichée.',
     unavailableHint:
       'Elle est terminée, et il n’y a plus de photos à voir ici. Demandez le lien de l’album aux organisateurs.',
+    /* Spec 24: saving a photograph from the feed. */
+    saving: 'Enregistrement…',
+    saveReady: 'Appuyez pour l’enregistrer',
+    /** The accessible name of a save button: its word, then the photograph it is under. */
+    saveNamed: (action: string, description: string) => `${action} : ${description}`,
+    saveDownloaded: 'Photo téléchargée.',
+    saveNetworkFailed: 'La photo n’a pas pu être récupérée. Réessayez quand le réseau revient.',
+    saveBusy: 'Beaucoup d’invités enregistrent en même temps. Réessayez dans un instant.',
+    saveGone: 'Cette photo n’est plus disponible.',
+    saveMediaMissing: 'La photo n’a pas pu être récupérée.',
+    saveDisabled: 'L’organisateur a désactivé l’enregistrement.',
+    saveRevoked: 'L’organisateur a retiré votre accès.',
+    /** A lapsed access reads by the state of the evening: open, the code reopens it; over, only the album's link is left. */
+    saveExpiredOpen:
+      'Votre accès à la soirée a expiré. Rouvrez la soirée depuis le code ou le lien reçu.',
+    saveExpiredClosed:
+      'Votre accès à la soirée a expiré. Demandez le lien de l’album aux organisateurs.',
+    saveHelpSheet:
+      'Dans la feuille qui s’ouvre, choisissez « Enregistrer l’image » pour la mettre dans Photos.',
+    saveHelpFiles:
+      'La photo est dans l’app Fichiers, dossier Téléchargements. Pour qu’elle aille dans Photos, ouvrez la soirée dans Safari : dans la messagerie, touchez Partager, puis « Ouvrir dans Safari ».',
   },
 
   wall: {
@@ -1206,6 +1230,10 @@ export const fr = {
     allowClips: 'Autoriser les vidéos',
     allowClipsHint:
       'Les invités peuvent envoyer de courtes vidéos, en plus des photos. Quand la case est décochée, les vidéos sont refusées : parce que vous l’avez décochée, parce que le modèle choisi à la création l’a réglé ainsi, ou parce que l’évènement est antérieur à cette fonctionnalité. Cochez-la pour les autoriser.',
+    /** The host's switch over saving from the feed (spec 24). */
+    allowGuestSave: 'Les invités peuvent enregistrer les photos de la soirée',
+    allowGuestSaveHint:
+      'Chaque invité peut garder sur son téléphone une photo affichée à l’écran, en haute qualité, sans le lieu ni l’appareil de prise de vue. Vous gardez la main sur l’album : une photo que vous retirez ne peut plus être enregistrée, mais une photo déjà enregistrée reste sur le téléphone de la personne, et vous ne pouvez pas empêcher la copie d’une seule photo sans la retirer. Changer ce réglage pendant la soirée fait relire la notice aux invités avant leur prochaine photo. Une fois la soirée terminée, un invité dont l’accès a expiré ne peut plus enregistrer : envoyez-lui le lien de l’album, qui donne aussi la pleine résolution.',
     allowGuestbook: 'Ouvrir le livre d’or',
     allowGuestbookHint:
       'Les invités laissent un court message. Décoché : le livre d’or est fermé, les messages déjà écrits sont conservés.',
