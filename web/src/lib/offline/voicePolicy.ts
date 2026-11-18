@@ -11,7 +11,7 @@ import type { OutboxSendOutcome } from './outbox'
  * 1. **Deferred**: retried with a backoff. The network, a 429, a 5xx, a full voice queue.
  * 2. **Blocked, kept**: retrying on a timer would never help, and the bytes are still worth
  *    something. The host switched the voices off, the event stopped taking messages, a ceiling is
- *    reached. The guest is told why and may save the file to the phone or delete it; the page
+ *    reached, the host removed the guest. The guest is told why and may save the file to the phone or delete it; the page
  *    tries again when it is next opened or when the host's setting changes.
  * 3. **Dropped**: **only** a refusal of the content itself, which nothing will change.
  *
@@ -35,6 +35,9 @@ export const VOICE_BLOCKED_CODES: ReadonlySet<string> = new Set([
   'guestbook.limitReached',
   'guestbook.eventFull',
   'guestbook.voiceEventFull',
+  // The host removed this guest: retrying for twelve hours would only expire the recording unseen. It is
+  // kept, and the guest is told why (and may save the file to the phone).
+  'guest.revoked',
 ])
 
 /**

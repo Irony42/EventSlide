@@ -13,14 +13,16 @@ import {
  */
 
 describe('what the voice queue does with an answer', () => {
-  it.each(['guestbook.voiceDisabled', 'guestbook.disabled', 'event.notAcceptingUploads'])(
-    'keeps the recording, stopped, when the event says %s',
-    (code) => {
-      // The host unticked a box by mistake, or the guest reopens the page after the window: the
-      // recording is theirs to save or delete, not ours to destroy.
-      expect(voiceOutcomeForFailure(409, code)).toEqual({ kind: 'blocked', code })
-    },
-  )
+  it.each([
+    'guestbook.voiceDisabled',
+    'guestbook.disabled',
+    'event.notAcceptingUploads',
+    'guest.revoked',
+  ])('keeps the recording, stopped, when the event says %s', (code) => {
+    // The host unticked a box by mistake, or the guest reopens the page after the window: the
+    // recording is theirs to save or delete, not ours to destroy.
+    expect(voiceOutcomeForFailure(409, code)).toEqual({ kind: 'blocked', code })
+  })
 
   it.each(['guestbook.limitReached', 'guestbook.eventFull', 'guestbook.voiceEventFull'])(
     'keeps the recording, stopped, on the ceiling %s',
@@ -46,7 +48,6 @@ describe('what the voice queue does with an answer', () => {
     [500, 'voice.transcoderUnavailable'],
     [502, 'unknown'],
     [413, 'event.quotaExceeded'],
-    [403, 'guest.revoked'],
     [404, 'event.notFound'],
   ])('retries on %s %s: an unknown refusal is never a reason to destroy', (status, code) => {
     expect(voiceOutcomeForFailure(status, code)).toEqual({ kind: 'deferred' })
