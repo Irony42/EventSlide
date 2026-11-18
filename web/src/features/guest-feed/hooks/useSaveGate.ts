@@ -112,9 +112,10 @@ export const useSaveGate = (feed: PhotoFeedState): SaveGate => {
           : null
 
   return {
-    // Not before the feed has settled: a button that appears and goes when the guest's own list
-    // arrives is the flash `ReactionBar` already avoids for the same reason.
-    offered: feed.guestSaveEnabled && why === null && !feed.settling,
+    // No `settling` clause: the page draws no card until the feed has settled, which is what keeps
+    // a button from appearing and going when the guest's own list arrives (the flash `ReactionBar`
+    // avoids the same way), and a second guard here could only be dead code.
+    offered: feed.guestSaveEnabled && why === null,
     // Said only for an evening where saving is on: a guest whose access lapsed on an evening that
     // never offered saving has nothing to be told about it.
     why: why === null || (why !== 'disabled' && !feed.guestSaveEnabled) ? null : why,
