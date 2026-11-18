@@ -529,6 +529,10 @@ Learned the hard way. Do not rediscover them.
 - [ ] Docs touched if behaviour or API changed (`docs/API.md` §§1–8 is the contract —
       **§9 is not**: it is a list of known divergences and proposals, and nothing in it
       is implemented. Never code against a route you found only in §9).
+- [ ] A new environment variable is declared in `schema.ts`, read in `load.ts`, shown in `.env.example`
+      **and named in the unreleased `## Upgrading to 3.x` section of `docs/UPGRADING.md`**: the last one is
+      checked only by `scripts/upgradingDocs.test.ts`, so the module's own tests stay green without it and
+      `npm run verify` is what turns red.
 - [ ] Conventional Commit, scoped, one concern.
 
 ## graphify
