@@ -8,7 +8,10 @@ import type {
   GuestbookVoiceRepository,
   VoiceAdmission,
   VoiceAdmissionLimits,
+  VoiceFinish,
+  VoiceFinishLimits,
 } from '../../application/ports/guestbookVoiceRepository'
+import { holdsVoiceBytes, isVoiceState } from '../../domain/guestbook/guestbookVoiceState'
 import { clientHoldingBytesSum, eventHoldingBytesSum } from './clipJobStatusSql'
 import type { Db } from './connection'
 import {
@@ -225,6 +228,67 @@ export class SqliteGuestbookVoiceRepository implements GuestbookVoiceRepository 
       this.db.prepare<VoiceBindings>(UPDATE_VOICE).run(toBindings(eventId, entryId, voice))
         .changes > 0
     )
+  }
+
+  async markReady(
+    eventId: EventId,
+    entryId: GuestbookEntryId,
+    voice: GuestbookVoice,
+    limits: VoiceFinishLimits,
+  ): Promise<VoiceFinish> {
+    const output = voice.audioByteSize
+    if (!voice.isReady() || output === null) {
+      throw new Error('markReady takes a ready voice')
+    }
+
+    const current = this.db.prepare<
+      [string, string],
+      {
+        readonly state: string
+        readonly source_byte_size: number
+        readonly audio_byte_size: number | null
+      }
+    >(
+      `SELECT state, source_byte_size, audio_byte_size FROM guestbook_voices
+        WHERE event_id = ? AND entry_id = ?`,
+    )
+    const used = this.db.prepare<{ readonly eventId: string }, CountRow>(SUM_EVENT_BYTES)
+    const clientBytes = limits.clientBytes ?? null
+    const clientUsed =
+      clientBytes === null
+        ? null
+        : this.db.prepare<{ readonly clientId: string }, CountRow>(SUM_CLIENT_BYTES)
+    const update = this.db.prepare<VoiceBindings>(UPDATE_VOICE)
+
+    return this.db
+      .transaction((): VoiceFinish => {
+        const row = current.get(eventId, entryId)
+        if (row === undefined) return { kind: 'gone' }
+
+        // What the row is charged now, which the output replaces: the source while it runs.
+        const credit =
+          !isVoiceState(row.state) || !holdsVoiceBytes(row.state)
+            ? 0
+            : row.state === 'ready'
+              ? (row.audio_byte_size ?? 0)
+              : row.source_byte_size
+
+        const storage = storageRefusalFor(
+          output,
+          { quotaBytes: limits.quotaBytes, usedBytes: scalar(used.get({ eventId })) - credit },
+          clientBytes === null || clientUsed === null
+            ? null
+            : {
+                maxBytes: clientBytes.maxBytes,
+                usedBytes: scalar(clientUsed.get({ clientId: clientBytes.clientId })) - credit,
+              },
+        )
+        if (storage !== null) return { kind: 'refused', refusal: storage }
+
+        update.run(toBindings(eventId, entryId, voice))
+        return { kind: 'saved' }
+      })
+      .immediate()
   }
 
   async findBySourceHash(

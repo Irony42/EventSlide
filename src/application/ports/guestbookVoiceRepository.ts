@@ -54,6 +54,22 @@ export type VoiceAdmission =
   /** A ceiling is reached; nothing was stored. */
   | { readonly kind: 'refused'; readonly refusal: VoiceAdmissionRefusal }
 
+/** What the end of a voice's processing is judged against, taken inside its own transaction. */
+export interface VoiceFinishLimits {
+  /** `events.quota_bytes`, or the client's reduced one. */
+  readonly quotaBytes: number
+  /** The ceiling of the event's client over all its events, or `null`. */
+  readonly clientBytes?: ClientByteLimit | null
+}
+
+export type VoiceFinish =
+  /** The voice is `ready`: the output is what the event holds from now on. */
+  | { readonly kind: 'saved' }
+  /** The row is gone (the guest erased it, or the event was purged): nothing was written. */
+  | { readonly kind: 'gone' }
+  /** The output does not fit; nothing was written and the voice is still what it was. */
+  | { readonly kind: 'refused'; readonly refusal: StorageRefusal }
+
 export interface GuestbookVoiceRepository {
   /**
    * Store a voice message **as a reservation, deciding the limits inside one write transaction**:
@@ -76,6 +92,22 @@ export interface GuestbookVoiceRepository {
    * while a worker was holding it. `false` means it is gone, which is ordinary, not an error.
    */
   saveVoice(eventId: EventId, entryId: GuestbookEntryId, voice: GuestbookVoice): Promise<boolean>
+
+  /**
+   * Write a voice's **result** (`ready`, with its output), after judging the quota **inside the
+   * same transaction**, with the voice's own source credited: while it ran the event was charged for
+   * the source, and the output replaces it, so the figure the output is judged against leaves the
+   * source out. Without that credit an event near its quota refuses a recording that plainly fits.
+   * It is the voice counterpart of `replacesStagedClip`, and **the only path that can refuse after
+   * the work**: an output can be larger than the source (a 32 kbit/s Opus recording becomes
+   * 48 kbit/s AAC). Update-only, like {@link saveVoice}: `gone` is ordinary, not an error.
+   */
+  markReady(
+    eventId: EventId,
+    entryId: GuestbookEntryId,
+    voice: GuestbookVoice,
+    limits: VoiceFinishLimits,
+  ): Promise<VoiceFinish>
 
   /**
    * The idempotency check: the voice message this event already holds for these source bytes, or

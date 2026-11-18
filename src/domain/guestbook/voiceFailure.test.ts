@@ -43,6 +43,8 @@ describe('voiceFailureOf', () => {
     ['voice.transcodeTimedOut', 'timedOut'],
     ['voice.storageFailed', 'storageFailed'],
     ['voice.transcoderUnavailable', 'transcodeFailed'],
+    ['event.quotaExceeded', 'storageFailed'],
+    ['client.storageFull', 'storageFailed'],
   ] as const)('reads %s as %s', (code, failure) => {
     expect(voiceFailureOf(code)).toBe(failure)
   })

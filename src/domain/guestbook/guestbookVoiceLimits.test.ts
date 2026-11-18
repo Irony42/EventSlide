@@ -4,9 +4,12 @@ import {
   MAX_QUEUED_VOICES,
   MAX_QUEUED_VOICES_PER_EVENT,
   MAX_VOICE_PER_EVENT,
+  VOICE_DECLARED_SLACK_MS,
   VOICE_FAILED_RETENTION_MS,
   VOICE_MIN_MS,
   admitsAnotherVoice,
+  voiceDeclaredTooLong,
+  voiceOutputCeilingBytes,
   voiceQueueFull,
   voiceRefusalFor,
   voiceRetryAfterSecondsFor,
@@ -82,5 +85,41 @@ describe('the queue’s backpressure', () => {
     expect(refusal.code).toBe('voice.queueFull')
     expect(refusal.kind).toBe('rateLimited')
     expect(refusal.details).toEqual({ depth: 20, maxDepth: 20, retryAfterSeconds: 20 })
+  })
+})
+
+describe('voiceDeclaredTooLong', () => {
+  const cap = 60_000
+
+  it('lets a file declare up to five seconds past the cap, the cap itself and anything shorter', () => {
+    expect(voiceDeclaredTooLong(cap + VOICE_DECLARED_SLACK_MS, cap)).toBe(false)
+    expect(voiceDeclaredTooLong(cap, cap)).toBe(false)
+    expect(voiceDeclaredTooLong(1_000, cap)).toBe(false)
+  })
+
+  it('refuses a file declaring a single millisecond more than the cap plus the slack', () => {
+    expect(voiceDeclaredTooLong(cap + VOICE_DECLARED_SLACK_MS + 1, cap)).toBe(true)
+  })
+
+  it('makes no claim of a file that declares no duration, which is the normal browser recording', () => {
+    expect(voiceDeclaredTooLong(null, cap)).toBe(false)
+  })
+
+  it('is five seconds, the figure the spec says', () => {
+    expect(VOICE_DECLARED_SLACK_MS).toBe(5_000)
+  })
+})
+
+describe('voiceOutputCeilingBytes', () => {
+  it('is one megabyte for every cap up to a minute and a half, where a message is a third of it', () => {
+    expect(voiceOutputCeilingBytes(10_000)).toBe(1_000_000)
+    expect(voiceOutputCeilingBytes(60_000)).toBe(1_000_000)
+    expect(voiceOutputCeilingBytes(83_000)).toBe(1_000_000)
+  })
+
+  it('grows with a longer cap so the longest message the operator allows still fits its output', () => {
+    // 180 seconds of 48 kbit/s is about 1.08 MB: a fixed megabyte would refuse every one of them.
+    expect(voiceOutputCeilingBytes(180_000)).toBe(2_160_000)
+    expect(voiceOutputCeilingBytes(180_000)).toBeGreaterThan(180 * 6_000)
   })
 })

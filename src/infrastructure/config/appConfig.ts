@@ -110,6 +110,19 @@ export interface AppConfig {
     readonly maxPerEventPerDay: number
   }
 
+  /**
+   * Voice messages of the guestbook (spec 25): `GUESTBOOK_VOICE_ENABLED`, `MAX_VOICE_SECONDS` and
+   * `MAX_VOICE_BYTES`.
+   */
+  readonly voice: {
+    /** `false` switches the function off for the whole box. */
+    readonly enabled: boolean
+    /** The longest message, from `MAX_VOICE_SECONDS`. */
+    readonly maxDurationMs: number
+    /** What one upload may weigh. */
+    readonly maxBytes: number
+  }
+
   readonly clips: {
     readonly maxBytes: number
     readonly maxDurationMs: number
