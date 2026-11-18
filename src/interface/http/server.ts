@@ -8,8 +8,10 @@ import { errorHandler, requestContext } from './middleware/errorHandler'
 import { issueCsrfToken, requireCsrfToken } from './middleware/csrf'
 import { attachUser, enforceSessionAge, requirePasswordCurrent } from './middleware/authz'
 import {
+  GUESTBOOK_WRITES_PER_GUEST_PER_MINUTE,
   eventCreationLimiter,
   guestWriteLimiter,
+  guestbookGuestLimiter,
   hostExportLimiter,
   uploadConcurrencyLimiter,
   uploadGuestLimiter,
@@ -30,6 +32,7 @@ import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
 import { mediaRoutes } from './routes/mediaRoutes'
 import { meRoutes } from './routes/meRoutes'
 import { guestbookRoutes } from './routes/guestbookRoutes'
+import { guestbookVoiceRoutes } from './routes/guestbookVoiceRoutes'
 import { announcementRoutes } from './routes/announcementRoutes'
 import { challengeRoutes } from './routes/challengeRoutes'
 import { missionRoutes } from './routes/missionRoutes'
@@ -287,6 +290,16 @@ export const buildServer = ({
   const guestWriteRateLimiter = guestWriteLimiter(config.rateLimits.guestWritePerMinute)
 
   /**
+   * **One per-guest budget for the guestbook (spec 25), same reason, same arrangement.**
+   *
+   * Writing a word, taking one back and leaving a voice message are three routes in two routers and
+   * one guest; the limiter used to be built inside `guestbookRoutes`, which made a voice route's
+   * own copy a second allowance under the one constant. A `ring 4` test spends it on one side and
+   * finds it spent on the other.
+   */
+  const guestbookGuestRateLimiter = guestbookGuestLimiter(GUESTBOOK_WRITES_PER_GUEST_PER_MINUTE)
+
+  /**
    * **The upload concurrency semaphore (G3-06 / P4-10), same reason, same arrangement.**
    *
    * A counter closed over by the middleware function itself, so calling
@@ -329,7 +342,26 @@ export const buildServer = ({
   app.use('/api', privacyNoticeRoutes({ ...routeDeps, guestWriteRateLimiter }))
   // The guestbook (spec 01): the guest writes, reads their own and takes one back. Shares the
   // guest-write bucket with the routes above; the host's side arrives with the moderation routes.
-  app.use('/api', guestbookRoutes({ ...routeDeps, guestWriteRateLimiter }))
+  app.use(
+    '/api',
+    guestbookRoutes({ ...routeDeps, guestWriteRateLimiter, guestbookGuestRateLimiter }),
+  )
+  // The voice messages of that book (spec 25): a recording is a file, so it has its own router and
+  // its own multer like a clip, but spends the guestbook's per-guest budget with the routes above
+  // and the upload bucket with the photographs and the clips.
+  app.use(
+    '/api',
+    guestbookVoiceRoutes({
+      deps,
+      usecases,
+      uploadTempDir: config.voice.uploadTempDir,
+      maxVoiceBytes: config.voice.maxBytes,
+      uploadRateLimiter,
+      uploadGuestRateLimiter,
+      guestbookGuestRateLimiter,
+      uploadConcurrencyLimiter: sharedUploadConcurrencyLimiter,
+    }),
+  )
   /**
    * **One allowance for the two host exports (SEC-04), same reason, same arrangement.**
    *

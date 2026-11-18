@@ -7,6 +7,7 @@ import type { ThemeCustom } from '../../../domain/events/eventTheme'
 import { acceptsGuests } from '../../../domain/events/eventStatus'
 import type { Guest } from '../../../domain/guests/guest'
 import type { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
+import type { GuestbookVoice } from '../../../domain/guestbook/guestbookVoice'
 import { GUESTBOOK_TEXT_MAX_LENGTH } from '../../../domain/guestbook/guestbookText'
 import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
@@ -24,6 +25,9 @@ import type {
   AlbumBookDto,
   AlbumExportDto,
   CreatedGuestbookEntryDto,
+  CreatedGuestbookVoiceDto,
+  GuestbookQueueVoiceDto,
+  GuestbookVoiceDto,
   GuestbookQueueItemDto,
   GuestbookEntryDto,
   CeilingMeterDto,
@@ -1316,6 +1320,30 @@ export const toPendingInvitationsDto = (
   invitations: readonly PendingInvitation[],
 ): PendingInvitationsDto => ({ items: invitations.map(toPendingInvitationDto) })
 
+/**
+ * A voice message's recording as its author reads it: the state, the **measured** duration and the
+ * line they wrote. Never a digest, a path or a size (spec 25): the phone has no use for them.
+ */
+const toGuestbookVoiceDto = (voice: GuestbookVoice | null): GuestbookVoiceDto | null =>
+  voice === null
+    ? null
+    : {
+        state: voice.state,
+        durationMs: voice.durationMs,
+        caption: voice.caption?.value ?? null,
+      }
+
+/** The same, for the host's console, with the size the card shows. Still no digest and no path. */
+const toGuestbookQueueVoiceDto = (voice: GuestbookVoice | null): GuestbookQueueVoiceDto | null =>
+  voice === null
+    ? null
+    : {
+        state: voice.state,
+        durationMs: voice.durationMs,
+        bytes: voice.audioByteSize,
+        caption: voice.caption?.value ?? null,
+      }
+
 /** A guest's own message: no author (it is theirs), and `canDelete` is the server's verdict. */
 export const toGuestbookEntryDto = (
   entry: GuestbookEntry,
@@ -1326,6 +1354,7 @@ export const toGuestbookEntryDto = (
   status: entry.status,
   createdAt: entry.createdAt.toISOString(),
   canDelete,
+  voice: toGuestbookVoiceDto(entry.voice),
 })
 
 /** The host's row: with the author's first name (or `null`) and the decisions that are legal now. */
@@ -1338,7 +1367,9 @@ export const toGuestbookQueueItemDto = (
   authorName,
   status: entry.status,
   createdAt: entry.createdAt.toISOString(),
-  allowedDecisions: allowedDecisionsFrom(entry.status),
+  // The entity's answer, not the status machine's alone: a voice is never offered `hide`.
+  allowedDecisions: entry.allowedDecisions(),
+  voice: toGuestbookQueueVoiceDto(entry.voice),
 })
 
 /** The answer to writing one: what was stored and whether it was the same message again. */
@@ -1351,7 +1382,14 @@ export const toCreatedGuestbookEntryDto = (
   status: entry.status,
   createdAt: entry.createdAt.toISOString(),
   duplicate,
+  voice: toGuestbookVoiceDto(entry.voice),
 })
+
+/** What a voice message just sent answers: the entry, the recording `queued`, nothing heard yet. */
+export const toCreatedGuestbookVoiceDto = (
+  entry: GuestbookEntry,
+  duplicate: boolean,
+): CreatedGuestbookVoiceDto => ({ entry: toCreatedGuestbookEntryDto(entry, duplicate) })
 
 /** The one field list of the statistics page, so a field cannot reach the wire by accident. */
 export const toEventStatsDto = (stats: EventStats): EventStatsResponseDto => ({

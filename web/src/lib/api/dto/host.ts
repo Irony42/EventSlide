@@ -15,6 +15,17 @@ import type {
   WallLayout,
 } from './common'
 
+/**
+ * The recording behind a voice message as the host's console reads it (spec 25): the author's view
+ * plus the size, for the card.
+ */
+export interface GuestbookQueueVoiceDto {
+  readonly state: 'reserved' | 'queued' | 'running' | 'ready' | 'failed'
+  readonly durationMs: number | null
+  readonly bytes: number | null
+  /** The optional line the guest wrote with it (140 characters): content, never interface. */
+  readonly caption: string | null
+}
 /** One message in the host's reading of the guestbook (spec 01). */
 export interface GuestbookQueueItemDto {
   readonly id: string
@@ -26,11 +37,21 @@ export interface GuestbookQueueItemDto {
   readonly createdAt: string
   /** The decisions this message may take now, from the status machine: the buttons the panel shows. */
   readonly allowedDecisions: readonly ModerationDecision[]
+  /** The recording of a voice message, `null` for a written one (spec 25). */
+  readonly voice: GuestbookQueueVoiceDto | null
 }
 export interface GuestbookQueueDto {
   readonly items: readonly GuestbookQueueItemDto[]
   /** The whole book's, not the page's: the badge on the panel. */
   readonly pendingCount: number
+  /** Recordings still being processed, left out of `items`: "2 messages vocaux en traitement". */
+  readonly voiceProcessing: number
+  /** The secret is on: no recording may be heard yet, and the card shows no player. */
+  readonly voiceSealed: boolean
+  /** When the host set the secret to lift (an instant), or `null` for "when the event ends". */
+  readonly voiceOpensAtMs: number | null
+  /** The server's now, in milliseconds: a countdown never trusts the console's own clock. */
+  readonly serverNowMs: number
 }
 /**
  * One row of `GET /api/events/:slug/moderation`.

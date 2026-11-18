@@ -12,6 +12,7 @@ import { installDialogStub } from './dialogStub'
 import { aSiteClientDefaults, aSiteInvitation, CLIENT_ID, noCeilings } from './siteFixtures'
 import type { Api } from '../lib/api/client'
 import { ApiError } from '../lib/http'
+import { QUIET_VOICE_BOOK } from './guestbookVoiceFixtures'
 import type {
   AlbumExportDto,
   InvitationAcceptedDto,
@@ -620,13 +621,19 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   privacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   acknowledgePrivacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   // No messages, and no longer accepting: the guestbook card is off unless a test turns it on.
-  myGuestbook: vi.fn(async () => ({ items: [], accepting: true, onWall: true })),
+  myGuestbook: vi.fn(async () => ({
+    items: [],
+    accepting: true,
+    onWall: true,
+    voiceAvailable: false,
+  })),
   writeGuestbookEntry: vi.fn(async (_slug: string, text: string) => ({
     id: 'entry-1',
     text,
     status: 'pending' as const,
     createdAt: CREATED_AT,
     duplicate: false,
+    voice: null,
   })),
   deleteMyGuestbookEntry: vi.fn(async () => undefined),
   deleteMyPhoto: vi.fn(async () => undefined),
@@ -730,7 +737,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   purgeEvent: vi.fn(async () => undefined),
 
   moderationQueue: vi.fn(async () => ({ items: [], pendingCount: 0, nextCursor: null })),
-  guestbookQueue: vi.fn(async () => ({ items: [], pendingCount: 0 })),
+  guestbookQueue: vi.fn(async () => ({ items: [], pendingCount: 0, ...QUIET_VOICE_BOOK })),
   decideGuestbookEntry: vi.fn(async () => undefined),
   moderate: vi.fn(async () => undefined),
   moderateBulk: vi.fn(async () => ({ applied: [], skipped: [] })),

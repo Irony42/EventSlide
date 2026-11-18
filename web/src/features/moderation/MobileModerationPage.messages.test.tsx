@@ -12,6 +12,7 @@ import { fr } from '../../lib/i18n/fr'
 import type { Api } from '../../lib/api/client'
 import type { GuestbookQueueItemDto, ModerationDecision } from '../../lib/api/dto'
 import { FakeEventSource } from '../../testing/fakeEventSource'
+import { QUIET_VOICE_BOOK } from '../../testing/guestbookVoiceFixtures'
 
 /** The messages tab of the phone console (spec 15). */
 const SLUG = 'camille-et-sacha'
@@ -25,6 +26,7 @@ const aMessage = (overrides: Partial<GuestbookQueueItemDto> = {}): GuestbookQueu
   status: 'pending',
   createdAt: '2026-11-04T20:00:00.000Z',
   allowedDecisions: ['publish', 'reject'],
+  voice: null,
   ...overrides,
 })
 
@@ -41,6 +43,7 @@ const apiWith = (
     guestbookQueue: vi.fn(async (_slug, _signal, query) => ({
       items: query?.status === undefined ? book : book.filter((m) => m.status === query.status),
       pendingCount: book.filter((m) => m.status === 'pending').length,
+      ...QUIET_VOICE_BOOK,
     })),
     decideGuestbookEntry: vi.fn(async (_slug: string, id: string, decision: ModerationDecision) => {
       book = book.map((m) =>

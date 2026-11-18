@@ -6,6 +6,7 @@ import { fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
 import { GuestbookPanel } from './GuestbookPanel'
 import type { Api } from '../../lib/api/client'
 import type { GuestbookQueueDto, GuestbookQueueItemDto } from '../../lib/api/dto'
+import { QUIET_VOICE_BOOK } from '../../testing/guestbookVoiceFixtures'
 
 const SLUG = 'camille-et-sacha'
 
@@ -16,12 +17,14 @@ const item = (over: Partial<GuestbookQueueItemDto> = {}): GuestbookQueueItemDto 
   status: 'pending',
   createdAt: '2026-11-01T20:00:00.000Z',
   allowedDecisions: ['publish', 'reject'],
+  voice: null,
   ...over,
 })
 
 const queue = (items: readonly GuestbookQueueItemDto[], pendingCount = 0): GuestbookQueueDto => ({
   items,
   pendingCount,
+  ...QUIET_VOICE_BOOK,
 })
 
 const render = (api: Api, canDecide = true) =>

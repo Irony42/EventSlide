@@ -93,6 +93,11 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
     supported: true,
     uploadTempDir: join(tmpdir(), 'eventslide-test-clips'),
   },
+  // A recording is small and goes to disk through its own multer, like a clip.
+  voice: {
+    maxBytes: 4_000_000,
+    uploadTempDir: join(tmpdir(), 'eventslide-test-voice'),
+  },
   rateLimits: {
     uploadPerMinute: 12,
     uploadPerIpPerMinute: 300,

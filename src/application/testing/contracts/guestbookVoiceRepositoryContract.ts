@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
+import { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
 import { GuestbookVoice } from '../../../domain/guestbook/guestbookVoice'
 import { MAX_VOICE_PER_EVENT } from '../../../domain/guestbook/guestbookVoiceLimits'
 import { ContentHash } from '../../../domain/photos/contentHash'
@@ -319,9 +319,15 @@ export const guestbookVoiceRepositoryContract = (
       const failed = reservation({ id: 'v3', sourceHash: digest('3'), guestId: 'guest-sam' })
       const takenDown = reservation({ id: 'v4', sourceHash: digest('4'), guestId: 'guest-sam' })
       for (const entry of [live, refused, failed, takenDown]) await admit(entry)
-      const rejected = refused.reject({ kind: 'automatic' }, at(2))
-      if (!rejected.ok) throw new Error('fixture')
-      await book.save(rejected.value)
+      // A refusal of a recording still being processed is not a move the entity makes (nobody can
+      // decide on what cannot be heard yet), so the fixture writes the status the count reads.
+      await book.save(
+        GuestbookEntry.restore({
+          ...refused.toProps(),
+          status: 'rejected',
+          review: { kind: 'automatic', at: at(2) },
+        }),
+      )
       await finish(failed, { fail: 'voice.corrupt' })
       subject.takeDown('evt-wedding', 'v4', at(3))
 

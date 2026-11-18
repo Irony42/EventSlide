@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { asEventId, asGuestId, asGuestbookEntryId } from '../../../domain/shared/ids'
 import { AT, aGuestbookEntry, aVoiceEntry, anEvent } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
+import { FakeAudioTranscoder } from '../../testing/fakeAudioTranscoder'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { makeListMyGuestbookEntries, type ListMyGuestbookEntries } from './listMyGuestbookEntries'
@@ -13,6 +14,7 @@ describe('listMyGuestbookEntries', () => {
   let events: FakeEventRepository
   let guestbook: FakeGuestbookRepository
   let clock: FakeClock
+  let transcoder: FakeAudioTranscoder
   let list: ListMyGuestbookEntries
 
   beforeEach(() => {
@@ -20,7 +22,8 @@ describe('listMyGuestbookEntries', () => {
     guestbook = new FakeGuestbookRepository()
     clock = new FakeClock()
     events.seed(anEvent({ id: 'event-1', settings: { allowGuestbook: true } }))
-    list = makeListMyGuestbookEntries({ events, guestbook, clock })
+    transcoder = new FakeAudioTranscoder()
+    list = makeListMyGuestbookEntries({ events, guestbook, transcoder, clock })
   })
 
   const mine = (id: string, moderation: 'manual' | 'auto' = 'manual') =>
@@ -135,6 +138,56 @@ describe('listMyGuestbookEntries', () => {
     await events.setTakenDown(EVENT, new Date(0))
     const down = await list({ eventId: EVENT, guestId: LEA })
     expect(!down.ok && down.error.code).toBe('event.notFound')
+  })
+
+  describe('whether a voice message would be taken (voiceAvailable)', () => {
+    const voiceOn = (settings: Parameters<typeof anEvent>[0] = {}): void => {
+      events.seed(
+        anEvent({
+          id: 'event-1',
+          ...settings,
+          settings: {
+            allowGuestbook: true,
+            guestbookVoice: { enabled: true },
+            ...settings.settings,
+          },
+        }),
+      )
+    }
+    const available = async (): Promise<boolean | null> => {
+      const result = await list({ eventId: EVENT, guestId: LEA })
+      return result.ok ? result.value.voiceAvailable : null
+    }
+
+    it('is true when the book is on, the voice is on, the window is open and the box can encode', async () => {
+      voiceOn()
+
+      expect(await available()).toBe(true)
+    })
+
+    it('is false while the host has not switched the voice on, which is every event until they do', async () => {
+      expect(await available()).toBe(false)
+    })
+
+    it('is false when the voice is on but the book is off: the voice depends on it', async () => {
+      voiceOn({ settings: { allowGuestbook: false } })
+
+      expect(await available()).toBe(false)
+    })
+
+    it('is false on a box with no encoder, whatever the host chose: the button must not be offered', async () => {
+      voiceOn()
+      transcoder.unavailable()
+
+      expect(await available()).toBe(false)
+    })
+
+    it('is false once the closed-event window is over, with the book itself', async () => {
+      voiceOn({ status: 'closed' })
+      clock.advance(8 * 24 * 3_600_000)
+
+      expect(await available()).toBe(false)
+    })
   })
 
   describe('a voice message', () => {

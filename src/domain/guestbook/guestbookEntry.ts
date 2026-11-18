@@ -1,4 +1,5 @@
 import type { ModerationMode } from '../events/eventSettings'
+import { allowedDecisionsFrom, type ModerationDecision } from '../moderation/moderationDecision'
 import type { PhotoReview, Reviewer } from '../photos/photo'
 import { canTransition, type PhotoStatus } from '../photos/photoStatus'
 import { authorMayTakeBack, removalVerdict, type DeletionVerdict } from '../photos/selfRemoval'
@@ -162,12 +163,37 @@ export class GuestbookEntry {
     if (next === 'hidden' && this.props.voice !== null) {
       return err(DomainError.conflict('guestbook.voiceCannotHide'))
     }
+    // Nobody can listen to a recording that is still being processed, or that failed, so there is
+    // nothing to decide yet (or ever): moderation and processing are two axes, and this is where
+    // the first waits for the second.
+    if (!this.isDecidable()) return err(DomainError.conflict('guestbook.voiceNotReady'))
     if (!canTransition(this.props.status, next)) {
       return err(
         DomainError.conflict('guestbook.illegalTransition', { from: this.props.status, to: next }),
       )
     }
     return ok(new GuestbookEntry({ ...this.props, status: next, review: { ...by, at } }))
+  }
+
+  /**
+   * Whether a host may decide on it now: a written message always, a voice only once `ready`
+   * (spec 25, rule 2). The console lists nothing else, and `transitionTo` refuses the rest.
+   */
+  isDecidable(): boolean {
+    return this.props.voice === null || this.props.voice.isReady()
+  }
+
+  /**
+   * The decisions the host's buttons may offer for this message **now**: the status machine's
+   * (`allowedDecisionsFrom`) minus `hide` on a voice, which is never on a screen so would change
+   * nothing visible and keep it in the album, and none at all while it cannot be listened to.
+   */
+  allowedDecisions(): readonly ModerationDecision[] {
+    if (!this.isDecidable()) return []
+    const decisions = allowedDecisionsFrom(this.props.status)
+    return this.props.voice === null
+      ? decisions
+      : decisions.filter((decision) => decision !== 'hide')
   }
 
   isAuthoredBy(guestId: GuestId): boolean {

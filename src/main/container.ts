@@ -857,6 +857,11 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       supported: ffmpeg !== null,
       uploadTempDir: clipUploadTempDir(mediaRoot),
     },
+    voice: {
+      maxBytes: config.voice.maxBytes,
+      // The same directory a clip stages in: emptied at boot, under the volume the operator gave.
+      uploadTempDir: clipUploadTempDir(mediaRoot),
+    },
     rateLimits: config.rateLimits,
     realtime: {
       maxStreamsPerClient: config.realtime.maxStreamsPerClient,

@@ -91,8 +91,8 @@ describe('a voice message as an entry', () => {
     expect(automatic.review).toEqual({ kind: 'automatic', at: AT })
   })
 
-  it('is decided like a written message: published, rejected, back to pending', () => {
-    const entry = aVoiceEntry()
+  it('is decided like a written message once ready: published, rejected, back to pending', () => {
+    const entry = aVoiceEntry({ state: 'ready' })
 
     const published = entry.publish(REVIEWER, at(1))
     expect(published.ok && published.value.status).toBe('published')
@@ -105,7 +105,10 @@ describe('a voice message as an entry', () => {
   it.each(['pending', 'published', 'rejected'] as const)(
     'refuses to be hidden from %s: a voice is never on a screen, and a hidden one would keep its place in the album',
     (status) => {
-      const base = aVoiceEntry({ moderation: status === 'published' ? 'auto' : 'manual' })
+      const base = aVoiceEntry({
+        state: 'ready',
+        moderation: status === 'published' ? 'auto' : 'manual',
+      })
       const entry = status === 'rejected' ? must(base.reject(REVIEWER, at(1))) : base
 
       const hidden = entry.hide(REVIEWER, at(2))
@@ -121,6 +124,35 @@ describe('a voice message as an entry', () => {
     const hidden = published.hide(REVIEWER, at(1))
 
     expect(hidden.ok && hidden.value.status).toBe('hidden')
+  })
+
+  it.each(['reserved', 'queued', 'running', 'failed'] as const)(
+    'cannot be decided while its recording is %s: there is nothing to listen to yet, or ever',
+    (state) => {
+      const entry = aVoiceEntry({ state })
+
+      for (const decision of ['published', 'rejected'] as const) {
+        const moved = entry.transitionTo(decision, REVIEWER, at(1))
+        expect(!moved.ok && moved.error.code).toBe('guestbook.voiceNotReady')
+      }
+      expect(entry.isDecidable()).toBe(false)
+      expect(entry.allowedDecisions()).toEqual([])
+    },
+  )
+
+  it('is decidable once ready, and a written message always is', () => {
+    expect(aVoiceEntry({ state: 'ready' }).isDecidable()).toBe(true)
+    expect(aGuestbookEntry().isDecidable()).toBe(true)
+  })
+
+  it('offers a voice every decision but hide, which a written message keeps', () => {
+    const pendingVoice = aVoiceEntry({ state: 'ready' })
+    const publishedVoice = aVoiceEntry({ state: 'ready', moderation: 'auto' })
+    const publishedWritten = aGuestbookEntry({ moderation: 'auto' })
+
+    expect(pendingVoice.allowedDecisions()).toEqual(['publish', 'reject'])
+    expect(publishedVoice.allowedDecisions()).toEqual(['reject'])
+    expect(publishedWritten.allowedDecisions()).toEqual(['reject', 'hide'])
   })
 
   it('keeps its recording through a decision', () => {

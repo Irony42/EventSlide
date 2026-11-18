@@ -79,6 +79,7 @@ describe('the use cases that can take content out of the evening, or reopen it',
     expect(hooked).toEqual([
       'events/applyEventSchedules.ts',
       'events/changeEventStatus.ts',
+      'guestbook/keepPendingGuestbookVoices.ts',
       'guestbook/moderateGuestbookEntry.ts',
       'guests/eraseGuestContribution.ts',
       'moderation/moderatePhoto.ts',

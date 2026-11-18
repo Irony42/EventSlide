@@ -26,6 +26,11 @@ import { requireEventRole, requireWritable } from '../shared/eventRole'
  *
  * Nothing is announced unless something changed: a `guestbook.changed` signal makes the wall and
  * the panel re-read, and an illegal move must not look like a success on screen.
+ *
+ * **A voice message** (spec 25) is decided only once `ready` (`guestbook.voiceNotReady` before
+ * that: the entity refuses it) and never hidden (`guestbook.voiceCannotHide`). Its decision is
+ * announced as `guestbook.voice`, which only the console hears: the wall re-reads on every public
+ * signal and would read for a recording it never plays.
  */
 
 export interface ModerateGuestbookEntryInput {
@@ -95,7 +100,7 @@ export const makeModerateGuestbookEntry =
       await invalidateExport?.(eventId, 'guestbookChanged')
     }
     await guestbook.save(moved.value)
-    bus.publish({ type: 'guestbook.changed', eventId })
+    bus.publish({ type: entry.voice === null ? 'guestbook.changed' : 'guestbook.voice', eventId })
 
     return ok({ entryId, status: moved.value.status })
   }

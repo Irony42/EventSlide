@@ -3,6 +3,7 @@ import { Event } from '../../../domain/events/event'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
 import { aGuest, aGuestbookEntry, aVoiceEntry, anEvent, atPlus, AT } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
@@ -26,7 +27,13 @@ describe('listGuestbookQueue', () => {
     guestbook = new FakeGuestbookRepository()
     guests = new FakeGuestRepository()
     memberships = new FakeMembershipRepository()
-    list = makeListGuestbookQueue({ events, guestbook, guests, memberships })
+    list = makeListGuestbookQueue({
+      events,
+      guestbook,
+      guests,
+      memberships,
+      clock: new FakeClock(),
+    })
     events.seed(anEvent({ id: 'event-1' }))
     memberships.seed({ eventId: EVENT, userId: MODERATOR, role: 'moderator', grantedAt: AT })
     guests.seed(aGuest({ id: 'guest-1', displayName: 'Léa' }))
@@ -154,5 +161,95 @@ describe('listGuestbookQueue', () => {
     expect(result.ok && result.value.items.map((row) => row.entry.id)).toEqual(['v-ready', 'text'])
     expect(result.ok && result.value.items[0]?.entry.text).toBeNull()
     expect(result.ok && result.value.pendingCount).toBe(2)
+  })
+
+  describe('voice messages (spec 25)', () => {
+    const voice = (id: string, state: 'reserved' | 'queued' | 'running' | 'ready' | 'failed') =>
+      aVoiceEntry({
+        id,
+        state,
+        guestId: 'guest-1',
+        sourceHash: Buffer.from(id).toString('hex').padEnd(64, '0'),
+        createdAt: atPlus(1),
+      })
+
+    it('lists a voice only once ready, and counts the ones still being processed apart', async () => {
+      guestbook.seed(
+        voice('v-ready', 'ready'),
+        voice('v-reserved', 'reserved'),
+        voice('v-queued', 'queued'),
+        voice('v-running', 'running'),
+        voice('v-failed', 'failed'),
+        aGuestbookEntry({ id: 'text', guestId: 'guest-1', createdAt: atPlus(3) }),
+      )
+
+      const result = await run()
+
+      expect(result.ok && result.value.items.map((row) => row.entry.id)).toEqual([
+        'v-ready',
+        'text',
+      ])
+      expect(result.ok && result.value.voice.processing).toBe(3)
+    })
+
+    it('does not count a voice that cannot be decided yet as waiting for a decision', async () => {
+      guestbook.seed(
+        voice('v-ready', 'ready'),
+        voice('v-queued', 'queued'),
+        voice('v-running', 'running'),
+      )
+
+      const result = await run()
+
+      expect(result.ok && result.value.pendingCount).toBe(1)
+    })
+
+    it('says none are processing when there is no voice at all', async () => {
+      guestbook.seed(aGuestbookEntry({ id: 'text', guestId: 'guest-1' }))
+
+      const result = await run()
+
+      expect(result.ok && result.value.voice).toEqual({
+        processing: 0,
+        sealed: false,
+        opensAtMs: null,
+        nowMs: AT.getTime(),
+      })
+    })
+
+    it('says the secret is on while it is, with the instant it was set to lift and the server’s now', async () => {
+      events.seed(
+        anEvent({
+          id: 'event-1',
+          settings: {
+            allowGuestbook: true,
+            guestbookVoice: { enabled: true, sealed: true, opensAtMs: AT.getTime() + 60_000 },
+          },
+        }),
+      )
+
+      const result = await run()
+
+      expect(result.ok && result.value.voice).toEqual({
+        processing: 0,
+        sealed: true,
+        opensAtMs: AT.getTime() + 60_000,
+        nowMs: AT.getTime(),
+      })
+    })
+
+    it('says the secret is lifted once the event is over, whatever time was set', async () => {
+      events.seed(
+        anEvent({
+          id: 'event-1',
+          status: 'closed',
+          settings: { allowGuestbook: true, guestbookVoice: { enabled: true, sealed: true } },
+        }),
+      )
+
+      const result = await run()
+
+      expect(result.ok && result.value.voice.sealed).toBe(false)
+    })
   })
 })
