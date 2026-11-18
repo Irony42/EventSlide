@@ -18,7 +18,7 @@ import type { GuestbookEntryDto } from '../../../lib/api/dto'
  * (`404`), a suspended account and a removed event answer `404` too, and a guest the host removed is
  * refused (`401`, `403`): a card that said "could not load" would be an apology for something nobody
  * can fix. With no answer there is no `accepting` and no list, so neither the card nor the list shows;
- * the one error that is shown is a refused removal, from the dialog that asked for it.
+ * the one error that is shown is a refused removal, from the dialog that asked for it. (A refresh that fails after an answer keeps the list it had and does not stop the timer below.)
  *
  * **A voice message in flight is followed by a timer, and nothing else is.** Nothing is pushed to a
  * phone (no hook of the guest screen opens a stream), so while one of the guest's own voices is
@@ -38,6 +38,8 @@ export interface MyMessagesState {
   readonly onWall: boolean
   /** A voice message would be taken now (the switch, an encoder on the box, the window): the button is shown on this. */
   readonly voiceAvailable: boolean
+  /** The longest voice message the box takes, in seconds; `undefined` until the first answer (or from an older server). */
+  readonly voiceMaxSeconds: number | undefined
   /** The server does not serve a guestbook to this guest: show none of it. */
   readonly unavailable: boolean
   /** A sentence in the language on screen, or `null`. */
@@ -54,6 +56,7 @@ type Answer =
       readonly accepting: boolean
       readonly onWall: boolean
       readonly voiceAvailable: boolean
+      readonly voiceMaxSeconds: number | undefined
     }
   | { readonly kind: 'gone' }
 
@@ -81,11 +84,12 @@ export const useMyMessages = (slug: string, enabled: boolean): MyMessagesState =
         accepting: mine.accepting,
         onWall: mine.onWall,
         voiceAvailable: mine.voiceAvailable,
+        voiceMaxSeconds: mine.voiceMaxSeconds,
       }
     },
     [api, slug, enabled],
   )
-  const { data, error, reload } = useLoader(load)
+  const { data, error, loading, reload } = useLoader(load)
 
   const remove = useCallback(
     async (entryId: string) => {
@@ -117,20 +121,25 @@ export const useMyMessages = (slug: string, enabled: boolean): MyMessagesState =
       inFlightSince.current = null
       return
     }
+    // A read on its way arms nothing: its settling (an answer or a failure) flips `loading` and
+    // arms the next one, so a failed read does not end the polling.
+    if (loading) return
     inFlightSince.current ??= Date.now()
     const timer = setTimeout(
       reload,
       voicePollDelayMs(Date.now() - inFlightSince.current, Math.random),
     )
     return () => clearTimeout(timer)
-    // `data` is what re-arms it: every answer schedules the next read, and nothing else does.
-  }, [inFlight, data, reload])
+    // `loading` going back to false is what re-arms it, whether the read answered or failed (the data
+    // keeps its reference on a failure, so it alone would not); `data` also covers a stored mutation.
+  }, [inFlight, loading, data, reload])
 
   return {
     items: ok?.items ?? NO_ITEMS,
     accepting: ok?.accepting ?? false,
     onWall: ok?.onWall ?? true,
     voiceAvailable: ok?.voiceAvailable ?? false,
+    voiceMaxSeconds: ok?.voiceMaxSeconds,
     unavailable: !enabled || data?.kind === 'gone',
     error: actionError ?? error,
     refresh: reload,

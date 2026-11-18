@@ -23,7 +23,10 @@ import type { GuestbookEntryDto } from '../../../lib/api/dto'
 
 const SLUG = 'camille-et-sacha'
 
-const aVoice = (state: 'queued' | 'running' | 'ready' | 'failed', id = 'v'): GuestbookEntryDto => ({
+const aVoice = (
+  state: 'reserved' | 'queued' | 'running' | 'ready' | 'failed',
+  id = 'v',
+): GuestbookEntryDto => ({
   id,
   text: null,
   status: 'pending',
@@ -43,7 +46,7 @@ const apiAnswering = (...answers: readonly (readonly GuestbookEntryDto[])[]): Ap
     myGuestbook: vi.fn(async () => {
       const items = answers[Math.min(call, answers.length - 1)] ?? []
       call += 1
-      return { items, accepting: true, onWall: true, voiceAvailable: true }
+      return { items, accepting: true, onWall: true, voiceAvailable: true, voiceMaxSeconds: 60 }
     }),
   })
 }
@@ -101,6 +104,43 @@ describe('useMyMessages, the voice in flight', () => {
     expect(api.myGuestbook).toHaveBeenCalledTimes(3)
   })
 
+  it.each(['reserved', 'queued', 'running'] as const)(
+    'polls while a voice is %s, the three states a recording is still being processed in',
+    async (state) => {
+      const api = apiAnswering([aVoice(state)], [aVoice('ready')])
+      await mount(api)
+
+      await run(POLL_VOICE_EVERY_MS)
+
+      expect(api.myGuestbook).toHaveBeenCalledTimes(2)
+    },
+  )
+
+  it('keeps polling after a read that failed: a phone that lost the network for a moment is not left on "En traitement"', async () => {
+    let call = 0
+    const api = fakeApi({
+      myGuestbook: vi.fn(async () => {
+        call += 1
+        if (call === 2) throw new TypeError('Failed to fetch')
+        return {
+          items: [aVoice(call < 4 ? 'queued' : 'ready')],
+          accepting: true,
+          onWall: true,
+          voiceAvailable: true,
+          voiceMaxSeconds: 60,
+        }
+      }),
+    })
+    const { result } = await mount(api)
+
+    await pass(30_000)
+
+    // The failed read (the second) did not end the timer: the third and fourth went out, and the
+    // fourth found the voice ready, which is what stopped it.
+    expect(api.myGuestbook).toHaveBeenCalledTimes(4)
+    expect(result.current.items[0]?.voice?.state).toBe('ready')
+  })
+
   it('spreads the short cadence by a second either way', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0)
     const api = apiAnswering([aVoice('queued')])
@@ -130,7 +170,13 @@ describe('useMyMessages, the voice in flight', () => {
     const api = fakeApi({
       myGuestbook: vi.fn(async () => {
         stamps.push(Date.now())
-        return { items: [aVoice('running')], accepting: true, onWall: true, voiceAvailable: true }
+        return {
+          items: [aVoice('running')],
+          accepting: true,
+          onWall: true,
+          voiceAvailable: true,
+          voiceMaxSeconds: 60,
+        }
       }),
     })
     await mount(api)
