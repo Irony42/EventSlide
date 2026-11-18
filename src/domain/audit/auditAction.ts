@@ -127,6 +127,21 @@ export const AUDIT_ACTIONS = {
   'event.purgeHeld': { subject: 'event', details: { reason: detail.reason } },
   /** An operator released that hold (`setEventPurgeHold`): the event is purged at its deadline again. */
   'event.purgeReleased': { subject: 'event', details: { reason: detail.reason } },
+  /**
+   * The owner of an event lifted the secret over its voice messages (`openGuestbookVoice`,
+   * spec 25, rule 10): from now on the recordings may be heard and the archive carries them. The
+   * subject is the event (its opaque id, and its client, so the client's owner reads it); there is
+   * nothing else to say, and above all not a word of what was recorded. Written once: opening
+   * what is already open is not an act. Named for its subject, as every action is
+   * (`auditAction.test.ts`), rather than `guestbook.voiceOpened`, which would claim a message.
+   */
+  'event.voiceOpened': { subject: 'event', details: {} },
+  /**
+   * A moderator kept every ready voice message that was waiting for a decision
+   * (`keepPendingGuestbookVoices`, spec 25): `kept` says how many, never which. Written only when
+   * at least one was kept.
+   */
+  'event.voicesKept': { subject: 'event', details: { kept: detail.integer } },
   /** An operator lifted a suspension (`resumeClient`, G2-14). */
   'client.resumed': { subject: 'client', details: {} },
   /**
