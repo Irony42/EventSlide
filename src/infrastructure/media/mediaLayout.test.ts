@@ -18,6 +18,8 @@ describe('mediaObjectPath', () => {
     ['source', `${EVENT}/source/ab/${HASH}.bin`],
     ['ground', `${EVENT}/ground/ab/${HASH}.webp`],
     ['logo', `${EVENT}/logo/ab/${HASH}.webp`],
+    // A guestbook voice (spec 25): AAC in MP4, an `.m4a` on the disk of every installed box.
+    ['voice', `${EVENT}/voice/ab/${HASH}.m4a`],
   ] as const)('lays a %s down at %s', (variant, path) => {
     expect(mediaObjectPath(EVENT, HASH, variant)).toBe(path)
   })
@@ -41,6 +43,8 @@ describe('mediaObjectPath', () => {
       ground: 'image/webp',
       logo: 'image/webp',
       reel: 'video/mp4',
+      // The only audio the store holds, served by a route of its own and by no photo route.
+      voice: 'audio/mp4',
     })
   })
 

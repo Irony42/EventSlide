@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { Event } from '../../../domain/events/event'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
-import { aGuest, aGuestbookEntry, anEvent, atPlus, AT } from '../../testing/builders'
+import { aGuest, aGuestbookEntry, aVoiceEntry, anEvent, atPlus, AT } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
@@ -134,5 +134,25 @@ describe('listGuestbookQueue', () => {
     guestbook.seed(aGuestbookEntry({ id: 'm' }))
 
     expect(await ids()).toEqual(['m'])
+  })
+
+  it('lists a voice message with no text, and leaves out one whose processing failed', async () => {
+    guestbook.seed(
+      aVoiceEntry({ id: 'v-ready', state: 'ready', guestId: 'guest-1', createdAt: atPlus(1) }),
+      aVoiceEntry({
+        id: 'v-failed',
+        state: 'failed',
+        guestId: 'guest-1',
+        createdAt: atPlus(2),
+        sourceHash: 'b'.repeat(64),
+      }),
+      aGuestbookEntry({ id: 'text', guestId: 'guest-1', createdAt: atPlus(3) }),
+    )
+
+    const result = await run()
+
+    expect(result.ok && result.value.items.map((row) => row.entry.id)).toEqual(['v-ready', 'text'])
+    expect(result.ok && result.value.items[0]?.entry.text).toBeNull()
+    expect(result.ok && result.value.pendingCount).toBe(2)
   })
 })

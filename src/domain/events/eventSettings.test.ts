@@ -123,6 +123,7 @@ describe('EventSettings.create', () => {
         },
         wallLanguage: 'de',
         wall: { layout: 'mosaic', slideIntervalMs: 12_000 },
+        guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_800_000_000_000 },
       }),
     )
 
@@ -150,6 +151,7 @@ describe('EventSettings.create', () => {
       welcomeMessage: null,
       logo: null,
       wall: { ...DEFAULT_WALL_SETTINGS, layout: 'mosaic', slideIntervalMs: 12_000 },
+      guestbookVoice: { enabled: true, sealed: true, opensAtMs: 1_800_000_000_000 },
     })
   })
 

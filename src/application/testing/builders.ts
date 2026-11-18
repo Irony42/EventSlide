@@ -18,6 +18,9 @@ import { ShareLinkLifetime } from '../../domain/gallery/shareLinkLifetime'
 import { DisplayName } from '../../domain/guests/displayName'
 import { GuestbookEntry } from '../../domain/guestbook/guestbookEntry'
 import { GuestbookText } from '../../domain/guestbook/guestbookText'
+import { GuestbookVoice } from '../../domain/guestbook/guestbookVoice'
+import type { VoiceState } from '../../domain/guestbook/guestbookVoiceState'
+import type { VoiceFailure } from '../../domain/guestbook/voiceFailure'
 import { Mission } from '../../domain/missions/mission'
 import { MissionPrompt } from '../../domain/missions/missionPrompt'
 import { DEFAULT_MISSION_SCOPE, type MissionScope } from '../../domain/missions/missionScope'
@@ -445,6 +448,89 @@ export const aGuestbookEntry = (input: GuestbookEntryInput = {}): GuestbookEntry
     },
     asGuestbookEntryId(id),
     pick(input.createdAt, AT),
+    pick(input.moderation, 'manual'),
+  )
+}
+
+export interface GuestbookVoiceEntryInput {
+  readonly id?: string
+  readonly eventId?: string
+  readonly guestId?: string
+  /** The processing state; `queued` (what an upload leaves) by default. */
+  readonly state?: VoiceState
+  readonly sourceHash?: string
+  readonly sourceByteSize?: number
+  /** Only a `ready` voice has an output: its hash, size and measured duration. */
+  readonly audioHash?: string
+  readonly audioByteSize?: number
+  readonly durationMs?: number
+  readonly caption?: string | null
+  readonly failure?: VoiceFailure
+  readonly attempts?: number
+  /** `manual` (the default) starts `pending`; `auto` starts `published`. */
+  readonly moderation?: 'manual' | 'auto'
+  readonly createdAt?: Date
+  /** When the voice may be claimed, and the finish time of a failed one. */
+  readonly queuedAt?: Date
+  readonly finishedAt?: Date
+}
+
+/**
+ * A voice message of the default guest at the default event (spec 25): an entry whose `text` is
+ * `null` and whose recording is in the given state.
+ *
+ * Like `aClipJob`, the facts follow the state, because a fixture production cannot write proves
+ * nothing: a `ready` voice carries its output (hash, size, duration), a `running` one has been
+ * claimed once, a `failed` one says why and when.
+ */
+export const aVoiceEntry = (input: GuestbookVoiceEntryInput = {}): GuestbookEntry => {
+  const id = pick(input.id, 'voice-1')
+  const state = pick(input.state, 'queued')
+  const createdAt = pick(input.createdAt, AT)
+  const caption = pick(input.caption, null)
+
+  const created = must(
+    GuestbookVoice.create(
+      {
+        sourceHash: must(
+          ContentHash.create(pick(input.sourceHash, hexDigest(`${id}/source`))),
+          'aVoiceEntry.sourceHash',
+        ),
+        sourceByteSize: pick(input.sourceByteSize, 300_000),
+        caption: caption === null ? null : must(Caption.create(caption), 'aVoiceEntry.caption'),
+      },
+      createdAt,
+    ),
+    'aVoiceEntry.voice',
+  )
+  const ready = state === 'ready'
+  const voice = GuestbookVoice.restore({
+    ...created.toProps(),
+    state,
+    attempts: pick(input.attempts, state === 'running' || ready || state === 'failed' ? 1 : 0),
+    audioHash: ready
+      ? must(
+          ContentHash.create(pick(input.audioHash, hexDigest(`${id}/audio`))),
+          'aVoiceEntry.audioHash',
+        )
+      : null,
+    audioByteSize: ready ? pick(input.audioByteSize, 240_000) : null,
+    durationMs: ready ? pick(input.durationMs, 12_000) : null,
+    failure: state === 'failed' ? pick(input.failure, 'corrupt') : null,
+    queuedAt: pick(input.queuedAt, createdAt),
+    startedAt: state === 'running' || ready || state === 'failed' ? createdAt : null,
+    finishedAt:
+      ready || state === 'failed' ? pick(input.finishedAt, input.queuedAt ?? createdAt) : null,
+  })
+
+  return GuestbookEntry.createVoice(
+    {
+      eventId: asEventId(pick(input.eventId, 'event-1')),
+      guestId: asGuestId(pick(input.guestId, 'guest-1')),
+      voice,
+    },
+    asGuestbookEntryId(id),
+    createdAt,
     pick(input.moderation, 'manual'),
   )
 }

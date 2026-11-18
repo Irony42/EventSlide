@@ -54,6 +54,8 @@ const CONTENT_TYPES: readonly (readonly [MediaVariant, string])[] = [
   ['poster', 'image/jpeg'],
   ['source', 'application/octet-stream'],
   ['ground', 'image/webp'],
+  // A guestbook voice (spec 25): AAC in MP4, served by a route of its own and by no photo route.
+  ['voice', 'audio/mp4'],
 ]
 
 const collect = async (chunks: AsyncIterable<Uint8Array> | null): Promise<number[]> => {

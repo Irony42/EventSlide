@@ -16,6 +16,8 @@ import type { AnnouncementRepository } from '../application/ports/announcementRe
 import type { ChallengeRepository } from '../application/ports/challengeRepository'
 import type { MissionRepository } from '../application/ports/missionRepository'
 import type { GuestbookRepository } from '../application/ports/guestbookRepository'
+import type { GuestbookVoiceRepository } from '../application/ports/guestbookVoiceRepository'
+import type { AudioTranscoder } from '../application/ports/audioTranscoder'
 import type { VideoTranscoder } from '../application/ports/videoTranscoder'
 import type { ContentHasher } from '../application/ports/contentHasher'
 import type { ArchiveWriter } from '../application/ports/archiveWriter'
@@ -91,12 +93,16 @@ export interface Adapters {
   /** Scheduled wall announcements (spec 21). */
   readonly announcements: AnnouncementRepository
   readonly guestbook: GuestbookRepository
+  /** The recordings behind the guestbook's voice messages, and their queue (spec 25). */
+  readonly voices: GuestbookVoiceRepository
   readonly users: UserRepository
   readonly memberships: MembershipRepository
   readonly media: MediaStore
   readonly imageProcessor: ImageProcessor
   /** The real encoder, or the Null Object when this box has none. */
   readonly videoTranscoder: VideoTranscoder
+  /** The audio encoder, or the Null Object when this box has none (spec 25). */
+  readonly audioTranscoder: AudioTranscoder
   readonly contentHasher: ContentHasher
   readonly archive: ArchiveWriter
   readonly passwordHasher: PasswordHasher

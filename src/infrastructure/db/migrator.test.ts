@@ -10,6 +10,10 @@ import { BLOCKING_REUPLOAD_SQL, HOLDING_BYTES_SQL } from './clipJobStatusSql'
 import { CLIP_JOB_STATUSES } from '../../domain/clips/clipJobStatus'
 import { AUDIT_ACTOR_KINDS } from '../../domain/audit/auditActor'
 import { AUDIT_SUBJECT_TYPES } from '../../domain/audit/auditSubjectType'
+import { VOICE_STATES } from '../../domain/guestbook/guestbookVoiceState'
+import { VOICE_FAILURES } from '../../domain/guestbook/voiceFailure'
+import { VOICE_BLOCKING_RESEND_SQL, VOICE_IN_FLIGHT_SQL } from './guestbookVoiceSql'
+import { DUE_VOICE_SQL } from './sqliteGuestbookVoiceRepository'
 
 const freshDb = (): Db => openDatabase({ path: ':memory:' })
 
@@ -286,6 +290,7 @@ describe('the real schema', () => {
       'event_stats_counters',
       'events',
       'guestbook_entries',
+      'guestbook_voices',
       'guests',
       'highlight_reels',
       'photos',
@@ -3469,6 +3474,225 @@ describe('migration 028, the guided tours an account was shown', () => {
     db.prepare(`DELETE FROM users WHERE id = 'u-host'`).run()
 
     expect(db.prepare(`SELECT * FROM user_tours`).all()).toEqual([])
+    closeDatabase(db)
+  })
+})
+
+/**
+ * Migration 032 (spec 25): the recording behind a guestbook entry, in a table of its own. The
+ * migration is additive, so the one thing to prove beyond its shape is that it touches nothing that
+ * was there, and the one thing that can drift is the pair of frozen CHECK lists, which a test
+ * holds to the domain.
+ */
+describe('migration 032: guestbook voices', () => {
+  const migratedAt = (id: number): Db => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= id),
+    )
+    return db
+  }
+
+  const ddlOf = (db: Db, name: string): string => {
+    const row = db
+      .prepare<[string], { readonly sql: string }>(`SELECT sql FROM sqlite_master WHERE name = ?`)
+      .get(name)
+    if (row === undefined) throw new Error(`no schema object named ${name}`)
+    return row.sql
+  }
+
+  const listed = (sql: string, column: string): string[] => {
+    const match = new RegExp(`${column} IN\\s*\\(([^)]*)\\)`).exec(sql)
+    expect(match, `a CHECK on ${column}`).not.toBeNull()
+    return (match?.[1] ?? '')
+      .split(',')
+      .map((part) => part.trim().replaceAll("'", ''))
+      .filter((part) => part.length > 0)
+      .sort()
+  }
+
+  const seedEntry = (db: Db, body = ''): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ('u', 'u@example.test', 'x', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+       VALUES ('e', 'u', 'e', 'e', 'e', 'live', '{}', 1, '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at)
+       VALUES ('g', 'e', NULL, '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO guestbook_entries (id, event_id, guest_id, body, status, created_at)
+       VALUES ('m1', 'e', 'g', ?, 'published', '2026-06-20T21:00:00.000Z')`,
+    ).run(body)
+  }
+
+  it('is the next number after the archive’s, and only adds a table', () => {
+    const before = migratedAt(31)
+    const after = migratedAt(32)
+
+    expect(migrations.at(-1)?.id).toBe(32)
+    expect(migrations.at(-1)?.name).toBe('guestbook_voices')
+    expect(tableNames(before)).not.toContain('guestbook_voices')
+    expect(tableNames(after).filter((name) => !tableNames(before).includes(name))).toEqual([
+      'guestbook_voices',
+    ])
+    closeDatabase(before)
+    closeDatabase(after)
+  })
+
+  it('leaves the guestbook table and every row in it exactly as it was', () => {
+    const db = migratedAt(31)
+    const columnsOf = (): string[] =>
+      (db.prepare(`PRAGMA table_info(guestbook_entries)`).all() as { name: string }[]).map(
+        (column) => column.name,
+      )
+    const columnsBefore = columnsOf()
+    seedEntry(db, 'Bravo')
+
+    migrate(db, migrations)
+
+    expect(columnsOf()).toEqual(columnsBefore)
+    expect(db.prepare(`SELECT id, body, status FROM guestbook_entries`).all()).toEqual([
+      { id: 'm1', body: 'Bravo', status: 'published' },
+    ])
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM guestbook_voices`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
+  it('pins the two frozen CHECK lists to the sets of the domain, each read on its own', () => {
+    // A migration never changes meaning, so its CHECKs carry literals. A sixth state added to
+    // the domain would otherwise be counted by the quota and refused by the database, and nothing
+    // would say so until a venue.
+    const db = migratedAt(32)
+    const table = ddlOf(db, 'guestbook_voices')
+
+    expect(listed(table, 'state')).toEqual([...VOICE_STATES].sort())
+    expect(listed(table, 'failure')).toEqual([...VOICE_FAILURES].sort())
+    closeDatabase(db)
+  })
+
+  it('has reserved among its states, the one that lets the row come before the bytes', () => {
+    const db = migratedAt(32)
+
+    expect(listed(ddlOf(db, 'guestbook_voices'), 'state')).toContain('reserved')
+    closeDatabase(db)
+  })
+
+  it('pins the partial indexes to the predicates that define their sets', () => {
+    const db = migratedAt(32)
+
+    expect(ddlOf(db, 'idx_guestbook_voices_queue')).toContain(
+      `WHERE state IN (${VOICE_IN_FLIGHT_SQL})`,
+    )
+    expect(ddlOf(db, 'idx_guestbook_voices_source')).toContain('UNIQUE')
+    expect(ddlOf(db, 'idx_guestbook_voices_source')).toContain('(event_id, source_hash)')
+    // "Every state but failed", spelled as the one exclusion the migration writes.
+    expect(ddlOf(db, 'idx_guestbook_voices_source')).toContain("WHERE state <> 'failed'")
+    expect(VOICE_BLOCKING_RESEND_SQL).toBe(
+      VOICE_STATES.filter((state) => state !== 'failed')
+        .map((state) => `'${state}'`)
+        .join(', '),
+    )
+    closeDatabase(db)
+  })
+
+  it('creates the three indexes the queries are written against', () => {
+    const db = migratedAt(32)
+
+    expect(indexNames(db)).toEqual(
+      expect.arrayContaining([
+        'idx_guestbook_voices_event_state',
+        'idx_guestbook_voices_queue',
+        'idx_guestbook_voices_source',
+      ]),
+    )
+    closeDatabase(db)
+  })
+
+  it('indexes both foreign keys with an index that leads with the key', () => {
+    const db = migratedAt(32)
+    const planOf = (sql: string): string =>
+      (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all('any') as { detail: string }[])
+        .map((row) => row.detail)
+        .join('; ')
+
+    // The primary key leads with the entry, and (event_id, state) with the event: deleting either
+    // parent is a seek, never a scan of every voice on the box.
+    expect(planOf(`SELECT rowid FROM guestbook_voices WHERE entry_id = ?`)).toMatch(
+      /SEARCH guestbook_voices USING (COVERING )?INDEX \S+ \(entry_id=\?\)/,
+    )
+    expect(planOf(`SELECT rowid FROM guestbook_voices WHERE event_id = ?`)).toMatch(
+      /SEARCH guestbook_voices USING (COVERING )?INDEX idx_guestbook_voices_event_state \(event_id=\?\)/,
+    )
+    closeDatabase(db)
+  })
+
+  it('plans the queue’s queries against an index rather than a table scan', () => {
+    const db = migratedAt(32)
+    const planOf = (sql: string): string =>
+      (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all() as { detail: string }[])
+        .map((row) => row.detail)
+        .join('; ')
+
+    // The depth, on a guest's upload, answered from an index and never from the table itself (the
+    // planner may take the covering index of the counts or the partial one of the queue: both are
+    // a few rows on a healthy box).
+    expect(
+      planOf(`SELECT COUNT(*) FROM guestbook_voices WHERE state IN (${VOICE_IN_FLIGHT_SQL})`),
+    ).toMatch(/USING (COVERING )?INDEX idx_guestbook_voices_(queue|event_state)/)
+    // This event's own depth: a seek on the leading event_id.
+    expect(
+      planOf(
+        `SELECT COUNT(*) FROM guestbook_voices WHERE event_id = 'e1' AND state IN (${VOICE_IN_FLIGHT_SQL})`,
+      ),
+    ).toContain('idx_guestbook_voices_event_state (event_id=? AND state=?)')
+    // The worker asking what is due: the very statement the repository runs. The in-flight filter
+    // beside the narrower one is what lets SQLite take a partial index at all, since `state =
+    // 'queued'` alone does not imply the index's own WHERE.
+    const due = planOf(DUE_VOICE_SQL.replace('?', "'2026-06-20T21:00:00.000Z'"))
+    expect(due).toContain('idx_guestbook_voices_queue')
+    expect(due).not.toContain('SCAN v;')
+    // And the shape that must not be written, which walks every voice the box ever held.
+    expect(
+      planOf(
+        `SELECT entry_id FROM guestbook_voices
+          WHERE state = 'queued' AND queued_at <= '2026-06-20T21:00:00.000Z'
+          ORDER BY queued_at ASC LIMIT 1`,
+      ),
+    ).not.toContain('idx_guestbook_voices_queue')
+    // The retry on venue Wi-Fi, a seek on the event whichever index the planner prefers (the unique
+    // one by digest, or the counts' by event and state: an event holds a couple of hundred voices at
+    // the most). What must never happen is a scan of the voices of every event on the box.
+    const duplicate = planOf(
+      `SELECT entry_id FROM guestbook_voices
+        WHERE event_id = 'e1' AND source_hash = 'x' AND state IN (${VOICE_BLOCKING_RESEND_SQL})`,
+    )
+    expect(duplicate).toMatch(
+      /SEARCH guestbook_voices USING (COVERING )?INDEX idx_guestbook_voices_/,
+    )
+    expect(duplicate).toContain('event_id=?')
+    expect(duplicate).not.toContain('SCAN')
+    closeDatabase(db)
+  })
+
+  it('refuses a state and a failure outside the lists, in the database itself', () => {
+    const db = migratedAt(32)
+    seedEntry(db)
+    const insert = (state: string, failure: string | null) =>
+      db
+        .prepare(
+          `INSERT INTO guestbook_voices (entry_id, event_id, state, source_hash, source_byte_size, failure, queued_at)
+           VALUES ('m1', 'e', ?, 'h', 10, ?, '2026-06-20T21:00:00.000Z')`,
+        )
+        .run(state, failure)
+
+    expect(() => insert('done', null)).toThrow(/CHECK constraint failed/)
+    expect(() => insert('queued', 'exploded')).toThrow(/CHECK constraint failed/)
+    expect(() => insert('queued', 'corrupt')).not.toThrow()
     closeDatabase(db)
   })
 })

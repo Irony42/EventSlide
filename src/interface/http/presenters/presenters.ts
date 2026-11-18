@@ -1322,7 +1322,7 @@ export const toGuestbookEntryDto = (
   canDelete: boolean,
 ): GuestbookEntryDto => ({
   id: entry.id,
-  text: entry.text.value,
+  text: entry.text?.value ?? null,
   status: entry.status,
   createdAt: entry.createdAt.toISOString(),
   canDelete,
@@ -1334,7 +1334,7 @@ export const toGuestbookQueueItemDto = (
   authorName: string | null,
 ): GuestbookQueueItemDto => ({
   id: entry.id,
-  text: entry.text.value,
+  text: entry.text?.value ?? null,
   authorName,
   status: entry.status,
   createdAt: entry.createdAt.toISOString(),
@@ -1347,7 +1347,7 @@ export const toCreatedGuestbookEntryDto = (
   duplicate: boolean,
 ): CreatedGuestbookEntryDto => ({
   id: entry.id,
-  text: entry.text.value,
+  text: entry.text?.value ?? null,
   status: entry.status,
   createdAt: entry.createdAt.toISOString(),
   duplicate,

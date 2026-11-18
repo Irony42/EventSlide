@@ -133,7 +133,8 @@ export interface ErasedContributionDto {
 /** One of the guest's own guestbook messages (spec 01). */
 export interface GuestbookEntryDto {
   readonly id: string
-  readonly text: string
+  /** `null` for a voice message (spec 25), whose words are its recording; a written one always has it. */
+  readonly text: string | null
   readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
   readonly createdAt: string
   /** The server's verdict: the phone never recomputes it. */
@@ -149,7 +150,8 @@ export interface MyGuestbookDto {
 /** What a message just written answers. */
 export interface CreatedGuestbookEntryDto {
   readonly id: string
-  readonly text: string
+  /** `null` for a voice message (spec 25), whose words are its recording; a written one always has it. */
+  readonly text: string | null
   readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
   readonly createdAt: string
   /** True when this was the same message sent a moment ago: nothing new was stored. */

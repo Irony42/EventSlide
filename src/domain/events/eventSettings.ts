@@ -15,6 +15,13 @@ import {
   type EventWallSettings,
   type EventWallSettingsPatch,
 } from './eventWallSettings'
+import {
+  DEFAULT_GUESTBOOK_VOICE_SETTINGS,
+  mergeGuestbookVoiceSettings,
+  voiceOpensAtViolation,
+  type EventGuestbookVoiceSettings,
+  type EventGuestbookVoiceSettingsPatch,
+} from './eventGuestbookVoiceSettings'
 import { normalizeWelcomeMessage, restoreWelcomeMessage } from './welcomeMessage'
 
 /**
@@ -163,6 +170,12 @@ export interface EventSettingsProps {
    * Merged field by field, never replaced whole; `eventWallSettings.ts` has the argument.
    */
   readonly wall: EventWallSettings
+  /**
+   * Voice messages in the guestbook (spec 25): off, not sealed, no opening time for every event
+   * that exists and every new one. Merged field by field, like `wall`; see
+   * `eventGuestbookVoiceSettings.ts` for the rule of a sealed book.
+   */
+  readonly guestbookVoice: EventGuestbookVoiceSettings
 }
 
 /**
@@ -170,9 +183,11 @@ export interface EventSettingsProps {
  * different intents from the same settings form, which is why
  * `exactOptionalPropertyTypes` is on and why these fields are not merged with `??`.
  */
-export type EventSettingsPatch = Partial<Omit<EventSettingsProps, 'wall'>> & {
+export type EventSettingsPatch = Partial<Omit<EventSettingsProps, 'wall' | 'guestbookVoice'>> & {
   /** Partial: only the keys present are written (spec 13). */
   readonly wall?: EventWallSettingsPatch
+  /** Partial as well: the settings page and "open now" write different keys (spec 25). */
+  readonly guestbookVoice?: EventGuestbookVoiceSettingsPatch
 }
 
 const DEFAULTS: EventSettingsProps = {
@@ -197,6 +212,7 @@ const DEFAULTS: EventSettingsProps = {
   welcomeMessage: null,
   logo: null,
   wall: DEFAULT_WALL_SETTINGS,
+  guestbookVoice: DEFAULT_GUESTBOOK_VOICE_SETTINGS,
 }
 
 const pick = <T>(update: T | undefined, current: T): T => (update === undefined ? current : update)
@@ -328,11 +344,13 @@ export class EventSettings {
       welcomeMessage: pick(patch.welcomeMessage, base.welcomeMessage),
       logo: pick(patch.logo, base.logo),
       wall: mergeWallSettings(base.wall, patch.wall),
+      guestbookVoice: mergeGuestbookVoiceSettings(base.guestbookVoice, patch.guestbookVoice),
     }
 
     const failure =
       languageViolation(merged.wallLanguage) ??
       wallSettingsViolation(merged.wall) ??
+      voiceOpensAtViolation(merged.guestbookVoice) ??
       violation(
         merged.guestSelfDeleteGraceSeconds,
         GRACE_SECONDS,
@@ -431,6 +449,9 @@ export class EventSettings {
 
   get wall(): EventWallSettings {
     return this.props.wall
+  }
+  get guestbookVoice(): EventGuestbookVoiceSettings {
+    return this.props.guestbookVoice
   }
 
   /** The same settings with the host's logo named, or cleared with `null`: `withVenuePhoto`'s reasoning. */

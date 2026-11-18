@@ -5,10 +5,12 @@ import {
   MEDIA_VARIANTS,
   STAGED_SOURCE,
   VENUE_GROUND,
+  VOICE_VARIANT,
 } from '../../../domain/photos/mediaVariant'
 import { mediaObjectPath } from '../../media/mediaLayout'
 import { statfsDiskSpaceChecker } from '../../system/statfsDiskSpaceChecker'
 import { HOLDING_BYTES_SQL } from '../clipJobStatusSql'
+import { VOICE_IN_FLIGHT_SQL } from '../guestbookVoiceSql'
 import { closeDatabase, openDatabase, type Db } from '../connection'
 import { BackupError } from './backupError'
 import { assertArchiveApart } from './containment'
@@ -64,6 +66,16 @@ interface StagedClipRow {
   readonly sourceHash: string
 }
 
+/**
+ * A guestbook voice message (spec 25) in the snapshot: the source of one still being processed, or
+ * the output of one that is ready. Both are named by a `guestbook_voices` row and by no photo.
+ */
+interface VoiceRow {
+  readonly entryId: string
+  readonly eventId: string
+  readonly hash: string
+}
+
 /** An event whose settings name a host's own venue photograph (ADR 0010). */
 interface VenuePhotoRow {
   readonly eventId: string
@@ -115,6 +127,8 @@ const readSnapshot = (
   counts: BackupManifest['counts']
   photos: PhotoRow[]
   stagedClips: StagedClipRow[]
+  stagedVoices: VoiceRow[]
+  voices: VoiceRow[]
   venuePhotos: VenuePhotoRow[]
   logos: VenuePhotoRow[]
 } => {
@@ -152,6 +166,24 @@ const readSnapshot = (
       )
       .all() as StagedClipRow[]
 
+    // The voices (spec 25). Without these every recording would be counted in
+    // `unreferencedMediaFiles`, the figure that signals a leak, and a restore could not verify
+    // them. A source only while it is processed, an output once it is ready.
+    const stagedVoices = db
+      .prepare(
+        `SELECT entry_id AS entryId, event_id AS eventId, source_hash AS hash
+           FROM guestbook_voices
+          WHERE state IN (${VOICE_IN_FLIGHT_SQL})`,
+      )
+      .all() as VoiceRow[]
+    const voices = db
+      .prepare(
+        `SELECT entry_id AS entryId, event_id AS eventId, audio_hash AS hash
+           FROM guestbook_voices
+          WHERE state = 'ready'`,
+      )
+      .all() as VoiceRow[]
+
     // A host's own venue photograph is named by an event's settings rather than by a `photos`
     // row (ADR 0010); without this it would be reported as an unreferenced file, the number an
     // operator is told means a leak.
@@ -175,6 +207,8 @@ const readSnapshot = (
     return {
       integrityCheck: verdict,
       stagedClips,
+      stagedVoices,
+      voices,
       venuePhotos,
       logos,
       migrations: migrationRows,
@@ -447,6 +481,26 @@ const writeArchive = async ({
   // everything anybody will ever need.
   for (const clip of snapshot.stagedClips) {
     expected.add(mediaObjectPath(clip.eventId, clip.sourceHash, STAGED_SOURCE))
+  }
+
+  // The voices' half (spec 25). A ready output is named by its row, and a recording the backup did
+  // not find is reported in `missingMedia` like a photograph (the row's id stands in for `photoId`,
+  // the variant says what it is). A source is not: its window between "queued" and "gone" is as
+  // narrow as a clip's, and the comment above says why that must not be an alarm.
+  for (const voice of snapshot.voices) {
+    const path = mediaObjectPath(voice.eventId, voice.hash, VOICE_VARIANT)
+    expected.add(path)
+    if (!captured.has(path)) {
+      missingMedia.push({
+        photoId: voice.entryId,
+        eventId: voice.eventId,
+        contentHash: voice.hash,
+        variant: VOICE_VARIANT,
+      })
+    }
+  }
+  for (const voice of snapshot.stagedVoices) {
+    expected.add(mediaObjectPath(voice.eventId, voice.hash, STAGED_SOURCE))
   }
 
   // The host's own venue photographs, named by an event's settings (ADR 0010).

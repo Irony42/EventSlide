@@ -4,7 +4,7 @@ import {
   crowdGuestId,
   guestbookRepositoryContract,
 } from '../../application/testing/contracts/guestbookRepositoryContract'
-import { AT, aGuestbookEntry } from '../../application/testing/builders'
+import { AT, aGuestbookEntry, aVoiceEntry } from '../../application/testing/builders'
 import { asEventId, asGuestbookEntryId, asGuestId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrate } from './migrator'
@@ -71,6 +71,19 @@ guestbookRepositoryContract('sqlite', async () => {
     },
     dispose: async () => closeDatabase(db),
   }
+})
+
+describe('SqliteGuestbookRepository and voice messages', () => {
+  it('refuses to admit a voice message, which has its own door that reserves its bytes too', async () => {
+    const db = migratedDatabase()
+
+    await expect(
+      stored(db).admit(
+        aVoiceEntry({ id: 'v1', state: 'reserved', eventId: 'evt-wedding', guestId: 'guest-lea' }),
+      ),
+    ).rejects.toThrow('admit takes a written message')
+    closeDatabase(db)
+  })
 })
 
 describe('SqliteGuestbookRepository schema behaviour', () => {

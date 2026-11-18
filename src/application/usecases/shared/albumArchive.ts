@@ -157,7 +157,9 @@ export const albumArchiveOf = (
 
   /** The book, as one entry, or nothing when no message is in the album. */
   const guestbookEntry = async (): Promise<ArchiveEntry | null> => {
-    const entries = await guestbook.listByStatuses(
+    // Written messages only: a voice message has its own block in this file and its own file in
+    // the archive, which a later change brings (spec 25, PR 5). Until then it is not listed here.
+    const entries = await guestbook.listWrittenByStatuses(
       eventId,
       GUESTBOOK_ALBUM_STATUSES,
       MAX_ENTRIES_PER_EVENT,

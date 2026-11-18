@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asEventId, asGuestId, asGuestbookEntryId } from '../../../domain/shared/ids'
-import { aGuestbookEntry, anEvent } from '../../testing/builders'
+import { aGuestbookEntry, aVoiceEntry, anEvent } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
@@ -97,5 +97,43 @@ describe('deleteGuestbookEntry', () => {
     expect(await codeOf(run())).toBe('guestbook.deleteFailed')
     expect(await codeOf(run({ entryId: asGuestbookEntryId('nope') }))).toBe('guestbook.notFound')
     expect(guestbook.all(EVENT)).toHaveLength(1)
+  })
+
+  describe('a voice message (rule 1 bis of spec 25)', () => {
+    const seedVoice = (state: 'ready' | 'failed', moderation: 'manual' | 'auto' = 'auto'): void => {
+      guestbook.seed(
+        aVoiceEntry({ id: 'm1', guestId: 'guest-lea', eventId: 'event-1', state, moderation }),
+      )
+    }
+
+    it('lets its author take back one published on arrival, inside the grace window', async () => {
+      seedVoice('ready')
+
+      expect((await run()).ok).toBe(true)
+      expect(guestbook.all(EVENT)).toEqual([])
+    })
+
+    it('refuses once the grace window is over, the window being the only guard', async () => {
+      seedVoice('ready')
+      clock.advance(901_000)
+
+      expect(await codeOf(run())).toBe('guestbook.deleteForbidden')
+      expect(guestbook.all(EVENT)).toHaveLength(1)
+    })
+
+    it('lets its author clean up a voice that failed, window and host veto included', async () => {
+      events.seed(anEvent({ id: 'event-1', settings: { allowGuestSelfDelete: false } }))
+      seedVoice('failed', 'manual')
+      clock.advance(86_400_000)
+
+      expect((await run()).ok).toBe(true)
+    })
+
+    it('still honours the host veto on a voice that did not fail', async () => {
+      events.seed(anEvent({ id: 'event-1', settings: { allowGuestSelfDelete: false } }))
+      seedVoice('ready')
+
+      expect(await codeOf(run())).toBe('event.guestSelfDeleteDisabled')
+    })
   })
 })

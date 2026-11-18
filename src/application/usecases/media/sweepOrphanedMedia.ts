@@ -1,5 +1,6 @@
 import type { EventId } from '../../../domain/shared/ids'
 import type { ClipJobRepository } from '../../ports/clipJobRepository'
+import type { GuestbookVoiceRepository } from '../../ports/guestbookVoiceRepository'
 import type { Clock } from '../../ports/clock'
 import type { Logger } from '../../ports/logger'
 import { holdsStagedBytes } from '../../../domain/clips/clipJobStatus'
@@ -86,6 +87,12 @@ export interface SweepOrphanedMediaDeps {
   readonly clips: ClipJobRepository
   /** The highlight reel's file is named by its row and by nothing else (spec 08). */
   readonly reels: Pick<ReelRepository, 'listReferencedDigests'>
+  /**
+   * A guestbook voice's source and output are named by its row and by nothing else (spec 25): a
+   * source while it is waiting, an output once it is ready. Without this the sweep would collect a
+   * recording an hour after it was made.
+   */
+  readonly voices: Pick<GuestbookVoiceRepository, 'listReferencedDigests'>
   readonly media: MediaStore
   readonly clock: Clock
   readonly logger: Logger
@@ -117,6 +124,7 @@ export const makeSweepOrphanedMedia = ({
   photos,
   clips,
   reels,
+  voices,
   media,
   clock,
   logger,
@@ -144,6 +152,8 @@ export const makeSweepOrphanedMedia = ({
     // The reel's MP4 is named by its row, not by a photograph: without this the sweep would
     // collect a finished montage an hour after it was made.
     for (const digest of await reels.listReferencedDigests(eventId)) named.add(digest)
+    // A guestbook voice's source (while it waits) and output (once ready), named by its row alone.
+    for (const digest of await voices.listReferencedDigests(eventId)) named.add(digest)
     // The host's venue photograph is named by the event's settings and by no row of either
     // kind (ADR 0010), so without this the sweep would collect it an hour after it was set.
     // The logo (spec 03) is named the same way, by the settings and by no row.
@@ -188,6 +198,10 @@ export const makeSweepOrphanedMedia = ({
     if (settings?.logo?.equals(hash) === true) return false
 
     if ((await reels.listReferencedDigests(eventId)).has(hash.value)) return false
+
+    // And a voice, asked again: a guest re-sending a recording whose reservation was reaped has
+    // just made its source the one in use.
+    if ((await voices.listReferencedDigests(eventId)).has(hash.value)) return false
 
     // **The disk is asked last, so that it is asked with nothing after it.** Each of
     // these is an `await`, and a re-upload landing between the stat and the unlink is

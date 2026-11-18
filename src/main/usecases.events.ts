@@ -174,6 +174,7 @@ export const eventsUseCases = (
     photos: adapters.photos,
     clips: adapters.clips,
     reels: adapters.reels,
+    voices: adapters.voices,
     media: adapters.media,
     clock: adapters.clock,
     logger: adapters.logger,

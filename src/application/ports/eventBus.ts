@@ -107,6 +107,19 @@ export type DomainEvent =
    * stream. The archive worker wakes on it, to pick up a request without waiting for its tick.
    */
   | { readonly type: 'export.changed'; readonly eventId: EventId }
+  /**
+   * A voice message of the guestbook was staged and waits for the transcoder (spec 25): wakes the
+   * worker, as `clip.queued` does, and **is never for a screen**. `signalAudience.ts` keeps it off
+   * the public wall's stream: the wall re-reads on every public signal, so a voice announced there
+   * would make every room read its playlist for a recording nobody on the wall will ever hear.
+   */
+  | { readonly type: 'voice.queued'; readonly eventId: EventId }
+  /**
+   * A voice message became `ready` or failed, or its secret lifted (spec 25): an invalidation with
+   * no data, like `book.changed`, for the host's console alone (the Messages tab re-reads).
+   * `signalAudience.ts` keeps it off the public wall's stream and nothing sends it to a phone.
+   */
+  | { readonly type: 'guestbook.voice'; readonly eventId: EventId }
 
   /**
    * The host asked for a highlight reel (spec 08): wakes the worker, as `clip.queued` does. Never

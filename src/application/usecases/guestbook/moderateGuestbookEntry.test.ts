@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { Event } from '../../../domain/events/event'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import { asEventId, asGuestId, asGuestbookEntryId, asUserId } from '../../../domain/shared/ids'
-import { aGuestbookEntry, anEvent, AT } from '../../testing/builders'
+import { aGuestbookEntry, aVoiceEntry, anEvent, AT } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
@@ -123,5 +123,26 @@ describe('moderateGuestbookEntry', () => {
     events.seed(Event.restore({ ...anEvent({ id: 'event-1' }).toProps(), clientSuspendedAt: AT }))
 
     expect(await codeOf(run('publish'))).toBe('client.suspended')
+  })
+
+  describe('a voice message', () => {
+    beforeEach(() => {
+      guestbook.seed(aVoiceEntry({ id: 'm1', eventId: 'event-1', state: 'ready' }))
+    })
+
+    it('is published or refused like a written one', async () => {
+      expect((await run('publish')).ok).toBe(true)
+      expect((await guestbook.findById(EVENT, M1))?.status).toBe('published')
+      expect((await run('reject')).ok).toBe(true)
+      expect((await guestbook.findById(EVENT, M1))?.status).toBe('rejected')
+    })
+
+    it('is never hidden, which would change nothing on a screen and keep it in the album', async () => {
+      await run('publish')
+
+      expect(await codeOf(run('hide'))).toBe('guestbook.voiceCannotHide')
+      expect((await guestbook.findById(EVENT, M1))?.status).toBe('published')
+      expect(bus.published).toEqual([{ type: 'guestbook.changed', eventId: EVENT }])
+    })
   })
 })

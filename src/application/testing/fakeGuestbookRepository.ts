@@ -1,4 +1,10 @@
-import { GuestbookEntry, type EntryStatus } from '../../domain/guestbook/guestbookEntry'
+import {
+  GuestbookEntry,
+  isWritten,
+  type EntryStatus,
+  type WrittenGuestbookEntry,
+} from '../../domain/guestbook/guestbookEntry'
+import { countsAgainstVoiceLimits } from '../../domain/guestbook/guestbookVoiceState'
 import { DUPLICATE_WINDOW_MS, guestbookRefusalFor } from '../../domain/guestbook/guestbookLimits'
 import type { EventId, GuestId, GuestbookEntryId } from '../../domain/shared/ids'
 import type {
@@ -14,9 +20,17 @@ import { compareIds } from './ordering'
  * - **Rows are keyed by `${eventId}:${entryId}`**, so a cross-event read genuinely misses.
  * - **`admit` runs the same decision** (`guestbookRefusalFor`, the duplicate window) the adapter
  *   runs inside its transaction, in the same order.
+ * - **A voice message is a row like another**, carrying its `voice`: `FakeGuestbookVoiceRepository`
+ *   writes it through {@link FakeGuestbookRepository.seed} and {@link FakeGuestbookRepository.delete},
+ *   so the two fakes share one map as the two adapters share one table. A **failed** voice is out of
+ *   the counts and of every list but the guest's own, as the SQL joins make it.
  * - **A taken-down row is invisible to every read** and visible to the two counts that must see
  *   it, exactly as the real `taken_down_at IS NULL` filters make it.
  */
+
+/** A voice that failed holds no place: it is no message anybody has (spec 25, rule 6). */
+export const holdsAPlace = (row: GuestbookEntry): boolean =>
+  row.voice === null || countsAgainstVoiceLimits(row.voice.state)
 
 const key = (eventId: EventId, entryId: GuestbookEntryId): string => `${eventId}:${entryId}`
 
@@ -46,6 +60,24 @@ export class FakeGuestbookRepository implements GuestbookRepository {
     )
   }
 
+  /**
+   * Replace or add a row, synchronously: what `FakeGuestbookVoiceRepository` writes through, so a
+   * decision and its write have no suspension point between them (the adapter's transaction).
+   */
+  put(entry: GuestbookEntry): void {
+    this.rows.set(key(entry.eventId, entry.id), entry)
+  }
+
+  /** Remove a row, synchronously, for the same reason as {@link FakeGuestbookRepository.put}. */
+  remove(eventId: EventId, entryId: GuestbookEntryId): void {
+    this.rows.delete(key(eventId, entryId))
+  }
+
+  /** Every row of every event, for the worker-wide reads of the voice queue. */
+  everything(): readonly GuestbookEntry[] {
+    return [...this.rows.values()]
+  }
+
   /** Every row of an event, taken-down ones included, for a test to assert on. */
   all(eventId: EventId): readonly GuestbookEntry[] {
     return [...this.rows.values()].filter((row) => row.eventId === eventId)
@@ -60,12 +92,21 @@ export class FakeGuestbookRepository implements GuestbookRepository {
     return row === undefined || row.takenDownAt !== null ? null : row
   }
 
+  /** The rows that count toward a ceiling or a list: everything but a voice that failed. */
+  private liveOf(eventId: EventId): GuestbookEntry[] {
+    return this.visibleOf(eventId).filter((row) => holdsAPlace(row))
+  }
+
   async admit(entry: GuestbookEntry): Promise<GuestbookAdmission> {
     const { eventId, guestId } = entry
+    const text = entry.text
+    // A voice has its own door (`GuestbookVoiceRepository.admitVoice`), which reserves its bytes too.
+    if (text === null)
+      throw new Error('admit takes a written message; a voice goes through admitVoice')
     const duplicate = this.visibleOf(eventId).find(
       (row) =>
         row.guestId === guestId &&
-        row.text.equals(entry.text) &&
+        row.text?.equals(text) === true &&
         entry.createdAt.getTime() - row.createdAt.getTime() < DUPLICATE_WINDOW_MS,
     )
     if (duplicate !== undefined) return { kind: 'duplicate', entry: duplicate }
@@ -91,7 +132,19 @@ export class FakeGuestbookRepository implements GuestbookRepository {
     statuses: readonly EntryStatus[],
     limit: number,
   ): Promise<readonly GuestbookEntry[]> {
-    return this.visibleOf(eventId)
+    return this.liveOf(eventId)
+      .filter((row) => statuses.includes(row.status))
+      .sort((left, right) => -newestFirst(left, right))
+      .slice(0, limit)
+  }
+
+  async listWrittenByStatuses(
+    eventId: EventId,
+    statuses: readonly EntryStatus[],
+    limit: number,
+  ): Promise<readonly WrittenGuestbookEntry[]> {
+    return this.liveOf(eventId)
+      .filter(isWritten)
       .filter((row) => statuses.includes(row.status))
       .sort((left, right) => -newestFirst(left, right))
       .slice(0, limit)
@@ -109,11 +162,11 @@ export class FakeGuestbookRepository implements GuestbookRepository {
   }
 
   async countByGuest(eventId: EventId, guestId: GuestId): Promise<number> {
-    return this.all(eventId).filter((row) => row.guestId === guestId).length
+    return this.all(eventId).filter((row) => row.guestId === guestId && holdsAPlace(row)).length
   }
 
   async countOpenByEvent(eventId: EventId): Promise<number> {
-    return this.visibleOf(eventId).filter((row) => row.status !== 'rejected').length
+    return this.liveOf(eventId).filter((row) => row.status !== 'rejected').length
   }
 
   async delete(eventId: EventId, entryId: GuestbookEntryId): Promise<void> {

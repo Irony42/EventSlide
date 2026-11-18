@@ -10,6 +10,7 @@ import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { Event } from '../../domain/events/event'
 import { EventName, foldName } from '../../domain/events/eventName'
+import { restoreGuestbookVoiceSettings } from '../../domain/events/eventGuestbookVoiceSettings'
 import { restoreWallSettings } from '../../domain/events/eventWallSettings'
 import { restoreWelcomeMessage } from '../../domain/events/welcomeMessage'
 import {
@@ -499,6 +500,8 @@ const settingsOf = (raw: string): EventSettings => {
      * cannot be read must not be able to take the wall down (same principle as `useLayoutParam`).
      */
     wall: restoreWallSettings(decoded['wall']),
+    /** Added by spec 25 and read tolerantly like `wall`: absent is off, not sealed, no opening time. */
+    guestbookVoice: restoreGuestbookVoiceSettings(decoded['guestbookVoice']),
   }
 
   // `restore`, not `create`: a stored theme is judged on its shape and not on the
