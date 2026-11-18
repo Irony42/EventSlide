@@ -26,6 +26,7 @@ import { migrations } from '../db/migrations'
 import { SqliteAlbumExportRepository } from '../db/sqliteAlbumExportRepository'
 import { SqliteGuestRepository } from '../db/sqliteGuestRepository'
 import { SqliteGuestbookRepository } from '../db/sqliteGuestbookRepository'
+import { SqliteGuestbookVoiceRepository } from '../db/sqliteGuestbookVoiceRepository'
 import { SqlitePhotoRepository } from '../db/sqlitePhotoRepository'
 import { archiverWriter } from './archiverWriter'
 import { createFsExportFileStore } from './fsExportFileStore'
@@ -105,6 +106,7 @@ describe('the verified archive with the real archiver, filesystem and database',
         clients: new FakeClientRepository(),
         guests: new SqliteGuestRepository(db),
         guestbook: new SqliteGuestbookRepository(db),
+        voices: new SqliteGuestbookVoiceRepository(db),
         photos,
         media,
         archive: archiverWriter,

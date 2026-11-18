@@ -2479,6 +2479,16 @@ export const en: UiText = {
       `Archive sent in full on ${date}. Check your file before deleting anything.`,
     incomplete: (missing: number) =>
       `Archive ready, but ${t.count(missing, { one: `${t.number(missing)} file was`, other: `${t.number(missing)} files were` })} missing from the server’s disk: ${t.count(missing, { one: 'it is not in it.', other: 'they are not in it.' })}`,
+    voiceSecret: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} voice message is still kept secret: it would go without having been heard.`,
+        other: `${t.number(count)} voice messages are still kept secret: they would go without having been heard.`,
+      }),
+    voicePending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} voice message is waiting for your decision: it will not be in the album.`,
+        other: `${t.number(count)} voice messages are waiting for your decision: they will not be in the album.`,
+      }),
     retired: 'The archive was withdrawn because a photo was deleted. Prepare it again.',
     changed:
       'The album changed after the archive was prepared, so it is no longer offered. Prepare it again.',

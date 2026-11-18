@@ -22,6 +22,7 @@ export const exportWorkerUseCases = (adapters: Adapters, wiring: ExportWorkerWir
     clients: adapters.clients,
     guests: adapters.guests,
     guestbook: adapters.guestbook,
+    voices: adapters.voices,
     photos: adapters.photos,
     media: adapters.media,
     archive: adapters.archive,

@@ -51,6 +51,8 @@ export const eventsUseCases = (
     events: adapters.events,
     clients: adapters.clients,
     notices: adapters.purgeNotices,
+    guestbook: adapters.guestbook,
+    clock: adapters.clock,
     getEventLimits: makeGetEventLimits({ clients: adapters.clients }),
     capNoticeDays: policy.retention.capNoticeDays,
   }),

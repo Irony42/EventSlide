@@ -147,8 +147,15 @@ export interface GuestbookVoiceRepository {
    * The digests this event's voices still name, lower-case hex: the sources of the ones still
    * holding theirs and the outputs of the `ready` ones. The counterpart of
    * `PhotoRepository.listReferencedDigests` for `sweepOrphanedMedia`. A failed voice names nothing.
+   *
+   * `excludingEntries` leaves out the named entries' own voices: what the **others** still name, which
+   * is what a removal asks before it deletes a digest by name (two recordings can come out as the
+   * same bytes, and the file of the one that stays must not go with the one that leaves).
    */
-  listReferencedDigests(eventId: EventId): Promise<ReadonlySet<string>>
+  listReferencedDigests(
+    eventId: EventId,
+    excludingEntries?: readonly GuestbookEntryId[],
+  ): Promise<ReadonlySet<string>>
 
   /**
    * What this event's voices occupy: sources while processing, the output once `ready`, nothing

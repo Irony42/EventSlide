@@ -9,6 +9,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
+import type { GuestbookVoiceRepository } from '../../ports/guestbookVoiceRepository'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { ReactionRepository } from '../../ports/reactionRepository'
@@ -18,12 +19,15 @@ import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { isInAlbum } from '../../../domain/photos/photoStatus'
 import { isInBook } from '../../../domain/book/isInBook'
 import { makeRemovePhotoRecord } from '../photos/removePhotoRecord'
+import { isVoiceMessage } from '../../../domain/guestbook/guestbookEntry'
+import { makeRemoveVoiceBytes } from '../guestbook/removeVoiceBytes'
 
 /**
  * "Delete everything I sent": a guest erasing their own contribution to one event
  * (roadmap §5.2, GDPR art. 17 in practice).
  *
- * **What goes**: every guestbook message they wrote (whatever its moderation state), every
+ * **What goes**: every guestbook message they wrote (whatever its moderation state, voice messages
+ * included, and the recordings' own bytes with them), every
  * photograph and clip they sent (the files in every rendition, the
  * thumbnails, the rows, the caption and the moderation decision that live on the row), every
  * clip still waiting to be transcoded together with its staged source, every reaction they
@@ -53,7 +57,8 @@ import { makeRemovePhotoRecord } from '../photos/removePhotoRecord'
  * scoped by `eventId`, so the same guest id at another event is not reached.
  *
  * **Order.** Bytes, then rows, photograph by photograph (`removePhotoRecord`: the row is the
- * only record of the file's address, so it goes last), then the staged clips, the reactions
+ * only record of the file's address, so it goes last), then the staged clips, **the voice messages
+ * (their output and any source still on the disk, then every message row at once)**, the reactions
  * and the guest row. Retryable: if the process dies half way the guest row is still there,
  * the token still verifies, and pressing the button again finishes the job. A clip being
  * transcoded at that very moment finishes against a row that is gone, which the worker
@@ -81,6 +86,8 @@ export interface EraseGuestContributionDeps {
   readonly reactions: ReactionRepository
   readonly clips: ClipJobRepository
   readonly guestbook: GuestbookRepository
+  /** Only the guest's own recordings, whose bytes go before the rows that name them (spec 25). */
+  readonly voices: Pick<GuestbookVoiceRepository, 'listByGuest' | 'listReferencedDigests'>
   readonly media: MediaStore
   readonly bus: EventBus
   readonly clock: Clock
@@ -116,6 +123,7 @@ export const makeEraseGuestContribution = ({
   reactions,
   clips,
   guestbook,
+  voices,
   media,
   bus,
   clock,
@@ -124,6 +132,7 @@ export const makeEraseGuestContribution = ({
   invalidateExport,
 }: EraseGuestContributionDeps): EraseGuestContribution => {
   const removePhotoRecord = makeRemovePhotoRecord({ photos, media, clock })
+  const removeVoiceBytes = makeRemoveVoiceBytes({ media, voices })
 
   /** Every photograph and clip the guest sent, whatever its status, read before any is removed. */
   const authoredBy = async (eventId: EventId, guestId: GuestId): Promise<readonly Photo[]> => {
@@ -199,6 +208,20 @@ export const makeEraseGuestContribution = ({
     await clips.deleteForAuthor(eventId, guestId)
 
     await reactions.deleteByGuest(eventId, guestId)
+    // The guest's voice messages: **the bytes first** (the output, and the source if the worker still
+    // holds it), then the rows go with the messages just below. The row is the only record of where
+    // a recording is, so a failing delete throws here with the rows still in place and pressing the
+    // button again finishes. What the operator took down is not listed and its bytes stay, which is
+    // the evidence. One that is in the worker's hands finishes against a row that is gone.
+    const voiceMessages = await voices.listByGuest(eventId, guestId)
+    await removeVoiceBytes(
+      eventId,
+      voiceMessages.filter(isVoiceMessage).map((message) => ({
+        entryId: message.id,
+        voice: message.voice,
+      })),
+    )
+
     // The guest's written messages, whatever their moderation state: erasure is not the host's to
     // switch off. Skips (and does not count) a message the operator took down, which is evidence.
     const erasedMessages = await guestbook.deleteByGuest(eventId, guestId)
@@ -229,6 +252,8 @@ export const makeEraseGuestContribution = ({
     bus.publish({ type: 'guest.erased', eventId, guestId })
     // `guest.erased` says nothing about messages: the host's panel and the wall re-read on this one.
     if (erasedMessages > 0) bus.publish({ type: 'guestbook.changed', eventId })
+    // And the console's Messages tab, which reads voices on the signal the wall never hears.
+    if (voiceMessages.length > 0) bus.publish({ type: 'guestbook.voice', eventId })
 
     return ok({ photos: erasedPhotos, clips: erasedClips, messages: erasedMessages })
   }

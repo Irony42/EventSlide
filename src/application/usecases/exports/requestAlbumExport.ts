@@ -5,7 +5,6 @@ import {
   checkExportDailyLimit,
   checkExportRoom,
   checkExportTotal,
-  estimateExportBytes,
   exportRetryAfterSeconds,
   exportWindowStart,
 } from '../../../domain/exports/exportCaps'
@@ -20,8 +19,10 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { ExportFileStore } from '../../ports/exportFileStore'
 import type { Logger } from '../../ports/logger'
+import type { GuestbookVoiceRepository } from '../../ports/guestbookVoiceRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import { ALBUM_STATUSES } from '../shared/albumArchive'
+import { albumEstimateOf } from './albumEstimate'
 import { checkExportAccess } from './exportAccess'
 import { archiveBytesHeld } from './archiveBytesHeld'
 
@@ -62,6 +63,8 @@ export interface RequestAlbumExportDeps {
   readonly events: EventRepository
   readonly clients: Pick<ClientRepository, 'findById'>
   readonly photos: Pick<PhotoRepository, 'countsByStatus' | 'totalBytes'>
+  /** Only the recordings' size and count: the estimate counts them (spec 25). */
+  readonly voices: Pick<GuestbookVoiceRepository, 'totalBytes' | 'countReady'>
   readonly exports: AlbumExportRepository
   readonly exportFiles: Pick<ExportFileStore, 'delete' | 'listTemporary'>
   readonly bus: EventBus
@@ -87,6 +90,7 @@ export const makeRequestAlbumExport =
     events,
     clients,
     photos,
+    voices,
     exports,
     exportFiles,
     bus,
@@ -122,7 +126,7 @@ export const makeRequestAlbumExport =
 
     const counts = await photos.countsByStatus(eventId)
     const rows = ALBUM_STATUSES.reduce((sum, status) => sum + counts[status], 0)
-    const estimate = estimateExportBytes(await photos.totalBytes(eventId), rows)
+    const estimate = await albumEstimateOf({ photos, voices }, eventId, rows)
 
     const size = checkExportBytes(estimate, policy.maxBytes)
     if (!size.ok) return size

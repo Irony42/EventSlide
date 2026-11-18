@@ -103,6 +103,7 @@ export const photosUseCases = (
     events: adapters.events,
     clients: adapters.clients,
     photos: adapters.photos,
+    voices: adapters.voices,
     exports: adapters.exports,
     exportFiles: adapters.exportFiles,
     bus: adapters.bus,

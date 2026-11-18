@@ -20,6 +20,7 @@ import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepos
 import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
+import { FakeGuestbookVoiceRepository } from '../../../application/testing/fakeGuestbookVoiceRepository'
 import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
 import { makeDeletePhoto } from '../../../application/usecases/photos/deletePhoto'
 import { makeListGuestPhotos } from '../../../application/usecases/photos/listGuestPhotos'
@@ -249,6 +250,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               reactions,
               clips: new FakeClipJobRepository(),
               guestbook: new FakeGuestbookRepository(),
+              voices: new FakeGuestbookVoiceRepository(new FakeGuestbookRepository()),
               media,
               bus: deps.bus,
               clock: deps.clock,

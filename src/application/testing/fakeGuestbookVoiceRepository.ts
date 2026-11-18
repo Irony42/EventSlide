@@ -280,9 +280,13 @@ export class FakeGuestbookVoiceRepository implements GuestbookVoiceRepository {
     if (current !== undefined) this.book.remove(eventId, entryId)
   }
 
-  async listReferencedDigests(eventId: EventId): Promise<ReadonlySet<string>> {
+  async listReferencedDigests(
+    eventId: EventId,
+    excludingEntries: readonly GuestbookEntryId[] = [],
+  ): Promise<ReadonlySet<string>> {
     const named = new Set<string>()
     for (const row of rowsOf(this.book, eventId)) {
+      if (excludingEntries.includes(row.id)) continue
       const voice = voiceOf(row)
       if (holdsVoiceSource(voice.state)) named.add(voice.sourceHash.value)
       if (voice.state === 'ready' && voice.audioHash !== null) named.add(voice.audioHash.value)

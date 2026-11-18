@@ -256,7 +256,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     ...eventsUseCases(adapters, policy, hooks),
     ...guestsUseCases(adapters, policy, hooks),
     ...photosUseCases(adapters, policy, hooks),
-    ...clipsUseCases(adapters, policy),
+    ...clipsUseCases(adapters, policy, hooks),
     ...wallUseCases(adapters, policy, hooks),
     ...galleryUseCases(adapters, hooks),
     ...clientsUseCases(adapters, policy, hooks),

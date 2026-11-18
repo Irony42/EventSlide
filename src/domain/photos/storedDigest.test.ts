@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { digestVouchesForVariant } from './storedDigest'
+import { digestVouchesForVariant, voiceDigestVouches } from './storedDigest'
 
 /**
  * A row's digest is the SHA-256 of one rendition's bytes, and which one depends on the kind:
@@ -20,5 +20,11 @@ describe('digestVouchesForVariant', () => {
   it('vouches for both files of a clip', () => {
     expect(digestVouchesForVariant('clip', 'video')).toBe(true)
     expect(digestVouchesForVariant('clip', 'poster')).toBe(true)
+  })
+})
+
+describe('voiceDigestVouches', () => {
+  it('always vouches: a voice digest is taken over the output file itself, so a mismatch is real corruption', () => {
+    expect(voiceDigestVouches()).toBe(true)
   })
 })

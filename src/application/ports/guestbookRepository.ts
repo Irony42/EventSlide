@@ -134,4 +134,9 @@ export interface GuestbookLocation {
   readonly eventId: EventId
   /** When the operator took it down, or `null` while it is up. */
   readonly takenDownAt: Date | null
+  /**
+   * Whether it is a voice message (spec 25). Still no content: it only lets the operator's act tell
+   * the console on the signal a recording is announced by, which the wall never hears.
+   */
+  readonly voice: boolean
 }

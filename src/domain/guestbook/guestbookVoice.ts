@@ -141,6 +141,20 @@ export class GuestbookVoice {
     return this.props.state === 'ready'
   }
 
+  /**
+   * What a `ready` voice holds: its output, or `null` for any other state. One answer instead of
+   * `isReady()` and three nullable getters, so a reader of the file (the archive, the removal of its
+   * bytes) has the hash, the size and the measured duration or nothing, and no branch for a
+   * `ready` voice that lacks one (migration 032 refuses that row).
+   */
+  output(): VoiceOutput | null {
+    const { state, audioHash, audioByteSize, durationMs } = this.props
+    if (state !== 'ready' || audioHash === null || audioByteSize === null || durationMs === null) {
+      return null
+    }
+    return { hash: audioHash, byteSize: audioByteSize, durationMs }
+  }
+
   /** Claimable now: queued, and past its backoff. */
   isDue(now: Date): boolean {
     return this.props.state === 'queued' && this.props.queuedAt.getTime() <= now.getTime()

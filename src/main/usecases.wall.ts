@@ -91,8 +91,11 @@ export const wallUseCases = (
     clock: adapters.clock,
   }),
   deleteGuestbookEntry: makeDeleteGuestbookEntry({
+    invalidateExport,
     events: adapters.events,
     guestbook: adapters.guestbook,
+    voices: adapters.voices,
+    media: adapters.media,
     bus: adapters.bus,
     clock: adapters.clock,
   }),

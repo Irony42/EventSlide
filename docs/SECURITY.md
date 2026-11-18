@@ -1828,10 +1828,19 @@ believed either: the output is bounded (`-t`, `-fs`) and its duration is measure
 | An abusive recording nobody listened to              | out of the product's reach (no recognition, rule 14): the host removes it, the operator of a hosted instance can take it down **by identifier, without listening** (`SITE_ADMIN=on`, §25), and the operator's report-and-removal procedure applies                                                                                                             | §25                                                                                        |
 | XSS by the caption                                   | a text node, `translate="no"`, never markup, cleaned by `Caption`; a caption is never a file name                                                                                                                                                                                                                                                              | `caption.test.ts`                                                                          |
 
-**Not in this section yet**, because it ships with the pull requests that follow in the same spec: the recording screen
-and the host's player, the album's ZIP and its verified archive (a **sealed** voice will be in neither, or unzipping them
-would get around the secret), the deletion of the bytes with a guest's or the host's removal, and the operator's takedown
-of a voice. This section says so until those pages are written.
+**The recording's life after the evening** (spec 25, section 10), the part that makes "deleted" true of the bytes:
+
+- **The album's ZIP and its verified archive carry the published recordings**, and **a sealed voice is in neither** (unzipping them would
+  get around the secret); `guestbook.txt` says how many were left out and nothing else. A recording's digest is the SHA-256 of the file
+  itself, so unlike a photograph's it is held against its bytes: one that is not what it says aborts the stream (`export.corrupt`).
+- **A guest's removal and "Tout effacer" delete the bytes before the rows** (the output, and the source while a transcode still
+  holds it; a failed voice holds none, and its digest may be a fresh attempt's). A delete that fails leaves the rows, so the button is
+  pressed again. A recording the operator took down keeps its bytes (evidence) and is left out of every read, the archive and the count.
+  What an erasure cannot reach is the copy the host already downloaded and the hourly backup, as for a photograph.
+- **The purge removes the event's folder, recordings included** (`media.deleteEvent`): no new path, a recording lives only there. The
+  operator's hold stops a removal with the generic `guestbook.deleteFailed`, so the host is not told there is a hold.
+- **The deletion band warns in the last week** about recordings still secret and recordings waiting for a decision: the wedding
+  model's manual moderation would otherwise lose the undecided ones in silence.
 
 **`Permissions-Policy: microphone`, by path, with the list inverted.** A document keeps the policy of the URL it was loaded
 from, whatever page it navigates to afterwards. A list of the guest pages that may record (`/join`, the upload page) would

@@ -2522,6 +2522,16 @@ export const it: UiText = {
       `Archivio inviato per intero il ${date}. Controlli il suo file prima di eliminare qualsiasi cosa.`,
     incomplete: (missing: number) =>
       `Archivio pronto, ma ${t.count(missing, { one: `mancava ${t.number(missing)} file`, other: `mancavano ${t.number(missing)} file` })} sul disco del server: ${t.count(missing, { one: 'non è incluso.', other: 'non sono inclusi.' })}`,
+    voiceSecret: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} messaggio vocale è ancora tenuto segreto: verrebbe eliminato senza essere stato ascoltato.`,
+        other: `${t.number(count)} messaggi vocali sono ancora tenuti segreti: verrebbero eliminati senza essere stati ascoltati.`,
+      }),
+    voicePending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} messaggio vocale attende la sua decisione: non sarà nell’album.`,
+        other: `${t.number(count)} messaggi vocali attendono la sua decisione: non saranno nell’album.`,
+      }),
     retired: 'L’archivio è stato ritirato perché una foto è stata eliminata. Lo prepari di nuovo.',
     changed:
       'L’album è cambiato dopo la preparazione dell’archivio, che quindi non viene più offerto. Lo prepari di nuovo.',

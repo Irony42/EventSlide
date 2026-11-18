@@ -2575,6 +2575,16 @@ export const de: UiText = {
       `Archiv am ${date} vollständig gesendet. Prüfen Sie Ihre Datei, bevor Sie irgendetwas löschen.`,
     incomplete: (missing: number) =>
       `Archiv bereit, aber ${t.count(missing, { one: `${t.number(missing)} Datei fehlte`, other: `${t.number(missing)} Dateien fehlten` })} auf dem Datenträger des Servers: ${t.count(missing, { one: 'sie ist nicht enthalten.', other: 'sie sind nicht enthalten.' })}`,
+    voiceSecret: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Sprachnachricht wird noch geheim gehalten und würde ungehört gelöscht.`,
+        other: `${t.number(count)} Sprachnachrichten werden noch geheim gehalten und würden ungehört gelöscht.`,
+      }),
+    voicePending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Sprachnachricht wartet auf Ihre Entscheidung und wird nicht im Album sein.`,
+        other: `${t.number(count)} Sprachnachrichten warten auf Ihre Entscheidung und werden nicht im Album sein.`,
+      }),
     retired:
       'Das Archiv wurde zurückgezogen, weil ein Foto gelöscht wurde. Bereiten Sie es neu vor.',
     changed:

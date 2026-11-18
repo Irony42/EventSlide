@@ -117,7 +117,7 @@ src/
     guests/        Guest identity, display names
     photos/        Photo entity, status machine, captions, quotas
     moderation/    Queue ordering and decisions (pure)
-    guestbook/     Written guest messages: text, entry, ceilings, the closed-event window (spec 01)
+    guestbook/     Guest messages: text, entry, ceilings, the closed-event window (spec 01), and the voice message that rides the same entry: its processing state, its ceilings, what the purge band says about it, how `guestbook.txt` writes it (spec 25)
     slideshow/     Playlist building, layouts, transitions (pure)
     reactions/     Reaction rules
     clients/       Client entity, ceilings, roles, ceiling levels (roadmap §10.2, §10.5), the purge deadline and its warning thresholds, who may export (`exportAllowed`, spec 22)
@@ -513,6 +513,15 @@ Learned the hard way. Do not rediscover them.
     photograph. Spec 22 first assumed the universal form and would have made the host's ZIP abort on the
     first photograph. `digestVouchesForVariant` (`src/domain/photos/storedDigest.ts`) says which files a
     digest can vouch for; a verification of the others needs a digest the row does not store yet.
+
+13. **On Windows, `tsc` silently skips a module whose name differs from a neighbour's only by case and
+    extension.** `web/src/features/admin/AlbumDeletion.test.tsx` sat next to `albumDeletion.test.ts`; on a
+    case-blind file system `tsc` reads the two as one root file and keeps the `.ts`, so the page test was
+    never type-checked locally while Linux CI checked it. Spec 25 made a DTO field required, every local
+    `npm run verify` stayed green, and four stacked pull requests went red in CI on fixtures nobody's
+    typecheck had read. The file is now `AlbumDeletionPage.test.tsx`, and `scripts/caseClash.test.ts` fails
+    on any tracked pair a case-blind `tsc` would merge. Name a component's test after the component and a
+    module's test after the module, and when they share a stem, give the page test a distinct one.
 
 ---
 
