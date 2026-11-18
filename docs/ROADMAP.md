@@ -246,6 +246,16 @@ server's join link, in the language of the evening, and hands it to the browser'
 dialog ("Save as PDF" included): no server PDF, no new route. Numbered 2.10 because spec 03's
 host brand took 2.9.
 
+### 2.11 Voice message in the guestbook (P2, effort L, risk: medium)
+
+Spec 25. A guest records up to a minute and the host hears it from the moderation console; it is **never** on the
+wall and never in the shared gallery or the book. It is a line of the guestbook of 2.4 (same moderation, same
+ceilings, same erasure), an AAC/MP4 file made by the box's `ffmpeg`, kept secret on request until the evening is closed
+or the owner opens it, carried by the verified archive, and queued on the phone when there is no network. The
+**Mariage** template turns it on; an https address is required. No transcription: this is not what 9.6 declined,
+which sent the sound to a recognition service; a recording stays on the box, and the optional caption is the
+text for a host who cannot listen. A real iPhone recording is a manual check, not an automated one.
+
 ---
 
 ## 3. Host control
@@ -1517,6 +1527,8 @@ nothing. Deterministic ids under `E2E_HOOKS` fixed it, and this point's green vi
 is what proved it.
 
 ### 9.6 Spoken captions — **Considered and declined**
+
+_Recording a voice message is a different thing, and was built: see [2.11](#211-voice-message-in-the-guestbook-p2-effort-l-risk-medium)._
 
 _Recorded in [#12](https://github.com/Irony42/EventSlide/pull/12). Not built, and this is the reasoning, kept so it is not rediscovered._
 

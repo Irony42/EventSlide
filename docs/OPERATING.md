@@ -203,6 +203,44 @@ save at once, and raise or lower `SAVES_OPEN_TOTAL` in `src/interface/http/middl
 sustains. The figure that matters is how many full-size downloads your uplink carries at once without
 the wall's own stream stalling.
 
+## Voice messages
+
+A guest can leave a recorded message in the guestbook (the host's **Messages vocaux** setting; the
+**Mariage** template turns it on). What the box does with it is in [API.md](API.md) and
+[SECURITY.md](SECURITY.md); what you operate is this.
+
+**Variables, all optional.** `GUESTBOOK_VOICE_ENABLED` (`true`; `false` turns voice off for the whole box, read at
+boot), `MAX_VOICE_SECONDS` (60, from 10 to 180) and `MAX_VOICE_BYTES` (4 000 000 per upload). A recording is
+re-encoded to AAC mono in an MP4 by the same `ffmpeg` as the clips, whatever the phone sent: **a box with no
+`ffmpeg` offers no voice message** and nothing else changes.
+
+**It needs https.** A browser gives a web page a microphone only on an https address (or `localhost`). A box
+reached by plain `http://192.168...` on the venue's network has no microphone: the button is absent, and the
+settings page says why. Fix the address ([INSTALL.md](INSTALL.md)), not the browser. If your proxy sets
+`Permissions-Policy` itself, let the application's header through: the guest's pages need
+`microphone=(self)`.
+
+**The microphone.** It runs only while a guest records, and stops at the end, when the page is left and at the
+maximum length. The wall, the console and the API are forbidden it by the same header. A guest who refused it
+once sees how to allow it again in their browser's settings; nothing here can do that for them.
+
+**Offline.** A recording made with no signal stays on the phone, in its own queue (a database of its own, apart from
+the photographs'), and is sent by the page itself when the network is back: **the page has to be open**, which is why
+the guest is told to keep it open. Safari on iPhone has no background sync to do better. A recording the event
+refuses for a reason that may pass (voice switched off, the guestbook full, uploads paused) is kept on the phone, with
+a way to save it; it is only dropped when its content is refused.
+
+**Listening, secrecy, archive.** Only the host and the moderators hear a message, in the console, one at a time. With
+the secret on ("Garder les messages vocaux secrets jusqu'à la fin de la soirée"), nobody hears them (the owner included)
+until the evening is closed or the owner presses **Ouvrir maintenant**, and the archive leaves them out until then. The
+ZIP carries each message as `voice/NNNN-<digest>.m4a`, listed in `MANIFEST.sha256` and in `guestbook.txt`. Erasing a
+guest's contribution, the host's removal and the purge delete the files first. Before a purge, the deletion band says how
+many recordings the host would lose, and **Garder les N messages en attente** publishes the ones nobody decided.
+
+**Cost.** Transcoding a minute of audio is cheap next to a clip, and the worker takes one voice and one clip in turn so a
+burst of voices does not delay a video. The figure on a small VPS has not been measured yet; do it on your box before a
+big wedding (record a minute, watch the load while it transcodes).
+
 ## Backups
 
 Take one before the event and one the morning after. The server stays up while you do,

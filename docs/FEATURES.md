@@ -46,6 +46,14 @@ And the parts that only show up on the night:
   selfie with the couple", "the worst dance move", "someone crying" — and guests see them
   as a checklist. It changes the question in their head from "should I bother uploading
   this" to "which one is left".
+- **A voice message in the guestbook.** A guest records up to a minute on their phone, listens to it, and
+  sends it, with a line of text if they like. Only you and the people you invite can hear it: it is never
+  on the wall and never in the shared gallery, and the wedding template turns it on. You can keep the
+  messages secret until the end of the evening (or a time you choose) and open them early with one
+  deliberate button. They come back in the album's ZIP, with their length and their caption in
+  `guestbook.txt`. Nothing is transcribed. A phone with no signal keeps the recording and sends it once
+  the page is open on a network again. It needs an https address, and a browser that has a microphone for
+  a web page (Safari or Chrome, not the browser inside a messaging app).
 - **Short video clips too**, not only photographs. Fifteen seconds, transcoded on the
   box, played on the wall without sound — because a room already has music.
 - **Moderate from your phone.** One photograph at a time, swipe right to publish, left

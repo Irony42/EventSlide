@@ -1005,10 +1005,17 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
   read at boot), `MAX_VOICE_SECONDS` (60, 10 to 180) and `MAX_VOICE_BYTES` (4 000 000, one upload). A message is stored as
   AAC mono in an MP4, made by the same `ffmpeg` as the clips: **a box with no `ffmpeg` offers no voice message and its
   `/api/ready` is unchanged**, as for video.
-- **Off on every event**: the setting that switches voice on (`guestbookVoice` in the event settings) reads off, and no
-  route sets it yet, so nothing in this change adds a route or a page for it. An upgrade changes nothing a guest or a host
-  sees. The disk a voice message occupies (a few hundred kilobytes a minute) is counted in the event's quota like a
-  photograph.
+- **Off on every existing event**: `guestbookVoice.enabled` reads off for an event created before this version,
+  so an upgrade opens no microphone on a room whose host was never asked, and does not change the privacy notice
+  its guests have read. The **Mariage** template turns it on for the events created from it, and the host switches
+  it from the settings page ("Messages vocaux"), where an address that is not https is flagged. Turning it on
+  makes each guest read the notice once more before their next send, so turn it on before the evening.
+- **Needs https and a microphone the browser grants.** A box served over plain `http://` on a local network offers
+  no microphone: the button is absent and the guestbook stays as it was (`docs/INSTALL.md`). The response header
+  `Permissions-Policy` now says `microphone=(self)` on the guest's pages and `microphone=()` on the console, the
+  wall and the API: a reverse proxy that sets this header itself must not overwrite it with a blanket `microphone=()`.
+- The disk a voice message occupies (a few hundred kilobytes a minute) is counted in the event's quota like a
+  photograph, and the archive, the erasure and the purge carry it (`docs/OPERATING.md`).
 
 ### Guests save photographs from the feed (spec 24)
 
