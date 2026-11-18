@@ -13,9 +13,14 @@ import {
   VOICE_FAILED_RETENTION_MS,
 } from '../domain/guestbook/guestbookVoiceLimits'
 import type { Adapters, UseCasePolicy } from './usecases'
+import type { SharedHooks } from './usecases.shared'
 
 /** The clips slice of the use-case bag: composition only, built by `buildUseCases`. */
-export const clipsUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
+export const clipsUseCases = (
+  adapters: Adapters,
+  policy: UseCasePolicy,
+  { invalidateExport }: SharedHooks,
+) => ({
   // clips
   uploadClip: makeUploadClip({
     events: adapters.events,
@@ -74,6 +79,7 @@ export const clipsUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
    * `sweepOrphanedMedia`, which is the one collector that asks the database first.
    */
   transcodeNextVoice: makeTranscodeNextVoice({
+    invalidateExport,
     events: adapters.events,
     clients: adapters.clients,
     voices: adapters.voices,

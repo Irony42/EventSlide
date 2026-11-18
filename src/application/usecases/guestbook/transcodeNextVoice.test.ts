@@ -57,6 +57,8 @@ describe('transcodeNextVoice', () => {
   let clock: FakeClock
   let logger: CapturingLogger
   let transcodeNext: TranscodeNextVoice
+  /** What the archive was told, in order: `<event>:<reason>`. */
+  let archiveRetired: string[]
 
   const build = (): void => {
     transcodeNext = makeTranscodeNextVoice({
@@ -70,6 +72,9 @@ describe('transcodeNextVoice', () => {
       clock,
       logger,
       policy: POLICY,
+      invalidateExport: async (eventId, reason) => {
+        archiveRetired.push(`${eventId}:${reason}`)
+      },
     })
   }
 
@@ -87,6 +92,7 @@ describe('transcodeNextVoice', () => {
     bus = new RecordingEventBus()
     clock = new FakeClock(AT)
     logger = new CapturingLogger()
+    archiveRetired = []
     build()
   })
 
@@ -711,6 +717,60 @@ describe('transcodeNextVoice', () => {
       const result = await transcodeNext()
 
       expect(failedWith(result)).toBe('client.storageFull')
+    })
+  })
+
+  describe('the verified archive (spec 22)', () => {
+    it('retires it when a recording published on arrival becomes ready: the archive written before does not hold it', async () => {
+      seedEvent()
+      await stage(fakeVoiceBytes({ audioMs: 5_000 }), { moderation: 'auto' })
+
+      await transcodeNext()
+
+      expect(archiveRetired).toEqual(['event-1:guestbookChanged'])
+    })
+
+    it('leaves it alone for a recording that waits for a decision: it is not in the album until the host publishes', async () => {
+      seedEvent()
+      await stage(fakeVoiceBytes({ audioMs: 5_000 }), { moderation: 'manual' })
+
+      await transcodeNext()
+
+      expect(archiveRetired).toEqual([])
+    })
+
+    it('retires it only after the row says ready, so an archive built from then on reads the recording', async () => {
+      seedEvent()
+      await stage(fakeVoiceBytes({ audioMs: 5_000 }), { moderation: 'auto' })
+      let stateWhenRetired: string | undefined
+      transcodeNext = makeTranscodeNextVoice({
+        events,
+        clients,
+        voices,
+        media,
+        transcoder,
+        hasher,
+        bus,
+        clock,
+        logger,
+        policy: POLICY,
+        invalidateExport: async () => {
+          stateWhenRetired = (await voiceOf())?.state
+        },
+      })
+
+      await transcodeNext()
+
+      expect(stateWhenRetired).toBe('ready')
+    })
+
+    it('does not retire it for a recording that failed: nothing entered the album', async () => {
+      seedEvent()
+      await stage(new Uint8Array([1, 2, 3]), { moderation: 'auto' })
+
+      await transcodeNext()
+
+      expect(archiveRetired).toEqual([])
     })
   })
 })

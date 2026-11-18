@@ -4,6 +4,7 @@ import type { GuestbookVoice } from '../../../domain/guestbook/guestbookVoice'
 import { VOICE_MIN_MS, voiceDeclaredTooLong } from '../../../domain/guestbook/guestbookVoiceLimits'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { STAGED_SOURCE } from '../../../domain/photos/mediaVariant'
+import { isInAlbum } from '../../../domain/photos/photoStatus'
 import type { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestbookEntryId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
@@ -17,6 +18,7 @@ import type { GuestbookVoiceRepository, VoiceFinish } from '../../ports/guestboo
 import type { Logger } from '../../ports/logger'
 import type { MediaStore } from '../../ports/mediaStore'
 import { clientBytesOf, clientContextOf } from '../clients/clientContextOf'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 
 /**
  * One pass of the voice queue: claim a recording, turn it into AAC in an MP4, and make it `ready`
@@ -69,6 +71,12 @@ export interface TranscodeNextVoiceDeps {
   readonly clock: Clock
   readonly logger: Logger
   readonly policy: TranscodeVoicePolicy
+  /**
+   * Retires the verified archive the box may hold (spec 22) when a recording **enters the album**:
+   * one published on arrival (auto moderation) that becomes `ready` after the archive was written
+   * is a file the archive does not have. Optional: a box with no archive has nothing to retire.
+   */
+  readonly invalidateExport?: InvalidateExport
 }
 
 export type TranscodeNextVoiceOutcome =
@@ -112,6 +120,7 @@ export const makeTranscodeNextVoice = ({
   transcoder,
   hasher,
   bus,
+  invalidateExport,
   clock,
   logger,
   policy,
@@ -276,6 +285,11 @@ export const makeTranscodeNextVoice = ({
     // The row is `ready` and still blocks a re-upload (the unique index covers it), so the digest
     // is ours and the source can go. Best effort, for the reason `discard` gives.
     await discard(entry.eventId, voice.sourceHash)
+
+    // The recording is in the album now when it was published on arrival: an archive written before
+    // this instant does not hold it. After the row says `ready`, so an archive built from here on
+    // reads it, and awaited (it never throws).
+    if (isInAlbum(entry.status)) await invalidateExport?.(entry.eventId, 'guestbookChanged')
 
     // Last, after the row says it is ready: the console's Messages tab re-reads. Never `guestbook.changed`,
     // which would make every wall read its playlist for a recording nobody on the wall will hear.
