@@ -58,7 +58,7 @@ describe('templates', () => {
     const withHero = TEMPLATE_IDS.filter((id) =>
       BOOK_TEMPLATES[id].slots.some((s) => s.role === 'hero'),
     )
-    expect(withHero).toEqual(['full', 'single', 'heroTwo', 'wide', 'favourites'])
+    expect(withHero).toEqual(['full', 'single', 'heroTwo', 'portraitHero', 'wide', 'favourites'])
   })
 
   it('make only `wide` span a double page, and only single and favourites contain', () => {
