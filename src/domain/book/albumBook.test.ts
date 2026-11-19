@@ -127,11 +127,21 @@ describe('the plan of a book', () => {
     expect(invalidateBook({ ...queued, plan: PLAN }, 'photoRemoved', T1).plan).toBeNull()
   })
   it('is dropped with the file when a fact arrived during the render', () => {
-    const planned = unwrap(recordPlan(invalidateBook(running, 'photoRemoved', T2), PLAN))
+    const planned = invalidateBook(unwrap(recordPlan(running, PLAN)), 'photoRemoved', T2)
     expect(unwrap(finishBook({ ...planned, plan: PLAN }, RESULT, T2))).toMatchObject({
       status: 'stale',
       plan: null,
     })
+  })
+  it('refuses a plan for a running book a fact has already voided, at the very instant too', () => {
+    expect(recordPlan(invalidateBook(running, 'photoRemoved', T2), PLAN).ok).toBe(false)
+    expect(recordPlan(invalidateBook(running, 'photoRemoved', T1), PLAN).ok).toBe(false)
+    const before: AlbumBook = { ...running, invalidatedAt: new Date(T1.getTime() - 1) }
+    expect(recordPlan(before, PLAN).ok).toBe(true)
+  })
+  it('is dropped when the render fails', () => {
+    const planned = unwrap(recordPlan(running, PLAN))
+    expect(unwrap(failBook(planned, 'unexpected')).plan).toBeNull()
   })
   it('keeps what a printer version measured', () => {
     const done = unwrap(

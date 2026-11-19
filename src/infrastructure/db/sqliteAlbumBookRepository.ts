@@ -262,7 +262,8 @@ export class SqliteAlbumBookRepository implements AlbumBookRepository {
   async recoverRunning(): Promise<number> {
     return this.db
       .prepare(
-        `UPDATE album_books SET status = 'queued', started_at = NULL WHERE status = 'running'`,
+        `UPDATE album_books SET status = 'queued', started_at = NULL, plan_json = NULL
+          WHERE status = 'running'`,
       )
       .run().changes
   }

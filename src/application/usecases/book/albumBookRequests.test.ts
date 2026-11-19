@@ -16,7 +16,11 @@ import { makeDeleteAlbumBook } from './deleteAlbumBook'
 import { makeDownloadAlbumBook } from './downloadAlbumBook'
 import { makeGetAlbumBook } from './getAlbumBook'
 import { makeInvalidateAlbumBook } from './invalidateAlbumBook'
-import { makeRequestAlbumBook, type RequestAlbumBookInput } from './requestAlbumBook'
+import {
+  makeRequestAlbumBook,
+  type RequestAlbumBookInput,
+  type RequestAlbumBookV1,
+} from './requestAlbumBook'
 
 const EVENT = asEventId('event-1')
 const OTHER = asEventId('event-2')
@@ -34,7 +38,7 @@ const OPTIONS: BookOptions = {
   timeZone: 'Europe/Paris',
 }
 
-const INPUT: RequestAlbumBookInput = {
+const INPUT: RequestAlbumBookV1 = {
   eventId: EVENT,
   title: '  Mariage de Léa ',
   layout: 'four',
@@ -52,7 +56,7 @@ let clock: FakeClock
 let logger: CapturingLogger
 let enabled: boolean
 
-const request = (input: Partial<RequestAlbumBookInput> = {}) =>
+const request = (input: Partial<RequestAlbumBookV1> = {}) =>
   makeRequestAlbumBook({
     events,
     clients,
@@ -161,7 +165,7 @@ describe('requestAlbumBook', () => {
       timeZone: 'America/New_York',
     } as const satisfies RequestAlbumBookInput
 
-    const requestV2 = (input: { timeZone?: string | undefined } = {}) =>
+    const requestV2 = (input: { timeZone?: string | undefined; layout?: undefined } = {}) =>
       makeRequestAlbumBook({
         events,
         clients,
@@ -171,6 +175,12 @@ describe('requestAlbumBook', () => {
         clock,
         policy: { enabled, maxPerEventPerDay: 3 },
       })({ ...V2, ...input })
+
+    it('is a v2 body even when the layout key is present but undefined', async () => {
+      const result = await requestV2({ layout: undefined })
+
+      expect(result.ok && result.value.options.style).toBe('magazine')
+    })
 
     it('keeps every choice, and a zone it can read', async () => {
       const result = await requestV2()

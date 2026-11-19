@@ -460,6 +460,32 @@ export const albumBookRepositoryContract = (
       expect(await repo.find(WEDDING)).toMatchObject({ status: 'running', plan: null })
     })
 
+    it('refuses a plan once a fact has voided the running book, and writes nothing', async () => {
+      await makeRunning()
+      await repo.invalidate(WEDDING, 'messageRemoved', at(3))
+
+      expect(await repo.recordPlan(WEDDING, PLAN)).toBe(false)
+      expect((await repo.find(WEDDING))?.plan).toBeNull()
+    })
+
+    it('drops the plan of a render that fails', async () => {
+      await makeRunning()
+      await repo.recordPlan(WEDDING, PLAN)
+
+      await repo.finish(WEDDING, { kind: 'failed', code: 'unexpected' }, at(2))
+
+      expect(await repo.find(WEDDING)).toMatchObject({ status: 'failed', plan: null })
+    })
+
+    it('drops the plan of a render a crash interrupted: it goes back to the queue with none', async () => {
+      await makeRunning()
+      await repo.recordPlan(WEDDING, PLAN)
+
+      expect(await repo.recoverRunning()).toBe(1)
+
+      expect(await repo.find(WEDDING)).toMatchObject({ status: 'queued', plan: null })
+    })
+
     it('starts every new request without a plan', async () => {
       await makeRunning()
       await repo.recordPlan(WEDDING, PLAN)

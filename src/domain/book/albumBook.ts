@@ -89,6 +89,12 @@ export interface BookResult {
   readonly expiresAt: Date
 }
 
+/** A fact that voided the book at or after the instant its render started. */
+const isVoidedSinceStart = (book: AlbumBook): boolean =>
+  book.invalidatedAt !== null &&
+  book.startedAt !== null &&
+  book.invalidatedAt.getTime() >= book.startedAt.getTime()
+
 /**
  * A render ended. A fact that voided the book **after the render started** wins over the
  * file just produced: the book is `stale`, never `done`, and the caller deletes the file.
@@ -98,10 +104,7 @@ export const finishBook = (
   result: BookResult,
   now: Date,
 ): Result<AlbumBook, DomainError> => {
-  const voided =
-    book.invalidatedAt !== null &&
-    book.startedAt !== null &&
-    book.invalidatedAt.getTime() >= book.startedAt.getTime()
+  const voided = isVoidedSinceStart(book)
   const to: AlbumBookStatus = voided ? 'stale' : 'done'
   if (!canTransition(book.status, to)) return err(illegal(book.status, to))
   return ok(
@@ -142,14 +145,19 @@ const staleReasonOf = (book: AlbumBook): BookStaleReason => book.staleReason ?? 
 
 /**
  * The render writes its plan once, as it starts: only a running book takes one, so a plan can
- * never be attached to a book the host re-requested or deleted in the meantime.
+ * never be attached to a book the host re-requested or deleted in the meantime, **nor to one a fact
+ * has already voided** (the plan was composed from what that fact removed: the render is for nothing
+ * and must not leave a plan behind).
  */
-export const recordPlan = (book: AlbumBook, plan: BookPlan): Result<AlbumBook, DomainError> =>
-  book.status === 'running' ? ok({ ...book, plan }) : err(DomainError.conflict('book.notRunning'))
+export const recordPlan = (book: AlbumBook, plan: BookPlan): Result<AlbumBook, DomainError> => {
+  if (book.status !== 'running') return err(DomainError.conflict('book.notRunning'))
+  if (isVoidedSinceStart(book)) return err(DomainError.conflict('book.voided'))
+  return ok({ ...book, plan })
+}
 
 export const failBook = (book: AlbumBook, code: BookFailureCode): Result<AlbumBook, DomainError> =>
   canTransition(book.status, 'failed')
-    ? ok({ ...book, status: 'failed', failureCode: code })
+    ? ok({ ...book, status: 'failed', failureCode: code, plan: null })
     : err(illegal(book.status, 'failed'))
 
 /**

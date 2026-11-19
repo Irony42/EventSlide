@@ -60,6 +60,8 @@ interface RequestFields {
 
 /** The v2 request: a style, a selection, the guest book, the printer version, the host's zone. */
 export interface RequestAlbumBookV2 extends RequestFields {
+  /** Absent, which is what tells it from the 3.14 body. */
+  readonly layout?: undefined
   readonly style: BookStyle
   readonly selection: BookSelection
   readonly includeGuestbook: boolean
@@ -132,7 +134,7 @@ export const makeRequestAlbumBook =
 
     const language = input.language ?? event.settings.wallLanguage
     const options: BookOptions =
-      'layout' in input
+      input.layout !== undefined
         ? legacyBookOptions({
             title: title.value,
             subtitle: subtitle.value,

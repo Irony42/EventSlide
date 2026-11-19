@@ -43,6 +43,21 @@ interface Part {
   size: number
 }
 
+/**
+ * Writes every byte: `FileHandle.write` may write less than it was given (it answers how much), and
+ * a PDF with a hole in it is a book nobody can open.
+ */
+export const writeFully = async (
+  handle: Pick<FileHandle, 'write'>,
+  bytes: Uint8Array,
+): Promise<void> => {
+  let offset = 0
+  while (offset < bytes.byteLength) {
+    const { bytesWritten } = await handle.write(bytes, offset, bytes.byteLength - offset)
+    offset += bytesWritten
+  }
+}
+
 export const createFsBookFileStore = (mediaRoot: string): BookFileStore => {
   const booksDir = resolve(mediaRoot, '.books')
   const tmpDir = join(booksDir, '.tmp')
@@ -80,7 +95,7 @@ export const createFsBookFileStore = (mediaRoot: string): BookFileStore => {
         for await (const chunk of bytes) {
           size += chunk.byteLength
           if (size > maxBytes) throw DomainError.quotaExceeded('book.tooLarge')
-          await handle.write(chunk)
+          await writeFully(handle, chunk)
         }
         await handle.sync()
       } catch (error) {
@@ -102,6 +117,8 @@ export const createFsBookFileStore = (mediaRoot: string): BookFileStore => {
       const targets = Object.fromEntries(KINDS.map((kind) => [kind, finalPath(eventId, kind)]))
       await mkdir(tmpDir, { recursive: true })
       const parts = new Map<BookFileKind, Part>()
+      /** Printer targets this call has already put in place: removed again if a later rename fails. */
+      const placed: string[] = []
       let printTotal = 0
       let printSkipped: 'tooLarge' | null = null
 
@@ -132,7 +149,7 @@ export const createFsBookFileStore = (mediaRoot: string): BookFileStore => {
             const screen = await partOf('screen')
             screen.size += chunk.bytes.byteLength
             if (screen.size > maxBytes.screen) throw DomainError.quotaExceeded('book.tooLarge')
-            await screen.handle.write(chunk.bytes)
+            await writeFully(screen.handle, chunk.bytes)
             continue
           }
           if (printSkipped !== null) continue
@@ -144,7 +161,7 @@ export const createFsBookFileStore = (mediaRoot: string): BookFileStore => {
           }
           const part = await partOf(chunk.kind)
           part.size += chunk.bytes.byteLength
-          await part.handle.write(chunk.bytes)
+          await writeFully(part.handle, chunk.bytes)
         }
         const screen = parts.get('screen')
         const interior = parts.get('printInterior')
@@ -164,7 +181,10 @@ export const createFsBookFileStore = (mediaRoot: string): BookFileStore => {
           ['printCover', cover],
         ] as const) {
           if (part === undefined) await rm(targets[kind]!, { force: true })
-          else await rename(part.temporary, targets[kind]!)
+          else {
+            await rename(part.temporary, targets[kind]!)
+            placed.push(targets[kind]!)
+          }
           parts.delete(kind)
         }
         await rename(screen.temporary, targets['screen']!)
@@ -177,6 +197,8 @@ export const createFsBookFileStore = (mediaRoot: string): BookFileStore => {
         }
       } catch (error) {
         await discardAll()
+        // A set is whole or absent: the printer files this call renamed do not stay without their book.
+        for (const target of placed) await rm(target, { force: true })
         throw error
       }
     },

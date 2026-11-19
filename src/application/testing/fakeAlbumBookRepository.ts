@@ -88,7 +88,7 @@ export class FakeAlbumBookRepository implements AlbumBookRepository {
     let recovered = 0
     for (const [eventId, book] of this.books) {
       if (book.status !== 'running') continue
-      this.books.set(eventId, { ...book, status: 'queued', startedAt: null })
+      this.books.set(eventId, { ...book, status: 'queued', startedAt: null, plan: null })
       recovered += 1
     }
     return recovered

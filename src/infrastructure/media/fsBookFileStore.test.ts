@@ -1,11 +1,11 @@
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { BookChunk, BookFileKind } from '../../application/ports/bookFileStore'
 import { bookFileStoreContract } from '../../application/testing/contracts/bookFileStoreContract'
 import { asEventId } from '../../domain/shared/ids'
-import { createFsBookFileStore } from './fsBookFileStore'
+import { createFsBookFileStore, writeFully } from './fsBookFileStore'
 
 const tempRoot = (): string => mkdtempSync(join(tmpdir(), 'es-books-'))
 
@@ -121,4 +121,63 @@ describe('createFsBookFileStore: the printer version', () => {
       }
     },
   )
+})
+
+describe('writeFully', () => {
+  it('keeps writing until every byte is down, whatever a single write accepts', async () => {
+    const written: number[] = []
+    const calls: [number, number][] = []
+    const handle = {
+      write: async (bytes: Uint8Array, offset: number, length: number) => {
+        const count = Math.min(2, length)
+        calls.push([offset, length])
+        written.push(...bytes.subarray(offset, offset + count))
+        return { bytesWritten: count, buffer: bytes }
+      },
+    }
+
+    await writeFully(handle as never, new Uint8Array([1, 2, 3, 4, 5]))
+
+    expect(written).toEqual([1, 2, 3, 4, 5])
+    expect(calls).toEqual([
+      [0, 5],
+      [2, 3],
+      [4, 1],
+    ])
+  })
+
+  it('writes nothing for an empty chunk', async () => {
+    const handle = { write: async () => ({ bytesWritten: 0, buffer: new Uint8Array() }) }
+
+    await expect(writeFully(handle as never, new Uint8Array())).resolves.toBeUndefined()
+  })
+})
+
+describe('createFsBookFileStore: a set that cannot be put in place', () => {
+  it('removes the printer files it already renamed when the screen book cannot be (and leaves no temporary file)', async () => {
+    const root = tempRoot()
+    try {
+      const store = createFsBookFileStore(root)
+      // A directory where the screen book must go: the last rename fails.
+      mkdirSync(join(root, '.books', 'evt-a.pdf'), { recursive: true })
+
+      await expect(
+        store.writeSet(
+          asEventId('evt-a'),
+          (async function* (): AsyncIterable<BookChunk> {
+            yield { kind: 'screen', bytes: new TextEncoder().encode('s') }
+            yield { kind: 'printInterior', bytes: new TextEncoder().encode('i') }
+            yield { kind: 'printCover', bytes: new TextEncoder().encode('c') }
+          })(),
+          { maxBytes: { screen: 10, print: 10 } },
+        ),
+      ).rejects.toThrow()
+
+      expect(await store.stat(asEventId('evt-a'), 'printInterior')).toBeNull()
+      expect(await store.stat(asEventId('evt-a'), 'printCover')).toBeNull()
+      expect(readdirSync(join(root, '.books', '.tmp'))).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
 })
