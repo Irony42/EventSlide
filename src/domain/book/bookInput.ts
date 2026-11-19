@@ -34,7 +34,11 @@ export interface BookCounts {
   readonly photos: number
   readonly photographers: number
   readonly hearts: number
-  /** Written messages published at the snapshot, before the book's own ceiling. */
+  /**
+   * Written messages published at the snapshot, **uncapped**: `GuestbookRepository.listWrittenForBook`
+   * is asked for at most `BOOK_MAX_MESSAGES`, so the caller counts them apart. It is what lets the
+   * plan say how many are left in the album export.
+   */
   readonly messages: number
   readonly voices: number
   readonly videos: number

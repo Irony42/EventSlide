@@ -173,6 +173,15 @@ describe('composeBook: pages of photographs', () => {
     }
   })
 
+  it('picks a different page that fits over repeating the previous one', () => {
+    const plan = compose(run(6, 0))
+    expect(
+      templates(plan.pages)
+        .filter((t) => t !== 'title' && t !== 'stats')
+        .slice(0, 3),
+    ).toEqual(['heroTwo', 'twoStack', 'single'])
+  })
+
   it('puts portraits side by side and landscapes one above the other', () => {
     expect(templates(compose(run(2, 0, () => portrait)).pages)).toContain('twoSide')
     expect(templates(compose(run(2, 0, () => ({ width: 1600, height: 1000 }))).pages)).toContain(
@@ -204,7 +213,7 @@ describe('composeBook: pages of photographs', () => {
 
   it('reads a burst as separate photographs when no page fits it without cropping', () => {
     const burst = Array.from({ length: 3 }, (_, i) => ({
-      ...makePhoto({ ...portrait, guestId: guest(1) }),
+      ...makePhoto({ width: 3000, height: 1000, guestId: guest(1) }),
       createdAt: new Date(T0 + i * 4000),
     }))
     const plan = compose(burst)
@@ -275,9 +284,63 @@ describe('composeBook: the parity of the next opening', () => {
     expect(between(plan)).toEqual(['single', 'strip6', 'blank'])
   })
 
+  it('never cuts a burst block to fix the parity: a blank page instead', () => {
+    const burst = Array.from({ length: 4 }, (_, i) => ({
+      ...makePhoto({ ...square, guestId: guest(500) }),
+      createdAt: new Date(T0 + 20 * MINUTE + i * 4000),
+    }))
+    const plan = compose([...run(6, 0), ...burst, ...run(8, 100)])
+    const pages = between(plan)
+    expect(pages.slice(-2)).toEqual(['grid4', 'blank'])
+    const grid = plan.pages.find((p) => p.template === 'grid4')!
+    expect(grid.slots).toHaveLength(4)
+  })
+
   it('falls back to a blank page when the last page holds a single photograph', () => {
     const plan = compose([...run(7, 0), ...run(8, 100)])
     expect(between(plan).at(-1)).toBe('blank')
+  })
+})
+
+describe('composeBook: phone portraits', () => {
+  const phone = { width: 1500, height: 2000 }
+
+  it('lays three portraits side by side, alternating with the hero page, and a burst of four on a grid of 3:4 cells', () => {
+    expect(templates(compose(run(3, 0, () => phone)).pages)).toContain('threePortraits')
+    expect(templates(compose(run(6, 0, () => phone)).pages)).toEqual(
+      expect.arrayContaining(['threePortraits', 'portraitHero']),
+    )
+    const burst = Array.from({ length: 4 }, (_, i) => ({
+      ...makePhoto({ ...phone, guestId: guest(1) }),
+      createdAt: new Date(T0 + i * 4000),
+    }))
+    expect(templates(compose(burst).pages)).toContain('grid4Portrait')
+  })
+
+  it('does not end up mostly with single pages for an album of 3:4 portraits', () => {
+    // 120 photographs: the six first templates took no 3:4 portrait under 20 % crop and the plan was
+    // single page after single page. With the portrait pages none is (measured: 0 of 40); the threshold leaves room for a template change.
+    const plan = compose(run(120, 0, (i) => ({ ...phone, guestId: guest(i % 7) })))
+    const photoPages = plan.pages.filter((p) => p.slots.length > 0 && p.template !== 'favourites')
+    const singles = photoPages.filter((p) => p.template === 'single' || p.template === 'full')
+    expect(singles.length / photoPages.length).toBeLessThan(0.1)
+  })
+
+  it('stays below half single pages for a mixed phone album (measured: 36 %): portraits, a few landscapes, squares', () => {
+    const sizes = [
+      phone,
+      phone,
+      phone,
+      { width: 1500, height: 1000 },
+      phone,
+      { width: 1000, height: 1000 },
+    ]
+    const plan = compose(
+      run(120, 0, (i) => ({ ...sizes[i % sizes.length]!, guestId: guest(i % 11) })),
+    )
+    const photoPages = plan.pages.filter((p) => p.slots.length > 0 && p.template !== 'favourites')
+    const singles = photoPages.filter((p) => p.template === 'single' || p.template === 'full')
+    expect(singles.length / photoPages.length).toBeLessThan(0.45)
   })
 })
 
@@ -358,11 +421,16 @@ describe('composeBook: guest book', () => {
     expect(listed).toContain('m00011')
   })
 
-  it('has no extra message when none was left out', () => {
+  it('counts the messages left in the export, from the uncapped count of the snapshot', () => {
+    const withBook = compose(run(3, 0), { includeGuestbook: true }, [], { ...COUNTS, messages: 5 })
+    expect(withBook.extraMessages).toBe(5)
     expect(
       compose(run(3, 0), { includeGuestbook: true }, [], { ...COUNTS, messages: 0 }).extraMessages,
     ).toBe(0)
-    expect(compose(run(3, 0), {}, [], { ...COUNTS, messages: 5 }).extraMessages).toBe(5)
+  })
+
+  it('says nothing about left-out messages when the guest book is off', () => {
+    expect(compose(run(3, 0), {}, [], { ...COUNTS, messages: 5 }).extraMessages).toBe(0)
   })
 
   it('does not fix the parity with a blank page if a quote exists but with the book still shorter', () => {
