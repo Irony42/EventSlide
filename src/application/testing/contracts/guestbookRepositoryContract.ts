@@ -372,5 +372,67 @@ export const guestbookRepositoryContract = (
         expect((await repo.locate(entryId('e1')))?.takenDownAt).toBeNull()
       })
     })
+
+    // --------------------------------------------------- what the photo book may print --
+
+    describe('listWrittenForBook', () => {
+      const published = (id: string, seconds: number, over = {}) =>
+        entry({ id, text: id, createdAt: at(seconds), moderation: 'auto', ...over })
+
+      it('lists published messages oldest first, up to the instant the book froze at, that instant included', async () => {
+        await repo.admit(published('c', 3))
+        await repo.admit(published('a', 1))
+        await repo.admit(published('b', 2))
+        await repo.admit(published('late', 4))
+
+        expect((await repo.listWrittenForBook(WEDDING, at(3), 10)).map((row) => row.id)).toEqual([
+          'a',
+          'b',
+          'c',
+        ])
+        expect((await repo.listWrittenForBook(WEDDING, at(2), 10)).map((row) => row.id)).toEqual([
+          'a',
+          'b',
+        ])
+      })
+
+      it('honours the limit, keeping the first in order', async () => {
+        for (const [id, s] of [
+          ['a', 1],
+          ['b', 2],
+          ['c', 3],
+        ] as const) {
+          await repo.admit(published(id, s))
+        }
+
+        expect((await repo.listWrittenForBook(WEDDING, at(9), 2)).map((row) => row.id)).toEqual([
+          'a',
+          'b',
+        ])
+      })
+
+      it('leaves out what is pending, hidden, rejected or taken down', async () => {
+        await repo.admit(published('ok', 1))
+        await repo.admit(entry({ id: 'pending', text: 'pending', createdAt: at(2) }))
+        await repo.admit(published('down', 3, { guestId: 'guest-sam' }))
+        subject.takeDown('evt-wedding', 'down', at(9))
+
+        expect((await repo.listWrittenForBook(WEDDING, at(9), 10)).map((row) => row.id)).toEqual([
+          'ok',
+        ])
+      })
+
+      it('never reads another event', async () => {
+        await repo.admit(published('mine', 1))
+        await repo.admit(published('theirs', 2, { eventId: 'evt-gala' }))
+
+        expect((await repo.listWrittenForBook(GALA, at(9), 10)).map((row) => row.id)).toEqual([
+          'theirs',
+        ])
+        expect((await repo.listWrittenForBook(WEDDING, at(9), 10)).map((row) => row.id)).toEqual([
+          'mine',
+        ])
+      })
+    })
   })
 }

@@ -4,7 +4,7 @@ import {
   crowdGuestId,
 } from '../../application/testing/contracts/guestbookRepositoryContract'
 import { guestbookVoiceRepositoryContract } from '../../application/testing/contracts/guestbookVoiceRepositoryContract'
-import { AT, aVoiceEntry } from '../../application/testing/builders'
+import { AT, aGuestbookEntry, aVoiceEntry } from '../../application/testing/builders'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { asClientId, asEventId, asGuestbookEntryId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
@@ -373,6 +373,35 @@ describe('SqliteGuestbookVoiceRepository schema behaviour', () => {
       `UPDATE guestbook_voices SET state = 'failed', failure = 'corrupt' WHERE entry_id = 'v1'`,
     ).run()
     expect(() => insertVoice.run('v2', 'queued', 'a'.repeat(64), ISO_AT)).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it('leaves a published voice message out of what the photo book may print, in the query', async () => {
+    const db = migratedDatabase()
+    const voices = new SqliteGuestbookVoiceRepository(db)
+    const written = new SqliteGuestbookRepository(db)
+    await voices.admitVoice(
+      aVoiceEntry({
+        id: 'v1',
+        state: 'ready',
+        eventId: 'evt-wedding',
+        guestId: 'guest-lea',
+        moderation: 'auto',
+      }),
+      limits,
+    )
+    await written.admit(
+      aGuestbookEntry({
+        id: 'w1',
+        eventId: 'evt-wedding',
+        guestId: 'guest-lea',
+        moderation: 'auto',
+      }),
+    )
+
+    expect(
+      (await written.listWrittenForBook(WEDDING, new Date('2100-01-01'), 10)).map((r) => r.id),
+    ).toEqual(['w1'])
     closeDatabase(db)
   })
 })
