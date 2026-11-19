@@ -50,7 +50,10 @@ export interface BookPlan {
   /** The evening in numbers, frozen at the first pass. */
   readonly counts: BookCounts
   readonly includedMessages: number
-  /** Written messages left in the album export: they did not fit the ceiling. */
+  /**
+   * Written messages left in the album export: they did not fit the ceiling. 0 when the guest book is
+   * off (the book says nothing about messages then).
+   */
   readonly extraMessages: number
   /** Hearts of the retained photographs, frozen; photographs with none are absent. */
   readonly hearts: Readonly<Record<string, number>>
@@ -327,11 +330,8 @@ export const composeBook = (input: BookInput, options: BookOptionsV2): BookPlan 
       pages.push({ template: 'chapter', slots: [], chapter: index })
       pages.push({ template: leadTemplate, slots, chapter: index })
     }
-    const content = layoutPages(
-      makeUnits(group.filter((photo) => photo !== lead)),
-      leadTemplate,
-      false,
-    )
+    const rest = group.filter((photo) => photo !== lead)
+    const content = layoutPages(makeUnits(rest), leadTemplate, false)
     pages.push(...content)
 
     // The next opening is a left page, an even one.
@@ -343,11 +343,17 @@ export const composeBook = (input: BookInput, options: BookOptionsV2): BookPlan 
     }
     // Else a page with one photograph more: the last page of the chapter, cut in two.
     const last = content[content.length - 1]
-    if (last !== undefined && last.slots.length > 1) {
+    // A burst is one block: a page holding one of its photographs is never cut.
+    const inBurst = new Set<PhotoId>(findBursts(rest).flatMap((burst) => burst.map((p) => p.id)))
+    if (
+      last !== undefined &&
+      last.slots.length > 1 &&
+      !last.slots.some((slot) => inBurst.has(slot.photoId))
+    ) {
       const photos = last.slots.map((slot) => byId.get(slot.photoId)!).sort(byArrival)
       const split = layoutPages(
         photos.map((photo) => ({ photos: [photo] })),
-        content.length > 1 ? content[content.length - 2]!.template : leadTemplate,
+        pages[pages.length - 2]!.template,
         true,
       )
       // One page became `split.length`: the parity flips only when that is even.
@@ -396,7 +402,9 @@ export const composeBook = (input: BookInput, options: BookOptionsV2): BookPlan 
     selectedCount: selected.length,
     counts: input.counts,
     includedMessages: messages.length,
-    extraMessages: Math.max(0, input.counts.messages - messages.length),
+    extraMessages: options.includeGuestbook
+      ? Math.max(0, input.counts.messages - messages.length)
+      : 0,
     hearts,
     photographers,
     favouritesPage,

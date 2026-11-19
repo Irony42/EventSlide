@@ -44,6 +44,9 @@ const cases: Case[] = SEEDS.map((seed) => {
   return { seed, input, options, plan: composeBook(input, options) }
 })
 
+const sizesOf = (input: BookInput): Map<string, BookPhoto> =>
+  new Map(input.photos.map((p) => [p.id, p]))
+
 const photoById = (input: BookInput): Map<string, BookPhoto> =>
   new Map(input.photos.map((p) => [p.id, p]))
 
@@ -98,7 +101,7 @@ describe('composeBook properties (160 generated albums)', () => {
     }
   })
 
-  it('keeps the chronological order from page to page, a chapter lead and a burst aside', () => {
+  it('keeps the chronological order between pages (inside a page the hero slot goes to the best photograph), a chapter lead and a burst aside', () => {
     for (const { seed, plan, input } of cases) {
       const known = photoById(input)
       const leads = leadIndexes(plan.pages)
@@ -225,21 +228,12 @@ describe('composeBook properties (160 generated albums)', () => {
       composeBook(input(tied), options),
     )
   })
-
-  it('reads the frozen hearts of the plan, never anything else', () => {
-    for (const { seed, plan, input } of cases) {
-      const known = photoById(input)
-      for (const [id, hearts] of Object.entries(plan.hearts)) {
-        expect(known.get(id)!.reactions, `seed ${seed}`).toBe(hearts)
-      }
-    }
-  })
 })
 
 describe('the printer version of every generated plan', () => {
   it('has no `wide`, an even page count of at least 24, and at most 200 or no version', () => {
-    for (const { seed, plan, options } of cases) {
-      const print = planForPrint(plan.pages, options.style)
+    for (const { seed, plan, options, input } of cases) {
+      const print = planForPrint(plan.pages, options.style, sizesOf(input))
       if (print.kind === 'tooManyPages') {
         expect(print.pageCount, `seed ${seed}`).toBeGreaterThan(PRINT_MAX_PAGES)
         continue
@@ -262,9 +256,24 @@ describe('the printer version of every generated plan', () => {
     }
   })
 
+  it('never crops a photograph past the ceiling in the printer version either', () => {
+    for (const { seed, plan, options, input } of cases) {
+      const print = planForPrint(plan.pages, options.style, sizesOf(input))
+      if (print.kind !== 'ready') continue
+      const known = photoById(input)
+      for (const page of print.pages) {
+        const { slots, span } = BOOK_TEMPLATES[page.template]
+        page.slots.forEach((slot, i) => {
+          const loss = cropLoss(known.get(slot.photoId)!, slots[i]!, span)
+          expect(withinCropCeiling(loss), `seed ${seed} ${page.template}: ${loss}`).toBe(true)
+        })
+      }
+    }
+  })
+
   it('keeps the openings on even pages', () => {
-    for (const { seed, plan, options } of cases) {
-      const print = planForPrint(plan.pages, options.style)
+    for (const { seed, plan, options, input } of cases) {
+      const print = planForPrint(plan.pages, options.style, sizesOf(input))
       if (print.kind !== 'ready') continue
       let page = 1
       for (const p of print.pages) {

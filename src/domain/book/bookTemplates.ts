@@ -10,6 +10,9 @@ export const TEMPLATE_IDS = [
   'heroTwo',
   'grid4',
   'strip6',
+  'portraitHero',
+  'threePortraits',
+  'grid4Portrait',
   'wide',
   'chapter',
   'quote',
@@ -104,6 +107,31 @@ export const BOOK_TEMPLATES: Readonly<Record<TemplateId, BookTemplate>> = {
     ),
     texts: [],
   },
+  // The phone portrait (3:4) is what most guests send: a tall hero and two squarer photographs,
+  // three side by side, four cells of 3:4.
+  portraitHero: {
+    id: 'portraitHero',
+    span: 1,
+    slots: [hero(8, 15, 52, 70), photo(63, 15, 29, 33), photo(63, 52, 29, 33)],
+    texts: [],
+  },
+  threePortraits: {
+    id: 'threePortraits',
+    span: 1,
+    slots: [photo(8, 32, 26, 35), photo(37, 32, 26, 35), photo(66, 32, 26, 35)],
+    texts: [],
+  },
+  grid4Portrait: {
+    id: 'grid4Portrait',
+    span: 1,
+    slots: [
+      photo(18, 8, 30, 40),
+      photo(52, 8, 30, 40),
+      photo(18, 52, 30, 40),
+      photo(52, 52, 30, 40),
+    ],
+    texts: [],
+  },
   wide: { id: 'wide', span: 2, slots: [hero(0, 0, 100, 100)], texts: [] },
   chapter: { id: 'chapter', span: 1, slots: [], texts: [{ x: 20, y: 34, w: 60, h: 32 }] },
   quote: { id: 'quote', span: 1, slots: [], texts: [{ x: 16, y: 38, w: 68, h: 24 }] },
@@ -178,8 +206,8 @@ export const BOOK_TEMPLATES: Readonly<Record<TemplateId, BookTemplate>> = {
 /** Pages that carry the chapters' photographs, by how many photographs they hold. */
 export const PHOTO_PAGE_TEMPLATES: Readonly<Record<number, readonly TemplateId[]>> = {
   2: ['twoStack', 'twoSide'],
-  3: ['heroTwo'],
-  4: ['grid4'],
+  3: ['heroTwo', 'portraitHero', 'threePortraits'],
+  4: ['grid4', 'grid4Portrait'],
   6: ['strip6'],
 }
 

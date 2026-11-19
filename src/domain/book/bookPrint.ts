@@ -1,7 +1,13 @@
 import type { BookStyle } from './bookOptionsV2'
 import type { PlanPage } from './bookPlan'
 import { BOOK_STYLE_DEFS } from './bookStyles'
-import { BOOK_TEMPLATES, pageCountOf, type TemplateId } from './bookTemplates'
+import {
+  BOOK_TEMPLATES,
+  cropLoss,
+  pageCountOf,
+  withinCropCeiling,
+  type TemplateId,
+} from './bookTemplates'
 
 /** The printer's version (spec 26, 4.8): 210 mm square, 3 mm of bleed on each edge. */
 export const PRINT_TRIM_MM = 210
@@ -19,24 +25,40 @@ export type PrintPlan =
   | { readonly kind: 'tooManyPages'; readonly pageCount: number }
 
 /**
- * The page standing in for a `wide` photograph, which cannot print across a gutter:
- * `chapter` + `full` for a style that allows full bleed or polaroids, `chapter` + `single` otherwise.
- * Both fill the two pages `wide` covered, so parity never changes.
+ * The page standing in for a `wide` photograph, which cannot print across a gutter: `chapter` +
+ * `full` when the style allows it **and** the photograph stays under the crop ceiling on a square
+ * page (a 16:9 lead never does), otherwise `chapter` + `single`, which never crops. Both fill the
+ * two pages `wide` covered, so parity never changes.
  */
-const wideReplacement = (style: BookStyle): TemplateId =>
-  BOOK_STYLE_DEFS[style].wide ? 'full' : 'single'
+const wideReplacement = (style: BookStyle, photo: PhotoSize | undefined): TemplateId =>
+  BOOK_STYLE_DEFS[style].wide &&
+  photo !== undefined &&
+  withinCropCeiling(cropLoss(photo, BOOK_TEMPLATES.full.slots[0]!, 1))
+    ? 'full'
+    : 'single'
+
+/** The pixel size of a photograph, by id: what the printer plan needs to judge a crop. */
+export type PhotoSize = { readonly width: number; readonly height: number }
 
 /**
  * The same plan for the printer: `wide` replaced, blanks added before `thanks` up to 24 pages,
  * and no version at all above 200 pages (the screen book is still made).
- * The plan always ends with `thanks` then `end`, `end` being last.
+ * The plan always ends with `thanks` then `end`, `end` being last. The padding blanks sit side by
+ * side before `thanks`: "never two blanks in a row" is a rule of the screen book only.
  */
-export const planForPrint = (pages: readonly PlanPage[], style: BookStyle): PrintPlan => {
+export const planForPrint = (
+  pages: readonly PlanPage[],
+  style: BookStyle,
+  sizes: ReadonlyMap<string, PhotoSize>,
+): PrintPlan => {
   const expanded = pages.flatMap((page): PlanPage[] =>
     page.template === 'wide'
       ? [
           { ...page, template: 'chapter', slots: [] },
-          { ...page, template: wideReplacement(style) },
+          {
+            ...page,
+            template: wideReplacement(style, sizes.get(page.slots[0]!.photoId)),
+          },
         ]
       : [page],
   )
