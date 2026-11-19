@@ -25,28 +25,44 @@ describe('planForPrint', () => {
     expect(PRINT_PAGE_MM).toBe(216)
   })
 
-  it('replaces a wide opening by chapter + full for a full-bleed style, keeping the page count', () => {
-    const pages = [page('title'), page('stats'), photoPage('wide', 'a'), ...ending]
-    const plan = planForPrint(pages, 'magazine')
+  const SIZES = new Map([
+    ['a', { width: 1920, height: 1080 }],
+    ['sq', { width: 1000, height: 1000 }],
+  ])
+
+  it('replaces a wide opening by chapter + full when the lead fits a square page, keeping the page count', () => {
+    const pages = [page('title'), page('stats'), photoPage('wide', 'sq'), ...ending]
+    const plan = planForPrint(pages, 'magazine', SIZES)
     if (plan.kind !== 'ready') throw new Error('expected a printer version')
     expect(plan.pages.some((p) => p.template === 'wide')).toBe(false)
     const at = plan.pages.findIndex((p) => p.template === 'chapter')
     expect(plan.pages[at + 1]).toMatchObject({ template: 'full', chapter: 0 })
-    expect(plan.pages[at + 1]!.slots).toEqual([{ photoId: 'a' }])
+    expect(plan.pages[at + 1]!.slots).toEqual([{ photoId: 'sq' }])
     expect(plan.pages[at]!.slots).toEqual([])
-    const unpadded = pageCountOf(pages)
-    expect(pageCountOf(pages)).toBe(unpadded)
   })
 
-  it('uses chapter + single for a style that is never full bleed', () => {
-    const plan = planForPrint([photoPage('wide', 'a'), ...ending], 'classique')
+  it('uses chapter + single when the lead would be cropped past the ceiling on a square page', () => {
+    const plan = planForPrint([photoPage('wide', 'a'), ...ending], 'magazine', SIZES)
     if (plan.kind !== 'ready') throw new Error('expected a printer version')
     expect(plan.pages.find((p) => p.template === 'single')).toBeDefined()
     expect(plan.pages.find((p) => p.template === 'full')).toBeUndefined()
   })
 
+  it('uses chapter + single for a style that is never full bleed, even for a square lead', () => {
+    const plan = planForPrint([photoPage('wide', 'sq'), ...ending], 'classique', SIZES)
+    if (plan.kind !== 'ready') throw new Error('expected a printer version')
+    expect(plan.pages.find((p) => p.template === 'single')).toBeDefined()
+    expect(plan.pages.find((p) => p.template === 'full')).toBeUndefined()
+  })
+
+  it('uses single for a lead whose size is unknown', () => {
+    const plan = planForPrint([photoPage('wide', 'sq'), ...ending], 'magazine', new Map())
+    if (plan.kind !== 'ready') throw new Error('expected a printer version')
+    expect(plan.pages.find((p) => p.template === 'full')).toBeUndefined()
+  })
+
   it('pads with blanks before thanks up to 24 pages, and ends with thanks then end', () => {
-    const plan = planForPrint([page('title'), page('stats'), ...ending], 'souvenir')
+    const plan = planForPrint([page('title'), page('stats'), ...ending], 'souvenir', new Map())
     if (plan.kind !== 'ready') throw new Error('expected a printer version')
     expect(pageCountOf(plan.pages)).toBe(PRINT_MIN_PAGES)
     expect(plan.pages.slice(-2).map((p) => p.template)).toEqual(['thanks', 'end'])
@@ -56,7 +72,7 @@ describe('planForPrint', () => {
 
   it('adds nothing to a book that already has 24 pages', () => {
     const pages = [...Array.from({ length: 22 }, () => page('single')), ...ending]
-    const plan = planForPrint(pages, 'classique')
+    const plan = planForPrint(pages, 'classique', new Map())
     expect(plan).toEqual({ kind: 'ready', pages })
   })
 
@@ -65,8 +81,8 @@ describe('planForPrint', () => {
       ...Array.from({ length: count - 2 }, () => page('single')),
       ...ending,
     ]
-    expect(planForPrint(make(PRINT_MAX_PAGES), 'classique').kind).toBe('ready')
-    expect(planForPrint(make(PRINT_MAX_PAGES + 2), 'classique')).toEqual({
+    expect(planForPrint(make(PRINT_MAX_PAGES), 'classique', new Map()).kind).toBe('ready')
+    expect(planForPrint(make(PRINT_MAX_PAGES + 2), 'classique', new Map())).toEqual({
       kind: 'tooManyPages',
       pageCount: 202,
     })
