@@ -1,7 +1,8 @@
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import type { BookChunk, BookFileKind } from '../../application/ports/bookFileStore'
 import { bookFileStoreContract } from '../../application/testing/contracts/bookFileStoreContract'
 import { asEventId } from '../../domain/shared/ids'
 import { createFsBookFileStore } from './fsBookFileStore'
@@ -63,4 +64,61 @@ describe('createFsBookFileStore', () => {
       rmSync(root, { recursive: true, force: true })
     }
   })
+})
+
+describe('createFsBookFileStore: the printer version', () => {
+  const chunks = (...parts: [BookFileKind, string][]): AsyncIterable<BookChunk> =>
+    (async function* () {
+      for (const [kind, text] of parts) yield { kind, bytes: new TextEncoder().encode(text) }
+    })()
+  const LIMITS = { maxBytes: { screen: 100, print: 100 } }
+
+  it('names the three files after the event id and leaves no temporary file', async () => {
+    const root = tempRoot()
+    try {
+      await createFsBookFileStore(root).writeSet(
+        asEventId('evt-a'),
+        chunks(['screen', 's'], ['printInterior', 'i'], ['printCover', 'c']),
+        LIMITS,
+      )
+
+      expect(readdirSync(join(root, '.books')).sort()).toEqual([
+        '.tmp',
+        'evt-a.cover.pdf',
+        'evt-a.pdf',
+        'evt-a.print.pdf',
+      ])
+      expect(readdirSync(join(root, '.books', '.tmp'))).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('lists an event from any of its three names, and an orphaned printer file too', async () => {
+    const root = tempRoot()
+    try {
+      const store = createFsBookFileStore(root)
+      await store.writeSet(asEventId('evt-a'), chunks(['screen', 's']), LIMITS)
+      writeFileSync(join(root, '.books', 'evt-b.print.pdf'), 'x')
+      writeFileSync(join(root, '.books', 'evt-c.cover.pdf'), 'x')
+
+      expect([...(await store.list())].sort()).toEqual(['evt-a', 'evt-b', 'evt-c'])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it.each(['evt.print', 'evt.cover'])(
+    'refuses an event id that would read as another event’s printer file: %j',
+    async (id) => {
+      const root = tempRoot()
+      try {
+        await expect(
+          createFsBookFileStore(root).writeSet(asEventId(id), chunks(['screen', 's']), LIMITS),
+        ).rejects.toThrow(/unsafe event id/)
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    },
+  )
 })
