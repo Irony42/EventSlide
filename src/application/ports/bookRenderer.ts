@@ -1,36 +1,64 @@
-import type { BookLayout } from '../../domain/book/bookLayout'
+import type { PlanPage, BookPlan } from '../../domain/book/bookPlan'
+import type { BookColours, BookStyleDef } from '../../domain/book/bookStyles'
+import type { BookTexts } from '../../domain/book/bookTexts'
+import type { EventLanguage } from '../../domain/events/eventLanguage'
+import type { PhotoId } from '../../domain/shared/ids'
+import type { BookChunk } from './bookFileStore'
 
-/** One photograph of the book, its bytes already read. Texts are already safe to draw. */
-export interface BookPhoto {
-  /** The `display` rendition (a JPEG); the renderer may reduce it, it never reads anything else. */
-  readonly bytes: Uint8Array
-  /** `pdfSafeText` output, or `null` for no line under the photograph. */
-  readonly caption: string | null
-  /** `pdfSafeText` output, or `null` for no credit. */
-  readonly author: string | null
-}
-
-export interface BookInput {
-  readonly layout: BookLayout
-  readonly cover: { readonly title: string; readonly subtitle: string }
-  readonly closing: {
-    readonly createdWith: string
-    /** The line about clips left out, or `null` when there are none. */
-    readonly videosNote: string | null
-  }
-  /**
-   * The photographs, **pulled one at a time**: the renderer asks for the next only when it is
-   * about to place it, so one page of bytes is in memory, never the album. It ends when the
-   * iterable does; a failure in it (the event stopped being readable, shutdown) aborts the
-   * render before the closing page.
-   */
-  readonly photos: AsyncIterable<BookPhoto>
+/** The words one page needs, read again at render time and already safe to draw (`pdfSafeText`). */
+export interface PageTexts {
+  /** One per photograph slot of the page, in slot order; `null` for no line. */
+  readonly captions: readonly (string | null)[]
+  /** One per photograph slot: the first name, `null` when authors are off or the guest has none. */
+  readonly authors: readonly (string | null)[]
+  /** One per photograph slot: the host's mission prompt, `null` when the photograph answers none. */
+  readonly missions: readonly (string | null)[]
+  /** The messages of a `quote` or `messages` page, in the order of `messageIds`. */
+  readonly messages: readonly { readonly text: string; readonly author: string | null }[]
+  /** The `thanks` page: who took how many photographs of the book; empty when authors are off. */
+  readonly photographers: readonly { readonly name: string; readonly photoCount: number }[]
 }
 
 /**
- * Draws the book as the bytes of a PDF, streamed. Nothing about storage or events lives here:
- * the use case decides what goes in and where the bytes land.
+ * Everything the renderer needs to draw a book and nothing else: **it decides nothing**. The plan
+ * says what goes where; the style and the colours say how it looks; the texts and the bytes are
+ * pulled when a page needs them, so one double page is in memory, never the album.
+ */
+export interface BookRenderInput {
+  readonly plan: BookPlan
+  /** The printer version's pages (`planForPrint`), or `null` for a screen book alone. */
+  readonly printPages: readonly PlanPage[] | null
+  readonly style: BookStyleDef
+  readonly colours: BookColours
+  readonly language: EventLanguage
+  /** The host's zone: the hours of a chapter's subtitle are read in it. */
+  readonly timeZone: string
+  readonly texts: BookTexts
+  readonly cover: {
+    /** Already `pdfSafeText`; the date of the first photograph when the host left the subtitle empty. */
+    readonly title: string
+    readonly subtitle: string
+    readonly photoId: PhotoId | null
+  }
+  /** The event's logo (a PNG or JPEG the pipeline re-encoded), or `null`. */
+  readonly logo: Uint8Array | null
+  /** The `display` rendition (a JPEG), on demand. A photograph that cannot be read ends the render. */
+  photo(id: PhotoId): Promise<Uint8Array>
+  /** The words of one page of the plan (of the printer version too: they are the same photographs). */
+  pageTexts(page: PlanPage): Promise<PageTexts>
+  /** Counts the book's closing page speaks of. */
+  readonly closing: {
+    readonly videosNote: string | null
+    readonly voicesNote: string | null
+    readonly extraMessagesNote: string | null
+  }
+}
+
+/**
+ * Draws the book as the interleaved bytes of up to three PDFs (screen, printer interior, printer
+ * cover), streamed. Nothing about storage or events lives here: the use case decides what goes in
+ * and where the bytes land (`BookFileStore.writeSet`).
  */
 export interface BookRenderer {
-  render(input: BookInput): AsyncIterable<Uint8Array>
+  render(input: BookRenderInput): AsyncIterable<BookChunk>
 }
