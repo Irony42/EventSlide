@@ -1,48 +1,51 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useApi } from '../../../lib/useApi'
-import type { EventSettingsPatch } from '../../../lib/api/client'
-import type { EventDto, EventSettingsDto } from '../../../lib/api/dto'
-import { ApiError } from '../../../lib/http'
+import { useApi } from './useApi'
+import type { EventSettingsPatch } from './api/client'
+import type { EventDto, EventSettingsDto } from './api/dto'
+import { ApiError } from './http'
+import { applySettingsPatch, mergeSettingsPatch } from './settingsAutosave'
 
-/** One request per field the host touched, after this much stillness; the last choice wins. */
+/** One request per burst of choices, after this much stillness; the last choice wins. */
 export const SAVE_DEBOUNCE_MS = 400
 
-export type PanelSaveState =
+export type SettingsSaveState =
   | { readonly kind: 'idle' }
   | { readonly kind: 'saving' }
   | { readonly kind: 'saved' }
-  | { readonly kind: 'failed'; readonly sessionExpired: boolean; readonly code: string | undefined }
+  | {
+      readonly kind: 'failed'
+      readonly sessionExpired: boolean
+      readonly code: string | undefined
+      /** What the server or the network answered, for a screen that words it itself. */
+      readonly cause: unknown
+    }
 
-export interface PanelSettings {
+export interface SettingsAutosave {
   /** The server's answer with what the host changed since laid over it. */
   readonly settings: EventSettingsDto
+  /** Queues the changed fields only; they are sent after {@link SAVE_DEBOUNCE_MS} of stillness. */
   readonly save: (patch: EventSettingsPatch) => void
-  readonly state: PanelSaveState
+  readonly state: SettingsSaveState
 }
-
-const mergePatch = (base: EventSettingsPatch, patch: EventSettingsPatch): EventSettingsPatch => ({
-  ...base,
-  ...patch,
-  ...(patch.wall === undefined ? {} : { wall: { ...base.wall, ...patch.wall } }),
-})
 
 const SESSION_EXPIRED_CODE = 'auth.required'
 
 /**
- * The panel's own writes (spec 13, rules 4 and 5).
+ * The settings saved as the host changes them: the panel on the projected wall (spec 13, rules 4
+ * and 5) and the settings page, which have no Save button.
  *
  * Each call to `save` names **only the changed fields**; they are collected for
  * {@link SAVE_DEBOUNCE_MS} (the host dragging through a list is one request, not five) and sent
  * as one `PATCH`, the last value of a field winning. The control shows the new value at once; a
  * refusal drops the values of that request only, so the control goes back to what the server holds,
  * and the state says why; a choice made while it was in flight is still shown and still sent.
- * What is still pending when the panel closes is sent, not lost.
+ * What is still pending when the screen closes is sent, not lost.
  */
-export const usePanelSettings = (
+export const useSettingsAutosave = (
   slug: string,
   event: EventDto,
   replace: (event: EventDto) => void,
-): PanelSettings => {
+): SettingsAutosave => {
   const api = useApi()
   // What the host chose and the server has not answered yet, one entry per request, in the
   // order they were sent; `draft` is what is still being collected for the next one. The
@@ -51,7 +54,7 @@ export const usePanelSettings = (
     ReadonlyArray<{ id: number; patch: EventSettingsPatch }>
   >([])
   const [draft, setDraft] = useState<EventSettingsPatch>({})
-  const [state, setState] = useState<PanelSaveState>({ kind: 'idle' })
+  const [state, setState] = useState<SettingsSaveState>({ kind: 'idle' })
   const queued = useRef<EventSettingsPatch>({})
   const timer = useRef<number | undefined>(undefined)
   const counter = useRef(0)
@@ -93,6 +96,7 @@ export const usePanelSettings = (
           kind: 'failed',
           sessionExpired: cause instanceof ApiError && cause.code === SESSION_EXPIRED_CODE,
           code: cause instanceof ApiError ? cause.code : undefined,
+          cause,
         })
       },
     )
@@ -100,38 +104,27 @@ export const usePanelSettings = (
 
   const save = useCallback(
     (patch: EventSettingsPatch) => {
-      // The wall group is merged key by key, here as on the server: two quick choices are one request.
-      queued.current = mergePatch(queued.current, patch)
-      setDraft((current) => mergePatch(current, patch))
+      queued.current = mergeSettingsPatch(queued.current, patch)
+      setDraft((current) => mergeSettingsPatch(current, patch))
       window.clearTimeout(timer.current)
       timer.current = window.setTimeout(flush, SAVE_DEBOUNCE_MS)
     },
     [flush],
   )
 
-  // Closing the panel must not eat a choice made a moment before.
+  // Leaving the screen must not eat a choice made a moment before.
   useEffect(() => flush, [flush])
 
   const pending = useMemo(
     () =>
-      mergePatch(
-        inflight.reduce((all, entry) => mergePatch(all, entry.patch), {} as EventSettingsPatch),
+      mergeSettingsPatch(
+        inflight.reduce((all, entry) => mergeSettingsPatch(all, entry.patch), {}),
         draft,
       ),
     [inflight, draft],
   )
-  const settings = useMemo<EventSettingsDto>(
-    () => ({
-      ...event.settings,
-      ...(pending.wallLanguage === undefined ? {} : { wallLanguage: pending.wallLanguage }),
-      ...(pending.guestbookOnWall === undefined
-        ? {}
-        : { guestbookOnWall: pending.guestbookOnWall }),
-      ...(pending.wall === undefined ? {} : { wall: { ...event.settings.wall, ...pending.wall } }),
-      ...(pending.theme === undefined
-        ? {}
-        : { theme: { ...event.settings.theme, ...pending.theme } }),
-    }),
+  const settings = useMemo(
+    () => applySettingsPatch(event.settings, pending),
     [event.settings, pending],
   )
 
