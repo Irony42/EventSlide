@@ -31,7 +31,8 @@ const eventWith = (
 const render = (api: Api) =>
   renderWithProviders(<EventSettingsPage />, {
     api,
-    route: '/admin/events/camille-et-sacha/settings',
+    // The voice messages live in the guestbook's section, which the address opens.
+    route: '/admin/events/camille-et-sacha/settings#guestbook',
     path: '/admin/events/:slug/settings',
   })
 
@@ -50,20 +51,28 @@ describe('EventSettingsPage, voice messages', () => {
     render(api)
 
     await userEvent.click(await screen.findByLabelText(fr.guestbookVoiceHost.settingsEnabled))
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
 
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalled())
-    expect(api.updateSettings).toHaveBeenCalledWith(
-      'camille-et-sacha',
-      expect.objectContaining({ guestbookVoice: { enabled: true } }),
-    )
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
+      guestbookVoice: { enabled: true },
+    })
   })
 
-  it('keeps the secret switch off until the voice switch is on', async () => {
+  it('shows the secret switch only once the voice switch is on', async () => {
     stubSecureContext(true)
-    render(fakeApi({ getEvent: vi.fn(async () => eventWith({ enabled: false })) }))
+    render(
+      fakeApi({
+        getEvent: vi.fn(async () => eventWith({ enabled: false })),
+        updateSettings: vi.fn(() => new Promise<EventDto>(() => {})),
+      }),
+    )
 
-    expect(await screen.findByLabelText(fr.guestbookVoiceHost.settingsSealed)).toBeDisabled()
+    const enabled = await screen.findByLabelText(fr.guestbookVoiceHost.settingsEnabled)
+    expect(screen.queryByLabelText(fr.guestbookVoiceHost.settingsSealed)).toBeNull()
+
+    await userEvent.click(enabled)
+
+    expect(screen.getByLabelText(fr.guestbookVoiceHost.settingsSealed)).toBeVisible()
   })
 
   it('says the secret in the interface’s words, not the code’s', async () => {
@@ -212,7 +221,7 @@ describe('EventSettingsPage, voice messages', () => {
 
     stubSecureContext(false)
     render(fakeApi({ getEvent: vi.fn(async () => eventWith({ enabled: false })) }))
-    await screen.findByLabelText(fr.guestbookVoiceHost.settingsSealed)
+    await screen.findByLabelText(fr.guestbookVoiceHost.settingsEnabled)
     expect(screen.queryByText(fr.guestbookVoiceHost.insecure)).toBeNull()
   })
 })

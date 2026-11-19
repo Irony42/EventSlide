@@ -6,6 +6,8 @@ export interface DateTimeFieldProps {
   /** `YYYY-MM-DDTHH:mm` in the browser's own zone, or `''` for "not set". */
   readonly value: string
   readonly onChange: (value: string) => void
+  /** When the host leaves the field: a screen that saves as it goes saves a date here, once it is whole. */
+  readonly onBlur?: () => void
   readonly hint?: string
   /** Earliest offerable value, same `YYYY-MM-DDTHH:mm` shape. A guide, not a guard. */
   readonly min?: string
@@ -27,6 +29,7 @@ export function DateTimeField({
   label,
   value,
   onChange,
+  onBlur,
   hint,
   min,
   disabled = false,
@@ -46,6 +49,7 @@ export function DateTimeField({
           {...(min === undefined ? {} : { min })}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
+          {...(onBlur === undefined ? {} : { onBlur })}
         />
       )}
     </Field>
