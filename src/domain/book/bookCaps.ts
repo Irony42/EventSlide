@@ -63,3 +63,10 @@ export const BOOK_REDUCTION_RATIO = 0.5
 
 export const estimateBookBytes = (displayBytes: number): number =>
   Math.ceil(displayBytes * BOOK_REDUCTION_RATIO)
+
+/**
+ * What the printer version (interior and cover together) may weigh: past it the version is abandoned
+ * and the screen book carries on (`print_skipped = 'tooLarge'`). The default, 700 MB, is the
+ * decision of 19/11/2026; the environment variable that tunes it comes with the API.
+ */
+export const BOOK_PRINT_MAX_BYTES = 700 * 1024 * 1024
