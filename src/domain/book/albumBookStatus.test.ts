@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   ALBUM_BOOK_STATUSES,
   BOOK_FAILURE_CODES,
+  BOOK_PRINT_SKIPPED,
   BOOK_STALE_REASONS,
+  isBookPrintSkipped,
   canTransition,
   hasFile,
   isActive,
@@ -51,5 +53,9 @@ describe('album book status machine', () => {
     expect(isBookFailureCode('disk full: /var/x')).toBe(false)
     expect(BOOK_STALE_REASONS.every(isBookStaleReason)).toBe(true)
     expect(isBookStaleReason(undefined)).toBe(false)
+    expect(isBookStaleReason('messageRemoved')).toBe(true)
+    expect(BOOK_PRINT_SKIPPED.every(isBookPrintSkipped)).toBe(true)
+    expect(isBookPrintSkipped('tooBig')).toBe(false)
+    expect(isBookPrintSkipped(null)).toBe(false)
   })
 })

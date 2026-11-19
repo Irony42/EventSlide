@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { asEventId } from '../shared/ids'
+import type { BookPlan } from './bookPlan'
 import {
   failBook,
   finishBook,
@@ -7,6 +8,7 @@ import {
   invalidateBook,
   requestBook,
   settleBook,
+  recordPlan,
   startBook,
   type AlbumBook,
   type BookOptions,
@@ -17,9 +19,13 @@ const OPTIONS: BookOptions = {
   title: 'Mariage',
   subtitle: '',
   language: 'fr',
-  layout: 'one',
+  style: 'classique',
+  selection: { kind: 'all' },
   showAuthors: true,
   showCaptions: true,
+  includeGuestbook: false,
+  printVersion: false,
+  timeZone: 'Europe/Paris',
 }
 const T0 = new Date('2026-11-01T10:00:00Z')
 const T1 = new Date('2026-11-01T10:05:00Z')
@@ -29,6 +35,9 @@ const RESULT: BookResult = {
   skippedCount: 1,
   pageCount: 5,
   byteSize: 900,
+  selectedCount: 3,
+  printByteSize: null,
+  printSkipped: null,
   expiresAt: new Date('2026-11-08T10:00:00Z'),
 }
 const queued = requestBook(asEventId('e1'), OPTIONS, T0)
@@ -82,6 +91,53 @@ describe('album book moves', () => {
       failureCode: 'tooLarge',
     })
     expect(failBook(queued, 'unexpected').ok).toBe(false)
+  })
+})
+
+const PLAN: BookPlan = {
+  chapters: [],
+  pages: [{ template: 'title', slots: [] }],
+  selectedCount: 3,
+  counts: { photos: 3, photographers: 1, hearts: 0, messages: 0, voices: 0, videos: 0 },
+  includedMessages: 0,
+  extraMessages: 0,
+  hearts: {},
+  photographers: [],
+  favouritesPage: null,
+  guestbookPage: null,
+}
+
+describe('the plan of a book', () => {
+  it('starts with none, and is recorded only on a running book', () => {
+    expect(queued.plan).toBeNull()
+    expect(unwrap(recordPlan(running, PLAN)).plan).toBe(PLAN)
+    expect(recordPlan(queued, PLAN).ok).toBe(false)
+    expect(recordPlan(unwrap(finishBook(running, RESULT, T2)), PLAN).ok).toBe(false)
+  })
+  it('is voided by the fact that voids the book, whatever state the book is in', () => {
+    const planned = unwrap(recordPlan(running, PLAN))
+    expect(invalidateBook(planned, 'messageRemoved', T2).plan).toBeNull()
+    const done = unwrap(finishBook({ ...planned, plan: PLAN }, RESULT, T2))
+    expect(done.plan).toBe(PLAN)
+    expect(invalidateBook(done, 'messageRemoved', T2)).toMatchObject({
+      status: 'stale',
+      staleReason: 'messageRemoved',
+      plan: null,
+    })
+    expect(invalidateBook({ ...queued, plan: PLAN }, 'photoRemoved', T1).plan).toBeNull()
+  })
+  it('is dropped with the file when a fact arrived during the render', () => {
+    const planned = unwrap(recordPlan(invalidateBook(running, 'photoRemoved', T2), PLAN))
+    expect(unwrap(finishBook({ ...planned, plan: PLAN }, RESULT, T2))).toMatchObject({
+      status: 'stale',
+      plan: null,
+    })
+  })
+  it('keeps what a printer version measured', () => {
+    const done = unwrap(
+      finishBook(running, { ...RESULT, printByteSize: 70, printSkipped: 'tooLarge' }, T2),
+    )
+    expect(done).toMatchObject({ selectedCount: 3, printByteSize: 70, printSkipped: 'tooLarge' })
   })
 })
 
