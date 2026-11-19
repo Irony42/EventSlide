@@ -69,6 +69,29 @@ describe('the panel saves, numbered (BUG-23)', () => {
     expect(t.result.current.settings.guestbookOnWall).toBe(!before)
   })
 
+  it('does not apply the answer to save N once the answer to N+1 was applied', async () => {
+    const t = setup()
+    act(() => t.result.current.save({ wallLanguage: 'de' }))
+    await t.flush()
+    act(() => t.result.current.save({ guestbookOnWall: false }))
+    await t.flush()
+    const newer = {
+      ...t.event,
+      settings: { ...t.event.settings, wallLanguage: 'de' as const, guestbookOnWall: false },
+    }
+
+    await act(async () => {
+      t.answers[1]?.resolve(newer)
+    })
+    await act(async () => {
+      t.answers[0]?.resolve({ ...t.event, settings: { ...t.event.settings, wallLanguage: 'de' } })
+    })
+
+    // The older answer knows nothing of N+1: applying it would put the screen back.
+    expect(t.replace).toHaveBeenCalledTimes(1)
+    expect(t.replace).toHaveBeenCalledWith(newer)
+  })
+
   it('takes back only what the refused save held, and still sends the queued one', async () => {
     const t = setup()
     const before = t.event.settings.guestbookOnWall

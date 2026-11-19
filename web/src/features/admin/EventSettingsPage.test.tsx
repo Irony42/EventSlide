@@ -722,6 +722,21 @@ describe('EventSettingsPage', () => {
       expect(await screen.findByText(fr.admin.scheduleSaved)).toBeVisible()
     })
 
+    it('keeps a closing being typed when the answer to the opening arrives', async () => {
+      const setSchedule = vi.fn(async () => anEventDto({ scheduledOpenAt: OPENS_AT }))
+      renderPage(fakeApi({ setSchedule }))
+
+      enter(
+        await screen.findByLabelText(new RegExp(fr.admin.scheduleOpenAt)),
+        toLocalInput(OPENS_AT),
+      )
+      fireEvent.change(closeField(), { target: { value: toLocalInput(CLOSES_AT) } })
+
+      expect(await screen.findByText(fr.admin.scheduleSaved)).toBeVisible()
+      expect(openField()).toHaveValue(toLocalInput(OPENS_AT))
+      expect(closeField()).toHaveValue(toLocalInput(CLOSES_AT))
+    })
+
     it('saves nothing when the host leaves a field they did not change', async () => {
       const api = fakeApi({
         getEvent: vi.fn(async () => anEventDto({ scheduledOpenAt: OPENS_AT })),
@@ -905,6 +920,22 @@ describe('EventSettingsPage', () => {
           screen.getByRole('textbox', { name: new RegExp(fr.admin.welcomeMessage) }),
         ).toHaveValue('Bienvenue chez nous'),
       )
+    })
+
+    it('keeps a refused welcome message in the field, for the host to fix', async () => {
+      const api = fakeApi({
+        updateSettings: vi.fn(() => Promise.reject(new ApiError(400, 'validation.failed'))),
+      })
+      renderPage(api, 'look')
+      const field = await screen.findByRole('textbox', {
+        name: new RegExp(fr.admin.welcomeMessage),
+      })
+
+      await userEvent.type(field, 'Bienvenue à toutes et à tous')
+      await userEvent.tab()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.admin.settingsPage.saveFailed)
+      expect(field).toHaveValue('Bienvenue à toutes et à tous')
     })
 
     it('says the sweep threw a schedule away, which is the only record that it existed', async () => {

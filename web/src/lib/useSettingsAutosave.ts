@@ -60,6 +60,9 @@ export const useSettingsAutosave = (
   const counter = useRef(0)
   const outstanding = useRef(0)
   const refused = useRef(false)
+  // The newest request whose answer was applied: an older answer arriving after it would put the
+  // screen back to a state without the newer change.
+  const applied = useRef(0)
 
   const flush = useCallback(() => {
     window.clearTimeout(timer.current)
@@ -79,7 +82,10 @@ export const useSettingsAutosave = (
     }
     api.updateSettings(slug, patch).then(
       (updated) => {
-        replace(updated)
+        if (id > applied.current) {
+          applied.current = id
+          replace(updated)
+        }
         settle()
         // "Saved" only once nothing later is still on its way, and nothing was refused.
         if (

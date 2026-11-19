@@ -105,9 +105,6 @@ interface ScheduleDraft {
   readonly close: string
 }
 
-const scheduleIdentity = (event: EventDto): string =>
-  `${event.scheduledOpenAt ?? ''}|${event.scheduledCloseAt ?? ''}`
-
 /**
  * What the host has armed, in their own words. `formatDateTime` answers `null` for a
  * value it cannot read, which falls through to "no schedule" rather than printing
@@ -291,26 +288,34 @@ function SettingsSections({ event, error, reload, replace }: SettingsSectionsPro
   )
   const [syncedRevealAt, setSyncedRevealAt] = useState(event.settings.reveal?.at ?? null)
 
-  const [schedule, setSchedule] = useState<ScheduleDraft>({ open: '', close: '' })
-  const [syncedSchedule, setSyncedSchedule] = useState<string | null>(null)
+  const [schedule, setSchedule] = useState<ScheduleDraft>({
+    open: toLocalInput(event.scheduledOpenAt),
+    close: toLocalInput(event.scheduledCloseAt),
+  })
+  const [syncedOpen, setSyncedOpen] = useState(event.scheduledOpenAt)
+  const [syncedClose, setSyncedClose] = useState(event.scheduledCloseAt)
   const [scheduleFailure, setScheduleFailure] = useState<string | null>(null)
 
   const settings = autosave.settings
 
   // The server's answer is the starting point of the two date drafts, and also the answer to their
   // save — adjusted during render, React's pattern for "reset state when a prop changes".
-  const serverRevealAt = settings.reveal?.at ?? null
+  // Read from the server's answer, not from the pending overlay: a refused hour leaves it where it
+  // was, so what the host typed stays in front of them with the reason.
+  const serverRevealAt = event.settings.reveal?.at ?? null
   if (serverRevealAt !== syncedRevealAt) {
     setSyncedRevealAt(serverRevealAt)
     setRevealAtDraft(toLocalInput(serverRevealAt))
     setTimedChoice(null)
   }
-  if (scheduleIdentity(event) !== syncedSchedule) {
-    setSyncedSchedule(scheduleIdentity(event))
-    setSchedule({
-      open: toLocalInput(event.scheduledOpenAt),
-      close: toLocalInput(event.scheduledCloseAt),
-    })
+  // Field by field: the answer to the opening's save must not wipe a closing being typed.
+  if (event.scheduledOpenAt !== syncedOpen) {
+    setSyncedOpen(event.scheduledOpenAt)
+    setSchedule((current) => ({ ...current, open: toLocalInput(event.scheduledOpenAt) }))
+  }
+  if (event.scheduledCloseAt !== syncedClose) {
+    setSyncedClose(event.scheduledCloseAt)
+    setSchedule((current) => ({ ...current, close: toLocalInput(event.scheduledCloseAt) }))
   }
 
   // Two reasons nothing can be changed, and the person is told which: the event is archived, or the
@@ -330,7 +335,7 @@ function SettingsSections({ event, error, reload, replace }: SettingsSectionsPro
     const next = openSection === id ? null : id
     setOpenSection(next)
     // The address keeps the open section, so a reload or a shared link lands on it.
-    void navigate({ hash: next === null ? '' : `#${next}` }, { replace: true })
+    void navigate({ ...location, hash: next === null ? '' : `#${next}` }, { replace: true })
   }
 
   // "Ouvrir maintenant" is the owner's alone, and means something only while the secret holds on a
@@ -886,7 +891,9 @@ function SettingsSections({ event, error, reload, replace }: SettingsSectionsPro
             onChanged={replace}
           />
           <WelcomeMessageField
-            value={settings.brand?.welcomeMessage ?? null}
+            // The server's answer, not the pending overlay: a refused message must not be swapped
+            // back into the field over what the host typed.
+            value={event.settings.brand?.welcomeMessage ?? null}
             disabled={readOnly}
             onChange={(welcomeMessage) =>
               update({ brand: { welcomeMessage, logoUrl: settings.brand?.logoUrl ?? null } })
