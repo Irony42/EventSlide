@@ -214,6 +214,20 @@ export const bookFileStoreContract = (
         expect(await store.stat(A, 'printCover')).toBeNull()
       }))
 
+    it('accepts a screen book of exactly its ceiling in a set, and refuses one byte more', () =>
+      withStore(async (store) => {
+        const exact = await store.writeSet(A, chunks(['screen', '12345678']), {
+          maxBytes: { screen: 8, print: 100 },
+        })
+        expect(exact.screen).toBe(8)
+
+        await expect(
+          store.writeSet(A, chunks(['screen', '123456789']), {
+            maxBytes: { screen: 8, print: 100 },
+          }),
+        ).rejects.toMatchObject({ code: 'book.tooLarge' })
+      }))
+
     it('accepts a printer version of exactly its ceiling', () =>
       withStore(async (store) => {
         const result = await store.writeSet(

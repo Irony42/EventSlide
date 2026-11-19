@@ -376,7 +376,7 @@ describe('SqliteGuestbookVoiceRepository schema behaviour', () => {
     closeDatabase(db)
   })
 
-  it('leaves a published voice message out of what the photo book may print, in the query', async () => {
+  it('leaves a published voice message out of what the photo book may print, before the limit counts it', async () => {
     const db = migratedDatabase()
     const voices = new SqliteGuestbookVoiceRepository(db)
     const written = new SqliteGuestbookRepository(db)
@@ -400,7 +400,7 @@ describe('SqliteGuestbookVoiceRepository schema behaviour', () => {
     )
 
     expect(
-      (await written.listWrittenForBook(WEDDING, new Date('2100-01-01'), 10)).map((r) => r.id),
+      (await written.listWrittenForBook(WEDDING, new Date('2100-01-01'), 1)).map((r) => r.id),
     ).toEqual(['w1'])
     closeDatabase(db)
   })
