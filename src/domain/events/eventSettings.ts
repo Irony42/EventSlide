@@ -1,3 +1,4 @@
+import type { ChannelKind } from '../channels/channelKind'
 import type { ContentHash } from '../photos/contentHash'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
@@ -429,6 +430,11 @@ export class EventSettings {
 
   get allowTelegram(): boolean {
     return this.props.allowTelegram
+  }
+
+  /** The messaging channels the host connected: what the privacy notice says (spec 27). */
+  get channels(): readonly ChannelKind[] {
+    return this.props.allowTelegram ? ['telegram'] : []
   }
 
   get allowGuestbook(): boolean {

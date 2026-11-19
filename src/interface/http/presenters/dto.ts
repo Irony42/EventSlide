@@ -199,6 +199,11 @@ export interface PrivacyNoticeDto {
    * voice is never on a screen, so it can be taken back whatever its status.
    */
   readonly voiceRemovalSeconds?: number
+  /**
+   * Present only when a messaging channel carries photographs to this event (spec 27), as the channel names (`telegram`):
+   * the notice then says they pass through that messenger first. Part of `revision` only in that case.
+   */
+  readonly channels?: readonly string[]
 }
 
 /** A notice and where this device stands with it: every read of the notice answers this. */

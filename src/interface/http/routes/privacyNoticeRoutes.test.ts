@@ -161,6 +161,39 @@ describe('GET /api/events/:slug/privacy-notice', () => {
     expect(response.body.notice.retentionDays).toBe(14)
   })
 
+  describe('what it says of messaging channels (spec 27)', () => {
+    const readNotice = async (
+      id: string,
+      joinCode: string,
+      allowTelegram: boolean,
+      operator?: string,
+    ) => {
+      const world = operator === undefined ? harness : buildNoticeHarness(operator)
+      world.events.seed(anEvent({ id, slug: id, joinCode, settings: { allowTelegram } }))
+      world.guests.seed(aGuest({ id: 'guest-ch', eventId: id }))
+      const response = await request(world.app)
+        .get(`/api/events/${id}/privacy-notice`)
+        .set('Cookie', cookie(world.issueGuestToken(id, 'guest-ch')))
+      return response.body.notice
+    }
+
+    it('names the channel only on an event that connected it, and asks nobody to read again otherwise', async () => {
+      const off = await readNotice('chan-off', 'CH4NN1', false)
+      const on = await readNotice('chan-on', 'CH4NN2', true)
+
+      expect(off).not.toHaveProperty('channels')
+      expect(off.revision).not.toContain('channels')
+      expect(on.channels).toEqual(['telegram'])
+      expect(on.revision).toContain('channels=telegram')
+    })
+
+    it('keeps the channels clause before the operator, which stays last, over HTTP', async () => {
+      const notice = await readNotice('chan-named', 'CH4NN3', true, 'Atelier Camille')
+
+      expect(notice.revision).toMatch(/;channels=telegram;operator=Atelier Camille$/)
+    })
+  })
+
   describe('what it says of voice messages, under every configuration (spec 25)', () => {
     /**
      * The contract the notice exists to keep: it says nothing the configuration contradicts. One event

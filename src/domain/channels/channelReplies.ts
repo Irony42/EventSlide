@@ -25,6 +25,7 @@ export const PLAIN_REASONS = [
   'unsupportedFormat',
   'eventClosed',
   'quotaReached',
+  'albumFull',
   'tooFast',
 ] as const
 
@@ -50,6 +51,7 @@ const THROTTLED: ReadonlySet<ReplyReason> = new Set<ReplyReason>([
   'unsupportedFormat',
   'eventClosed',
   'quotaReached',
+  'albumFull',
   'tooFast',
 ])
 
@@ -75,6 +77,23 @@ const REASON_OF_CODE: ReadonlyMap<string, PlainReason> = new Map([
   ['channel.mediaTooLarge', 'mediaTooLarge'],
   ['channel.videoNotAccepted', 'videoNotAccepted'],
   ['channel.unsupportedFormat', 'unsupportedFormat'],
+  // What the photograph and clip pipelines refuse with (their codes are the contract of their own routes).
+  ['event.photoLimitReached', 'quotaReached'],
+  ['event.quotaExceeded', 'albumFull'],
+  ['client.storageFull', 'albumFull'],
+  ['event.notAcceptingUploads', 'eventClosed'],
+  ['event.clipsNotAllowed', 'videoNotAccepted'],
+  ['image.unsupportedFormat', 'unsupportedFormat'],
+  ['image.animated', 'unsupportedFormat'],
+  ['image.corrupt', 'unsupportedFormat'],
+  ['clip.unsupportedFormat', 'unsupportedFormat'],
+  ['clip.corrupt', 'unsupportedFormat'],
+  ['clip.noVideoStream', 'unsupportedFormat'],
+  ['clip.probeUnreadable', 'unsupportedFormat'],
+  ['clip.tooLong', 'mediaTooLarge'],
+  ['photo.pixelBudgetExceeded', 'mediaTooLarge'],
+  ['clip.pixelBudgetExceeded', 'mediaTooLarge'],
+  ['clip.queueFull', 'tooFast'],
 ])
 
 /** The words for an error code, or `null` when the bot has nothing to say about it. */
@@ -116,6 +135,7 @@ const FR: Phrasebook = {
     unsupportedFormat: "Ce format de fichier n'est pas pris : j'accepte les photos et les vidéos.",
     eventClosed: "La soirée est terminée, elle n'accepte plus de photos.",
     quotaReached: 'Vous avez envoyé le nombre maximal de photos pour cette soirée.',
+    albumFull: "L'album de cette soirée est plein : il ne peut plus prendre de photos.",
     tooFast: 'Doucement : trop de fichiers à la fois, certains ne sont pas pris.',
   },
   bound: (eventName, moderated, noticeUrl) =>
@@ -146,6 +166,7 @@ const EN: Phrasebook = {
     unsupportedFormat: 'This file format is not supported: I accept photos and videos.',
     eventClosed: 'The event is over and no longer accepts photos.',
     quotaReached: 'You have sent the maximum number of photos for this event.',
+    albumFull: 'The album of this event is full: it cannot take more photos.',
     tooFast: 'Slow down: too many files at once, some were not taken.',
   },
   bound: (eventName, moderated, noticeUrl) =>
@@ -177,6 +198,7 @@ const DE: Phrasebook = {
     unsupportedFormat: 'Dieses Dateiformat wird nicht angenommen: Ich nehme Fotos und Videos.',
     eventClosed: 'Die Feier ist vorbei und nimmt keine Fotos mehr an.',
     quotaReached: 'Du hast die Höchstzahl an Fotos für diese Feier erreicht.',
+    albumFull: 'Das Album dieser Feier ist voll: es kann keine Fotos mehr aufnehmen.',
     tooFast: 'Langsam: zu viele Dateien auf einmal, einige wurden nicht übernommen.',
   },
   bound: (eventName, moderated, noticeUrl) =>
@@ -208,6 +230,7 @@ const ES: Phrasebook = {
     unsupportedFormat: 'Este formato de archivo no se acepta: admito fotos y vídeos.',
     eventClosed: 'El evento ha terminado y ya no acepta fotos.',
     quotaReached: 'Has enviado el número máximo de fotos para este evento.',
+    albumFull: 'El álbum de este evento está lleno: no puede recibir más fotos.',
     tooFast: 'Más despacio: demasiados archivos a la vez, algunos no se han recogido.',
   },
   bound: (eventName, moderated, noticeUrl) =>
@@ -239,6 +262,7 @@ const IT: Phrasebook = {
     unsupportedFormat: 'Questo formato di file non è accettato: accetto foto e video.',
     eventClosed: "L'evento è finito e non accetta più foto.",
     quotaReached: 'Hai inviato il numero massimo di foto per questo evento.',
+    albumFull: "L'album di questo evento è pieno: non può ricevere altre foto.",
     tooFast: 'Piano: troppi file insieme, alcuni non sono stati presi.',
   },
   bound: (eventName, moderated, noticeUrl) =>

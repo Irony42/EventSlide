@@ -474,6 +474,8 @@ export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => (
   ...(notice.voiceRemovalSeconds === null
     ? {}
     : { voiceRemovalSeconds: notice.voiceRemovalSeconds }),
+  // Spec 27, present only when a channel is connected, for the same reason as every clause above.
+  ...(notice.channels.length === 0 ? {} : { channels: [...notice.channels] }),
 })
 
 export const toPrivacyNoticeStateDto = ({
