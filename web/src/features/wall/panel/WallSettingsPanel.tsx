@@ -9,7 +9,7 @@ import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { WallOwner } from '../hooks/useWallOwner'
 import type { ScreenControls } from './panelTypes'
 import { ThisScreenBlock } from './ThisScreenBlock'
-import { usePanelSettings } from './usePanelSettings'
+import { useSettingsAutosave } from '../../../lib/useSettingsAutosave'
 import { WALL_PANEL_SECTIONS } from './wallPanelSections'
 import styles from './WallSettingsPanel.module.css'
 
@@ -44,7 +44,7 @@ export default function WallSettingsPanel({
 }: WallSettingsPanelProps) {
   const t = useTranslations()
   const text = t.wall.panel
-  const { settings, save, state } = usePanelSettings(slug, owner.event, owner.replace)
+  const { settings, save, state } = useSettingsAutosave(slug, owner.event, owner.replace)
   const rootRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const [touched, setTouched] = useState(0)

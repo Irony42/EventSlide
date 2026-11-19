@@ -1,4 +1,5 @@
 import { expect, test } from '../fixtures/app'
+import { openSettingsSection, saved } from '../fixtures/settingsPage'
 import { aPhoto } from '../fixtures/media'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import type { Page } from '@playwright/test'
@@ -20,10 +21,8 @@ import type { Page } from '@playwright/test'
 /** The host's settings form, as a host uses it. */
 const setRetention = async (host: Page, slug: string, option: string): Promise<void> => {
   await host.goto(`/admin/events/${slug}/settings`)
-  await host.getByLabel(fr.admin.retention).selectOption({ label: option })
-  // Exact, because the schedule below the settings has its own "Enregistrer l’horaire".
-  await host.getByRole('button', { name: fr.app.save, exact: true }).click()
-  await expect(host.getByText(fr.admin.settingsSaved)).toBeVisible()
+  await openSettingsSection(host, 'Horaires et conservation')
+  await saved(host, () => host.getByLabel(fr.admin.retention).selectOption({ label: option }))
 }
 
 const join = async (page: Page, joinCode: string): Promise<void> => {
@@ -118,9 +117,11 @@ test('a guest of an event that publishes on arrival is told so, and not offered 
   const { guest, host } = surfaces
   const event = await app.seedEvent({ slug: 'notice-direct', name: 'Soirée directe' })
   await host.goto(`/admin/events/${event.slug}/settings`)
-  await host.getByRole('radio', { name: fr.admin.moderationAuto }).check()
-  await host.getByRole('button', { name: fr.app.save, exact: true }).click()
-  await expect(host.getByText(fr.admin.settingsSaved)).toBeVisible()
+  // Publishing without review asks first: the radio only changes once the dialog is confirmed.
+  await host.getByRole('radio', { name: fr.admin.moderationAuto }).click()
+  await saved(host, () =>
+    host.getByRole('dialog').getByRole('button', { name: fr.admin.moderationAuto }).click(),
+  )
 
   await join(guest, event.joinCode)
 

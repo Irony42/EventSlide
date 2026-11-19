@@ -35,6 +35,43 @@ describe('WelcomeMessageField', () => {
     expect(onChange).toHaveBeenCalledWith(null)
   })
 
+  it('hands the text over when the host leaves the field, not on every key', async () => {
+    const onChange = vi.fn()
+    renderWithProviders(<WelcomeMessageField value={null} onChange={onChange} disabled={false} />)
+
+    await userEvent.type(screen.getByLabelText(new RegExp(fr.admin.welcomeMessage)), 'Bienvenue')
+    expect(onChange).not.toHaveBeenCalled()
+
+    await userEvent.tab()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith('Bienvenue')
+  })
+
+  it('hands nothing over when the host leaves the field unchanged', async () => {
+    const onChange = vi.fn()
+    renderWithProviders(<WelcomeMessageField value="Salut" onChange={onChange} disabled={false} />)
+
+    await userEvent.click(screen.getByLabelText(new RegExp(fr.admin.welcomeMessage)))
+    await userEvent.tab()
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps what the host typed until the event holds something new', async () => {
+    const { rerender } = renderWithProviders(
+      <WelcomeMessageField value="Salut" onChange={() => {}} disabled={false} />,
+    )
+    const field = screen.getByLabelText(new RegExp(fr.admin.welcomeMessage))
+    await userEvent.type(field, ' à tous')
+
+    // The same value again, as after a refused save: the typing stays.
+    rerender(<WelcomeMessageField value="Salut" onChange={() => {}} disabled={false} />)
+    expect(field).toHaveValue('Salut à tous')
+
+    rerender(<WelcomeMessageField value="Bonsoir" onChange={() => {}} disabled={false} />)
+    expect(field).toHaveValue('Bonsoir')
+  })
+
   it('offers no clear button when there is nothing to clear', () => {
     renderWithProviders(<WelcomeMessageField value={null} onChange={() => {}} disabled={false} />)
 
