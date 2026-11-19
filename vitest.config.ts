@@ -76,6 +76,8 @@ export default defineConfig({
         // Test doubles and harnesses are themselves covered by the port contract
         // suites; counting them again would only inflate the number.
         'src/application/testing/**',
+        // Fixtures and the album generator of the book's property tests.
+        'src/domain/**/testing/**',
         'src/interface/http/testing/**',
         // The in-process SMTP relay the mailer adapter is tested against: a test double,
         // exercised by the Mailer contract suite, not production code.
