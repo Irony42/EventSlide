@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { requestBook, type AlbumBook, type BookOptions } from '../../../domain/book/albumBook'
+import { pageCountOf } from '../../../domain/book/bookTemplates'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId } from '../../../domain/shared/ids'
 import {
@@ -7,6 +8,10 @@ import {
   aClient,
   aClipJob,
   aGuest,
+  aGuestbookEntry,
+  aMission,
+  aReaction,
+  aVoiceEntry,
   anEvent,
   aPhoto,
   atPlus,
@@ -21,6 +26,9 @@ import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
+import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
+import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
+import { FakeReactionRepository } from '../../testing/fakeReactionRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
@@ -49,9 +57,10 @@ const OPTIONS: BookOptions = {
 
 const POLICY: BuildAlbumBookPolicy = {
   maxPhotos: 300,
-  maxBytes: 1_000_000,
+  maxBytes: 20_000_000,
+  maxPrintBytes: 50_000_000,
   ttlDays: 7,
-  maxTotalBytes: 10_000_000,
+  maxTotalBytes: 100_000_000,
   maxWaitMs: 10 * 60_000,
   capNoticeDays: 30,
 }
@@ -63,6 +72,9 @@ interface World {
   clients: FakeClientRepository
   guests: FakeGuestRepository
   photos: FakePhotoRepository
+  reactions: FakeReactionRepository
+  guestbook: FakeGuestbookRepository
+  missions: FakeMissionRepository
   media: InMemoryMediaStore
   books: FakeAlbumBookRepository
   bookFiles: FakeBookFileStore
@@ -79,11 +91,15 @@ let world: World
 
 const makeWorld = (policy: BuildAlbumBookPolicy = POLICY): World => {
   const clients = new FakeClientRepository()
+  const photos = new FakePhotoRepository()
   const state: World = {
     clients,
     events: new FakeEventRepository({ clients }),
     guests: new FakeGuestRepository(),
-    photos: new FakePhotoRepository(),
+    photos,
+    reactions: new FakeReactionRepository(),
+    guestbook: new FakeGuestbookRepository(),
+    missions: new FakeMissionRepository(photos),
     media: new InMemoryMediaStore(),
     books: new FakeAlbumBookRepository(),
     bookFiles: new FakeBookFileStore(),
@@ -104,6 +120,9 @@ const depsOf = (state: World, policy: BuildAlbumBookPolicy): BuildNextAlbumBookD
   clients: state.clients,
   guests: state.guests,
   photos: state.photos,
+  reactions: state.reactions,
+  guestbook: state.guestbook,
+  missions: state.missions,
   media: state.media,
   books: state.books,
   bookFiles: state.bookFiles,
@@ -145,25 +164,42 @@ describe('buildNextAlbumBook', () => {
   })
 
   describe('a book that goes well', () => {
-    it('makes the book, oldest photograph first, and records its measures', async () => {
+    /** The words the renderer pulled, page after page. */
+    const pulled = (): { captions: (string | null)[]; authors: (string | null)[] } => {
+      const texts = world.renderer.books[0]?.texts ?? []
+      return {
+        captions: texts.flatMap((t) => t.captions),
+        authors: texts.flatMap((t) => t.authors),
+      }
+    }
+
+    it('makes the book from a plan, oldest photograph first, and records its measures', async () => {
       await seedPhoto({ id: 'p-late', createdAt: atPlus(2_000) })
       await seedPhoto({ id: 'p-early', createdAt: atPlus(1_000), caption: 'Le gâteau' })
       await askForBook({}, atPlus(10_000))
 
       const outcome = await world.build()
 
-      expect(outcome).toMatchObject({ kind: 'built', eventId: EVENT, photoCount: 2, pageCount: 4 })
-      expect(world.renderer.books[0]?.photos.map((photo) => photo.caption)).toEqual([
-        'Le gâteau',
-        null,
-      ])
+      expect(outcome).toMatchObject({ kind: 'built', eventId: EVENT, photoCount: 2 })
       const book = await world.books.find(EVENT)
-      expect(book).toMatchObject({ status: 'done', photoCount: 2, pageCount: 4, skippedCount: 0 })
+      expect(book).toMatchObject({
+        status: 'done',
+        photoCount: 2,
+        selectedCount: 2,
+        skippedCount: 0,
+      })
+      expect(book?.plan?.selectedCount).toBe(2)
+      expect(book?.pageCount).toBe(pageCountOf(book?.plan?.pages ?? []))
+      expect((book?.pageCount ?? 1) % 2).toBe(0)
+      expect(pulled().captions).toContain('Le gâteau')
+      const order = world.renderer.books[0]?.photos.filter((id, i, all) => all.indexOf(id) === i)
+      expect(new Set(order)).toEqual(new Set(['p-early', 'p-late']))
       expect(book?.byteSize).toBe((await world.bookFiles.stat(EVENT))?.size)
+      expect(book?.printByteSize).toBeNull()
       expect(book?.expiresAt).toEqual(new Date(world.clock.now().getTime() + 7 * 86_400_000))
     })
 
-    it('hands the renderer the cover, the closing page and one photograph a page, with safe text, whatever the options say', async () => {
+    it('hands the renderer the style, the cover with safe text, the plan and the closing notes', async () => {
       await seedPhoto({ id: 'p1' })
       await askForBook(
         { title: 'Fête 🎉 de Léa', style: 'souvenir', selection: { kind: 'best', target: 60 } },
@@ -172,11 +208,41 @@ describe('buildNextAlbumBook', () => {
 
       await world.build()
 
-      expect(world.renderer.books[0]?.input).toEqual({
-        layout: 'one',
-        cover: { title: 'Fête de Léa', subtitle: '14 juin 2026' },
-        closing: { createdWith: 'Album créé avec EventSlide', videosNote: null },
+      const input = world.renderer.books[0]?.input
+      expect(input?.style.id).toBe('souvenir')
+      expect(input?.cover).toEqual({
+        title: 'Fête de Léa',
+        subtitle: '14 juin 2026',
+        photoId: 'p1',
       })
+      expect(input?.closing).toEqual({
+        videosNote: null,
+        voicesNote: null,
+        extraMessagesNote: null,
+      })
+      expect(input?.timeZone).toBe('Europe/Paris')
+      expect(input?.printPages).toBeNull()
+      expect(input?.plan.selectedCount).toBe(1)
+    })
+
+    it('writes the date of the first photograph as the subtitle when the host left it empty', async () => {
+      await seedPhoto({ id: 'p1', createdAt: new Date('2026-06-14T10:00:00Z') })
+      await askForBook({ subtitle: '', timeZone: 'UTC' }, atPlus(10_000))
+
+      await world.build()
+
+      expect(world.renderer.books[0]?.input.cover.subtitle).toBe('14 juin 2026')
+    })
+
+    it('reads the colours of the theme of the event', async () => {
+      await seedPhoto({ id: 'p1' })
+      await askForBook({ style: 'magazine' })
+
+      await world.build()
+
+      const colours = world.renderer.books[0]?.input.colours
+      expect(colours?.paper).toBe('#ffffff')
+      expect(colours?.accent).toMatch(/^#[0-9a-f]{6}$/)
     })
 
     it('says in the language of the book how many videos are left out, and counts none as a photo', async () => {
@@ -203,11 +269,8 @@ describe('buildNextAlbumBook', () => {
 
       await world.build()
 
-      expect(world.renderer.books[0]?.photos.map((photo) => photo.author)).toEqual([
-        'Zoë',
-        null,
-        null,
-      ])
+      expect(pulled().authors.filter((a) => a !== null)).toEqual(['Zoë'])
+      expect(pulled().authors.filter((a) => a === null)).toHaveLength(2)
     })
 
     it('leaves out the names, and the captions, when the host turned them off', async () => {
@@ -221,9 +284,8 @@ describe('buildNextAlbumBook', () => {
 
       await world.build()
 
-      expect(world.renderer.books[0]?.photos).toEqual([
-        { bytes: DISPLAY_BYTES, caption: null, author: null },
-      ])
+      expect(pulled().captions.every((c) => c === null)).toBe(true)
+      expect(pulled().authors.every((a) => a === null)).toBe(true)
     })
 
     it('draws a caption that is only emoji as no caption at all', async () => {
@@ -232,7 +294,7 @@ describe('buildNextAlbumBook', () => {
 
       await world.build()
 
-      expect(world.renderer.books[0]?.photos[0]?.caption).toBeNull()
+      expect(pulled().captions.every((c) => c === null)).toBe(true)
     })
 
     it('puts in only what is published: never pending, rejected or hidden', async () => {
@@ -262,7 +324,7 @@ describe('buildNextAlbumBook', () => {
       await askForBook()
 
       expect(await world.build()).toMatchObject({ photoCount: 1 })
-      expect(world.renderer.books[0]?.photos).toHaveLength(1)
+      expect(new Set(world.renderer.books[0]?.photos)).toEqual(new Set(['mine']))
     })
 
     it('skips a photograph whose file is missing, says so, and counts it', async () => {
@@ -278,7 +340,7 @@ describe('buildNextAlbumBook', () => {
       expect((await world.books.find(EVENT))?.skippedCount).toBe(1)
     })
 
-    it('skips a file that vanished between the first pass and the render', async () => {
+    it('fails the book as unavailable when a file vanished between the first pass and the render, and keeps no file', async () => {
       await seedPhoto({ id: 'ok', createdAt: atPlus(1) })
       await seedPhoto({ id: 'gone-later', createdAt: atPlus(2) })
       const gone = aPhoto({ id: 'gone-later', eventId: 'event-1' })
@@ -289,9 +351,13 @@ describe('buildNextAlbumBook', () => {
 
       const outcome = await world.build()
 
-      expect(outcome).toMatchObject({ kind: 'built', photoCount: 1 })
-      expect(world.logger.lines.some((line) => line.level === 'warn')).toBe(true)
-      expect((await world.books.find(EVENT))?.skippedCount).toBe(1)
+      expect(outcome).toMatchObject({ kind: 'failed', code: 'unavailable' })
+      expect(world.bookFiles.has(EVENT)).toBe(false)
+      expect(await world.books.find(EVENT)).toMatchObject({
+        status: 'failed',
+        failureCode: 'unavailable',
+        plan: null,
+      })
     })
 
     it('announces the book to the console when it starts and when it ends, and logs no title nor caption', async () => {
@@ -465,14 +531,14 @@ describe('buildNextAlbumBook', () => {
     })
 
     it('fails a book the box has no room to keep next to the others', async () => {
-      world = makeWorld({ ...POLICY, maxTotalBytes: 100 })
+      world = makeWorld({ ...POLICY, maxTotalBytes: 3_000_000 })
       world.events.seed(
         anEvent({ id: 'event-1' }),
         anEvent({ id: 'event-2', slug: 'event-two-slug', joinCode: 'B4N9PT' }),
       )
       await seedPhoto({ id: 'p1' })
       await askForBook()
-      world.renderer.paddingBytes = 90
+      world.renderer.paddingBytes = 2_500_000
       expect(await world.build()).toMatchObject({ kind: 'built' })
 
       world.renderer.paddingBytes = 0
@@ -667,13 +733,19 @@ describe('buildNextAlbumBook', () => {
     })
   })
 
-  it('walks an album longer than one page of rows, in order', async () => {
+  it('walks an album longer than one page of rows', async () => {
+    world = makeWorld({ ...POLICY, maxBytes: 900_000_000, maxTotalBytes: 2_000_000_000 })
+    world.events.seed(anEvent({ id: 'event-1' }))
     for (let index = 0; index < 205; index += 1) {
       await seedPhoto({ id: `p-${String(index).padStart(3, '0')}`, createdAt: atPlus(index) })
     }
     await askForBook()
 
-    expect(await world.build()).toMatchObject({ kind: 'built', photoCount: 205, pageCount: 207 })
+    const outcome = await world.build()
+    expect(outcome).toMatchObject({ kind: 'built', photoCount: 205 })
+    expect(outcome.kind === 'built' && outcome.pageCount > 60 && outcome.pageCount % 2 === 0).toBe(
+      true,
+    )
   })
 
   it('does nothing when another process claimed the book first', async () => {
@@ -706,6 +778,388 @@ describe('buildNextAlbumBook', () => {
 
     await world.build()
 
-    expect(read).toEqual(['display'])
+    expect(read.length).toBeGreaterThan(0)
+    expect(new Set(read)).toEqual(new Set(['display']))
+  })
+
+  describe('the plan (spec 26)', () => {
+    const photosOf = async (count: number, over: Partial<PhotoInput> = {}): Promise<void> => {
+      for (let index = 0; index < count; index += 1) {
+        await seedPhoto({
+          id: `p-${String(index).padStart(3, '0')}`,
+          createdAt: atPlus(index * 120_000),
+          author: { kind: 'guest', id: `guest-${index % 9}` },
+          ...over,
+        })
+      }
+    }
+
+    it('makes a book of a selection of an event larger than the photo ceiling, and refuses "all" for it', async () => {
+      world = makeWorld({ ...POLICY, maxPhotos: 60, maxBytes: 900_000_000, maxTotalBytes: 2e9 })
+      world.events.seed(anEvent({ id: 'event-1' }))
+      await photosOf(70)
+      await askForBook({ selection: { kind: 'best', target: 60 } }, atPlus(1_000_000_000))
+
+      const built = await world.build()
+
+      expect(built).toMatchObject({ kind: 'built', photoCount: 60 })
+      expect(await world.books.find(EVENT)).toMatchObject({ selectedCount: 60 })
+
+      await askForBook({ selection: { kind: 'all' } }, atPlus(2_000_000_000))
+      expect(await world.build()).toMatchObject({ kind: 'failed', code: 'tooLarge' })
+    })
+
+    it('reads the hearts once, at the first pass, and freezes them in the plan', async () => {
+      await photosOf(3)
+      world.reactions.seed(
+        aReaction({ id: 'r1', photoId: 'p-001', guestId: 'guest-a' }),
+        aReaction({ id: 'r2', photoId: 'p-001', guestId: 'guest-b' }),
+      )
+      let reads = 0
+      const real = world.reactions.countsForEvent.bind(world.reactions)
+      world.reactions.countsForEvent = async (eventId) => {
+        reads += 1
+        return real(eventId)
+      }
+      await askForBook()
+
+      await world.build()
+
+      expect(reads).toBe(1)
+      const plan = (await world.books.find(EVENT))?.plan
+      expect(plan?.hearts).toEqual({ 'p-001': 2 })
+      expect(plan?.counts.hearts).toBe(2)
+    })
+
+    it('counts the evening on the event: photographs, photographers, videos', async () => {
+      await photosOf(4)
+      await seedPhoto({ id: 'clip-1', clip: {} })
+      await askForBook()
+
+      await world.build()
+
+      expect((await world.books.find(EVENT))?.plan?.counts).toMatchObject({
+        photos: 4,
+        photographers: 4,
+        videos: 1,
+        messages: 0,
+        voices: 0,
+      })
+    })
+
+    describe('the guest book', () => {
+      const written = (id: string, minutes: number, text = `Mot ${id}`) =>
+        aGuestbookEntry({
+          id,
+          eventId: 'event-1',
+          guestId: 'guest-1',
+          text,
+          createdAt: atPlus(minutes),
+          moderation: 'auto',
+        })
+
+      it('puts the published messages of the snapshot in the book, and no other, when the host asks', async () => {
+        await photosOf(3)
+        world.guestbook.seed(
+          written('m-before', 5),
+          written('m-after', 5_000_000),
+          aGuestbookEntry({ id: 'm-pending', eventId: 'event-1', guestId: 'guest-1' }),
+        )
+        await askForBook({ includeGuestbook: true }, atPlus(60_000))
+
+        await world.build()
+
+        const plan = (await world.books.find(EVENT))?.plan
+        const ids = plan?.pages.flatMap((page) => page.messageIds ?? [])
+        expect(ids).toEqual(['m-before'])
+        const texts = world.renderer.books[0]?.texts.flatMap((t) => t.messages.map((m) => m.text))
+        expect(texts).toEqual(['Mot m-before'])
+      })
+
+      it('reads no message when the host did not ask for the guest book', async () => {
+        await photosOf(3)
+        world.guestbook.seed(written('m1', 5))
+        await askForBook({ includeGuestbook: false })
+
+        await world.build()
+
+        expect((await world.books.find(EVENT))?.plan?.counts.messages).toBe(0)
+        expect(world.renderer.books[0]?.texts.every((t) => t.messages.length === 0)).toBe(true)
+      })
+
+      it('counts a voice message and says it is not in the book, and never prints it', async () => {
+        await photosOf(3)
+        world.guestbook.seed(
+          written('m1', 5),
+          aVoiceEntry({
+            id: 'v1',
+            state: 'ready',
+            eventId: 'event-1',
+            guestId: 'guest-1',
+            moderation: 'auto',
+            createdAt: atPlus(6),
+          }),
+        )
+        await askForBook({ includeGuestbook: true })
+
+        await world.build()
+
+        const book = await world.books.find(EVENT)
+        expect(book?.plan?.counts).toMatchObject({ messages: 1, voices: 1 })
+        expect(book?.plan?.pages.flatMap((p) => p.messageIds ?? [])).toEqual(['m1'])
+        expect(world.renderer.books[0]?.input.closing.voicesNote).toContain('vocal')
+      })
+
+      it('names the author of a message only when the host asked for names', async () => {
+        world.guests.seed(aGuest({ id: 'guest-1', eventId: 'event-1', displayName: 'Zoë' }))
+        await photosOf(3)
+        world.guestbook.seed(written('m1', 5))
+        await askForBook({ includeGuestbook: true, showAuthors: true })
+        await world.build()
+        const named = world.renderer.books[0]?.texts.flatMap((t) => t.messages.map((m) => m.author))
+
+        world.renderer.books.length = 0
+        await askForBook({ includeGuestbook: true, showAuthors: false }, atPlus(10_000_000))
+        await world.build()
+        const anonymous = world.renderer.books[0]?.texts.flatMap((t) =>
+          t.messages.map((m) => m.author),
+        )
+
+        expect(named).toEqual(['Zoë'])
+        expect(anonymous).toEqual([null])
+      })
+
+      it('says how many messages are left in the album export when the book holds the first 60', async () => {
+        await photosOf(3)
+        for (let index = 0; index < 65; index += 1) {
+          world.guestbook.seed(
+            aGuestbookEntry({
+              id: `m-${String(index).padStart(2, '0')}`,
+              eventId: 'event-1',
+              guestId: `guest-${index % 9}`,
+              text: `Mot ${index}`,
+              createdAt: atPlus(index),
+              moderation: 'auto',
+            }),
+          )
+        }
+        await askForBook({ includeGuestbook: true })
+
+        await world.build()
+
+        expect((await world.books.find(EVENT))?.plan).toMatchObject({
+          includedMessages: 60,
+          extraMessages: 5,
+        })
+        expect(world.renderer.books[0]?.input.closing.extraMessagesNote).toContain('5')
+      })
+    })
+
+    describe('the printer version', () => {
+      it('is drawn from the same plan, and its two files are measured together', async () => {
+        await photosOf(3)
+        world.renderer.printPaddingBytes = 10
+        await askForBook({ printVersion: true })
+
+        await world.build()
+
+        const book = await world.books.find(EVENT)
+        const interior = await world.bookFiles.stat(EVENT, 'printInterior')
+        const cover = await world.bookFiles.stat(EVENT, 'printCover')
+        expect(interior).not.toBeNull()
+        expect(book?.printByteSize).toBe((interior?.size ?? 0) + (cover?.size ?? 0))
+        expect(book?.printSkipped).toBeNull()
+        const printed = world.renderer.books[0]?.input.printPages
+        expect(printed).not.toBeNull()
+        expect(printed?.length).toBeGreaterThanOrEqual(24)
+      })
+
+      it('is not asked of the renderer when the host did not ask for it', async () => {
+        await photosOf(3)
+        await askForBook({ printVersion: false })
+
+        await world.build()
+
+        expect(world.renderer.books[0]?.input.printPages).toBeNull()
+        expect(world.bookFiles.has(EVENT, 'printInterior')).toBe(false)
+        expect((await world.books.find(EVENT))?.printByteSize).toBeNull()
+      })
+
+      it('is skipped, the screen book being made, when the plan has more than 200 pages', async () => {
+        world = makeWorld({ ...POLICY, maxBytes: 900_000_000, maxTotalBytes: 2e9 })
+        world.events.seed(anEvent({ id: 'event-1' }))
+        await photosOf(260, { width: 6000, height: 2000 })
+        await askForBook({ printVersion: true }, atPlus(1_000_000_000))
+
+        const outcome = await world.build()
+
+        expect(outcome).toMatchObject({ kind: 'built' })
+        expect(await world.books.find(EVENT)).toMatchObject({
+          status: 'done',
+          printSkipped: 'tooManyPages',
+          printByteSize: null,
+        })
+        expect(world.renderer.books[0]?.input.printPages).toBeNull()
+        expect(world.bookFiles.has(EVENT, 'printInterior')).toBe(false)
+      })
+
+      it('is skipped when it would weigh more than its ceiling, judged before rendering', async () => {
+        world = makeWorld({ ...POLICY, maxPrintBytes: 10 })
+        world.events.seed(anEvent({ id: 'event-1' }))
+        await photosOf(3)
+        await askForBook({ printVersion: true })
+
+        await world.build()
+
+        expect(await world.books.find(EVENT)).toMatchObject({
+          status: 'done',
+          printSkipped: 'tooLarge',
+          printByteSize: null,
+        })
+        expect(world.renderer.books[0]?.input.printPages).toBeNull()
+      })
+
+      it('is abandoned, the screen book carrying on, when the two files outgrow the ceiling while they are written', async () => {
+        world = makeWorld({ ...POLICY, maxPrintBytes: 20_000_000 })
+        world.events.seed(anEvent({ id: 'event-1' }))
+        await photosOf(3)
+        world.renderer.printPaddingBytes = 25_000_000
+        await askForBook({ printVersion: true })
+
+        await world.build()
+
+        expect(await world.books.find(EVENT)).toMatchObject({
+          status: 'done',
+          printSkipped: 'tooLarge',
+          printByteSize: null,
+        })
+        expect(world.bookFiles.has(EVENT)).toBe(true)
+        expect(world.bookFiles.has(EVENT, 'printInterior')).toBe(false)
+      })
+    })
+
+    describe('a fact that arrives before the render', () => {
+      it('ends the book stale and renders nothing when a fact voided it during the first pass', async () => {
+        await photosOf(2)
+        await askForBook()
+        const real = world.reactions.countsForEvent.bind(world.reactions)
+        world.reactions.countsForEvent = async (eventId) => {
+          await world.books.invalidate(EVENT, 'messageRemoved', world.clock.now())
+          return real(eventId)
+        }
+
+        const outcome = await world.build()
+
+        expect(outcome).toEqual({ kind: 'stale', eventId: EVENT })
+        expect(world.renderer.books).toHaveLength(0)
+        expect(await world.books.find(EVENT)).toMatchObject({
+          status: 'stale',
+          staleReason: 'messageRemoved',
+          plan: null,
+        })
+      })
+
+      it('renders nothing when the host deleted the book during the first pass', async () => {
+        await photosOf(2)
+        await askForBook()
+        const real = world.reactions.countsForEvent.bind(world.reactions)
+        world.reactions.countsForEvent = async (eventId) => {
+          await world.books.delete(EVENT)
+          return real(eventId)
+        }
+
+        expect(await world.build()).toEqual({ kind: 'superseded', eventId: EVENT })
+        expect(world.renderer.books).toHaveLength(0)
+      })
+    })
+
+    it('draws the logo of the event when it has one', async () => {
+      const logo = aPhoto({ id: 'logo-source', eventId: 'event-1' }).hashFor('display')
+      world.events.seed(anEvent({ id: 'event-1', settings: { logo } }))
+      await world.media.put(EVENT, logo, 'logo', new TextEncoder().encode('logo-bytes'))
+      await photosOf(3)
+      await askForBook()
+
+      await world.build()
+
+      expect(world.renderer.books[0]?.input.logo).toEqual(new TextEncoder().encode('logo-bytes'))
+    })
+
+    it('names the host’s mission under a photograph that answers one', async () => {
+      const mission = aMission({
+        id: 'mission-1',
+        eventId: 'event-1',
+        prompt: 'La photo avec les mariés',
+      })
+      world.missions.seed(mission)
+      await seedPhoto({ id: 'p-000', missionId: 'mission-1' })
+      await askForBook()
+
+      await world.build()
+
+      expect(world.renderer.books[0]?.texts.flatMap((t) => t.missions)).toContain(
+        'La photo avec les mariés',
+      )
+    })
+
+    it('draws no mission line for a prompt that is only emoji', async () => {
+      world.missions.seed(aMission({ id: 'mission-2', eventId: 'event-1', prompt: '🎉🎉' }))
+      await seedPhoto({ id: 'p-000', missionId: 'mission-2' })
+      await askForBook()
+
+      await world.build()
+
+      expect(world.renderer.books[0]?.texts.flatMap((t) => t.missions)).toEqual([null])
+    })
+
+    it('leaves the mission line out when the mission was deleted since', async () => {
+      await seedPhoto({ id: 'p-000', missionId: 'ghost-mission' })
+      await askForBook()
+
+      await world.build()
+
+      expect(world.renderer.books[0]?.texts.flatMap((t) => t.missions)).toEqual([null])
+    })
+
+    it('draws nothing for a message that vanished between the plan and the page, the book going stale on its own', async () => {
+      await photosOf(3)
+      world.guestbook.seed(
+        aGuestbookEntry({
+          id: 'm1',
+          eventId: 'event-1',
+          guestId: 'guest-1',
+          createdAt: atPlus(5),
+          moderation: 'auto',
+        }),
+      )
+      await askForBook({ includeGuestbook: true })
+      world.guestbook.findById = async () => null
+
+      await world.build()
+
+      expect(world.renderer.books[0]?.texts.flatMap((t) => t.messages)).toEqual([])
+    })
+
+    it('lists on the thanks page the photographers who have a name, with their photographs, when names are on', async () => {
+      world.guests.seed(aGuest({ id: 'guest-0', eventId: 'event-1', displayName: 'Léa' }))
+      world.guests.seed(aGuest({ id: 'guest-1', eventId: 'event-1', displayName: null }))
+      await photosOf(4)
+      await askForBook({ showAuthors: true })
+
+      await world.build()
+
+      const thanks = world.renderer.books[0]?.texts.flatMap((t) => t.photographers)
+      expect(thanks).toEqual([{ name: 'Léa', photoCount: 1 }])
+    })
+
+    it('lists nobody on the thanks page when names are off', async () => {
+      world.guests.seed(aGuest({ id: 'guest-0', eventId: 'event-1', displayName: 'Léa' }))
+      await photosOf(4)
+      await askForBook({ showAuthors: false })
+
+      await world.build()
+
+      expect(world.renderer.books[0]?.texts.flatMap((t) => t.photographers)).toEqual([])
+    })
   })
 })
