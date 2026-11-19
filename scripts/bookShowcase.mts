@@ -41,6 +41,7 @@ const flag = (name: string): string | undefined => {
 }
 const OUT = flag('--out') ?? join(process.cwd(), 'book-showcase')
 const IMAGES = flag('--images') ?? 'C:/src/eventslide-suivi/maquettes/livre-photo-2026-11-19/img'
+const COUNT = Number(flag('--photos') ?? 74)
 const PAGES = (flag('--pages') ?? '1,2,3,4,5,6,8,10,14,18,24,30,36,40').split(',').map(Number)
 
 const GUESTS = ['Léa', 'Hugo', 'Inès', 'Karim', 'Mamie Jo', 'Camille', 'Sacha', 'Noor', 'Tom']
@@ -80,13 +81,13 @@ const main = async (): Promise<void> => {
   const start = Date.UTC(2026, 5, 14, 14, 0)
   const photos: BookPhoto[] = []
   const bytes = new Map<PhotoId, Uint8Array>()
-  for (let i = 0; i < 74; i += 1) {
+  for (let i = 0; i < COUNT; i += 1) {
     const [width, height] = SHAPES[i % SHAPES.length] as [number, number]
     const id = asPhotoId(`demo-${String(i).padStart(3, '0')}`)
-    const moment = i < 26 ? 0 : i < 52 ? 1 : 2
+    const moment = Math.floor((i * 3) / COUNT)
     photos.push({
       id,
-      createdAt: new Date(start + (moment * 4 * 60 + (i % 26) * 3) * 60_000),
+      createdAt: new Date(start + (moment * 4 * 60 + (i % Math.ceil(COUNT / 3)) * 3) * 60_000),
       width,
       height,
       guestId: asGuestId(`guest-${i % GUESTS.length}`),
@@ -196,11 +197,19 @@ const main = async (): Promise<void> => {
       printInterior: [],
       printCover: [],
     }
+    // The peak of the process while it draws, to read next to the time (the spike of the PR).
+    let peak = 0
+    const sampler = setInterval(() => (peak = Math.max(peak, process.memoryUsage().rss)), 50)
     const t0 = performance.now()
     for await (const chunk of createPdfBookRenderer({}).render(input))
       parts[chunk.kind].push(chunk.bytes)
+    clearInterval(sampler)
+    const megabytes = (kind: BookChunk['kind']): string =>
+      (parts[kind].reduce((n, c) => n + c.byteLength, 0) / 1048576).toFixed(1)
     console.log(
-      `${style}: ${plan.pages.length} plan pages in ${((performance.now() - t0) / 1000).toFixed(1)} s`,
+      `${style}: ${plan.pages.length} plan pages in ${((performance.now() - t0) / 1000).toFixed(1)} s, ` +
+        `peak ${(peak / 1048576).toFixed(0)} MB, screen ${megabytes('screen')} MB, ` +
+        `interior ${megabytes('printInterior')} MB, cover ${megabytes('printCover')} MB`,
     )
     const names = {
       screen: `${style}.pdf`,
