@@ -1,8 +1,8 @@
-import { z } from 'zod'
 import type { AlbumBookRepository } from '../../application/ports/albumBookRepository'
 import {
   finishOf,
   invalidateBook,
+  recordPlan,
   settleBook,
   startBook,
   type AlbumBook,
@@ -12,12 +12,13 @@ import {
 import {
   isAlbumBookStatus,
   isBookFailureCode,
+  isBookPrintSkipped,
   isBookStaleReason,
   type BookStaleReason,
 } from '../../domain/book/albumBookStatus'
-import { BOOK_LAYOUTS } from '../../domain/book/bookLayout'
-import { EVENT_LANGUAGES } from '../../domain/events/eventLanguage'
+import type { BookPlan } from '../../domain/book/bookPlan'
 import { asEventId, type EventId } from '../../domain/shared/ids'
+import { bookOptionsSchema, bookPlanSchema } from './bookSchemas'
 import type { Db } from './connection'
 import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
 
@@ -28,18 +29,6 @@ import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
  * `.immediate()` transaction, as `SqliteClipJobRepository.claimNext` does: no second
  * connection can commit between the read and the write.
  */
-
-/** The host's choices as stored. Read back through the same schema: a row is not trusted. */
-const optionsSchema = z
-  .object({
-    title: z.string(),
-    subtitle: z.string(),
-    language: z.enum(EVENT_LANGUAGES),
-    layout: z.enum(BOOK_LAYOUTS),
-    showAuthors: z.boolean(),
-    showCaptions: z.boolean(),
-  })
-  .strict()
 
 interface BookRow {
   readonly event_id: string
@@ -57,11 +46,15 @@ interface BookRow {
   readonly expires_at: string | null
   readonly failure_code: string | null
   readonly stale_reason: string | null
+  readonly plan_json: string | null
+  readonly selected_count: number | null
+  readonly print_byte_size: number | null
+  readonly print_skipped: string | null
 }
 
 const COLUMNS = `event_id, status, options_json, requested_at, snapshot_at, invalidated_at,
   started_at, done_at, photo_count, skipped_count, page_count, byte_size, expires_at,
-  failure_code, stale_reason`
+  failure_code, stale_reason, plan_json, selected_count, print_byte_size, print_skipped`
 
 const corrupt = (field: string): Error => new Error(`album_books row has an unreadable ${field}`)
 
@@ -71,8 +64,12 @@ const toBook = (row: BookRow): AlbumBook => {
     throw corrupt('failure_code')
   if (row.stale_reason !== null && !isBookStaleReason(row.stale_reason))
     throw corrupt('stale_reason')
-  const options = optionsSchema.safeParse(JSON.parse(row.options_json))
+  if (row.print_skipped !== null && !isBookPrintSkipped(row.print_skipped))
+    throw corrupt('print_skipped')
+  const options = bookOptionsSchema.safeParse(JSON.parse(row.options_json))
   if (!options.success) throw corrupt('options_json')
+  const plan = row.plan_json === null ? null : bookPlanSchema.safeParse(JSON.parse(row.plan_json))
+  if (plan !== null && !plan.success) throw corrupt('plan_json')
   return {
     eventId: asEventId(row.event_id),
     status: row.status,
@@ -86,6 +83,10 @@ const toBook = (row: BookRow): AlbumBook => {
     skippedCount: row.skipped_count,
     pageCount: row.page_count,
     byteSize: row.byte_size,
+    selectedCount: row.selected_count,
+    printByteSize: row.print_byte_size,
+    printSkipped: row.print_skipped,
+    plan: plan === null ? null : plan.data,
     expiresAt: fromNullableIsoText(row.expires_at),
     failureCode: row.failure_code,
     staleReason: row.stale_reason,
@@ -93,6 +94,10 @@ const toBook = (row: BookRow): AlbumBook => {
 }
 
 const nullableIso = (date: Date | null): string | null => (date === null ? null : toIsoText(date))
+
+/** The plan as stored: validated again on the way in, so no other shape can reach the column. */
+const planJson = (plan: BookPlan | null): string | null =>
+  plan === null ? null : JSON.stringify(bookPlanSchema.parse(plan))
 
 const toParams = (book: AlbumBook): Record<string, string | number | null> => ({
   event_id: book.eventId,
@@ -107,6 +112,10 @@ const toParams = (book: AlbumBook): Record<string, string | number | null> => ({
   skipped_count: book.skippedCount,
   page_count: book.pageCount,
   byte_size: book.byteSize,
+  plan_json: planJson(book.plan),
+  selected_count: book.selectedCount,
+  print_byte_size: book.printByteSize,
+  print_skipped: book.printSkipped,
   expires_at: nullableIso(book.expiresAt),
   failure_code: book.failureCode,
   stale_reason: book.staleReason,
@@ -116,7 +125,8 @@ const UPSERT = `
   INSERT INTO album_books (${COLUMNS})
   VALUES (@event_id, @status, @options_json, @requested_at, @snapshot_at, @invalidated_at,
           @started_at, @done_at, @photo_count, @skipped_count, @page_count, @byte_size,
-          @expires_at, @failure_code, @stale_reason)
+          @expires_at, @failure_code, @stale_reason, @plan_json, @selected_count,
+          @print_byte_size, @print_skipped)
   ON CONFLICT (event_id) DO UPDATE SET
     status = excluded.status, options_json = excluded.options_json,
     requested_at = excluded.requested_at, snapshot_at = excluded.snapshot_at,
@@ -124,7 +134,9 @@ const UPSERT = `
     done_at = excluded.done_at, photo_count = excluded.photo_count,
     skipped_count = excluded.skipped_count, page_count = excluded.page_count,
     byte_size = excluded.byte_size, expires_at = excluded.expires_at,
-    failure_code = excluded.failure_code, stale_reason = excluded.stale_reason
+    failure_code = excluded.failure_code, stale_reason = excluded.stale_reason,
+    plan_json = excluded.plan_json, selected_count = excluded.selected_count,
+    print_byte_size = excluded.print_byte_size, print_skipped = excluded.print_skipped
 `
 
 const UPDATE = `
@@ -133,7 +145,9 @@ const UPDATE = `
     snapshot_at = @snapshot_at, invalidated_at = @invalidated_at, started_at = @started_at,
     done_at = @done_at, photo_count = @photo_count, skipped_count = @skipped_count,
     page_count = @page_count, byte_size = @byte_size, expires_at = @expires_at,
-    failure_code = @failure_code, stale_reason = @stale_reason
+    failure_code = @failure_code, stale_reason = @stale_reason, plan_json = @plan_json,
+    selected_count = @selected_count, print_byte_size = @print_byte_size,
+    print_skipped = @print_skipped
   WHERE event_id = @event_id
 `
 
@@ -184,6 +198,19 @@ export class SqliteAlbumBookRepository implements AlbumBookRepository {
         if (!settled.ok) return 'superseded'
         this.write(settled.value)
         return finishOf(settled.value)
+      })
+      .immediate()
+  }
+
+  async recordPlan(eventId: EventId, plan: BookPlan): Promise<boolean> {
+    return this.db
+      .transaction((): boolean => {
+        const book = this.read(eventId)
+        if (book === null) return false
+        const recorded = recordPlan(book, plan)
+        if (!recorded.ok) return false
+        this.write(recorded.value)
+        return true
       })
       .immediate()
   }
@@ -272,6 +299,10 @@ export class SqliteAlbumBookRepository implements AlbumBookRepository {
     return this.idsWhere(`status = 'done'`)
   }
 
+  async listDoneWithPrintEventIds(): Promise<readonly EventId[]> {
+    return this.idsWhere(`status = 'done' AND print_byte_size IS NOT NULL`)
+  }
+
   async listActiveEventIds(): Promise<readonly EventId[]> {
     return this.idsWhere(`status IN ('queued', 'running')`)
   }
@@ -288,7 +319,8 @@ export class SqliteAlbumBookRepository implements AlbumBookRepository {
   async doneBytes(): Promise<number> {
     const row = this.db
       .prepare<[], { readonly total: number }>(
-        `SELECT COALESCE(SUM(byte_size), 0) AS total FROM album_books WHERE status = 'done'`,
+        `SELECT COALESCE(SUM(COALESCE(byte_size, 0) + COALESCE(print_byte_size, 0)), 0) AS total
+           FROM album_books WHERE status = 'done'`,
       )
       .get()
     return row?.total ?? 0

@@ -29,9 +29,9 @@ export interface PlanSlot {
 export interface PlanPage {
   readonly template: TemplateId
   readonly slots: readonly PlanSlot[]
-  readonly messageIds?: readonly GuestbookEntryId[]
+  readonly messageIds?: readonly GuestbookEntryId[] | undefined
   /** The chapter an opening page belongs to. */
-  readonly chapter?: number
+  readonly chapter?: number | undefined
 }
 
 export interface PlanPhotographer {

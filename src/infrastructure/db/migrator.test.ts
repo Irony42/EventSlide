@@ -14,6 +14,9 @@ import { VOICE_STATES } from '../../domain/guestbook/guestbookVoiceState'
 import { VOICE_FAILURES } from '../../domain/guestbook/voiceFailure'
 import { VOICE_BLOCKING_RESEND_SQL, VOICE_IN_FLIGHT_SQL } from './guestbookVoiceSql'
 import { DUE_VOICE_SQL } from './sqliteGuestbookVoiceRepository'
+import { legacyBookOptions } from '../../domain/book/bookOptionsV2'
+import type { EventLanguage } from '../../domain/events/eventLanguage'
+import { bookOptionsSchema } from './bookSchemas'
 
 const freshDb = (): Db => openDatabase({ path: ':memory:' })
 
@@ -3534,8 +3537,7 @@ describe('migration 032: guestbook voices', () => {
     const before = migratedAt(31)
     const after = migratedAt(32)
 
-    expect(migrations.at(-1)?.id).toBe(32)
-    expect(migrations.at(-1)?.name).toBe('guestbook_voices')
+    expect(migrations.find((migration) => migration.id === 32)?.name).toBe('guestbook_voices')
     expect(tableNames(before)).not.toContain('guestbook_voices')
     expect(tableNames(after).filter((name) => !tableNames(before).includes(name))).toEqual([
       'guestbook_voices',
@@ -3695,4 +3697,323 @@ describe('migration 032: guestbook voices', () => {
     expect(() => insert('queued', 'corrupt')).not.toThrow()
     closeDatabase(db)
   })
+})
+
+describe('migration 033: the photo book v2', () => {
+  const AT = '2026-11-01T10:00:00.000Z'
+
+  const migratedAt = (id: number): Db => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= id),
+    )
+    return db
+  }
+
+  /** What a 3.14 server wrote: one book per state, each for its own event. */
+  const V1_ROWS = [
+    {
+      id: 'e-queued',
+      status: 'queued',
+      layout: 'one',
+      authors: true,
+      captions: true,
+      language: 'fr',
+      title: 'Noces',
+    },
+    {
+      id: 'e-running',
+      status: 'running',
+      layout: 'four',
+      authors: false,
+      captions: true,
+      language: 'de',
+      title: 'Fête « de Léa » 🎉',
+    },
+    {
+      id: 'e-done',
+      status: 'done',
+      layout: 'four',
+      authors: true,
+      captions: false,
+      language: 'en',
+      title: 'Done',
+    },
+    {
+      id: 'e-failed',
+      status: 'failed',
+      layout: 'one',
+      authors: false,
+      captions: false,
+      language: 'es',
+      title: 'Failed',
+    },
+    {
+      id: 'e-stale',
+      status: 'stale',
+      layout: 'one',
+      authors: true,
+      captions: true,
+      language: 'it',
+      title: 'Stale',
+    },
+  ] as const
+
+  const seedV1 = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ('u', 'u@example.test', 'x', ?)`,
+    ).run(AT)
+    for (const row of V1_ROWS) {
+      db.prepare(
+        `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+         VALUES (?, 'u', ?, ?, ?, 'live', '{}', 1, ?)`,
+      ).run(row.id, row.id, row.id, row.id, AT)
+      const done = row.status === 'done'
+      db.prepare(
+        `INSERT INTO album_books (event_id, status, options_json, requested_at, snapshot_at, invalidated_at,
+                                  started_at, done_at, photo_count, skipped_count, page_count, byte_size,
+                                  expires_at, failure_code, stale_reason)
+         VALUES (@id, @status, @options, @at, @at, @invalidated, @started, @doneAt, @photos, @skipped,
+                 @pages, @bytes, @expires, @failure, @reason)`,
+      ).run({
+        id: row.id,
+        status: row.status,
+        options: JSON.stringify({
+          title: row.title,
+          subtitle: 'sous-titre',
+          language: row.language,
+          layout: row.layout,
+          showAuthors: row.authors,
+          showCaptions: row.captions,
+        }),
+        at: AT,
+        invalidated: row.status === 'stale' ? AT : null,
+        started: row.status === 'queued' ? null : AT,
+        doneAt: done ? AT : null,
+        photos: done ? 118 : null,
+        skipped: done ? 2 : null,
+        pages: done ? 120 : null,
+        bytes: done ? 4_000_000 : null,
+        expires: done ? '2026-11-08T10:00:00.000Z' : null,
+        failure: row.status === 'failed' ? 'tooLarge' : null,
+        reason: row.status === 'stale' ? 'photoRemoved' : null,
+      })
+    }
+    db.prepare(`INSERT INTO album_book_requests (event_id, requested_at) VALUES ('e-done', ?)`).run(
+      AT,
+    )
+  }
+
+  it('is the next number, and rebuilds album_books under its own name', () => {
+    expect(migrations.find((migration) => migration.id === 33)?.name).toBe('album_books_v2')
+    const db = migratedAt(33)
+    expect(tableNames(db)).toContain('album_books')
+    expect(tableNames(db)).not.toContain('album_books_before_033')
+    closeDatabase(db)
+  })
+
+  it('keeps every row of a populated 3.14 database, column for column', () => {
+    const db = migratedAt(32)
+    seedV1(db)
+    const before = db.prepare(`SELECT * FROM album_books ORDER BY event_id`).all() as Record<
+      string,
+      unknown
+    >[]
+
+    migrate(db, migrations)
+
+    const after = db.prepare(`SELECT * FROM album_books ORDER BY event_id`).all() as Record<
+      string,
+      unknown
+    >[]
+    expect(after).toHaveLength(5)
+    const unchanged = (row: Record<string, unknown>): Record<string, unknown> => {
+      const { options_json: _options, ...rest } = row
+      return rest
+    }
+    after.forEach((row, i) => {
+      expect(
+        unchanged(
+          Object.fromEntries(Object.entries(row).filter(([k]) => before[i]![k] !== undefined)),
+        ),
+      ).toEqual(unchanged(before[i]!))
+    })
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM album_book_requests`).get()).toEqual({ n: 1 })
+    closeDatabase(db)
+  })
+
+  it('rewrites every options_json as legacyBookOptions would, and reads it back through the strict schema', () => {
+    const db = migratedAt(32)
+    seedV1(db)
+    const rows = db.prepare(`SELECT event_id, options_json FROM album_books`).all() as {
+      event_id: string
+      options_json: string
+    }[]
+    const v1 = new Map(
+      rows.map((row) => [row.event_id, JSON.parse(row.options_json) as Record<string, unknown>]),
+    )
+
+    migrate(db, migrations)
+
+    const migrated = db.prepare(`SELECT event_id, options_json FROM album_books`).all() as {
+      event_id: string
+      options_json: string
+    }[]
+    expect(migrated).toHaveLength(5)
+    for (const row of migrated) {
+      const old = v1.get(row.event_id)!
+      const read = bookOptionsSchema.safeParse(JSON.parse(row.options_json))
+      expect(read.success, row.event_id).toBe(true)
+      expect(read.data).toEqual(
+        legacyBookOptions({
+          title: old['title'] as string,
+          subtitle: old['subtitle'] as string,
+          language: old['language'] as EventLanguage,
+          layout: old['layout'] as 'one' | 'four',
+          showAuthors: old['showAuthors'] as boolean,
+          showCaptions: old['showCaptions'] as boolean,
+        }),
+      )
+    }
+    closeDatabase(db)
+  })
+
+  it('backfills selected_count from the photographs a 3.14 book drew, and adds no plan nor printer file', () => {
+    const db = migratedAt(32)
+    seedV1(db)
+
+    migrate(db, migrations)
+
+    expect(
+      db
+        .prepare(
+          `SELECT event_id, selected_count, plan_json, print_byte_size, print_skipped
+             FROM album_books WHERE event_id IN ('e-done', 'e-queued') ORDER BY event_id`,
+        )
+        .all(),
+    ).toEqual([
+      {
+        event_id: 'e-done',
+        selected_count: 118,
+        plan_json: null,
+        print_byte_size: null,
+        print_skipped: null,
+      },
+      {
+        event_id: 'e-queued',
+        selected_count: null,
+        plan_json: null,
+        print_byte_size: null,
+        print_skipped: null,
+      },
+    ])
+    closeDatabase(db)
+  })
+
+  it('keeps both indexes under their names, the foreign key and its cascade, and a clean foreign-key check', () => {
+    const db = migratedAt(32)
+    seedV1(db)
+
+    migrate(db, migrations)
+
+    expect(indexNames(db).filter((name) => name.startsWith('idx_album_books'))).toEqual([
+      'idx_album_books_expires',
+      'idx_album_books_status',
+    ])
+    const partial = db
+      .prepare<[string], { sql: string }>(`SELECT sql FROM sqlite_master WHERE name = ?`)
+      .get('idx_album_books_expires')
+    expect(partial?.sql).toMatch(/WHERE expires_at IS NOT NULL/)
+    expect(db.pragma('foreign_key_check')).toEqual([])
+
+    db.prepare(`DELETE FROM events WHERE id = 'e-done'`).run()
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM album_books`).get()).toEqual({ n: 4 })
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM album_book_requests`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
+  it('widens the stale_reason check to messageRemoved and refuses what is not on the list', () => {
+    const db = migratedAt(33)
+    seedV1Event(db)
+    const insert = (reason: string): unknown =>
+      db
+        .prepare(
+          `INSERT OR REPLACE INTO album_books (event_id, status, options_json, requested_at, snapshot_at, stale_reason)
+           VALUES ('e-one', 'stale', '{}', ?, ?, ?)`,
+        )
+        .run(AT, AT, reason)
+
+    expect(() => insert('messageRemoved')).not.toThrow()
+    expect(() => insert('photoRemoved')).not.toThrow()
+    expect(() => insert('somebodyDidSomething')).toThrow()
+    closeDatabase(db)
+  })
+
+  it('checks the new columns: a plan must be JSON, a skip reason one of two, sizes not negative', () => {
+    const db = migratedAt(33)
+    seedV1Event(db)
+    const insert = (column: string, value: unknown): unknown =>
+      db
+        .prepare(
+          `INSERT OR REPLACE INTO album_books (event_id, status, options_json, requested_at, snapshot_at, ${column})
+           VALUES ('e-one', 'queued', '{}', ?, ?, ?)`,
+        )
+        .run(AT, AT, value)
+
+    expect(() => insert('plan_json', '{"ok":true}')).not.toThrow()
+    expect(() => insert('plan_json', 'not json')).toThrow()
+    expect(() => insert('print_skipped', 'tooManyPages')).not.toThrow()
+    expect(() => insert('print_skipped', 'tooLarge')).not.toThrow()
+    expect(() => insert('print_skipped', 'paper')).toThrow()
+    expect(() => insert('selected_count', -1)).toThrow()
+    expect(() => insert('print_byte_size', -1)).toThrow()
+    closeDatabase(db)
+  })
+
+  it('keeps the other CHECK lists as they were (status, failure code)', () => {
+    const db = migratedAt(33)
+    seedV1Event(db)
+    const insert = (column: string, value: string): unknown =>
+      db
+        .prepare(
+          `INSERT OR REPLACE INTO album_books (event_id, status, options_json, requested_at, snapshot_at, ${column})
+           VALUES ('e-one', 'queued', '{}', ?, ?, ?)`,
+        )
+        .run(AT, AT, value)
+
+    expect(() => insert('failure_code', 'unexpected')).not.toThrow()
+    expect(() => insert('failure_code', 'oops')).toThrow()
+    expect(() =>
+      db
+        .prepare(
+          `INSERT OR REPLACE INTO album_books (event_id, status, options_json, requested_at, snapshot_at)
+           VALUES ('e-one', 'weird', '{}', ?, ?)`,
+        )
+        .run(AT, AT),
+    ).toThrow()
+    closeDatabase(db)
+  })
+
+  it('is refused by a 3.14 binary: a database migrated by this build is newer than that one', () => {
+    const db = migratedAt(33)
+
+    expect(() =>
+      migrate(
+        db,
+        migrations.filter((migration) => migration.id <= 32),
+      ),
+    ).toThrow(/migrated by a newer version/)
+    closeDatabase(db)
+  })
+
+  const seedV1Event = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ('u', 'u@example.test', 'x', ?)`,
+    ).run(AT)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+       VALUES ('e-one', 'u', 'e', 'e', 'e', 'live', '{}', 1, ?)`,
+    ).run(AT)
+  }
 })
