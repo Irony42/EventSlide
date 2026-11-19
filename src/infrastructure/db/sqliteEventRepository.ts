@@ -453,6 +453,8 @@ const settingsOf = (raw: string): EventSettings => {
      * decision cannot be written afterwards.
      */
     allowClips: settingsBooleanAddedLater(decoded['allowClips'], 'allowClips', false),
+    /** Added by spec 27, and **off** when the key is absent: a host who was never asked has no group connected. */
+    allowTelegram: settingsBooleanAddedLater(decoded['allowTelegram'], 'allowTelegram', false),
     /**
      * Added by the guestbook (spec 01, 3.5.0), and **off** when the key is absent: an event
      * that predates it has a host who was never asked, and a free-text channel onto a room is

@@ -218,6 +218,7 @@ export const eventRoutes = ({
           ...(body.allowCaptions === undefined ? {} : { allowCaptions: body.allowCaptions }),
           ...(body.allowReactions === undefined ? {} : { allowReactions: body.allowReactions }),
           ...(body.allowClips === undefined ? {} : { allowClips: body.allowClips }),
+          ...(body.allowTelegram === undefined ? {} : { allowTelegram: body.allowTelegram }),
           ...(body.allowGuestbook === undefined ? {} : { allowGuestbook: body.allowGuestbook }),
           ...(body.allowGuestSave === undefined ? {} : { allowGuestSave: body.allowGuestSave }),
           ...(body.guestbookOnWall === undefined ? {} : { guestbookOnWall: body.guestbookOnWall }),

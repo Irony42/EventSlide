@@ -33,6 +33,7 @@ describe('ChannelBinding', () => {
     expect(created.conversationTitle).toBe('Mariage Léa & Tom')
     expect(created.boundAt).toBe(NOW)
     expect(created.unboundAt).toBeNull()
+    expect(created.receivedCount).toBe(0)
     expect(created.id).toBe('bnd-1')
   })
 
@@ -80,8 +81,11 @@ describe('ChannelBinding', () => {
       conversationTitle: stored.conversationTitle,
       boundAt: stored.boundAt,
       unboundAt: stored.unboundAt,
+      receivedCount: 7,
     })
     expect(restored.isActive()).toBe(false)
+    expect(restored.receivedCount).toBe(7)
+    expect(restored.toProps()).toEqual({ ...stored.toProps(), receivedCount: 7 })
   })
 })
 

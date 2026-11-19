@@ -38,7 +38,7 @@ import {
 
 const CLIENT_COLUMNS = `id, name, contact_email, created_at, suspended_at, purge_after,
                         max_events, max_total_bytes, max_event_quota_bytes, max_retention_days,
-                        retention_cap_since, clips_allowed, books_allowed, live_allowed, max_live_days,
+                        retention_cap_since, clips_allowed, books_allowed, channels_allowed, live_allowed, max_live_days,
                         max_events_per_period, period_started_at, events_created_in_period, locale`
 
 interface ClientRow {
@@ -55,6 +55,7 @@ interface ClientRow {
   readonly retention_cap_since: string | null
   readonly clips_allowed: number
   readonly books_allowed: number
+  readonly channels_allowed: number
   readonly live_allowed: number
   readonly max_live_days: number | null
   readonly max_events_per_period: number | null
@@ -78,6 +79,7 @@ interface ClientParams {
   readonly retentionCapSince: string | null
   readonly clipsAllowed: number
   readonly booksAllowed: number
+  readonly channelsAllowed: number
   readonly liveAllowed: number
   readonly maxLiveDays: number | null
   readonly maxEventsPerPeriod: number | null
@@ -110,6 +112,7 @@ interface ContextRow {
   readonly max_retention_days: number | null
   readonly clips_allowed: number
   readonly books_allowed: number
+  readonly channels_allowed: number
   readonly live_allowed: number
   readonly max_live_days: number | null
   readonly max_events_per_period: number | null
@@ -149,6 +152,7 @@ const toCeilingsProps = (row: {
   readonly max_retention_days: number | null
   readonly clips_allowed: number
   readonly books_allowed: number
+  readonly channels_allowed: number
   readonly live_allowed: number
   readonly max_live_days: number | null
   readonly max_events_per_period: number | null
@@ -160,6 +164,7 @@ const toCeilingsProps = (row: {
   maxRetentionDays: row.max_retention_days,
   clipsAllowed: fromSqliteBoolean(row.clips_allowed),
   booksAllowed: fromSqliteBoolean(row.books_allowed),
+  channelsAllowed: fromSqliteBoolean(row.channels_allowed),
   liveAllowed: fromSqliteBoolean(row.live_allowed),
   maxLiveDays: row.max_live_days,
   maxEventsPerPeriod: row.max_events_per_period,
@@ -213,6 +218,7 @@ const toParams = (client: Client): ClientParams => {
     retentionCapSince: props.retentionCapSince === null ? null : toIsoText(props.retentionCapSince),
     clipsAllowed: toSqliteBoolean(ceilings.clipsAllowed),
     booksAllowed: toSqliteBoolean(ceilings.booksAllowed),
+    channelsAllowed: toSqliteBoolean(ceilings.channelsAllowed),
     liveAllowed: toSqliteBoolean(ceilings.liveAllowed),
     maxLiveDays: ceilings.maxLiveDays,
     maxEventsPerPeriod: ceilings.maxEventsPerPeriod,
@@ -284,12 +290,12 @@ export class SqliteClientRepository implements ClientRepository {
     this.upsert = db.prepare<ClientParams>(
       `INSERT INTO clients (id, name, contact_email, created_at, suspended_at, purge_after,
                             max_events, max_total_bytes, max_event_quota_bytes,
-                            max_retention_days, retention_cap_since, clips_allowed, books_allowed,
+                            max_retention_days, retention_cap_since, clips_allowed, books_allowed, channels_allowed,
                             live_allowed, max_live_days, max_events_per_period,
                             period_started_at, events_created_in_period, locale)
             VALUES (@id, @name, @contactEmail, @createdAt, @suspendedAt, @purgeAfter,
                     @maxEvents, @maxTotalBytes, @maxEventQuotaBytes, @maxRetentionDays,
-                    @retentionCapSince, @clipsAllowed, @booksAllowed, @liveAllowed, @maxLiveDays,
+                    @retentionCapSince, @clipsAllowed, @booksAllowed, @channelsAllowed, @liveAllowed, @maxLiveDays,
                     @maxEventsPerPeriod, @periodStartedAt, @eventsCreatedInPeriod, @locale)
        ON CONFLICT (id) DO UPDATE SET name                     = excluded.name,
                                       created_at                = excluded.created_at,
@@ -303,6 +309,7 @@ export class SqliteClientRepository implements ClientRepository {
                                       retention_cap_since       = excluded.retention_cap_since,
                                       clips_allowed             = excluded.clips_allowed,
                                       books_allowed             = excluded.books_allowed,
+                                      channels_allowed             = excluded.channels_allowed,
                                       live_allowed              = excluded.live_allowed,
                                       max_live_days             = excluded.max_live_days,
                                       max_events_per_period     = excluded.max_events_per_period,
@@ -341,7 +348,7 @@ export class SqliteClientRepository implements ClientRepository {
 
     this.selectContextForEvent = db.prepare<[string], ContextRow>(
       `SELECT c.id AS client_id, c.max_events, c.max_total_bytes, c.max_event_quota_bytes,
-              c.max_retention_days, c.clips_allowed, c.books_allowed, c.live_allowed, c.max_live_days,
+              c.max_retention_days, c.clips_allowed, c.books_allowed, c.channels_allowed, c.live_allowed, c.max_live_days,
               c.max_events_per_period, c.period_started_at, c.suspended_at
          FROM events e
          JOIN clients c ON c.id = e.client_id

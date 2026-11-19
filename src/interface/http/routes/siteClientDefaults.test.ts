@@ -42,6 +42,7 @@ const UNLIMITED: NewClientDefaults = {
   maxLiveDays: null,
   clipsAllowed: true,
   booksAllowed: true,
+  channelsAllowed: true,
 }
 
 const A_TIER: NewClientDefaults = {
@@ -53,6 +54,7 @@ const A_TIER: NewClientDefaults = {
   maxLiveDays: 3,
   clipsAllowed: false,
   booksAllowed: false,
+  channelsAllowed: false,
 }
 
 const harness = (config: Partial<HttpConfig> = {}) => {
@@ -98,6 +100,7 @@ describe('GET /api/site/client-defaults', () => {
     expect(Object.keys((response.body as { ceilings: object }).ceilings).sort()).toEqual(
       [
         'booksAllowed',
+        'channelsAllowed',
         'clipsAllowed',
         'maxEvents',
         'maxEventsPerPeriod',

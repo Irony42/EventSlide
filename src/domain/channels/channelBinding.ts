@@ -25,6 +25,12 @@ export interface ChannelBindingProps {
   readonly conversationTitle: string
   readonly boundAt: Date
   readonly unboundAt: Date | null
+  /**
+   * How many media this conversation has sent so far, for the host's list. A counter kept by the repository
+   * (`recordReceived`), not derived: the queue forgets its finished jobs after a day, and a photograph has no
+   * memory of the way it came in.
+   */
+  readonly receivedCount: number
 }
 
 export interface NewChannelBinding {
@@ -60,6 +66,7 @@ export class ChannelBinding {
         conversationTitle: cleanConversationTitle(input.conversationTitle),
         boundAt: now,
         unboundAt: null,
+        receivedCount: 0,
       }),
     )
   }
@@ -90,6 +97,13 @@ export class ChannelBinding {
   }
   get unboundAt(): Date | null {
     return this.props.unboundAt
+  }
+  get receivedCount(): number {
+    return this.props.receivedCount
+  }
+
+  toProps(): ChannelBindingProps {
+    return this.props
   }
 
   isActive(): boolean {

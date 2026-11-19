@@ -45,6 +45,8 @@ const recording = (inner: FakeGuestRepository): RecordedGuests => {
     batches,
     repo: {
       findById: (eventId, guestId) => inner.findById(eventId, guestId),
+      findByChannelSender: (eventId, channel, senderKey) =>
+        inner.findByChannelSender(eventId, channel, senderKey),
       findNamesByIds: (eventId, guestIds) => {
         batches.push(guestIds.length)
         return inner.findNamesByIds(eventId, guestIds)
