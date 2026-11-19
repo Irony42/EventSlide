@@ -17,7 +17,7 @@
 # `scripts/imageSources.test.ts` fails if one is bumped without the other, because the
 # toolchain that built the native modules would then be a different Debian from the one that
 # runs them.
-FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS deps
+FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS deps
 WORKDIR /app
 
 # A build toolchain, in the stage that is thrown away.
@@ -69,7 +69,7 @@ WORKDIR /app
 RUN npm prune --omit=dev
 
 # --------------------------------------------------------------------- runtime --
-FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
+FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS runtime
 WORKDIR /app
 
 # Declared on the runtime stage, not `deps` or `build`, so it describes only the image
