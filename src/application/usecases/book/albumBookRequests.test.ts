@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { legacyBookOptions } from '../../../domain/book/bookOptionsV2'
 import { requestBook, type BookOptions } from '../../../domain/book/albumBook'
 import { BOOK_WINDOW_MS } from '../../../domain/book/bookCaps'
 import { asEventId } from '../../../domain/shared/ids'
@@ -24,9 +25,13 @@ const OPTIONS: BookOptions = {
   title: 'Mariage de Léa',
   subtitle: '',
   language: 'fr',
-  layout: 'one',
+  style: 'classique',
+  selection: { kind: 'all' },
   showAuthors: true,
   showCaptions: true,
+  includeGuestbook: false,
+  printVersion: false,
+  timeZone: 'Europe/Paris',
 }
 
 const INPUT: RequestAlbumBookInput = {
@@ -116,12 +121,85 @@ describe('requestAlbumBook', () => {
         title: 'Mariage de Léa',
         subtitle: '',
         language: 'fr',
-        layout: 'four',
+        style: 'classique',
+        selection: { kind: 'all' },
         showAuthors: false,
         showCaptions: true,
+        includeGuestbook: false,
+        printVersion: false,
+        timeZone: 'Europe/Paris',
       },
     })
     expect(await books.find(EVENT)).toMatchObject({ status: 'queued' })
+  })
+
+  it('turns a 3.14 body (a layout, nothing else) into the options legacyBookOptions makes', async () => {
+    const result = await request({ layout: 'one', showAuthors: true })
+
+    expect(result.ok && result.value.options).toEqual(
+      legacyBookOptions({
+        title: 'Mariage de Léa',
+        subtitle: '',
+        language: 'fr',
+        layout: 'one',
+        showAuthors: true,
+        showCaptions: true,
+      }),
+    )
+  })
+
+  describe('a v2 body', () => {
+    const V2 = {
+      eventId: EVENT,
+      title: 'Mariage',
+      style: 'magazine',
+      selection: { kind: 'best', target: 60 },
+      showAuthors: true,
+      showCaptions: false,
+      includeGuestbook: true,
+      printVersion: true,
+      timeZone: 'America/New_York',
+    } as const satisfies RequestAlbumBookInput
+
+    const requestV2 = (input: { timeZone?: string | undefined } = {}) =>
+      makeRequestAlbumBook({
+        events,
+        clients,
+        photos,
+        books,
+        bus,
+        clock,
+        policy: { enabled, maxPerEventPerDay: 3 },
+      })({ ...V2, ...input })
+
+    it('keeps every choice, and a zone it can read', async () => {
+      const result = await requestV2()
+
+      expect(result.ok && result.value.options).toEqual({
+        title: 'Mariage',
+        subtitle: '',
+        language: 'fr',
+        style: 'magazine',
+        selection: { kind: 'best', target: 60 },
+        showAuthors: true,
+        showCaptions: false,
+        includeGuestbook: true,
+        printVersion: true,
+        timeZone: 'America/New_York',
+      })
+    })
+
+    it('stores the canonical zone, keeps UTC, and falls back to Paris for a zone it cannot read', async () => {
+      const zoneOf = async (timeZone: string | undefined): Promise<string | undefined> => {
+        await books.delete(EVENT)
+        const result = await requestV2({ timeZone })
+        return result.ok ? result.value.options.timeZone : undefined
+      }
+
+      expect(await zoneOf('UTC')).toBe('UTC')
+      expect(await zoneOf('Not/AZone')).toBe('Europe/Paris')
+      expect(await zoneOf(undefined)).toBe('Europe/Paris')
+    })
   })
 
   it('wakes the worker once the row exists', async () => {

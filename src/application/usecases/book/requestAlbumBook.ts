@@ -6,6 +6,12 @@ import {
   checkBookDailyLimit,
 } from '../../../domain/book/bookCaps'
 import type { BookLayout } from '../../../domain/book/bookLayout'
+import {
+  legacyBookOptions,
+  type BookSelection,
+  type BookStyle,
+} from '../../../domain/book/bookOptionsV2'
+import { normalizeTimeZone } from '../../../domain/book/bookTime'
 import { parseBookSubtitle, parseBookTitle } from '../../../domain/book/bookTitle'
 import type { EventLanguage } from '../../../domain/events/eventLanguage'
 import { DomainError } from '../../../domain/shared/errors'
@@ -43,15 +49,34 @@ export interface RequestAlbumBookDeps {
   readonly policy: { readonly enabled: boolean; readonly maxPerEventPerDay: number }
 }
 
-export interface RequestAlbumBookInput {
+interface RequestFields {
   readonly eventId: EventId
   readonly title: string
   readonly subtitle?: string | undefined
   readonly language?: EventLanguage | undefined
-  readonly layout: BookLayout
   readonly showAuthors: boolean
   readonly showCaptions: boolean
 }
+
+/** The v2 request: a style, a selection, the guest book, the printer version, the host's zone. */
+export interface RequestAlbumBookV2 extends RequestFields {
+  readonly style: BookStyle
+  readonly selection: BookSelection
+  readonly includeGuestbook: boolean
+  readonly printVersion: boolean
+  /** The host's browser zone; anything unreadable or absent becomes Paris. */
+  readonly timeZone?: string | undefined
+}
+
+/**
+ * The body a 3.14 page still sends (`layout`, nothing else): accepted for the whole of 3.15 and
+ * turned into a Classique book with every photograph by `legacyBookOptions`.
+ */
+export interface RequestAlbumBookV1 extends RequestFields {
+  readonly layout: BookLayout
+}
+
+export type RequestAlbumBookInput = RequestAlbumBookV1 | RequestAlbumBookV2
 
 export type RequestAlbumBook = (
   input: RequestAlbumBookInput,
@@ -105,14 +130,29 @@ export const makeRequestAlbumBook =
     )
     if (!limit.ok) return limit
 
-    const options: BookOptions = {
-      title: title.value,
-      subtitle: subtitle.value,
-      language: input.language ?? event.settings.wallLanguage,
-      layout: input.layout,
-      showAuthors: input.showAuthors,
-      showCaptions: input.showCaptions,
-    }
+    const language = input.language ?? event.settings.wallLanguage
+    const options: BookOptions =
+      'layout' in input
+        ? legacyBookOptions({
+            title: title.value,
+            subtitle: subtitle.value,
+            language,
+            layout: input.layout,
+            showAuthors: input.showAuthors,
+            showCaptions: input.showCaptions,
+          })
+        : {
+            title: title.value,
+            subtitle: subtitle.value,
+            language,
+            style: input.style,
+            selection: input.selection,
+            showAuthors: input.showAuthors,
+            showCaptions: input.showCaptions,
+            includeGuestbook: input.includeGuestbook,
+            printVersion: input.printVersion,
+            timeZone: normalizeTimeZone(input.timeZone),
+          }
     const book = requestBook(input.eventId, options, now)
     await books.saveRequest(book)
 

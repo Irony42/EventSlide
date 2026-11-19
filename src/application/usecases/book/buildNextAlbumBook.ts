@@ -2,7 +2,7 @@ import { type AlbumBook, type BookResult } from '../../../domain/book/albumBook'
 import type { BookFailureCode } from '../../../domain/book/albumBookStatus'
 import { checkBookBytes, checkBookSize, estimateBookBytes } from '../../../domain/book/bookCaps'
 import { bookExpiresAt } from '../../../domain/book/bookExpiry'
-import { estimatePageCount } from '../../../domain/book/bookLayout'
+import { estimatePageCount, type BookLayout } from '../../../domain/book/bookLayout'
 import { BOOK_TEXTS, videosNoteFor } from '../../../domain/book/bookTexts'
 import { pdfSafeText } from '../../../domain/book/pdfSafeText'
 import { purgeDeadline } from '../../../domain/clients/purgeDeadline'
@@ -113,6 +113,13 @@ const failureCodeOf = (error: unknown): BookFailureCode => {
 }
 
 const bookUnavailable = (): DomainError => DomainError.unexpected('book.unavailable')
+
+/**
+ * The v1 worker draws what it always drew, whatever the options say: A4, one photograph a page.
+ * The plan and the three styles arrive with the new renderer (spec 26, PR 3); until then every
+ * request, a converted 3.14 body included, is rendered this way.
+ */
+const V1_LAYOUT: BookLayout = 'one'
 
 export const makeBuildNextAlbumBook = ({
   events,
@@ -267,7 +274,7 @@ export const makeBuildNextAlbumBook = ({
       byteSize = await bookFiles.write(
         eventId,
         renderer.render({
-          layout: options.layout,
+          layout: V1_LAYOUT,
           cover: {
             title: pdfSafeText(options.title, 80),
             subtitle: pdfSafeText(options.subtitle, 80),
@@ -291,8 +298,11 @@ export const makeBuildNextAlbumBook = ({
     const result: BookResult = {
       photoCount: rendered,
       skippedCount: skippedAtRender,
-      pageCount: estimatePageCount(options.layout, rendered),
+      pageCount: estimatePageCount(V1_LAYOUT, rendered),
       byteSize,
+      selectedCount: rendered,
+      printByteSize: null,
+      printSkipped: null,
       expiresAt: bookExpiresAt(doneAt, policy.ttlDays, context.purgeDate),
     }
 

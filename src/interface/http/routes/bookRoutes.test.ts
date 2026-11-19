@@ -201,7 +201,9 @@ describe('POST /api/events/:eventSlug/book', () => {
         title: 'Mariage de Camille',
         subtitle: '14 juin 2026',
         language: 'fr',
-        layout: 'four',
+        // The 3.14 body is accepted and converted (a Classique book, every photograph): the layout it
+        // asked for is gone, and the worker draws one photograph a page until the new renderer.
+        layout: 'one',
         showAuthors: true,
         showCaptions: false,
       },

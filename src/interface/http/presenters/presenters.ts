@@ -210,7 +210,16 @@ export const toAlbumBookDto = (book: AlbumBook | null): AlbumBookDto =>
     ? { status: 'none' }
     : {
         status: book.status,
-        options: { ...book.options },
+        // The 3.14 shape the web still reads (spec 26, PR 2): the v2 options reach the wire with the new
+        // panel. A v1 book was always drawn one photograph a page.
+        options: {
+          title: book.options.title,
+          subtitle: book.options.subtitle,
+          language: book.options.language,
+          layout: 'one',
+          showAuthors: book.options.showAuthors,
+          showCaptions: book.options.showCaptions,
+        },
         requestedAt: iso(book.requestedAt),
         doneAt: isoOrNull(book.doneAt),
         photoCount: book.photoCount,
