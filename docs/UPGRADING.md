@@ -1116,6 +1116,8 @@ release: the migrations only go forward.
 - **One migration (033)**: three new tables (`channel_bindings`, `channel_media_jobs`, `channel_cursors`) and three new
   columns with defaults (`guests.channel`, `guests.channel_sender_key`, `clients.channels_allowed`). Nothing existing is
   rewritten.
+- A binding's "photos received" counter is not decremented by `/oublier`, and the conversation title is kept until the
+  event purge.
 - **Off everywhere.** The event setting `allowTelegram` reads off for every event, new or existing, and nothing is
   connected until a host turns it on and a bot token is configured (a later pull request of the same release).
 - **One optional setting for a hosted box**: `NEW_CLIENT_CHANNELS_ALLOWED` (`true`, `false`, `1` or `0`; **absent means

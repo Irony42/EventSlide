@@ -1,5 +1,7 @@
 import type { ChannelBinding } from '../../domain/channels/channelBinding'
 import type { ChannelKind } from '../../domain/channels/channelKind'
+import type { DomainError } from '../../domain/shared/errors'
+import type { Result } from '../../domain/shared/result'
 import type { ChannelBindingId, EventId } from '../../domain/shared/ids'
 
 /**
@@ -23,10 +25,12 @@ export interface ChannelBindingRepository {
   /**
    * Insert a binding, or update the three things that can change: the conversation's identifier (a
    * group became a supergroup), its title, and the end of the link. The event, the channel and the
-   * instant of binding never change. Activating a second binding for a conversation that has one
-   * active throws: the use case ends the old one first.
+   * instant of binding never change. Activating (or moving, by a new conversation identifier) a
+   * binding onto a conversation that already has another active one is a typed refusal,
+   * `channel.conversationTaken`, not a raw constraint error: the use case ends the old one first, and a concurrent bind
+   * that lost the race is told so.
    */
-  save(binding: ChannelBinding): Promise<void>
+  save(binding: ChannelBinding): Promise<Result<void, DomainError>>
 
   /** One more media received through this binding. Atomic; an unknown id is not an error. */
   recordReceived(bindingId: ChannelBindingId): Promise<void>

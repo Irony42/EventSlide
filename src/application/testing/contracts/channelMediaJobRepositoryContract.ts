@@ -217,7 +217,24 @@ export const channelMediaJobRepositoryContract = (
       expect(await jobs.recoverAbandoned(atPlus(2_000))).toBe(1)
       expect(await jobs.recoverAbandoned(atPlus(3_000))).toBe(0)
 
-      expect((await jobs.claimNext(atPlus(4_000)))?.id).toBe('job-1')
+      const again = await jobs.claimNext(atPlus(4_000))
+      expect(again?.id).toBe('job-1')
+      // A poison media that crashes the process is counted each time it is put back, so the drain can give up.
+      expect(again?.attempts).toBe(1)
+    })
+
+    it('only finishes a job that is running: a queued, done or failed one is left as it is', async () => {
+      await jobs.enqueue(aJob({ id: 'job-1', messageRef: 'm-1' }))
+      await jobs.finish(idOf('job-1'), { status: 'done' }, atPlus(1_000))
+      expect((await jobs.findById(WEDDING, idOf('job-1')))?.status).toBe('queued')
+
+      await jobs.claimNext(atPlus(2_000))
+      await jobs.finish(idOf('job-1'), { status: 'failed', failureCode: 'first' }, atPlus(3_000))
+      await jobs.finish(idOf('job-1'), { status: 'done' }, atPlus(4_000))
+      expect(await jobs.findById(WEDDING, idOf('job-1'))).toMatchObject({
+        status: 'failed',
+        failureCode: 'first',
+      })
     })
 
     it('counts what is still on its way, per event', async () => {

@@ -3,7 +3,7 @@ import type { Migration } from '../migrator'
 /**
  * Messaging channels (spec 27, ADR 0015): a Telegram group sending its photographs to an event.
  *
- * **One file, additive, and nothing that exists is rebuilt.** Four new tables and three new columns
+ * **One file, additive, and nothing that exists is rebuilt.** Three new tables and three new columns
  * with defaults, so a database mid-event is touched by nothing but the addition.
  *
  * ## What a channel is, in the schema
@@ -28,8 +28,8 @@ import type { Migration } from '../migrator'
  * ## No CHECK on the channel name, on purpose
  *
  * Adding `whatsapp` later must not rebuild a table, so `channel` is free text validated when it is
- * read (`parseChannelKind`). The other closed lists (`status`) are frozen literals, pinned to the domain
- * by migrator.test.ts.
+ * read (`parseChannelKind`); the same goes for a job's `kind`, validated when the row is read, because a future
+ * channel may bring a kind of its own. The one closed list kept (`status`) is a frozen literal, pinned by migrator.test.ts.
  *
  * ## Cascades
  *
@@ -86,7 +86,7 @@ export const migration033: Migration = {
         message_ref        TEXT NOT NULL,
         sender_key         TEXT NOT NULL,
         sender_name        TEXT,
-        kind               TEXT NOT NULL CHECK (kind IN ('photo', 'video', 'document')),
+        kind               TEXT NOT NULL,
         file_ref           TEXT NOT NULL,
         declared_bytes     INTEGER,
         duration_ms        INTEGER,

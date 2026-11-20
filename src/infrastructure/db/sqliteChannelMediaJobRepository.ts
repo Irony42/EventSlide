@@ -32,7 +32,7 @@ interface JobRow {
   readonly message_ref: string
   readonly sender_key: string
   readonly sender_name: string | null
-  readonly kind: ChannelMediaJob['kind']
+  readonly kind: string
   readonly file_ref: string
   readonly declared_bytes: number | null
   readonly duration_ms: number | null
@@ -53,7 +53,12 @@ const SELECT_JOB = `
     FROM channel_media_jobs
 `
 
+const KINDS: ReadonlySet<string> = new Set<ChannelMediaJob['kind']>(['photo', 'video', 'document'])
+
 const toJob = (row: JobRow): ChannelMediaJob => {
+  if (!KINDS.has(row.kind)) {
+    throw new Error('channel_media_jobs.kind holds a value this version does not know')
+  }
   const channel = parseChannelKind(row.channel)
   if (!channel.ok) {
     throw new Error(
@@ -69,7 +74,7 @@ const toJob = (row: JobRow): ChannelMediaJob => {
     messageRef: row.message_ref,
     senderKey: row.sender_key,
     senderName: row.sender_name,
-    kind: row.kind,
+    kind: row.kind as ChannelMediaJob['kind'],
     fileRef: row.file_ref,
     declaredBytes: row.declared_bytes,
     durationMs: row.duration_ms,
@@ -151,7 +156,9 @@ export class SqliteChannelMediaJobRepository implements ChannelMediaJobRepositor
   async recoverAbandoned(now: Date): Promise<number> {
     return this.db
       .prepare<[string]>(
-        `UPDATE channel_media_jobs SET status = 'queued', updated_at = ? WHERE status = 'running'`,
+        `UPDATE channel_media_jobs
+            SET status = 'queued', attempts = attempts + 1, updated_at = ?
+          WHERE status = 'running'`,
       )
       .run(toIsoText(now)).changes
   }
@@ -171,7 +178,7 @@ export class SqliteChannelMediaJobRepository implements ChannelMediaJobRepositor
       .prepare<[string, string | null, string, string]>(
         `UPDATE channel_media_jobs
             SET status = ?, failure_code = ?, sender_name = NULL, updated_at = ?
-          WHERE id = ?`,
+          WHERE id = ? AND status = 'running'`,
       )
       .run(
         outcome.status,
@@ -182,13 +189,13 @@ export class SqliteChannelMediaJobRepository implements ChannelMediaJobRepositor
   }
 
   async countPending(eventId: EventId): Promise<number> {
-    const rows = this.db
+    const row = this.db
       .prepare<[string], { readonly total: number }>(
         `SELECT COUNT(*) AS total FROM channel_media_jobs
           WHERE event_id = ? AND status IN ('queued', 'running')`,
       )
-      .all(eventId)
-    return rows.reduce((sum, row) => sum + row.total, 0)
+      .get(eventId)
+    return row?.total ?? 0
   }
 
   async deleteBySender(eventId: EventId, senderKey: string): Promise<number> {
