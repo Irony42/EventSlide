@@ -17,7 +17,8 @@ import {
  * - a photograph: the largest `PhotoSize`; a video; a document (an original sent without compression: its declared MIME
  *   type only decides whether it is worth downloading, the bytes decide for good). Video notes, animations and stickers
  *   are not ours.
- * - `/soiree`, `/oublier`, `/confidentialite` (also `/soiree@Bot`, only when addressed to this bot).
+ * - the commands of `parseCommand`, in any of the five languages' aliases (also `/name@Bot`, only when addressed to
+ *   this bot).
  * - `migrate_to_chat_id` (a group became a supergroup: same conversation, new identifier) and a `my_chat_member` that
  *   says the bot left or was banned, or became an administrator.
  * - the media of another bot, and a post "as a channel" that is not the group itself, are ignored; an administrator

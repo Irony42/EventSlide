@@ -37,7 +37,7 @@ import type { ForgetChannelSender } from './forgetChannelSender'
  * everything else. **It downloads nothing**: a media becomes a queued job and the worker does the rest, so
  * this is fast and replayable, and the cursor of the inbox can safely move once it returns.
  *
- * - a **command** (`/soiree CODE`, `/oublier`, `/confidentialite`) is answered in the conversation;
+ * - a **command** (bind, forget or privacy, under any of the aliases of the five languages) is answered in the conversation;
  * - a **media** in a bound conversation is queued, unless its sender is a bot, a revoked guest, too fast, or the
  *   event's queue is full (then dropped, and told once an hour);
  * - a conversation that **moved** (a group that became a supergroup) keeps its link under the new identifier;
