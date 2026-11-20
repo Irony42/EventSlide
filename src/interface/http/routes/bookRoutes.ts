@@ -63,6 +63,7 @@ export const bookRoutes = ({ deps, usecases }: RouteDeps): Router => {
           read ?? {
             book: result.value,
             counts: { photos: 0, messages: 0 },
+            offer: { maxPhotos: 0, maxMessages: 0, printVersion: false },
             printFiles: null,
           },
         ),

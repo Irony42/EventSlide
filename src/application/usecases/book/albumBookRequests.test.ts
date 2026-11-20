@@ -79,7 +79,17 @@ const request = (input: Partial<RequestAlbumBookV1> = {}) =>
 const invalidate = () => makeInvalidateAlbumBook({ books, bookFiles, bus, clock, logger })
 const download = () => makeDownloadAlbumBook({ events, books, bookFiles, clock })
 let guestbook: FakeGuestbookRepository
-const get = () => makeGetAlbumBook({ events, books, photos, guestbook, bookFiles })
+const get = () =>
+  makeGetAlbumBook({
+    events,
+    books,
+    photos,
+    guestbook,
+    bookFiles,
+    maxPhotos: 300,
+    maxMessages: 60,
+    printEnabled: true,
+  })
 const remove = () => makeDeleteAlbumBook({ events, books, bookFiles, bus })
 
 /** A finished book with its file, valid for a week. */
@@ -621,6 +631,31 @@ describe('getAlbumBook, the form counts and the printer files', () => {
     const result = await get()({ eventId: EVENT })
 
     expect(result.ok && result.value.counts.photos).toBe(206)
+  })
+
+  it('tells the form what the box offers: the ceiling of photographs and the printer version', async () => {
+    const offered = await get()({ eventId: EVENT })
+    expect(offered.ok && offered.value.offer).toEqual({
+      maxPhotos: 300,
+      maxMessages: 60,
+      printVersion: true,
+    })
+
+    const limited = await makeGetAlbumBook({
+      events,
+      books,
+      photos,
+      guestbook,
+      bookFiles,
+      maxPhotos: 120,
+      maxMessages: 25,
+      printEnabled: false,
+    })({ eventId: EVENT })
+    expect(limited.ok && limited.value.offer).toEqual({
+      maxPhotos: 120,
+      maxMessages: 25,
+      printVersion: false,
+    })
   })
 
   it('gives the sizes of the two printer files of a finished book that has them', async () => {

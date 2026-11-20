@@ -30,11 +30,25 @@ export interface GetAlbumBookDeps {
   readonly photos: Pick<PhotoRepository, 'countPublishedPhotos'>
   readonly guestbook: Pick<GuestbookRepository, 'listWrittenByStatuses'>
   readonly bookFiles: Pick<BookFileStore, 'stat'>
+  /** `BOOK_MAX_PHOTOS`: "every photograph" is refused above it, which the form must say. */
+  readonly maxPhotos: number
+  /** `BOOK_MAX_MESSAGES`: the most guest-book messages one book prints. */
+  readonly maxMessages: number
+  /** `BOOK_PRINT_ENABLED`: whether the form offers the printer version. */
+  readonly printEnabled: boolean
+}
+
+/** What the box lets a book be, so the form offers only that. */
+export interface BookOffer {
+  readonly maxPhotos: number
+  readonly maxMessages: number
+  readonly printVersion: boolean
 }
 
 export interface AlbumBookState {
   readonly book: AlbumBook | null
   readonly counts: AlbumCounts
+  readonly offer: BookOffer
   /** The sizes of the two printer files of a finished book that has them, else `null`. */
   readonly printFiles: { readonly interior: number; readonly cover: number } | null
 }
@@ -44,7 +58,16 @@ export type GetAlbumBook = (input: {
 }) => Promise<Result<AlbumBookState, DomainError>>
 
 export const makeGetAlbumBook =
-  ({ events, books, photos, guestbook, bookFiles }: GetAlbumBookDeps): GetAlbumBook =>
+  ({
+    events,
+    books,
+    photos,
+    guestbook,
+    bookFiles,
+    maxPhotos,
+    maxMessages,
+    printEnabled,
+  }: GetAlbumBookDeps): GetAlbumBook =>
   async ({ eventId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -66,5 +89,10 @@ export const makeGetAlbumBook =
       if (interior !== null && cover !== null)
         printFiles = { interior: interior.size, cover: cover.size }
     }
-    return ok({ book, counts: { photos: published, messages: messages.length }, printFiles })
+    return ok({
+      book,
+      counts: { photos: published, messages: messages.length },
+      offer: { maxPhotos, maxMessages, printVersion: printEnabled },
+      printFiles,
+    })
   }

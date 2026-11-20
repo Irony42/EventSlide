@@ -1738,7 +1738,16 @@ export type OperatorPasswordResetDto =
 export type AlbumBookDto =
   | {
       readonly status: 'none' /** The album as it is now, for the form: published photographs (clips left out) and written messages. */
-      readonly albumCounts: { readonly photos: number; readonly messages: number }
+      readonly albumCounts: {
+        readonly photos: number
+        readonly messages: number
+      }
+      /** What the box lets a book be: `BOOK_MAX_PHOTOS` ("every photograph" is refused above it) and `BOOK_PRINT_ENABLED`. */
+      readonly offer: {
+        readonly maxPhotos: number
+        readonly maxMessages: number
+        readonly printVersion: boolean
+      }
     }
   | {
       readonly status: 'queued' | 'running' | 'done' | 'failed' | 'stale'
@@ -1754,8 +1763,6 @@ export type AlbumBookDto =
         readonly includeGuestbook: boolean
         readonly printVersion: boolean
         readonly timeZone: string
-        /** The 3.14 field, always `'one'`: kept until the panel of 3.15 no longer reads it. */
-        readonly layout: 'one'
       }
       /** The photographs the plan kept, once the render has begun. */
       readonly selectedCount: number | null
@@ -1768,7 +1775,16 @@ export type AlbumBookDto =
       /** Why a finished book has no printer version although the host asked for one. */
       readonly printSkipped: 'tooManyPages' | 'tooLarge' | null
       /** The album as it is now, for the form: published photographs (clips left out) and written messages. */
-      readonly albumCounts: { readonly photos: number; readonly messages: number }
+      readonly albumCounts: {
+        readonly photos: number
+        readonly messages: number
+      }
+      /** What the box lets a book be: `BOOK_MAX_PHOTOS` ("every photograph" is refused above it) and `BOOK_PRINT_ENABLED`. */
+      readonly offer: {
+        readonly maxPhotos: number
+        readonly maxMessages: number
+        readonly printVersion: boolean
+      }
       readonly requestedAt: string
       readonly doneAt: string | null
       readonly photoCount: number | null

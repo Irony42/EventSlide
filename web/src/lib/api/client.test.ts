@@ -478,9 +478,13 @@ const ENDPOINTS: readonly EndpointCase[] = [
       client.requestAlbumBook(SLUG, {
         title: 'Mariage',
         subtitle: '',
-        layout: 'four',
+        style: 'souvenir',
+        selection: { kind: 'best', target: 120 },
         showAuthors: true,
         showCaptions: false,
+        includeGuestbook: true,
+        printVersion: true,
+        timeZone: 'Europe/Paris',
       }),
   },
   {
@@ -897,6 +901,8 @@ describe('every endpoint addresses the documented method and path', () => {
     // The link builders return a string rather than making a request, so they are
     // pinned in their own block below instead.
     expect(missing).toEqual([
+      'albumBookCoverUrl',
+      'albumBookPrintUrl',
       'albumBookUrl',
       'albumExportUrl',
       'albumUrl',
@@ -1379,23 +1385,36 @@ describe('links the app builds rather than requests', () => {
     await subject().requestAlbumBook(SLUG, {
       title: 'Mariage',
       subtitle: '',
-      layout: 'four',
+      style: 'souvenir',
+      selection: { kind: 'best', target: 120 },
       showAuthors: true,
       showCaptions: false,
+      includeGuestbook: true,
+      printVersion: true,
+      timeZone: 'Europe/Paris',
     })
 
     expect(only().body).toEqual({
       title: 'Mariage',
       subtitle: '',
-      layout: 'four',
+      style: 'souvenir',
+      selection: { kind: 'best', target: 120 },
       showAuthors: true,
       showCaptions: false,
+      includeGuestbook: true,
+      printVersion: true,
+      timeZone: 'Europe/Paris',
     })
     expect(only().path).toBe(`/api/events/${SLUG}/book`)
   })
 
   it('points the photo book download at the documented PDF endpoint', () => {
     expect(subject().albumBookUrl(SLUG)).toBe(`/api/events/${SLUG}/book.pdf`)
+  })
+
+  it('points the printer version at the interior and the cover endpoints', () => {
+    expect(subject().albumBookPrintUrl(SLUG)).toBe(`/api/events/${SLUG}/book-print.pdf`)
+    expect(subject().albumBookCoverUrl(SLUG)).toBe(`/api/events/${SLUG}/book-cover.pdf`)
   })
 
   it('points the archive download at the documented ZIP endpoint, not at the streamed one', () => {
@@ -1433,6 +1452,8 @@ describe('links the app builds rather than requests', () => {
   it.each([
     'albumUrl',
     'albumBookUrl',
+    'albumBookPrintUrl',
+    'albumBookCoverUrl',
     'albumExportUrl',
     'bestOfUrl',
     'reelUrl',
