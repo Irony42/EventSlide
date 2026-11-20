@@ -1,6 +1,7 @@
 .page {
   display: grid;
-  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+  /* The sheet sizes itself from its column: it never shrinks to nothing beside the controls. */
+  grid-template-columns: minmax(0, 22rem) minmax(18rem, 1fr);
   grid-template-areas:
     'title title'
     'controls preview';
@@ -96,5 +97,17 @@
   :global(main):has(.preview) {
     padding: 0;
     max-inline-size: none;
+  }
+
+  /*
+   * Everything beside the page in the shell: the host bar is a plain <div> (language, account),
+   * which the header rule above never reached, and it pushed the sheet onto a second page.
+   */
+  :global(:has(> main)):has(.preview) > :not(main) {
+    display: none;
+  }
+
+  :global(body):has(.preview) {
+    background: var(--print-paper);
   }
 }

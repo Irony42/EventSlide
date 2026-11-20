@@ -128,6 +128,8 @@ test('the sheet carries the wall’s QR, fits one page, and the console stays of
     // The console's header, footer and settings do not print.
     await expect(host.locator('header')).toBeHidden()
     await expect(host.locator('footer')).toBeHidden()
+    // The host bar is no <header>: named by what it holds, so the check cannot pass on nothing.
+    await expect(host.getByRole('button', { name: 'Compte' })).toBeHidden()
     await expect(host.getByRole('button', { name: 'Imprimer' })).toBeHidden()
     await expect(sheet).toBeVisible()
     // A reader finds the server's link in what the paper shows.
