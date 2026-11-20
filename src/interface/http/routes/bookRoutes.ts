@@ -49,9 +49,24 @@ export const bookRoutes = ({ deps, usecases }: RouteDeps): Router => {
         sendError(res, result.error)
         return
       }
-      // The answer is the state the page will read next, counts included.
-      sendResult(res, await usecases.getAlbumBook({ eventId }), (response, state) =>
-        sendJson<AlbumBookDto>(response, toAlbumBookDto(state), 202),
+      // The book exists from here on: a failing read of the counts must not turn that into an error
+      // the client would answer by asking again. The answer is the state the page reads next, counts
+      // included, and when they cannot be read it is the saved book with empty counts, which the
+      // page replaces with its own read of `GET /book`.
+      const read = await usecases.getAlbumBook({ eventId }).then(
+        (state) => (state.ok ? state.value : null),
+        () => null,
+      )
+      sendJson<AlbumBookDto>(
+        res,
+        toAlbumBookDto(
+          read ?? {
+            book: result.value,
+            counts: { photos: 0, messages: 0 },
+            printFiles: null,
+          },
+        ),
+        202,
       )
     }),
   )

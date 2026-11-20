@@ -188,6 +188,12 @@ export interface PhotoRepository {
 
   countsByStatus(eventId: EventId): Promise<PhotoStatusCounts>
 
+  /**
+   * The published photographs of the event, **clips left out**: what the photo book can hold. One
+   * count, never a walk through the album. A photograph the operator took down is not counted.
+   */
+  countPublishedPhotos(eventId: EventId): Promise<number>
+
   /** Drives the event byte quota. */
   totalBytes(eventId: EventId): Promise<number>
 

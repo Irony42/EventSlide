@@ -27,7 +27,7 @@ export interface AlbumCounts {
 export interface GetAlbumBookDeps {
   readonly events: EventRepository
   readonly books: Pick<AlbumBookRepository, 'find'>
-  readonly photos: Pick<PhotoRepository, 'list'>
+  readonly photos: Pick<PhotoRepository, 'countPublishedPhotos'>
   readonly guestbook: Pick<GuestbookRepository, 'listWrittenByStatuses'>
   readonly bookFiles: Pick<BookFileStore, 'stat'>
 }
@@ -43,8 +43,6 @@ export type GetAlbumBook = (input: {
   readonly eventId: EventId
 }) => Promise<Result<AlbumBookState, DomainError>>
 
-const PAGE = 200
-
 export const makeGetAlbumBook =
   ({ events, books, photos, guestbook, bookFiles }: GetAlbumBookDeps): GetAlbumBook =>
   async ({ eventId }) => {
@@ -53,17 +51,7 @@ export const makeGetAlbumBook =
     const readable = requireReadable(event)
     if (!readable.ok) return readable
 
-    let published = 0
-    let cursor: string | undefined
-    do {
-      const page = await photos.list(eventId, {
-        statuses: ['published'],
-        limit: PAGE,
-        ...(cursor === undefined ? {} : { cursor }),
-      })
-      published += page.items.filter((photo) => photo.kind === 'photo').length
-      cursor = page.nextCursor ?? undefined
-    } while (cursor !== undefined)
+    const published = await photos.countPublishedPhotos(eventId)
 
     const messages = await guestbook.listWrittenByStatuses(
       eventId,
