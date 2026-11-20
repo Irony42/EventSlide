@@ -20,7 +20,9 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { chromium, type Browser, type Locator, type Page } from 'playwright'
 import sharp from 'sharp'
+import { sessionOn } from '../tests/e2e/fixtures/session'
 import { startTestApp } from '../tests/e2e/fixtures/startTestApp'
+import { FakeBotApiServer } from '../src/infrastructure/channels/telegram/testing/fakeBotApiServer'
 
 /** `--out <dir>` picks the folder; the environment is read by `env.ts` and nothing else. */
 const outFlag = process.argv.indexOf('--out')
@@ -566,7 +568,18 @@ const readmeMain = async (): Promise<void> => {
     pictures.push({ path, caption: c.caption, by: c.by })
   }
 
-  const app = await startTestApp({ worker: 42, env: { PUBLIC_URL: 'https://eventslide.fr' } })
+  // A fake Bot API in this process, for the Telegram shot: real Telegram is never contacted.
+  const TOKEN = '123456789:AAEhBP0av28dHx_2TaQ-9mPzK3l0QbCdEfG'
+  const bot = new FakeBotApiServer({ token: TOKEN, username: 'MyEventSlideBot' })
+  const botUrl = await bot.start()
+  const app = await startTestApp({
+    worker: 42,
+    env: {
+      PUBLIC_URL: 'https://eventslide.fr',
+      TELEGRAM_BOT_TOKEN: TOKEN,
+      TELEGRAM_API_BASE_URL: botUrl,
+    },
+  })
   let browser: Browser | undefined
   const jpg = async (png: Buffer, name: string, width: number): Promise<void> => {
     const out = await sharp(png).resize({ width }).jpeg({ quality: 82, mozjpeg: true }).toBuffer()
@@ -579,6 +592,12 @@ const readmeMain = async (): Promise<void> => {
       name: 'Grace & Noah',
       wallLanguage: 'en',
     })
+    // The guestbook card would sit half-hidden behind the upload sheet on a phone-sized shot.
+    const api = await sessionOn(app.baseUrl)
+    await api.post('/api/auth/login', { email: app.owner.email, password: app.owner.password })
+    const off = await api.patch(`/api/events/${event.slug}/settings`, { allowGuestbook: false })
+    if (off.status !== 200) console.log('  ! guestbook not switched off', off.status)
+
     browser = await chromium.launch()
     const ctx = (width: number, height: number, dsf: number) =>
       browser!.newContext({ viewport: { width, height }, deviceScaleFactor: dsf, locale: 'en-GB' })
@@ -643,6 +662,8 @@ const readmeMain = async (): Promise<void> => {
       .locator('xpath=following-sibling::button')
       .click()
       .catch(() => undefined)
+    // The toolbar is sticky: a shot taken after the clicks above would start mid-page.
+    await host.evaluate(() => window.scrollTo(0, 0))
     await host.waitForTimeout(1000)
     await jpg(await host.screenshot(), 'moderation', 1440)
 
@@ -677,9 +698,18 @@ const readmeMain = async (): Promise<void> => {
     const choose = async (ambiance: string): Promise<void> => {
       await host.goto(`${app.baseUrl}/admin/events/${event.slug}/settings`)
       await host.waitForLoadState('networkidle')
+      // The page saves by itself: open the section, change the value, wait for the status line.
+      const section = host.getByRole('button', { name: 'Appearance', exact: true })
+      if ((await section.getAttribute('aria-expanded')) !== 'true') await section.click()
+      const patched = host.waitForResponse(
+        (r) => r.url().endsWith('/settings') && r.request().method() === 'PATCH',
+        { timeout: 4000 },
+      )
+      patched.catch(() => undefined)
       await host.getByLabel('Ambiance', { exact: true }).selectOption(ambiance)
-      await host.getByRole('button', { name: 'Save', exact: true }).click()
-      await host.waitForTimeout(1500)
+      // Choosing the ambiance the event already has sends nothing: that is not a failure.
+      await patched.catch(() => undefined)
+      await host.waitForTimeout(1000)
     }
     const looks: Buffer[] = []
     for (const ambiance of ['eventslide', 'guinguette', 'noces']) {
@@ -711,10 +741,51 @@ const readmeMain = async (): Promise<void> => {
     await choose('guinguette')
     await showWall('clothesline', 'wall-clothesline')
 
+    // The Telegram channel: a second event, its group connected and one photograph waiting.
+    const tg = await app.seedEvent({
+      slug: 'garden-party-telegram',
+      name: 'Grace & Noah',
+      wallLanguage: 'en',
+    })
+    await host.goto(`${app.baseUrl}/admin/events/${tg.slug}/settings#messaging`)
+    await host.waitForLoadState('networkidle')
+    const messaging = host.getByRole('button', { name: 'Messaging', exact: true })
+    if ((await messaging.getAttribute('aria-expanded')) !== 'true') await messaging.click()
+    const switched = host.waitForResponse(
+      (r) => r.url().endsWith('/settings') && r.request().method() === 'PATCH',
+    )
+    await host.getByLabel('Receive photos from a Telegram group').check()
+    await switched
+    await host.locator('[data-state="saved"]').waitFor({ state: 'visible' })
+
+    bot.hold('big', await sharp(pictures[0]!.path).resize({ width: 1200 }).jpeg().toBuffer())
+    const GROUP = { id: -1001, type: 'supergroup', title: 'Grace & Noah, the party' }
+    const LEA = { id: 42, is_bot: false, first_name: 'Lea', last_name: 'Martin' }
+    bot.push({ message: { message_id: 1, chat: GROUP, from: LEA, text: `/event ${tg.joinCode}` } })
+    bot.push({
+      message: {
+        message_id: 2,
+        chat: GROUP,
+        from: LEA,
+        photo: [{ file_id: 'big', width: 1200, height: 800, file_size: 30_000 }],
+      },
+    })
+    for (let waited = 0; bot.reactions().length < 1 && waited < 30; waited += 1) {
+      await host.waitForTimeout(500)
+    }
+    await host.goto(`${app.baseUrl}/admin/events/${tg.slug}`)
+    await host.waitForLoadState('networkidle')
+    const panel = host
+      .locator('section')
+      .filter({ has: host.getByRole('heading', { name: 'Telegram group' }) })
+    await panel.waitFor({ state: 'visible' })
+    await jpg(await panel.screenshot(), 'telegram-panel', 900)
+
     console.log(`\nscreenshots in ${OUT}`)
   } finally {
     await browser?.close()
     await app.dispose()
+    await bot.stop()
   }
 }
 

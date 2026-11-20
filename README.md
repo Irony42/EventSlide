@@ -89,17 +89,28 @@ some, a reaction under someone else's photo, and a feed of the evening's photos.
 queue on the phone when the Wi-Fi drops. It speaks French, English, Spanish, German and
 Italian.
 
+A guest can also post photos and short videos in a Telegram group the host has connected
+to the event. They wait for your approval like any other. It needs a bot token from the
+person who runs the server and is off until then: see [docs/TELEGRAM.md](docs/TELEGRAM.md).
+
+<p align="center">
+  <img src="docs/images/telegram-panel.jpg" width="60%" alt="The Telegram group panel on the event page: the bot to add, the command to send in the group, and the linked group with its photo count">
+</p>
+
 **For you, the host**: nothing reaches the screen until you approve it, from a laptop
 (`J`/`K`, `P` to publish, `R` to refuse) or from your phone, one photo at a time.
 
 <p align="center">
-  <img src="docs/images/moderation.jpg" width="80%" alt="The moderation console on a laptop: two photos waiting, with Publish and Reject buttons and the keyboard shortcuts above">
+  <img src="docs/images/moderation.jpg" width="80%" alt="The moderation console on a laptop: photos waiting, each with Publish and Reject buttons, and the keyboard shortcuts above">
 </p>
+
+The event's settings page saves as you go, with no Save button. The morning after, the
+photo book turns the evening into a PDF in one of three styles, with an optional guest
+book and a printer version.
 
 Each event wears an ambiance, the violet EventSlide look by default, one of six designed
 worlds, or one you make yourself, with an accent colour, a typeface and a frame for the
-photos. The morning after, one link shares the album with everyone, optionally behind a
-password.
+photos. One link shares the album with everyone, optionally behind a password.
 
 **For the room**: the wall, fullscreen on a projector, runs unattended for an evening.
 Seven layouts (spotlight, mosaic, polaroid, filmstrip, collage, split and clothesline),
