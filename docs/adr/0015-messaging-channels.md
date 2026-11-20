@@ -78,6 +78,8 @@ Spec 27 carries the whole argument; this record keeps the choices whose reasons 
 - Only the refusals of a media are rationed in memory (one per conversation, sender and reason per hour); commands are always
   answered. A restart forgets the ration, which only lets the bot speak once more.
 - A video longer than a clip keeps its first seconds instead of being refused.
+- The host's "photos received" counter of a binding is not decremented by `/oublier` (it counts what arrived, not what is still
+  there), and the conversation title is kept until the event purge, since it is the host's own label for the group.
 - A document declared `video/*` with no duration is **not** trimmed (a trim past the end of a short source fails with
   `clip.trimOutOfRange`). The clip pipeline decides: if it refuses it as `clip.tooLong` while the duration was unknown, the
   drain treats it as a permanent failure and says "too long" in the conversation.

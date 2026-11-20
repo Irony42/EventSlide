@@ -43,6 +43,7 @@ const CEILINGS_SNAPSHOT = detail.object({
   maxRetentionDays: detail.nullable(detail.integer),
   clipsAllowed: detail.boolean,
   booksAllowed: detail.boolean,
+  channelsAllowed: detail.boolean,
   liveAllowed: detail.boolean,
   maxLiveDays: detail.nullable(detail.integer),
   maxEventsPerPeriod: detail.nullable(detail.integer),

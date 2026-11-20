@@ -684,6 +684,8 @@ export interface EventSettingsDto {
    * is an apology, while this is a decision.
    */
   readonly allowClips: boolean
+  /** The host's switch over a Telegram group sending its photographs (spec 27). */
+  readonly allowTelegram: boolean
   /** The host's switch over written guestbook messages (spec 01). */
   readonly allowGuestbook: boolean
   /** The host's switch over saving another guest's photograph from the feed (spec 24). */
@@ -1430,6 +1432,7 @@ export interface ClientDefaultsDto {
     readonly maxLiveDays: number | null
     readonly clipsAllowed: boolean
     readonly booksAllowed: boolean
+    readonly channelsAllowed: boolean
   }
 }
 
@@ -1448,6 +1451,7 @@ export interface CeilingsDto {
   readonly maxRetentionDays: number | null
   readonly clipsAllowed: boolean
   readonly booksAllowed: boolean
+  readonly channelsAllowed: boolean
   readonly liveAllowed: boolean
   readonly maxLiveDays: number | null
   readonly maxEventsPerPeriod: number | null

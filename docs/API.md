@@ -324,6 +324,7 @@ query does not have is `400 request.invalid`.
         "maxRetentionDays": null,
         "clipsAllowed": true,
         "booksAllowed": true,
+        "channelsAllowed": false,
         "liveAllowed": true,
         "maxLiveDays": null,
         "maxEventsPerPeriod": null,
@@ -645,16 +646,18 @@ box, and `403 auth.secondFactorRequired` where a second factor is required and n
     "maxRetentionDays": 30,
     "maxLiveDays": 3,
     "clipsAllowed": true,
-    "booksAllowed": true
+    "booksAllowed": true,
+    "channelsAllowed": false
   }
 }
 ```
 
 A number is a ceiling and `null` is none; `clipsAllowed` is `true` unless `NEW_CLIENT_CLIPS_ALLOWED`
-says otherwise, and `booksAllowed` (the photo book) unless `NEW_CLIENT_BOOKS_ALLOWED` does. A box that set
-no `NEW_CLIENT_*` answers `null` for the six numbers and `true` for both switches,
-which is what every client of such a box has. These are eight of
-a client's ten ceilings: `liveAllowed` has no default (a new client may open), and the period's
+says otherwise, and `booksAllowed` (the photo book) unless `NEW_CLIENT_BOOKS_ALLOWED` does. `channelsAllowed`
+(messaging channels, spec 27) is `false` unless `NEW_CLIENT_CHANNELS_ALLOWED` says otherwise. A box that set
+no `NEW_CLIENT_*` answers `null` for the six numbers, `true` for the first two switches and `false` for the channels,
+which is what every client of such a box has but for the channels. These are nine of
+a client's eleven ceilings: `liveAllowed` has no default (a new client may open), and the period's
 start is the day the client is provisioned.
 
 ### CSRF
@@ -3308,6 +3311,7 @@ cross-cutting codes in §1:
 | `event.quotaAboveCeiling`      | 400    | Create, when `quotaBytes` exceeds `MAX_EVENT_QUOTA_BYTES` or the client's `max_event_quota_bytes` (`details.maxBytes`: the smaller) |
 | `client.retentionAboveCeiling` | 400    | Settings, when `retentionDays` is above the client's `max_retention_days`, or `null` while one exists (`details.maxDays`)           |
 | `client.clipsNotAllowed`       | 400    | Settings, switching `allowClips` on for a client with `clips_allowed = 0`                                                           |
+| `client.channelsNotAllowed`    | 400    | Settings, switching `allowTelegram` on for a client with `channels_allowed = 0` (spec 27)                                           |
 | `client.liveNotAllowed`        | 403    | Status, going live for a client with `live_allowed = 0`                                                                             |
 | `client.liveWindowOver`        | 403    | Status, reopening an event once `opened_at + max_live_days` has passed                                                              |
 | `event.creationNotAllowed`     | 403    | Create, under `EVENT_CREATION=clientMembers`, by an account with no client                                                          |
@@ -3576,6 +3580,7 @@ The shape every route in the table that answers `200` returns.
     "allowCaptions": true,
     "allowReactions": true,
     "allowClips": true,
+    "allowTelegram": false,
     "allowGuestbook": false,
     "allowGuestSave": true,
     "guestbookOnWall": true,
@@ -3788,6 +3793,7 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 | `allowCaptions`               | boolean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `allowReactions`              | boolean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `allowClips`                  | boolean — see below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `allowTelegram`               | boolean — the host's switch over a Telegram group sending its photographs and films to the event (spec 27); **off** for every event, new or existing. Switching it **on** for a client whose plan does not include messaging channels (`channels_allowed = 0`) is `400 client.channelsNotAllowed`. It does nothing on a box with no bot token                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `allowGuestSave`              | boolean — the host's switch over guests saving another guest's photograph from the feed (spec 24); on for a new event, off for an event that predates it; the Conference template sets it off                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `allowGuestbook`              | boolean — the host's switch over written guestbook messages (spec 01); off for an event that predates it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `guestbookOnWall`             | boolean — whether published messages appear on the projected wall (spec 01)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -4827,6 +4833,7 @@ nobody wrote.
         "maxRetentionDays": 30,
         "clipsAllowed": true,
         "booksAllowed": true,
+        "channelsAllowed": false,
         "liveAllowed": true,
         "maxLiveDays": 3,
         "maxEventsPerPeriod": 6,

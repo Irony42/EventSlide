@@ -29,10 +29,24 @@ const aGuest = (overrides: Partial<GuestProps> = {}): Guest =>
     revokedAt: null,
     photoCount: 0,
     noticeAcknowledgement: null,
+    channelIdentity: null,
     ...overrides,
   })
 
 describe('Guest.create', () => {
+  it('carries the messaging identity of a guest who came through a channel, and none otherwise', () => {
+    const identity = { channel: 'telegram', senderKey: 'k-lea' } as const
+    const channelled = Guest.create(
+      { eventId, displayName: null, channelIdentity: identity },
+      guestId,
+      JOINED_AT,
+    )
+    const web = Guest.create({ eventId, displayName: null }, guestId, JOINED_AT)
+
+    expect(channelled.ok && channelled.value.channelIdentity).toEqual(identity)
+    expect(web.ok && web.value.channelIdentity).toBeNull()
+  })
+
   it('counts joining as having been seen', () => {
     const result = Guest.create({ eventId, displayName: null }, guestId, JOINED_AT)
 
@@ -225,8 +239,10 @@ describe('Guest identity', () => {
       revokedAt: at(60_000),
       photoCount: 4,
       noticeAcknowledgement: { revision: 'r1', at: at(45_000) },
+      channelIdentity: { channel: 'telegram', senderKey: 'k-lea' },
     })
 
+    expect(restored.channelIdentity).toEqual({ channel: 'telegram', senderKey: 'k-lea' })
     expect(restored.noticeAcknowledgement).toEqual({ revision: 'r1', at: at(45_000) })
     expect(restored.label()).toBe('Léa')
     expect(restored.lastSeenAt).toEqual(at(30_000))
@@ -246,6 +262,7 @@ describe('Guest identity', () => {
       revokedAt: at(60_000),
       photoCount: 4,
       noticeAcknowledgement: null,
+      channelIdentity: null,
     })
   })
 })

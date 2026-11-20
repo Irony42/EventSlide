@@ -1,8 +1,9 @@
 import type { Db } from './connection'
 import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
 import type { GuestRepository } from '../../application/ports/guestRepository'
+import { parseChannelKind, type ChannelKind } from '../../domain/channels/channelKind'
 import { DisplayName } from '../../domain/guests/displayName'
-import { Guest, type NoticeAcknowledgement } from '../../domain/guests/guest'
+import { Guest, type ChannelIdentity, type NoticeAcknowledgement } from '../../domain/guests/guest'
 import { asEventId, asGuestId, type EventId, type GuestId } from '../../domain/shared/ids'
 
 /**
@@ -23,6 +24,9 @@ interface GuestRow {
   /** Migration 006. Both or neither — the schema checks it. */
   readonly notice_revision: string | null
   readonly notice_acknowledged_at: string | null
+  /** Migration 033. Both or neither — the schema checks it. */
+  readonly channel: string | null
+  readonly channel_sender_key: string | null
   /** Not a column — see {@link SELECT_GUEST}. */
   readonly photo_count: number
 }
@@ -90,6 +94,8 @@ const SELECT_GUEST = `
          g.revoked_at,
          g.notice_revision,
          g.notice_acknowledged_at,
+         g.channel,
+         g.channel_sender_key,
          (SELECT COUNT(*)
             FROM photos p
            WHERE p.event_id        = g.event_id
@@ -109,6 +115,10 @@ const SELECT_GUEST = `
  * `photo_count` is absent on purpose: it is derived, so writing it is not possible and
  * the entity's value is discarded here.
  *
+ * `channel` and `channel_sender_key` are absent from the update for the same kind of reason: a
+ * messaging identity is set when the guest is created and never changes, so a save carrying another one
+ * cannot re-key a guest (the unique index on the pair is what finds them again).
+ *
  * `event_id` is absent for a different reason: `guests.id` is unique on its own, so
  * updating it would let a save carrying the wrong event re-file another event's guest
  * — overwriting that guest's name and presence, and detaching their photos from the
@@ -118,8 +128,8 @@ const SELECT_GUEST = `
  */
 const UPSERT_GUEST = `
   INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at, revoked_at,
-                      notice_revision, notice_acknowledged_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                      notice_revision, notice_acknowledged_at, channel, channel_sender_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT (id) DO UPDATE SET display_name           = excluded.display_name,
                                  joined_at              = excluded.joined_at,
                                  last_seen_at           = excluded.last_seen_at,
@@ -184,6 +194,19 @@ const toNoticeAcknowledgement = (row: GuestRow): NoticeAcknowledgement | null =>
     ? null
     : { revision: row.notice_revision, at: fromIsoText(row.notice_acknowledged_at) }
 
+/**
+ * The channel columns as one value, or `null`. A channel the domain does not know is a corrupt row, as a
+ * display name it refuses is: failing loudly beats treating a guest of a channel as a guest of the web.
+ */
+const toChannelIdentity = (row: GuestRow): ChannelIdentity | null => {
+  if (row.channel === null || row.channel_sender_key === null) return null
+  const channel = parseChannelKind(row.channel)
+  if (!channel.ok) {
+    throw new Error(`guests.channel holds a value the domain rejects (${channel.error.code})`)
+  }
+  return { channel: channel.value, senderKey: row.channel_sender_key }
+}
+
 const toGuest = (row: GuestRow): Guest =>
   Guest.restore({
     id: asGuestId(row.id),
@@ -194,6 +217,7 @@ const toGuest = (row: GuestRow): Guest =>
     revokedAt: fromNullableIsoText(row.revoked_at),
     photoCount: row.photo_count,
     noticeAcknowledgement: toNoticeAcknowledgement(row),
+    channelIdentity: toChannelIdentity(row),
   })
 
 /**
@@ -248,6 +272,20 @@ export class SqliteGuestRepository implements GuestRepository {
     return names
   }
 
+  async findByChannelSender(
+    eventId: EventId,
+    channel: ChannelKind,
+    senderKey: string,
+  ): Promise<Guest | null> {
+    const row = this.db
+      .prepare<[string, string, string], GuestRow>(
+        `${SELECT_GUEST} WHERE g.event_id = ? AND g.channel = ? AND g.channel_sender_key = ?`,
+      )
+      .get(eventId, channel, senderKey)
+
+    return row === undefined ? null : toGuest(row)
+  }
+
   async list(eventId: EventId): Promise<readonly Guest[]> {
     // Most recently seen first, id as the tie-break. The tie-break is not cosmetic:
     // without it two moderation screens listing the same guests could disagree, which
@@ -272,7 +310,18 @@ export class SqliteGuestRepository implements GuestRepository {
 
     const written = this.db
       .prepare<
-        [string, string, string | null, string, string, string | null, string | null, string | null]
+        [
+          string,
+          string,
+          string | null,
+          string,
+          string,
+          string | null,
+          string | null,
+          string | null,
+          string | null,
+          string | null,
+        ]
       >(UPSERT_GUEST)
       .run(
         props.id,
@@ -283,6 +332,8 @@ export class SqliteGuestRepository implements GuestRepository {
         props.revokedAt === null ? null : toIsoText(props.revokedAt),
         props.noticeAcknowledgement?.revision ?? null,
         props.noticeAcknowledgement === null ? null : toIsoText(props.noticeAcknowledgement.at),
+        props.channelIdentity?.channel ?? null,
+        props.channelIdentity?.senderKey ?? null,
       )
 
     // The `WHERE` above skipped the update, so this id is held by a guest at another

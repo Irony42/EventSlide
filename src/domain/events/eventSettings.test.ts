@@ -32,6 +32,10 @@ describe('EventSettings defaults', () => {
     expect(EventSettings.default().guestbookVoiceSealed).toBe(false)
   })
 
+  it('connects no Telegram group by default, for a new event as for one that exists (spec 27)', () => {
+    expect(EventSettings.default().allowTelegram).toBe(false)
+  })
+
   it('holds every photo for a decision, so nothing reaches the wall unmoderated', () => {
     expect(EventSettings.default().moderation).toBe('manual')
   })
@@ -128,6 +132,7 @@ describe('EventSettings.create', () => {
         allowCaptions: false,
         allowReactions: false,
         allowClips: false,
+        allowTelegram: true,
         allowGuestbook: true,
         allowGuestSave: false,
         guestbookOnWall: false,
@@ -153,6 +158,7 @@ describe('EventSettings.create', () => {
       allowCaptions: false,
       allowReactions: false,
       allowClips: false,
+      allowTelegram: true,
       allowGuestbook: true,
       allowGuestSave: false,
       guestbookOnWall: false,
