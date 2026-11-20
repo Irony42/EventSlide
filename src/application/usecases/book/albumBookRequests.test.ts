@@ -612,6 +612,17 @@ describe('getAlbumBook, the form counts and the printer files', () => {
     expect(result.ok && result.value.counts).toEqual({ photos: 2, messages: 1 })
   })
 
+  it('counts an album of more than one page of photographs, clips left out', async () => {
+    for (let index = 0; index < 205; index += 1) {
+      photos.seed(aPhoto({ id: `bulk-${index}`, eventId: 'event-1', status: 'published' }))
+    }
+    photos.seed(aClip({ id: 'bulk-clip', eventId: 'event-1', status: 'published' }))
+
+    const result = await get()({ eventId: EVENT })
+
+    expect(result.ok && result.value.counts.photos).toBe(206)
+  })
+
   it('gives the sizes of the two printer files of a finished book that has them', async () => {
     await seedDoneBook({ printVersion: true })
     const done = await books.find(EVENT)

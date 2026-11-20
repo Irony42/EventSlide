@@ -34,6 +34,7 @@ interface Setup {
   readonly options?: Partial<BookOptionsV2>
   readonly captions?: Record<string, string>
   readonly authors?: Record<string, string>
+  readonly missions?: Record<string, string>
   readonly messageTexts?: Record<string, string>
   readonly logo?: Uint8Array | null
   readonly onPhoto?: (id: string) => void
@@ -57,7 +58,7 @@ const inputOf = async (setup: Setup): Promise<BookRenderInput> => {
   const pageTexts = async (page: PlanPage): Promise<PageTexts> => ({
     captions: page.slots.map((s) => setup.captions?.[s.photoId] ?? null),
     authors: page.slots.map((s) => setup.authors?.[s.photoId] ?? null),
-    missions: page.slots.map(() => null),
+    missions: page.slots.map((s) => setup.missions?.[s.photoId] ?? null),
     messages: (page.messageIds ?? []).map((id) => ({
       text: setup.messageTexts?.[id] ?? 'Merci',
       author: 'Zoë',
@@ -307,6 +308,66 @@ describe('createPdfBookRenderer', () => {
     expect(pageCount(files.interior as Buffer)).toBe(pageCountOf(input.printPages ?? []))
     expect(input.printPages?.some((p) => p.template === 'wide')).toBe(false)
   })
+
+  it('draws a caption, a name, a mission and the hearts on every kind of page of every style', async () => {
+    const photos = Array.from({ length: 40 }, (_, i) => {
+      const shape = [
+        [1600, 1200],
+        [1200, 1600],
+        [1200, 1200],
+        [1920, 1080],
+      ][i % 4] as [number, number]
+      return makePhoto({
+        minute: i < 20 ? i : 400 + i,
+        width: shape[0],
+        height: shape[1],
+        guestId: guest(i % 5),
+        reactions: i % 3 === 0 ? 5 : 0,
+      })
+    })
+    const long = 'Une très longue légende qui ne tient pas sur une seule ligne et qu’il faut réduire. '.repeat(3)
+    const captions = Object.fromEntries(photos.map((p, i) => [p.id, i % 2 === 0 ? long : 'Le gâteau']))
+    const authors = Object.fromEntries(photos.map((p, i) => [p.id, i % 4 === 0 ? 'Zoë' : 'Léa']))
+    const missions = Object.fromEntries(photos.map((p, i) => [p.id, i % 3 === 0 ? 'Le plus beau sourire' : 'Un selfie']))
+    for (const style of BOOK_STYLES) {
+      {
+        const printVersion = true
+        const input = await inputOf({
+          photos,
+          captions,
+          authors,
+          missions,
+          options: { style, printVersion, showCaptions: true, showAuthors: true },
+        })
+
+        const files = await render(input)
+
+        expect(pageCount(files.screen), style).toBe(2 + pageCountOf(input.plan.pages))
+      }
+    }
+  }, 60_000)
+
+  it('writes a caption on the right half of a double-page photograph and a mission where only that is left to say', async () => {
+    const wide = Array.from({ length: 30 }, (_, i) =>
+      makePhoto({ minute: i < 15 ? i : 200 + i, width: 1920, height: 1080, guestId: guest(i) }),
+    )
+    const captions = Object.fromEntries(wide.map((p) => [p.id, 'Toute la salle']))
+    const withCaptions = await inputOf({
+      photos: wide,
+      captions,
+      options: { style: 'magazine', printVersion: true, showCaptions: true },
+    })
+    expect(withCaptions.plan.pages.some((p) => p.template === 'wide')).toBe(true)
+    expect((await render(withCaptions)).screen.length).toBeGreaterThan(5_000)
+
+    const many = album(40)
+    const missionsOnly = await inputOf({
+      photos: many,
+      missions: Object.fromEntries(many.map((p) => [p.id, 'Le plus beau sourire'])),
+      options: { style: 'magazine', showCaptions: true },
+    })
+    expect((await render(missionsOnly)).screen.length).toBeGreaterThan(5_000)
+  }, 60_000)
 
   it('draws the story pages: contents, quote, guest book, favourites and thanks', async () => {
     const photos = Array.from({ length: 24 }, (_, i) =>
