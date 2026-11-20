@@ -2717,6 +2717,39 @@ export const en: UiText = {
     galleryHeldSoon: 'The photos will be revealed soon.',
     galleryOriginal: 'The download is the original, without the film look.',
   },
+  /** Messaging channels (spec 27): the settings switch, the "Telegram group" panel and the badge of the moderation console. The group's title is content, never translated. */
+  channels: {
+    settingsSection: 'Messaging',
+    allowTelegram: 'Receive photos from a Telegram group',
+    allowTelegramHint:
+      'Photos and videos sent in the group go through Telegram before they reach this event; only the first name and a fingerprint of the Telegram account are kept. They follow the same moderation mode as your guests’ photos.',
+    on: 'On',
+    off: 'Off',
+    notAllowed: 'Not included in your plan',
+    noBot: 'This installation has no Telegram bot: the operator has to set one up.',
+    title: 'Telegram group',
+    hint: 'Photos posted in a Telegram group arrive here, like your guests’ photos.',
+    step1: (bot: string) => `1. Add @${bot} to your Telegram group.`,
+    step2: '2. In the group, send:',
+    copyCommand: 'Copy the command',
+    copied: 'Command copied',
+    visibility:
+      'The bot has to see the photos: make it an administrator of the group, or use a bot whose privacy mode is turned off.',
+    listTitle: 'Linked groups',
+    none: 'No group is linked yet.',
+    boundOn: (date: string) => `linked on ${date}`,
+    photos: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo received`,
+        other: `${t.number(count)} photos received`,
+      }),
+    unlink: 'Unlink',
+    unlinkConfirmTitle: 'Unlink this group?',
+    unlinkConfirmBody: (title: string) =>
+      `The bot will stop taking photos from “${title}”. It will say so in the group and stay in it: you can remove it yourself.`,
+    unlinked: 'Group unlinked',
+    viaTelegram: 'via Telegram',
+  },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {
     title: 'Announcements',

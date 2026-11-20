@@ -2820,6 +2820,39 @@ export const de: UiText = {
     galleryHeldSoon: 'Die Fotos werden bald enthüllt.',
     galleryOriginal: 'Der Download ist das Original, ohne Filmlook.',
   },
+  /** Messaging channels (spec 27): the settings switch, the "Telegram group" panel and the badge of the moderation console. The group's title is content, never translated. */
+  channels: {
+    settingsSection: 'Messenger',
+    allowTelegram: 'Fotos aus einer Telegram-Gruppe empfangen',
+    allowTelegramHint:
+      'Fotos und Videos aus der Gruppe laufen über Telegram, bevor sie hier ankommen; gespeichert werden nur der Vorname und ein Fingerabdruck des Telegram-Kontos. Sie folgen demselben Freigabemodus wie die Fotos Ihrer Gäste.',
+    on: 'Aktiv',
+    off: 'Inaktiv',
+    notAllowed: 'In Ihrem Tarif nicht enthalten',
+    noBot: 'Diese Installation hat keinen Telegram-Bot: Die Betreiber müssen einen einrichten.',
+    title: 'Telegram-Gruppe',
+    hint: 'Fotos, die in einer Telegram-Gruppe gepostet werden, kommen hier an, wie die Fotos Ihrer Gäste.',
+    step1: (bot: string) => `1. Fügen Sie @${bot} Ihrer Telegram-Gruppe hinzu.`,
+    step2: '2. Senden Sie in der Gruppe:',
+    copyCommand: 'Befehl kopieren',
+    copied: 'Befehl kopiert',
+    visibility:
+      'Der Bot muss die Fotos sehen können: Machen Sie ihn zum Administrator der Gruppe oder nutzen Sie einen Bot mit ausgeschaltetem Datenschutzmodus.',
+    listTitle: 'Verbundene Gruppen',
+    none: 'Noch keine Gruppe verbunden.',
+    boundOn: (date: string) => `verbunden am ${date}`,
+    photos: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto empfangen`,
+        other: `${t.number(count)} Fotos empfangen`,
+      }),
+    unlink: 'Trennen',
+    unlinkConfirmTitle: 'Diese Gruppe trennen?',
+    unlinkConfirmBody: (title: string) =>
+      `Der Bot nimmt keine Fotos mehr aus „${title}“ an. Er sagt es in der Gruppe und bleibt dort: Sie können ihn selbst entfernen.`,
+    unlinked: 'Gruppe getrennt',
+    viaTelegram: 'über Telegram',
+  },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {
     title: 'Ansagen',

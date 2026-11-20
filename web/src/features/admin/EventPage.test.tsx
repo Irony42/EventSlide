@@ -678,6 +678,44 @@ describe('EventPage', () => {
  * of a **closed** event, on an instance whose operator set `DONATION_URL`, that can be
  * closed and then stays closed for that event.
  */
+describe('EventPage: the Telegram group panel (spec 27)', () => {
+  const withBot = {
+    channels: vi.fn(async () => ({
+      available: true,
+      botUsername: 'EventSlideBot',
+      allowed: true,
+      bindings: [],
+    })),
+  }
+
+  it('shows the panel, with the current join code, while the host switched Telegram on', async () => {
+    const api = fakeApi({
+      ...withBot,
+      getEvent: vi.fn(async () => anEventDto({ settings: eventSettings({ allowTelegram: true }) })),
+    })
+
+    renderPage(api)
+
+    expect(await screen.findByRole('heading', { name: fr.channels.title })).toBeVisible()
+    expect(await screen.findByText(fr.channels.step1('EventSlideBot'))).toBeVisible()
+  })
+
+  it('shows nothing while the switch is off, and reads nothing from the box', async () => {
+    const api = fakeApi({
+      ...withBot,
+      getEvent: vi.fn(async () =>
+        anEventDto({ settings: eventSettings({ allowTelegram: false }) }),
+      ),
+    })
+
+    renderPage(api)
+    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+
+    expect(screen.queryByRole('heading', { name: fr.channels.title })).toBeNull()
+    expect(api.channels).not.toHaveBeenCalled()
+  })
+})
+
 describe('EventPage, after the evening', () => {
   const renderClosed = (
     status: 'closed' | 'archived' = 'closed',

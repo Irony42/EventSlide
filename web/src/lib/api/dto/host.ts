@@ -381,6 +381,28 @@ export interface AnnouncementListResponse {
 export interface AnnouncementResponse {
   readonly announcement: AnnouncementDto
 }
+/**
+ * One group that sends its photographs to the event (spec 27). `title` is the group's title as Telegram showed it when
+ * it was linked; `photoCount` counts the media received through it and is never decremented by an erasure. Nothing
+ * here identifies a conversation or a sender.
+ */
+export interface ChannelBindingDto {
+  readonly id: string
+  readonly channel: string
+  readonly title: string
+  readonly boundAt: string
+  readonly photoCount: number
+}
+/** `GET /events/:slug/channels`: what the "Groupe Telegram" panel shows. */
+export interface ChannelsResponse {
+  /** Whether this box has a bot at all (a token is configured and Telegram accepted it). */
+  readonly available: boolean
+  /** The bot's public handle, to add to the group; `null` when not available. */
+  readonly botUsername: string | null
+  /** Whether the client's plan includes messaging channels. */
+  readonly allowed: boolean
+  readonly bindings: readonly ChannelBindingDto[]
+}
 /** The console's view: the wall's, plus the mission it names (to say which row is running). */
 export interface HostChallengeDto {
   readonly id: string

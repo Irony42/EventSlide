@@ -659,6 +659,18 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.stopChallenge(SLUG),
   },
   {
+    name: 'channels',
+    verb: 'get',
+    path: `/api/events/${SLUG}/channels`,
+    invoke: (client) => client.channels(SLUG),
+  },
+  {
+    name: 'unlinkChannel',
+    verb: 'del',
+    path: `/api/events/${SLUG}/channels/binding-1`,
+    invoke: (client) => client.unlinkChannel(SLUG, 'binding-1'),
+  },
+  {
     name: 'listAnnouncements',
     verb: 'get',
     path: `/api/events/${SLUG}/announcements`,

@@ -2769,6 +2769,39 @@ export const it: UiText = {
     galleryHeldSoon: 'Le foto saranno rivelate a breve.',
     galleryOriginal: 'Il download è l’originale, senza l’aspetto da rullino.',
   },
+  /** Messaging channels (spec 27): the settings switch, the "Telegram group" panel and the badge of the moderation console. The group's title is content, never translated. */
+  channels: {
+    settingsSection: 'Messaggistica',
+    allowTelegram: 'Ricevi le foto di un gruppo Telegram',
+    allowTelegramHint:
+      'Le foto e i video inviati nel gruppo passano da Telegram prima di arrivare qui; si conservano solo il nome e un’impronta dell’account Telegram. Seguono la stessa modalità di approvazione delle foto degli invitati.',
+    on: 'Attivo',
+    off: 'Disattivato',
+    notAllowed: 'Non incluso nel tuo piano',
+    noBot: 'Questa installazione non ha un bot Telegram: chi la gestisce deve configurarne uno.',
+    title: 'Gruppo Telegram',
+    hint: 'Le foto pubblicate in un gruppo Telegram arrivano qui, come quelle degli invitati.',
+    step1: (bot: string) => `1. Aggiungi @${bot} al tuo gruppo Telegram.`,
+    step2: '2. Nel gruppo, invia:',
+    copyCommand: 'Copia il comando',
+    copied: 'Comando copiato',
+    visibility:
+      'Il bot deve vedere le foto: nominalo amministratore del gruppo, oppure usa un bot con la modalità privacy disattivata.',
+    listTitle: 'Gruppi collegati',
+    none: 'Nessun gruppo è ancora collegato.',
+    boundOn: (date: string) => `collegato il ${date}`,
+    photos: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto ricevuta`,
+        other: `${t.number(count)} foto ricevute`,
+      }),
+    unlink: 'Scollega',
+    unlinkConfirmTitle: 'Scollegare questo gruppo?',
+    unlinkConfirmBody: (title: string) =>
+      `Il bot smetterà di prendere le foto di «${title}». Lo dirà nel gruppo e vi resterà: puoi rimuoverlo tu stesso.`,
+    unlinked: 'Gruppo scollegato',
+    viaTelegram: 'tramite Telegram',
+  },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {
     title: 'Annunci',

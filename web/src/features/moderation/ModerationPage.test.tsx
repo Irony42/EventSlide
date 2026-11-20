@@ -77,6 +77,18 @@ describe('ModerationPage', () => {
     vi.useRealTimers()
   })
 
+  it('badges a photograph that came through Telegram, and no other (spec 27)', async () => {
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () => queueOf([lea({ via: 'telegram' }), sacha()])),
+    })
+
+    renderConsole(api)
+    await screen.findByRole('article', { name: fr.moderation.photoOf('Léa') })
+
+    expect(within(cardOf('Léa')).getByText(fr.channels.viaTelegram)).toBeInTheDocument()
+    expect(within(cardOf('Sacha')).queryByText(fr.channels.viaTelegram)).toBeNull()
+  })
+
   it('shows a wait while the first queue is loading', () => {
     const api = fakeApi({
       moderationQueue: vi.fn(() => new Promise<ModerationQueueResponse>(() => {})),

@@ -815,6 +815,15 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   launchAnnouncement: vi.fn(async () => ({ announcement: anAnnouncement() })),
   deleteAnnouncement: vi.fn(async () => undefined),
 
+  // No bot by default (spec 27): the messaging section and panel stay out of every other page's way.
+  channels: vi.fn(async () => ({
+    available: false,
+    botUsername: null,
+    allowed: true,
+    bindings: [],
+  })),
+  unlinkChannel: vi.fn(async () => undefined),
+
   // No link by default: the panel's first state is the one a host meets first.
   shareLink: vi.fn(async () => ({ link: null })),
   createShareLink: vi.fn(async () => ({

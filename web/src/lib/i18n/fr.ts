@@ -3461,6 +3461,39 @@ export const fr = {
     galleryHeldSoon: 'Les photos seront bientôt révélées.',
     galleryOriginal: 'Le téléchargement donne l’original, sans effet pellicule.',
   },
+  /** Messaging channels (spec 27): the settings switch, the "Groupe Telegram" panel and the badge of the moderation console. The group's title is content, never translated. */
+  channels: {
+    settingsSection: 'Messageries',
+    allowTelegram: 'Recevoir les photos d’un groupe Telegram',
+    allowTelegramHint:
+      'Les photos et vidéos envoyées dans le groupe passent par Telegram avant d’arriver ici ; seuls le prénom et une empreinte du compte Telegram sont gardés. Elles suivent le même mode de validation que celles des invités.',
+    on: 'Activé',
+    off: 'Désactivé',
+    notAllowed: 'Non inclus dans votre offre',
+    noBot: 'Cette installation n’a pas de bot Telegram : l’opérateur doit en configurer un.',
+    title: 'Groupe Telegram',
+    hint: 'Les photos postées dans un groupe Telegram arrivent ici, comme celles des invités.',
+    step1: (bot: string) => `1. Ajoutez @${bot} à votre groupe Telegram.`,
+    step2: '2. Dans le groupe, envoyez :',
+    copyCommand: 'Copier la commande',
+    copied: 'Commande copiée',
+    visibility:
+      'Le bot doit voir les photos : nommez-le administrateur du groupe, ou utilisez un bot dont le mode confidentialité est désactivé.',
+    listTitle: 'Groupes reliés',
+    none: 'Aucun groupe n’est relié pour l’instant.',
+    boundOn: (date: string) => `relié le ${date}`,
+    photos: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo reçue`,
+        other: `${t.number(count)} photos reçues`,
+      }),
+    unlink: 'Délier',
+    unlinkConfirmTitle: 'Délier ce groupe ?',
+    unlinkConfirmBody: (title: string) =>
+      `Le bot cessera de prendre les photos de « ${title} ». Il le dira dans le groupe et y restera : vous pouvez l’en retirer vous-même.`,
+    unlinked: 'Groupe délié',
+    viaTelegram: 'via Telegram',
+  },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {
     title: 'Annonces',
