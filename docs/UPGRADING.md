@@ -1119,7 +1119,15 @@ release: the migrations only go forward.
 - A binding's "photos received" counter is not decremented by `/oublier`, and the conversation title is kept until the
   event purge.
 - **Off everywhere.** The event setting `allowTelegram` reads off for every event, new or existing, and nothing is
-  connected until a host turns it on and a bot token is configured (a later pull request of the same release).
+  connected until a host turns it on and a bot token is configured.
+- **Telegram needs a bot, and it is the one place the box calls out for photographs.** To offer it, create a bot with
+  BotFather (`/newbot`), put its token in `.env` as `TELEGRAM_BOT_TOKEN` (**it is a credential**: never in `compose.yaml`,
+  never in a log) and restart. Without the variable nothing changes: no poller, no worker, no outbound connection, and the
+  panel says the box has no bot. With it, the box opens one long-poll connection to `api.telegram.org` (`getUpdates`); there is
+  **no webhook** and no new public route. A token Telegram refuses turns the function off with a warning and the server still
+  starts. One token is one instance: two boxes polling with the same token fight.
+- **Optional settings**: `TELEGRAM_API_BASE_URL` (default `https://api.telegram.org`; a local Bot API server lifts the 20 MB file
+  limit), `TELEGRAM_MAX_FILE_BYTES` (default 20 000 000) and `MAX_QUEUED_CHANNEL_MEDIA_PER_EVENT` (default 200).
 - **One optional setting for a hosted box**: `NEW_CLIENT_CHANNELS_ALLOWED` (`true`, `false`, `1` or `0`; **absent means
   not allowed**, the opposite of `NEW_CLIENT_CLIPS_ALLOWED`) is the default a client created by the operator starts with.
   **Every client that already exists starts with it off**; the operator turns it on per client. An event with no client

@@ -4570,6 +4570,28 @@ not declare or a text far past the limit; `404 announcement.notFound`; `409 anno
 (`details.max`: 50) and `announcement.eventNotOpen`; `401` without a session, `404 event.notFound` for a non-member
 or an event the operator removed, `403 client.suspended`, `429 rate.limited`.
 
+### Messaging channels (spec 27): `GET /api/events/:slug/channels`, `DELETE /api/events/:slug/channels/:bindingId`
+
+The host's "Groupe Telegram" panel. **There is no public route for the channel**: messages come in by an outbound long poll,
+never a webhook.
+
+`GET` (a **moderator** may read; `Cache-Control: no-store`) answers
+`200 { "available", "botUsername", "allowed", "bindings": [{ "id", "channel", "title", "boundAt", "photoCount" }] }`:
+
+- `available` is whether this box has a bot (`TELEGRAM_BOT_TOKEN` set and accepted by Telegram); with `false`, `botUsername` is
+  `null` and the panel explains that the operator has to set a token.
+- `botUsername` is the bot's public handle, to add to the group.
+- `allowed` is whether the client's plan includes messaging channels (always `true` for an event with no client).
+- `title` is the group's title as Telegram showed it when it was linked; `photoCount` counts the media received through that
+  binding and is **not** decremented when a sender erases themselves. No conversation reference, sender key or name is in the
+  response.
+
+`DELETE /channels/:bindingId` (the **owner**) answers `204` and unlinks the group: later messages from it are ignored and its
+queued media are dropped. The binding is resolved **inside the event** the path names: another event's binding, an unknown id
+or one already unlinked is `404 channel.bindingNotFound`; an id that is not a uuid is `400`. `allowTelegram` is switched with
+`PATCH /events/:slug/settings` like the other event settings; turning it on for a client whose plan has no channels is
+`400 client.channelsNotAllowed`. A group is linked from Telegram itself (`/soiree CODE`), never from here.
+
 ### `GET /api/events/:slug/top-photos`
 
 "Photo de la soirée". Query: `limit` 1..50, default 10 — bounded low on purpose, because

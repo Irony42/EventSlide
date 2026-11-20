@@ -145,6 +145,11 @@ services:
       # logged. See .env.example.
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      # Telegram, optional: photographs from a group (spec 27). Empty — what `:-` renders when you set nothing — means no bot
+      # and **no outbound connection at all**: nothing leaves the box unless you set a token. To turn it on, put
+      # TELEGRAM_BOT_TOKEN (the token BotFather gave: **a credential**, in `.env` or a secrets manager, never in this file)
+      # in `.env`; one token is one instance. It is never logged. See .env.example and docs/SECURITY.md §28.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       # The operator's identity and the pages they owe a visitor, **empty unless you set them**:
       # an instance that sets none of the seven changes nothing for anyone. Links are https URLs
       # or paths on your own site; the name is also said in the guests' privacy notice. See
