@@ -13,9 +13,11 @@ panel says there is no bot.
 
 1. In Telegram, talk to **@BotFather** and send `/newbot`. Pick a name and a username ending in `bot`. BotFather gives you a
    token that looks like `123456789:AA...`.
-2. **Let the bot see the photographs of a group.** Either send `/setprivacy` to BotFather, choose your bot and pick
-   **Disable**, or make the bot an administrator of each group. Without one of the two, Telegram only gives a bot the
-   commands, never the photographs.
+2. **Let the bot see the photographs of a group.** Either send `/setprivacy` to BotFather (or, in BotFather's menu,
+   _Bot Settings_ > _Group Privacy_ > _Turn off_), choose your bot and pick **Disable**, or make the bot an administrator
+   of each group. Without one of the two, Telegram only gives a bot the commands, never the photographs.
+   **The privacy setting only applies to groups the bot joins afterwards**: for a group it is already in, remove the bot and
+   add it again.
 3. Optional: `/setjoingroups` to **Enable** (or Disable, if only you should be able to add it to groups).
 4. Put the token in `.env` (**it is a credential**; never in `compose.yaml`, never in a log; the box never logs it):
 
@@ -38,14 +40,17 @@ If the box is down, Telegram keeps the updates for 24 hours and the box resumes 
 
 ## For the host
 
-1. **Settings, "Messageries"**: switch on "Recevoir les photos d'un groupe Telegram". The switch is absent when the box has
-   no bot, and greyed ("Non inclus dans votre offre") when your plan does not include it.
+1. **Settings, "Messageries"**: switch on "Recevoir les photos d’un groupe Telegram". The switch is absent when the box has
+   no bot, and greyed ("Non inclus dans votre offre") when your plan does not include it. A host whose plan was withdrawn
+   can still switch it off.
 2. The event page now shows a **"Groupe Telegram"** panel: add the bot to your group, then send the command it shows
    (`/soiree` and the current join code) from the group. The bot answers once, in the language of the evening, and tells
    the group whether photos go through you first.
 3. Every photograph or video posted in the group is taken (a thumbs up appears on the message) and follows the event's
    moderation mode. In the console, a badge "via Telegram" tells where it came from.
-4. **Délier** in the panel (owner only) stops the group; the bot says so in the group and stays in it.
+4. **Dissocier** in the panel (owner only) stops the group; the bot says so in the group and stays in it. If you link the
+   same group again afterwards, the photographs it had sent that were still waiting are dropped, not stored: the queue
+   belongs to the link, not to the group. A group can only be linked while the event is open.
 
 In the group: `/oublier` erases everything the sender posted for this event; `/confidentialite` sends the notice's address.
 Text, stickers, polls and other bots are ignored and never stored. A group already linked to another event that is still
