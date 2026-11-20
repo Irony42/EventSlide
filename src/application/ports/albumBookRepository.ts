@@ -1,4 +1,5 @@
 import type { AlbumBook, BookFinish, BookVerdict } from '../../domain/book/albumBook'
+import type { BookPlan } from '../../domain/book/bookPlan'
 import type { BookStaleReason } from '../../domain/book/albumBookStatus'
 import type { EventId } from '../../domain/shared/ids'
 
@@ -33,6 +34,14 @@ export interface AlbumBookRepository {
    */
   finish(eventId: EventId, verdict: BookVerdict, now: Date): Promise<BookFinish>
 
+  /**
+   * Attaches the plan the render will follow, written as the render starts. Only a `running` book
+   * takes one (`recordPlan`): answers `false` when the row is gone, replaced or no longer
+   * running, and nothing is written. A fact that voids the book clears it in the same
+   * transaction (`invalidate`), and so does a new request.
+   */
+  recordPlan(eventId: EventId, plan: BookPlan): Promise<boolean>
+
   /** The oldest `queued` book, **without** claiming it: what the worker looks at before it decides to wait. */
   findNextQueued(): Promise<AlbumBook | null>
 
@@ -60,10 +69,16 @@ export interface AlbumBookRepository {
   /** Events with a `done` book: the ones whose file is expected on the disk. */
   listDoneEventIds(): Promise<readonly EventId[]>
 
+  /** Events whose `done` book has a printer version: their two printer files are expected on the disk too. */
+  listDoneWithPrintEventIds(): Promise<readonly EventId[]>
+
   /** Events with a queued or running book: their file, if any, must not be swept. */
   listActiveEventIds(): Promise<readonly EventId[]>
 
-  /** Bytes held by finished books, box-wide: what `BOOK_MAX_TOTAL_BYTES` is judged against. */
+  /**
+   * Bytes held by finished books, box-wide, **every file of the set** (the screen book and the
+   * printer version's two): what `BOOK_MAX_TOTAL_BYTES` is judged against.
+   */
   doneBytes(): Promise<number>
 
   /** Removes the event's book row. The request counter stays. Idempotent. */

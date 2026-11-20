@@ -41,6 +41,8 @@ export const makeInvalidateAlbumBook =
       const current = await books.find(eventId)
       if (current === null) return
       if (reason === 'captionChanged' && !current.options.showCaptions) return
+      // A removed message matters only to a book that prints the guest book.
+      if (reason === 'messageRemoved' && !current.options.includeGuestbook) return
 
       const after = await books.invalidate(eventId, reason, clock.now())
       if (after === null || after.status !== 'stale') return

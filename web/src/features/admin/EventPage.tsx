@@ -423,7 +423,11 @@ export function EventPage() {
         </div>
         {/* The photo book (spec 04): any moderator, like the ZIP; the server answers for the rest. */}
         <div id={panelId('book')}>
-          <AlbumBookPanel slug={event.slug} defaultTitle={event.name} />
+          <AlbumBookPanel
+            slug={event.slug}
+            defaultTitle={event.name}
+            ambiance={event.settings.theme.ambiance}
+          />
         </div>
         {/* Owner-only, like every endpoint behind it: sending the album beyond the room is a
             decision about the whole event (roadmap §4.1). */}

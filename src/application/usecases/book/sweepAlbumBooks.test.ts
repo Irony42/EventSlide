@@ -21,9 +21,13 @@ const OPTIONS: BookOptions = {
   title: 'T',
   subtitle: '',
   language: 'fr',
-  layout: 'one',
+  style: 'classique',
+  selection: { kind: 'all' },
   showAuthors: true,
   showCaptions: true,
+  includeGuestbook: false,
+  printVersion: false,
+  timeZone: 'Europe/Paris',
 }
 const FILE = new TextEncoder().encode('%PDF-')
 
@@ -35,7 +39,12 @@ let logger: CapturingLogger
 let sweep: SweepAlbumBooks
 
 /** A book finished at `AT`, expiring `days` later, with its file. */
-const finishedBook = async (eventId = A, days = 7, withFile = true): Promise<void> => {
+const finishedBook = async (
+  eventId = A,
+  days = 7,
+  withFile = true,
+  printByteSize: number | null = null,
+): Promise<void> => {
   const queued = requestBook(eventId, OPTIONS, AT)
   await books.saveRequest(queued)
   const running = await books.claimNext(AT)
@@ -47,6 +56,9 @@ const finishedBook = async (eventId = A, days = 7, withFile = true): Promise<voi
       skippedCount: 0,
       pageCount: 3,
       byteSize: 5,
+      selectedCount: 1,
+      printByteSize,
+      printSkipped: null,
       expiresAt: atPlus(days * 86_400_000),
     },
     AT,
@@ -96,6 +108,55 @@ describe('sweepAlbumBooks', () => {
     expect(await sweep()).toEqual({ expired: 0, missing: 1, orphans: 0 })
     expect(await books.find(A)).toMatchObject({ status: 'stale', staleReason: 'fileMissing' })
     expect(bus.published).toEqual([{ type: 'book.changed', eventId: A }])
+  })
+
+  it('keeps a book whose printer version is whole: the screen book and both printer files', async () => {
+    await finishedBook(A, 7, true, 40)
+    bookFiles.seed(A, FILE, 'printInterior')
+    bookFiles.seed(A, FILE, 'printCover')
+
+    expect(await sweep()).toEqual({ expired: 0, missing: 0, orphans: 0 })
+    expect(await books.find(A)).toMatchObject({ status: 'done' })
+  })
+
+  it.each(['printInterior', 'printCover'] as const)(
+    'makes a book stale when its printer file %s is missing, the screen book being there',
+    async (missing) => {
+      await finishedBook(A, 7, true, 40)
+      for (const kind of ['printInterior', 'printCover'] as const) {
+        if (kind !== missing) bookFiles.seed(A, FILE, kind)
+      }
+
+      // The files that remain belong to a stale book now: the same pass deletes them.
+      expect(await sweep()).toEqual({ expired: 0, missing: 1, orphans: 1 })
+      expect(await books.find(A)).toMatchObject({ status: 'stale', staleReason: 'fileMissing' })
+      expect(await bookFiles.list()).toEqual([])
+    },
+  )
+
+  it('does not expect printer files from a book that has none', async () => {
+    await finishedBook(A, 7, true, null)
+
+    expect((await sweep()).missing).toBe(0)
+  })
+
+  it('deletes the three files of an event no book owns', async () => {
+    bookFiles.seed(B, FILE)
+    bookFiles.seed(B, FILE, 'printInterior')
+    bookFiles.seed(B, FILE, 'printCover')
+
+    expect(await sweep()).toEqual({ expired: 0, missing: 0, orphans: 1 })
+    expect(await bookFiles.list()).toEqual([])
+  })
+
+  it('deletes an expired book with its three files', async () => {
+    await finishedBook(A, 1, true, 40)
+    bookFiles.seed(A, FILE, 'printInterior')
+    bookFiles.seed(A, FILE, 'printCover')
+    clock.advance(1)
+
+    expect((await sweep()).expired).toBe(1)
+    expect(await bookFiles.list()).toEqual([])
   })
 
   it('deletes a file no book owns, such as one left by a crash or by a stale book', async () => {

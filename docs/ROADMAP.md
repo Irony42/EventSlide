@@ -414,6 +414,10 @@ forwards; **no email infrastructure**, which keeps SMTP out of a self-hosted dep
 
 ### 4.3 Photo book export (P3, effort L, risk: medium)
 
+> **Shipped in 3.15** (spec 26, six pull requests): three styles, a selection by length, the guest book,
+> and a printer version (an interior of 216 mm with trim and bleed boxes, and a two-page cover; the spine is
+> composed at the printer). Colour profiles (PDF/X, ICC) and an automatic spine are not done.
+
 A print-ready PDF with a sensible layout, bleed and page order. Genuinely valuable and
 genuinely fiddly — colour profiles, DPI and a layout engine that handles mixed
 orientations without looking automatic.

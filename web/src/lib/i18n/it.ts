@@ -754,6 +754,8 @@ export const it: UiText = {
     },
     noticeMessageAudience:
       'I suoi messaggi sono letti dall’organizzatore e dal suo team e possono comparire sullo schermo della serata. Non sono in «Foto della serata».',
+    noticeMessageBook:
+      'L’organizzatore può inserire le sue parole, con il suo nome, nel libro fotografico della serata e può farlo stampare.',
     noticeMessageRetention: 'I suoi messaggi sono conservati quanto le foto e cancellati con esse.',
     noticeMessageRemoval:
       'Un messaggio si rimuove come una foto, da «I miei messaggi» e alle stesse condizioni.',
@@ -1790,29 +1792,79 @@ export const it: UiText = {
     exportFailed: 'Non è stato possibile avviare il download. Riprova tra un momento.',
     // Spec 04: the photo book (a PDF of the published album) on the event page.
     book: 'Libro fotografico',
-    bookHint: 'Un PDF delle tue foto pubblicate, da conservare o stampare.',
+    bookHint: 'Un libro in PDF con l’album, pronto da inviare o da stampare.',
+    bookStyleLegend: 'Stile',
+    bookStyleNames: {
+      classique: 'Classico',
+      magazine: 'Rivista',
+      souvenir: 'Ricordo',
+    },
+    bookStyleHints: {
+      classique: 'Sobrio, carta avorio',
+      magazine: 'Foto grandi, titoli grandi',
+      souvenir: 'Polaroid e parole scritte a mano',
+    },
+    bookStyleFromWall: 'Scelto in base all’atmosfera del tuo schermo.',
     bookTitle: 'Titolo',
     bookSubtitle: 'Sottotitolo',
-    bookLayout: 'Impaginazione',
-    bookLayoutOne: 'Una foto per pagina',
-    bookLayoutFour: 'Quattro foto per pagina',
-    bookShowAuthors: 'Mostra il nome dell’ospite sotto ogni foto',
-    bookShowCaptions: 'Mostra le didascalie',
+    bookSubtitleHint: 'Vuoto: la data della serata.',
+    bookPhotosLegend: 'Foto',
+    bookSelectionAll: (count: number) => `Tutte le foto (${t.number(count)})`,
+    bookSelectionAllTooMany: (max: number) => `Più di ${t.number(max)} foto: scegli una selezione.`,
+    bookSelectionBest: 'Una selezione',
+    bookSelectionBestHint:
+      'Le foto con la stella, almeno una per fotografo, poi le più apprezzate, distribuite su tutta la serata.',
+    bookLengthLegend: 'Lunghezza della selezione',
+    bookLengthNames: {
+      short: 'Breve',
+      medium: 'Media',
+      long: 'Lunga',
+    },
+    bookLengthChip: (name: string, photos: number) => `${name} · ${t.number(photos)} foto`,
+    bookOptionsLegend: 'Contenuto',
+    bookShowAuthors: 'Nomi',
+    bookShowAuthorsHint:
+      'Sotto le foto, sotto le parole del libro degli ospiti e nella pagina dei ringraziamenti.',
+    bookShowCaptions: 'Didascalie',
+    bookGuestbook: 'Parole del libro degli ospiti',
+    bookGuestbookHint: (count: number, max: number) =>
+      `${t.count(count, { one: '1 messaggio scritto', other: `${t.number(count)} messaggi scritti` })}.${count > max ? ` I primi ${t.number(max)} andranno nel libro.` : ''} I messaggi vocali non vanno nel libro.`,
+    bookPrintVersion: 'Versione per la tipografia',
+    bookPrintVersionHint: 'Due file in più, con abbondanza, da inviare a una tipografia online.',
+    bookFormNote:
+      'Sono incluse solo le foto pubblicate. Il numero di pagine viene indicato quando il libro è pronto.',
     bookCreate: 'Crea il libro',
     bookRebuild: 'Rifai il libro',
-    bookWorking:
-      'Il tuo libro è in preparazione. Puoi lasciare questa pagina, sarà pronto tra pochi minuti.',
-    bookDone: (photos: number, pages: number, size: string, until: string | null) =>
-      `Il tuo libro è pronto: ${t.count(photos, { one: `${t.number(photos)} foto`, other: `${t.number(photos)} foto` })}, ${t.count(pages, { one: `${t.number(pages)} pagina`, other: `${t.number(pages)} pagine` })}, ${size}.${until === null ? '' : ` Disponibile fino al ${until}.`}`,
-    bookDownload: 'Scarica il libro (PDF)',
+    bookRecreate: 'Ricrea il libro',
+    bookWorking: 'Il libro è in preparazione…',
+    bookWorkingDetail: (style: string, target: number | null) =>
+      `Stile ${style}, ${target === null ? 'tutte le foto' : `circa ${t.number(target)} foto`}. Puoi lasciare questa pagina.`,
+    bookDone: (photos: number, ofAlbum: number | null, pages: number, until: string | null) =>
+      `Libro pronto: ${t.count(pages, { one: `${t.number(pages)} pagina`, other: `${t.number(pages)} pagine` })}, ${t.count(photos, { one: `${t.number(photos)} foto`, other: `${t.number(photos)} foto` })}${ofAlbum === null ? '' : ` (l’album ne contiene ora ${t.number(ofAlbum)})`}.${until === null ? '' : ` Disponibile fino al ${until}.`}`,
+    bookDownload: 'Scarica il libro',
+    bookDownloadMeta: (size: string) => `PDF · ${size}`,
+    bookDownloadPrintInterior: 'Versione tipografia: interno',
+    bookDownloadPrintCover: 'Versione tipografia: copertina',
+    bookPrintSkippedTooManyPages: (pages: number, max: number) =>
+      `Versione tipografia non prodotta: il libro ha ${t.number(pages)} pagine e le tipografie ne accettano ${t.number(max)} al massimo. Scegli una selezione più breve e rifai il libro.`,
+    bookPrintSkippedTooLarge:
+      'Versione tipografia non prodotta: i suoi file sono troppo pesanti. Scegli una selezione più breve e rifai il libro.',
+    bookHelpLink: 'Come farlo stampare?',
+    bookHelpIntro: 'La versione tipografia sono due file ricavati dallo stesso libro.',
+    bookHelpStep1:
+      'Scegli una tipografia online che accetti un PDF per un libro quadrato di 21 × 21 cm con copertina rigida.',
+    bookHelpStep2:
+      'Invia l’interno e la copertina. Il file della copertina contiene due pagine: prima il retro, poi il fronte.',
+    bookHelpStep3:
+      'Componi il dorso con lo strumento della tipografia e ordina prima una copia di prova.',
     bookDelete: 'Elimina il libro',
     bookDeleteTitle: 'Eliminare il libro?',
     bookDeleteHint:
       'Il file viene cancellato dal server. Potrai farne un altro, fino a tre al giorno.',
     bookStale:
-      'Da allora è stata rimossa una foto o è cambiata una didascalia: questo libro non è più disponibile. Rifallo per aggiornarlo.',
-    bookFailed: 'Non è stato possibile fare il libro. Riprova tra poco.',
-    bookFailedTooLarge: 'L’album è troppo grande per un solo libro.',
+      'Il libro è stato ritirato perché un contenuto è stato rimosso o una didascalia è cambiata. Ricrealo: le tue scelte sono conservate.',
+    bookFailed: 'Non è stato possibile fare il libro. Riprova fra un momento.',
+    bookFailedTooLarge: 'L’album è troppo voluminoso per un solo libro.',
     // Spec 08, step 2: the highlight video.
     reelTitle: 'Video dei momenti migliori',
     reelHint: 'Un video a presentazione dei vostri preferiti, dal più vecchio al più recente.',

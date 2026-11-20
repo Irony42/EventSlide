@@ -920,6 +920,21 @@ export const photoRepositoryContract = (
       })
     })
 
+    it('counts the published photographs, clips and other statuses and events left out', async () => {
+      await saveAll([
+        aPhoto({ id: 'p1', eventId: WEDDING, status: 'published' }),
+        aPhoto({ id: 'p2', eventId: WEDDING, status: 'published' }),
+        aPhoto({ id: 'p3', eventId: WEDDING, status: 'pending' }),
+        aPhoto({ id: 'p4', eventId: WEDDING, status: 'hidden' }),
+        aClip({ id: 'c1', eventId: WEDDING, status: 'published' }),
+        aPhoto({ id: 'g1', eventId: GALA, status: 'published' }),
+      ])
+
+      expect(await repo.countPublishedPhotos(WEDDING)).toBe(2)
+      expect(await repo.countPublishedPhotos(GALA)).toBe(1)
+      expect(await repo.countPublishedPhotos(asEventId('nobody'))).toBe(0)
+    })
+
     it('reports a zero for every status of an event with no photos', async () => {
       expect(await repo.countsByStatus(WEDDING)).toEqual({
         pending: 0,

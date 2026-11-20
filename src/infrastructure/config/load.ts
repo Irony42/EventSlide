@@ -284,6 +284,9 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       maxTotalBytes: raw.BOOK_MAX_TOTAL_BYTES,
       maxWaitMs: raw.BOOK_MAX_WAIT_MINUTES * 60_000,
       maxPerEventPerDay: raw.BOOK_MAX_PER_EVENT_PER_DAY,
+      printEnabled: raw.BOOK_PRINT_ENABLED,
+      printMaxBytes: raw.BOOK_PRINT_MAX_BYTES,
+      maxMessages: raw.BOOK_MAX_MESSAGES,
     },
 
     realtime: {

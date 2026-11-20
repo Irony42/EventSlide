@@ -292,6 +292,15 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       BOOK_MAX_WAIT_MINUTES: positiveInt(10, 1_440),
       /** Books one event may have generated in a rolling day (decision of 01/11/2026). */
       BOOK_MAX_PER_EVENT_PER_DAY: positiveInt(3, 100),
+      /**
+       * The printer version of the book (spec 26): two more files with bleed, for an online printer.
+       * `BOOK_PRINT_ENABLED=false` stops offering it (a request for it is made without it).
+       */
+      BOOK_PRINT_ENABLED: boolishWithDefault('true'),
+      /** Most bytes of the printer version, interior and cover together (default 700 MB): past it the version is dropped and the screen book is kept. */
+      BOOK_PRINT_MAX_BYTES: positiveInt(700 * 1024 * 1024),
+      /** Most guest-book messages in one book: the first ones in order (default 60, the most there is). */
+      BOOK_MAX_MESSAGES: positiveInt(60, 60),
 
       /**
        * The verified archive of the album, prepared on the box for the host to download (spec 22).

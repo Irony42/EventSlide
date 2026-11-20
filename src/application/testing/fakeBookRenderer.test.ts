@@ -1,83 +1,125 @@
 import { describe, expect, it } from 'vitest'
-import type { BookInput, BookPhoto } from '../ports/bookRenderer'
+import { composeBook, type PlanPage } from '../../domain/book/bookPlan'
+import { BOOK_STYLE_DEFS, resolveBookColours } from '../../domain/book/bookStyles'
+import { BOOK_TEXTS } from '../../domain/book/bookTexts'
+import { COUNTS, OPTIONS, makePhoto } from '../../domain/book/testing/bookFixtures'
+import type { BookChunk } from '../ports/bookFileStore'
+import type { BookRenderInput, PageTexts } from '../ports/bookRenderer'
 import { FakeBookRenderer } from './fakeBookRenderer'
 
-const photo = (n: number): BookPhoto => ({ bytes: Uint8Array.of(n), caption: null, author: null })
-
-const inputOf = (count: number, pulled: number[] = []): BookInput => ({
-  layout: 'four',
-  cover: { title: 'Mariage', subtitle: '14 juin' },
-  closing: { createdWith: 'Album créé avec EventSlide', videosNote: null },
-  photos: {
-    async *[Symbol.asyncIterator]() {
-      for (let n = 1; n <= count; n += 1) {
-        pulled.push(n)
-        yield photo(n)
-      }
-    },
-  },
-})
-
-const collect = async (chunks: AsyncIterable<Uint8Array>): Promise<Uint8Array[]> => {
-  const out: Uint8Array[] = []
-  for await (const chunk of chunks) out.push(chunk)
-  return out
+const EMPTY: PageTexts = {
+  captions: [],
+  authors: [],
+  missions: [],
+  messages: [],
+  photographers: [],
 }
 
-const text = (chunks: readonly Uint8Array[]): string =>
-  chunks.map((chunk) => new TextDecoder().decode(chunk)).join('')
+const inputOf = (
+  count: number,
+  over: { printPages?: readonly PlanPage[] | null; onPhoto?: (id: string) => void } = {},
+): BookRenderInput => {
+  const photos = Array.from({ length: count }, (_, i) => makePhoto({ minute: i }))
+  const plan = composeBook({ photos, messages: [], counts: COUNTS }, OPTIONS)
+  return {
+    plan,
+    printPages: over.printPages ?? null,
+    style: BOOK_STYLE_DEFS.classique,
+    colours: resolveBookColours('classique', 305),
+    language: 'fr',
+    timeZone: 'Europe/Paris',
+    texts: BOOK_TEXTS.fr,
+    cover: { title: 'T', subtitle: 'S', photoId: photos[0]?.id ?? null },
+    logo: null,
+    photo: async (id) => {
+      over.onPhoto?.(id)
+      return new Uint8Array([1])
+    },
+    pageTexts: async () => EMPTY,
+    closing: { videosNote: null, voicesNote: null, extraMessagesNote: null },
+  }
+}
+
+const drain = async (chunks: AsyncIterable<BookChunk>): Promise<BookChunk[]> => {
+  const all: BookChunk[] = []
+  for await (const chunk of chunks) all.push(chunk)
+  return all
+}
 
 describe('FakeBookRenderer', () => {
-  it('answers a PDF envelope with one marker byte per photograph', async () => {
-    const chunks = await collect(new FakeBookRenderer().render(inputOf(3)))
-
-    expect(text(chunks.slice(0, 1))).toBe('%PDF-1.7\n')
-    expect(chunks.slice(1, 4).map((chunk) => [...chunk])).toEqual([[1], [2], [3]])
-    expect(text(chunks.slice(4))).toBe('\n%%EOF')
-  })
-
-  it('records the book it was handed, photographs included, in order', async () => {
+  it('answers a PDF envelope with one marker byte per photograph, as one screen file', async () => {
     const renderer = new FakeBookRenderer()
 
-    await collect(renderer.render(inputOf(2)))
+    const chunks = await drain(renderer.render(inputOf(3)))
 
-    expect(renderer.books).toHaveLength(1)
-    expect(renderer.books[0]?.input).toMatchObject({
-      layout: 'four',
-      cover: { title: 'Mariage', subtitle: '14 juin' },
-    })
-    expect(renderer.books[0]?.photos.map((p) => [...p.bytes])).toEqual([[1], [2]])
+    expect(new Set(chunks.map((c) => c.kind))).toEqual(new Set(['screen']))
+    const text = new TextDecoder().decode(chunks[0]?.bytes)
+    expect(text.startsWith('%PDF-')).toBe(true)
+    expect(new TextDecoder().decode(chunks.at(-1)?.bytes)).toContain('%%EOF')
   })
 
-  it('pulls photographs one at a time: none is asked for before the previous was written', async () => {
-    const pulled: number[] = []
-    const iterator = new FakeBookRenderer().render(inputOf(3, pulled))[Symbol.asyncIterator]()
+  it('answers the two printer files too when a printer version is asked', async () => {
+    const renderer = new FakeBookRenderer()
+    const input = inputOf(3)
+    const chunks = await drain(renderer.render({ ...input, printPages: input.plan.pages }))
+
+    expect(new Set(chunks.map((c) => c.kind))).toEqual(
+      new Set(['screen', 'printInterior', 'printCover']),
+    )
+  })
+
+  it('records the book it was handed, and the photographs and words it pulled, in order', async () => {
+    const renderer = new FakeBookRenderer()
+    const input = inputOf(3)
+
+    await drain(renderer.render(input))
+
+    const [book] = renderer.books
+    expect(book?.input.cover.title).toBe('T')
+    // the cover photograph first, then those of each page
+    expect(book?.photos[0]).toBe(input.cover.photoId)
+    expect(new Set(book?.photos)).toEqual(
+      new Set(input.plan.pages.flatMap((p) => p.slots.map((s) => s.photoId))),
+    )
+    expect(book?.texts.length).toBeGreaterThan(0)
+  })
+
+  it('pulls a photograph only when a page needs it: none is asked for ahead of the consumer', async () => {
+    const renderer = new FakeBookRenderer()
+    const asked: string[] = []
+    const stream = renderer.render(inputOf(4, { onPhoto: (id) => asked.push(id) }))
+    const iterator = stream[Symbol.asyncIterator]()
 
     await iterator.next()
-    expect(pulled).toEqual([])
+    expect(asked).toHaveLength(0)
     await iterator.next()
-    expect(pulled).toEqual([1])
     await iterator.next()
-    expect(pulled).toEqual([1, 2])
+    expect(asked.length).toBeLessThan(5) // the cover and four photographs in all
+    await iterator.return?.()
   })
 
   it('fails after the scripted number of photographs, which stay recorded', async () => {
     const renderer = new FakeBookRenderer()
     renderer.failsAfter = 1
-    renderer.failure = new Error('disk full')
+    renderer.failure = new Error('boom')
 
-    await expect(collect(renderer.render(inputOf(3)))).rejects.toThrow('disk full')
+    await expect(drain(renderer.render(inputOf(3)))).rejects.toThrow('boom')
 
     expect(renderer.books[0]?.photos).toHaveLength(1)
   })
 
-  it('pads the book to a large size without a large fixture', async () => {
+  it('pads the screen book and the printer interior without a large fixture', async () => {
     const renderer = new FakeBookRenderer()
-    renderer.paddingBytes = 5_000
+    renderer.paddingBytes = 1000
+    renderer.printPaddingBytes = 500
+    const input = inputOf(1)
 
-    const chunks = await collect(renderer.render(inputOf(1)))
+    const chunks = await drain(renderer.render({ ...input, printPages: input.plan.pages }))
+    const size = (kind: string): number =>
+      chunks.filter((c) => c.kind === kind).reduce((n, c) => n + c.bytes.byteLength, 0)
 
-    expect(chunks.reduce((sum, chunk) => sum + chunk.length, 0)).toBeGreaterThan(5_000)
-    expect(chunks.some((chunk) => chunk.length === 5_000)).toBe(true)
+    expect(size('screen')).toBeGreaterThanOrEqual(1000)
+    expect(size('printInterior')).toBeGreaterThanOrEqual(500)
+    expect(size('printCover')).toBeLessThan(100)
   })
 })

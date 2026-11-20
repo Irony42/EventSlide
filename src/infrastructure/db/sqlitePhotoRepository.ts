@@ -592,6 +592,16 @@ export class SqlitePhotoRepository implements PhotoRepository {
     }
   }
 
+  async countPublishedPhotos(eventId: EventId): Promise<number> {
+    const row = this.db
+      .prepare<[string], { readonly count: number }>(
+        `SELECT COUNT(*) AS count FROM photos
+          WHERE event_id = ? AND taken_down_at IS NULL AND status = 'published' AND media_kind = 'photo'`,
+      )
+      .get(eventId)
+    return row?.count ?? 0
+  }
+
   async countsByStatus(eventId: EventId): Promise<PhotoStatusCounts> {
     const counts: Record<PhotoStatus, number> = { ...ZERO_COUNTS }
 

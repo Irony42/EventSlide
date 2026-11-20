@@ -14,6 +14,7 @@ import type { Api } from '../lib/api/client'
 import { ApiError } from '../lib/http'
 import { QUIET_VOICE_BOOK } from './guestbookVoiceFixtures'
 import type {
+  AlbumBookDto,
   AlbumExportDto,
   InvitationAcceptedDto,
   InvitationPreviewDto,
@@ -514,6 +515,50 @@ export const anEventDto = (overrides: Partial<EventDto> = {}): EventDto => ({
   ...overrides,
 })
 
+/** The book's state when none was ever asked for: the album's counts, and what the box offers. */
+export const aNoBook = (
+  albumCounts: { photos: number; messages: number } = { photos: 42, messages: 0 },
+  offer: { maxPhotos: number; maxMessages: number; printVersion: boolean } = {
+    maxPhotos: 300,
+    maxMessages: 60,
+    printVersion: true,
+  },
+): AlbumBookDto => ({ status: 'none', albumCounts, offer })
+
+/** A book of the given status, with the choices the form opens on by default. */
+export const aBook = (
+  status: 'queued' | 'running' | 'done' | 'failed' | 'stale',
+  overrides: Partial<Extract<AlbumBookDto, { options: unknown }>> = {},
+): Extract<AlbumBookDto, { options: unknown }> => ({
+  status,
+  options: {
+    title: 'Mariage',
+    subtitle: '',
+    language: 'fr',
+    style: 'classique',
+    selection: { kind: 'all' },
+    showAuthors: true,
+    showCaptions: true,
+    includeGuestbook: false,
+    printVersion: false,
+    timeZone: 'Europe/Paris',
+  },
+  requestedAt: '2026-06-14T20:00:00.000Z',
+  doneAt: null,
+  photoCount: null,
+  skippedCount: null,
+  pageCount: null,
+  byteSize: null,
+  selectedCount: null,
+  printSkipped: null,
+  expiresAt: null,
+  failureCode: null,
+  staleReason: null,
+  albumCounts: { photos: 42, messages: 0 },
+  offer: { maxPhotos: 300, maxMessages: 60, printVersion: true },
+  ...overrides,
+})
+
 /** The event's archive, `sealed` and complete by default: the case the host wants. */
 export const anAlbumExport = (overrides: Partial<AlbumExportDto> = {}): AlbumExportDto => ({
   status: 'sealed',
@@ -773,8 +818,8 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
     throw new ApiError(404, 'export.notFound')
   }),
   requestAlbumExport: vi.fn(async () => anAlbumExport({ status: 'queued' })),
-  albumBook: vi.fn(async () => ({ status: 'none' as const })),
-  requestAlbumBook: vi.fn(async () => ({ status: 'none' as const })),
+  albumBook: vi.fn(async (): Promise<AlbumBookDto> => aNoBook()),
+  requestAlbumBook: vi.fn(async (): Promise<AlbumBookDto> => aNoBook()),
   deleteAlbumBook: vi.fn(async () => undefined),
   requestReel: vi.fn(async () => ({
     status: 'queued' as const,
@@ -834,6 +879,8 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   bestOfUrl: vi.fn((slug: string) => `/api/events/${slug}/best-of.zip`),
   albumExportUrl: vi.fn((slug: string) => `/api/events/${slug}/export.zip`),
   albumBookUrl: vi.fn((slug: string) => `/api/events/${slug}/book.pdf`),
+  albumBookPrintUrl: vi.fn((slug: string) => `/api/events/${slug}/book-print.pdf`),
+  albumBookCoverUrl: vi.fn((slug: string) => `/api/events/${slug}/book-cover.pdf`),
   streamUrl: vi.fn((slug: string) => `/api/events/${slug}/stream`),
   moderationStreamUrl: vi.fn((slug: string) => `/api/events/${slug}/moderation/stream`),
 

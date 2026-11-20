@@ -56,8 +56,23 @@ export const isBookFailureCode = (value: unknown): value is BookFailureCode =>
  * Why a book stopped being valid. Neutral on purpose: it never says whether a guest, the host
  * or the operator acted, as the signals of a removal do not.
  */
-export const BOOK_STALE_REASONS = ['photoRemoved', 'captionChanged', 'fileMissing'] as const
+export const BOOK_STALE_REASONS = [
+  'photoRemoved',
+  'captionChanged',
+  'messageRemoved',
+  'fileMissing',
+] as const
 export type BookStaleReason = (typeof BOOK_STALE_REASONS)[number]
 
 export const isBookStaleReason = (value: unknown): value is BookStaleReason =>
   typeof value === 'string' && (BOOK_STALE_REASONS as readonly string[]).includes(value)
+
+/**
+ * Why a book has no printer version although the screen book is ready (spec 26): the plan ran past
+ * the printers' page ceiling, or the two files outgrew BOOK_PRINT_MAX_BYTES. Neither is a failure.
+ */
+export const BOOK_PRINT_SKIPPED = ['tooManyPages', 'tooLarge'] as const
+export type BookPrintSkipped = (typeof BOOK_PRINT_SKIPPED)[number]
+
+export const isBookPrintSkipped = (value: unknown): value is BookPrintSkipped =>
+  typeof value === 'string' && (BOOK_PRINT_SKIPPED as readonly string[]).includes(value)
