@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { Badge } from '../../../design-system/components/Badge'
 import { isAbortError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { useSwipeDecision } from '../hooks/useSwipeDecision'
@@ -234,6 +235,8 @@ export function SwipeCard({
           <p className={styles['caption']}>{photo.caption}</p>
         )}
         <p className={styles['author']}>{authorLine}</p>
+        {/* Where the photograph came from when it was not a phone (spec 27): the phone console says it too. */}
+        {photo.via === 'telegram' ? <Badge tone="neutral">{t.channels.viaTelegram}</Badge> : null}
       </div>
 
       {hint === null ? null : (

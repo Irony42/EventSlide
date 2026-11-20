@@ -80,7 +80,8 @@ test('a host connects a Telegram group, a photo posted there is moderated and pu
     // ---- the console holds it for a decision, badged, as for any guest's photograph -------------------------
 
     await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
-    const card = host.getByTestId('moderation-card').first()
+    // The laptop console and the phone console are two components: the card is whichever this project shows.
+    const card = host.getByTestId(/^(mobile-)?moderation-card$/u).first()
     await expect(card).toBeVisible()
     await expect(card.getByText(fr.channels.viaTelegram)).toBeVisible()
     await expect(card.getByText('Léa M.')).toBeVisible()
@@ -91,7 +92,9 @@ test('a host connects a Telegram group, a photo posted there is moderated and pu
     }
     expect(await wallItems()).toBe(0)
 
-    await card.getByRole('button', { name: fr.moderation.publish }).click()
+    // Both consoles name the button after the key and the author (the phone's sits in its action bar, not in the
+    // card), and the laptop's toolbar has a bulk button of its own, so the author is part of the name.
+    await host.getByRole('button', { name: fr.moderation.publishPhoto('Léa M.') }).click()
     await expect.poll(wallItems).toBe(1)
 
     // ---- the panel lists the group, and the owner unlinks it --------------------------------------------------
@@ -119,9 +122,10 @@ test('a host connects a Telegram group, a photo posted there is moderated and pu
     await expect.poll(() => bot.confirmedBelow()).toBeGreaterThan(third)
     // The worker had every chance to take it: nothing was reacted to or queued for a decision.
     expect(bot.reactions()).toHaveLength(1)
-    await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
-    await host.getByRole('button', { name: fr.moderation.filterAll, exact: true }).click()
-    await expect(host.getByTestId('moderation-card')).toHaveCount(1)
+    // Nothing waits for a decision (the third photograph would have), read from the queue itself so it holds at any width.
+    const queue = await host.request.get(app.url(`/api/events/${event.slug}/moderation`))
+    expect(((await queue.json()) as { pendingCount: number }).pendingCount).toBe(0)
+    expect(await wallItems()).toBe(1)
 
     // The token is in every Telegram URL the box called, and in nothing it answered to a browser.
     const settings = await host.request.get(app.url(`/api/events/${event.slug}/channels`))
