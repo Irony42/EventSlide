@@ -17,6 +17,7 @@ describe('ClientCeilings.create', () => {
       maxRetentionDays: null,
       clipsAllowed: true,
       booksAllowed: true,
+      channelsAllowed: true,
       liveAllowed: true,
       maxLiveDays: null,
       maxEventsPerPeriod: null,
@@ -177,6 +178,7 @@ describe('ClientCeilings.create', () => {
       maxRetentionDays: null,
       clipsAllowed: false,
       booksAllowed: false,
+      channelsAllowed: false,
       liveAllowed: false,
       maxLiveDays: 7,
       maxEventsPerPeriod: 1,
@@ -195,6 +197,7 @@ describe('ClientCeilings.create', () => {
       maxRetentionDays: 60,
       clipsAllowed: true,
       booksAllowed: true,
+      channelsAllowed: true,
       liveAllowed: true,
       maxLiveDays: 14,
       maxEventsPerPeriod: 30,
@@ -337,6 +340,7 @@ describe('ClientCeilings.allowsOpening', () => {
       maxRetentionDays: null,
       clipsAllowed: true,
       booksAllowed: true,
+      channelsAllowed: true,
       liveAllowed: false,
       maxLiveDays: null,
       maxEventsPerPeriod: null,
@@ -358,6 +362,19 @@ describe('ClientCeilings.liveDeadline', () => {
     expect(ceilings.liveDeadline(new Date('2026-06-20T18:00:00.000Z'))).toEqual(
       new Date('2026-06-27T18:00:00.000Z'),
     )
+  })
+})
+
+describe('ClientCeilings.channelsAllowed', () => {
+  it('is on for an unlimited client and reflects the flag it was built with', () => {
+    expect(ClientCeilings.unlimited().channelsAllowed).toBe(true)
+    expect(must(ClientCeilings.create({ channelsAllowed: false })).channelsAllowed).toBe(false)
+  })
+
+  it.each([undefined, 'false', 0, null])('refuses %s as channelsAllowed', (bad) => {
+    const result = ClientCeilings.create({ channelsAllowed: bad as unknown as boolean })
+
+    expect(!result.ok && result.error.code).toBe('clientCeilings.channelsAllowedInvalid')
   })
 })
 
@@ -545,7 +562,7 @@ describe('ClientCeilings.lowersRetentionCapFrom', () => {
 describe('ClientCeilings.settingsRefusal', () => {
   const capped = must(ClientCeilings.create({ maxRetentionDays: 30 }))
   const noClips = must(ClientCeilings.create({ clipsAllowed: false }))
-  const CURRENT = { retentionDays: 30, allowClips: false }
+  const CURRENT = { retentionDays: 30, allowClips: false, allowTelegram: false }
 
   it('refuses a retention above the ceiling, naming the ceiling', () => {
     const refusal = capped.settingsRefusal(CURRENT, { retentionDays: 31 })
@@ -571,12 +588,17 @@ describe('ClientCeilings.settingsRefusal', () => {
     // The form sends every field on every save: an operator lowering the ceiling must not lock the
     // host out of switching moderation.
     expect(
-      capped.settingsRefusal({ retentionDays: 90, allowClips: false }, { retentionDays: 90 }),
+      capped.settingsRefusal(
+        { retentionDays: 90, allowClips: false, allowTelegram: false },
+        { retentionDays: 90 },
+      ),
     ).toBeNull()
   })
 
   it('asks nothing of a patch that does not mention retention', () => {
-    expect(capped.settingsRefusal({ retentionDays: 90, allowClips: false }, {})).toBeNull()
+    expect(
+      capped.settingsRefusal({ retentionDays: 90, allowClips: false, allowTelegram: false }, {}),
+    ).toBeNull()
   })
 
   it('has no opinion on retention without a ceiling', () => {
@@ -591,19 +613,47 @@ describe('ClientCeilings.settingsRefusal', () => {
 
   it('does not refuse clips that were already on, nor switching them off', () => {
     expect(
-      noClips.settingsRefusal({ retentionDays: null, allowClips: true }, { allowClips: true }),
+      noClips.settingsRefusal(
+        { retentionDays: null, allowClips: true, allowTelegram: false },
+        { allowClips: true },
+      ),
     ).toBeNull()
     expect(
-      noClips.settingsRefusal({ retentionDays: null, allowClips: true }, { allowClips: false }),
+      noClips.settingsRefusal(
+        { retentionDays: null, allowClips: true, allowTelegram: false },
+        { allowClips: false },
+      ),
     ).toBeNull()
   })
 
   it('does not lock out a save of a client without clips whose clips are already off', () => {
     // The form sends every field on every save: `allowClips: false` over `false`, or no mention.
-    const off = { retentionDays: null, allowClips: false }
+    const off = { retentionDays: null, allowClips: false, allowTelegram: false }
 
     expect(noClips.settingsRefusal(off, { allowClips: false })).toBeNull()
     expect(noClips.settingsRefusal(off, {})).toBeNull()
+  })
+
+  it('refuses switching Telegram on for a client whose plan has no messaging channels', () => {
+    const noChannels = must(ClientCeilings.create({ channelsAllowed: false }))
+
+    expect(noChannels.settingsRefusal(CURRENT, { allowTelegram: true })?.code).toBe(
+      'client.channelsNotAllowed',
+    )
+  })
+
+  it('does not refuse Telegram already on, nor switching it off, nor a save that leaves it', () => {
+    const noChannels = must(ClientCeilings.create({ channelsAllowed: false }))
+    const on = { retentionDays: null, allowClips: false, allowTelegram: true }
+
+    expect(noChannels.settingsRefusal(on, { allowTelegram: true })).toBeNull()
+    expect(noChannels.settingsRefusal(on, { allowTelegram: false })).toBeNull()
+    expect(noChannels.settingsRefusal(CURRENT, { allowTelegram: false })).toBeNull()
+    expect(noChannels.settingsRefusal(CURRENT, {})).toBeNull()
+  })
+
+  it('lets a client whose plan has messaging channels switch Telegram on', () => {
+    expect(ClientCeilings.unlimited().settingsRefusal(CURRENT, { allowTelegram: true })).toBeNull()
   })
 
   it('lets a client with clips switch them on', () => {

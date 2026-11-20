@@ -1,3 +1,4 @@
+import type { ChannelKind } from '../../domain/channels/channelKind'
 import type { Guest } from '../../domain/guests/guest'
 import type { EventId, GuestId } from '../../domain/shared/ids'
 
@@ -28,6 +29,16 @@ export interface GuestRepository {
     eventId: EventId,
     guestIds: readonly GuestId[],
   ): Promise<ReadonlyMap<GuestId, string>>
+
+  /**
+   * The guest a messaging sender became at this event (spec 27), found by the fingerprint of their
+   * channel identity, or `null`. Scoped by event: the same person in two groups of two events is two guests.
+   */
+  findByChannelSender(
+    eventId: EventId,
+    channel: ChannelKind,
+    senderKey: string,
+  ): Promise<Guest | null>
 
   list(eventId: EventId): Promise<readonly Guest[]>
 

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { Page } from '@playwright/test'
 import { csrfHeaders, expect, joinAsGuest, signInAsHost, test } from '../fixtures/app'
+import { openSettingsSection } from '../fixtures/settingsPage'
 import { passPrivacyNotice } from '../fixtures/guest'
 import { hasEncoder } from '../fixtures/media'
 import { FAKE_MICROPHONE, openRecorder, recordTake, sendTake } from '../fixtures/voice'
@@ -272,6 +273,7 @@ test('a sealed message has no player until the host opens the messages now', asy
   // Lifted from the settings, after a confirmation, for good.
   await signInAsHost(host, app)
   await host.goto(app.url(`/admin/events/${event.slug}/settings`))
+  await openSettingsSection(host, 'Livre d’or')
   await host.getByRole('button', { name: fr.guestbookVoiceHost.openNow }).click()
   await host
     .getByRole('dialog')

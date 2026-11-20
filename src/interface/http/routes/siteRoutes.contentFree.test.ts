@@ -425,6 +425,7 @@ const KEYS = new Set([
   'maxRetentionDays',
   'clipsAllowed',
   'booksAllowed',
+  'channelsAllowed',
   'liveAllowed',
   'maxLiveDays',
   'maxEventsPerPeriod',

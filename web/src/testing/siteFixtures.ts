@@ -34,6 +34,7 @@ export const noCeilings = (): CeilingsDto => ({
   maxRetentionDays: null,
   clipsAllowed: true,
   booksAllowed: true,
+  channelsAllowed: false,
   liveAllowed: true,
   maxLiveDays: null,
   maxEventsPerPeriod: null,
@@ -127,6 +128,7 @@ export const aSiteClientDefaults = (
     maxLiveDays: null,
     clipsAllowed: true,
     booksAllowed: true,
+    channelsAllowed: false,
     ...overrides,
   },
 })

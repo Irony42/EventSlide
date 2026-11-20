@@ -15,6 +15,7 @@ const NONE: NewClientDefaults = {
   maxLiveDays: null,
   clipsAllowed: true,
   booksAllowed: true,
+  channelsAllowed: true,
 }
 
 /** A box with a tier: every ceiling set, clips off. */
@@ -27,6 +28,7 @@ const TIER: NewClientDefaults = {
   maxLiveDays: 3,
   clipsAllowed: false,
   booksAllowed: false,
+  channelsAllowed: false,
 }
 
 /** What the use case would store: the ceilings, after the domain has had its say. */

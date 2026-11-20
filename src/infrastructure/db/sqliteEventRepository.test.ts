@@ -719,6 +719,28 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.allowClips).toBe(true)
     })
 
+    it('reads an event written before the Telegram channel as having no group connected (spec 27)', async () => {
+      // An absent key must not throw "Corrupt events.settings" on the first read of every existing
+      // event, and must read as off: a host who was never asked has no bot taking pictures from a group.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ allowTelegram: undefined }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.allowTelegram).toBe(false)
+    })
+
+    it('keeps the choice of a host who connected a Telegram group', async () => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ allowTelegram: true }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.allowTelegram).toBe(true)
+    })
+
     it('reads an event written before the guestbook as closed to messages, and shown on the wall', async () => {
       // The 3.4.0 -> 3.5.0 upgrade (spec 01). `settingsOf` throws `Corrupt events.settings` on an
       // absent key unless the field goes through `settingsBooleanAddedLater`, so without it the

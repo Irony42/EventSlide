@@ -1,4 +1,5 @@
 import { expect, test } from '../fixtures/app'
+import { openSettingsSection, saved } from '../fixtures/settingsPage'
 import type { Page } from '@playwright/test'
 
 /**
@@ -37,10 +38,8 @@ test('a host picks the event’s colour and the room wears it @smoke', async ({ 
   expect(before).not.toBe('')
 
   await host.goto(app.url(`/admin/events/${event.slug}/settings`))
-  await host.getByRole('radio', { name: 'Rose' }).check()
-  // Exact, because the schedule below the settings has its own "Enregistrer l’horaire".
-  await host.getByRole('button', { name: 'Enregistrer', exact: true }).click()
-  await expect(host.getByText('Réglages enregistrés.')).toBeVisible()
+  await openSettingsSection(host, 'Apparence')
+  await saved(host, () => host.getByRole('radio', { name: 'Rose' }).check())
 
   // **No reload.** The projector is a machine in the corner that nobody is going to
   // touch, so the change has to arrive over SSE on the wall that is already running —

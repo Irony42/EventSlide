@@ -469,6 +469,7 @@ export const updateSettingsBody = z.strictObject({
   allowCaptions: z.boolean().optional(),
   allowReactions: z.boolean().optional(),
   allowClips: z.boolean().optional(),
+  allowTelegram: z.boolean().optional(),
   allowGuestbook: z.boolean().optional(),
   allowGuestSave: z.boolean().optional(),
   guestbookOnWall: z.boolean().optional(),

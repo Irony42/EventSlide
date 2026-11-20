@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  asChannelBindingId,
+  asChannelMediaJobId,
   asClipJobId,
   asEventId,
   asGuestId,
@@ -60,6 +62,8 @@ const HELPERS: readonly [string, (value: string) => string][] = [
   ['asUserId', asUserId],
   ['asReactionId', asReactionId],
   ['asClipJobId', asClipJobId],
+  ['asChannelBindingId', asChannelBindingId],
+  ['asChannelMediaJobId', asChannelMediaJobId],
 ]
 
 describe('branded id helpers', () => {
