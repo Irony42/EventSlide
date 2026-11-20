@@ -1,3 +1,4 @@
+import type { EventId } from '../../../domain/shared/ids'
 import type { AlbumBookRepository } from '../../ports/albumBookRepository'
 import type { BookFileStore } from '../../ports/bookFileStore'
 import type { Clock } from '../../ports/clock'
@@ -11,7 +12,8 @@ import type { Logger } from '../../ports/logger'
  *
  * 1. **Expired books go**: the row and the file, once `expires_at` has passed.
  * 2. **A `done` row whose file is gone is `stale`** (`fileMissing`): a restored backup, a manual
- *    cleanup. The host is told to rebuild instead of being served a 404.
+ *    cleanup. A book with a printer version expects its two printer files as well: one missing
+ *    voids the book, since the host was told they could download it. The host is told to rebuild instead of being served a 404.
  * 3. **A file no book owns is deleted**: left by a crash, or by a book that went stale. A file
  *    is owned by a book that is `done` **or still being made**: a rebuild keeps its older file
  *    until the new one replaces it, and the sweep must not take it from under the render.
@@ -42,6 +44,15 @@ export const makeSweepAlbumBooks = ({
   clock,
   logger,
 }: SweepAlbumBooksDeps): SweepAlbumBooks => {
+  const isComplete = async (eventId: EventId, expectsPrint: boolean): Promise<boolean> => {
+    if ((await bookFiles.stat(eventId, 'screen')) === null) return false
+    if (!expectsPrint) return true
+    return (
+      (await bookFiles.stat(eventId, 'printInterior')) !== null &&
+      (await bookFiles.stat(eventId, 'printCover')) !== null
+    )
+  }
+
   return async () => {
     const now = clock.now()
     const onDisk = await bookFiles.list()
@@ -54,8 +65,9 @@ export const makeSweepAlbumBooks = ({
     }
 
     let missing = 0
+    const withPrint = new Set(await books.listDoneWithPrintEventIds())
     for (const eventId of await books.listDoneEventIds()) {
-      if ((await bookFiles.stat(eventId)) !== null) continue
+      if (await isComplete(eventId, withPrint.has(eventId))) continue
       await books.invalidate(eventId, 'fileMissing', now)
       bus.publish({ type: 'book.changed', eventId })
       missing += 1

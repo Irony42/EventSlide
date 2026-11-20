@@ -4,6 +4,7 @@ import {
   albumBookRepositoryContract,
 } from '../../application/testing/contracts/albumBookRepositoryContract'
 import { requestBook } from '../../domain/book/albumBook'
+import type { BookPlan } from '../../domain/book/bookPlan'
 import { asEventId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrate } from './migrator'
@@ -37,9 +38,13 @@ describe('SqliteAlbumBookRepository', () => {
     title: 'T',
     subtitle: '',
     language: 'en',
-    layout: 'one',
+    style: 'classique',
+    selection: { kind: 'all' },
     showAuthors: false,
     showCaptions: false,
+    includeGuestbook: false,
+    printVersion: false,
+    timeZone: 'Europe/Paris',
   } as const
 
   it('is removed with its event, requests included', async () => {
@@ -75,5 +80,79 @@ describe('SqliteAlbumBookRepository', () => {
         .run(AT, AT),
     ).toThrow()
     closeDatabase(db)
+  })
+
+  describe('the plan column', () => {
+    const wedding = asEventId('evt-wedding')
+    const planOf = (extra: Record<string, unknown> = {}): BookPlan =>
+      ({
+        chapters: [],
+        pages: [{ template: 'title', slots: [] }],
+        selectedCount: 1,
+        counts: { photos: 1, photographers: 1, hearts: 0, messages: 0, voices: 0, videos: 0 },
+        includedMessages: 0,
+        extraMessages: 0,
+        hearts: {},
+        photographers: [],
+        favouritesPage: null,
+        guestbookPage: null,
+        ...extra,
+      }) as BookPlan
+
+    const running = async (db: Db): Promise<SqliteAlbumBookRepository> => {
+      const repo = new SqliteAlbumBookRepository(db)
+      await repo.saveRequest(requestBook(wedding, options, new Date(AT)))
+      await repo.claimNext(new Date(AT))
+      return repo
+    }
+
+    it('stores only what the plan schema knows: a plan carrying a guest text is refused at the write', async () => {
+      const db = migratedDatabase()
+      const repo = await running(db)
+
+      await expect(
+        repo.recordPlan(wedding, planOf({ caption: 'Léa, 06 12 34 56 78' })),
+      ).rejects.toThrow()
+
+      expect(db.prepare(`SELECT plan_json FROM album_books`).get()).toEqual({ plan_json: null })
+      closeDatabase(db)
+    })
+
+    it('stores the plan as JSON of ids and numbers', async () => {
+      const db = migratedDatabase()
+      const repo = await running(db)
+      await repo.recordPlan(wedding, planOf())
+
+      const row = db.prepare<[], { plan_json: string }>(`SELECT plan_json FROM album_books`).get()
+      expect(JSON.parse(row?.plan_json ?? 'null')).toEqual(planOf())
+      closeDatabase(db)
+    })
+
+    it.each([
+      ['not JSON at all', 'oops'],
+      ['an unknown key', JSON.stringify(planOf({ title: 'x' }))],
+      [
+        'a template that does not exist',
+        JSON.stringify({ ...planOf(), pages: [{ template: 'poster', slots: [] }] }),
+      ],
+    ])('refuses to read a row whose plan is %s', async (_name, plan) => {
+      const db = migratedDatabase()
+      const repo = await running(db)
+      db.pragma('ignore_check_constraints = ON')
+      db.prepare(`UPDATE album_books SET plan_json = ?`).run(plan)
+
+      await expect(repo.find(wedding)).rejects.toThrow()
+      closeDatabase(db)
+    })
+
+    it('refuses to read a row with a print_skipped it does not know', async () => {
+      const db = migratedDatabase()
+      const repo = await running(db)
+      db.pragma('ignore_check_constraints = ON')
+      db.prepare(`UPDATE album_books SET print_skipped = 'paper'`).run()
+
+      await expect(repo.find(wedding)).rejects.toThrow(/print_skipped/)
+      closeDatabase(db)
+    })
   })
 })

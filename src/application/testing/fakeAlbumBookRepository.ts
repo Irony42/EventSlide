@@ -2,12 +2,14 @@ import type { AlbumBookRepository } from '../ports/albumBookRepository'
 import {
   finishOf,
   invalidateBook,
+  recordPlan,
   settleBook,
   startBook,
   type AlbumBook,
   type BookFinish,
   type BookVerdict,
 } from '../../domain/book/albumBook'
+import type { BookPlan } from '../../domain/book/bookPlan'
 import { hasFile, isActive, type BookStaleReason } from '../../domain/book/albumBookStatus'
 import type { EventId } from '../../domain/shared/ids'
 
@@ -44,6 +46,15 @@ export class FakeAlbumBookRepository implements AlbumBookRepository {
     return finishOf(settled.value)
   }
 
+  async recordPlan(eventId: EventId, plan: BookPlan): Promise<boolean> {
+    const book = this.books.get(eventId)
+    if (book === undefined) return false
+    const recorded = recordPlan(book, plan)
+    if (!recorded.ok) return false
+    this.books.set(eventId, recorded.value)
+    return true
+  }
+
   async findNextQueued(): Promise<AlbumBook | null> {
     return (
       [...this.books.values()]
@@ -77,7 +88,7 @@ export class FakeAlbumBookRepository implements AlbumBookRepository {
     let recovered = 0
     for (const [eventId, book] of this.books) {
       if (book.status !== 'running') continue
-      this.books.set(eventId, { ...book, status: 'queued', startedAt: null })
+      this.books.set(eventId, { ...book, status: 'queued', startedAt: null, plan: null })
       recovered += 1
     }
     return recovered
@@ -106,6 +117,12 @@ export class FakeAlbumBookRepository implements AlbumBookRepository {
     return [...this.books.values()].filter((book) => hasFile(book.status)).map((b) => b.eventId)
   }
 
+  async listDoneWithPrintEventIds(): Promise<readonly EventId[]> {
+    return [...this.books.values()]
+      .filter((book) => hasFile(book.status) && book.printByteSize !== null)
+      .map((book) => book.eventId)
+  }
+
   async listActiveEventIds(): Promise<readonly EventId[]> {
     return [...this.books.values()].filter((book) => isActive(book.status)).map((b) => b.eventId)
   }
@@ -113,7 +130,7 @@ export class FakeAlbumBookRepository implements AlbumBookRepository {
   async doneBytes(): Promise<number> {
     return [...this.books.values()]
       .filter((book) => hasFile(book.status))
-      .reduce((sum, book) => sum + (book.byteSize ?? 0), 0)
+      .reduce((sum, book) => sum + (book.byteSize ?? 0) + (book.printByteSize ?? 0), 0)
   }
 
   async delete(eventId: EventId): Promise<void> {

@@ -65,4 +65,15 @@ describe('FakeGuestbookRepository and voice messages', () => {
         .sort(),
     ).toEqual(['e1', 'v1'])
   })
+
+  it('leaves a voice message out of the messages a book may print', async () => {
+    const repo = new FakeGuestbookRepository().seed(
+      aGuestbookEntry({ id: 'w', moderation: 'auto' }),
+      aVoiceEntry({ id: 'v', state: 'ready', eventId: 'event-1', moderation: 'auto' }),
+    )
+
+    expect(
+      (await repo.listWrittenForBook(EVENT, new Date('2100-01-01'), 10)).map((r) => r.id),
+    ).toEqual(['w'])
+  })
 })

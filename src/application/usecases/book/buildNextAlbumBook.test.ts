@@ -38,9 +38,13 @@ const OPTIONS: BookOptions = {
   title: 'Mariage de Léa',
   subtitle: '14 juin 2026',
   language: 'fr',
-  layout: 'one',
+  style: 'classique',
+  selection: { kind: 'all' },
   showAuthors: true,
   showCaptions: true,
+  includeGuestbook: false,
+  printVersion: false,
+  timeZone: 'Europe/Paris',
 }
 
 const POLICY: BuildAlbumBookPolicy = {
@@ -159,14 +163,17 @@ describe('buildNextAlbumBook', () => {
       expect(book?.expiresAt).toEqual(new Date(world.clock.now().getTime() + 7 * 86_400_000))
     })
 
-    it('hands the renderer the cover, the closing page and the layout, with safe text', async () => {
+    it('hands the renderer the cover, the closing page and one photograph a page, with safe text, whatever the options say', async () => {
       await seedPhoto({ id: 'p1' })
-      await askForBook({ title: 'Fête 🎉 de Léa', layout: 'four' }, atPlus(10_000))
+      await askForBook(
+        { title: 'Fête 🎉 de Léa', style: 'souvenir', selection: { kind: 'best', target: 60 } },
+        atPlus(10_000),
+      )
 
       await world.build()
 
       expect(world.renderer.books[0]?.input).toEqual({
-        layout: 'four',
+        layout: 'one',
         cover: { title: 'Fête de Léa', subtitle: '14 juin 2026' },
         closing: { createdWith: 'Album créé avec EventSlide', videosNote: null },
       })

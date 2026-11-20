@@ -150,6 +150,18 @@ export class FakeGuestbookRepository implements GuestbookRepository {
       .slice(0, limit)
   }
 
+  async listWrittenForBook(
+    eventId: EventId,
+    until: Date,
+    limit: number,
+  ): Promise<readonly WrittenGuestbookEntry[]> {
+    return this.liveOf(eventId)
+      .filter(isWritten)
+      .filter((row) => row.status === 'published' && row.createdAt.getTime() <= until.getTime())
+      .sort((left, right) => -newestFirst(left, right))
+      .slice(0, limit)
+  }
+
   async listByGuest(
     eventId: EventId,
     guestId: GuestId,

@@ -184,6 +184,24 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
       .filter(isWritten)
   }
 
+  async listWrittenForBook(
+    eventId: EventId,
+    until: Date,
+    limit: number,
+  ): Promise<readonly WrittenGuestbookEntry[]> {
+    return this.db
+      .prepare<[string, string, number], EntryRow>(
+        `SELECT ${ENTRY_COLUMNS} FROM ${ENTRY_FROM}
+          WHERE e.event_id = ? AND e.status = 'published' AND e.taken_down_at IS NULL
+            AND v.entry_id IS NULL AND e.created_at <= ?
+          ORDER BY e.created_at ASC, e.id ASC
+          LIMIT ?`,
+      )
+      .all(eventId, toIsoText(until), limit)
+      .map(toEntry)
+      .filter(isWritten)
+  }
+
   async listByGuest(
     eventId: EventId,
     guestId: GuestId,

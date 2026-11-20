@@ -81,6 +81,17 @@ export interface GuestbookRepository {
   ): Promise<readonly WrittenGuestbookEntry[]>
 
   /**
+   * The messages that may go into the photo book (spec 26), **oldest first**, at most `limit`: written
+   * ones only (a page does not play a sound), `published` and not taken down, created at or before
+   * `until` (the book's snapshot: a message that arrived later is not in a book frozen earlier).
+   */
+  listWrittenForBook(
+    eventId: EventId,
+    until: Date,
+    limit: number,
+  ): Promise<readonly WrittenGuestbookEntry[]>
+
+  /**
    * The guest's own messages, newest first, at most `limit`. **A failed voice is in it**, and only
    * here: "Mes messages" is where a guest learns their recording could not be saved.
    */
