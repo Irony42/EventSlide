@@ -189,6 +189,9 @@ export const makeEraseGuestContribution = ({
       await invalidateExport?.(eventId, 'guestErased')
     }
     if ((await guestbook.countByGuest(eventId, guestId)) > 0) {
+      // A distinct call from the photographs' one: a book that prints the guest's words is retired
+      // for them too (spec 26), and ignores it when it prints no messages.
+      await invalidateBook?.(eventId, 'messageRemoved')
       await invalidateExport?.(eventId, 'guestbookChanged')
     }
     await removeAll()

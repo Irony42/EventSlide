@@ -8,6 +8,7 @@ import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { GuestbookVoiceRepository } from '../../ports/guestbookVoiceRepository'
 import type { MediaStore } from '../../ports/mediaStore'
 import { isInAlbum } from '../../../domain/photos/photoStatus'
+import type { InvalidateBook } from '../book/invalidateAlbumBook'
 import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { makeRemoveVoiceBytes } from './removeVoiceBytes'
 
@@ -55,6 +56,12 @@ export interface DeleteGuestbookEntryDeps {
    * Awaited, and before the bytes go.
    */
   readonly invalidateExport?: InvalidateExport
+  /**
+   * Retires the photo book that prints guest-book messages (spec 26) when a guest takes back a published message, awaited and before
+   * anything goes: a book must never still hold what was removed. A message that is not
+   * published is in no book, so it does not call.
+   */
+  readonly invalidateBook?: InvalidateBook
 }
 
 export type DeleteGuestbookEntry = (
@@ -69,6 +76,7 @@ export const makeDeleteGuestbookEntry = ({
   bus,
   clock,
   invalidateExport,
+  invalidateBook,
 }: DeleteGuestbookEntryDeps): DeleteGuestbookEntry => {
   const removeVoiceBytes = makeRemoveVoiceBytes({ media, voices })
 
@@ -99,6 +107,8 @@ export const makeDeleteGuestbookEntry = ({
     if (isInAlbum(entry.status) && entry.isDecidable()) {
       await invalidateExport?.(eventId, 'guestbookChanged')
     }
+
+    if (entry.status === 'published') await invalidateBook?.(eventId, 'messageRemoved')
 
     const voice = entry.voice
     if (voice === null) {

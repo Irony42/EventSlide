@@ -46,7 +46,7 @@ memory for 300 photographs, and a few seconds of one core.
   `BOOK_PRINT_MAX_BYTES` (700 MiB, the two files together) drops it, keeping the screen book, when it would be larger.
   The files live beside the book and follow its expiry. `BOOK_MAX_MESSAGES` (60) caps the guest-book messages in a book.
 - **Privacy.** A photograph removed afterwards, by anyone, retires the book at once: the file is
-  deleted and the host is told to make it again. A copy already downloaded is out of reach.
+  deleted and the host is told to make it again. The same goes for a guest-book message printed in a book: erased by its guest, hidden or refused by the host, or taken down by the operator, it retires the book. A copy already downloaded is out of reach.
 
 ## Shared gallery
 

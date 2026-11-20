@@ -27,8 +27,6 @@ const CANNOT_SPOIL_A_BOOK: Readonly<Record<string, string>> = {
   'photos/uploadPhotos.ts': 'it only inserts photographs and publishes them (auto moderation)',
   'photos/removePhotoRecord.ts':
     'the helper the removing paths call; each of them retires the book first (the guard below counts them)',
-  'site/setGuestbookTakedown.ts':
-    'it takes down a guestbook message, which a photo book never prints: no photograph changes',
   'site/setEventTakedown.ts':
     'it hides the whole event: the book is served only through the event, so none is reachable and the photographs are unchanged on restoring it',
 }
@@ -56,7 +54,7 @@ describe('the use cases that can take a photograph out of the evening', () => {
     expect(unaccounted).toEqual([])
   })
 
-  it('names the six paths the spec lists, and they all call the hook', () => {
+  it('names the seven paths that retire the book, and they all call the hook', () => {
     const hooked = touching
       .filter((path) => readFileSync(path, 'utf8').includes('invalidateBook'))
       .map(posix)
@@ -68,6 +66,7 @@ describe('the use cases that can take a photograph out of the evening', () => {
       'moderation/moderatePhotosBulk.ts',
       'photos/deletePhoto.ts',
       'photos/setPhotoCaption.ts',
+      'site/setGuestbookTakedown.ts',
       'site/setPhotoTakedown.ts',
     ])
   })
@@ -75,6 +74,54 @@ describe('the use cases that can take a photograph out of the evening', () => {
   it('keeps no exemption for a file that no longer touches a photograph', () => {
     const stale = Object.keys(CANNOT_SPOIL_A_BOOK).filter(
       (name) => !touching.map(posix).includes(name),
+    )
+
+    expect(stale).toEqual([])
+  })
+})
+
+/**
+ * The same net for the guest book (spec 26): a book can print guests' words, so a way to delete a
+ * message, move it off the wall or take it down must retire the book with `messageRemoved`, or say
+ * here why it cannot spoil one.
+ */
+const REMOVES_A_MESSAGE =
+  /\bguestbook\.(delete|save|deleteByGuest|setTakenDown)\(|\.deleteByGuest\(|\bvoices\.deleteByEntry\(/
+
+const MESSAGE_CANNOT_SPOIL_A_BOOK: Readonly<Record<string, string>> = {
+  'guestbook/keepPendingGuestbookVoices.ts':
+    'it only moves a waiting recording to published (the host keeps it): nothing leaves',
+  'guestbook/stageGuestbookVoice.ts': 'it only inserts a recording; nothing leaves',
+}
+
+describe('the use cases that can take a guest-book message out of the evening', () => {
+  const touching = sourcesUnder(USE_CASES).filter((path) =>
+    REMOVES_A_MESSAGE.test(readFileSync(path, 'utf8')),
+  )
+  const retires = (path: string): boolean =>
+    /invalidateBook\??\.?\([^)]*'messageRemoved'/.test(readFileSync(path, 'utf8'))
+
+  it('each retires the photo book for a removed message, or says in writing why it cannot', () => {
+    const unaccounted = touching
+      .filter((path) => !retires(path))
+      .map(posix)
+      .filter((name) => MESSAGE_CANNOT_SPOIL_A_BOOK[name] === undefined)
+
+    expect(unaccounted).toEqual([])
+  })
+
+  it('names the four paths the spec lists, and they all call the hook', () => {
+    expect(touching.filter(retires).map(posix).sort()).toEqual([
+      'guestbook/deleteGuestbookEntry.ts',
+      'guestbook/moderateGuestbookEntry.ts',
+      'guests/eraseGuestContribution.ts',
+      'site/setGuestbookTakedown.ts',
+    ])
+  })
+
+  it('keeps no exemption for a file that no longer touches a message, or that retires the book', () => {
+    const stale = Object.keys(MESSAGE_CANNOT_SPOIL_A_BOOK).filter(
+      (name) => !touching.map(posix).includes(name) || retires(join(USE_CASES, name)),
     )
 
     expect(stale).toEqual([])

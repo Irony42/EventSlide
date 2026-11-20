@@ -2679,7 +2679,7 @@ and `404 event.notFound` for an event the operator took down. Thirty downloads a
 **Privacy.** The book is a copy, so a photograph that leaves the evening retires it: a deletion by
 the host or by a guest within the grace window, a guest's erasure, a moderation to `rejected` or
 `hidden` of a published photograph, the operator's takedown of a photograph, and a caption edit when
-the book prints captions. The row goes `stale` and the file is deleted **before** the photograph's
+the book prints captions. **A book that prints the guest book** (`includeGuestbook`) is retired too, with `staleReason: "messageRemoved"`, when a published message leaves the evening: a guest taking back a published recording, a guest's erasure of what they sent, the host hiding or refusing a published message (refusing one that was already hidden changes nothing), and the operator taking a message down. A book that prints no messages, and a message that was never published, leave it alone. The row goes `stale` and the file is deleted **before** the photograph's
 bytes (the hook is awaited, not a signal on the bus), and the host rebuilds it. A book being
 rendered at that moment ends `stale` instead of `done`. The purge of an event deletes the file
 (it lives in `MEDIA_ROOT/.books/`, outside the event's folder, so the hourly backup never holds
