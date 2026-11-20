@@ -17,19 +17,28 @@ export const DEFAULT_PRINT_FORMAT: PrintFormat = 'card'
 export interface PrintFormatSpec {
   /** Copies on one A4 sheet. */
   readonly perSheet: 1 | 2 | 4
-  /** Side of the QR in millimetres, **quiet zone included**. */
-  readonly qrMm: number
+  /** Width of one portrait card in millimetres: A6, A5 or A4, all at the ratio 1 : √2. */
+  readonly cardMm: number
+  /** Two A5 portraits stand side by side on an A4 turned landscape. */
+  readonly landscape: boolean
 }
 
 /**
- * The sides are the values of `--print-qr-*` in `tokens.css` (the stylesheet draws them, this
- * module judges them); `printKit.contract.test.ts` fails if the two copies diverge.
+ * Every card is portrait since spec 28. The widths are `--print-card-w` and its multiples in
+ * `tokens.css`; `printKit.contract.test.ts` fails if the two copies diverge.
  */
 export const PRINT_FORMAT_SPECS: Readonly<Record<PrintFormat, PrintFormatSpec>> = {
-  a4: { perSheet: 1, qrMm: 120 },
-  a5: { perSheet: 2, qrMm: 70 },
-  card: { perSheet: 4, qrMm: 40 },
+  a4: { perSheet: 1, cardMm: 210, landscape: false },
+  a5: { perSheet: 2, cardMm: 148.5, landscape: true },
+  card: { perSheet: 4, cardMm: 105, landscape: false },
 }
+
+/**
+ * Side of the printed QR in millimetres, quiet zone included: the design's share of the card's
+ * width (`printDesigns.qrShareOf`, the very number its stylesheet draws with) times that width.
+ */
+export const qrMmOf = (format: PrintFormat, qrShare: number): number =>
+  PRINT_FORMAT_SPECS[format].cardMm * qrShare
 
 export type PrintInk = 'black' | 'event'
 
@@ -71,8 +80,34 @@ export const MIN_MODULE_MM = 0.6
 export const moduleMm = (qrMm: number, totalModules: number): number => qrMm / totalModules
 
 /** The link is long enough that the code would print below the readable module size. */
-export const isQrTooSmall = (format: PrintFormat, totalModules: number): boolean =>
-  moduleMm(PRINT_FORMAT_SPECS[format].qrMm, totalModules) < MIN_MODULE_MM
+export const isQrTooSmall = (format: PrintFormat, qrShare: number, totalModules: number): boolean =>
+  moduleMm(qrMmOf(format, qrShare), totalModules) < MIN_MODULE_MM
+
+/**
+ * The hue (oklch degrees, 0-359) of a colour written `#rrggbb`: what the event's own hue is to
+ * the rest of the kit. The QR ink and the darker and paler shades of a design are drawn from it at
+ * fixed lightness and chroma, so a pale colour picked by the host never makes them pale.
+ * `null` for anything that is not six hex digits.
+ */
+export const hueOfHex = (hex: string): number | null => {
+  const found = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex)
+  if (found === null) return null
+  const [r, g, b] = [found[1], found[2], found[3]].map((part) => {
+    const c = parseInt(part ?? '0', 16) / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }) as [number, number, number]
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+  const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s
+  const bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s
+  const degrees = (Math.atan2(bb, a) * 180) / Math.PI
+  return Math.round((degrees + 360) % 360) % 360
+}
+
+/** Six hex digits, the only colour the kit accepts from the host's picker or from storage. */
+export const isHexColour = (value: unknown): value is string =>
+  typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)
 
 /**
  * Reads the module count (quiet zone included) out of a rendered QR `<svg>`.
