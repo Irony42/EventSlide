@@ -1,10 +1,15 @@
 import { admitByRate, queueHasRoom } from '../../../domain/channels/channelAdmission'
-import { replyReasonOfCode, type BotReply } from '../../../domain/channels/channelReplies'
+import {
+  renderReply,
+  replyReasonOfCode,
+  type BotReply,
+} from '../../../domain/channels/channelReplies'
 import { senderKeyMaterial } from '../../../domain/channels/channelSender'
 import type {
   ChannelCommand,
   ChannelMedia,
   ConversationMoved,
+  BotPromoted,
   BotRemoved,
   InboundMessage,
 } from '../../../domain/channels/inboundMessage'
@@ -145,9 +150,14 @@ export const makeReceiveChannelMessage = (
         return 'answered'
       }
       const { event } = bound.value
+      // The bind stands whatever this finds: a bot that cannot see the photographs is told to the group, in the
+      // same message, and a check that itself failed says nothing (it is logged) rather than blocking or guessing.
+      const seen = await channel.canSeeMedia(conversationRef)
+      if (!seen.ok) logger.warn('channel.mediaVisibilityUnknown', { code: seen.error.code })
       await reply(
         {
           reason: 'bound',
+          mediaBlind: seen.ok && !seen.value,
           eventName: event.name.value,
           moderated: event.settings.moderation === 'manual',
           noticeUrl: deps.noticeUrlOf(event),
@@ -282,6 +292,22 @@ export const makeReceiveChannelMessage = (
     return 'moved'
   }
 
+  const onPromoted = async (
+    message: BotPromoted,
+    channel: MessagingChannel,
+  ): Promise<ReceiveOutcome> => {
+    // A bot that reads everything was never blind, so being promoted changes nothing for the group.
+    if (channel.readsAllMessages()) return 'ignored'
+    const binding = await bindings.findActive(message.channel, message.conversationRef)
+    if (binding === null) return 'ignored'
+    const event = await events.findById(binding.eventId)
+    await channel.reply(
+      message.conversationRef,
+      renderReply({ reason: 'nowSeesMedia' }, languageOf(event)),
+    )
+    return 'answered'
+  }
+
   const onRemoved = async (message: BotRemoved): Promise<ReceiveOutcome> => {
     const binding = await bindings.findActive(message.channel, message.conversationRef)
     if (binding === null) return 'ignored'
@@ -303,6 +329,10 @@ export const makeReceiveChannelMessage = (
         return onMoved(message)
       case 'botRemoved':
         return onRemoved(message)
+      case 'botPromoted': {
+        const channel = channels.get(message.channel)
+        return channel === undefined ? 'ignored' : onPromoted(message, channel)
+      }
       case 'command':
       case 'media': {
         // Another bot's words and pictures are not a guest's, and a bot answering a bot is how two of them

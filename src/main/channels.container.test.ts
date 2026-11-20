@@ -209,3 +209,36 @@ describe('the Telegram channel in the composition root', () => {
     }
   })
 })
+
+describe('the bot tells a group it cannot see the photographs of (through the real container)', () => {
+  it('adds the warning to the bound reply while privacy mode is on and the bot is a plain member', async () => {
+    server = new FakeBotApiServer({ token: TOKEN, canReadAllGroupMessages: false })
+    const baseUrl = await server.start()
+    const booted = await boot({ TELEGRAM_BOT_TOKEN: TOKEN, TELEGRAM_API_BASE_URL: baseUrl })
+    seedEvent(booted)
+    server.push({ message: { message_id: 1, chat: GROUP, from: LEA, text: '/soiree H7K2QM' } })
+    booted.telegram?.start()
+
+    await until(() => (server?.said().length ?? 0) > 0, 'the bound reply')
+
+    expect(server.said()[0]?.text).toContain('je ne vois pas encore les photos de ce groupe')
+    expect(
+      count(booted, `SELECT COUNT(*) AS n FROM channel_bindings WHERE unbound_at IS NULL`),
+    ).toBe(1)
+    expect(server.calls.some((call) => call.method === 'getChatMember')).toBe(true)
+  })
+
+  it('says nothing of it once the bot is an administrator of the group', async () => {
+    server = new FakeBotApiServer({ token: TOKEN, canReadAllGroupMessages: false })
+    server.administratorOf.add(String(GROUP.id))
+    const baseUrl = await server.start()
+    const booted = await boot({ TELEGRAM_BOT_TOKEN: TOKEN, TELEGRAM_API_BASE_URL: baseUrl })
+    seedEvent(booted)
+    server.push({ message: { message_id: 1, chat: GROUP, from: LEA, text: '/soiree H7K2QM' } })
+    booted.telegram?.start()
+
+    await until(() => (server?.said().length ?? 0) > 0, 'the bound reply')
+
+    expect(server.said()[0]?.text).not.toContain('je ne vois pas')
+  })
+})

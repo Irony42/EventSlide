@@ -427,3 +427,111 @@ describe('the unlink does not wait for the group', () => {
     expect((await unbind({ eventId: EVENT, actorId: OWNER, bindingId: binding.id })).ok).toBe(true)
   })
 })
+
+describe('the bot says when it cannot see the photographs', () => {
+  const blindWords = 'je ne vois pas encore les photos de ce groupe'
+
+  it('adds the paragraph to the bound reply, and the bind stands', async () => {
+    const scene = aChannelScene()
+    scene.telegram.readsAll = false
+
+    await scene.receive(aCommand('bind', 'H7K2QM'))
+
+    expect(scene.telegram.said[0]?.text).toContain(blindWords)
+    expect(await scene.bindings.findActive('telegram', CONVERSATION)).not.toBeNull()
+  })
+
+  it('adds nothing when the bot reads everything, or administers the group', async () => {
+    const reads = aChannelScene()
+    await reads.receive(aCommand('bind', 'H7K2QM'))
+    expect(reads.telegram.said[0]?.text).not.toContain(blindWords)
+
+    const admin = aChannelScene()
+    admin.telegram.readsAll = false
+    admin.telegram.administratorOf.add(CONVERSATION)
+    await admin.receive(aCommand('bind', 'H7K2QM'))
+    expect(admin.telegram.said[0]?.text).not.toContain(blindWords)
+  })
+
+  it('says nothing about it, and logs a warning, when the check itself failed', async () => {
+    const scene = aChannelScene()
+    scene.telegram.readsAll = false
+    scene.telegram.failNextSeeMedia({ code: 'channel.membershipUnknown', retryable: true })
+
+    await scene.receive(aCommand('bind', 'H7K2QM'))
+
+    expect(scene.telegram.said[0]?.text).not.toContain(blindWords)
+    expect(await scene.bindings.findActive('telegram', CONVERSATION)).not.toBeNull()
+    expect(
+      scene.logger.lines.some((line) => line.message === 'channel.mediaVisibilityUnknown'),
+    ).toBe(true)
+  })
+
+  it('thanks the group once, when the bot became an administrator of a bound group', async () => {
+    const scene = aChannelScene()
+    scene.telegram.readsAll = false
+    await scene.bindNow()
+    scene.telegram.said.length = 0
+
+    const outcome = await scene.receive({
+      type: 'botPromoted',
+      channel: 'telegram',
+      conversationRef: CONVERSATION,
+    })
+
+    expect(outcome).toBe('answered')
+    expect(scene.telegram.said.map((said) => said.text)).toEqual([
+      'Merci, je vois maintenant les photos de ce groupe.',
+    ])
+  })
+
+  it('stays quiet when the bot reads everything anyway, in a group that is not bound, or with no adapter', async () => {
+    const reads = aChannelScene()
+    await reads.bindNow()
+    expect(
+      await reads.receive({
+        type: 'botPromoted',
+        channel: 'telegram',
+        conversationRef: CONVERSATION,
+      }),
+    ).toBe('ignored')
+
+    const unbound = aChannelScene()
+    unbound.telegram.readsAll = false
+    expect(
+      await unbound.receive({ type: 'botPromoted', channel: 'telegram', conversationRef: '-5' }),
+    ).toBe('ignored')
+    expect(unbound.telegram.said).toEqual([])
+  })
+
+  it('lists whether the bot reads every message, for the host panel', async () => {
+    const scene = aChannelScene()
+    await scene.memberships.grant({ eventId: EVENT, userId: OWNER, role: 'owner', grantedAt: AT })
+    const deps = {
+      events: scene.events,
+      clients: scene.clients,
+      memberships: scene.memberships,
+      bindings: scene.bindings,
+    }
+
+    const reads = await makeListBindings({ ...deps, channels: scene.channels })({
+      eventId: EVENT,
+      actorId: OWNER,
+    })
+    scene.telegram.readsAll = false
+    const blind = await makeListBindings({ ...deps, channels: scene.channels })({
+      eventId: EVENT,
+      actorId: OWNER,
+    })
+    const none = await makeListBindings({ ...deps, channels: new Map() })({
+      eventId: EVENT,
+      actorId: OWNER,
+    })
+
+    expect([reads, blind, none].map((view) => view.ok && view.value.readsAllMessages)).toEqual([
+      true,
+      false,
+      null,
+    ])
+  })
+})

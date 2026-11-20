@@ -34,6 +34,10 @@ export interface TelegramChannelOptions {
   /** The bot's own handle (`getMe`), which commands are addressed to. */
   readonly username: string
   readonly logger: Logger
+  /** The bot's own account number, from `getMe`. */
+  readonly botId: string
+  /** `can_read_all_group_messages` from `getMe`: privacy mode is off. Cached for the life of the process. */
+  readonly readsAll: boolean
 }
 
 export class TelegramMessagingChannel implements MessagingChannel {
@@ -41,11 +45,36 @@ export class TelegramMessagingChannel implements MessagingChannel {
   private readonly api: TelegramBotApi
   private readonly username: string
   private readonly logger: Logger
+  private readonly botId: string
+  private readonly readsAll: boolean
 
   constructor(options: TelegramChannelOptions) {
     this.api = options.api
     this.username = options.username
     this.logger = options.logger
+    this.botId = options.botId
+    this.readsAll = options.readsAll
+  }
+
+  readsAllMessages(): boolean {
+    return this.readsAll
+  }
+
+  async canSeeMedia(conversationRef: string): Promise<Result<boolean, ChannelFailure>> {
+    // Privacy mode off: the bot reads every message of every group. A private chat (a positive number) is always
+    // visible: there is nobody else to hide from.
+    if (this.readsAll || !conversationRef.startsWith('-')) return ok(true)
+    const status = await this.api.getChatMemberStatus(
+      conversationRef,
+      this.botId,
+      AbortSignal.timeout(15_000),
+    )
+    if (!status.ok) {
+      // Not "no": the caller says nothing rather than warn on a guess.
+      this.logger.warn('telegram membership check failed', describeFailure(status.error))
+      return err({ code: 'channel.membershipUnknown', retryable: true })
+    }
+    return ok(status.value === 'administrator' || status.value === 'creator')
   }
 
   identity(): { readonly username: string } {

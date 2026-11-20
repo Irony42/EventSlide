@@ -183,3 +183,46 @@ describe('replyReasonOfCode', () => {
     expect(replyReasonOfCode('event.notFound')).toBeNull()
   })
 })
+
+describe('a bot that cannot see the photographs of its group', () => {
+  const bound = (mediaBlind: boolean | undefined) =>
+    ({
+      reason: 'bound',
+      eventName: 'Mariage',
+      moderated: false,
+      noticeUrl: NOTICE,
+      ...(mediaBlind === undefined ? {} : { mediaBlind }),
+    }) as const
+
+  it.each(EVENT_LANGUAGES)('adds a paragraph about it to the bound reply in %s', (language) => {
+    const plain = renderReply(bound(false), language)
+    const warned = renderReply(bound(true), language)
+
+    expect(warned.startsWith(plain)).toBe(true)
+    expect(warned.slice(plain.length)).toMatch(/^\n\n\S/u)
+    expect(warned.length).toBeGreaterThan(plain.length + 60)
+  })
+
+  it('says nothing more when it can see them, or when it does not know', () => {
+    expect(renderReply(bound(undefined), 'fr')).toBe(renderReply(bound(false), 'fr'))
+  })
+
+  it('asks to be named administrator, in French with its typography', () => {
+    const text = renderReply(bound(true), 'fr')
+
+    expect(text).toContain(
+      `Attention${NBSP}: je ne vois pas encore les photos de ce groupe. Nommez-moi administrateur du groupe (aucun droit particulier n’est nécessaire), puis postez vos photos.`,
+    )
+  })
+
+  it.each(EVENT_LANGUAGES)('thanks the group once it is an administrator, in %s', (language) => {
+    expect(renderReply({ reason: 'nowSeesMedia' }, language).length).toBeGreaterThan(10)
+    expect(isThrottled('nowSeesMedia')).toBe(false)
+  })
+
+  it('thanks in French', () => {
+    expect(renderReply({ reason: 'nowSeesMedia' }, 'fr')).toBe(
+      'Merci, je vois maintenant les photos de ce groupe.',
+    )
+  })
+})

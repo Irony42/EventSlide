@@ -34,6 +34,28 @@ export class FakeMessagingChannel implements MessagingChannel {
     private readonly username = 'EventSlideBot',
   ) {}
 
+  /** Whether this fake bot reads every message of a group (privacy mode off). */
+  readsAll = true
+  /** The conversations this fake bot is an administrator of, when it does not read everything. */
+  readonly administratorOf = new Set<string>()
+  private pendingSeeFailures: ChannelFailure[] = []
+
+  readsAllMessages(): boolean {
+    return this.readsAll
+  }
+
+  /** The next `canSeeMedia` fails like this. */
+  failNextSeeMedia(failure: ChannelFailure): this {
+    this.pendingSeeFailures.push(failure)
+    return this
+  }
+
+  async canSeeMedia(conversationRef: string): Promise<Result<boolean, ChannelFailure>> {
+    const failure = this.pendingSeeFailures.shift()
+    if (failure !== undefined) return err(failure)
+    return ok(this.readsAll || this.administratorOf.has(conversationRef))
+  }
+
   identity(): { readonly username: string } {
     return { username: this.username }
   }

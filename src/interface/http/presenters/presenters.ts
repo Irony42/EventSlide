@@ -1200,6 +1200,7 @@ export const toChannelsResponseDto = (view: ChannelsView): ChannelsResponseDto =
   available: view.available,
   botUsername: view.botUsername,
   allowed: view.allowed,
+  readsAllMessages: view.readsAllMessages,
   bindings: view.bindings.map((binding): ChannelBindingDto => ({
     id: binding.id,
     channel: binding.channel,
