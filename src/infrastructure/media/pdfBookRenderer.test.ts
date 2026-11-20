@@ -12,7 +12,8 @@ import { BOOK_STYLE_DEFS, resolveBookColours } from '../../domain/book/bookStyle
 import { pageCountOf } from '../../domain/book/bookTemplates'
 import { BOOK_TEXTS } from '../../domain/book/bookTexts'
 import { COUNTS, OPTIONS, guest, makeMessage, makePhoto } from '../../domain/book/testing/bookFixtures'
-import { TRIM_PT, drawPage, messageFits, type TextTrace } from './book/drawBook'
+import { TRIM_PT, drawPage, type TextTrace } from './book/drawBook'
+import { messageFits } from './book/testing/messageFits'
 import { facesOf } from './book/bookFonts'
 import { createPdfBookRenderer } from './pdfBookRenderer'
 
@@ -193,9 +194,51 @@ describe('createPdfBookRenderer', () => {
     const files = await render(input)
 
     expect(files.interior?.subarray(0, 5).toString()).toBe('%PDF-')
-    expect(pageCount(files.interior as Buffer)).toBe(pageCountOf(input.printPages ?? []))
-    expect(pageCountOf(input.printPages ?? [])).toBeGreaterThanOrEqual(24)
+    // Worked out here, not read back from the plan the renderer was given: the screen plan's pages
+    // (a wide photograph keeps its two), padded with blanks up to 24 before `thanks`, `end` last.
+    const screenPages = pageCountOf(input.plan.pages)
+    const expected = Math.max(24, screenPages)
+    expect(pageCount(files.interior as Buffer)).toBe(expected)
+    const printed = input.printPages ?? []
+    expect(printed.slice(-2).map((p) => p.template)).toEqual(['thanks', 'end'])
+    const blanks = printed.filter((p) => p.template === 'blank').length
+    const screenBlanks = input.plan.pages.filter((p) => p.template === 'blank').length
+    expect(blanks - screenBlanks).toBe(expected - screenPages)
+    expect(printed.at(-3)?.template).toBe('blank')
     expect(pageCount(files.cover as Buffer)).toBe(2)
+  })
+
+  it('keeps the boxes and the page layout when the content is compressed, as it is in production', async () => {
+    const input = await inputOf({ photos: album(14), options: { printVersion: true } })
+
+    const { screen, interior } = await render(input, true)
+
+    expect(interior?.toString('latin1').match(/\/TrimBox \[/g)).toHaveLength(
+      pageCount(interior as Buffer),
+    )
+    expect(interior?.toString('latin1').match(/\/BleedBox \[/g)).toHaveLength(
+      pageCount(interior as Buffer),
+    )
+    expect(screen.toString('latin1')).toContain('/PageLayout /TwoPageRight')
+  })
+
+  it('stops drawing the printer version when the store says it was dropped, and says nothing is lost on screen', async () => {
+    const input = await inputOf({ photos: album(30), options: { printVersion: true } })
+    let pages = 0
+    const stopping: BookRenderInput = {
+      ...input,
+      pageTexts: async (page) => {
+        pages += 1
+        return input.pageTexts(page)
+      },
+      printStopped: () => pages >= 2,
+    }
+
+    const full = await render(input)
+    const files = await render(stopping)
+
+    expect(pageCount(files.interior as Buffer)).toBeLessThan(pageCount(full.interior as Buffer))
+    expect(pageCount(files.screen)).toBe(pageCount(full.screen))
   })
 
   it('gives every printer page a TrimBox of 210 mm inside a BleedBox of 216 mm, and no screen page one', async () => {
@@ -279,6 +322,71 @@ describe('createPdfBookRenderer', () => {
     const { screen } = await render(input)
 
     expect(pageCount(screen)).toBe(2 + pageCountOf(input.plan.pages))
+  })
+
+  it('draws a Cyrillic title in the fallback face and a Latin one in the style face', async () => {
+    const fonts = async (title: string): Promise<string> => {
+      const input = await inputOf({ photos: album(3), options: { style: 'magazine' } })
+      const { screen } = await render({ ...input, cover: { ...input.cover, title } }, false)
+      return screen.toString('latin1')
+    }
+
+    const cyrillic = await fonts('Привет, мир')
+    const latin = await fonts('Mariage de Léa')
+
+    expect(cyrillic).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSans-Bold/)
+    expect(latin).toMatch(/\/BaseFont \/[A-Z]{6}\+Fraunces/)
+    expect(latin).not.toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSans-Bold/)
+  })
+
+  it('embeds the kraft paper and the shadow once, however many pages use them', async () => {
+    const photos = Array.from({ length: 8 }, (_, i) =>
+      makePhoto({ minute: i, width: 3000, height: 1000, guestId: guest(i) }),
+    )
+    const input = await inputOf({ photos, options: { style: 'souvenir' } })
+
+    const { screen } = await render(input, false)
+
+    const images = screen.toString('latin1').match(/\/Subtype \/Image/g) ?? []
+    // the photographs and the cover, plus one kraft tile and one shadow (an SMask is its own image)
+    expect(images.length).toBeLessThanOrEqual(photos.length + 8)
+    expect(pageCount(screen)).toBeGreaterThan(8)
+  })
+
+  it('embeds a double-page photograph once for its two halves', async () => {
+    const photos = Array.from({ length: 30 }, (_, i) =>
+      makePhoto({ minute: i < 15 ? i : 200 + i, width: 1920, height: 1080, guestId: guest(i) }),
+    )
+    const input = await inputOf({ photos, options: { style: 'magazine' } })
+    const wide = input.plan.pages.find((p) => p.template === 'wide')
+    expect(wide).toBeDefined()
+    const doc = new PDFDocument({ size: [TRIM_PT, TRIM_PT], margin: 0, autoFirstPage: false })
+    const parts: Buffer[] = []
+    doc.on('data', (chunk: Buffer) => parts.push(chunk))
+    const id = wide?.slots[0]?.photoId as string
+    const prepared = new Map()
+    const context = async (page: PlanPage) => ({
+      doc,
+      mode: 'screen' as const,
+      withPrint: false,
+      input,
+      faces: facesOf(input.style),
+      bytes: new Map([[id as never, await input.photo(id as never)]]),
+      prepared,
+      texts: await input.pageTexts(page),
+    })
+
+    doc.addPage()
+    await drawPage(await context(wide as PlanPage), wide as PlanPage, { firstMessages: false, half: 'left' })
+    doc.addPage()
+    await drawPage(await context(wide as PlanPage), wide as PlanPage, { firstMessages: false, half: 'right' })
+    const done = new Promise<void>((resolve) => doc.on('end', resolve))
+    doc.end()
+    await done
+
+    const pdf = Buffer.concat(parts).toString('latin1')
+    expect(pdf.match(/\/Subtype \/Image/g)).toHaveLength(1)
+    expect(prepared.size).toBe(1)
   })
 
   it('reads the title of the cover, accents included, back out of the file', async () => {

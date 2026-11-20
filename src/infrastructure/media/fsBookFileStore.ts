@@ -113,7 +113,8 @@ export const createFsBookFileStore = (mediaRoot: string): BookFileStore => {
       return size
     },
 
-    writeSet: async (eventId, chunks, { maxBytes }): Promise<BookFileSetResult> => {
+    writeSet: async (eventId, chunks, options): Promise<BookFileSetResult> => {
+      const { maxBytes } = options
       const targets = Object.fromEntries(KINDS.map((kind) => [kind, finalPath(eventId, kind)]))
       await mkdir(tmpDir, { recursive: true })
       const parts = new Map<BookFileKind, Part>()
@@ -156,6 +157,7 @@ export const createFsBookFileStore = (mediaRoot: string): BookFileStore => {
           printTotal += chunk.bytes.byteLength
           if (printTotal > maxBytes.print) {
             printSkipped = 'tooLarge'
+            options.onPrintDropped?.()
             await dropPrint()
             continue
           }

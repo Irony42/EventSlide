@@ -28,6 +28,11 @@ export interface BookRenderInput {
   readonly plan: BookPlan
   /** The printer version's pages (`planForPrint`), or `null` for a screen book alone. */
   readonly printPages: readonly PlanPage[] | null
+  /**
+   * Whether the printer version was dropped while it was written (it outgrew its ceiling): the
+   * renderer then stops drawing it and pulls nothing more for it.
+   */
+  printStopped?(): boolean
   readonly style: BookStyleDef
   readonly colours: BookColours
   readonly language: EventLanguage

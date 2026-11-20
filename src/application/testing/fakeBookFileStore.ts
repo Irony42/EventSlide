@@ -57,7 +57,10 @@ export class FakeBookFileStore implements BookFileStore {
   async writeSet(
     eventId: EventId,
     chunks: AsyncIterable<BookChunk>,
-    options: { readonly maxBytes: { readonly screen: number; readonly print: number } },
+    options: {
+      readonly maxBytes: { readonly screen: number; readonly print: number }
+      readonly onPrintDropped?: () => void
+    },
   ): Promise<BookFileSetResult> {
     const parts = new Map<BookFileKind, Uint8Array[]>()
     const sizes = new Map<BookFileKind, number>()
@@ -69,6 +72,7 @@ export class FakeBookFileStore implements BookFileStore {
         printTotal += chunk.bytes.byteLength
         if (printTotal > options.maxBytes.print) {
           printSkipped = 'tooLarge'
+          options.onPrintDropped?.()
           parts.delete('printInterior')
           parts.delete('printCover')
           continue

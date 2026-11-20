@@ -143,10 +143,12 @@ const failureCodeOf = (error: unknown): BookFailureCode => {
 
 const bookUnavailable = (): DomainError => DomainError.unexpected('book.unavailable')
 
+/** The screen book opens with its cover and the inside of it: two pages before the plan's first. */
+const SCREEN_EXTRA_PAGES = 2
+
 /** What the render pass needs of a photograph beyond its place in the plan: kept per selected row. */
 interface PhotoMeta {
   readonly hash: ContentHash
-  readonly caption: string | null
   readonly guestId: GuestId | null
   readonly missionId: MissionId | null
 }
@@ -208,6 +210,18 @@ export const makeBuildNextAlbumBook = ({
       yield page.items
       cursor = page.nextCursor
     } while (cursor !== null)
+  }
+
+  /** A fact that voided the book at or after the instant its render started. */
+  const isVoided = async (eventId: EventId): Promise<boolean> => {
+    const current = await books.find(eventId)
+    return (
+      current !== null &&
+      current.status === 'running' &&
+      current.invalidatedAt !== null &&
+      current.startedAt !== null &&
+      current.invalidatedAt.getTime() >= current.startedAt.getTime()
+    )
   }
 
   const announce = (eventId: EventId): void => bus.publish({ type: 'book.changed', eventId })
@@ -279,7 +293,6 @@ export const makeBuildNextAlbumBook = ({
         })
         rowMeta.set(photo.id, {
           hash: photo.hashFor(DISPLAY),
-          caption: photo.caption === null ? null : photo.caption.toString(),
           guestId,
           missionId: photo.missionId,
         })
@@ -376,9 +389,21 @@ export const makeBuildNextAlbumBook = ({
     }
 
     const pageTexts = async (page: PlanPage): Promise<PageTexts> => {
+      if (signal?.aborted === true) throw new DOMException('aborted', 'AbortError')
       const metas = page.slots.map((slot) => rowMeta.get(slot.photoId) as PhotoMeta)
-      const entries = await Promise.all(
+      // Captions and messages are read again, here, by id: what a guest edited or erased since the
+      // first pass is what is printed (and a book that holds a removed one is made stale by the
+      // invalidation, not by this read).
+      const current = await Promise.all(
+        page.slots.map((slot) => photos.findById(eventId, slot.photoId)),
+      )
+      const found = await Promise.all(
         (page.messageIds ?? []).map((id) => guestbook.findById(eventId, id)),
+      )
+      // Only a message that is still published and still has words goes in the book (a taken-down
+      // one is invisible to `findById` already).
+      const entries = found.map((entry) =>
+        entry !== null && entry.status === 'published' ? entry : null,
       )
       const names = await namesOf([
         ...metas.map((meta) => meta.guestId),
@@ -389,8 +414,8 @@ export const makeBuildNextAlbumBook = ({
       const nameOf = (guestId: GuestId | null | undefined): string | null =>
         textOrNull(names.get(guestId as GuestId) ?? null, DisplayName.maxLength)
       return {
-        captions: metas.map((meta) =>
-          options.showCaptions ? textOrNull(meta.caption, Caption.maxLength) : null,
+        captions: current.map((photo) =>
+          options.showCaptions ? textOrNull(photo?.caption ?? null, Caption.maxLength) : null,
         ),
         authors: metas.map((meta) => nameOf(meta.guestId)),
         missions: metas.map((meta) =>
@@ -438,6 +463,7 @@ export const makeBuildNextAlbumBook = ({
         return bytes
       },
       pageTexts,
+      printStopped: () => printDropped,
       closing: {
         videosNote: videosNoteFor(videos, options.language),
         voicesNote: voices === 0 ? null : texts.voicesNotIncluded(voices),
@@ -453,13 +479,24 @@ export const makeBuildNextAlbumBook = ({
     }
 
     let set: BookFileSetResult
+    let printDropped = false
     try {
       set = await bookFiles.writeSet(eventId, guarded(), {
         maxBytes: { screen: policy.maxBytes, print: policy.maxPrintBytes },
+        onPrintDropped: () => {
+          printDropped = true
+        },
       })
     } catch (error) {
       if (signal?.aborted === true) return { kind: 'aborted', eventId }
       if (!DomainError.is(error)) logger.error('photo book render failed', { eventId })
+      // A file that vanished because the photograph was removed is the removal's doing: the book is
+      // stale, not failed.
+      if (await isVoided(eventId)) {
+        await books.finish(eventId, { kind: 'finished', result: emptyResult }, clock.now())
+        announce(eventId)
+        return { kind: 'stale', eventId }
+      }
       return giveUp(claimed, failureCodeOf(error))
     }
     const byteSize = set.screen
@@ -474,7 +511,8 @@ export const makeBuildNextAlbumBook = ({
     const result: BookResult = {
       photoCount: rendered,
       skippedCount: skipped,
-      pageCount: pageCountOf(plan.pages),
+      // What the host reads is what the file has: the cover and its inside count as pages.
+      pageCount: pageCountOf(plan.pages) + SCREEN_EXTRA_PAGES,
       byteSize,
       selectedCount: plan.selectedCount,
       printByteSize: printBytes,
@@ -485,6 +523,10 @@ export const makeBuildNextAlbumBook = ({
     // Decided in the repository, on the row as it is **after** the file exists: a fact stamped
     // while it rendered is in that row, and one replaced by a new request (queued) or deleted by
     // the host has no verdict to receive.
+    if (signal?.aborted === true) {
+      await bookFiles.delete(eventId)
+      return { kind: 'aborted', eventId }
+    }
     const finished = await books.finish(eventId, { kind: 'finished', result }, doneAt)
     if (finished === 'superseded') {
       await bookFiles.delete(eventId)

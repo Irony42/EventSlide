@@ -2,6 +2,7 @@ import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 import {
   kraftTexture,
+  once,
   pixelsFor,
   prepareContain,
   prepareCover,
@@ -69,5 +70,30 @@ describe('the generated images', () => {
     const paper = await kraftTexture()
     expect(await kraftTexture()).toBe(paper)
     expect((await sharp(paper).metadata()).width).toBe(256)
+  })
+})
+
+describe('once', () => {
+  it('makes a value once and gives the same one after', async () => {
+    let made = 0
+    const get = once(async () => ++made)
+
+    expect(await get()).toBe(1)
+    expect(await get()).toBe(1)
+    expect(made).toBe(1)
+  })
+
+  it('does not keep a failure: the next call tries again', async () => {
+    let calls = 0
+    const get = once(async () => {
+      calls += 1
+      if (calls === 1) throw new Error('disk')
+      return 'ok'
+    })
+
+    await expect(get()).rejects.toThrow('disk')
+    expect(await get()).toBe('ok')
+    expect(await get()).toBe('ok')
+    expect(calls).toBe(2)
   })
 })

@@ -72,10 +72,24 @@ export const reduce = async (
       .toBuffer({ resolveWithObject: true }),
   )
 
+/**
+ * Makes a value once and keeps it, **unless the making fails**: a rejected promise is dropped, so
+ * the next book tries again instead of failing for as long as the process lives.
+ */
+export const once = <T>(make: () => Promise<T>): (() => Promise<T>) => {
+  let kept: Promise<T> | null = null
+  return () => {
+    kept ??= make().catch((error: unknown) => {
+      kept = null
+      throw error
+    })
+    return kept
+  }
+}
+
 /** A soft shadow under a polaroid: a blurred black square on transparency, made once. */
-let shadow: Promise<Buffer> | null = null
-export const shadowImage = (): Promise<Buffer> => {
-  shadow ??= sharp({
+export const shadowImage = once(() =>
+  sharp({
     create: { width: 240, height: 240, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
   })
     .composite([
@@ -94,31 +108,26 @@ export const shadowImage = (): Promise<Buffer> => {
     ])
     .blur(14)
     .png()
-    .toBuffer()
-  return shadow
-}
+    .toBuffer(),
+)
 
 /**
  * The kraft paper of the Souvenir style: a square of fine fibres from a seeded generator, so it is
  * the same every time, made once and tiled by the renderer.
  */
-let kraft: Promise<Buffer> | null = null
-export const kraftTexture = (): Promise<Buffer> => {
-  kraft ??= (async () => {
-    const size = 256
-    const raw = Buffer.alloc(size * size * 3)
-    let state = 0x2545f491
-    for (let i = 0; i < size * size; i += 1) {
-      state = (Math.imul(state, 1664525) + 1013904223) >>> 0
-      const grain = (state >>> 24) % 28
-      raw[i * 3] = 205 - grain
-      raw[i * 3 + 1] = 180 - grain
-      raw[i * 3 + 2] = 140 - grain
-    }
-    return sharp(raw, { raw: { width: size, height: size, channels: 3 } })
-      .blur(0.8)
-      .jpeg({ quality: 80 })
-      .toBuffer()
-  })()
-  return kraft
-}
+export const kraftTexture = once(async () => {
+  const size = 256
+  const raw = Buffer.alloc(size * size * 3)
+  let state = 0x2545f491
+  for (let i = 0; i < size * size; i += 1) {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0
+    const grain = (state >>> 24) % 28
+    raw[i * 3] = 205 - grain
+    raw[i * 3 + 1] = 180 - grain
+    raw[i * 3 + 2] = 140 - grain
+  }
+  return sharp(raw, { raw: { width: size, height: size, channels: 3 } })
+    .blur(0.8)
+    .jpeg({ quality: 80 })
+    .toBuffer()
+})

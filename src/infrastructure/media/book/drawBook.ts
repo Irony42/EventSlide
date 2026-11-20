@@ -36,7 +36,7 @@ const PRINT = { dpi: 300, quality: 90 } as const
 
 /** Fixed sizes: the 500-character message and the 280-character quote fit their boxes at these. */
 /** The line under a message (the first name) takes this much of its box. */
-const AUTHOR_LINE = 16
+export const AUTHOR_LINE = 16
 export const MESSAGE_FONT_SIZE = 9
 export const QUOTE_FONT_SIZE = 15
 
@@ -148,17 +148,6 @@ const drawText = (ctx: DrawContext, text: string, box: Rect, options: TextOption
   return height
 }
 
-/** Does a message of this text fit the box of a `messages` page at the fixed size? (the render test asks) */
-export const messageFits = (
-  doc: PDFKit.PDFDocument,
-  font: string,
-  text: string,
-  size: number = MESSAGE_FONT_SIZE,
-): boolean => {
-  const box = toRect('screen', BOOK_TEMPLATES.messages.texts[0]!)
-  doc.font(font).fontSize(size)
-  return doc.heightOfString(text, { width: box.w, lineGap: 1 }) <= box.h - AUTHOR_LINE
-}
 
 /** A size for story text: what the page asks, but never under the style's own minimum. */
 const body = (ctx: DrawContext, size: number): number => Math.max(size, ctx.input.style.minBodySize)
@@ -189,7 +178,14 @@ const imageFor = async (
   const hMm = rect.h / MM
   const make = fit === 'cover' ? prepareCover : prepareContain
   if (!ctx.withPrint) {
-    return make(bytes, pixelsFor(wMm, SCREEN.dpi), pixelsFor(hMm, SCREEN.dpi), SCREEN.quality)
+    // Kept for the page: the two halves of a double page are one photograph, decoded once.
+    const screenKey = 'screen|' + key
+    let screen = ctx.prepared.get(screenKey)
+    if (screen === undefined) {
+      screen = await make(bytes, pixelsFor(wMm, SCREEN.dpi), pixelsFor(hMm, SCREEN.dpi), SCREEN.quality)
+      ctx.prepared.set(screenKey, screen)
+    }
+    return screen
   }
   let big = ctx.prepared.get(key)
   if (big === undefined) {
@@ -224,6 +220,28 @@ const imageBox = (image: Prepared, rect: Rect): Rect => {
   return { x: rect.x + (rect.w - w) / 2, y: rect.y + (rect.h - h) / 2, w, h }
 }
 
+// ------------------------------------------------- images embedded once per document --
+
+const opened = new WeakMap<PDFKit.PDFDocument, Map<string, unknown>>()
+
+/**
+ * An image of the document opened once and reused: `pdfkit` embeds a Buffer image anew at every
+ * `image()` call, a `PDFImage` it opened itself only once.
+ */
+const sharedImage = (doc: PDFKit.PDFDocument, key: string, bytes: Buffer): unknown => {
+  let images = opened.get(doc)
+  if (images === undefined) {
+    images = new Map()
+    opened.set(doc, images)
+  }
+  let image = images.get(key)
+  if (image === undefined) {
+    image = (doc as unknown as { openImage(bytes: Buffer): unknown }).openImage(bytes)
+    images.set(key, image)
+  }
+  return image
+}
+
 // ------------------------------------------------------------- the paper --
 
 export const drawPaper = async (ctx: DrawContext): Promise<void> => {
@@ -234,7 +252,9 @@ export const drawPaper = async (ctx: DrawContext): Promise<void> => {
     const tile = await kraftTexture()
     const edge = 256 * 0.6
     for (let x = 0; x < size; x += edge) {
-      for (let y = 0; y < size; y += edge) doc.image(tile, x, y, { width: edge, height: edge })
+      for (let y = 0; y < size; y += edge) {
+        doc.image(sharedImage(doc, 'kraft', tile) as never, x, y, { width: edge, height: edge })
+      }
     }
   }
 }
@@ -317,7 +337,7 @@ const drawPolaroid = async (
   const cy = frame.y + frame.h / 2
   doc.save()
   doc.rotate(polaroidRotation(id), { origin: [cx, cy] })
-  doc.image(await shadowImage(), frame.x - frame.w * 0.15, frame.y - frame.h * 0.1, {
+  doc.image(sharedImage(doc, 'shadow', await shadowImage()) as never, frame.x - frame.w * 0.15, frame.y - frame.h * 0.1, {
     width: frame.w * 1.3,
     height: frame.h * 1.3,
   })
@@ -847,7 +867,8 @@ const drawWideHalf = async (
   const size = TRIM_PT + 2 * origin(mode)
   doc.save()
   doc.rect(0, 0, size, size).clip()
-  doc.image(image.jpeg, half === 'left' ? whole.x : whole.x - TRIM_PT, whole.y, {
+  // One photograph on two pages: opened once in the document, drawn twice.
+  doc.image(sharedImage(doc, 'wide:' + id, image.jpeg) as never, half === 'left' ? whole.x : whole.x - TRIM_PT, whole.y, {
     width: whole.w,
     height: whole.h,
   })

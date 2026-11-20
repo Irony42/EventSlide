@@ -157,6 +157,7 @@ export const createPdfBookRenderer = ({
       const padding =
         printPages === null ? 0 : printPages.length - (input.plan.pages.length + wides)
       let printAt = 0
+      let printOff = false
       let firstMessages = true
       for (const page of input.plan.pages) {
         const texts =
@@ -183,7 +184,7 @@ export const createPdfBookRenderer = ({
           await drawPage(contextFor(screen, bytes, prepared, texts), page, { firstMessages })
         }
 
-        if (interior !== null && printPages !== null) {
+        if (interior !== null && printPages !== null && !printOff) {
           // The printer pages that stand for this plan page: a `wide` is a chapter page and a
           // photograph, `thanks` comes after the padding blanks.
           const count = page.template === 'wide' ? 2 : page.template === 'thanks' ? padding + 1 : 1
@@ -196,6 +197,9 @@ export const createPdfBookRenderer = ({
           printAt += count
         }
         if (isMessages) firstMessages = false
+
+        // The printer version was dropped while it was written: nothing more is drawn for it.
+        if (!printOff && input.printStopped?.() === true) printOff = true
 
         // Between two pages, so the wall's SSE and the guests' uploads on this same process are
         // not starved by a long book.

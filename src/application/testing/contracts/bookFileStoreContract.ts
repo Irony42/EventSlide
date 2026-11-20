@@ -228,6 +228,29 @@ export const bookFileStoreContract = (
         ).rejects.toMatchObject({ code: 'book.tooLarge' })
       }))
 
+    it('tells the caller, once, the moment the printer version is dropped, and never when it fits', () =>
+      withStore(async (store) => {
+        let told = 0
+        await store.writeSet(
+          A,
+          chunks(
+            ['screen', 'book'],
+            ['printInterior', '123456'],
+            ['printCover', '12345'],
+            ['printInterior', 'more'],
+          ),
+          { maxBytes: { screen: 100, print: 10 }, onPrintDropped: () => (told += 1) },
+        )
+        expect(told).toBe(1)
+
+        await store.writeSet(
+          B,
+          chunks(['screen', 's'], ['printInterior', 'i'], ['printCover', 'c']),
+          { ...LIMITS, onPrintDropped: () => (told += 1) },
+        )
+        expect(told).toBe(1)
+      }))
+
     it('accepts a printer version of exactly its ceiling', () =>
       withStore(async (store) => {
         const result = await store.writeSet(
