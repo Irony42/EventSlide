@@ -408,6 +408,8 @@ describe('a suspended client, through the real composition root', () => {
       body: {},
     },
     { method: 'delete', path: '/api/events/:eventSlug/announcements/:announcementId', body: {} },
+    // A messaging channel (spec 27): a frozen event keeps its groups until the client is back.
+    { method: 'delete', path: '/api/events/:eventSlug/channels/:bindingId', body: {} },
     {
       method: 'patch',
       path: '/api/events/:eventSlug/photos/:photoId/status',

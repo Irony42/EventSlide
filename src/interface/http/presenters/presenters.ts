@@ -54,6 +54,7 @@ import type {
   GalleryPageDto,
   AnnouncementDto,
   AnnouncementListResponseDto,
+  ChannelBindingDto,
   ChannelsResponseDto,
   AnnouncementResponseDto,
   ChallengeDto,
@@ -1181,7 +1182,7 @@ export const toChannelsResponseDto = (view: ChannelsView): ChannelsResponseDto =
   available: view.available,
   botUsername: view.botUsername,
   allowed: view.allowed,
-  bindings: view.bindings.map((binding) => ({
+  bindings: view.bindings.map((binding): ChannelBindingDto => ({
     id: binding.id,
     channel: binding.channel,
     title: binding.conversationTitle,
