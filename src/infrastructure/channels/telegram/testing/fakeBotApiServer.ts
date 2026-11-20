@@ -116,7 +116,10 @@ export class FakeBotApiServer {
       if (file[1] !== this.token) return send(401, { ok: false, error_code: 401 })
       const bytes = this.files.get(decodeURIComponent(file[2] ?? '').replace(/^files\//u, ''))
       if (bytes === undefined) return send(404, { ok: false, error_code: 404 })
-      response.writeHead(200, { 'content-type': 'application/octet-stream' })
+      response.writeHead(200, {
+        'content-type': 'application/octet-stream',
+        'content-length': String(bytes.length),
+      })
       response.end(bytes)
       return
     }

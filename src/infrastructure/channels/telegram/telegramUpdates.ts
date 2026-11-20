@@ -103,6 +103,7 @@ const updateSchema = z
   .loose()
 
 type Message = z.infer<typeof messageSchema>
+type PhotoSize = z.infer<typeof photoSizeSchema>
 
 const IGNORED: InboundMessage = { type: 'ignored' }
 const MAX_NAME = 200
@@ -179,13 +180,15 @@ const translateMessage = (message: Message, botUsername: string): InboundMessage
 
   if (sender.isBot) return IGNORED
 
-  if (message.photo !== undefined && message.photo.length > 0) {
-    const largest = [...message.photo].sort(
-      (left, right) =>
-        (right.file_size ?? (right.width ?? 0) * (right.height ?? 0)) -
-        (left.file_size ?? (left.width ?? 0) * (left.height ?? 0)),
-    )[0]
-    if (largest === undefined) return IGNORED
+  const [firstSize, ...otherSizes] = message.photo ?? []
+  if (firstSize !== undefined) {
+    // The largest size: by its byte length when it has one, else by its pixels.
+    const weight = (size: PhotoSize): number =>
+      size.file_size ?? (size.width ?? 0) * (size.height ?? 0)
+    const largest = otherSizes.reduce(
+      (best, size) => (weight(size) > weight(best) ? size : best),
+      firstSize,
+    )
     return {
       type: 'media',
       ...origin,
