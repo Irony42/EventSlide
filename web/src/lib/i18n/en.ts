@@ -713,6 +713,8 @@ export const en: UiText = {
     },
     noticeMessageAudience:
       'Your messages are read by the organiser and their team, and may be shown on the event screen. They are not in “Photos from the evening”.',
+    noticeMessageBook:
+      'The organiser may put your words, with your first name, in the evening’s photo book, which they may have printed.',
     noticeMessageRetention: 'Your messages are kept as long as the photos, and erased with them.',
     noticeMessageRemoval:
       'A message is removed like a photo, from “My messages” and under the same conditions.',
@@ -1746,27 +1748,76 @@ export const en: UiText = {
     exportFailed: 'The download could not start. Try again in a moment.',
     // Spec 04: the photo book (a PDF of the published album) on the event page.
     book: 'Photo book',
-    bookHint: 'A PDF of your published photos, to keep or to print.',
+    bookHint: 'A PDF book of the album, ready to send or to have printed.',
+    bookStyleLegend: 'Style',
+    bookStyleNames: {
+      classique: 'Classic',
+      magazine: 'Magazine',
+      souvenir: 'Souvenir',
+    },
+    bookStyleHints: {
+      classique: 'Understated, ivory paper',
+      magazine: 'Big photos, big headlines',
+      souvenir: 'Polaroids and handwritten words',
+    },
+    bookStyleFromWall: 'Chosen from the ambiance of your wall.',
     bookTitle: 'Title',
     bookSubtitle: 'Subtitle',
-    bookLayout: 'Layout',
-    bookLayoutOne: 'One photo per page',
-    bookLayoutFour: 'Four photos per page',
-    bookShowAuthors: 'Show the guest’s first name under each photo',
-    bookShowCaptions: 'Show captions',
+    bookSubtitleHint: 'Left empty: the date of the evening.',
+    bookPhotosLegend: 'Photos',
+    bookSelectionAll: (count: number) => `Every photo (${t.number(count)})`,
+    bookSelectionAllTooMany: (max: number) =>
+      `More than ${t.number(max)} photos: choose a selection.`,
+    bookSelectionBest: 'A selection',
+    bookSelectionBestHint:
+      'The starred photos, at least one per photographer, then the most liked, spread across the evening.',
+    bookLengthLegend: 'Length of the selection',
+    bookLengthNames: {
+      short: 'Short',
+      medium: 'Medium',
+      long: 'Long',
+    },
+    bookLengthChip: (name: string, photos: number) => `${name} · ${t.number(photos)} photos`,
+    bookOptionsLegend: 'Contents',
+    bookShowAuthors: 'First names',
+    bookShowAuthorsHint: 'Under the photos, under the guest book words and on the thank-you page.',
+    bookShowCaptions: 'Captions',
+    bookGuestbook: 'Guest book words',
+    bookGuestbookHint: (count: number, max: number) =>
+      `${t.count(count, { one: '1 written message', other: `${t.number(count)} written messages` })}.${count > max ? ` The first ${t.number(max)} will go in the book.` : ''} Voice messages do not go in the book.`,
+    bookPrintVersion: 'Printer version',
+    bookPrintVersionHint: 'Two extra files, with bleed, to send to an online printer.',
+    bookFormNote:
+      'Only published photos are included. The page count is given when the book is ready.',
     bookCreate: 'Create the book',
     bookRebuild: 'Make the book again',
-    bookWorking:
-      'Your book is being prepared. You can leave this page, it will be ready in a few minutes.',
-    bookDone: (photos: number, pages: number, size: string, until: string | null) =>
-      `Your book is ready: ${t.count(photos, { one: `${t.number(photos)} photo`, other: `${t.number(photos)} photos` })}, ${t.count(pages, { one: `${t.number(pages)} page`, other: `${t.number(pages)} pages` })}, ${size}.${until === null ? '' : ` Available until ${until}.`}`,
-    bookDownload: 'Download the book (PDF)',
+    bookRecreate: 'Recreate the book',
+    bookWorking: 'The book is being prepared…',
+    bookWorkingDetail: (style: string, target: number | null) =>
+      `Style ${style}, ${target === null ? 'every photo' : `about ${t.number(target)} photos`}. You can leave this page.`,
+    bookDone: (photos: number, ofAlbum: number | null, pages: number, until: string | null) =>
+      `Book ready: ${t.count(pages, { one: `${t.number(pages)} page`, other: `${t.number(pages)} pages` })}, ${t.count(photos, { one: `${t.number(photos)} photo`, other: `${t.number(photos)} photos` })}${ofAlbum === null ? '' : ` (the album now holds ${t.number(ofAlbum)})`}.${until === null ? '' : ` Available until ${until}.`}`,
+    bookDownload: 'Download the book',
+    bookDownloadMeta: (size: string) => `PDF · ${size}`,
+    bookDownloadPrintInterior: 'Printer version: interior',
+    bookDownloadPrintCover: 'Printer version: cover',
+    bookPrintSkippedTooManyPages: (pages: number, max: number) =>
+      `Printer version not made: the book has ${t.number(pages)} pages and printers accept ${t.number(max)} at most. Choose a shorter selection and make the book again.`,
+    bookPrintSkippedTooLarge:
+      'Printer version not made: its files are too large. Choose a shorter selection and make the book again.',
+    bookHelpLink: 'How to get it printed?',
+    bookHelpIntro: 'The printer version is two files made from the same book.',
+    bookHelpStep1:
+      'Pick an online printer that accepts a PDF for a square 21 × 21 cm hardcover book.',
+    bookHelpStep2:
+      'Send the interior and the cover. The cover file holds two pages: the back, then the front.',
+    bookHelpStep3: 'Compose the spine with the printer’s own tool, and order a test copy first.',
     bookDelete: 'Delete the book',
     bookDeleteTitle: 'Delete the book?',
     bookDeleteHint:
       'The file is erased from the server. You can make another one, up to three a day.',
     bookStale:
-      'A photo was removed or a caption changed since: this book is no longer available. Make it again to bring it up to date.',
+      'The book was withdrawn because some content was removed or a caption changed. Recreate it: your choices are kept.',
     bookFailed: 'The book could not be made. Try again in a moment.',
     bookFailedTooLarge: 'The album is too large for a single book.',
     // Spec 08, step 2: the highlight video.

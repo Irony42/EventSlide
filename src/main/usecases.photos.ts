@@ -146,7 +146,16 @@ export const photosUseCases = (
     clock: adapters.clock,
     policy: policy.book,
   }),
-  getAlbumBook: makeGetAlbumBook({ events: adapters.events, books: adapters.books }),
+  getAlbumBook: makeGetAlbumBook({
+    events: adapters.events,
+    books: adapters.books,
+    photos: adapters.photos,
+    guestbook: adapters.guestbook,
+    bookFiles: adapters.bookFiles,
+    maxPhotos: policy.book.maxPhotos,
+    maxMessages: policy.book.maxMessages,
+    printEnabled: policy.book.printEnabled,
+  }),
   downloadAlbumBook: makeDownloadAlbumBook({
     events: adapters.events,
     books: adapters.books,

@@ -10,9 +10,13 @@ const OPTIONS: BookOptions = {
   title: 'T',
   subtitle: '',
   language: 'fr',
-  layout: 'one',
+  style: 'classique',
+  selection: { kind: 'all' },
   showAuthors: true,
   showCaptions: true,
+  includeGuestbook: false,
+  printVersion: false,
+  timeZone: 'Europe/Paris',
 }
 
 describe('recoverAlbumBooks', () => {

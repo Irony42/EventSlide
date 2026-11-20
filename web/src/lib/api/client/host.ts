@@ -24,6 +24,8 @@ import type {
   MissionListResponse,
   MissionScope,
   AlbumBookDto,
+  AlbumBookSelection,
+  AlbumBookStyle,
   AlbumExportDto,
   HighlightsDto,
   ReelDto,
@@ -159,9 +161,15 @@ export interface ShareLinkInput {
 export interface AlbumBookInput {
   readonly title: string
   readonly subtitle: string
-  readonly layout: 'one' | 'four'
+  readonly language?: string
+  readonly style: AlbumBookStyle
+  readonly selection: AlbumBookSelection
   readonly showAuthors: boolean
   readonly showCaptions: boolean
+  readonly includeGuestbook: boolean
+  readonly printVersion: boolean
+  /** The browser's own zone: the dates of the book are written in it. */
+  readonly timeZone: string
 }
 
 export interface ModeratorInvitationInput {
@@ -461,8 +469,10 @@ export const hostApi = (transport: Transport) => ({
   /** The sealed archive (spec 22): a file of known size, an `ETag`, resumable. */
   albumExportUrl: (slug: string): string => `/api/events/${encode(slug)}/export.zip`,
 
-  /** The finished photo book (spec 04). */
+  /** The finished photo book (spec 04), and the two files of its printer version (spec 26). */
   albumBookUrl: (slug: string): string => `/api/events/${encode(slug)}/book.pdf`,
+  albumBookPrintUrl: (slug: string): string => `/api/events/${encode(slug)}/book-print.pdf`,
+  albumBookCoverUrl: (slug: string): string => `/api/events/${encode(slug)}/book-cover.pdf`,
 
   /** The favourites as a ZIP (spec 08). */
   /** The finished montage, streamed with `Range`; every request is re-checked by the server. */

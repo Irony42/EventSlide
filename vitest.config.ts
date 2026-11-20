@@ -76,6 +76,8 @@ export default defineConfig({
         // Test doubles and harnesses are themselves covered by the port contract
         // suites; counting them again would only inflate the number.
         'src/application/testing/**',
+        // Fixtures and the album generator of the book's property tests.
+        'src/domain/**/testing/**',
         'src/interface/http/testing/**',
         // The in-process SMTP relay the mailer adapter is tested against: a test double,
         // exercised by the Mailer contract suite, not production code.
@@ -96,6 +98,9 @@ export default defineConfig({
         // than left out of `include` by its extension, so the next `.mts` under
         // `scripts/` is counted by the ratchet below instead of skipped in silence.
         'scripts/showcase.mts',
+        // The photo book's showcase (spec 26): a maintainer runs it to render every style over a
+        // demo album and look at the pages; it asserts nothing by design.
+        'scripts/bookShowcase.mts',
       ],
 
       /**

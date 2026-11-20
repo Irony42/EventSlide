@@ -29,6 +29,7 @@ export const PLAIN_REASONS = [
   'tooFast',
   'forgetFailed',
   'channelOff',
+  'nowSeesMedia',
 ] as const
 
 export type PlainReason = (typeof PLAIN_REASONS)[number]
@@ -40,6 +41,8 @@ export type BotReply =
       readonly eventName: string
       readonly moderated: boolean
       readonly noticeUrl: string
+      /** The bot cannot see this group's photographs (privacy mode, not an administrator): the reply says what to do. */
+      readonly mediaBlind?: boolean
     }
   | { readonly reason: 'unbound'; readonly eventName: string }
   | { readonly reason: 'privacy'; readonly noticeUrl: string }
@@ -104,6 +107,8 @@ export const replyReasonOfCode = (code: string): PlainReason | null =>
   REASON_OF_CODE.get(code) ?? null
 
 interface Phrasebook {
+  /** The paragraph added to the bound reply when the bot cannot see the group's photographs. */
+  readonly blind: string
   readonly plain: Readonly<Record<PlainReason, string>>
   readonly bound: (eventName: string, moderated: boolean, noticeUrl: string) => string
   readonly unbound: (eventName: string) => string
@@ -121,6 +126,8 @@ export const frenchTypography = (text: string): string =>
     .replace(/ »/gu, ' »')
 
 const FR: Phrasebook = {
+  blind:
+    'Attention : je ne vois pas encore les photos de ce groupe. Nommez-moi administrateur du groupe (aucun droit particulier n’est nécessaire), puis postez vos photos.',
   plain: {
     notBound:
       "Ce groupe n'est associé à aucune soirée. Envoyez /soiree suivi du code de la soirée.",
@@ -142,6 +149,7 @@ const FR: Phrasebook = {
     albumFull: "L'album de cette soirée est plein : il ne peut plus prendre de photos.",
     tooFast: 'Doucement : trop de fichiers à la fois, certains ne sont pas pris.',
     forgetFailed: "Je n'ai pas pu retirer vos photos pour le moment. Réessayez dans un instant.",
+    nowSeesMedia: 'Merci, je vois maintenant les photos de ce groupe.',
     channelOff: "L'envoi de photos par Telegram a été désactivé pour cette soirée.",
   },
   // The typography is applied to the phrase, then the event's name and the address go in: what a host wrote is
@@ -165,6 +173,8 @@ const FR: Phrasebook = {
 }
 
 const EN: Phrasebook = {
+  blind:
+    'Careful: I cannot see the photos of this group yet. Make me an administrator of the group (no special right is needed), then post your photos.',
   plain: {
     notBound: 'This group is not linked to any event. Send /soiree followed by the event code.',
     noCode:
@@ -185,6 +195,7 @@ const EN: Phrasebook = {
     albumFull: 'The album of this event is full: it cannot take more photos.',
     tooFast: 'Slow down: too many files at once, some were not taken.',
     forgetFailed: 'I could not remove your photos just now. Please try again in a moment.',
+    nowSeesMedia: 'Thank you, I can now see the photos of this group.',
     channelOff: 'Sending photos through Telegram has been turned off for this event.',
   },
   bound: (eventName, moderated, noticeUrl) =>
@@ -198,6 +209,8 @@ const EN: Phrasebook = {
 }
 
 const DE: Phrasebook = {
+  blind:
+    'Achtung: Ich sehe die Fotos dieser Gruppe noch nicht. Mach mich zum Administrator der Gruppe (besondere Rechte sind nicht nötig) und poste dann deine Fotos.',
   plain: {
     notBound:
       'Diese Gruppe ist mit keiner Feier verbunden. Sende /soiree und danach den Code der Feier.',
@@ -220,6 +233,7 @@ const DE: Phrasebook = {
     tooFast: 'Langsam: zu viele Dateien auf einmal, einige wurden nicht übernommen.',
     forgetFailed:
       'Ich konnte deine Fotos gerade nicht entfernen. Bitte versuche es gleich noch einmal.',
+    nowSeesMedia: 'Danke, ich sehe jetzt die Fotos dieser Gruppe.',
     channelOff: 'Das Senden von Fotos über Telegram wurde für diese Feier ausgeschaltet.',
   },
   bound: (eventName, moderated, noticeUrl) =>
@@ -233,6 +247,8 @@ const DE: Phrasebook = {
 }
 
 const ES: Phrasebook = {
+  blind:
+    'Atención: todavía no veo las fotos de este grupo. Nómbrame administrador del grupo (no hace falta ningún permiso especial) y luego publica tus fotos.',
   plain: {
     notBound:
       'Este grupo no está vinculado a ningún evento. Envía /soiree seguido del código del evento.',
@@ -254,6 +270,7 @@ const ES: Phrasebook = {
     albumFull: 'El álbum de este evento está lleno: no puede recibir más fotos.',
     tooFast: 'Más despacio: demasiados archivos a la vez, algunos no se han recogido.',
     forgetFailed: 'No he podido retirar tus fotos ahora mismo. Inténtalo de nuevo en un momento.',
+    nowSeesMedia: 'Gracias, ahora veo las fotos de este grupo.',
     channelOff: 'El envío de fotos por Telegram se ha desactivado para este evento.',
   },
   bound: (eventName, moderated, noticeUrl) =>
@@ -267,6 +284,8 @@ const ES: Phrasebook = {
 }
 
 const IT: Phrasebook = {
+  blind:
+    'Attenzione: non vedo ancora le foto di questo gruppo. Nominami amministratore del gruppo (non serve alcun permesso particolare), poi pubblica le tue foto.',
   plain: {
     notBound:
       "Questo gruppo non è collegato a nessun evento. Invia /soiree seguito dal codice dell'evento.",
@@ -288,6 +307,7 @@ const IT: Phrasebook = {
     albumFull: "L'album di questo evento è pieno: non può ricevere altre foto.",
     tooFast: 'Piano: troppi file insieme, alcuni non sono stati presi.',
     forgetFailed: 'Non sono riuscito a rimuovere le tue foto in questo momento. Riprova tra poco.',
+    nowSeesMedia: 'Grazie, ora vedo le foto di questo gruppo.',
     channelOff: "L'invio di foto tramite Telegram è stato disattivato per questo evento.",
   },
   bound: (eventName, moderated, noticeUrl) =>
@@ -300,6 +320,7 @@ const IT: Phrasebook = {
 
 const PHRASEBOOKS: Readonly<Record<EventLanguage, Phrasebook>> = {
   fr: {
+    blind: frenchTypography(FR.blind),
     plain: Object.fromEntries(
       Object.entries(FR.plain).map(([reason, text]) => [reason, frenchTypography(text)]),
     ) as Record<PlainReason, string>,
@@ -328,7 +349,9 @@ export const renderReply = (reply: BotReply, language: EventLanguage | null): st
   const book = PHRASEBOOKS[language ?? DEFAULT_EVENT_LANGUAGE]
   switch (reply.reason) {
     case 'bound':
-      return book.bound(quoted(reply.eventName), reply.moderated, reply.noticeUrl)
+      return reply.mediaBlind === true
+        ? `${book.bound(quoted(reply.eventName), reply.moderated, reply.noticeUrl)}\n\n${book.blind}`
+        : book.bound(quoted(reply.eventName), reply.moderated, reply.noticeUrl)
     case 'unbound':
       return book.unbound(quoted(reply.eventName))
     case 'privacy':

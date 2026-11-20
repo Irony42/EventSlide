@@ -28,9 +28,14 @@ The long version of the [README](../README.md#what-it-does): every feature, by w
   again if you change one of those settings mid-evening.
 - **Your favourites, in one ZIP.** Star the best photos in the moderation console (or pre-select the
   most liked), then download just those from the event page.
-- **A photo book as a PDF.** From the event page, a cover, your published photos one or four to
-  a page, first names and captions if you wish, and a closing page, in your language. It is
-  kept for a week; removing a photo afterwards retires it. Non-Latin names are embedded, but not
+- **A photo book as a PDF.** From the event page, in one of three styles (Classique, Magazine,
+  Souvenir; the form opens on the one your wall's ambiance suggests): a cover, chapters by time of
+  evening, the most liked photographs given the room, a contents page, quotes, the evening in
+  figures and a closing page, in your language. Every photograph, or a selection of about 60, 120
+  or 200 (the starred ones, at least one per photographer, then the most liked). First names and
+  captions if you wish, and the words of your guest book. A **printer version** (two more files:
+  interior and cover, with bleed) goes to an online printer. It is kept for a week; removing a
+  photograph or a printed message afterwards retires it. Non-Latin names are embedded, but not
   right-to-left scripts or emojis, which are left out rather than drawn as boxes.
 - **The album is yours afterwards.** One ZIP, full resolution, and an automatic purge
   when you choose one.

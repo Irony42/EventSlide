@@ -1,4 +1,3 @@
-import type { EventLanguage } from '../events/eventLanguage'
 import { DomainError } from '../shared/errors'
 import type { EventId } from '../shared/ids'
 import { err, ok, type Result } from '../shared/result'
@@ -6,19 +5,14 @@ import {
   canTransition,
   type AlbumBookStatus,
   type BookFailureCode,
+  type BookPrintSkipped,
   type BookStaleReason,
 } from './albumBookStatus'
-import type { BookLayout } from './bookLayout'
+import type { BookOptionsV2 } from './bookOptionsV2'
+import type { BookPlan } from './bookPlan'
 
-/** What the host chose in the dialog. The title and subtitle are the host's text, not a guest's. */
-export interface BookOptions {
-  readonly title: string
-  readonly subtitle: string
-  readonly language: EventLanguage
-  readonly layout: BookLayout
-  readonly showAuthors: boolean
-  readonly showCaptions: boolean
-}
+/** What the host chose in the dialog (spec 26): the options of the v2 book, a 3.14 request converted. */
+export type BookOptions = BookOptionsV2
 
 /**
  * The one book of an event. Plain data: every move is a pure function below, which the
@@ -41,6 +35,13 @@ export interface AlbumBook {
   readonly skippedCount: number | null
   readonly pageCount: number | null
   readonly byteSize: number | null
+  /** Photographs the plan kept (every one for a v1 book); photoCount is those that were drawn. */
+  readonly selectedCount: number | null
+  /** The printer version's two files together, null when there is none. */
+  readonly printByteSize: number | null
+  readonly printSkipped: BookPrintSkipped | null
+  /** The plan the render follows: written when it starts, voided with the book. Ids and numbers only. */
+  readonly plan: BookPlan | null
   readonly expiresAt: Date | null
   readonly failureCode: BookFailureCode | null
   readonly staleReason: BookStaleReason | null
@@ -63,6 +64,10 @@ export const requestBook = (eventId: EventId, options: BookOptions, now: Date): 
   skippedCount: null,
   pageCount: null,
   byteSize: null,
+  selectedCount: null,
+  printByteSize: null,
+  printSkipped: null,
+  plan: null,
   expiresAt: null,
   failureCode: null,
   staleReason: null,
@@ -78,8 +83,17 @@ export interface BookResult {
   readonly skippedCount: number
   readonly pageCount: number
   readonly byteSize: number
+  readonly selectedCount: number
+  readonly printByteSize: number | null
+  readonly printSkipped: BookPrintSkipped | null
   readonly expiresAt: Date
 }
+
+/** A fact that voided the book at or after the instant its render started. */
+const isVoidedSinceStart = (book: AlbumBook): boolean =>
+  book.invalidatedAt !== null &&
+  book.startedAt !== null &&
+  book.invalidatedAt.getTime() >= book.startedAt.getTime()
 
 /**
  * A render ended. A fact that voided the book **after the render started** wins over the
@@ -90,15 +104,12 @@ export const finishBook = (
   result: BookResult,
   now: Date,
 ): Result<AlbumBook, DomainError> => {
-  const voided =
-    book.invalidatedAt !== null &&
-    book.startedAt !== null &&
-    book.invalidatedAt.getTime() >= book.startedAt.getTime()
+  const voided = isVoidedSinceStart(book)
   const to: AlbumBookStatus = voided ? 'stale' : 'done'
   if (!canTransition(book.status, to)) return err(illegal(book.status, to))
   return ok(
     voided
-      ? { ...book, status: 'stale', staleReason: staleReasonOf(book) }
+      ? { ...book, status: 'stale', staleReason: staleReasonOf(book), plan: null }
       : { ...book, status: 'done', doneAt: now, ...result },
   )
 }
@@ -132,9 +143,21 @@ export const settleBook = (
 /** The reason recorded while the render ran is not kept apart; `photoRemoved` is the safe one. */
 const staleReasonOf = (book: AlbumBook): BookStaleReason => book.staleReason ?? 'photoRemoved'
 
+/**
+ * The render writes its plan once, as it starts: only a running book takes one, so a plan can
+ * never be attached to a book the host re-requested or deleted in the meantime, **nor to one a fact
+ * has already voided** (the plan was composed from what that fact removed: the render is for nothing
+ * and must not leave a plan behind).
+ */
+export const recordPlan = (book: AlbumBook, plan: BookPlan): Result<AlbumBook, DomainError> => {
+  if (book.status !== 'running') return err(DomainError.conflict('book.notRunning'))
+  if (isVoidedSinceStart(book)) return err(DomainError.conflict('book.voided'))
+  return ok({ ...book, plan })
+}
+
 export const failBook = (book: AlbumBook, code: BookFailureCode): Result<AlbumBook, DomainError> =>
   canTransition(book.status, 'failed')
-    ? ok({ ...book, status: 'failed', failureCode: code })
+    ? ok({ ...book, status: 'failed', failureCode: code, plan: null })
     : err(illegal(book.status, 'failed'))
 
 /**
@@ -144,10 +167,10 @@ export const failBook = (book: AlbumBook, code: BookFailureCode): Result<AlbumBo
  */
 export const invalidateBook = (book: AlbumBook, reason: BookStaleReason, now: Date): AlbumBook => {
   if (book.status === 'done') {
-    return { ...book, status: 'stale', invalidatedAt: now, staleReason: reason }
+    return { ...book, status: 'stale', invalidatedAt: now, staleReason: reason, plan: null }
   }
   if (book.status === 'queued' || book.status === 'running') {
-    return { ...book, invalidatedAt: now, staleReason: reason }
+    return { ...book, invalidatedAt: now, staleReason: reason, plan: null }
   }
   return book
 }

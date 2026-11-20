@@ -92,6 +92,7 @@ export const wallUseCases = (
     voiceMaxDurationMs: policy.voice.maxDurationMs,
   }),
   deleteGuestbookEntry: makeDeleteGuestbookEntry({
+    invalidateBook,
     invalidateExport,
     events: adapters.events,
     guestbook: adapters.guestbook,
@@ -108,6 +109,7 @@ export const wallUseCases = (
     clock: adapters.clock,
   }),
   moderateGuestbookEntry: makeModerateGuestbookEntry({
+    invalidateBook,
     invalidateExport,
     events: adapters.events,
     guestbook: adapters.guestbook,

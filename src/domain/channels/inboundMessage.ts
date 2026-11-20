@@ -78,12 +78,19 @@ export interface BotRemoved {
   readonly conversationRef: string
 }
 
+/** The bot became an administrator of the conversation: it may now see what the group posts. */
+export interface BotPromoted {
+  readonly type: 'botPromoted'
+  readonly channel: ChannelKind
+  readonly conversationRef: string
+}
+
 export interface Ignored {
   readonly type: 'ignored'
 }
 
 export type InboundMessage =
-  ChannelCommand | ChannelMedia | ConversationMoved | BotRemoved | Ignored
+  ChannelCommand | ChannelMedia | ConversationMoved | BotRemoved | BotPromoted | Ignored
 
 /**
  * Read a command out of a message's text, or `null` when the text is not one of ours.

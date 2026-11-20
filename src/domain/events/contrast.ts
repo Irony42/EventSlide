@@ -22,7 +22,7 @@ export interface Oklch {
 }
 
 /** Oklab to linear sRGB. The matrices are from the CSS Color 4 specification. */
-const toLinearSrgb = ({ l, c, h }: Oklch): readonly [number, number, number] => {
+export const toLinearSrgb = ({ l, c, h }: Oklch): readonly [number, number, number] => {
   const hRad = (h * Math.PI) / 180
   const a = c * Math.cos(hRad)
   const b = c * Math.sin(hRad)

@@ -27,7 +27,10 @@ const GROUP = { id: -1001, type: 'supergroup', title: 'Mariage' }
 
 describe('TelegramBotApi', () => {
   it('asks for the bot identity', async () => {
-    expect(await api.getMe(signal)).toEqual({ ok: true, value: { username: 'EventSlideBot' } })
+    expect(await api.getMe(signal)).toMatchObject({
+      ok: true,
+      value: { username: 'EventSlideBot' },
+    })
   })
 
   it('rebuilds a rejection as a code and numbers, and never repeats what the service said', async () => {
@@ -156,7 +159,14 @@ describe('TelegramBotApi', () => {
 })
 
 describe('TelegramMessagingChannel', () => {
-  const channel = () => new TelegramMessagingChannel({ api, username: 'EventSlideBot', logger })
+  const channel = () =>
+    new TelegramMessagingChannel({
+      api,
+      username: 'EventSlideBot',
+      botId: '1',
+      readsAll: true,
+      logger,
+    })
 
   it('hands over the bytes of a file', async () => {
     server.hold('f1', Buffer.from('bytes'))
@@ -208,7 +218,13 @@ describe('TelegramMessagingChannel', () => {
 
   it('says an unreachable Telegram is a blink to try again', async () => {
     const dead = new TelegramBotApi({ token: TOKEN, baseUrl: 'http://127.0.0.1:1', timeoutMs: 300 })
-    const unreachable = new TelegramMessagingChannel({ api: dead, username: 'x', logger })
+    const unreachable = new TelegramMessagingChannel({
+      api: dead,
+      username: 'x',
+      botId: '1',
+      readsAll: true,
+      logger,
+    })
 
     expect(await unreachable.download('f1', 10, signal)).toEqual({
       ok: false,

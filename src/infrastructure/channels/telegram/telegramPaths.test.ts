@@ -197,7 +197,13 @@ describe('TelegramBotApi: a file that does not arrive as it should', () => {
 
 describe('the Telegram channel and inbox on odd answers', () => {
   const channel = () =>
-    new TelegramMessagingChannel({ api, username: 'Bot', logger: new CapturingLogger() })
+    new TelegramMessagingChannel({
+      api,
+      username: 'Bot',
+      botId: '1',
+      readsAll: true,
+      logger: new CapturingLogger(),
+    })
 
   it('says a file with no path is gone for good, without a status to read', async () => {
     server.failNext('getFile', 200, { ok: true, result: {} })
@@ -210,7 +216,13 @@ describe('the Telegram channel and inbox on odd answers', () => {
 
   it('replies and reacts without a word in the log when it works', async () => {
     const logger = new CapturingLogger()
-    const quiet = new TelegramMessagingChannel({ api, username: 'Bot', logger })
+    const quiet = new TelegramMessagingChannel({
+      api,
+      username: 'Bot',
+      botId: '1',
+      readsAll: true,
+      logger,
+    })
 
     await quiet.reply('-1001', 'hello')
     await quiet.acknowledge('-1001', '5')
@@ -285,6 +297,81 @@ describe('translateUpdate: messages that carry less than they might', () => {
       kind: 'document',
       declaredBytes: null,
       declaredMimeType: null,
+    })
+  })
+})
+
+describe('what the bot can see', () => {
+  const channel = (readsAll: boolean) =>
+    new TelegramMessagingChannel({
+      api,
+      username: 'Bot',
+      logger: new CapturingLogger(),
+      botId: '123456789',
+      readsAll,
+    })
+
+  it('reads the privacy mode and the bot number from getMe', async () => {
+    const quiet = new FakeBotApiServer({ token: TOKEN, canReadAllGroupMessages: false })
+    const url = await quiet.start()
+    const reading = new TelegramBotApi({ token: TOKEN, baseUrl: url })
+
+    expect(await reading.getMe(signal)).toEqual({
+      ok: true,
+      value: { username: 'EventSlideBot', id: '123456789', canReadAllGroupMessages: false },
+    })
+    expect(await api.getMe(signal)).toMatchObject({ value: { canReadAllGroupMessages: true } })
+    await quiet.stop()
+  })
+
+  it('takes a getMe without a number or a privacy flag as not reading everything, and not knowing the number', async () => {
+    server.failNext('getMe', 200, { ok: true, result: { username: 'Bot' } })
+
+    expect(await api.getMe(signal)).toEqual({
+      ok: true,
+      value: { username: 'Bot', id: '', canReadAllGroupMessages: false },
+    })
+  })
+
+  it('sees everything, with no call, when privacy mode is off', async () => {
+    expect(channel(true).readsAllMessages()).toBe(true)
+    expect(await channel(true).canSeeMedia('-1001')).toEqual({ ok: true, value: true })
+    expect(server.calls.filter((call) => call.method === 'getChatMember')).toEqual([])
+  })
+
+  it('always sees a private chat, whatever the privacy mode', async () => {
+    expect(await channel(false).canSeeMedia('42')).toEqual({ ok: true, value: true })
+    expect(server.calls.filter((call) => call.method === 'getChatMember')).toEqual([])
+  })
+
+  it('sees a group only as an administrator when privacy mode is on', async () => {
+    server.administratorOf.add('-1001')
+
+    expect(channel(false).readsAllMessages()).toBe(false)
+    expect(await channel(false).canSeeMedia('-1001')).toEqual({ ok: true, value: true })
+    expect(await channel(false).canSeeMedia('-2002')).toEqual({ ok: true, value: false })
+    expect(server.calls.find((call) => call.method === 'getChatMember')?.body).toEqual({
+      chat_id: -1001,
+      user_id: 123456789,
+    })
+  })
+
+  it('sees a group as its creator too', async () => {
+    server.failNext('getChatMember', 200, { ok: true, result: { status: 'creator' } })
+
+    expect(await channel(false).canSeeMedia('-1001')).toEqual({ ok: true, value: true })
+  })
+
+  it('does not call a status that is not a word, or a failed check, a no', async () => {
+    server.failNext('getChatMember', 200, { ok: true, result: {} })
+    server.failNext('getChatMember', 200, { ok: true, result: 'x' })
+    server.failNext('getChatMember', 400, { ok: false, error_code: 400 })
+
+    expect(await channel(false).canSeeMedia('-1')).toEqual({ ok: true, value: false })
+    expect(await channel(false).canSeeMedia('-1')).toEqual({ ok: true, value: false })
+    expect(await channel(false).canSeeMedia('-1')).toEqual({
+      ok: false,
+      error: { code: 'channel.membershipUnknown', retryable: true },
     })
   })
 })

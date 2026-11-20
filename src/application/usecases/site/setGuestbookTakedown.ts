@@ -6,6 +6,7 @@ import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
+import type { InvalidateBook } from '../book/invalidateAlbumBook'
 import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { recordOperatorAct, type OperatorActInput } from './operatorAct'
 
@@ -43,6 +44,12 @@ export interface SetGuestbookTakedownDeps {
    * goes: an archive must never still hold what was removed.
    */
   readonly invalidateExport?: InvalidateExport
+  /**
+   * Retires the photo book that prints guest-book messages (spec 26) when the operator takes a message down, awaited and before
+   * anything goes: a book must never still hold what was removed. A message that is not
+   * published is in no book, so it does not call.
+   */
+  readonly invalidateBook?: InvalidateBook
 }
 
 export type SetGuestbookTakedown = (
@@ -56,6 +63,7 @@ export const makeSetGuestbookTakedown =
     bus,
     clock,
     invalidateExport,
+    invalidateBook,
   }: SetGuestbookTakedownDeps): SetGuestbookTakedown =>
   async ({ entryId, down, reason, actor }) => {
     const why = parseAuditReason(reason)
@@ -75,8 +83,15 @@ export const makeSetGuestbookTakedown =
     })
     if (!recorded.ok) return recorded
 
-    if (down) await invalidateExport?.(located.eventId, 'takenDown')
+    // A book prints published written messages only: a recording or a message still waiting is in none.
+    // Twice, as a removal is: a book requested between the two calls snapshots the message.
+    const printed = down && located.status === 'published' && !located.voice
+    if (down) {
+      if (printed) await invalidateBook?.(located.eventId, 'messageRemoved')
+      await invalidateExport?.(located.eventId, 'takenDown')
+    }
     await guestbook.setTakenDown(located.eventId, entryId, down ? at : null)
+    if (printed) await invalidateBook?.(located.eventId, 'messageRemoved')
     // A recording is announced on the signal only the console hears (spec 25): the wall re-reads on
     // `guestbook.changed`, and would be told, for nothing, that a voice it never plays has moved.
     bus.publish({

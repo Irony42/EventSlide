@@ -594,7 +594,13 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     auditRetentionDays: config.audit.retentionDays,
     newClientDefaults: config.newClientCeilings,
     reel: config.reel,
-    book: { enabled: config.books.enabled, maxPerEventPerDay: config.books.maxPerEventPerDay },
+    book: {
+      enabled: config.books.enabled,
+      maxPerEventPerDay: config.books.maxPerEventPerDay,
+      printEnabled: config.books.printEnabled,
+      maxPhotos: config.books.maxPhotos,
+      maxMessages: config.books.maxMessages,
+    },
     export: {
       enabled: config.exports.enabled,
       maxBytes: config.exports.maxBytes,
@@ -833,6 +839,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
         policy: {
           maxPhotos: config.books.maxPhotos,
           maxBytes: config.books.maxBytes,
+          maxPrintBytes: config.books.printMaxBytes,
+          maxMessages: config.books.maxMessages,
           ttlDays: config.books.ttlDays,
           maxTotalBytes: config.books.maxTotalBytes,
           maxWaitMs: config.books.maxWaitMs,

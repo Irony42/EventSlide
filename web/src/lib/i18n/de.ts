@@ -775,6 +775,8 @@ export const de: UiText = {
     },
     noticeMessageAudience:
       'Ihre Nachrichten werden vom Veranstalter und seinem Team gelesen und können auf dem Bildschirm des Abends gezeigt werden. Sie erscheinen nicht unter „Fotos des Abends“.',
+    noticeMessageBook:
+      'Der Veranstalter kann Ihre Worte mit Ihrem Vornamen in das Fotobuch des Abends aufnehmen und es drucken lassen.',
     noticeMessageRetention:
       'Ihre Nachrichten werden so lange aufbewahrt wie die Fotos und mit ihnen gelöscht.',
     noticeMessageRemoval:
@@ -1830,27 +1832,78 @@ export const de: UiText = {
       'Der Download konnte nicht gestartet werden. Versuchen Sie es gleich noch einmal.',
     // Spec 04: the photo book (a PDF of the published album) on the event page.
     book: 'Fotobuch',
-    bookHint: 'Ein PDF Ihrer veröffentlichten Fotos zum Aufbewahren oder Drucken.',
+    bookHint: 'Ein PDF-Buch mit dem Album, bereit zum Versenden oder zum Drucken.',
+    bookStyleLegend: 'Stil',
+    bookStyleNames: {
+      classique: 'Klassisch',
+      magazine: 'Magazin',
+      souvenir: 'Souvenir',
+    },
+    bookStyleHints: {
+      classique: 'Schlicht, elfenbeinfarbenes Papier',
+      magazine: 'Große Fotos, große Titel',
+      souvenir: 'Polaroids und handgeschriebene Worte',
+    },
+    bookStyleFromWall: 'Nach dem Ambiente Ihrer Leinwand gewählt.',
     bookTitle: 'Titel',
     bookSubtitle: 'Untertitel',
-    bookLayout: 'Seitenaufteilung',
-    bookLayoutOne: 'Ein Foto pro Seite',
-    bookLayoutFour: 'Vier Fotos pro Seite',
-    bookShowAuthors: 'Vornamen des Gasts unter jedem Foto anzeigen',
-    bookShowCaptions: 'Bildunterschriften anzeigen',
+    bookSubtitleHint: 'Leer gelassen: das Datum des Abends.',
+    bookPhotosLegend: 'Fotos',
+    bookSelectionAll: (count: number) => `Alle Fotos (${t.number(count)})`,
+    bookSelectionAllTooMany: (max: number) =>
+      `Mehr als ${t.number(max)} Fotos: Wählen Sie eine Auswahl.`,
+    bookSelectionBest: 'Eine Auswahl',
+    bookSelectionBestHint:
+      'Die mit einem Stern markierten Fotos, mindestens eines pro Fotograf, dann die beliebtesten, über den ganzen Abend verteilt.',
+    bookLengthLegend: 'Umfang der Auswahl',
+    bookLengthNames: {
+      short: 'Kurz',
+      medium: 'Mittel',
+      long: 'Lang',
+    },
+    bookLengthChip: (name: string, photos: number) => `${name} · ${t.number(photos)} Fotos`,
+    bookOptionsLegend: 'Inhalt',
+    bookShowAuthors: 'Vornamen',
+    bookShowAuthorsHint: 'Unter den Fotos, unter den Gästebuch-Worten und auf der Dankesseite.',
+    bookShowCaptions: 'Bildunterschriften',
+    bookGuestbook: 'Worte aus dem Gästebuch',
+    bookGuestbookHint: (count: number, max: number) =>
+      `${t.count(count, { one: '1 geschriebene Nachricht', other: `${t.number(count)} geschriebene Nachrichten` })}.${count > max ? ` Die ersten ${t.number(max)} kommen ins Buch.` : ''} Sprachnachrichten kommen nicht ins Buch.`,
+    bookPrintVersion: 'Version für die Druckerei',
+    bookPrintVersionHint:
+      'Zwei zusätzliche Dateien mit Beschnitt, zum Senden an eine Online-Druckerei.',
+    bookFormNote:
+      'Nur veröffentlichte Fotos sind enthalten. Die Seitenzahl wird angegeben, sobald das Buch fertig ist.',
     bookCreate: 'Fotobuch erstellen',
     bookRebuild: 'Fotobuch neu erstellen',
-    bookWorking:
-      'Ihr Fotobuch wird vorbereitet. Sie können diese Seite verlassen, es ist in wenigen Minuten fertig.',
-    bookDone: (photos: number, pages: number, size: string, until: string | null) =>
-      `Ihr Fotobuch ist fertig: ${t.count(photos, { one: `${t.number(photos)} Foto`, other: `${t.number(photos)} Fotos` })}, ${t.count(pages, { one: `${t.number(pages)} Seite`, other: `${t.number(pages)} Seiten` })}, ${size}.${until === null ? '' : ` Verfügbar bis ${until}.`}`,
-    bookDownload: 'Fotobuch herunterladen (PDF)',
+    bookRecreate: 'Fotobuch erneut erstellen',
+    bookWorking: 'Das Fotobuch wird vorbereitet …',
+    bookWorkingDetail: (style: string, target: number | null) =>
+      `Stil ${style}, ${target === null ? 'alle Fotos' : `etwa ${t.number(target)} Fotos`}. Sie können diese Seite verlassen.`,
+    bookDone: (photos: number, ofAlbum: number | null, pages: number, until: string | null) =>
+      `Fotobuch fertig: ${t.count(pages, { one: `${t.number(pages)} Seite`, other: `${t.number(pages)} Seiten` })}, ${t.count(photos, { one: `${t.number(photos)} Foto`, other: `${t.number(photos)} Fotos` })}${ofAlbum === null ? '' : ` (das Album enthält jetzt ${t.number(ofAlbum)})`}.${until === null ? '' : ` Verfügbar bis ${until}.`}`,
+    bookDownload: 'Fotobuch herunterladen',
+    bookDownloadMeta: (size: string) => `PDF · ${size}`,
+    bookDownloadPrintInterior: 'Druckversion: Innenteil',
+    bookDownloadPrintCover: 'Druckversion: Umschlag',
+    bookPrintSkippedTooManyPages: (pages: number, max: number) =>
+      `Druckversion nicht erstellt: Das Buch hat ${t.number(pages)} Seiten, Druckereien nehmen höchstens ${t.number(max)} an. Wählen Sie eine kürzere Auswahl und erstellen Sie das Buch erneut.`,
+    bookPrintSkippedTooLarge:
+      'Druckversion nicht erstellt: Die Dateien sind zu groß. Wählen Sie eine kürzere Auswahl und erstellen Sie das Buch erneut.',
+    bookHelpLink: 'Wie lasse ich es drucken?',
+    bookHelpIntro: 'Die Druckversion besteht aus zwei Dateien desselben Buchs.',
+    bookHelpStep1:
+      'Wählen Sie eine Online-Druckerei, die ein PDF für ein quadratisches Buch von 21 × 21 cm mit festem Einband annimmt.',
+    bookHelpStep2:
+      'Senden Sie Innenteil und Umschlag. Die Umschlagdatei enthält zwei Seiten: erst die Rückseite, dann die Vorderseite.',
+    bookHelpStep3:
+      'Gestalten Sie den Buchrücken mit dem Werkzeug der Druckerei und bestellen Sie zuerst ein Probeexemplar.',
     bookDelete: 'Fotobuch löschen',
     bookDeleteTitle: 'Fotobuch löschen?',
     bookDeleteHint:
       'Die Datei wird vom Server gelöscht. Sie können ein neues erstellen, höchstens drei pro Tag.',
     bookStale:
-      'Seitdem wurde ein Foto entfernt oder eine Bildunterschrift geändert: Dieses Fotobuch ist nicht mehr verfügbar. Erstellen Sie es neu, damit es aktuell ist.',
+      'Das Fotobuch wurde zurückgezogen, weil ein Inhalt entfernt oder eine Bildunterschrift geändert wurde. Erstellen Sie es erneut: Ihre Auswahl bleibt erhalten.',
     bookFailed: 'Das Fotobuch konnte nicht erstellt werden. Versuchen Sie es gleich noch einmal.',
     bookFailedTooLarge: 'Das Album ist zu groß für ein einzelnes Fotobuch.',
     // Spec 08, step 2: the highlight video.
