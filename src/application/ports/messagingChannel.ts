@@ -27,7 +27,7 @@ export interface ChannelFailure {
 export interface MessagingChannel {
   readonly kind: ChannelKind
 
-  /** The bot's own handle, which the commands are addressed to (`/soiree@Handle`). */
+  /** The bot's own handle, which the commands are addressed to (`/name@Handle`). */
   identity(): { readonly username: string }
 
   /**

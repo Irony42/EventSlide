@@ -111,14 +111,32 @@ export class TelegramBotApi {
       return failure({ code: 'telegram.rejected' })
     }
     const id = me['id']
+    // The number is what `getChatMember` asks about: an answer without it is not a bot's.
+    if (typeof id !== 'number' && typeof id !== 'string')
+      return failure({ code: 'telegram.rejected' })
     return {
       ok: true,
       value: {
         username,
-        id: typeof id === 'number' || typeof id === 'string' ? String(id) : '',
+        id: String(id),
         canReadAllGroupMessages: me['can_read_all_group_messages'] === true,
       },
     }
+  }
+
+  /**
+   * The menu a client shows when "/" is typed, for one language (`null`: the default scope). Telegram keeps it until it
+   * is replaced, so registering it at every start is safe.
+   */
+  async setMyCommands(
+    commands: readonly { readonly command: string; readonly description: string }[],
+    languageCode: string | null,
+    signal: AbortSignal,
+  ): Promise<TelegramResult<null>> {
+    const body: Record<string, unknown> = { commands }
+    if (languageCode !== null) body['language_code'] = languageCode
+    const result = await this.call('setMyCommands', body, signal, this.timeoutMs)
+    return result.ok ? { ok: true, value: null } : result
   }
 
   /** The status of one member of a chat (`administrator`, `creator`, `member`, ...), `null` when it is not a word. */

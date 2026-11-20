@@ -101,6 +101,16 @@ export class FakeBotApiServer {
       }))
   }
 
+  /** The command menus registered, by language (`null`: the default scope). */
+  menus(): { language: string | null; commands: string[] }[] {
+    return this.calls
+      .filter((call) => call.method === 'setMyCommands')
+      .map((call) => ({
+        language: (call.body['language_code'] as string | undefined) ?? null,
+        commands: (call.body['commands'] as { command: string }[]).map((entry) => entry.command),
+      }))
+  }
+
   /** The highest offset a `getUpdates` asked from: every update below it was confirmed (consumed) by the bot. */
   confirmedBelow(): number {
     return this.calls
@@ -193,6 +203,7 @@ export class FakeBotApiServer {
       }
       case 'sendMessage':
       case 'setMessageReaction':
+      case 'setMyCommands':
         return send(200, { ok: true, result: true })
       default:
         return send(404, { ok: false, error_code: 404, description: 'Not Found' })

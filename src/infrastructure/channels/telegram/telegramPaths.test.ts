@@ -324,13 +324,35 @@ describe('what the bot can see', () => {
     await quiet.stop()
   })
 
-  it('takes a getMe without a number or a privacy flag as not reading everything, and not knowing the number', async () => {
-    server.failNext('getMe', 200, { ok: true, result: { username: 'Bot' } })
+  it('takes a getMe without a privacy flag as not reading everything', async () => {
+    server.failNext('getMe', 200, { ok: true, result: { username: 'Bot', id: 7 } })
 
     expect(await api.getMe(signal)).toEqual({
       ok: true,
-      value: { username: 'Bot', id: '', canReadAllGroupMessages: false },
+      value: { username: 'Bot', id: '7', canReadAllGroupMessages: false },
     })
+  })
+
+  it('rejects a getMe without the bot number, which is not a bot answer', async () => {
+    server.failNext('getMe', 200, { ok: true, result: { username: 'Bot' } })
+
+    expect(await api.getMe(signal)).toMatchObject({
+      ok: false,
+      error: { code: 'telegram.rejected' },
+    })
+  })
+
+  it('registers a command menu for a language, or for the default scope', async () => {
+    const commands = [{ command: 'event', description: 'x' }]
+
+    expect(await api.setMyCommands(commands, null, signal)).toEqual({ ok: true, value: null })
+    expect(await api.setMyCommands(commands, 'fr', signal)).toEqual({ ok: true, value: null })
+
+    expect(server.calls.map((call) => call.body['language_code'])).toEqual([undefined, 'fr'])
+    expect(server.menus()).toEqual([
+      { language: null, commands: ['event'] },
+      { language: 'fr', commands: ['event'] },
+    ])
   })
 
   it('sees everything, with no call, when privacy mode is off', async () => {
