@@ -87,7 +87,18 @@ export class FakeChannelMediaJobRepository implements ChannelMediaJobRepository 
   }
 
   async deleteBySender(eventId: EventId, senderKey: string): Promise<number> {
-    return this.deleteWhere((job) => job.eventId === eventId && job.senderKey === senderKey)
+    let removed = 0
+    for (const [id, job] of this.rows) {
+      if (job.eventId !== eventId || job.senderKey !== senderKey) continue
+      if (job.status === 'queued' || job.status === 'running') {
+        this.rows.delete(id)
+        removed += 1
+      } else {
+        // Finished: kept only to recognise a redelivered update, and anonymous.
+        this.rows.set(id, { ...job, senderKey: '', senderName: null })
+      }
+    }
+    return removed
   }
 
   async deleteFinishedBefore(cutoff: Date): Promise<number> {
