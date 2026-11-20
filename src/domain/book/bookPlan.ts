@@ -67,7 +67,8 @@ export interface BookPlan {
 
 export const MESSAGE_PAGE_BUDGET = 900
 export const MESSAGE_MIN_COST = 120
-export const MESSAGES_PER_PAGE = 6
+/** Four a page, in a 2 by 2 grid: a 500-character message is read at 9 pt or more, which six boxes could not hold. */
+export const MESSAGES_PER_PAGE = 4
 export const QUOTE_MIN_LENGTH = 40
 export const QUOTE_MAX_LENGTH = 280
 export const FAVOURITE_MIN_HEARTS = 3
@@ -240,7 +241,7 @@ const layoutPages = (
   return out
 }
 
-/** The messages the `messages` pages hold: at most 6 a page and 900 characters of budget. */
+/** The messages the `messages` pages hold: at most 4 a page and 900 characters of budget. */
 const messagePages = (messages: readonly BookMessage[]): GuestbookEntryId[][] => {
   const pages: GuestbookEntryId[][] = []
   let current: GuestbookEntryId[] = []

@@ -36,8 +36,8 @@ const PRINT = { dpi: 300, quality: 90 } as const
 
 /** Fixed sizes: the 500-character message and the 280-character quote fit their boxes at these. */
 /** The line under a message (the first name) takes this much of its box. */
-const AUTHOR_LINE = 12
-export const MESSAGE_FONT_SIZE = 7
+const AUTHOR_LINE = 16
+export const MESSAGE_FONT_SIZE = 9
 export const QUOTE_FONT_SIZE = 15
 
 export interface DrawContext {
@@ -51,6 +51,18 @@ export interface DrawContext {
   readonly bytes: ReadonlyMap<PhotoId, Uint8Array>
   readonly prepared: Map<string, Prepared>
   readonly texts: PageTexts
+  /** Test seam: every text drawn is recorded here, with the box it really took. */
+  readonly trace?: TextTrace[]
+}
+
+/** The rectangle a text took on a page, in points. */
+export interface TextTrace {
+  readonly text: string
+  readonly x: number
+  readonly y: number
+  readonly w: number
+  readonly h: number
+  readonly size: number
 }
 
 const origin = (mode: Mode): number => (mode === 'print' ? BLEED_PT : 0)
@@ -132,15 +144,24 @@ const drawText = (ctx: DrawContext, text: string, box: Rect, options: TextOption
     ellipsis: true,
   })
   doc.restore()
+  ctx.trace?.push({ text, x: box.x, y, w: box.w, h: height, size })
   return height
 }
 
 /** Does a message of this text fit the box of a `messages` page at the fixed size? (the render test asks) */
-export const messageFits = (doc: PDFKit.PDFDocument, font: string, text: string): boolean => {
+export const messageFits = (
+  doc: PDFKit.PDFDocument,
+  font: string,
+  text: string,
+  size: number = MESSAGE_FONT_SIZE,
+): boolean => {
   const box = toRect('screen', BOOK_TEMPLATES.messages.texts[0]!)
-  doc.font(font).fontSize(MESSAGE_FONT_SIZE)
+  doc.font(font).fontSize(size)
   return doc.heightOfString(text, { width: box.w, lineGap: 1 }) <= box.h - AUTHOR_LINE
 }
+
+/** A size for story text: what the page asks, but never under the style's own minimum. */
+const body = (ctx: DrawContext, size: number): number => Math.max(size, ctx.input.style.minBodySize)
 
 /** Magazine speaks louder: bigger numbers and titles, uppercase kickers. */
 const loud = (ctx: DrawContext): boolean => ctx.input.style.id === 'magazine'
@@ -395,7 +416,7 @@ const drawPhoto = async (
     if (extras.author !== null) {
       y += drawText(ctx, extras.author, { ...below, y, h: 14 }, {
         role: 'authors',
-        size: 7.5,
+        size: body(ctx, 8),
         color: input.colours.accentText,
         align: 'center',
       })
@@ -496,7 +517,7 @@ const drawTitlePage = async (ctx: DrawContext): Promise<void> => {
   rule(ctx, middle, box.y + (box.h + used) / 2 + 10, box.w * 0.3)
   drawText(ctx, input.cover.subtitle, { ...box, y: box.y + box.h + 14, h: 30 }, {
     role: 'body',
-    size: 12,
+    size: body(ctx, 12),
     color: input.colours.ink,
     align: 'center',
   })
@@ -531,7 +552,7 @@ const drawContents = (ctx: DrawContext): void => {
     const row: Rect = { x: list.x, y: list.y + i * step, w: list.w, h: step }
     drawText(ctx, line.label, { ...row, w: row.w - numberWidth }, {
       role: 'body',
-      size: 12,
+      size: body(ctx, 12),
       color: input.colours.ink,
     })
     doc.font(faceFor(ctx, 'body', line.label)).fontSize(12)
@@ -550,7 +571,7 @@ const drawContents = (ctx: DrawContext): void => {
       .restore()
     drawText(ctx, String(line.page), { ...row, x: numberX, w: numberWidth }, {
       role: 'authors',
-      size: 10,
+      size: body(ctx, 10),
       color: input.colours.accentText,
       align: 'right',
     })
@@ -562,7 +583,7 @@ const drawStats = (ctx: DrawContext): void => {
   drawText(ctx, input.texts.statsTitle, sheetBox(ctx, 15, 12, 70, 6), {
     role: 'authors',
     kicker: loud(ctx),
-    size: 10,
+    size: body(ctx, 10),
     color: input.colours.accentText,
     align: 'center',
   })
@@ -575,15 +596,16 @@ const drawStats = (ctx: DrawContext): void => {
   ]
   cells.forEach(([value, label], i) => {
     const box = textBox(ctx, 'stats', i)
-    drawText(ctx, value.toLocaleString(input.language), { ...box, h: 40 }, {
+    const used = drawText(ctx, value.toLocaleString(input.language), box, {
       role: 'title',
       size: loud(ctx) ? 54 : 38,
       color: input.colours.accentText,
       align: 'center',
     })
-    drawText(ctx, label, { ...box, y: box.y + 48, h: 30 }, {
+    // The label goes under the number as tall as it really is.
+    drawText(ctx, label, { ...box, y: box.y + used + 6, h: box.h - used - 6 }, {
       role: 'body',
-      size: 11,
+      size: body(ctx, 11),
       color: input.colours.ink,
       align: 'center',
     })
@@ -620,7 +642,7 @@ const drawChapter = (ctx: DrawContext, page: PlanPage, overPhoto: boolean): void
   drawText(ctx, chapterSubtitleText(chapter, input.timeZone, input.language), { ...box, y: y + 18, h: 30 }, {
     role: loud(ctx) ? 'authors' : 'body',
     kicker: loud(ctx),
-    size: 11,
+    size: body(ctx, 11),
     color: ink,
     align: 'center',
   })
@@ -650,7 +672,7 @@ const drawQuote = (ctx: DrawContext): void => {
   if (message.author !== null) {
     drawText(ctx, message.author, { ...box, y: box.y + Math.max(used, box.h - 18) + 8, h: 14 }, {
       role: 'authors',
-      size: 9,
+      size: body(ctx, 9),
       color: input.colours.accentText,
       align: 'center',
     })
@@ -671,14 +693,14 @@ const drawMessages = (ctx: DrawContext, first: boolean): void => {
     const box = textBox(ctx, 'messages', i)
     const used = drawText(ctx, message.text, { ...box, h: box.h - AUTHOR_LINE }, {
       role: 'body',
-      size: MESSAGE_FONT_SIZE,
+      size: body(ctx, MESSAGE_FONT_SIZE),
       color: input.colours.ink,
       lineGap: 1,
     })
     if (message.author !== null) {
-      drawText(ctx, `— ${message.author}`, { ...box, y: box.y + used + 3, h: 11 }, {
+      drawText(ctx, `— ${message.author}`, { ...box, y: box.y + used + 3, h: 14 }, {
         role: 'authors',
-        size: 7.5,
+        size: body(ctx, 8),
         color: input.colours.accentText,
       })
     }
@@ -701,9 +723,9 @@ const drawThanks = (ctx: DrawContext): void => {
   })
   drawText(ctx, named.map((p) => `${p.name} (${p.photoCount})`).join('  ·  '), list, {
     role: 'body',
-    size: 12,
+    size: body(ctx, 12),
     fit: true,
-    minSize: 7,
+    minSize: body(ctx, 7),
     color: input.colours.ink,
     align: 'center',
     lineGap: 4,
@@ -717,9 +739,9 @@ const drawEnd = (ctx: DrawContext): void => {
     .join('\n')
   drawText(ctx, notes, textBox(ctx, 'end', 0), {
     role: 'body',
-    size: 11,
+    size: body(ctx, 11),
     fit: true,
-    minSize: 7,
+    minSize: body(ctx, 7),
     color: input.colours.ink,
     align: 'center',
     valign: 'middle',
@@ -727,7 +749,7 @@ const drawEnd = (ctx: DrawContext): void => {
   })
   drawText(ctx, input.texts.createdWith, textBox(ctx, 'end', 1), {
     role: 'authors',
-    size: 8,
+    size: body(ctx, 8),
     color: input.colours.ink,
     align: 'center',
     opacity: 0.6,
@@ -872,7 +894,7 @@ export const drawFrontCover = async (ctx: DrawContext): Promise<void> => {
     drawText(ctx, input.cover.subtitle, { ...box, y: box.y + 14 + used + 10, h: 14 }, {
       role: 'authors',
       kicker: true,
-      size: 9,
+      size: body(ctx, 9),
       color: '#ffffff',
       opacity: 0.9,
     })
@@ -896,7 +918,7 @@ export const drawFrontCover = async (ctx: DrawContext): Promise<void> => {
   rule(ctx, box.x + box.w / 2, box.y + used + 8, box.w * 0.2)
   drawText(ctx, input.cover.subtitle, { ...box, y: box.y + used + 18, h: 24 }, {
     role: 'body',
-    size: 12,
+    size: body(ctx, 12),
     color: input.colours.ink,
     align: 'center',
   })
@@ -918,7 +940,7 @@ export const drawBackCover = async (ctx: DrawContext): Promise<void> => {
   rule(ctx, box.x + box.w / 2, box.y + used + 8, box.w * 0.2)
   drawText(ctx, input.cover.subtitle, { ...box, y: box.y + used + 18, h: 20 }, {
     role: 'body',
-    size: 10,
+    size: body(ctx, 10),
     color: input.colours.ink,
     align: 'center',
   })
@@ -928,7 +950,7 @@ export const drawBackCover = async (ctx: DrawContext): Promise<void> => {
   }
   drawText(ctx, input.texts.createdWith, sheetBox(ctx, 25, 86, 50, 4), {
     role: 'authors',
-    size: 8,
+    size: body(ctx, 8),
     color: input.colours.ink,
     align: 'center',
     opacity: 0.6,

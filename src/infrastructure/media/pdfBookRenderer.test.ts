@@ -12,7 +12,7 @@ import { BOOK_STYLE_DEFS, resolveBookColours } from '../../domain/book/bookStyle
 import { pageCountOf } from '../../domain/book/bookTemplates'
 import { BOOK_TEXTS } from '../../domain/book/bookTexts'
 import { COUNTS, OPTIONS, guest, makeMessage, makePhoto } from '../../domain/book/testing/bookFixtures'
-import { messageFits } from './book/drawBook'
+import { TRIM_PT, drawPage, messageFits, type TextTrace } from './book/drawBook'
 import { facesOf } from './book/bookFonts'
 import { createPdfBookRenderer } from './pdfBookRenderer'
 
@@ -313,8 +313,10 @@ describe('createPdfBookRenderer', () => {
     const faces = facesOf(BOOK_STYLE_DEFS[style])
     const text = 'Une phrase assez longue pour remplir la place. '.repeat(11).slice(0, 500)
 
-    expect(messageFits(doc, faces.paths.body, text)).toBe(true)
-    expect(messageFits(doc, faces.paths.body, text.repeat(3))).toBe(false)
+    const size = BOOK_STYLE_DEFS[style].minBodySize
+
+    expect(messageFits(doc, faces.paths.body, text, size)).toBe(true)
+    expect(messageFits(doc, faces.paths.body, text.repeat(3), size)).toBe(false)
     doc.end()
   })
 
@@ -358,3 +360,89 @@ describe('createPdfBookRenderer', () => {
   })
 })
 
+
+describe('the text of the story pages', () => {
+  const storyPhotos = (): BookPhoto[] =>
+    Array.from({ length: 28 }, (_, i) =>
+      makePhoto({ minute: i < 14 ? i : 300 + i, guestId: guest(i % 5), reactions: i < 5 ? 4 : 0 }),
+    )
+
+  const traced = async (style: BookStyle) => {
+    const messages = [
+      makeMessage({ n: 1, length: 500 }),
+      makeMessage({ n: 2, length: 120 }),
+      makeMessage({ n: 3, length: 90 }),
+      makeMessage({ n: 4, length: 200 }),
+      makeMessage({ n: 5, length: 60 }),
+    ]
+    const long = 'Une phrase assez longue pour remplir la place. '.repeat(11).slice(0, 500)
+    const input = await inputOf({
+      photos: storyPhotos(),
+      messages,
+      options: { style, includeGuestbook: true },
+      messageTexts: { [messages[0]?.id as string]: long, [messages[4]?.id as string]: 'Longue vie aux mariés dans la lumière du soir qui descend, et merci.' },
+      authors: {},
+    })
+    const pages: { template: string; trace: TextTrace[] }[] = []
+    for (const page of input.plan.pages) {
+      if (!['title', 'contents', 'stats', 'chapter', 'quote', 'messages', 'thanks', 'end'].includes(page.template)) continue
+      const doc = new PDFDocument({ size: [TRIM_PT, TRIM_PT], margin: 0, autoFirstPage: true })
+      doc.on('data', () => undefined)
+      const trace: TextTrace[] = []
+      await drawPage(
+        {
+          doc,
+          mode: 'screen',
+          withPrint: false,
+          input,
+          faces: facesOf(input.style),
+          bytes: new Map(),
+          prepared: new Map(),
+          texts: await input.pageTexts(page),
+          trace,
+        },
+        page,
+        { firstMessages: true },
+      )
+      doc.end()
+      pages.push({ template: page.template, trace })
+    }
+    return { input, pages }
+  }
+
+  it.each(BOOK_STYLES)('puts no text on top of another, on any story page, in %s', async (style) => {
+    const { pages } = await traced(style)
+
+    expect(pages.map((p) => p.template)).toEqual(
+      expect.arrayContaining(['title', 'contents', 'stats', 'chapter', 'messages', 'thanks', 'end']),
+    )
+    for (const { template, trace } of pages) {
+      trace.forEach((a, i) =>
+        trace.slice(i + 1).forEach((b) => {
+          const overlapW = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
+          const overlapH = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
+          expect(
+            overlapW > 0.5 && overlapH > 0.5,
+            template + ': "' + a.text.slice(0, 20) + '" over "' + b.text.slice(0, 20) + '"',
+          ).toBe(false)
+        }),
+      )
+      for (const t of trace) {
+        expect(t.x, template).toBeGreaterThanOrEqual(-0.5)
+        expect(t.y + t.h, template + ' ' + t.text.slice(0, 20)).toBeLessThanOrEqual(TRIM_PT + 0.5)
+      }
+    }
+  })
+
+  it.each(BOOK_STYLES)('draws every story text at the style minimum or more, in %s', async (style) => {
+    const { pages } = await traced(style)
+    const floor = BOOK_STYLE_DEFS[style].minBodySize
+
+    for (const { template, trace } of pages) {
+      for (const t of trace) {
+        // the printed mention under the closing page and the numbers of a page are the style's own
+        expect(t.size, template + ': "' + t.text.slice(0, 24) + '"').toBeGreaterThanOrEqual(floor)
+      }
+    }
+  })
+})

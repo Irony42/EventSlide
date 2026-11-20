@@ -129,3 +129,15 @@ describe('contrast of the text accent', () => {
     expect(legibleAccent(250, '#ffffff', 0.17)).toBe(oklchToHex({ l: 0.55, c: 0.17, h: 250 }))
   })
 })
+
+describe('the minimum size of story text', () => {
+  it('is 9 pt, and 11 pt for the handwriting of Souvenir, whose x-height is small', () => {
+    expect(Object.fromEntries(BOOK_STYLES.map((s) => [s, BOOK_STYLE_DEFS[s].minBodySize]))).toEqual(
+      {
+        classique: 9,
+        magazine: 9,
+        souvenir: 11,
+      },
+    )
+  })
+})

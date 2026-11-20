@@ -407,12 +407,12 @@ describe('composeBook: guest book', () => {
     ).toEqual([2, 1])
   })
 
-  it('charges at least 120 a message and holds six a page', () => {
+  it('charges at least 120 a message and holds four a page', () => {
     const messages = Array.from({ length: 15 }, (_, n) => longMessage(n + 1, 5))
     const plan = compose(run(3, 0), { includeGuestbook: true }, messages)
     expect(
       plan.pages.filter((p) => p.template === 'messages').map((p) => p.messageIds!.length),
-    ).toEqual([6, 6, 3])
+    ).toEqual([4, 4, 4, 3])
   })
 
   it('stays within the 900 budget even for a message that alone is larger than a page', () => {
