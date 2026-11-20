@@ -78,13 +78,13 @@ export const BOOK_TEMPLATES: Readonly<Record<TemplateId, BookTemplate>> = {
   twoStack: {
     id: 'twoStack',
     span: 1,
-    slots: [photo(16, 8, 68, 40), photo(16, 52, 68, 40)],
+    slots: [photo(17, 8, 66, 41), photo(17, 51, 66, 41)],
     texts: [],
   },
   twoSide: {
     id: 'twoSide',
     span: 1,
-    slots: [photo(8, 18, 40, 60), photo(52, 18, 40, 60)],
+    slots: [photo(8, 17, 41, 66), photo(51, 17, 41, 66)],
     texts: [],
   },
   heroTwo: {
@@ -103,32 +103,32 @@ export const BOOK_TEMPLATES: Readonly<Record<TemplateId, BookTemplate>> = {
     id: 'strip6',
     span: 1,
     slots: [0, 1, 2, 3, 4, 5].map((i) =>
-      photo(8 + (i % 3) * 29, 20 + Math.floor(i / 3) * 31, 26, 28),
+      photo(8 + (i % 3) * 28.75, 19 + Math.floor(i / 3) * 32, 26.5, 30),
     ),
     texts: [],
   },
-  // The phone portrait (3:4) is what most guests send: a tall hero and two squarer photographs,
-  // three side by side, four cells of 3:4.
+  // The phone portrait (3:4) is what most guests send: a tall hero and two squarer photographs
+  // (`threePortraits` is the same page mirrored, so the two alternate), and four cells of 3:4.
   portraitHero: {
     id: 'portraitHero',
     span: 1,
-    slots: [hero(8, 15, 52, 70), photo(63, 15, 29, 33), photo(63, 52, 29, 33)],
+    slots: [hero(8, 8, 51, 84), photo(61, 12, 31, 37), photo(61, 51, 31, 37)],
     texts: [],
   },
   threePortraits: {
     id: 'threePortraits',
     span: 1,
-    slots: [photo(8, 32, 26, 35), photo(37, 32, 26, 35), photo(66, 32, 26, 35)],
+    slots: [photo(8, 12, 31, 37), photo(8, 51, 31, 37), hero(41, 8, 51, 84)],
     texts: [],
   },
   grid4Portrait: {
     id: 'grid4Portrait',
     span: 1,
     slots: [
-      photo(18, 8, 30, 40),
-      photo(52, 8, 30, 40),
-      photo(18, 52, 30, 40),
-      photo(52, 52, 30, 40),
+      photo(12, 8, 36, 41),
+      photo(52, 8, 36, 41),
+      photo(12, 51, 36, 41),
+      photo(52, 51, 36, 41),
     ],
     texts: [],
   },
@@ -229,10 +229,21 @@ export const cropLoss = (
   return 1 - Math.min(slotAspect, photoAspect) / Math.max(slotAspect, photoAspect)
 }
 
+/**
+ * What a photograph on a full-bleed page may lose (Magazine's `full`): a 3:4 portrait on a square
+ * page loses 25 %, and a page that runs to the edge is drawn to be bold.
+ */
+export const BOOK_MAX_CROP_FULL_BLEED = 0.3
+
+/** The ceiling that applies to a template in a style that does, or does not, bleed. */
+export const cropCeilingFor = (template: TemplateId, fullBleed: boolean): number =>
+  fullBleed && template === 'full' ? BOOK_MAX_CROP_FULL_BLEED : BOOK_MAX_CROP
+
 /** A tolerance for the arithmetic of a ratio sitting exactly on the ceiling. */
 const EPSILON = 1e-9
 
-export const withinCropCeiling = (loss: number): boolean => loss <= BOOK_MAX_CROP + EPSILON
+export const withinCropCeiling = (loss: number, ceiling: number = BOOK_MAX_CROP): boolean =>
+  loss <= ceiling + EPSILON
 
 /** Pages a template list occupies: `wide` counts for two. */
 export const pageCountOf = (pages: readonly { readonly template: TemplateId }[]): number =>

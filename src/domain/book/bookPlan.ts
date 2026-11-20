@@ -15,6 +15,7 @@ import { BOOK_STYLE_DEFS } from './bookStyles'
 import {
   BOOK_TEMPLATES,
   PHOTO_PAGE_TEMPLATES,
+  cropCeilingFor,
   cropLoss,
   pageCountOf,
   withinCropCeiling,
@@ -157,8 +158,8 @@ const bestMultiPage = (
 }
 
 /** A page for one photograph: `single` (never cropped) or `full` when it fits and the page wants one. */
-const singlePage = (photo: BookPhoto, previous: TemplateId | null): Placed => {
-  const fits = withinCropCeiling(cropLoss(photo, BOOK_TEMPLATES.full.slots[0]!, 1))
+const singlePage = (photo: BookPhoto, previous: TemplateId | null, fullCeiling: number): Placed => {
+  const fits = withinCropCeiling(cropLoss(photo, BOOK_TEMPLATES.full.slots[0]!, 1), fullCeiling)
   const strong = photo.highlighted || photoScore(photo) > 0
   const useFull = fits && previous !== 'full' && (strong || previous === 'single')
   return { template: useFull ? 'full' : 'single', photos: [photo] }
@@ -170,6 +171,7 @@ const pickPage = (
   previous: TemplateId | null,
   bigRun: number,
   alone: boolean,
+  fullCeiling: number,
 ): Placed => {
   const head = run[0]!
   let sizes: number[]
@@ -181,7 +183,7 @@ const pickPage = (
     const placed = bestMultiPage(run.slice(0, size), previous)
     if (placed !== null) return placed
   }
-  return singlePage(head, previous)
+  return singlePage(head, previous, fullCeiling)
 }
 
 /**
@@ -195,6 +197,7 @@ const layoutPages = (
   units: readonly Unit[],
   previousTemplate: TemplateId | null,
   firstAlone: boolean,
+  fullCeiling: number,
 ): PlanPage[] => {
   const out: PlanPage[] = []
   let queue = [...units]
@@ -222,7 +225,7 @@ const layoutPages = (
         run.push(unit.photos[0]!)
       }
       const remaining = queue.reduce((sum, unit) => sum + unit.photos.length, 0)
-      placed = pickPage(run, remaining, previous, bigRun, alone)
+      placed = pickPage(run, remaining, previous, bigRun, alone, fullCeiling)
       consumed = placed.photos.length
     }
     alone = false
@@ -271,6 +274,8 @@ export const composeBook = (input: BookInput, options: BookOptionsV2): BookPlan 
   const ranges = splitIntoRanges(times)
   const titles = chapterTitles(times, ranges, options.timeZone)
   const style = BOOK_STYLE_DEFS[options.style]
+  // A style that bleeds may crop a photograph a little more for a full page.
+  const fullCeiling = cropCeilingFor('full', style.fullBleed)
   const messages = options.includeGuestbook
     ? [...input.messages].sort(byArrival).slice(0, BOOK_MAX_MESSAGES)
     : []
@@ -312,7 +317,7 @@ export const composeBook = (input: BookInput, options: BookOptionsV2): BookPlan 
       firstPage: nextPage(),
     })
     if (!hasOpenings) {
-      pages.push(...layoutPages(makeUnits(group), null, false))
+      pages.push(...layoutPages(makeUnits(group), null, false, fullCeiling))
       return
     }
     const lead = [...group].sort(byProminence)[0]!
@@ -326,12 +331,12 @@ export const composeBook = (input: BookInput, options: BookOptionsV2): BookPlan 
       leadTemplate = 'wide'
       pages.push({ template: 'wide', slots, chapter: index })
     } else {
-      leadTemplate = singlePage(lead, 'chapter').template
+      leadTemplate = singlePage(lead, 'chapter', fullCeiling).template
       pages.push({ template: 'chapter', slots: [], chapter: index })
       pages.push({ template: leadTemplate, slots, chapter: index })
     }
     const rest = group.filter((photo) => photo !== lead)
-    const content = layoutPages(makeUnits(rest), leadTemplate, false)
+    const content = layoutPages(makeUnits(rest), leadTemplate, false, fullCeiling)
     pages.push(...content)
 
     // The next opening is a left page, an even one.
@@ -355,6 +360,7 @@ export const composeBook = (input: BookInput, options: BookOptionsV2): BookPlan 
         photos.map((photo) => ({ photos: [photo] })),
         pages[pages.length - 2]!.template,
         true,
+        fullCeiling,
       )
       // One page became `split.length`: the parity flips only when that is even.
       if (split.length % 2 === 0) {

@@ -1,5 +1,5 @@
 import { accentPalette } from '../events/eventTheme'
-import { oklchToHex } from './bookColours'
+import { legibleAccent, oklchToHex } from './bookColours'
 import type { BookStyle } from './bookOptionsV2'
 
 /**
@@ -66,7 +66,10 @@ export const BOOK_STYLE_DEFS: Readonly<Record<BookStyle, BookStyleDef>> = {
 export interface BookColours {
   readonly paper: string
   readonly ink: string
+  /** The light tone: rules, tape, badges. */
   readonly accent: string
+  /** The accent as text on this paper: at least 4.5:1. */
+  readonly accentText: string
   readonly accentStrong: string
   readonly accentInk: string
 }
@@ -79,6 +82,7 @@ export const resolveBookColours = (style: BookStyle, accentHue: number): BookCol
     paper: def.paper,
     ink: def.ink,
     accent: oklchToHex(palette.accent),
+    accentText: legibleAccent(accentHue, def.paper, palette.accent.c),
     accentStrong: oklchToHex(palette.strong),
     accentInk: oklchToHex(palette.ink),
   }

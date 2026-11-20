@@ -4,9 +4,11 @@ import {
   BOOK_TEMPLATES,
   PHOTO_PAGE_TEMPLATES,
   TEMPLATE_IDS,
+  cropCeilingFor,
   cropLoss,
   pageCountOf,
   withinCropCeiling,
+  type TemplateId,
   type TemplateSlot,
 } from './bookTemplates'
 
@@ -58,7 +60,15 @@ describe('templates', () => {
     const withHero = TEMPLATE_IDS.filter((id) =>
       BOOK_TEMPLATES[id].slots.some((s) => s.role === 'hero'),
     )
-    expect(withHero).toEqual(['full', 'single', 'heroTwo', 'portraitHero', 'wide', 'favourites'])
+    expect(withHero).toEqual([
+      'full',
+      'single',
+      'heroTwo',
+      'portraitHero',
+      'threePortraits',
+      'wide',
+      'favourites',
+    ])
   })
 
   it('make only `wide` span a double page, and only single and favourites contain', () => {
@@ -66,6 +76,37 @@ describe('templates', () => {
     expect(
       TEMPLATE_IDS.filter((id) => BOOK_TEMPLATES[id].slots.some((s) => s.contain === true)),
     ).toEqual(['single', 'favourites'])
+  })
+})
+
+describe('how much of the page the photographs take', () => {
+  const share = (id: TemplateId): number =>
+    BOOK_TEMPLATES[id].slots.reduce((sum, slot) => sum + slot.w * slot.h, 0) / 100
+
+  // A page of photographs that leaves most of itself empty is a page nobody keeps: a floor per
+  // number of photographs, each one the least its templates reach with every photograph inside the
+  // 20 % crop ceiling. Two photographs cannot take more than about 54 % of a square page at the
+  // shapes phones make, six cells (the burst page) about 48 %, three or four 59 to 68 %.
+  const FLOORS: Readonly<Record<string, number>> = { '2': 50, '3': 60, '4': 55, '6': 45 }
+
+  it.each(Object.entries(PHOTO_PAGE_TEMPLATES))(
+    'keeps the %s-photograph templates above their floor',
+    (count, ids) => {
+      for (const id of ids) {
+        expect(share(id), id).toBeGreaterThanOrEqual(FLOORS[count] as number)
+      }
+    },
+  )
+
+  it('keeps the margins of the page: nothing nearer than 7 % to an edge', () => {
+    for (const id of Object.values(PHOTO_PAGE_TEMPLATES).flat()) {
+      for (const slot of BOOK_TEMPLATES[id].slots) {
+        expect(
+          Math.min(slot.x, slot.y, 100 - slot.x - slot.w, 100 - slot.y - slot.h),
+          id,
+        ).toBeGreaterThanOrEqual(7.14)
+      }
+    }
   })
 })
 
@@ -88,6 +129,16 @@ describe('cropLoss', () => {
     expect(BOOK_MAX_CROP).toBe(0.2)
     expect(withinCropCeiling(cropLoss({ width: 80, height: 100 }, slotOf(50, 50), 1))).toBe(true)
     expect(withinCropCeiling(cropLoss({ width: 79, height: 100 }, slotOf(50, 50), 1))).toBe(false)
+  })
+})
+
+describe('cropCeilingFor', () => {
+  it('lets only a full-bleed full page lose 30 %', () => {
+    expect(cropCeilingFor('full', true)).toBe(0.3)
+    expect(cropCeilingFor('full', false)).toBe(0.2)
+    expect(cropCeilingFor('heroTwo', true)).toBe(0.2)
+    expect(withinCropCeiling(0.25, cropCeilingFor('full', true))).toBe(true)
+    expect(withinCropCeiling(0.31, cropCeilingFor('full', true))).toBe(false)
   })
 })
 
