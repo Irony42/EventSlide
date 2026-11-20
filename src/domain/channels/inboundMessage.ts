@@ -41,7 +41,7 @@ interface MessageOrigin {
   readonly sender: ChannelSender
 }
 
-/** `/soiree CODE`, `/oublier`, `/confidentialite`. `argument` is the rest of the line, trimmed. */
+/** A command (`/soiree CODE`, `/event CODE`, `/oublier`, `/forget`, ...: the aliases of {@link parseCommand}). `argument` is the rest of the line, trimmed. */
 export interface ChannelCommand extends MessageOrigin {
   readonly type: 'command'
   readonly command: ChannelCommandName
@@ -95,7 +95,8 @@ export type InboundMessage =
 /**
  * Read a command out of a message's text, or `null` when the text is not one of ours.
  *
- * Accepted: `/soiree`, `/soirée`, `/SOIREE`, `/soiree@TheBot`, with the argument after a space. A
+ * Accepted: any alias of the five languages (`/soiree`, `/event`, `/feier`, `/evento`, ...), with or without accents and in
+ * any case, `/soiree@TheBot`, with the argument after a space. A
  * command addressed to **another** bot (`/soiree@OtherBot`) is not ours, and in a group with two
  * bots that is the difference between answering once and answering twice. Only the first line counts:
  * a pasted paragraph that starts with a slash is not a command with a paragraph for an argument.

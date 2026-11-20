@@ -4582,12 +4582,13 @@ The host's "Groupe Telegram" panel. **There is no public route for the channel**
 never a webhook.
 
 `GET` (a **moderator** may read; `Cache-Control: no-store`) answers
-`200 { "available", "botUsername", "allowed", "bindings": [{ "id", "channel", "title", "boundAt", "photoCount" }] }`:
+`200 { "available", "botUsername", "allowed", "readsAllMessages", "bindings": [{ "id", "channel", "title", "boundAt", "photoCount" }] }`:
 
 - `available` is whether this box has a bot (`TELEGRAM_BOT_TOKEN` set and accepted by Telegram); with `false`, `botUsername` is
   `null` and the panel explains that the operator has to set a token.
 - `botUsername` is the bot's public handle, to add to the group.
 - `allowed` is whether the client's plan includes messaging channels (always `true` for an event with no client).
+- `readsAllMessages` is `boolean | null`: `null` when there is no bot; `true` when the bot's privacy mode is off (it sees every message of its groups); `false` when it sees only the groups it administers, in which case the panel warns the host. It is read from `getMe` at start-up and cached: turning privacy mode off in BotFather needs a restart of EventSlide, and the bot has to be re-added to groups it was already in. No call is made per page load or per group.
 - `title` is the group's title as Telegram showed it when it was linked; `photoCount` counts the media received through that
   binding and is **not** decremented when a sender erases themselves. No conversation reference, sender key or name is in the
   response.

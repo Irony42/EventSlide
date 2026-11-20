@@ -65,6 +65,41 @@ describe('telegramBringUp', () => {
     expect(calls).toEqual(['worker:start', 'poller:start'])
   })
 
+  it('registers the command menu in five languages once the bot answers', async () => {
+    const { bringUp } = build()
+
+    bringUp.start()
+    await until(() => server.menus().length === 5)
+
+    expect(server.menus().map((menu) => menu.language)).toEqual([null, 'fr', 'de', 'es', 'it'])
+    expect(server.menus()[0]?.commands).toEqual(['event', 'forget', 'privacy'])
+    expect(server.menus()[1]?.commands).toEqual(['soiree', 'oublier', 'confidentialite'])
+  })
+
+  it('only warns, with no token in the line, and stays ready when a menu cannot be registered', async () => {
+    server.failNext('setMyCommands', 400, { ok: false, error_code: 400, description: TOKEN })
+    const { bringUp, logger } = build()
+
+    bringUp.start()
+    await until(() =>
+      logger.lines.some((line) => /menu could not be registered/u.test(line.message)),
+    )
+
+    expect(bringUp.state).toBe('ready')
+    expect(JSON.stringify(logger.lines)).not.toContain(TOKEN)
+    await until(() => server.menus().length === 5)
+  })
+
+  it('does not warn about a menu it was stopped in the middle of', async () => {
+    const { bringUp, logger } = build()
+    bringUp.start()
+    await until(() => bringUp.state === 'ready')
+    bringUp.stop()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    expect(logger.lines.filter((line) => /menu could not/u.test(line.message))).toEqual([])
+  })
+
   it('returns at once and registers nothing before the bot has answered', () => {
     const { bringUp, channels } = build()
 
@@ -116,6 +151,7 @@ describe('telegramBringUp', () => {
           tries += 1
           return status === 0 && tries < 3 ? unreachable.getMe(signal) : real.getMe(signal)
         },
+        setMyCommands: real.setMyCommands.bind(real),
       } as unknown as TelegramBotApi
       const { bringUp, channels, waits } = build({ api })
 
@@ -152,6 +188,7 @@ describe('telegramBringUp', () => {
         await gate
         return real.getMe(signal)
       },
+      setMyCommands: real.setMyCommands.bind(real),
     } as unknown as TelegramBotApi
     const { bringUp, channels } = build({ api })
 

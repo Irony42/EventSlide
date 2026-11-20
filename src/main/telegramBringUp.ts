@@ -11,6 +11,7 @@ import {
   TelegramMessagingChannel,
 } from '../infrastructure/channels/telegram/telegramChannel'
 import { setBackgroundTimeout } from '../infrastructure/time/backgroundTimers'
+import { BOT_COMMAND_MENUS } from '../infrastructure/channels/telegram/botCommands'
 import type { ChannelPoller } from './channelPoller'
 
 /**
@@ -83,6 +84,22 @@ export const createTelegramBringUp = ({
   let abort: AbortController | null = null
   let poller: ChannelPoller | null = null
 
+  /**
+   * The command menu, in the five languages. A failure is a warning with a code and numbers (never the token), and
+   * never disables the channel: the commands work without a menu, the menu only helps people find them.
+   */
+  const registerMenus = async (signal: AbortSignal): Promise<void> => {
+    for (const menu of BOT_COMMAND_MENUS) {
+      const done = await api.setMyCommands(menu.commands, menu.languageCode, signal)
+      if (!done.ok && !signal.aborted) {
+        logger.warn('telegram command menu could not be registered', {
+          ...describeFailure(done.error),
+          language: menu.languageCode ?? 'default',
+        })
+      }
+    }
+  }
+
   const identify = async (signal: AbortSignal): Promise<void> => {
     let backoffMs = BACKOFF_START_MS
     while (!signal.aborted) {
@@ -103,6 +120,8 @@ export const createTelegramBringUp = ({
         startWorker()
         poller.start()
         state = 'ready'
+        // Not awaited by anything that matters: the poller is already running while the menu is registered.
+        void registerMenus(signal)
         logger.info('telegram channel ready', {
           bot: me.value.username,
           readsAllGroupMessages: me.value.canReadAllGroupMessages,
