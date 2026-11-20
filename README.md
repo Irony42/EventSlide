@@ -90,7 +90,7 @@ queue on the phone when the Wi-Fi drops. It speaks French, English, Spanish, Ger
 Italian.
 
 A guest can also post photos and short videos in a Telegram group the host has connected
-to the event. They wait for your approval like any other. It needs a bot token from the
+to the event. They follow the event's moderation like any other photo. It needs a bot token from the
 person who runs the server and is off until then: see [docs/TELEGRAM.md](docs/TELEGRAM.md).
 
 <p align="center">

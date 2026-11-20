@@ -773,6 +773,7 @@ const readmeMain = async (): Promise<void> => {
     for (let waited = 0; bot.reactions().length < 1 && waited < 30; waited += 1) {
       await host.waitForTimeout(500)
     }
+    if (bot.reactions().length < 1) console.log('  ! the bot never took the Telegram photograph')
     await host.goto(`${app.baseUrl}/admin/events/${tg.slug}`)
     await host.waitForLoadState('networkidle')
     const panel = host
