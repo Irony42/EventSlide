@@ -19,6 +19,7 @@ const view = (overrides: Partial<ChannelsResponse> = {}): ChannelsResponse => ({
   available: true,
   botUsername: 'EventSlideBot',
   allowed: true,
+  readsAllMessages: true,
   bindings: [GROUP],
   ...overrides,
 })
@@ -144,5 +145,27 @@ describe('ChannelsPanel', () => {
     await userEvent.click(await screen.findByRole('button', { name: fr.channels.copyCommand }))
 
     expect(await screen.findByText(fr.channels.copyFailed)).toBeInTheDocument()
+  })
+
+  it('warns, in a notice, when the bot reads only the groups it administers', async () => {
+    renderPanel(fakeApi({ channels: vi.fn(async () => view({ readsAllMessages: false })) }))
+
+    const warning = await screen.findByText(fr.channels.visibility)
+
+    expect(warning).toHaveAttribute('role', 'status')
+  })
+
+  it('keeps the visibility hint as plain text when the bot reads every message', async () => {
+    renderPanel(fakeApi({ channels: vi.fn(async () => view({ readsAllMessages: true })) }))
+
+    const hint = await screen.findByText(fr.channels.visibility)
+
+    expect(hint).not.toHaveAttribute('role')
+  })
+
+  it('keeps it as plain text too when the box could not say', async () => {
+    renderPanel(fakeApi({ channels: vi.fn(async () => view({ readsAllMessages: null })) }))
+
+    expect(await screen.findByText(fr.channels.visibility)).not.toHaveAttribute('role')
   })
 })

@@ -865,6 +865,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
     available: false,
     botUsername: null,
     allowed: true,
+    readsAllMessages: null,
     bindings: [],
   })),
   unlinkChannel: vi.fn(async () => undefined),

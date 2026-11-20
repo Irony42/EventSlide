@@ -95,7 +95,14 @@ export function ChannelsPanel({ slug, joinCode, canUnlink, canBind }: ChannelsPa
                       </div>
                     </li>
                   </ol>
-                  <p className={styles['reminder']}>{t.channels.visibility}</p>
+                  {/* The server says the bot only sees the groups it administers: the hint becomes a warning. */}
+                  {view.readsAllMessages === false ? (
+                    <Notice tone="warning" role="status" variant="boxed">
+                      {t.channels.visibility}
+                    </Notice>
+                  ) : (
+                    <p className={styles['reminder']}>{t.channels.visibility}</p>
+                  )}
                 </>
               )}
 

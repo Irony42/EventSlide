@@ -437,6 +437,11 @@ export interface ChannelsResponse {
   readonly botUsername: string | null
   /** Whether the client's plan includes messaging channels. */
   readonly allowed: boolean
+  /**
+   * Whether the bot reads every message of its groups (Telegram's privacy mode is off), `null` without a bot. When it
+   * does not, it only sees the photographs of the groups it administers, and the panel warns the host.
+   */
+  readonly readsAllMessages: boolean | null
   readonly bindings: readonly ChannelBindingDto[]
 }
 /** The console's view: the wall's, plus the mission it names (to say which row is running). */
