@@ -162,7 +162,7 @@ describe('the Telegram channel in the composition root', () => {
       .prepare(`SELECT display_name, channel, channel_sender_key FROM guests`)
       .get() as { display_name: string; channel: string; channel_sender_key: string }
     expect(guest).toMatchObject({ display_name: 'Léa M.', channel: 'telegram' })
-    expect(guest.channel_sender_key).not.toContain('42')
+    expect(guest.channel_sender_key).toMatch(/^[0-9a-f]{64}$/u)
     // Published at once (auto moderation), counted for the host, acknowledged with a reaction.
     expect(count(booted, `SELECT COUNT(*) AS n FROM photos WHERE status = 'published'`)).toBe(1)
     await until(() => server?.reactions().length === 1, 'the reaction')
