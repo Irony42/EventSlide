@@ -336,6 +336,11 @@ that renders guest-supplied content. The short version:
   `web/src/design-system/fonts/`, with their licences in `web/public/licenses/`. A browser fetches a
   face only when an element on screen uses it, so an event pays for its own ambiance and no other.
   Body text stays on the system stack, on purpose: it is what every guest reads on venue Wi-Fi.
+  **Nine more OFL families draw the printed cards (spec 28)**: Anton, Bangers, Caveat, Cormorant
+  Garamond, Fredoka, IBM Plex Mono, Outfit, Parisienne and Shrikhand, about 570 kB for all of them.
+  Only the host's print page uses them, so no guest and no wall ever downloads one. Their tokens
+  (`--pd-font-*`) and the cards' colours (`--pd-*`) sit in `tokens.css` on `[data-print-card]`, not
+  `:root`: they are drawn from the card's own colour, set inline on the sheet.
 
 ---
 

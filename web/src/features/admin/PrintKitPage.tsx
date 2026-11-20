@@ -5,13 +5,21 @@ import { HostEventsLink } from '../../app/HostEventsLink'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
 import { Button } from '../../design-system/components/Button'
 import { Notice } from '../../design-system/components/Notice'
-import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../../lib/i18n/locale'
+import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale } from '../../lib/i18n/locale'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { SelectField, type SelectOption } from '../../design-system/components/SelectField'
 import { useEvent } from './hooks/useEventData'
 import { useRevalidateWhenVisible } from './hooks/useRevalidateWhenVisible'
 import { isEventLogoUrl } from '../../lib/brand'
 import { PrintSheet } from './print/PrintSheet'
+import { PrintCardControls } from './print/PrintCardControls'
+import {
+  DEFAULT_PRINT_DESIGN,
+  qrShareOf,
+  type PrintDesign,
+  type PrintTextField,
+} from '../../lib/print/printDesigns'
+import { readPrintPhoto, writePrintPhoto } from './print/printPhoto'
 import { useImageReady } from './print/useImageReady'
 import { usePrintPageRule } from './print/usePrintPageRule'
 import {
@@ -20,11 +28,16 @@ import {
   PRINT_FORMATS,
   PRINT_INKS,
   availabilityOf,
+  hueOfHex,
   isQrTooSmall,
   type PrintFormat,
   type PrintInk,
 } from './print/printKit'
-import { readPrintPreferences, writePrintPreferences } from './print/printPreferences'
+import {
+  readPrintPreferences,
+  writePrintPreferences,
+  type PrintPreferences,
+} from './print/printPreferences'
 import styles from './PrintKitPage.module.css'
 import type { UiText } from '../../lib/i18n/translations'
 
@@ -56,10 +69,17 @@ const FORMAT_LABELS: Readonly<Record<PrintFormat, (text: UiText) => string>> = {
  */
 export function PrintKitPage() {
   const { slug = '' } = useParams<{ slug: string }>()
+  // Keyed by the event: its preferences and photograph are read once, when the page mounts, and
+  // the router keeps the element when only the slug changes.
+  return <EventPrintKit key={slug} slug={slug} />
+}
+
+function EventPrintKit({ slug }: { readonly slug: string }) {
   const t = useTranslations()
   const { data: event, loading, error, reload } = useEvent(slug)
 
   const [preferences, setPreferences] = useState(() => readPrintPreferences(slug))
+  const [photoUrl, setPhotoUrl] = useState(() => readPrintPhoto(slug))
   const [totalModules, setTotalModules] = useState<number | null>(null)
   // Set by the button, read once the reload it started has settled. A ref and not state: it
   // drives no rendering, only the one `print()` that follows the reload.
@@ -97,13 +117,25 @@ export function PrintKitPage() {
   }
 
   const update = useCallback(
-    (patch: { format?: PrintFormat; language?: Locale; ink?: PrintInk; logo?: boolean }) => {
+    (patch: PrintPreferences) => {
       const next = { ...preferences, ...patch }
       setPreferences(next)
       writePrintPreferences(slug, next)
     },
     [preferences, slug],
   )
+
+  const updateText = (field: PrintTextField, value: string) => {
+    const texts = { ...preferences.texts }
+    if (value === '') delete texts[field]
+    else texts[field] = value
+    update({ texts })
+  }
+
+  const updatePhoto = (url: string | null) => {
+    setPhotoUrl(url)
+    writePrintPhoto(slug, url)
+  }
 
   if (event === null && loading) return <Pending label={t.admin.eventLoading} />
   if (event === null) {
@@ -124,6 +156,24 @@ export function PrintKitPage() {
   const format = preferences.format ?? DEFAULT_PRINT_FORMAT
   const ink = preferences.ink ?? DEFAULT_PRINT_INK
   const language = preferences.language ?? parseLocale(event.settings.wallLanguage) ?? 'fr'
+  const design: PrintDesign = preferences.design ?? DEFAULT_PRINT_DESIGN
+  const eventHue = event.settings.theme.accentHue
+  const eventColour = `oklch(58% 0.14 ${eventHue})`
+  const chosenColour = preferences.colour ?? null
+  const accentHue = chosenColour === null ? eventHue : (hueOfHex(chosenColour) ?? eventHue)
+  const typed = preferences.texts ?? {}
+  const blankToNull = (value: string | undefined) =>
+    value === undefined || value.trim() === '' ? null : value.trim()
+  const texts = {
+    title: blankToNull(typed.title) ?? event.name,
+    tagline: blankToNull(typed.tagline),
+    note: blankToNull(typed.note),
+    date: blankToNull(typed.date),
+    table: blankToNull(typed.table),
+  }
+  const steps = preferences.steps ?? true
+  const focusX = preferences.focusX ?? 50
+  const focusY = preferences.focusY ?? 50
 
   return (
     <div className={styles['page']}>
@@ -168,6 +218,32 @@ export function PrintKitPage() {
                 </Button>
               </Notice>
             ) : null}
+
+            <PrintCardControls
+              design={design}
+              onDesign={(chosen) => update({ design: chosen })}
+              texts={typed}
+              onText={updateText}
+              eventName={event.name}
+              steps={steps}
+              onSteps={(on) => update({ steps: on })}
+              photoUrl={photoUrl}
+              onPhoto={updatePhoto}
+              focusX={focusX}
+              focusY={focusY}
+              onFocus={(axis, value) => update({ [axis]: value })}
+              colour={chosenColour}
+              onColour={(colour) => {
+                const { colour: _dropped, ...rest } = preferences
+                const next = colour === null ? rest : { ...rest, colour }
+                setPreferences(next)
+                writePrintPreferences(slug, next)
+              }}
+              eventColour={eventColour}
+              accentHue={accentHue}
+              locale={language}
+              previewTexts={texts}
+            />
 
             <fieldset className={styles['group']}>
               <legend className={styles['legend']}>{t.admin.printKitFormat}</legend>
@@ -224,7 +300,7 @@ export function PrintKitPage() {
             )}
             {wantsLogo ? <p className={styles['help']}>{t.admin.printKitLogoHint}</p> : null}
 
-            {totalModules !== null && isQrTooSmall(format, totalModules) ? (
+            {totalModules !== null && isQrTooSmall(format, qrShareOf(design), totalModules) ? (
               <Notice tone="warning" role="status" variant="boxed">
                 {t.admin.printKitLongLink}
               </Notice>
@@ -244,8 +320,15 @@ export function PrintKitPage() {
               format={format}
               locale={language}
               ink={ink}
-              accentHue={event.settings.theme.accentHue}
+              accentHue={accentHue}
+              colour={chosenColour ?? eventColour}
               logoUrl={wantsLogo && logoState === 'ready' ? availableLogo : null}
+              design={design}
+              texts={texts}
+              steps={steps}
+              photoUrl={photoUrl}
+              focusX={focusX}
+              focusY={focusY}
               onQrModules={setTotalModules}
             />
           </section>

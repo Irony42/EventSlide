@@ -4,3 +4,9 @@
   size: A4 portrait;
   margin: 0;
 }
+
+/* Two A5 portraits share an A4 turned landscape (spec 28): the sheet asks for this named page. */
+@page print-landscape {
+  size: A4 landscape;
+  margin: 0;
+}

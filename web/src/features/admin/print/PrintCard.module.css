@@ -1,0 +1,2152 @@
+/*
+ * The fifteen printed cards (spec 28). Each is a drawing on an A6 portrait in `cqw`, the card's
+ * own width: 1 mm on an A6 is 0.952cqw, and the same numbers hold on the A5 and the A4, which
+ * share the ratio. These lengths are the geometry of a printed drawing, as the photo book's are,
+ * not interface spacing: they live here, and every colour lives in `tokens.css`
+ * (`[data-print-card]`), drawn from the hue of the card's colour.
+ *
+ * The QR is always dark on a white ground with its own quiet zone, never inverted, and its side
+ * is `--qr-share` of the card: the number `printDesigns.qrShareOf` declares and `printKit` judges.
+ */
+
+.card {
+  position: relative;
+  box-sizing: border-box;
+  inline-size: 100%;
+  aspect-ratio: 105 / 148.5;
+  container-type: inline-size;
+  overflow: hidden;
+  background: var(--pd-paper);
+  color: var(--pd-ink);
+  font-family: var(--font-sans);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.card :where(h2, p, ol) {
+  margin: 0;
+}
+
+/* The white an office printer leaves at the edge anyway: 5 mm on an A6. */
+.face {
+  position: absolute;
+  inset: 4.8cqw;
+  overflow: hidden;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.qr {
+  inline-size: calc(var(--qr-share) * 100cqw);
+  flex: none;
+  line-height: 0;
+  background: var(--pd-paper);
+  color: var(--pd-qr-ink);
+}
+
+.qr svg {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+}
+
+.photo {
+  overflow: hidden;
+  background: var(--pd-a-soft);
+}
+
+.photo img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: var(--fx) var(--fy);
+}
+
+.slot {
+  flex: 1 1 0;
+  min-block-size: 0;
+  inline-size: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.mono {
+  display: grid;
+  place-items: center;
+  background: var(--pd-a-soft);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.fallback {
+  font-size: 2.25cqw;
+  line-height: 1.3;
+  color: var(--pd-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+[data-fit] {
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.steps {
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  text-align: start;
+}
+
+.steps li {
+  counter-increment: step;
+  position: relative;
+  padding-inline-start: 4.4cqw;
+}
+
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 0.05em;
+  inline-size: 3.2cqw;
+  block-size: 3.2cqw;
+  border-radius: 50%;
+  background: var(--pd-a-dark);
+  color: var(--pd-paper);
+  font-size: 2cqw;
+  font-weight: 700;
+  line-height: 3.2cqw;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- essentiel */
+.essentiel .face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.4cqw;
+  text-align: center;
+}
+
+.esTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 3cqw;
+  inline-size: 100%;
+  text-align: start;
+  font-size: 2.3cqw;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pd-a-dark);
+}
+
+.esTitle {
+  inline-size: 100%;
+  max-block-size: 10.5cqw;
+  font-size: 4.2cqw;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: var(--pd-a-dark);
+}
+
+.esTag {
+  inline-size: 100%;
+  max-block-size: 17.5cqw;
+  font-size: 8cqw;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.esSteps {
+  display: grid;
+  gap: 1cqw;
+  inline-size: 80cqw;
+  font-size: 2.75cqw;
+  line-height: 1.35;
+}
+
+.esNote {
+  font-size: 2.6cqw;
+  line-height: 1.3;
+  color: var(--pd-ink-soft);
+}
+
+/* ---------------------------------------------------------------- classique */
+.classique .face {
+  padding: 4cqw 5cqw 3.4cqw;
+  gap: 1.8cqw;
+  background: var(--pd-cream);
+  color: var(--pd-cream-ink);
+  font-family: var(--pd-font-serif);
+}
+
+.clOval {
+  block-size: 100%;
+  aspect-ratio: 4 / 5;
+  max-inline-size: 60cqw;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1.1cqw var(--pd-cream),
+    0 0 0 1.4cqw var(--pd-a);
+}
+
+.clOval span {
+  font-size: 11cqw;
+  font-weight: 600;
+  color: var(--pd-a-dark);
+}
+
+.clTitle {
+  inline-size: 100%;
+  max-block-size: 19cqw;
+  margin-block-start: 1.4cqw;
+  font-size: 9cqw;
+  font-weight: 600;
+  line-height: 1.02;
+}
+
+.clDate,
+.clTable {
+  font-family: var(--font-sans);
+  font-size: 2cqw;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pd-cream-muted);
+}
+
+.clTable b {
+  margin-inline-start: 0.3em;
+  font-family: var(--pd-font-serif);
+  font-size: 5cqw;
+  letter-spacing: 0;
+  color: var(--pd-a-dark);
+}
+
+.clRule {
+  flex: none;
+  inline-size: 9cqw;
+  block-size: 0.3cqw;
+  background: var(--pd-a);
+}
+
+.clTag {
+  inline-size: 100%;
+  max-block-size: 11cqw;
+  font-size: 4.6cqw;
+  font-style: italic;
+  line-height: 1.15;
+  color: var(--pd-cream-soft);
+}
+
+.classique .fallback {
+  font-family: var(--font-sans);
+  color: var(--pd-cream-muted);
+}
+
+/* ---------------------------------------------------------------- ticket de caisse */
+.ticket .face {
+  display: flex;
+  justify-content: center;
+  background: var(--pd-desk);
+}
+
+.rcWrap {
+  block-size: 100%;
+  filter: drop-shadow(0 0.8cqw 1.2cqw var(--pd-shadow-soft));
+}
+
+.rc {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.4cqw;
+  block-size: 100%;
+  inline-size: 74cqw;
+  padding: 5cqw 4.4cqw 5.4cqw;
+  background: var(--pd-paper);
+  color: var(--pd-receipt-ink);
+  font-family: var(--pd-font-mono);
+  font-size: 2.45cqw;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.rcTitle {
+  inline-size: 100%;
+  max-block-size: 12.5cqw;
+  font-size: 5.2cqw;
+  font-weight: 600;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.rcLine {
+  inline-size: 100%;
+  max-block-size: 3.4cqw;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+
+.rcPhoto {
+  position: relative;
+  flex: 1 1 0;
+  min-block-size: 8cqw;
+  inline-size: 100%;
+  background: var(--pd-paper);
+}
+
+.rcPhoto img {
+  filter: grayscale(1) contrast(1.7) brightness(1.15);
+}
+
+.rcPhoto::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, var(--pd-paper-dots) 30%, transparent 34%) 0 0 / 0.9cqw 0.9cqw;
+}
+
+.rcGap {
+  display: grid;
+  place-items: center;
+  flex: 1 1 0;
+  min-block-size: 0;
+  inline-size: 100%;
+  border: 0.35cqw solid var(--pd-receipt-ink);
+  font-size: 14cqw;
+  font-weight: 600;
+}
+
+.rcSep {
+  flex: none;
+  inline-size: 100%;
+  border-block-start: 0.35cqw dashed var(--pd-receipt-ink);
+}
+
+.rcItems {
+  display: grid;
+  gap: 0.5cqw;
+  inline-size: 100%;
+}
+
+.rcItems p,
+.rcTotal {
+  display: flex;
+  align-items: baseline;
+  gap: 1cqw;
+  text-align: start;
+}
+
+.rcItems i {
+  flex: 1;
+  border-block-end: 0.3cqw dotted var(--pd-receipt-dots);
+}
+
+.rcTotal {
+  justify-content: space-between;
+  inline-size: 100%;
+  font-size: 3.4cqw;
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.rcTag {
+  inline-size: 100%;
+  max-block-size: 7.8cqw;
+  font-size: 3.1cqw;
+  font-weight: 600;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.ticket .fallback {
+  font-size: 1.95cqw;
+  color: var(--pd-receipt-ink);
+}
+
+/* ---------------------------------------------------------------- bande dessinée */
+.bd .face {
+  display: flex;
+  flex-direction: column;
+  gap: 2.6cqw;
+  padding: 3cqw 3.4cqw 2.6cqw;
+  background:
+    radial-gradient(circle, var(--pd-comic-dots) 24%, transparent 27%) 0 0 / 1.7cqw 1.7cqw,
+    var(--pd-comic-ground);
+  color: var(--pd-comic-ink);
+}
+
+.bdTitle {
+  max-block-size: 23cqw;
+  font-family: var(--pd-font-comic);
+  font-size: 11cqw;
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-transform: uppercase;
+  text-shadow: 0.5cqw 0.5cqw 0 var(--pd-paper);
+}
+
+.bdPanel {
+  position: relative;
+  border: 0.9cqw solid var(--pd-comic-ink);
+  background: var(--pd-paper);
+  box-shadow: 1.2cqw 1.2cqw 0 var(--pd-comic-ink);
+}
+
+.bdMain {
+  flex: 1 1 0;
+  min-block-size: 24cqw;
+  rotate: -1deg;
+}
+
+.bdMain > .photo {
+  position: absolute;
+  inset: 0;
+}
+
+.bdMono {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--pd-comic-mono);
+  color: var(--pd-paper);
+  font-family: var(--pd-font-comic);
+  font-size: 16cqw;
+  text-shadow: 0.8cqw 0.8cqw 0 var(--pd-comic-ink);
+}
+
+.bdBubble {
+  position: absolute;
+  inset-block-start: 2.6cqw;
+  inset-inline-end: 2.6cqw;
+  z-index: 2;
+  max-inline-size: 54cqw;
+  padding: 3.4cqw 4.6cqw;
+  border: 0.7cqw solid var(--pd-comic-ink);
+  border-radius: 50% / 46%;
+  background: var(--pd-paper);
+}
+
+.bdBubble::before,
+.bdBubble::after {
+  content: '';
+  position: absolute;
+  clip-path: polygon(0 0, 100% 0, 10% 100%);
+}
+
+.bdBubble::before {
+  inset-inline-start: 18%;
+  inset-block-end: -6.6cqw;
+  inline-size: 9cqw;
+  block-size: 7.4cqw;
+  background: var(--pd-comic-ink);
+}
+
+.bdBubble::after {
+  inset-inline-start: calc(18% + 0.9cqw);
+  inset-block-end: -5cqw;
+  inline-size: 6.4cqw;
+  block-size: 5.4cqw;
+  background: var(--pd-paper);
+}
+
+.bdBubble p {
+  max-block-size: 15cqw;
+  font-family: var(--pd-font-comic);
+  font-size: 4.6cqw;
+  line-height: 1.08;
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.bdRow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3.6cqw;
+  align-items: center;
+  flex: none;
+}
+
+.bdSide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3cqw;
+  min-inline-size: 0;
+}
+
+.bdBoom {
+  position: relative;
+  inline-size: 30cqw;
+  block-size: 21cqw;
+  background: var(--pd-comic-ink);
+  rotate: -8deg;
+}
+
+.bdBoom span {
+  position: absolute;
+  inset: 0.9cqw;
+  display: grid;
+  place-items: center;
+  background: var(--pd-comic-boom);
+  font-family: var(--pd-font-comic);
+  font-size: 5cqw;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bdCaption {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-block-size: 19cqw;
+  padding: 1.6cqw 2cqw;
+  border: 0.5cqw solid var(--pd-comic-ink);
+  background: var(--pd-comic-caption);
+  font-family: var(--pd-font-comic);
+  font-size: 3.3cqw;
+  line-height: 1.12;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.bd .fallback {
+  color: var(--pd-comic-ink);
+}
+
+/* ---------------------------------------------------------------- magazine */
+.mgFace {
+  background: var(--pd-cover);
+  color: var(--pd-on-photo);
+}
+
+.mgPhoto {
+  position: absolute;
+  inset: 0;
+}
+
+.mgShade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    var(--pd-shade),
+    transparent 30%,
+    transparent 48%,
+    var(--pd-shade-deep) 100%
+  );
+}
+
+.mgTop {
+  position: absolute;
+  inset-inline: 3.5cqw;
+  inset-block-start: 2.6cqw;
+  text-align: center;
+}
+
+.mgTitle {
+  inline-size: 100%;
+  max-block-size: 22cqw;
+  font-family: var(--pd-font-magazine);
+  font-size: 16cqw;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mgIssue {
+  display: flex;
+  justify-content: space-between;
+  margin-block-start: 1.4cqw;
+  padding-block-start: 1.2cqw;
+  border-block-start: 0.3cqw solid var(--pd-on-photo);
+  font-size: 2cqw;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.mgLines {
+  position: absolute;
+  inset-inline-start: 3.5cqw;
+  inset-block-end: 9cqw;
+  inline-size: 37cqw;
+  text-shadow: 0 0.2cqw 1.2cqw var(--pd-shade-deep);
+}
+
+.mgKicker {
+  margin-block-end: 1.4cqw;
+  font-size: 2.1cqw;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pd-cover-kicker);
+}
+
+.mgBig {
+  max-block-size: 33cqw;
+  font-family: var(--pd-font-magazine);
+  font-size: 6.4cqw;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1.02;
+}
+
+.mgNote {
+  margin-block-start: 1.6cqw;
+  font-size: 2.5cqw;
+  line-height: 1.3;
+}
+
+.mgBox {
+  position: absolute;
+  inset-inline-end: 3.5cqw;
+  inset-block-end: 3.5cqw;
+  box-sizing: border-box;
+  inline-size: 45cqw;
+  padding: 2cqw;
+  background: var(--pd-paper);
+  color: var(--pd-ink);
+  text-align: center;
+}
+
+.mgCta {
+  margin: 1cqw 0 0.8cqw;
+  font-size: 2.9cqw;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.mgBox .fallback {
+  font-size: 1.9cqw;
+}
+
+.mgPrice {
+  position: absolute;
+  inset-inline-end: 5cqw;
+  inset-block-start: 31cqw;
+  display: grid;
+  place-items: center;
+  inline-size: 17cqw;
+  block-size: 17cqw;
+  border-radius: 50%;
+  background: var(--pd-cover-sticker);
+  color: var(--pd-ink);
+  font-family: var(--pd-font-magazine);
+  font-size: 3.4cqw;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  rotate: -12deg;
+}
+
+.mgPrice small {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 1.7cqw;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.mgFoot {
+  position: absolute;
+  inset-inline-start: 3.5cqw;
+  inset-block-end: 3.5cqw;
+  font-size: 1.9cqw;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------- souvenir */
+.svFace {
+  background:
+    repeating-linear-gradient(90deg, var(--pd-kraft-fibre) 0 0.4cqw, transparent 0.4cqw 1.1cqw),
+    var(--pd-kraft);
+  color: var(--pd-kraft-ink);
+  font-family: var(--pd-font-hand);
+}
+
+.svTitle {
+  position: absolute;
+  inset-inline: 3cqw;
+  inset-block-start: 2cqw;
+  max-block-size: 19cqw;
+  font-family: var(--pd-font-hand);
+  font-size: 10cqw;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+
+.polaroid {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 2.2cqw 2.2cqw 0;
+  background: var(--pd-polaroid);
+  box-shadow: 0 1.2cqw 2.4cqw -1cqw var(--pd-shadow);
+}
+
+.polaroid > .photo,
+.polaroid > .pMono {
+  inline-size: 100%;
+  aspect-ratio: 1;
+}
+
+.hand {
+  display: block;
+  overflow: hidden;
+  padding: 1.6cqw 0 2cqw;
+  font-family: var(--pd-font-hand);
+  font-size: 4cqw;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--pd-pen);
+}
+
+.pMono {
+  display: grid;
+  place-items: center;
+  background: var(--pd-a-soft);
+  color: var(--pd-a-dark);
+  font-family: var(--pd-font-hand);
+  font-size: 12cqw;
+  font-weight: 700;
+}
+
+.svPhoto {
+  inset-inline-start: 2cqw;
+  inset-block-start: 22cqw;
+  inline-size: 50cqw;
+  rotate: -5deg;
+}
+
+.svQr {
+  inset-inline-end: 1cqw;
+  inset-block-start: 60cqw;
+  z-index: 2;
+  rotate: 2.5deg;
+}
+
+.tape {
+  position: absolute;
+  z-index: 3;
+  inline-size: 15cqw;
+  block-size: 4.2cqw;
+  background: var(--pd-tape);
+  box-shadow: 0 0.3cqw 0.6cqw var(--pd-shadow-soft);
+}
+
+.svTapeA {
+  inset-inline-start: 17cqw;
+  inset-block-start: -2cqw;
+  rotate: -6deg;
+}
+
+/* Outside the code's box: a tint over the quiet zone is one thing a scanner can do without. */
+.svTapeB {
+  inset-inline-end: -8cqw;
+  inset-block-start: -3.4cqw;
+  rotate: 38deg;
+}
+
+.svNote {
+  position: absolute;
+  inset-inline-start: 2cqw;
+  inset-block-start: 86cqw;
+  box-sizing: border-box;
+  inline-size: 36cqw;
+  max-block-size: 38cqw;
+  padding: 2.6cqw 2.6cqw 2.2cqw;
+  background: var(--pd-note);
+  box-shadow: 0 1cqw 2cqw -1cqw var(--pd-shadow);
+  font-size: 4.4cqw;
+  font-weight: 500;
+  line-height: 1.08;
+  color: var(--pd-pen);
+  rotate: -2.5deg;
+}
+
+.svNote p + p {
+  margin-block-start: 1.4cqw;
+  font-size: 3.6cqw;
+  color: var(--pd-pen-brown);
+}
+
+.svSticker {
+  position: absolute;
+  inset-inline-end: 8cqw;
+  inset-block-start: 22cqw;
+  z-index: 3;
+  padding: 1.6cqw 3cqw;
+  border-radius: 1cqw;
+  background: var(--pd-a-dark);
+  color: var(--pd-paper);
+  font-size: 4.4cqw;
+  font-weight: 700;
+  line-height: 1;
+  rotate: 6deg;
+}
+
+.svFace .fallback {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 1cqw;
+  font-family: var(--font-sans);
+  text-align: center;
+  color: var(--pd-kraft-ink);
+}
+
+/* ---------------------------------------------------------------- carte postale */
+.pcFace {
+  display: flex;
+  flex-direction: column;
+  background: var(--pd-post-paper);
+  color: var(--pd-post-ink);
+}
+
+.pcFront {
+  position: relative;
+  flex: none;
+  block-size: 47cqw;
+  background: var(--pd-cover);
+}
+
+.pcFrontPhoto {
+  position: absolute;
+  inset: 0;
+}
+
+.pcFront::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent 30%, var(--pd-shade));
+}
+
+.pcGreet {
+  position: absolute;
+  inset-inline: 3cqw;
+  inset-block-end: 3cqw;
+  z-index: 1;
+  color: var(--pd-on-photo);
+}
+
+.pcGreet span {
+  display: block;
+  margin-block-end: 0.6cqw;
+  font-family: var(--pd-font-script);
+  font-size: 5.4cqw;
+  line-height: 1;
+  text-shadow: 0 0.2cqw 0.8cqw var(--pd-shade);
+}
+
+.pcTitle {
+  max-block-size: 20cqw;
+  font-family: var(--pd-font-magazine);
+  font-size: 9cqw;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 0.98;
+  text-transform: uppercase;
+  text-shadow: 0.5cqw 0.5cqw 0 var(--pd-a-dark);
+}
+
+.pcBack {
+  position: relative;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 41cqw;
+  gap: 3cqw;
+  padding: 3.4cqw 2.6cqw 2.4cqw 3cqw;
+}
+
+.pcBack::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: calc(100% - 44.6cqw);
+  inset-block: 5cqw 4cqw;
+  border-inline-start: 0.25cqw solid var(--pd-post-rule);
+}
+
+.pcMsg {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6cqw;
+  min-block-size: 0;
+  font-family: var(--pd-font-hand);
+  font-size: 4.6cqw;
+  font-weight: 500;
+  line-height: 1.12;
+  color: var(--pd-pen);
+}
+
+.pcNote {
+  font-size: 3.9cqw;
+}
+
+.pcSign {
+  font-weight: 700;
+  color: var(--pd-pen-brown);
+}
+
+.pcRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.pcStamps {
+  position: relative;
+  flex: none;
+  inline-size: 100%;
+  block-size: 21cqw;
+}
+
+.pcStamp {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-start: 0;
+  box-sizing: border-box;
+  inline-size: 16cqw;
+  block-size: 20cqw;
+  padding: 0.6cqw;
+  border: 1.1cqw dotted var(--pd-post-paper);
+  background: var(--pd-paper);
+  box-shadow: 0 0.4cqw 0.9cqw var(--pd-shadow-soft);
+}
+
+.pcStamp .photo,
+.pcStampMono {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.pcStampMono {
+  display: grid;
+  place-items: center;
+  background: var(--pd-a-soft);
+  color: var(--pd-a-dark);
+  font-family: var(--pd-font-hand);
+  font-size: 5cqw;
+  font-weight: 700;
+}
+
+.pcMark {
+  position: absolute;
+  inset-inline-end: 13cqw;
+  inset-block-start: 2cqw;
+  display: grid;
+  place-items: center;
+  inline-size: 18cqw;
+  block-size: 18cqw;
+  border: 0.35cqw solid var(--pd-post-mark);
+  border-radius: 50%;
+  font-family: var(--pd-font-mono);
+  font-size: 1.7cqw;
+  line-height: 1.15;
+  text-align: center;
+  color: var(--pd-post-mark);
+  rotate: -14deg;
+}
+
+.pcMark::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: -9cqw;
+  inset-block-start: 6cqw;
+  inline-size: 12cqw;
+  block-size: 6cqw;
+  border-radius: 40%;
+  background: repeating-linear-gradient(var(--pd-post-mark) 0 0.3cqw, transparent 0.3cqw 1.4cqw);
+}
+
+.pcAddress {
+  margin: 1cqw 0;
+  font-family: var(--pd-font-mono);
+  font-size: 2.1cqw;
+  line-height: 1.25;
+  text-align: end;
+}
+
+.pcBack .fallback {
+  grid-column: 1 / -1;
+  font-size: 2.05cqw;
+}
+
+/* ---------------------------------------------------------------- billet */
+.billet .face {
+  display: flex;
+}
+
+.ti {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 2.4cqw;
+  background: var(--pd-a-soft);
+  color: var(--pd-a-dark);
+}
+
+.tiMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.8cqw;
+  min-block-size: 0;
+  padding: 3cqw 3cqw 2.4cqw;
+}
+
+.tiHead {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--pd-font-mono);
+  font-size: 2.2cqw;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tiPhoto {
+  flex: 1 1 0;
+  min-block-size: 10cqw;
+  border-radius: 1.2cqw;
+  background: var(--pd-a-tint);
+}
+
+.tiPhoto img {
+  filter: grayscale(1) brightness(1.35) contrast(1.1);
+  mix-blend-mode: multiply;
+}
+
+.tiEmpty {
+  background: repeating-linear-gradient(45deg, var(--pd-a) 0 2cqw, var(--pd-a-strong) 2cqw 4cqw);
+}
+
+.tiTitle {
+  max-block-size: 24cqw;
+  font-family: var(--pd-font-poster);
+  font-size: 10.5cqw;
+  font-weight: 400;
+  line-height: 1.12;
+  text-transform: uppercase;
+  color: var(--pd-ink);
+}
+
+.tiTag {
+  max-block-size: 7cqw;
+  font-family: var(--pd-font-mono);
+  font-size: 2.6cqw;
+  font-weight: 600;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.tiInfo {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 1.6cqw;
+  padding-block-start: 1.6cqw;
+  border-block-start: 0.25cqw solid var(--pd-a-dark);
+}
+
+.tiInfo div {
+  min-inline-size: 0;
+  font-family: var(--pd-font-mono);
+  font-size: 1.75cqw;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tiInfo b {
+  display: block;
+  margin-block-start: 0.8cqw;
+  font-size: 2.6cqw;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+  color: var(--pd-ink);
+}
+
+.tiCut {
+  position: relative;
+  flex: none;
+  block-size: 0;
+  margin: 0 4.4cqw;
+  border-block-start: 0.45cqw dashed var(--pd-a-dark);
+}
+
+.tiCut::before,
+.tiCut::after {
+  content: '';
+  position: absolute;
+  inset-block-start: -3.4cqw;
+  inline-size: 6.8cqw;
+  block-size: 6.8cqw;
+  border-radius: 50%;
+  background: var(--pd-paper);
+}
+
+.tiCut::before {
+  inset-inline-start: -7.8cqw;
+}
+
+.tiCut::after {
+  inset-inline-end: -7.8cqw;
+}
+
+.tiStub {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3cqw;
+  align-items: center;
+  padding: 3cqw;
+}
+
+.billet .qr {
+  border-radius: 1cqw;
+}
+
+.tiStubTitle {
+  font-family: var(--pd-font-poster);
+  font-size: 5cqw;
+  line-height: 1.1;
+  text-transform: uppercase;
+  color: var(--pd-ink);
+}
+
+.tiStubLine {
+  margin-block-start: 1.4cqw;
+  font-family: var(--pd-font-mono);
+  font-size: 2.25cqw;
+  line-height: 1.35;
+}
+
+.tiSerial {
+  margin-block-start: 1.6cqw;
+  font-family: var(--pd-font-mono);
+  font-size: 2.2cqw;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.billet .fallback {
+  margin-block-start: 1.6cqw;
+  font-size: 2cqw;
+  color: var(--pd-a-dark);
+}
+
+/* ---------------------------------------------------------------- carte d'embarquement */
+.embarquement .face {
+  display: flex;
+}
+
+.bp {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 2.6cqw;
+  background: var(--pd-paper);
+  box-shadow: inset 0 0 0 0.3cqw var(--pd-pass-line);
+  color: var(--pd-pass-ink);
+}
+
+.bpHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2.6cqw 3.4cqw;
+  background: var(--pd-a-dark);
+  color: var(--pd-paper);
+  font-size: 2.4cqw;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.bpHead span:last-child {
+  font-weight: 400;
+}
+
+.bpBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2cqw;
+  min-block-size: 0;
+  padding: 2.8cqw 3.4cqw 2cqw;
+}
+
+.bpTop {
+  flex: 1 1 0;
+  display: flex;
+  gap: 3cqw;
+  min-block-size: 0;
+}
+
+.bpWindow {
+  position: relative;
+  overflow: hidden;
+  block-size: 100%;
+  aspect-ratio: 3 / 4;
+  max-inline-size: 36cqw;
+  border-radius: 44% / 36%;
+  background: linear-gradient(var(--pd-sky-top), var(--pd-sky-bottom));
+  box-shadow:
+    inset 0 0 0 1.6cqw var(--pd-window),
+    inset 0 0 0 1.9cqw var(--pd-pass-line);
+}
+
+.bpView {
+  position: absolute;
+  inset: 1.9cqw;
+  border-radius: 44% / 36%;
+}
+
+.bpRoute {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.6cqw;
+  min-inline-size: 0;
+}
+
+.bpCodes {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--pd-font-mono);
+  font-size: 8.4cqw;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--pd-a-dark);
+}
+
+.bpCodes span:nth-child(2) {
+  font-size: 5cqw;
+  color: var(--pd-a-strong);
+}
+
+.bpCities {
+  display: flex;
+  justify-content: space-between;
+  gap: 2cqw;
+  font-size: 1.9cqw;
+  line-height: 1.2;
+  color: var(--pd-pass-soft);
+}
+
+.bpCities span:last-child {
+  text-align: end;
+}
+
+.bpLabel {
+  font-size: 1.7cqw;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pd-pass-muted);
+}
+
+.bpTitle {
+  max-block-size: 12cqw;
+  margin-block-start: 0.8cqw;
+  font-size: 5.4cqw;
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+}
+
+.bpGrid {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr 1.2fr;
+  gap: 2cqw;
+}
+
+.bpGrid b {
+  display: block;
+  margin-block-start: 0.8cqw;
+  font-size: 2.8cqw;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.bpCut {
+  position: relative;
+  flex: none;
+  margin: 0 4cqw;
+  border-block-start: 0.4cqw dashed var(--pd-pass-line);
+}
+
+.bpCut::before,
+.bpCut::after {
+  content: '';
+  position: absolute;
+  inset-block-start: -3cqw;
+  inline-size: 6cqw;
+  block-size: 6cqw;
+  border-radius: 50%;
+  background: var(--pd-paper);
+  box-shadow: inset 0 0 0 0.3cqw var(--pd-pass-line);
+}
+
+.bpCut::before {
+  inset-inline-start: -7cqw;
+}
+
+.bpCut::after {
+  inset-inline-end: -7cqw;
+}
+
+.bpStub {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3cqw;
+  align-items: center;
+  padding: 3cqw 3.4cqw;
+}
+
+.bpCta {
+  max-block-size: 12.5cqw;
+  font-size: 3.6cqw;
+  font-weight: 800;
+  line-height: 1.12;
+  color: var(--pd-a-dark);
+}
+
+.bpSteps {
+  margin-block-start: 1.4cqw;
+  font-size: 2.2cqw;
+  line-height: 1.35;
+  color: var(--pd-pass-soft);
+}
+
+.embarquement .fallback {
+  margin-block-start: 1.4cqw;
+  font-size: 1.95cqw;
+}
+
+/* ---------------------------------------------------------------- appareil jetable */
+.jtFace {
+  gap: 2.4cqw;
+  padding: 4cqw 3cqw 2.6cqw;
+  background: var(--pd-a-soft);
+  font-family: var(--pd-font-round);
+}
+
+.jtTitle {
+  inline-size: 100%;
+  max-block-size: 13.5cqw;
+  font-family: var(--pd-font-geometric);
+  font-size: 6.2cqw;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pd-a-dark);
+}
+
+.jtDate {
+  inline-size: 100%;
+  max-block-size: 3cqw;
+  margin-block-start: -1cqw;
+  font-family: var(--pd-font-geometric);
+  font-size: 2.4cqw;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--pd-a-dark);
+}
+
+.cam {
+  position: relative;
+  flex: none;
+  inline-size: 80cqw;
+  block-size: 41cqw;
+  margin-block-start: 2cqw;
+}
+
+.camBody {
+  position: absolute;
+  inset: 0;
+  border-radius: 3cqw;
+  background: var(--pd-a-strong);
+  box-shadow:
+    inset 0 -1.2cqw 0 var(--pd-shadow-soft),
+    0 1cqw 2cqw -1cqw var(--pd-shadow);
+}
+
+.camButton {
+  position: absolute;
+  inset-inline-start: 9cqw;
+  inset-block-start: -2cqw;
+  inline-size: 9cqw;
+  block-size: 2.6cqw;
+  border-radius: 1cqw 1cqw 0 0;
+  background: var(--pd-camera-black);
+}
+
+.camWheel {
+  position: absolute;
+  inset-inline-end: 6cqw;
+  inset-block-start: -2.2cqw;
+  inline-size: 14cqw;
+  block-size: 3cqw;
+  border-radius: 0.8cqw 0.8cqw 0 0;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pd-camera-black) 0 0.7cqw,
+    var(--pd-camera-grey) 0.7cqw 1.4cqw
+  );
+}
+
+.camView {
+  position: absolute;
+  inset-inline-start: 5cqw;
+  inset-block-start: 4cqw;
+  inline-size: 12cqw;
+  block-size: 8cqw;
+  border-radius: 1.2cqw;
+  background: linear-gradient(135deg, var(--pd-camera-glass), var(--pd-camera-black));
+  box-shadow: inset 0 0 0 0.8cqw var(--pd-camera-black);
+}
+
+.camFlash {
+  position: absolute;
+  inset-inline-end: 5cqw;
+  inset-block-start: 4cqw;
+  inline-size: 19cqw;
+  block-size: 8cqw;
+  border-radius: 1cqw;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pd-camera-chrome) 0 1cqw,
+    var(--pd-camera-chrome-shade) 1cqw 2cqw
+  );
+  box-shadow: inset 0 0 0 0.6cqw var(--pd-camera-chrome-edge);
+}
+
+.camLens {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  z-index: 2;
+  overflow: hidden;
+  inline-size: 28cqw;
+  block-size: 28cqw;
+  margin: -12cqw 0 0 -14cqw;
+  border-radius: 50%;
+  background: var(--pd-camera-black);
+  box-shadow:
+    0 0 0 1.6cqw var(--pd-camera-grey),
+    0 0 0 2.2cqw var(--pd-camera-black),
+    0 0.8cqw 1.6cqw 1.6cqw var(--pd-shadow-soft);
+}
+
+.camLensPhoto {
+  position: absolute;
+  inset: 2.2cqw;
+  border-radius: 50%;
+}
+
+.camLens::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, var(--pd-glint), transparent 22%);
+}
+
+.camGlass {
+  background: radial-gradient(
+    circle at 40% 40%,
+    var(--pd-camera-glass),
+    var(--pd-camera-black) 70%
+  );
+}
+
+.camLabel {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 3cqw;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  block-size: 8cqw;
+  padding: 0 3cqw;
+  background: var(--pd-paper);
+  font-family: var(--pd-font-geometric);
+  font-size: 2.1cqw;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pd-a-dark);
+}
+
+/* The label shows on either side of the lens, which covers its middle. */
+.camLabel span {
+  max-inline-size: 22cqw;
+}
+
+.camLabel span:last-child {
+  text-align: end;
+}
+
+.jtPrint {
+  flex: none;
+  margin-block-start: 1cqw;
+  padding: 2.4cqw 2.4cqw 0;
+  background: var(--pd-paper);
+  box-shadow: 0 1cqw 2cqw -1cqw var(--pd-shadow);
+  rotate: -2deg;
+}
+
+.jtCaption {
+  max-block-size: 9.5cqw;
+  padding: 1.6cqw 0.4cqw 2cqw;
+  font-family: var(--pd-font-geometric);
+  font-size: 3.3cqw;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--pd-ink);
+}
+
+.jtFace .fallback {
+  margin-block-start: auto;
+}
+
+/* ---------------------------------------------------------------- affiche */
+.afFace {
+  display: flex;
+  flex-direction: column;
+  gap: 2.4cqw;
+  padding: 3.6cqw;
+  background: var(--pd-a-light);
+  color: var(--pd-poster-ink);
+}
+
+.afTag {
+  max-block-size: 50cqw;
+  font-family: var(--pd-font-poster);
+  font-size: 13.5cqw;
+  line-height: 1.08;
+  text-transform: uppercase;
+}
+
+.afMid {
+  position: relative;
+  flex: 1 1 0;
+  min-block-size: 0;
+}
+
+.afPhoto {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block: 0 8cqw;
+  inline-size: 64%;
+  background: var(--pd-a-poster);
+  box-shadow: 1.6cqw 1.6cqw 0 var(--pd-poster-ink);
+  rotate: -2deg;
+}
+
+.afPhoto img {
+  filter: grayscale(1) brightness(1.4) contrast(1.3);
+  mix-blend-mode: multiply;
+}
+
+.afPhoto::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, var(--pd-halftone) 32%, transparent 36%) 0 0 / 1.3cqw 1.3cqw;
+  mix-blend-mode: multiply;
+}
+
+.afEmpty {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--pd-a-poster) 0 3cqw,
+    var(--pd-poster-ink) 3cqw 3.6cqw
+  );
+}
+
+.afQr {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-end: 0;
+  z-index: 2;
+  border: 0.8cqw solid var(--pd-poster-ink);
+  line-height: 0;
+}
+
+.afBottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 3cqw;
+  padding-block-start: 2cqw;
+  border-block-start: 0.8cqw solid var(--pd-poster-ink);
+}
+
+.afTitle {
+  flex: 1;
+  min-inline-size: 0;
+  max-block-size: 14.5cqw;
+  font-family: var(--pd-font-poster);
+  font-size: 6.4cqw;
+  font-weight: 400;
+  line-height: 1.12;
+  text-transform: uppercase;
+}
+
+.afMeta {
+  flex: none;
+  max-inline-size: 36cqw;
+  font-size: 2.2cqw;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
+  text-align: end;
+  text-transform: uppercase;
+}
+
+.afFace .fallback {
+  font-size: 2.1cqw;
+  color: var(--pd-poster-ink);
+}
+
+/* ---------------------------------------------------------------- confettis */
+.cfFace {
+  gap: 2cqw;
+  padding: 5cqw 6cqw 3.4cqw;
+  background: var(--pd-paper);
+  color: var(--pd-party-ink);
+  font-family: var(--pd-font-round);
+}
+
+.cfBits {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cfBits i {
+  position: absolute;
+  display: block;
+}
+
+.cfShape0 {
+  inline-size: 1.8cqw;
+  block-size: 1.8cqw;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.cfShape1 {
+  inline-size: 1.2cqw;
+  block-size: 3cqw;
+  border-radius: 0.3cqw;
+  background: currentColor;
+}
+
+.cfShape2 {
+  inline-size: 2.4cqw;
+  block-size: 2.4cqw;
+  border: 0.5cqw solid currentColor;
+  border-radius: 50%;
+}
+
+.cfColour0 {
+  color: var(--pd-confetti-1);
+}
+
+.cfColour1 {
+  color: var(--pd-confetti-2);
+}
+
+.cfColour2 {
+  color: var(--pd-confetti-3);
+}
+
+.cfColour3 {
+  color: var(--pd-confetti-4);
+}
+
+.cfColour4 {
+  color: var(--pd-confetti-5);
+}
+
+.cfTitle,
+.cfCircle,
+.cfTag,
+.cfQr,
+.cfMeta,
+.cfFace .fallback {
+  position: relative;
+  z-index: 1;
+}
+
+.cfTitle {
+  inline-size: 100%;
+  max-block-size: 20cqw;
+  font-family: var(--pd-font-round);
+  font-size: 9.6cqw;
+  font-weight: 700;
+  line-height: 1.02;
+}
+
+.cfTitle span:nth-child(5n + 1) {
+  color: var(--pd-party-1);
+}
+
+.cfTitle span:nth-child(5n + 2) {
+  color: var(--pd-party-2);
+}
+
+.cfTitle span:nth-child(5n + 3) {
+  color: var(--pd-party-3);
+}
+
+.cfTitle span:nth-child(5n + 4) {
+  color: var(--pd-party-4);
+}
+
+.cfTitle span:nth-child(5n + 5) {
+  color: var(--pd-party-5);
+}
+
+.cfCircle {
+  block-size: 100%;
+  aspect-ratio: 1;
+  max-inline-size: 46cqw;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1.4cqw var(--pd-paper),
+    0 0 0 2.6cqw var(--pd-confetti-2);
+}
+
+.cfCircle span {
+  font-size: 11cqw;
+  font-weight: 700;
+  color: var(--pd-party-1);
+}
+
+.cfTag {
+  inline-size: 100%;
+  max-block-size: 10.5cqw;
+  margin-block-start: 1.2cqw;
+  font-size: 4.6cqw;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.cfQr {
+  flex: none;
+  overflow: hidden;
+  border-radius: 3cqw;
+  box-shadow:
+    0 0 0 0.8cqw var(--pd-party-1),
+    1.6cqw 1.6cqw 0 0.8cqw var(--pd-confetti-3);
+}
+
+.cfMeta {
+  margin-block-start: 1.4cqw;
+  font-size: 2.8cqw;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* ---------------------------------------------------------------- années 70 */
+.seFace {
+  gap: 1.8cqw;
+  padding: 4cqw 5cqw 3.4cqw;
+  background: var(--pd-seventies);
+  color: var(--pd-seventies-ink);
+  font-family: var(--pd-font-geometric);
+}
+
+/* The arcs hang from the bottom: when the texts need room, the block shrinks and loses its top. */
+.seRainbow {
+  position: relative;
+  flex: 0 1 auto;
+  overflow: hidden;
+  inline-size: 82cqw;
+  block-size: 41cqw;
+  min-block-size: 26cqw;
+}
+
+.seRainbow > * {
+  position: absolute;
+  inset-inline-start: 50%;
+  display: block;
+  border-radius: 50%;
+  translate: -50% 50%;
+  inset-block-end: 0;
+}
+
+.seBand1 {
+  inline-size: 82cqw;
+  block-size: 82cqw;
+  background: var(--pd-band-1);
+}
+
+.seBand2 {
+  inline-size: 70cqw;
+  block-size: 70cqw;
+  background: var(--pd-band-2);
+}
+
+.seBand3 {
+  inline-size: 58cqw;
+  block-size: 58cqw;
+  background: var(--pd-band-3);
+}
+
+.seBand4 {
+  inline-size: 46cqw;
+  block-size: 46cqw;
+  background: var(--pd-band-4);
+}
+
+.seCore {
+  inline-size: 36cqw;
+  block-size: 36cqw;
+}
+
+.seMono {
+  display: grid;
+  place-items: start center;
+  padding-block-start: 6cqw;
+  box-sizing: border-box;
+  background: var(--pd-a-soft);
+  color: var(--pd-seventies-title);
+  font-family: var(--pd-font-retro);
+  font-size: 7cqw;
+}
+
+.seTitle {
+  inline-size: 100%;
+  max-block-size: 22cqw;
+  padding-block-end: 1cqw;
+  font-family: var(--pd-font-retro);
+  font-size: 9.6cqw;
+  font-weight: 400;
+  line-height: 1.05;
+  color: var(--pd-seventies-title);
+  text-shadow:
+    0.5cqw 0.5cqw 0 var(--pd-seventies),
+    1cqw 1cqw 0 var(--pd-seventies-shadow);
+}
+
+.seTag {
+  inline-size: 100%;
+  max-block-size: 8cqw;
+  font-size: 3.2cqw;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.seQr {
+  flex: none;
+  overflow: hidden;
+  margin-block-start: 1cqw;
+  border-radius: 2.6cqw;
+  box-shadow: 0 0 0 0.7cqw var(--pd-seventies-title);
+}
+
+.seMeta {
+  inline-size: 100%;
+  max-block-size: 3.4cqw;
+  font-size: 2.6cqw;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.seStripes {
+  flex: none;
+  inline-size: 100%;
+  block-size: 3.2cqw;
+  margin-block-start: auto;
+  background: linear-gradient(
+    var(--pd-band-1) 0 25%,
+    var(--pd-band-2) 25% 50%,
+    var(--pd-band-3) 50% 75%,
+    var(--pd-band-4) 75%
+  );
+}
+
+.seFace .fallback {
+  color: var(--pd-seventies-ink);
+}
+
+/* ---------------------------------------------------------------- nuit */
+.nuFace {
+  gap: 2cqw;
+  padding: 4cqw 5cqw 3.4cqw;
+  background: var(--pd-night);
+  color: var(--pd-night-ink);
+  font-family: var(--pd-font-geometric);
+}
+
+.nuTitle {
+  inline-size: 100%;
+  max-block-size: 26cqw;
+  padding: 0 2cqw;
+  font-family: var(--pd-font-script);
+  font-size: 12cqw;
+  font-weight: 400;
+  line-height: 1.15;
+  color: var(--pd-neon);
+  text-shadow:
+    0 0 1.2cqw var(--pd-neon-halo),
+    0 0 4cqw var(--pd-neon-halo);
+}
+
+.nuTag {
+  inline-size: 100%;
+  max-block-size: 7cqw;
+  font-size: 2.5cqw;
+  line-height: 1.35;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--pd-night-soft);
+}
+
+.nuPhoto {
+  block-size: 100%;
+  aspect-ratio: 4 / 3;
+  max-inline-size: 76cqw;
+  border-radius: 2cqw;
+  box-shadow:
+    0 0 0 0.4cqw var(--pd-neon-2),
+    0 0 3cqw var(--pd-neon-2-halo);
+}
+
+.nuMono {
+  display: grid;
+  place-items: center;
+  block-size: 100%;
+  aspect-ratio: 1;
+  max-inline-size: 50cqw;
+  border-radius: 50%;
+  font-family: var(--pd-font-script);
+  font-size: 12cqw;
+  color: var(--pd-neon-2);
+  text-shadow: 0 0 2cqw var(--pd-neon-2-halo);
+  box-shadow:
+    0 0 0 0.4cqw var(--pd-neon-2),
+    0 0 3cqw var(--pd-neon-2-halo),
+    inset 0 0 3cqw var(--pd-neon-2-halo);
+}
+
+.nuQr {
+  flex: none;
+  overflow: hidden;
+  border-radius: 3cqw;
+  box-shadow:
+    0 0 0 0.5cqw var(--pd-neon),
+    0 0 4cqw var(--pd-neon-halo);
+}
+
+.nuMeta {
+  font-size: 2.3cqw;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--pd-neon-2);
+}
+
+.nuFace .fallback {
+  color: var(--pd-night-soft);
+}
+
+/* ---------------------------------------------------------------- guirlande */
+.glFace {
+  background: var(--pd-garland-paper);
+  color: var(--pd-brand-ink);
+  font-family: var(--pd-font-geometric);
+}
+
+.glBanner {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  inline-size: 100%;
+  block-size: auto;
+  overflow: visible;
+}
+
+.glString {
+  stroke: var(--pd-brand-ink);
+  stroke-width: 0.9;
+}
+
+.glHang .glString {
+  stroke-width: 0.75cqw;
+}
+
+.glPeg {
+  fill: var(--pd-brand-ink);
+}
+
+.glPrint {
+  fill: var(--pd-paper);
+  filter: drop-shadow(0 0.5px 0.9px var(--pd-shadow));
+}
+
+.glSun {
+  fill: var(--pd-brand-sun);
+}
+
+.glSky {
+  fill: var(--pd-brand-sky);
+}
+
+.glPink {
+  fill: var(--pd-brand-pink);
+}
+
+.glMint {
+  fill: var(--pd-brand-mint);
+}
+
+.glCoral {
+  fill: var(--pd-brand-coral);
+}
+
+.glMonogram {
+  fill: var(--pd-paper);
+  font-family: var(--pd-font-geometric);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.glPhoto {
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: 1px;
+}
+
+.glBody {
+  position: absolute;
+  inset-inline: 0;
+  inset-block: 55cqw 0;
+  gap: 1.6cqw;
+  padding: 0 5cqw 2.6cqw;
+}
+
+.glTitle {
+  inline-size: 100%;
+  max-block-size: 16.5cqw;
+  font-size: 7.6cqw;
+  font-weight: 700;
+  line-height: 1.08;
+}
+
+.glTag {
+  inline-size: 100%;
+  max-block-size: 4.6cqw;
+  font-size: 3.6cqw;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--pd-brand-ink-soft);
+}
+
+.glHang {
+  position: relative;
+  flex: none;
+  display: flex;
+  justify-content: center;
+  inline-size: 100%;
+  padding-block-start: 3.4cqw;
+}
+
+.glHang > svg {
+  position: absolute;
+  inset-inline-start: -5cqw;
+  inset-block-start: 0;
+  inline-size: calc(100% + 10cqw);
+  block-size: 6cqw;
+  overflow: visible;
+}
+
+.glQr {
+  position: relative;
+  border-radius: 1.6cqw;
+  background: var(--pd-paper);
+  box-shadow:
+    0 0.8cqw 1.8cqw -0.6cqw var(--pd-shadow),
+    0 0 0 0.25cqw var(--pd-garland-edge);
+}
+
+.glQr .qr {
+  border-radius: 1.6cqw;
+}
+
+.glQrPeg {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: -3.2cqw;
+  z-index: 2;
+  inline-size: 2.6cqw;
+  block-size: 6.4cqw;
+  margin-inline-start: -1.3cqw;
+  border-radius: 0.9cqw;
+  background: var(--pd-brand-ink);
+}
+
+.glMeta {
+  inline-size: 100%;
+  max-block-size: 3cqw;
+  font-size: 2.2cqw;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--pd-brand-ink-soft);
+}
+
+.glBody .fallback {
+  margin-block-start: auto;
+  color: var(--pd-brand-ink-soft);
+}

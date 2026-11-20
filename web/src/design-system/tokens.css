@@ -319,18 +319,8 @@
   --print-a4-w: 210;
   --print-a4-h: 297;
   --print-card-w: 105; /* A6, and half an A4 wide */
-  --print-card-h: 148.5; /* A6, and half an A4 high: an A5 poster is two of them stacked */
-  --print-safe: 8; /* office printers cannot print to the edge */
-  --print-qr-card: 40; /* sides of the QR, quiet zone included */
-  --print-qr-a5: 70;
-  --print-qr-a4: 120;
+  --print-card-h: 148.5; /* A6, and half an A4 high; also the width of an A5 portrait */
   --print-cut-line: 0.3;
-  --print-scale-card: 1; /* type and gaps of each format, as multiples of the card's */
-  --print-scale-a5: 1.3;
-  --print-scale-a4: 2;
-  --print-type-name: 4.5; /* the event's name */
-  --print-type-title: 5.5;
-  --print-type-step: 3.6;
 
   /* ---- Icons. Outlined glyphs on a 16-unit grid, drawn as strokes: this is their weight,
          in the grid's own units, so every glyph in a set is the same line at any size. ---- */
@@ -1125,4 +1115,379 @@
 
 [data-event-frame='round'] {
   --wall-frame-radius: var(--radius-lg);
+}
+
+/* Faces of the printed cards (spec 28), downloaded only when a card uses them. Licences: web/public/licenses/. */
+@font-face {
+  font-family: 'Anton';
+  src: url('./fonts/Anton-normal-400-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Anton';
+  src: url('./fonts/Anton-normal-400-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Bangers';
+  src: url('./fonts/Bangers-normal-400-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Bangers';
+  src: url('./fonts/Bangers-normal-400-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Caveat';
+  src: url('./fonts/Caveat-normal-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Caveat';
+  src: url('./fonts/Caveat-normal-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('./fonts/CormorantGaramond-italic-latin-ext.woff2') format('woff2');
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('./fonts/CormorantGaramond-italic-latin.woff2') format('woff2');
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('./fonts/CormorantGaramond-normal-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('./fonts/CormorantGaramond-normal-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Fredoka';
+  src: url('./fonts/Fredoka-normal-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Fredoka';
+  src: url('./fonts/Fredoka-normal-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('./fonts/IBMPlexMono-normal-400-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('./fonts/IBMPlexMono-normal-400-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('./fonts/IBMPlexMono-normal-600-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('./fonts/IBMPlexMono-normal-600-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Outfit';
+  src: url('./fonts/Outfit-normal-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 300 800;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Outfit';
+  src: url('./fonts/Outfit-normal-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 300 800;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Parisienne';
+  src: url('./fonts/Parisienne-normal-400-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Parisienne';
+  src: url('./fonts/Parisienne-normal-400-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Shrikhand';
+  src: url('./fonts/Shrikhand-normal-400-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Shrikhand';
+  src: url('./fonts/Shrikhand-normal-400-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/*
+ * ---------------------------------------------------------------- printed cards (spec 28)
+ *
+ * The colours of the fifteen card designs (`features/admin/print/PrintCard.module.css`).
+ * Declared on the card itself rather than on `:root`, because they are drawn from the card's
+ * colour: the sheet sets `--pd-color` (the host's pick, or the event's accent) and `--accent-hue`
+ * (its hue, `printKit.hueOfHex`) inline, and a custom property is computed where it is declared.
+ * Every shade that carries text or the QR is taken at a fixed lightness, so a pale pick never
+ * makes them pale; the QR ink in the event's colour is the same 30 % / 0.1 as `--print-ink-accent`.
+ * The fixed colours are paper, ink and the props of each design (kraft, a camera, a night sky),
+ * and the garland wears the EventSlide palette of the logo.
+ */
+[data-print-card] {
+  --print-ink-accent: oklch(30% 0.1 var(--accent-hue));
+  --pd-qr-ink: var(--text-print);
+  --pd-paper: oklch(100% 0 0);
+  --pd-ink: oklch(22% 0.01 60);
+  --pd-ink-soft: oklch(45% 0.012 70);
+  --pd-on-photo: oklch(100% 0 0);
+  --pd-shadow: oklch(25% 0.04 60 / 0.42);
+  --pd-shadow-soft: oklch(25% 0.02 60 / 0.16);
+  --pd-shade: oklch(0% 0 0 / 0.42);
+  --pd-shade-deep: oklch(0% 0 0 / 0.58);
+  --pd-glint: oklch(100% 0 0 / 0.55);
+  --pd-paper-dots: oklch(100% 0 0 / 0.55);
+  --pd-halftone: oklch(0% 0 0 / 0.28);
+
+  --pd-a: var(--pd-color);
+  --pd-a-dark: oklch(32% 0.09 var(--accent-hue));
+  --pd-a-soft: oklch(94% 0.035 var(--accent-hue));
+  --pd-a-tint: oklch(78% 0.11 var(--accent-hue));
+  --pd-a-strong: oklch(62% 0.15 var(--accent-hue));
+  --pd-a-light: oklch(86% 0.12 var(--accent-hue));
+  --pd-a-poster: oklch(74% 0.15 var(--accent-hue));
+
+  --pd-cream: oklch(97.3% 0.008 85);
+  --pd-cream-ink: oklch(27% 0.01 60);
+  --pd-cream-muted: oklch(61% 0.02 80);
+  --pd-cream-soft: oklch(44% 0.015 70);
+
+  --pd-desk: oklch(93% 0.006 80);
+  --pd-receipt-ink: oklch(25% 0 0);
+  --pd-receipt-dots: oklch(68% 0 0);
+
+  --pd-comic-ink: oklch(17% 0 0);
+  --pd-comic-ground: oklch(93% 0.08 calc(var(--accent-hue) + 80));
+  --pd-comic-dots: oklch(80% 0.12 calc(var(--accent-hue) + 80));
+  --pd-comic-caption: oklch(97% 0.07 100);
+  --pd-comic-boom: oklch(86% 0.17 calc(var(--accent-hue) + 60));
+  --pd-comic-mono: oklch(70% 0.17 var(--accent-hue));
+
+  --pd-cover: oklch(45% 0.12 var(--accent-hue));
+  --pd-cover-kicker: oklch(88% 0.12 var(--accent-hue));
+  --pd-cover-sticker: oklch(86% 0.16 calc(var(--accent-hue) + 70));
+
+  --pd-kraft: oklch(87% 0.045 80);
+  --pd-kraft-fibre: oklch(55% 0.06 70 / 0.05);
+  --pd-kraft-ink: oklch(30% 0.03 60);
+  --pd-pen: oklch(38% 0.09 260);
+  --pd-pen-brown: oklch(42% 0.08 50);
+  --pd-note: oklch(99% 0.012 100);
+  --pd-polaroid: oklch(99% 0.004 100);
+  --pd-tape: oklch(86% 0.07 var(--accent-hue) / 0.78);
+
+  --pd-post-paper: oklch(97.5% 0.012 90);
+  --pd-post-ink: oklch(28% 0.02 290);
+  --pd-post-rule: oklch(85% 0.02 85);
+  --pd-post-mark: oklch(28% 0.02 290 / 0.6);
+
+  --pd-pass-ink: oklch(25% 0.025 265);
+  --pd-pass-line: oklch(87% 0.008 80);
+  --pd-pass-muted: oklch(63% 0.015 260);
+  --pd-pass-soft: oklch(48% 0.02 260);
+  --pd-window: oklch(92% 0.006 80);
+  --pd-sky-top: oklch(85% 0.06 240);
+  --pd-sky-bottom: oklch(95% 0.03 240);
+
+  --pd-camera-black: oklch(26% 0.008 280);
+  --pd-camera-grey: oklch(38% 0.008 280);
+  --pd-camera-glass: oklch(40% 0.05 255);
+  --pd-camera-chrome: oklch(96% 0 0);
+  --pd-camera-chrome-shade: oklch(88% 0 0);
+  --pd-camera-chrome-edge: oklch(80% 0 0);
+
+  --pd-poster-ink: oklch(17% 0 0);
+
+  --pd-party-ink: oklch(28% 0.05 290);
+  --pd-party-1: oklch(58% 0.19 var(--accent-hue));
+  --pd-party-2: oklch(60% 0.17 calc(var(--accent-hue) + 70));
+  --pd-party-3: oklch(56% 0.16 calc(var(--accent-hue) + 150));
+  --pd-party-4: oklch(58% 0.17 calc(var(--accent-hue) + 220));
+  --pd-party-5: oklch(62% 0.17 calc(var(--accent-hue) + 290));
+  --pd-confetti-1: oklch(74% 0.16 var(--accent-hue));
+  --pd-confetti-2: oklch(78% 0.15 calc(var(--accent-hue) + 70));
+  --pd-confetti-3: oklch(82% 0.13 calc(var(--accent-hue) + 150));
+  --pd-confetti-4: oklch(74% 0.16 calc(var(--accent-hue) + 220));
+  --pd-confetti-5: oklch(74% 0.16 calc(var(--accent-hue) + 290));
+
+  --pd-seventies: oklch(94.5% 0.03 85);
+  --pd-seventies-ink: oklch(30% 0.08 var(--accent-hue));
+  --pd-seventies-title: oklch(50% 0.15 var(--accent-hue));
+  --pd-seventies-shadow: oklch(78% 0.12 calc(var(--accent-hue) + 40));
+  --pd-band-1: oklch(62% 0.15 var(--accent-hue));
+  --pd-band-2: oklch(72% 0.15 calc(var(--accent-hue) + 30));
+  --pd-band-3: oklch(80% 0.14 calc(var(--accent-hue) + 55));
+  --pd-band-4: oklch(87% 0.1 calc(var(--accent-hue) + 80));
+
+  --pd-night: oklch(16% 0.012 290);
+  --pd-night-ink: oklch(95% 0.008 80);
+  --pd-night-soft: oklch(78% 0.015 300);
+  --pd-neon: oklch(85% 0.13 var(--accent-hue));
+  --pd-neon-halo: oklch(70% 0.2 var(--accent-hue) / 0.8);
+  --pd-neon-2: oklch(82% 0.15 calc(var(--accent-hue) + 180));
+  --pd-neon-2-halo: oklch(70% 0.2 calc(var(--accent-hue) + 180) / 0.6);
+
+  --pd-garland-paper: oklch(98.7% 0.01 85);
+  --pd-garland-edge: oklch(91% 0.015 80);
+  --pd-brand-ink: oklch(27% 0.07 270);
+  --pd-brand-ink-soft: oklch(42% 0.07 275);
+  --pd-brand-sun: oklch(86% 0.15 85);
+  --pd-brand-sky: oklch(78% 0.1 225);
+  --pd-brand-pink: oklch(76% 0.13 10);
+  --pd-brand-mint: oklch(79% 0.12 170);
+  --pd-brand-coral: oklch(68% 0.18 32);
+
+  --pd-font-serif: 'Cormorant Garamond', ui-serif, Georgia, serif;
+  --pd-font-magazine: 'Fraunces', ui-serif, Georgia, serif;
+  --pd-font-hand: 'Caveat', 'Segoe Print', cursive;
+  --pd-font-script: 'Parisienne', cursive;
+  --pd-font-mono: 'IBM Plex Mono', var(--font-mono);
+  --pd-font-poster: 'Anton', Impact, sans-serif;
+  --pd-font-comic: 'Bangers', 'Anton', Impact, sans-serif;
+  --pd-font-retro: 'Shrikhand', 'Fraunces', serif;
+  --pd-font-round: 'Fredoka', var(--font-sans);
+  --pd-font-geometric: 'Outfit', var(--font-sans);
+}
+
+/* The QR in the event's colour, darkened: the toggle the kit has always had. */
+[data-ink='event'] [data-print-card] {
+  --pd-qr-ink: var(--print-ink-accent);
 }

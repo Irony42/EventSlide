@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useNavigate } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { PrintKitPage } from './PrintKitPage'
 import { ApiError } from '../../lib/http'
@@ -185,8 +186,9 @@ describe('PrintKitPage', () => {
     expect(sheet()).not.toBeNull()
   })
 
-  it('warns when the link is too long for the 4 cm card, and not on the poster', async () => {
-    const long = `https://app.eventslide.fr/${'a'.repeat(200)}/join/H7K2QM`
+  it('warns when the link is too long for the card, and not on the poster', async () => {
+    // The default design draws a 5 cm code on the card: this link needs 89 modules, 0.57 mm each.
+    const long = `https://app.eventslide.fr/${'a'.repeat(400)}/join/H7K2QM`
     const user = userEvent.setup()
     renderPage(apiFor({ joinUrl: long }))
 
@@ -262,7 +264,8 @@ describe('PrintKitPage', () => {
     renderPage(apiFor())
     await screen.findByRole('heading', { name: fr.admin.printKitTitle })
 
-    expect(screen.getAllByRole('radio')).toHaveLength(5)
+    // Three formats, two inks, fifteen designs, the event colour and eleven swatches (spec 28).
+    expect(screen.getAllByRole('radio')).toHaveLength(32)
     expect(screen.getByRole('radio', { name: fr.admin.printFormatCard })).toBeChecked()
     expect(screen.getByRole('combobox', { name: fr.admin.printKitLanguage })).toBeInTheDocument()
     expect(firstQr()).toHaveAccessibleName(fr.admin.qrAlt('Camille & Sacha'))
@@ -275,6 +278,142 @@ describe('PrintKitPage', () => {
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: fr.app.retry })).toBeInTheDocument()
+  })
+
+  describe('the card itself (spec 28)', () => {
+    it('opens on the plain design and prints the chosen one on every copy, remembered', async () => {
+      const user = userEvent.setup()
+      renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      const cards = () => [...(sheet()?.querySelectorAll('[data-print-card]') ?? [])]
+      expect(cards().map((card) => card.getAttribute('data-print-card'))).toEqual(
+        Array(4).fill('essentiel'),
+      )
+
+      await user.click(screen.getByRole('radio', { name: fr.admin.printDesignNames.billet }))
+
+      expect(cards().map((card) => card.getAttribute('data-print-card'))).toEqual(
+        Array(4).fill('billet'),
+      )
+      expect(window.localStorage.getItem('eventslide.print.camille-et-sacha')).toContain(
+        '"design":"billet"',
+      )
+    })
+
+    it('prints the name of the event until the host types a title, and the title after', async () => {
+      const user = userEvent.setup()
+      renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      const titles = () => within(sheet() as HTMLElement).getAllByRole('heading', { level: 2 })
+      expect(titles()[0]).toHaveTextContent('Camille & Sacha')
+
+      await user.type(screen.getByLabelText(fr.admin.printKitTitleField), 'Les 40 ans de Léa')
+
+      expect(titles()[0]).toHaveTextContent('Les 40 ans de Léa')
+      await user.clear(screen.getByLabelText(fr.admin.printKitTitleField))
+      expect(titles()[0]).toHaveTextContent('Camille & Sacha')
+    })
+
+    it('prints the table and the usual line in the language of the evening, not the console', async () => {
+      const user = userEvent.setup()
+      renderPage(apiFor({ settings: eventSettings({ wallLanguage: 'de' }) }))
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+
+      await user.type(screen.getByLabelText(fr.admin.printKitTable), '7')
+
+      expect(sheet()).toHaveTextContent(de.printKit.title)
+      expect(sheet()).toHaveTextContent(de.printKit.table('7'))
+    })
+
+    it('draws the card in a swatch the host picks, its hue driving the shades, and back', async () => {
+      const user = userEvent.setup()
+      renderPage(
+        apiFor({ settings: eventSettings({ theme: { ...DEFAULT_EVENT_THEME, accentHue: 345 } }) }),
+      )
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      expect(sheet()?.style.getPropertyValue('--pd-color')).toBe('oklch(58% 0.14 345)')
+
+      await user.click(screen.getByRole('radio', { name: fr.admin.printSwatchNames.fir }))
+
+      expect(sheet()?.style.getPropertyValue('--pd-color')).toBe('#2e6b4f')
+      expect(sheet()?.style.getPropertyValue('--accent-hue')).toBe('161')
+      await user.click(screen.getByRole('radio', { name: fr.admin.printKitColourEvent }))
+      expect(sheet()?.style.getPropertyValue('--accent-hue')).toBe('345')
+      expect(window.localStorage.getItem('eventslide.print.camille-et-sacha')).not.toContain(
+        'colour',
+      )
+    })
+
+    it('puts the photograph kept in this browser on the card, and never sends it', async () => {
+      const photo = 'data:image/jpeg;base64,/9j/4AAQSkZJRg=='
+      window.localStorage.setItem('eventslide.printPhoto.camille-et-sacha', photo)
+      const api = apiFor()
+      const user = userEvent.setup()
+      renderPage(api)
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      await user.click(screen.getByRole('radio', { name: fr.admin.printDesignNames.classique }))
+
+      expect(sheet()?.querySelector('img')).toHaveAttribute('src', photo)
+      await user.click(screen.getByRole('button', { name: fr.admin.printKitPhotoRemove }))
+      expect(sheet()?.querySelector('img')).toBeNull()
+      expect(window.localStorage.getItem('eventslide.printPhoto.camille-et-sacha')).toBeNull()
+    })
+
+    it('starts from the other event’s own card when the host moves from one event to another', async () => {
+      window.localStorage.setItem('eventslide.print.camille-et-sacha', '{"design":"billet"}')
+      window.localStorage.setItem('eventslide.print.lea', '{"design":"nuit"}')
+      const Elsewhere = () => {
+        const navigate = useNavigate()
+        return <button onClick={() => navigate('/admin/events/lea/print')}>Ailleurs</button>
+      }
+      const user = userEvent.setup()
+      renderWithProviders(
+        <>
+          <PrintKitPage />
+          <Elsewhere />
+        </>,
+        {
+          api: fakeApi({
+            getEvent: vi.fn(async (slug: string) =>
+              anEventDto({
+                slug,
+                name: slug,
+                status: 'live',
+                joinCode: 'H7K2QM',
+                joinUrl: JOIN_URL,
+              }),
+            ),
+          }),
+          route: '/admin/events/camille-et-sacha/print',
+          path: '/admin/events/:slug/print',
+        },
+      )
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      expect(sheet()?.querySelector('[data-print-card]')).toHaveAttribute(
+        'data-print-card',
+        'billet',
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Ailleurs' }))
+
+      await waitFor(() =>
+        expect(sheet()?.querySelector('[data-print-card]')).toHaveAttribute(
+          'data-print-card',
+          'nuit',
+        ),
+      )
+    })
+
+    it('says before printing that a full-background design takes a lot of ink', async () => {
+      const user = userEvent.setup()
+      renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      expect(screen.queryByText(fr.admin.printKitInkHeavy)).toBeNull()
+
+      await user.click(screen.getByRole('radio', { name: fr.admin.printDesignNames.nuit }))
+
+      expect(screen.getByText(fr.admin.printKitInkHeavy)).toBeInTheDocument()
+    })
   })
 
   describe('the event logo at the centre of the QR', () => {

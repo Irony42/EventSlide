@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { LocaleOverride } from '../../../lib/i18n/LocaleProvider'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { joinHost } from '../../../lib/joinHost'
+import { PrintCard, type PrintCardTexts } from './PrintCard'
 import {
   PRINT_FORMAT_SPECS,
   LOGO_MAX_SHARE,
@@ -12,6 +13,8 @@ import {
   type PrintFormat,
   type PrintInk,
 } from './printKit'
+import type { PrintDesign } from '../../../lib/print/printDesigns'
+import { useFitText } from './useFitText'
 import styles from './PrintSheet.module.css'
 import type { Locale } from '../../../lib/i18n/locale'
 
@@ -24,21 +27,31 @@ export interface PrintSheetProps {
   readonly format: PrintFormat
   /** The language of the evening, which is not necessarily the console's. */
   readonly locale: Locale
-  /** `black` is the safest; `event` wears the event's accent hue, darkened (spec 02, PR 2). */
+  /** `black` is the safest; `event` wears the card's hue, darkened (spec 02, PR 2). */
   readonly ink: PrintInk
-  /** The hue of the event's theme: the one value a theme moves. */
+  /** The hue the darker and paler shades are drawn from (oklch degrees). */
   readonly accentHue: number
+  /** The card's colour as CSS: the host's `#rrggbb`, or the event's accent. */
+  readonly colour: string
   /** The event's logo, drawn at the centre of the QR (level H); `null` for the plain code. */
   readonly logoUrl?: string | null
+  readonly design: PrintDesign
+  /** The host's words with the defaults already filled in (spec 28). */
+  readonly texts: PrintCardTexts
+  readonly steps: boolean
+  readonly photoUrl: string | null
+  readonly focusX: number
+  readonly focusY: number
   /** Told the module count of the rendered QR (quiet zone included), once it is drawn. */
   readonly onQrModules?: (totalModules: number | null) => void
 }
 
 /**
- * The A4 sheet a host prints: one, two or four copies of the same card.
+ * The A4 sheet a host prints: four A6 cards, two A5 side by side on a landscape sheet, or one A4,
+ * all in the design the host chose (spec 28).
  *
- * Surface: the host's paper, never the room's wall. The ink is dark on white and never
- * inverted; the quiet zone is the SVG's own margin, not a fill.
+ * Surface: the host's paper, never the room's wall. The QR is dark on white and never inverted;
+ * the quiet zone is the SVG's own margin, not a fill.
  */
 export function PrintSheet({
   eventName,
@@ -48,35 +61,55 @@ export function PrintSheet({
   locale,
   ink,
   accentHue,
+  colour,
   logoUrl = null,
+  design,
+  texts,
+  steps,
+  photoUrl,
+  focusX,
+  focusY,
   onQrModules,
 }: PrintSheetProps) {
   const root = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     onQrModules?.(totalModulesOf(root.current?.querySelector('svg') ?? null))
-  }, [joinUrl, format, logoUrl, onQrModules])
+  }, [joinUrl, format, logoUrl, design, onQrModules])
+
+  useFitText(
+    root,
+    `${format}|${design}|${locale}|${JSON.stringify(texts)}|${steps}|${photoUrl === null}`,
+  )
 
   return (
-    <div
-      ref={root}
-      className={styles['sheet']}
-      data-format={format}
-      data-ink={ink}
-      lang={locale}
-      style={{ '--accent-hue': String(accentHue) } as CSSProperties}
-    >
-      <LocaleOverride locale={locale}>
-        {Array.from({ length: PRINT_FORMAT_SPECS[format].perSheet }, (_, index) => (
-          <Card
-            key={index}
-            eventName={eventName}
-            joinUrl={joinUrl}
-            joinCode={joinCode}
-            logoUrl={logoUrl}
-          />
-        ))}
-      </LocaleOverride>
+    <div className={styles['stage']}>
+      <div
+        ref={root}
+        className={styles['sheet']}
+        data-format={format}
+        data-ink={ink}
+        lang={locale}
+        style={{ '--accent-hue': String(accentHue), '--pd-color': colour } as CSSProperties}
+      >
+        <LocaleOverride locale={locale}>
+          {Array.from({ length: PRINT_FORMAT_SPECS[format].perSheet }, (_, index) => (
+            <div key={index} className={styles['cell']}>
+              <PrintCard
+                design={design}
+                texts={texts}
+                steps={steps}
+                photoUrl={photoUrl}
+                focusX={focusX}
+                focusY={focusY}
+                joinCode={joinCode}
+                address={joinHost(joinUrl)}
+                qr={<SheetQr eventName={eventName} joinUrl={joinUrl} logoUrl={logoUrl} />}
+              />
+            </div>
+          ))}
+        </LocaleOverride>
+      </div>
     </div>
   )
 }
@@ -92,39 +125,27 @@ const logoSettings = (src: string) => ({
   excavate: true,
 })
 
-function Card({
+function SheetQr({
   eventName,
   joinUrl,
-  joinCode,
-  logoUrl = null,
-}: Pick<PrintSheetProps, 'eventName' | 'joinUrl' | 'joinCode' | 'logoUrl'>) {
+  logoUrl,
+}: {
+  readonly eventName: string
+  readonly joinUrl: string
+  readonly logoUrl: string | null
+}) {
   const t = useTranslations()
-  const address = joinHost(joinUrl)
   return (
-    <article className={styles['cell']}>
-      <p className={styles['name']}>{eventName}</p>
-      <h2 className={styles['title']}>{t.printKit.title}</h2>
-      <div className={styles['qr']} role="img" aria-label={t.admin.qrAlt(eventName)}>
-        <QRCodeSVG
-          value={joinUrl}
-          fgColor="currentColor"
-          bgColor="transparent"
-          level={qrLevelOf(logoUrl !== null)}
-          size={QR_SIZE}
-          {...(logoUrl === null ? {} : { imageSettings: logoSettings(logoUrl) })}
-          marginSize={QUIET_ZONE_MODULES}
-        />
-      </div>
-      <div className={styles['text']}>
-        <ol className={styles['steps']}>
-          <li>{t.printKit.step1}</li>
-          <li>{t.printKit.step2}</li>
-          <li>{t.printKit.step3}</li>
-        </ol>
-        <p className={styles['fallback']}>
-          {address === null ? joinCode : t.printKit.fallback(joinCode, address)}
-        </p>
-      </div>
-    </article>
+    <div role="img" aria-label={t.admin.qrAlt(eventName)}>
+      <QRCodeSVG
+        value={joinUrl}
+        fgColor="currentColor"
+        bgColor="transparent"
+        level={qrLevelOf(logoUrl !== null)}
+        size={QR_SIZE}
+        {...(logoUrl === null ? {} : { imageSettings: logoSettings(logoUrl) })}
+        marginSize={QUIET_ZONE_MODULES}
+      />
+    </div>
   )
 }
