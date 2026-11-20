@@ -16,6 +16,7 @@ import {
   makeDrainChannelMedia,
   type DrainChannelMediaDeps,
 } from '../usecases/channels/drainChannelMedia'
+import { makeEventLock } from '../usecases/channels/eventLock'
 import { makeForgetChannelSender } from '../usecases/channels/forgetChannelSender'
 import { makeReceiveChannelMessage } from '../usecases/channels/receiveChannelMessage'
 import type { UploadClip, UploadClipInput } from '../usecases/clips/uploadClip'
@@ -116,6 +117,7 @@ export const aChannelScene = (options: ChannelSceneOptions = {}) => {
   const ids = new SequentialIdGenerator()
   const logger = new CapturingLogger()
   const replier = makeChannelReplier(clock)
+  const lock = makeEventLock()
 
   const hasClient = options.clientAllowsChannels !== undefined
   if (hasClient) {
@@ -139,8 +141,10 @@ export const aChannelScene = (options: ChannelSceneOptions = {}) => {
     clips: 0,
     messages: 0,
   })
-  const eraseGuestContribution: EraseGuestContribution = async ({ guestId }) => {
+  const eraseGuestContribution: EraseGuestContribution = async ({ eventId, guestId }) => {
     erased.push(guestId)
+    // What the real erasure does to the row, so a tombstone is meaningful.
+    if (eraseVerdict.ok) await guests.delete(eventId, guestId)
     return eraseVerdict
   }
   const forgetChannelSender = makeForgetChannelSender({
@@ -148,10 +152,12 @@ export const aChannelScene = (options: ChannelSceneOptions = {}) => {
     jobs,
     keyer,
     eraseGuestContribution,
+    lock,
   })
 
   const receive = makeReceiveChannelMessage({
     events,
+    clients,
     guests,
     bindings,
     jobs,
@@ -194,6 +200,7 @@ export const aChannelScene = (options: ChannelSceneOptions = {}) => {
     bindings,
     jobs,
     channels,
+    lock,
     uploadPhotos: async (input) => {
       photoCalls.push(input)
       return photoVerdict

@@ -126,6 +126,8 @@ describe('anti-chatter', () => {
     expect(isThrottled('mediaTooLarge')).toBe(true)
     expect(isThrottled('tooFast')).toBe(true)
     expect(isThrottled('albumFull')).toBe(true)
+    expect(isThrottled('channelOff')).toBe(true)
+    expect(isThrottled('forgetFailed')).toBe(false)
     expect(isThrottled('bound')).toBe(false)
     expect(isThrottled('forgotten')).toBe(false)
     expect(isThrottled('unknownCode')).toBe(false)

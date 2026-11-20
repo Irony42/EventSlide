@@ -97,11 +97,7 @@ export const makeBindConversation =
     if (decision.value.kind === 'unchanged') return ok({ event, changed: false })
 
     const now = clock.now()
-    if (decision.value.kind === 'replace' && existing !== null) {
-      await bindings.save(existing.unbind(now))
-      bus.publish({ type: 'channel.bindingChanged', eventId: existing.eventId })
-    }
-
+    // The new binding is made before the old one is touched: a refusal of the domain must not leave the group unbound.
     const created = ChannelBinding.create(
       { eventId: event.id, channel, conversationRef, conversationTitle },
       ids.channelBindingId(),
@@ -109,9 +105,18 @@ export const makeBindConversation =
     )
     if (!created.ok) return err({ error: created.error, language })
 
+    const replaced = decision.value.kind === 'replace' && existing !== null ? existing : null
+    if (replaced !== null) await bindings.save(replaced.unbind(now))
+
     const saved = await bindings.save(created.value)
-    // Another bind of this conversation won the race since we looked: it is busy, as when we saw it ourselves.
-    if (!saved.ok) return err({ error: DomainError.conflict('channel.alreadyBound'), language })
+    if (!saved.ok) {
+      // Another bind of this conversation won the race since we looked: it is busy, as when we saw it ourselves. The
+      // group keeps the link it had.
+      if (replaced !== null) await bindings.save(replaced)
+      return err({ error: DomainError.conflict('channel.alreadyBound'), language })
+    }
+    if (replaced !== null)
+      bus.publish({ type: 'channel.bindingChanged', eventId: replaced.eventId })
     bus.publish({ type: 'channel.bindingChanged', eventId: event.id })
     return ok({ event, changed: true })
   }

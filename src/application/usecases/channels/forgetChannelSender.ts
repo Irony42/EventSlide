@@ -4,7 +4,9 @@ import type { ChannelSender } from '../../../domain/channels/inboundMessage'
 import type { DomainError } from '../../../domain/shared/errors'
 import type { EventId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
+import { Guest } from '../../../domain/guests/guest'
 import type { ChannelMediaJobRepository } from '../../ports/channelMediaJobRepository'
+import type { EventLock } from './eventLock'
 import type { ChannelSenderKeyer } from '../../ports/channelSenderKeyer'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { EraseGuestContribution } from '../guests/eraseGuestContribution'
@@ -32,6 +34,8 @@ export interface ForgetChannelSenderDeps {
   readonly jobs: ChannelMediaJobRepository
   readonly keyer: ChannelSenderKeyer
   readonly eraseGuestContribution: EraseGuestContribution
+  /** Shared with the worker: the erasure and the storing of one of this sender's media never interleave. */
+  readonly lock: EventLock
 }
 
 export type ForgetChannelSender = (
@@ -39,15 +43,30 @@ export type ForgetChannelSender = (
 ) => Promise<Result<void, DomainError>>
 
 export const makeForgetChannelSender =
-  ({ guests, jobs, keyer, eraseGuestContribution }: ForgetChannelSenderDeps): ForgetChannelSender =>
-  async ({ eventId, channel, sender }) => {
-    const senderKey = keyer.keyOf(senderKeyMaterial(channel, eventId, sender))
+  ({
+    guests,
+    jobs,
+    keyer,
+    eraseGuestContribution,
+    lock,
+  }: ForgetChannelSenderDeps): ForgetChannelSender =>
+  ({ eventId, channel, sender }) =>
+    lock.run(eventId, async () => {
+      const senderKey = keyer.keyOf(senderKeyMaterial(channel, eventId, sender))
 
-    await jobs.deleteBySender(eventId, senderKey)
+      await jobs.deleteBySender(eventId, senderKey)
 
-    const guest = await guests.findByChannelSender(eventId, channel, senderKey)
-    if (guest === null) return ok(undefined)
+      const guest = await guests.findByChannelSender(eventId, channel, senderKey)
+      if (guest === null) return ok(undefined)
 
-    const erased = await eraseGuestContribution({ eventId, guestId: guest.id })
-    return erased.ok ? ok(undefined) : erased
-  }
+      const erased = await eraseGuestContribution({ eventId, guestId: guest.id })
+      if (!erased.ok) return erased
+
+      // The host's ban is the row, and the erasure took the row: a revoked guest who forgets themselves leaves a
+      // tombstone (no name, the same key, revoked) so their next media is still refused, not welcomed as a new guest.
+      if (guest.isRevoked()) {
+        // The same row, emptied of everything personal: the name goes, the key and the revocation stay.
+        await guests.save(Guest.restore({ ...guest.toProps(), displayName: null }))
+      }
+      return ok(undefined)
+    })

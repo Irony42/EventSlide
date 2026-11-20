@@ -86,7 +86,11 @@ export interface ChannelMediaJobRepository {
   /** Jobs of an event that are `queued` or `running`: what the per-event ceiling counts. */
   countPending(eventId: EventId): Promise<number>
 
-  /** Every job of one sender at one event, whatever its state: `/forget` takes back what is still on its way. Answers how many. */
+  /**
+   * What one sender still has on its way at one event, taken back by `/forget`: the jobs `queued` or `running` are deleted
+   * (answers how many). The finished ones stay as **the record of messages already taken** (an update redelivered after
+   * the erasure must not be stored again) but are made anonymous: their sender key and name are emptied.
+   */
   deleteBySender(eventId: EventId, senderKey: string): Promise<number>
 
   /** Jobs `done` or `failed` and not touched since `cutoff` are removed. Answers how many. */
