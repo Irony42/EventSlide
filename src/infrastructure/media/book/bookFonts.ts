@@ -30,7 +30,7 @@ const FILES: Readonly<Record<string, Readonly<Record<FaceRole, string>>>> = {
   },
   souvenir: {
     title: 'Caveat-Bold.ttf',
-    body: 'Caveat-Medium.ttf',
+    body: 'Caveat-Regular.ttf',
     authors: 'Caveat-Bold.ttf',
   },
 }
