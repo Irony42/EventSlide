@@ -1,3 +1,4 @@
+import { setBackgroundTimeout } from '../infrastructure/time/backgroundTimers'
 import type { ChannelCursorStore } from '../application/ports/channelCursorStore'
 import type { ChannelInbox } from '../application/ports/channelInbox'
 import type { Logger } from '../application/ports/logger'
@@ -46,8 +47,7 @@ export const MAX_BATCH_ATTEMPTS = 3
 const realWait = (ms: number, signal: AbortSignal): Promise<void> =>
   new Promise((resolve) => {
     if (signal.aborted) return resolve()
-    const timer = setTimeout(done, ms)
-    timer.unref()
+    const timer = setBackgroundTimeout(done, ms)
     function done(): void {
       clearTimeout(timer)
       signal.removeEventListener('abort', done)
