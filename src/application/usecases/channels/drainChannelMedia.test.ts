@@ -258,6 +258,7 @@ describe('drainChannelMedia: what is refused before the download', () => {
     await scene.guests.save(
       aGuest({
         id: 'guest-lea',
+        displayName: 'Léa M.',
         eventId: 'event-1',
         channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:42' },
       }).revoke(scene.clock.now()),
