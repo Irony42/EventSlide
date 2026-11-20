@@ -110,9 +110,13 @@ describe('contrast of the text accent', () => {
         expect(
           contrastOfHex(colours.accentText, colours.paper),
           style + ' ' + hue,
-        ).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+        ).toBeGreaterThanOrEqual(4.5)
       }
     }
+  })
+
+  it('asks for AA contrast, 4.5 to 1', () => {
+    expect(MIN_TEXT_CONTRAST).toBe(4.5)
   })
 
   it('keeps the light tone of the accent for rules and tape: it is the one that fails on kraft', () => {

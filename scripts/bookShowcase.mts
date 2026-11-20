@@ -95,7 +95,7 @@ const main = async (): Promise<void> => {
       highlighted: i === 12 || i === 33,
       missionId: null,
       challengeId: null,
-      hasCaption: i % 3 === 0,
+      hasCaption: i % 2 === 0,
     })
     bytes.set(
       id,
@@ -151,7 +151,7 @@ const main = async (): Promise<void> => {
     const pageTexts = async (page: PlanPage): Promise<PageTexts> => ({
       captions: page.slots.map((slot) => {
         const i = photoIndex.get(slot.photoId) as number
-        return i % 3 === 0 ? (CAPTIONS[i % CAPTIONS.length] as string) : null
+        return i % 2 === 0 ? (CAPTIONS[i % CAPTIONS.length] as string) : null
       }),
       authors: page.slots.map((slot) =>
         nameOf(photos[photoIndex.get(slot.photoId) as number]?.guestId ?? null),

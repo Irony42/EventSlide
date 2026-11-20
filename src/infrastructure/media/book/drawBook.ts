@@ -95,18 +95,22 @@ interface TextOptions {
   readonly valign?: 'top' | 'middle'
   readonly lineGap?: number
   readonly opacity?: number
+  /** A kicker: upper case, letter-spaced (Magazine). */
+  readonly kicker?: boolean
 }
 
 /** Draws text in a box; answers the height it took. */
 const drawText = (ctx: DrawContext, text: string, box: Rect, options: TextOptions): number => {
   if (text === '') return 0
   const { doc } = ctx
-  doc.font(faceFor(ctx, options.role, text))
+  const shown = options.kicker === true ? text.toUpperCase() : text
+  const spacing = options.kicker === true ? 1.4 : 0
+  doc.font(faceFor(ctx, options.role, shown))
   let size = options.size
   const lineGap = options.lineGap ?? 0
   const measure = (): number => {
     doc.fontSize(size)
-    return doc.heightOfString(text, { width: box.w, lineGap })
+    return doc.heightOfString(shown, { width: box.w, lineGap, characterSpacing: spacing })
   }
   let height = measure()
   if (options.fit === true) {
@@ -119,7 +123,8 @@ const drawText = (ctx: DrawContext, text: string, box: Rect, options: TextOption
   const y = options.valign === 'middle' ? box.y + Math.max(0, (box.h - height) / 2) : box.y
   doc.save()
   doc.fillColor(options.color).opacity(options.opacity ?? 1)
-  doc.text(text, box.x, y, {
+  doc.text(shown, box.x, y, {
+    characterSpacing: spacing,
     width: box.w,
     height: box.h,
     align: options.align ?? 'left',
@@ -136,6 +141,9 @@ export const messageFits = (doc: PDFKit.PDFDocument, font: string, text: string)
   doc.font(font).fontSize(MESSAGE_FONT_SIZE)
   return doc.heightOfString(text, { width: box.w, lineGap: 1 }) <= box.h - AUTHOR_LINE
 }
+
+/** Magazine speaks louder: bigger numbers and titles, uppercase kickers. */
+const loud = (ctx: DrawContext): boolean => ctx.input.style.id === 'magazine'
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
 
@@ -237,7 +245,41 @@ const slotFor = (ctx: DrawContext, template: TemplateId, index: number): Templat
   if (template === 'full' && style === 'souvenir') {
     return { x: 8, y: 8, w: 84, h: 84, role: 'hero' }
   }
-  return BOOK_TEMPLATES[template].slots[index]!
+  const slot = BOOK_TEMPLATES[template].slots[index]!
+  // Magazine grids have hairline gutters: each cell grows by 0.7 % on every side.
+  if (ctx.input.style.fullBleed && BOOK_TEMPLATES[template].slots.length > 1 && template !== 'favourites') {
+    return { ...slot, x: slot.x - 0.7, y: slot.y - 0.7, w: slot.w + 1.4, h: slot.h + 1.4 }
+  }
+  return slot
+}
+
+/**
+ * A polaroid: the white frame **follows the photograph** (whole, never cropped), so there are no white
+ * bands whatever the shape; the caption is written in the bottom band; the frame is centred in the
+ * slot and tilted about its own centre.
+ */
+/** The border and the caption band of a polaroid in a slot, and the room left for the photograph. */
+export const polaroidRoom = (slot: Rect): { pad: number; band: number; avail: Rect } => {
+  const pad = 0.04 * Math.min(slot.w, slot.h)
+  const band = Math.max(22, 0.14 * slot.h)
+  return { pad, band, avail: { x: slot.x, y: slot.y, w: slot.w - 2 * pad, h: slot.h - pad - band } }
+}
+
+/**
+ * The frame that hugs a photograph of this shape: the photograph is as large as the room allows
+ * without being cropped, the white border is the same on three sides and the band is under it, and
+ * the whole is centred in the slot, so no shape of photograph leaves a white margin inside the frame.
+ */
+export const polaroidFrame = (
+  slot: Rect,
+  image: { readonly width: number; readonly height: number },
+): { frame: Rect; photo: Rect } => {
+  const { pad, band, avail } = polaroidRoom(slot)
+  const size = imageBox(image as Prepared, avail)
+  const w = size.w + 2 * pad
+  const h = size.h + pad + band
+  const frame: Rect = { x: slot.x + (slot.w - w) / 2, y: slot.y + (slot.h - h) / 2, w, h }
+  return { frame, photo: { x: frame.x + pad, y: frame.y + pad, w: size.w, h: size.h } }
 }
 
 const drawPolaroid = async (
@@ -245,63 +287,60 @@ const drawPolaroid = async (
   id: PhotoId,
   slot: Rect,
   extras: PhotoExtras,
-  contain: boolean,
 ): Promise<void> => {
   const { doc, input } = ctx
-  const pad = 0.045 * Math.min(slot.w, slot.h)
-  const bottom = 0.17 * slot.h
-  const inner: Rect = {
-    x: slot.x + pad,
-    y: slot.y + pad,
-    w: slot.w - 2 * pad,
-    h: slot.h - pad - bottom,
-  }
-  const image = await imageFor(ctx, id, inner, contain ? 'contain' : 'cover')
-  const shown = contain ? imageBox(image, inner) : inner
-  const cx = slot.x + slot.w / 2
-  const cy = slot.y + slot.h / 2
+  const { pad, band, avail } = polaroidRoom(slot)
+  const image = await imageFor(ctx, id, avail, 'contain')
+  const { frame, photo } = polaroidFrame(slot, image)
+  const cx = frame.x + frame.w / 2
+  const cy = frame.y + frame.h / 2
   doc.save()
   doc.rotate(polaroidRotation(id), { origin: [cx, cy] })
-  doc.image(await shadowImage(), slot.x - slot.w * 0.15, slot.y - slot.h * 0.1, {
-    width: slot.w * 1.3,
-    height: slot.h * 1.3,
+  doc.image(await shadowImage(), frame.x - frame.w * 0.15, frame.y - frame.h * 0.1, {
+    width: frame.w * 1.3,
+    height: frame.h * 1.3,
   })
-  doc.rect(slot.x, slot.y, slot.w, slot.h).fill('#ffffff')
-  doc.image(image.jpeg, shown.x, shown.y, { width: shown.w, height: shown.h })
-  const line: Rect = {
-    x: slot.x + pad,
-    y: slot.y + slot.h - bottom + pad * 0.3,
-    w: slot.w - 2 * pad,
-    h: bottom - pad * 0.6,
-  }
+  doc.rect(frame.x, frame.y, frame.w, frame.h).fill('#ffffff')
+  doc.image(image.jpeg, photo.x, photo.y, { width: photo.w, height: photo.h })
   if (extras.caption !== null) {
-    drawText(ctx, extras.caption, line, {
-      role: 'body',
-      size: 10,
-      minSize: 6,
-      fit: true,
-      color: input.colours.ink,
-      align: 'center',
-      valign: 'middle',
-    })
+    drawText(
+      ctx,
+      extras.caption,
+      { x: photo.x, y: photo.y + photo.h + band * 0.1, w: photo.w, h: band * 0.8 },
+      {
+        role: 'body',
+        size: 16,
+        minSize: 6,
+        fit: true,
+        color: input.colours.ink,
+        align: 'center',
+        valign: 'middle',
+      },
+    )
   }
-  // The ribbon in the theme's colour, and the host's mission as a sticker.
+  // The tape in the theme's colour on the top edge (it is not read, so the light tone stays) and the
+  // host's mission as a sticker on the corner.
   doc.save()
-  doc.rotate(-5, { origin: [cx, slot.y + slot.h] })
-  doc.opacity(0.85).rect(cx - slot.w * 0.14, slot.y + slot.h - slot.h * 0.024, slot.w * 0.28, slot.h * 0.045)
-  doc.fill(input.colours.accent)
+  doc.rotate(-4, { origin: [cx, frame.y] })
+  doc
+    .opacity(0.85)
+    .rect(cx - frame.w * 0.14, frame.y - frame.h * 0.02, frame.w * 0.28, frame.h * 0.045)
+    .fill(input.colours.accent)
   doc.restore()
   if (extras.mission !== null) {
-    const sticker: Rect = { x: slot.x - pad, y: slot.y + slot.h * 0.04, w: slot.w * 0.62, h: slot.h * 0.09 }
-    doc.rect(sticker.x, sticker.y, sticker.w, sticker.h).fill(input.colours.accent)
-    drawText(ctx, input.texts.mission(extras.mission), { ...sticker, x: sticker.x + 3, w: sticker.w - 6 }, {
-      role: 'authors',
-      size: 7,
-      fit: true,
-      minSize: 5,
-      color: '#ffffff',
-      valign: 'middle',
-    })
+    const sticker: Rect = {
+      x: frame.x - pad,
+      y: frame.y + frame.h * 0.05,
+      w: frame.w * 0.62,
+      h: Math.max(13, frame.h * 0.08),
+    }
+    doc.rect(sticker.x, sticker.y, sticker.w, sticker.h).fill(input.colours.accentText)
+    drawText(
+      ctx,
+      input.texts.mission(extras.mission),
+      { ...sticker, x: sticker.x + 3, y: sticker.y + 2, w: sticker.w - 6, h: sticker.h - 3 },
+      { role: 'authors', size: 7, fit: true, minSize: 5, color: '#ffffff', valign: 'middle' },
+    )
   }
   doc.restore()
 }
@@ -321,7 +360,7 @@ const drawPhoto = async (
   const contain = slot.contain === true || (template === 'full' && style.id === 'classique')
 
   if (style.polaroid && template !== 'wide') {
-    await drawPolaroid(ctx, id, rect, extras, contain)
+    await drawPolaroid(ctx, id, rect, extras)
     return
   }
 
@@ -357,7 +396,7 @@ const drawPhoto = async (
       y += drawText(ctx, extras.author, { ...below, y, h: 14 }, {
         role: 'authors',
         size: 7.5,
-        color: input.colours.accent,
+        color: input.colours.accentText,
         align: 'center',
       })
     }
@@ -385,11 +424,24 @@ const drawPhoto = async (
       minSize: 7,
       color: '#ffffff',
     })
+  } else if (extras.caption !== null) {
+    // Pages of several photographs have no room beneath a photograph: the line goes on a soft bar
+    // at its foot.
+    const bar: Rect = { x: shown.x, y: shown.y + shown.h - 15, w: shown.w, h: 15 }
+    doc.save().opacity(0.5).rect(bar.x, bar.y, bar.w, bar.h).fill('#000000').restore()
+    drawText(ctx, extras.caption, { ...bar, x: bar.x + 5, y: bar.y + 3.5, w: bar.w - 10, h: 10 }, {
+      role: 'body',
+      size: 7,
+      fit: true,
+      minSize: 5,
+      color: '#ffffff',
+    })
   } else if (extras.mission !== null && style.id === 'magazine') {
-    drawText(ctx, extras.mission.toUpperCase(), { ...below, h: 12 }, {
+    drawText(ctx, extras.mission, { ...below, h: 12 }, {
       role: 'authors',
+      kicker: true,
       size: 6.5,
-      color: input.colours.accent,
+      color: input.colours.accentText,
     })
   }
   if (style.id === 'magazine' && extras.hearts > 0 && slot.role === 'hero') {
@@ -451,17 +503,20 @@ const drawTitlePage = async (ctx: DrawContext): Promise<void> => {
 }
 
 const drawContents = (ctx: DrawContext): void => {
-  const { input } = ctx
+  const { doc, input } = ctx
   const heading = textBox(ctx, 'contents', 0)
-  const list = textBox(ctx, 'contents', 1)
+  const wide = textBox(ctx, 'contents', 1)
+  // The list is a narrower column than the box, so a number stays close to its title.
+  const list: Rect = { ...wide, x: wide.x + 0.07 * TRIM_PT, w: wide.w - 0.14 * TRIM_PT }
   drawText(ctx, input.texts.contents, heading, {
     role: 'title',
-    size: 24,
+    size: loud(ctx) ? 32 : 24,
     color: input.colours.ink,
     align: 'center',
+    kicker: false,
   })
   const lines: { label: string; page: number }[] = input.plan.chapters.map((chapter) => ({
-    label: `${ROMAN[chapter.index] ?? String(chapter.index + 1)} · ${chapterTitleText(chapter.title, input.language)}`,
+    label: `${ROMAN[chapter.index] ?? String(chapter.index + 1)} \u00B7 ${chapterTitleText(chapter.title, input.language)}`,
     page: chapter.firstPage,
   }))
   if (input.plan.favouritesPage !== null) {
@@ -471,13 +526,32 @@ const drawContents = (ctx: DrawContext): void => {
     lines.push({ label: input.texts.guestbook, page: input.plan.guestbookPage })
   }
   const step = Math.min(26, list.h / Math.max(1, lines.length))
+  const numberWidth = 28
   lines.forEach((line, i) => {
     const row: Rect = { x: list.x, y: list.y + i * step, w: list.w, h: step }
-    drawText(ctx, line.label, { ...row, w: row.w - 40 }, { role: 'body', size: 12, color: input.colours.ink })
-    drawText(ctx, String(line.page), { ...row, x: row.x + row.w - 40, w: 40 }, {
+    drawText(ctx, line.label, { ...row, w: row.w - numberWidth }, {
+      role: 'body',
+      size: 12,
+      color: input.colours.ink,
+    })
+    doc.font(faceFor(ctx, 'body', line.label)).fontSize(12)
+    const labelEnd = row.x + Math.min(doc.widthOfString(line.label), row.w - numberWidth - 12)
+    const numberX = row.x + row.w - numberWidth
+    // The dotted leader between the title and its number, on the baseline.
+    doc
+      .save()
+      .moveTo(labelEnd + 6, row.y + 10.5)
+      .lineTo(numberX - 5, row.y + 10.5)
+      .dash(0.5, { space: 2.6 })
+      .lineWidth(0.7)
+      .strokeColor(input.colours.ink)
+      .opacity(0.45)
+      .stroke()
+      .restore()
+    drawText(ctx, String(line.page), { ...row, x: numberX, w: numberWidth }, {
       role: 'authors',
       size: 10,
-      color: input.colours.accent,
+      color: input.colours.accentText,
       align: 'right',
     })
   })
@@ -487,8 +561,9 @@ const drawStats = (ctx: DrawContext): void => {
   const { input } = ctx
   drawText(ctx, input.texts.statsTitle, sheetBox(ctx, 15, 12, 70, 6), {
     role: 'authors',
+    kicker: loud(ctx),
     size: 10,
-    color: input.colours.accent,
+    color: input.colours.accentText,
     align: 'center',
   })
   const { counts } = input.plan
@@ -502,8 +577,8 @@ const drawStats = (ctx: DrawContext): void => {
     const box = textBox(ctx, 'stats', i)
     drawText(ctx, value.toLocaleString(input.language), { ...box, h: 40 }, {
       role: 'title',
-      size: 38,
-      color: input.colours.accent,
+      size: loud(ctx) ? 54 : 38,
+      color: input.colours.accentText,
       align: 'center',
     })
     drawText(ctx, label, { ...box, y: box.y + 48, h: 30 }, {
@@ -521,21 +596,21 @@ const drawChapter = (ctx: DrawContext, page: PlanPage, overPhoto: boolean): void
   if (chapter === undefined) return
   const box = textBox(ctx, 'chapter', 0)
   const ink = overPhoto ? '#ffffff' : input.colours.ink
-  const accent = overPhoto ? '#ffffff' : input.colours.accent
+  const accent = overPhoto ? '#ffffff' : input.colours.accentText
   if (overPhoto) {
     ctx.doc.save().opacity(0.35).rect(box.x - 10, box.y - 10, box.w + 20, box.h + 20).fill('#000000').restore()
   }
   let y = box.y
   y += drawText(ctx, ROMAN[chapter.index] ?? String(chapter.index + 1), { ...box, y }, {
     role: 'title',
-    size: 40,
+    size: loud(ctx) ? 72 : 40,
     color: accent,
     align: 'center',
   })
   y += 6
   y += drawText(ctx, chapterTitleText(chapter.title, input.language), { ...box, y, h: 70 }, {
     role: 'title',
-    size: 26,
+    size: loud(ctx) ? 36 : 26,
     fit: true,
     minSize: 14,
     color: ink,
@@ -543,7 +618,8 @@ const drawChapter = (ctx: DrawContext, page: PlanPage, overPhoto: boolean): void
   })
   rule(ctx, box.x + box.w / 2, y + 8, box.w * 0.25)
   drawText(ctx, chapterSubtitleText(chapter, input.timeZone, input.language), { ...box, y: y + 18, h: 30 }, {
-    role: 'body',
+    role: loud(ctx) ? 'authors' : 'body',
+    kicker: loud(ctx),
     size: 11,
     color: ink,
     align: 'center',
@@ -558,7 +634,7 @@ const drawQuote = (ctx: DrawContext): void => {
   drawText(ctx, '“', { ...box, y: box.y - 34, h: 40 }, {
     role: 'title',
     size: 44,
-    color: input.colours.accent,
+    color: input.colours.accentText,
     align: 'center',
   })
   const used = drawText(ctx, message.text, { ...box, h: box.h - 18 }, {
@@ -575,7 +651,7 @@ const drawQuote = (ctx: DrawContext): void => {
     drawText(ctx, message.author, { ...box, y: box.y + Math.max(used, box.h - 18) + 8, h: 14 }, {
       role: 'authors',
       size: 9,
-      color: input.colours.accent,
+      color: input.colours.accentText,
       align: 'center',
     })
   }
@@ -603,7 +679,7 @@ const drawMessages = (ctx: DrawContext, first: boolean): void => {
       drawText(ctx, `— ${message.author}`, { ...box, y: box.y + used + 3, h: 11 }, {
         role: 'authors',
         size: 7.5,
-        color: input.colours.accent,
+        color: input.colours.accentText,
       })
     }
   })
@@ -662,8 +738,9 @@ const drawFavourites = async (ctx: DrawContext, page: PlanPage): Promise<void> =
   const { input, texts } = ctx
   drawText(ctx, input.texts.favourites, sheetBox(ctx, 15, 4.9, 70, 2.8), {
     role: 'authors',
+    kicker: loud(ctx),
     size: 8.5,
-    color: input.colours.accent,
+    color: input.colours.accentText,
     align: 'center',
   })
   for (const [i, slot] of page.slots.entries()) {
@@ -770,29 +847,46 @@ export const drawFrontCover = async (ctx: DrawContext): Promise<void> => {
   await drawPaper(ctx)
   const id = input.cover.photoId
   const hasPhoto = id !== null && ctx.bytes.has(id)
-  const title = (rect: Rect, color: string, size: number): number =>
-    drawText(ctx, input.cover.title, rect, { role: 'title', size, fit: true, minSize: 14, color, align: 'center' })
+  const title = (rect: Rect, color: string, size: number, align: 'left' | 'center' = 'center'): number =>
+    drawText(ctx, input.cover.title, rect, { role: 'title', size, fit: true, minSize: 14, color, align })
 
   if (input.style.id === 'magazine' && hasPhoto) {
-    const full: Rect = { x: 0, y: 0, w: TRIM_PT + 2 * origin(mode), h: TRIM_PT + 2 * origin(mode) }
+    // The photograph to the edges, the title large at the bottom left, a soft shade under it
+    // (a gradient, not a band).
+    const edge = origin(mode)
+    const sheet = TRIM_PT + 2 * edge
+    const full: Rect = { x: 0, y: 0, w: sheet, h: sheet }
     putImage(ctx, await imageFor(ctx, id, full, 'cover'), full)
-    const band = sheetBox(ctx, 0, 62, 100, 38)
-    doc.save().opacity(0.7).rect(band.x - origin(mode), band.y - origin(mode), band.w + 2 * origin(mode), band.h + 2 * origin(mode)).fill('#000000').restore()
-    const box = sheetBox(ctx, 10, 68, 80, 18)
-    const used = title(box, '#ffffff', 40)
-    drawText(ctx, input.cover.subtitle, { ...box, y: box.y + used + 8, h: 24 }, {
+    const shade = doc.linearGradient(0, sheet * 0.45, 0, sheet)
+    shade.stop(0, '#000000', 0).stop(1, '#000000', 0.72)
+    doc.save().rect(0, sheet * 0.45, sheet, sheet * 0.55).fill(shade).restore()
+    const box = sheetBox(ctx, 8, 66, 84, 22)
+    const used = drawText(ctx, input.cover.title, { ...box, y: box.y + 14 }, {
+      role: 'title',
+      size: 60,
+      fit: true,
+      minSize: 24,
+      color: '#ffffff',
+      align: 'left',
+    })
+    drawText(ctx, input.cover.subtitle, { ...box, y: box.y + 14 + used + 10, h: 14 }, {
       role: 'authors',
-      size: 11,
-      color: input.colours.accent,
-      align: 'center',
+      kicker: true,
+      size: 9,
+      color: '#ffffff',
+      opacity: 0.9,
     })
     return
   }
   const photoBox = sheetBox(ctx, 14, 10, 72, 56)
   if (hasPhoto) {
     if (input.style.polaroid) {
-      const frame = sheetBox(ctx, 17, 8, 66, 62)
-      await drawPolaroid(ctx, id, frame, { caption: null, author: null, mission: null, hearts: 0 }, false)
+      await drawPolaroid(ctx, id, sheetBox(ctx, 17, 8, 66, 62), {
+        caption: null,
+        author: null,
+        mission: null,
+        hearts: 0,
+      })
     } else {
       putImage(ctx, await imageFor(ctx, id, photoBox, 'cover'), photoBox)
     }
