@@ -52,14 +52,14 @@ const BODY = {
 interface World extends Harness {
   readonly books: FakeAlbumBookRepository
   readonly bookFiles: FakeBookFileStore
-  readonly state: { enabled: boolean; printEnabled: boolean }
+  readonly state: { enabled: boolean; printEnabled: boolean; failCounts: boolean }
 }
 
 const world = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World => {
   const books = new FakeAlbumBookRepository()
   const bookFiles = new FakeBookFileStore()
   const photos = new FakePhotoRepository()
-  const state = { enabled: true, printEnabled: true }
+  const state = { enabled: true, printEnabled: true, failCounts: false }
 
   const harness = buildHarness({
     config: { rateLimits: { ...testHttpConfig().rateLimits, ...rateLimits } },
@@ -90,13 +90,17 @@ const world = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World => {
               },
             },
           })(input),
-        getAlbumBook: makeGetAlbumBook({
-          events: deps.events,
-          books,
-          photos,
-          guestbook: new FakeGuestbookRepository(),
-          bookFiles,
-        }),
+        // Built per call, so a test can make the counts unreadable once the server is up.
+        getAlbumBook: async (input) => {
+          if (state.failCounts) throw new Error('the counts are unreadable')
+          return makeGetAlbumBook({
+            events: deps.events,
+            books,
+            photos,
+            guestbook: new FakeGuestbookRepository(),
+            bookFiles,
+          })(input)
+        },
         downloadAlbumBook: makeDownloadAlbumBook({
           events: deps.events,
           books,
@@ -500,6 +504,22 @@ describe('the book without a printer version', () => {
     const agent = await signedIn(subject, 'moderator')
 
     expect((await agent.get('/api/events/mariage/book.pdf').buffer(true)).status).toBe(200)
+  })
+})
+
+describe('POST /api/events/:eventSlug/book, when the counts cannot be read afterwards', () => {
+  it('still answers 202 for the book it queued, never an error for a book that exists', async () => {
+    subject.state.failCounts = true
+    const agent = await signedIn(subject, 'owner')
+
+    const response = await agent.post('/api/events/mariage/book').send(BODY)
+
+    expect(response.status).toBe(202)
+    expect(response.body).toMatchObject({
+      status: 'queued',
+      options: { title: 'Mariage de Camille' },
+    })
+    expect(await subject.books.find(asEventId(WEDDING))).toMatchObject({ status: 'queued' })
   })
 })
 
