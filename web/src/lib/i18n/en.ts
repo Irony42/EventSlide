@@ -2785,6 +2785,8 @@ export const en: UiText = {
     hint: 'Photos posted in a Telegram group arrive here, like your guests’ photos.',
     step1: (bot: string) => `Add @${bot} to your Telegram group.`,
     step2: 'In the group, send:',
+    /** The word that connects a group, as the bot's profile lists it in this language (the bot accepts them all). */
+    bindCommand: 'event',
     copyCommand: 'Copy the command',
     copied: 'Command copied',
     copyFailed: 'The command could not be copied: select it and copy it by hand.',

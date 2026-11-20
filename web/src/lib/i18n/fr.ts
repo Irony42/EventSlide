@@ -3535,6 +3535,8 @@ export const fr = {
     hint: 'Les photos postées dans un groupe Telegram arrivent ici, comme celles des invités.',
     step1: (bot: string) => `Ajoutez @${bot} à votre groupe Telegram.`,
     step2: 'Dans le groupe, envoyez :',
+    /** The word that connects a group, as the bot's profile lists it in this language (the bot accepts them all). */
+    bindCommand: 'soiree',
     copyCommand: 'Copier la commande',
     copied: 'Commande copiée',
     copyFailed: 'La commande n’a pas pu être copiée : sélectionnez-la et copiez-la à la main.',

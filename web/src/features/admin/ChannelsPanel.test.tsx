@@ -168,4 +168,23 @@ describe('ChannelsPanel', () => {
 
     expect((await screen.findByText(fr.channels.visibility)).closest('[role="status"]')).toBeNull()
   })
+
+  it.each([
+    ['fr', '/soiree H7K2QM'],
+    ['en', '/event H7K2QM'],
+    ['de', '/feier H7K2QM'],
+    ['es', '/evento H7K2QM'],
+    ['it', '/evento H7K2QM'],
+  ] as const)('shows, in %s, the command in that language', async (locale, command) => {
+    renderWithProviders(
+      <ChannelsPanel slug="camille-et-sacha" joinCode="H7K2QM" canUnlink canBind />,
+      {
+        api: fakeApi({ channels: vi.fn(async () => view()) }),
+        route: '/admin/events/camille-et-sacha',
+        locale,
+      },
+    )
+
+    expect(await screen.findByText(command)).toBeInTheDocument()
+  })
 })
