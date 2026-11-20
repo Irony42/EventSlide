@@ -1,3 +1,4 @@
+import type { ChannelKind } from '../channels/channelKind'
 import type { ContentHash } from '../photos/contentHash'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
@@ -93,6 +94,15 @@ export interface EventSettingsProps {
    * is the kind of promise the privacy notice (roadmap §5.1) exists to stop being made.
    */
   readonly allowClips: boolean
+  /**
+   * Whether a Telegram group may send its photographs and films to this event (spec 27).
+   *
+   * The host's switch over the channel. **Off, for a new event and for every event that exists**: a bot
+   * taking pictures from a group is something a host asks for, and an absent key reads as `false`
+   * (`sqliteEventRepository.settingsOf`). It does nothing on a box that has no bot token, and nothing for
+   * a client whose plan does not include it (`ClientCeilings.channelsAllowed`).
+   */
+  readonly allowTelegram: boolean
   /**
    * Whether guests may leave a written message in the guestbook (spec 01).
    *
@@ -213,6 +223,8 @@ const DEFAULTS: EventSettingsProps = {
   allowCaptions: true,
   allowReactions: true,
   allowClips: true,
+  // Off for a new event too (spec 27): connecting a group is the host's act, not a default.
+  allowTelegram: false,
   // On for a **new** event (decision of Pierre, spec 01 Q1), now that the host can moderate it. An
   // event that already exists is read back as off (`settingsBooleanAddedLater`), so an upgrade
   // opens nothing for a host who was never asked.
@@ -345,6 +357,7 @@ export class EventSettings {
       allowCaptions: pick(patch.allowCaptions, base.allowCaptions),
       allowReactions: pick(patch.allowReactions, base.allowReactions),
       allowClips: pick(patch.allowClips, base.allowClips),
+      allowTelegram: pick(patch.allowTelegram, base.allowTelegram),
       allowGuestbook: pick(patch.allowGuestbook, base.allowGuestbook),
       allowGuestSave: pick(patch.allowGuestSave, base.allowGuestSave),
       guestbookOnWall: pick(patch.guestbookOnWall, base.guestbookOnWall),
@@ -413,6 +426,15 @@ export class EventSettings {
 
   get allowClips(): boolean {
     return this.props.allowClips
+  }
+
+  get allowTelegram(): boolean {
+    return this.props.allowTelegram
+  }
+
+  /** The messaging channels the host connected: what the privacy notice says (spec 27). */
+  get channels(): readonly ChannelKind[] {
+    return this.props.allowTelegram ? ['telegram'] : []
   }
 
   get allowGuestbook(): boolean {

@@ -769,6 +769,15 @@ export class Event {
   }
 
   /**
+   * Whether a messaging channel may send photographs here: the host's switch (`allowTelegram`) **and**
+   * the client's plan (`channels_allowed`), the shape of {@link Event.acceptsClips}. `null` is no client, and no
+   * client has no plan to refuse with: the host's switch decides.
+   */
+  acceptsChannels(ceilings: ClientCeilings | null): boolean {
+    return this.props.settings.allowTelegram && (ceilings === null || ceilings.channelsAllowed)
+  }
+
+  /**
    * When this event's live window closes, for a host who wants to know: `opened_at +
    * max_live_days`, or `null` when there is none to know — no client, no `max_live_days`, or an
    * event that has never opened (its window has not started).

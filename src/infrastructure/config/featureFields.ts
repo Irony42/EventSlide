@@ -350,3 +350,11 @@ export const bootstrapOwnerPassword = z.string().superRefine((value, ctx) => {
  * absent or blank meaning "allowed".
  */
 export const newClientBooksAllowed = z.preprocess(blankAsAbsent, boolish.optional())
+
+/**
+ * `NEW_CLIENT_CHANNELS_ALLOWED`: whether a client created on this box may receive photographs from a
+ * messaging group (spec 27), read like its siblings: `true`, `false`, `1` or `0`. **Absent or blank means NOT
+ * allowed**, the opposite of `NEW_CLIENT_CLIPS_ALLOWED`: it is the one function that reaches out of the box, and an
+ * operator turns it on for a client by hand until they decide otherwise.
+ */
+export const newClientChannelsAllowed = z.preprocess(blankAsAbsent, boolish.optional())

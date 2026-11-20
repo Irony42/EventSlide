@@ -96,6 +96,8 @@ export interface PrivacyNoticeDto {
   readonly voiceSealed?: true
   /** Present only with `voice`, when a guest may take a voice message back themselves: the window in seconds. Absent: they cannot. */
   readonly voiceRemovalSeconds?: number
+  /** A messaging channel carries photographs to this event (spec 27): its names, present only then. */
+  readonly channels?: readonly string[]
 }
 /** A notice and where this device stands with it: the answer of every notice route. */
 export interface PrivacyNoticeState {

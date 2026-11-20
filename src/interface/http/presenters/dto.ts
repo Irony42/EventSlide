@@ -199,6 +199,11 @@ export interface PrivacyNoticeDto {
    * voice is never on a screen, so it can be taken back whatever its status.
    */
   readonly voiceRemovalSeconds?: number
+  /**
+   * Present only when a messaging channel carries photographs to this event (spec 27), as the channel names (`telegram`):
+   * the notice then says they pass through that messenger first. Part of `revision` only in that case.
+   */
+  readonly channels?: readonly string[]
 }
 
 /** A notice and where this device stands with it: every read of the notice answers this. */
@@ -684,6 +689,8 @@ export interface EventSettingsDto {
    * is an apology, while this is a decision.
    */
   readonly allowClips: boolean
+  /** The host's switch over a Telegram group sending its photographs (spec 27). */
+  readonly allowTelegram: boolean
   /** The host's switch over written guestbook messages (spec 01). */
   readonly allowGuestbook: boolean
   /** The host's switch over saving another guest's photograph from the feed (spec 24). */
@@ -1430,6 +1437,7 @@ export interface ClientDefaultsDto {
     readonly maxLiveDays: number | null
     readonly clipsAllowed: boolean
     readonly booksAllowed: boolean
+    readonly channelsAllowed: boolean
   }
 }
 
@@ -1448,6 +1456,7 @@ export interface CeilingsDto {
   readonly maxRetentionDays: number | null
   readonly clipsAllowed: boolean
   readonly booksAllowed: boolean
+  readonly channelsAllowed: boolean
   readonly liveAllowed: boolean
   readonly maxLiveDays: number | null
   readonly maxEventsPerPeriod: number | null

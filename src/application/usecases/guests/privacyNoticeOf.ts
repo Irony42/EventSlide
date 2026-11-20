@@ -62,6 +62,7 @@ export const privacyNoticeUnder = (
       allowGuestSave: settings.allowGuestSave,
       allowGuestbookVoice: settings.allowGuestbookVoice,
       guestbookVoiceSealed: settings.guestbookVoiceSealed,
+      channels: settings.channels,
     },
     operatorName,
   )

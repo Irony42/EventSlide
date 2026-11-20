@@ -51,6 +51,7 @@ export interface EventSettingsPatch {
   readonly allowReactions?: boolean
   readonly allowClips?: boolean
   readonly allowGuestSave?: boolean
+  readonly allowGuestbook?: boolean
   readonly guestbookOnWall?: boolean
   /** Only the keys changed (spec 25): the server merges the group per key. */
   readonly guestbookVoice?: Partial<EventSettingsDto['guestbookVoice']>

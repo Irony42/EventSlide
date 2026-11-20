@@ -1,4 +1,5 @@
 import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
+import { openSettingsSection, saved } from '../fixtures/settingsPage'
 import { joinAndUpload } from '../fixtures/guest'
 import { aPhoto } from '../fixtures/media'
 
@@ -31,9 +32,10 @@ test('the wall rings for a published photo only, and only on a screen that was a
   const event = await app.seedEvent({ slug: 'sonnerie', name: 'Camille & Sacha' })
   await signInAsHost(host, app)
   await host.goto(app.url(`/admin/events/${event.slug}/settings`))
-  await host.getByRole('checkbox', { name: 'Un son à chaque nouvelle photo' }).check()
-  await host.getByRole('button', { name: 'Enregistrer', exact: true }).click()
-  await expect(host.getByText('Réglages enregistrés.')).toBeVisible()
+  await openSettingsSection(host, 'Écran de la salle')
+  await saved(host, () =>
+    host.getByRole('checkbox', { name: 'Un son à chaque nouvelle photo' }).check(),
+  )
 
   await projector.goto(wallUrl(app, event.slug))
   await expect(projector.getByTestId('wall-empty')).toBeVisible()

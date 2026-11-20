@@ -659,3 +659,41 @@ describe('privacyNoticeFor — the disposable camera and the guest save together
     expect(notice.revision.endsWith(';operator=Atelier Camille')).toBe(true)
   })
 })
+
+describe('privacyNoticeFor — messaging channels (spec 27)', () => {
+  it('follows the host switch: the notice names Telegram exactly when it is on', () => {
+    expect(privacyNoticeFor(settings({ allowTelegram: true })).channels).toEqual(['telegram'])
+    expect(privacyNoticeFor(settings({ allowTelegram: false })).channels).toEqual([])
+    expect(privacyNoticeFor(settings()).channels).toEqual([])
+  })
+
+  it('reads character for character as before the clause existed when no channel is connected', () => {
+    // An event that predates the clause reads `allowTelegram` as off: nobody who acknowledged its notice
+    // is asked to read it again.
+    const before = privacyNoticeFor(settings(), 'Atelier Camille')
+
+    expect(before.revision).not.toContain('channels')
+    expect(before.revision).toBe(
+      privacyNoticeFor(settings({ allowTelegram: false }), 'Atelier Camille').revision,
+    )
+  })
+
+  it('changes the revision when a group is connected, so a web guest reads the notice once more', () => {
+    const off = privacyNoticeFor(settings())
+    const on = privacyNoticeFor(settings({ allowTelegram: true }))
+
+    expect(on.revision).toContain('channels=telegram')
+    expect(on.revision).not.toBe(off.revision)
+  })
+
+  it('puts the clause after the voice and before the operator, which stays last', () => {
+    const notice = privacyNoticeFor(
+      settings({ allowGuestbook: true, allowTelegram: true, guestbookVoice: { enabled: true } }),
+      'Atelier Camille',
+    )
+
+    expect(notice.revision).toMatch(
+      /voice=on;voiceRemoval=[^;]+;channels=telegram;operator=Atelier Camille$/,
+    )
+  })
+})

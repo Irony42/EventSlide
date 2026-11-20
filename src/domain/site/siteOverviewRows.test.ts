@@ -98,6 +98,7 @@ const aClientRow = (): SiteClientRow => ({
     maxRetentionDays: 90,
     clipsAllowed: true,
     booksAllowed: true,
+    channelsAllowed: true,
     liveAllowed: true,
     maxLiveDays: null,
     maxEventsPerPeriod: null,
