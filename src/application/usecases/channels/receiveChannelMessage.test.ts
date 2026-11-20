@@ -115,8 +115,8 @@ describe('receiveChannelMessage: /oublier and /confidentialite', () => {
     }
 
     expect(scene.telegram.said.map((said) => said.text)).toEqual([
-      "Ce groupe n'est relié à aucune soirée. Envoyez /soiree suivi du code de la soirée.",
-      "Ce groupe n'est relié à aucune soirée. Envoyez /soiree suivi du code de la soirée.",
+      "Ce groupe n'est associé à aucune soirée. Envoyez /soiree suivi du code de la soirée.",
+      "Ce groupe n'est associé à aucune soirée. Envoyez /soiree suivi du code de la soirée.",
     ])
   })
 

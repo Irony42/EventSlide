@@ -122,14 +122,15 @@ export const frenchTypography = (text: string): string =>
 
 const FR: Phrasebook = {
   plain: {
-    notBound: "Ce groupe n'est relié à aucune soirée. Envoyez /soiree suivi du code de la soirée.",
+    notBound:
+      "Ce groupe n'est associé à aucune soirée. Envoyez /soiree suivi du code de la soirée.",
     noCode:
       'Il manque le code de la soirée : /soiree suivi du code, par exemple /soiree ABCD-1234.',
     unknownCode: "Je ne connais pas ce code. Vérifiez-le auprès de l'organisateur.",
     notAllowed: "L'envoi de photos par Telegram n'est pas activé pour cette soirée.",
     eventNotOpen: "Cette soirée n'accepte plus de photos pour le moment.",
     conversationBusy:
-      "Ce groupe envoie déjà ses photos à une autre soirée, qui n'est pas terminée. L'organisateur peut le délier depuis EventSlide.",
+      "Ce groupe envoie déjà ses photos à une autre soirée, qui n'est pas terminée. L'organisateur peut le dissocier depuis EventSlide.",
     forgotten: "C'est fait, vos photos ont été retirées.",
     forgetAnonymous:
       "Un message envoyé au nom du groupe n'a pas d'auteur : je ne peux pas retirer ses photos. Écrivez depuis votre propre compte.",
