@@ -52,7 +52,10 @@ If the box is down, Telegram keeps the updates for 24 hours and the box resumes 
    same group again afterwards, the photographs it had sent that were still waiting are dropped, not stored: the queue
    belongs to the link, not to the group. A group can only be linked while the event is open.
 
-In the group: `/oublier` erases everything the sender posted for this event; `/confidentialite` sends the notice's address.
+In the group, `/oublier` erases everything the sender posted for this event and `/confidentialite` sends the notice's address
+(each has an alias in five languages: see [the table below](#the-commands-in-five-languages)).
+Text, stickers, polls and other bots are ignored and never stored. A group already linked to another event that is still
+live is refused; the host of that event unlinks it first.
 
 ### The commands, in five languages
 
@@ -74,8 +77,17 @@ by asking Telegram whether it administers the group) and, if it cannot see the p
 asking to be named administrator (no particular right is needed). If it is then promoted, it thanks the group once. The
 host's panel shows the same hint as a warning whenever the bot reads only the groups it administers. A check that fails
 (network) says nothing and is logged; it never blocks the connection.
-Text, stickers, polls and other bots are ignored and never stored. A group already linked to another event that is still
-live is refused; the host of that event unlinks it first.
+
+**The privacy flag is read when EventSlide starts.** After turning privacy mode off in BotFather, restart EventSlide (the
+panel keeps warning until then), and remove and re-add the bot in the groups it was already in: Telegram applies the setting
+only to groups the bot joins afterwards.
+
+### The bot's command menu
+
+At every start, once Telegram has identified the bot, EventSlide registers its command menu (`setMyCommands`) in the default
+scope (English names) and in French, German, Spanish and Italian, with a short description in each language. A self-hosted
+bot therefore shows the right menu when someone types "/" without a visit to BotFather. A failure of that call is only a
+warning in the log and never disables the channel.
 
 ## What is kept
 
