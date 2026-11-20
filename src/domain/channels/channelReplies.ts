@@ -25,7 +25,10 @@ export const PLAIN_REASONS = [
   'unsupportedFormat',
   'eventClosed',
   'quotaReached',
+  'albumFull',
   'tooFast',
+  'forgetFailed',
+  'channelOff',
 ] as const
 
 export type PlainReason = (typeof PLAIN_REASONS)[number]
@@ -50,7 +53,9 @@ const THROTTLED: ReadonlySet<ReplyReason> = new Set<ReplyReason>([
   'unsupportedFormat',
   'eventClosed',
   'quotaReached',
+  'albumFull',
   'tooFast',
+  'channelOff',
 ])
 
 /** One reply at most per (conversation, sender, reason) per hour. */
@@ -75,6 +80,23 @@ const REASON_OF_CODE: ReadonlyMap<string, PlainReason> = new Map([
   ['channel.mediaTooLarge', 'mediaTooLarge'],
   ['channel.videoNotAccepted', 'videoNotAccepted'],
   ['channel.unsupportedFormat', 'unsupportedFormat'],
+  // What the photograph and clip pipelines refuse with (their codes are the contract of their own routes).
+  ['event.photoLimitReached', 'quotaReached'],
+  ['event.quotaExceeded', 'albumFull'],
+  ['client.storageFull', 'albumFull'],
+  ['event.notAcceptingUploads', 'eventClosed'],
+  ['event.clipsNotAllowed', 'videoNotAccepted'],
+  ['image.unsupportedFormat', 'unsupportedFormat'],
+  ['image.animated', 'unsupportedFormat'],
+  ['image.corrupt', 'unsupportedFormat'],
+  ['clip.unsupportedFormat', 'unsupportedFormat'],
+  ['clip.corrupt', 'unsupportedFormat'],
+  ['clip.noVideoStream', 'unsupportedFormat'],
+  ['clip.probeUnreadable', 'unsupportedFormat'],
+  ['clip.tooLong', 'mediaTooLarge'],
+  ['photo.pixelBudgetExceeded', 'mediaTooLarge'],
+  ['clip.pixelBudgetExceeded', 'mediaTooLarge'],
+  ['clip.queueFull', 'tooFast'],
 ])
 
 /** The words for an error code, or `null` when the bot has nothing to say about it. */
@@ -100,14 +122,15 @@ export const frenchTypography = (text: string): string =>
 
 const FR: Phrasebook = {
   plain: {
-    notBound: "Ce groupe n'est relié à aucune soirée. Envoyez /soiree suivi du code de la soirée.",
+    notBound:
+      "Ce groupe n'est associé à aucune soirée. Envoyez /soiree suivi du code de la soirée.",
     noCode:
       'Il manque le code de la soirée : /soiree suivi du code, par exemple /soiree ABCD-1234.',
     unknownCode: "Je ne connais pas ce code. Vérifiez-le auprès de l'organisateur.",
     notAllowed: "L'envoi de photos par Telegram n'est pas activé pour cette soirée.",
     eventNotOpen: "Cette soirée n'accepte plus de photos pour le moment.",
     conversationBusy:
-      "Ce groupe envoie déjà ses photos à une autre soirée, qui n'est pas terminée. L'organisateur peut le délier depuis EventSlide.",
+      "Ce groupe envoie déjà ses photos à une autre soirée, qui n'est pas terminée. L'organisateur peut le dissocier depuis EventSlide.",
     forgotten: "C'est fait, vos photos ont été retirées.",
     forgetAnonymous:
       "Un message envoyé au nom du groupe n'a pas d'auteur : je ne peux pas retirer ses photos. Écrivez depuis votre propre compte.",
@@ -116,7 +139,10 @@ const FR: Phrasebook = {
     unsupportedFormat: "Ce format de fichier n'est pas pris : j'accepte les photos et les vidéos.",
     eventClosed: "La soirée est terminée, elle n'accepte plus de photos.",
     quotaReached: 'Vous avez envoyé le nombre maximal de photos pour cette soirée.',
+    albumFull: "L'album de cette soirée est plein : il ne peut plus prendre de photos.",
     tooFast: 'Doucement : trop de fichiers à la fois, certains ne sont pas pris.',
+    forgetFailed: "Je n'ai pas pu retirer vos photos pour le moment. Réessayez dans un instant.",
+    channelOff: "L'envoi de photos par Telegram a été désactivé pour cette soirée.",
   },
   // The typography is applied to the phrase, then the event's name and the address go in: what a host wrote is
   // never touched.
@@ -156,7 +182,10 @@ const EN: Phrasebook = {
     unsupportedFormat: 'This file format is not supported: I accept photos and videos.',
     eventClosed: 'The event is over and no longer accepts photos.',
     quotaReached: 'You have sent the maximum number of photos for this event.',
+    albumFull: 'The album of this event is full: it cannot take more photos.',
     tooFast: 'Slow down: too many files at once, some were not taken.',
+    forgetFailed: 'I could not remove your photos just now. Please try again in a moment.',
+    channelOff: 'Sending photos through Telegram has been turned off for this event.',
   },
   bound: (eventName, moderated, noticeUrl) =>
     `This group now sends its photos and videos to "${eventName}". ${
@@ -187,7 +216,11 @@ const DE: Phrasebook = {
     unsupportedFormat: 'Dieses Dateiformat wird nicht angenommen: Ich nehme Fotos und Videos.',
     eventClosed: 'Die Feier ist vorbei und nimmt keine Fotos mehr an.',
     quotaReached: 'Du hast die Höchstzahl an Fotos für diese Feier erreicht.',
+    albumFull: 'Das Album dieser Feier ist voll: es kann keine Fotos mehr aufnehmen.',
     tooFast: 'Langsam: zu viele Dateien auf einmal, einige wurden nicht übernommen.',
+    forgetFailed:
+      'Ich konnte deine Fotos gerade nicht entfernen. Bitte versuche es gleich noch einmal.',
+    channelOff: 'Das Senden von Fotos über Telegram wurde für diese Feier ausgeschaltet.',
   },
   bound: (eventName, moderated, noticeUrl) =>
     `Diese Gruppe sendet ihre Fotos und Videos jetzt an „${eventName}“. ${
@@ -218,7 +251,10 @@ const ES: Phrasebook = {
     unsupportedFormat: 'Este formato de archivo no se acepta: admito fotos y vídeos.',
     eventClosed: 'El evento ha terminado y ya no acepta fotos.',
     quotaReached: 'Has enviado el número máximo de fotos para este evento.',
+    albumFull: 'El álbum de este evento está lleno: no puede recibir más fotos.',
     tooFast: 'Más despacio: demasiados archivos a la vez, algunos no se han recogido.',
+    forgetFailed: 'No he podido retirar tus fotos ahora mismo. Inténtalo de nuevo en un momento.',
+    channelOff: 'El envío de fotos por Telegram se ha desactivado para este evento.',
   },
   bound: (eventName, moderated, noticeUrl) =>
     `Este grupo envía ahora sus fotos y vídeos a «${eventName}». ${
@@ -249,7 +285,10 @@ const IT: Phrasebook = {
     unsupportedFormat: 'Questo formato di file non è accettato: accetto foto e video.',
     eventClosed: "L'evento è finito e non accetta più foto.",
     quotaReached: 'Hai inviato il numero massimo di foto per questo evento.',
+    albumFull: "L'album di questo evento è pieno: non può ricevere altre foto.",
     tooFast: 'Piano: troppi file insieme, alcuni non sono stati presi.',
+    forgetFailed: 'Non sono riuscito a rimuovere le tue foto in questo momento. Riprova tra poco.',
+    channelOff: "L'invio di foto tramite Telegram è stato disattivato per questo evento.",
   },
   bound: (eventName, moderated, noticeUrl) =>
     `Questo gruppo ora invia le sue foto e i suoi video a «${eventName}». ${

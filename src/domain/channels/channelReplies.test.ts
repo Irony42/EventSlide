@@ -125,6 +125,9 @@ describe('anti-chatter', () => {
     expect(isThrottled('quotaReached')).toBe(true)
     expect(isThrottled('mediaTooLarge')).toBe(true)
     expect(isThrottled('tooFast')).toBe(true)
+    expect(isThrottled('albumFull')).toBe(true)
+    expect(isThrottled('channelOff')).toBe(true)
+    expect(isThrottled('forgetFailed')).toBe(false)
     expect(isThrottled('bound')).toBe(false)
     expect(isThrottled('forgotten')).toBe(false)
     expect(isThrottled('unknownCode')).toBe(false)
@@ -156,6 +159,22 @@ describe('replyReasonOfCode', () => {
     ['channel.mediaTooLarge', 'mediaTooLarge'],
     ['channel.videoNotAccepted', 'videoNotAccepted'],
     ['channel.unsupportedFormat', 'unsupportedFormat'],
+    ['event.photoLimitReached', 'quotaReached'],
+    ['event.quotaExceeded', 'albumFull'],
+    ['client.storageFull', 'albumFull'],
+    ['event.notAcceptingUploads', 'eventClosed'],
+    ['event.clipsNotAllowed', 'videoNotAccepted'],
+    ['image.unsupportedFormat', 'unsupportedFormat'],
+    ['image.animated', 'unsupportedFormat'],
+    ['image.corrupt', 'unsupportedFormat'],
+    ['clip.unsupportedFormat', 'unsupportedFormat'],
+    ['clip.corrupt', 'unsupportedFormat'],
+    ['clip.noVideoStream', 'unsupportedFormat'],
+    ['clip.probeUnreadable', 'unsupportedFormat'],
+    ['clip.tooLong', 'mediaTooLarge'],
+    ['photo.pixelBudgetExceeded', 'mediaTooLarge'],
+    ['clip.pixelBudgetExceeded', 'mediaTooLarge'],
+    ['clip.queueFull', 'tooFast'],
   ])('words %s as %s', (code, reason) => {
     expect(replyReasonOfCode(code)).toBe(reason)
   })

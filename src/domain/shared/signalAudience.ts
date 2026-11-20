@@ -17,6 +17,10 @@ export const MODERATION_ONLY_SIGNALS: readonly string[] = [
   // signal, so a type left off this list would make every room read for a sound it never plays.
   'guestbook.voice',
   'voice.queued',
+  // The messaging channels (spec 27): a group linked or unlinked is the host's list; a media queued wakes a
+  // worker. Neither is anything the room should read its playlist for.
+  'channel.mediaQueued',
+  'channel.bindingChanged',
 ]
 
 export const canReceiveSignal = (type: string, audience: SignalAudience): boolean =>

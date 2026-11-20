@@ -94,6 +94,21 @@ describe('SequentialIdGenerator', () => {
     ])
   })
 
+  it('numbers the messaging channel ids from one, each on a counter of its own', async () => {
+    const ids = new SequentialIdGenerator()
+
+    expect([ids.channelBindingId(), ids.channelBindingId(), ids.channelMediaJobId()]).toEqual([
+      'channel-binding-1',
+      'channel-binding-2',
+      'channel-job-1',
+    ])
+    ids.reset()
+    expect([ids.channelBindingId(), ids.channelMediaJobId()]).toEqual([
+      'channel-binding-1',
+      'channel-job-1',
+    ])
+  })
+
   it('starts over on reset', async () => {
     const ids = new SequentialIdGenerator()
     ids.eventId()
