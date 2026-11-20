@@ -69,6 +69,15 @@ const SELECT_GUEST_NAMES = (count: number): string => `
      AND id IN (${placeholders(count)})
 `
 
+/** The channel of each guest who came through one: the badge of the moderation console, nothing else. */
+const SELECT_GUEST_CHANNELS = (count: number): string => `
+  SELECT id, channel
+    FROM guests
+   WHERE event_id = ?
+     AND channel IS NOT NULL
+     AND id IN (${placeholders(count)})
+`
+
 /**
  * `Guest.photoCount` is a projection, not stored state.
  *
@@ -270,6 +279,31 @@ export class SqliteGuestRepository implements GuestRepository {
     }
 
     return names
+  }
+
+  async findChannelsByIds(
+    eventId: EventId,
+    guestIds: readonly GuestId[],
+  ): Promise<ReadonlyMap<GuestId, ChannelKind>> {
+    const channels = new Map<GuestId, ChannelKind>()
+    if (guestIds.length === 0) return channels
+
+    const unique = [...new Set(guestIds)]
+    for (let from = 0; from < unique.length; from += NAME_BATCH_SIZE) {
+      const chunk = unique.slice(from, from + NAME_BATCH_SIZE)
+      const rows = this.db
+        .prepare<string[], { readonly id: string; readonly channel: string }>(
+          SELECT_GUEST_CHANNELS(chunk.length),
+        )
+        .all(eventId, ...chunk)
+
+      for (const row of rows) {
+        // Parsed, as a stored channel the domain does not know is a corrupt row, not a badge.
+        const channel = parseChannelKind(row.channel)
+        if (channel.ok) channels.set(asGuestId(row.id), channel.value)
+      }
+    }
+    return channels
   }
 
   async findByChannelSender(

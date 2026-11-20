@@ -282,6 +282,31 @@ describe('getModerationQueue', () => {
     expect(result.ok && result.value.items.map((item) => item.authorName)).toEqual(['Léa'])
   })
 
+  it('says which channel a sender came through, and nothing for a guest of the web or a host upload', async () => {
+    guests.seed(
+      aGuest({
+        id: 'guest-lea',
+        eventId: 'event-1',
+        displayName: 'Léa M.',
+        channelIdentity: { channel: 'telegram', senderKey: 'key-lea' },
+      }),
+      aGuest({ id: 'guest-sacha', eventId: 'event-1', displayName: 'Sacha' }),
+    )
+    for (const [id, author] of [
+      ['photo-1', { kind: 'guest', id: 'guest-lea' }],
+      ['photo-2', { kind: 'guest', id: 'guest-sacha' }],
+      ['photo-3', { kind: 'host', id: 'user-host' }],
+    ] as const) {
+      photos.seed(aPhoto({ id, eventId: 'event-1', status: 'pending', author }))
+    }
+
+    const result = await pendingQueue()
+
+    expect(
+      result.ok && Object.fromEntries(result.value.items.map((item) => [item.id, item.via])),
+    ).toEqual({ 'photo-1': 'telegram', 'photo-2': null, 'photo-3': null })
+  })
+
   it('leaves the name null for a guest who stayed anonymous, instead of inventing one', async () => {
     // "Invité anonyme" is French UI copy. It belongs to the client, which is free to
     // word it differently on the console and on the wall.

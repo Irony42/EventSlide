@@ -108,6 +108,8 @@ export function ModerationCard({
           aria-label={t.moderation.selectPhoto(authorInName)}
         />
         <Badge tone={TONE[photo.status]}>{STATE_LABEL[photo.status]}</Badge>
+        {/* Spec 27: where the photograph came from, when it was not a phone. A badge, never the sender. */}
+        {photo.via === 'telegram' ? <Badge tone="neutral">{t.channels.viaTelegram}</Badge> : null}
       </div>
 
       <button

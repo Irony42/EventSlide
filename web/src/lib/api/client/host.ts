@@ -15,6 +15,7 @@ import type {
   AnnouncementKind,
   AnnouncementListResponse,
   AnnouncementResponse,
+  ChannelsResponse,
   ChallengeDto,
   HostChallengeResponse,
   GuestbookQueueDto,
@@ -50,6 +51,7 @@ export interface EventSettingsPatch {
   readonly allowCaptions?: boolean
   readonly allowReactions?: boolean
   readonly allowClips?: boolean
+  readonly allowTelegram?: boolean
   readonly allowGuestSave?: boolean
   readonly allowGuestbook?: boolean
   readonly guestbookOnWall?: boolean
@@ -436,6 +438,14 @@ export const hostApi = (transport: Transport) => ({
   /** In any state; one on screen leaves the wall at its next read. */
   deleteAnnouncement: (slug: string, id: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/announcements/${encode(id)}`),
+
+  /** The groups that send their photographs to the event, and whether this box has a bot (spec 27). A moderator's read. */
+  channels: (slug: string, signal?: AbortSignal): Promise<ChannelsResponse> =>
+    transport.get(`/api/events/${encode(slug)}/channels`, undefined, signal),
+
+  /** The group stops sending its photographs here; the owner's. */
+  unlinkChannel: (slug: string, bindingId: string): Promise<void> =>
+    transport.del(`/api/events/${encode(slug)}/channels/${encode(bindingId)}`),
 
   /** The host's link: its status, never its address, which is not stored. */
   shareLink: (slug: string, signal?: AbortSignal): Promise<ShareLinkResponse> =>

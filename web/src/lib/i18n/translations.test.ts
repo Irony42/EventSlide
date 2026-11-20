@@ -86,6 +86,7 @@ describe('the scope', () => {
         'app',
         'auth',
         'challenge',
+        'channels',
         'clientSpace',
         'errors',
         'exportPurge',

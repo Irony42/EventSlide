@@ -7,6 +7,7 @@ import type {
   EventSummaryDto,
   GuestListResponse,
   AnnouncementListResponse,
+  ChannelsResponse,
   HostChallengeResponse,
   MissionDto,
   ModeratorDto,
@@ -149,6 +150,16 @@ export const useAnnouncements = (
     [api, slug],
   )
   return { ...useLoader(load), offsetMs }
+}
+
+/**
+ * The groups that send their photographs to the event, and whether this box has a bot (spec 27). A moderator may read it;
+ * the unlink is the owner's.
+ */
+export const useChannels = (slug: string): LoaderState<ChannelsResponse> => {
+  const api = useApi()
+  const load = useCallback((signal: AbortSignal) => api.channels(slug, signal), [api, slug])
+  return useLoader(load)
 }
 
 /**

@@ -36,7 +36,7 @@ import { toInstant, toLocalInput } from './eventSchedule'
 // Shared with the create form's template card, so the two screens cannot word the same
 // window differently.
 import { graceLabel } from './settingsLabels'
-import { useEvent } from './hooks/useEventData'
+import { useChannels, useEvent } from './hooks/useEventData'
 import { useOpenGuestbookVoice, useSaveSchedule } from './hooks/useEventActions'
 import { useRevalidateWhenVisible } from './hooks/useRevalidateWhenVisible'
 import styles from './EventSettingsPage.module.css'
@@ -123,7 +123,7 @@ const scheduleSummary = (event: EventDto, text: UiText, locale: Locale): string 
 }
 
 /** The page's groups, in the order they are shown; each id is also the section's anchor. */
-const SECTIONS = ['guests', 'guestbook', 'reveal', 'wall', 'look', 'schedule'] as const
+const SECTIONS = ['guests', 'guestbook', 'messaging', 'reveal', 'wall', 'look', 'schedule'] as const
 type SectionId = (typeof SECTIONS)[number]
 
 const isSection = (value: string): value is SectionId =>
@@ -153,6 +153,8 @@ const sectionSummary = (
               ...(settings.guestbookVoice.enabled ? [s.voice] : []),
             ]
           : [s.closed]
+      case 'messaging':
+        return [settings.allowTelegram ? text.channels.on : text.channels.off]
       case 'reveal':
         return settings.reveal?.enabled === true
           ? [
@@ -264,6 +266,9 @@ function SettingsSections({ event, error, reload, replace }: SettingsSectionsPro
   const slug = event.slug
   const autosave = useSettingsAutosave(slug, event, replace)
   const saveSchedule = useSaveSchedule()
+  // Whether this box has a bot, and whether the plan includes it (spec 27): the section exists only with a bot.
+  const channelsRead = useChannels(slug)
+  const channels = channelsRead.data
   const openVoice = useOpenGuestbookVoice()
   const toast = useToast()
 
@@ -669,6 +674,32 @@ function SettingsSections({ event, error, reload, replace }: SettingsSectionsPro
           and nowhere else: it is the same setting (`maxPhotosPerGuest`, enforced at upload) and it
           also works with the mode off, which the hint says. "Révéler maintenant" is the console's.
         */}
+        {/* Messageries (spec 27): the section is there while the box is being asked (so a #messaging link opens it
+            and nothing jumps), says so when the box could not be asked, and is absent once the box says it has no
+            bot, so nobody is offered a switch that cannot work. Greyed, with the reason, when the client's plan does
+            not include it: a host whose plan was withdrawn can still switch Telegram OFF. */}
+        {channels === null || channels.available ? (
+          <SettingsSection {...section('messaging', t.channels.settingsSection)}>
+            {channels === null ? (
+              channelsRead.error === null ? (
+                <Pending label={t.app.loading} />
+              ) : (
+                <Notice tone="danger" variant="boxed">
+                  {channelsRead.error}
+                </Notice>
+              )
+            ) : (
+              <CheckboxField
+                label={t.channels.allowTelegram}
+                hint={channels.allowed ? t.channels.allowTelegramHint : t.channels.notAllowed}
+                checked={settings.allowTelegram}
+                disabled={readOnly || (!channels.allowed && !settings.allowTelegram)}
+                onChange={(allowTelegram) => update({ allowTelegram })}
+              />
+            )}
+          </SettingsSection>
+        ) : null}
+
         <SettingsSection {...section('reveal', t.reveal.title)}>
           <p className={styles['sectionHint']}>{t.reveal.hint}</p>
           <CheckboxField

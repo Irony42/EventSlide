@@ -369,6 +369,7 @@ export const en: UiText = {
       'This length of an ongoing event is not accepted: from 1 to 365 days.',
     'clientCeilings.periodStartedAtInvalid': 'This start of period is not accepted.',
     'clientCeilings.clipsAllowedInvalid': 'This video setting is not accepted.',
+    'clientCeilings.channelsAllowedInvalid': 'This messaging setting is not accepted.',
     'clientCeilings.booksAllowedInvalid': 'This photo book setting is not accepted.',
     'clientCeilings.liveAllowedInvalid': 'This opening setting is not accepted.',
     'siteLookup.queryInvalid':
@@ -2322,6 +2323,7 @@ export const en: UiText = {
     maxLiveDays: 'Length of an ongoing event, in days, at most',
     clipsAllowed: 'Videos allowed',
     booksAllowed: 'Photo books (PDF) allowed',
+    channelsAllowed: 'Messaging groups (Telegram) allowed',
     liveAllowed: 'Opening events allowed',
     renewPeriod: 'Renew the period now',
     renewPeriodHint: 'Resets the counter of events created in the period.',
@@ -2767,6 +2769,44 @@ export const en: UiText = {
     galleryHeld: (when: string) => `The photos will be revealed on ${when}.`,
     galleryHeldSoon: 'The photos will be revealed soon.',
     galleryOriginal: 'The download is the original, without the film look.',
+  },
+  /** Messaging channels (spec 27): the settings switch, the "Telegram group" panel and the badge of the moderation console. The group's title is content, never translated. */
+  channels: {
+    settingsSection: 'Messaging',
+    allowTelegram: 'Receive photos from a Telegram group',
+    allowTelegramHint:
+      'Photos and videos sent in the group go through Telegram before they reach this event; only the first name and a fingerprint of the Telegram account are kept. They follow the same moderation mode as your guests’ photos.',
+    on: 'On',
+    off: 'Off',
+    notAllowed: 'Not included in your plan',
+    noBot: 'This installation has no Telegram bot: the operator has to set one up.',
+    notLive: 'A group can only be linked while the event is open.',
+    title: 'Telegram group',
+    hint: 'Photos posted in a Telegram group arrive here, like your guests’ photos.',
+    step1: (bot: string) => `Add @${bot} to your Telegram group.`,
+    step2: 'In the group, send:',
+    /** The word that connects a group, as the bot's profile lists it in this language (the bot accepts them all). */
+    bindCommand: 'event',
+    copyCommand: 'Copy the command',
+    copied: 'Command copied',
+    copyFailed: 'The command could not be copied: select it and copy it by hand.',
+    visibility:
+      'The bot has to see the photos: make it an administrator of the group, or use a bot whose privacy mode is turned off (that setting only applies to groups the bot joins afterwards: remove it and add it again).',
+    listTitle: 'Linked groups',
+    none: 'No group is linked yet.',
+    boundOn: (date: string) => `linked on ${date}`,
+    photos: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo received`,
+        other: `${t.number(count)} photos received`,
+      }),
+    unlink: 'Unlink',
+    ownerOnlyUnlink: 'Only the owner of the event can unlink a group.',
+    unlinkConfirmTitle: 'Unlink this group?',
+    unlinkConfirmBody: (title: string) =>
+      `The bot will stop taking photos from “${title}”. It will say so in the group and stay in it: you can remove it yourself.`,
+    unlinked: 'Group unlinked',
+    viaTelegram: 'via Telegram',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

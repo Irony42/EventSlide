@@ -213,6 +213,14 @@ export const useCreateShareLink = (): ActionState<[string, ShareLinkInput], Shar
   )
 }
 
+/** The owner unlinks a messaging group from the event (spec 27). */
+export const useUnlinkChannel = (): ActionState<[string, string], void> => {
+  const api = useApi()
+  return useAction(
+    useCallback((slug: string, bindingId: string) => api.unlinkChannel(slug, bindingId), [api]),
+  )
+}
+
 export const useRevokeShareLink = (): ActionState<[string], void> => {
   const api = useApi()
   return useAction(useCallback((slug: string) => api.revokeShareLink(slug), [api]))

@@ -5,6 +5,7 @@ import {
   type QueueItem,
   type QueueOrder,
 } from '../../../domain/moderation/moderationQueue'
+import type { ChannelKind } from '../../../domain/channels/channelKind'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { Photo, PhotoActor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
@@ -76,6 +77,11 @@ export interface ModerationQueueRow extends QueueItem {
    */
   readonly authorName: string | null
   /**
+   * The messaging channel the sender came through (spec 27), or `null` for a guest of the web, a host's upload or a
+   * guest row that has gone. The console shows a badge, nothing more: no identifier of the sender crosses.
+   */
+  readonly via: ChannelKind | null
+  /**
    * Whether this row is a photograph or a clip, and how long the clip runs.
    *
    * The console needs both to decide what control to render, and a moderator deciding
@@ -105,7 +111,11 @@ export type GetModerationQueue = (
   input: GetModerationQueueInput,
 ) => Promise<Result<ModerationQueueView, DomainError>>
 
-const toRow = (photo: Photo, names: ReadonlyMap<GuestId, string>): ModerationQueueRow => ({
+const toRow = (
+  photo: Photo,
+  names: ReadonlyMap<GuestId, string>,
+  channels: ReadonlyMap<GuestId, ChannelKind>,
+): ModerationQueueRow => ({
   id: photo.id,
   status: photo.status,
   createdAt: photo.createdAt,
@@ -116,6 +126,7 @@ const toRow = (photo: Photo, names: ReadonlyMap<GuestId, string>): ModerationQue
   // guest who stayed anonymous or whose row is gone. Both are "no name", never a
   // fabricated one.
   authorName: photo.author.kind === 'guest' ? (names.get(photo.author.guestId) ?? null) : null,
+  via: photo.author.kind === 'guest' ? (channels.get(photo.author.guestId) ?? null) : null,
   kind: photo.kind,
   durationMs: photo.facet.kind === 'clip' ? photo.facet.duration.ms : null,
   highlighted: photo.isHighlighted,
@@ -155,13 +166,17 @@ export const makeGetModerationQueue =
     const page = await photos.list(eventId, query)
     const counts = await photos.countsByStatus(eventId)
     const names = await authorNamesOf(guests, eventId, page.items)
+    const channels = await guests.findChannelsByIds(
+      eventId,
+      page.items.flatMap((photo) => (photo.author.kind === 'guest' ? [photo.author.guestId] : [])),
+    )
 
     // The rows are assembled before the domain orders them, and `buildQueue` hands back
     // the very rows it was given — so the caption and the sender travel with the row
     // through the sort. Ordering first and looking each photo up again afterwards would
     // reintroduce a join the query already did, with a miss case that cannot happen.
     const queue = buildQueue(
-      page.items.map((photo) => toRow(photo, names)),
+      page.items.map((photo) => toRow(photo, names, channels)),
       {
         filter,
         order: queueOrder,

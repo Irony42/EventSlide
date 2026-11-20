@@ -2359,6 +2359,7 @@ export const fr = {
       'Cette durée d’évènement en cours n’est pas acceptée : de 1 à 365 jours.',
     'clientCeilings.periodStartedAtInvalid': 'Ce début de période n’est pas accepté.',
     'clientCeilings.clipsAllowedInvalid': 'Ce réglage des vidéos n’est pas accepté.',
+    'clientCeilings.channelsAllowedInvalid': 'Ce réglage des messageries n’est pas accepté.',
     'clientCeilings.booksAllowedInvalid': 'Ce réglage des livres photo n’est pas accepté.',
     'clientCeilings.liveAllowedInvalid': 'Ce réglage d’ouverture n’est pas accepté.',
     'siteLookup.queryInvalid':
@@ -3054,6 +3055,7 @@ export const fr = {
     maxLiveDays: 'Durée d’un évènement en cours, en jours, au plus',
     clipsAllowed: 'Vidéos autorisées',
     booksAllowed: 'Livres photo (PDF) autorisés',
+    channelsAllowed: 'Groupes de messagerie (Telegram) autorisés',
     liveAllowed: 'Ouverture d’évènements autorisée',
     renewPeriod: 'Renouveler la période maintenant',
     renewPeriodHint: 'Remet à zéro le compteur d’évènements créés sur la période.',
@@ -3517,6 +3519,44 @@ export const fr = {
     galleryHeld: (when: string) => `Les photos seront révélées le ${when}.`,
     galleryHeldSoon: 'Les photos seront bientôt révélées.',
     galleryOriginal: 'Le téléchargement donne l’original, sans effet pellicule.',
+  },
+  /** Messaging channels (spec 27): the settings switch, the "Groupe Telegram" panel and the badge of the moderation console. The group's title is content, never translated. */
+  channels: {
+    settingsSection: 'Messageries',
+    allowTelegram: 'Recevoir les photos d’un groupe Telegram',
+    allowTelegramHint:
+      'Les photos et vidéos envoyées dans le groupe passent par Telegram avant d’arriver ici ; seuls le prénom et une empreinte du compte Telegram sont gardés. Elles suivent le même mode de validation que celles des invités.',
+    on: 'Activé',
+    off: 'Désactivé',
+    notAllowed: 'Non inclus dans votre offre',
+    noBot: 'Cette installation n’a pas de bot Telegram : l’opérateur doit en configurer un.',
+    notLive: 'Un groupe ne peut être associé que pendant que la soirée est ouverte.',
+    title: 'Groupe Telegram',
+    hint: 'Les photos postées dans un groupe Telegram arrivent ici, comme celles des invités.',
+    step1: (bot: string) => `Ajoutez @${bot} à votre groupe Telegram.`,
+    step2: 'Dans le groupe, envoyez :',
+    /** The word that connects a group, as the bot's profile lists it in this language (the bot accepts them all). */
+    bindCommand: 'soiree',
+    copyCommand: 'Copier la commande',
+    copied: 'Commande copiée',
+    copyFailed: 'La commande n’a pas pu être copiée : sélectionnez-la et copiez-la à la main.',
+    visibility:
+      'Le bot doit voir les photos : nommez-le administrateur du groupe, ou utilisez un bot dont le mode confidentialité est désactivé (ce réglage ne vaut que pour les groupes que le bot rejoint ensuite : retirez-le puis ajoutez-le de nouveau).',
+    listTitle: 'Groupes associés',
+    none: 'Aucun groupe n’est associé pour l’instant.',
+    boundOn: (date: string) => `associé le ${date}`,
+    photos: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo reçue`,
+        other: `${t.number(count)} photos reçues`,
+      }),
+    unlink: 'Dissocier',
+    ownerOnlyUnlink: 'Seul le propriétaire de la soirée peut dissocier un groupe.',
+    unlinkConfirmTitle: 'Dissocier ce groupe ?',
+    unlinkConfirmBody: (title: string) =>
+      `Le bot cessera de prendre les photos de « ${title} ». Il le dira dans le groupe et y restera : vous pouvez l’en retirer vous-même.`,
+    unlinked: 'Groupe dissocié',
+    viaTelegram: 'via Telegram',
   },
   /** Scheduled announcements (spec 21): the host's panel and the wall drawer's section. The text inside is content, never translated. */
   announcement: {

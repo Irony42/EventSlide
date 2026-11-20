@@ -26,6 +26,7 @@ import { SupportCard } from './components/SupportCard'
 import { GuestListPanel } from './GuestListPanel'
 import { GuestbookPanel } from './GuestbookPanel'
 import { AnnouncementsPanel } from './AnnouncementsPanel'
+import { ChannelsPanel } from './ChannelsPanel'
 import { ChallengePanel } from './ChallengePanel'
 import { RevealBanner } from './RevealBanner'
 import { RevealPanel } from './RevealPanel'
@@ -400,6 +401,16 @@ export function EventPage() {
           live={event.status === 'live'}
           opensAt={event.scheduledOpenAt}
         />
+        {/* The Telegram group (spec 27), only while the host's switch is on: any moderator reads it, the owner alone
+            unlinks. */}
+        {event.settings.allowTelegram ? (
+          <ChannelsPanel
+            slug={event.slug}
+            joinCode={event.joinCode}
+            canUnlink={isOwner}
+            canBind={event.status === 'live'}
+          />
+        ) : null}
         {/* Owner-only, and a moderator may read the list — `GET` allows it — but a panel whose
             every affordance is refused is worse than no panel (roadmap §2.1). */}
         {isOwner ? (

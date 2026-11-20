@@ -89,6 +89,18 @@ export class FakeGuestRepository implements GuestRepository {
     return names
   }
 
+  async findChannelsByIds(
+    eventId: EventId,
+    guestIds: readonly GuestId[],
+  ): Promise<ReadonlyMap<GuestId, ChannelKind>> {
+    const channels = new Map<GuestId, ChannelKind>()
+    for (const guestId of guestIds) {
+      const identity = this.rows.get(key(eventId, guestId))?.channelIdentity ?? null
+      if (identity !== null) channels.set(guestId, identity.channel)
+    }
+    return channels
+  }
+
   async findByChannelSender(
     eventId: EventId,
     channel: ChannelKind,

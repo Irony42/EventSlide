@@ -347,6 +347,38 @@ export const guestRepositoryContract = (
       expect(Object.fromEntries(names)).toEqual({ 'guest-lea': 'Léa', 'guest-sacha': 'Sacha' })
     })
 
+    it('tells the channel of the guests who came through one, and nothing about the others', async () => {
+      await repo.save(
+        aGuest({
+          id: 'guest-lea',
+          eventId: WEDDING,
+          channelIdentity: { channel: 'telegram', senderKey: 'key-lea' },
+        }),
+      )
+      await repo.save(aGuest({ id: 'guest-sacha', eventId: WEDDING }))
+
+      const channels = await repo.findChannelsByIds(WEDDING, [
+        asGuestId('guest-lea'),
+        asGuestId('guest-sacha'),
+        asGuestId('guest-ghost'),
+      ])
+
+      expect(Object.fromEntries(channels)).toEqual({ 'guest-lea': 'telegram' })
+    })
+
+    it('never tells the channel of a guest of another event, and takes an empty batch', async () => {
+      await repo.save(
+        aGuest({
+          id: 'guest-lea',
+          eventId: WEDDING,
+          channelIdentity: { channel: 'telegram', senderKey: 'key-lea' },
+        }),
+      )
+
+      expect((await repo.findChannelsByIds(GALA, [asGuestId('guest-lea')])).size).toBe(0)
+      expect((await repo.findChannelsByIds(WEDDING, [])).size).toBe(0)
+    })
+
     it('omits a guest who stayed anonymous, so no caller invents a name for them', async () => {
       await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: null }))
 

@@ -31,6 +31,16 @@ export interface GuestRepository {
   ): Promise<ReadonlyMap<GuestId, string>>
 
   /**
+   * The messaging channel each of these guests arrived through (spec 27), for the badge "via Telegram" on the host's
+   * moderation console. Only the channel crosses: no sender key, no identifier. A guest of the web, an unknown guest and
+   * a guest of another event are absent from the answer. Scoped by event, in one read.
+   */
+  findChannelsByIds(
+    eventId: EventId,
+    guestIds: readonly GuestId[],
+  ): Promise<ReadonlyMap<GuestId, ChannelKind>>
+
+  /**
    * The guest a messaging sender became at this event (spec 27), found by the fingerprint of their
    * channel identity, or `null`. Scoped by event: the same person in two groups of two events is two guests.
    */

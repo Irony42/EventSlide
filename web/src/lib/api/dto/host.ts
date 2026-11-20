@@ -79,6 +79,11 @@ export interface ModerationPhotoDto {
   readonly caption: string | null
   /** `null` for a guest who chose not to give a name, which is a supported choice. */
   readonly authorName: string | null
+  /**
+   * The messaging channel the sender came through (spec 27: `telegram`), present only then. The console shows a badge
+   * "via Telegram" and nothing else: no identifier of the sender crosses.
+   */
+  readonly via?: string
   readonly createdAt: string
   /**
    * See `WallItemDto` (wall.ts). A moderator deciding about a clip has to be able to watch
@@ -411,6 +416,33 @@ export interface AnnouncementListResponse {
 /** What a schedule, an edit and a launch answer. */
 export interface AnnouncementResponse {
   readonly announcement: AnnouncementDto
+}
+/**
+ * One group that sends its photographs to the event (spec 27). `title` is the group's title as Telegram showed it when
+ * it was linked; `photoCount` counts the media received through it and is never decremented by an erasure. Nothing
+ * here identifies a conversation or a sender.
+ */
+export interface ChannelBindingDto {
+  readonly id: string
+  readonly channel: string
+  readonly title: string
+  readonly boundAt: string
+  readonly photoCount: number
+}
+/** `GET /events/:slug/channels`: what the "Groupe Telegram" panel shows. */
+export interface ChannelsResponse {
+  /** Whether this box has a bot at all (a token is configured and Telegram accepted it). */
+  readonly available: boolean
+  /** The bot's public handle, to add to the group; `null` when not available. */
+  readonly botUsername: string | null
+  /** Whether the client's plan includes messaging channels. */
+  readonly allowed: boolean
+  /**
+   * Whether the bot reads every message of its groups (Telegram's privacy mode is off), `null` without a bot. When it
+   * does not, it only sees the photographs of the groups it administers, and the panel warns the host.
+   */
+  readonly readsAllMessages: boolean | null
+  readonly bindings: readonly ChannelBindingDto[]
 }
 /** The console's view: the wall's, plus the mission it names (to say which row is running). */
 export interface HostChallengeDto {
