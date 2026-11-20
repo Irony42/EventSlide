@@ -1139,6 +1139,7 @@ nothing the policy above promises to keep.
 - **The request body of 3.14 still works during 3.15**: `layout`, `showAuthors`, `showCaptions` is read as the
   `classique` style, every photograph, no guest book. A body that mixes the old and the new fields is `400 request.invalid`.
   `layout` is removed from the answer in 3.16; until then it is always `"one"`.
+- **The guest privacy notice gains a sentence** on an event with a guestbook (« L’organisateur peut mettre vos mots, avec votre prénom, dans le livre photo de la soirée, qu’il peut faire imprimer. »), and its revision gains `guestbookBook=print`: every guest of such an event reads the notice once more before their next photo or message. Events without a guestbook are unchanged.
 - **Two new downloads**, `GET /api/events/:slug/book-print.pdf` and `book-cover.pdf`, for a book that has a printer version
   (see [API.md](API.md#the-photo-book-spec-04-spec-26)), and the `GET` answer gains the counts the form needs.
 - **Going back to 3.14 is a backup restore.** The migrator refuses a database newer than the binary ("downgrading is not

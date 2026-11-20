@@ -754,6 +754,8 @@ export const it: UiText = {
     },
     noticeMessageAudience:
       'I suoi messaggi sono letti dall’organizzatore e dal suo team e possono comparire sullo schermo della serata. Non sono in «Foto della serata».',
+    noticeMessageBook:
+      'L’organizzatore può inserire le sue parole, con il suo nome, nel libro fotografico della serata e può farlo stampare.',
     noticeMessageRetention: 'I suoi messaggi sono conservati quanto le foto e cancellati con esse.',
     noticeMessageRemoval:
       'Un messaggio si rimuove come una foto, da «I miei messaggi» e alle stesse condizioni.',

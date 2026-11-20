@@ -266,9 +266,10 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
           readonly event_id: string
           readonly taken_down_at: string | null
           readonly is_voice: number
+          readonly status: EntryStatus
         }
       >(
-        `SELECT e.event_id, e.taken_down_at, v.entry_id IS NOT NULL AS is_voice
+        `SELECT e.event_id, e.taken_down_at, e.status, v.entry_id IS NOT NULL AS is_voice
            FROM guestbook_entries e LEFT JOIN guestbook_voices v ON v.entry_id = e.id
           WHERE e.id = ?`,
       )
@@ -279,6 +280,7 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
           eventId: asEventId(row.event_id),
           takenDownAt: fromNullableIsoText(row.taken_down_at),
           voice: row.is_voice === 1,
+          status: row.status,
         }
   }
 

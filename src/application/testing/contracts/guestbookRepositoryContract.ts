@@ -325,7 +325,7 @@ export const guestbookRepositoryContract = (
     })
 
     describe("the operator's take-down", () => {
-      it('locates a message by its id alone, across events, without its text, and sees a taken-down one', async () => {
+      it('locates a message by its id alone, across events, without its text, with its status, and sees a taken-down one', async () => {
         await repo.admit(entry({ id: 'e1', createdAt: at(0) }))
         await repo.admit(
           entry({ id: 'g1', eventId: 'evt-gala', guestId: 'guest-sam', createdAt: at(1) }),
@@ -335,11 +335,13 @@ export const guestbookRepositoryContract = (
           eventId: WEDDING,
           takenDownAt: null,
           voice: false,
+          status: 'pending',
         })
         expect(await repo.locate(entryId('g1'))).toEqual({
           eventId: GALA,
           takenDownAt: null,
           voice: false,
+          status: 'pending',
         })
         expect(await repo.locate(entryId('nope'))).toBeNull()
 
@@ -348,7 +350,14 @@ export const guestbookRepositoryContract = (
           eventId: WEDDING,
           takenDownAt: at(5),
           voice: false,
+          status: 'pending',
         })
+      })
+
+      it('says a published message is published when it is located', async () => {
+        await repo.admit(entry({ id: 'e1', moderation: 'auto', createdAt: at(0) }))
+
+        expect(await repo.locate(entryId('e1'))).toMatchObject({ status: 'published' })
       })
 
       it('takes a message out of every read, and puts it back', async () => {

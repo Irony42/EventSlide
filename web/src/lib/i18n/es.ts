@@ -739,6 +739,8 @@ export const es: UiText = {
     },
     noticeMessageAudience:
       'Sus mensajes los leen el organizador y su equipo, y pueden mostrarse en la pantalla de la fiesta. No aparecen en «Fotos de la velada».',
+    noticeMessageBook:
+      'El organizador puede incluir sus palabras, con su nombre, en el libro de fotos de la fiesta, y puede mandarlo imprimir.',
     noticeMessageRetention:
       'Sus mensajes se guardan tanto tiempo como las fotos y se borran con ellas.',
     noticeMessageRemoval:

@@ -712,6 +712,8 @@ export const en: UiText = {
     },
     noticeMessageAudience:
       'Your messages are read by the organiser and their team, and may be shown on the event screen. They are not in “Photos from the evening”.',
+    noticeMessageBook:
+      'The organiser may put your words, with your first name, in the evening’s photo book, which they may have printed.',
     noticeMessageRetention: 'Your messages are kept as long as the photos, and erased with them.',
     noticeMessageRemoval:
       'A message is removed like a photo, from “My messages” and under the same conditions.',

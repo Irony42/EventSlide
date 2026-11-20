@@ -8,6 +8,7 @@ import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { GuestbookVoiceRepository } from '../../ports/guestbookVoiceRepository'
 import type { MediaStore } from '../../ports/mediaStore'
 import { isInAlbum } from '../../../domain/photos/photoStatus'
+import type { InvalidateBook } from '../book/invalidateAlbumBook'
 import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { makeRemoveVoiceBytes } from './removeVoiceBytes'
 
@@ -55,6 +56,12 @@ export interface DeleteGuestbookEntryDeps {
    * Awaited, and before the bytes go.
    */
   readonly invalidateExport?: InvalidateExport
+  /**
+   * Retires the photo book that prints guest-book messages (spec 26) when a guest takes back a published message, awaited and before
+   * anything goes: a book must never still hold what was removed. A message that is not
+   * published is in no book, so it does not call.
+   */
+  readonly invalidateBook?: InvalidateBook
 }
 
 export type DeleteGuestbookEntry = (
@@ -69,6 +76,7 @@ export const makeDeleteGuestbookEntry = ({
   bus,
   clock,
   invalidateExport,
+  invalidateBook,
 }: DeleteGuestbookEntryDeps): DeleteGuestbookEntry => {
   const removeVoiceBytes = makeRemoveVoiceBytes({ media, voices })
 
@@ -100,8 +108,15 @@ export const makeDeleteGuestbookEntry = ({
       await invalidateExport?.(eventId, 'guestbookChanged')
     }
 
+    // Twice: before the removal, and again once it is committed. A book requested between the two
+    // snapshots the message (a request reads the album as it is), and the second call is what retires it.
+    const printed = entry.status === 'published'
+    if (printed) await invalidateBook?.(eventId, 'messageRemoved')
+
     const voice = entry.voice
     if (voice === null) {
+      // A written message the guest may take back was never published (the entity refuses it once it
+      // is on the wall), so no book holds it: only a recording needs the second call below.
       await guestbook.delete(eventId, entryId)
       bus.publish({ type: 'guestbook.changed', eventId })
       return ok(undefined)
@@ -110,6 +125,7 @@ export const makeDeleteGuestbookEntry = ({
     // The bytes, then the row (spec 25): the row is the only record of where the recording is.
     await removeVoiceBytes(eventId, [{ entryId, voice }])
     await voices.deleteByEntry(eventId, entryId)
+    if (printed) await invalidateBook?.(eventId, 'messageRemoved')
     bus.publish({ type: 'guestbook.voice', eventId })
     return ok(undefined)
   }

@@ -150,4 +150,6 @@ export interface GuestbookLocation {
    * the console on the signal a recording is announced by, which the wall never hears.
    */
   readonly voice: boolean
+  /** Where it is in the moderation: a book prints only a `published` one. A status, never a word of it. */
+  readonly status: EntryStatus
 }
