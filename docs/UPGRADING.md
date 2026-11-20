@@ -1124,3 +1124,23 @@ release: the migrations only go forward.
   not allowed**, the opposite of `NEW_CLIENT_CLIPS_ALLOWED`) is the default a client created by the operator starts with.
   **Every client that already exists starts with it off**; the operator turns it on per client. An event with no client
   (a self-hosted box) is not concerned: its host's switch decides.
+
+### The photo book v2 (spec 26)
+
+The photo book of spec 26 (three styles, a choice of photographs, the guest book, a printer version). It breaks
+nothing the policy above promises to keep.
+
+- **One migration (034)**: `album_books` is rebuilt to hold the new options, the plan (ids and numbers only) and the
+  printer version's size. A book made on 3.14 is kept as it is and reads as `classique`, every photograph, no guest book,
+  no printer version. Back up first, as for any upgrade: the migration only goes forward.
+- **Three settings, all optional**: `BOOK_PRINT_ENABLED` (`true`; `false` stops offering the printer version, a request
+  for it is made without it), `BOOK_PRINT_MAX_BYTES` (734 003 200, the two printer files together: past it the version is
+  dropped and the screen book is kept) and `BOOK_MAX_MESSAGES` (60, the most guest-book messages in one book).
+- **The request body of 3.14 still works during 3.15**: `layout`, `showAuthors`, `showCaptions` is read as the
+  `classique` style, every photograph, no guest book. A body that mixes the old and the new fields is `400 request.invalid`.
+  `layout` is removed from the answer in 3.16; until then it is always `"one"`.
+- **Two new downloads**, `GET /api/events/:slug/book-print.pdf` and `book-cover.pdf`, for a book that has a printer version
+  (see [API.md](API.md#the-photo-book-spec-04-spec-26)), and the `GET` answer gains the counts the form needs.
+- **Going back to 3.14 is a backup restore.** The migrator refuses a database newer than the binary ("downgrading is not
+  supported"), so after 3.15 has run the old version will not start on that data: follow [Going back](#going-back).
+  Books are disposable (seven days) and are made again after the restore.

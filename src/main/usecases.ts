@@ -197,7 +197,11 @@ export interface UseCasePolicy {
    */
   readonly termsOfUse: TermsOfUse | null
   /** `BOOK_ENABLED` and `BOOK_MAX_PER_EVENT_PER_DAY` (spec 04). */
-  readonly book: { readonly enabled: boolean; readonly maxPerEventPerDay: number }
+  readonly book: {
+    readonly enabled: boolean
+    readonly maxPerEventPerDay: number
+    readonly printEnabled: boolean
+  }
   /**
    * `EXPORT_*` (spec 22): the box's switch and ceilings for the verified archive, and the free-space
    * probe the request judges the disk with (`null` when it cannot be read: a refusal).

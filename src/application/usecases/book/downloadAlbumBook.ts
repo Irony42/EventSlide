@@ -4,7 +4,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import type { EventId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { AlbumBookRepository } from '../../ports/albumBookRepository'
-import type { BookFileStore } from '../../ports/bookFileStore'
+import type { BookFileKind, BookFileStore } from '../../ports/bookFileStore'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { ByteRange } from '../../ports/mediaStore'
@@ -33,13 +33,15 @@ export interface DownloadAlbumBookDeps {
 
 export type DownloadAlbumBook = (input: {
   readonly eventId: EventId
+  /** The screen book by default; the printer version's interior or cover. */
+  readonly kind?: BookFileKind
 }) => Promise<Result<AlbumBookFile, DomainError>>
 
 const notFound = (): Result<never, DomainError> => err(DomainError.notFound('book.notFound'))
 
 export const makeDownloadAlbumBook =
   ({ events, books, bookFiles, clock }: DownloadAlbumBookDeps): DownloadAlbumBook =>
-  async ({ eventId }) => {
+  async ({ eventId, kind = 'screen' }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
     const readable = requireReadable(event)
@@ -49,13 +51,17 @@ export const makeDownloadAlbumBook =
     if (book === null || !hasFile(book.status)) return notFound()
     if (book.expiresAt === null || isBookExpired(book.expiresAt, clock.now())) return notFound()
 
-    const stored = await bookFiles.stat(eventId)
+    // The three files follow the same rules; a printer file exists only for a book that has a
+    // printer version.
+    if (kind !== 'screen' && book.printByteSize === null) return notFound()
+
+    const stored = await bookFiles.stat(eventId, kind)
     if (stored === null) return notFound()
 
     return ok({
       byteSize: stored.size,
       open: async (range) => {
-        const stream = await bookFiles.openRead(eventId, range)
+        const stream = await bookFiles.openRead(eventId, range, kind)
         if (stream === null) throw new Error('the book file disappeared while it was opened')
         return stream
       },

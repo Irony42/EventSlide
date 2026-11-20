@@ -89,7 +89,6 @@ import { SqliteAlbumBookRepository } from '../infrastructure/db/sqliteAlbumBookR
 import { SqliteAlbumExportRepository } from '../infrastructure/db/sqliteAlbumExportRepository'
 import { createFsBookFileStore } from '../infrastructure/media/fsBookFileStore'
 import { createFsExportFileStore } from '../infrastructure/media/fsExportFileStore'
-import { BOOK_PRINT_MAX_BYTES } from '../domain/book/bookCaps'
 import { createPdfBookRenderer } from '../infrastructure/media/pdfBookRenderer'
 import { bookWorkerUseCases } from './usecases.bookWorker'
 import {
@@ -555,7 +554,11 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     auditRetentionDays: config.audit.retentionDays,
     newClientDefaults: config.newClientCeilings,
     reel: config.reel,
-    book: { enabled: config.books.enabled, maxPerEventPerDay: config.books.maxPerEventPerDay },
+    book: {
+      enabled: config.books.enabled,
+      maxPerEventPerDay: config.books.maxPerEventPerDay,
+      printEnabled: config.books.printEnabled,
+    },
     export: {
       enabled: config.exports.enabled,
       maxBytes: config.exports.maxBytes,
@@ -755,8 +758,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
         policy: {
           maxPhotos: config.books.maxPhotos,
           maxBytes: config.books.maxBytes,
-          // The environment variable arrives with the API (spec 26, PR 4).
-          maxPrintBytes: BOOK_PRINT_MAX_BYTES,
+          maxPrintBytes: config.books.printMaxBytes,
+          maxMessages: config.books.maxMessages,
           ttlDays: config.books.ttlDays,
           maxTotalBytes: config.books.maxTotalBytes,
           maxWaitMs: config.books.maxWaitMs,

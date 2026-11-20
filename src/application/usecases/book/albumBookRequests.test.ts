@@ -3,9 +3,18 @@ import { legacyBookOptions } from '../../../domain/book/bookOptionsV2'
 import { requestBook, type BookOptions } from '../../../domain/book/albumBook'
 import { BOOK_WINDOW_MS } from '../../../domain/book/bookCaps'
 import { asEventId } from '../../../domain/shared/ids'
-import { AT, aClient, anEvent, aPhoto, atPlus } from '../../testing/builders'
+import {
+  AT,
+  aClient,
+  aClip,
+  aGuestbookEntry,
+  anEvent,
+  aPhoto,
+  atPlus,
+} from '../../testing/builders'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { FakeAlbumBookRepository } from '../../testing/fakeAlbumBookRepository'
+import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakeBookFileStore } from '../../testing/fakeBookFileStore'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
@@ -64,12 +73,13 @@ const request = (input: Partial<RequestAlbumBookV1> = {}) =>
     books,
     bus,
     clock,
-    policy: { enabled, maxPerEventPerDay: 3 },
+    policy: { enabled, maxPerEventPerDay: 3, printEnabled: true },
   })({ ...INPUT, ...input })
 
 const invalidate = () => makeInvalidateAlbumBook({ books, bookFiles, bus, clock, logger })
 const download = () => makeDownloadAlbumBook({ events, books, bookFiles, clock })
-const get = () => makeGetAlbumBook({ events, books })
+let guestbook: FakeGuestbookRepository
+const get = () => makeGetAlbumBook({ events, books, photos, guestbook, bookFiles })
 const remove = () => makeDeleteAlbumBook({ events, books, bookFiles, bus })
 
 /** A finished book with its file, valid for a week. */
@@ -103,6 +113,7 @@ beforeEach(() => {
   photos = new FakePhotoRepository()
   books = new FakeAlbumBookRepository()
   bookFiles = new FakeBookFileStore()
+  guestbook = new FakeGuestbookRepository()
   bus = new RecordingEventBus()
   clock = new FakeClock(atPlus(60_000))
   logger = new CapturingLogger()
@@ -173,7 +184,7 @@ describe('requestAlbumBook', () => {
         books,
         bus,
         clock,
-        policy: { enabled, maxPerEventPerDay: 3 },
+        policy: { enabled, maxPerEventPerDay: 3, printEnabled: true },
       })({ ...V2, ...input })
 
     it('is a v2 body even when the layout key is present but undefined', async () => {
@@ -439,11 +450,11 @@ describe('invalidateAlbumBook', () => {
 describe('getAlbumBook', () => {
   it('returns the row, or null when none was ever asked for', async () => {
     const none = await get()({ eventId: EVENT })
-    expect(none.ok && none.value).toBeNull()
+    expect(none.ok && none.value.book).toBeNull()
 
     await request()
     const some = await get()({ eventId: EVENT })
-    expect(some.ok && some.value?.status).toBe('queued')
+    expect(some.ok && some.value.book?.status).toBe('queued')
   })
 
   it('is event.notFound for an unknown or taken-down event and client.suspended for a suspended one', async () => {
@@ -580,5 +591,128 @@ describe('deleteAlbumBook', () => {
 
     expect(await books.find(EVENT)).not.toBeNull()
     expect(await bookFiles.stat(EVENT)).not.toBeNull()
+  })
+})
+
+describe('getAlbumBook, the form counts and the printer files', () => {
+  it('counts the published photographs without the clips, and the published messages only', async () => {
+    photos.seed(
+      aPhoto({ id: 'p2', eventId: 'event-1', status: 'published' }),
+      aClip({ id: 'c1', eventId: 'event-1', status: 'published' }),
+      aPhoto({ id: 'p-pending', eventId: 'event-1', status: 'pending' }),
+      aPhoto({ id: 'p-other', eventId: 'event-2', status: 'published' }),
+    )
+    guestbook.seed(
+      aGuestbookEntry({ id: 'm1', eventId: 'event-1', moderation: 'auto' }),
+      aGuestbookEntry({ id: 'm-other', eventId: 'event-2', moderation: 'auto' }),
+    )
+
+    const result = await get()({ eventId: EVENT })
+
+    expect(result.ok && result.value.counts).toEqual({ photos: 2, messages: 1 })
+  })
+
+  it('counts an album of more than one page of photographs, clips left out', async () => {
+    for (let index = 0; index < 205; index += 1) {
+      photos.seed(aPhoto({ id: `bulk-${index}`, eventId: 'event-1', status: 'published' }))
+    }
+    photos.seed(aClip({ id: 'bulk-clip', eventId: 'event-1', status: 'published' }))
+
+    const result = await get()({ eventId: EVENT })
+
+    expect(result.ok && result.value.counts.photos).toBe(206)
+  })
+
+  it('gives the sizes of the two printer files of a finished book that has them', async () => {
+    await seedDoneBook({ printVersion: true })
+    const done = await books.find(EVENT)
+    if (done === null) throw new Error('no book')
+    await books.save({ ...done, printByteSize: 9 })
+    bookFiles.seed(EVENT, new Uint8Array(7), 'printInterior')
+    bookFiles.seed(EVENT, new Uint8Array(2), 'printCover')
+
+    const result = await get()({ eventId: EVENT })
+
+    expect(result.ok && result.value.printFiles).toEqual({ interior: 7, cover: 2 })
+  })
+
+  it('gives none when the book has no printer version, or one of its files is gone', async () => {
+    await seedDoneBook()
+    const none = await get()({ eventId: EVENT })
+    expect(none.ok && none.value.printFiles).toBeNull()
+
+    const done = await books.find(EVENT)
+    if (done === null) throw new Error('no book')
+    await books.save({ ...done, printByteSize: 9 })
+    bookFiles.seed(EVENT, new Uint8Array(7), 'printInterior')
+    const half = await get()({ eventId: EVENT })
+    expect(half.ok && half.value.printFiles).toBeNull()
+  })
+})
+
+describe('downloadAlbumBook, the printer files', () => {
+  const seedPrint = async () => {
+    await seedDoneBook({ printVersion: true })
+    const done = await books.find(EVENT)
+    if (done === null) throw new Error('no book')
+    await books.save({ ...done, printByteSize: 9 })
+    bookFiles.seed(EVENT, new Uint8Array(7), 'printInterior')
+    bookFiles.seed(EVENT, new Uint8Array(2), 'printCover')
+  }
+
+  it('serves each of the three files with its own size', async () => {
+    await seedPrint()
+
+    const screen = await download()({ eventId: EVENT })
+    const interior = await download()({ eventId: EVENT, kind: 'printInterior' })
+    const cover = await download()({ eventId: EVENT, kind: 'printCover' })
+
+    expect(screen.ok && screen.value.byteSize).toBe(4)
+    expect(interior.ok && interior.value.byteSize).toBe(7)
+    expect(cover.ok && cover.value.byteSize).toBe(2)
+    expect(interior.ok && (await drain(await interior.value.open()))).toBe(7)
+  })
+
+  it('says book.notFound for a printer file of a book that has none, even if a file lingers', async () => {
+    await seedDoneBook()
+    bookFiles.seed(EVENT, new Uint8Array(7), 'printInterior')
+
+    const result = await download()({ eventId: EVENT, kind: 'printInterior' })
+
+    expect(!result.ok && result.error.code).toBe('book.notFound')
+  })
+
+  it('says book.notFound when the printer row says yes but the file is gone', async () => {
+    await seedPrint()
+    await bookFiles.delete(EVENT)
+
+    const result = await download()({ eventId: EVENT, kind: 'printCover' })
+
+    expect(!result.ok && result.error.code).toBe('book.notFound')
+  })
+})
+
+describe('requestAlbumBook, the printer switch', () => {
+  it('makes the book without a printer version when the box does not offer it', async () => {
+    const result = await makeRequestAlbumBook({
+      events,
+      clients,
+      photos,
+      books,
+      bus,
+      clock,
+      policy: { enabled, maxPerEventPerDay: 3, printEnabled: false },
+    })({
+      eventId: EVENT,
+      title: 'Mariage',
+      style: 'souvenir',
+      selection: { kind: 'all' },
+      showAuthors: true,
+      showCaptions: true,
+      includeGuestbook: false,
+      printVersion: true,
+    })
+
+    expect(result.ok && result.value.options.printVersion).toBe(false)
   })
 })

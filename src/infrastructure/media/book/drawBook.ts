@@ -612,7 +612,7 @@ const drawStats = (ctx: DrawContext): void => {
     [counts.photos, input.texts.statPhotos],
     [counts.photographers, input.texts.statPhotographers],
     [counts.hearts, input.texts.statHearts],
-    [counts.messages, input.texts.statMessages],
+    [input.plan.includedMessages, input.texts.statMessages],
   ]
   cells.forEach(([value, label], i) => {
     const box = textBox(ctx, 'stats', i)

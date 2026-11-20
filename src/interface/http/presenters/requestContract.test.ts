@@ -672,6 +672,11 @@ const probe = (keys: Iterable<string>): Record<string, unknown> =>
  * file would otherwise report it as covered by saying nothing about it.
  */
 const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
+  // `POST /api/events/:slug/book` (spec 26) takes the 3.14 body or the 3.15 one: a union of two strict
+  // bodies, which the object-schema pairing cannot read. Both are pinned in bookRoutes.test.ts, and
+  // the panel's own body in client.test.ts.
+  requestBookBody:
+    'a union of the 3.14 body and the 3.15 one, which the object-schema pairing cannot read; both are pinned in bookRoutes.test.ts',
   // `GET /api/events/:slug/photos` — the host's full gallery. Implemented and tested at
   // ring 4, but nothing in `web/src` calls it yet; the console reads the moderation
   // queue instead. `dtoContract.test.ts` records the same gap from the response side.

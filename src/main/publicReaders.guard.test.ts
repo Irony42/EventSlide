@@ -37,6 +37,8 @@ const ASKS_THE_GATE = /\b(?:visibleStatuses|galleryStatuses|isRevealed)\(/
 const NOT_PUBLIC_READERS: Readonly<Record<string, string>> = {
   'book/buildNextAlbumBook.ts':
     'the photo book is built for the host from a request only a moderator makes, and served through the event to its owner',
+  'book/getAlbumBook.ts':
+    'the host’s form: it counts the published photographs for a moderator of the event, and shows nobody a photograph',
   'clips/transcodeNextClip.ts': 'a writer: it publishes a transcoded clip under auto moderation',
   'photos/uploadPhotos.ts': 'a writer: it publishes an arriving photograph under auto moderation',
   'shared/albumArchive.ts':

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import type { BookFileKind } from '../../../application/ports/bookFileStore'
 import { requireRole } from '../middleware/authz'
 import {
   BOOK_DOWNLOADS_PER_ACCOUNT_PER_MINUTE,
@@ -44,8 +45,28 @@ export const bookRoutes = ({ deps, usecases }: RouteDeps): Router => {
         return
       }
       res.setHeader('Cache-Control', 'no-store')
-      sendResult(res, result, (response, book) =>
-        sendJson<AlbumBookDto>(response, toAlbumBookDto(book), 202),
+      if (!result.ok) {
+        sendError(res, result.error)
+        return
+      }
+      // The book exists from here on: a failing read of the counts must not turn that into an error
+      // the client would answer by asking again. The answer is the state the page reads next, counts
+      // included, and when they cannot be read it is the saved book with empty counts, which the
+      // page replaces with its own read of `GET /book`.
+      const read = await usecases.getAlbumBook({ eventId }).then(
+        (state) => (state.ok ? state.value : null),
+        () => null,
+      )
+      sendJson<AlbumBookDto>(
+        res,
+        toAlbumBookDto(
+          read ?? {
+            book: result.value,
+            counts: { photos: 0, messages: 0 },
+            printFiles: null,
+          },
+        ),
+        202,
       )
     }),
   )
@@ -56,20 +77,23 @@ export const bookRoutes = ({ deps, usecases }: RouteDeps): Router => {
     withModerator(async ({ eventId }, _req, res) => {
       const result = await usecases.getAlbumBook({ eventId })
       res.setHeader('Cache-Control', 'no-store')
-      sendResult(res, result, (response, book) =>
-        sendJson<AlbumBookDto>(response, toAlbumBookDto(book)),
+      sendResult(res, result, (response, state) =>
+        sendJson<AlbumBookDto>(response, toAlbumBookDto(state)),
       )
     }),
   )
 
-  router.get(
-    '/events/:eventSlug/book.pdf',
-    requireRole('moderator', deps),
-    downloadLimiter,
+  /**
+   * The three files of a book. They follow the same rules (a moderator of the event, a suspended
+   * client, `booksAllowed`, a removed event, expiry, `Range`, the same limiter); the printer files
+   * exist only for a book that has a printer version and answer `404 book.notFound` otherwise. The
+   * filename comes from the validated slug, never from the title.
+   */
+  const serve = (kind: BookFileKind, suffix: string) =>
     withModerator(async ({ eventId, slug }, req, res) => {
       // Nothing is written until the use case has answered: a refusal is a JSON error, never a
       // download named `-livre.pdf`.
-      const result = await usecases.downloadAlbumBook({ eventId })
+      const result = await usecases.downloadAlbumBook({ eventId, kind })
       if (!result.ok) {
         sendError(res, result.error)
         return
@@ -82,10 +106,28 @@ export const bookRoutes = ({ deps, usecases }: RouteDeps): Router => {
         contentType: 'application/pdf',
         cacheControl: 'no-store',
         refusalCacheControl: 'no-store',
-        contentDisposition: `attachment; filename="${slug}-livre.pdf"`,
+        contentDisposition: `attachment; filename="${slug}-${suffix}.pdf"`,
         failureMessage: 'photo book download failed mid-stream',
       })
-    }),
+    })
+
+  router.get(
+    '/events/:eventSlug/book.pdf',
+    requireRole('moderator', deps),
+    downloadLimiter,
+    serve('screen', 'livre'),
+  )
+  router.get(
+    '/events/:eventSlug/book-print.pdf',
+    requireRole('moderator', deps),
+    downloadLimiter,
+    serve('printInterior', 'livre-imprimeur-interieur'),
+  )
+  router.get(
+    '/events/:eventSlug/book-cover.pdf',
+    requireRole('moderator', deps),
+    downloadLimiter,
+    serve('printCover', 'livre-imprimeur-couverture'),
   )
 
   router.delete(
