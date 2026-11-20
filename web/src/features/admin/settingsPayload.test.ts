@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { eventSettings } from '../../testing/renderWithProviders'
-import { toSettingsPatch, voiceChanges } from './settingsPayload'
+import { settingsChanges, toSettingsPatch, voiceChanges } from './settingsPayload'
 
 describe('toSettingsPatch', () => {
   it('leaves the photograph’s URL out of the theme, which the server’s strict schema would refuse', () => {
@@ -88,5 +88,56 @@ describe('toSettingsPatch', () => {
         voiceChanges({ enabled: false, sealed: true, opensAtMs: null }, loaded.guestbookVoice),
       ).toEqual({ enabled: false, opensAtMs: null })
     })
+  })
+})
+
+describe('settingsChanges', () => {
+  it('names only the field that moved', () => {
+    const current = eventSettings()
+
+    expect(settingsChanges({ ...current, allowCaptions: !current.allowCaptions }, current)).toEqual(
+      { allowCaptions: !current.allowCaptions },
+    )
+  })
+
+  it('names nothing when nothing moved', () => {
+    const current = eventSettings()
+
+    expect(settingsChanges({ ...current }, current)).toEqual({})
+  })
+
+  it('names the key of a per-key group that moved, not the whole group', () => {
+    const current = eventSettings()
+
+    expect(
+      settingsChanges({ ...current, wall: { ...current.wall, tilt: !current.wall.tilt } }, current),
+    ).toEqual({ wall: { tilt: !current.wall.tilt } })
+  })
+
+  it('sends the theme whole, without the photograph, whichever of its fields moved', () => {
+    const current = eventSettings({
+      theme: {
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'soft',
+        ambiance: 'eventslide',
+        groundUrl: '/api/events/x/venue-photo/ab',
+      },
+    })
+
+    expect(
+      settingsChanges({ ...current, theme: { ...current.theme, frame: 'round' } }, current),
+    ).toEqual({ theme: { accentHue: 305, fonts: 'sans', frame: 'round', ambiance: 'eventslide' } })
+  })
+
+  it('sends a new welcome message at the top level, where the route reads it', () => {
+    const current = eventSettings({ brand: { welcomeMessage: null, logoUrl: null } })
+
+    expect(
+      settingsChanges(
+        { ...current, brand: { welcomeMessage: 'Bienvenue', logoUrl: null } },
+        current,
+      ),
+    ).toMatchObject({ welcomeMessage: 'Bienvenue' })
   })
 })

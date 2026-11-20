@@ -13,7 +13,7 @@ import {
   renderWithProviders,
 } from '../../testing/renderWithProviders'
 import { CURSOR_IDLE_MS } from './hooks/useIdleCursor'
-import { SAVE_DEBOUNCE_MS } from './panel/usePanelSettings'
+import { SAVE_DEBOUNCE_MS } from '../../lib/useSettingsAutosave'
 import { PANEL_IDLE_MS } from './panel/WallSettingsPanel'
 import { WallPage } from './WallPage'
 
