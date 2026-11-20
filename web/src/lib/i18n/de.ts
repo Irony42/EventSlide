@@ -2832,14 +2832,17 @@ export const de: UiText = {
     off: 'Inaktiv',
     notAllowed: 'In Ihrem Tarif nicht enthalten',
     noBot: 'Diese Installation hat keinen Telegram-Bot: Die Betreiber müssen einen einrichten.',
+    notLive: 'Eine Gruppe lässt sich nur verbinden, solange die Veranstaltung geöffnet ist.',
     title: 'Telegram-Gruppe',
     hint: 'Fotos, die in einer Telegram-Gruppe gepostet werden, kommen hier an, wie die Fotos Ihrer Gäste.',
-    step1: (bot: string) => `1. Fügen Sie @${bot} Ihrer Telegram-Gruppe hinzu.`,
-    step2: '2. Senden Sie in der Gruppe:',
+    step1: (bot: string) => `Fügen Sie @${bot} Ihrer Telegram-Gruppe hinzu.`,
+    step2: 'Senden Sie in der Gruppe:',
     copyCommand: 'Befehl kopieren',
     copied: 'Befehl kopiert',
+    copyFailed:
+      'Der Befehl konnte nicht kopiert werden: Markieren Sie ihn und kopieren Sie ihn von Hand.',
     visibility:
-      'Der Bot muss die Fotos sehen können: Machen Sie ihn zum Administrator der Gruppe oder nutzen Sie einen Bot mit ausgeschaltetem Datenschutzmodus.',
+      'Der Bot muss die Fotos sehen können: Machen Sie ihn zum Administrator der Gruppe oder nutzen Sie einen Bot mit ausgeschaltetem Datenschutzmodus (diese Einstellung gilt nur für Gruppen, denen der Bot danach beitritt: Entfernen Sie ihn und fügen Sie ihn erneut hinzu).',
     listTitle: 'Verbundene Gruppen',
     none: 'Noch keine Gruppe verbunden.',
     boundOn: (date: string) => `verbunden am ${date}`,
@@ -2849,6 +2852,7 @@ export const de: UiText = {
         other: `${t.number(count)} Fotos empfangen`,
       }),
     unlink: 'Trennen',
+    ownerOnlyUnlink: 'Nur der Inhaber der Veranstaltung kann eine Gruppe trennen.',
     unlinkConfirmTitle: 'Diese Gruppe trennen?',
     unlinkConfirmBody: (title: string) =>
       `Der Bot nimmt keine Fotos mehr aus „${title}“ an. Er sagt es in der Gruppe und bleibt dort: Sie können ihn selbst entfernen.`,

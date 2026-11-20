@@ -62,16 +62,12 @@ import { createHmacGuestTokenService } from '../infrastructure/crypto/hmacGuestT
 import { SqliteChannelBindingRepository } from '../infrastructure/db/sqliteChannelBindingRepository'
 import { SqliteChannelCursorStore } from '../infrastructure/db/sqliteChannelCursorStore'
 import { SqliteChannelMediaJobRepository } from '../infrastructure/db/sqliteChannelMediaJobRepository'
-import { describeFailure, TelegramBotApi } from '../infrastructure/channels/telegram/telegramBotApi'
-import {
-  TelegramInbox,
-  TelegramMessagingChannel,
-} from '../infrastructure/channels/telegram/telegramChannel'
-import type { ChannelInbox } from '../application/ports/channelInbox'
+import { TelegramBotApi } from '../infrastructure/channels/telegram/telegramBotApi'
 import type { MessagingChannel } from '../application/ports/messagingChannel'
 import type { ChannelKind } from '../domain/channels/channelKind'
-import { createChannelPoller, type ChannelPoller } from './channelPoller'
-import { createChannelWorker, type ChannelWorker } from './channelWorker'
+import { createChannelPoller } from './channelPoller'
+import { createTelegramBringUp, type TelegramBringUp } from './telegramBringUp'
+import { createChannelWorker } from './channelWorker'
 import { channelWorkerUseCases } from './usecases.channels'
 import { sha256SecretTokens } from '../infrastructure/crypto/sha256SecretTokens'
 import { createHmacGallerySigner } from '../infrastructure/crypto/hmacGallerySigner'
@@ -168,11 +164,11 @@ export interface Container {
    */
   readonly clipWorker: ClipWorker
   /**
-   * The Telegram long poll and the queue it feeds (spec 27), or `null` on a box with no bot: no `TELEGRAM_BOT_TOKEN`, or one
-   * Telegram refused at boot. With `null` nothing here ever opens a connection. Started by `index.ts`.
+   * Telegram (spec 27): the bot's identification, the long poll and the queue it feeds, brought up in the background by
+   * `index.ts` (`start()` returns at once, the server never waits for Telegram). `null` on a box with no
+   * `TELEGRAM_BOT_TOKEN`, which then opens no connection at all.
    */
-  readonly channelPoller: ChannelPoller | null
-  readonly channelWorker: ChannelWorker | null
+  readonly telegram: TelegramBringUp | null
   /**
    * Whether this box offers voice messages: an audio encoder is on it **and** the operator left
    * `GUESTBOOK_VOICE_ENABLED` on. Decided once at boot, like the encoder it reports; the guest's
@@ -497,30 +493,16 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   // Spec 27. **The one outbound connection a messaging channel makes**, and only when the operator set a bot token:
   // the bot is asked who it is (`getMe`) once, here. A token Telegram refuses, or a Telegram that cannot be reached right
-  // now, turns the function off with a warning and the rest of the server starts (a restart tries again).
+  // now, is retried in the background, and a refused token turns the function off with an error line; the server never waits for it.
   // The token is in every URL, so nothing about the failure is logged but a code.
   const messagingChannels = new Map<ChannelKind, MessagingChannel>()
-  let telegramInbox: ChannelInbox | null = null
-  if (config.channels.telegram !== null) {
-    const api = new TelegramBotApi({
-      token: config.channels.telegram.botToken,
-      baseUrl: config.channels.telegram.apiBaseUrl,
-    })
-    const me = await api.getMe(AbortSignal.timeout(15_000))
-    if (me.ok) {
-      messagingChannels.set(
-        'telegram',
-        new TelegramMessagingChannel({ api, username: me.value.username, logger }),
-      )
-      telegramInbox = new TelegramInbox({ api, username: me.value.username })
-      logger.info('telegram channel ready', { bot: me.value.username })
-    } else {
-      logger.warn('telegram channel disabled: the bot could not be identified', {
-        ...describeFailure(me.error),
-        detail: 'check TELEGRAM_BOT_TOKEN and TELEGRAM_API_BASE_URL, then restart',
-      })
-    }
-  }
+  const telegramApi =
+    config.channels.telegram === null
+      ? null
+      : new TelegramBotApi({
+          token: config.channels.telegram.botToken,
+          baseUrl: config.channels.telegram.apiBaseUrl,
+        })
 
   const adapters: Adapters = {
     clock: systemClock,
@@ -804,9 +786,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   })
 
   // The poller and the worker exist only with a bot (spec 27): without one nothing here is composed or started.
-  let channelPoller: ChannelPoller | null = null
-  let channelWorker: ChannelWorker | null = null
-  if (telegramInbox !== null && config.channels.telegram !== null) {
+  let telegram: TelegramBringUp | null = null
+  if (telegramApi !== null && config.channels.telegram !== null) {
     const telegramCeiling = config.channels.telegram.maxFileBytes
     const channelUseCases = channelWorkerUseCases(adapters, usecases, {
       publicUrl: config.publicUrl,
@@ -816,13 +797,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       maxVideoBytes: Math.min(config.clips.maxBytes, telegramCeiling),
       maxClipMs: config.clips.maxDurationMs,
     })
-    channelPoller = createChannelPoller({
-      inbox: telegramInbox,
-      receive: channelUseCases.receiveChannelMessage,
-      cursors: adapters.channelCursors,
-      logger,
-    })
-    channelWorker = createChannelWorker({
+    const channelWorker = createChannelWorker({
       drainOne: channelUseCases.drainChannelMedia,
       recover: channelUseCases.recoverChannelJobs,
       sweep: channelUseCases.sweepChannelJobs,
@@ -830,6 +805,22 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       logger,
       clock: adapters.clock,
       intervalMs: CHANNEL_WORKER_INTERVAL_MS,
+    })
+    telegram = createTelegramBringUp({
+      api: telegramApi,
+      // The number before the colon of the token: not a secret, and all that tells one bot's cursor from another's.
+      botId: config.channels.telegram.botToken.split(':')[0] ?? '',
+      channels: messagingChannels,
+      createPoller: (inbox) =>
+        createChannelPoller({
+          inbox,
+          receive: channelUseCases.receiveChannelMessage,
+          cursors: adapters.channelCursors,
+          logger,
+        }),
+      startWorker: () => channelWorker.start(),
+      stopWorker: () => channelWorker.stop(),
+      logger,
     })
   }
 
@@ -1072,8 +1063,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     reservationReaper,
     schedule,
     clipWorker,
-    channelPoller,
-    channelWorker,
+    telegram,
     voiceAvailable: audioTranscoder.available(),
     albumBookWorker,
     albumExportWorker,
@@ -1089,8 +1079,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       schedule?.stop()
       clipWorker.stop()
       // The open long poll is aborted here, so the process is not held open by a request to Telegram.
-      channelPoller?.stop()
-      channelWorker?.stop()
+      telegram?.stop()
       albumBookWorker?.stop()
       albumExportWorker?.stop()
       // **Then the encoder itself.** `stop()` above abandons the drain, which leaves the

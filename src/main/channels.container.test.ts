@@ -94,31 +94,38 @@ describe('the Telegram channel in the composition root', () => {
 
     const booted = await boot({ TELEGRAM_API_BASE_URL: baseUrl })
 
-    expect(booted.channelPoller).toBeNull()
-    expect(booted.channelWorker).toBeNull()
+    expect(booted.telegram).toBeNull()
     expect(server.paths).toEqual([])
   })
 
-  it('turns the function off, and still boots, when Telegram refuses the token', async () => {
+  it('turns the function off, with the server up, when Telegram refuses the token', async () => {
     server = new FakeBotApiServer({ token: TOKEN })
     const baseUrl = await server.start()
-
     const booted = await boot({
       TELEGRAM_BOT_TOKEN: '999999999:WRONGWRONGWRONGWRONGWRONGWRONG',
       TELEGRAM_API_BASE_URL: baseUrl,
     })
 
-    expect(booted.channelPoller).toBeNull()
-    expect(booted.channelWorker).toBeNull()
+    booted.telegram?.start()
+    await until(() => booted.telegram?.state === 'refused', 'the refusal')
+
+    // Asked who it is, once; never polled, never worked on.
+    expect(server.calls.map((call) => call.method)).toEqual(['getMe'])
   })
 
-  it('turns the function off, and still boots, when Telegram cannot be reached', async () => {
+  it('does not wait for Telegram at boot, and keeps trying when it cannot be reached', async () => {
+    const startedAt = Date.now()
     const booted = await boot({
       TELEGRAM_BOT_TOKEN: TOKEN,
       TELEGRAM_API_BASE_URL: 'http://127.0.0.1:1',
     })
+    expect(Date.now() - startedAt).toBeLessThan(10_000)
 
-    expect(booted.channelPoller).toBeNull()
+    booted.telegram?.start()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    // Not refused: a network that blinked is no reason to stay off until the next restart.
+    expect(booted.telegram?.state).toBe('identifying')
   })
 
   it('connects a group with /soiree and turns a photograph posted there into one of the event', async () => {
@@ -127,7 +134,7 @@ describe('the Telegram channel in the composition root', () => {
     server.hold('big', await photoOf('big'))
     const booted = await boot({ TELEGRAM_BOT_TOKEN: TOKEN, TELEGRAM_API_BASE_URL: baseUrl })
     seedEvent(booted)
-    expect(booted.channelPoller).not.toBeNull()
+    expect(booted.telegram).not.toBeNull()
 
     server.push({ message: { message_id: 1, chat: GROUP, from: LEA, text: '/soiree H7K2-QM' } })
     server.push({
@@ -141,8 +148,7 @@ describe('the Telegram channel in the composition root', () => {
         ],
       },
     })
-    booted.channelWorker?.start()
-    booted.channelPoller?.start()
+    booted.telegram?.start()
 
     await until(() => count(booted, `SELECT COUNT(*) AS n FROM photos`) === 1, 'the photograph')
 
@@ -170,7 +176,7 @@ describe('the Telegram channel in the composition root', () => {
         (
           booted.db.prepare(`SELECT cursor FROM channel_cursors`).get() as
             { cursor: string } | undefined
-        )?.cursor === '3',
+        )?.cursor === '123456789:3',
       'the cursor',
     )
   })
@@ -190,8 +196,7 @@ describe('the Telegram channel in the composition root', () => {
         photo: [{ file_id: 'big', width: 32, height: 32 }],
       },
     })
-    booted.channelWorker?.start()
-    booted.channelPoller?.start()
+    booted.telegram?.start()
     await until(() => count(booted, `SELECT COUNT(*) AS n FROM photos`) === 1, 'the photograph')
 
     const tables = booted.db

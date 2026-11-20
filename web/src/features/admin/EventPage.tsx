@@ -404,7 +404,12 @@ export function EventPage() {
         {/* The Telegram group (spec 27), only while the host's switch is on: any moderator reads it, the owner alone
             unlinks. */}
         {event.settings.allowTelegram ? (
-          <ChannelsPanel slug={event.slug} joinCode={event.joinCode} canUnlink={isOwner} />
+          <ChannelsPanel
+            slug={event.slug}
+            joinCode={event.joinCode}
+            canUnlink={isOwner}
+            canBind={event.status === 'live'}
+          />
         ) : null}
         {/* Owner-only, and a moderator may read the list — `GET` allows it — but a panel whose
             every affordance is refused is worse than no panel (roadmap §2.1). */}

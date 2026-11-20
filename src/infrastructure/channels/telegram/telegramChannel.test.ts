@@ -240,7 +240,8 @@ describe('TelegramMessagingChannel', () => {
 })
 
 describe('TelegramInbox', () => {
-  const inbox = () => new TelegramInbox({ api, username: 'EventSlideBot', pollSeconds: 0 })
+  const inbox = () =>
+    new TelegramInbox({ api, username: 'EventSlideBot', botId: '123456789', pollSeconds: 0 })
 
   it('translates what is queued, and moves the cursor one past the last update', async () => {
     server.push({ message: { message_id: 1, chat: GROUP, from: ALICE, text: '/soiree ABCD' } })
@@ -260,13 +261,13 @@ describe('TelegramInbox', () => {
       'command',
       'media',
     ])
-    expect(batch.ok && batch.value.cursor).toBe('4')
+    expect(batch.ok && batch.value.cursor).toBe('123456789:4')
   })
 
   it('resumes from the cursor it is given, and keeps it when there is nothing', async () => {
     server.push({ message: { message_id: 1, chat: GROUP, from: ALICE, text: '/oublier' } })
 
-    const empty = await inbox().next('2', signal)
+    const empty = await inbox().next('123456789:2', signal)
 
     expect(empty).toEqual({ ok: true, value: { messages: [], cursor: null } })
   })
@@ -276,7 +277,7 @@ describe('TelegramInbox', () => {
 
     const batch = await inbox().next(null, signal)
 
-    expect(batch).toEqual({ ok: true, value: { messages: [], cursor: '2' } })
+    expect(batch).toEqual({ ok: true, value: { messages: [], cursor: '123456789:2' } })
   })
 
   it('names two instances on one token, in a code the poller can act on', async () => {
@@ -310,6 +311,14 @@ describe('TelegramInbox', () => {
     })
   })
 
+  it('treats the cursor of another bot as none, so a changed token does not drop new updates', async () => {
+    server.push({ message: { message_id: 1, chat: GROUP, from: ALICE, text: '/oublier' } })
+
+    const batch = await inbox().next('987654321:500', signal)
+
+    expect(batch.ok && batch.value.messages).toHaveLength(1)
+  })
+
   it('treats a garbled cursor as none', async () => {
     server.push({ message: { message_id: 1, chat: GROUP, from: ALICE, text: '/oublier' } })
 
@@ -320,7 +329,7 @@ describe('TelegramInbox', () => {
 
   it('reports a network fault as one to try again', async () => {
     const dead = new TelegramBotApi({ token: TOKEN, baseUrl: 'http://127.0.0.1:1', timeoutMs: 300 })
-    const unreachable = new TelegramInbox({ api: dead, username: 'x', pollSeconds: 0 })
+    const unreachable = new TelegramInbox({ api: dead, username: 'x', botId: '1', pollSeconds: 0 })
 
     expect(await unreachable.next(null, signal)).toEqual({
       ok: false,

@@ -50,7 +50,9 @@ export const makeListBindings =
     if (!allowed.ok) return allowed
 
     const event = await events.findById(eventId)
-    if (event === null) return err(DomainError.notFound('event.notFound'))
+    // An event the operator took down is not there for anyone who held it; a suspended client's members still read
+    // (this lists a configuration, not photographs).
+    if (event === null || event.isTakenDown()) return err(DomainError.notFound('event.notFound'))
 
     const ceilings = await ceilingsOf(clients, event)
     const telegram = channels.get('telegram')

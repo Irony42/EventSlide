@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EventSettingsPage } from './EventSettingsPage'
+import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
   anEventDto,
@@ -93,5 +94,47 @@ describe('EventSettingsPage: messaging', () => {
     })
 
     expect(await screen.findByText(fr.channels.on)).toBeInTheDocument()
+  })
+
+  it('keeps the section in place while the box is being asked, so a link to it still opens it', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto()),
+      channels: vi.fn(() => new Promise<ChannelsResponse>(() => {})),
+    })
+
+    renderPage(api)
+
+    expect(await screen.findByText(fr.channels.settingsSection)).toBeInTheDocument()
+    expect(screen.queryByLabelText(fr.channels.allowTelegram)).toBeNull()
+  })
+
+  it('says so, in the section, when the box could not be asked', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto()),
+      channels: vi.fn(async () => {
+        throw ApiError.network()
+      }),
+    })
+
+    renderPage(api)
+
+    expect(await screen.findByText(fr.errors.network)).toBeInTheDocument()
+  })
+
+  it('lets a host whose plan was withdrawn switch Telegram off, and no longer on', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ settings: eventSettings({ allowTelegram: true }) })),
+      channels: vi.fn(async () => channels({ allowed: false })),
+    })
+
+    renderPage(api)
+    const control = await screen.findByLabelText(fr.channels.allowTelegram)
+    expect(control).toBeEnabled()
+
+    await userEvent.click(control)
+
+    await waitFor(() =>
+      expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', { allowTelegram: false }),
+    )
   })
 })
