@@ -7,8 +7,42 @@ import {
   startBook,
   type AlbumBook,
   type BookOptions,
+  type BookResult,
 } from '../../../domain/book/albumBook'
-import { asEventId } from '../../../domain/shared/ids'
+import type { BookPlan } from '../../../domain/book/bookPlan'
+import { asEventId, asGuestbookEntryId, asGuestId, asPhotoId } from '../../../domain/shared/ids'
+
+/** A plan as the engine writes it: ids and numbers, every optional key present once. */
+const PLAN: BookPlan = {
+  chapters: [
+    {
+      index: 0,
+      startMs: 1_000,
+      endMs: 9_000,
+      photoCount: 2,
+      title: { weekday: 6, moment: 'evening', continued: false },
+      firstPage: 4,
+    },
+  ],
+  pages: [
+    { template: 'title', slots: [] },
+    { template: 'wide', slots: [{ photoId: asPhotoId('p1') }], chapter: 0 },
+    {
+      template: 'twoStack',
+      slots: [{ photoId: asPhotoId('p2') }, { photoId: asPhotoId('p3') }],
+    },
+    { template: 'quote', slots: [], messageIds: [asGuestbookEntryId('m1')] },
+    { template: 'end', slots: [] },
+  ],
+  selectedCount: 3,
+  counts: { photos: 9, photographers: 2, hearts: 5, messages: 1, voices: 0, videos: 1 },
+  includedMessages: 1,
+  extraMessages: 0,
+  hearts: { p1: 3 },
+  photographers: [{ guestId: asGuestId('g1'), photoCount: 3 }],
+  favouritesPage: null,
+  guestbookPage: 7,
+}
 
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
@@ -20,9 +54,13 @@ const OPTIONS: BookOptions = {
   title: 'Mariage de Léa & Tom',
   subtitle: '14 juin 2026',
   language: 'fr',
-  layout: 'four',
+  style: 'souvenir',
+  selection: { kind: 'best', target: 120 },
   showAuthors: true,
   showCaptions: false,
+  includeGuestbook: true,
+  printVersion: true,
+  timeZone: 'America/New_York',
 }
 
 const T = new Date('2026-11-01T10:00:00.000Z')
@@ -62,14 +100,27 @@ export const albumBookRepositoryContract = (
     }
 
     /** A request taken all the way to `done`, as the worker would. */
-    const makeDone = async (eventId = WEDDING, byteSize = 1_000): Promise<AlbumBook> => {
+    const makeDone = async (
+      eventId = WEDDING,
+      byteSize = 1_000,
+      print: Pick<BookResult, 'printByteSize' | 'printSkipped'> | null = null,
+    ): Promise<AlbumBook> => {
       await request(eventId)
       const running = await repo.claimNext(at(1))
       if (running === null || running.eventId !== eventId) throw new Error('arrange: claim failed')
       const done = must(
         finishBook(
           running,
-          { photoCount: 3, skippedCount: 1, pageCount: 6, byteSize, expiresAt: at(60 * 24 * 7) },
+          {
+            photoCount: 3,
+            skippedCount: 1,
+            pageCount: 6,
+            byteSize,
+            selectedCount: 3,
+            printByteSize: print?.printByteSize ?? null,
+            printSkipped: print?.printSkipped ?? null,
+            expiresAt: at(60 * 24 * 7),
+          },
           at(2),
         ),
       )
@@ -204,6 +255,9 @@ export const albumBookRepositoryContract = (
       skippedCount: 1,
       pageCount: 6,
       byteSize: 900,
+      selectedCount: 3,
+      printByteSize: null,
+      printSkipped: null,
       expiresAt: at(60 * 24 * 7),
     }
 
@@ -342,6 +396,118 @@ export const albumBookRepositoryContract = (
 
     it('reports zero bytes when nothing is finished', async () => {
       expect(await repo.doneBytes()).toBe(0)
+    })
+
+    // ------------------------------------------------------- the plan and the printer --
+
+    it('round-trips the selected count and the printer measures of a finished book', async () => {
+      const done = await makeDone(WEDDING, 1_000, { printByteSize: 5_000, printSkipped: null })
+      expect(await repo.find(WEDDING)).toEqual(done)
+      expect(done).toMatchObject({ selectedCount: 3, printByteSize: 5_000, printSkipped: null })
+
+      const skipped = await makeDone(GALA, 1_000, {
+        printByteSize: null,
+        printSkipped: 'tooManyPages',
+      })
+      expect(await repo.find(GALA)).toEqual(skipped)
+    })
+
+    it('round-trips every stale reason, the guest book one included', async () => {
+      await request()
+      const stale = await repo.invalidate(WEDDING, 'messageRemoved', at(3))
+      expect(stale?.staleReason).toBe('messageRemoved')
+      expect(await repo.find(WEDDING)).toEqual(stale)
+    })
+
+    it('records the plan of a running book and reads it back whole', async () => {
+      const running = await makeRunning()
+
+      expect(await repo.recordPlan(WEDDING, PLAN)).toBe(true)
+
+      expect(await repo.find(WEDDING)).toEqual({ ...running, plan: PLAN })
+    })
+
+    it('refuses a plan for a book that is queued, finished or missing, and writes nothing', async () => {
+      await makeDone(GALA)
+      expect(await repo.recordPlan(GALA, PLAN)).toBe(false)
+      expect((await repo.find(GALA))?.plan).toBeNull()
+
+      await request()
+      expect(await repo.recordPlan(WEDDING, PLAN)).toBe(false)
+      expect((await repo.find(WEDDING))?.plan).toBeNull()
+
+      expect(await repo.recordPlan(asEventId('evt-nobody'), PLAN)).toBe(false)
+    })
+
+    it('keeps the plan of a book that finishes, and voids it with the fact that voids the book', async () => {
+      await makeRunning()
+      await repo.recordPlan(WEDDING, PLAN)
+      await repo.finish(WEDDING, { kind: 'finished', result: RESULT }, at(2))
+      expect((await repo.find(WEDDING))?.plan).toEqual(PLAN)
+
+      const stale = await repo.invalidate(WEDDING, 'messageRemoved', at(3))
+
+      expect(stale).toMatchObject({ status: 'stale', plan: null })
+      expect((await repo.find(WEDDING))?.plan).toBeNull()
+    })
+
+    it('voids the plan of a book that is still rendering when a fact arrives', async () => {
+      await makeRunning()
+      await repo.recordPlan(WEDDING, PLAN)
+
+      await repo.invalidate(WEDDING, 'photoRemoved', at(3))
+
+      expect(await repo.find(WEDDING)).toMatchObject({ status: 'running', plan: null })
+    })
+
+    it('refuses a plan once a fact has voided the running book, and writes nothing', async () => {
+      await makeRunning()
+      await repo.invalidate(WEDDING, 'messageRemoved', at(3))
+
+      expect(await repo.recordPlan(WEDDING, PLAN)).toBe(false)
+      expect((await repo.find(WEDDING))?.plan).toBeNull()
+    })
+
+    it('drops the plan of a render that fails', async () => {
+      await makeRunning()
+      await repo.recordPlan(WEDDING, PLAN)
+
+      await repo.finish(WEDDING, { kind: 'failed', code: 'unexpected' }, at(2))
+
+      expect(await repo.find(WEDDING)).toMatchObject({ status: 'failed', plan: null })
+    })
+
+    it('drops the plan of a render a crash interrupted: it goes back to the queue with none', async () => {
+      await makeRunning()
+      await repo.recordPlan(WEDDING, PLAN)
+
+      expect(await repo.recoverRunning()).toBe(1)
+
+      expect(await repo.find(WEDDING)).toMatchObject({ status: 'queued', plan: null })
+    })
+
+    it('starts every new request without a plan', async () => {
+      await makeRunning()
+      await repo.recordPlan(WEDDING, PLAN)
+      await repo.finish(WEDDING, { kind: 'finished', result: RESULT }, at(2))
+
+      await repo.saveRequest(requestBook(WEDDING, OPTIONS, at(5)))
+
+      expect((await repo.find(WEDDING))?.plan).toBeNull()
+    })
+
+    it('counts the printer files in the bytes a box holds', async () => {
+      await makeDone(WEDDING, 1_000, { printByteSize: 4_000, printSkipped: null })
+      await makeDone(GALA, 2_500)
+
+      expect(await repo.doneBytes()).toBe(7_500)
+    })
+
+    it('lists the finished books that have a printer version', async () => {
+      await makeDone(WEDDING, 1_000, { printByteSize: 4_000, printSkipped: null })
+      await makeDone(GALA, 2_500, { printByteSize: null, printSkipped: 'tooLarge' })
+
+      expect(await repo.listDoneWithPrintEventIds()).toEqual([WEDDING])
     })
   })
 }

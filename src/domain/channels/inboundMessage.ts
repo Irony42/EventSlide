@@ -78,12 +78,19 @@ export interface BotRemoved {
   readonly conversationRef: string
 }
 
+/** The bot became an administrator of the conversation: it may now see what the group posts. */
+export interface BotPromoted {
+  readonly type: 'botPromoted'
+  readonly channel: ChannelKind
+  readonly conversationRef: string
+}
+
 export interface Ignored {
   readonly type: 'ignored'
 }
 
 export type InboundMessage =
-  ChannelCommand | ChannelMedia | ConversationMoved | BotRemoved | Ignored
+  ChannelCommand | ChannelMedia | ConversationMoved | BotRemoved | BotPromoted | Ignored
 
 /**
  * Read a command out of a message's text, or `null` when the text is not one of ours.
@@ -118,7 +125,19 @@ export const parseCommand = (
 
 /** A Map, not an object: `/constructor` must not find `Object.prototype.constructor`. */
 const COMMAND_NAMES: ReadonlyMap<string, ChannelCommandName> = new Map([
+  // Every alias works in every group, whatever the event's language: a group mixes languages. The names are the
+  // ones the bot's profile lists per language, folded the way a typed command is (no accent, lower case).
   ['soiree', 'bind'],
+  ['event', 'bind'],
+  ['feier', 'bind'],
+  ['evento', 'bind'],
   ['oublier', 'forget'],
+  ['forget', 'forget'],
+  ['vergessen', 'forget'],
+  ['olvidar', 'forget'],
+  ['dimentica', 'forget'],
   ['confidentialite', 'privacy'],
+  ['privacy', 'privacy'],
+  ['datenschutz', 'privacy'],
+  ['privacidad', 'privacy'],
 ])

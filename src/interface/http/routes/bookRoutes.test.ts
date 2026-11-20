@@ -1,3 +1,4 @@
+import { BOOK_DOWNLOADS_PER_ACCOUNT_PER_MINUTE } from '../middleware/rateLimit'
 import request from '../testing/request'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { bookRoutes } from './bookRoutes'
@@ -8,6 +9,7 @@ import type { PresenterContext } from '../presenters/presenters'
 import type { HttpConfig } from '../types'
 import type { HttpUseCases } from '../useCases'
 import { AT, aGuest, anEvent, aPhoto } from '../../../application/testing/builders'
+import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
 import { FakeAlbumBookRepository } from '../../../application/testing/fakeAlbumBookRepository'
 import { FakeBookFileStore } from '../../../application/testing/fakeBookFileStore'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
@@ -37,6 +39,7 @@ const PRESENTER: PresenterContext = {
 }
 
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x0a, 0x25])
+const COVER = new Uint8Array([...PDF, 0x0a, 0x25])
 
 const BODY = {
   title: 'Mariage de Camille',
@@ -49,14 +52,14 @@ const BODY = {
 interface World extends Harness {
   readonly books: FakeAlbumBookRepository
   readonly bookFiles: FakeBookFileStore
-  readonly state: { enabled: boolean }
+  readonly state: { enabled: boolean; printEnabled: boolean; failCounts: boolean }
 }
 
 const world = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World => {
   const books = new FakeAlbumBookRepository()
   const bookFiles = new FakeBookFileStore()
   const photos = new FakePhotoRepository()
-  const state = { enabled: true }
+  const state = { enabled: true, printEnabled: true, failCounts: false }
 
   const harness = buildHarness({
     config: { rateLimits: { ...testHttpConfig().rateLimits, ...rateLimits } },
@@ -77,9 +80,31 @@ const world = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World => {
             books,
             bus: deps.bus,
             clock: deps.clock,
-            policy: { enabled: state.enabled, maxPerEventPerDay: 3 },
+            policy: {
+              get enabled() {
+                return state.enabled
+              },
+              maxPerEventPerDay: 3,
+              get printEnabled() {
+                return state.printEnabled
+              },
+            },
           })(input),
-        getAlbumBook: makeGetAlbumBook({ events: deps.events, books }),
+        // Built per call, so a test can switch the printer version off or make the counts unreadable
+        // once the server is up.
+        getAlbumBook: async (input) => {
+          if (state.failCounts) throw new Error('the counts are unreadable')
+          return makeGetAlbumBook({
+            events: deps.events,
+            books,
+            photos,
+            guestbook: new FakeGuestbookRepository(),
+            bookFiles,
+            maxPhotos: 300,
+            maxMessages: 60,
+            printEnabled: state.printEnabled,
+          })(input)
+        },
         downloadAlbumBook: makeDownloadAlbumBook({
           events: deps.events,
           books,
@@ -122,7 +147,12 @@ const signedIn = async (subject: World, who: 'owner' | 'moderator' | 'gala') => 
 }
 
 /** A finished book for an event, with a file of ten bytes. */
-const seedDoneBook = async (subject: World, eventId: string, slug: string): Promise<void> => {
+const seedDoneBook = async (
+  subject: World,
+  eventId: string,
+  slug: string,
+  withPrint = true,
+): Promise<void> => {
   const agent = await signedIn(subject, eventId === WEDDING ? 'moderator' : 'gala')
   await agent.post(`/api/events/${slug}/book`).send(BODY).expect(202)
   const id = asEventId(eventId)
@@ -136,9 +166,15 @@ const seedDoneBook = async (subject: World, eventId: string, slug: string): Prom
     skippedCount: 0,
     pageCount: 3,
     byteSize: PDF.length,
+    selectedCount: 1,
+    printByteSize: withPrint ? PDF.length * 2 : null,
     expiresAt: new Date(subject.clock.now().getTime() + 7 * 86_400_000),
   })
   subject.bookFiles.seed(id, PDF)
+  if (withPrint) {
+    subject.bookFiles.seed(id, PDF, 'printInterior')
+    subject.bookFiles.seed(id, COVER, 'printCover')
+  }
 }
 
 let subject: World
@@ -152,6 +188,8 @@ describe('who may call the book routes', () => {
     ['post', '/api/events/mariage/book'],
     ['get', '/api/events/mariage/book'],
     ['get', '/api/events/mariage/book.pdf'],
+    ['get', '/api/events/mariage/book-print.pdf'],
+    ['get', '/api/events/mariage/book-cover.pdf'],
     ['delete', '/api/events/mariage/book'],
   ] as const
 
@@ -201,9 +239,15 @@ describe('POST /api/events/:eventSlug/book', () => {
         title: 'Mariage de Camille',
         subtitle: '14 juin 2026',
         language: 'fr',
-        layout: 'four',
+        // The 3.14 body is accepted and converted (a Classique book, every photograph): the layout it
+        // asked for is gone, and the worker draws one photograph a page until the new renderer.
+        style: 'classique',
+        selection: { kind: 'all' },
         showAuthors: true,
         showCaptions: false,
+        includeGuestbook: false,
+        printVersion: false,
+        timeZone: 'Europe/Paris',
       },
       requestedAt: AT.toISOString(),
       doneAt: null,
@@ -211,9 +255,13 @@ describe('POST /api/events/:eventSlug/book', () => {
       skippedCount: null,
       pageCount: null,
       byteSize: null,
+      selectedCount: null,
+      printSkipped: null,
       expiresAt: null,
       failureCode: null,
       staleReason: null,
+      albumCounts: { photos: 1, messages: 0 },
+      offer: { maxPhotos: 300, maxMessages: 60, printVersion: true },
     })
   })
 
@@ -327,7 +375,11 @@ describe('GET /api/events/:eventSlug/book', () => {
     const none = await agent.get('/api/events/mariage/book')
     expect(none.status).toBe(200)
     expect(none.headers['cache-control']).toBe('no-store')
-    expect(none.body).toEqual({ status: 'none' })
+    expect(none.body).toEqual({
+      status: 'none',
+      albumCounts: { photos: 1, messages: 0 },
+      offer: { maxPhotos: 300, maxMessages: 60, printVersion: true },
+    })
 
     await agent.post('/api/events/mariage/book').send(BODY).expect(202)
     expect((await agent.get('/api/events/mariage/book')).body.status).toBe('queued')
@@ -339,15 +391,25 @@ describe('GET /api/events/:eventSlug/book', () => {
 
     const response = await agent.get('/api/events/mariage/book')
 
-    expect(response.body).toEqual({ status: 'none' })
+    expect(response.body).toEqual({
+      status: 'none',
+      albumCounts: { photos: 1, messages: 0 },
+      offer: { maxPhotos: 300, maxMessages: 60, printVersion: true },
+    })
   })
 })
 
-describe('GET /api/events/:eventSlug/book.pdf', () => {
+describe.each([
+  ['book.pdf', 'mariage-livre.pdf', PDF],
+  ['book-print.pdf', 'mariage-livre-imprimeur-interieur.pdf', PDF],
+  ['book-cover.pdf', 'mariage-livre-imprimeur-couverture.pdf', COVER],
+] as const)('GET /api/events/:eventSlug/%s', (file, filename, bytes) => {
+  const url = `/api/events/mariage/${file}`
+
   it('answers 404 book.notFound when there is nothing to give, never a download', async () => {
     const agent = await signedIn(subject, 'moderator')
 
-    const response = await agent.get('/api/events/mariage/book.pdf')
+    const response = await agent.get(url)
 
     expect(response.status).toBe(404)
     expect(response.body.error.code).toBe('book.notFound')
@@ -358,35 +420,32 @@ describe('GET /api/events/:eventSlug/book.pdf', () => {
     await seedDoneBook(subject, WEDDING, 'mariage')
     const agent = await signedIn(subject, 'moderator')
 
-    const response = await agent.get('/api/events/mariage/book.pdf').buffer(true)
+    const response = await agent.get(url).buffer(true)
 
     expect(response.status).toBe(200)
     expect(response.headers['content-type']).toBe('application/pdf')
-    expect(response.headers['content-disposition']).toBe('attachment; filename="mariage-livre.pdf"')
+    expect(response.headers['content-disposition']).toBe(`attachment; filename="${filename}"`)
     expect(response.headers['content-disposition']).not.toContain('Camille')
     expect(response.headers['cache-control']).toBe('no-store')
     expect(response.headers['x-content-type-options']).toBe('nosniff')
-    expect(response.headers['content-length']).toBe(String(PDF.length))
+    expect(response.headers['content-length']).toBe(String(bytes.length))
     expect(response.headers['accept-ranges']).toBe('bytes')
-    expect(Buffer.from(response.body).equals(Buffer.from(PDF))).toBe(true)
+    expect(Buffer.from(response.body).equals(Buffer.from(bytes))).toBe(true)
   })
 
   it('answers a Range request with 206, and an impossible one with 416', async () => {
     await seedDoneBook(subject, WEDDING, 'mariage')
     const agent = await signedIn(subject, 'moderator')
 
-    const part = await agent
-      .get('/api/events/mariage/book.pdf')
-      .set('Range', 'bytes=2-4')
-      .buffer(true)
+    const part = await agent.get(url).set('Range', 'bytes=2-4').buffer(true)
     expect(part.status).toBe(206)
-    expect(part.headers['content-range']).toBe(`bytes 2-4/${PDF.length}`)
+    expect(part.headers['content-range']).toBe(`bytes 2-4/${bytes.length}`)
     expect(part.headers['content-length']).toBe('3')
-    expect(Buffer.from(part.body).equals(Buffer.from(PDF.subarray(2, 5)))).toBe(true)
+    expect(Buffer.from(part.body).equals(Buffer.from(bytes.subarray(2, 5)))).toBe(true)
 
-    const past = await agent.get('/api/events/mariage/book.pdf').set('Range', 'bytes=500-600')
+    const past = await agent.get(url).set('Range', 'bytes=500-600')
     expect(past.status).toBe(416)
-    expect(past.headers['content-range']).toBe(`bytes */${PDF.length}`)
+    expect(past.headers['content-range']).toBe(`bytes */${bytes.length}`)
     // The refusal is a JSON error, not a PDF: no download type, no attachment name (HTTP-04).
     expect(past.headers['content-type']).toContain('application/json')
     expect(past.headers['content-disposition']).toBeUndefined()
@@ -397,8 +456,8 @@ describe('GET /api/events/:eventSlug/book.pdf', () => {
     await seedDoneBook(subject, WEDDING, 'mariage')
     const agent = await signedIn(subject, 'gala')
 
-    const own = await agent.get('/api/events/gala/book.pdf')
-    const other = await agent.get('/api/events/mariage/book.pdf')
+    const own = await agent.get(url.replace('mariage', 'gala'))
+    const other = await agent.get(url)
 
     expect(own.status).toBe(404)
     expect(other.status).toBe(404)
@@ -412,10 +471,162 @@ describe('GET /api/events/:eventSlug/book.pdf', () => {
     )
     const agent = await signedIn(subject, 'moderator')
 
-    const response = await agent.get('/api/events/mariage/book.pdf')
+    const response = await agent.get(url)
 
     expect(response.status).toBe(403)
     expect(await subject.bookFiles.stat(asEventId(WEDDING))).not.toBeNull()
+  })
+
+  it('answers 404 to a moderator once the box or the client switched books off, or the book is stale', async () => {
+    await seedDoneBook(subject, WEDDING, 'mariage')
+    await subject.books.invalidate(asEventId(WEDDING), 'photoRemoved', AT)
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get(url)
+
+    expect(response.status).toBe(404)
+  })
+
+  it('shares the download limiter of the other files: the same account, the same minute', async () => {
+    await seedDoneBook(subject, WEDDING, 'mariage')
+    const agent = await signedIn(subject, 'moderator')
+
+    const responses = []
+    for (let i = 0; i < BOOK_DOWNLOADS_PER_ACCOUNT_PER_MINUTE + 2; i += 1) {
+      responses.push((await agent.get(url).buffer(true)).status)
+    }
+
+    expect(responses).toContain(429)
+  })
+})
+
+describe('the book without a printer version', () => {
+  it.each(['book-print.pdf', 'book-cover.pdf'])('answers 404 book.notFound to %s', async (file) => {
+    await seedDoneBook(subject, WEDDING, 'mariage', false)
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get(`/api/events/mariage/${file}`)
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('book.notFound')
+  })
+
+  it('still serves the screen book', async () => {
+    await seedDoneBook(subject, WEDDING, 'mariage', false)
+    const agent = await signedIn(subject, 'moderator')
+
+    expect((await agent.get('/api/events/mariage/book.pdf').buffer(true)).status).toBe(200)
+  })
+})
+
+describe('GET /api/events/:eventSlug/book, what the box offers', () => {
+  it('says the printer version is not offered when the box switched it off', async () => {
+    subject.state.printEnabled = false
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get('/api/events/mariage/book')
+
+    expect(response.body.offer).toEqual({ maxPhotos: 300, maxMessages: 60, printVersion: false })
+  })
+})
+
+describe('POST /api/events/:eventSlug/book, when the counts cannot be read afterwards', () => {
+  it('still answers 202 for the book it queued, never an error for a book that exists', async () => {
+    subject.state.failCounts = true
+    const agent = await signedIn(subject, 'owner')
+
+    const response = await agent.post('/api/events/mariage/book').send(BODY)
+
+    expect(response.status).toBe(202)
+    expect(response.body).toMatchObject({
+      status: 'queued',
+      options: { title: 'Mariage de Camille' },
+    })
+    expect(await subject.books.find(asEventId(WEDDING))).toMatchObject({ status: 'queued' })
+  })
+})
+
+describe('the request body, 3.14 and 3.15', () => {
+  const V2 = {
+    title: 'Mariage de Camille',
+    language: 'en',
+    style: 'souvenir',
+    selection: { kind: 'best', target: 120 },
+    showAuthors: false,
+    showCaptions: true,
+    includeGuestbook: true,
+    printVersion: true,
+    timeZone: 'America/New_York',
+  } as const
+
+  it('accepts the v2 body and says what it understood, the host’s zone included', async () => {
+    const agent = await signedIn(subject, 'owner')
+
+    const response = await agent.post('/api/events/mariage/book').send(V2)
+
+    expect(response.status).toBe(202)
+    expect(response.body.options).toMatchObject({
+      style: 'souvenir',
+      selection: { kind: 'best', target: 120 },
+      includeGuestbook: true,
+      printVersion: true,
+      timeZone: 'America/New_York',
+      language: 'en',
+    })
+  })
+
+  it('answers the printer version off when the box does not offer it', async () => {
+    subject.state.printEnabled = false
+    const agent = await signedIn(subject, 'owner')
+
+    const response = await agent.post('/api/events/mariage/book').send(V2)
+
+    expect(response.status).toBe(202)
+    expect(response.body.options.printVersion).toBe(false)
+  })
+
+  it('falls back to Paris for a zone it cannot read, and accepts a body with none', async () => {
+    const agent = await signedIn(subject, 'owner')
+    const first = await agent
+      .post('/api/events/mariage/book')
+      .send({ ...V2, timeZone: 'Not/AZone' })
+    expect(first.body.options.timeZone).toBe('Europe/Paris')
+    await subject.books.delete(asEventId(WEDDING))
+
+    const { timeZone: _zone, ...without } = V2
+    const second = await agent.post('/api/events/mariage/book').send(without)
+
+    expect(second.status).toBe(202)
+    expect(second.body.options.timeZone).toBe('Europe/Paris')
+  })
+
+  it.each([
+    ['a layout mixed with v2 fields', { ...V2, layout: 'one' }],
+    ['a v1 body with a style', { ...BODY, style: 'souvenir' }],
+    [
+      'a selection target that is not one of the three',
+      { ...V2, selection: { kind: 'best', target: 61 } },
+    ],
+    ['a selection with a stray key', { ...V2, selection: { kind: 'all', target: 60 } }],
+    ['an unknown style', { ...V2, style: 'nuit' }],
+    ['a zone of 65 characters', { ...V2, timeZone: 'x'.repeat(65) }],
+    ['an empty zone', { ...V2, timeZone: '' }],
+    ['no style and no layout', { title: 'x', showAuthors: true, showCaptions: true }],
+    [
+      'a v2 body missing the guest book switch',
+      (() => {
+        const { includeGuestbook: _g, ...rest } = V2
+        return rest
+      })(),
+    ],
+  ])('refuses %s with 400 request.invalid, and writes no book', async (_name, body) => {
+    const agent = await signedIn(subject, 'owner')
+
+    const response = await agent.post('/api/events/mariage/book').send(body)
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+    expect(await subject.books.find(asEventId(WEDDING))).toBeNull()
   })
 })
 
@@ -439,5 +650,30 @@ describe('DELETE /api/events/:eventSlug/book', () => {
 
     expect(await subject.books.find(asEventId(GALA))).not.toBeNull()
     expect(await subject.bookFiles.stat(asEventId(GALA))).not.toBeNull()
+  })
+})
+
+describe('GET /api/events/:eventSlug/book, the files of a finished book', () => {
+  it('lists the screen book and the two printer files with their own sizes', async () => {
+    await seedDoneBook(subject, WEDDING, 'mariage')
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get('/api/events/mariage/book')
+
+    expect(response.body.status).toBe('done')
+    expect(response.body.files).toEqual({
+      screen: { byteSize: PDF.length },
+      printInterior: { byteSize: PDF.length },
+      printCover: { byteSize: COVER.length },
+    })
+  })
+
+  it('lists the screen book alone when there is no printer version', async () => {
+    await seedDoneBook(subject, WEDDING, 'mariage', false)
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get('/api/events/mariage/book')
+
+    expect(response.body.files).toEqual({ screen: { byteSize: PDF.length } })
   })
 })

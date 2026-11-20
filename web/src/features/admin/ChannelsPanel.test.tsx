@@ -19,6 +19,7 @@ const view = (overrides: Partial<ChannelsResponse> = {}): ChannelsResponse => ({
   available: true,
   botUsername: 'EventSlideBot',
   allowed: true,
+  readsAllMessages: true,
   bindings: [GROUP],
   ...overrides,
 })
@@ -144,5 +145,46 @@ describe('ChannelsPanel', () => {
     await userEvent.click(await screen.findByRole('button', { name: fr.channels.copyCommand }))
 
     expect(await screen.findByText(fr.channels.copyFailed)).toBeInTheDocument()
+  })
+
+  it('warns, in a notice, when the bot reads only the groups it administers', async () => {
+    renderPanel(fakeApi({ channels: vi.fn(async () => view({ readsAllMessages: false })) }))
+
+    const warning = await screen.findByText(fr.channels.visibility)
+
+    expect(warning.closest('[role="status"]')).not.toBeNull()
+  })
+
+  it('keeps the visibility hint as plain text when the bot reads every message', async () => {
+    renderPanel(fakeApi({ channels: vi.fn(async () => view({ readsAllMessages: true })) }))
+
+    const hint = await screen.findByText(fr.channels.visibility)
+
+    expect(hint.closest('[role="status"]')).toBeNull()
+  })
+
+  it('keeps it as plain text too when the box could not say', async () => {
+    renderPanel(fakeApi({ channels: vi.fn(async () => view({ readsAllMessages: null })) }))
+
+    expect((await screen.findByText(fr.channels.visibility)).closest('[role="status"]')).toBeNull()
+  })
+
+  it.each([
+    ['fr', '/soiree H7K2QM'],
+    ['en', '/event H7K2QM'],
+    ['de', '/feier H7K2QM'],
+    ['es', '/evento H7K2QM'],
+    ['it', '/evento H7K2QM'],
+  ] as const)('shows, in %s, the command in that language', async (locale, command) => {
+    renderWithProviders(
+      <ChannelsPanel slug="camille-et-sacha" joinCode="H7K2QM" canUnlink canBind />,
+      {
+        api: fakeApi({ channels: vi.fn(async () => view()) }),
+        route: '/admin/events/camille-et-sacha',
+        locale,
+      },
+    )
+
+    expect(await screen.findByText(command)).toBeInTheDocument()
   })
 })

@@ -325,7 +325,7 @@ export const guestbookRepositoryContract = (
     })
 
     describe("the operator's take-down", () => {
-      it('locates a message by its id alone, across events, without its text, and sees a taken-down one', async () => {
+      it('locates a message by its id alone, across events, without its text, with its status, and sees a taken-down one', async () => {
         await repo.admit(entry({ id: 'e1', createdAt: at(0) }))
         await repo.admit(
           entry({ id: 'g1', eventId: 'evt-gala', guestId: 'guest-sam', createdAt: at(1) }),
@@ -335,11 +335,13 @@ export const guestbookRepositoryContract = (
           eventId: WEDDING,
           takenDownAt: null,
           voice: false,
+          status: 'pending',
         })
         expect(await repo.locate(entryId('g1'))).toEqual({
           eventId: GALA,
           takenDownAt: null,
           voice: false,
+          status: 'pending',
         })
         expect(await repo.locate(entryId('nope'))).toBeNull()
 
@@ -348,7 +350,14 @@ export const guestbookRepositoryContract = (
           eventId: WEDDING,
           takenDownAt: at(5),
           voice: false,
+          status: 'pending',
         })
+      })
+
+      it('says a published message is published when it is located', async () => {
+        await repo.admit(entry({ id: 'e1', moderation: 'auto', createdAt: at(0) }))
+
+        expect(await repo.locate(entryId('e1'))).toMatchObject({ status: 'published' })
       })
 
       it('takes a message out of every read, and puts it back', async () => {
@@ -370,6 +379,68 @@ export const guestbookRepositoryContract = (
         await repo.setTakenDown(GALA, entryId('e1'), at(1))
 
         expect((await repo.locate(entryId('e1')))?.takenDownAt).toBeNull()
+      })
+    })
+
+    // --------------------------------------------------- what the photo book may print --
+
+    describe('listWrittenForBook', () => {
+      const published = (id: string, seconds: number, over = {}) =>
+        entry({ id, text: id, createdAt: at(seconds), moderation: 'auto', ...over })
+
+      it('lists published messages oldest first, up to the instant the book froze at, that instant included', async () => {
+        await repo.admit(published('c', 3))
+        await repo.admit(published('a', 1))
+        await repo.admit(published('b', 2))
+        await repo.admit(published('late', 4))
+
+        expect((await repo.listWrittenForBook(WEDDING, at(3), 10)).map((row) => row.id)).toEqual([
+          'a',
+          'b',
+          'c',
+        ])
+        expect((await repo.listWrittenForBook(WEDDING, at(2), 10)).map((row) => row.id)).toEqual([
+          'a',
+          'b',
+        ])
+      })
+
+      it('honours the limit, keeping the first in order', async () => {
+        for (const [id, s] of [
+          ['a', 1],
+          ['b', 2],
+          ['c', 3],
+        ] as const) {
+          await repo.admit(published(id, s))
+        }
+
+        expect((await repo.listWrittenForBook(WEDDING, at(9), 2)).map((row) => row.id)).toEqual([
+          'a',
+          'b',
+        ])
+      })
+
+      it('leaves out what is pending, hidden, rejected or taken down', async () => {
+        await repo.admit(published('ok', 1))
+        await repo.admit(entry({ id: 'pending', text: 'pending', createdAt: at(2) }))
+        await repo.admit(published('down', 3, { guestId: 'guest-sam' }))
+        subject.takeDown('evt-wedding', 'down', at(9))
+
+        expect((await repo.listWrittenForBook(WEDDING, at(9), 10)).map((row) => row.id)).toEqual([
+          'ok',
+        ])
+      })
+
+      it('never reads another event', async () => {
+        await repo.admit(published('mine', 1))
+        await repo.admit(published('theirs', 2, { eventId: 'evt-gala' }))
+
+        expect((await repo.listWrittenForBook(GALA, at(9), 10)).map((row) => row.id)).toEqual([
+          'theirs',
+        ])
+        expect((await repo.listWrittenForBook(WEDDING, at(9), 10)).map((row) => row.id)).toEqual([
+          'mine',
+        ])
       })
     })
   })

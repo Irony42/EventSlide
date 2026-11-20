@@ -40,9 +40,13 @@ const OPTIONS: BookOptions = {
   title: 'Mariage',
   subtitle: '',
   language: 'fr',
-  layout: 'one',
+  style: 'classique',
+  selection: { kind: 'all' },
   showAuthors: true,
   showCaptions: true,
+  includeGuestbook: false,
+  printVersion: false,
+  timeZone: 'Europe/Paris',
 }
 
 describe('the photo book and the ways out of the evening', () => {

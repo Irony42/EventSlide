@@ -148,6 +148,7 @@ export const clientsUseCases = (
   getSitePhotoState: makeGetSitePhotoState({ photos: adapters.photos }),
   getSiteGuestbookState: makeGetSiteGuestbookState({ guestbook: adapters.guestbook }),
   setGuestbookTakedown: makeSetGuestbookTakedown({
+    invalidateBook,
     invalidateExport,
     guestbook: adapters.guestbook,
     audit: adapters.audit,

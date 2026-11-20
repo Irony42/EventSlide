@@ -183,3 +183,76 @@ describe('replyReasonOfCode', () => {
     expect(replyReasonOfCode('event.notFound')).toBeNull()
   })
 })
+
+describe('a bot that cannot see the photographs of its group', () => {
+  const bound = (mediaBlind: boolean | undefined) =>
+    ({
+      reason: 'bound',
+      eventName: 'Mariage',
+      moderated: false,
+      noticeUrl: NOTICE,
+      ...(mediaBlind === undefined ? {} : { mediaBlind }),
+    }) as const
+
+  it.each(EVENT_LANGUAGES)('adds a paragraph about it to the bound reply in %s', (language) => {
+    const plain = renderReply(bound(false), language)
+    const warned = renderReply(bound(true), language)
+
+    expect(warned.startsWith(plain)).toBe(true)
+    expect(warned.slice(plain.length)).toMatch(/^\n\n\S/u)
+    expect(warned.length).toBeGreaterThan(plain.length + 60)
+  })
+
+  it('says nothing more when it can see them, or when it does not know', () => {
+    expect(renderReply(bound(undefined), 'fr')).toBe(renderReply(bound(false), 'fr'))
+  })
+
+  it('asks to be named administrator, in French with its typography', () => {
+    const text = renderReply(bound(true), 'fr')
+
+    expect(text).toContain(
+      `Attention${NBSP}: je ne vois pas encore les photos de ce groupe. Nommez-moi administrateur du groupe (aucun droit particulier n’est nécessaire), puis postez vos photos.`,
+    )
+  })
+
+  it.each(EVENT_LANGUAGES)('thanks the group once it is an administrator, in %s', (language) => {
+    expect(renderReply({ reason: 'nowSeesMedia' }, language).length).toBeGreaterThan(10)
+    expect(isThrottled('nowSeesMedia')).toBe(false)
+  })
+
+  it('thanks in French', () => {
+    expect(renderReply({ reason: 'nowSeesMedia' }, 'fr')).toBe(
+      'Merci, je vois maintenant les photos de ce groupe.',
+    )
+  })
+})
+
+describe('the bot names its commands in the language of the reply', () => {
+  const NAMES = {
+    fr: { bind: '/soiree', forget: '/oublier' },
+    en: { bind: '/event', forget: '/forget' },
+    de: { bind: '/feier', forget: '/vergessen' },
+    es: { bind: '/evento', forget: '/olvidar' },
+    it: { bind: '/evento', forget: '/dimentica' },
+  } as const
+
+  it.each(EVENT_LANGUAGES)('says %s commands, and no other language’s', (language) => {
+    const others = EVENT_LANGUAGES.filter((other) => other !== language).flatMap((other) =>
+      Object.values(NAMES[other]).filter((name) => !Object.values(NAMES[language]).includes(name)),
+    )
+    const texts = [
+      renderReply({ reason: 'notBound' }, language),
+      renderReply({ reason: 'noCode' }, language),
+      renderReply(
+        { reason: 'bound', eventName: 'X', moderated: false, noticeUrl: NOTICE },
+        language,
+      ),
+    ]
+
+    expect(texts[0]).toContain(NAMES[language].bind)
+    expect(texts[1]).toContain(`${NAMES[language].bind} ABCD-1234`)
+    expect(texts[2]).toContain(NAMES[language].forget)
+    for (const text of texts) for (const name of others) expect(text).not.toContain(`${name} `)
+    for (const text of texts) for (const name of others) expect(text.endsWith(name)).toBe(false)
+  })
+})

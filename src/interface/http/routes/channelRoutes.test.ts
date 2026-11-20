@@ -147,6 +147,7 @@ describe('GET /api/events/:eventSlug/channels', () => {
       available: true,
       botUsername: 'EventSlideBot',
       allowed: true,
+      readsAllMessages: true,
       bindings: [
         {
           id: BINDING,
@@ -166,7 +167,12 @@ describe('GET /api/events/:eventSlug/channels', () => {
 
     const response = await agent.get(`/api/events/${SLUG}/channels`)
 
-    expect(response.body).toMatchObject({ available: false, botUsername: null, bindings: [] })
+    expect(response.body).toMatchObject({
+      available: false,
+      botUsername: null,
+      readsAllMessages: null,
+      bindings: [],
+    })
   })
 
   it('answers 404 to the owner of another event, and 401 to nobody', async () => {

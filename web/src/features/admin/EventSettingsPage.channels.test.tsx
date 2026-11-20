@@ -22,6 +22,7 @@ const channels = (overrides: Partial<ChannelsResponse> = {}): ChannelsResponse =
   available: true,
   botUsername: 'EventSlideBot',
   allowed: true,
+  readsAllMessages: true,
   bindings: [],
   ...overrides,
 })
@@ -64,7 +65,9 @@ describe('EventSettingsPage: messaging', () => {
     renderPage(api)
     await screen.findByText(fr.admin.settingsPage.guests)
 
-    expect(screen.queryByText(fr.channels.settingsSection)).toBeNull()
+    // The section is held while the box is asked (a #messaging link must still open it), then withdrawn once the
+    // answer says there is no bot: the assertion waits for that answer, which is the moment that matters.
+    await waitFor(() => expect(screen.queryByText(fr.channels.settingsSection)).toBeNull())
     expect(screen.queryByLabelText(fr.channels.allowTelegram)).toBeNull()
   })
 

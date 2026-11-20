@@ -11,6 +11,7 @@ import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
+import type { InvalidateBook } from '../book/invalidateAlbumBook'
 import type { InvalidateExport } from '../exports/invalidateAlbumExport'
 import { isInAlbum } from '../../../domain/photos/photoStatus'
 import type { MembershipRepository } from '../../ports/userRepository'
@@ -51,6 +52,12 @@ export interface ModerateGuestbookEntryDeps {
    * goes: an archive must never still hold what was removed.
    */
   readonly invalidateExport?: InvalidateExport
+  /**
+   * Retires the photo book that prints guest-book messages (spec 26) when a published message leaves the album, awaited and before
+   * anything goes: a book must never still hold what was removed. A message that is not
+   * published is in no book, so it does not call.
+   */
+  readonly invalidateBook?: InvalidateBook
 }
 
 export interface ModeratedGuestbookEntry {
@@ -70,6 +77,7 @@ export const makeModerateGuestbookEntry =
     bus,
     clock,
     invalidateExport,
+    invalidateBook,
   }: ModerateGuestbookEntryDeps): ModerateGuestbookEntry =>
   async ({ eventId, entryId, decision, actor }) => {
     const event = await events.findById(eventId)
@@ -99,7 +107,12 @@ export const makeModerateGuestbookEntry =
     if (isInAlbum(entry.status) && !isInAlbum(moved.value.status)) {
       await invalidateExport?.(eventId, 'guestbookChanged')
     }
+    // Only a move out of `published`: hidden to rejected leaves the book as it was.
+    // Twice, as a removal is: a book requested between the two calls snapshots the message.
+    const leaves = entry.status === 'published' && moved.value.status !== 'published'
+    if (leaves) await invalidateBook?.(eventId, 'messageRemoved')
     await guestbook.save(moved.value)
+    if (leaves) await invalidateBook?.(eventId, 'messageRemoved')
     bus.publish({ type: entry.voice === null ? 'guestbook.changed' : 'guestbook.voice', eventId })
 
     return ok({ entryId, status: moved.value.status })

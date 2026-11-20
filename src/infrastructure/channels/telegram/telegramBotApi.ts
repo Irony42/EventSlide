@@ -43,6 +43,10 @@ export interface TelegramBotApiOptions {
 
 export interface TelegramMe {
   readonly username: string
+  /** The bot's own account number (the `id` of `getMe`), which `getChatMember` asks about. */
+  readonly id: string
+  /** Telegram's `can_read_all_group_messages`: the bot's privacy mode is off. */
+  readonly canReadAllGroupMessages: boolean
 }
 
 /** What `getUpdates` hands over: raw, untrusted updates, parsed by `telegramUpdates.ts`. */
@@ -101,11 +105,38 @@ export class TelegramBotApi {
     const result = await this.call('getMe', {}, signal, this.timeoutMs)
     if (!result.ok) return result
     const me = asRecord(result.value)
-    const username = me === null ? null : me['username']
+    if (me === null) return failure({ code: 'telegram.rejected' })
+    const username = me['username']
     if (typeof username !== 'string' || username === '') {
       return failure({ code: 'telegram.rejected' })
     }
-    return { ok: true, value: { username } }
+    const id = me['id']
+    return {
+      ok: true,
+      value: {
+        username,
+        id: typeof id === 'number' || typeof id === 'string' ? String(id) : '',
+        canReadAllGroupMessages: me['can_read_all_group_messages'] === true,
+      },
+    }
+  }
+
+  /** The status of one member of a chat (`administrator`, `creator`, `member`, ...), `null` when it is not a word. */
+  async getChatMemberStatus(
+    conversationRef: string,
+    userId: string,
+    signal: AbortSignal,
+  ): Promise<TelegramResult<string | null>> {
+    const result = await this.call(
+      'getChatMember',
+      { chat_id: idOf(conversationRef), user_id: idOf(userId) },
+      signal,
+      this.timeoutMs,
+    )
+    if (!result.ok) return result
+    const member = asRecord(result.value)
+    const status = member === null ? null : member['status']
+    return { ok: true, value: typeof status === 'string' ? status : null }
   }
 
   async getUpdates(

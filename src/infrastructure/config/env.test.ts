@@ -169,6 +169,9 @@ describe('loadConfig', () => {
           maxTotalBytes: 2_147_483_648,
           maxWaitMs: 600_000,
           maxPerEventPerDay: 3,
+          printEnabled: true,
+          printMaxBytes: 734_003_200,
+          maxMessages: 60,
         },
         realtime: {
           maxStreamsPerClient: 12,
@@ -3675,6 +3678,9 @@ describe('the photo book settings', () => {
       BOOK_MAX_TOTAL_BYTES: '2000',
       BOOK_MAX_WAIT_MINUTES: '2',
       BOOK_MAX_PER_EVENT_PER_DAY: '5',
+      BOOK_PRINT_ENABLED: 'false',
+      BOOK_PRINT_MAX_BYTES: '4000',
+      BOOK_MAX_MESSAGES: '12',
     })
 
     expect(config.books).toEqual({
@@ -3685,6 +3691,9 @@ describe('the photo book settings', () => {
       maxTotalBytes: 2000,
       maxWaitMs: 120_000,
       maxPerEventPerDay: 5,
+      printEnabled: false,
+      printMaxBytes: 4000,
+      maxMessages: 12,
     })
   })
 
@@ -3694,6 +3703,10 @@ describe('the photo book settings', () => {
     ['BOOK_TTL_DAYS', '366'],
     ['BOOK_MAX_PER_EVENT_PER_DAY', '0'],
     ['BOOK_ENABLED', 'maybe'],
+    ['BOOK_PRINT_ENABLED', 'maybe'],
+    ['BOOK_PRINT_MAX_BYTES', '0'],
+    ['BOOK_MAX_MESSAGES', '0'],
+    ['BOOK_MAX_MESSAGES', '61'],
   ])('refuses %s=%s', (name, value) => {
     const issues = refusalIssues({ ...DEV, [name]: value })
 

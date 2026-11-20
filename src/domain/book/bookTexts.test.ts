@@ -17,3 +17,45 @@ describe('book texts', () => {
     }
   })
 })
+
+describe('story texts', () => {
+  it('exist in every language, with a singular where the count changes the sentence', () => {
+    for (const language of EVENT_LANGUAGES) {
+      const t = BOOK_TEXTS[language]
+      expect(t.weekdays).toHaveLength(7)
+      for (const moment of ['morning', 'afternoon', 'evening', 'night'] as const) {
+        expect(t.moments[moment].title.length).toBeGreaterThan(2)
+        expect(t.moments[moment].inline.length).toBeGreaterThan(2)
+      }
+      for (const text of [
+        t.contents,
+        t.statsTitle,
+        t.statPhotos,
+        t.statPhotographers,
+        t.statHearts,
+        t.statMessages,
+        t.favourites,
+        t.guestbook,
+      ]) {
+        expect(text.length).toBeGreaterThan(2)
+      }
+      expect(t.photoCount(1)).not.toBe(t.photoCount(3))
+      expect(t.photoCount(3)).toContain('3')
+      expect(t.extraMessages(1)).not.toBe(t.extraMessages(3))
+      expect(t.extraMessages(3)).toContain('3')
+      expect(t.voicesNotIncluded(1)).not.toBe(t.voicesNotIncluded(3))
+      expect(t.voicesNotIncluded(3)).toContain('3')
+      expect(t.thanksTo(12)).toContain('12')
+      expect(t.thanksAnonymous(12)).toContain('12')
+      expect(t.thanksTo(12)).not.toBe(t.thanksAnonymous(12))
+      expect(t.timeRange('A', 'B')).toMatch(/A.*B/)
+      expect(t.withDay('X', 'y')).toMatch(/X.*y/)
+      expect(t.continued('T')).toContain('T')
+      expect(t.mission('boire')).toContain('boire')
+    }
+  })
+
+  it('puts a non-breaking space before the colon of the French mission label', () => {
+    expect(BOOK_TEXTS.fr.mission('x')).toBe('Mission : x')
+  })
+})

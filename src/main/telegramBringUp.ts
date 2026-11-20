@@ -91,13 +91,22 @@ export const createTelegramBringUp = ({
       if (me.ok) {
         channels.set(
           'telegram',
-          new TelegramMessagingChannel({ api, username: me.value.username, logger }),
+          new TelegramMessagingChannel({
+            api,
+            username: me.value.username,
+            logger,
+            botId: me.value.id,
+            readsAll: me.value.canReadAllGroupMessages,
+          }),
         )
         poller = createPoller(new TelegramInbox({ api, username: me.value.username, botId }))
         startWorker()
         poller.start()
         state = 'ready'
-        logger.info('telegram channel ready', { bot: me.value.username })
+        logger.info('telegram channel ready', {
+          bot: me.value.username,
+          readsAllGroupMessages: me.value.canReadAllGroupMessages,
+        })
         return
       }
 

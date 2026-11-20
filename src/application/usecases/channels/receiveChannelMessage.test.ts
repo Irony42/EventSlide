@@ -29,7 +29,7 @@ describe('receiveChannelMessage: /soiree', () => {
     expect(said?.replyTo).toBe('m-1')
     expect(said?.text).toContain('"Camille & Sacha"')
     expect(said?.text).toContain('They go through the organiser before they appear.')
-    expect(said?.text).toContain('/oublier')
+    expect(said?.text).toContain('/forget')
     expect(said?.text).toContain(NOTICE_URL)
   })
 

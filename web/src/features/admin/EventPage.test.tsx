@@ -684,6 +684,7 @@ describe('EventPage: the Telegram group panel (spec 27)', () => {
       available: true,
       botUsername: 'EventSlideBot',
       allowed: true,
+      readsAllMessages: true,
       bindings: [],
     })),
   }

@@ -31,7 +31,9 @@
 
 import { formattersFor } from './formatters'
 import type { CuratedAccent } from '../../design-system/eventTheme'
+import type { BookLength } from '../bookStyle'
 import type {
+  AlbumBookStyle,
   EventStatus,
   EventTemplateKey,
   NoticeAudience,
@@ -666,6 +668,9 @@ export const fr = {
     } satisfies Record<NoticePublication, string>,
     noticeMessageAudience:
       'Vos messages sont lus par l’organisateur et son équipe, et peuvent s’afficher sur l’écran de la soirée. Ils ne figurent pas dans « Les photos de la soirée ».',
+    /** Spec 26: the photo book may carry a guest's words, with their first name, and be printed. */
+    noticeMessageBook:
+      'L’organisateur peut mettre vos mots, avec votre prénom, dans le livre photo de la soirée, qu’il peut faire imprimer.',
     noticeMessageRetention:
       'Vos messages sont gardés aussi longtemps que les photos, et effacés avec elles.',
     noticeMessageRemoval:
@@ -1945,27 +1950,79 @@ export const fr = {
     exportFailed: 'Le téléchargement n’a pas pu démarrer. Réessayez dans un instant.',
     // Spec 04: the photo book (a PDF of the published album) on the event page.
     book: 'Livre photo',
-    bookHint: 'Un PDF de vos photos publiées, à garder ou à imprimer.',
+    bookHint: 'Un livre PDF de l’album, prêt à envoyer ou à faire imprimer.',
+    bookStyleLegend: 'Style',
+    bookStyleNames: {
+      classique: 'Classique',
+      magazine: 'Magazine',
+      souvenir: 'Souvenir',
+    } satisfies Record<AlbumBookStyle, string>,
+    bookStyleHints: {
+      classique: 'Sobre, papier ivoire',
+      magazine: 'Grandes photos, grands titres',
+      souvenir: 'Polaroïds et mots manuscrits',
+    } satisfies Record<AlbumBookStyle, string>,
+    bookStyleFromWall: 'Choisi d’après l’ambiance de votre mur.',
     bookTitle: 'Titre',
     bookSubtitle: 'Sous-titre',
-    bookLayout: 'Mise en page',
-    bookLayoutOne: 'Une photo par page',
-    bookLayoutFour: 'Quatre photos par page',
-    bookShowAuthors: 'Afficher le prénom de l’invité sous chaque photo',
-    bookShowCaptions: 'Afficher les légendes',
+    bookSubtitleHint: 'Vide : la date de la soirée.',
+    bookPhotosLegend: 'Photos',
+    bookSelectionAll: (count: number) => `Toutes les photos (${t.number(count)})`,
+    bookSelectionAllTooMany: (max: number) =>
+      `Plus de ${t.number(max)} photos : choisissez une sélection.`,
+    bookSelectionBest: 'Une sélection',
+    bookSelectionBestHint:
+      'Les photos étoilées, au moins une par photographe, puis les plus aimées, réparties sur toute la soirée.',
+    bookLengthLegend: 'Longueur de la sélection',
+    bookLengthNames: {
+      short: 'Courte',
+      medium: 'Moyenne',
+      long: 'Longue',
+    } satisfies Record<BookLength, string>,
+    bookLengthChip: (name: string, photos: number) => `${name} · ${t.number(photos)} photos`,
+    bookOptionsLegend: 'Contenu',
+    bookShowAuthors: 'Prénoms',
+    bookShowAuthorsHint:
+      'Sous les photos, sous les mots du livre d’or et sur la page de remerciements.',
+    bookShowCaptions: 'Légendes',
+    bookGuestbook: 'Mots du livre d’or',
+    bookGuestbookHint: (count: number, max: number) =>
+      `${t.count(count, { one: '1 message écrit', other: `${t.number(count)} messages écrits` })}.${count > max ? ` Les ${t.number(max)} premiers iront dans le livre.` : ''} Les messages vocaux ne vont pas dans le livre.`,
+    bookPrintVersion: 'Version pour l’imprimeur',
+    bookPrintVersionHint:
+      'Deux fichiers en plus, avec fonds perdus, à envoyer à un imprimeur en ligne.',
+    bookFormNote:
+      'Seules les photos publiées sont incluses. Le nombre de pages est donné quand le livre est prêt.',
     bookCreate: 'Créer le livre',
     bookRebuild: 'Refaire le livre',
-    bookWorking:
-      'Votre livre est en préparation. Vous pouvez quitter cette page, il sera prêt dans quelques minutes.',
-    bookDone: (photos: number, pages: number, size: string, until: string | null) =>
-      `Votre livre est prêt : ${t.count(photos, { one: `${t.number(photos)} photo`, other: `${t.number(photos)} photos` })}, ${t.count(pages, { one: `${t.number(pages)} page`, other: `${t.number(pages)} pages` })}, ${size}.${until === null ? '' : ` Disponible jusqu’au ${until}.`}`,
-    bookDownload: 'Télécharger le livre (PDF)',
+    bookRecreate: 'Recréer le livre',
+    bookWorking: 'Livre en préparation…',
+    bookWorkingDetail: (style: string, target: number | null) =>
+      `Style ${style}, ${target === null ? 'toutes les photos' : `environ ${t.number(target)} photos`}. Vous pouvez quitter la page.`,
+    bookDone: (photos: number, ofAlbum: number | null, pages: number, until: string | null) =>
+      `Livre prêt : ${t.count(pages, { one: `${t.number(pages)} page`, other: `${t.number(pages)} pages` })}, ${t.count(photos, { one: `${t.number(photos)} photo`, other: `${t.number(photos)} photos` })}${ofAlbum === null ? '' : ` (l’album en compte maintenant ${t.number(ofAlbum)})`}.${until === null ? '' : ` Disponible jusqu’au ${until}.`}`,
+    bookDownload: 'Télécharger le livre',
+    bookDownloadMeta: (size: string) => `PDF · ${size}`,
+    bookDownloadPrintInterior: 'Version imprimeur : intérieur',
+    bookDownloadPrintCover: 'Version imprimeur : couverture',
+    bookPrintSkippedTooManyPages: (pages: number, max: number) =>
+      `Version imprimeur non produite : le livre fait ${t.number(pages)} pages, les imprimeurs en acceptent ${t.number(max)} au plus. Choisissez une sélection plus courte et refaites le livre.`,
+    bookPrintSkippedTooLarge:
+      'Version imprimeur non produite : ses fichiers sont trop lourds. Choisissez une sélection plus courte et refaites le livre.',
+    bookHelpLink: 'Comment le faire imprimer ?',
+    bookHelpIntro: 'La version imprimeur, ce sont deux fichiers faits du même livre.',
+    bookHelpStep1:
+      'Choisissez un imprimeur en ligne qui accepte un PDF pour un livre carré de 21 × 21 cm, à couverture rigide.',
+    bookHelpStep2:
+      'Envoyez l’intérieur et la couverture. Le fichier de couverture contient deux pages : la quatrième, puis la première.',
+    bookHelpStep3:
+      'Composez le dos avec l’outil de l’imprimeur, et commandez d’abord un exemplaire d’essai.',
     bookDelete: 'Supprimer le livre',
     bookDeleteTitle: 'Supprimer le livre ?',
     bookDeleteHint:
       'Le fichier est effacé du serveur. Vous pourrez en refaire un, dans la limite de trois par jour.',
     bookStale:
-      'Une photo a été retirée ou une légende a changé depuis : ce livre n’est plus disponible. Refaites-le pour qu’il soit à jour.',
+      'Le livre a été retiré parce qu’un contenu a été supprimé ou qu’une légende a changé. Recréez-le : vos choix sont gardés.',
     bookFailed: 'Le livre n’a pas pu être fait. Réessayez dans un moment.',
     bookFailedTooLarge: 'L’album est trop volumineux pour un seul livre.',
     // Spec 08, step 2: the highlight video.
@@ -3478,6 +3535,8 @@ export const fr = {
     hint: 'Les photos postées dans un groupe Telegram arrivent ici, comme celles des invités.',
     step1: (bot: string) => `Ajoutez @${bot} à votre groupe Telegram.`,
     step2: 'Dans le groupe, envoyez :',
+    /** The word that connects a group, as the bot's profile lists it in this language (the bot accepts them all). */
+    bindCommand: 'soiree',
     copyCommand: 'Copier la commande',
     copied: 'Commande copiée',
     copyFailed: 'La commande n’a pas pu être copiée : sélectionnez-la et copiez-la à la main.',

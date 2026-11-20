@@ -740,6 +740,8 @@ export const es: UiText = {
     },
     noticeMessageAudience:
       'Sus mensajes los leen el organizador y su equipo, y pueden mostrarse en la pantalla de la fiesta. No aparecen en «Fotos de la velada».',
+    noticeMessageBook:
+      'El organizador puede incluir sus palabras, con su nombre, en el libro de fotos de la fiesta, y puede mandarlo imprimir.',
     noticeMessageRetention:
       'Sus mensajes se guardan tanto tiempo como las fotos y se borran con ellas.',
     noticeMessageRemoval:
@@ -1810,28 +1812,78 @@ export const es: UiText = {
     exportFailed: 'No se pudo iniciar la descarga. Inténtalo de nuevo en un momento.',
     // Spec 04: the photo book (a PDF of the published album) on the event page.
     book: 'Libro de fotos',
-    bookHint: 'Un PDF con tus fotos publicadas, para guardar o imprimir.',
+    bookHint: 'Un libro en PDF con el álbum, listo para enviar o para imprimir.',
+    bookStyleLegend: 'Estilo',
+    bookStyleNames: {
+      classique: 'Clásico',
+      magazine: 'Revista',
+      souvenir: 'Recuerdo',
+    },
+    bookStyleHints: {
+      classique: 'Sobrio, papel marfil',
+      magazine: 'Fotos grandes, titulares grandes',
+      souvenir: 'Polaroids y palabras manuscritas',
+    },
+    bookStyleFromWall: 'Elegido según el ambiente de su pantalla.',
     bookTitle: 'Título',
     bookSubtitle: 'Subtítulo',
-    bookLayout: 'Maquetación',
-    bookLayoutOne: 'Una foto por página',
-    bookLayoutFour: 'Cuatro fotos por página',
-    bookShowAuthors: 'Mostrar el nombre del invitado bajo cada foto',
-    bookShowCaptions: 'Mostrar los pies de foto',
+    bookSubtitleHint: 'Vacío: la fecha de la fiesta.',
+    bookPhotosLegend: 'Fotos',
+    bookSelectionAll: (count: number) => `Todas las fotos (${t.number(count)})`,
+    bookSelectionAllTooMany: (max: number) => `Más de ${t.number(max)} fotos: elija una selección.`,
+    bookSelectionBest: 'Una selección',
+    bookSelectionBestHint:
+      'Las fotos con estrella, al menos una por fotógrafo, y después las que más gustaron, repartidas a lo largo de la fiesta.',
+    bookLengthLegend: 'Extensión de la selección',
+    bookLengthNames: {
+      short: 'Corta',
+      medium: 'Media',
+      long: 'Larga',
+    },
+    bookLengthChip: (name: string, photos: number) => `${name} · ${t.number(photos)} fotos`,
+    bookOptionsLegend: 'Contenido',
+    bookShowAuthors: 'Nombres',
+    bookShowAuthorsHint:
+      'Bajo las fotos, bajo las palabras del libro de visitas y en la página de agradecimientos.',
+    bookShowCaptions: 'Pies de foto',
+    bookGuestbook: 'Palabras del libro de visitas',
+    bookGuestbookHint: (count: number, max: number) =>
+      `${t.count(count, { one: '1 mensaje escrito', other: `${t.number(count)} mensajes escritos` })}.${count > max ? ` Los primeros ${t.number(max)} irán en el libro.` : ''} Los mensajes de voz no van en el libro.`,
+    bookPrintVersion: 'Versión para la imprenta',
+    bookPrintVersionHint: 'Dos archivos más, con sangrado, para enviar a una imprenta en línea.',
+    bookFormNote:
+      'Solo se incluyen las fotos publicadas. El número de páginas se indica cuando el libro está listo.',
     bookCreate: 'Crear el libro',
-    bookRebuild: 'Rehacer el libro',
-    bookWorking:
-      'Tu libro se está preparando. Puedes salir de esta página, estará listo en unos minutos.',
-    bookDone: (photos: number, pages: number, size: string, until: string | null) =>
-      `Tu libro está listo: ${t.count(photos, { one: `${t.number(photos)} foto`, other: `${t.number(photos)} fotos` })}, ${t.count(pages, { one: `${t.number(pages)} página`, other: `${t.number(pages)} páginas` })}, ${size}.${until === null ? '' : ` Disponible hasta el ${until}.`}`,
-    bookDownload: 'Descargar el libro (PDF)',
+    bookRebuild: 'Volver a hacer el libro',
+    bookRecreate: 'Volver a crear el libro',
+    bookWorking: 'El libro se está preparando…',
+    bookWorkingDetail: (style: string, target: number | null) =>
+      `Estilo ${style}, ${target === null ? 'todas las fotos' : `unas ${t.number(target)} fotos`}. Puede salir de esta página.`,
+    bookDone: (photos: number, ofAlbum: number | null, pages: number, until: string | null) =>
+      `Libro listo: ${t.count(pages, { one: `${t.number(pages)} página`, other: `${t.number(pages)} páginas` })}, ${t.count(photos, { one: `${t.number(photos)} foto`, other: `${t.number(photos)} fotos` })}${ofAlbum === null ? '' : ` (el álbum tiene ahora ${t.number(ofAlbum)})`}.${until === null ? '' : ` Disponible hasta el ${until}.`}`,
+    bookDownload: 'Descargar el libro',
+    bookDownloadMeta: (size: string) => `PDF · ${size}`,
+    bookDownloadPrintInterior: 'Versión de imprenta: interior',
+    bookDownloadPrintCover: 'Versión de imprenta: cubierta',
+    bookPrintSkippedTooManyPages: (pages: number, max: number) =>
+      `Versión de imprenta no generada: el libro tiene ${t.number(pages)} páginas y las imprentas aceptan ${t.number(max)} como máximo. Elija una selección más corta y vuelva a hacer el libro.`,
+    bookPrintSkippedTooLarge:
+      'Versión de imprenta no generada: sus archivos son demasiado grandes. Elija una selección más corta y vuelva a hacer el libro.',
+    bookHelpLink: '¿Cómo imprimirlo?',
+    bookHelpIntro: 'La versión de imprenta son dos archivos hechos a partir del mismo libro.',
+    bookHelpStep1:
+      'Elija una imprenta en línea que acepte un PDF para un libro cuadrado de 21 × 21 cm con tapa dura.',
+    bookHelpStep2:
+      'Envíe el interior y la cubierta. El archivo de la cubierta tiene dos páginas: primero la contracubierta y después la portada.',
+    bookHelpStep3:
+      'Componga el lomo con la herramienta de la imprenta y pida primero un ejemplar de prueba.',
     bookDelete: 'Eliminar el libro',
     bookDeleteTitle: '¿Eliminar el libro?',
-    bookDeleteHint: 'El archivo se borra del servidor. Podrás hacer otro, hasta tres al día.',
+    bookDeleteHint: 'El archivo se borra del servidor. Podrá hacer otro, hasta tres al día.',
     bookStale:
-      'Desde entonces se quitó una foto o cambió un pie de foto: este libro ya no está disponible. Rehazlo para ponerlo al día.',
-    bookFailed: 'No se pudo hacer el libro. Inténtalo de nuevo en un momento.',
-    bookFailedTooLarge: 'El álbum es demasiado grande para un solo libro.',
+      'El libro se retiró porque se eliminó un contenido o cambió un pie de foto. Vuelva a crearlo: sus elecciones se conservan.',
+    bookFailed: 'No se pudo hacer el libro. Vuelva a intentarlo dentro de un momento.',
+    bookFailedTooLarge: 'El álbum es demasiado voluminoso para un solo libro.',
     // Spec 08, step 2: the highlight video.
     reelTitle: 'Vídeo de lo mejor',
     reelHint:
@@ -2811,6 +2863,8 @@ export const es: UiText = {
     hint: 'Las fotos publicadas en un grupo de Telegram llegan aquí, como las de los invitados.',
     step1: (bot: string) => `Añada @${bot} a su grupo de Telegram.`,
     step2: 'En el grupo, envíe:',
+    /** The word that connects a group, as the bot's profile lists it in this language (the bot accepts them all). */
+    bindCommand: 'evento',
     copyCommand: 'Copiar el comando',
     copied: 'Comando copiado',
     copyFailed: 'No se ha podido copiar el comando: selecciónelo y cópielo a mano.',

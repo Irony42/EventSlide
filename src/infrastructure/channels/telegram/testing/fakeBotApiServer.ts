@@ -21,6 +21,8 @@ export interface FakeBotApiOptions {
   readonly username?: string
   /** How long a `getUpdates` with nothing queued waits before answering empty. Short in tests. */
   readonly pollWaitMs?: number
+  /** `can_read_all_group_messages` of `getMe`: the bot's privacy mode is off. Defaults to true (nothing hidden). */
+  readonly canReadAllGroupMessages?: boolean
 }
 
 type Failure = { readonly status: number; readonly body: unknown }
@@ -39,11 +41,15 @@ export class FakeBotApiServer {
   private readonly token: string
   private readonly username: string
   private readonly pollWaitMs: number
+  private readonly canReadAll: boolean
+  /** The chats the bot is an administrator of: what `getChatMember` says about it. */
+  readonly administratorOf = new Set<string>()
 
   constructor(options: FakeBotApiOptions) {
     this.token = options.token
     this.username = options.username ?? 'EventSlideBot'
     this.pollWaitMs = options.pollWaitMs ?? 20
+    this.canReadAll = options.canReadAllGroupMessages ?? true
   }
 
   async start(port = 0): Promise<string> {
@@ -152,7 +158,22 @@ export class FakeBotApiServer {
 
     switch (method) {
       case 'getMe':
-        return send(200, { ok: true, result: { id: 1, is_bot: true, username: this.username } })
+        return send(200, {
+          ok: true,
+          result: {
+            id: Number(this.token.split(':')[0]),
+            is_bot: true,
+            username: this.username,
+            can_read_all_group_messages: this.canReadAll,
+          },
+        })
+      case 'getChatMember':
+        return send(200, {
+          ok: true,
+          result: {
+            status: this.administratorOf.has(String(body['chat_id'])) ? 'administrator' : 'member',
+          },
+        })
       case 'getUpdates': {
         const offset = typeof body['offset'] === 'number' ? body['offset'] : 0
         const due = this.updates.filter((update) => (update['update_id'] as number) >= offset)

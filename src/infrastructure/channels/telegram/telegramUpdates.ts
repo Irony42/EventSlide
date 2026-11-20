@@ -19,7 +19,7 @@ import {
  *   are not ours.
  * - `/soiree`, `/oublier`, `/confidentialite` (also `/soiree@Bot`, only when addressed to this bot).
  * - `migrate_to_chat_id` (a group became a supergroup: same conversation, new identifier) and a `my_chat_member` that
- *   says the bot left or was banned.
+ *   says the bot left or was banned, or became an administrator.
  * - the media of another bot, and a post "as a channel" that is not the group itself, are ignored; an administrator
  *   posting "as the group" is anonymous (`isAnonymous`, the group's own identifier as `ref`).
  */
@@ -90,6 +90,7 @@ const messageSchema = z
 const memberUpdateSchema = z
   .object({
     chat: chatSchema,
+    old_chat_member: z.object({ status: z.string() }).loose().optional(),
     new_chat_member: z.object({ status: z.string() }).loose(),
   })
   .loose()
@@ -245,6 +246,17 @@ export const translateUpdate = (raw: unknown, botUsername: string): InboundMessa
     if (status === 'left' || status === 'kicked') {
       return {
         type: 'botRemoved',
+        channel: 'telegram',
+        conversationRef: update.my_chat_member.chat.id,
+      }
+    }
+    // Became an administrator: it may see the group's photographs now (told once, when it was not one before).
+    const was = update.my_chat_member.old_chat_member?.status
+    const isAdmin = (value: string | undefined): boolean =>
+      value === 'administrator' || value === 'creator'
+    if (isAdmin(status) && !isAdmin(was)) {
+      return {
+        type: 'botPromoted',
         channel: 'telegram',
         conversationRef: update.my_chat_member.chat.id,
       }

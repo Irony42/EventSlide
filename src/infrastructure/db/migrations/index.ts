@@ -32,6 +32,7 @@ import { migration030 } from './030_event_purge_notices'
 import { migration031 } from './031_event_exports'
 import { migration032 } from './032_guestbook_voices'
 import { migration033 } from './033_channels'
+import { migration034 } from './034_album_books_v2'
 
 /**
  * The ordering contract, written out rather than globbed.
@@ -74,4 +75,5 @@ export const migrations: readonly Migration[] = [
   migration031,
   migration032,
   migration033,
+  migration034,
 ]

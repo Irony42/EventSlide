@@ -1,222 +1,222 @@
 import { once } from 'node:events'
-import { join } from 'node:path'
 import PDFDocument from 'pdfkit'
-import sharp from 'sharp'
-import type { BookInput, BookPhoto, BookRenderer } from '../../application/ports/bookRenderer'
-import { PHOTOS_PER_PAGE, containInBox, pageOrientationFor } from '../../domain/book/bookLayout'
-import { Dimensions } from '../../domain/photos/dimensions'
+import type { BookChunk, BookFileKind } from '../../application/ports/bookFileStore'
+import type {
+  BookRenderInput,
+  BookRenderer,
+  PageTexts,
+} from '../../application/ports/bookRenderer'
+import type { PlanPage } from '../../domain/book/bookPlan'
+import type { PhotoId } from '../../domain/shared/ids'
+import { facesOf } from './book/bookFonts'
+import {
+  BLEED_PT,
+  TRIM_PT,
+  drawBackCover,
+  drawFrontCover,
+  drawPage,
+  type DrawContext,
+  type Mode,
+} from './book/drawBook'
+import { setPageBoxes, setPageLayout } from './book/pdfkitBoxes'
+import type { Prepared } from './book/bookImages'
 
 /**
- * `BookRenderer` on `pdfkit`: a streamed A4 PDF, one page at a time.
+ * `BookRenderer` on `pdfkit` (spec 26, section 6): the book as up to three streamed PDFs, drawn
+ * from the plan and from nothing else, square pages of 21 cm.
  *
- * **Pull-based, one page in memory.** The generator draws a page, hands over the bytes pdfkit has
- * produced so far, and only then asks `input.photos` for the next photograph. A consumer that stops
- * reading stops the drawing; nothing is drawn ahead. No headless browser, no HTML, no remote image:
- * the only decoder this opens is `sharp`, on JPEGs that the ingest pipeline re-encoded itself.
+ * - **Screen**: the cover alone, an inside-cover blank (so that plan page 1 is a right-hand page of
+ *   the `TwoPageRight` layout and the double pages are the plan's own), then the plan's pages;
+ *   a `wide` photograph is drawn in two halves.
+ * - **Printer interior**: the same pages on 216 mm with 3 mm of bleed (`TrimBox`, `BleedBox`),
+ *   `wide` replaced and the padding blanks inserted by the plan (`planForPrint`).
+ * - **Printer cover**: two pages of 216 mm, the back then the front. No spine: its thickness is the
+ *   printer's.
  *
- * Each photograph is **reduced** from the stored `display` rendition (2560 px) to what an A4 page
- * can show at about 150 dpi, one at a time (`sharp` is awaited per photograph). Nothing global is
- * set on `sharp` (`concurrency`, `cache`): those are process-wide and would slow the guests'
- * uploads that share the process.
+ * **Pull-based, one page in memory.** The generator draws a plan page (all its files), hands over the
+ * bytes pdfkit produced so far, and only then asks for the next page's photographs. A consumer that
+ * stops reading stops the drawing. A photograph is decoded and cropped once at printer resolution,
+ * the screen copy being a reduction of it. Nothing global is set on `sharp`.
  *
- * The fonts are Noto Sans and Noto Serif (SIL OFL 1.1, `fonts/OFL-Noto.txt`), embedded as subsets by
- * pdfkit. Latin, Greek and Cyrillic are covered; the text the use case hands over has already been
- * limited to that by `pdfSafeText`. Right-to-left scripts are not supported.
+ * Fonts: `book/bookFonts.ts` (a designed face when shipped, Noto otherwise). The text the use case
+ * hands over has been through `pdfSafeText`; right-to-left scripts are not supported.
  */
-
-const FONT_DIRECTORY = join(__dirname, 'fonts')
-const FONTS = {
-  serifBold: join(FONT_DIRECTORY, 'NotoSerif-Bold.ttf'),
-  serif: join(FONT_DIRECTORY, 'NotoSerif-Regular.ttf'),
-  sans: join(FONT_DIRECTORY, 'NotoSans-Regular.ttf'),
-  sansBold: join(FONT_DIRECTORY, 'NotoSans-Bold.ttf'),
-} as const
-
-/** A4 in points, and the margin around every page. */
-const A4 = { width: 595.28, height: 841.89 } as const
-const MARGIN = 36
-/** The most pixels a photograph keeps on its long edge, by layout (about 150 dpi at its size). */
-const MAX_EDGE = { one: 1600, four: 1100 } as const
-const JPEG_QUALITY = 82
-const INK = '#111111'
-const GREY = '#666666'
 
 export interface PdfBookRendererOptions {
   /** `false` leaves the content streams readable: for the test that extracts text, never in production. */
   readonly compress?: boolean
 }
 
-interface Prepared {
-  readonly jpeg: Buffer
-  readonly dimensions: Dimensions
-  readonly caption: string | null
-  readonly author: string | null
+const EMPTY_TEXTS: PageTexts = {
+  captions: [],
+  authors: [],
+  missions: [],
+  messages: [],
+  photographers: [],
 }
 
-const dimensionsOf = (width: number, height: number): Dimensions => {
-  const created = Dimensions.create(width, height)
-  if (!created.ok) throw new Error('book renderer: unusable photograph dimensions')
-  return created.value
+interface Sink {
+  readonly kind: BookFileKind
+  readonly doc: PDFKit.PDFDocument
+  readonly queue: Buffer[]
+  readonly mode: Mode
+  finished: boolean
 }
 
-const prepare = async (photo: BookPhoto, layout: BookInput['layout']): Promise<Prepared> => {
-  const edge = MAX_EDGE[layout]
-  const { data, info } = await sharp(photo.bytes, { failOn: 'error' })
-    .resize({ width: edge, height: edge, fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: JPEG_QUALITY })
-    .toBuffer({ resolveWithObject: true })
-  return {
-    jpeg: data,
-    dimensions: dimensionsOf(info.width, info.height),
-    caption: photo.caption,
-    author: photo.author,
-  }
-}
-
-const centred = (doc: PDFKit.PDFDocument, text: string, y: number, width: number): number => {
-  doc.text(text, MARGIN, y, { width, align: 'center' })
-  return doc.y
-}
-
-const drawCover = (doc: PDFKit.PDFDocument, input: BookInput): void => {
-  doc.addPage({ size: 'A4', margin: 0 })
-  const width = A4.width - 2 * MARGIN
-  doc.fillColor(INK).font('serifBold').fontSize(34)
-  const titleHeight = doc.heightOfString(input.cover.title, { width, align: 'center' })
-  const top = A4.height * 0.36 - titleHeight / 2
-  const below = centred(doc, input.cover.title, top, width)
-  if (input.cover.subtitle !== '') {
-    doc.fillColor(GREY).font('serif').fontSize(16)
-    centred(doc, input.cover.subtitle, below + 18, width)
-  }
-}
-
-const drawClosing = (doc: PDFKit.PDFDocument, input: BookInput): void => {
-  doc.addPage({ size: 'A4', margin: 0 })
-  const width = A4.width - 2 * MARGIN
-  if (input.closing.videosNote !== null) {
-    doc.fillColor(INK).font('sans').fontSize(11)
-    centred(doc, input.closing.videosNote, A4.height * 0.4, width)
-  }
-  doc.fillColor(GREY).font('sans').fontSize(9)
-  centred(doc, input.closing.createdWith, A4.height - MARGIN - 14, width)
-}
-
-const captionBlock = (
-  doc: PDFKit.PDFDocument,
-  item: Prepared,
-  x: number,
-  y: number,
-  width: number,
-  size: number,
-): void => {
-  let cursor = y
-  if (item.caption !== null) {
-    doc.fillColor(INK).font('sans').fontSize(size)
-    doc.text(item.caption, x, cursor, { width, align: 'center' })
-    cursor = doc.y + 2
-  }
-  if (item.author !== null) {
-    doc.fillColor(GREY).font('sansBold').fontSize(size - 2)
-    doc.text(item.author, x, cursor, { width, align: 'center' })
-  }
-}
-
-/** Room kept under a photograph for its caption (two lines at most) and its credit. */
-const textHeight = (item: Prepared, size: number): number =>
-  (item.caption === null ? 0 : size * 2.6) + (item.author === null ? 0 : size + 4)
-
-const drawPhotoPage = (
-  doc: PDFKit.PDFDocument,
-  layout: BookInput['layout'],
-  batch: readonly Prepared[],
-): void => {
-  if (layout === 'one') {
-    const [item] = batch as readonly [Prepared]
-    const orientation = pageOrientationFor('one', item.dimensions)
-    doc.addPage({ size: 'A4', layout: orientation, margin: 0 })
-    const page = orientation === 'landscape' ? { width: A4.height, height: A4.width } : A4
-    const reserved = textHeight(item, 12)
-    const cell = {
-      width: page.width - 2 * MARGIN,
-      height: page.height - 2 * MARGIN - (reserved === 0 ? 0 : reserved + 10),
-    }
-    const placed = containInBox(item.dimensions, cell)
-    doc.image(item.jpeg, MARGIN + placed.x, MARGIN + placed.y, {
-      width: placed.width,
-      height: placed.height,
-    })
-    captionBlock(doc, item, MARGIN, MARGIN + cell.height + 10, page.width - 2 * MARGIN, 12)
-    return
-  }
-
-  doc.addPage({ size: 'A4', margin: 0 })
-  const gap = 18
-  const cellWidth = (A4.width - 2 * MARGIN - gap) / 2
-  const cellHeight = (A4.height - 2 * MARGIN - gap) / 2
-  batch.forEach((item, index) => {
-    const x = MARGIN + (index % 2) * (cellWidth + gap)
-    const y = MARGIN + Math.floor(index / 2) * (cellHeight + gap)
-    const reserved = textHeight(item, 9)
-    const box = { width: cellWidth, height: cellHeight - (reserved === 0 ? 0 : reserved + 6) }
-    const placed = containInBox(item.dimensions, box)
-    doc.image(item.jpeg, x + placed.x, y + placed.y, { width: placed.width, height: placed.height })
-    captionBlock(doc, item, x, y + box.height + 6, cellWidth, 9)
+const openSink = (
+  kind: BookFileKind,
+  mode: Mode,
+  title: string,
+  compress: boolean,
+  layout: boolean,
+): Sink => {
+  const doc = new PDFDocument({
+    size: [TRIM_PT, TRIM_PT],
+    margin: 0,
+    autoFirstPage: false,
+    compress,
+    info: { Title: title, Producer: 'EventSlide', Creator: 'EventSlide' },
   })
+  const queue: Buffer[] = []
+  doc.on('data', (chunk: Buffer) => queue.push(chunk))
+  if (layout) setPageLayout(doc, 'TwoPageRight')
+  return { kind, doc, queue, mode, finished: false }
+}
+
+const addPage = (sink: Sink): void => {
+  const size = sink.mode === 'print' ? TRIM_PT + 2 * BLEED_PT : TRIM_PT
+  sink.doc.addPage({ size: [size, size], margin: 0 })
+  if (sink.mode === 'print') {
+    setPageBoxes(
+      sink.doc,
+      [BLEED_PT, BLEED_PT, BLEED_PT + TRIM_PT, BLEED_PT + TRIM_PT],
+      [0, 0, size, size],
+    )
+  }
 }
 
 export const createPdfBookRenderer = ({
   compress = true,
 }: PdfBookRendererOptions = {}): BookRenderer => ({
-  async *render(input: BookInput): AsyncIterable<Uint8Array> {
-    const doc = new PDFDocument({
-      size: 'A4',
-      margin: 0,
-      autoFirstPage: false,
-      compress,
-      info: { Title: input.cover.title, Producer: 'EventSlide', Creator: 'EventSlide' },
-    })
-    const queue: Buffer[] = []
-    doc.on('data', (chunk: Buffer) => queue.push(chunk))
-    const drain = function* (): Generator<Uint8Array> {
-      while (queue.length > 0) yield queue.shift() as Buffer
-    }
-    let finished = false
-    // Registered once, so the font files are read once and embedded as subsets.
-    doc.registerFont('serifBold', FONTS.serifBold)
-    doc.registerFont('serif', FONTS.serif)
-    doc.registerFont('sans', FONTS.sans)
-    doc.registerFont('sansBold', FONTS.sansBold)
+  async *render(input: BookRenderInput): AsyncIterable<BookChunk> {
+    const printPages = input.printPages
+    const withPrint = printPages !== null
+    const title = input.cover.title
+    const screen = openSink('screen', 'screen', title, compress, true)
+    const interior = withPrint ? openSink('printInterior', 'print', title, compress, false) : null
+    const cover = withPrint ? openSink('printCover', 'print', title, compress, false) : null
+    const sinks = [screen, interior, cover].filter((sink): sink is Sink => sink !== null)
+    const faces = facesOf(input.style)
 
-    try {
-      drawCover(doc, input)
-      yield* drain()
-
-      const perPage = PHOTOS_PER_PAGE[input.layout]
-      let batch: Prepared[] = []
-      for await (const photo of input.photos) {
-        batch.push(await prepare(photo, input.layout))
-        if (batch.length === perPage) {
-          drawPhotoPage(doc, input.layout, batch)
-          batch = []
-          // Yield to the event loop between pages, so the wall's SSE and the guests' uploads
-          // on this same process are not starved by a long book.
-          await new Promise<void>((resolve) => setImmediate(resolve))
-          yield* drain()
-        }
+    const drain = function* (): Generator<BookChunk> {
+      for (const sink of sinks) {
+        while (sink.queue.length > 0) yield { kind: sink.kind, bytes: sink.queue.shift() as Buffer }
       }
-      if (batch.length > 0) drawPhotoPage(doc, input.layout, batch)
+    }
+
+    const contextFor = (
+      sink: Sink,
+      bytes: ReadonlyMap<PhotoId, Uint8Array>,
+      prepared: Map<string, Prepared>,
+      texts: PageTexts,
+    ): DrawContext => ({
+      doc: sink.doc,
+      mode: sink.mode,
+      withPrint,
+      input,
+      faces,
+      bytes,
+      prepared,
+      texts,
+    })
+
+    let finished = false
+    try {
+      // ---------------------------------------------------------------- covers --
+      const coverBytes = new Map<PhotoId, Uint8Array>()
+      if (input.cover.photoId !== null) {
+        coverBytes.set(input.cover.photoId, await input.photo(input.cover.photoId))
+      }
+      const coverPrepared = new Map<string, Prepared>()
+      addPage(screen)
+      await drawFrontCover(contextFor(screen, coverBytes, coverPrepared, EMPTY_TEXTS))
+      addPage(screen) // the inside of the cover
+      await drawPage(contextFor(screen, new Map(), new Map(), EMPTY_TEXTS), blankPage, {
+        firstMessages: false,
+      })
+      if (cover !== null) {
+        addPage(cover)
+        await drawBackCover(contextFor(cover, coverBytes, coverPrepared, EMPTY_TEXTS))
+        addPage(cover)
+        await drawFrontCover(contextFor(cover, coverBytes, coverPrepared, EMPTY_TEXTS))
+      }
       yield* drain()
 
-      drawClosing(doc, input)
+      // ----------------------------------------------------------------- pages --
+      const wides = input.plan.pages.filter((page) => page.template === 'wide').length
+      const padding =
+        printPages === null ? 0 : printPages.length - (input.plan.pages.length + wides)
+      let printAt = 0
+      let printOff = false
+      let firstMessages = true
+      for (const page of input.plan.pages) {
+        const texts =
+          page.slots.length > 0 || page.messageIds !== undefined || page.template === 'thanks'
+            ? await input.pageTexts(page)
+            : EMPTY_TEXTS
+        const bytes = new Map<PhotoId, Uint8Array>()
+        for (const slot of page.slots) {
+          if (!bytes.has(slot.photoId)) bytes.set(slot.photoId, await input.photo(slot.photoId))
+        }
+        const prepared = new Map<string, Prepared>()
+        const isMessages = page.template === 'messages'
+
+        if (page.template === 'wide') {
+          for (const half of ['left', 'right'] as const) {
+            addPage(screen)
+            await drawPage(contextFor(screen, bytes, prepared, texts), page, {
+              firstMessages: false,
+              half,
+            })
+          }
+        } else {
+          addPage(screen)
+          await drawPage(contextFor(screen, bytes, prepared, texts), page, { firstMessages })
+        }
+
+        if (interior !== null && printPages !== null && !printOff) {
+          // The printer pages that stand for this plan page: a `wide` is a chapter page and a
+          // photograph, `thanks` comes after the padding blanks.
+          const count = page.template === 'wide' ? 2 : page.template === 'thanks' ? padding + 1 : 1
+          for (const printed of printPages.slice(printAt, printAt + count)) {
+            addPage(interior)
+            await drawPage(contextFor(interior, bytes, prepared, texts), printed, {
+              firstMessages,
+            })
+          }
+          printAt += count
+        }
+        if (isMessages) firstMessages = false
+
+        // The printer version was dropped while it was written: nothing more is drawn for it.
+        if (!printOff && input.printStopped?.() === true) printOff = true
+
+        // Between two pages, so the wall's SSE and the guests' uploads on this same process are
+        // not starved by a long book.
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        yield* drain()
+      }
+
       finished = true
-      const ended = once(doc, 'end')
-      doc.end()
-      await ended
+      const ended = sinks.map((sink) => once(sink.doc, 'end'))
+      for (const sink of sinks) sink.doc.end()
+      await Promise.all(ended)
       yield* drain()
     } finally {
       // A consumer that stopped early, or a failure, must not leave a document open.
-      if (!finished) doc.end()
+      if (!finished) for (const sink of sinks) sink.doc.end()
     }
   },
 })
+
+const blankPage: PlanPage = { template: 'blank', slots: [] }

@@ -41,7 +41,8 @@ export function ChannelsPanel({ slug, joinCode, canUnlink, canBind }: ChannelsPa
   const unlink = useUnlinkChannel()
   const toast = useToast()
   const [unlinking, setUnlinking] = useState<ChannelBindingDto | null>(null)
-  const command = `/soiree ${joinCode}`
+  // The command in the language of the screen: the bot accepts every alias, whatever the language of the group.
+  const command = `/${t.channels.bindCommand} ${joinCode}`
 
   const copy = () => {
     void copyToClipboard(command).then((copied) => {
@@ -95,7 +96,14 @@ export function ChannelsPanel({ slug, joinCode, canUnlink, canBind }: ChannelsPa
                       </div>
                     </li>
                   </ol>
-                  <p className={styles['reminder']}>{t.channels.visibility}</p>
+                  {/* The server says the bot only sees the groups it administers: the hint becomes a warning. */}
+                  {view.readsAllMessages === false ? (
+                    <Notice tone="warning" role="status" variant="boxed">
+                      {t.channels.visibility}
+                    </Notice>
+                  ) : (
+                    <p className={styles['reminder']}>{t.channels.visibility}</p>
+                  )}
                 </>
               )}
 

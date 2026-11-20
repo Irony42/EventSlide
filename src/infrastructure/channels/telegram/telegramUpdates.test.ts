@@ -174,12 +174,42 @@ describe('translateUpdate: the conversation itself', () => {
     })
   })
 
-  it('ignores the bot being promoted or added', () => {
-    const update = {
+  it.each(['administrator', 'creator'])(
+    'sees the bot becoming %s, from a plain member or from nothing known, as promoted',
+    (status) => {
+      for (const old of [{ status: 'member' }, undefined]) {
+        const update = {
+          update_id: 4,
+          my_chat_member: {
+            chat: GROUP,
+            ...(old === undefined ? {} : { old_chat_member: old }),
+            new_chat_member: { status },
+          },
+        }
+        expect(translateUpdate(update, BOT)).toEqual({
+          type: 'botPromoted',
+          channel: 'telegram',
+          conversationRef: '-1001',
+        })
+      }
+    },
+  )
+
+  it('ignores the bot staying an administrator, or merely being added as a member', () => {
+    const stays = {
       update_id: 4,
-      my_chat_member: { chat: GROUP, new_chat_member: { status: 'administrator' } },
+      my_chat_member: {
+        chat: GROUP,
+        old_chat_member: { status: 'administrator' },
+        new_chat_member: { status: 'administrator' },
+      },
     }
-    expect(translateUpdate(update, BOT).type).toBe('ignored')
+    const added = {
+      update_id: 5,
+      my_chat_member: { chat: GROUP, new_chat_member: { status: 'member' } },
+    }
+    expect(translateUpdate(stays, BOT).type).toBe('ignored')
+    expect(translateUpdate(added, BOT).type).toBe('ignored')
   })
 
   it.each([null, 'x', 5, [], {}, { update_id: 'a' }, { update_id: 1 }])(
