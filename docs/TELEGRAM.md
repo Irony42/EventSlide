@@ -44,7 +44,7 @@ If the box is down, Telegram keeps the updates for 24 hours and the box resumes 
    no bot, and greyed ("Non inclus dans votre offre") when your plan does not include it. A host whose plan was withdrawn
    can still switch it off.
 2. The event page now shows a **"Groupe Telegram"** panel: add the bot to your group, then send the command it shows
-   (`/soiree` and the current join code) from the group. The bot answers once, in the language of the evening, and tells
+   (`/soiree` and the current join code, in the language of your screen: see the table below) from the group. The bot answers once, in the language of the evening, and tells
    the group whether photos go through you first.
 3. Every photograph or video posted in the group is taken (a thumbs up appears on the message) and follows the event's
    moderation mode. In the console, a badge "via Telegram" tells where it came from.
@@ -53,6 +53,27 @@ If the box is down, Telegram keeps the updates for 24 hours and the box resumes 
    belongs to the link, not to the group. A group can only be linked while the event is open.
 
 In the group: `/oublier` erases everything the sender posted for this event; `/confidentialite` sends the notice's address.
+
+### The commands, in five languages
+
+Every name below works in **every** group, whatever the language of the event (a group mixes languages), with or without
+accents and in any case, and also as `/name@BotName`. A command addressed to another bot of the group is ignored. The bot
+names the commands of the language it is answering in, and the host's panel copies the one of the screen's language.
+
+| Does                             | fr                 | en         | de             | es            | it           |
+| -------------------------------- | ------------------ | ---------- | -------------- | ------------- | ------------ |
+| Connect the group (`/name CODE`) | `/soiree`          | `/event`   | `/feier`       | `/evento`     | `/evento`    |
+| Erase what the sender posted     | `/oublier`         | `/forget`  | `/vergessen`   | `/olvidar`    | `/dimentica` |
+| Send the address of the notice   | `/confidentialite` | `/privacy` | `/datenschutz` | `/privacidad` | `/privacy`   |
+
+### When the bot cannot see the photographs
+
+With Telegram's privacy mode on and the bot a plain member of the group, Telegram never delivers the photographs: nothing
+is queued and nothing is reacted to. The bot now says so. When a group is connected it checks (from its own description, and
+by asking Telegram whether it administers the group) and, if it cannot see the photographs, adds a paragraph to its answer
+asking to be named administrator (no particular right is needed). If it is then promoted, it thanks the group once. The
+host's panel shows the same hint as a warning whenever the bot reads only the groups it administers. A check that fails
+(network) says nothing and is logged; it never blocks the connection.
 Text, stickers, polls and other bots are ignored and never stored. A group already linked to another event that is still
 live is refused; the host of that event unlinks it first.
 
