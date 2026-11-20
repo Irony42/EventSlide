@@ -14,6 +14,7 @@ The long version of the [README](../README.md#what-it-does): every feature, by w
 - **The wall is meant to be looked at.** One photo at a time, whole and with a slow
   zoom, or one of six other layouts; captions and the sender's name, a join code in the
   corner for whoever arrives late.
+- **A Telegram group can send its photos.** An operator who sets a bot token lets a host connect a group to an event: what members post goes through the same moderation as a phone, with a badge "via Telegram" in the console, and `/oublier` erases a sender's contributions. Off unless a token is set; see [TELEGRAM.md](TELEGRAM.md).
 - **It survives the venue.** Uploads retry, the wall keeps playing when the network
   drops, and it runs unattended for an eight-hour evening — true for a box running on
   site; a wall served by the hosted instance still depends on the venue's own internet
