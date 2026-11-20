@@ -1,3 +1,4 @@
+import { asEventId } from '../shared/ids'
 import { describe, expect, it } from 'vitest'
 
 import { DisplayName } from '../guests/displayName'
@@ -17,9 +18,15 @@ const name = (raw: string): DisplayName => {
 }
 
 describe('senderKeyMaterial', () => {
-  it('names the channel, so two channels never share a fingerprint', () => {
-    const sender = { ref: '42', displayName: null, isBot: false, isAnonymous: false }
-    expect(senderKeyMaterial('telegram', sender)).toBe('telegram:42')
+  const sender = { ref: '42', displayName: null, isBot: false, isAnonymous: false }
+  it('names the channel and the event', () => {
+    expect(senderKeyMaterial('telegram', asEventId('e1'), sender)).toBe('telegram:e1:42')
+  })
+
+  it('differs from one event to the next for the same person, so no row links two events', () => {
+    expect(senderKeyMaterial('telegram', asEventId('e1'), sender)).not.toBe(
+      senderKeyMaterial('telegram', asEventId('e2'), sender),
+    )
   })
 })
 
