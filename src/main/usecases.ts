@@ -201,6 +201,8 @@ export interface UseCasePolicy {
     readonly enabled: boolean
     readonly maxPerEventPerDay: number
     readonly printEnabled: boolean
+    /** `BOOK_MAX_PHOTOS`: the most photographs a book holds, which the form tells the host. */
+    readonly maxPhotos: number
   }
   /**
    * `EXPORT_*` (spec 22): the box's switch and ceilings for the verified archive, and the free-space

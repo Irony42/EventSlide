@@ -90,13 +90,17 @@ const world = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World => {
               },
             },
           })(input),
-        getAlbumBook: makeGetAlbumBook({
-          events: deps.events,
-          books,
-          photos,
-          guestbook: new FakeGuestbookRepository(),
-          bookFiles,
-        }),
+        // Built per call, so a test can switch the printer version off after the server is up.
+        getAlbumBook: (input) =>
+          makeGetAlbumBook({
+            events: deps.events,
+            books,
+            photos,
+            guestbook: new FakeGuestbookRepository(),
+            bookFiles,
+            maxPhotos: 300,
+            printEnabled: state.printEnabled,
+          })(input),
         downloadAlbumBook: makeDownloadAlbumBook({
           events: deps.events,
           books,
@@ -233,7 +237,6 @@ describe('POST /api/events/:eventSlug/book', () => {
         language: 'fr',
         // The 3.14 body is accepted and converted (a Classique book, every photograph): the layout it
         // asked for is gone, and the worker draws one photograph a page until the new renderer.
-        layout: 'one',
         style: 'classique',
         selection: { kind: 'all' },
         showAuthors: true,
@@ -254,6 +257,7 @@ describe('POST /api/events/:eventSlug/book', () => {
       failureCode: null,
       staleReason: null,
       albumCounts: { photos: 1, messages: 0 },
+      offer: { maxPhotos: 300, printVersion: true },
     })
   })
 
@@ -367,7 +371,11 @@ describe('GET /api/events/:eventSlug/book', () => {
     const none = await agent.get('/api/events/mariage/book')
     expect(none.status).toBe(200)
     expect(none.headers['cache-control']).toBe('no-store')
-    expect(none.body).toEqual({ status: 'none', albumCounts: { photos: 1, messages: 0 } })
+    expect(none.body).toEqual({
+      status: 'none',
+      albumCounts: { photos: 1, messages: 0 },
+      offer: { maxPhotos: 300, printVersion: true },
+    })
 
     await agent.post('/api/events/mariage/book').send(BODY).expect(202)
     expect((await agent.get('/api/events/mariage/book')).body.status).toBe('queued')
@@ -379,7 +387,11 @@ describe('GET /api/events/:eventSlug/book', () => {
 
     const response = await agent.get('/api/events/mariage/book')
 
-    expect(response.body).toEqual({ status: 'none', albumCounts: { photos: 1, messages: 0 } })
+    expect(response.body).toEqual({
+      status: 'none',
+      albumCounts: { photos: 1, messages: 0 },
+      offer: { maxPhotos: 300, printVersion: true },
+    })
   })
 })
 
@@ -500,6 +512,17 @@ describe('the book without a printer version', () => {
     const agent = await signedIn(subject, 'moderator')
 
     expect((await agent.get('/api/events/mariage/book.pdf').buffer(true)).status).toBe(200)
+  })
+})
+
+describe('GET /api/events/:eventSlug/book, what the box offers', () => {
+  it('says the printer version is not offered when the box switched it off', async () => {
+    subject.state.printEnabled = false
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get('/api/events/mariage/book')
+
+    expect(response.body.offer).toEqual({ maxPhotos: 300, printVersion: false })
   })
 })
 

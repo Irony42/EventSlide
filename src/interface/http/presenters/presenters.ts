@@ -206,11 +206,11 @@ const isoOrNull = (date: Date | null): string | null => (date === null ? null : 
 
 /** The photo book as the host's screen reads it (spec 04, spec 26); `none` when none was ever asked for. */
 export const toAlbumBookDto = (state: AlbumBookState): AlbumBookDto => {
-  const { book, counts, printFiles } = state
-  if (book === null) return { status: 'none', albumCounts: counts }
+  const { book, counts, offer, printFiles } = state
+  if (book === null) return { status: 'none', albumCounts: counts, offer }
   return {
     status: book.status,
-    options: { ...book.options, layout: 'one' },
+    options: book.options,
     requestedAt: iso(book.requestedAt),
     doneAt: isoOrNull(book.doneAt),
     photoCount: book.photoCount,
@@ -236,6 +236,7 @@ export const toAlbumBookDto = (state: AlbumBookState): AlbumBookDto => {
     failureCode: book.failureCode,
     staleReason: book.staleReason,
     albumCounts: counts,
+    offer,
   }
 }
 

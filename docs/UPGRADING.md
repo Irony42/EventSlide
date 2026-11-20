@@ -1008,7 +1008,8 @@ nothing the policy above promises to keep.
   dropped and the screen book is kept) and `BOOK_MAX_MESSAGES` (60, the most guest-book messages in one book).
 - **The request body of 3.14 still works during 3.15**: `layout`, `showAuthors`, `showCaptions` is read as the
   `classique` style, every photograph, no guest book. A body that mixes the old and the new fields is `400 request.invalid`.
-  `layout` is removed from the answer in 3.16; until then it is always `"one"`.
+  The answer no longer carries `layout`: a page of 3.14 left open across the upgrade keeps its form until it is reloaded.
+- **A new Photo book panel** on the event page: three style cards (the form opens on the one the wall's ambiance suggests), every photograph or a selection of about 60, 120 or 200, first names, captions, the guest book when it has written messages, the printer version, and the three downloads. It remembers the last book's choices. **Nothing to set in `.env`** beyond the three settings above; five languages.
 - **Two new downloads**, `GET /api/events/:slug/book-print.pdf` and `book-cover.pdf`, for a book that has a printer version
   (see [API.md](API.md#the-photo-book-spec-04-spec-26)), and the `GET` answer gains the counts the form needs.
 - **Going back to 3.14 is a backup restore.** The migrator refuses a database newer than the binary ("downgrading is not

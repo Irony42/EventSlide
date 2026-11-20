@@ -106,16 +106,25 @@ export interface ModerationPhotoDto {
  * subtitle are the host's own, `failureCode` and `staleReason` are closed lists.
  */
 export type AlbumBookDto =
-  | { readonly status: 'none' }
+  | {
+      readonly status: 'none'
+      readonly albumCounts: { readonly photos: number; readonly messages: number }
+      readonly offer: { readonly maxPhotos: number; readonly printVersion: boolean }
+    }
   | {
       readonly status: 'queued' | 'running' | 'done' | 'failed' | 'stale'
+      /** What the book was asked to be. */
       readonly options: {
         readonly title: string
         readonly subtitle: string
         readonly language: string
-        readonly layout: 'one' | 'four'
+        readonly style: AlbumBookStyle
+        readonly selection: AlbumBookSelection
         readonly showAuthors: boolean
         readonly showCaptions: boolean
+        readonly includeGuestbook: boolean
+        readonly printVersion: boolean
+        readonly timeZone: string
       }
       readonly requestedAt: string
       readonly doneAt: string | null
@@ -123,10 +132,29 @@ export type AlbumBookDto =
       readonly skippedCount: number | null
       readonly pageCount: number | null
       readonly byteSize: number | null
+      /** The photographs the plan kept, once the render has begun. */
+      readonly selectedCount: number | null
+      /** A finished book: the screen file, and the printer version's two when it was made. */
+      readonly files?: {
+        readonly screen: { readonly byteSize: number }
+        readonly printInterior?: { readonly byteSize: number }
+        readonly printCover?: { readonly byteSize: number }
+      }
+      /** Why a finished book has no printer version although the host asked for one. */
+      readonly printSkipped: 'tooManyPages' | 'tooLarge' | null
       readonly expiresAt: string | null
       readonly failureCode: string | null
       readonly staleReason: string | null
+      /** The album now, for the form: published photographs (clips left out) and written messages. */
+      readonly albumCounts: { readonly photos: number; readonly messages: number }
+      /** What the box lets a book be: its ceiling of photographs and whether it offers the printer version. */
+      readonly offer: { readonly maxPhotos: number; readonly printVersion: boolean }
     }
+/** The three styles of the photo book (spec 26). */
+export type AlbumBookStyle = 'classique' | 'magazine' | 'souvenir'
+/** Every photograph, or the best ones, to a length (spec 26). */
+export type AlbumBookSelection =
+  { readonly kind: 'all' } | { readonly kind: 'best'; readonly target: 60 | 120 | 200 }
 /**
  * The event's verified archive (spec 22): numbers, instants, the digest of the whole ZIP and closed
  * codes, with the domain's own verdict on whether the album may be deleted without typing the word.
