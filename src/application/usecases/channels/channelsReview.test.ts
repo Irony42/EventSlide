@@ -502,6 +502,16 @@ describe('the bot says when it cannot see the photographs', () => {
       await unbound.receive({ type: 'botPromoted', channel: 'telegram', conversationRef: '-5' }),
     ).toBe('ignored')
     expect(unbound.telegram.said).toEqual([])
+
+    const bare = aChannelScene()
+    ;(bare.channels as Map<string, unknown>).delete('telegram')
+    expect(
+      await bare.receive({
+        type: 'botPromoted',
+        channel: 'telegram',
+        conversationRef: CONVERSATION,
+      }),
+    ).toBe('ignored')
   })
 
   it('lists whether the bot reads every message, for the host panel', async () => {
