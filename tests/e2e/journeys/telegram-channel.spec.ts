@@ -4,6 +4,7 @@ import { aPhoto } from '../fixtures/media'
 import { startTestApp } from '../fixtures/startTestApp'
 import { SUITE_LOCALE } from '../fixtures/suiteLocale'
 import { FakeBotApiServer } from '../../../src/infrastructure/channels/telegram/testing/fakeBotApiServer'
+import { renderReply } from '../../../src/domain/channels/channelReplies'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
@@ -74,7 +75,7 @@ test('a host connects a Telegram group, a photo posted there is moderated and pu
     await expect.poll(() => bot.said().length).toBeGreaterThan(0)
     expect(bot.said()[0]?.text).toContain('Camille & Sacha')
     await expect.poll(() => bot.reactions().length).toBe(1)
-    expect(bot.reactions()[0]).toEqual({ chat_id: -1001, message_id: 2 })
+    expect(bot.reactions()[0]).toEqual({ chat_id: -1001, message_id: 2, emoji: '👍' })
 
     // ---- the console holds it for a decision, badged, as for any guest's photograph -------------------------
 
@@ -83,18 +84,15 @@ test('a host connects a Telegram group, a photo posted there is moderated and pu
     await expect(card).toBeVisible()
     await expect(card.getByText(fr.channels.viaTelegram)).toBeVisible()
     await expect(card.getByText('Léa M.')).toBeVisible()
-    // Nothing is public before the decision.
-    const before = await host.request.get(app.url(`/api/events/${event.slug}/wall`))
-    expect(JSON.stringify(await before.json())).not.toContain('from-the-group')
+    // Nothing is public before the decision: the wall has no photograph at all.
+    const wallItems = async (): Promise<number> => {
+      const wall = await host.request.get(app.url(`/api/events/${event.slug}/wall`))
+      return ((await wall.json()) as { items: unknown[] }).items.length
+    }
+    expect(await wallItems()).toBe(0)
 
-    await card.getByRole('button', { name: /Publier/i }).click()
-    await expect
-      .poll(async () => {
-        const wall = await host.request.get(app.url(`/api/events/${event.slug}/wall`))
-        const body = (await wall.json()) as { items?: unknown[] }
-        return body.items?.length ?? 0
-      })
-      .toBe(1)
+    await card.getByRole('button', { name: fr.moderation.publish }).click()
+    await expect.poll(wallItems).toBe(1)
 
     // ---- the panel lists the group, and the owner unlinks it --------------------------------------------------
 
@@ -106,16 +104,9 @@ test('a host connects a Telegram group, a photo posted there is moderated and pu
     await expect(host.getByText(fr.channels.none)).toBeVisible()
 
     // The bot says so in the group, and a photograph posted afterwards is not taken.
-    await expect
-      .poll(() =>
-        bot
-          .said()
-          .some(
-            (said) => said.text.includes('n’envoie plus') || said.text.includes("n'envoie plus"),
-          ),
-      )
-      .toBe(true)
-    bot.push({
+    const unlinkedWords = renderReply({ reason: 'unbound', eventName: 'Camille & Sacha' }, 'fr')
+    await expect.poll(() => bot.said().some((said) => said.text === unlinkedWords)).toBe(true)
+    const third = bot.push({
       message: {
         message_id: 3,
         chat: GROUP,
@@ -123,9 +114,11 @@ test('a host connects a Telegram group, a photo posted there is moderated and pu
         photo: [{ file_id: 'big', width: 800, height: 600, file_size: 30_000 }],
       },
     })
-    await expect
-      .poll(() => bot.calls.filter((call) => call.method === 'getUpdates').length)
-      .toBeGreaterThan(3)
+    // Proof that the third message was consumed: the bot confirmed its update to Telegram (its next poll asks for
+    // an offset past it). Only then does "not taken" mean something.
+    await expect.poll(() => bot.confirmedBelow()).toBeGreaterThan(third)
+    // The worker had every chance to take it: nothing was reacted to or queued for a decision.
+    expect(bot.reactions()).toHaveLength(1)
     await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
     await host.getByRole('button', { name: fr.moderation.filterAll, exact: true }).click()
     await expect(host.getByTestId('moderation-card')).toHaveCount(1)
