@@ -152,7 +152,7 @@ describe('ChannelsPanel', () => {
 
     const warning = await screen.findByText(fr.channels.visibility)
 
-    expect(warning).toHaveAttribute('role', 'status')
+    expect(warning.closest('[role="status"]')).not.toBeNull()
   })
 
   it('keeps the visibility hint as plain text when the bot reads every message', async () => {
@@ -160,12 +160,12 @@ describe('ChannelsPanel', () => {
 
     const hint = await screen.findByText(fr.channels.visibility)
 
-    expect(hint).not.toHaveAttribute('role')
+    expect(hint.closest('[role="status"]')).toBeNull()
   })
 
   it('keeps it as plain text too when the box could not say', async () => {
     renderPanel(fakeApi({ channels: vi.fn(async () => view({ readsAllMessages: null })) }))
 
-    expect(await screen.findByText(fr.channels.visibility)).not.toHaveAttribute('role')
+    expect((await screen.findByText(fr.channels.visibility)).closest('[role="status"]')).toBeNull()
   })
 })
