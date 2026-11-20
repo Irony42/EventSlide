@@ -16,12 +16,20 @@ describe('signal audience', () => {
       expect(canReceiveSignal(type, 'moderation')).toBe(true)
     }
   })
+  it('keeps the two messaging channel signals off the public channel (spec 27)', () => {
+    for (const type of ['channel.mediaQueued', 'channel.bindingChanged']) {
+      expect(canReceiveSignal(type, 'public')).toBe(false)
+      expect(canReceiveSignal(type, 'moderation')).toBe(true)
+    }
+  })
   it('lists exactly the private signals', () => {
     expect([...MODERATION_ONLY_SIGNALS]).toEqual([
       'book.changed',
       'export.changed',
       'guestbook.voice',
       'voice.queued',
+      'channel.mediaQueued',
+      'channel.bindingChanged',
     ])
   })
   it('lets every other signal through to both channels', () => {

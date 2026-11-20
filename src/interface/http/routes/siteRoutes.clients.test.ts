@@ -100,6 +100,7 @@ describe('POST /api/site/clients', () => {
         maxLiveDays: null,
         clipsAllowed: false,
         booksAllowed: false,
+        channelsAllowed: false,
       },
     })
 
@@ -219,6 +220,7 @@ describe('each of the nine ceilings, on its own, reaches the use case', () => {
     ['maxRetentionDays', 60],
     ['clipsAllowed', false],
     ['booksAllowed', false],
+    ['channelsAllowed', true],
     ['liveAllowed', false],
     ['maxLiveDays', 4],
     ['maxEventsPerPeriod', 6],
@@ -342,6 +344,7 @@ describe('PUT /api/site/clients/:clientId/ceilings', () => {
         maxRetentionDays: 60,
         clipsAllowed: true,
         booksAllowed: true,
+        channelsAllowed: true,
         liveAllowed: true,
         maxLiveDays: null,
         maxEventsPerPeriod: null,

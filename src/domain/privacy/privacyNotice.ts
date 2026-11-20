@@ -1,3 +1,4 @@
+import type { ChannelKind } from '../channels/channelKind'
 import type { ModerationMode } from '../events/eventSettings'
 
 /**
@@ -115,6 +116,12 @@ export interface NoticePolicy {
   readonly allowGuestbookVoice: boolean
   /** The host keeps the voices secret until the end of the evening. Read only when voice is on. */
   readonly guestbookVoiceSealed: boolean
+  /**
+   * The messaging channels whose photographs reach this event (spec 27): `['telegram']` when the host switched
+   * it on, none otherwise. A fact about the host's switch, never about the box (a bot token is a fact about the
+   * box, not a promise to a guest), as the voice clause reads the switch and not the transcoder.
+   */
+  readonly channels: readonly ChannelKind[]
 }
 
 /**
@@ -239,6 +246,15 @@ export interface PrivacyNotice {
    */
   readonly voiceRemovalSeconds: number | null
   /**
+   * The messaging channels that carry photographs to this event (spec 27). The notice then says they pass through
+   * that messenger before arriving here, and that only a first name and a fingerprint of the account are kept.
+   *
+   * Part of the revision **only when there is one** (`channels=telegram`), like {@link PrivacyNotice.guestbook}: an
+   * event with no channel produces the revision it produced before this clause existed, so nobody is asked to read
+   * anything again. A web guest of an event that connects a group mid-evening reads the notice once more.
+   */
+  readonly channels: readonly ChannelKind[]
+  /**
    * The notice's identity: two notices with the same revision say the same thing.
    *
    * What a guest's acknowledgement is recorded against, and what decides whether they are
@@ -347,6 +363,8 @@ const revisionOf = (notice: Omit<PrivacyNotice, 'revision'>): string =>
           `voiceRemoval=${notice.voiceRemovalSeconds ?? 'none'}`,
         ]
       : []),
+    // Spec 27: the channels clause, after the voice and before the operator, which stays last.
+    ...(notice.channels.length === 0 ? [] : [`channels=${notice.channels.join('+')}`]),
     ...(notice.operator === null ? [] : [`operator=${notice.operator}`]),
   ].join(';')
 
@@ -378,6 +396,7 @@ export const privacyNoticeFor = (
     // Read only when voice is on: a sealed book on an event without voice says nothing to a guest.
     voiceSealed: policy.allowGuestbookVoice && policy.guestbookVoiceSealed,
     voiceRemovalSeconds: voiceRemovalFor(policy),
+    channels: [...policy.channels],
   }
   return { ...clauses, revision: revisionOf(clauses) }
 }

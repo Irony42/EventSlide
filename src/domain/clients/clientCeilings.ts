@@ -32,6 +32,8 @@ export interface ClientCeilingsProps {
   readonly clipsAllowed: boolean
   /** The photo book (PDF of the album): the client's plan, like `clipsAllowed`. */
   readonly booksAllowed: boolean
+  /** Messaging channels (spec 27): a Telegram group sending its photographs. The client's plan, like `clipsAllowed`. */
+  readonly channelsAllowed: boolean
   readonly liveAllowed: boolean
   readonly maxLiveDays: number | null
   readonly maxEventsPerPeriod: number | null
@@ -46,6 +48,7 @@ const UNLIMITED: ClientCeilingsProps = {
   maxRetentionDays: null,
   clipsAllowed: true,
   booksAllowed: true,
+  channelsAllowed: true,
   liveAllowed: true,
   maxLiveDays: null,
   maxEventsPerPeriod: null,
@@ -152,6 +155,9 @@ export class ClientCeilings {
     if (typeof props.booksAllowed !== 'boolean') {
       return err(DomainError.invalid('clientCeilings.booksAllowedInvalid'))
     }
+    if (typeof props.channelsAllowed !== 'boolean') {
+      return err(DomainError.invalid('clientCeilings.channelsAllowedInvalid'))
+    }
     if (typeof props.liveAllowed !== 'boolean') {
       return err(DomainError.invalid('clientCeilings.liveAllowedInvalid'))
     }
@@ -204,6 +210,10 @@ export class ClientCeilings {
 
   get booksAllowed(): boolean {
     return this.props.booksAllowed
+  }
+
+  get channelsAllowed(): boolean {
+    return this.props.channelsAllowed
   }
 
   get maxLiveDays(): number | null {
@@ -324,8 +334,16 @@ export class ClientCeilings {
    * they asked for. Both are `invalid`, so the form can say which field.
    */
   settingsRefusal(
-    current: { readonly retentionDays: number | null; readonly allowClips: boolean },
-    patch: { readonly retentionDays?: number | null; readonly allowClips?: boolean },
+    current: {
+      readonly retentionDays: number | null
+      readonly allowClips: boolean
+      readonly allowTelegram: boolean
+    },
+    patch: {
+      readonly retentionDays?: number | null
+      readonly allowClips?: boolean
+      readonly allowTelegram?: boolean
+    },
   ): DomainError | null {
     const cap = this.props.maxRetentionDays
     const retention = patch.retentionDays
@@ -339,6 +357,9 @@ export class ClientCeilings {
     }
     if (patch.allowClips === true && !current.allowClips && !this.clipsAllowed) {
       return DomainError.invalid('client.clipsNotAllowed')
+    }
+    if (patch.allowTelegram === true && !current.allowTelegram && !this.channelsAllowed) {
+      return DomainError.invalid('client.channelsNotAllowed')
     }
     return null
   }

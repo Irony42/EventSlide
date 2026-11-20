@@ -400,5 +400,6 @@ export interface AppConfig {
     readonly maxLiveDays: number | null
     readonly clipsAllowed: boolean
     readonly booksAllowed: boolean
+    readonly channelsAllowed: boolean
   }
 }

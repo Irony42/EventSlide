@@ -2,6 +2,7 @@ import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 import type { EventId, GuestId } from '../shared/ids'
 import type { NoticeAcknowledgementStatus, PrivacyNotice } from '../privacy/privacyNotice'
+import type { ChannelKind } from '../channels/channelKind'
 import type { DisplayName } from './displayName'
 
 /**
@@ -16,6 +17,15 @@ export interface NoticeAcknowledgement {
   readonly at: Date
 }
 
+/**
+ * Who a guest is on a messaging channel (spec 27): the channel and the sender's **fingerprint**, never the
+ * channel's own identifier. A guest who came through the web has none. It never changes once the guest exists.
+ */
+export interface ChannelIdentity {
+  readonly channel: ChannelKind
+  readonly senderKey: string
+}
+
 export interface GuestProps {
   readonly id: GuestId
   readonly eventId: EventId
@@ -26,11 +36,15 @@ export interface GuestProps {
   readonly photoCount: number
   /** `null` until the guest has acknowledged a privacy notice at this event. */
   readonly noticeAcknowledgement: NoticeAcknowledgement | null
+  /** `null` for a guest of the web: only a guest of a messaging channel has one. */
+  readonly channelIdentity: ChannelIdentity | null
 }
 
 export interface NewGuest {
   readonly eventId: EventId
   readonly displayName: DisplayName | null
+  /** Set by the messaging channels only (spec 27). */
+  readonly channelIdentity?: ChannelIdentity
 }
 
 /**
@@ -67,6 +81,7 @@ export class Guest {
         // Joining is not reading. The notice is shown before the first upload rather
         // than at the door, so a guest who only came to look is never stopped by it.
         noticeAcknowledgement: null,
+        channelIdentity: input.channelIdentity ?? null,
       }),
     )
   }
@@ -102,6 +117,10 @@ export class Guest {
 
   get photoCount(): number {
     return this.props.photoCount
+  }
+
+  get channelIdentity(): ChannelIdentity | null {
+    return this.props.channelIdentity
   }
 
   get noticeAcknowledgement(): NoticeAcknowledgement | null {

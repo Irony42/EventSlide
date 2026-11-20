@@ -1125,3 +1125,22 @@ or [without](#without-docker), with `vX.Y.Z` as `v3.14.0`; the image is `ghcr.io
   first, as for any upgrade: the migration only goes forward.
 - **Nothing to set in `.env`.** A wall that has no announcement answers exactly what it did before; `GET /wall`
   gains an optional `announcements` field only while an event is live and has one still to come.
+
+## Upgrading to 3.15 (not released yet)
+
+This section collects what the release after 3.14 changes, as it is written. Back up before upgrading, as for any
+release: the migrations only go forward.
+
+### Messaging channels: photographs from a Telegram group (spec 27)
+
+- **One migration (033)**: three new tables (`channel_bindings`, `channel_media_jobs`, `channel_cursors`) and three new
+  columns with defaults (`guests.channel`, `guests.channel_sender_key`, `clients.channels_allowed`). Nothing existing is
+  rewritten.
+- A binding's "photos received" counter is not decremented by `/oublier`, and the conversation title is kept until the
+  event purge.
+- **Off everywhere.** The event setting `allowTelegram` reads off for every event, new or existing, and nothing is
+  connected until a host turns it on and a bot token is configured (a later pull request of the same release).
+- **One optional setting for a hosted box**: `NEW_CLIENT_CHANNELS_ALLOWED` (`true`, `false`, `1` or `0`; **absent means
+  not allowed**, the opposite of `NEW_CLIENT_CLIPS_ALLOWED`) is the default a client created by the operator starts with.
+  **Every client that already exists starts with it off**; the operator turns it on per client. An event with no client
+  (a self-hosted box) is not concerned: its host's switch decides.

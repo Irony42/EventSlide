@@ -1,4 +1,5 @@
 import { Guest } from '../../domain/guests/guest'
+import type { ChannelKind } from '../../domain/channels/channelKind'
 import type { EventId, GuestId } from '../../domain/shared/ids'
 import type { GuestRepository } from '../ports/guestRepository'
 import { compareIds } from './ordering'
@@ -88,6 +89,20 @@ export class FakeGuestRepository implements GuestRepository {
     return names
   }
 
+  async findByChannelSender(
+    eventId: EventId,
+    channel: ChannelKind,
+    senderKey: string,
+  ): Promise<Guest | null> {
+    const found = [...this.rows.values()].find(
+      (guest) =>
+        guest.eventId === eventId &&
+        guest.channelIdentity?.channel === channel &&
+        guest.channelIdentity.senderKey === senderKey,
+    )
+    return found === undefined ? null : this.read(found)
+  }
+
   async list(eventId: EventId): Promise<readonly Guest[]> {
     return [...this.rows.values()]
       .filter((guest) => guest.eventId === eventId)
@@ -111,8 +126,29 @@ export class FakeGuestRepository implements GuestRepository {
     ).length
   }
 
+  /**
+   * As the adapter: a messaging identity is set when the guest is created and never changes (a save
+   * carrying another one keeps the stored one), and one sender is one guest at one event (the unique
+   * index), so a second guest with the same identity is refused.
+   */
   async save(guest: Guest): Promise<void> {
-    this.rows.set(key(guest.eventId, guest.id), guest)
+    const stored = this.rows.get(key(guest.eventId, guest.id))
+    const identity = stored === undefined ? guest.channelIdentity : stored.channelIdentity
+    const clash =
+      identity !== null &&
+      [...this.rows.values()].some(
+        (other) =>
+          other.eventId === guest.eventId &&
+          other.id !== guest.id &&
+          other.channelIdentity?.channel === identity.channel &&
+          other.channelIdentity.senderKey === identity.senderKey,
+      )
+    if (clash) throw new Error(`guests: the sender of ${guest.id} is already a guest of this event`)
+
+    this.rows.set(
+      key(guest.eventId, guest.id),
+      Guest.restore({ ...guest.toProps(), channelIdentity: identity }),
+    )
   }
 
   async touch(eventId: EventId, guestId: GuestId, at: Date): Promise<void> {

@@ -42,6 +42,7 @@ const ceilingsSnapshot = (ceilings: ClientCeilingsProps): AuditDetails => ({
   maxRetentionDays: ceilings.maxRetentionDays,
   clipsAllowed: ceilings.clipsAllowed,
   booksAllowed: ceilings.booksAllowed,
+  channelsAllowed: ceilings.channelsAllowed,
   liveAllowed: ceilings.liveAllowed,
   maxLiveDays: ceilings.maxLiveDays,
   maxEventsPerPeriod: ceilings.maxEventsPerPeriod,

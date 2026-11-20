@@ -44,6 +44,7 @@ describe('GET /api/site/clients', () => {
         maxRetentionDays: null,
         clipsAllowed: true,
         booksAllowed: true,
+        channelsAllowed: true,
         liveAllowed: true,
         maxLiveDays: null,
         maxEventsPerPeriod: null,
