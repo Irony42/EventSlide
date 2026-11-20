@@ -125,7 +125,19 @@ export const parseCommand = (
 
 /** A Map, not an object: `/constructor` must not find `Object.prototype.constructor`. */
 const COMMAND_NAMES: ReadonlyMap<string, ChannelCommandName> = new Map([
+  // Every alias works in every group, whatever the event's language: a group mixes languages. The names are the
+  // ones the bot's profile lists per language, folded the way a typed command is (no accent, lower case).
   ['soiree', 'bind'],
+  ['event', 'bind'],
+  ['feier', 'bind'],
+  ['evento', 'bind'],
   ['oublier', 'forget'],
+  ['forget', 'forget'],
+  ['vergessen', 'forget'],
+  ['olvidar', 'forget'],
+  ['dimentica', 'forget'],
   ['confidentialite', 'privacy'],
+  ['privacy', 'privacy'],
+  ['datenschutz', 'privacy'],
+  ['privacidad', 'privacy'],
 ])

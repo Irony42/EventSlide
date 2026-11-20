@@ -226,3 +226,33 @@ describe('a bot that cannot see the photographs of its group', () => {
     )
   })
 })
+
+describe('the bot names its commands in the language of the reply', () => {
+  const NAMES = {
+    fr: { bind: '/soiree', forget: '/oublier' },
+    en: { bind: '/event', forget: '/forget' },
+    de: { bind: '/feier', forget: '/vergessen' },
+    es: { bind: '/evento', forget: '/olvidar' },
+    it: { bind: '/evento', forget: '/dimentica' },
+  } as const
+
+  it.each(EVENT_LANGUAGES)('says %s commands, and no other language’s', (language) => {
+    const others = EVENT_LANGUAGES.filter((other) => other !== language).flatMap((other) =>
+      Object.values(NAMES[other]).filter((name) => !Object.values(NAMES[language]).includes(name)),
+    )
+    const texts = [
+      renderReply({ reason: 'notBound' }, language),
+      renderReply({ reason: 'noCode' }, language),
+      renderReply(
+        { reason: 'bound', eventName: 'X', moderated: false, noticeUrl: NOTICE },
+        language,
+      ),
+    ]
+
+    expect(texts[0]).toContain(NAMES[language].bind)
+    expect(texts[1]).toContain(`${NAMES[language].bind} ABCD-1234`)
+    expect(texts[2]).toContain(NAMES[language].forget)
+    for (const text of texts) for (const name of others) expect(text).not.toContain(`${name} `)
+    for (const text of texts) for (const name of others) expect(text.endsWith(name)).toBe(false)
+  })
+})
