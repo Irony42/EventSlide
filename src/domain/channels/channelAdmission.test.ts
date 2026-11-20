@@ -51,6 +51,14 @@ describe('admitMedia', () => {
     expect(result).toEqual({ ok: true, value: { kind: 'video', trim: null } })
   })
 
+  it('sends a document declared video/* of unknown length untrimmed: a blind trim would fail on a short source', () => {
+    const result = admitMedia(
+      media({ kind: 'document', declaredMimeType: 'video/mp4', durationMs: null }),
+      LIMITS,
+    )
+    expect(result).toEqual({ ok: true, value: { kind: 'video', trim: null } })
+  })
+
   it('refuses a video heavier than the channel allows', () => {
     const result = admitMedia(media({ kind: 'video', declaredBytes: 20_001 }), LIMITS)
     expect(code(result)).toBe('channel.mediaTooLarge')

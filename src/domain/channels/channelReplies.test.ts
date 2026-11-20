@@ -85,6 +85,28 @@ describe('renderReply', () => {
   })
 })
 
+describe('what the host wrote in a French reply', () => {
+  it('is never given the typography: only the phrase is', () => {
+    const name = 'Fête : à ? ! « x »'
+    const text = renderReply({ reason: 'unbound', eventName: name }, 'fr')
+    expect(text).toContain('«' + NBSP + name + NBSP + '»')
+    const bound = renderReply(
+      { reason: 'bound', eventName: 'A', moderated: false, noticeUrl: 'https://x.test/a b ?' },
+      'fr',
+    )
+    expect(bound.endsWith('https://x.test/a b ?')).toBe(true)
+  })
+
+  it('quotes at most 80 characters of the event name, so a reply stays far under 4096', () => {
+    const long = 'é'.repeat(5000)
+    const text = renderReply({ reason: 'unbound', eventName: long }, 'en')
+    expect(text).toContain('"' + 'é'.repeat(80) + '…"')
+    expect(text.length).toBeLessThan(200)
+    const exact = 'a'.repeat(80)
+    expect(renderReply({ reason: 'unbound', eventName: exact }, 'en')).toContain('"' + exact + '"')
+  })
+})
+
 describe('frenchTypography', () => {
   it('puts a no-break space before : ; ! ? and inside the guillemets', () => {
     expect(frenchTypography('Ça : oui ; non ! vraiment ?')).toBe(

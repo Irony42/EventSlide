@@ -28,6 +28,11 @@ describe('parseCommand', () => {
     })
   })
 
+  it('ignores a command whose addressee is empty, instead of binding with the argument "@"', () => {
+    expect(parseCommand('/soiree@', 'EventSlideBot')).toBeNull()
+    expect(parseCommand('/soiree@ ABCD', 'EventSlideBot')).toBeNull()
+  })
+
   it('ignores a command addressed to another bot of the group', () => {
     expect(parseCommand('/soiree@OtherBot ABCD', 'EventSlideBot')).toBeNull()
   })

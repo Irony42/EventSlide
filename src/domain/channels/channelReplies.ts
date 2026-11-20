@@ -118,14 +118,24 @@ const FR: Phrasebook = {
     quotaReached: 'Vous avez envoyé le nombre maximal de photos pour cette soirée.',
     tooFast: 'Doucement : trop de fichiers à la fois, certains ne sont pas pris.',
   },
+  // The typography is applied to the phrase, then the event's name and the address go in: what a host wrote is
+  // never touched.
   bound: (eventName, moderated, noticeUrl) =>
-    `Ce groupe envoie maintenant ses photos et vidéos à « ${eventName} ». ${
-      moderated
-        ? "Elles passent par l'organisateur avant d'apparaître."
-        : 'Elles apparaissent directement sur le mur.'
-    }\nPour retirer vos photos : /oublier\nCe qui est gardé et combien de temps : ${noticeUrl}`,
-  unbound: (eventName) => `Ce groupe n'envoie plus de photos à « ${eventName} ».`,
-  privacy: (noticeUrl) => `Ce qui est gardé et combien de temps : ${noticeUrl}`,
+    frenchTypography('Ce groupe envoie maintenant ses photos et vidéos à « ') +
+    eventName +
+    frenchTypography(
+      ` ». ${
+        moderated
+          ? "Elles passent par l'organisateur avant d'apparaître."
+          : 'Elles apparaissent directement sur le mur.'
+      }\nPour retirer vos photos : /oublier\nCe qui est gardé et combien de temps : `,
+    ) +
+    noticeUrl,
+  unbound: (eventName) =>
+    frenchTypography("Ce groupe n'envoie plus de photos à « ") +
+    eventName +
+    frenchTypography(' ».'),
+  privacy: (noticeUrl) => frenchTypography('Ce qui est gardé et combien de temps : ') + noticeUrl,
 }
 
 const EN: Phrasebook = {
@@ -254,9 +264,9 @@ const PHRASEBOOKS: Readonly<Record<EventLanguage, Phrasebook>> = {
     plain: Object.fromEntries(
       Object.entries(FR.plain).map(([reason, text]) => [reason, frenchTypography(text)]),
     ) as Record<PlainReason, string>,
-    bound: (...args) => frenchTypography(FR.bound(...args)),
-    unbound: (...args) => frenchTypography(FR.unbound(...args)),
-    privacy: (...args) => frenchTypography(FR.privacy(...args)),
+    bound: FR.bound,
+    unbound: FR.unbound,
+    privacy: FR.privacy,
   },
   en: EN,
   de: DE,
@@ -264,14 +274,24 @@ const PHRASEBOOKS: Readonly<Record<EventLanguage, Phrasebook>> = {
   it: IT,
 }
 
+/** The longest event name quoted in a reply, so no message can come near the 4096 characters a chat takes. */
+export const MAX_QUOTED_NAME = 80
+
+const quoted = (eventName: string): string => {
+  const letters = [...eventName]
+  return letters.length <= MAX_QUOTED_NAME
+    ? eventName
+    : `${letters.slice(0, MAX_QUOTED_NAME).join('')}…`
+}
+
 /** The bot's words for a reply, in the event's language (`null`: not bound yet, so French). */
 export const renderReply = (reply: BotReply, language: EventLanguage | null): string => {
   const book = PHRASEBOOKS[language ?? DEFAULT_EVENT_LANGUAGE]
   switch (reply.reason) {
     case 'bound':
-      return book.bound(reply.eventName, reply.moderated, reply.noticeUrl)
+      return book.bound(quoted(reply.eventName), reply.moderated, reply.noticeUrl)
     case 'unbound':
-      return book.unbound(reply.eventName)
+      return book.unbound(quoted(reply.eventName))
     case 'privacy':
       return book.privacy(reply.noticeUrl)
     default:

@@ -1,6 +1,7 @@
 import { DisplayName } from '../guests/displayName'
 import type { DomainError } from '../shared/errors'
 import { toSingleLine } from '../shared/plainText'
+import type { EventId } from '../shared/ids'
 import type { Result } from '../shared/result'
 import type { ChannelKind } from './channelKind'
 import type { ChannelSender } from './inboundMessage'
@@ -14,9 +15,15 @@ import type { ChannelSender } from './inboundMessage'
  * secret, so the table holds a fingerprint from which nobody can read a Telegram account.
  */
 
-/** What is hashed: the channel and the sender's ref, so two channels never share a fingerprint. */
-export const senderKeyMaterial = (channel: ChannelKind, sender: ChannelSender): string =>
-  `${channel}:${sender.ref}`
+/**
+ * What is hashed: the channel, the event and the sender's ref. The channel keeps two messengers apart; the event
+ * gives one person a different fingerprint at each event, so the rows of two events cannot be linked.
+ */
+export const senderKeyMaterial = (
+  channel: ChannelKind,
+  eventId: EventId,
+  sender: ChannelSender,
+): string => `${channel}:${eventId}:${sender.ref}`
 
 /** The longest first name kept before the initial, so that name + space + initial + dot fits 40. */
 const MAX_FIRST_NAME = DisplayName.maxLength - 3
