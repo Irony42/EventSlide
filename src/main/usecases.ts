@@ -6,6 +6,12 @@ import type { EventBus } from '../application/ports/eventBus'
 import type { EventStatsRepository } from '../application/ports/eventStatsRepository'
 import type { EventRepository } from '../application/ports/eventRepository'
 import type { PhotoRepository } from '../application/ports/photoRepository'
+import type { ChannelBindingRepository } from '../application/ports/channelBindingRepository'
+import type { ChannelCursorStore } from '../application/ports/channelCursorStore'
+import type { ChannelMediaJobRepository } from '../application/ports/channelMediaJobRepository'
+import type { ChannelSenderKeyer } from '../application/ports/channelSenderKeyer'
+import type { MessagingChannel } from '../application/ports/messagingChannel'
+import type { ChannelKind } from '../domain/channels/channelKind'
 import type { GuestRepository } from '../application/ports/guestRepository'
 import type { ReactionRepository } from '../application/ports/reactionRepository'
 import type { MembershipRepository, UserRepository } from '../application/ports/userRepository'
@@ -54,6 +60,7 @@ import { authUseCases } from './usecases.auth'
 import { eventsUseCases } from './usecases.events'
 import { guestsUseCases } from './usecases.guests'
 import { photosUseCases } from './usecases.photos'
+import { channelsUseCases } from './usecases.channels'
 import { clipsUseCases } from './usecases.clips'
 import { wallUseCases } from './usecases.wall'
 import { galleryUseCases } from './usecases.gallery'
@@ -84,6 +91,14 @@ export interface Adapters {
   /** The reel's encoder, or the Null Object when this box has no ffmpeg. */
   readonly reelRenderer: ReelRenderer
   readonly guests: GuestRepository
+  /** Messaging channels (spec 27): the links from a conversation to an event, their queue, and where the poll stood. */
+  readonly channelBindings: ChannelBindingRepository
+  readonly channelJobs: ChannelMediaJobRepository
+  readonly channelCursors: ChannelCursorStore
+  /** The fingerprint of a sender; the one thing a channel stores about a person. */
+  readonly channelSenderKeyer: ChannelSenderKeyer
+  /** The channels this box has a bot for: empty unless `TELEGRAM_BOT_TOKEN` is set and accepted. */
+  readonly messagingChannels: ReadonlyMap<ChannelKind, MessagingChannel>
   readonly reactions: ReactionRepository
   /** The host statistics page: aggregates derived from photos, guests and reactions (spec 05). */
   readonly eventStats: EventStatsRepository
@@ -257,6 +272,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     ...guestsUseCases(adapters, policy, hooks),
     ...photosUseCases(adapters, policy, hooks),
     ...clipsUseCases(adapters, policy, hooks),
+    ...channelsUseCases(adapters),
     ...wallUseCases(adapters, policy, hooks),
     ...galleryUseCases(adapters, hooks),
     ...clientsUseCases(adapters, policy, hooks),

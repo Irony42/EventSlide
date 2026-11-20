@@ -54,6 +54,7 @@ import type {
   GalleryPageDto,
   AnnouncementDto,
   AnnouncementListResponseDto,
+  ChannelsResponseDto,
   AnnouncementResponseDto,
   ChallengeDto,
   GuestChallengeDto,
@@ -129,6 +130,7 @@ import type { InvitationPreview } from '../../../application/usecases/auth/previ
 import type { Announcement } from '../../../domain/announcements/announcement'
 import type { HostAnnouncement } from '../../../application/usecases/announcements/announcementAccess'
 import type { HostAnnouncementList } from '../../../application/usecases/announcements/listAnnouncements'
+import type { ChannelsView } from '../../../application/usecases/channels/listBindings'
 import type { WallAnnouncements } from '../../../application/usecases/slideshow/getWallPlaylist'
 import type { ChallengeReading } from '../../../application/usecases/challenges/readChallenge'
 import type { HostChallengeView } from '../../../application/usecases/challenges/getChallenge'
@@ -1173,6 +1175,19 @@ export const toAnnouncementListResponseDto = (
 ): AnnouncementListResponseDto => ({
   announcements: list.announcements.map(toAnnouncementDto),
   serverNowMs: list.serverNowMs,
+})
+
+export const toChannelsResponseDto = (view: ChannelsView): ChannelsResponseDto => ({
+  available: view.available,
+  botUsername: view.botUsername,
+  allowed: view.allowed,
+  bindings: view.bindings.map((binding) => ({
+    id: binding.id,
+    channel: binding.channel,
+    title: binding.conversationTitle,
+    boundAt: binding.boundAt.toISOString(),
+    photoCount: binding.receivedCount,
+  })),
 })
 
 export const toGuestMissionDto = (row: ChecklistItem): GuestMissionDto => ({

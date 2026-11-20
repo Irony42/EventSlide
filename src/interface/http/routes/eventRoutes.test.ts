@@ -386,6 +386,8 @@ const buildWorld = ({
         updateAnnouncement: absent('updateAnnouncement'),
         launchAnnouncement: absent('launchAnnouncement'),
         deleteAnnouncement: absent('deleteAnnouncement'),
+        listChannelBindings: absent('listChannelBindings'),
+        unbindConversation: absent('unbindConversation'),
         getGuestChecklist: absent('getGuestChecklist'),
         createGuestbookEntry: absent('createGuestbookEntry'),
         listMyGuestbookEntries: absent('listMyGuestbookEntries'),

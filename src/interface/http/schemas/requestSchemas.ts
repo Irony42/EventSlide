@@ -128,6 +128,9 @@ const instant = ({ offset }: { readonly offset: boolean }) =>
 
 export const eventSlugParams = z.object({ eventSlug: slug })
 
+/** `DELETE /events/:slug/channels/:bindingId` (spec 27): the binding is resolved inside the event. */
+export const channelBindingParams = z.object({ eventSlug: slug, bindingId: uuid })
+
 export const photoParams = z.object({ eventSlug: slug, photoId: uuid })
 
 /**

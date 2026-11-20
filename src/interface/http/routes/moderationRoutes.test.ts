@@ -211,6 +211,8 @@ const usecasesFor = (
     updateAnnouncement: notWired,
     launchAnnouncement: notWired,
     deleteAnnouncement: notWired,
+    listChannelBindings: notWired,
+    unbindConversation: notWired,
     getGuestChecklist: notWired,
     createGuestbookEntry: notWired,
     listMyGuestbookEntries: notWired,
