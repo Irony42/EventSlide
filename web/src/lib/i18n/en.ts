@@ -369,6 +369,7 @@ export const en: UiText = {
       'This length of an ongoing event is not accepted: from 1 to 365 days.',
     'clientCeilings.periodStartedAtInvalid': 'This start of period is not accepted.',
     'clientCeilings.clipsAllowedInvalid': 'This video setting is not accepted.',
+    'clientCeilings.channelsAllowedInvalid': 'This messaging setting is not accepted.',
     'clientCeilings.booksAllowedInvalid': 'This photo book setting is not accepted.',
     'clientCeilings.liveAllowedInvalid': 'This opening setting is not accepted.',
     'siteLookup.queryInvalid':
@@ -2271,6 +2272,7 @@ export const en: UiText = {
     maxLiveDays: 'Length of an ongoing event, in days, at most',
     clipsAllowed: 'Videos allowed',
     booksAllowed: 'Photo books (PDF) allowed',
+    channelsAllowed: 'Messaging groups (Telegram) allowed',
     liveAllowed: 'Opening events allowed',
     renewPeriod: 'Renew the period now',
     renewPeriodHint: 'Resets the counter of events created in the period.',

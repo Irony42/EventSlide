@@ -31,6 +31,7 @@ describe('the ceilings form', () => {
       maxLiveDays: '',
       clipsAllowed: true,
       booksAllowed: true,
+      channelsAllowed: false,
       liveAllowed: true,
       renewPeriod: false,
     })
@@ -46,6 +47,7 @@ describe('the ceilings form', () => {
       maxLiveDays: 3,
       clipsAllowed: false,
       booksAllowed: false,
+      channelsAllowed: true,
     })
 
     expect(fields).toMatchObject({ maxEvents: '1', maxEventsPerPeriod: '6', clipsAllowed: false })

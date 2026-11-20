@@ -391,6 +391,8 @@ export const it: UiText = {
       'Questa durata di evento in corso non è accettata: da 1 a 365 giorni.',
     'clientCeilings.periodStartedAtInvalid': 'Questo inizio di periodo non è accettato.',
     'clientCeilings.clipsAllowedInvalid': 'Questa impostazione dei video non è accettata.',
+    'clientCeilings.channelsAllowedInvalid':
+      'Questa impostazione di messaggistica non è accettata.',
     'clientCeilings.booksAllowedInvalid':
       'Questa impostazione del libro fotografico non è accettata.',
     'clientCeilings.liveAllowedInvalid': 'Questa impostazione di apertura non è accettata.',
@@ -2317,6 +2319,7 @@ export const it: UiText = {
     maxLiveDays: 'Durata di un evento in corso, in giorni, al massimo',
     clipsAllowed: 'Video consentiti',
     booksAllowed: 'Libri fotografici (PDF) consentiti',
+    channelsAllowed: 'Gruppi di messaggistica (Telegram) consentiti',
     liveAllowed: 'Apertura di eventi consentita',
     renewPeriod: 'Rinnova il periodo adesso',
     renewPeriodHint: 'Azzera il contatore degli eventi creati nel periodo.',
