@@ -199,11 +199,23 @@ export class SqliteChannelMediaJobRepository implements ChannelMediaJobRepositor
   }
 
   async deleteBySender(eventId: EventId, senderKey: string): Promise<number> {
-    return this.db
-      .prepare<[string, string]>(
-        `DELETE FROM channel_media_jobs WHERE event_id = ? AND sender_key = ?`,
-      )
-      .run(eventId, senderKey).changes
+    const forget = this.db.transaction((): number => {
+      const removed = this.db
+        .prepare<[string, string]>(
+          `DELETE FROM channel_media_jobs
+            WHERE event_id = ? AND sender_key = ? AND status IN ('queued', 'running')`,
+        )
+        .run(eventId, senderKey).changes
+      // The finished ones are the dedupe record: kept, and made anonymous.
+      this.db
+        .prepare<[string, string]>(
+          `UPDATE channel_media_jobs SET sender_key = '', sender_name = NULL
+            WHERE event_id = ? AND sender_key = ?`,
+        )
+        .run(eventId, senderKey)
+      return removed
+    })
+    return forget()
   }
 
   async deleteFinishedBefore(cutoff: Date): Promise<number> {
