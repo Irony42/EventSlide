@@ -28,7 +28,7 @@ describe('createHmacChannelSenderKeyer', () => {
     const keyer = createHmacChannelSenderKeyer(SECRET)
 
     expect(keyer.keyOf('telegram:e1:424242')).not.toBe(other.keyOf('telegram:e1:424242'))
-    expect(keyer.keyOf('telegram:e1:424242')).not.toContain('424242')
+    expect(keyer.keyOf('telegram:e1:424242')).toMatch(/^[0-9a-f]{64}$/u)
   })
 
   it('pins the construction with a literal, since a change would orphan every channel guest', () => {
