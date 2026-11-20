@@ -1106,10 +1106,15 @@ or [without](#without-docker), with `vX.Y.Z` as `v3.14.0`; the image is `ghcr.io
 - **Nothing to set in `.env`.** A wall that has no announcement answers exactly what it did before; `GET /wall`
   gains an optional `announcements` field only while an event is live and has one still to come.
 
-## Upgrading to 3.15 (not released yet)
+## Upgrading to 3.15
 
-This section collects what the release after 3.14 changes, as it is written. Back up before upgrading, as for any
-release: the migrations only go forward.
+3.15.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no `BREAKING` section. It
+applies **two migrations** (033 `channels`, 034 `album_books_v2`: new tables and columns, and `album_books` rebuilt; nothing
+else is rewritten) and adds eight optional settings (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_API_BASE_URL`, `TELEGRAM_MAX_FILE_BYTES`,
+`MAX_QUEUED_CHANNEL_MEDIA_PER_EVENT`, `NEW_CLIENT_CHANNELS_ALLOWED`, `BOOK_PRINT_ENABLED`, `BOOK_PRINT_MAX_BYTES`,
+`BOOK_MAX_MESSAGES`). Back up before upgrading, as for any release: the migrations only go forward. The event settings page
+(sections, saved as the host changes it) needs nothing. Take the steps of [Upgrading with Docker](#upgrading-with-docker),
+or [without](#without-docker), with `vX.Y.Z` as `v3.15.0`; the image is `ghcr.io/irony42/eventslide:3.15.0`.
 
 ### Messaging channels: photographs from a Telegram group (spec 27)
 

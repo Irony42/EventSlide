@@ -20,6 +20,127 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.15.0] - 2026-11-20
+
+Everything merged to `main` after the tag `v3.14.0`: pull requests #505 to #517 (13 pull requests: the settings page in
+sections as #505, the photo book v2 as #506, #507, #510, #513, #516 and #517, and the Telegram channel as #508, #509,
+#511, #512, #514 and #515). This is a minor release with three themes: the event's settings page is split into
+sections and saves by itself, the photo book is rebuilt (three styles, a choice of photographs, the guest book, a printer
+version), and guests can send photographs and videos from a Telegram group. Two migrations, 033 (`channels`) and 034
+(`album_books_v2`), applied at start-up. Eight settings are new in `.env.example`, all optional. Telegram stays off
+unless a bot token is set.
+
+### Guests
+
+- **Photographs and videos from a Telegram group** (#508, #509, #511, #512, #514, #515). When the host has connected a
+  group, its members post photographs, short videos and pictures sent as files in the group, and they become
+  photographs and clips of the event. The bot reacts with a 👍 on each message it takes. Text, stickers, polls and other
+  bots are ignored and never stored. The group is connected with `/soiree CODE` (aliases `/event`, `/feier` and
+  `/evento`); every command works in every group, in any of the five languages, with or without accents.
+- **`/oublier` erases what the sender posted** (#511, #512), with its aliases in the four other languages;
+  `/confidentialite` sends the address of the privacy notice. What is kept is a fingerprint of the Telegram account
+  (different at every event), the first name and the initial of the last name, the group's title and a counter of media
+  received: no number, no `@handle`, no message text. [docs/TELEGRAM.md](docs/TELEGRAM.md) is the guide.
+- **The guest privacy notice says that a photo book may carry a guest's words** (#516, #517). On an event with a
+  guestbook it gains a sentence (« L’organisateur peut mettre vos mots, avec votre prénom, dans le livre photo de la
+  soirée, qu’il peut faire imprimer. »), and its revision changes, so each guest of such an event reads it once more
+  before their next photograph or message. Events without a guestbook are unchanged. The notice also gains a clause about
+  Telegram on the events that use it (#511).
+
+### Hosts and moderators
+
+- **The settings page is in sections and saves as the host changes it** (#505). Six sections, one open at a time:
+  Invités, Livre d’or, Appareil jetable, Écran de la salle, Apparence, Horaires et conservation. A closed section is
+  summed up in one line, and the address `…/settings#wall` opens one. There is no Save button: a change is sent after
+  400 ms of stillness, a status line says « Enregistrement… » then « Modifications enregistrées », and a refusal puts the
+  control back and says why. The welcome message and the date fields are saved when the host leaves the field. Two
+  choices ask for a confirmation because they change the room at once: « Publier automatiquement », and turning on the
+  disposable camera on a live evening that already has photographs. An option that means nothing while another is off is
+  hidden.
+- **A « Groupe Telegram » panel and a switch in the settings** (#514, #512). In Settings › « Messageries », « Recevoir les
+  photos d’un groupe Telegram » is off for every event, new or existing. The switch is absent when the box has no bot and
+  greyed (« Non inclus dans votre offre ») when the client's plan does not include it; a host whose plan was withdrawn can
+  still switch it off. The event page then shows the panel: add the bot to the group, send the command it shows (in the
+  language of the screen) from the group, and the bot answers once, in the language of the evening, saying whether photos
+  go through the host first. The owner can unlink the group (« Dissocier »); a group can only be linked while the event is
+  open, and one already linked to another live event is refused.
+- **Media from a group follow the event's moderation, and the console says where they came from** (#514, #515). Each
+  one carries a « via Telegram » badge in the moderation queue, on the phone's moderation card too.
+- **The bot says when it cannot see the photographs** (#512, #514). If Telegram's privacy mode is on and the bot is not
+  an administrator of the group, Telegram never delivers the photographs; the bot then asks to be named administrator
+  (no particular right is needed), and the host's panel shows the same hint as a warning.
+- **A photo book in three styles** (#506, #507, #510, #513, #516, #517). A « Photo book » panel on the event page: three
+  style cards (Classique, Magazine, Souvenir; the form opens on the one the wall's ambiance suggests), every photograph
+  or a selection of about 60, 120 or 200, first names, captions, the guest book when the event has written messages, a
+  printer version, and the three downloads. It remembers the last book's choices. A book made on 3.14 reads as
+  Classique, every photograph, no guest book, no printer version.
+- **A printer version** (#510, #513). Two more PDFs, the interior and the cover, with bleed, for an online printer
+  (`book-print.pdf` and `book-cover.pdf`). Past `BOOK_PRINT_MAX_BYTES` the printer version is dropped and the screen
+  book is kept.
+- **A book is retired when a guest-book message leaves** (#516): when a guest takes a message back or erases it, a book
+  that printed it is retired, and only a book that printed it.
+
+### Operators
+
+- **Telegram needs a bot and a token** (#512, #508). Create a bot with BotFather (`/newbot`), put its token in `.env` as
+  `TELEGRAM_BOT_TOKEN` (a credential: never in `compose.yaml`, never in a log) and restart. **With no token the box
+  makes no outbound call for this**, there is no poller and no worker, and the host's panel says there is no bot. With
+  it, the box opens one long-poll connection to `api.telegram.org` (`getUpdates`); there is no webhook and no new public
+  route, so a reverse proxy changes nothing. A token Telegram refuses turns the function off with a warning and the server
+  starts. One token is one instance: two boxes polling with the same token fight. See
+  [docs/TELEGRAM.md](docs/TELEGRAM.md).
+- **The bot's privacy setting applies to groups it joins afterwards** (#512). Disable privacy mode in BotFather
+  (`/setprivacy`) or make the bot an administrator; for a group the bot is already in, remove it and add it again, and
+  restart EventSlide, which reads the flag at start-up.
+- **The command menu is registered at start-up in five languages** (#512): once Telegram has identified the bot,
+  EventSlide registers it (`setMyCommands`) in English, French, German, Spanish and Italian. A failure is a warning in
+  the log and never disables the channel.
+- **A per-client ceiling for channels** (#509, #514). On a hosted box, the operator console has a checkbox per client;
+  **every client that already exists starts with it off**. `NEW_CLIENT_CHANNELS_ALLOWED` (needs `SITE_ADMIN=on`; `true`,
+  `false`, `1` or `0`) is the default a client created by the operator starts with, and **absent means not allowed**, the
+  opposite of `NEW_CLIENT_CLIPS_ALLOWED`. An event with no client (a self-hosted box) is not concerned.
+- **Photo books: three settings** (#513, #510): `BOOK_PRINT_ENABLED`, `BOOK_PRINT_MAX_BYTES` and `BOOK_MAX_MESSAGES`.
+  The request body of 3.14 (`layout`, `showAuthors`, `showCaptions`) still works during 3.15 and is read as the Classique
+  style; `layout` is removed from the answer in 3.16 and is always `"one"` until then. A body that mixes old and new
+  fields is `400 request.invalid`. See [docs/API.md](docs/API.md).
+- **A box with an older version cannot be started on this data.** The migrator refuses a database newer than the
+  binary, so going back to 3.14 is a backup restore (see [Going back](docs/UPGRADING.md#going-back)).
+
+### Under the hood
+
+- **The settings autosave queue is shared** (#505): the wall panel's queue moved to `lib/useSettingsAutosave` and is
+  generalised, with the end-to-end journeys of the sectioned page.
+- **The photo book's engine and renderer** (#506, #507, #510): the plan, selection, chapters, eighteen page templates and
+  three styles are domain code with generated-album tests; the renderer draws the plan and the worker builds from it.
+  `fontkit` is now a direct dependency, and the three styles ship their own font faces with their licences.
+- **The messaging channel is a port** (#508, #509, #511): the domain and use cases know no Telegram; the adapter, the
+  poller and the worker are in `src/infrastructure` and `src/main`. The design is [ADR 0015](docs/adr/0015-messaging-channels.md).
+- **A Telegram group through the real server** (#515): an end-to-end journey drives it against a fake Bot API, including
+  unlinking and `/oublier`.
+
+### Dependencies and security
+
+- **Open Dependabot pull requests #501 to #504 are not in this release.**
+- **The bot token is a credential** (#512, #508): it sits in every Telegram URL, so the box never logs it, and
+  [docs/SECURITY.md](docs/SECURITY.md) §28 has the security argument. A suspended client cannot unlink a group.
+
+### Behaviour changes to check before upgrading
+
+- **Two migrations, 033 and 034, applied at start-up** and only going forward. 033 (`channels`) adds three tables
+  (`channel_bindings`, `channel_media_jobs`, `channel_cursors`) and three columns with defaults (`guests.channel`,
+  `guests.channel_sender_key`, `clients.channels_allowed`). 034 (`album_books_v2`) rebuilds `album_books` to hold the new
+  options, the plan and the printer version's size; a book made on 3.14 is kept as it is. Nothing else is rewritten. Back
+  up first, and note that going back to 3.14 is a backup restore.
+- **Eight new optional settings** in `.env.example`: `TELEGRAM_BOT_TOKEN` (unset: Telegram off),
+  `TELEGRAM_API_BASE_URL` (`https://api.telegram.org`), `TELEGRAM_MAX_FILE_BYTES` (20 000 000),
+  `MAX_QUEUED_CHANNEL_MEDIA_PER_EVENT` (200), `NEW_CLIENT_CHANNELS_ALLOWED` (absent: not allowed; needs `SITE_ADMIN=on`),
+  `BOOK_PRINT_ENABLED` (`true`), `BOOK_PRINT_MAX_BYTES` (734 003 200) and `BOOK_MAX_MESSAGES` (60). Nothing is required.
+- **Telegram is off everywhere**: `allowTelegram` reads off for every event, new or existing, and every client that
+  already exists has channels off. With no `TELEGRAM_BOT_TOKEN` the box makes no outbound call for it.
+- **The guest notice's revision changes on an event with a guestbook** (`guestbookBook=print`): each guest reads it once
+  more before their next photograph or message. An event that connects a Telegram group gains one more clause.
+- **The request body of the photo book's `POST` of 3.14 still works**, and `layout` leaves the answer in 3.16.
+
 ## [3.14.0] - 2026-11-18
 
 Everything merged to `main` after the tag `v3.13.0`: pull requests #466 to #496, #498 and #499 (33 pull requests; the
