@@ -336,6 +336,23 @@ describe('drainChannelMedia: the download', () => {
     expect(await scene.drain(signal)).toBe('stored')
   })
 
+  it('stores nothing and recreates no guest when the sender erased themselves while the file travelled', async () => {
+    const scene = await waiting()
+    const job = await scene.jobs.findById(EVENT, JOB)
+    const download = scene.telegram.download.bind(scene.telegram)
+    scene.telegram.download = async (...args) => {
+      const fetched = await download(...args)
+      await scene.jobs.deleteBySender(EVENT, job?.senderKey ?? '')
+      return fetched
+    }
+
+    expect(await scene.drain(signal)).toBe('skipped')
+
+    expect(scene.photoCalls).toEqual([])
+    expect(await scene.guestOf('42')).toBeNull()
+    expect(scene.telegram.acknowledged).toEqual([])
+  })
+
   it('gives up at once on a file that is gone, saying nothing', async () => {
     const scene = await waiting()
     scene.telegram.failNextDownload({ code: 'channel.fileGone', retryable: false })

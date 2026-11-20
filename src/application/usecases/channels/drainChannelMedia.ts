@@ -114,6 +114,32 @@ export const makeDrainChannelMedia = (deps: DrainChannelMediaDeps): DrainChannel
     })
     if (!treatment.ok) return refuse(treatment.error.code)
 
+    const maxBytes =
+      treatment.value.kind === 'photo' ? deps.limits.maxPhotoBytes : deps.limits.maxVideoBytes
+    const downloaded = await channel.download(job.fileRef, maxBytes, signal)
+    if (!downloaded.ok) {
+      const { code, retryable } = downloaded.error
+      if (retryable && job.attempts + 1 < MAX_ATTEMPTS) {
+        const now = clock.now()
+        const wait = RETRY_BASE_MS * 2 ** job.attempts
+        await jobs.retryLater(job.id, now, new Date(now.getTime() + wait))
+        return 'retry'
+      }
+      return refuse(retryable ? 'channel.downloadFailed' : code)
+    }
+
+    // An erasure (`/oublier`) deletes the sender's jobs: a job that is gone, or no longer ours, was cancelled while
+    // the file travelled, and nothing it carried may be stored or its sender recreated.
+    const still = await jobs.findById(job.eventId, job.id)
+    if (still === null || still.status !== 'running') {
+      logger.info('channel.media', {
+        eventId: job.eventId,
+        outcome: 'skipped',
+        code: 'channel.cancelled',
+      })
+      return 'skipped'
+    }
+
     // The guest: found, or created on this first accepted media; renamed if the channel shows another name;
     // refused (silently) if the host revoked them. One chain, one failure.
     const known = await guests.findByChannelSender(job.eventId, job.channel, job.senderKey)
@@ -137,20 +163,6 @@ export const makeDrainChannelMedia = (deps: DrainChannelMediaDeps): DrainChannel
     if (!resolved.ok) return end(resolved.error.code, 'refused')
     const guest = resolved.value
     if (guest !== known) await guests.save(guest)
-
-    const maxBytes =
-      treatment.value.kind === 'photo' ? deps.limits.maxPhotoBytes : deps.limits.maxVideoBytes
-    const downloaded = await channel.download(job.fileRef, maxBytes, signal)
-    if (!downloaded.ok) {
-      const { code, retryable } = downloaded.error
-      if (retryable && job.attempts + 1 < MAX_ATTEMPTS) {
-        const now = clock.now()
-        const wait = RETRY_BASE_MS * 2 ** job.attempts
-        await jobs.retryLater(job.id, now, new Date(now.getTime() + wait))
-        return 'retry'
-      }
-      return refuse(retryable ? 'channel.downloadFailed' : code)
-    }
 
     const author = { kind: 'guest', guestId: guest.id } as const
     let duplicate: boolean
