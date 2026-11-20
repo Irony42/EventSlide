@@ -120,6 +120,18 @@ export type DomainEvent =
    * `signalAudience.ts` keeps it off the public wall's stream and nothing sends it to a phone.
    */
   | { readonly type: 'guestbook.voice'; readonly eventId: EventId }
+  /**
+   * A media posted in a connected group was queued and waits to be downloaded (spec 27): wakes the channel
+   * worker, as `clip.queued` wakes the transcoder. **Never for a screen**: `signalAudience.ts` keeps it off the
+   * public wall's stream, which re-reads its playlist on every public signal.
+   */
+  | { readonly type: 'channel.mediaQueued'; readonly eventId: EventId }
+  /**
+   * A group was connected to the event or disconnected from it, or its identifier moved (spec 27): an
+   * invalidation signal with no data, like `book.changed`, for the host's console alone (the list of groups
+   * re-reads). Kept off the public wall's stream by `signalAudience.ts`.
+   */
+  | { readonly type: 'channel.bindingChanged'; readonly eventId: EventId }
 
   /**
    * The host asked for a highlight reel (spec 08): wakes the worker, as `clip.queued` does. Never

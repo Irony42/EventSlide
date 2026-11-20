@@ -820,6 +820,7 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
           maxLiveDays: 3,
           clipsAllowed: false,
           booksAllowed: false,
+          channelsAllowed: false,
         },
       })
     })

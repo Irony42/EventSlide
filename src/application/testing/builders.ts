@@ -24,7 +24,7 @@ import type { VoiceFailure } from '../../domain/guestbook/voiceFailure'
 import { Mission } from '../../domain/missions/mission'
 import { MissionPrompt } from '../../domain/missions/missionPrompt'
 import { DEFAULT_MISSION_SCOPE, type MissionScope } from '../../domain/missions/missionScope'
-import { Guest, type NoticeAcknowledgement } from '../../domain/guests/guest'
+import { Guest, type ChannelIdentity, type NoticeAcknowledgement } from '../../domain/guests/guest'
 import { Caption } from '../../domain/photos/caption'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { Dimensions } from '../../domain/photos/dimensions'
@@ -677,6 +677,8 @@ export interface GuestInput {
    * guest who has read something is a fact a test states, never a default.
    */
   readonly noticeAcknowledgement?: NoticeAcknowledgement | null
+  /** The messaging identity of a guest who came through a channel (spec 27). Omitted: a guest of the web. */
+  readonly channelIdentity?: ChannelIdentity | null
 }
 
 export const aGuest = (input: GuestInput = {}): Guest => {
@@ -702,6 +704,7 @@ export const aGuest = (input: GuestInput = {}): Guest => {
     revokedAt: pick(input.revokedAt, null),
     photoCount: pick(input.photoCount, 0),
     noticeAcknowledgement: pick(input.noticeAcknowledgement, null),
+    channelIdentity: pick(input.channelIdentity, null),
   })
 }
 
@@ -928,6 +931,7 @@ export const aCeilingsSnapshot = (
   maxRetentionDays: null,
   clipsAllowed: true,
   booksAllowed: true,
+  channelsAllowed: true,
   liveAllowed: true,
   maxLiveDays: null,
   maxEventsPerPeriod: null,

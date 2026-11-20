@@ -1257,6 +1257,33 @@ describe('Event.acceptsClips', () => {
   })
 })
 
+describe('Event.acceptsChannels', () => {
+  const noChannels = unwrap(ClientCeilings.create({ channelsAllowed: false }))
+  const hostAllows = unwrap(EventSettings.default().with({ allowTelegram: true }))
+  const hostForbids = unwrap(EventSettings.default().with({ allowTelegram: false }))
+
+  it('is off by default: a host who never asked has no group connected', () => {
+    expect(anEvent({}).acceptsChannels(null)).toBe(false)
+    expect(anEvent({}).acceptsChannels(ClientCeilings.unlimited())).toBe(false)
+  })
+
+  it('follows the host’s switch for an event with no client', () => {
+    expect(anEvent({ settings: hostAllows }).acceptsChannels(null)).toBe(true)
+    expect(anEvent({ settings: hostForbids }).acceptsChannels(null)).toBe(false)
+  })
+
+  it('is refused when the client’s plan has no channels, whatever the host’s switch says', () => {
+    expect(anEvent({ settings: hostAllows }).acceptsChannels(noChannels)).toBe(false)
+  })
+
+  it('needs the host’s switch even when the client’s plan allows channels', () => {
+    expect(anEvent({ settings: hostForbids }).acceptsChannels(ClientCeilings.unlimited())).toBe(
+      false,
+    )
+    expect(anEvent({ settings: hostAllows }).acceptsChannels(ClientCeilings.unlimited())).toBe(true)
+  })
+})
+
 describe('Event.liveWindowEnd', () => {
   const threeDays = unwrap(ClientCeilings.create({ maxLiveDays: 3 }))
 

@@ -407,6 +407,7 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       maxLiveDays: raw.NEW_CLIENT_MAX_LIVE_DAYS ?? null,
       clipsAllowed: raw.NEW_CLIENT_CLIPS_ALLOWED ?? true,
       booksAllowed: raw.NEW_CLIENT_BOOKS_ALLOWED ?? true,
+      channelsAllowed: raw.NEW_CLIENT_CHANNELS_ALLOWED ?? false,
     },
 
     mfa: {

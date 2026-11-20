@@ -3,6 +3,8 @@ import type { IdGenerator } from '../../application/ports/idGenerator'
 import {
   asAccountTokenId,
   asAnnouncementId,
+  asChannelBindingId,
+  asChannelMediaJobId,
   asChallengeId,
   asClientId,
   asClipJobId,
@@ -16,6 +18,8 @@ import {
   asUserId,
   type AccountTokenId,
   type AnnouncementId,
+  type ChannelBindingId,
+  type ChannelMediaJobId,
   type ChallengeId,
   type ClientId,
   type ClipJobId,
@@ -56,6 +60,8 @@ export const randomIdGenerator: IdGenerator = {
   accountTokenId: (): AccountTokenId => asAccountTokenId(randomUUID()),
   challengeId: (): ChallengeId => asChallengeId(randomUUID()),
   announcementId: (): AnnouncementId => asAnnouncementId(randomUUID()),
+  channelBindingId: (): ChannelBindingId => asChannelBindingId(randomUUID()),
+  channelMediaJobId: (): ChannelMediaJobId => asChannelMediaJobId(randomUUID()),
 
   bytes: (count: number): Uint8Array => {
     if (!Number.isInteger(count) || count < 1) {

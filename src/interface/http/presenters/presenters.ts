@@ -381,6 +381,7 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
   allowCaptions: settings.allowCaptions,
   allowReactions: settings.allowReactions,
   allowClips: settings.allowClips,
+  allowTelegram: settings.allowTelegram,
   allowGuestbook: settings.allowGuestbook,
   allowGuestSave: settings.allowGuestSave,
   guestbookOnWall: settings.guestbookOnWall,
@@ -490,6 +491,8 @@ export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => (
   ...(notice.voiceRemovalSeconds === null
     ? {}
     : { voiceRemovalSeconds: notice.voiceRemovalSeconds }),
+  // Spec 27, present only when a channel is connected, for the same reason as every clause above.
+  ...(notice.channels.length === 0 ? {} : { channels: [...notice.channels] }),
 })
 
 export const toPrivacyNoticeStateDto = ({
@@ -1309,6 +1312,7 @@ export const toCeilingsDto = (ceilings: ClientLimits['ceilings']): CeilingsDto =
   maxRetentionDays: ceilings.maxRetentionDays,
   clipsAllowed: ceilings.clipsAllowed,
   booksAllowed: ceilings.booksAllowed,
+  channelsAllowed: ceilings.channelsAllowed,
   liveAllowed: ceilings.liveAllowed,
   maxLiveDays: ceilings.maxLiveDays,
   maxEventsPerPeriod: ceilings.maxEventsPerPeriod,

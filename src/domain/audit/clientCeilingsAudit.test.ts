@@ -76,6 +76,17 @@ describe('describeCeilingsChange', () => {
     ])
   })
 
+  it('records the messaging channels switch turned on, and shows both sides of it', () => {
+    const before = aClientWith({ channelsAllowed: false })
+    const after = aClientWith({ channelsAllowed: true })
+
+    expect(describeCeilingsChange(before, after, REASON)[0]?.details).toEqual({
+      before: expect.objectContaining({ channelsAllowed: false }),
+      after: expect.objectContaining({ channelsAllowed: true }),
+      reason: REASON,
+    })
+  })
+
   it('records the photo book switch turned off, and shows both sides of it', () => {
     const before = aClientWith({ booksAllowed: true })
     const after = aClientWith({ booksAllowed: false })
@@ -137,6 +148,7 @@ describe('describeCeilingsChange', () => {
     maxRetentionDays: 4,
     clipsAllowed: true,
     booksAllowed: true,
+    channelsAllowed: true,
     liveAllowed: true,
     maxLiveDays: 6,
     maxEventsPerPeriod: 7,
@@ -150,6 +162,7 @@ describe('describeCeilingsChange', () => {
     maxRetentionDays: 14,
     clipsAllowed: false,
     booksAllowed: false,
+    channelsAllowed: false,
     liveAllowed: false,
     maxLiveDays: 16,
     maxEventsPerPeriod: 17,
@@ -167,6 +180,7 @@ describe('describeCeilingsChange', () => {
         maxRetentionDays: 4,
         clipsAllowed: true,
         booksAllowed: true,
+        channelsAllowed: true,
         liveAllowed: true,
         maxLiveDays: 6,
         maxEventsPerPeriod: 7,
@@ -179,6 +193,7 @@ describe('describeCeilingsChange', () => {
         maxRetentionDays: 14,
         clipsAllowed: false,
         booksAllowed: false,
+        channelsAllowed: false,
         liveAllowed: false,
         maxLiveDays: 16,
         maxEventsPerPeriod: 17,
@@ -248,6 +263,7 @@ describe('describeClientCreation', () => {
         maxRetentionDays: null,
         clipsAllowed: true,
         booksAllowed: true,
+        channelsAllowed: true,
         liveAllowed: true,
         maxLiveDays: null,
         maxEventsPerPeriod: 6,

@@ -18,5 +18,6 @@ export const toClientDefaultsDto = (defaults: NewClientDefaults): ClientDefaults
     maxLiveDays: defaults.maxLiveDays,
     clipsAllowed: defaults.clipsAllowed,
     booksAllowed: defaults.booksAllowed,
+    channelsAllowed: defaults.channelsAllowed,
   },
 })

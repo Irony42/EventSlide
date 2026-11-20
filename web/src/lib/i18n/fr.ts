@@ -1603,10 +1603,51 @@ export const fr = {
     storage: (used: string) => `${used} utilisés`,
     rotateJoinCodeTitle: 'Changer le code de la soirée ?',
     codeRotated: 'Nouveau code actif. L’ancien ne fonctionne plus.',
-    settingsSaved: 'Réglages enregistrés.',
     settingsReadOnly: 'Cet évènement est archivé : ses réglages ne peuvent plus être modifiés.',
     // What a moderator is shown in place of a form every save of which the server would refuse.
     settingsOwnerOnly: 'Seul l’organisateur de l’évènement peut modifier ses réglages.',
+    /* The settings page in sections, saved as the host changes it. */
+    settingsPage: {
+      guests: 'Invités',
+      guestbook: 'Livre d’or',
+      wall: 'Écran de la salle',
+      schedule: 'Horaires et conservation',
+      autosave: 'Chaque changement est enregistré tout de suite.',
+      saving: 'Enregistrement…',
+      saved: 'Modifications enregistrées',
+      saveFailed: 'La dernière modification n’a pas été enregistrée.',
+      manual: 'Chaque photo validée',
+      auto: 'Publication automatique',
+      clipsOn: 'vidéos autorisées',
+      clipsOff: 'pas de vidéos',
+      guestSaveOn: 'photos enregistrables',
+      guestSaveOff: 'photos non enregistrables',
+      open: 'Ouvert',
+      closed: 'Fermé',
+      onWall: 'messages à l’écran',
+      voice: 'messages vocaux',
+      on: 'Activé',
+      off: 'Désactivé',
+      timed: 'révélation à heure fixe',
+      byHand: 'révélation à la main',
+      qrOn: 'QR affiché',
+      qrOff: 'sans QR',
+      sound: 'son à chaque photo',
+      logo: 'avec logo',
+      venuePhoto: 'photo du lieu',
+      opensAt: 'Ouverture programmée',
+      opensByHand: 'Ouverture à la main',
+      closesAt: 'fin programmée',
+      closesByHand: 'fin à la main',
+      keptForever: 'photos gardées sans limite',
+      deletedAfter: (days: number) =>
+        t.count(days, {
+          one: `photos supprimées ${t.number(days)} jour après la fin`,
+          other: `photos supprimées ${t.number(days)} jours après la fin`,
+        }),
+      confirmAutoTitle: 'Publier automatiquement ?',
+      confirmRevealTitle: 'Activer l’appareil jetable maintenant ?',
+    },
     retentionHint:
       'Le délai court une fois la soirée terminée. Tant qu’elle n’est pas terminée, rien n’est supprimé.',
     selfDeleteGrace: 'Délai de suppression',
@@ -1675,7 +1716,6 @@ export const fr = {
      * which is at the venue — so "18:00" means 18:00 where the party is. Only the
      * instant travels to the server. See web/src/features/admin/eventSchedule.ts.
      * ---------------------------------------------------------------------- */
-    schedule: 'Ouverture et fin automatiques',
     scheduleHint:
       'Laissez vide pour ouvrir et terminer la soirée vous-même. Les heures sont celles de votre ordinateur, donc celles du lieu de la fête.',
     scheduleOpenAt: 'Ouvrir aux invités le',
@@ -1689,7 +1729,6 @@ export const fr = {
     scheduleOpensOnly: (opensAt: string) =>
       `Ouverture le ${opensAt}. Vous terminerez la soirée vous-même.`,
     scheduleClosesOnly: (closesAt: string) => `Fin le ${closesAt}. Vous ouvrirez vous-même.`,
-    scheduleSave: 'Enregistrer l’horaire',
     /**
      * The sweep threw a schedule away because the event could not change state then —
      * an archived event, or a closing on an evening that never started. Says what

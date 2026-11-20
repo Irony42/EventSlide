@@ -237,6 +237,7 @@ describe('loadConfig', () => {
           maxLiveDays: null,
           clipsAllowed: true,
           booksAllowed: true,
+          channelsAllowed: false,
         },
         // Nobody has set a key, and nobody is required to hold a second factor.
         mfa: { encryptionKey: null, requireOperatorSecondFactor: false },
@@ -1062,6 +1063,7 @@ describe('loadConfig', () => {
       ...NUMERIC.map(([name]) => name),
       'NEW_CLIENT_CLIPS_ALLOWED',
       'NEW_CLIENT_BOOKS_ALLOWED',
+      'NEW_CLIENT_CHANNELS_ALLOWED',
     ] as const
 
     /** A box that has an operator, which is the only kind that may set any of them. */
@@ -1077,6 +1079,7 @@ describe('loadConfig', () => {
       maxLiveDays: null,
       clipsAllowed: true,
       booksAllowed: true,
+      channelsAllowed: false,
     }
 
     it('is no ceiling at all on a box that never mentions them, so a self-hosted box is unchanged', () => {
@@ -1087,8 +1090,12 @@ describe('loadConfig', () => {
 
     it('is what the domain calls unlimited, so the two cannot drift apart', () => {
       // `liveAllowed` and `periodStartedAt` have no variable: a new client is always allowed
-      // to open, and its period starts when it is provisioned.
-      expect(ClientCeilings.unlimited().toProps()).toMatchObject(UNLIMITED)
+      // to open, and its period starts when it is provisioned. **Messaging channels are the one
+      // exception, on purpose**: a box that said nothing gives a new client no channels (spec 27).
+      expect(ClientCeilings.unlimited().toProps()).toMatchObject({
+        ...UNLIMITED,
+        channelsAllowed: true,
+      })
     })
 
     it.each(NUMERIC)('carries %s as the number it was given', (name, field) => {
@@ -1183,6 +1190,33 @@ describe('loadConfig', () => {
         const issues = refusalIssues(hosted({ NEW_CLIENT_BOOKS_ALLOWED: given }))
 
         expect(issues.some((issue) => issue.startsWith('NEW_CLIENT_BOOKS_ALLOWED: '))).toBe(true)
+      },
+    )
+
+    it.each([
+      ['0', false],
+      ['false', false],
+      ['1', true],
+      ['true', true],
+    ])('reads NEW_CLIENT_CHANNELS_ALLOWED=%s as channelsAllowed %s', (given, expected) => {
+      const config = loadConfig(hosted({ NEW_CLIENT_CHANNELS_ALLOWED: given }))
+
+      expect(config.newClientCeilings.channelsAllowed).toBe(expected)
+    })
+
+    it('does NOT allow messaging channels on a box that named nothing, unlike clips and books', () => {
+      expect(loadConfig(hosted({})).newClientCeilings.channelsAllowed).toBe(false)
+      expect(
+        loadConfig(hosted({ NEW_CLIENT_CHANNELS_ALLOWED: '' })).newClientCeilings.channelsAllowed,
+      ).toBe(false)
+    })
+
+    it.each(['yes', 'no', 'on', 'TRUE', '2', ' true'])(
+      'refuses NEW_CLIENT_CHANNELS_ALLOWED=%j rather than guess which way it was meant',
+      (given) => {
+        const issues = refusalIssues(hosted({ NEW_CLIENT_CHANNELS_ALLOWED: given }))
+
+        expect(issues.some((issue) => issue.startsWith('NEW_CLIENT_CHANNELS_ALLOWED: '))).toBe(true)
       },
     )
 

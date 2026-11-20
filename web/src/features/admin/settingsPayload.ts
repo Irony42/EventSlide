@@ -91,3 +91,26 @@ export const toSettingsPatch = (
     },
   }
 }
+
+/**
+ * The fields a change to the settings page moved, as one `PATCH /settings` names them, and nothing
+ * else: the page saves as the host changes it, so a choice made on the wall's panel or in another tab
+ * since the page loaded must not be written back over by a field the host never touched here.
+ *
+ * Built from {@link toSettingsPatch} on both sides, so a field is compared in the shape it is sent:
+ * the theme whole and without its photograph, the three per-key groups key by key, the welcome
+ * message at the top level.
+ */
+export const settingsChanges = (
+  next: EventSettingsDto,
+  current: EventSettingsDto,
+): EventSettingsPatch => {
+  const after = toSettingsPatch(next, current)
+  const before = toSettingsPatch(current, current)
+  const changed: Partial<Record<keyof EventSettingsPatch, unknown>> = {}
+  for (const key of Object.keys(after) as Array<keyof EventSettingsPatch>) {
+    if (JSON.stringify(after[key]) !== JSON.stringify(before[key])) changed[key] = after[key]
+  }
+  // Sound: every value in `changed` was read from `after` under the same key.
+  return changed as EventSettingsPatch
+}

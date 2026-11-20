@@ -513,5 +513,71 @@ export const guestRepositoryContract = (
 
       expect((await repo.findById(GALA, asGuestId('guest-lea')))?.id).toBe('guest-lea')
     })
+
+    // ---------------------------------------------------- messaging identity --
+    // Spec 27: a sender of a messaging channel becomes a guest without a cookie, found again by the
+    // fingerprint of their channel identity (never the channel's own identifier).
+
+    const TELEGRAM_LEA = { channel: 'telegram', senderKey: 'k-lea' } as const
+
+    it('finds the guest a messaging sender became, by the fingerprint of their identity', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, channelIdentity: TELEGRAM_LEA }))
+      await repo.save(aGuest({ id: 'guest-web', eventId: WEDDING }))
+
+      const found = await repo.findByChannelSender(WEDDING, 'telegram', 'k-lea')
+
+      expect(found?.id).toBe('guest-lea')
+      expect(found?.channelIdentity).toEqual(TELEGRAM_LEA)
+      expect((await repo.findById(WEDDING, asGuestId('guest-web')))?.channelIdentity).toBeNull()
+    })
+
+    it('finds nobody for a fingerprint nobody has, and never a guest of the web', async () => {
+      await repo.save(aGuest({ id: 'guest-web', eventId: WEDDING }))
+
+      expect(await repo.findByChannelSender(WEDDING, 'telegram', 'k-unknown')).toBeNull()
+    })
+
+    it('scopes the lookup by event: the same sender at two events is two guests', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, channelIdentity: TELEGRAM_LEA }))
+      await repo.save(
+        aGuest({ id: 'guest-lea-gala', eventId: GALA, channelIdentity: TELEGRAM_LEA }),
+      )
+
+      expect((await repo.findByChannelSender(WEDDING, 'telegram', 'k-lea'))?.id).toBe('guest-lea')
+      expect((await repo.findByChannelSender(GALA, 'telegram', 'k-lea'))?.id).toBe('guest-lea-gala')
+    })
+
+    it('refuses a second guest for the same sender at one event', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, channelIdentity: TELEGRAM_LEA }))
+
+      await expect(
+        repo.save(aGuest({ id: 'guest-lea-bis', eventId: WEDDING, channelIdentity: TELEGRAM_LEA })),
+      ).rejects.toThrow()
+    })
+
+    it('keeps a messaging identity for life: a save carrying another one does not re-key the guest', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, channelIdentity: TELEGRAM_LEA }))
+
+      await repo.save(
+        aGuest({
+          id: 'guest-lea',
+          eventId: WEDDING,
+          displayName: 'Léa D.',
+          channelIdentity: { channel: 'telegram', senderKey: 'k-other' },
+        }),
+      )
+
+      expect(await repo.findByChannelSender(WEDDING, 'telegram', 'k-other')).toBeNull()
+      const kept = await repo.findByChannelSender(WEDDING, 'telegram', 'k-lea')
+      expect(kept?.label()).toBe('Léa D.')
+    })
+
+    it('forgets a sender with the guest row: erasing the guest erases the identity', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, channelIdentity: TELEGRAM_LEA }))
+
+      await repo.delete(WEDDING, LEA)
+
+      expect(await repo.findByChannelSender(WEDDING, 'telegram', 'k-lea')).toBeNull()
+    })
   })
 }

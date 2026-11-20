@@ -280,6 +280,9 @@ describe('the real schema', () => {
       'album_books',
       'audit_log',
       'audit_prune_gate',
+      'channel_bindings',
+      'channel_cursors',
+      'channel_media_jobs',
       'client_members',
       'clients',
       'clip_jobs',
@@ -1447,6 +1450,7 @@ describe('migration 008, clients', () => {
       'events_created_in_period',
       'locale',
       'books_allowed',
+      'channels_allowed',
     ])
     closeDatabase(db)
   })
@@ -3699,7 +3703,167 @@ describe('migration 032: guestbook voices', () => {
   })
 })
 
-describe('migration 033: the photo book v2', () => {
+/**
+ * Migration 033 (spec 27): messaging channels. It is additive, so beyond its shape the things to prove
+ * are that a database mid-event keeps every row it had (and that an existing client gets the channels
+ * switched off), that the frozen CHECK lists agree with the domain, and that the indexes the spec
+ * relies on exist as written.
+ */
+describe('migration 033: messaging channels', () => {
+  const migratedAt = (id: number): Db => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= id),
+    )
+    return db
+  }
+
+  const ddlOf = (db: Db, name: string): string => {
+    const row = db
+      .prepare<[string], { readonly sql: string }>(`SELECT sql FROM sqlite_master WHERE name = ?`)
+      .get(name)
+    if (row === undefined) throw new Error(`no schema object named ${name}`)
+    return row.sql
+  }
+
+  const listed = (sql: string, column: string): string[] => {
+    const match = new RegExp(`${column} IN\\s*\\(([^)]*)\\)`).exec(sql)
+    expect(match, `a CHECK on ${column}`).not.toBeNull()
+    return (match?.[1] ?? '')
+      .split(',')
+      .map((part) => part.trim().replaceAll("'", ''))
+      .filter((part) => part.length > 0)
+      .sort()
+  }
+
+  const seedEventWithGuestAndClient = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ('u', 'u@example.test', 'x', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+       VALUES ('e', 'u', 'e', 'e', 'e', 'live', '{}', 1, '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at)
+       VALUES ('g', 'e', 'Léa', '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO clients (id, name, created_at) VALUES ('c', 'Camille', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+  }
+
+  it('adds three tables and nothing else, as the next migration after the voices', () => {
+    const before = migratedAt(32)
+    const after = migratedAt(33)
+
+    expect(migrations.at(-1)?.id).toBeGreaterThanOrEqual(33)
+    expect(migrations.find((migration) => migration.id === 33)?.name).toBe('channels')
+    expect(tableNames(after).filter((name) => !tableNames(before).includes(name))).toEqual([
+      'channel_bindings',
+      'channel_cursors',
+      'channel_media_jobs',
+    ])
+    closeDatabase(before)
+    closeDatabase(after)
+  })
+
+  it('keeps every guest and client that existed, a guest of the web and a client with no channels', () => {
+    const db = migratedAt(32)
+    seedEventWithGuestAndClient(db)
+
+    migrate(db, migrations)
+
+    expect(
+      db.prepare(`SELECT id, display_name, channel, channel_sender_key FROM guests`).all(),
+    ).toEqual([{ id: 'g', display_name: 'Léa', channel: null, channel_sender_key: null }])
+    expect(db.prepare(`SELECT id, channels_allowed FROM clients`).all()).toEqual([
+      { id: 'c', channels_allowed: 0 },
+    ])
+    closeDatabase(db)
+  })
+
+  it('pins the frozen status list of the queue, which no domain list owns, as a literal, and leaves the kind free', () => {
+    const db = migratedAt(33)
+    const table = ddlOf(db, 'channel_media_jobs')
+
+    expect(listed(table, 'status')).toEqual(['done', 'failed', 'queued', 'running'])
+    expect(table).not.toMatch(/kind\s+TEXT NOT NULL\s+CHECK/)
+    closeDatabase(db)
+  })
+
+  it('takes another channel as a value: a whatsapp binding, job and guest insert without a rebuilt table', () => {
+    const db = migratedAt(33)
+    seedEventWithGuestAndClient(db)
+
+    db.prepare(
+      `INSERT INTO channel_bindings (id, event_id, channel, conversation_ref, conversation_title, bound_at)
+       VALUES ('b', 'e', 'whatsapp', 'c1', 't', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO channel_media_jobs (id, event_id, binding_id, channel, conversation_ref, message_ref, sender_key, kind,
+                                      file_ref, declared_name, created_at, available_at, updated_at)
+       VALUES ('j', 'e', 'b', 'whatsapp', 'c1', 'm1', 'k', 'sticker', 'f', 'n',
+               '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at, channel, channel_sender_key)
+       VALUES ('g2', 'e', 'Tom', '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z', 'whatsapp', 'k')`,
+    ).run()
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM channel_media_jobs`).get()).toEqual({ n: 1 })
+    closeDatabase(db)
+  })
+
+  it("holds a guest's channel and sender key together: one without the other is refused", () => {
+    const db = migratedAt(33)
+    seedEventWithGuestAndClient(db)
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at, channel)
+           VALUES ('g3', 'e', 'Zoé', '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z', 'telegram')`,
+        )
+        .run(),
+    ).toThrow(/CHECK/)
+    closeDatabase(db)
+  })
+
+  it('holds the indexes the spec relies on, each as written', () => {
+    const db = migratedAt(33)
+
+    expect(ddlOf(db, 'idx_guests_channel_sender')).toContain('UNIQUE')
+    expect(ddlOf(db, 'idx_guests_channel_sender')).toContain(
+      '(event_id, channel, channel_sender_key)',
+    )
+    expect(ddlOf(db, 'idx_guests_channel_sender')).toContain('WHERE channel IS NOT NULL')
+    expect(ddlOf(db, 'idx_channel_bindings_active')).toContain('UNIQUE')
+    expect(ddlOf(db, 'idx_channel_bindings_active')).toContain('(channel, conversation_ref)')
+    expect(ddlOf(db, 'idx_channel_bindings_active')).toContain('WHERE unbound_at IS NULL')
+    expect(ddlOf(db, 'idx_channel_media_jobs_message')).toContain('UNIQUE')
+    expect(ddlOf(db, 'idx_channel_media_jobs_message')).toContain(
+      '(channel, conversation_ref, message_ref)',
+    )
+    closeDatabase(db)
+  })
+
+  it('refuses a channels_allowed that is not a flag', () => {
+    const db = migratedAt(33)
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO clients (id, name, created_at, channels_allowed) VALUES ('c', 'n', '2026-06-20T21:00:00.000Z', 2)`,
+        )
+        .run(),
+    ).toThrow()
+    closeDatabase(db)
+  })
+})
+
+describe('migration 034: the photo book v2', () => {
   const AT = '2026-11-01T10:00:00.000Z'
 
   const migratedAt = (id: number): Db => {
@@ -3806,15 +3970,15 @@ describe('migration 033: the photo book v2', () => {
   }
 
   it('is the next number, and rebuilds album_books under its own name', () => {
-    expect(migrations.find((migration) => migration.id === 33)?.name).toBe('album_books_v2')
-    const db = migratedAt(33)
+    expect(migrations.find((migration) => migration.id === 34)?.name).toBe('album_books_v2')
+    const db = migratedAt(34)
     expect(tableNames(db)).toContain('album_books')
-    expect(tableNames(db)).not.toContain('album_books_before_033')
+    expect(tableNames(db)).not.toContain('album_books_before_034')
     closeDatabase(db)
   })
 
   it('keeps every row of a populated 3.14 database, column for column', () => {
-    const db = migratedAt(32)
+    const db = migratedAt(33)
     seedV1(db)
     const before = db.prepare(`SELECT * FROM album_books ORDER BY event_id`).all() as Record<
       string,
@@ -3844,7 +4008,7 @@ describe('migration 033: the photo book v2', () => {
   })
 
   it('rewrites every options_json as legacyBookOptions would, and reads it back through the strict schema', () => {
-    const db = migratedAt(32)
+    const db = migratedAt(33)
     seedV1(db)
     const rows = db.prepare(`SELECT event_id, options_json FROM album_books`).all() as {
       event_id: string
@@ -3880,7 +4044,7 @@ describe('migration 033: the photo book v2', () => {
   })
 
   it('backfills selected_count from the photographs a 3.14 book drew, and adds no plan nor printer file', () => {
-    const db = migratedAt(32)
+    const db = migratedAt(33)
     seedV1(db)
 
     migrate(db, migrations)
@@ -3912,7 +4076,7 @@ describe('migration 033: the photo book v2', () => {
   })
 
   it('keeps both indexes under their names, the foreign key and its cascade, and a clean foreign-key check', () => {
-    const db = migratedAt(32)
+    const db = migratedAt(33)
     seedV1(db)
 
     migrate(db, migrations)
@@ -3934,7 +4098,7 @@ describe('migration 033: the photo book v2', () => {
   })
 
   it('widens the stale_reason check to messageRemoved and refuses what is not on the list', () => {
-    const db = migratedAt(33)
+    const db = migratedAt(34)
     seedV1Event(db)
     const insert = (reason: string): unknown =>
       db
@@ -3951,7 +4115,7 @@ describe('migration 033: the photo book v2', () => {
   })
 
   it('checks the new columns: a plan must be JSON, a skip reason one of two, sizes not negative', () => {
-    const db = migratedAt(33)
+    const db = migratedAt(34)
     seedV1Event(db)
     const insert = (column: string, value: unknown): unknown =>
       db
@@ -3972,7 +4136,7 @@ describe('migration 033: the photo book v2', () => {
   })
 
   it('keeps the other CHECK lists as they were (status, failure code)', () => {
-    const db = migratedAt(33)
+    const db = migratedAt(34)
     seedV1Event(db)
     const insert = (column: string, value: string): unknown =>
       db
@@ -3996,12 +4160,12 @@ describe('migration 033: the photo book v2', () => {
   })
 
   it('is refused by a 3.14 binary: a database migrated by this build is newer than that one', () => {
-    const db = migratedAt(33)
+    const db = migratedAt(34)
 
     expect(() =>
       migrate(
         db,
-        migrations.filter((migration) => migration.id <= 32),
+        migrations.filter((migration) => migration.id <= 33),
       ),
     ).toThrow(/migrated by a newer version/)
     closeDatabase(db)
