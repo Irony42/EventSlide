@@ -173,6 +173,7 @@ export const eventRepositoryContract = (
             allowCaptions: false,
             allowReactions: false,
             allowClips: false,
+            allowTelegram: true,
             // Both off their defaults (false and true), so a store that dropped one is caught.
             allowGuestbook: true,
             allowGuestSave: false,
@@ -238,6 +239,7 @@ export const eventRepositoryContract = (
         allowCaptions: false,
         allowReactions: false,
         allowClips: false,
+        allowTelegram: true,
         allowGuestbook: true,
         allowGuestSave: false,
         guestbookOnWall: false,

@@ -131,6 +131,7 @@ src/
     stats/         The host statistics page: the ranking of the top contributors (spec 05; every figure is derived, never counted)
     announcements/ The wall's scheduled announcements: text, kind, bounds, the derived phase, what the public wall may be told and when two collide (spec 21)
     site/          What the operator may see of the box: the closed field vocabulary and the rows of the content-free overview (roadmap §10.4; served by `/api/site`, G2-14)
+    channels/      Messaging channels (spec 27, ADR 0015): the generic core a Telegram group (and later WhatsApp) feeds: the normalised inbound message and `parseCommand`, the conversation-to-event binding and its decision, a sender as a guest, the admission of a media, and the bot's replies in five languages
   application/
     ports/         Interfaces. One file per port. No implementations.
     usecases/      One file, one exported factory, one responsibility.

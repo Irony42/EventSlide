@@ -92,6 +92,7 @@ export const ceilingsBody = z.strictObject({
   maxRetentionDays: count.nullable().optional(),
   clipsAllowed: z.boolean().optional(),
   booksAllowed: z.boolean().optional(),
+  channelsAllowed: z.boolean().optional(),
   liveAllowed: z.boolean().optional(),
   maxLiveDays: count.nullable().optional(),
   maxEventsPerPeriod: count.nullable().optional(),

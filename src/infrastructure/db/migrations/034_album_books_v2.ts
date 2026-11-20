@@ -25,14 +25,14 @@ import type { Migration } from '../migrator'
  *
  * Kept in one file so renumbering it after another migration lands is a two-line change.
  */
-export const migration033: Migration = {
-  id: 33,
+export const migration034: Migration = {
+  id: 34,
   name: 'album_books_v2',
   sql: `
       DROP INDEX IF EXISTS idx_album_books_status;
       DROP INDEX IF EXISTS idx_album_books_expires;
 
-      ALTER TABLE album_books RENAME TO album_books_before_033;
+      ALTER TABLE album_books RENAME TO album_books_before_034;
 
       CREATE TABLE album_books (
         event_id        TEXT    PRIMARY KEY REFERENCES events (id) ON DELETE CASCADE,
@@ -83,9 +83,9 @@ export const migration033: Migration = {
                requested_at, snapshot_at, invalidated_at, started_at, done_at, photo_count,
                skipped_count, page_count, byte_size, expires_at, failure_code, stale_reason,
                NULL, photo_count, NULL, NULL
-          FROM album_books_before_033;
+          FROM album_books_before_034;
 
-      DROP TABLE album_books_before_033;
+      DROP TABLE album_books_before_034;
 
       CREATE INDEX idx_album_books_status  ON album_books (status, requested_at);
       CREATE INDEX idx_album_books_expires ON album_books (expires_at)

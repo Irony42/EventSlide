@@ -7,6 +7,8 @@ import type {
   GuestbookEntryId,
   MissionId,
   AnnouncementId,
+  ChannelBindingId,
+  ChannelMediaJobId,
   ChallengeId,
   PhotoId,
   ReactionId,
@@ -51,6 +53,10 @@ export interface IdGenerator {
 
   /** One scheduled wall announcement (spec 21). */
   announcementId(): AnnouncementId
+  /** One link between a messaging conversation and an event (spec 27). */
+  channelBindingId(): ChannelBindingId
+  /** One queued media of a messaging channel (spec 27). */
+  channelMediaJobId(): ChannelMediaJobId
 
   /**
    * A shared gallery link (roadmap §4.1). The row's name, which signed media URLs carry;

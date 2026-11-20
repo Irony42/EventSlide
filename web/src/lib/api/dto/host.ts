@@ -193,6 +193,8 @@ export interface EventSettingsDto {
    * exactly the events it exists for.
    */
   readonly allowClips: boolean
+  /** A Telegram group may send its photographs to this event (spec 27). */
+  readonly allowTelegram: boolean
   /** The guestbook (spec 01): open for guests, and whether its published messages reach the wall. */
   readonly allowGuestbook: boolean
   /** Guests may save another guest's photograph from the feed (spec 24). */

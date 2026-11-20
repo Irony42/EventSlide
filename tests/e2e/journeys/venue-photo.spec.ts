@@ -1,5 +1,6 @@
 import sharp from 'sharp'
 import { expect, test } from '../fixtures/app'
+import { openSettingsSection, saved } from '../fixtures/settingsPage'
 import { jpegWithOrientation } from '../fixtures/media'
 import type { Locator, Page } from '@playwright/test'
 
@@ -24,9 +25,8 @@ const backgroundOf = (page: Page, selector: string, pseudo: string | null): Prom
 
 const chooseAmbiance = async (host: Page, slug: string, ambiance: string): Promise<void> => {
   await host.goto(`/admin/events/${slug}/settings`)
-  await host.getByLabel('Ambiance', { exact: true }).selectOption(ambiance)
-  await host.getByRole('button', { name: 'Enregistrer', exact: true }).click()
-  await expect(host.getByText('Réglages enregistrés.')).toBeVisible()
+  await openSettingsSection(host, 'Apparence')
+  await saved(host, () => host.getByLabel('Ambiance', { exact: true }).selectOption(ambiance))
 }
 
 const photoInput = (host: Page): Locator => host.getByTestId('venue-photo-input')
@@ -41,6 +41,7 @@ test('a host puts up a photograph of their venue and the room and a guest wear i
   // The product's own look, which carries no ambiance attribute at all: the photograph still
   // reaches it, because every ambiance (this one included) photographs its ground.
   await host.goto(`/admin/events/${event.slug}/settings`)
+  await openSettingsSection(host, 'Apparence')
   await expect(photoInput(host)).toBeEnabled()
 
   // Before: the bundled photograph, on the wall and on the guest's welcome.
@@ -113,6 +114,7 @@ test('only a signed-in owner may put it up, and another event cannot read it', a
   const other = await app.seedEvent({ slug: 'lieu-voisin', name: 'Gala' })
 
   await host.goto(`/admin/events/${mine.slug}/settings`)
+  await openSettingsSection(host, 'Apparence')
   await photoInput(host).setInputFiles(await jpegWithOrientation(6, { label: 'lieu-prive' }))
   const preview = host.getByRole('img', { name: 'Aperçu de la photo de votre lieu' })
   await expect(preview).toBeVisible()

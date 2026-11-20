@@ -69,6 +69,10 @@ export type ClientId = Branded<string, 'ClientId'>
  * an approval is addressed to once the digest has found it.
  */
 export type AccountTokenId = Branded<string, 'AccountTokenId'>
+/** One link between a messaging conversation and an event (spec 27). Opaque: it appears in a host's URL. */
+export type ChannelBindingId = Branded<string, 'ChannelBindingId'>
+/** One queued media of a messaging channel, waiting to be downloaded and stored (spec 27). */
+export type ChannelMediaJobId = Branded<string, 'ChannelMediaJobId'>
 
 /**
  * The only casts in the codebase. Use them at a boundary — a database row becoming an
@@ -88,3 +92,5 @@ export const asGuestbookEntryId = (value: string): GuestbookEntryId => value as 
 export const asShareLinkId = (value: string): ShareLinkId => value as ShareLinkId
 export const asClientId = (value: string): ClientId => value as ClientId
 export const asAccountTokenId = (value: string): AccountTokenId => value as AccountTokenId
+export const asChannelBindingId = (value: string): ChannelBindingId => value as ChannelBindingId
+export const asChannelMediaJobId = (value: string): ChannelMediaJobId => value as ChannelMediaJobId

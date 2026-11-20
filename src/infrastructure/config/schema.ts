@@ -44,6 +44,7 @@ import {
   newClientCeiling,
   newClientClipsAllowed,
   newClientBooksAllowed,
+  newClientChannelsAllowed,
   operatorResetLinks,
   requireOperator2fa,
   siteAdmin,
@@ -632,6 +633,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       ),
       NEW_CLIENT_CLIPS_ALLOWED: newClientClipsAllowed,
       NEW_CLIENT_BOOKS_ALLOWED: newClientBooksAllowed,
+      NEW_CLIENT_CHANNELS_ALLOWED: newClientChannelsAllowed,
 
       /** See {@link smtpUrl}. Absent means no mail: the composition root wires `NullMailer`. */
       SMTP_URL: smtpUrl,

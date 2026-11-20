@@ -2,6 +2,8 @@ import type { IdGenerator } from '../../application/ports/idGenerator'
 import {
   asAccountTokenId,
   asAnnouncementId,
+  asChannelBindingId,
+  asChannelMediaJobId,
   asChallengeId,
   asClientId,
   asClipJobId,
@@ -15,6 +17,8 @@ import {
   asUserId,
   type AccountTokenId,
   type AnnouncementId,
+  type ChannelBindingId,
+  type ChannelMediaJobId,
   type ChallengeId,
   type ClientId,
   type ClipJobId,
@@ -85,6 +89,8 @@ type Kind =
   | 'accountToken'
   | 'challenge'
   | 'announcement'
+  | 'channelBinding'
+  | 'channelMediaJob'
 
 const PREFIX: Record<Kind, string> = {
   event: 'e0000000',
@@ -100,6 +106,8 @@ const PREFIX: Record<Kind, string> = {
   accountToken: '80000000',
   challenge: '90000000',
   announcement: 'b0000000',
+  channelBinding: 'c0000000',
+  channelMediaJob: 'd0000000',
 }
 
 export const createSequentialIdGenerator = (): IdGenerator => {
@@ -132,6 +140,8 @@ export const createSequentialIdGenerator = (): IdGenerator => {
     accountTokenId: (): AccountTokenId => asAccountTokenId(next('accountToken')),
     challengeId: (): ChallengeId => asChallengeId(next('challenge')),
     announcementId: (): AnnouncementId => asAnnouncementId(next('announcement')),
+    channelBindingId: (): ChannelBindingId => asChannelBindingId(next('channelBinding')),
+    channelMediaJobId: (): ChannelMediaJobId => asChannelMediaJobId(next('channelMediaJob')),
 
     bytes: (count: number): Uint8Array => {
       if (!Number.isInteger(count) || count < 1) {

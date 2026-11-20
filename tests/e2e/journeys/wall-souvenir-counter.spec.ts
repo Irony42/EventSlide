@@ -1,4 +1,5 @@
 import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
+import { openSettingsSection, saved } from '../fixtures/settingsPage'
 import { joinAndUpload } from '../fixtures/guest'
 import { aPhoto } from '../fixtures/media'
 
@@ -18,10 +19,11 @@ test('the counter and the signal speak of what is published, never of what is me
   await signInAsHost(host, app)
 
   await host.goto(app.url(`/admin/events/${event.slug}/settings`))
-  await host.getByRole('checkbox', { name: 'Afficher le compteur de souvenirs' }).check()
-  await host.getByRole('checkbox', { name: 'Signaler les nouvelles photos' }).check()
-  await host.getByRole('button', { name: 'Enregistrer', exact: true }).click()
-  await expect(host.getByText('Réglages enregistrés.')).toBeVisible()
+  await openSettingsSection(host, 'Écran de la salle')
+  await saved(host, async () => {
+    await host.getByRole('checkbox', { name: 'Afficher le compteur de souvenirs' }).check()
+    await host.getByRole('checkbox', { name: 'Signaler les nouvelles photos' }).check()
+  })
 
   await projector.goto(wallUrl(app, event.slug))
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
