@@ -270,6 +270,12 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
     return photo.author.kind === 'guest' && photo.author.guestId === guestId
   }
 
+  async countPublishedPhotos(eventId: EventId): Promise<number> {
+    return this.visibleOf(eventId).filter(
+      (photo) => photo.status === 'published' && photo.kind === 'photo',
+    ).length
+  }
+
   async countsByStatus(eventId: EventId): Promise<PhotoStatusCounts> {
     const counts = { ...ZERO_COUNTS }
     for (const photo of this.visibleOf(eventId)) counts[photo.status] += 1

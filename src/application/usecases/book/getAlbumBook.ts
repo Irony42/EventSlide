@@ -27,11 +27,13 @@ export interface AlbumCounts {
 export interface GetAlbumBookDeps {
   readonly events: EventRepository
   readonly books: Pick<AlbumBookRepository, 'find'>
-  readonly photos: Pick<PhotoRepository, 'list'>
+  readonly photos: Pick<PhotoRepository, 'countPublishedPhotos'>
   readonly guestbook: Pick<GuestbookRepository, 'listWrittenByStatuses'>
   readonly bookFiles: Pick<BookFileStore, 'stat'>
   /** `BOOK_MAX_PHOTOS`: "every photograph" is refused above it, which the form must say. */
   readonly maxPhotos: number
+  /** `BOOK_MAX_MESSAGES`: the most guest-book messages one book prints. */
+  readonly maxMessages: number
   /** `BOOK_PRINT_ENABLED`: whether the form offers the printer version. */
   readonly printEnabled: boolean
 }
@@ -39,6 +41,7 @@ export interface GetAlbumBookDeps {
 /** What the box lets a book be, so the form offers only that. */
 export interface BookOffer {
   readonly maxPhotos: number
+  readonly maxMessages: number
   readonly printVersion: boolean
 }
 
@@ -54,8 +57,6 @@ export type GetAlbumBook = (input: {
   readonly eventId: EventId
 }) => Promise<Result<AlbumBookState, DomainError>>
 
-const PAGE = 200
-
 export const makeGetAlbumBook =
   ({
     events,
@@ -64,6 +65,7 @@ export const makeGetAlbumBook =
     guestbook,
     bookFiles,
     maxPhotos,
+    maxMessages,
     printEnabled,
   }: GetAlbumBookDeps): GetAlbumBook =>
   async ({ eventId }) => {
@@ -72,17 +74,7 @@ export const makeGetAlbumBook =
     const readable = requireReadable(event)
     if (!readable.ok) return readable
 
-    let published = 0
-    let cursor: string | undefined
-    do {
-      const page = await photos.list(eventId, {
-        statuses: ['published'],
-        limit: PAGE,
-        ...(cursor === undefined ? {} : { cursor }),
-      })
-      published += page.items.filter((photo) => photo.kind === 'photo').length
-      cursor = page.nextCursor ?? undefined
-    } while (cursor !== undefined)
+    const published = await photos.countPublishedPhotos(eventId)
 
     const messages = await guestbook.listWrittenByStatuses(
       eventId,
@@ -100,7 +92,7 @@ export const makeGetAlbumBook =
     return ok({
       book,
       counts: { photos: published, messages: messages.length },
-      offer: { maxPhotos, printVersion: printEnabled },
+      offer: { maxPhotos, maxMessages, printVersion: printEnabled },
       printFiles,
     })
   }

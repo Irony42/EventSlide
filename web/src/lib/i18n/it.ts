@@ -754,6 +754,8 @@ export const it: UiText = {
     },
     noticeMessageAudience:
       'I suoi messaggi sono letti dall’organizzatore e dal suo team e possono comparire sullo schermo della serata. Non sono in «Foto della serata».',
+    noticeMessageBook:
+      'L’organizzatore può inserire le sue parole, con il suo nome, nel libro fotografico della serata e può farlo stampare.',
     noticeMessageRetention: 'I suoi messaggi sono conservati quanto le foto e cancellati con esse.',
     noticeMessageRemoval:
       'Un messaggio si rimuove come una foto, da «I miei messaggi» e alle stesse condizioni.',
@@ -1786,8 +1788,8 @@ export const it: UiText = {
       'Sotto le foto, sotto le parole del libro degli ospiti e nella pagina dei ringraziamenti.',
     bookShowCaptions: 'Didascalie',
     bookGuestbook: 'Parole del libro degli ospiti',
-    bookGuestbookHint: (count: number) =>
-      `${t.count(count, { one: '1 messaggio scritto', other: `${t.number(count)} messaggi scritti` })}. I messaggi vocali non vanno nel libro.`,
+    bookGuestbookHint: (count: number, max: number) =>
+      `${t.count(count, { one: '1 messaggio scritto', other: `${t.number(count)} messaggi scritti` })}.${count > max ? ` I primi ${t.number(max)} andranno nel libro.` : ''} I messaggi vocali non vanno nel libro.`,
     bookPrintVersion: 'Versione per la tipografia',
     bookPrintVersionHint: 'Due file in più, con abbondanza, da inviare a una tipografia online.',
     bookFormNote:
@@ -1799,7 +1801,7 @@ export const it: UiText = {
     bookWorkingDetail: (style: string, target: number | null) =>
       `Stile ${style}, ${target === null ? 'tutte le foto' : `circa ${t.number(target)} foto`}. Puoi lasciare questa pagina.`,
     bookDone: (photos: number, ofAlbum: number | null, pages: number, until: string | null) =>
-      `Libro pronto: ${t.count(pages, { one: `${t.number(pages)} pagina`, other: `${t.number(pages)} pagine` })}, ${t.count(photos, { one: `${t.number(photos)} foto`, other: `${t.number(photos)} foto` })}${ofAlbum === null ? '' : ` su ${t.number(ofAlbum)}`}.${until === null ? '' : ` Disponibile fino al ${until}.`}`,
+      `Libro pronto: ${t.count(pages, { one: `${t.number(pages)} pagina`, other: `${t.number(pages)} pagine` })}, ${t.count(photos, { one: `${t.number(photos)} foto`, other: `${t.number(photos)} foto` })}${ofAlbum === null ? '' : ` (l’album ne contiene ora ${t.number(ofAlbum)})`}.${until === null ? '' : ` Disponibile fino al ${until}.`}`,
     bookDownload: 'Scarica il libro',
     bookDownloadMeta: (size: string) => `PDF · ${size}`,
     bookDownloadPrintInterior: 'Versione tipografia: interno',

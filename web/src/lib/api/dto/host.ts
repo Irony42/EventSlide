@@ -109,7 +109,11 @@ export type AlbumBookDto =
   | {
       readonly status: 'none'
       readonly albumCounts: { readonly photos: number; readonly messages: number }
-      readonly offer: { readonly maxPhotos: number; readonly printVersion: boolean }
+      readonly offer: {
+        readonly maxPhotos: number
+        readonly maxMessages: number
+        readonly printVersion: boolean
+      }
     }
   | {
       readonly status: 'queued' | 'running' | 'done' | 'failed' | 'stale'
@@ -148,7 +152,11 @@ export type AlbumBookDto =
       /** The album now, for the form: published photographs (clips left out) and written messages. */
       readonly albumCounts: { readonly photos: number; readonly messages: number }
       /** What the box lets a book be: its ceiling of photographs and whether it offers the printer version. */
-      readonly offer: { readonly maxPhotos: number; readonly printVersion: boolean }
+      readonly offer: {
+        readonly maxPhotos: number
+        readonly maxMessages: number
+        readonly printVersion: boolean
+      }
     }
 /** The three styles of the photo book (spec 26). */
 export type AlbumBookStyle = 'classique' | 'magazine' | 'souvenir'

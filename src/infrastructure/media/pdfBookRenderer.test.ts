@@ -385,6 +385,22 @@ describe('createPdfBookRenderer', () => {
     expect(pageCount(screen)).toBe(2 + pageCountOf(input.plan.pages))
   })
 
+  it('prints on the stats page the messages the book holds, not the messages the album has', async () => {
+    const photos = Array.from({ length: 24 }, (_, i) =>
+      makePhoto({ minute: i < 12 ? i : 300 + i, guestId: guest(i % 4) }),
+    )
+    const messages = Array.from({ length: 65 }, (_, i) => makeMessage({ n: i + 1, length: 40 }))
+    const input = await inputOf({ photos, messages, options: { includeGuestbook: true } })
+    expect(input.plan.counts.messages).toBe(65)
+    expect(input.plan.includedMessages).toBe(60)
+
+    const { screen } = await render(input, false)
+
+    const texts = textsOf(screen)
+    expect(texts).toContain('60')
+    expect(texts).not.toContain('65')
+  }, 60_000)
+
   it('draws a Cyrillic title in the fallback face and a Latin one in the style face', async () => {
     const fonts = async (title: string): Promise<string> => {
       const input = await inputOf({ photos: album(3), options: { style: 'magazine' } })

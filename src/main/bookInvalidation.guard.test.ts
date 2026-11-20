@@ -119,6 +119,15 @@ describe('the use cases that can take a guest-book message out of the evening', 
     ])
   })
 
+  it('calls the hook twice, before the removal and after it, so a book requested in between is retired too', () => {
+    const calls = (path: string): number =>
+      readFileSync(path, 'utf8').split("'messageRemoved'").length - 1
+
+    for (const path of touching.filter(retires)) {
+      expect(calls(path), posix(path)).toBeGreaterThanOrEqual(2)
+    }
+  })
+
   it('keeps no exemption for a file that no longer touches a message, or that retires the book', () => {
     const stale = Object.keys(MESSAGE_CANNOT_SPOIL_A_BOOK).filter(
       (name) => !touching.map(posix).includes(name) || retires(join(USE_CASES, name)),

@@ -203,6 +203,8 @@ export interface UseCasePolicy {
     readonly printEnabled: boolean
     /** `BOOK_MAX_PHOTOS`: the most photographs a book holds, which the form tells the host. */
     readonly maxPhotos: number
+    /** `BOOK_MAX_MESSAGES`: the most guest-book messages one book prints, which the form tells the host. */
+    readonly maxMessages: number
   }
   /**
    * `EXPORT_*` (spec 22): the box's switch and ceilings for the verified archive, and the free-space

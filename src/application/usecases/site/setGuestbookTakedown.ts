@@ -83,11 +83,15 @@ export const makeSetGuestbookTakedown =
     })
     if (!recorded.ok) return recorded
 
+    // A book prints published written messages only: a recording or a message still waiting is in none.
+    // Twice, as a removal is: a book requested between the two calls snapshots the message.
+    const printed = down && located.status === 'published' && !located.voice
     if (down) {
-      await invalidateBook?.(located.eventId, 'messageRemoved')
+      if (printed) await invalidateBook?.(located.eventId, 'messageRemoved')
       await invalidateExport?.(located.eventId, 'takenDown')
     }
     await guestbook.setTakenDown(located.eventId, entryId, down ? at : null)
+    if (printed) await invalidateBook?.(located.eventId, 'messageRemoved')
     // A recording is announced on the signal only the console hears (spec 25): the wall re-reads on
     // `guestbook.changed`, and would be told, for nothing, that a voice it never plays has moved.
     bus.publish({

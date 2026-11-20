@@ -253,14 +253,14 @@ interface BookFormProps {
  * suggests: the style of its ambiance, every photograph when the book holds them, a medium
  * selection when it does not.
  */
-function BookForm({ slug, book, defaultTitle, ambiance, onRequested }: BookFormProps) {
+export function BookForm({ slug, book, defaultTitle, ambiance, onRequested }: BookFormProps) {
   const t = useTranslations()
   const toast = useToast()
   const request = useRequestAlbumBook()
   const group = useId()
   const last = book.status === 'none' ? null : book.options
   const { photos, messages } = book.albumCounts
-  const { maxPhotos, printVersion: printOffered } = book.offer
+  const { maxPhotos, maxMessages, printVersion: printOffered } = book.offer
   const allFits = photos <= maxPhotos
 
   const [title, setTitle] = useState(last?.title ?? defaultTitle)
@@ -273,6 +273,11 @@ function BookForm({ slug, book, defaultTitle, ambiance, onRequested }: BookFormP
   const [guestbook, setGuestbook] = useState(last?.includeGuestbook ?? true)
   const [print, setPrint] = useState(last?.printVersion ?? false)
 
+  // What is sent and shown follows the album as it is **now**: the counts are read again while the form
+  // is open, and a choice that stopped being possible (every photograph, once the album outgrew the
+  // book) is not the one submitted.
+  const effectiveAll = all && allFits
+
   const submit = (event: FormEvent) => {
     event.preventDefault()
     void request
@@ -280,7 +285,9 @@ function BookForm({ slug, book, defaultTitle, ambiance, onRequested }: BookFormP
         title,
         subtitle,
         style,
-        selection: all ? { kind: 'all' } : { kind: 'best', target: BOOK_LENGTH_TARGET[length] },
+        selection: effectiveAll
+          ? { kind: 'all' }
+          : { kind: 'best', target: BOOK_LENGTH_TARGET[length] },
         showAuthors,
         showCaptions,
         includeGuestbook: messages > 0 && guestbook,
@@ -359,7 +366,7 @@ function BookForm({ slug, book, defaultTitle, ambiance, onRequested }: BookFormP
               type="radio"
               className={styles['choiceInput']}
               name={`${group}-selection`}
-              checked={all}
+              checked={effectiveAll}
               disabled={!allFits}
               onChange={() => setAll(true)}
             />
@@ -375,7 +382,7 @@ function BookForm({ slug, book, defaultTitle, ambiance, onRequested }: BookFormP
               type="radio"
               className={styles['choiceInput']}
               name={`${group}-selection`}
-              checked={!all}
+              checked={!effectiveAll}
               onChange={() => setAll(false)}
             />
             <span className={styles['choiceText']}>
@@ -384,7 +391,7 @@ function BookForm({ slug, book, defaultTitle, ambiance, onRequested }: BookFormP
             </span>
           </label>
         </div>
-        {all ? null : (
+        {effectiveAll ? null : (
           <div className={styles['lengths']}>
             <ChoiceChips
               legend={t.admin.bookLengthLegend}
@@ -418,7 +425,7 @@ function BookForm({ slug, book, defaultTitle, ambiance, onRequested }: BookFormP
         {messages > 0 ? (
           <CheckboxField
             label={t.admin.bookGuestbook}
-            hint={t.admin.bookGuestbookHint(messages)}
+            hint={t.admin.bookGuestbookHint(messages, maxMessages)}
             checked={guestbook}
             onChange={setGuestbook}
           />

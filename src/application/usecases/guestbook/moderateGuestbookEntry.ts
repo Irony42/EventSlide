@@ -108,10 +108,11 @@ export const makeModerateGuestbookEntry =
       await invalidateExport?.(eventId, 'guestbookChanged')
     }
     // Only a move out of `published`: hidden to rejected leaves the book as it was.
-    if (entry.status === 'published' && moved.value.status !== 'published') {
-      await invalidateBook?.(eventId, 'messageRemoved')
-    }
+    // Twice, as a removal is: a book requested between the two calls snapshots the message.
+    const leaves = entry.status === 'published' && moved.value.status !== 'published'
+    if (leaves) await invalidateBook?.(eventId, 'messageRemoved')
     await guestbook.save(moved.value)
+    if (leaves) await invalidateBook?.(eventId, 'messageRemoved')
     bus.publish({ type: entry.voice === null ? 'guestbook.changed' : 'guestbook.voice', eventId })
 
     return ok({ entryId, status: moved.value.status })

@@ -228,6 +228,8 @@ export const makeEraseGuestContribution = ({
     // The guest's written messages, whatever their moderation state: erasure is not the host's to
     // switch off. Skips (and does not count) a message the operator took down, which is evidence.
     const erasedMessages = await guestbook.deleteByGuest(eventId, guestId)
+    // And again, now that they are gone: a book requested since the first call snapshotted them.
+    if (erasedMessages > 0) await invalidateBook?.(eventId, 'messageRemoved')
 
     // **Again, immediately before the guest row goes.** The first pass is a snapshot, and a transcode
     // or upload of this guest's that was in flight inserts its row while the guest row still exists;

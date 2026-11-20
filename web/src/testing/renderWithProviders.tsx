@@ -516,7 +516,11 @@ export const anEventDto = (overrides: Partial<EventDto> = {}): EventDto => ({
 /** The book's state when none was ever asked for: the album's counts, and what the box offers. */
 export const aNoBook = (
   albumCounts: { photos: number; messages: number } = { photos: 42, messages: 0 },
-  offer: { maxPhotos: number; printVersion: boolean } = { maxPhotos: 300, printVersion: true },
+  offer: { maxPhotos: number; maxMessages: number; printVersion: boolean } = {
+    maxPhotos: 300,
+    maxMessages: 60,
+    printVersion: true,
+  },
 ): AlbumBookDto => ({ status: 'none', albumCounts, offer })
 
 /** A book of the given status, with the choices the form opens on by default. */
@@ -549,7 +553,7 @@ export const aBook = (
   failureCode: null,
   staleReason: null,
   albumCounts: { photos: 42, messages: 0 },
-  offer: { maxPhotos: 300, printVersion: true },
+  offer: { maxPhotos: 300, maxMessages: 60, printVersion: true },
   ...overrides,
 })
 

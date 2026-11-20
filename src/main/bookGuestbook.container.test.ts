@@ -81,6 +81,7 @@ const scene = async () => {
       MEDIA_ROOT: join(workDir, 'media'),
       SITE_ADMIN: 'on',
       BOOK_MAX_PHOTOS: '250',
+      BOOK_MAX_MESSAGES: '40',
       BOOTSTRAP_OWNER_EMAIL: OWNER,
       BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
     }),
@@ -191,7 +192,7 @@ describe('a guest’s words leave a book that prints them, through the real comp
     const state = await s.host.get(`/api/events/${SLUG}/book`)
     expect(state.body.albumCounts).toEqual({ photos: 1, messages: 1 })
     // The form is told the box's own ceiling and that it offers the printer version.
-    expect(state.body.offer).toEqual({ maxPhotos: 250, printVersion: true })
+    expect(state.body.offer).toEqual({ maxPhotos: 250, maxMessages: 40, printVersion: true })
   })
 
   it('is retired, and its files gone, when the guest erases everything they sent', async () => {

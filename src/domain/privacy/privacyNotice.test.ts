@@ -164,7 +164,7 @@ describe('privacyNoticeFor — the revision', () => {
     )
 
     expect(notice.revision).toBe(
-      'publication=immediate;audiences=wall+guestFeed+organisers+sharedGallery;retention=90;selfRemoval=none;selfErase=phone;guestbook=on;operator=Atelier Camille',
+      'publication=immediate;audiences=wall+guestFeed+organisers+sharedGallery;retention=90;selfRemoval=none;selfErase=phone;guestbook=on;guestbookBook=print;operator=Atelier Camille',
     )
   })
 
@@ -413,7 +413,7 @@ describe('privacyNoticeFor — the guests save switch (spec 24)', () => {
         'Atelier Camille',
       ).revision,
     ).toBe(
-      'publication=immediate;audiences=wall+guestFeed+organisers+sharedGallery;retention=90;selfRemoval=none;selfErase=phone;guestbook=on;operator=Atelier Camille',
+      'publication=immediate;audiences=wall+guestFeed+organisers+sharedGallery;retention=90;selfRemoval=none;selfErase=phone;guestbook=on;guestbookBook=print;operator=Atelier Camille',
     )
   })
 
@@ -425,7 +425,9 @@ describe('privacyNoticeFor — the guests save switch (spec 24)', () => {
     )
 
     expect(on.revision).toBe(off.revision.replace(';operator=', ';guestSave=on;operator='))
-    expect(on.revision).toContain('guestbook=on;guestSave=on;operator=Atelier Camille')
+    expect(on.revision).toContain(
+      'guestbook=on;guestbookBook=print;guestSave=on;operator=Atelier Camille',
+    )
   })
 
   it('keeps the operator as the last clause with the switch on', () => {
@@ -519,7 +521,7 @@ describe('privacyNoticeFor — voice messages (spec 25)', () => {
         'Atelier Camille',
       ).revision,
     ).toBe(
-      'publication=immediate;audiences=wall+guestFeed+organisers+sharedGallery;retention=90;selfRemoval=none;selfErase=phone;guestbook=on;guestSave=on;operator=Atelier Camille',
+      'publication=immediate;audiences=wall+guestFeed+organisers+sharedGallery;retention=90;selfRemoval=none;selfErase=phone;guestbook=on;guestbookBook=print;guestSave=on;operator=Atelier Camille',
     )
   })
 
@@ -530,7 +532,7 @@ describe('privacyNoticeFor — voice messages (spec 25)', () => {
     )
 
     expect(notice.revision).toContain(
-      'guestbook=on;guestSave=on;voice=on;voiceRemoval=600;operator=Atelier Camille',
+      'guestbook=on;guestbookBook=print;guestSave=on;voice=on;voiceRemoval=600;operator=Atelier Camille',
     )
   })
 
@@ -652,7 +654,7 @@ describe('privacyNoticeFor — the disposable camera and the guest save together
     )
 
     expect(notice.revision).toContain(
-      'guestbook=on;guestSave=on;reveal=on;shots=27;film=on;voice=on;voiceRemoval=',
+      'guestbook=on;guestbookBook=print;guestSave=on;reveal=on;shots=27;film=on;voice=on;voiceRemoval=',
     )
     expect(notice.revision.endsWith(';operator=Atelier Camille')).toBe(true)
   })

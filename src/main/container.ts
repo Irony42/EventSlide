@@ -559,6 +559,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       maxPerEventPerDay: config.books.maxPerEventPerDay,
       printEnabled: config.books.printEnabled,
       maxPhotos: config.books.maxPhotos,
+      maxMessages: config.books.maxMessages,
     },
     export: {
       enabled: config.exports.enabled,

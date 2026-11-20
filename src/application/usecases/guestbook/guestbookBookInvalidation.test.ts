@@ -57,6 +57,9 @@ describe('the photo book and the ways a guest-book message leaves the evening', 
   let invalidateBook: InvalidateBook
   /** How many messages were still published at the instant the book was retired. */
   let statusWhenRemoved: string[]
+  /** What happens right after the first call to the hook: a book asked for in the window. */
+  let inTheWindow: (() => Promise<void>) | null
+  let calls: number
 
   /** A finished book, with its file, that prints the guest book or not. */
   const seedDoneBook = async (includeGuestbook: boolean): Promise<void> => {
@@ -93,8 +96,12 @@ describe('the photo book and the ways a guest-book message leaves the evening', 
       const published = await scene.guestbook.listWrittenByStatuses(eventId, ['published'], 100)
       statusWhenRemoved.push(`${reason}:${published.length}`)
       await real(eventId, reason)
+      calls += 1
+      if (calls === 1) await inTheWindow?.()
     }
     statusWhenRemoved = []
+    inTheWindow = null
+    calls = 0
     scene.guests.seed(aGuest({ id: 'guest-lea', eventId: 'event-1', displayName: 'Léa' }))
   })
 
@@ -137,7 +144,7 @@ describe('the photo book and the ways a guest-book message leaves the evening', 
       await moderate('m1', 'hide')
 
       await expectRetired()
-      expect(statusWhenRemoved).toEqual(['messageRemoved:1'])
+      expect(statusWhenRemoved).toEqual(['messageRemoved:1', 'messageRemoved:0'])
     })
 
     it('leaves the book alone when a hidden message is refused: it was already out of the book', async () => {
@@ -298,7 +305,7 @@ describe('the photo book and the ways a guest-book message leaves the evening', 
 
       expect(result.ok).toBe(true)
       await expectRetired()
-      expect(statusWhenRemoved).toEqual(['messageRemoved:1'])
+      expect(statusWhenRemoved).toEqual(['messageRemoved:1', 'messageRemoved:0'])
     })
 
     it('leaves the book alone for a guest who wrote nothing', async () => {
@@ -326,6 +333,126 @@ describe('the photo book and the ways a guest-book message leaves the evening', 
       await eraser()({ eventId: EVENT, guestId: LEA })
 
       await expectUntouched()
+    })
+  })
+
+  describe('a book asked for between the call before the removal and the removal itself', () => {
+    // The first call finds no book; one is then requested and finishes, reading the album as it still is
+    // (the message is there), and only the call after the removal can retire it.
+    const asked = async (): Promise<void> => {
+      inTheWindow = () => seedDoneBook(true)
+    }
+
+    it('is retired when the host hides the message', async () => {
+      scene.guestbook.seed(aGuestbookEntry({ id: 'm1', eventId: 'event-1', moderation: 'auto' }))
+      await asked()
+
+      await moderate('m1', 'hide')
+
+      await expectRetired()
+    })
+
+    it('is retired when the operator takes the message down', async () => {
+      scene.guestbook.seed(aGuestbookEntry({ id: 'm1', eventId: 'event-1', moderation: 'auto' }))
+      await asked()
+
+      await makeSetGuestbookTakedown({
+        guestbook: scene.guestbook,
+        audit: new FakeAuditLog().withAccounts(OPERATOR.userId),
+        bus: scene.bus,
+        clock: scene.clock,
+        invalidateBook,
+      })({ entryId: asGuestbookEntryId('m1'), down: true, reason: REASON, actor: OPERATOR })
+
+      await expectRetired()
+    })
+
+    it('is retired when the guest takes back a published recording', async () => {
+      scene.guestbook.seed(
+        aVoiceEntry({
+          id: 'v1',
+          guestId: 'guest-lea',
+          eventId: 'event-1',
+          state: 'ready',
+          moderation: 'auto',
+          createdAt: scene.clock.now(),
+        }),
+      )
+      await asked()
+
+      await makeDeleteGuestbookEntry({
+        events: scene.events,
+        guestbook: scene.guestbook,
+        voices: scene.voices,
+        media: scene.media,
+        bus: scene.bus,
+        clock: scene.clock,
+        invalidateBook,
+      })({ eventId: EVENT, entryId: asGuestbookEntryId('v1'), guestId: LEA })
+
+      await expectRetired()
+    })
+
+    it('is retired when the guest erases everything they sent', async () => {
+      scene.guestbook.seed(
+        aGuestbookEntry({ id: 'm1', eventId: 'event-1', guestId: 'guest-lea', moderation: 'auto' }),
+      )
+      await asked()
+
+      await makeEraseGuestContribution({
+        events: scene.events,
+        guests: scene.guests,
+        photos: scene.photos,
+        reactions: new FakeReactionRepository(),
+        clips: new FakeClipJobRepository(),
+        guestbook: scene.guestbook,
+        voices: scene.voices,
+        media: scene.media,
+        bus: scene.bus,
+        clock: scene.clock,
+        invalidateBook,
+      })({ eventId: EVENT, guestId: LEA })
+
+      await expectRetired()
+    })
+  })
+
+  describe('the operator taking down a message a book never prints', () => {
+    const takeDown = (id: string) =>
+      makeSetGuestbookTakedown({
+        guestbook: scene.guestbook,
+        audit: new FakeAuditLog().withAccounts(OPERATOR.userId),
+        bus: scene.bus,
+        clock: scene.clock,
+        invalidateBook,
+      })({ entryId: asGuestbookEntryId(id), down: true, reason: REASON, actor: OPERATOR })
+
+    it('leaves the book alone for a message still waiting for a decision', async () => {
+      scene.guestbook.seed(aGuestbookEntry({ id: 'm1', eventId: 'event-1', moderation: 'manual' }))
+      await seedDoneBook(true)
+
+      await takeDown('m1')
+
+      await expectUntouched()
+      expect(statusWhenRemoved).toEqual([])
+    })
+
+    it('leaves the book alone for a recording: the book prints written messages only', async () => {
+      scene.guestbook.seed(
+        aVoiceEntry({
+          id: 'v1',
+          guestId: 'guest-lea',
+          eventId: 'event-1',
+          state: 'ready',
+          moderation: 'auto',
+        }),
+      )
+      await seedDoneBook(true)
+
+      await takeDown('v1')
+
+      await expectUntouched()
+      expect(statusWhenRemoved).toEqual([])
     })
   })
 })

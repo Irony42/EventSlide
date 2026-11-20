@@ -87,6 +87,7 @@ const get = () =>
     guestbook,
     bookFiles,
     maxPhotos: 300,
+    maxMessages: 60,
     printEnabled: true,
   })
 const remove = () => makeDeleteAlbumBook({ events, books, bookFiles, bus })
@@ -634,7 +635,11 @@ describe('getAlbumBook, the form counts and the printer files', () => {
 
   it('tells the form what the box offers: the ceiling of photographs and the printer version', async () => {
     const offered = await get()({ eventId: EVENT })
-    expect(offered.ok && offered.value.offer).toEqual({ maxPhotos: 300, printVersion: true })
+    expect(offered.ok && offered.value.offer).toEqual({
+      maxPhotos: 300,
+      maxMessages: 60,
+      printVersion: true,
+    })
 
     const limited = await makeGetAlbumBook({
       events,
@@ -643,9 +648,14 @@ describe('getAlbumBook, the form counts and the printer files', () => {
       guestbook,
       bookFiles,
       maxPhotos: 120,
+      maxMessages: 25,
       printEnabled: false,
     })({ eventId: EVENT })
-    expect(limited.ok && limited.value.offer).toEqual({ maxPhotos: 120, printVersion: false })
+    expect(limited.ok && limited.value.offer).toEqual({
+      maxPhotos: 120,
+      maxMessages: 25,
+      printVersion: false,
+    })
   })
 
   it('gives the sizes of the two printer files of a finished book that has them', async () => {

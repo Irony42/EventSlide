@@ -7,7 +7,7 @@ import { en } from '../../lib/i18n/en'
 import type { Api } from '../../lib/api/client'
 import type { AlbumBookDto, ThemeAmbiance } from '../../lib/api/dto'
 import { aBook, aNoBook, fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
-import { AlbumBookPanel } from './AlbumBookPanel'
+import { AlbumBookPanel, BookForm } from './AlbumBookPanel'
 import { BOOK_POLL_MS } from './hooks/useAlbumBook'
 
 const SLUG = 'camille-et-sacha'
@@ -113,7 +113,10 @@ describe('AlbumBookPanel, the form', () => {
     render(
       fakeApi({
         albumBook: vi.fn(async () =>
-          aNoBook({ photos: 120, messages: 0 }, { maxPhotos: 100, printVersion: true }),
+          aNoBook(
+            { photos: 120, messages: 0 },
+            { maxPhotos: 100, maxMessages: 60, printVersion: true },
+          ),
         ),
       }),
     )
@@ -132,14 +135,17 @@ describe('AlbumBookPanel, the form', () => {
     render(fakeApi({ albumBook: vi.fn(async () => aNoBook({ photos: 42, messages: 46 })) }))
     const box = await screen.findByLabelText(fr.admin.bookGuestbook)
     expect(box).toBeChecked()
-    expect(screen.getByText(fr.admin.bookGuestbookHint(46))).toBeVisible()
+    expect(screen.getByText(fr.admin.bookGuestbookHint(46, 60))).toBeVisible()
   })
 
   it('does not offer the printer version when the box does not', async () => {
     render(
       fakeApi({
         albumBook: vi.fn(async () =>
-          aNoBook({ photos: 42, messages: 0 }, { maxPhotos: 300, printVersion: false }),
+          aNoBook(
+            { photos: 42, messages: 0 },
+            { maxPhotos: 300, maxMessages: 60, printVersion: false },
+          ),
         ),
       }),
     )
@@ -178,6 +184,56 @@ describe('AlbumBookPanel, the form', () => {
       }),
     )
     await waitFor(() => expect(albumBook).toHaveBeenCalledTimes(2))
+  })
+
+  it('does not submit a choice the album made impossible while the form was open', async () => {
+    const requestAlbumBook = vi.fn(async (_slug: string, _body: object) => aBook('queued'))
+    const form = (book: AlbumBookDto) => (
+      <BookForm
+        slug={SLUG}
+        book={book}
+        defaultTitle="Camille & Sacha"
+        ambiance="noces"
+        onRequested={() => undefined}
+      />
+    )
+    const view = renderWithProviders(form(aNoBook({ photos: 100, messages: 3 })), {
+      api: fakeApi({ requestAlbumBook }),
+      locale: 'fr',
+    })
+    expect(screen.getByRole('radio', { name: /Toutes les photos/ })).toBeChecked()
+    expect(screen.getByLabelText(fr.admin.bookGuestbook)).toBeChecked()
+
+    // The same form, kept open, is handed a fresher album: past the book's ceiling, no message left.
+    view.rerender(form(aNoBook({ photos: 412, messages: 0 })))
+    expect(screen.getByRole('radio', { name: /Une sélection/ })).toBeChecked()
+    await userEvent.click(screen.getByRole('button', { name: fr.admin.bookCreate }))
+
+    await waitFor(() => expect(requestAlbumBook).toHaveBeenCalled())
+    expect(requestAlbumBook.mock.calls[0]?.[1]).toMatchObject({
+      selection: { kind: 'best', target: 120 },
+      includeGuestbook: false,
+    })
+  })
+
+  it('says only the first messages go in the book when there are more than the book holds, in every language', async () => {
+    render(
+      fakeApi({
+        albumBook: vi.fn(async () =>
+          aNoBook(
+            { photos: 42, messages: 80 },
+            { maxPhotos: 300, maxMessages: 60, printVersion: true },
+          ),
+        ),
+      }),
+    )
+
+    expect(await screen.findByText(fr.admin.bookGuestbookHint(80, 60))).toHaveTextContent(
+      '60 premiers',
+    )
+    for (const text of [fr, en]) {
+      expect(text.admin.bookGuestbookHint(80, 60)).not.toBe(text.admin.bookGuestbookHint(60, 60))
+    }
   })
 
   it('sends every photograph, and no guest book when there is none to print', async () => {
@@ -303,7 +359,9 @@ describe('AlbumBookPanel, the states of a book', () => {
   it('says how many photographs of the album a selection kept', async () => {
     render(fakeApi({ albumBook: vi.fn(async () => DONE_WITH_PRINT) }))
 
-    expect(await screen.findByText(/118 photos sur 412/)).toBeVisible()
+    expect(
+      await screen.findByText(/118 photos [(]l’album en compte maintenant 412[)]/),
+    ).toBeVisible()
   })
 
   it('links the three files of a book with a printer version, and tells how to have it printed', async () => {
@@ -368,7 +426,7 @@ describe('AlbumBookPanel, the states of a book', () => {
         albumBook: vi.fn(async () =>
           aBook('stale', {
             options: { ...DONE.options, printVersion: true },
-            offer: { maxPhotos: 300, printVersion: false },
+            offer: { maxPhotos: 300, maxMessages: 60, printVersion: false },
           }),
         ),
         requestAlbumBook,

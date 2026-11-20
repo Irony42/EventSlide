@@ -959,6 +959,7 @@ export const guestbookVoiceRepositoryContract = (
         eventId: WEDDING,
         takenDownAt: null,
         voice: true,
+        status: 'pending',
       })
       expect(await book.locate(entryId('w1'))).toMatchObject({ voice: false })
 
@@ -967,6 +968,7 @@ export const guestbookVoiceRepositoryContract = (
         eventId: WEDDING,
         takenDownAt: at(5),
         voice: true,
+        status: 'pending',
       })
     })
 

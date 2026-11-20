@@ -153,6 +153,7 @@ export const photosUseCases = (
     guestbook: adapters.guestbook,
     bookFiles: adapters.bookFiles,
     maxPhotos: policy.book.maxPhotos,
+    maxMessages: policy.book.maxMessages,
     printEnabled: policy.book.printEnabled,
   }),
   downloadAlbumBook: makeDownloadAlbumBook({

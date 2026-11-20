@@ -1734,7 +1734,11 @@ export type AlbumBookDto =
         readonly messages: number
       }
       /** What the box lets a book be: `BOOK_MAX_PHOTOS` ("every photograph" is refused above it) and `BOOK_PRINT_ENABLED`. */
-      readonly offer: { readonly maxPhotos: number; readonly printVersion: boolean }
+      readonly offer: {
+        readonly maxPhotos: number
+        readonly maxMessages: number
+        readonly printVersion: boolean
+      }
     }
   | {
       readonly status: 'queued' | 'running' | 'done' | 'failed' | 'stale'
@@ -1767,7 +1771,11 @@ export type AlbumBookDto =
         readonly messages: number
       }
       /** What the box lets a book be: `BOOK_MAX_PHOTOS` ("every photograph" is refused above it) and `BOOK_PRINT_ENABLED`. */
-      readonly offer: { readonly maxPhotos: number; readonly printVersion: boolean }
+      readonly offer: {
+        readonly maxPhotos: number
+        readonly maxMessages: number
+        readonly printVersion: boolean
+      }
       readonly requestedAt: string
       readonly doneAt: string | null
       readonly photoCount: number | null

@@ -712,6 +712,8 @@ export const en: UiText = {
     },
     noticeMessageAudience:
       'Your messages are read by the organiser and their team, and may be shown on the event screen. They are not in “Photos from the evening”.',
+    noticeMessageBook:
+      'The organiser may put your words, with your first name, in the evening’s photo book, which they may have printed.',
     noticeMessageRetention: 'Your messages are kept as long as the photos, and erased with them.',
     noticeMessageRemoval:
       'A message is removed like a photo, from “My messages” and under the same conditions.',
@@ -1741,8 +1743,8 @@ export const en: UiText = {
     bookShowAuthorsHint: 'Under the photos, under the guest book words and on the thank-you page.',
     bookShowCaptions: 'Captions',
     bookGuestbook: 'Guest book words',
-    bookGuestbookHint: (count: number) =>
-      `${t.count(count, { one: '1 written message', other: `${t.number(count)} written messages` })}. Voice messages do not go in the book.`,
+    bookGuestbookHint: (count: number, max: number) =>
+      `${t.count(count, { one: '1 written message', other: `${t.number(count)} written messages` })}.${count > max ? ` The first ${t.number(max)} will go in the book.` : ''} Voice messages do not go in the book.`,
     bookPrintVersion: 'Printer version',
     bookPrintVersionHint: 'Two extra files, with bleed, to send to an online printer.',
     bookFormNote:
@@ -1754,7 +1756,7 @@ export const en: UiText = {
     bookWorkingDetail: (style: string, target: number | null) =>
       `Style ${style}, ${target === null ? 'every photo' : `about ${t.number(target)} photos`}. You can leave this page.`,
     bookDone: (photos: number, ofAlbum: number | null, pages: number, until: string | null) =>
-      `Book ready: ${t.count(pages, { one: `${t.number(pages)} page`, other: `${t.number(pages)} pages` })}, ${t.count(photos, { one: `${t.number(photos)} photo`, other: `${t.number(photos)} photos` })}${ofAlbum === null ? '' : ` out of ${t.number(ofAlbum)}`}.${until === null ? '' : ` Available until ${until}.`}`,
+      `Book ready: ${t.count(pages, { one: `${t.number(pages)} page`, other: `${t.number(pages)} pages` })}, ${t.count(photos, { one: `${t.number(photos)} photo`, other: `${t.number(photos)} photos` })}${ofAlbum === null ? '' : ` (the album now holds ${t.number(ofAlbum)})`}.${until === null ? '' : ` Available until ${until}.`}`,
     bookDownload: 'Download the book',
     bookDownloadMeta: (size: string) => `PDF · ${size}`,
     bookDownloadPrintInterior: 'Printer version: interior',

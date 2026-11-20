@@ -331,7 +331,11 @@ const revisionOf = (notice: Omit<PrivacyNotice, 'revision'>): string =>
     // read by every guest who acknowledged the one that did not.
     'selfErase=phone',
     // Before the operator: the free-text name stays the last clause, as above.
-    ...(notice.guestbook ? ['guestbook=on'] : []),
+    // Spec 26: the host may put a guest's words and first name in the photo book and have it printed.
+    // Told with the guestbook, whose messages it is about, so it is one more constant of an event that has
+    // one: the notice that first says so is read again by every guest of such an event, and an event
+    // without a guestbook keeps its revision, character for character.
+    ...(notice.guestbook ? ['guestbook=on', 'guestbookBook=print'] : []),
     ...(notice.guestSave ? ['guestSave=on'] : []),
     // Spec 23: each clause only when it is told, so an event without the mode keeps its revision.
     ...(notice.deferredReveal ? ['reveal=on'] : []),
