@@ -45,6 +45,8 @@ import {
   newClientClipsAllowed,
   newClientBooksAllowed,
   newClientChannelsAllowed,
+  telegramApiBaseUrl,
+  telegramBotToken,
   operatorResetLinks,
   requireOperator2fa,
   siteAdmin,
@@ -634,6 +636,15 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       NEW_CLIENT_CLIPS_ALLOWED: newClientClipsAllowed,
       NEW_CLIENT_BOOKS_ALLOWED: newClientBooksAllowed,
       NEW_CLIENT_CHANNELS_ALLOWED: newClientChannelsAllowed,
+
+      /** See {@link telegramBotToken}. Absent means no Telegram: no poller, no worker, no outbound connection. */
+      TELEGRAM_BOT_TOKEN: telegramBotToken,
+      /** See {@link telegramApiBaseUrl}. */
+      TELEGRAM_API_BASE_URL: telegramApiBaseUrl,
+      /** The largest file the bot will fetch: Telegram's public Bot API hands over 20 MB at most. */
+      TELEGRAM_MAX_FILE_BYTES: positiveInt(20_000_000, 2_000_000_000),
+      /** Media waiting in the channel queue for one event before more are dropped (the sender is told). */
+      MAX_QUEUED_CHANNEL_MEDIA_PER_EVENT: positiveInt(200, 5_000),
 
       /** See {@link smtpUrl}. Absent means no mail: the composition root wires `NullMailer`. */
       SMTP_URL: smtpUrl,

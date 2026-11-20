@@ -236,6 +236,8 @@ describe('loadConfig', () => {
           booksAllowed: true,
           channelsAllowed: false,
         },
+        // No token: no Telegram, so nothing leaves the box.
+        channels: { telegram: null, maxQueuedPerEvent: 200 },
         // Nobody has set a key, and nobody is required to hold a second factor.
         mfa: { encryptionKey: null, requireOperatorSecondFactor: false },
       })
@@ -3697,4 +3699,59 @@ describe('the photo book settings', () => {
 
     expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
   })
+})
+
+describe('the Telegram settings (spec 27)', () => {
+  const TOKEN = '123456789:AAEhBP0av28dHx_2TaQ-9mPzK3l0QbCdEfG'
+
+  it('wires nothing without a token, whatever else is set', () => {
+    const config = loadConfig({ ...DEV, TELEGRAM_API_BASE_URL: 'http://localhost:9' })
+
+    expect(config.channels.telegram).toBeNull()
+  })
+
+  it('reads the token, the Bot API address (trailing slash dropped) and the file ceiling', () => {
+    const config = loadConfig({
+      ...DEV,
+      TELEGRAM_BOT_TOKEN: TOKEN,
+      TELEGRAM_API_BASE_URL: 'http://localhost:9000/',
+      TELEGRAM_MAX_FILE_BYTES: '5000000',
+      MAX_QUEUED_CHANNEL_MEDIA_PER_EVENT: '50',
+    })
+
+    expect(config.channels).toEqual({
+      telegram: { botToken: TOKEN, apiBaseUrl: 'http://localhost:9000', maxFileBytes: 5_000_000 },
+      maxQueuedPerEvent: 50,
+    })
+  })
+
+  it('defaults to the public Bot API and its 20 MB', () => {
+    const config = loadConfig({ ...DEV, TELEGRAM_BOT_TOKEN: TOKEN })
+
+    expect(config.channels.telegram).toMatchObject({
+      apiBaseUrl: 'https://api.telegram.org',
+      maxFileBytes: 20_000_000,
+    })
+  })
+
+  it('treats a blank token as absent', () => {
+    expect(loadConfig({ ...DEV, TELEGRAM_BOT_TOKEN: '' }).channels.telegram).toBeNull()
+  })
+
+  it('refuses a token that is not one without ever repeating it', () => {
+    const wrong = 'not-a-token-9f8e7d6c5b4a'
+    const issues = refusalIssues({ ...DEV, TELEGRAM_BOT_TOKEN: wrong })
+
+    expect(issues.some((issue) => issue.startsWith('TELEGRAM_BOT_TOKEN: '))).toBe(true)
+    expect(issues.join(' | ')).not.toContain(wrong)
+  })
+
+  it.each(['ftp://x.test', 'localhost:9', 'nonsense'])(
+    'refuses the Bot API address %j',
+    (value) => {
+      const issues = refusalIssues({ ...DEV, TELEGRAM_API_BASE_URL: value })
+
+      expect(issues.some((issue) => issue.startsWith('TELEGRAM_API_BASE_URL: '))).toBe(true)
+    },
+  )
 })
