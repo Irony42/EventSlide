@@ -19,6 +19,8 @@ export interface ChannelsPanelProps {
   readonly joinCode: string
   /** Only the owner unlinks, like the endpoint: a moderator is not shown a button that would be refused. */
   readonly canUnlink: boolean
+  /** A group can only be linked while the event is live (the server refuses it otherwise). */
+  readonly canBind: boolean
 }
 
 /**
@@ -28,8 +30,11 @@ export interface ChannelsPanelProps {
  * that are connected. The bot's name is the public handle the server reads from Telegram; the command carries the
  * **current** join code, so a code the host rotated is the code shown. Nothing here identifies a group's members: the
  * title is the host's own label, the count is of media received.
+ *
+ * The steps appear only when they can work: the box has a bot, the plan includes the channel, and the event is live.
+ * Otherwise the reason is said instead, and the list stays, so an owner can still dissociate a group.
  */
-export function ChannelsPanel({ slug, joinCode, canUnlink }: ChannelsPanelProps) {
+export function ChannelsPanel({ slug, joinCode, canUnlink, canBind }: ChannelsPanelProps) {
   const t = useTranslations()
   const { locale } = useLocale()
   const channels = useChannels(slug)
@@ -41,6 +46,7 @@ export function ChannelsPanel({ slug, joinCode, canUnlink }: ChannelsPanelProps)
   const copy = () => {
     void copyToClipboard(command).then((copied) => {
       if (copied) toast.show(t.channels.copied, { tone: 'success' })
+      else toast.show(t.channels.copyFailed, { tone: 'danger' })
     })
   }
 
@@ -67,45 +73,62 @@ export function ChannelsPanel({ slug, joinCode, canUnlink }: ChannelsPanelProps)
             </Notice>
           ) : (
             <div className={styles['body']}>
-              <ol className={styles['steps']}>
-                <li>{t.channels.step1(view.botUsername)}</li>
-                <li>
-                  {t.channels.step2}
-                  <div className={styles['command']}>
-                    <code>{command}</code>
-                    <Button variant="secondary" onClick={copy}>
-                      {t.channels.copyCommand}
-                    </Button>
-                  </div>
-                </li>
-              </ol>
-              <p className={styles['reminder']}>{t.channels.visibility}</p>
+              {!view.allowed ? (
+                <Notice tone="warning" variant="boxed">
+                  {t.channels.notAllowed}
+                </Notice>
+              ) : !canBind ? (
+                <Notice tone="neutral" variant="boxed">
+                  {t.channels.notLive}
+                </Notice>
+              ) : (
+                <>
+                  <ol className={styles['steps']}>
+                    <li>{t.channels.step1(view.botUsername)}</li>
+                    <li>
+                      {t.channels.step2}
+                      <div className={styles['command']}>
+                        <code>{command}</code>
+                        <Button variant="secondary" onClick={copy}>
+                          {t.channels.copyCommand}
+                        </Button>
+                      </div>
+                    </li>
+                  </ol>
+                  <p className={styles['reminder']}>{t.channels.visibility}</p>
+                </>
+              )}
 
               <h3 className={styles['listTitle']}>{t.channels.listTitle}</h3>
               {view.bindings.length === 0 ? (
                 <p className={styles['none']}>{t.channels.none}</p>
               ) : (
-                <ul className={styles['list']}>
-                  {view.bindings.map((binding) => (
-                    <li key={binding.id} className={styles['row']}>
-                      <div>
-                        <strong>{binding.title}</strong>
-                        <p className={styles['meta']}>
-                          {t.channels.boundOn(
-                            formatDateTime(binding.boundAt, locale) ?? binding.boundAt,
-                          )}
-                          {' · '}
-                          {t.channels.photos(binding.photoCount)}
-                        </p>
-                      </div>
-                      {canUnlink ? (
-                        <Button variant="secondary" onClick={() => setUnlinking(binding)}>
-                          {t.channels.unlink}
-                        </Button>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <ul className={styles['list']}>
+                    {view.bindings.map((binding) => (
+                      <li key={binding.id} className={styles['row']}>
+                        <div>
+                          <strong>{binding.title}</strong>
+                          <p className={styles['meta']}>
+                            {t.channels.boundOn(
+                              formatDateTime(binding.boundAt, locale) ?? binding.boundAt,
+                            )}
+                            {' · '}
+                            {t.channels.photos(binding.photoCount)}
+                          </p>
+                        </div>
+                        {canUnlink ? (
+                          <Button variant="secondary" onClick={() => setUnlinking(binding)}>
+                            {t.channels.unlink}
+                          </Button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                  {canUnlink ? null : (
+                    <p className={styles['meta']}>{t.channels.ownerOnlyUnlink}</p>
+                  )}
+                </>
               )}
             </div>
           )

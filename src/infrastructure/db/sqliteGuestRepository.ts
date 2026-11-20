@@ -62,18 +62,19 @@ const NAME_BATCH_SIZE = 200
  * provoke. `event_id` leads the predicate for the usual reason — a guest id learned at
  * one party must not resolve a name at another.
  */
+const SELECT_GUEST_NAMES = (count: number): string => `
+  SELECT id, display_name
+    FROM guests
+   WHERE event_id = ?
+     AND id IN (${placeholders(count)})
+`
+
+/** The channel of each guest who came through one: the badge of the moderation console, nothing else. */
 const SELECT_GUEST_CHANNELS = (count: number): string => `
   SELECT id, channel
     FROM guests
    WHERE event_id = ?
      AND channel IS NOT NULL
-     AND id IN (${placeholders(count)})
-`
-
-const SELECT_GUEST_NAMES = (count: number): string => `
-  SELECT id, display_name
-    FROM guests
-   WHERE event_id = ?
      AND id IN (${placeholders(count)})
 `
 

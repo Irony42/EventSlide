@@ -267,7 +267,8 @@ function SettingsSections({ event, error, reload, replace }: SettingsSectionsPro
   const autosave = useSettingsAutosave(slug, event, replace)
   const saveSchedule = useSaveSchedule()
   // Whether this box has a bot, and whether the plan includes it (spec 27): the section exists only with a bot.
-  const channels = useChannels(slug).data
+  const channelsRead = useChannels(slug)
+  const channels = channelsRead.data
   const openVoice = useOpenGuestbookVoice()
   const toast = useToast()
 
@@ -673,17 +674,29 @@ function SettingsSections({ event, error, reload, replace }: SettingsSectionsPro
           and nowhere else: it is the same setting (`maxPhotosPerGuest`, enforced at upload) and it
           also works with the mode off, which the hint says. "Révéler maintenant" is the console's.
         */}
-        {/* Messageries (spec 27): absent while this box has no bot, so nobody is offered a switch that cannot work.
-            Greyed, with the reason, when the client's plan does not include it. */}
-        {channels?.available === true ? (
+        {/* Messageries (spec 27): the section is there while the box is being asked (so a #messaging link opens it
+            and nothing jumps), says so when the box could not be asked, and is absent once the box says it has no
+            bot, so nobody is offered a switch that cannot work. Greyed, with the reason, when the client's plan does
+            not include it: a host whose plan was withdrawn can still switch Telegram OFF. */}
+        {channels === null || channels.available ? (
           <SettingsSection {...section('messaging', t.channels.settingsSection)}>
-            <CheckboxField
-              label={t.channels.allowTelegram}
-              hint={channels.allowed ? t.channels.allowTelegramHint : t.channels.notAllowed}
-              checked={settings.allowTelegram}
-              disabled={readOnly || !channels.allowed}
-              onChange={(allowTelegram) => update({ allowTelegram })}
-            />
+            {channels === null ? (
+              channelsRead.error === null ? (
+                <Pending label={t.app.loading} />
+              ) : (
+                <Notice tone="danger" variant="boxed">
+                  {channelsRead.error}
+                </Notice>
+              )
+            ) : (
+              <CheckboxField
+                label={t.channels.allowTelegram}
+                hint={channels.allowed ? t.channels.allowTelegramHint : t.channels.notAllowed}
+                checked={settings.allowTelegram}
+                disabled={readOnly || (!channels.allowed && !settings.allowTelegram)}
+                onChange={(allowTelegram) => update({ allowTelegram })}
+              />
+            )}
           </SettingsSection>
         ) : null}
 

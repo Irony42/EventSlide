@@ -23,9 +23,14 @@ const view = (overrides: Partial<ChannelsResponse> = {}): ChannelsResponse => ({
   ...overrides,
 })
 
-const renderPanel = (api: Api, canUnlink = true) =>
+const renderPanel = (api: Api, canUnlink = true, canBind = true) =>
   renderWithProviders(
-    <ChannelsPanel slug="camille-et-sacha" joinCode="H7K2QM" canUnlink={canUnlink} />,
+    <ChannelsPanel
+      slug="camille-et-sacha"
+      joinCode="H7K2QM"
+      canUnlink={canUnlink}
+      canBind={canBind}
+    />,
     {
       api,
       route: '/admin/events/camille-et-sacha',
@@ -63,7 +68,7 @@ describe('ChannelsPanel', () => {
     )
 
     expect(await screen.findByText(fr.channels.noBot)).toBeInTheDocument()
-    expect(screen.queryByText(/1\. Ajoutez/u)).toBeNull()
+    expect(screen.queryByText(fr.channels.step1('EventSlideBot'))).toBeNull()
   })
 
   it('unlinks a group once the owner confirms, and reads the list again', async () => {
@@ -99,5 +104,45 @@ describe('ChannelsPanel', () => {
 
     expect(await screen.findByText('Mariage Léa & Tom')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: fr.channels.unlink })).toBeNull()
+  })
+
+  it('numbers the steps as an ordered list, so a screen reader hears them as one', async () => {
+    renderPanel(fakeApi({ channels: vi.fn(async () => view()) }))
+
+    const first = await screen.findByText(fr.channels.step1('EventSlideBot'))
+
+    expect(first.closest('ol')).not.toBeNull()
+    expect(fr.channels.step1('EventSlideBot')).not.toMatch(/^d/u)
+  })
+
+  it('says the plan no longer includes it, hides the steps and keeps the list to dissociate from', async () => {
+    renderPanel(fakeApi({ channels: vi.fn(async () => view({ allowed: false })) }))
+
+    expect(await screen.findByText(fr.channels.notAllowed)).toBeInTheDocument()
+    expect(screen.queryByText(fr.channels.step1('EventSlideBot'))).toBeNull()
+    expect(screen.getByText('Mariage Léa & Tom')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: fr.channels.unlink })).toBeInTheDocument()
+  })
+
+  it('hides the steps while the event is not live, saying why, and keeps the list', async () => {
+    renderPanel(fakeApi({ channels: vi.fn(async () => view()) }), true, false)
+
+    expect(await screen.findByText(fr.channels.notLive)).toBeInTheDocument()
+    expect(screen.queryByText(fr.channels.step1('EventSlideBot'))).toBeNull()
+    expect(screen.getByText('Mariage Léa & Tom')).toBeInTheDocument()
+  })
+
+  it('tells a moderator that only the owner can dissociate a group', async () => {
+    renderPanel(fakeApi({ channels: vi.fn(async () => view()) }), false)
+
+    expect(await screen.findByText(fr.channels.ownerOnlyUnlink)).toBeInTheDocument()
+  })
+
+  it('says when the command could not be copied', async () => {
+    renderPanel(fakeApi({ channels: vi.fn(async () => view()) }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.channels.copyCommand }))
+
+    expect(await screen.findByText(fr.channels.copyFailed)).toBeInTheDocument()
   })
 })
