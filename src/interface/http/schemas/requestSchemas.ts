@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { CLIENT_LOCALES, DEFAULT_CLIENT_LOCALE } from '../../../domain/clients/clientLocale'
 import { BOOK_LAYOUTS } from '../../../domain/book/bookLayout'
+import { BOOK_STYLES } from '../../../domain/book/bookOptionsV2'
 import { WALL_QR_PLACEMENTS } from '../../../domain/events/wallJoinCard'
 import { WALL_SOUND_TONES } from '../../../domain/events/wallSound'
 import { WALL_LAYOUTS } from '../../../domain/slideshow/wallLayout'
@@ -831,7 +832,8 @@ export const preselectHighlightsBody = z.strictObject({
 /** Asking for the verified archive takes no option (spec 22): a body that carries one is a `400`. */
 export const requestExportBody = z.strictObject({})
 
-export const requestBookBody = z.strictObject({
+/** The 3.14 body (spec 26, section 5): accepted for the whole of 3.15 and read as a Classique book. */
+const requestBookBodyV1 = z.strictObject({
   title: z.string().max(400),
   subtitle: z.string().max(400).optional(),
   language: z.enum(EVENT_LANGUAGES).optional(),
@@ -839,6 +841,33 @@ export const requestBookBody = z.strictObject({
   showAuthors: z.boolean(),
   showCaptions: z.boolean(),
 })
+
+/** The body of the new panel: a style, a selection, the guest book, the printer version, the zone. */
+const requestBookBodyV2 = z.strictObject({
+  title: z.string().max(400),
+  subtitle: z.string().max(400).optional(),
+  language: z.enum(EVENT_LANGUAGES).optional(),
+  style: z.enum(BOOK_STYLES),
+  selection: z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('all') }),
+    z.strictObject({
+      kind: z.literal('best'),
+      target: z.union([z.literal(60), z.literal(120), z.literal(200)]),
+    }),
+  ]),
+  showAuthors: z.boolean(),
+  showCaptions: z.boolean(),
+  includeGuestbook: z.boolean(),
+  printVersion: z.boolean(),
+  /** The browser's zone; the domain keeps it only if `Intl` reads it, else Paris. Never logged. */
+  timeZone: z.string().min(1).max(64).optional(),
+})
+
+/**
+ * Either body, strictly: a v1 body that carries a v2 field (or the other way round) matches neither
+ * and is a `400 request.invalid`, so nobody believes a choice was taken that was dropped.
+ */
+export const requestBookBody = z.union([requestBookBodyV2, requestBookBodyV1])
 
 export const topPhotosQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(50).default(10),

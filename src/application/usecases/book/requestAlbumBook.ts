@@ -46,7 +46,12 @@ export interface RequestAlbumBookDeps {
   readonly books: AlbumBookRepository
   readonly bus: EventBus
   readonly clock: Clock
-  readonly policy: { readonly enabled: boolean; readonly maxPerEventPerDay: number }
+  readonly policy: {
+    readonly enabled: boolean
+    readonly maxPerEventPerDay: number
+    /** `false`: the printer version is not offered on this box, a request for it is made without it. */
+    readonly printEnabled: boolean
+  }
 }
 
 interface RequestFields {
@@ -152,7 +157,7 @@ export const makeRequestAlbumBook =
             showAuthors: input.showAuthors,
             showCaptions: input.showCaptions,
             includeGuestbook: input.includeGuestbook,
-            printVersion: input.printVersion,
+            printVersion: input.printVersion && policy.printEnabled,
             timeZone: normalizeTimeZone(input.timeZone),
           }
     const book = requestBook(input.eventId, options, now)

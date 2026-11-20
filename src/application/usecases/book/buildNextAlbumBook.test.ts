@@ -61,6 +61,7 @@ const POLICY: BuildAlbumBookPolicy = {
   maxPhotos: 300,
   maxBytes: 20_000_000,
   maxPrintBytes: 50_000_000,
+  maxMessages: 60,
   ttlDays: 7,
   maxTotalBytes: 100_000_000,
   maxWaitMs: 10 * 60_000,
@@ -955,6 +956,32 @@ describe('buildNextAlbumBook', () => {
           extraMessages: 5,
         })
         expect(world.renderer.books[0]?.input.closing.extraMessagesNote).toContain('5')
+      })
+    })
+
+    it('keeps only the first maxMessages messages when the box lowers the ceiling', async () => {
+      world = makeWorld({ ...POLICY, maxMessages: 3 })
+      world.events.seed(anEvent({ id: 'event-1' }))
+      await photosOf(3)
+      for (let index = 0; index < 5; index += 1) {
+        world.guestbook.seed(
+          aGuestbookEntry({
+            id: `m-${index}`,
+            eventId: 'event-1',
+            guestId: `guest-${index}`,
+            text: `Mot ${index}`,
+            createdAt: atPlus(index),
+            moderation: 'auto',
+          }),
+        )
+      }
+      await askForBook({ includeGuestbook: true })
+
+      await world.build()
+
+      expect((await world.books.find(EVENT))?.plan).toMatchObject({
+        includedMessages: 3,
+        extraMessages: 2,
       })
     })
 

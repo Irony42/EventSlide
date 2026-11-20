@@ -108,6 +108,11 @@ export interface AppConfig {
     /** How long a book waits behind video transcodes, in milliseconds. */
     readonly maxWaitMs: number
     readonly maxPerEventPerDay: number
+    /** The printer version (spec 26): offered or not, and the most it may weigh (interior + cover). */
+    readonly printEnabled: boolean
+    readonly printMaxBytes: number
+    /** Most guest-book messages in one book (the first ones in order, 60 at most). */
+    readonly maxMessages: number
   }
 
   /**

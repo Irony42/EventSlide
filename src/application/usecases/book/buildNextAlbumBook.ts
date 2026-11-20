@@ -74,6 +74,8 @@ export interface BuildAlbumBookPolicy {
   readonly maxBytes: number
   /** What the printer version (interior and cover together) may weigh before it is abandoned. */
   readonly maxPrintBytes: number
+  /** Most guest-book messages in one book: the first ones in order. */
+  readonly maxMessages: number
   readonly ttlDays: number
   /** Bytes of finished books the box keeps at once. */
   readonly maxTotalBytes: number
@@ -302,7 +304,7 @@ export const makeBuildNextAlbumBook = ({
     const written = options.includeGuestbook
       ? await guestbook.listWrittenForBook(eventId, claimed.snapshotAt, MAX_ENTRIES_PER_EVENT)
       : []
-    const messages: BookMessage[] = written.map((entry) => ({
+    const messages: BookMessage[] = written.slice(0, policy.maxMessages).map((entry) => ({
       id: entry.id,
       guestId: entry.guestId,
       createdAt: entry.createdAt,
@@ -323,7 +325,8 @@ export const makeBuildNextAlbumBook = ({
           photographers: new Set(rows.flatMap((row) => (row.guestId === null ? [] : [row.guestId])))
             .size,
           hearts,
-          messages: messages.length,
+          // The count of the snapshot, uncapped: the plan says how many are left in the export.
+          messages: written.length,
           voices,
           videos,
         },

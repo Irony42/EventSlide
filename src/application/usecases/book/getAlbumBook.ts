@@ -1,32 +1,82 @@
 import type { AlbumBook } from '../../../domain/book/albumBook'
+import { hasFile } from '../../../domain/book/albumBookStatus'
+import { MAX_ENTRIES_PER_EVENT } from '../../../domain/guestbook/guestbookLimits'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { AlbumBookRepository } from '../../ports/albumBookRepository'
+import type { BookFileStore } from '../../ports/bookFileStore'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { GuestbookRepository } from '../../ports/guestbookRepository'
+import type { PhotoRepository } from '../../ports/photoRepository'
 import { requireReadable } from '../shared/eventRole'
 
 /**
  * The state of the event's book for the host's screen: the row, or `null` when none was ever
- * requested. Reads one row and writes nothing; a suspended client is told so, like every read
- * of its event.
+ * requested, and what the form needs to offer its choices: the published photographs (clips left
+ * out) and the published written messages of the album **now**, which are not what a book will
+ * hold (a book is frozen at its own request). Reads and writes nothing; a suspended client is
+ * told so, like every read of its event.
  */
+
+export interface AlbumCounts {
+  readonly photos: number
+  readonly messages: number
+}
 
 export interface GetAlbumBookDeps {
   readonly events: EventRepository
   readonly books: Pick<AlbumBookRepository, 'find'>
+  readonly photos: Pick<PhotoRepository, 'list'>
+  readonly guestbook: Pick<GuestbookRepository, 'listWrittenByStatuses'>
+  readonly bookFiles: Pick<BookFileStore, 'stat'>
+}
+
+export interface AlbumBookState {
+  readonly book: AlbumBook | null
+  readonly counts: AlbumCounts
+  /** The sizes of the two printer files of a finished book that has them, else `null`. */
+  readonly printFiles: { readonly interior: number; readonly cover: number } | null
 }
 
 export type GetAlbumBook = (input: {
   readonly eventId: EventId
-}) => Promise<Result<AlbumBook | null, DomainError>>
+}) => Promise<Result<AlbumBookState, DomainError>>
+
+const PAGE = 200
 
 export const makeGetAlbumBook =
-  ({ events, books }: GetAlbumBookDeps): GetAlbumBook =>
+  ({ events, books, photos, guestbook, bookFiles }: GetAlbumBookDeps): GetAlbumBook =>
   async ({ eventId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
     const readable = requireReadable(event)
     if (!readable.ok) return readable
-    return ok(await books.find(eventId))
+
+    let published = 0
+    let cursor: string | undefined
+    do {
+      const page = await photos.list(eventId, {
+        statuses: ['published'],
+        limit: PAGE,
+        ...(cursor === undefined ? {} : { cursor }),
+      })
+      published += page.items.filter((photo) => photo.kind === 'photo').length
+      cursor = page.nextCursor ?? undefined
+    } while (cursor !== undefined)
+
+    const messages = await guestbook.listWrittenByStatuses(
+      eventId,
+      ['published'],
+      MAX_ENTRIES_PER_EVENT,
+    )
+    const book = await books.find(eventId)
+    let printFiles: AlbumBookState['printFiles'] = null
+    if (book !== null && hasFile(book.status) && book.printByteSize !== null) {
+      const interior = await bookFiles.stat(eventId, 'printInterior')
+      const cover = await bookFiles.stat(eventId, 'printCover')
+      if (interior !== null && cover !== null)
+        printFiles = { interior: interior.size, cover: cover.size }
+    }
+    return ok({ book, counts: { photos: published, messages: messages.length }, printFiles })
   }

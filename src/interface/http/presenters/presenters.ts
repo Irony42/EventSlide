@@ -143,7 +143,7 @@ import type {
 } from '../../../application/usecases/gallery/listGalleryPhotos'
 import type { GalleryView } from '../../../application/usecases/gallery/openGallery'
 import type { EventStats } from '../../../application/usecases/stats/getEventStats'
-import type { AlbumBook } from '../../../domain/book/albumBook'
+import type { AlbumBookState } from '../../../application/usecases/book/getAlbumBook'
 import { canDeleteWithoutConfirmation, type AlbumExport } from '../../../domain/exports/albumExport'
 import { canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 
@@ -204,32 +204,40 @@ export const toReelDto = (view: ReelView): ReelDto => ({
 const iso = (date: Date): string => date.toISOString()
 const isoOrNull = (date: Date | null): string | null => (date === null ? null : date.toISOString())
 
-/** The photo book as the host's screen reads it (spec 04); `none` when none was ever asked for. */
-export const toAlbumBookDto = (book: AlbumBook | null): AlbumBookDto =>
-  book === null
-    ? { status: 'none' }
-    : {
-        status: book.status,
-        // The 3.14 shape the web still reads (spec 26, PR 2): the v2 options reach the wire with the new
-        // panel. A v1 book was always drawn one photograph a page.
-        options: {
-          title: book.options.title,
-          subtitle: book.options.subtitle,
-          language: book.options.language,
-          layout: 'one',
-          showAuthors: book.options.showAuthors,
-          showCaptions: book.options.showCaptions,
-        },
-        requestedAt: iso(book.requestedAt),
-        doneAt: isoOrNull(book.doneAt),
-        photoCount: book.photoCount,
-        skippedCount: book.skippedCount,
-        pageCount: book.pageCount,
-        byteSize: book.byteSize,
-        expiresAt: isoOrNull(book.expiresAt),
-        failureCode: book.failureCode,
-        staleReason: book.staleReason,
-      }
+/** The photo book as the host's screen reads it (spec 04, spec 26); `none` when none was ever asked for. */
+export const toAlbumBookDto = (state: AlbumBookState): AlbumBookDto => {
+  const { book, counts, printFiles } = state
+  if (book === null) return { status: 'none', albumCounts: counts }
+  return {
+    status: book.status,
+    options: { ...book.options, layout: 'one' },
+    requestedAt: iso(book.requestedAt),
+    doneAt: isoOrNull(book.doneAt),
+    photoCount: book.photoCount,
+    skippedCount: book.skippedCount,
+    pageCount: book.pageCount,
+    byteSize: book.byteSize,
+    selectedCount: book.selectedCount,
+    ...(book.status === 'done' && book.byteSize !== null
+      ? {
+          files: {
+            screen: { byteSize: book.byteSize },
+            ...(printFiles === null
+              ? {}
+              : {
+                  printInterior: { byteSize: printFiles.interior },
+                  printCover: { byteSize: printFiles.cover },
+                }),
+          },
+        }
+      : {}),
+    printSkipped: book.printSkipped,
+    expiresAt: isoOrNull(book.expiresAt),
+    failureCode: book.failureCode,
+    staleReason: book.staleReason,
+    albumCounts: counts,
+  }
+}
 
 export const toAlbumExportDto = (archive: AlbumExport): AlbumExportDto => ({
   status: archive.status,
