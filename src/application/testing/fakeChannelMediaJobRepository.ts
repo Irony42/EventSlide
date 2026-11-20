@@ -50,7 +50,7 @@ export class FakeChannelMediaJobRepository implements ChannelMediaJobRepository 
     let recovered = 0
     for (const [id, job] of this.rows) {
       if (job.status !== 'running') continue
-      this.rows.set(id, { ...job, status: 'queued', updatedAt: now })
+      this.rows.set(id, { ...job, status: 'queued', attempts: job.attempts + 1, updatedAt: now })
       recovered += 1
     }
     return recovered
@@ -70,7 +70,7 @@ export class FakeChannelMediaJobRepository implements ChannelMediaJobRepository 
 
   async finish(jobId: ChannelMediaJobId, outcome: ChannelJobOutcome, now: Date): Promise<void> {
     const job = this.rows.get(jobId)
-    if (job === undefined) return
+    if (job === undefined || job.status !== 'running') return
     this.rows.set(jobId, {
       ...job,
       status: outcome.status,

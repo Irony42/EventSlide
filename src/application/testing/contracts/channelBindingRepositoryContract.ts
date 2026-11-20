@@ -92,8 +92,20 @@ export const channelBindingRepositoryContract = (
     it('holds at most one active binding per conversation', async () => {
       await repo.save(aBinding({ id: 'bnd-1' }))
 
-      await expect(repo.save(aBinding({ id: 'bnd-2', eventId: GALA }))).rejects.toThrow()
+      const refused = await repo.save(aBinding({ id: 'bnd-2', eventId: GALA }))
+      expect(refused.ok ? null : refused.error.code).toBe('channel.conversationTaken')
       expect((await repo.findActive('telegram', '-1001'))?.id).toBe('bnd-1')
+    })
+
+    it('refuses, as a typed answer, to move a binding onto a conversation that has another active one', async () => {
+      await repo.save(aBinding({ id: 'bnd-1' }))
+      await repo.save(aBinding({ id: 'bnd-2', conversationRef: '-2002' }))
+
+      const moved = await repo.save(aBinding({ id: 'bnd-2', conversationRef: '-1001' }))
+
+      expect(moved.ok ? null : moved.error.code).toBe('channel.conversationTaken')
+      expect((await repo.findActive('telegram', '-1001'))?.id).toBe('bnd-1')
+      expect((await repo.findActive('telegram', '-2002'))?.id).toBe('bnd-2')
     })
 
     it('lets a conversation be bound again once its binding ended, and keeps both rows', async () => {

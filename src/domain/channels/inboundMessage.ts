@@ -98,7 +98,8 @@ export const parseCommand = (
   botUsername: string,
 ): { command: ChannelCommandName; argument: string } | null => {
   // Groups 1 and 3 always take part (3 may be empty); only the addressee is optional.
-  const match = /^[ \t]*\/([^\s@]+)(?:@(\S+))?[ \t]*([^\r\n]*)/u.exec(text)
+  // An `@` must be followed by an addressee: `/soiree@` is nobody's command.
+  const match = /^[ \t]*\/([^\s@]+)(?:@(\S+)|(?=\s|$))[ \t]*([^\r\n]*)/u.exec(text)
   if (match === null) return null
 
   const [, rawName, addressee, rawArgument] = match as unknown as [

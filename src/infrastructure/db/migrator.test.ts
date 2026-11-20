@@ -3781,20 +3781,50 @@ describe('migration 033: messaging channels', () => {
     closeDatabase(db)
   })
 
-  it('pins the frozen status and kind lists of the queue, which no domain list owns, as literals', () => {
+  it('pins the frozen status list of the queue, which no domain list owns, as a literal, and leaves the kind free', () => {
     const db = migratedAt(33)
     const table = ddlOf(db, 'channel_media_jobs')
 
     expect(listed(table, 'status')).toEqual(['done', 'failed', 'queued', 'running'])
-    expect(listed(table, 'kind')).toEqual(['document', 'photo', 'video'])
+    expect(table).not.toMatch(/kind\s+TEXT NOT NULL\s+CHECK/)
     closeDatabase(db)
   })
 
-  it('leaves the channel name free, so a later channel is a value and not a rebuilt table', () => {
+  it('takes another channel as a value: a whatsapp binding, job and guest insert without a rebuilt table', () => {
     const db = migratedAt(33)
+    seedEventWithGuestAndClient(db)
 
-    expect(ddlOf(db, 'channel_bindings')).not.toMatch(/channel\s+TEXT NOT NULL\s+CHECK/)
-    expect(ddlOf(db, 'channel_media_jobs')).not.toMatch(/channel\s+TEXT NOT NULL\s+CHECK/)
+    db.prepare(
+      `INSERT INTO channel_bindings (id, event_id, channel, conversation_ref, conversation_title, bound_at)
+       VALUES ('b', 'e', 'whatsapp', 'c1', 't', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO channel_media_jobs (id, event_id, binding_id, channel, conversation_ref, message_ref, sender_key, kind,
+                                      file_ref, declared_name, created_at, available_at, updated_at)
+       VALUES ('j', 'e', 'b', 'whatsapp', 'c1', 'm1', 'k', 'sticker', 'f', 'n',
+               '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at, channel, channel_sender_key)
+       VALUES ('g2', 'e', 'Tom', '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z', 'whatsapp', 'k')`,
+    ).run()
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM channel_media_jobs`).get()).toEqual({ n: 1 })
+    closeDatabase(db)
+  })
+
+  it("holds a guest's channel and sender key together: one without the other is refused", () => {
+    const db = migratedAt(33)
+    seedEventWithGuestAndClient(db)
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at, channel)
+           VALUES ('g3', 'e', 'Zoé', '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z', 'telegram')`,
+        )
+        .run(),
+    ).toThrow(/CHECK/)
     closeDatabase(db)
   })
 

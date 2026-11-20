@@ -29,15 +29,15 @@ Spec 27 carries the whole argument; this record keeps the choices whose reasons 
 2. **The box calls Telegram; Telegram never calls the box.** The bot receives its updates by **long polling**
    (`getUpdates`), an outbound connection that is opened only when `TELEGRAM_BOT_TOKEN` is set. A webhook would be a public
    write endpoint, which `docs/ROADMAP.md` refuses; the polling opens none, so that line stays true. Without a token there
-   is no poller, no worker and no outbound connection: `docs/SECURITY.md` and `compose.yaml`, which said "nothing leaves
-   the box", now say "nothing leaves the box unless the operator sets a bot token".
+   is no poller, no worker and no outbound connection. `docs/SECURITY.md` and `compose.yaml`, which say "nothing leaves
+   the box", will say (PR 4 updates them) "nothing leaves the box unless the operator sets a bot token".
 3. **A binding keeps the event, never the join code.** The code rotates and the old one stops at once; a link that kept
    it would break on the evening a host rotates it. One active binding per conversation (a partial unique index holds it),
    a conversation points to one event, and a conversation already linked to another event that is still live is refused
    rather than silently moved: the host of that event did not agree to lose their group.
 4. **A sender becomes a guest without a cookie, and is stored as a fingerprint.** The key is
-   `HMAC(key derived from GUEST_TOKEN_SECRET, channel:senderRef)`: no new secret, and a copy of the database does not
-   contain a Telegram account number. The guest carries the first name and the initial of the last (`Léa M.`), nothing
+   `HMAC(key derived from GUEST_TOKEN_SECRET, channel:eventId:senderRef)`: no new secret, and a copy of the database does not
+   contain a Telegram account number, and the same person has a different key at each event, so rows of two events cannot be linked. The guest carries the first name and the initial of the last (`Léa M.`), nothing
    else: no number, no handle, no text.
 5. **Receiving is fast and replayable; downloading is a queue.** `receiveChannelMessage` stores a job and answers; a
    worker, one media at a time, downloads, stores and acknowledges. A job is unique per (channel, conversation,
@@ -51,7 +51,8 @@ Spec 27 carries the whole argument; this record keeps the choices whose reasons 
 8. **The channel has the same two gates as a clip**: the host's switch (`allowTelegram`) and the client's ceiling
    (`channelsAllowed`, off for a new client unless the operator says otherwise). Moderation stays the event's own mode: a
    photograph from the group is pending or published exactly like one from a phone.
-9. **Erasure is the existing erasure.** `/oublier` is `eraseGuestContribution`, and every new table cascades from `events`.
+9. **Erasure is the existing erasure.** `/oublier` is `eraseGuestContribution` plus the deletion of the sender's queued jobs (`deleteBySender`), so a media posted
+   a second earlier is not stored a second after; every new table cascades from `events`.
 
 ## Consequences
 
@@ -74,9 +75,14 @@ Spec 27 carries the whole argument; this record keeps the choices whose reasons 
 
 ### Neutral
 
-- Replies are rationed in memory (one per conversation, sender and reason per hour); a restart forgets them, which only
-  lets the bot speak once more.
+- Only the refusals of a media are rationed in memory (one per conversation, sender and reason per hour); commands are always
+  answered. A restart forgets the ration, which only lets the bot speak once more.
 - A video longer than a clip keeps its first seconds instead of being refused.
+- The host's "photos received" counter of a binding is not decremented by `/oublier` (it counts what arrived, not what is still
+  there), and the conversation title is kept until the event purge, since it is the host's own label for the group.
+- A document declared `video/*` with no duration is **not** trimmed (a trim past the end of a short source fails with
+  `clip.trimOutOfRange`). The clip pipeline decides: if it refuses it as `clip.tooLong` while the duration was unknown, the
+  drain treats it as a permanent failure and says "too long" in the conversation.
 
 ## Alternatives considered
 

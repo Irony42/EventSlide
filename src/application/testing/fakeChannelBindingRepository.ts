@@ -1,6 +1,8 @@
 import { ChannelBinding } from '../../domain/channels/channelBinding'
 import type { ChannelKind } from '../../domain/channels/channelKind'
+import { DomainError } from '../../domain/shared/errors'
 import type { ChannelBindingId, EventId } from '../../domain/shared/ids'
+import { err, ok, type Result } from '../../domain/shared/result'
 import type { ChannelBindingRepository } from '../ports/channelBindingRepository'
 import { compareIds } from './ordering'
 
@@ -37,7 +39,7 @@ export class FakeChannelBindingRepository implements ChannelBindingRepository {
       )
   }
 
-  async save(binding: ChannelBinding): Promise<void> {
+  async save(binding: ChannelBinding): Promise<Result<void, DomainError>> {
     const stored = this.rows.get(binding.id)
     if (stored !== undefined && stored.eventId !== binding.eventId) {
       throw new Error(`channel_bindings.id ${binding.id} is already held by another event`)
@@ -51,7 +53,7 @@ export class FakeChannelBindingRepository implements ChannelBindingRepository {
         other.conversationRef === binding.conversationRef,
     )
     if (taken) {
-      throw new Error('channel_bindings: this conversation already has an active binding')
+      return err(DomainError.conflict('channel.conversationTaken'))
     }
 
     const props = binding.toProps()
@@ -66,6 +68,7 @@ export class FakeChannelBindingRepository implements ChannelBindingRepository {
             receivedCount: stored.receivedCount,
           }),
     )
+    return ok(undefined)
   }
 
   async recordReceived(bindingId: ChannelBindingId): Promise<void> {

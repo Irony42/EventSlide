@@ -1,4 +1,6 @@
 import type { Db } from './connection'
+import { DomainError } from '../../domain/shared/errors'
+import { err, ok, type Result } from '../../domain/shared/result'
 import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
 import type { ChannelBindingRepository } from '../../application/ports/channelBindingRepository'
 import { ChannelBinding } from '../../domain/channels/channelBinding'
@@ -72,6 +74,11 @@ const toBinding = (row: BindingRow): ChannelBinding =>
     receivedCount: row.received_count,
   })
 
+const isConversationTaken = (error: unknown): boolean =>
+  error instanceof Error &&
+  (error as { code?: unknown }).code === 'SQLITE_CONSTRAINT_UNIQUE' &&
+  error.message.includes('channel_bindings.conversation_ref')
+
 export class SqliteChannelBindingRepository implements ChannelBindingRepository {
   constructor(private readonly db: Db) {}
 
@@ -100,23 +107,31 @@ export class SqliteChannelBindingRepository implements ChannelBindingRepository 
       .map(toBinding)
   }
 
-  async save(binding: ChannelBinding): Promise<void> {
-    const written = this.db
-      .prepare<[string, string, string, string, string, string, string | null]>(UPSERT_BINDING)
-      .run(
-        binding.id,
-        binding.eventId,
-        binding.channel,
-        binding.conversationRef,
-        binding.conversationTitle,
-        toIsoText(binding.boundAt),
-        binding.unboundAt === null ? null : toIsoText(binding.unboundAt),
-      )
+  async save(binding: ChannelBinding): Promise<Result<void, DomainError>> {
+    let written: { readonly changes: number }
+    try {
+      written = this.db
+        .prepare<[string, string, string, string, string, string, string | null]>(UPSERT_BINDING)
+        .run(
+          binding.id,
+          binding.eventId,
+          binding.channel,
+          binding.conversationRef,
+          binding.conversationTitle,
+          toIsoText(binding.boundAt),
+          binding.unboundAt === null ? null : toIsoText(binding.unboundAt),
+        )
+    } catch (error) {
+      // The partial unique index: another binding of this conversation is active.
+      if (isConversationTaken(error)) return err(DomainError.conflict('channel.conversationTaken'))
+      throw error
+    }
 
     // The WHERE skipped the update: this id belongs to a binding of another event.
     if (written.changes === 0) {
       throw new Error(`channel_bindings.id ${binding.id} is already held by another event`)
     }
+    return ok(undefined)
   }
 
   async recordReceived(bindingId: ChannelBindingId): Promise<void> {

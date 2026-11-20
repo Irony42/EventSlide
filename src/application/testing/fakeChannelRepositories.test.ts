@@ -39,6 +39,7 @@ describe('the channel fakes', () => {
     const repo = new FakeChannelBindingRepository()
     await repo.save(aBinding({ id: 'bnd-1' }))
 
-    await expect(repo.save(aBinding({ id: 'bnd-2' }))).rejects.toThrow(/already has an active/)
+    const refused = await repo.save(aBinding({ id: 'bnd-2' }))
+    expect(refused.ok ? null : refused.error.code).toBe('channel.conversationTaken')
   })
 })
