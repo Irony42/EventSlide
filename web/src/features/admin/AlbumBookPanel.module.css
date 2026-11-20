@@ -176,8 +176,10 @@
 }
 
 .meta {
+  flex-shrink: 0;
   font-weight: 400;
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .help {
