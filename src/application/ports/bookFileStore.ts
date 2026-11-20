@@ -56,7 +56,11 @@ export interface BookFileStore {
   writeSet(
     eventId: EventId,
     chunks: AsyncIterable<BookChunk>,
-    options: { readonly maxBytes: { readonly screen: number; readonly print: number } },
+    options: {
+      readonly maxBytes: { readonly screen: number; readonly print: number }
+      /** Called once, as soon as the printer files are dropped for outgrowing their ceiling: the renderer stops feeding them. */
+      readonly onPrintDropped?: () => void
+    },
   ): Promise<BookFileSetResult>
 
   /** The size, or `null` when there is no finished file. A temporary file is never reported. */

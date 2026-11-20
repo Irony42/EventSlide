@@ -3,6 +3,7 @@ import type { PlanPage } from './bookPlan'
 import { BOOK_STYLE_DEFS } from './bookStyles'
 import {
   BOOK_TEMPLATES,
+  cropCeilingFor,
   cropLoss,
   pageCountOf,
   withinCropCeiling,
@@ -33,7 +34,10 @@ export type PrintPlan =
 const wideReplacement = (style: BookStyle, photo: PhotoSize | undefined): TemplateId =>
   BOOK_STYLE_DEFS[style].wide &&
   photo !== undefined &&
-  withinCropCeiling(cropLoss(photo, BOOK_TEMPLATES.full.slots[0]!, 1))
+  withinCropCeiling(
+    cropLoss(photo, BOOK_TEMPLATES.full.slots[0]!, 1),
+    cropCeilingFor('full', BOOK_STYLE_DEFS[style].fullBleed),
+  )
     ? 'full'
     : 'single'
 

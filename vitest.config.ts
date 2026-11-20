@@ -98,6 +98,9 @@ export default defineConfig({
         // than left out of `include` by its extension, so the next `.mts` under
         // `scripts/` is counted by the ratchet below instead of skipped in silence.
         'scripts/showcase.mts',
+        // The photo book's showcase (spec 26): a maintainer runs it to render every style over a
+        // demo album and look at the pages; it asserts nothing by design.
+        'scripts/bookShowcase.mts',
       ],
 
       /**

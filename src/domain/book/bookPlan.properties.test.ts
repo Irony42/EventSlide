@@ -8,6 +8,7 @@ import { findBursts } from './bookSelection'
 import { BOOK_STYLE_DEFS } from './bookStyles'
 import {
   BOOK_TEMPLATES,
+  cropCeilingFor,
   cropLoss,
   pageCountOf,
   withinCropCeiling,
@@ -126,16 +127,18 @@ describe('composeBook properties (160 generated albums)', () => {
     }
   })
 
-  it('never crops a photograph by more than 20 %', () => {
-    for (const { seed, plan, input } of cases) {
+  it('never crops a photograph by more than 20 % (30 % for a Magazine full page)', () => {
+    for (const { seed, plan, input, options } of cases) {
+      const bleeds = BOOK_STYLE_DEFS[options.style].fullBleed
       const known = photoById(input)
       for (const page of plan.pages) {
         const { slots, span } = BOOK_TEMPLATES[page.template]
         page.slots.forEach((slot, i) => {
           const loss = cropLoss(known.get(slot.photoId)!, slots[i]!, span)
-          expect(withinCropCeiling(loss), `seed ${seed} ${page.template} slot ${i}: ${loss}`).toBe(
-            true,
-          )
+          expect(
+            withinCropCeiling(loss, cropCeilingFor(page.template, bleeds)),
+            `seed ${seed} ${page.template} slot ${i}: ${loss}`,
+          ).toBe(true)
         })
       }
     }
@@ -261,11 +264,15 @@ describe('the printer version of every generated plan', () => {
       const print = planForPrint(plan.pages, options.style, sizesOf(input))
       if (print.kind !== 'ready') continue
       const known = photoById(input)
+      const bleeds = BOOK_STYLE_DEFS[options.style].fullBleed
       for (const page of print.pages) {
         const { slots, span } = BOOK_TEMPLATES[page.template]
         page.slots.forEach((slot, i) => {
           const loss = cropLoss(known.get(slot.photoId)!, slots[i]!, span)
-          expect(withinCropCeiling(loss), `seed ${seed} ${page.template}: ${loss}`).toBe(true)
+          expect(
+            withinCropCeiling(loss, cropCeilingFor(page.template, bleeds)),
+            `seed ${seed} ${page.template}: ${loss}`,
+          ).toBe(true)
         })
       }
     }

@@ -305,8 +305,8 @@ describe('composeBook: the parity of the next opening', () => {
 describe('composeBook: phone portraits', () => {
   const phone = { width: 1500, height: 2000 }
 
-  it('lays three portraits side by side, alternating with the hero page, and a burst of four on a grid of 3:4 cells', () => {
-    expect(templates(compose(run(3, 0, () => phone)).pages)).toContain('threePortraits')
+  it('lays three portraits on a hero page and its mirror in turn, and a burst of four on a grid of 3:4 cells', () => {
+    expect(templates(compose(run(3, 0, () => phone)).pages)).toContain('portraitHero')
     expect(templates(compose(run(6, 0, () => phone)).pages)).toEqual(
       expect.arrayContaining(['threePortraits', 'portraitHero']),
     )
@@ -341,6 +341,25 @@ describe('composeBook: phone portraits', () => {
     const photoPages = plan.pages.filter((p) => p.slots.length > 0 && p.template !== 'favourites')
     const singles = photoPages.filter((p) => p.template === 'single' || p.template === 'full')
     expect(singles.length / photoPages.length).toBeLessThan(0.45)
+  })
+})
+
+describe('composeBook: Magazine bleeds', () => {
+  const phone = { width: 1500, height: 2000 }
+  const strong = () => run(8, 0, (i) => ({ ...phone, highlighted: i % 2 === 0 }))
+
+  it('gives a strong portrait a full page in Magazine, where Classique contains it on a single page', () => {
+    const magazine = templates(compose(strong(), { style: 'magazine' }).pages)
+    const classique = templates(compose(strong(), { style: 'classique' }).pages)
+
+    expect(magazine).toContain('full')
+    expect(classique).not.toContain('full')
+  })
+
+  it('does not bleed a photograph that would lose more than 30 %', () => {
+    const tall = run(4, 0, () => ({ width: 1000, height: 2000, highlighted: true }))
+
+    expect(templates(compose(tall, { style: 'magazine' }).pages)).not.toContain('full')
   })
 })
 
@@ -388,12 +407,12 @@ describe('composeBook: guest book', () => {
     ).toEqual([2, 1])
   })
 
-  it('charges at least 120 a message and holds six a page', () => {
+  it('charges at least 120 a message and holds four a page', () => {
     const messages = Array.from({ length: 15 }, (_, n) => longMessage(n + 1, 5))
     const plan = compose(run(3, 0), { includeGuestbook: true }, messages)
     expect(
       plan.pages.filter((p) => p.template === 'messages').map((p) => p.messageIds!.length),
-    ).toEqual([6, 6, 3])
+    ).toEqual([4, 4, 4, 3])
   })
 
   it('stays within the 900 budget even for a message that alone is larger than a page', () => {

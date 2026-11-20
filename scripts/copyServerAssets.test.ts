@@ -14,8 +14,23 @@ describe('copyServerAssets', () => {
 
       const copied = await readdir(join(out, 'infrastructure/media/fonts'))
       expect(copied).toEqual(await readdir(join(SRC, 'infrastructure/media/fonts')))
-      expect(copied).toContain('OFL-Noto.txt')
-      expect(copied.filter((name) => name.endsWith('.ttf'))).toHaveLength(4)
+      for (const licence of ['Noto', 'Cormorant', 'Fraunces', 'Caveat', 'Inter']) {
+        expect(copied).toContain('OFL-' + licence + '.txt')
+      }
+      // every face a style names is shipped, with its licence: the styles fall back to Noto, not to nothing
+      for (const face of [
+        'CormorantGaramond-SemiBold.ttf',
+        'CormorantGaramond-Italic.ttf',
+        'Fraunces-Black.ttf',
+        'Caveat-Bold.ttf',
+        'Caveat-Regular.ttf',
+        'Inter-Regular.ttf',
+        'Inter-SemiBold.ttf',
+        'NotoSans-Regular.ttf',
+        'NotoSerif-Bold.ttf',
+      ]) {
+        expect(copied).toContain(face)
+      }
     } finally {
       await rm(out, { recursive: true, force: true })
     }

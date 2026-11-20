@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { CURATED_ACCENT_HUES } from '../events/eventTheme'
-import { oklchToHex, oklchToSrgb, srgbToHex } from './bookColours'
+import {
+  MIN_TEXT_CONTRAST,
+  contrastOfHex,
+  legibleAccent,
+  luminanceOfHex,
+  oklchToHex,
+  oklchToSrgb,
+  srgbToHex,
+} from './bookColours'
 import { BOOK_STYLES } from './bookOptionsV2'
 import { BOOK_STYLE_DEFS, polaroidRotation, resolveBookColours } from './bookStyles'
 
@@ -79,5 +87,57 @@ describe('polaroidRotation', () => {
     expect(Math.min(...angles)).toBeLessThan(-3)
     expect(Math.max(...angles)).toBeGreaterThan(3)
     expect(new Set(angles).size).toBeGreaterThan(100)
+  })
+})
+
+describe('contrast of the text accent', () => {
+  it('measures white against black as 21 and a colour against itself as 1', () => {
+    expect(luminanceOfHex('#ffffff')).toBeCloseTo(1, 6)
+    expect(luminanceOfHex('#000000')).toBe(0)
+    expect(contrastOfHex('#ffffff', '#000000')).toBeCloseTo(21, 6)
+    expect(contrastOfHex('#000000', '#ffffff')).toBeCloseTo(21, 6)
+    expect(contrastOfHex('#336699', '#336699')).toBe(1)
+  })
+
+  it('is at least 4.5 to 1 against the paper of each style, for every curated hue and the whole wheel', () => {
+    const hues = [
+      ...Object.values(CURATED_ACCENT_HUES),
+      ...Array.from({ length: 36 }, (_, i) => i * 10),
+    ]
+    for (const style of BOOK_STYLES) {
+      for (const hue of hues) {
+        const colours = resolveBookColours(style, hue)
+        expect(
+          contrastOfHex(colours.accentText, colours.paper),
+          style + ' ' + hue,
+        ).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
+  it('asks for AA contrast, 4.5 to 1', () => {
+    expect(MIN_TEXT_CONTRAST).toBe(4.5)
+  })
+
+  it('keeps the light tone of the accent for rules and tape: it is the one that fails on kraft', () => {
+    const colours = resolveBookColours('souvenir', 345)
+    expect(contrastOfHex(colours.accent, colours.paper)).toBeLessThan(MIN_TEXT_CONTRAST)
+    expect(colours.accentText).not.toBe(colours.accent)
+  })
+
+  it('does not darken a tone that already reads', () => {
+    expect(legibleAccent(250, '#ffffff', 0.17)).toBe(oklchToHex({ l: 0.55, c: 0.17, h: 250 }))
+  })
+})
+
+describe('the minimum size of story text', () => {
+  it('is 9 pt, and 11 pt for the handwriting of Souvenir, whose x-height is small', () => {
+    expect(Object.fromEntries(BOOK_STYLES.map((s) => [s, BOOK_STYLE_DEFS[s].minBodySize]))).toEqual(
+      {
+        classique: 9,
+        magazine: 9,
+        souvenir: 11,
+      },
+    )
   })
 })
