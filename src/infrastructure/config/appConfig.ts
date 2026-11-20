@@ -350,6 +350,23 @@ export interface AppConfig {
   }
 
   /**
+   * Messaging channels (spec 27). `telegram` is `null` on every box that never set `TELEGRAM_BOT_TOKEN`, which is what
+   * keeps the poller and the worker unwired and the box free of any outbound connection.
+   *
+   * Carries the bot token, **which sits in every Telegram URL**: nothing logs this object, and the adapter rebuilds every
+   * error it meets so that no URL, and no token, is ever shown (docs/SECURITY.md, "Messaging channels").
+   */
+  readonly channels: {
+    readonly telegram: {
+      readonly botToken: string
+      readonly apiBaseUrl: string
+      readonly maxFileBytes: number
+    } | null
+    /** `MAX_QUEUED_CHANNEL_MEDIA_PER_EVENT`. */
+    readonly maxQueuedPerEvent: number
+  }
+
+  /**
    * Problems worth telling an operator about that are not worth refusing the boot
    * over — see `computeWarnings` (`load.ts`). The production-only ones are absent outside
    * production (a deprecated setting is warned about everywhere), and the list is usually

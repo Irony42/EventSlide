@@ -358,3 +358,36 @@ export const newClientBooksAllowed = z.preprocess(blankAsAbsent, boolish.optiona
  * operator turns it on for a client by hand until they decide otherwise.
  */
 export const newClientChannelsAllowed = z.preprocess(blankAsAbsent, boolish.optional())
+
+/**
+ * `TELEGRAM_BOT_TOKEN`: the bot's credential (spec 27, ADR 0015), `123456:ABC-DEF...`. Optional: absent or blank means no
+ * Telegram at all (no poller, no worker, no outbound connection). **It is a secret that sits in every Telegram URL**, so
+ * the schema never repeats the value it refused: the message names the variable and the expected shape only.
+ */
+export const telegramBotToken = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .regex(/^\d{3,}:[A-Za-z0-9_-]{20,}$/u, {
+      message:
+        'TELEGRAM_BOT_TOKEN must look like the token BotFather gave: digits, a colon, then letters and digits',
+    })
+    .optional(),
+)
+
+/**
+ * `TELEGRAM_API_BASE_URL`: where the Bot API is reached, `https://api.telegram.org` unless an operator runs a local Bot API
+ * server (which lifts the 20 MB file limit) and what the end-to-end tests point at their fake. An http or https origin,
+ * without a trailing slash.
+ */
+export const telegramApiBaseUrl = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .url({ message: 'TELEGRAM_API_BASE_URL must be an http or https URL' })
+    .refine((value) => /^https?:\/\//iu.test(value), {
+      message: 'TELEGRAM_API_BASE_URL must be an http or https URL',
+    })
+    .transform((value) => value.replace(/\/+$/u, ''))
+    .default('https://api.telegram.org'),
+)

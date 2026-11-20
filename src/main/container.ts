@@ -57,7 +57,18 @@ import { nullVideoTranscoder } from '../infrastructure/media/nullVideoTranscoder
 import { detectAudioContainer, detectVideoContainer } from '../infrastructure/media/magicBytes'
 import { archiverWriter } from '../infrastructure/media/archiverWriter'
 import { createBcryptPasswordHasher } from '../infrastructure/crypto/bcryptPasswordHasher'
+import { createHmacChannelSenderKeyer } from '../infrastructure/crypto/hmacChannelSenderKeyer'
 import { createHmacGuestTokenService } from '../infrastructure/crypto/hmacGuestTokenService'
+import { SqliteChannelBindingRepository } from '../infrastructure/db/sqliteChannelBindingRepository'
+import { SqliteChannelCursorStore } from '../infrastructure/db/sqliteChannelCursorStore'
+import { SqliteChannelMediaJobRepository } from '../infrastructure/db/sqliteChannelMediaJobRepository'
+import { TelegramBotApi } from '../infrastructure/channels/telegram/telegramBotApi'
+import type { MessagingChannel } from '../application/ports/messagingChannel'
+import type { ChannelKind } from '../domain/channels/channelKind'
+import { createChannelPoller } from './channelPoller'
+import { createTelegramBringUp, type TelegramBringUp } from './telegramBringUp'
+import { createChannelWorker } from './channelWorker'
+import { channelWorkerUseCases } from './usecases.channels'
 import { sha256SecretTokens } from '../infrastructure/crypto/sha256SecretTokens'
 import { createHmacGallerySigner } from '../infrastructure/crypto/hmacGallerySigner'
 import { createTrustedDeviceSigner } from '../infrastructure/crypto/hmacStatementSigner'
@@ -153,6 +164,12 @@ export interface Container {
    */
   readonly clipWorker: ClipWorker
   /**
+   * Telegram (spec 27): the bot's identification, the long poll and the queue it feeds, brought up in the background by
+   * `index.ts` (`start()` returns at once, the server never waits for Telegram). `null` on a box with no
+   * `TELEGRAM_BOT_TOKEN`, which then opens no connection at all.
+   */
+  readonly telegram: TelegramBringUp | null
+  /**
    * Whether this box offers voice messages: an audio encoder is on it **and** the operator left
    * `GUESTBOOK_VOICE_ENABLED` on. Decided once at boot, like the encoder it reports; the guest's
    * `guestbookVoice.available` is this, and it is false (never an error) on a box with no ffmpeg.
@@ -195,6 +212,8 @@ export interface Container {
  * than the minutes the sweeps use: a guest is watching.
  */
 const CLIP_WORKER_INTERVAL_MS = 15_000
+/** The channel worker's backstop tick: a drain starts from the bus long before it fires. */
+const CHANNEL_WORKER_INTERVAL_MS = 30_000
 
 /**
  * The ceiling on one clip's output.
@@ -470,6 +489,21 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     : null
   const reelRenderer = reelFfmpeg ?? nullReelRenderer()
 
+  // ---------------------------------------------------------------- channels --
+
+  // Spec 27. **The one outbound connection a messaging channel makes**, and only when the operator set a bot token:
+  // the bot is asked who it is (`getMe`) once, here. A token Telegram refuses, or a Telegram that cannot be reached right
+  // now, is retried in the background, and a refused token turns the function off with an error line; the server never waits for it.
+  // The token is in every URL, so nothing about the failure is logged but a code.
+  const messagingChannels = new Map<ChannelKind, MessagingChannel>()
+  const telegramApi =
+    config.channels.telegram === null
+      ? null
+      : new TelegramBotApi({
+          token: config.channels.telegram.botToken,
+          baseUrl: config.channels.telegram.apiBaseUrl,
+        })
+
   const adapters: Adapters = {
     clock: systemClock,
     /**
@@ -495,6 +529,12 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     exportFiles: createFsExportFileStore(mediaRoot),
     reelRenderer,
     guests: new SqliteGuestRepository(db),
+    channelBindings: new SqliteChannelBindingRepository(db),
+    channelJobs: new SqliteChannelMediaJobRepository(db),
+    channelCursors: new SqliteChannelCursorStore(db),
+    // HKDF-derived from the guest-token secret under its own label: no new secret to require.
+    channelSenderKeyer: createHmacChannelSenderKeyer(config.secrets.guestToken),
+    messagingChannels,
     reactions: new SqliteReactionRepository(db),
     eventStats: new SqliteEventStatsRepository(db),
     missions: new SqliteMissionRepository(db),
@@ -751,6 +791,45 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     intervalMs: CLIP_WORKER_INTERVAL_MS,
   })
 
+  // The poller and the worker exist only with a bot (spec 27): without one nothing here is composed or started.
+  let telegram: TelegramBringUp | null = null
+  if (telegramApi !== null && config.channels.telegram !== null) {
+    const telegramCeiling = config.channels.telegram.maxFileBytes
+    const channelUseCases = channelWorkerUseCases(adapters, usecases, {
+      publicUrl: config.publicUrl,
+      mediaPerMinute: config.rateLimits.uploadPerMinute,
+      maxQueuedPerEvent: config.channels.maxQueuedPerEvent,
+      maxPhotoBytes: Math.min(config.uploads.maxBytes, telegramCeiling),
+      maxVideoBytes: Math.min(config.clips.maxBytes, telegramCeiling),
+      maxClipMs: config.clips.maxDurationMs,
+    })
+    const channelWorker = createChannelWorker({
+      drainOne: channelUseCases.drainChannelMedia,
+      recover: channelUseCases.recoverChannelJobs,
+      sweep: channelUseCases.sweepChannelJobs,
+      bus,
+      logger,
+      clock: adapters.clock,
+      intervalMs: CHANNEL_WORKER_INTERVAL_MS,
+    })
+    telegram = createTelegramBringUp({
+      api: telegramApi,
+      // The number before the colon of the token: not a secret, and all that tells one bot's cursor from another's.
+      botId: config.channels.telegram.botToken.split(':')[0] ?? '',
+      channels: messagingChannels,
+      createPoller: (inbox) =>
+        createChannelPoller({
+          inbox,
+          receive: channelUseCases.receiveChannelMessage,
+          cursors: adapters.channelCursors,
+          logger,
+        }),
+      startWorker: () => channelWorker.start(),
+      stopWorker: () => channelWorker.stop(),
+      logger,
+    })
+  }
+
   // ------------------------------------------------------------ photo books --
 
   // Spec 04. Built only when the function is on: a box that switched it off pays for nothing.
@@ -992,6 +1071,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     reservationReaper,
     schedule,
     clipWorker,
+    telegram,
     voiceAvailable: audioTranscoder.available(),
     albumBookWorker,
     albumExportWorker,
@@ -1006,6 +1086,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       reservationReaper.stop()
       schedule?.stop()
       clipWorker.stop()
+      // The open long poll is aborted here, so the process is not held open by a request to Telegram.
+      telegram?.stop()
       albumBookWorker?.stop()
       albumExportWorker?.stop()
       // **Then the encoder itself.** `stop()` above abandons the drain, which leaves the

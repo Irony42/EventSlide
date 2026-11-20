@@ -1205,6 +1205,35 @@ export interface AnnouncementDto {
   readonly state: AnnouncementState
 }
 
+/**
+ * One group that sends its photographs to the event (spec 27). `title` is the host's own label for the group as
+ * Telegram showed it; `photoCount` is how many media came through, never decremented by an erasure. Nothing here
+ * identifies a conversation or a sender: no reference, no key, no name.
+ */
+export interface ChannelBindingDto {
+  readonly id: string
+  readonly channel: string
+  readonly title: string
+  readonly boundAt: string
+  readonly photoCount: number
+}
+
+/** `GET /events/:slug/channels`: what the "Groupe Telegram" panel shows. */
+export interface ChannelsResponseDto {
+  /** Whether this box has a bot at all (a token is configured and Telegram accepted it). */
+  readonly available: boolean
+  /** The bot's public handle, to add to the group; `null` when not available. */
+  readonly botUsername: string | null
+  /** Whether the client's plan includes messaging channels. */
+  readonly allowed: boolean
+  /**
+   * Whether the bot reads every message of its groups (Telegram's privacy mode is off), `null` without a bot. When it
+   * does not, it only sees the photographs of the groups it administers, and the panel warns the host.
+   */
+  readonly readsAllMessages: boolean | null
+  readonly bindings: readonly ChannelBindingDto[]
+}
+
 /** `GET /events/:slug/announcements`: the host's list, with the clock it was derived at. */
 export interface AnnouncementListResponseDto {
   readonly announcements: readonly AnnouncementDto[]

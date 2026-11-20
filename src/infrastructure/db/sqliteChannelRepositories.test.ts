@@ -18,7 +18,12 @@ import {
   aJob,
   channelMediaJobRepositoryContract,
 } from '../../application/testing/contracts/channelMediaJobRepositoryContract'
-import { asChannelBindingId, asEventId, asGuestId } from '../../domain/shared/ids'
+import {
+  asChannelBindingId,
+  asChannelMediaJobId,
+  asEventId,
+  asGuestId,
+} from '../../domain/shared/ids'
 
 /**
  * The SQLite adapters of spec 27, held to the shared contracts, plus what only a real database can
@@ -182,6 +187,33 @@ describe('the channel tables of migration 033', () => {
     await expect(new SqliteGuestRepository(db).findById(WEDDING, asGuestId('g'))).rejects.toThrow(
       /rejects/,
     )
+    closeDatabase(db)
+  })
+
+  it('lets an error that is not a taken conversation through, as it is', async () => {
+    const db = migratedDatabase(['evt-wedding'])
+    const bindings = new SqliteChannelBindingRepository(db)
+
+    // No such event: the foreign key refuses, which is not "this conversation is taken".
+    await expect(
+      bindings.save(aBinding({ id: 'bnd-1', eventId: asEventId('evt-ghost') })),
+    ).rejects.toThrow(/FOREIGN KEY/u)
+    closeDatabase(db)
+  })
+
+  it('reads a job whose kind this build does not know as a corrupt row', async () => {
+    const db = migratedDatabase(['evt-wedding'])
+    await new SqliteChannelBindingRepository(db).save(aBinding({ id: 'bnd-1' }))
+    db.prepare(
+      `INSERT INTO channel_media_jobs (id, event_id, binding_id, channel, conversation_ref, message_ref, sender_key,
+                                      kind, file_ref, declared_name, created_at, available_at, updated_at)
+       VALUES ('job-1', 'evt-wedding', 'bnd-1', 'telegram', 'c', 'm', 'k', 'sticker', 'f', 'n',
+               '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+    ).run()
+
+    await expect(
+      new SqliteChannelMediaJobRepository(db).findById(WEDDING, asChannelMediaJobId('job-1')),
+    ).rejects.toThrow(/does not know/u)
     closeDatabase(db)
   })
 

@@ -67,3 +67,29 @@ describe('FakeChannelSenderKeyer', () => {
     expect(keyer.keyOf('telegram:1')).not.toBe(keyer.keyOf('telegram:2'))
   })
 })
+
+describe('FakeMessagingChannel: what the bot sees', () => {
+  it('sees everything unless told it does not, and then only the groups it administers', async () => {
+    const bot = new FakeMessagingChannel()
+    expect(bot.readsAllMessages()).toBe(true)
+    expect(await bot.canSeeMedia('-1')).toEqual({ ok: true, value: true })
+
+    bot.readsAll = false
+    bot.administratorOf.add('-2')
+
+    expect(bot.readsAllMessages()).toBe(false)
+    expect(await bot.canSeeMedia('-1')).toEqual({ ok: true, value: false })
+    expect(await bot.canSeeMedia('-2')).toEqual({ ok: true, value: true })
+  })
+
+  it('fails the checks a test armed, one each, then answers again', async () => {
+    const bot = new FakeMessagingChannel()
+    bot.failNextSeeMedia({ code: 'channel.membershipUnknown', retryable: true })
+
+    expect(await bot.canSeeMedia('-1')).toEqual({
+      ok: false,
+      error: { code: 'channel.membershipUnknown', retryable: true },
+    })
+    expect((await bot.canSeeMedia('-1')).ok).toBe(true)
+  })
+})

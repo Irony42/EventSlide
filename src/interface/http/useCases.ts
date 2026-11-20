@@ -126,6 +126,8 @@ import type { CreateAnnouncement } from '../../application/usecases/announcement
 import type { DeleteAnnouncement } from '../../application/usecases/announcements/deleteAnnouncement'
 import type { LaunchAnnouncement } from '../../application/usecases/announcements/launchAnnouncement'
 import type { ListAnnouncements } from '../../application/usecases/announcements/listAnnouncements'
+import type { ListBindings } from '../../application/usecases/channels/listBindings'
+import type { UnbindConversation } from '../../application/usecases/channels/unbindConversation'
 import type { UpdateAnnouncement } from '../../application/usecases/announcements/updateAnnouncement'
 import type { RevealEvent } from '../../application/usecases/events/revealEvent'
 import type { StartChallenge } from '../../application/usecases/challenges/startChallenge'
@@ -331,6 +333,9 @@ export interface HttpUseCases {
   readonly launchAnnouncement: LaunchAnnouncement
   readonly deleteAnnouncement: DeleteAnnouncement
   readonly getGuestChecklist: GetGuestChecklist
+  // messaging channels (spec 27): the host's panel
+  readonly listChannelBindings: ListBindings
+  readonly unbindConversation: UnbindConversation
 
   // the shared gallery (roadmap §4.1): the host's three, then the link holder's five
   readonly createShareLink: CreateShareLink

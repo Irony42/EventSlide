@@ -194,8 +194,9 @@ export class SqliteChannelMediaJobRepository implements ChannelMediaJobRepositor
         `SELECT COUNT(*) AS total FROM channel_media_jobs
           WHERE event_id = ? AND status IN ('queued', 'running')`,
       )
-      .get(eventId)
-    return row?.total ?? 0
+      // `COUNT(*)` always answers one row.
+      .get(eventId) as { readonly total: number }
+    return row.total
   }
 
   async deleteBySender(eventId: EventId, senderKey: string): Promise<number> {

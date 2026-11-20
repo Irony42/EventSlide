@@ -12,6 +12,8 @@ import type { Result } from '../../domain/shared/result'
 export interface ChannelFailure {
   readonly code: string
   readonly retryable: boolean
+  /** How long the service asked to wait before the next call, in milliseconds, when it said so (a 429). */
+  readonly waitMs?: number
 }
 
 /**
@@ -25,7 +27,7 @@ export interface ChannelFailure {
 export interface MessagingChannel {
   readonly kind: ChannelKind
 
-  /** The bot's own handle, which the commands are addressed to (`/soiree@Handle`). */
+  /** The bot's own handle, which the commands are addressed to (`/name@Handle`). */
   identity(): { readonly username: string }
 
   /**
@@ -37,6 +39,20 @@ export interface MessagingChannel {
     maxBytes: number,
     signal: AbortSignal,
   ): Promise<Result<Uint8Array, ChannelFailure>>
+
+  /**
+   * Whether the bot reads **every** message of the groups it is in (Telegram's privacy mode is off), known from the
+   * bot's own description and cached: no call is made. When it does not, it only sees the commands addressed to it
+   * unless it is an administrator of the group.
+   */
+  readsAllMessages(): boolean
+
+  /**
+   * Whether the bot can see the photographs posted in this conversation: it reads every message, or it is an
+   * administrator of the group (a private chat is always visible). A failed check is an error the caller words as
+   * "unknown", never as "no": it must not block anything.
+   */
+  canSeeMedia(conversationRef: string): Promise<Result<boolean, ChannelFailure>>
 
   /** Plain text into a conversation, as a reply to a message when `replyTo` is given. */
   reply(conversationRef: string, text: string, replyTo?: string): Promise<void>

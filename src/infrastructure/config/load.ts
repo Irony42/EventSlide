@@ -385,6 +385,18 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
           : null,
     },
 
+    channels: {
+      telegram:
+        raw.TELEGRAM_BOT_TOKEN === undefined
+          ? null
+          : {
+              botToken: raw.TELEGRAM_BOT_TOKEN,
+              apiBaseUrl: raw.TELEGRAM_API_BASE_URL,
+              maxFileBytes: raw.TELEGRAM_MAX_FILE_BYTES,
+            },
+      maxQueuedPerEvent: raw.MAX_QUEUED_CHANNEL_MEDIA_PER_EVENT,
+    },
+
     warnings: computeWarnings({
       isProduction,
       source,

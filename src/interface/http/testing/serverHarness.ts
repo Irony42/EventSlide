@@ -165,6 +165,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   updateAnnouncement: notWired('updateAnnouncement'),
   launchAnnouncement: notWired('launchAnnouncement'),
   deleteAnnouncement: notWired('deleteAnnouncement'),
+  listChannelBindings: notWired('listChannelBindings'),
+  unbindConversation: notWired('unbindConversation'),
   getGuestChecklist: notWired('getGuestChecklist'),
   createGuestbookEntry: notWired('createGuestbookEntry'),
   listMyGuestbookEntries: notWired('listMyGuestbookEntries'),

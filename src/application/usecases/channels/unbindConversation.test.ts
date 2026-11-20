@@ -127,6 +127,16 @@ describe('unbindConversation', () => {
     expect(scene.telegram.said).toEqual([])
   })
 
+  it('refuses a suspended client, who reads and may not write, and keeps the group connected', async () => {
+    const { scene, unbind, binding } = await world()
+    scene.events.seed(anEvent({ id: 'event-1', clientSuspendedAt: AT }))
+
+    const result = await unbind({ eventId: EVENT, actorId: OWNER, bindingId: binding.id })
+
+    expect(!result.ok && result.error.code).toBe('client.suspended')
+    expect(await scene.bindings.findActive('telegram', CONVERSATION)).not.toBeNull()
+  })
+
   it('reports an event that was deleted under it', async () => {
     const { scene, unbind, binding } = await world()
     await scene.events.delete(EVENT)

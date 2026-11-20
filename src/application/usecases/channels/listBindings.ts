@@ -28,6 +28,11 @@ export interface ChannelsView {
   /** The client's plan includes messaging channels (an event with no client always does). */
   readonly allowed: boolean
   readonly bindings: readonly ChannelBinding[]
+  /**
+   * Whether the bot reads every message of its groups (privacy mode off), `null` without a bot. When it does not, it
+   * only sees the photographs of the groups it administers: the panel warns the host. Cached, no call per page load.
+   */
+  readonly readsAllMessages: boolean | null
 }
 
 export interface ListBindingsDeps {
@@ -60,6 +65,7 @@ export const makeListBindings =
       available: telegram !== undefined,
       botUsername: telegram === undefined ? null : telegram.identity().username,
       allowed: ceilings === null || ceilings.channelsAllowed,
+      readsAllMessages: telegram === undefined ? null : telegram.readsAllMessages(),
       bindings: await bindings.listActiveForEvent(eventId),
     })
   }

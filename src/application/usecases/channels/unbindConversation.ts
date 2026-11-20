@@ -8,7 +8,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MessagingChannel } from '../../ports/messagingChannel'
 import type { MembershipRepository } from '../../ports/userRepository'
-import { requireEventRole } from '../shared/eventRole'
+import { requireEventRole, requireReachable } from '../shared/eventRole'
 
 /**
  * "Délier": the host stops a group from sending its photographs (spec 27 §3).
@@ -57,6 +57,10 @@ export const makeUnbindConversation =
 
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
+
+    // A suspended client's members read and may not write; an event the operator took down is not there.
+    const reachable = requireReachable(event)
+    if (!reachable.ok) return reachable
 
     const binding = await bindings.findById(eventId, bindingId)
     if (binding === null || !binding.isActive()) {

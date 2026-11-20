@@ -41,7 +41,7 @@ interface MessageOrigin {
   readonly sender: ChannelSender
 }
 
-/** `/soiree CODE`, `/oublier`, `/confidentialite`. `argument` is the rest of the line, trimmed. */
+/** A command (`/soiree CODE`, `/event CODE`, `/oublier`, `/forget`, ...: the aliases of {@link parseCommand}). `argument` is the rest of the line, trimmed. */
 export interface ChannelCommand extends MessageOrigin {
   readonly type: 'command'
   readonly command: ChannelCommandName
@@ -78,17 +78,25 @@ export interface BotRemoved {
   readonly conversationRef: string
 }
 
+/** The bot became an administrator of the conversation: it may now see what the group posts. */
+export interface BotPromoted {
+  readonly type: 'botPromoted'
+  readonly channel: ChannelKind
+  readonly conversationRef: string
+}
+
 export interface Ignored {
   readonly type: 'ignored'
 }
 
 export type InboundMessage =
-  ChannelCommand | ChannelMedia | ConversationMoved | BotRemoved | Ignored
+  ChannelCommand | ChannelMedia | ConversationMoved | BotRemoved | BotPromoted | Ignored
 
 /**
  * Read a command out of a message's text, or `null` when the text is not one of ours.
  *
- * Accepted: `/soiree`, `/soirée`, `/SOIREE`, `/soiree@TheBot`, with the argument after a space. A
+ * Accepted: any alias of the five languages (`/soiree`, `/event`, `/feier`, `/evento`, ...), with or without accents and in
+ * any case, `/soiree@TheBot`, with the argument after a space. A
  * command addressed to **another** bot (`/soiree@OtherBot`) is not ours, and in a group with two
  * bots that is the difference between answering once and answering twice. Only the first line counts:
  * a pasted paragraph that starts with a slash is not a command with a paragraph for an argument.
@@ -118,7 +126,19 @@ export const parseCommand = (
 
 /** A Map, not an object: `/constructor` must not find `Object.prototype.constructor`. */
 const COMMAND_NAMES: ReadonlyMap<string, ChannelCommandName> = new Map([
+  // Every alias works in every group, whatever the event's language: a group mixes languages. The names are the
+  // ones the bot's profile lists per language, folded the way a typed command is (no accent, lower case).
   ['soiree', 'bind'],
+  ['event', 'bind'],
+  ['feier', 'bind'],
+  ['evento', 'bind'],
   ['oublier', 'forget'],
+  ['forget', 'forget'],
+  ['vergessen', 'forget'],
+  ['olvidar', 'forget'],
+  ['dimentica', 'forget'],
   ['confidentialite', 'privacy'],
+  ['privacy', 'privacy'],
+  ['datenschutz', 'privacy'],
+  ['privacidad', 'privacy'],
 ])

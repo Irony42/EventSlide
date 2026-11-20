@@ -1724,7 +1724,7 @@ skipped the screen on purpose.
 
 **Deliberately not stored:** EXIF of any kind (GPS, device serial, capture time), the
 original filename as a path, the uploader's IP alongside the photo row, and any
-third-party analytics. There is no telemetry: nothing leaves the box. The host statistics page derives its figures from the album and keeps two aggregate integers per event and day (`event_stats_counters`, above), which cannot be turned back into who opened what. The one outbound network connection the server can make is to the SMTP relay an operator configures with `SMTP_URL` (§10, "Outgoing mail"), and with that variable unset — the default — it makes none.
+third-party analytics. There is no telemetry: nothing leaves the box. The host statistics page derives its figures from the album and keeps two aggregate integers per event and day (`event_stats_counters`, above), which cannot be turned back into who opened what. The outbound network connections the server can make are to the SMTP relay an operator configures with `SMTP_URL` (§10, "Outgoing mail") and to the Telegram Bot API when the operator sets `TELEGRAM_BOT_TOKEN` (§28); with both variables unset — the default — it makes none.
 
 ### Logging (`src/infrastructure/logging/`)
 
@@ -4008,3 +4008,59 @@ Named tests: `eventRevealSettings.test.ts` (ring 1), `getWallPlaylist.reveal.tes
 `sqliteEventRepository.test.ts` and `sqlitePhotoRepository.test.ts` (ring 3), the wall, media, gallery, guest and event route
 suites and `revealView.contract.test.ts` (ring 4), `container.test.ts` (the composition root over a database that predates it,
 in both modes of `SITE_ADMIN`) and `suspension.container.test.ts` (a frozen client cannot reveal).
+
+## 28. Messaging channels: Telegram (spec 27, ADR 0015)
+
+A host can connect a Telegram group to an event: what the group's members post becomes photographs and clips of the event,
+through the same pipelines, moderation and quotas as a phone. It is the first function that makes an **outbound connection
+of its own**, and it holds one credential, so this section says what it does and what it refuses to.
+
+### Outbound connections (what the box may open)
+
+| Connection               | When                                                                                      | To                                                   |
+| ------------------------ | ----------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| SMTP                     | only with `SMTP_URL` (§10, "Outgoing mail")                                               | the relay the operator named                         |
+| Telegram Bot API (HTTPS) | **only with `TELEGRAM_BOT_TOKEN`**: one long poll (`getUpdates`), file downloads, replies | `TELEGRAM_API_BASE_URL` (`https://api.telegram.org`) |
+
+With neither variable set, which is the default, the box opens none: "nothing leaves the box" stays true. There is **no
+webhook**: Telegram never calls the box, so no public write endpoint is added (`docs/ROADMAP.md` refuses one). The only HTTP
+surface is the host's own (`GET`/`DELETE /api/events/:slug/channels`, session and role gated).
+
+### The token is in every URL
+
+Telegram puts the bot's credential in the path of every call. A leaked token lets anyone act as the bot. So:
+
+- **No Telegram URL is ever logged, put in an error, a response or a DTO.** The client (`telegramBotApi.ts`) rebuilds every
+  failure as `telegram.unreachable` or `telegram.rejected` plus numbers (HTTP status, Telegram's `error_code`, a
+  `retry_after`); it never keeps what the service said, and the only text it reads from a description is "file is too big".
+- The configuration object carries the token and is never logged (as `mail.smtp`); the schema refuses a malformed token
+  **without repeating it** (`TELEGRAM_BOT_TOKEN must look like...`).
+- The token is never stored: not in a table, not in a job, not in a binding. A test seeds a real flow and searches every
+  table for it.
+- One token is one instance: two boxes polling with it fight (Telegram answers 409). The poller says so in words, waits the
+  longest and does not stop the server. A token Telegram refuses at boot turns the function off with a warning (a restart
+  tries again); a token refused later (401) ends the poller with an error.
+
+### What is read, kept and thrown away
+
+- **Text that is not a command is read for one thing, whether it is `/soiree`, `/oublier` or `/confidentialite`, and thrown
+  away** by the adapter before it becomes a domain value: it reaches no queue, table or log. A log line about a message says a
+  channel, a code or a count, never a name, a title or a number (`channelPoller.test.ts` pins it).
+- **Kept**: a keyed fingerprint of the sender per event (`HMAC(key derived from GUEST_TOKEN_SECRET, channel:eventId:ref)`, so
+  the same person has a different key at each event and a copy of the database holds no Telegram account number), the guest
+  name (first name and initial of the last), the group's title as the host sees it, and a counter of media received.
+- **Erasure**: `/oublier` is `eraseGuestContribution` plus the deletion of the sender's queued jobs; an event's purge cascades
+  every table. A job cancelled while its file travels is dropped: the sender is not recreated.
+
+### A hostile group
+
+A group that floods is limited per sender (`UPLOAD_RATE_LIMIT_PER_MINUTE`), the queue is capped per event
+(`MAX_QUEUED_CHANNEL_MEDIA_PER_EVENT`), the bot refuses a media at most once an hour per (group, sender, reason), the files
+are cut at their limit as they download, and what arrives is **not trusted**: the declared size and type only decide whether a
+file is worth fetching; the photograph and clip pipelines read the bytes and decide for good (magic bytes, EXIF stripped, the
+same ceilings). Moderation stays the event's own mode. A join code posted in a group is the same risk as the code on any
+other medium; the plan switch (`channelsAllowed`) and the host's switch (`allowTelegram`) both gate the function.
+
+Named tests: `telegramBotApi` and `telegramChannel` (the token absent from every error and log), `telegramUpdates` (text
+dropped), `channelPoller`, `channelWorker`, `channels.container.test.ts` (no connection without a token; no token in any
+table), `channelRoutes.test.ts` (another event's binding is a 404; the owner unlinks).
