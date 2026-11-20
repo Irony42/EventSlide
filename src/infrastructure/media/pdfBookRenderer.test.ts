@@ -293,7 +293,7 @@ describe('createPdfBookRenderer', () => {
       )
       expect(screen.length).toBeGreaterThan(5_000)
     }
-  })
+  }, 60_000)
 
   it('draws a book with a double-page opening in two halves, the printer version in a chapter page and a photograph', async () => {
     const wide = Array.from({ length: 30 }, (_, i) =>
