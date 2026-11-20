@@ -1,5 +1,6 @@
 import { makeBindConversation } from '../application/usecases/channels/bindConversation'
 import { makeChannelReplier } from '../application/usecases/channels/channelReplier'
+import { makeEventLock } from '../application/usecases/channels/eventLock'
 import { makeDrainChannelMedia } from '../application/usecases/channels/drainChannelMedia'
 import { makeForgetChannelSender } from '../application/usecases/channels/forgetChannelSender'
 import { makeListBindings } from '../application/usecases/channels/listBindings'
@@ -59,6 +60,8 @@ export const channelWorkerUseCases = (
 ) => {
   // One instance for both halves, so a refusal reached at the door and again at the queue is told once an hour.
   const replier = makeChannelReplier(adapters.clock)
+  // One lock for both halves: an erasure and the storing of that sender's media never interleave.
+  const lock = makeEventLock()
 
   const bindConversation = makeBindConversation({
     events: adapters.events,
@@ -74,11 +77,13 @@ export const channelWorkerUseCases = (
     jobs: adapters.channelJobs,
     keyer: adapters.channelSenderKeyer,
     eraseGuestContribution: built.eraseGuestContribution,
+    lock,
   })
 
   return {
     receiveChannelMessage: makeReceiveChannelMessage({
       events: adapters.events,
+      clients: adapters.clients,
       guests: adapters.guests,
       bindings: adapters.channelBindings,
       jobs: adapters.channelJobs,
@@ -109,6 +114,7 @@ export const channelWorkerUseCases = (
       uploadPhotos: built.uploadPhotos,
       uploadClip: built.uploadClip,
       replier,
+      lock,
       ids: adapters.ids,
       clock: adapters.clock,
       logger: adapters.logger,

@@ -91,9 +91,19 @@ export class TelegramInbox implements ChannelInbox {
   private readonly username: string
   private readonly pollSeconds: number
 
-  constructor(options: { api: TelegramBotApi; username: string; pollSeconds?: number }) {
+  /** The bot's number: the part of its token before the colon, which is not a secret. */
+  private readonly botId: string
+
+  constructor(options: {
+    api: TelegramBotApi
+    username: string
+    /** Tells this bot's updates from another's: their offsets are not comparable. Never the whole token. */
+    botId: string
+    pollSeconds?: number
+  }) {
     this.api = options.api
     this.username = options.username
+    this.botId = options.botId
     this.pollSeconds = options.pollSeconds ?? LONG_POLL_SECONDS
   }
 
@@ -101,7 +111,10 @@ export class TelegramInbox implements ChannelInbox {
     cursor: string | null,
     signal: AbortSignal,
   ): Promise<Result<InboundBatch, ChannelFailure>> {
-    const offset = cursor === null || !/^\d+$/u.test(cursor) ? null : Number(cursor)
+    // The cursor is `<bot number>:<offset>`. Offsets are per bot: after the token is changed to another bot's, the old
+    // number would be higher than every new update and silently drop them, so a cursor of another bot is no cursor.
+    const match = cursor === null ? null : /^(\d+):(\d+)$/u.exec(cursor)
+    const offset = match !== null && match[1] === this.botId ? Number(match[2]) : null
     const updates = await this.api.getUpdates(offset, this.pollSeconds, signal)
     if (!updates.ok) {
       const error = updates.error
@@ -125,6 +138,6 @@ export class TelegramInbox implements ChannelInbox {
       const message = translateUpdate(update, this.username)
       if (message.type !== 'ignored') messages.push(message)
     }
-    return ok({ messages, cursor: highest === null ? null : String(highest + 1) })
+    return ok({ messages, cursor: highest === null ? null : `${this.botId}:${highest + 1}` })
   }
 }

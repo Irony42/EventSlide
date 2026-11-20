@@ -1,8 +1,8 @@
-import { setBackgroundTimeout } from '../infrastructure/time/backgroundTimers'
 import type { ChannelCursorStore } from '../application/ports/channelCursorStore'
 import type { ChannelInbox } from '../application/ports/channelInbox'
 import type { Logger } from '../application/ports/logger'
 import type { ReceiveChannelMessage } from '../application/usecases/channels/receiveChannelMessage'
+import { setBackgroundTimeout } from '../infrastructure/time/backgroundTimers'
 
 /**
  * The loop that brings a channel's messages in (spec 27 §6): ask the inbox for the next batch (a long poll that stays
@@ -11,13 +11,16 @@ import type { ReceiveChannelMessage } from '../application/usecases/channels/rec
  * replay harmless.
  *
  * It decides how to wait, nothing else (the rest is the use case's): a failure of the network backs off exponentially,
- * a 429 waits what Telegram asked, a 409 (two instances polling one token, or a webhook set) is **said in words** and
- * backs off to the longest wait without stopping the server, and a refused token (401) ends the loop with an error: the
- * function is off until the operator fixes the token and restarts.
+ * a 429 waits what Telegram asked (never less than a second, never more than five minutes), a 409 (two instances
+ * polling one token, or a webhook set) is **said in words** and backs off to the longest wait without stopping the
+ * server, and a refused token (401) ends the loop with an error: the function is off until the operator fixes the token
+ * and restarts.
  *
- * A message whose handling throws (the database was busy) keeps the whole batch unacknowledged for a few tries, then is
- * skipped with an error line so one poisonous message cannot hold the channel forever. Nothing a message said is ever
- * logged, only a count and a code.
+ * **One message is handled on its own.** One whose handling throws (the database was busy) is tried again a few times,
+ * then skipped with an error line: it never takes the others of its batch with it. The cursor is also kept in memory:
+ * when saving it fails the loop backs off and does not ask the same batch again.
+ *
+ * Nothing a message said is ever logged, only a count and a code.
  */
 
 export interface ChannelPollerDeps {
@@ -41,8 +44,14 @@ export interface ChannelPoller {
 
 const BACKOFF_START_MS = 1_000
 const BACKOFF_MAX_MS = 5 * 60_000
-/** How many times a batch whose handling throws is tried before it is skipped. */
-export const MAX_BATCH_ATTEMPTS = 3
+/** A wait the service asked for is held to this range, whatever it said. */
+export const MIN_SERVICE_WAIT_MS = 1_000
+export const MAX_SERVICE_WAIT_MS = 5 * 60_000
+/** How many times one message whose handling throws is tried before it is skipped. */
+export const MAX_MESSAGE_ATTEMPTS = 3
+
+export const clampServiceWait = (ms: number): number =>
+  Math.min(MAX_SERVICE_WAIT_MS, Math.max(MIN_SERVICE_WAIT_MS, ms))
 
 const realWait = (ms: number, signal: AbortSignal): Promise<void> =>
   new Promise((resolve) => {
@@ -69,26 +78,54 @@ export const createChannelPoller = ({
 
   const run = async (signal: AbortSignal): Promise<void> => {
     let backoffMs = BACKOFF_START_MS
-    let failedBatchAttempts = 0
     const nextBackoff = (): number => {
       const current = backoffMs
       backoffMs = Math.min(backoffMs * 2, BACKOFF_MAX_MS)
       return current
     }
 
-    while (!signal.aborted) {
-      let cursor: string | null
+    // Read once, then kept: a failed save must not make the next call ask for the same batch again.
+    let cursor: string | null
+    for (;;) {
+      if (signal.aborted) return
       try {
         cursor = await cursors.get(inbox.kind)
+        break
       } catch (error) {
         logger.error('channel cursor could not be read', {
           channel: inbox.kind,
           error: error instanceof Error ? error.message : String(error),
         })
         await wait(nextBackoff(), signal)
-        continue
       }
+    }
+    backoffMs = BACKOFF_START_MS
 
+    /** One message, on its own: tried again a few times, then skipped. Never throws. */
+    const handle = async (message: Parameters<ReceiveChannelMessage>[0]): Promise<void> => {
+      for (let attempt = 1; attempt <= MAX_MESSAGE_ATTEMPTS; attempt += 1) {
+        try {
+          await receive(message)
+          return
+        } catch (error) {
+          logger.error('a channel message could not be handled', {
+            channel: inbox.kind,
+            error: error instanceof Error ? error.message : String(error),
+            attempt,
+          })
+          if (attempt === MAX_MESSAGE_ATTEMPTS) {
+            logger.error('a channel message is skipped after repeated failures', {
+              channel: inbox.kind,
+            })
+            return
+          }
+          await wait(nextBackoff(), signal)
+          if (signal.aborted) return
+        }
+      }
+    }
+
+    while (!signal.aborted) {
       const result = await inbox.next(cursor, signal)
       if (signal.aborted) return
 
@@ -97,10 +134,7 @@ export const createChannelPoller = ({
         if (code === 'telegram.unauthorized' || !retryable) {
           logger.error(
             'the messaging channel refused its credential: it is off until the token is fixed',
-            {
-              channel: inbox.kind,
-              code,
-            },
+            { channel: inbox.kind, code },
           )
           return
         }
@@ -114,7 +148,7 @@ export const createChannelPoller = ({
           await wait(backoffMs, signal)
           continue
         }
-        const delay = waitMs ?? nextBackoff()
+        const delay = waitMs === undefined ? nextBackoff() : clampServiceWait(waitMs)
         logger.warn('the messaging channel could not be reached', {
           channel: inbox.kind,
           code,
@@ -127,35 +161,14 @@ export const createChannelPoller = ({
       backoffMs = BACKOFF_START_MS
       const { messages, cursor: next } = result.value
 
-      let handled = true
       for (const message of messages) {
-        try {
-          await receive(message)
-        } catch (error) {
-          handled = false
-          logger.error('a channel message could not be handled', {
-            channel: inbox.kind,
-            error: error instanceof Error ? error.message : String(error),
-            attempt: failedBatchAttempts + 1,
-          })
-          break
-        }
+        await handle(message)
+        if (signal.aborted) return
       }
-
-      if (!handled) {
-        failedBatchAttempts += 1
-        if (failedBatchAttempts < MAX_BATCH_ATTEMPTS) {
-          await wait(nextBackoff(), signal)
-          continue
-        }
-        logger.error('a batch of channel messages is skipped after repeated failures', {
-          channel: inbox.kind,
-          count: messages.length,
-        })
-      }
-      failedBatchAttempts = 0
 
       if (next !== null) {
+        // In memory first: whatever happens to the save, the next call goes on from here.
+        cursor = next
         try {
           await cursors.set(inbox.kind, next)
         } catch (error) {
@@ -163,6 +176,8 @@ export const createChannelPoller = ({
             channel: inbox.kind,
             error: error instanceof Error ? error.message : String(error),
           })
+          await wait(nextBackoff(), signal)
+          continue
         }
       }
       if (messages.length === 0) await wait(idleDelayMs, signal)

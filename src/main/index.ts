@@ -116,8 +116,7 @@ const bootstrap = async (): Promise<void> => {
   container.clipWorker.start()
   // Only with a bot (spec 27): the long poll that brings a group's messages in, and the worker that stores them.
   // The worker first, so a crash's `running` jobs are back on the queue before the first message arrives.
-  container.channelWorker?.start()
-  container.channelPoller?.start()
+  container.telegram?.start()
   container.albumBookWorker?.start()
   // Same first pass, same reason: an archive left `running` by a crash goes back to the queue.
   container.albumExportWorker?.start()
