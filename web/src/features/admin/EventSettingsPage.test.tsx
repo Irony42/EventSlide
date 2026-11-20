@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EventSettingsPage } from './EventSettingsPage'
@@ -39,12 +39,40 @@ const deferredEvent = () => {
   }
 }
 
-const renderPage = (api: Api) =>
+/** The section the page opens on in a block, as a link to `#wall` would; `undefined` is the first. */
+let openOn: string | undefined
+
+/** Every test of the block opens the page on `section`, the way the address `…/settings#section` does. */
+const opensOn = (section: string) => {
+  beforeEach(() => {
+    openOn = section
+  })
+  afterEach(() => {
+    openOn = undefined
+  })
+}
+
+const renderPage = (api: Api, section: string | undefined = openOn) =>
   renderWithProviders(<EventSettingsPage />, {
     api,
-    route: '/admin/events/camille-et-sacha/settings',
+    route: `/admin/events/camille-et-sacha/settings${section === undefined ? '' : `#${section}`}`,
     path: '/admin/events/:slug/settings',
   })
+
+/**
+ * The page has no Save button: a change is sent after a short stillness. Waits for that first
+ * `PATCH` and answers what it named.
+ */
+const firstSave = async (api: Api) => {
+  await waitFor(() => expect(api.updateSettings).toHaveBeenCalled())
+  return vi.mocked(api.updateSettings).mock.calls[0]?.[1]
+}
+
+/** An API whose settings saves never answer: what the host chose stays pending on screen. */
+const neverAnswers = (overrides: Parameters<typeof fakeApi>[0] = {}) =>
+  fakeApi({ ...overrides, updateSettings: vi.fn(() => new Promise<EventDto>(() => {})) })
+
+const toggle = (name: string) => screen.getByRole('button', { name })
 
 describe('EventSettingsPage', () => {
   it('says it is working while the event loads', () => {
@@ -98,10 +126,11 @@ describe('EventSettingsPage', () => {
       expect(await screen.findByText(fr.admin.settingsOwnerOnly)).toBeVisible()
       expect(screen.getByLabelText(fr.admin.moderationManual)).toBeDisabled()
       expect(screen.getByLabelText(fr.admin.allowCaptions)).toBeDisabled()
-      expect(screen.getByRole('button', { name: fr.app.save })).toBeDisabled()
-      // Every control of the page, the schedule form's included, and not a sample of them: each is a
-      // save the server refuses a moderator.
-      const controls = [...document.querySelectorAll('input, select, textarea, button')]
+      // Every control of the page, the schedule's included, and not a sample of them: each is a save
+      // the server refuses a moderator. The section toggles only open and close, and stay usable.
+      const controls = [
+        ...document.querySelectorAll('input, select, textarea, button:not([aria-expanded])'),
+      ]
       expect(controls.length).toBeGreaterThan(10)
       for (const control of controls) expect(control).toBeDisabled()
       // Not the archived sentence: the reason is the role, and the event is live.
@@ -144,24 +173,52 @@ describe('EventSettingsPage', () => {
     expect(screen.getByLabelText(fr.admin.retention)).toHaveValue('30')
   })
 
-  it('warns about automatic publishing only once that option is chosen', async () => {
-    renderPage(fakeApi())
+  it('asks before publishing without validation, and saves nothing until the host confirms', async () => {
+    const api = fakeApi()
+    renderPage(api)
 
     expect(await screen.findByLabelText(fr.admin.moderationAuto)).not.toBeChecked()
-    expect(screen.queryByText(fr.admin.moderationAutoWarning)).toBeNull()
-
     await userEvent.click(screen.getByLabelText(fr.admin.moderationAuto))
 
-    // The one setting that can put something unwanted on a screen in front of two
-    // hundred people. It must not be a casual toggle.
-    expect(screen.getByText(fr.admin.moderationAutoWarning)).toBeVisible()
+    // The one setting that can put something unwanted on a screen in front of two hundred people,
+    // and the page saves what it is given: the host reads why before it is saved, not after.
+    const dialog = await screen.findByRole('dialog', {
+      name: fr.admin.settingsPage.confirmAutoTitle,
+    })
+    expect(within(dialog).getByText(fr.admin.moderationAutoWarning)).toBeVisible()
+    expect(screen.getByLabelText(fr.admin.moderationManual)).toBeChecked()
+    expect(api.updateSettings).not.toHaveBeenCalled()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.admin.moderationAuto }))
+
+    // Shown at once, while the request is on its way.
+    expect(screen.getByLabelText(fr.admin.moderationAuto)).toBeChecked()
+    expect(await firstSave(api)).toEqual({ moderation: 'auto' })
+  })
+
+  it('keeps validating each photo when the host cancels the question', async () => {
+    const api = fakeApi()
+    renderPage(api)
+    await userEvent.click(await screen.findByLabelText(fr.admin.moderationAuto))
+
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.app.cancel }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByLabelText(fr.admin.moderationManual)).toBeChecked()
+    expect(api.updateSettings).not.toHaveBeenCalled()
   })
 
   it('lets the live region it sits in announce the warning, with no role of its own', async () => {
     renderPage(fakeApi())
     await userEvent.click(await screen.findByLabelText(fr.admin.moderationAuto))
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: fr.admin.moderationAuto,
+      }),
+    )
 
-    const warning = screen.getByText(fr.admin.moderationAutoWarning)
+    const warning = await screen.findByText(fr.admin.moderationAutoWarning)
 
     // One announcement, by the region the page mounted once: a role on the warning as
     // well would say it twice.
@@ -173,27 +230,48 @@ describe('EventSettingsPage', () => {
     renderPage(fakeApi())
 
     await userEvent.click(await screen.findByLabelText(fr.admin.moderationAuto))
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: fr.admin.moderationAuto,
+      }),
+    )
     await userEvent.click(screen.getByLabelText(fr.admin.moderationManual))
 
     expect(screen.queryByText(fr.admin.moderationAutoWarning)).toBeNull()
   })
 
-  it('saves what the host changed and confirms it', async () => {
+  it('saves what the host changed, with no button, and says it is saved', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+    expect(await screen.findByText(fr.admin.settingsPage.autosave)).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.app.save })).toBeNull()
+    await userEvent.click(screen.getByLabelText(fr.admin.allowCaptions))
+
+    // Only the field the host moved: a choice made on the wall's panel since the page loaded must
+    // not be written back over by one this page never touched.
+    expect(await firstSave(api)).toEqual({ allowCaptions: false })
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', { allowCaptions: false })
+    expect(await screen.findByText(fr.admin.settingsPage.saved)).toBeVisible()
+  })
+
+  it('sends two quick choices as one request', async () => {
     const api = fakeApi()
 
     renderPage(api)
     await userEvent.click(await screen.findByLabelText(fr.admin.allowCaptions))
-    await userEvent.selectOptions(screen.getByLabelText(fr.admin.retention), '90')
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await userEvent.click(screen.getByLabelText(fr.admin.allowReactions))
 
-    // No `wall`, `reveal` and `guestbookVoice`: a group is sent only when the host changed a key of it.
-    const { wall: _wall, reveal: _reveal, guestbookVoice: _voice, ...unchanged } = eventSettings()
-    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
-      ...unchanged,
-      allowCaptions: false,
-      retentionDays: 90,
-    })
-    expect(await screen.findByText(fr.admin.settingsSaved)).toBeVisible()
+    expect(await firstSave(api)).toEqual({ allowCaptions: false, allowReactions: false })
+    expect(api.updateSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('says it is saving while the request is on its way', async () => {
+    renderPage(neverAnswers())
+
+    await userEvent.click(await screen.findByLabelText(fr.admin.allowCaptions))
+
+    expect(await screen.findByText(fr.admin.settingsPage.saving)).toBeVisible()
   })
 
   it('sends null for a limit the host turned off, not zero', async () => {
@@ -202,12 +280,12 @@ describe('EventSettingsPage', () => {
       getEvent: vi.fn(async () => anEventDto({ settings: eventSettings({ retentionDays: 30 }) })),
     })
 
-    renderPage(api)
+    renderPage(api, 'schedule')
     await userEvent.selectOptions(
       await screen.findByLabelText(fr.admin.retention),
       fr.admin.retentionNever,
     )
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await firstSave(api)
 
     expect(api.updateSettings).toHaveBeenCalledWith(
       'camille-et-sacha',
@@ -220,13 +298,13 @@ describe('EventSettingsPage', () => {
       getEvent: vi.fn(async () => anEventDto({ settings: eventSettings({ retentionDays: 14 }) })),
     })
 
-    renderPage(api)
+    renderPage(api, 'schedule')
 
     expect(await screen.findByLabelText(fr.admin.retention)).toHaveValue('14')
     expect(screen.getByRole('option', { name: fr.admin.retentionDays(14) })).toBeInTheDocument()
   })
 
-  it('surfaces the server’s refusal of a settings change', async () => {
+  it('surfaces the server’s refusal of a change, and puts the control back', async () => {
     const api = fakeApi({
       updateSettings: vi.fn(() =>
         Promise.reject(new ApiError(400, 'eventSettings.retentionDaysInvalid')),
@@ -234,11 +312,14 @@ describe('EventSettingsPage', () => {
     })
 
     renderPage(api)
-    await userEvent.click(await screen.findByRole('button', { name: fr.app.save }))
+    const captions = await screen.findByLabelText(fr.admin.allowCaptions)
+    await userEvent.click(captions)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      fr.errors['eventSettings.retentionDaysInvalid'],
-    )
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(fr.admin.settingsPage.saveFailed)
+    expect(alert).toHaveTextContent(fr.errors['eventSettings.retentionDaysInvalid'])
+    // Back to what the server holds: the screen never shows a choice that was not kept.
+    expect(captions).toBeChecked()
   })
 
   it('freezes the form for an archived event and says why', async () => {
@@ -249,19 +330,24 @@ describe('EventSettingsPage', () => {
     expect(await screen.findByText(fr.admin.settingsReadOnly)).toBeVisible()
     expect(screen.getByLabelText(fr.admin.moderationAuto)).toBeDisabled()
     expect(screen.getByLabelText(fr.admin.allowCaptions)).toBeDisabled()
-    expect(screen.getByRole('button', { name: fr.app.save })).toBeDisabled()
+    // Nothing is saved on a page that cannot be changed, so nothing says it would be.
+    expect(screen.queryByText(fr.admin.settingsPage.autosave)).toBeNull()
   })
 
-  it('leaves the grace delay inert while guests cannot delete their own photos', async () => {
-    const api = fakeApi({
+  it('shows the grace delay only while guests may delete their own photos', async () => {
+    const api = neverAnswers({
       getEvent: vi.fn(async () =>
         anEventDto({ settings: eventSettings({ allowGuestSelfDelete: false }) }),
       ),
     })
 
     renderPage(api)
+    const box = await screen.findByLabelText(fr.admin.allowGuestSelfDelete)
+    expect(screen.queryByLabelText(fr.admin.selfDeleteGrace)).toBeNull()
 
-    expect(await screen.findByLabelText(fr.admin.selfDeleteGrace)).toBeDisabled()
+    await userEvent.click(box)
+
+    expect(screen.getByLabelText(fr.admin.selfDeleteGrace)).toBeVisible()
   })
 
   it('shows the form what the server stored after a save, not what was typed', async () => {
@@ -278,9 +364,9 @@ describe('EventSettingsPage', () => {
 
     renderPage(api)
     await userEvent.click(await screen.findByLabelText(fr.admin.allowCaptions))
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await firstSave(api)
 
-    expect(await screen.findByText(fr.admin.settingsSaved)).toBeVisible()
+    expect(await screen.findByText(fr.admin.settingsPage.saved)).toBeVisible()
     expect(screen.getByLabelText(fr.admin.retention)).toHaveValue('365')
     expect(screen.getByLabelText(fr.admin.allowCaptions)).not.toBeChecked()
   })
@@ -305,7 +391,7 @@ describe('EventSettingsPage', () => {
     const box = await screen.findByLabelText(fr.admin.allowGuestSave)
     expect(box).not.toBeChecked()
     await userEvent.click(box)
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await firstSave(api)
 
     expect(api.updateSettings).toHaveBeenCalledWith(
       'camille-et-sacha',
@@ -318,12 +404,9 @@ describe('EventSettingsPage', () => {
 
     renderPage(api)
     await userEvent.click(await screen.findByLabelText(fr.admin.allowReactions))
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await firstSave(api)
 
-    expect(api.updateSettings).toHaveBeenCalledWith(
-      'camille-et-sacha',
-      expect.objectContaining({ allowReactions: false, allowCaptions: true }),
-    )
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', { allowReactions: false })
   })
 
   it('turns video on for a gallery that predates it', async () => {
@@ -340,7 +423,7 @@ describe('EventSettingsPage', () => {
     expect(control).not.toBeChecked()
 
     await userEvent.click(control)
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await firstSave(api)
 
     expect(api.updateSettings).toHaveBeenCalledWith(
       'camille-et-sacha',
@@ -348,21 +431,20 @@ describe('EventSettingsPage', () => {
     )
   })
 
-  it('saves the guestbook switches, and greys the wall one while the book is closed', async () => {
+  it('saves the guestbook switches, and shows the wall one only while the book is open', async () => {
     const api = fakeApi({
       getEvent: vi.fn(async () =>
         anEventDto({ settings: eventSettings({ allowGuestbook: false, guestbookOnWall: true }) }),
       ),
     })
 
-    renderPage(api)
-    const onWall = await screen.findByLabelText(fr.admin.guestbookOnWall)
-    expect(onWall).toBeDisabled()
+    renderPage(api, 'guestbook')
+    const open = await screen.findByLabelText(fr.admin.allowGuestbook)
+    expect(screen.queryByLabelText(fr.admin.guestbookOnWall)).toBeNull()
 
-    await userEvent.click(screen.getByLabelText(fr.admin.allowGuestbook))
-    expect(onWall).toBeEnabled()
-    await userEvent.click(onWall)
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await userEvent.click(open)
+    await userEvent.click(screen.getByLabelText(fr.admin.guestbookOnWall))
+    await firstSave(api)
 
     expect(api.updateSettings).toHaveBeenCalledWith(
       'camille-et-sacha',
@@ -375,11 +457,11 @@ describe('EventSettingsPage', () => {
     // three together — so the form has to send all of them whichever one the host moved.
     const api = fakeApi()
 
-    renderPage(api)
+    renderPage(api, 'look')
     await userEvent.click(
       await screen.findByRole('radio', { name: fr.admin.themeAccentNames.rose }),
     )
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await firstSave(api)
 
     expect(api.updateSettings).toHaveBeenCalledWith(
       'camille-et-sacha',
@@ -482,7 +564,7 @@ describe('EventSettingsPage', () => {
       ),
     })
 
-    renderPage(api)
+    renderPage(api, 'look')
 
     expect(
       await screen.findByRole('radio', { name: fr.admin.themeAccentNames.azure }),
@@ -503,7 +585,7 @@ describe('EventSettingsPage', () => {
 
     renderPage(api)
     await userEvent.click(await screen.findByLabelText(fr.admin.allowGuestSelfDelete))
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await firstSave(api)
 
     expect(api.updateSettings).toHaveBeenCalledWith(
       'camille-et-sacha',
@@ -518,7 +600,7 @@ describe('EventSettingsPage', () => {
 
     renderPage(api)
     await userEvent.selectOptions(await screen.findByLabelText(fr.admin.selfDeleteGrace), '900')
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await firstSave(api)
 
     expect(api.updateSettings).toHaveBeenCalledWith(
       'camille-et-sacha',
@@ -529,9 +611,9 @@ describe('EventSettingsPage', () => {
   it('saves a per-guest photo limit as a number', async () => {
     const api = fakeApi()
 
-    renderPage(api)
+    renderPage(api, 'reveal')
     await userEvent.selectOptions(await screen.findByLabelText(fr.reveal.shots), '25')
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await firstSave(api)
 
     expect(api.updateSettings).toHaveBeenCalledWith(
       'camille-et-sacha',
@@ -574,12 +656,17 @@ describe('EventSettingsPage', () => {
    * of `18:00` would pass in Paris and fail in CI.
    */
   describe('the scheduled opening and closing', () => {
+    opensOn('schedule')
     const OPENS_AT = '2026-06-20T16:00:00.000Z'
     const CLOSES_AT = '2026-06-21T00:00:00.000Z'
 
     const openField = () => screen.getByLabelText(new RegExp(fr.admin.scheduleOpenAt))
     const closeField = () => screen.getByLabelText(new RegExp(fr.admin.scheduleCloseAt))
-    const saveButton = () => screen.getByRole('button', { name: fr.admin.scheduleSave })
+    /** Types a whole value and leaves the field, which is when the schedule is saved. */
+    const enter = (field: HTMLElement, value: string) => {
+      fireEvent.change(field, { target: { value } })
+      fireEvent.blur(field)
+    }
 
     it('shows the schedule the server holds, on the clock the host is looking at', async () => {
       const api = fakeApi({
@@ -590,7 +677,9 @@ describe('EventSettingsPage', () => {
 
       renderPage(api)
 
-      expect(await screen.findByRole('heading', { name: fr.admin.schedule })).toBeVisible()
+      expect(
+        await screen.findByRole('heading', { name: fr.admin.settingsPage.schedule }),
+      ).toBeVisible()
       expect(openField()).toHaveValue(toLocalInput(OPENS_AT))
       expect(closeField()).toHaveValue(toLocalInput(CLOSES_AT))
     })
@@ -613,20 +702,50 @@ describe('EventSettingsPage', () => {
       expect(await screen.findByText(/Vous terminerez la soirée vous-même/)).toBeVisible()
     })
 
-    it('sends both instants when the host saves', async () => {
+    it('sends both instants when the host leaves a field, with no button', async () => {
       const api = fakeApi()
       renderPage(api)
 
       fireEvent.change(await screen.findByLabelText(new RegExp(fr.admin.scheduleOpenAt)), {
         target: { value: toLocalInput(OPENS_AT) },
       })
-      fireEvent.change(closeField(), { target: { value: toLocalInput(CLOSES_AT) } })
-      await userEvent.click(saveButton())
+      // Typing is not saving: a half-typed date is not an instant.
+      expect(api.setSchedule).not.toHaveBeenCalled()
+      enter(closeField(), toLocalInput(CLOSES_AT))
 
-      expect(api.setSchedule).toHaveBeenCalledWith('camille-et-sacha', {
-        scheduledOpenAt: OPENS_AT,
-        scheduledCloseAt: CLOSES_AT,
+      await waitFor(() =>
+        expect(api.setSchedule).toHaveBeenCalledWith('camille-et-sacha', {
+          scheduledOpenAt: OPENS_AT,
+          scheduledCloseAt: CLOSES_AT,
+        }),
+      )
+      expect(await screen.findByText(fr.admin.scheduleSaved)).toBeVisible()
+    })
+
+    it('keeps a closing being typed when the answer to the opening arrives', async () => {
+      const setSchedule = vi.fn(async () => anEventDto({ scheduledOpenAt: OPENS_AT }))
+      renderPage(fakeApi({ setSchedule }))
+
+      enter(
+        await screen.findByLabelText(new RegExp(fr.admin.scheduleOpenAt)),
+        toLocalInput(OPENS_AT),
+      )
+      fireEvent.change(closeField(), { target: { value: toLocalInput(CLOSES_AT) } })
+
+      expect(await screen.findByText(fr.admin.scheduleSaved)).toBeVisible()
+      expect(openField()).toHaveValue(toLocalInput(OPENS_AT))
+      expect(closeField()).toHaveValue(toLocalInput(CLOSES_AT))
+    })
+
+    it('saves nothing when the host leaves a field they did not change', async () => {
+      const api = fakeApi({
+        getEvent: vi.fn(async () => anEventDto({ scheduledOpenAt: OPENS_AT })),
       })
+      renderPage(api)
+
+      fireEvent.blur(await screen.findByLabelText(new RegExp(fr.admin.scheduleOpenAt)))
+
+      expect(api.setSchedule).not.toHaveBeenCalled()
     })
 
     it('sends null for a field the host emptied, which turns that half off', async () => {
@@ -637,23 +756,26 @@ describe('EventSettingsPage', () => {
       })
       renderPage(api)
 
-      fireEvent.change(await screen.findByLabelText(new RegExp(fr.admin.scheduleCloseAt)), {
-        target: { value: '' },
-      })
-      await userEvent.click(saveButton())
+      enter(await screen.findByLabelText(new RegExp(fr.admin.scheduleCloseAt)), '')
 
-      expect(api.setSchedule).toHaveBeenCalledWith('camille-et-sacha', {
-        scheduledOpenAt: OPENS_AT,
-        scheduledCloseAt: null,
-      })
+      await waitFor(() =>
+        expect(api.setSchedule).toHaveBeenCalledWith('camille-et-sacha', {
+          scheduledOpenAt: OPENS_AT,
+          scheduledCloseAt: null,
+        }),
+      )
     })
 
     it('does not touch the settings form when the schedule is saved', async () => {
       const api = fakeApi()
       renderPage(api)
 
-      await userEvent.click(await screen.findByRole('button', { name: fr.admin.scheduleSave }))
+      enter(
+        await screen.findByLabelText(new RegExp(fr.admin.scheduleOpenAt)),
+        toLocalInput(OPENS_AT),
+      )
 
+      await waitFor(() => expect(api.setSchedule).toHaveBeenCalled())
       expect(api.updateSettings).not.toHaveBeenCalled()
     })
 
@@ -665,7 +787,10 @@ describe('EventSettingsPage', () => {
       })
       renderPage(api)
 
-      await userEvent.click(await screen.findByRole('button', { name: fr.admin.scheduleSave }))
+      enter(
+        await screen.findByLabelText(new RegExp(fr.admin.scheduleOpenAt)),
+        toLocalInput(OPENS_AT),
+      )
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
         fr.errors['event.scheduleOutOfOrder'],
@@ -679,7 +804,7 @@ describe('EventSettingsPage', () => {
 
       expect(await screen.findByText(fr.admin.settingsReadOnly)).toBeVisible()
       expect(openField()).toBeDisabled()
-      expect(saveButton()).toBeDisabled()
+      expect(closeField()).toBeDisabled()
     })
 
     it('offers no minute earlier than now in the picker', async () => {
@@ -687,7 +812,7 @@ describe('EventSettingsPage', () => {
 
       // A guide rather than the guard — the form is noValidate and the server refuses a
       // past instant — but it is what keeps the commonest mistake off the first click.
-      await screen.findByRole('heading', { name: fr.admin.schedule })
+      await screen.findByRole('heading', { name: fr.admin.settingsPage.schedule })
       expect(openField()).toHaveAttribute('min', expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/))
       expect(closeField()).toHaveAttribute('min', expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/))
     })
@@ -705,7 +830,10 @@ describe('EventSettingsPage', () => {
         }),
       })
       renderPage(api)
-      await userEvent.click(await screen.findByRole('button', { name: fr.admin.scheduleSave }))
+      enter(
+        await screen.findByLabelText(new RegExp(fr.admin.scheduleOpenAt)),
+        toLocalInput(OPENS_AT),
+      )
 
       expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['event.scheduleInPast'])
       // The sentence and the re-read are one update, but the read is an effect that runs after
@@ -716,7 +844,7 @@ describe('EventSettingsPage', () => {
     it('re-reads the event when the host comes back to the tab', async () => {
       const getEvent = vi.fn(async () => anEventDto())
       renderPage(fakeApi({ getEvent }))
-      await screen.findByRole('heading', { name: fr.admin.schedule })
+      await screen.findByRole('heading', { name: fr.admin.settingsPage.schedule })
       const readsOnLoad = getEvent.mock.calls.length
 
       fireEvent(document, new Event('visibilitychange'))
@@ -730,12 +858,12 @@ describe('EventSettingsPage', () => {
       const pending = deferredEvent()
       const getEvent = vi.fn(async () => anEventDto())
       renderPage(fakeApi({ getEvent }))
-      await screen.findByRole('heading', { name: fr.admin.schedule })
+      await screen.findByRole('heading', { name: fr.admin.settingsPage.schedule })
       getEvent.mockImplementationOnce(pending.promise)
 
       fireEvent(window, new Event('focus'))
 
-      expect(screen.getByRole('heading', { name: fr.admin.schedule })).toBeVisible()
+      expect(screen.getByRole('heading', { name: fr.admin.settingsPage.schedule })).toBeVisible()
       expect(screen.queryByText(fr.admin.eventLoading)).toBeNull()
       await waitFor(() => expect(pending.settle(anEventDto())).toBe(true))
     })
@@ -745,7 +873,7 @@ describe('EventSettingsPage', () => {
       // pretending it is current. It is polite: the host is reading, not waiting on it.
       const getEvent = vi.fn(async () => anEventDto())
       renderPage(fakeApi({ getEvent }))
-      await screen.findByRole('heading', { name: fr.admin.schedule })
+      await screen.findByRole('heading', { name: fr.admin.settingsPage.schedule })
       getEvent.mockRejectedValueOnce(ApiError.network())
 
       fireEvent(window, new Event('focus'))
@@ -753,19 +881,21 @@ describe('EventSettingsPage', () => {
       const note = await screen.findByText(fr.errors.network)
       expect(note.closest('[role="status"]')).not.toBeNull()
       expect(screen.queryByRole('alert')).toBeNull()
-      expect(screen.getByRole('heading', { name: fr.admin.schedule })).toBeVisible()
+      expect(screen.getByRole('heading', { name: fr.admin.settingsPage.schedule })).toBeVisible()
     })
 
-    it('keeps what the host has typed when a background refresh changes nothing', async () => {
-      // The revalidation above must not be a way to lose an edit in progress. The draft
-      // is compared by value, so it is reset only when the server's answer really moved.
-      const api = fakeApi()
-      renderPage(api)
-      await userEvent.click(await screen.findByLabelText(fr.admin.moderationAuto))
+    it('keeps a choice still on its way when a background refresh changes nothing', async () => {
+      // The revalidation above must not be a way to lose an edit in progress: a choice the server
+      // has not answered yet stays laid over whatever a refresh brings.
+      const getEvent = vi.fn(async () => anEventDto())
+      renderPage(neverAnswers({ getEvent }), 'guests')
+      await userEvent.click(await screen.findByLabelText(fr.admin.allowCaptions))
+      const reads = getEvent.mock.calls.length
 
       fireEvent(window, new Event('focus'))
 
-      await waitFor(() => expect(screen.getByLabelText(fr.admin.moderationAuto)).toBeChecked())
+      await waitFor(() => expect(getEvent.mock.calls.length).toBeGreaterThan(reads))
+      expect(screen.getByLabelText(fr.admin.allowCaptions)).not.toBeChecked()
     })
 
     it('replaces the draft when only the welcome message moved on the server (WEB-HOST-07)', async () => {
@@ -776,7 +906,7 @@ describe('EventSettingsPage', () => {
           settings: eventSettings({ brand: { welcomeMessage, logoUrl: null } }),
         })
       const getEvent = vi.fn(async () => withMessage(null))
-      renderPage(fakeApi({ getEvent }))
+      renderPage(fakeApi({ getEvent }), 'look')
       const field = await screen.findByRole('textbox', {
         name: new RegExp(fr.admin.welcomeMessage),
       })
@@ -790,6 +920,22 @@ describe('EventSettingsPage', () => {
           screen.getByRole('textbox', { name: new RegExp(fr.admin.welcomeMessage) }),
         ).toHaveValue('Bienvenue chez nous'),
       )
+    })
+
+    it('keeps a refused welcome message in the field, for the host to fix', async () => {
+      const api = fakeApi({
+        updateSettings: vi.fn(() => Promise.reject(new ApiError(400, 'validation.failed'))),
+      })
+      renderPage(api, 'look')
+      const field = await screen.findByRole('textbox', {
+        name: new RegExp(fr.admin.welcomeMessage),
+      })
+
+      await userEvent.type(field, 'Bienvenue à toutes et à tous')
+      await userEvent.tab()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.admin.settingsPage.saveFailed)
+      expect(field).toHaveValue('Bienvenue à toutes et à tous')
     })
 
     it('says the sweep threw a schedule away, which is the only record that it existed', async () => {
@@ -824,12 +970,13 @@ describe('EventSettingsPage', () => {
     it('says nothing of the sort when no schedule was ever thrown away', async () => {
       renderPage(fakeApi())
 
-      await screen.findByRole('heading', { name: fr.admin.schedule })
+      await screen.findByRole('heading', { name: fr.admin.settingsPage.schedule })
       expect(screen.queryByText(/n’a pas pu s’appliquer/)).toBeNull()
     })
   })
 
   describe('the wall sound block (spec 12)', () => {
+    opensOn('wall')
     it('shows the sound off, the chime and 50 for an event that never chose', async () => {
       renderPage(fakeApi())
 
@@ -847,7 +994,7 @@ describe('EventSettingsPage', () => {
       fireEvent.change(screen.getByLabelText(fr.admin.wallSound.volume), {
         target: { value: '30' },
       })
-      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+      await firstSave(api)
 
       const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
       expect(sent?.wall).toEqual({ soundEnabled: true, soundTone: 'drop', soundVolume: 30 })
@@ -901,6 +1048,7 @@ describe('EventSettingsPage', () => {
   })
 
   describe('the wall display block (spec 13)', () => {
+    opensOn('wall')
     it('shows what the event is set to, and the default when nothing is chosen', async () => {
       const api = fakeApi({
         getEvent: vi.fn(async () =>
@@ -954,7 +1102,7 @@ describe('EventSettingsPage', () => {
         await screen.findByLabelText(fr.admin.wallDisplay.layout),
         'mosaic',
       )
-      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+      await firstSave(api)
 
       const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
       expect(sent?.wall).toEqual({ layout: 'mosaic' })
@@ -965,7 +1113,7 @@ describe('EventSettingsPage', () => {
 
       renderPage(api)
       await userEvent.selectOptions(await screen.findByLabelText(fr.admin.wallLanguage), 'de')
-      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+      await firstSave(api)
 
       const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
       expect(sent).not.toHaveProperty('wall')
@@ -991,7 +1139,7 @@ describe('EventSettingsPage', () => {
       renderPage(api)
       await userEvent.click(await screen.findByLabelText(fr.admin.wallDisplay.mixed))
       await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.mixedWall), '300')
-      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+      await firstSave(api)
 
       const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
       expect(sent?.wall).toEqual({ mixedEnabled: true, mixedWallSeconds: 300 })
@@ -1025,7 +1173,7 @@ describe('EventSettingsPage', () => {
 
       renderPage(api)
       await userEvent.click(await screen.findByLabelText(fr.admin.wallDisplay.tilt))
-      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+      await firstSave(api)
 
       expect(vi.mocked(api.updateSettings).mock.calls[0]?.[1]?.wall).toEqual({ tilt: false })
     })
@@ -1038,7 +1186,7 @@ describe('EventSettingsPage', () => {
       expect(counter).not.toBeChecked()
       expect(screen.getByLabelText(fr.admin.wallDisplay.newPhotoSignal)).not.toBeChecked()
       await userEvent.click(counter)
-      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+      await firstSave(api)
 
       const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
       expect(sent?.wall).toEqual({ souvenirCounter: true })
@@ -1064,7 +1212,7 @@ describe('EventSettingsPage', () => {
       renderPage(api)
       await userEvent.selectOptions(await screen.findByLabelText(fr.admin.wallDisplay.layout), '')
       await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.interval), '')
-      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+      await firstSave(api)
 
       const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
       expect(sent?.wall).toEqual({ layout: null, slideIntervalMs: null })
@@ -1078,6 +1226,7 @@ describe('EventSettingsPage', () => {
    * the product whose language somebody chooses on behalf of other people.
    */
   describe('the wall language', () => {
+    opensOn('wall')
     it('shows what the event is set to', async () => {
       const api = fakeApi({
         getEvent: vi.fn(async () =>
@@ -1112,7 +1261,7 @@ describe('EventSettingsPage', () => {
 
       renderPage(api)
       await userEvent.selectOptions(await screen.findByLabelText(fr.admin.wallLanguage), 'de')
-      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+      await firstSave(api)
 
       expect(api.updateSettings).toHaveBeenCalledWith(
         'camille-et-sacha',
@@ -1131,6 +1280,7 @@ describe('EventSettingsPage', () => {
   })
 
   describe('the host’s own photograph of the venue (ADR 0010, decision 8)', () => {
+    opensOn('look')
     const URL_PATH = `/api/events/camille-et-sacha/venue-photo/${'ab'.repeat(32)}`
     const guinguette = (groundUrl: string | null, role: EventDto['role'] = 'owner'): EventDto =>
       anEventDto({
@@ -1179,9 +1329,9 @@ describe('EventSettingsPage', () => {
       expect(getEvent.mock.calls.length).toBe(reads)
     })
 
-    it('does not throw away what the host typed in the form when a photograph arrives', async () => {
+    it('does not throw away a choice still on its way when a photograph arrives', async () => {
       const getEvent = vi.fn(async () => guinguette(null))
-      renderPage(fakeApi({ getEvent, putVenuePhoto: vi.fn(async () => guinguette(URL_PATH)) }))
+      renderPage(neverAnswers({ getEvent, putVenuePhoto: vi.fn(async () => guinguette(URL_PATH)) }))
       await userEvent.selectOptions(await screen.findByLabelText(fr.reveal.shots), '25')
 
       await userEvent.upload(
@@ -1198,11 +1348,12 @@ describe('EventSettingsPage', () => {
 
       renderPage(api)
       await screen.findByText(fr.admin.venuePhoto)
-      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+      await userEvent.click(screen.getByRole('radio', { name: fr.admin.themeAccentNames.rose }))
+      await firstSave(api)
 
       const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
       expect(sent?.theme).toEqual({
-        accentHue: 305,
+        accentHue: 345,
         fonts: 'sans',
         frame: 'soft',
         ambiance: 'eventslide',
@@ -1223,7 +1374,7 @@ describe('EventSettingsPage', () => {
       ambiance: 'custom' as const,
       custom: { ground: 'dark' as const, groundHue: 200, faces: 'riviera' as const },
     }
-    const first = renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto()) }))
+    const first = renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto()) }), 'look')
     const create = await screen.findByRole('link', { name: fr.admin.customAmbianceCreate })
     expect(create).toHaveAttribute('href', '/admin/events/camille-et-sacha/settings/ambiance')
     first.unmount()
@@ -1232,17 +1383,113 @@ describe('EventSettingsPage', () => {
       fakeApi({
         getEvent: vi.fn(async () => anEventDto({ settings: eventSettings({ theme: custom }) })),
       }),
+      'look',
     )
     expect(await screen.findByRole('link', { name: fr.admin.customAmbianceEdit })).toBeVisible()
     second.unmount()
 
-    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) }))
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) }), 'look')
     await screen.findByRole('heading', { name: fr.admin.settings })
     expect(screen.queryByRole('link', { name: fr.admin.customAmbianceCreate })).toBeNull()
   })
 })
 
+describe('the sections of the page', () => {
+  it('opens on the guests, one section at a time', async () => {
+    renderPage(fakeApi())
+
+    expect(
+      await screen.findByRole('button', { name: fr.admin.settingsPage.guests }),
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle(fr.admin.settingsPage.wall)).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByLabelText(fr.admin.allowCaptions)).toBeVisible()
+    expect(screen.getByLabelText(fr.admin.wallDisplay.layout)).not.toBeVisible()
+
+    await userEvent.click(toggle(fr.admin.settingsPage.wall))
+
+    expect(toggle(fr.admin.settingsPage.wall)).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle(fr.admin.settingsPage.guests)).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByLabelText(fr.admin.wallDisplay.layout)).toBeVisible()
+    expect(screen.getByLabelText(fr.admin.allowCaptions)).not.toBeVisible()
+  })
+
+  it('closes the open section when its heading is pressed again', async () => {
+    renderPage(fakeApi())
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.settingsPage.guests }))
+
+    expect(toggle(fr.admin.settingsPage.guests)).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByLabelText(fr.admin.allowCaptions)).not.toBeVisible()
+  })
+
+  it('opens the section the address names', async () => {
+    renderPage(fakeApi(), 'schedule')
+
+    expect(
+      await screen.findByRole('button', { name: fr.admin.settingsPage.schedule }),
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle(fr.admin.settingsPage.guests)).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('opens on the guests when the address names no section it knows', async () => {
+    renderPage(fakeApi(), 'nowhere')
+
+    expect(
+      await screen.findByRole('button', { name: fr.admin.settingsPage.guests }),
+    ).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('says what each closed section holds, as the description of its heading', async () => {
+    renderPage(
+      fakeApi({
+        getEvent: vi.fn(async () =>
+          anEventDto({
+            settings: eventSettings({ allowGuestbook: false, retentionDays: null }),
+          }),
+        ),
+      }),
+    )
+
+    expect(
+      await screen.findByRole('button', { name: fr.admin.settingsPage.guestbook }),
+    ).toHaveAccessibleDescription(fr.admin.settingsPage.closed)
+    expect(toggle(fr.reveal.title)).toHaveAccessibleDescription(fr.admin.settingsPage.off)
+    expect(toggle(fr.admin.settingsPage.schedule)).toHaveAccessibleDescription(
+      [
+        fr.admin.settingsPage.opensByHand,
+        fr.admin.settingsPage.closesByHand,
+        fr.admin.settingsPage.keptForever,
+      ].join(' · '),
+    )
+  })
+
+  it('updates a summary as soon as the host makes a choice', async () => {
+    renderPage(neverAnswers(), 'guestbook')
+
+    await userEvent.click(await screen.findByLabelText(fr.admin.allowGuestbook))
+
+    expect(toggle(fr.admin.settingsPage.guestbook)).toHaveAccessibleDescription(
+      fr.admin.settingsPage.closed,
+    )
+  })
+
+  it('names the moderation, the videos and saving from the feed for the guests', async () => {
+    renderPage(fakeApi())
+
+    expect(
+      await screen.findByRole('button', { name: fr.admin.settingsPage.guests }),
+    ).toHaveAccessibleDescription(
+      [
+        fr.admin.settingsPage.manual,
+        fr.admin.settingsPage.clipsOn,
+        fr.admin.settingsPage.guestSaveOn,
+      ].join(' · '),
+    )
+  })
+})
+
 describe('the invitation card block (spec 14)', () => {
+  opensOn('wall')
   it('shows the defaults, warns about the switch, and sends only what changed', async () => {
     const api = fakeApi()
 
@@ -1255,7 +1502,7 @@ describe('the invitation card block (spec 14)', () => {
       target: { value: '1.4' },
     })
     await userEvent.click(screen.getByLabelText(fr.admin.wallDisplay.qrCorners['top-end']))
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    await firstSave(api)
 
     expect(vi.mocked(api.updateSettings).mock.calls[0]?.[1]?.wall).toEqual({
       qrScale: 1.4,
@@ -1279,24 +1526,36 @@ describe('the disposable camera section (spec 23)', () => {
     fakeApi({
       getEvent: vi.fn(async () => anEventDto({ settings: eventSettings({ reveal }) })),
     })
-  const sentReveal = (api: Api) => vi.mocked(api.updateSettings).mock.calls[0]?.[1]?.reveal
+  const sentReveal = async (api: Api) => (await firstSave(api))?.reveal
+  opensOn('reveal')
+
+  /** The section's own element, found by its anchor: the address `#reveal` opens it. */
+  const revealSection = async () => {
+    await screen.findByRole('button', { name: fr.reveal.title, expanded: true })
+    const section = document.getElementById('reveal')
+    if (section === null) throw new Error('no #reveal section')
+    return within(section)
+  }
 
   it('is one section with its switch, its hour, its cap and its film look', async () => {
-    renderPage(fakeApi())
+    renderPage(neverAnswers())
 
-    const section = within(await screen.findByRole('group', { name: fr.reveal.title }))
+    const section = await revealSection()
 
     expect(section.getByLabelText(fr.reveal.enabled)).not.toBeChecked()
-    expect(section.getByLabelText(fr.reveal.timed)).toBeInTheDocument()
     expect(section.getByLabelText(fr.reveal.shots)).toBeInTheDocument()
-    expect(section.getByLabelText(fr.reveal.film)).toBeInTheDocument()
     expect(section.getByText(fr.reveal.hint)).toBeVisible()
+
+    await userEvent.click(section.getByLabelText(fr.reveal.enabled))
+
+    expect(section.getByLabelText(fr.reveal.timed)).toBeInTheDocument()
+    expect(section.getByLabelText(fr.reveal.film)).toBeInTheDocument()
   })
 
   it('holds the cap on photographs per guest once: moved, not copied', async () => {
     renderPage(fakeApi())
 
-    await screen.findByRole('group', { name: fr.reveal.title })
+    await revealSection()
 
     expect(screen.getAllByLabelText(fr.reveal.shots)).toHaveLength(1)
     expect(screen.queryByLabelText(fr.admin.maxPhotosPerGuest)).toBeNull()
@@ -1314,13 +1573,14 @@ describe('the disposable camera section (spec 23)', () => {
     expect(await screen.findByRole('option', { name: fr.admin.photos(27) })).toBeInTheDocument()
   })
 
-  it('greys the hour and the film look until the mode is on', async () => {
-    renderPage(fakeApi())
+  it('shows the hour and the film look only once the mode is on', async () => {
+    renderPage(neverAnswers())
 
-    expect(await screen.findByLabelText(fr.reveal.timed)).toBeDisabled()
-    expect(screen.getByLabelText(fr.reveal.film)).toBeDisabled()
+    const enabled = await screen.findByLabelText(fr.reveal.enabled)
+    expect(screen.queryByLabelText(fr.reveal.timed)).toBeNull()
+    expect(screen.queryByLabelText(fr.reveal.film)).toBeNull()
 
-    await userEvent.click(screen.getByLabelText(fr.reveal.enabled))
+    await userEvent.click(enabled)
 
     expect(screen.getByLabelText(fr.reveal.timed)).toBeEnabled()
     expect(screen.getByLabelText(fr.reveal.film)).toBeEnabled()
@@ -1339,12 +1599,12 @@ describe('the disposable camera section (spec 23)', () => {
     renderPage(api)
     await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
     await userEvent.click(screen.getByLabelText(fr.reveal.timed))
-    fireEvent.change(screen.getByLabelText(new RegExp(fr.reveal.at)), {
-      target: { value: toLocalInput(HOUR) },
-    })
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+    const hour = screen.getByLabelText(new RegExp(fr.reveal.at))
+    fireEvent.change(hour, { target: { value: toLocalInput(HOUR) } })
+    // Saved when the host leaves the field: a half-typed date is not an hour.
+    fireEvent.blur(hour)
 
-    expect(sentReveal(api)).toEqual({ enabled: true, at: HOUR })
+    expect(await sentReveal(api)).toEqual({ enabled: true, at: HOUR })
   })
 
   it('sends only the keys the host changed: the film look alone leaves the hour out', async () => {
@@ -1352,19 +1612,17 @@ describe('the disposable camera section (spec 23)', () => {
 
     renderPage(api)
     await userEvent.click(await screen.findByLabelText(fr.reveal.film))
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
 
-    expect(sentReveal(api)).toEqual({ film: true })
+    expect(await sentReveal(api)).toEqual({ film: true })
   })
 
   it('sends no reveal at all when the host touched something else', async () => {
     const api = withReveal({ enabled: true, at: HOUR, film: true })
 
-    renderPage(api)
+    renderPage(api, 'guests')
     await userEvent.click(await screen.findByLabelText(fr.admin.allowCaptions))
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
 
-    expect(vi.mocked(api.updateSettings).mock.calls[0]?.[1]).not.toHaveProperty('reveal')
+    expect(await firstSave(api)).not.toHaveProperty('reveal')
   })
 
   it('clears the hour when the host goes back to the button', async () => {
@@ -1372,9 +1630,8 @@ describe('the disposable camera section (spec 23)', () => {
 
     renderPage(api)
     await userEvent.click(await screen.findByLabelText(fr.reveal.timed))
-    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
 
-    expect(sentReveal(api)).toEqual({ at: null })
+    expect(await sentReveal(api)).toEqual({ at: null })
   })
 
   it('says the hour can no longer move once the server says the evening is revealed', async () => {
@@ -1408,69 +1665,73 @@ describe('the disposable camera section (spec 23)', () => {
     expect(screen.queryByText(fr.reveal.atLocked)).toBeNull()
   })
 
-  describe('the warning for an evening that already shows photographs', () => {
-    it('is said when the mode is turned on for a live evening that has some', async () => {
-      const api = fakeApi({
-        getEvent: vi.fn(async () => anEventDto({ status: 'live', photoCount: 12 })),
+  describe('the question for an evening that already shows photographs', () => {
+    const live = (overrides: Partial<EventDto> = {}) =>
+      fakeApi({
+        getEvent: vi.fn(async () => anEventDto({ status: 'live', photoCount: 12, ...overrides })),
+      })
+
+    it('is asked before the mode hides a live evening’s photographs, and saved once confirmed', async () => {
+      const api = live()
+
+      renderPage(api)
+      await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
+
+      const dialog = await screen.findByRole('dialog', {
+        name: fr.admin.settingsPage.confirmRevealTitle,
+      })
+      expect(within(dialog).getByText(fr.reveal.liveWarning)).toBeVisible()
+      expect(screen.getByLabelText(fr.reveal.enabled)).not.toBeChecked()
+      expect(api.updateSettings).not.toHaveBeenCalled()
+
+      await userEvent.click(within(dialog).getByRole('button', { name: fr.reveal.enabled }))
+
+      expect(await sentReveal(api)).toEqual({ enabled: true })
+    })
+
+    it('leaves the mode off when the host cancels', async () => {
+      const api = live()
+
+      renderPage(api)
+      await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
+      await userEvent.click(
+        within(await screen.findByRole('dialog')).getByRole('button', { name: fr.app.cancel }),
+      )
+
+      expect(screen.getByLabelText(fr.reveal.enabled)).not.toBeChecked()
+      expect(api.updateSettings).not.toHaveBeenCalled()
+    })
+
+    it('is not asked for an evening with no photograph yet', async () => {
+      const api = live({ photoCount: 0 })
+
+      renderPage(api)
+      await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
+
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(await sentReveal(api)).toEqual({ enabled: true })
+    })
+
+    it('is not asked for an evening that has not opened', async () => {
+      const api = live({ status: 'draft' })
+
+      renderPage(api)
+      await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
+
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(await sentReveal(api)).toEqual({ enabled: true })
+    })
+
+    it('is not asked to turn the mode off', async () => {
+      const api = live({
+        settings: eventSettings({ reveal: { enabled: true, at: null, film: true } }),
       })
 
       renderPage(api)
-      await screen.findByLabelText(fr.reveal.enabled)
-      expect(screen.queryByText(fr.reveal.liveWarning)).toBeNull()
-      await userEvent.click(screen.getByLabelText(fr.reveal.enabled))
-
-      expect(screen.getByText(fr.reveal.liveWarning)).toBeVisible()
-    })
-
-    it('is not said for an evening with no photograph yet', async () => {
-      renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ photoCount: 0 })) }))
-
       await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
 
-      expect(screen.queryByText(fr.reveal.liveWarning)).toBeNull()
-    })
-
-    it('is not said for an evening that has not opened', async () => {
-      renderPage(
-        fakeApi({
-          getEvent: vi.fn(async () => anEventDto({ status: 'draft', photoCount: 12 })),
-        }),
-      )
-
-      await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
-
-      expect(screen.queryByText(fr.reveal.liveWarning)).toBeNull()
-    })
-
-    it('is not repeated once the mode is already on', async () => {
-      renderPage(
-        fakeApi({
-          getEvent: vi.fn(async () =>
-            anEventDto({
-              status: 'live',
-              photoCount: 12,
-              settings: eventSettings({ reveal: { enabled: true, at: null, film: true } }),
-            }),
-          ),
-        }),
-      )
-
-      await screen.findByLabelText(fr.reveal.enabled)
-
-      expect(screen.queryByText(fr.reveal.liveWarning)).toBeNull()
-    })
-
-    it('is announced politely, in a region that exists before the warning does', async () => {
-      renderPage(
-        fakeApi({
-          getEvent: vi.fn(async () => anEventDto({ status: 'live', photoCount: 12 })),
-        }),
-      )
-      await userEvent.click(await screen.findByLabelText(fr.reveal.enabled))
-
-      const region = screen.getByText(fr.reveal.liveWarning).closest('[aria-live]')
-
-      expect(region).toHaveAttribute('aria-live', 'polite')
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(await sentReveal(api)).toEqual({ enabled: false })
     })
   })
 

@@ -1,11 +1,11 @@
 import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiProvider } from '../../../lib/ApiProvider'
-import type { EventDto } from '../../../lib/api/dto'
-import { ApiError } from '../../../lib/http'
-import { anEventDto, fakeApi } from '../../../testing/renderWithProviders'
-import { SAVE_DEBOUNCE_MS, usePanelSettings } from './usePanelSettings'
+import { ApiProvider } from './ApiProvider'
+import type { EventDto } from './api/dto'
+import { ApiError } from './http'
+import { anEventDto, fakeApi } from '../testing/renderWithProviders'
+import { SAVE_DEBOUNCE_MS, useSettingsAutosave } from './useSettingsAutosave'
 
 interface Deferred {
   readonly resolve: (event: EventDto) => void
@@ -28,7 +28,7 @@ const setup = () => {
   const event = anEventDto()
   const { api, answers, updateSettings } = slowApi()
   const replace = vi.fn()
-  const hook = renderHook(() => usePanelSettings(event.slug, event, replace), {
+  const hook = renderHook(() => useSettingsAutosave(event.slug, event, replace), {
     wrapper: ({ children }: { children: ReactNode }) => (
       <ApiProvider api={api}>{children}</ApiProvider>
     ),
@@ -67,6 +67,29 @@ describe('the panel saves, numbered (BUG-23)', () => {
     })
 
     expect(t.result.current.settings.guestbookOnWall).toBe(!before)
+  })
+
+  it('does not apply the answer to save N once the answer to N+1 was applied', async () => {
+    const t = setup()
+    act(() => t.result.current.save({ wallLanguage: 'de' }))
+    await t.flush()
+    act(() => t.result.current.save({ guestbookOnWall: false }))
+    await t.flush()
+    const newer = {
+      ...t.event,
+      settings: { ...t.event.settings, wallLanguage: 'de' as const, guestbookOnWall: false },
+    }
+
+    await act(async () => {
+      t.answers[1]?.resolve(newer)
+    })
+    await act(async () => {
+      t.answers[0]?.resolve({ ...t.event, settings: { ...t.event.settings, wallLanguage: 'de' } })
+    })
+
+    // The older answer knows nothing of N+1: applying it would put the screen back.
+    expect(t.replace).toHaveBeenCalledTimes(1)
+    expect(t.replace).toHaveBeenCalledWith(newer)
   })
 
   it('takes back only what the refused save held, and still sends the queued one', async () => {
