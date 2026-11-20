@@ -79,6 +79,11 @@ export interface ModerationPhotoDto {
   readonly caption: string | null
   /** `null` for a guest who chose not to give a name, which is a supported choice. */
   readonly authorName: string | null
+  /**
+   * The messaging channel the sender came through (spec 27: `telegram`), present only then. The console shows a badge
+   * "via Telegram" and nothing else: no identifier of the sender crosses.
+   */
+  readonly via?: string
   readonly createdAt: string
   /**
    * See `WallItemDto` (wall.ts). A moderator deciding about a clip has to be able to watch

@@ -75,6 +75,18 @@ export class FakeGuestRepository implements GuestRepository {
    * fake that invented "Invité" here would let a wall test pass against a rule the
    * product does not have.
    */
+  async findChannelsByIds(
+    eventId: EventId,
+    guestIds: readonly GuestId[],
+  ): Promise<ReadonlyMap<GuestId, ChannelKind>> {
+    const channels = new Map<GuestId, ChannelKind>()
+    for (const guestId of guestIds) {
+      const identity = this.rows.get(key(eventId, guestId))?.channelIdentity ?? null
+      if (identity !== null) channels.set(guestId, identity.channel)
+    }
+    return channels
+  }
+
   async findNamesByIds(
     eventId: EventId,
     guestIds: readonly GuestId[],

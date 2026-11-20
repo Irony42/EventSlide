@@ -695,6 +695,7 @@ export const toModerationQueueItemDto = ({
   height: row.height,
   caption: row.caption,
   authorName: row.authorName,
+  ...(row.via === null ? {} : { via: row.via }),
   createdAt: iso(row.createdAt),
   kind: row.kind,
   // From the row rather than from a `Photo`: this presenter is handed the use case's
