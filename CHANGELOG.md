@@ -99,7 +99,7 @@ unless a bot token is set.
   **every client that already exists starts with it off**. `NEW_CLIENT_CHANNELS_ALLOWED` (needs `SITE_ADMIN=on`; `true`,
   `false`, `1` or `0`) is the default a client created by the operator starts with, and **absent means not allowed**, the
   opposite of `NEW_CLIENT_CLIPS_ALLOWED`. An event with no client (a self-hosted box) is not concerned.
-- **Photo books: three settings** (#513, #510): `BOOK_PRINT_ENABLED`, `BOOK_PRINT_MAX_BYTES` and `BOOK_MAX_MESSAGES`.
+- **Photo books: three settings** (#513): `BOOK_PRINT_ENABLED`, `BOOK_PRINT_MAX_BYTES` and `BOOK_MAX_MESSAGES`.
   The request body of 3.14 (`layout`, `showAuthors`, `showCaptions`) still works during 3.15 and is read as the Classique
   style; `layout` is removed from the answer in 3.16 and is always `"one"` until then. A body that mixes old and new
   fields is `400 request.invalid`. See [docs/API.md](docs/API.md).
@@ -110,7 +110,7 @@ unless a bot token is set.
 
 - **The settings autosave queue is shared** (#505): the wall panel's queue moved to `lib/useSettingsAutosave` and is
   generalised, with the end-to-end journeys of the sectioned page.
-- **The photo book's engine and renderer** (#506, #507, #510): the plan, selection, chapters, eighteen page templates and
+- **The photo book's engine and renderer** (#506, #507, #510): the plan, selection, chapters, page templates and
   three styles are domain code with generated-album tests; the renderer draws the plan and the worker builds from it.
   `fontkit` is now a direct dependency, and the three styles ship their own font faces with their licences.
 - **The messaging channel is a port** (#508, #509, #511): the domain and use cases know no Telegram; the adapter, the
