@@ -450,6 +450,24 @@ describe('a client’s page: changing its ceilings', () => {
     expect(await screen.findByText(fr.site.ceilingsSaved)).toBeVisible()
   })
 
+  it('shows the messaging switch off to start with (the plan is given by hand) and sends it turned on', async () => {
+    const api = withClient(client)
+    await openCeilings(api)
+
+    expect(screen.getByLabelText(fr.site.channelsAllowed)).not.toBeChecked()
+    await userEvent.click(screen.getByLabelText(fr.site.channelsAllowed))
+    await userEvent.type(screen.getByLabelText(fr.site.ceilingsReason), 'Offre avec Telegram')
+    await save()
+
+    await waitFor(() =>
+      expect(api.siteSetCeilings).toHaveBeenCalledWith(
+        CLIENT_ID,
+        { channelsAllowed: true },
+        'Offre avec Telegram',
+      ),
+    )
+  })
+
   it('sends the photo book switch turned off as false, and shows it on to start with', async () => {
     const api = withClient(client)
     await openCeilings(api)

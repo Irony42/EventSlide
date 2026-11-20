@@ -21,6 +21,7 @@ export interface CeilingFields {
   readonly maxLiveDays: string
   readonly clipsAllowed: boolean
   readonly booksAllowed: boolean
+  readonly channelsAllowed: boolean
   readonly liveAllowed: boolean
   /** Renew the period now: the one way the console moves `periodStartedAt`. */
   readonly renewPeriod: boolean
@@ -47,6 +48,7 @@ type CeilingSource = Pick<
   | 'maxLiveDays'
   | 'clipsAllowed'
   | 'booksAllowed'
+  | 'channelsAllowed'
 > & { readonly liveAllowed?: boolean }
 
 export const fieldsFromCeilings = (
@@ -60,6 +62,7 @@ export const fieldsFromCeilings = (
   maxLiveDays: countText(ceilings.maxLiveDays),
   clipsAllowed: ceilings.clipsAllowed,
   booksAllowed: ceilings.booksAllowed,
+  channelsAllowed: ceilings.channelsAllowed,
   // A new client may open: the defaults say nothing about it, and the catalogue's own default is on.
   liveAllowed: 'liveAllowed' in ceilings ? (ceilings.liveAllowed ?? true) : true,
   renewPeriod: false,
@@ -130,6 +133,7 @@ export const ceilingsPatch = (
   count('maxLiveDays')
   if (next.clipsAllowed !== base.clipsAllowed) patch.clipsAllowed = next.clipsAllowed
   if (next.booksAllowed !== base.booksAllowed) patch.booksAllowed = next.booksAllowed
+  if (next.channelsAllowed !== base.channelsAllowed) patch.channelsAllowed = next.channelsAllowed
   if (next.liveAllowed !== base.liveAllowed) patch.liveAllowed = next.liveAllowed
   if (next.renewPeriod) patch.periodStartedAt = now().toISOString()
 

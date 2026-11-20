@@ -386,6 +386,7 @@ export const de: UiText = {
       'Diese Dauer einer laufenden Veranstaltung wird nicht akzeptiert: von 1 bis 365 Tagen.',
     'clientCeilings.periodStartedAtInvalid': 'Dieser Zeitraumbeginn wird nicht akzeptiert.',
     'clientCeilings.clipsAllowedInvalid': 'Diese Videoeinstellung wird nicht akzeptiert.',
+    'clientCeilings.channelsAllowedInvalid': 'Diese Messenger-Einstellung wird nicht akzeptiert.',
     'clientCeilings.booksAllowedInvalid': 'Diese Fotobuch-Einstellung wird nicht akzeptiert.',
     'clientCeilings.liveAllowedInvalid': 'Diese Öffnungseinstellung wird nicht akzeptiert.',
     'siteLookup.queryInvalid':
@@ -2367,6 +2368,7 @@ export const de: UiText = {
     maxLiveDays: 'Dauer einer laufenden Veranstaltung, in Tagen, höchstens',
     clipsAllowed: 'Videos erlaubt',
     booksAllowed: 'Fotobücher (PDF) erlaubt',
+    channelsAllowed: 'Messenger-Gruppen (Telegram) erlaubt',
     liveAllowed: 'Öffnen von Veranstaltungen erlaubt',
     renewPeriod: 'Zeitraum jetzt erneuern',
     renewPeriodHint: 'Setzt den Zähler der im Zeitraum erstellten Veranstaltungen auf null.',
