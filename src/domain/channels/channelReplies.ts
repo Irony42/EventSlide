@@ -176,9 +176,8 @@ const EN: Phrasebook = {
   blind:
     'Careful: I cannot see the photos of this group yet. Make me an administrator of the group (no special right is needed), then post your photos.',
   plain: {
-    notBound: 'This group is not linked to any event. Send /soiree followed by the event code.',
-    noCode:
-      'The event code is missing: /soiree followed by the code, for example /soiree ABCD-1234.',
+    notBound: 'This group is not linked to any event. Send /event followed by the event code.',
+    noCode: 'The event code is missing: /event followed by the code, for example /event ABCD-1234.',
     unknownCode: 'I do not know this code. Please check it with the organiser.',
     notAllowed: 'Sending photos through Telegram is not turned on for this event.',
     eventNotOpen: 'This event is not accepting photos right now.',
@@ -203,7 +202,7 @@ const EN: Phrasebook = {
       moderated
         ? 'They go through the organiser before they appear.'
         : 'They appear on the wall right away.'
-    }\nTo remove your photos: /oublier\nWhat is kept and for how long: ${noticeUrl}`,
+    }\nTo remove your photos: /forget\nWhat is kept and for how long: ${noticeUrl}`,
   unbound: (eventName) => `This group no longer sends photos to "${eventName}".`,
   privacy: (noticeUrl) => `What is kept and for how long: ${noticeUrl}`,
 }
@@ -213,9 +212,8 @@ const DE: Phrasebook = {
     'Achtung: Ich sehe die Fotos dieser Gruppe noch nicht. Mach mich zum Administrator der Gruppe (besondere Rechte sind nicht nötig) und poste dann deine Fotos.',
   plain: {
     notBound:
-      'Diese Gruppe ist mit keiner Feier verbunden. Sende /soiree und danach den Code der Feier.',
-    noCode:
-      'Der Code der Feier fehlt: /soiree und danach der Code, zum Beispiel /soiree ABCD-1234.',
+      'Diese Gruppe ist mit keiner Feier verbunden. Sende /feier und danach den Code der Feier.',
+    noCode: 'Der Code der Feier fehlt: /feier und danach der Code, zum Beispiel /feier ABCD-1234.',
     unknownCode: 'Diesen Code kenne ich nicht. Bitte frage bei den Veranstaltenden nach.',
     notAllowed: 'Das Senden von Fotos über Telegram ist für diese Feier nicht aktiviert.',
     eventNotOpen: 'Diese Feier nimmt im Moment keine Fotos an.',
@@ -241,7 +239,7 @@ const DE: Phrasebook = {
       moderated
         ? 'Sie laufen erst über die Veranstaltenden, bevor sie erscheinen.'
         : 'Sie erscheinen sofort auf der Wand.'
-    }\nUm deine Fotos zu entfernen: /oublier\nWas gespeichert wird und wie lange: ${noticeUrl}`,
+    }\nUm deine Fotos zu entfernen: /vergessen\nWas gespeichert wird und wie lange: ${noticeUrl}`,
   unbound: (eventName) => `Diese Gruppe sendet keine Fotos mehr an „${eventName}“.`,
   privacy: (noticeUrl) => `Was gespeichert wird und wie lange: ${noticeUrl}`,
 }
@@ -251,9 +249,9 @@ const ES: Phrasebook = {
     'Atención: todavía no veo las fotos de este grupo. Nómbrame administrador del grupo (no hace falta ningún permiso especial) y luego publica tus fotos.',
   plain: {
     notBound:
-      'Este grupo no está vinculado a ningún evento. Envía /soiree seguido del código del evento.',
+      'Este grupo no está vinculado a ningún evento. Envía /evento seguido del código del evento.',
     noCode:
-      'Falta el código del evento: /soiree seguido del código, por ejemplo /soiree ABCD-1234.',
+      'Falta el código del evento: /evento seguido del código, por ejemplo /evento ABCD-1234.',
     unknownCode: 'No conozco este código. Compruébalo con quien organiza.',
     notAllowed: 'El envío de fotos por Telegram no está activado para este evento.',
     eventNotOpen: 'Este evento no acepta fotos por ahora.',
@@ -278,7 +276,7 @@ const ES: Phrasebook = {
       moderated
         ? 'Pasan por quien organiza antes de aparecer.'
         : 'Aparecen directamente en la pantalla.'
-    }\nPara retirar tus fotos: /oublier\nQué se guarda y durante cuánto tiempo: ${noticeUrl}`,
+    }\nPara retirar tus fotos: /olvidar\nQué se guarda y durante cuánto tiempo: ${noticeUrl}`,
   unbound: (eventName) => `Este grupo ya no envía fotos a «${eventName}».`,
   privacy: (noticeUrl) => `Qué se guarda y durante cuánto tiempo: ${noticeUrl}`,
 }
@@ -288,9 +286,9 @@ const IT: Phrasebook = {
     'Attenzione: non vedo ancora le foto di questo gruppo. Nominami amministratore del gruppo (non serve alcun permesso particolare), poi pubblica le tue foto.',
   plain: {
     notBound:
-      "Questo gruppo non è collegato a nessun evento. Invia /soiree seguito dal codice dell'evento.",
+      "Questo gruppo non è collegato a nessun evento. Invia /evento seguito dal codice dell'evento.",
     noCode:
-      "Manca il codice dell'evento: /soiree seguito dal codice, ad esempio /soiree ABCD-1234.",
+      "Manca il codice dell'evento: /evento seguito dal codice, ad esempio /evento ABCD-1234.",
     unknownCode: 'Non conosco questo codice. Controllalo con chi organizza.',
     notAllowed: "L'invio di foto tramite Telegram non è attivo per questo evento.",
     eventNotOpen: 'Questo evento al momento non accetta foto.',
@@ -313,7 +311,7 @@ const IT: Phrasebook = {
   bound: (eventName, moderated, noticeUrl) =>
     `Questo gruppo ora invia le sue foto e i suoi video a «${eventName}». ${
       moderated ? 'Passano da chi organizza prima di comparire.' : 'Compaiono subito sullo schermo.'
-    }\nPer rimuovere le tue foto: /oublier\nCosa viene conservato e per quanto tempo: ${noticeUrl}`,
+    }\nPer rimuovere le tue foto: /dimentica\nCosa viene conservato e per quanto tempo: ${noticeUrl}`,
   unbound: (eventName) => `Questo gruppo non invia più foto a «${eventName}».`,
   privacy: (noticeUrl) => `Cosa viene conservato e per quanto tempo: ${noticeUrl}`,
 }
