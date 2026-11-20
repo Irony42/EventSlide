@@ -145,7 +145,7 @@ describe('TelegramBotApi', () => {
     await api.setReaction('-1001', '99', '👍', signal)
 
     expect(server.said()).toEqual([{ chat_id: -1001, text: 'bonjour', reply_to: 99 }])
-    expect(server.reactions()).toEqual([{ chat_id: -1001, message_id: 99 }])
+    expect(server.reactions()).toEqual([{ chat_id: -1001, message_id: 99, emoji: '👍' }])
   })
 
   it('uses its own token in the path, so a wrong one is refused', async () => {

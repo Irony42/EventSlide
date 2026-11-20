@@ -111,10 +111,21 @@ export class FakeBotApiServer {
       }))
   }
 
-  reactions(): { chat_id: unknown; message_id: unknown }[] {
+  /** The highest offset a `getUpdates` asked from: every update below it was confirmed (consumed) by the bot. */
+  confirmedBelow(): number {
+    return this.calls
+      .filter((call) => call.method === 'getUpdates')
+      .reduce((highest, call) => Math.max(highest, Number(call.body['offset'] ?? 0)), 0)
+  }
+
+  reactions(): { chat_id: unknown; message_id: unknown; emoji: unknown }[] {
     return this.calls
       .filter((call) => call.method === 'setMessageReaction')
-      .map((call) => ({ chat_id: call.body['chat_id'], message_id: call.body['message_id'] }))
+      .map((call) => ({
+        chat_id: call.body['chat_id'],
+        message_id: call.body['message_id'],
+        emoji: (call.body['reaction'] as { emoji?: unknown }[] | undefined)?.[0]?.emoji,
+      }))
   }
 
   private async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {

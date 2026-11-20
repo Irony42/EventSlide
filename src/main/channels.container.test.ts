@@ -166,7 +166,7 @@ describe('the Telegram channel in the composition root', () => {
     // Published at once (auto moderation), counted for the host, acknowledged with a reaction.
     expect(count(booted, `SELECT COUNT(*) AS n FROM photos WHERE status = 'published'`)).toBe(1)
     await until(() => server?.reactions().length === 1, 'the reaction')
-    expect(server.reactions()).toEqual([{ chat_id: -1001, message_id: 2 }])
+    expect(server.reactions()).toEqual([{ chat_id: -1001, message_id: 2, emoji: '👍' }])
     expect(
       count(booted, `SELECT received_count AS n FROM channel_bindings WHERE unbound_at IS NULL`),
     ).toBe(1)

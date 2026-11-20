@@ -264,4 +264,12 @@ describe('SwipeCard', () => {
       }),
     ).toBeInTheDocument()
   })
+
+  it('says on the card that the photograph came through Telegram, and says nothing for any other', () => {
+    const { rerender } = render(<SwipeCard photo={photo({ via: 'telegram' })} onDecide={vi.fn()} />)
+    expect(screen.getByText(fr.channels.viaTelegram)).toBeInTheDocument()
+
+    rerender(<SwipeCard photo={photo()} onDecide={vi.fn()} />)
+    expect(screen.queryByText(fr.channels.viaTelegram)).toBeNull()
+  })
 })
