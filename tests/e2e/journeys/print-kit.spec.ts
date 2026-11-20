@@ -2,6 +2,7 @@ import { BinaryBitmap, HybridBinarizer, QRCodeReader, RGBLuminanceSource } from 
 import sharp from 'sharp'
 import { jpegWithLocation } from '../fixtures/media'
 import { expect, test } from '../fixtures/app'
+import { openSettingsSection } from '../fixtures/settingsPage'
 import type { Locator } from '@playwright/test'
 
 /**
@@ -169,6 +170,7 @@ test('the event logo sits at the centre of the QR at level H, and the reader sti
 
   // The host's logo, sent on the settings page as in spec 03.
   await host.goto(app.url(`/admin/events/${event.slug}/settings`))
+  await openSettingsSection(host, 'Apparence')
   await host.getByTestId('logo-input').setInputFiles(await jpegWithLocation('logo'))
   await expect(host.getByRole('img', { name: 'Aperçu du logo de l’évènement' })).toBeVisible()
 

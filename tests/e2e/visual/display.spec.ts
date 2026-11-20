@@ -10,6 +10,7 @@ import {
   wallUrl,
 } from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
+import { openSettingsSection, saved } from '../fixtures/settingsPage'
 import { aBrightPhoto, aPhoto } from '../fixtures/media'
 
 /**
@@ -182,20 +183,21 @@ test.describe('the projected wall @visual', () => {
     theme: { ambiance?: string; colour?: string; fonts?: string; frame?: string },
   ) => {
     await host.goto(app.url(`/admin/events/${slug}/settings`))
-    if (theme.ambiance !== undefined) {
-      // `exact`: the field's hint also says "ambiance", and a substring match would be two
-      // controls.
-      await host.getByLabel('Ambiance', { exact: true }).selectOption({ label: theme.ambiance })
-    }
-    if (theme.colour !== undefined) await host.getByRole('radio', { name: theme.colour }).check()
-    if (theme.fonts !== undefined) {
-      await host.getByLabel('Typographie').selectOption({ label: theme.fonts })
-    }
-    if (theme.frame !== undefined) {
-      await host.getByLabel('Cadre des photos').selectOption({ label: theme.frame })
-    }
-    await host.getByRole('button', { name: 'Enregistrer', exact: true }).click()
-    await expect(host.getByText('Réglages enregistrés.')).toBeVisible()
+    await openSettingsSection(host, 'Apparence')
+    await saved(host, async () => {
+      if (theme.ambiance !== undefined) {
+        // `exact`: the field's hint also says "ambiance", and a substring match would be two
+        // controls.
+        await host.getByLabel('Ambiance', { exact: true }).selectOption({ label: theme.ambiance })
+      }
+      if (theme.colour !== undefined) await host.getByRole('radio', { name: theme.colour }).check()
+      if (theme.fonts !== undefined) {
+        await host.getByLabel('Typographie').selectOption({ label: theme.fonts })
+      }
+      if (theme.frame !== undefined) {
+        await host.getByLabel('Cadre des photos').selectOption({ label: theme.frame })
+      }
+    })
   }
 
   test('the empty state, which is what the room sees first', async ({ app, surfaces }) => {
