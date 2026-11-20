@@ -118,7 +118,9 @@ export const noticeSections = (
         // server sends the flag only when saving is on, so the sentence cannot contradict the
         // switch (spec 24).
         ...(notice.guestSave === true ? [copy.noticeGuestSave] : []),
-        ...(withBook ? [text.guestbook.noticeMessageAudience] : []),
+        ...(withBook
+          ? [text.guestbook.noticeMessageAudience, text.guestbook.noticeMessageBook]
+          : []),
         ...(withVoice ? [voice.noticeVoiceAudience, voice.noticeVoiceNeverRoom] : []),
         // Only when the host keeps the voices secret: the sentence describes the setting, not a
         // stronger promise.

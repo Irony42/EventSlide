@@ -138,7 +138,7 @@ describe('noticeSections with a guestbook (spec 01)', () => {
     expect(JSON.stringify(sections)).not.toContain(fr.guestbook.noticeMessageAudience)
   })
 
-  it('titles the four questions for photos and messages, and adds one sentence to each', () => {
+  it('titles the four questions for photos and messages, and adds one sentence to each, two to who sees', () => {
     const plain = noticeSections(aPrivacyNotice(), fr)
     const withBook = noticeSections(aPrivacyNotice({ guestbook: true }), fr)
 
@@ -149,10 +149,17 @@ describe('noticeSections with a guestbook (spec 01)', () => {
       fr.guestbook.noticeRemoval,
     ])
     withBook.forEach((section, index) => {
-      expect(section.sentences.length).toBe((plain[index]?.sentences.length ?? 0) + 1)
+      expect(section.sentences.length).toBe(
+        (plain[index]?.sentences.length ?? 0) + (index === 1 ? 2 : 1),
+      )
     })
     expect(withBook[0]?.sentences).toContain(fr.guestbook.noticeMessagePublication.afterReview)
     expect(withBook[1]?.sentences).toContain(fr.guestbook.noticeMessageAudience)
+    // Spec 26, wording approved by Pierre: the photo book may carry a guest's words, and be printed.
+    expect(withBook[1]?.sentences).toContain(fr.guestbook.noticeMessageBook)
+    expect(fr.guestbook.noticeMessageBook).toBe(
+      'L’organisateur peut mettre vos mots, avec votre prénom, dans le livre photo de la soirée, qu’il peut faire imprimer.',
+    )
     expect(withBook[2]?.sentences).toContain(fr.guestbook.noticeMessageRetention)
     expect(withBook[3]?.sentences).toContain(fr.guestbook.noticeMessageRemoval)
   })

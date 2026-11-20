@@ -666,6 +666,9 @@ export const fr = {
     } satisfies Record<NoticePublication, string>,
     noticeMessageAudience:
       'Vos messages sont lus par l’organisateur et son équipe, et peuvent s’afficher sur l’écran de la soirée. Ils ne figurent pas dans « Les photos de la soirée ».',
+    /** Spec 26: the photo book may carry a guest's words, with their first name, and be printed. */
+    noticeMessageBook:
+      'L’organisateur peut mettre vos mots, avec votre prénom, dans le livre photo de la soirée, qu’il peut faire imprimer.',
     noticeMessageRetention:
       'Vos messages sont gardés aussi longtemps que les photos, et effacés avec elles.',
     noticeMessageRemoval:

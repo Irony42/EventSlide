@@ -774,6 +774,8 @@ export const de: UiText = {
     },
     noticeMessageAudience:
       'Ihre Nachrichten werden vom Veranstalter und seinem Team gelesen und können auf dem Bildschirm des Abends gezeigt werden. Sie erscheinen nicht unter „Fotos des Abends“.',
+    noticeMessageBook:
+      'Der Veranstalter kann Ihre Worte mit Ihrem Vornamen in das Fotobuch des Abends aufnehmen und es drucken lassen.',
     noticeMessageRetention:
       'Ihre Nachrichten werden so lange aufbewahrt wie die Fotos und mit ihnen gelöscht.',
     noticeMessageRemoval:
