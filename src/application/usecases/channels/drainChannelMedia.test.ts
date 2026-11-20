@@ -42,7 +42,10 @@ describe('drainChannelMedia: a photograph', () => {
 
     const guest = await scene.guestOf()
     expect(guest?.label()).toBe('Léa M.')
-    expect(guest?.channelIdentity).toEqual({ channel: 'telegram', senderKey: 'key:telegram:42' })
+    expect(guest?.channelIdentity).toEqual({
+      channel: 'telegram',
+      senderKey: 'key:telegram:event-1:42',
+    })
     expect(scene.photoCalls).toEqual([
       {
         eventId: 'event-1',
@@ -203,6 +206,23 @@ describe('drainChannelMedia: a video', () => {
     expect(scene.telegram.said[0]?.text).toContain('Les vidéos ne sont pas acceptées')
   })
 
+  it('says "too heavy" for a video document of unknown length that the clip pipeline finds too long, and stops there', async () => {
+    const scene = await waiting(
+      {},
+      { kind: 'document', declaredMimeType: 'video/mp4', durationMs: null },
+    )
+    scene.answerClips(scene.failedUpload('clip.tooLong'))
+
+    expect(await scene.drain(signal)).toBe('refused')
+
+    expect(scene.clipCalls[0]?.trim).toBeNull()
+    expect(scene.telegram.said[0]?.text).toContain('trop lourd')
+    expect(await scene.jobs.findById(EVENT, JOB)).toMatchObject({
+      status: 'failed',
+      failureCode: 'clip.tooLong',
+    })
+  })
+
   it('answers what the clip pipeline refused with, in words when a person can act on it', async () => {
     const scene = await waiting({}, { ...video, durationMs: 9_000 })
     scene.answerClips(scene.failedUpload('clip.queueFull'))
@@ -260,7 +280,7 @@ describe('drainChannelMedia: what is refused before the download', () => {
         id: 'guest-lea',
         displayName: 'Léa M.',
         eventId: 'event-1',
-        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:42' },
+        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:event-1:42' },
       }).revoke(scene.clock.now()),
     )
 
@@ -301,6 +321,23 @@ describe('drainChannelMedia: what is refused before the download', () => {
 })
 
 describe('drainChannelMedia: the download', () => {
+  it('gives up on a media the process crashed on three times, and says nothing', async () => {
+    const scene = await waiting()
+    for (let crash = 0; crash < MAX_ATTEMPTS; crash += 1) {
+      await scene.jobs.claimNext(scene.clock.now())
+      await scene.jobs.recoverAbandoned(scene.clock.now())
+    }
+
+    expect(await scene.drain(signal)).toBe('skipped')
+
+    expect(await scene.jobs.findById(EVENT, JOB)).toMatchObject({
+      status: 'failed',
+      failureCode: 'channel.attemptsExhausted',
+    })
+    expect(scene.telegram.downloads).toEqual([])
+    expect(scene.telegram.said).toEqual([])
+  })
+
   it('tries again later when the network failed, up to three times in all, then gives up quietly', async () => {
     const scene = await waiting()
     const blink = { code: 'channel.downloadUnavailable', retryable: true }
@@ -445,7 +482,7 @@ describe('drainChannelMedia: the guests a channel creates', () => {
       aGuest({
         id: 'guest-elsewhere',
         eventId: 'event-9',
-        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:42' },
+        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:event-1:42' },
       }),
     )
 

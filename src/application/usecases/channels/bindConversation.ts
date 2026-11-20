@@ -109,7 +109,9 @@ export const makeBindConversation =
     )
     if (!created.ok) return err({ error: created.error, language })
 
-    await bindings.save(created.value)
+    const saved = await bindings.save(created.value)
+    // Another bind of this conversation won the race since we looked: it is busy, as when we saw it ourselves.
+    if (!saved.ok) return err({ error: DomainError.conflict('channel.alreadyBound'), language })
     bus.publish({ type: 'channel.bindingChanged', eventId: event.id })
     return ok({ event, changed: true })
   }

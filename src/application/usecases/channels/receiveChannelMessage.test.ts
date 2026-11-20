@@ -148,7 +148,7 @@ describe('receiveChannelMessage: /oublier and /confidentialite', () => {
       aGuest({
         id: 'guest-lea',
         eventId: 'event-1',
-        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:42' },
+        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:event-1:42' },
       }),
     )
 
@@ -187,7 +187,7 @@ describe('receiveChannelMessage: /oublier and /confidentialite', () => {
       aGuest({
         id: 'guest-elsewhere',
         eventId: 'event-9',
-        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:42' },
+        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:event-1:42' },
       }),
     )
 
@@ -212,7 +212,7 @@ describe('receiveChannelMessage: media', () => {
       eventId: 'event-1',
       conversationRef: CONVERSATION,
       messageRef: 'm-1',
-      senderKey: 'key:telegram:42',
+      senderKey: 'key:telegram:event-1:42',
       senderName: 'Léa Martin',
       kind: 'photo',
       fileRef: 'file-1',
@@ -278,7 +278,7 @@ describe('receiveChannelMessage: media', () => {
       aGuest({
         id: 'guest-lea',
         eventId: 'event-1',
-        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:42' },
+        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:event-1:42' },
       }).revoke(scene.clock.now()),
     )
 
@@ -295,7 +295,7 @@ describe('receiveChannelMessage: media', () => {
       aGuest({
         id: 'guest-lea',
         eventId: 'event-1',
-        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:42' },
+        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:event-1:42' },
       }),
     )
 

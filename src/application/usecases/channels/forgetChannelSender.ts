@@ -41,7 +41,7 @@ export type ForgetChannelSender = (
 export const makeForgetChannelSender =
   ({ guests, jobs, keyer, eraseGuestContribution }: ForgetChannelSenderDeps): ForgetChannelSender =>
   async ({ eventId, channel, sender }) => {
-    const senderKey = keyer.keyOf(senderKeyMaterial(channel, sender))
+    const senderKey = keyer.keyOf(senderKeyMaterial(channel, eventId, sender))
 
     await jobs.deleteBySender(eventId, senderKey)
 

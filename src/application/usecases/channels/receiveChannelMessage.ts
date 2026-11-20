@@ -178,7 +178,7 @@ export const makeReceiveChannelMessage = (
     const binding = await bindings.findActive(message.channel, conversationRef)
     if (binding === null) return 'ignored'
 
-    const senderKey = keyer.keyOf(senderKeyMaterial(message.channel, sender))
+    const senderKey = keyer.keyOf(senderKeyMaterial(message.channel, binding.eventId, sender))
     const guest = await guests.findByChannelSender(binding.eventId, message.channel, senderKey)
     if (guest !== null && guest.isRevoked()) return 'dropped'
 

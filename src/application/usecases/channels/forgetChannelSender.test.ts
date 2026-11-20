@@ -14,7 +14,7 @@ describe('forgetChannelSender', () => {
       aGuest({
         id: 'guest-lea',
         eventId: 'event-1',
-        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:42' },
+        channelIdentity: { channel: 'telegram', senderKey: 'key:telegram:event-1:42' },
       }),
     )
     scene.answerErase(err(DomainError.notFound('event.notFound')))

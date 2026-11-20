@@ -81,6 +81,9 @@ export const makeDrainChannelMedia = (deps: DrainChannelMediaDeps): DrainChannel
       return outcome
     }
 
+    // A media that keeps crashing the process is put back by the recovery, each time one more attempt: it ends here.
+    if (job.attempts >= MAX_ATTEMPTS) return end('channel.attemptsExhausted', 'skipped')
+
     const binding = await bindings.findById(job.eventId, job.bindingId)
     if (binding === null || !binding.isActive()) return end('channel.unbound', 'skipped')
     const channel = channels.get(job.channel)

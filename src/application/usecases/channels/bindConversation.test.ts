@@ -136,6 +136,18 @@ describe('bindConversation', () => {
     ])
   })
 
+  it('answers "busy" when a concurrent bind took the conversation between the look and the save', async () => {
+    const scene = aChannelScene()
+    await scene.bindings.save(aBinding({ id: 'bnd-other', eventId: asEventId('event-2') }))
+    // The use case looked and saw nothing: the other bind lands after.
+    scene.bindings.findActive = async () => null
+
+    const bound = await bind(scene, 'H7K2QM')
+
+    expect(bound.ok ? null : bound.error.error.code).toBe('channel.alreadyBound')
+    expect(await scene.bindings.listActiveForEvent(asEventId('event-1'))).toEqual([])
+  })
+
   it('treats a binding whose event no longer exists as one on an event that is over', async () => {
     const scene = aChannelScene()
     await scene.bindings.save(

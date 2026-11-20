@@ -250,7 +250,11 @@ export const aChannelScene = (options: ChannelSceneOptions = {}) => {
       bus.clear()
     },
     guestOf: (senderRef = '42') =>
-      guests.findByChannelSender(asEventId('event-1'), 'telegram', `key:telegram:${senderRef}`),
+      guests.findByChannelSender(
+        asEventId('event-1'),
+        'telegram',
+        `key:telegram:event-1:${senderRef}`,
+      ),
     aWebGuest: (id = 'guest-web') => aGuest({ id, eventId: 'event-1' }),
     asGuestId,
     refusedPhoto: (code: string): UploadPhotosVerdict =>
