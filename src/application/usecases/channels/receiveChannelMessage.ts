@@ -16,7 +16,9 @@ import type { ChannelMediaJobRepository } from '../../ports/channelMediaJobRepos
 import type { ChannelSenderKeyer } from '../../ports/channelSenderKeyer'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
+import type { ClientRepository } from '../../ports/clientRepository'
 import type { EventRepository } from '../../ports/eventRepository'
+import { ceilingsOf } from '../clients/clientContextOf'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { Logger } from '../../ports/logger'
@@ -58,6 +60,7 @@ export interface ReceiveChannelMessageLimits {
 
 export interface ReceiveChannelMessageDeps {
   readonly events: EventRepository
+  readonly clients: ClientRepository
   readonly guests: GuestRepository
   readonly bindings: ChannelBindingRepository
   readonly jobs: ChannelMediaJobRepository
@@ -88,8 +91,20 @@ const languageOf = (event: Event | null): EventLanguage | null =>
 export const makeReceiveChannelMessage = (
   deps: ReceiveChannelMessageDeps,
 ): ReceiveChannelMessage => {
-  const { events, guests, bindings, jobs, channels, keyer, replier, clock, bus, logger, limits } =
-    deps
+  const {
+    events,
+    clients,
+    guests,
+    bindings,
+    jobs,
+    channels,
+    keyer,
+    replier,
+    clock,
+    bus,
+    logger,
+    limits,
+  } = deps
 
   /** Each sender's recent media, for the rate: lost at a restart, which only lets a sender go faster for a minute. */
   const recentMedia = new Map<string, readonly Date[]>()
@@ -161,11 +176,17 @@ export const makeReceiveChannelMessage = (
       await reply({ reason: 'forgetAnonymous' }, language)
       return 'answered'
     }
-    await deps.forgetChannelSender({
+    const forgotten = await deps.forgetChannelSender({
       eventId: binding.eventId,
       channel: message.channel,
       sender,
     })
+    if (!forgotten.ok) {
+      // Said as it is, not as done: a sender who thinks their photos are gone when they are not is the worse answer.
+      logger.warn('channel.forgetFailed', { code: forgotten.error.code })
+      await reply({ reason: 'forgetFailed' }, language)
+      return 'answered'
+    }
     await reply({ reason: 'forgotten' }, language)
     return 'answered'
   }
@@ -182,6 +203,21 @@ export const makeReceiveChannelMessage = (
     const guest = await guests.findByChannelSender(binding.eventId, message.channel, senderKey)
     if (guest !== null && guest.isRevoked()) return 'dropped'
 
+    // The switch and the plan are read now: a group still linked after the host turned Telegram off, or after a plan
+    // change, is told once an hour and nothing is queued.
+    const event = await events.findById(binding.eventId)
+    if (event !== null && !event.acceptsChannels(await ceilingsOf(clients, event))) {
+      await replier.say(
+        channel,
+        conversationRef,
+        senderKey,
+        { reason: 'channelOff' },
+        languageOf(event),
+        messageRef,
+      )
+      return 'dropped'
+    }
+
     const now = clock.now()
     const rateKey = `${conversationRef}\n${senderKey}`
     const verdict = admitByRate(recentMedia.get(rateKey) ?? [], now, limits.mediaPerMinute)
@@ -190,11 +226,10 @@ export const makeReceiveChannelMessage = (
 
     const pending = verdict.allowed ? await jobs.countPending(binding.eventId) : 0
     if (!verdict.allowed || !queueHasRoom(pending, limits.maxQueuedPerEvent)) {
-      const event = await events.findById(binding.eventId)
       await replier.say(
         channel,
         conversationRef,
-        sender.ref,
+        senderKey,
         { reason: 'tooFast' },
         languageOf(event),
         messageRef,
@@ -237,7 +272,12 @@ export const makeReceiveChannelMessage = (
     const moved = binding.moveTo(message.toRef)
     if (!moved.ok) return 'ignored'
 
-    await bindings.save(moved.value)
+    const saved = await bindings.save(moved.value)
+    if (!saved.ok) {
+      // Lost a race for the new identifier: nothing moved, and nothing is announced.
+      logger.warn('channel.moveRefused', { code: saved.error.code })
+      return 'ignored'
+    }
     bus.publish({ type: 'channel.bindingChanged', eventId: binding.eventId })
     return 'moved'
   }
@@ -246,7 +286,11 @@ export const makeReceiveChannelMessage = (
     const binding = await bindings.findActive(message.channel, message.conversationRef)
     if (binding === null) return 'ignored'
 
-    await bindings.save(binding.unbind(clock.now()))
+    const saved = await bindings.save(binding.unbind(clock.now()))
+    if (!saved.ok) {
+      logger.warn('channel.unbindFailed', { code: saved.error.code })
+      return 'ignored'
+    }
     bus.publish({ type: 'channel.bindingChanged', eventId: binding.eventId })
     return 'unbound'
   }

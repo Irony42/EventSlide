@@ -1,8 +1,9 @@
 import { admitMedia, type AdmissionLimits } from '../../../domain/channels/channelAdmission'
-import { replyReasonOfCode } from '../../../domain/channels/channelReplies'
+import { replyReasonOfCode, type PlainReason } from '../../../domain/channels/channelReplies'
 import { shouldRenameGuest, senderDisplayName } from '../../../domain/channels/channelSender'
 import { Guest } from '../../../domain/guests/guest'
 import { DomainError } from '../../../domain/shared/errors'
+import type { GuestId } from '../../../domain/shared/ids'
 import { err, flatMap, ok } from '../../../domain/shared/result'
 import type { ChannelBindingRepository } from '../../ports/channelBindingRepository'
 import type {
@@ -20,6 +21,7 @@ import { ceilingsOf } from '../clients/clientContextOf'
 import type { UploadClip } from '../clips/uploadClip'
 import type { UploadOutcome, UploadPhotos } from '../photos/uploadPhotos'
 import type { ChannelReplier } from './channelReplier'
+import type { EventLock } from './eventLock'
 
 /**
  * The worker's step (spec 27 §5): take one queued media, make it a photograph or a clip of the event, say so.
@@ -51,6 +53,8 @@ export interface DrainChannelMediaDeps {
   readonly uploadPhotos: UploadPhotos
   readonly uploadClip: UploadClip
   readonly replier: ChannelReplier
+  /** Shared with `/oublier`: a sender is not erased while one of their media is being stored. */
+  readonly lock: EventLock
   readonly ids: IdGenerator
   readonly clock: Clock
   readonly logger: Logger
@@ -68,12 +72,11 @@ export const MAX_ATTEMPTS = 3
 export const RETRY_BASE_MS = 30_000
 
 export const makeDrainChannelMedia = (deps: DrainChannelMediaDeps): DrainChannelMedia => {
-  const { events, clients, guests, bindings, jobs, channels, replier, ids, clock, logger } = deps
+  const { events, clients, guests, bindings, jobs, channels, replier, lock, ids, clock, logger } =
+    deps
 
-  return async (signal) => {
-    const job = await jobs.claimNext(clock.now())
-    if (job === null) return 'idle'
-
+  /** One claimed job, start to end. It may throw: the caller keeps the queue honest when it does. */
+  const process = async (job: ChannelMediaJob, signal: AbortSignal): Promise<DrainOutcome> => {
     /** Ends the job as failed and counts it: a code, never a message from the remote service. */
     const end = async (code: string, outcome: 'refused' | 'skipped'): Promise<DrainOutcome> => {
       await jobs.finish(job.id, { status: 'failed', failureCode: code }, clock.now())
@@ -92,10 +95,14 @@ export const makeDrainChannelMedia = (deps: DrainChannelMediaDeps): DrainChannel
     if (event === null) return end('event.notFound', 'skipped')
     const language = event.settings.wallLanguage
 
+    /** The guest this job created, until its media is stored: a refused media must not leave one behind. */
+    let mintedGuest: GuestId | null = null
+
     /** A refusal a person can act on is said once an hour in their conversation; the rest stays in the log. */
-    const refuse = async (code: string): Promise<DrainOutcome> => {
+    const refuse = async (code: string, said?: PlainReason): Promise<DrainOutcome> => {
       const outcome = await end(code, 'refused')
-      const reason = replyReasonOfCode(code)
+      if (mintedGuest !== null) await guests.delete(job.eventId, mintedGuest)
+      const reason = said ?? replyReasonOfCode(code)
       if (reason !== null) {
         await replier.say(
           channel,
@@ -109,11 +116,16 @@ export const makeDrainChannelMedia = (deps: DrainChannelMediaDeps): DrainChannel
       return outcome
     }
 
+    // The host's switch and the client's plan are read **now**, not only when the group was connected: turning
+    // Telegram off, or a plan that no longer includes it, stops a group that is still linked.
+    const ceilings = await ceilingsOf(clients, event)
+    if (!event.acceptsChannels(ceilings)) return refuse('channel.notAllowed', 'channelOff')
+
     if (!event.acceptsUploads()) return refuse('event.notAcceptingUploads')
 
     const treatment = admitMedia(job, {
       ...deps.limits,
-      clipsAccepted: event.acceptsClips(await ceilingsOf(clients, event)),
+      clipsAccepted: event.acceptsClips(ceilings),
     })
     if (!treatment.ok) return refuse(treatment.error.code)
 
@@ -131,73 +143,117 @@ export const makeDrainChannelMedia = (deps: DrainChannelMediaDeps): DrainChannel
       return refuse(retryable ? 'channel.downloadFailed' : code)
     }
 
-    // An erasure (`/oublier`) deletes the sender's jobs: a job that is gone, or no longer ours, was cancelled while
-    // the file travelled, and nothing it carried may be stored or its sender recreated.
-    const still = await jobs.findById(job.eventId, job.id)
-    if (still === null || still.status !== 'running') {
+    // From here the sender's guest is read, created and stored for **under the event's lock**: `/oublier` takes the
+    // same one, so an erasure cannot land between the guest being found and the photograph being stored for them.
+    return lock.run(job.eventId, async (): Promise<DrainOutcome> => {
+      // An erasure deletes the sender's pending jobs: a job that is gone, or no longer ours, was cancelled while the
+      // file travelled, and nothing it carried may be stored or its sender recreated.
+      const still = await jobs.findById(job.eventId, job.id)
+      if (still === null || still.status !== 'running') {
+        logger.info('channel.media', {
+          eventId: job.eventId,
+          outcome: 'skipped',
+          code: 'channel.cancelled',
+        })
+        return 'skipped'
+      }
+
+      // The guest: found, or created on this first accepted media; renamed if the channel shows another name;
+      // refused (silently) if the host revoked them. One chain, one failure.
+      const known = await guests.findByChannelSender(job.eventId, job.channel, job.senderKey)
+      const name = senderDisplayName(job.senderName)
+      const resolved = flatMap(
+        known === null
+          ? Guest.create(
+              {
+                eventId: job.eventId,
+                displayName: name,
+                channelIdentity: { channel: job.channel, senderKey: job.senderKey },
+              },
+              ids.guestId(),
+              clock.now(),
+            )
+          : known.isRevoked()
+            ? err(DomainError.forbidden('guest.revoked'))
+            : ok(known),
+        (guest) => (shouldRenameGuest(guest.displayName, name) ? guest.rename(name) : ok(guest)),
+      )
+      if (!resolved.ok) return end(resolved.error.code, 'refused')
+      const guest = resolved.value
+      if (guest !== known) await guests.save(guest)
+      if (known === null) mintedGuest = guest.id
+
+      const author = { kind: 'guest', guestId: guest.id } as const
+      let duplicate: boolean
+      if (treatment.value.kind === 'photo') {
+        const uploaded = await deps.uploadPhotos({
+          eventId: job.eventId,
+          author,
+          files: [{ bytes: downloaded.value, declaredName: job.declaredName }],
+        })
+        if (!uploaded.ok) return refuse(uploaded.error.code)
+        // One file went in, so one outcome came out.
+        const [outcome] = uploaded.value.outcomes as readonly [UploadOutcome, ...UploadOutcome[]]
+        if (outcome.kind === 'refused') return refuse(outcome.error.code)
+        duplicate = outcome.kind === 'duplicate'
+      } else {
+        const uploaded = await deps.uploadClip({
+          eventId: job.eventId,
+          author,
+          file: { bytes: downloaded.value, declaredName: job.declaredName },
+          trim: treatment.value.trim,
+        })
+        if (!uploaded.ok) return refuse(uploaded.error.code)
+        duplicate = uploaded.value.duplicate
+      }
+
+      // A duplicate stored nothing for this sender: a guest made for it would be one with no contribution.
+      if (duplicate && mintedGuest !== null) await guests.delete(job.eventId, mintedGuest)
+
+      await jobs.finish(job.id, { status: 'done' }, clock.now())
+      if (!duplicate) await bindings.recordReceived(binding.id)
+      await channel.acknowledge(job.conversationRef, job.messageRef)
       logger.info('channel.media', {
         eventId: job.eventId,
-        outcome: 'skipped',
-        code: 'channel.cancelled',
+        outcome: duplicate ? 'duplicate' : 'stored',
       })
-      return 'skipped'
-    }
-
-    // The guest: found, or created on this first accepted media; renamed if the channel shows another name;
-    // refused (silently) if the host revoked them. One chain, one failure.
-    const known = await guests.findByChannelSender(job.eventId, job.channel, job.senderKey)
-    const name = senderDisplayName(job.senderName)
-    const resolved = flatMap(
-      known === null
-        ? Guest.create(
-            {
-              eventId: job.eventId,
-              displayName: name,
-              channelIdentity: { channel: job.channel, senderKey: job.senderKey },
-            },
-            ids.guestId(),
-            clock.now(),
-          )
-        : known.isRevoked()
-          ? err(DomainError.forbidden('guest.revoked'))
-          : ok(known),
-      (guest) => (shouldRenameGuest(guest.displayName, name) ? guest.rename(name) : ok(guest)),
-    )
-    if (!resolved.ok) return end(resolved.error.code, 'refused')
-    const guest = resolved.value
-    if (guest !== known) await guests.save(guest)
-
-    const author = { kind: 'guest', guestId: guest.id } as const
-    let duplicate: boolean
-    if (treatment.value.kind === 'photo') {
-      const uploaded = await deps.uploadPhotos({
-        eventId: job.eventId,
-        author,
-        files: [{ bytes: downloaded.value, declaredName: job.declaredName }],
-      })
-      if (!uploaded.ok) return refuse(uploaded.error.code)
-      // One file went in, so one outcome came out.
-      const [outcome] = uploaded.value.outcomes as readonly [UploadOutcome, ...UploadOutcome[]]
-      if (outcome.kind === 'refused') return refuse(outcome.error.code)
-      duplicate = outcome.kind === 'duplicate'
-    } else {
-      const uploaded = await deps.uploadClip({
-        eventId: job.eventId,
-        author,
-        file: { bytes: downloaded.value, declaredName: job.declaredName },
-        trim: treatment.value.trim,
-      })
-      if (!uploaded.ok) return refuse(uploaded.error.code)
-      duplicate = uploaded.value.duplicate
-    }
-
-    await jobs.finish(job.id, { status: 'done' }, clock.now())
-    if (!duplicate) await bindings.recordReceived(binding.id)
-    await channel.acknowledge(job.conversationRef, job.messageRef)
-    logger.info('channel.media', {
-      eventId: job.eventId,
-      outcome: duplicate ? 'duplicate' : 'stored',
+      return duplicate ? 'duplicate' : 'stored'
     })
-    return duplicate ? 'duplicate' : 'stored'
+  }
+
+  return async (signal) => {
+    const job = await jobs.claimNext(clock.now())
+    if (job === null) return 'idle'
+
+    try {
+      return await process(job, signal)
+    } catch (error) {
+      // Shutdown: the job stays `running` and the next boot puts it back.
+      if (signal.aborted) throw error
+      // Anything else must not leave the job `running` (it would hold the event's queue quota until a restart, and
+      // the queue would not move): try again later, or give up once the attempts are spent. Never rethrown.
+      logger.error('channel.media failed', {
+        eventId: job.eventId,
+        code: 'channel.internalError',
+        error: error instanceof Error ? error.name : 'unknown',
+      })
+      try {
+        if (job.attempts + 1 < MAX_ATTEMPTS) {
+          const now = clock.now()
+          const wait = RETRY_BASE_MS * 2 ** job.attempts
+          await jobs.retryLater(job.id, now, new Date(now.getTime() + wait))
+          return 'retry'
+        }
+        await jobs.finish(
+          job.id,
+          { status: 'failed', failureCode: 'channel.internalError' },
+          clock.now(),
+        )
+        return 'skipped'
+      } catch {
+        // The store itself is failing: the next boot recovers the row.
+        return 'skipped'
+      }
+    }
   }
 }

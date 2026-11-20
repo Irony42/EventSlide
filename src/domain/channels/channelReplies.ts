@@ -27,6 +27,8 @@ export const PLAIN_REASONS = [
   'quotaReached',
   'albumFull',
   'tooFast',
+  'forgetFailed',
+  'channelOff',
 ] as const
 
 export type PlainReason = (typeof PLAIN_REASONS)[number]
@@ -53,6 +55,7 @@ const THROTTLED: ReadonlySet<ReplyReason> = new Set<ReplyReason>([
   'quotaReached',
   'albumFull',
   'tooFast',
+  'channelOff',
 ])
 
 /** One reply at most per (conversation, sender, reason) per hour. */
@@ -137,6 +140,8 @@ const FR: Phrasebook = {
     quotaReached: 'Vous avez envoyé le nombre maximal de photos pour cette soirée.',
     albumFull: "L'album de cette soirée est plein : il ne peut plus prendre de photos.",
     tooFast: 'Doucement : trop de fichiers à la fois, certains ne sont pas pris.',
+    forgetFailed: "Je n'ai pas pu retirer vos photos pour le moment. Réessayez dans un instant.",
+    channelOff: "L'envoi de photos par Telegram a été désactivé pour cette soirée.",
   },
   // The typography is applied to the phrase, then the event's name and the address go in: what a host wrote is
   // never touched.
@@ -178,6 +183,8 @@ const EN: Phrasebook = {
     quotaReached: 'You have sent the maximum number of photos for this event.',
     albumFull: 'The album of this event is full: it cannot take more photos.',
     tooFast: 'Slow down: too many files at once, some were not taken.',
+    forgetFailed: 'I could not remove your photos just now. Please try again in a moment.',
+    channelOff: 'Sending photos through Telegram has been turned off for this event.',
   },
   bound: (eventName, moderated, noticeUrl) =>
     `This group now sends its photos and videos to "${eventName}". ${
@@ -210,6 +217,9 @@ const DE: Phrasebook = {
     quotaReached: 'Du hast die Höchstzahl an Fotos für diese Feier erreicht.',
     albumFull: 'Das Album dieser Feier ist voll: es kann keine Fotos mehr aufnehmen.',
     tooFast: 'Langsam: zu viele Dateien auf einmal, einige wurden nicht übernommen.',
+    forgetFailed:
+      'Ich konnte deine Fotos gerade nicht entfernen. Bitte versuche es gleich noch einmal.',
+    channelOff: 'Das Senden von Fotos über Telegram wurde für diese Feier ausgeschaltet.',
   },
   bound: (eventName, moderated, noticeUrl) =>
     `Diese Gruppe sendet ihre Fotos und Videos jetzt an „${eventName}“. ${
@@ -242,6 +252,8 @@ const ES: Phrasebook = {
     quotaReached: 'Has enviado el número máximo de fotos para este evento.',
     albumFull: 'El álbum de este evento está lleno: no puede recibir más fotos.',
     tooFast: 'Más despacio: demasiados archivos a la vez, algunos no se han recogido.',
+    forgetFailed: 'No he podido retirar tus fotos ahora mismo. Inténtalo de nuevo en un momento.',
+    channelOff: 'El envío de fotos por Telegram se ha desactivado para este evento.',
   },
   bound: (eventName, moderated, noticeUrl) =>
     `Este grupo envía ahora sus fotos y vídeos a «${eventName}». ${
@@ -274,6 +286,8 @@ const IT: Phrasebook = {
     quotaReached: 'Hai inviato il numero massimo di foto per questo evento.',
     albumFull: "L'album di questo evento è pieno: non può ricevere altre foto.",
     tooFast: 'Piano: troppi file insieme, alcuni non sono stati presi.',
+    forgetFailed: 'Non sono riuscito a rimuovere le tue foto in questo momento. Riprova tra poco.',
+    channelOff: "L'invio di foto tramite Telegram è stato disattivato per questo evento.",
   },
   bound: (eventName, moderated, noticeUrl) =>
     `Questo gruppo ora invia le sue foto e i suoi video a «${eventName}». ${
