@@ -258,10 +258,19 @@ export const channelMediaJobRepositoryContract = (
       )
       await jobs.claimNext(AT)
       await jobs.finish(idOf('job-1'), { status: 'done' }, AT)
+      await jobs.enqueue(aJob({ id: 'job-4', messageRef: 'm-4', senderKey: 'k-lea' }))
 
       expect(await jobs.deleteBySender(WEDDING, 'k-lea')).toBe(1)
 
-      expect(await jobs.findById(WEDDING, idOf('job-1'))).toBeNull()
+      // The pending one is gone; the finished one stays as the record of a message already taken, anonymous.
+      expect(await jobs.findById(WEDDING, idOf('job-4'))).toBeNull()
+      expect(await jobs.findById(WEDDING, idOf('job-1'))).toMatchObject({
+        senderKey: '',
+        senderName: null,
+      })
+      expect(await jobs.enqueue(aJob({ id: 'job-5', messageRef: 'm-1', senderKey: 'k-lea' }))).toBe(
+        'duplicate',
+      )
       expect(await jobs.findById(WEDDING, idOf('job-2'))).not.toBeNull()
       expect(await jobs.findById(GALA, idOf('job-3'))).not.toBeNull()
     })

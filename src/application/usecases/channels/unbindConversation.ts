@@ -67,10 +67,13 @@ export const makeUnbindConversation =
       return err(DomainError.notFound('channel.bindingNotFound'))
     }
 
-    await bindings.save(binding.unbind(clock.now()))
+    const saved = await bindings.save(binding.unbind(clock.now()))
+    if (!saved.ok) return saved
     bus.publish({ type: 'channel.bindingChanged', eventId })
 
-    await channels
+    // Not awaited: the host's request must not wait up to twenty seconds for a group that muted the bot. `reply` never
+    // rejects (the port's promise), so there is nothing to catch.
+    void channels
       .get(binding.channel)
       ?.reply(
         binding.conversationRef,

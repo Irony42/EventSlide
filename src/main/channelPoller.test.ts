@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createChannelPoller, MAX_BATCH_ATTEMPTS } from './channelPoller'
+import { createChannelPoller, MAX_MESSAGE_ATTEMPTS } from './channelPoller'
 import type { ChannelInbox, InboundBatch } from '../application/ports/channelInbox'
 import type { ChannelFailure } from '../application/ports/messagingChannel'
 import { CapturingLogger } from '../application/testing/capturingLogger'
@@ -116,15 +116,6 @@ describe('channelPoller', () => {
     expect(h.waits.filter((ms) => ms >= 1_000)).toEqual([1_000, 2_000, 4_000, 1_000])
   })
 
-  it('waits what Telegram asked on a 429', async () => {
-    const h = harness([err({ code: 'telegram.rateLimited', retryable: true, waitMs: 3_000 })])
-
-    h.poller.start()
-    await h.done
-
-    expect(h.waits[0]).toBe(3_000)
-  })
-
   it('says a conflict in words, waits the longest and does not stop', async () => {
     const h = harness([err({ code: 'telegram.conflict', retryable: true }), batch('3', MESSAGE)])
 
@@ -152,25 +143,70 @@ describe('channelPoller', () => {
     expect(h.logger.lines.some((line) => line.level === 'error')).toBe(true)
   })
 
-  it('keeps a batch unsaved while its handling throws, then skips it after the attempts', async () => {
-    let calls = 0
-    const h = harness(
-      Array.from({ length: MAX_BATCH_ATTEMPTS }, () => batch('8', MESSAGE)),
-      async () => {
-        calls += 1
+  it('tries a message that throws a few times, then skips only that one and handles the rest', async () => {
+    const ok: InboundMessage = { type: 'botRemoved', channel: 'telegram', conversationRef: '-2' }
+    let poison = 0
+    const h = harness([batch('8', MESSAGE, ok)], async (message) => {
+      if (message === MESSAGE) {
+        poison += 1
         throw new Error('database is locked')
-      },
-    )
+      }
+      return 'answered'
+    })
 
     h.poller.start()
     await h.done
 
-    expect(calls).toBe(MAX_BATCH_ATTEMPTS)
-    // Saved once, after the last failure: the poison batch is skipped rather than held forever.
+    expect(poison).toBe(MAX_MESSAGE_ATTEMPTS)
+    // The next message of the batch was handled, and the cursor moved on once the batch was done.
+    expect(h.handled.filter((message) => message === ok)).toHaveLength(1)
     expect(h.order.filter((step) => step.startsWith('save'))).toEqual(['save:8'])
-    expect(h.logger.lines.filter((line) => line.level === 'error').length).toBeGreaterThan(
-      MAX_BATCH_ATTEMPTS,
-    )
+    expect(h.logger.lines.some((line) => /skipped after repeated/u.test(line.message))).toBe(true)
+  })
+
+  it('goes on from the cursor it holds when saving it fails, after a wait, instead of asking the batch again', async () => {
+    const h = harness([batch('5', MESSAGE), batch(null)])
+    h.cursors.set = async () => {
+      throw new Error('disk full')
+    }
+
+    h.poller.start()
+    await h.done
+
+    expect(h.seenCursors.slice(0, 2)).toEqual([null, '5'])
+    expect(h.waits).toContain(1_000)
+    expect(h.logger.lines.some((line) => /could not be saved/u.test(line.message))).toBe(true)
+  })
+
+  it('retries reading a cursor that cannot be read, after a wait', async () => {
+    const h = harness([batch(null)])
+    let reads = 0
+    const get = h.cursors.get.bind(h.cursors)
+    h.cursors.get = async (channel) => {
+      reads += 1
+      if (reads === 1) throw new Error('locked')
+      return get(channel)
+    }
+
+    h.poller.start()
+    await h.done
+
+    expect(reads).toBe(2)
+    expect(h.waits[0]).toBe(1_000)
+  })
+
+  it.each([
+    [0, 1_000],
+    [200, 1_000],
+    [7_000, 7_000],
+    [9_999_000, 300_000],
+  ])('holds a wait of %i ms asked by the service to a sane range (%i)', async (asked, expected) => {
+    const h = harness([err({ code: 'telegram.rateLimited', retryable: true, waitMs: asked })])
+
+    h.poller.start()
+    await h.done
+
+    expect(h.waits[0]).toBe(expected)
   })
 
   it('does not log what a message carried', async () => {
