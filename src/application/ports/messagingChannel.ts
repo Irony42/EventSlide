@@ -12,6 +12,8 @@ import type { Result } from '../../domain/shared/result'
 export interface ChannelFailure {
   readonly code: string
   readonly retryable: boolean
+  /** How long the service asked to wait before the next call, in milliseconds, when it said so (a 429). */
+  readonly waitMs?: number
 }
 
 /**
