@@ -79,4 +79,34 @@ describe('invite preferences', () => {
     expect(readInvitePreferences('fete')).toEqual({})
     expect(() => writeInvitePreferences('fete', { short: 'x' })).not.toThrow()
   })
+
+  it('offers only the designs that have an invitation layout', () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ design: 'classique' }))
+    expect(readInvitePreferences('fete')).toEqual({})
+
+    for (const design of [
+      'essentiel',
+      'ticket',
+      'souvenir',
+      'billet',
+      'embarquement',
+      'guirlande',
+    ]) {
+      window.localStorage.setItem(KEY, JSON.stringify({ design }))
+      expect(readInvitePreferences('fete').design, design).toBe(design)
+    }
+  })
+
+  it('keeps a focus only in percent, and knows nothing of a photograph: that one is the kit’s', () => {
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify({ focusX: 20, focusY: 100, photo: 'data:image/jpeg;base64,AAAA' }),
+    )
+    expect(readInvitePreferences('fete')).toEqual({ focusX: 20, focusY: 100 })
+
+    window.localStorage.setItem(KEY, JSON.stringify({ focusX: 101, focusY: -1 }))
+    expect(readInvitePreferences('fete')).toEqual({})
+    window.localStorage.setItem(KEY, JSON.stringify({ focusX: 'x' }))
+    expect(readInvitePreferences('fete')).toEqual({})
+  })
 })

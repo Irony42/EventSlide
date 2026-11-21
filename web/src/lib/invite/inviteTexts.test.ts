@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   dayLabel,
+  shortDayLabel,
   hourLabel,
   icsOf,
   instantToLocalInput,
@@ -344,6 +345,26 @@ describe('instantToLocalInput', () => {
     for (const value of ['2027-12-11T19:00', '2027-07-01T00:00', '2028-02-29T23:59']) {
       const instant = localInputToInstant(value, 'Europe/Paris')
       expect(instant.ok && instantToLocalInput(instant.instant, 'Europe/Paris')).toBe(value)
+    }
+  })
+})
+
+describe('shortDayLabel', () => {
+  it('writes the month in letters, in the zone of the invitation and the language of the card', () => {
+    const at = new Date('2027-12-11T23:30:00Z')
+
+    expect(shortDayLabel(at, 'fr', 'Europe/Paris')).toBe('12 déc. 2027')
+    expect(shortDayLabel(at, 'fr', 'America/Montreal')).toBe('11 déc. 2027')
+  })
+
+  it('never writes a date a reader could take for another: no day-month order is left to the language', () => {
+    const at = new Date('2027-12-11T12:00:00Z')
+
+    for (const lang of ['fr', 'en', 'de', 'es', 'it'] as const) {
+      const label = shortDayLabel(at, lang, 'UTC')
+      expect(label, lang).not.toMatch(/^\d+[./-]\d+[./-]\d+$/)
+      expect(label, lang).toMatch(/\p{L}/u)
+      expect(label, lang).toContain('2027')
     }
   })
 })

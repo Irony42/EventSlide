@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../../../design-system/components/Button'
 import { cx } from '../../../../design-system/classNames'
 import { Field } from '../../../../design-system/components/Field'
@@ -13,14 +13,23 @@ import {
   readableLink,
   shortMessageOf,
 } from '../../../../lib/invite/cardTexts'
-import { whenParts } from '../../../../lib/invite/inviteTexts'
+import { shortDayLabel, whenParts } from '../../../../lib/invite/inviteTexts'
 import { PRINT_SWATCHES, PRINT_SWATCH_IDS } from '../../../../lib/print/printColours'
-import { qrShareOf } from '../../../../lib/print/printDesigns'
+import {
+  INVITATION_DESIGNS,
+  isInvitationDesign,
+  invitationUsesPhoto,
+  inkLoadOf,
+  invitationQrShareOf,
+} from '../../../../lib/print/printDesigns'
 import { Notice } from '../../../../design-system/components/Notice'
+import { DesignPicker, PhotoControls } from '../../print/PrintCardControls'
+import { readPrintPhoto, writePrintPhoto } from '../../print/printPhoto'
 import { PrintSheet } from '../../print/PrintSheet'
 import { hueOfHex, isHexColour, isQrTooSmall } from '../../print/printKit'
 import { usePrintPageRule } from '../../print/usePrintPageRule'
 import {
+  DEFAULT_INVITE_DESIGN,
   DEFAULT_INVITE_FORMAT,
   INVITE_FORMATS,
   readInvitePreferences,
@@ -48,14 +57,51 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
   const [totalModules, setTotalModules] = useState<number | null>(null)
   usePrintPageRule()
 
+  const [photoUrl, setPhotoUrl] = useState<string | null>(() => readPrintPhoto(slug))
+  const [photoKept, setPhotoKept] = useState(true)
+
+  // A slider moves a hundred times a second: the screen follows at once, the storage once it rests.
+  const pending = useRef<InvitePreferences | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+  const flush = () => {
+    window.clearTimeout(timer.current)
+    if (pending.current === null) return
+    writeInvitePreferences(slug, pending.current)
+    pending.current = null
+  }
+  // Leaving the page writes what the slider last said.
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current)
+      if (pending.current !== null) writeInvitePreferences(slug, pending.current)
+    },
+    [slug],
+  )
+
   const update = (next: InvitePreferences) => {
     setPreferences(next)
-    writeInvitePreferences(slug, next)
+    pending.current = next
+    flush()
+  }
+
+  const updateFocus = (next: InvitePreferences) => {
+    setPreferences(next)
+    pending.current = next
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(flush, 300)
+  }
+
+  const choosePhoto = (url: string | null) => {
+    setPhotoUrl(url)
+    setPhotoKept(writePrintPhoto(slug, url))
   }
 
   const lang = parseLocale(invite.language) ?? 'fr'
   const card = translationsFor(lang).guestInvite.card
   const format = preferences.format ?? DEFAULT_INVITE_FORMAT
+  const design = preferences.design ?? DEFAULT_INVITE_DESIGN
+  const focusX = preferences.focusX ?? 50
+  const focusY = preferences.focusY ?? 50
   const eventHue = event.settings.theme.accentHue
   const eventColour = `oklch(58% 0.14 ${eventHue})`
   const chosen = preferences.colour ?? null
@@ -91,11 +137,54 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
     update(colour === null ? rest : { ...rest, colour })
   }
 
+  const texts = {
+    title: invite.title ?? event.name,
+    tagline: null,
+    note: null,
+    date: null,
+    table: null,
+  }
+  const invitation = {
+    eyebrow: card.eyebrow,
+    day: when.day,
+    dayShort: shortDayLabel(new Date(invite.startsAt), lang, zone),
+    hours: when.hours,
+    venue: invite.venueName,
+    address: invite.address,
+    message: printed,
+    more: full !== null && full !== printed ? card.more : null,
+    link: card.link(readableLink(invite.url)),
+  }
+
   const custom = chosen !== null && !Object.values(PRINT_SWATCHES).includes(chosen as never)
 
   return (
     <div className={styles['tab']} data-invite-sheet>
       <div className={styles['controls']}>
+        <DesignPicker
+          design={design}
+          onDesign={(chosenDesign) => {
+            if (isInvitationDesign(chosenDesign)) update({ ...preferences, design: chosenDesign })
+          }}
+          previewTexts={texts}
+          steps={false}
+          photoUrl={photoUrl}
+          focusX={focusX}
+          focusY={focusY}
+          accentHue={hue}
+          colour={chosen}
+          eventColour={eventColour}
+          locale={lang}
+          designs={INVITATION_DESIGNS}
+          invitation={invitation}
+          name="invite-design"
+        />
+        {inkLoadOf(design) === 'high' ? (
+          <Notice tone="neutral" role="status" variant="boxed">
+            {t.admin.printKitInkHeavy}
+          </Notice>
+        ) : null}
+
         <fieldset className={styles['group']}>
           <legend className={styles['legend']}>{text.printFormatLegend}</legend>
           {INVITE_FORMATS.map((choice) => (
@@ -154,6 +243,18 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
           </div>
         </fieldset>
 
+        {invitationUsesPhoto(design) ? (
+          <PhotoControls
+            photoUrl={photoUrl}
+            onPhoto={choosePhoto}
+            focusX={focusX}
+            focusY={focusY}
+            onFocus={(axis, value) => updateFocus({ ...preferences, [axis]: value })}
+            hint={text.photoHint}
+            notKept={photoKept ? undefined : text.photoNotKept}
+          />
+        ) : null}
+
         <Field label={text.shortLabel} hint={text.shortHint}>
           {(control) => (
             <>
@@ -177,7 +278,8 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
           )}
         </Field>
 
-        {totalModules !== null && isQrTooSmall(format, qrShareOf('essentiel'), totalModules) ? (
+        {totalModules !== null &&
+        isQrTooSmall(format, invitationQrShareOf(design), totalModules) ? (
           <Notice tone="warning" role="status" variant="boxed">
             {t.admin.printKitLongLink}
           </Notice>
@@ -199,29 +301,14 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
           ink="black"
           accentHue={hue}
           colour={chosen ?? eventColour}
-          design="essentiel"
+          design={design}
           onQrModules={setTotalModules}
-          texts={{
-            title: invite.title ?? event.name,
-            tagline: null,
-            note: null,
-            date: null,
-            table: null,
-          }}
+          texts={texts}
           steps={false}
-          photoUrl={null}
-          focusX={50}
-          focusY={50}
-          invitation={{
-            eyebrow: card.eyebrow,
-            day: when.day,
-            hours: when.hours,
-            venue: invite.venueName,
-            address: invite.address,
-            message: printed,
-            more: full !== null && full !== printed ? card.more : null,
-            link: card.link(readableLink(invite.url)),
-          }}
+          photoUrl={photoUrl}
+          focusX={focusX}
+          focusY={focusY}
+          invitation={invitation}
         />
       </section>
     </div>

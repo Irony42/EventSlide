@@ -28,6 +28,28 @@ export const PRINT_DESIGNS = [
 
 export type PrintDesign = (typeof PRINT_DESIGNS)[number]
 
+/**
+ * The designs that have an invitation layout (spec 29): the first lot of six. A design outside
+ * this list is never offered for an invitation; `PrintCard` still draws one it is handed with the
+ * Essentiel layout rather than nothing.
+ */
+export const INVITATION_DESIGNS = [
+  'essentiel',
+  'ticket',
+  'souvenir',
+  'billet',
+  'embarquement',
+  'guirlande',
+] as const satisfies readonly PrintDesign[]
+
+export type InvitationDesign = (typeof INVITATION_DESIGNS)[number]
+
+export const isInvitationDesign = (value: unknown): value is InvitationDesign =>
+  typeof value === 'string' && (INVITATION_DESIGNS as readonly string[]).includes(value)
+
+/** Designs that print the host's photograph on an invitation (Essentiel is photo-free on purpose). */
+export const invitationUsesPhoto = (design: InvitationDesign): boolean => design !== 'essentiel'
+
 /** The card that was the only one before spec 28, improved: a host who chooses nothing gets it. */
 export const DEFAULT_PRINT_DESIGN: PrintDesign = 'essentiel'
 
@@ -66,6 +88,18 @@ const SPECS: Readonly<Record<PrintDesign, DesignSpec>> = {
 }
 
 export const qrShareOf = (design: PrintDesign): number => SPECS[design].qrShare
+
+/**
+ * The QR's share of the card's width on an **invitation**: the card carries more lines (moment,
+ * place, address, word, link), so a design that is short of room draws a smaller code. Still
+ * judged by `printKit.isQrTooSmall`, from this very number.
+ */
+const INVITATION_QR_SHARE: Partial<Record<InvitationDesign, number>> = {
+  guirlande: 0.3,
+}
+
+export const invitationQrShareOf = (design: InvitationDesign): number =>
+  INVITATION_QR_SHARE[design] ?? SPECS[design].qrShare
 export const inkLoadOf = (design: PrintDesign): InkLoad => SPECS[design].ink
 
 /**

@@ -7,13 +7,25 @@ import { useFitText } from './useFitText'
  * jsdom lays nothing out, so the boxes are stated: a card 200 px wide, a text whose content is as
  * tall as its font size times its line count, inside a ceiling of 60 px.
  */
-function Card({ text, min }: { readonly text: string; readonly min?: string }) {
+function Card({
+  text,
+  min,
+  floor,
+}: {
+  readonly text: string
+  readonly min?: string
+  readonly floor?: string
+}) {
   const root = useRef<HTMLDivElement>(null)
   useFitText(root, text)
   return (
     <div ref={root}>
       <article data-print-card="essentiel">
-        <h2 data-fit {...(min === undefined ? {} : { 'data-fit-min': min })}>
+        <h2
+          data-fit
+          {...(min === undefined ? {} : { 'data-fit-min': min })}
+          {...(floor === undefined ? {} : { 'data-fit-floor': floor })}
+        >
           {text}
         </h2>
       </article>
@@ -82,5 +94,42 @@ describe('useFitText', () => {
     const { container } = render(<Card text="Anniversaire surprise des quarante ans" />)
     expect((container.querySelector('h2') as HTMLElement).style.fontSize).toBe('')
     expect(measured).not.toHaveBeenCalled()
+  })
+
+  it('never shrinks a text under its legibility floor: it keeps the first lines and ends them with an ellipsis', () => {
+    // Even at the floor the text is 12 lines tall: it cannot fit the 60 px ceiling.
+    laidOut(() => 12)
+    const { container } = render(<Card text="Un mot beaucoup trop long pour la carte" floor="9" />)
+    const title = container.querySelector('h2') as HTMLElement
+
+    expect(parseFloat(title.style.fontSize)).toBeGreaterThanOrEqual(9)
+    expect(title.style.display).toBe('-webkit-box')
+    expect(title.style.getPropertyValue('-webkit-line-clamp')).toBe('2')
+    expect(title.style.overflow).toBe('hidden')
+    expect(title.dataset['clamped']).toBeDefined()
+  })
+
+  it('shrinks a text with a floor as usual while it stays above it, and clips nothing', () => {
+    laidOut(() => 3)
+    const { container } = render(<Card text="Un mot un peu long" floor="2" />)
+    const title = container.querySelector('h2') as HTMLElement
+
+    expect(parseFloat(title.style.fontSize)).toBeGreaterThanOrEqual(2)
+    expect(title.style.display).toBe('')
+    expect(title.dataset['clamped']).toBeUndefined()
+  })
+
+  it('takes the clip off again when the text changes and fits', () => {
+    laidOut(() => 12)
+    const { container, rerender } = render(<Card text="Un mot beaucoup trop long" floor="9" />)
+    const title = container.querySelector('h2') as HTMLElement
+    expect(title.dataset['clamped']).toBeDefined()
+
+    vi.restoreAllMocks()
+    laidOut(() => 1)
+    rerender(<Card text="Court" floor="9" />)
+
+    expect(title.style.display).toBe('')
+    expect(title.dataset['clamped']).toBeUndefined()
   })
 })

@@ -60,6 +60,15 @@ export const dayLabel = (at: Date, lang: Locale, timeZone: string): string =>
     year: 'numeric',
   }).format(at)
 
+/** "11 déc. 2027": the month in letters in every language, so no reader can take 12/11 for the 11th of December. */
+export const shortDayLabel = (at: Date, lang: Locale, timeZone: string): string =>
+  new Intl.DateTimeFormat(lang, {
+    timeZone,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(at)
+
 const weekdayLabel = (at: Date, lang: Locale, timeZone: string): string =>
   new Intl.DateTimeFormat(lang, { timeZone, weekday: 'long' }).format(at)
 

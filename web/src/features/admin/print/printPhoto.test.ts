@@ -52,6 +52,16 @@ describe('the photograph of the printed card', () => {
     expect(() => writePrintPhoto('noces', JPEG)).not.toThrow()
     expect(readPrintPhoto('noces')).toBeNull()
   })
+
+  it('says whether the photograph was kept', () => {
+    expect(writePrintPhoto('noces', JPEG)).toBe(true)
+    expect(writePrintPhoto('noces', null)).toBe(true)
+
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    expect(writePrintPhoto('noces', JPEG)).toBe(false)
+  })
 })
 
 describe('preparing the photograph in the browser', () => {

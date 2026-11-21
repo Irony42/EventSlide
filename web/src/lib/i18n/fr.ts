@@ -3892,6 +3892,10 @@ export const fr = {
       shortReset: 'Revenir au mot automatique',
       printA5Help:
         'Pour l’A5, imprimez depuis Chrome, Edge ou Firefox\u00a0: Safari ne sait pas tourner la feuille.',
+      photoHint:
+        'La photo reste dans ce navigateur\u00a0: EventSlide ne l’envoie nulle part, et un autre appareil ne la verra pas.',
+      photoNotKept:
+        'La photo n’a pas pu être gardée sur cet appareil\u00a0: elle disparaîtra quand vous quitterez la page.',
       printButton: 'Imprimer',
       previewLabel: 'Aperçu de la carte',
       printHelp:
@@ -3901,6 +3905,12 @@ export const fr = {
       eyebrow: 'Invitation',
       more: 'Tous les détails sur la page de l’invitation.',
       link: (link: string) => `Infos et mur photo\u00a0: ${link}`,
+      entry: 'Entrée\u00a0: vous',
+      hourLabel: 'Heure',
+      placeLabel: 'Lieu',
+      stubLine: 'Tous les détails, et le soir même le mur photo.',
+      startLabel: 'Début',
+      endLabel: 'Fin',
     },
   },
 

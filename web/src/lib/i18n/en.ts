@@ -3139,6 +3139,10 @@ export const en: UiText = {
       shortHint: 'The full message is on the invitation page.',
       shortReset: 'Back to the automatic word',
       printA5Help: 'For A5, print from Chrome, Edge or Firefox: Safari cannot turn the sheet.',
+      photoHint:
+        'The photo stays in this browser: EventSlide sends it nowhere, and another device will not see it.',
+      photoNotKept:
+        'The photo could not be kept on this device: it will be gone when you leave the page.',
       printButton: 'Print',
       previewLabel: 'Card preview',
       printHelp:
@@ -3148,6 +3152,12 @@ export const en: UiText = {
       eyebrow: 'Invitation',
       more: 'All the details on the invitation page.',
       link: (link: string) => `Details and photo wall: ${link}`,
+      entry: 'Entry: you',
+      hourLabel: 'Time',
+      placeLabel: 'Place',
+      stubLine: 'All the details, and the photo wall on the night.',
+      startLabel: 'Start',
+      endLabel: 'End',
     },
   },
 

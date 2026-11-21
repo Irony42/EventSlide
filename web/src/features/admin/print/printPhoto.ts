@@ -71,11 +71,15 @@ export const readPrintPhoto = (slug: string): string | null => {
   }
 }
 
-/** Keeps the photograph for next time; when storage refuses (full, private), it lives for this visit. */
-export const writePrintPhoto = (slug: string, url: string | null): void => {
+/**
+ * Keeps the photograph for next time; when storage refuses (full, private), it lives for this
+ * visit. `false` says it was **not** kept, so the page can tell the host.
+ */
+export const writePrintPhoto = (slug: string, url: string | null): boolean => {
   try {
     if (url === null) window.localStorage.removeItem(keyFor(slug))
     else window.localStorage.setItem(keyFor(slug), url)
+    return true
   } catch {
     // Storage is a convenience; the page keeps the photograph in memory. What it held before must
     // not come back at the next visit in place of the one the host just chose.
@@ -84,5 +88,6 @@ export const writePrintPhoto = (slug: string, url: string | null): void => {
     } catch {
       // Blocked storage holds nothing to come back.
     }
+    return url === null
   }
 }

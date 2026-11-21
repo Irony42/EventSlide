@@ -3,10 +3,15 @@ import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import {
   datePartOf,
+  invitationQrShareOf,
+  isInvitationDesign,
   monogramOf,
   qrShareOf,
   type PrintDesign,
 } from '../../../lib/print/printDesigns'
+import { InvitationLayout } from './PrintCardInvitations'
+import { GarlandBanner, Photo } from './PrintCardParts'
+import { ZIGZAG } from './printCardShapes'
 import styles from './PrintCard.module.css'
 
 /** What the host wrote: an empty title is the event's name by now, a `null` line the usual one. */
@@ -35,6 +40,8 @@ export interface PrintCardInvitation {
   /** Set when the full word is longer than the one printed. */
   readonly more: string | null
   readonly link: string
+  /** The day as numbers (`11/12/2027`), for the designs with a narrow column. */
+  readonly dayShort: string
 }
 
 export interface PrintCardProps {
@@ -53,7 +60,7 @@ export interface PrintCardProps {
   readonly invitation?: PrintCardInvitation | undefined
 }
 
-interface DesignProps extends Omit<
+export interface DesignProps extends Omit<
   PrintCardProps,
   'design' | 'qr' | 'focusX' | 'focusY' | 'texts'
 > {
@@ -72,42 +79,28 @@ interface DesignProps extends Omit<
  */
 export function PrintCard({ design, qr, focusX, focusY, texts, ...rest }: PrintCardProps) {
   const t = useTranslations()
-  // An invitation has its own disposition per design; a design with none yet wears the Essentiel
-  // one **and its stylesheet**: the card is then an Essentiel one all the way down.
-  const invitationDesign = rest.invitation !== undefined ? INVITATION_DESIGNS[design] : undefined
-  const shown: PrintDesign =
-    rest.invitation !== undefined && invitationDesign === undefined ? 'essentiel' : design
-  const Design =
-    rest.invitation === undefined ? DESIGNS[design] : (invitationDesign ?? EssentielInvitation)
+  // An invitation has its own disposition per design; a design with none wears the Essentiel one
+  // **and its stylesheet**: the card is then an Essentiel one all the way down.
+  const invitation = rest.invitation !== undefined
+  const shown: PrintDesign = invitation && !isInvitationDesign(design) ? 'essentiel' : design
+  const Design = DESIGNS[design]
   const style = {
-    '--qr-share': String(qrShareOf(shown)),
+    '--qr-share': String(
+      invitation && isInvitationDesign(shown) ? invitationQrShareOf(shown) : qrShareOf(shown),
+    ),
     '--fx': `${focusX}%`,
     '--fy': `${focusY}%`,
   } as CSSProperties
+  const props = {
+    ...rest,
+    texts: { ...texts, tagline: texts.tagline ?? t.printKit.title },
+    qr: <div className={styles['qr']}>{qr}</div>,
+    monogram: monogramOf(texts.title),
+  }
   return (
     <article className={cx(styles['card'], styles[shown])} data-print-card={shown} style={style}>
-      <Design
-        {...rest}
-        texts={{ ...texts, tagline: texts.tagline ?? t.printKit.title }}
-        qr={<div className={styles['qr']}>{qr}</div>}
-        monogram={monogramOf(texts.title)}
-      />
+      {invitation ? <InvitationLayout design={design} {...props} /> : <Design {...props} />}
     </article>
-  )
-}
-
-function Photo({
-  url,
-  className,
-}: {
-  readonly url: string | null
-  readonly className?: string | undefined
-}) {
-  if (url === null) return null
-  return (
-    <div className={cx(styles['photo'], className)}>
-      <img src={url} alt="" />
-    </div>
   )
 }
 
@@ -161,48 +154,6 @@ function Essentiel({ texts, steps, qr, joinCode, address }: DesignProps) {
   )
 }
 
-/**
- * The invitation, on the Essentiel card (spec 29): an eyebrow, the title, the moment, the place with
- * its address, the host's short word, the QR, and the short link under it. No steps, no join code: the
- * QR leads to the invitation page, which leads to the wall on the evening.
- */
-function EssentielInvitation({ texts, qr, invitation }: DesignProps) {
-  if (invitation === undefined) return null
-  return (
-    <div className={styles['face']}>
-      <p className={styles['esEye']}>{invitation.eyebrow}</p>
-      <h2 className={styles['esInvTitle']} data-fit>
-        {texts.title}
-      </h2>
-      <div className={styles['esRule']} />
-      <div className={styles['esMoment']}>
-        <p className={styles['esWhen']} data-fit>
-          {invitation.day}
-        </p>
-        <p className={styles['esHours']}>{invitation.hours}</p>
-      </div>
-      {invitation.venue === null && invitation.address === null ? null : (
-        <p className={styles['esWhere']} data-fit>
-          {invitation.venue}
-          {invitation.address === null ? null : (
-            <span className={styles['esWhereAddress']}>{invitation.address}</span>
-          )}
-        </p>
-      )}
-      {invitation.message === null ? null : (
-        <p className={styles['esMsg']} data-fit>
-          {invitation.message}
-          {invitation.more === null ? null : (
-            <span className={styles['esMore']}>{invitation.more}</span>
-          )}
-        </p>
-      )}
-      {qr}
-      <p className={styles['esLink']}>{invitation.link}</p>
-    </div>
-  )
-}
-
 function Classique({ texts, photoUrl, monogram, qr, joinCode, address }: DesignProps) {
   const t = useTranslations()
   return (
@@ -235,18 +186,6 @@ function Classique({ texts, photoUrl, monogram, qr, joinCode, address }: DesignP
     </div>
   )
 }
-
-/** The torn edges of a till receipt, top and bottom, as one clip path. */
-const ZIGZAG = (() => {
-  const teeth = 22
-  const points: string[] = []
-  for (let i = 0; i <= teeth; i++)
-    points.push(`${((i / teeth) * 100).toFixed(2)}% ${i % 2 ? '1.4cqw' : '0px'}`)
-  for (let i = teeth; i >= 0; i--) {
-    points.push(`${((i / teeth) * 100).toFixed(2)}% calc(100% - ${i % 2 ? '1.4cqw' : '0px'})`)
-  }
-  return `polygon(${points.join(',')})`
-})()
 
 function Ticket({ texts, photoUrl, monogram, qr, joinCode, address }: DesignProps) {
   const t = useTranslations()
@@ -777,113 +716,12 @@ function Nuit({ texts, photoUrl, monogram, qr, joinCode, address }: DesignProps)
   )
 }
 
-/** The garland of the EventSlide logo, drawn wide: prints pegged on a string (Garland.astro). */
-const GARLAND_WIDTH = 90.4
-const P0 = [-4, 2] as const
-const P1 = [GARLAND_WIDTH / 2, 32] as const
-const P2 = [GARLAND_WIDTH + 4, 2] as const
-const onString = (u: number): readonly [number, number] => [
-  (1 - u) ** 2 * P0[0] + 2 * (1 - u) * u * P1[0] + u * u * P2[0],
-  (1 - u) ** 2 * P0[1] + 2 * (1 - u) * u * P1[1] + u * u * P2[1],
-]
-const slopeAt = (u: number): number => {
-  const dx = 2 * (1 - u) * (P1[0] - P0[0]) + 2 * u * (P2[0] - P1[0])
-  const dy = 2 * (1 - u) * (P1[1] - P0[1]) + 2 * u * (P2[1] - P1[1])
-  return (Math.atan2(dy, dx) * 180) / Math.PI
-}
-const GARLAND_PRINTS = [
-  { u: 0.08, tone: 'glSun', w: 11, h: 13.5 },
-  { u: 0.24, tone: 'glSky', w: 12.5, h: 15 },
-  { u: 0.5, tone: null, w: 30, h: 36 },
-  { u: 0.76, tone: 'glPink', w: 12.5, h: 15 },
-  { u: 0.92, tone: 'glMint', w: 11, h: 13.5 },
-] as const
-const r2 = (value: number): string => value.toFixed(2)
-
 function Guirlande({ texts, photoUrl, monogram, qr, joinCode, address }: DesignProps) {
   const t = useTranslations()
   const meta = metaLine(texts.date, texts.table, t.printKit.table)
   return (
     <div className={cx(styles['face'], styles['glFace'])}>
-      <svg className={styles['glBanner']} viewBox={`0 0 ${GARLAND_WIDTH} 56`} aria-hidden="true">
-        <path
-          className={styles['glString']}
-          d={`M${P0[0]} ${P0[1]} Q${P1[0]} ${P1[1]} ${P2[0]} ${P2[1]}`}
-          fill="none"
-          strokeWidth="0.9"
-          strokeLinecap="round"
-        />
-        {GARLAND_PRINTS.map(({ u, tone, w, h }) => {
-          const [x, y] = onString(u)
-          const turn = slopeAt(u) * 0.6
-          const pegW = tone === null ? 2.6 : 2.2
-          const pegH = tone === null ? 6.6 : 5.6
-          const pad = 1.7
-          const inner = w - 2 * pad
-          return (
-            <g key={u} transform={`rotate(${r2(turn)} ${r2(x)} ${r2(y)})`}>
-              {tone === null ? (
-                <>
-                  <rect
-                    className={styles['glPrint']}
-                    x={r2(x - w / 2)}
-                    y={r2(y - 1)}
-                    width={w}
-                    height={h}
-                    rx="2"
-                  />
-                  {photoUrl === null ? (
-                    <>
-                      <rect
-                        className={styles['glCoral']}
-                        x={r2(x - inner / 2)}
-                        y={r2(y - 1 + pad)}
-                        width={r2(inner)}
-                        height={r2(inner)}
-                        rx="1"
-                      />
-                      <text
-                        className={styles['glMonogram']}
-                        x={r2(x)}
-                        y={r2(y - 1 + pad + inner / 2 + 2.6)}
-                        textAnchor="middle"
-                      >
-                        {monogram}
-                      </text>
-                    </>
-                  ) : (
-                    <foreignObject
-                      x={r2(x - inner / 2)}
-                      y={r2(y - 1 + pad)}
-                      width={r2(inner)}
-                      height={r2(inner)}
-                    >
-                      <Photo url={photoUrl} className={styles['glPhoto']} />
-                    </foreignObject>
-                  )}
-                </>
-              ) : (
-                <rect
-                  className={styles[tone]}
-                  x={r2(x - w / 2)}
-                  y={r2(y - 1)}
-                  width={w}
-                  height={h}
-                  rx={r2(w * 0.13)}
-                />
-              )}
-              <rect
-                className={styles['glPeg']}
-                x={r2(x - pegW / 2)}
-                y={r2(y - pegH * 0.55)}
-                width={pegW}
-                height={pegH}
-                rx={r2(pegW * 0.35)}
-              />
-            </g>
-          )
-        })}
-      </svg>
+      <GarlandBanner photoUrl={photoUrl} monogram={monogram} />
       <div className={cx(styles['col'], styles['glBody'])}>
         <h2 className={styles['glTitle']} data-fit>
           {texts.title}
@@ -914,13 +752,6 @@ function Guirlande({ texts, photoUrl, monogram, qr, joinCode, address }: DesignP
       </div>
     </div>
   )
-}
-
-/** The invitation dispositions (spec 29). Essentiel first; each design that gains one is a line here. */
-const INVITATION_DESIGNS: Readonly<
-  Partial<Record<PrintDesign, (props: DesignProps) => ReactNode>>
-> = {
-  essentiel: EssentielInvitation,
 }
 
 const DESIGNS: Readonly<Record<PrintDesign, (props: DesignProps) => ReactNode>> = {

@@ -3254,6 +3254,10 @@ export const de: UiText = {
       shortReset: 'Zurück zum automatischen Text',
       printA5Help:
         'Für A5 drucken Sie aus Chrome, Edge oder Firefox: Safari kann das Blatt nicht drehen.',
+      photoHint:
+        'Das Foto bleibt in diesem Browser: EventSlide schickt es nirgendwohin, und ein anderes Gerät sieht es nicht.',
+      photoNotKept:
+        'Das Foto konnte nicht auf diesem Gerät gespeichert werden: Es ist weg, sobald Sie die Seite verlassen.',
       printButton: 'Drucken',
       previewLabel: 'Vorschau der Karte',
       printHelp:
@@ -3263,6 +3267,12 @@ export const de: UiText = {
       eyebrow: 'Einladung',
       more: 'Alle Einzelheiten auf der Einladungsseite.',
       link: (link: string) => `Infos und Fotowand: ${link}`,
+      entry: 'Eintritt: Sie',
+      hourLabel: 'Uhrzeit',
+      placeLabel: 'Ort',
+      stubLine: 'Alle Details, und am Abend die Fotowand.',
+      startLabel: 'Beginn',
+      endLabel: 'Ende',
     },
   },
 

@@ -59,23 +59,52 @@ const overflows = (text: HTMLElement, size: number): boolean => {
   )
 }
 
-const shrink = (text: HTMLElement, cardWidth: number): number => {
+const shrink = (text: HTMLElement, cardWidth: number, floor: number): number => {
   let size = parseFloat(getComputedStyle(text).fontSize)
   for (let step = 0; step < MAX_STEPS && overflows(text, size); step++) {
+    // A text with a legibility floor never goes under it: what does not fit is clipped below.
+    if (floor > 0 && ((size * STEP) / cardWidth) * 100 < floor) break
     size *= STEP
     text.style.fontSize = `${((size / cardWidth) * 100).toFixed(3)}cqw`
   }
   return (size / cardWidth) * 100
 }
 
+/**
+ * Keeps the first lines that fit the box and ends them with an ellipsis, for a text that is still
+ * too long at its legibility floor: the reader sees a shortened text, never a smaller one.
+ */
+const clamp = (text: HTMLElement): void => {
+  // Lines are only counted in a text of its own: a block of several paragraphs is sized, not clamped.
+  if (text.children.length > 0) return
+  const style = getComputedStyle(text)
+  const ceiling = parseFloat(style.maxHeight)
+  const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2
+  if (!Number.isFinite(ceiling) || lineHeight <= 0) return
+  const lines = Math.max(1, Math.floor(ceiling / lineHeight))
+  text.style.display = '-webkit-box'
+  text.style.setProperty('-webkit-box-orient', 'vertical')
+  text.style.setProperty('-webkit-line-clamp', String(lines))
+  text.style.overflow = 'hidden'
+  text.dataset['clamped'] = ''
+}
+
 const fit = (text: HTMLElement, cardWidth: number): void => {
   text.style.fontSize = ''
   text.style.whiteSpace = ''
-  const found = shrink(text, cardWidth)
+  text.style.display = ''
+  text.style.overflow = ''
+  delete text.dataset['clamped']
+  text.style.removeProperty('-webkit-box-orient')
+  text.style.removeProperty('-webkit-line-clamp')
+  const legible = Number(text.dataset['fitFloor'])
+  const floorCqw = Number.isFinite(legible) && legible > 0 ? legible : 0
+  const found = shrink(text, cardWidth, floorCqw)
   const floor = Number(text.dataset['fitMin'])
   if (Number.isFinite(floor) && floor > 0 && found < floor) {
     text.style.fontSize = ''
     text.style.whiteSpace = 'normal'
-    shrink(text, cardWidth)
+    shrink(text, cardWidth, floorCqw)
   }
+  if (floorCqw > 0 && overflows(text, parseFloat(getComputedStyle(text).fontSize))) clamp(text)
 }
