@@ -1250,6 +1250,33 @@ export interface AnnouncementResponseDto {
   readonly announcement: AnnouncementDto
 }
 
+/**
+ * The host's reading of the event's guest invitation (spec 29). `configured` is `false` until the
+ * host first saves or switches it on: the content is then all `null`, there is no link yet, and
+ * `defaultTitle` and `defaultStartsAt` (the event's own name and date) are what the form starts
+ * from. `url` is the absolute link, present as soon as a row exists, switched on or not.
+ */
+export interface GuestInviteDto {
+  readonly configured: boolean
+  readonly enabled: boolean
+  readonly url: string | null
+  readonly title: string | null
+  readonly startsAt: string | null
+  readonly endsAt: string | null
+  readonly timeZone: string | null
+  readonly venueName: string | null
+  readonly address: string | null
+  readonly message: string | null
+  readonly language: string
+  readonly defaultTitle: string
+  readonly defaultStartsAt: string | null
+}
+
+/** What every host route of the guest invitation answers. */
+export interface GuestInviteResponseDto {
+  readonly guestInvite: GuestInviteDto
+}
+
 /** The console's view: the wall's, plus the mission it names (to say which row is running). */
 export interface HostChallengeDto {
   readonly id: string

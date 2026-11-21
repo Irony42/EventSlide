@@ -408,6 +408,11 @@ describe('a suspended client, through the real composition root', () => {
       body: {},
     },
     { method: 'delete', path: '/api/events/:eventSlug/announcements/:announcementId', body: {} },
+    // The guest invitation (spec 29): a frozen event's owner reads it and cannot change it.
+    { method: 'put', path: '/api/events/:eventSlug/guest-invite', body: { title: 'Fête' } },
+    { method: 'post', path: '/api/events/:eventSlug/guest-invite/enable', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/guest-invite/disable', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/guest-invite/rotate', body: {} },
     // A messaging channel (spec 27): a frozen event keeps its groups until the client is back.
     { method: 'delete', path: '/api/events/:eventSlug/channels/:bindingId', body: {} },
     {

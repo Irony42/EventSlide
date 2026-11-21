@@ -23,6 +23,11 @@ import { makeUpdateEventSettings } from '../application/usecases/events/updateEv
 import { makeGetEventLimits } from '../application/usecases/events/getEventLimits'
 import { makeSweepPurgeNotices } from '../application/usecases/events/sweepPurgeNotices'
 import { makeGetEventView } from '../application/usecases/events/getEventView'
+import { makeGetGuestInvite } from '../application/usecases/guestInvites/getGuestInvite'
+import { makeSaveGuestInvite } from '../application/usecases/guestInvites/saveGuestInvite'
+import { makeEnableGuestInvite } from '../application/usecases/guestInvites/enableGuestInvite'
+import { makeDisableGuestInvite } from '../application/usecases/guestInvites/disableGuestInvite'
+import { makeRotateGuestInviteToken } from '../application/usecases/guestInvites/rotateGuestInviteToken'
 import { archiveStateOf } from '../domain/exports/albumExport'
 import type { Adapters, UseCasePolicy } from './usecases'
 import type { SharedHooks } from './usecases.shared'
@@ -91,6 +96,43 @@ export const eventsUseCases = (
     memberships: adapters.memberships,
     audit: adapters.audit,
     bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  // The guest invitation, the owner's side (spec 29): audited acts, no content in the log.
+  getGuestInvite: makeGetGuestInvite({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+  }),
+  saveGuestInvite: makeSaveGuestInvite({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    audit: adapters.audit,
+    ids: adapters.ids,
+    clock: adapters.clock,
+  }),
+  enableGuestInvite: makeEnableGuestInvite({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    audit: adapters.audit,
+    ids: adapters.ids,
+    clock: adapters.clock,
+  }),
+  disableGuestInvite: makeDisableGuestInvite({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    audit: adapters.audit,
+    clock: adapters.clock,
+  }),
+  rotateGuestInviteToken: makeRotateGuestInviteToken({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    audit: adapters.audit,
+    ids: adapters.ids,
     clock: adapters.clock,
   }),
   rotateJoinCode: makeRotateJoinCode({
