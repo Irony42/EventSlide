@@ -6,11 +6,19 @@ import { Textarea } from '../../../../design-system/components/Textarea'
 import { parseLocale } from '../../../../lib/i18n/locale'
 import { translationsFor } from '../../../../lib/i18n/translations'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
-import { SHORT_MESSAGE_MAX, readableLink, shortMessageOf } from '../../../../lib/invite/cardTexts'
+import {
+  SHORT_MESSAGE_MAX,
+  graphemeCount,
+  graphemesOf,
+  readableLink,
+  shortMessageOf,
+} from '../../../../lib/invite/cardTexts'
 import { whenParts } from '../../../../lib/invite/inviteTexts'
 import { PRINT_SWATCHES, PRINT_SWATCH_IDS } from '../../../../lib/print/printColours'
+import { qrShareOf } from '../../../../lib/print/printDesigns'
+import { Notice } from '../../../../design-system/components/Notice'
 import { PrintSheet } from '../../print/PrintSheet'
-import { hueOfHex, isHexColour } from '../../print/printKit'
+import { hueOfHex, isHexColour, isQrTooSmall } from '../../print/printKit'
 import { usePrintPageRule } from '../../print/usePrintPageRule'
 import {
   DEFAULT_INVITE_FORMAT,
@@ -37,6 +45,7 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
   const [preferences, setPreferences] = useState<InvitePreferences>(() =>
     readInvitePreferences(slug),
   )
+  const [totalModules, setTotalModules] = useState<number | null>(null)
   usePrintPageRule()
 
   const update = (next: InvitePreferences) => {
@@ -67,9 +76,14 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
 
   const setShort = (value: string) => {
     const { short: _dropped, ...rest } = preferences
-    const kept = [...value].slice(0, SHORT_MESSAGE_MAX).join('')
+    const kept = graphemesOf(value).slice(0, SHORT_MESSAGE_MAX).join('')
     // An emptied field is the host's choice of no word at all, not a return to the automatic cut.
     update(kept === auto ? rest : { ...rest, short: kept })
+  }
+
+  const resetShort = () => {
+    const { short: _dropped, ...rest } = preferences
+    update(rest)
   }
 
   const setColour = (colour: string | null) => {
@@ -96,6 +110,7 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
               {choice === 'card' ? text.printFormatCard : text.printFormatA5}
             </label>
           ))}
+          <p className={styles['help']}>{text.printA5Help}</p>
         </fieldset>
 
         <fieldset className={styles['group']}>
@@ -150,12 +165,23 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
                 onChange={(e) => setShort(e.target.value)}
               />
               <p className={styles['count']}>
-                <span>{text.shortCount([...shown].length, SHORT_MESSAGE_MAX)}</span>
+                <span>{text.shortCount(graphemeCount(shown), SHORT_MESSAGE_MAX)}</span>
                 {isAuto ? <span className={styles['auto']}>{text.shortAuto}</span> : null}
               </p>
+              {isAuto ? null : (
+                <button type="button" className={styles['reset']} onClick={resetShort}>
+                  {text.shortReset}
+                </button>
+              )}
             </>
           )}
         </Field>
+
+        {totalModules !== null && isQrTooSmall(format, qrShareOf('essentiel'), totalModules) ? (
+          <Notice tone="warning" role="status" variant="boxed">
+            {t.admin.printKitLongLink}
+          </Notice>
+        ) : null}
 
         <Button variant="primary" onClick={() => window.print()}>
           {text.printButton}
@@ -174,6 +200,7 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
           accentHue={hue}
           colour={chosen ?? eventColour}
           design="essentiel"
+          onQrModules={setTotalModules}
           texts={{
             title: invite.title ?? event.name,
             tagline: null,

@@ -176,21 +176,23 @@
  * renders, so no other tab and no other page changes how it prints.
  */
 @media print {
-  .screenOnly,
-  .title,
-  .column,
-  .tabs,
-  .locked {
-    display: none;
-  }
-
-  .page,
-  .layout {
+  /* Every rule is scoped to the page that holds the card: Ctrl+P on another tab, or on a locked
+     panel, prints the page as it is and not a headless remainder. */
+  .page:has([data-invite-sheet]) {
     display: block;
     max-inline-size: none;
   }
 
-  .panel {
+  .page:has([data-invite-sheet]) :is(.screenOnly, .title, .column, .tabs, .locked) {
+    display: none;
+  }
+
+  .page:has([data-invite-sheet]) .layout {
+    display: block;
+    max-inline-size: none;
+  }
+
+  .page:has([data-invite-sheet]) .panel {
     padding: 0;
     border: none;
     border-radius: 0;

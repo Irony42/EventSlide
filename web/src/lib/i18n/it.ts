@@ -3188,6 +3188,8 @@ export const it: UiText = {
       shortCount: (count: number, max: number) => `${count} / ${max}`,
       shortAuto: 'auto',
       shortHint: 'Il messaggio completo è nella pagina dell’invito.',
+      shortReset: 'Torna al testo automatico',
+      printA5Help: 'Per l’A5, stampa da Chrome, Edge o Firefox: Safari non sa ruotare il foglio.',
       printButton: 'Stampa',
       previewLabel: 'Anteprima della cartolina',
       printHelp:

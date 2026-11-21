@@ -126,6 +126,50 @@ describe('PrintTab', () => {
     expect(screen.getByRole('textbox', { name: text.shortLabel })).toHaveValue('')
   })
 
+  it('offers the way back to the automatic word once the host has written their own, and only then', async () => {
+    const user = userEvent.setup()
+    renderTab({ message: 'Apéro à 19 h.' })
+    expect(screen.queryByRole('button', { name: text.shortReset })).not.toBeInTheDocument()
+
+    const field = screen.getByRole('textbox', { name: text.shortLabel })
+    await user.clear(field)
+    await user.type(field, 'Autre mot')
+    await user.click(screen.getByRole('button', { name: text.shortReset }))
+
+    expect(field).toHaveValue('Apéro à 19 h.')
+    expect(screen.getByText(text.shortAuto)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: text.shortReset })).not.toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem(KEY) ?? '{}')).toEqual({})
+  })
+
+  it('brings the word back after it was emptied', async () => {
+    const user = userEvent.setup()
+    renderTab({ message: 'Apéro à 19 h.' })
+    await user.clear(screen.getByRole('textbox', { name: text.shortLabel }))
+
+    await user.click(screen.getByRole('button', { name: text.shortReset }))
+
+    expect(sheet()).toHaveTextContent('Apéro à 19 h.')
+  })
+
+  it('tells A5 is to be printed from a browser that turns the sheet', () => {
+    renderTab()
+
+    expect(screen.getByText((content) => content === plain(text.printA5Help))).toBeInTheDocument()
+  })
+
+  it('warns when the link is so long that the QR would print too small', () => {
+    renderTab({ url: `${URL_OF_INVITE}/${'a'.repeat(900)}` })
+
+    expect(screen.getByText(fr.admin.printKitLongLink)).toBeInTheDocument()
+  })
+
+  it('has no such warning for a link of the usual length', () => {
+    renderTab()
+
+    expect(screen.queryByText(fr.admin.printKitLongLink)).not.toBeInTheDocument()
+  })
+
   it('counts the characters of the word out of 140', () => {
     renderTab({ message: 'Apéro à 19 h.' })
 

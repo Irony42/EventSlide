@@ -3889,6 +3889,9 @@ export const fr = {
       shortCount: (count: number, max: number) => `${count} / ${max}`,
       shortAuto: 'auto',
       shortHint: 'Le mot complet est sur la page de l’invitation.',
+      shortReset: 'Revenir au mot automatique',
+      printA5Help:
+        'Pour l’A5, imprimez depuis Chrome, Edge ou Firefox\u00a0: Safari ne sait pas tourner la feuille.',
       printButton: 'Imprimer',
       previewLabel: 'Aperçu de la carte',
       printHelp:

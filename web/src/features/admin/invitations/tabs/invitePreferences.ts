@@ -1,6 +1,6 @@
 import { isHexColour } from '../../print/printKit'
 import { isPrintDesign, type PrintDesign } from '../../../../lib/print/printDesigns'
-import { SHORT_MESSAGE_MAX } from '../../../../lib/invite/cardTexts'
+import { SHORT_MESSAGE_MAX, graphemeCount } from '../../../../lib/invite/cardTexts'
 
 /**
  * What the host last chose for the invitation's card and image on this device, per event
@@ -43,7 +43,7 @@ export const readInvitePreferences = (slug: string): InvitePreferences => {
       ...(isPrintDesign(design) ? { design } : {}),
       ...(isHexColour(colour) ? { colour: colour.toLowerCase() } : {}),
       ...(isFormat(format) ? { format } : {}),
-      ...(typeof short === 'string' && [...short].length <= SHORT_MESSAGE_MAX ? { short } : {}),
+      ...(typeof short === 'string' && graphemeCount(short) <= SHORT_MESSAGE_MAX ? { short } : {}),
     }
   } catch {
     return {}

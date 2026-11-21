@@ -3213,6 +3213,8 @@ export const es: UiText = {
       shortCount: (count: number, max: number) => `${count} / ${max}`,
       shortAuto: 'auto',
       shortHint: 'El mensaje completo está en la página de la invitación.',
+      shortReset: 'Volver al texto automático',
+      printA5Help: 'Para A5, imprima desde Chrome, Edge o Firefox: Safari no puede girar la hoja.',
       printButton: 'Imprimir',
       previewLabel: 'Vista previa de la tarjeta',
       printHelp:

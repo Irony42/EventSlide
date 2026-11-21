@@ -3251,6 +3251,9 @@ export const de: UiText = {
       shortCount: (count: number, max: number) => `${count} / ${max}`,
       shortAuto: 'automatisch',
       shortHint: 'Die ganze Nachricht steht auf der Einladungsseite.',
+      shortReset: 'Zurück zum automatischen Text',
+      printA5Help:
+        'Für A5 drucken Sie aus Chrome, Edge oder Firefox: Safari kann das Blatt nicht drehen.',
       printButton: 'Drucken',
       previewLabel: 'Vorschau der Karte',
       printHelp:

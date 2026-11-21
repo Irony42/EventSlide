@@ -3137,6 +3137,8 @@ export const en: UiText = {
       shortCount: (count: number, max: number) => `${count} / ${max}`,
       shortAuto: 'auto',
       shortHint: 'The full message is on the invitation page.',
+      shortReset: 'Back to the automatic word',
+      printA5Help: 'For A5, print from Chrome, Edge or Firefox: Safari cannot turn the sheet.',
       printButton: 'Print',
       previewLabel: 'Card preview',
       printHelp:

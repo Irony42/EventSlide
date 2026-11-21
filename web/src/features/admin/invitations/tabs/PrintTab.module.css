@@ -99,6 +99,18 @@
   font-style: italic;
 }
 
+.reset {
+  align-self: flex-start;
+  min-block-size: var(--touch-min);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .help {
   font-size: var(--text-sm);
   color: var(--text-secondary);

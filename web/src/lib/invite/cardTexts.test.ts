@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SHORT_MESSAGE_MAX, readableLink, shortMessageOf } from './cardTexts'
+import { SHORT_MESSAGE_MAX, graphemeCount, readableLink, shortMessageOf } from './cardTexts'
 
 describe('shortMessageOf', () => {
   it('has nothing to print for no word, or a blank one', () => {
@@ -51,6 +51,30 @@ describe('shortMessageOf', () => {
 
     expect([...(short ?? '')]).toHaveLength(SHORT_MESSAGE_MAX)
     expect(short).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/)
+  })
+
+  it('counts a grapheme as one: a family emoji and a letter with a combining accent are never cut', () => {
+    const family = '👨‍👩‍👧‍👦'
+    const accented = 'é'
+    expect(graphemeCount(family)).toBe(1)
+    expect(graphemeCount(accented)).toBe(1)
+
+    const short = shortMessageOf(family.repeat(200))
+
+    expect(graphemeCount(short ?? '')).toBe(SHORT_MESSAGE_MAX)
+    expect(short?.slice(0, -1)).toBe(family.repeat(SHORT_MESSAGE_MAX - 1))
+    expect(shortMessageOf(accented.repeat(200))?.slice(0, -1)).toBe(
+      accented.repeat(SHORT_MESSAGE_MAX - 1),
+    )
+  })
+
+  it('cuts a text with no usable space at a grapheme, not at an early space', () => {
+    const word = `Venez ${'x'.repeat(300)}`
+
+    const short = shortMessageOf(word)
+
+    expect(graphemeCount(short ?? '')).toBe(SHORT_MESSAGE_MAX)
+    expect(short?.startsWith('Venez xxxx')).toBe(true)
   })
 
   it('takes the limit it is given', () => {

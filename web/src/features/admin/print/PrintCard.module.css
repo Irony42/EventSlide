@@ -2206,7 +2206,8 @@
 
 .esWhere {
   inline-size: 100%;
-  max-block-size: 10cqw;
+  /* A venue and a two-line address: 4.9 + 2 x 4.1 cqw, with a little air. */
+  max-block-size: 14cqw;
   font-size: 3.9cqw;
   font-weight: 600;
   line-height: 1.25;

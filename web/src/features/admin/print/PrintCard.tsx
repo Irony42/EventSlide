@@ -72,18 +72,20 @@ interface DesignProps extends Omit<
  */
 export function PrintCard({ design, qr, focusX, focusY, texts, ...rest }: PrintCardProps) {
   const t = useTranslations()
-  // An invitation has its own disposition per design; a design with none yet wears the Essentiel one.
+  // An invitation has its own disposition per design; a design with none yet wears the Essentiel
+  // one **and its stylesheet**: the card is then an Essentiel one all the way down.
+  const invitationDesign = rest.invitation !== undefined ? INVITATION_DESIGNS[design] : undefined
+  const shown: PrintDesign =
+    rest.invitation !== undefined && invitationDesign === undefined ? 'essentiel' : design
   const Design =
-    rest.invitation === undefined
-      ? DESIGNS[design]
-      : (INVITATION_DESIGNS[design] ?? EssentielInvitation)
+    rest.invitation === undefined ? DESIGNS[design] : (invitationDesign ?? EssentielInvitation)
   const style = {
-    '--qr-share': String(qrShareOf(design)),
+    '--qr-share': String(qrShareOf(shown)),
     '--fx': `${focusX}%`,
     '--fy': `${focusY}%`,
   } as CSSProperties
   return (
-    <article className={cx(styles['card'], styles[design])} data-print-card={design} style={style}>
+    <article className={cx(styles['card'], styles[shown])} data-print-card={shown} style={style}>
       <Design
         {...rest}
         texts={{ ...texts, tagline: texts.tagline ?? t.printKit.title }}
