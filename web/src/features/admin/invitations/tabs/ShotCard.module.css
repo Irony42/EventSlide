@@ -25,7 +25,7 @@
 .veil {
   position: absolute;
   inset: 0;
-  background: color-mix(in oklch, var(--pd-color) 35%, black 65%);
+  background: var(--shot-veil);
   opacity: 0.35;
 }
 
@@ -41,7 +41,7 @@
 
 .card {
   flex: none;
-  box-shadow: 0 24px 60px -20px color-mix(in oklch, var(--pd-color) 40%, black 60%);
+  box-shadow: 0 24px 60px -20px var(--shot-shadow);
   border-radius: 12px;
   overflow: hidden;
 }

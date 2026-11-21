@@ -93,3 +93,28 @@ export const decodeQr = async (qr: Locator): Promise<string> => {
   }
   throw failure
 }
+
+/**
+ * What a QR reader finds anywhere in an image file (an invitation image downloaded from the
+ * console): the code is looked for in the picture as it is, then at lower sizes, the way a phone
+ * finds one by moving. Throws when none is read.
+ */
+export const decodeQrInImage = async (image: Buffer): Promise<string> => {
+  const { width = 0 } = await sharp(image).metadata()
+  let failure: unknown = new Error('no QR found in the image')
+  for (const scale of [1, 0.75, 0.5]) {
+    const { data, info } = await sharp(image)
+      .flatten({ background: '#ffffff' })
+      .resize(Math.round(width * scale))
+      .greyscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    const source = new RGBLuminanceSource(new Uint8ClampedArray(data), info.width, info.height)
+    try {
+      return new QRCodeReader().decode(new BinaryBitmap(new HybridBinarizer(source))).getText()
+    } catch (error) {
+      failure = error
+    }
+  }
+  throw failure
+}

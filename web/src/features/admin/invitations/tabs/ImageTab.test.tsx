@@ -175,6 +175,26 @@ describe('ImageTab', () => {
     expect(await screen.findByRole('button', { name: text.download })).toBeEnabled()
   })
 
+  it('takes the image back as soon as the host changes what it is drawn from, until the new one is made', async () => {
+    const user = userEvent.setup()
+    const second = deferred<Blob>()
+    const render = vi
+      .fn<RenderPng>()
+      .mockResolvedValueOnce(png())
+      .mockReturnValueOnce(second.promise)
+    renderTab(render)
+    expect(await screen.findByRole('button', { name: text.share })).toBeEnabled()
+
+    await user.click(screen.getByRole('radio', { name: text.formatStory }))
+
+    // The square's image is no longer the picture on screen: neither shared nor downloaded.
+    expect(screen.queryByRole('button', { name: text.share })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: text.rendering })).toBeDisabled()
+    await waitFor(() => expect(render).toHaveBeenCalledTimes(2))
+    second.resolve(png())
+    expect(await screen.findByRole('button', { name: text.share })).toBeEnabled()
+  })
+
   it('downloads the image under a name that says its shape', async () => {
     const user = tapper()
     renderTab(ready())
@@ -202,24 +222,18 @@ describe('ImageTab', () => {
     expect(await screen.findByText((c) => c === plain(text.copiedBeforeShare))).toBeInTheDocument()
   })
 
-  it('starts the copy and the share in the same tap, before anything is awaited', async () => {
-    const order: string[] = []
-    writeText.mockImplementation(async () => {
-      order.push('copy')
-    })
+  it('opens the share sheet in the same tap as the copy, without waiting for the clipboard', async () => {
+    // A clipboard that never answers: a share that waited for it would never open.
+    writeText.mockImplementation(() => new Promise<void>(() => undefined))
     device.restore()
-    device = useFakeDevice({
-      kind: 'iphone',
-      share: async () => {
-        order.push('share')
-      },
-    })
+    device = useFakeDevice({ kind: 'iphone' })
     const user = tapper()
     renderTab(ready())
 
     await user.click(await screen.findByRole('button', { name: text.share }))
 
-    await waitFor(() => expect(order).toEqual(['copy', 'share']))
+    await waitFor(() => expect(device.shared).toHaveLength(1))
+    expect(writeText).toHaveBeenCalledTimes(1)
   })
 
   it('has no share button on a device that cannot share files, but still downloads and copies', async () => {

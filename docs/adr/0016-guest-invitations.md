@@ -47,6 +47,15 @@ again. The decision below is the one a later reader would otherwise reopen.
 6. **The audit log says that an act happened, never what.** The four acts are `event.guestInviteSaved`, `…Enabled`,
    `…Disabled` and `…Rotated`, with the event as subject: the subject types are a `CHECK` on an append-only table, and
    widening it to name the invitation would mean rebuilding that table for four lines that carry no content.
+7. **The image to share is made in the browser, by `html-to-image`.** The card is already DOM (every design is one
+   `PrintCard`), so the picture is that DOM drawn into an SVG `foreignObject` and a canvas, 1080 by 1080 or 1080 by 1920,
+   on the host's device: no server renders anything and nothing is uploaded. The library is MIT, has no dependencies and no
+   install script (`npm install-scripts ls` stays empty), and is imported dynamically by the Image tab, so neither the main
+   bundle nor the public invitation page carries it. The CSP is unchanged: the card fonts are the instance's own and the
+   photograph is a `data:` URL, both already allowed. The picture is made before the host presses "Partager", because a
+   phone opens its share sheet only from a tap. A WebKit capture can come out without its fonts or images, so the card's
+   faces are asked for first and a first capture is made and dropped there. The alternative, drawing each design a second
+   time on a canvas, would have meant six more layouts to keep identical to the DOM ones.
 
 ## Consequences
 
