@@ -26,8 +26,8 @@ import type { Page } from '@playwright/test'
 
 const text = fr.guestInvite.image
 
-/** Two renderings of one card differ by a few units; a black shape or a missing photograph by tens. */
-const DISTANCE_MAX = 14
+/** Two renderings of one card differ by 3 to 4 units; a black shape or a missing photograph by 7 and more. */
+const DISTANCE_MAX = 7
 
 // Playwright insists on a destructured first argument.
 // eslint-disable-next-line no-empty-pattern

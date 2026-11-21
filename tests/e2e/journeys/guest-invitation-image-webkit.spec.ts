@@ -173,6 +173,6 @@ test('on a phone engine too, every design is drawn in the picture as it is in th
     await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
     const png = await downloadedInvitationImage(host)
 
-    expect(await distanceFromPreview(host, png), name).toBeLessThan(14)
+    expect(await distanceFromPreview(host, png), name).toBeLessThan(7)
   }
 })
