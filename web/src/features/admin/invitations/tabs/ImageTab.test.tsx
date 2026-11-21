@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
+import type * as React from 'react'
 import userEvent from '@testing-library/user-event'
 import { deferred } from '../../../../testing/deferred'
 import { domError, useFakeDevice, type FakeDevice } from '../../../../testing/fakeDevice'
@@ -526,5 +527,70 @@ describe('ImageTab', () => {
     await user.click(await screen.findByRole('button', { name: text.download }))
 
     expect(device.downloads[0]?.connected).toBe(true)
+  })
+
+  const another = (
+    rerender: (ui: React.ReactElement) => void,
+    overrides: Partial<GuestInviteDto>,
+  ) => {
+    const invite = aGuestInviteHost({ enabled: true, ...overrides })
+    rerender(
+      <ImageTab
+        event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
+        invite={{ ...invite, url: invite.url ?? URL_OF_INVITE, startsAt: invite.startsAt ?? '' }}
+        renderPng={ready()}
+      />,
+    )
+  }
+
+  it('drops the words the host rewrote when the invitation changes, and writes them from the new one', () => {
+    const { rerender } = renderTab(ready())
+    fireEvent.change(words(), { target: { value: 'Mon texte à moi' } })
+    expect((words() as HTMLTextAreaElement).value).toBe('Mon texte à moi')
+
+    another(rerender, {
+      startsAt: '2027-12-18T18:00:00.000Z',
+      venueName: 'Chez Camille',
+      url: 'https://photos.example.test/i/NEWTOKEN0000000A',
+    })
+
+    const now = (words() as HTMLTextAreaElement).value
+    expect(now).not.toContain('Mon texte à moi')
+    expect(now).toContain('Samedi 18 décembre 2027')
+    expect(now).toContain('Chez Camille')
+    expect(now.endsWith('NEWTOKEN0000000A')).toBe(true)
+  })
+
+  it('keeps the host’s words while the invitation stays what it was', () => {
+    const { rerender } = renderTab(ready())
+    fireEvent.change(words(), { target: { value: 'Mon texte à moi' } })
+
+    another(rerender, {})
+
+    expect((words() as HTMLTextAreaElement).value).toBe('Mon texte à moi')
+  })
+
+  it('offers the way back to the automatic words once rewritten, and only then', async () => {
+    const user = tapper()
+    renderTab(ready())
+    expect(screen.queryByRole('button', { name: text.revertText })).not.toBeInTheDocument()
+    const automatic = (words() as HTMLTextAreaElement).value
+
+    fireEvent.change(words(), { target: { value: 'Autre' } })
+    await user.click(screen.getByRole('button', { name: text.revertText }))
+
+    expect((words() as HTMLTextAreaElement).value).toBe(automatic)
+    expect(screen.queryByRole('button', { name: text.revertText })).not.toBeInTheDocument()
+  })
+
+  it('forgets that the words were copied as soon as they are edited', async () => {
+    const user = tapper()
+    renderTab(ready())
+    await user.click(screen.getByRole('button', { name: text.copy }))
+    expect(await screen.findByText(text.copied)).toBeInTheDocument()
+
+    fireEvent.change(words(), { target: { value: 'Changé' } })
+
+    expect(screen.queryByText(text.copied)).not.toBeInTheDocument()
   })
 })

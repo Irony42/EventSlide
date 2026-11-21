@@ -1,0 +1,139 @@
+.tab {
+  display: grid;
+  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+  min-width: 0;
+}
+
+@media (max-width: 62rem) {
+  .tab {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.counter {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.counter[data-cut='true'] {
+  color: var(--warning);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* The mailto link is an anchor that looks like the primary button: it opens the host's mail program. */
+.open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  padding: 0 var(--space-4);
+  border-radius: var(--button-radius);
+  background-image: var(--accent-texture);
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+  font-family: var(--font-heading);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.open:hover {
+  background-color: var(--accent-strong);
+}
+
+.preview {
+  min-width: 0;
+}
+
+/* A mail window as a mail program draws it: the headers, then the message, then what is attached. */
+.window {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.windowTitle {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.headers {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border-block: 1px solid var(--border-subtle);
+}
+
+.headers > div {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--border-subtle);
+}
+
+.headers > div:last-child {
+  border-block-end: none;
+}
+
+.headers dt {
+  color: var(--text-secondary);
+}
+
+.headers dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.message {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.attachment {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.chip {
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+}
+
+/* Out of sight but really drawn, at its true size: the image is made from it. */
+.offscreen {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: -20000px;
+  pointer-events: none;
+}

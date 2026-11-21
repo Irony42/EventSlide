@@ -379,3 +379,12 @@ describe('dayMonthLabel', () => {
     expect(dayMonthLabel(at, 'en', 'America/Montreal')).toBe('Saturday, December 11')
   })
 })
+
+describe('itineraryHref and a lone surrogate', () => {
+  it('does not throw on a place that carries half of a pair', () => {
+    const half = String.fromCharCode(0xd83c)
+
+    expect(() => itineraryHref(`Chez ${half}`, null)).not.toThrow()
+    expect(itineraryHref(`Chez ${half}`, null)).toContain('%EF%BF%BD')
+  })
+})
