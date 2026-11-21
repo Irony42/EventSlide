@@ -98,7 +98,6 @@ const buildWorld = (): World => {
               memberships,
               invites,
               audit,
-              ids,
               clock: deps.clock,
             }),
             disableGuestInvite: makeDisableGuestInvite({

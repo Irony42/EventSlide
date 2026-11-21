@@ -4,6 +4,7 @@ import type { EventId } from '../shared/ids'
 import { err, flatMap, ok, type Result } from '../shared/result'
 import {
   applyContentPatch,
+  contentEquals,
   type GuestInviteContent,
   type GuestInviteContentPatch,
 } from './guestInviteContent'
@@ -80,11 +81,20 @@ export class GuestInvite {
     return this.props
   }
 
-  /** Applies a save. An absent field is left as it was; `null` clears it. */
+  /**
+   * Applies a save. An absent field is left as it was; `null` clears it. **A save that changes
+   * nothing returns this very invitation** (same `updatedAt`: it is not an edit), and an
+   * invitation that is switched on cannot lose its date, which would leave a link that answers
+   * "not available" while the host sees it as on (`guestInvite.needsDate`: switch it off first).
+   */
   withContent(patch: GuestInviteContentPatch, now: Date): Result<GuestInvite, DomainError> {
-    return flatMap(applyContentPatch(this.props.content, patch), (content) =>
-      ok(new GuestInvite({ ...this.props, content, updatedAt: now })),
-    )
+    return flatMap(applyContentPatch(this.props.content, patch), (content) => {
+      if (this.props.enabled && content.startsAt === null) {
+        return err(DomainError.invalid('guestInvite.needsDate'))
+      }
+      if (contentEquals(content, this.props.content)) return ok(this)
+      return ok(new GuestInvite({ ...this.props, content, updatedAt: now }))
+    })
   }
 
   /** Turns the link on. It needs a date to announce: an invitation without one says nothing. */

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { GuestInviteToken } from '../../../domain/guestInvites/guestInviteToken'
 import { asEventId } from '../../../domain/shared/ids'
 import type { GuestInviteRepository } from '../../ports/guestInviteRepository'
-import { aGuestInvite } from '../builders'
+import { AT, aGuestInvite } from '../builders'
 
 /**
  * The behaviour every `GuestInviteRepository` must have, run against the fake **and** SQLite:
@@ -25,6 +25,8 @@ export interface GuestInviteRepositorySubject {
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
 
+const LATER = new Date('2026-11-22T10:00:00Z')
+
 const tokenOf = (byte: number): GuestInviteToken => {
   const made = GuestInviteToken.fromBytes(new Uint8Array(16).fill(byte))
   if (!made.ok) throw new Error('token')
@@ -45,12 +47,12 @@ export const guestInviteRepositoryContract = (
       repo = subject.repo
     })
 
-    it('has no invitation until one is saved', async () => {
+    it('has no invitation until one is created', async () => {
       expect(await repo.findByEvent(WEDDING)).toBeNull()
       expect(await repo.findByToken(tokenOf(1))).toBeNull()
     })
 
-    it('keeps everything a save wrote, to the letter', async () => {
+    it('keeps everything a creation wrote, to the letter', async () => {
       const invite = aGuestInvite({
         eventId: 'evt-wedding',
         enabled: true,
@@ -64,7 +66,7 @@ export const guestInviteRepositoryContract = (
         language: 'de',
       })
 
-      await repo.save(invite)
+      await repo.create(invite)
       const read = await repo.findByEvent(WEDDING)
 
       expect(read?.enabled).toBe(true)
@@ -74,7 +76,7 @@ export const guestInviteRepositoryContract = (
     })
 
     it('keeps a blank, switched-off invitation with its nulls', async () => {
-      await repo.save(aGuestInvite({ eventId: 'evt-wedding' }))
+      await repo.create(aGuestInvite({ eventId: 'evt-wedding' }))
 
       const read = await repo.findByEvent(WEDDING)
 
@@ -92,7 +94,7 @@ export const guestInviteRepositoryContract = (
     })
 
     it('finds an invitation by its token, switched on or not', async () => {
-      await repo.save(aGuestInvite({ eventId: 'evt-wedding', tokenByte: 7 }))
+      await repo.create(aGuestInvite({ eventId: 'evt-wedding', tokenByte: 7 }))
 
       const read = await repo.findByToken(tokenOf(7))
 
@@ -100,36 +102,92 @@ export const guestInviteRepositoryContract = (
       expect(await repo.findByToken(tokenOf(8))).toBeNull()
     })
 
-    it('replaces the event row on a second save, and the old token stops answering', async () => {
-      const first = aGuestInvite({ eventId: 'evt-wedding', tokenByte: 1, title: 'Avant' })
-      await repo.save(first)
-      const rotated = first.rotate(tokenOf(2), new Date('2026-11-22T10:00:00Z'))
-
-      await repo.save(rotated)
-
-      expect((await repo.findByEvent(WEDDING))?.token.value).toBe(tokenOf(2).value)
-      expect(await repo.findByToken(tokenOf(1))).toBeNull()
-      expect((await repo.findByToken(tokenOf(2)))?.content.title).toBe('Avant')
-    })
-
     it('never answers the invitation of another event', async () => {
-      await repo.save(aGuestInvite({ eventId: 'evt-wedding', tokenByte: 1, title: 'Mariage' }))
-      await repo.save(aGuestInvite({ eventId: 'evt-gala', tokenByte: 2, title: 'Gala' }))
+      await repo.create(aGuestInvite({ eventId: 'evt-wedding', tokenByte: 1, title: 'Mariage' }))
+      await repo.create(aGuestInvite({ eventId: 'evt-gala', tokenByte: 2, title: 'Gala' }))
 
       expect((await repo.findByEvent(WEDDING))?.content.title).toBe('Mariage')
       expect((await repo.findByEvent(GALA))?.content.title).toBe('Gala')
       expect((await repo.findByToken(tokenOf(2)))?.eventId).toBe(GALA)
     })
 
-    it('refuses a token another event already holds, and leaves both rows as they were', async () => {
-      await repo.save(aGuestInvite({ eventId: 'evt-wedding', tokenByte: 1 }))
+    it('refuses a second invitation for the same event', async () => {
+      await repo.create(aGuestInvite({ eventId: 'evt-wedding', tokenByte: 1 }))
 
-      await expect(repo.save(aGuestInvite({ eventId: 'evt-gala', tokenByte: 1 }))).rejects.toThrow(
-        /UNIQUE/,
+      await expect(
+        repo.create(aGuestInvite({ eventId: 'evt-wedding', tokenByte: 2 })),
+      ).rejects.toThrow(/UNIQUE/)
+
+      expect((await repo.findByEvent(WEDDING))?.token.value).toBe(tokenOf(1).value)
+    })
+
+    it('refuses a token another event already holds, on creation and on rotation', async () => {
+      await repo.create(aGuestInvite({ eventId: 'evt-wedding', tokenByte: 1 }))
+
+      await expect(
+        repo.create(aGuestInvite({ eventId: 'evt-gala', tokenByte: 1 })),
+      ).rejects.toThrow(/UNIQUE/)
+      expect(await repo.findByEvent(GALA)).toBeNull()
+
+      await repo.create(aGuestInvite({ eventId: 'evt-gala', tokenByte: 2 }))
+      await expect(repo.rotateToken(GALA, tokenOf(1), AT)).rejects.toThrow(/UNIQUE/)
+      expect((await repo.findByEvent(GALA))?.token.value).toBe(tokenOf(2).value)
+      expect((await repo.findByToken(tokenOf(1)))?.eventId).toBe(WEDDING)
+    })
+
+    it('rotates the token: the old one stops answering and the rest is untouched', async () => {
+      await repo.create(
+        aGuestInvite({ eventId: 'evt-wedding', tokenByte: 1, title: 'Avant', enabled: true }),
       )
 
-      expect(await repo.findByEvent(GALA)).toBeNull()
-      expect((await repo.findByToken(tokenOf(1)))?.eventId).toBe(WEDDING)
+      await repo.rotateToken(WEDDING, tokenOf(2), LATER)
+
+      expect(await repo.findByToken(tokenOf(1))).toBeNull()
+      const read = await repo.findByToken(tokenOf(2))
+      expect(read?.eventId).toBe(WEDDING)
+      expect(read?.content.title).toBe('Avant')
+      expect(read?.enabled).toBe(true)
+      expect(read?.updatedAt.toISOString()).toBe(LATER.toISOString())
+    })
+
+    it('switches the link on and off without touching the text or the token', async () => {
+      await repo.create(aGuestInvite({ eventId: 'evt-wedding', tokenByte: 1, title: 'Avant' }))
+
+      await repo.setEnabled(WEDDING, true, LATER)
+      expect((await repo.findByEvent(WEDDING))?.enabled).toBe(true)
+      await repo.setEnabled(WEDDING, false, LATER)
+
+      const read = await repo.findByEvent(WEDDING)
+      expect(read?.enabled).toBe(false)
+      expect(read?.content.title).toBe('Avant')
+      expect(read?.token.value).toBe(tokenOf(1).value)
+    })
+
+    it('saves the content and only the content, whatever the invitation it is given had read', async () => {
+      const stale = aGuestInvite({ eventId: 'evt-wedding', tokenByte: 1, title: 'Avant' })
+      await repo.create(stale)
+      // Somebody switches the link on and changes it after `stale` was read.
+      await repo.setEnabled(WEDDING, true, LATER)
+      await repo.rotateToken(WEDDING, tokenOf(2), LATER)
+
+      const edited = stale.withContent({ title: 'Après', message: 'Venez' }, LATER)
+      if (!edited.ok) throw new Error('edit')
+      await repo.saveContent(edited.value)
+
+      const read = await repo.findByEvent(WEDDING)
+      expect(read?.content).toMatchObject({ title: 'Après', message: 'Venez' })
+      expect(read?.enabled).toBe(true)
+      expect(read?.token.value).toBe(tokenOf(2).value)
+      expect(read?.updatedAt.toISOString()).toBe(LATER.toISOString())
+    })
+
+    it('does nothing for an event that has no invitation, whichever write it is', async () => {
+      await repo.saveContent(aGuestInvite({ eventId: 'evt-wedding', title: 'Fantôme' }))
+      await repo.setEnabled(WEDDING, true, LATER)
+      await repo.rotateToken(WEDDING, tokenOf(3), LATER)
+
+      expect(await repo.findByEvent(WEDDING)).toBeNull()
+      expect(await repo.findByToken(tokenOf(3))).toBeNull()
     })
   })
 }

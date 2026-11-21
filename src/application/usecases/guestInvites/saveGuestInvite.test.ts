@@ -56,6 +56,60 @@ describe('saveGuestInvite (spec 29)', () => {
     expect(after?.token.value).toBe(before?.token.value)
   })
 
+  it('writes nothing, dates nothing and audits nothing for a save that changes nothing', async () => {
+    await scene.save({ eventId: WEDDING, actorId: OWNER, title: 'Fête', ...PARTY })
+    const before = await scene.invites.findByEvent(WEDDING)
+    scene.clock.advance(60_000)
+
+    const again = await scene.save({ eventId: WEDDING, actorId: OWNER, title: 'Fête', ...PARTY })
+    const empty = await scene.save({ eventId: WEDDING, actorId: OWNER })
+
+    expect(again.ok && again.value.invite).toBe(before)
+    expect(empty.ok && empty.value.invite).toBe(before)
+    expect((await scene.invites.findByEvent(WEDDING))?.updatedAt).toEqual(before?.updatedAt)
+    expect(await lines()).toHaveLength(1)
+  })
+
+  it('creates no row for a save with nothing in it: it answers what a read would', async () => {
+    const empty = await scene.save({ eventId: WEDDING, actorId: OWNER })
+
+    expect(empty.ok && empty.value.invite).toBeNull()
+    expect(await scene.invites.findByEvent(WEDDING)).toBeNull()
+    expect(await lines()).toEqual([])
+  })
+
+  it('refuses to take the date away from an invitation that is switched on, and writes nothing', async () => {
+    await scene.save({ eventId: WEDDING, actorId: OWNER, ...PARTY })
+    await scene.enable({ eventId: WEDDING, actorId: OWNER })
+
+    const saved = await scene.save({
+      eventId: WEDDING,
+      actorId: OWNER,
+      startsAt: null,
+      timeZone: null,
+    })
+
+    expect(!saved.ok && saved.error.code).toBe('guestInvite.needsDate')
+    expect((await scene.invites.findByEvent(WEDDING))?.content.startsAt).not.toBeNull()
+  })
+
+  it('never puts an older switch or token back over what changed since it was read', async () => {
+    await scene.save({ eventId: WEDDING, actorId: OWNER, ...PARTY })
+    const racing = await scene.invites.findByEvent(WEDDING)
+    await scene.enable({ eventId: WEDDING, actorId: OWNER })
+    await scene.rotate({ eventId: WEDDING, actorId: OWNER })
+    const current = await scene.invites.findByEvent(WEDDING)
+    // A save that read the row before the two acts above and writes after them.
+    const edited = racing?.withContent({ title: 'Après' }, scene.clock.now())
+    if (!edited?.ok) throw new Error('edit')
+    await scene.invites.saveContent(edited.value)
+
+    const after = await scene.invites.findByEvent(WEDDING)
+    expect(after?.enabled).toBe(true)
+    expect(after?.token.value).toBe(current?.token.value)
+    expect(after?.content.title).toBe('Après')
+  })
+
   it('writes one audit line that says it happened and carries no content', async () => {
     await scene.save({ eventId: WEDDING, actorId: OWNER, title: 'Secret', address: '1 rue X' })
 

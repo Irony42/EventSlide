@@ -1166,5 +1166,7 @@ nothing the policy above promises to keep.
 
 - **One migration (035)**: a new table, `guest_invites`, one row per event, with its unique token. Nothing existing is
   rewritten. Back up first, as for any upgrade: the migration only goes forward.
-- **Nothing to set in `.env`** in this part of the feature. An invitation's token is stored in the clear, on purpose
-  (the host must be able to show the link again; see ADR 0016), and the rows go with their event when it is purged.
+- **Owner routes only** (`GET` and `PUT /api/events/:slug/guest-invite`, `POST …/enable`, `…/disable`, `…/rotate`):
+  nothing a guest can reach yet; the page they open comes with a later change of the same version. No setting is needed.
+  An invitation's token is stored in the clear, on purpose (the host must be able to show the link again; see ADR 0016),
+  and the rows go with their event when it is purged.

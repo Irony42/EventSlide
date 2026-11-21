@@ -1,5 +1,8 @@
 import { GuestInvite } from '../../domain/guestInvites/guestInvite'
-import { restoreContent } from '../../domain/guestInvites/guestInviteContent'
+import {
+  restoreContent,
+  type GuestInviteContent,
+} from '../../domain/guestInvites/guestInviteContent'
 import { GuestInviteToken } from '../../domain/guestInvites/guestInviteToken'
 import { asEventId, type EventId } from '../../domain/shared/ids'
 import type { GuestInviteRepository } from '../../application/ports/guestInviteRepository'
@@ -58,6 +61,17 @@ const toGuestInvite = (row: GuestInviteRow): GuestInvite => {
   })
 }
 
+const contentParams = (content: GuestInviteContent) => ({
+  title: content.title,
+  starts_at: content.startsAt === null ? null : toIsoText(content.startsAt),
+  ends_at: content.endsAt === null ? null : toIsoText(content.endsAt),
+  time_zone: content.timeZone,
+  venue_name: content.venueName,
+  address: content.address,
+  message: content.message,
+  language: content.language,
+})
+
 export class SqliteGuestInviteRepository implements GuestInviteRepository {
   constructor(private readonly db: Db) {}
 
@@ -75,33 +89,50 @@ export class SqliteGuestInviteRepository implements GuestInviteRepository {
     return row === undefined ? null : toGuestInvite(row)
   }
 
-  async save(invite: GuestInvite): Promise<void> {
+  async create(invite: GuestInvite): Promise<void> {
     const { eventId, token, enabled, content, updatedAt } = invite.toProps()
     this.db
       .prepare(
         `INSERT INTO guest_invites (${COLUMNS})
               VALUES (@event_id, @token, @enabled, @title, @starts_at, @ends_at, @time_zone,
-                      @venue_name, @address, @message, @language, @updated_at)
-         ON CONFLICT (event_id) DO UPDATE SET
-              token = excluded.token, enabled = excluded.enabled, title = excluded.title,
-              starts_at = excluded.starts_at, ends_at = excluded.ends_at,
-              time_zone = excluded.time_zone, venue_name = excluded.venue_name,
-              address = excluded.address, message = excluded.message,
-              language = excluded.language, updated_at = excluded.updated_at`,
+                      @venue_name, @address, @message, @language, @updated_at)`,
       )
       .run({
         event_id: eventId,
         token: token.value,
         enabled: toSqliteBoolean(enabled),
-        title: content.title,
-        starts_at: content.startsAt === null ? null : toIsoText(content.startsAt),
-        ends_at: content.endsAt === null ? null : toIsoText(content.endsAt),
-        time_zone: content.timeZone,
-        venue_name: content.venueName,
-        address: content.address,
-        message: content.message,
-        language: content.language,
+        ...contentParams(content),
         updated_at: toIsoText(updatedAt),
       })
+  }
+
+  /** Content and `updated_at` only: the statement does not name `token` or `enabled`. */
+  async saveContent(invite: GuestInvite): Promise<void> {
+    const { eventId, content, updatedAt } = invite.toProps()
+    this.db
+      .prepare(
+        `UPDATE guest_invites
+            SET title = @title, starts_at = @starts_at, ends_at = @ends_at, time_zone = @time_zone,
+                venue_name = @venue_name, address = @address, message = @message,
+                language = @language, updated_at = @updated_at
+          WHERE event_id = @event_id`,
+      )
+      .run({ event_id: eventId, ...contentParams(content), updated_at: toIsoText(updatedAt) })
+  }
+
+  async setEnabled(eventId: EventId, enabled: boolean, at: Date): Promise<void> {
+    this.db
+      .prepare<[number, string, string]>(
+        `UPDATE guest_invites SET enabled = ?, updated_at = ? WHERE event_id = ?`,
+      )
+      .run(toSqliteBoolean(enabled), toIsoText(at), eventId)
+  }
+
+  async rotateToken(eventId: EventId, token: GuestInviteToken, at: Date): Promise<void> {
+    this.db
+      .prepare<[string, string, string]>(
+        `UPDATE guest_invites SET token = ?, updated_at = ? WHERE event_id = ?`,
+      )
+      .run(token.value, toIsoText(at), eventId)
   }
 }

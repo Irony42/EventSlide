@@ -90,7 +90,7 @@ export const guestInviteScene = async (): Promise<GuestInviteScene> => {
     clock,
     get: makeGetGuestInvite({ events, memberships, invites }),
     save: makeSaveGuestInvite({ events, memberships, invites, audit, ids, clock }),
-    enable: makeEnableGuestInvite({ events, memberships, invites, audit, ids, clock }),
+    enable: makeEnableGuestInvite({ events, memberships, invites, audit, clock }),
     disable: makeDisableGuestInvite({ events, memberships, invites, audit, clock }),
     rotate: makeRotateGuestInviteToken({ events, memberships, invites, audit, ids, clock }),
     view: makeViewGuestInvite({ events, invites }),

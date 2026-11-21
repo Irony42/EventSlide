@@ -43,12 +43,9 @@ const withUnauditableEvent = async (scene: GuestInviteScene) => {
 }
 
 describe('guest invitation use cases pass a broken collaborator’s refusal back', () => {
-  it.each([
-    ['saveGuestInvite', makeSaveGuestInvite],
-    ['enableGuestInvite', makeEnableGuestInvite],
-  ] as const)('%s: a token that cannot be made writes nothing', async (_name, make) => {
+  it('saveGuestInvite: a token that cannot be made writes nothing', async () => {
     const scene = await guestInviteScene()
-    const run = make({
+    const run = makeSaveGuestInvite({
       events: scene.events,
       memberships: scene.memberships,
       invites: scene.invites,
@@ -100,14 +97,9 @@ describe('guest invitation use cases pass a broken collaborator’s refusal back
         actorId: OWNER,
         ...PARTY,
       }),
-      enable: await makeEnableGuestInvite({ ...deps, ids })({
-        eventId: UNAUDITABLE,
-        actorId: OWNER,
-      }),
     }
 
     expect(acts.save.ok).toBe(false)
-    expect(acts.enable.ok).toBe(false)
     expect(await scene.invites.findByEvent(UNAUDITABLE)).toBeNull()
 
     // A row that already exists is not changed by a disable or a rotation either.
@@ -147,7 +139,6 @@ describe('guest invitation use cases pass a broken collaborator’s refusal back
       invites: off.invites,
       audit: off.audit,
       clock: off.clock,
-      ids,
     })({ eventId: UNAUDITABLE, actorId: OWNER })
 
     expect(enabled.ok).toBe(false)

@@ -378,7 +378,6 @@ const CASES: readonly Case[] = [
         memberships,
         invites: gone(),
         audit: gone(),
-        ids: gone(),
         clock: gone(),
       })({ eventId: EVENT, actorId }),
   },

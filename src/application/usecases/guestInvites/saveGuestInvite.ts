@@ -21,7 +21,9 @@ import type { HostGuestInvite } from './getGuestInvite'
  * switches it on. Saving never changes the switch or the token.
  *
  * Audited (`event.guestInviteSaved`, no content), write-ahead, once the content is known to be
- * valid: a refused save leaves no line.
+ * valid: a refused save leaves no line. A save that changes nothing writes and audits nothing.
+ * What is written is the **content only** (`saveContent`): an invitation read a moment ago cannot put
+ * back an older switch or token over what somebody changed since.
  */
 
 export interface SaveGuestInviteInput extends GuestInviteContentPatch {
@@ -50,7 +52,8 @@ export const makeSaveGuestInvite =
     const event = opened.value
     const now = clock.now()
 
-    let current = await invites.findByEvent(eventId)
+    const held = await invites.findByEvent(eventId)
+    let current = held
     if (current === null) {
       const token = mintGuestInviteToken(ids)
       if (!token.ok) return token
@@ -59,6 +62,9 @@ export const makeSaveGuestInvite =
 
     const saved = current.withContent(patch, now)
     if (!saved.ok) return saved
+    // A save that changes nothing is not an edit: nothing is written, dated or audited, and a
+    // `PUT {}` before anything was written creates no row, it answers what a read would.
+    if (saved.value === current) return ok({ event, invite: held })
 
     const recorded = await recordGuestInviteAct(
       audit,
@@ -68,6 +74,7 @@ export const makeSaveGuestInvite =
       now,
     )
     if (!recorded.ok) return recorded
-    await invites.save(saved.value)
+    if (held === null) await invites.create(saved.value)
+    else await invites.saveContent(saved.value)
     return ok({ event, invite: saved.value })
   }
