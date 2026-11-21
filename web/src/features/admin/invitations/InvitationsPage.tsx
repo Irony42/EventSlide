@@ -129,18 +129,28 @@ function FormatTabs({
   const text = useTranslations().guestInvite.host
   const [tab, setTab] = useState<TabName>('print')
   const ids = useId()
-  const locked = invite === null
   const names: Readonly<Record<TabName, string>> = {
     print: text.tabPrint,
     image: text.tabImage,
     email: text.tabEmail,
   }
 
-  const move = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
-    if (step === 0 || locked) return
-    event.preventDefault()
-    const next = TABS[(TABS.indexOf(tab) + step + TABS.length) % TABS.length] ?? 'print'
+  const move = (pressed: KeyboardEvent<HTMLButtonElement>) => {
+    const last = TABS.length - 1
+    const index = TABS.indexOf(tab)
+    const target =
+      pressed.key === 'ArrowRight'
+        ? (index + 1) % TABS.length
+        : pressed.key === 'ArrowLeft'
+          ? (index + last) % TABS.length
+          : pressed.key === 'Home'
+            ? 0
+            : pressed.key === 'End'
+              ? last
+              : null
+    if (target === null) return
+    pressed.preventDefault()
+    const next = TABS[target] ?? 'print'
     setTab(next)
     document.getElementById(`${ids}-tab-${next}`)?.focus()
   }
@@ -158,35 +168,36 @@ function FormatTabs({
             type="button"
             role="tab"
             aria-selected={tab === name}
-            aria-controls={`${ids}-panel-${name}`}
-            aria-disabled={locked || undefined}
+            // Only the open tab has a panel in the page, so only it says it controls one.
+            {...(tab === name ? { 'aria-controls': `${ids}-panel` } : {})}
             tabIndex={tab === name ? 0 : -1}
             className={styles['tab']}
-            onClick={() => {
-              if (!locked) setTab(name)
-            }}
+            onClick={() => setTab(name)}
             onKeyDown={move}
           >
             {names[name]}
           </button>
         ))}
       </div>
-      {shown === null ? (
-        <p className={styles['locked']} role="status">
-          {text.locked}
-        </p>
-      ) : (
-        <div
-          role="tabpanel"
-          id={`${ids}-panel-${tab}`}
-          aria-labelledby={`${ids}-tab-${tab}`}
-          className={styles['tabPanel']}
-        >
-          {tab === 'print' ? <PrintTab event={event} invite={shown} /> : null}
-          {tab === 'image' ? <ImageTab event={event} invite={shown} /> : null}
-          {tab === 'email' ? <EmailTab event={event} invite={shown} /> : null}
-        </div>
-      )}
+      {/* The panel is what is locked, not the tabs: a host can look at each, and is told why it is empty. */}
+      <div
+        role="tabpanel"
+        id={`${ids}-panel`}
+        aria-labelledby={`${ids}-tab-${tab}`}
+        className={styles['tabPanel']}
+      >
+        {shown === null ? (
+          <p className={styles['locked']} role="status">
+            {text.locked}
+          </p>
+        ) : tab === 'print' ? (
+          <PrintTab event={event} invite={shown} />
+        ) : tab === 'image' ? (
+          <ImageTab event={event} invite={shown} />
+        ) : (
+          <EmailTab event={event} invite={shown} />
+        )}
+      </div>
     </section>
   )
 }

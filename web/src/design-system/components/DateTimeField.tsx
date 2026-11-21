@@ -9,6 +9,8 @@ export interface DateTimeFieldProps {
   /** When the host leaves the field: a screen that saves as it goes saves a date here, once it is whole. */
   readonly onBlur?: () => void
   readonly hint?: string
+  /** Present means invalid: `Field` drives `aria-invalid` and the visible message from it. */
+  readonly error?: string | undefined
   /** Earliest offerable value, same `YYYY-MM-DDTHH:mm` shape. A guide, not a guard. */
   readonly min?: string
   readonly disabled?: boolean
@@ -31,11 +33,17 @@ export function DateTimeField({
   onChange,
   onBlur,
   hint,
+  error,
   min,
   disabled = false,
 }: DateTimeFieldProps) {
   return (
-    <Field label={label} optional {...(hint === undefined ? {} : { hint })}>
+    <Field
+      label={label}
+      optional
+      {...(hint === undefined ? {} : { hint })}
+      {...(error === undefined ? {} : { error })}
+    >
       {(control) => (
         <input
           {...control}

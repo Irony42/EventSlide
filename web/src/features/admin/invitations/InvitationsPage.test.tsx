@@ -12,11 +12,18 @@ import {
 } from '../../../testing/renderWithProviders'
 import type { Api } from '../../../lib/api/client'
 import type { GuestInviteDto } from '../../../lib/api/dto'
+import { zoneName } from '../../../lib/invite/timeZones'
 import { InvitationsPage } from './InvitationsPage'
 
 const text = fr.guestInvite.host
 
 /** The table writes French with no-break spaces, which Testing Library has already folded in the DOM. */
+/** A text matcher for an element whose own text starts with the sentence (the zone line ends in a button). */
+const startingWith =
+  (sentence: string) =>
+  (content: string): boolean =>
+    plain(content).startsWith(plain(sentence))
+
 const plain = (sentence: string): string => sentence.replaceAll(String.fromCodePoint(0x00a0), ' ')
 
 const BLANK: GuestInviteDto = aGuestInviteHost({
@@ -103,7 +110,9 @@ describe('InvitationsPage', () => {
       expect(within(form).getByLabelText(new RegExp(`^${text.startLabel}`))).toHaveValue(
         '2027-12-11T19:00',
       )
-      expect(within(form).getByText(/Heure de Paris/)).toBeVisible()
+      expect(
+        within(form).getByText(startingWith(text.zoneLine(zoneName('Europe/Paris', 'fr')))),
+      ).toBeVisible()
       expect(within(form).getByText(text.addressWarning)).toBeVisible()
     })
 
@@ -116,14 +125,14 @@ describe('InvitationsPage', () => {
       expect(screen.getByText(text.pillOff)).toBeVisible()
     })
 
-    it('greys the three formats out with one sentence', async () => {
+    it('locks the panel with one sentence, and leaves the three tabs to look at', async () => {
       render(answering(BLANK))
 
       expect(await screen.findByText(text.locked)).toBeVisible()
+      expect(screen.getByRole('tabpanel')).toHaveTextContent(text.locked)
       for (const name of [text.tabPrint, text.tabImage, text.tabEmail]) {
-        expect(screen.getByRole('tab', { name })).toHaveAttribute('aria-disabled', 'true')
+        expect(screen.getByRole('tab', { name })).not.toHaveAttribute('aria-disabled')
       }
-      expect(screen.queryByRole('tabpanel')).toBeNull()
     })
   })
 
@@ -174,7 +183,9 @@ describe('InvitationsPage', () => {
 
       await userEvent.click(within(form).getByRole('button', { name: text.zoneChange }))
       await userEvent.selectOptions(within(form).getByLabelText(text.zoneLabel), 'America/New_York')
-      expect(within(form).getByText(/Heure de New York/)).toBeVisible()
+      expect(
+        within(form).getByText(startingWith(text.zoneLine(zoneName('America/New_York', 'fr')))),
+      ).toBeVisible()
       await userEvent.click(within(form).getByRole('button', { name: text.save }))
 
       await waitFor(() => expect(save).toHaveBeenCalled())
@@ -214,7 +225,10 @@ describe('InvitationsPage', () => {
       })
       await userEvent.click(within(form).getByRole('button', { name: text.save }))
 
-      expect(await within(form).findByRole('alert')).toHaveTextContent(text.nonexistentHour)
+      const start = within(form).getByLabelText(new RegExp(`^${text.startLabel}`))
+      await waitFor(() => expect(start).toHaveAttribute('aria-invalid', 'true'))
+      expect(start).toHaveFocus()
+      expect(start).toHaveAccessibleDescription(text.nonexistentHour)
       expect(save).not.toHaveBeenCalled()
     })
 
@@ -227,9 +241,10 @@ describe('InvitationsPage', () => {
 
       await userEvent.click(within(form).getByRole('button', { name: text.save }))
 
-      expect(await within(form).findByRole('alert')).toHaveTextContent(
-        fr.errors['guestInvite.endBeforeStart'],
-      )
+      const end = within(form).getByLabelText(new RegExp(`^${text.endLabel}`))
+      await waitFor(() => expect(end).toHaveAttribute('aria-invalid', 'true'))
+      expect(end).toHaveAccessibleDescription(fr.errors['guestInvite.endBeforeStart'])
+      expect(end).toHaveFocus()
       expect(screen.queryByText(text.saved)).toBeNull()
     })
 
@@ -247,7 +262,9 @@ describe('InvitationsPage', () => {
     it('counts the host’s word against the 500', async () => {
       render(answering(aGuestInviteHost({ message: 'Apéro' })))
 
-      expect(await screen.findByText(text.messageCount(5, 500))).toBeVisible()
+      expect(
+        await screen.findByText(plain(`${text.messageCount(5, 500)} · ${text.lineCount(1, 8)}`)),
+      ).toBeVisible()
     })
 
     it('unlocks the activation once the first save has given the invitation a date', async () => {
@@ -263,6 +280,136 @@ describe('InvitationsPage', () => {
       await userEvent.click(within(form).getByRole('button', { name: text.save }))
 
       await waitFor(() => expect(screen.getByRole('button', { name: text.activate })).toBeEnabled())
+    })
+  })
+
+  describe('mistakes', () => {
+    it.each([
+      ['title', 'guestInvite.titleTooLong', /^Titre/],
+      ['venue', 'guestInvite.venueTooLong', /^Lieu/],
+      ['address', 'guestInvite.addressTooLong', /^Adresse/],
+      ['message', 'guestInvite.messageTooLong', /^Votre mot/],
+      ['start', 'guestInvite.startsAtInvalid', /^Début/],
+    ] as const)(
+      'ties the server’s refusal of the %s to that field, which says it is invalid and takes the focus',
+      async (_name, code, label) => {
+        const save = vi.fn(async () => {
+          throw new ApiError(400, code)
+        })
+        render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
+        const form = await screen.findByRole('form', { name: text.formTitle })
+
+        await userEvent.click(within(form).getByRole('button', { name: text.save }))
+
+        const field = within(form).getByLabelText(label)
+        await waitFor(() => expect(field).toHaveAttribute('aria-invalid', 'true'))
+        expect(field).toHaveAccessibleDescription(new RegExp(plain(fr.errors[code]).slice(0, 12)))
+        expect(field).toHaveFocus()
+      },
+    )
+
+    it('says in the box above the button what is about no field: a language, a refusal of the whole', async () => {
+      const save = vi.fn(async () => {
+        throw new ApiError(400, 'guestInvite.badTimeZone')
+      })
+      render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+
+      await userEvent.click(within(form).getByRole('button', { name: text.save }))
+
+      expect(await within(form).findByRole('alert')).toHaveTextContent(
+        fr.errors['guestInvite.badTimeZone'],
+      )
+      expect(form.querySelector('[aria-invalid="true"]')).toBeNull()
+    })
+
+    it('clears the error as soon as the host types again', async () => {
+      render(
+        answering(aGuestInviteHost(), {
+          saveGuestInvite: vi.fn(async () => {
+            throw new ApiError(400, 'guestInvite.titleTooLong')
+          }),
+        }),
+      )
+      const form = await screen.findByRole('form', { name: text.formTitle })
+      await userEvent.click(within(form).getByRole('button', { name: text.save }))
+      const title = within(form).getByLabelText(/^Titre/)
+      await waitFor(() => expect(title).toHaveAttribute('aria-invalid', 'true'))
+
+      await userEvent.type(title, 'x')
+
+      expect(title).not.toHaveAttribute('aria-invalid', 'true')
+    })
+
+    it('refuses a third line of address and a ninth of word without asking the server', async () => {
+      const save = vi.fn()
+      render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+      fireEvent.change(within(form).getByLabelText(/^Adresse/), { target: { value: 'a\nb\nc' } })
+
+      await userEvent.click(within(form).getByRole('button', { name: text.save }))
+
+      const address = within(form).getByLabelText(/^Adresse/)
+      await waitFor(() => expect(address).toHaveAttribute('aria-invalid', 'true'))
+      expect(address).toHaveAccessibleDescription(
+        new RegExp(fr.errors['guestInvite.addressTooManyLines']),
+      )
+      expect(save).not.toHaveBeenCalled()
+    })
+
+    it('sends one request when Enter is pressed twice while a save is on its way', async () => {
+      let finish: () => void = () => undefined
+      const save = vi.fn(
+        () =>
+          new Promise<{ guestInvite: GuestInviteDto }>((resolve) => {
+            finish = () => resolve({ guestInvite: aGuestInviteHost() })
+          }),
+      )
+      render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+
+      fireEvent.submit(form)
+      fireEvent.submit(form)
+      finish()
+
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    })
+
+    it('has an address of two rows and a word of eight, and counts the lines', async () => {
+      render(answering(aGuestInviteHost({ address: 'a\nb', message: 'x\ny\nz' })))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+
+      expect(within(form).getByLabelText(/^Adresse/)).toHaveAttribute('rows', '2')
+      expect(within(form).getByLabelText(/^Votre mot/)).toHaveAttribute('rows', '8')
+      expect(within(form).getByText(new RegExp(plain(text.lineCount(3, 8))))).toBeVisible()
+    })
+
+    it('shows the zone as its name, and the hint says the typed times are kept', async () => {
+      render(answering(BLANK))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+
+      await userEvent.click(within(form).getByRole('button', { name: text.zoneChange }))
+
+      expect(within(form).queryByText(/ Paris/)).toBeNull()
+      expect(within(form).getByText(plain(text.zoneHint))).toBeVisible()
+    })
+
+    it('shows a saved zone this browser does not know by its identifier, and reads the times in its own', async () => {
+      browserIn('Europe/Paris')
+      render(
+        answering(
+          aGuestInviteHost({
+            timeZone: 'Mars/Olympus',
+            startsAt: '2027-12-11T18:00:00.000Z',
+            endsAt: null,
+          }),
+        ),
+      )
+      const form = await screen.findByRole('form', { name: text.formTitle })
+
+      expect(within(form).getByLabelText(new RegExp(`^${text.startLabel}`))).toHaveValue(
+        '2027-12-11T19:00',
+      )
     })
   })
 
@@ -304,6 +451,30 @@ describe('InvitationsPage', () => {
       writeText.mockRejectedValueOnce(new Error('denied'))
       await userEvent.click(screen.getByRole('button', { name: text.copy }))
       expect(await screen.findByText(text.copyFailed)).toBeVisible()
+    })
+
+    it('offers no way to see the page as a guest while the invitation is off: it would say "not available"', async () => {
+      render(answering(aGuestInviteHost()))
+
+      await screen.findByRole('button', { name: text.activate })
+
+      expect(screen.queryByRole('button', { name: text.viewAsGuest })).toBeNull()
+      expect(screen.queryByRole('link', { name: new RegExp(text.viewAsGuest) })).toBeNull()
+    })
+
+    it('puts the focus on the link once it is switched on, and on the button once it is switched off', async () => {
+      render(
+        answering(aGuestInviteHost(), {
+          enableGuestInvite: vi.fn(async () => ({ guestInvite: ON })),
+          disableGuestInvite: vi.fn(async () => ({ guestInvite: aGuestInviteHost() })),
+        }),
+      )
+
+      await userEvent.click(await screen.findByRole('button', { name: text.activate }))
+      await waitFor(() => expect(screen.getByLabelText(text.linkLabel)).toHaveFocus())
+
+      await userEvent.click(screen.getByRole('button', { name: text.disable }))
+      await waitFor(() => expect(screen.getByRole('button', { name: text.activate })).toHaveFocus())
     })
 
     it('opens the page as a guest sees it in a tab of its own, with no opener and no referrer', async () => {
@@ -413,18 +584,48 @@ describe('InvitationsPage', () => {
       expect(screen.getByRole('tabpanel')).toHaveAccessibleName(text.tabEmail)
     })
 
-    it('does nothing for a click or an arrow while locked', async () => {
+    it('lets a host look at each tab while locked, and the panel says why it is empty on each', async () => {
       render(answering(aGuestInviteHost()))
-      const print = await screen.findByRole('tab', { name: text.tabPrint })
+      await screen.findByRole('tab', { name: text.tabPrint })
 
       await userEvent.click(screen.getByRole('tab', { name: text.tabEmail }))
-      print.focus()
-      await userEvent.keyboard('{ArrowRight}')
 
-      expect(print).toHaveAttribute('aria-selected', 'true')
-      expect(screen.getByRole('tab', { name: text.tabImage })).toHaveAttribute(
+      expect(screen.getByRole('tab', { name: text.tabEmail })).toHaveAttribute(
         'aria-selected',
-        'false',
+        'true',
+      )
+      expect(screen.getByRole('tabpanel')).toHaveTextContent(text.locked)
+    })
+
+    it('goes to the first and the last tab with Home and End', async () => {
+      render(answering(ON))
+      const print = await screen.findByRole('tab', { name: text.tabPrint })
+      print.focus()
+
+      await userEvent.keyboard('{End}')
+      expect(screen.getByRole('tab', { name: text.tabEmail })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+      expect(screen.getByRole('tab', { name: text.tabEmail })).toHaveFocus()
+      await userEvent.keyboard('{Home}')
+      expect(screen.getByRole('tab', { name: text.tabPrint })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+    })
+
+    it('says a tab controls a panel only for the tab whose panel is in the page', async () => {
+      render(answering(ON))
+      await screen.findByRole('tabpanel')
+
+      const controlling = screen
+        .getAllByRole('tab')
+        .filter((tab) => tab.hasAttribute('aria-controls'))
+      expect(controlling).toHaveLength(1)
+      expect(controlling[0]).toHaveAttribute('aria-selected', 'true')
+      expect(document.getElementById(controlling[0]?.getAttribute('aria-controls') ?? '#')).toBe(
+        screen.getByRole('tabpanel'),
       )
     })
 
