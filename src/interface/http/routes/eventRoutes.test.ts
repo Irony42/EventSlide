@@ -381,6 +381,8 @@ const buildWorld = ({
         startChallenge: absent('startChallenge'),
         stopChallenge: absent('stopChallenge'),
         getChallenge: absent('getChallenge'),
+        viewGuestInvite: absent('viewGuestInvite'),
+        getGuestInviteLogoMedia: absent('getGuestInviteLogoMedia'),
         getGuestInvite: absent('getGuestInvite'),
         saveGuestInvite: absent('saveGuestInvite'),
         enableGuestInvite: absent('enableGuestInvite'),

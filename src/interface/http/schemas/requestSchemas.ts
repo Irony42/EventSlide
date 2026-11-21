@@ -743,6 +743,13 @@ export const guestInviteBody = z.strictObject({
   language: z.string().max(16).optional(),
 })
 
+/**
+ * The token of a public invitation link. Only its **shape** is bounded here (a request cannot
+ * carry an arbitrarily long path segment to the lookup); what a token is and whether it opens
+ * anything is the domain's, and every failure, this one included, is the same `404`.
+ */
+export const guestInviteTokenParams = z.object({ token: z.string().min(1).max(64) })
+
 /** `POST /guest-invite/enable|disable|rotate`: the act is the path, so the body is empty. */
 export const guestInviteActBody = z.strictObject({})
 

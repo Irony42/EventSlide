@@ -192,6 +192,7 @@ describe('loadConfig', () => {
           galleryMediaPerMinute: 3000,
           galleryUnlockPerClient: 10,
           galleryUnlockPerLink: 50,
+          guestInvitePerMinute: 200,
           eventCreationPerHour: 20,
           invitationsPerHour: 30,
           venuePhotosPerHour: 10,
@@ -427,6 +428,7 @@ describe('loadConfig', () => {
         GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: '106',
         GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT: '107',
         GALLERY_UNLOCK_ATTEMPTS_PER_LINK: '108',
+        GUEST_INVITE_RATE_LIMIT_PER_MINUTE: '114',
         // Distinct from JOIN_RATE_LIMIT_PER_MINUTE's default on purpose: both default
         // to 20, so a field reading the wrong one would pass against two defaults.
         EVENT_CREATION_RATE_LIMIT_PER_HOUR: '109',
@@ -489,6 +491,7 @@ describe('loadConfig', () => {
           galleryMediaPerMinute: 106,
           galleryUnlockPerClient: 107,
           galleryUnlockPerLink: 108,
+          guestInvitePerMinute: 114,
           eventCreationPerHour: 109,
           invitationsPerHour: 30,
           venuePhotosPerHour: 10,

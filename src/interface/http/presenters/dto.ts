@@ -1272,6 +1272,28 @@ export interface GuestInviteDto {
   readonly defaultStartsAt: string | null
 }
 
+/**
+ * `GET /api/i/:token`: what the invitation's public page shows (spec 29). The state is the
+ * server's and the page never recomputes it. `address` and `message` are **absent** once the event
+ * is `over`; `joinUrl` (a path, `/join/<code>`) is present **only** while `joinable`; `logoUrl`
+ * (a path) only when the event has a logo.
+ */
+export interface GuestInvitePageDto {
+  readonly state: 'upcoming' | 'joinable' | 'over'
+  readonly title: string
+  readonly when: {
+    readonly startsAt: string
+    readonly endsAt: string | null
+    readonly timeZone: string
+  }
+  readonly venueName: string | null
+  readonly address?: string | null
+  readonly message?: string | null
+  readonly language: string
+  readonly logoUrl?: string
+  readonly joinUrl?: string
+}
+
 /** What every host route of the guest invitation answers. */
 export interface GuestInviteResponseDto {
   readonly guestInvite: GuestInviteDto

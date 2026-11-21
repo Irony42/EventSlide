@@ -498,6 +498,7 @@ describe('buildServer: which client a rate limit is counting', () => {
         trustProxyHops: 1,
         rateLimits: {
           joinPerMinute: 1,
+          guestInvitePerMinute: 200,
           uploadPerMinute: 12,
           uploadPerIpPerMinute: 300,
           loginPerMinute: 10,
@@ -556,6 +557,7 @@ describe('buildServer: which client a rate limit is counting', () => {
       config: {
         rateLimits: {
           joinPerMinute: 10,
+          guestInvitePerMinute: 200,
           uploadPerMinute: 12,
           uploadPerIpPerMinute: 1,
           loginPerMinute: 10,
@@ -596,6 +598,7 @@ describe('buildServer: which client a rate limit is counting', () => {
       config: {
         rateLimits: {
           joinPerMinute: 10,
+          guestInvitePerMinute: 200,
           uploadPerMinute: 1,
           uploadPerIpPerMinute: 300,
           loginPerMinute: 10,

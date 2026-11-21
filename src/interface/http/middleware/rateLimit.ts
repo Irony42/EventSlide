@@ -550,6 +550,18 @@ export const galleryLimiter = (perMinute: number): RateLimitRequestHandler =>
 export const galleryMediaLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'rate.limited', clientKey)
 
+/**
+ * The public page of a guest invitation and its logo, per client address (spec 29).
+ *
+ * Its own bucket, sized like the join endpoint (`GUEST_INVITE_RATE_LIMIT_PER_MINUTE`, 200): three
+ * hundred guests behind the venue's Wi-Fi open the invitation within minutes of the party starting,
+ * and none of them should spend a wedding guest's upload allowance. What it must still bound is
+ * guessing, and a token is 80 random bits. The page and its logo **share one instance**, so a
+ * guesser has one budget, not two.
+ */
+export const guestInviteLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited', clientKey)
+
 /** A quarter of an hour: long enough to stop a guesser, short enough to forgive a typo. */
 const UNLOCK_WINDOW_MS = 15 * 60_000
 

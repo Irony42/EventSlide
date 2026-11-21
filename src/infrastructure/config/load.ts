@@ -320,6 +320,7 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       guestWritePerMinute: raw.GUEST_WRITE_RATE_LIMIT_PER_MINUTE,
       galleryPerMinute: raw.GALLERY_RATE_LIMIT_PER_MINUTE,
       galleryMediaPerMinute: raw.GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE,
+      guestInvitePerMinute: raw.GUEST_INVITE_RATE_LIMIT_PER_MINUTE,
       galleryUnlockPerClient: raw.GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT,
       galleryUnlockPerLink: raw.GALLERY_UNLOCK_ATTEMPTS_PER_LINK,
       eventCreationPerHour: raw.EVENT_CREATION_RATE_LIMIT_PER_HOUR,

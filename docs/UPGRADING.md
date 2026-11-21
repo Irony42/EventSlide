@@ -1166,5 +1166,9 @@ nothing the policy above promises to keep.
 
 - **One migration (035)**: a new table, `guest_invites`, one row per event, with its unique token. Nothing existing is
   rewritten. Back up first, as for any upgrade: the migration only goes forward.
-- **Nothing to set in `.env`** in this part of the feature. An invitation's token is stored in the clear, on purpose
+- **No setting is required.** An invitation's token is stored in the clear, on purpose
   (the host must be able to show the link again; see ADR 0016), and the rows go with their event when it is purged.
+- **One optional setting**: `GUEST_INVITE_RATE_LIMIT_PER_MINUTE` (default 200, 1 to 6000), the budget of the invitation's
+  public page per client address. It is sized like `JOIN_RATE_LIMIT_PER_MINUTE`, for guests behind one venue's Wi-Fi.
+- **A new public page and route**, `/i/<token>` and `GET /api/i/<token>`: they answer one neutral "not available" for
+  every cause, are never indexed, send no referrer, are not cached, and the token is masked in the access logs.

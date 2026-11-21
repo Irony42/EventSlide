@@ -23,6 +23,8 @@ import { makeUpdateEventSettings } from '../application/usecases/events/updateEv
 import { makeGetEventLimits } from '../application/usecases/events/getEventLimits'
 import { makeSweepPurgeNotices } from '../application/usecases/events/sweepPurgeNotices'
 import { makeGetEventView } from '../application/usecases/events/getEventView'
+import { makeViewGuestInvite } from '../application/usecases/guestInvites/viewGuestInvite'
+import { makeGetGuestInviteLogoMedia } from '../application/usecases/guestInvites/getGuestInviteLogoMedia'
 import { makeGetGuestInvite } from '../application/usecases/guestInvites/getGuestInvite'
 import { makeSaveGuestInvite } from '../application/usecases/guestInvites/saveGuestInvite'
 import { makeEnableGuestInvite } from '../application/usecases/guestInvites/enableGuestInvite'
@@ -99,6 +101,13 @@ export const eventsUseCases = (
     clock: adapters.clock,
   }),
   // The guest invitation, the owner's side (spec 29): audited acts, no content in the log.
+  // The guests' side (spec 29): public, one refusal, the event read by id after the invitation.
+  viewGuestInvite: makeViewGuestInvite({ events: adapters.events, invites: adapters.guestInvites }),
+  getGuestInviteLogoMedia: makeGetGuestInviteLogoMedia({
+    events: adapters.events,
+    invites: adapters.guestInvites,
+    media: adapters.media,
+  }),
   getGuestInvite: makeGetGuestInvite({
     events: adapters.events,
     memberships: adapters.memberships,

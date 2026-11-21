@@ -512,6 +512,7 @@ describe('POST /api/events/:eventSlug/clips', () => {
           uploadPerMinute: 1,
           uploadPerIpPerMinute: 300,
           joinPerMinute: 20,
+          guestInvitePerMinute: 200,
           loginPerMinute: 10,
           reactionPerMinute: 30,
           reactionPerIpPerMinute: 600,

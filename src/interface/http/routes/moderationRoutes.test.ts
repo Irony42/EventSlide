@@ -206,6 +206,8 @@ const usecasesFor = (
     startChallenge: notWired,
     stopChallenge: notWired,
     getChallenge: notWired,
+    viewGuestInvite: notWired,
+    getGuestInviteLogoMedia: notWired,
     getGuestInvite: notWired,
     saveGuestInvite: notWired,
     enableGuestInvite: notWired,
