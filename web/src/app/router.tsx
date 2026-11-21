@@ -6,7 +6,7 @@ import { ToastProvider } from '../design-system/components/ToastProvider'
 import { DeferredLocale } from '../lib/i18n/LocaleProvider'
 import { useAbout, useAboutAnswered } from '../lib/useAbout'
 import type { UiText } from '../lib/i18n/translations'
-import { useTranslations } from '../lib/i18n/useTranslations'
+import { useLocale, useTranslations } from '../lib/i18n/useTranslations'
 import { GuestFeedPage } from '../features/guest-feed/GuestFeedPage'
 import { GuestUploadPage } from '../features/guest-upload/GuestUploadPage'
 import { JoinPage } from '../features/join/JoinPage'
@@ -96,6 +96,14 @@ const CustomAmbiancePage = lazy(async () => ({
  * who opens it is not standing at the venue on its Wi-Fi with a photo to send — they are
  * at home the next week — so the guest's own eager chunk does not pay for it.
  */
+/**
+ * The page a guest opens from an invitation (spec 29): lazy like the gallery's, for the same
+ * reason, and light on its own.
+ */
+const GuestInvitePage = lazy(async () => ({
+  default: (await import('../features/guest-invite/GuestInvitePage')).GuestInvitePage,
+}))
+
 const GalleryPage = lazy(async () => ({
   default: (await import('../features/gallery/GalleryPage')).GalleryPage,
 }))
@@ -254,6 +262,32 @@ const LazyGuestPage = () => (
     </Suspense>
   </ErrorBoundary>
 )
+
+/**
+ * The invitation's page, in the language **the invitation** is set to.
+ *
+ * The host chose it when writing the invitation, and a guest opening it from another country is
+ * the reason it has one, so nothing here reads `navigator.languages`. Until the page says what it
+ * is (a round trip), and for the one answer that has no language ("not available"), the surface is
+ * in the **reader's own**. No language picker: a header that changed the language of a page the
+ * host wrote in one would make the picker the page's author.
+ */
+const InvitationLayout = () => {
+  const { locale: reader } = useLocale()
+  return (
+    <DeferredLocale fallback={reader}>
+      <ErrorBoundary surface="guest" resetKey={useLocation().pathname}>
+        <ToastProvider>
+          <AppShell surface="guest" footer={<SiteFooter />}>
+            <Suspense fallback={<RouteFallback />}>
+              <Outlet />
+            </Suspense>
+          </AppShell>
+        </ToastProvider>
+      </ErrorBoundary>
+    </DeferredLocale>
+  )
+}
 
 /**
  * `/e/:slug` with nothing after it: the event's front door, sent to the page a guest uses.
@@ -426,6 +460,11 @@ export function AppRoutes() {
             <Route path="/about" element={titled('about', <AboutPage />)} />
           </Route>
           <Route path="/g/*" element={titled('notFound', <NotFoundView />)} />
+        </Route>
+
+        {/* An invitation, opened from a link or a QR code. The token is the whole credential. */}
+        <Route element={<InvitationLayout />}>
+          <Route path="/i/:token" element={titled('guestInvite', <GuestInvitePage />)} />
         </Route>
 
         {/* Public, and behind no session: a projector has nobody to log it in. */}

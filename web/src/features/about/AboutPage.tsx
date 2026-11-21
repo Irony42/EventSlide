@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { NewTabLink } from '../../design-system/components/NewTabLink'
 import { useAbout } from '../../lib/useAbout'
@@ -52,7 +53,8 @@ export function AboutPage() {
   const about = useAbout()
   const navigate = useNavigate()
   // `default` is the key of the first entry of a document: nothing in this app came before it.
-  const hasHistory = useLocation().key !== 'default'
+  const location = useLocation()
+  const hasHistory = location.key !== 'default'
   const { donate, budget, terms, privacy, legalNotice, support } = about.links
   const { operator } = about
   const operatorLinks = [
@@ -61,6 +63,16 @@ export function AboutPage() {
     { href: legalNotice, label: text.about.legalNoticeLink },
     { href: support, label: text.about.helpLink },
   ].flatMap(({ href, label }) => (href === undefined ? [] : [{ href, label }]))
+
+  // An address with a fragment (`/about#about-operator-title`, from a guest invitation's "report" link)
+  // names a section of this page. The browser scrolls to a fragment only at load, before this page has
+  // rendered (it is lazy, and the operator's section waits for the box's answer), so it is done here,
+  // again when that section appears.
+  const hasOperatorSection = operator !== undefined || operatorLinks.length > 0
+  useEffect(() => {
+    if (location.hash === '') return
+    document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView()
+  }, [location.hash, hasOperatorSection])
 
   return (
     <>

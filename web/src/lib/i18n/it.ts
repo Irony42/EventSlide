@@ -3076,6 +3076,32 @@ export const it: UiText = {
     confirmWord: 'ELIMINA',
     wordLabel: 'Parola di conferma',
   },
+  /* Added by spec 29 (guest invitations): the page a guest opens from an invitation. */
+  guestInvite: {
+    page: {
+      eyebrow: 'Invito',
+      when: 'Quando',
+      where: 'Dove',
+      itinerary: 'Indicazioni',
+      agenda: 'Aggiungi al mio calendario',
+      join: 'Entra nel muro fotografico',
+      live: 'La festa è iniziata',
+      tonight:
+        'La sera della festa, torni su questa pagina per condividere le sue foto sul muro della festa.',
+      notOpen: 'Il muro fotografico non è ancora aperto.',
+      over: 'Questa festa è finita. Grazie di essere venuto.',
+      gone: 'Questo invito non è più disponibile',
+      goneSub: 'L’organizzatore potrebbe aver cambiato il link. Gliene chieda uno nuovo.',
+      report: 'Segnala questo invito',
+      madeWith: 'Invito creato con EventSlide',
+      otherTz: (when: string, place: string) => `Cioè ${when} a ${place}`,
+      loading: 'Caricamento dell’invito',
+      failed: 'Non è stato possibile caricare l’invito. Controlli la connessione.',
+      retry: 'Riprova',
+      logoAlt: (title: string) => `Logo di ${title}`,
+    },
+  },
+
   titles: {
     print: 'Segnaposto e locandina',
     join: 'Entri nella serata',
@@ -3083,6 +3109,7 @@ export const it: UiText = {
     feed: 'Foto della serata',
     wall: 'Schermo dell’evento',
     gallery: 'Album condiviso',
+    guestInvite: 'Invito',
     about: 'Informazioni',
     notFound: 'Pagina non trovata',
     login: 'Accesso',

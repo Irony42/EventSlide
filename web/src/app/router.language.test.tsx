@@ -7,6 +7,7 @@ import { de } from '../lib/i18n/de'
 import { fr } from '../lib/i18n/fr'
 import { it as italian } from '../lib/i18n/it'
 import {
+  aGuestInvitePage,
   aSessionUser,
   aWallResponse,
   fakeApi,
@@ -216,5 +217,44 @@ describe('the toast region', () => {
 
     // The region is inside `DeferredLocale`, so anything it ever renders is Italian.
     expect(await lang).toBe('it')
+  })
+
+  it('speaks the invitation’s language over its page, not the reader’s, and sets <html lang> to it', async () => {
+    const api = fakeApi({
+      guestInvitePage: vi.fn(async () => aGuestInvitePage({ language: 'it' })),
+    })
+    const lang = langWhenShown(italian.guestInvite.page.when)
+    renderWithProviders(<AppRoutes />, { api, route: '/i/7QX0M4TZ2KD9WB3H', locale: 'de' })
+
+    expect(await lang).toBe('it')
+    expect(screen.queryByText(de.guestInvite.page.when)).toBeNull()
+  })
+
+  it('speaks the reader’s language over "not available", which has no language of its own', async () => {
+    const api = fakeApi({
+      guestInvitePage: vi.fn(async () => {
+        throw new ApiError(404, 'guestInvite.notAvailable')
+      }),
+    })
+    renderWithProviders(<AppRoutes />, { api, route: '/i/7QX0M4TZ2KD9WB3H', locale: 'de' })
+
+    expect(await screen.findByRole('heading', { name: de.guestInvite.page.gone })).toBeVisible()
+    expect(document.documentElement.lang).toBe('de')
+  })
+
+  it('offers no language picker on the invitation: the host chose the language of the page', async () => {
+    renderWithProviders(<AppRoutes />, { route: '/i/7QX0M4TZ2KD9WB3H', locale: 'de' })
+
+    await screen.findByRole('heading', { level: 1 })
+
+    expect(screen.queryByRole('combobox', { name: de.app.language })).toBeNull()
+  })
+
+  it('still carries the AGPL source offer under the invitation, whatever language it is in', async () => {
+    renderWithProviders(<AppRoutes />, { route: '/i/7QX0M4TZ2KD9WB3H', locale: 'fr' })
+
+    await screen.findByRole('heading', { level: 1 })
+
+    expect(screen.getByText(fr.about.sourceCode)).toBeVisible()
   })
 })

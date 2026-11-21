@@ -3136,6 +3136,32 @@ export const de: UiText = {
     confirmWord: 'LÖSCHEN',
     wordLabel: 'Bestätigungswort',
   },
+  /* Added by spec 29 (guest invitations): the page a guest opens from an invitation. */
+  guestInvite: {
+    page: {
+      eyebrow: 'Einladung',
+      when: 'Wann',
+      where: 'Wo',
+      itinerary: 'Route',
+      agenda: 'Zu meinem Kalender hinzufügen',
+      join: 'Zur Fotowand',
+      live: 'Die Feier hat begonnen',
+      tonight:
+        'Kommen Sie am Abend auf diese Seite zurück, um Ihre Fotos auf der Fotowand der Feier zu teilen.',
+      notOpen: 'Die Fotowand ist noch nicht geöffnet.',
+      over: 'Diese Feier ist zu Ende. Danke fürs Kommen.',
+      gone: 'Diese Einladung ist nicht mehr verfügbar',
+      goneSub: 'Der Link wurde vielleicht vom Veranstalter geändert. Fragen Sie nach dem neuen.',
+      report: 'Diese Einladung melden',
+      madeWith: 'Einladung erstellt mit EventSlide',
+      otherTz: (when: string, place: string) => `Das ist ${when} in ${place}`,
+      loading: 'Einladung wird geladen',
+      failed: 'Die Einladung konnte nicht geladen werden. Prüfen Sie Ihre Verbindung.',
+      retry: 'Erneut versuchen',
+      logoAlt: (title: string) => `Logo von ${title}`,
+    },
+  },
+
   titles: {
     print: 'Tischkarten und Plakat',
     join: 'Der Feier beitreten',
@@ -3143,6 +3169,7 @@ export const de: UiText = {
     feed: 'Fotos des Abends',
     wall: 'Bildschirm der Veranstaltung',
     gallery: 'Geteiltes Album',
+    guestInvite: 'Einladung',
     about: 'Info',
     notFound: 'Seite nicht gefunden',
     login: 'Anmeldung',

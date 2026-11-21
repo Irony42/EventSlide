@@ -734,6 +734,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.gallery(GALLERY_TOKEN),
   },
   {
+    name: 'guestInvitePage',
+    verb: 'get',
+    path: '/api/i/7QX0M4TZ2KD9WB3H',
+    invoke: (client) => client.guestInvitePage('7QX0M4TZ2KD9WB3H'),
+  },
+  {
     name: 'unlockGallery',
     verb: 'post',
     path: `/api/gallery/${GALLERY_TOKEN}/unlock`,

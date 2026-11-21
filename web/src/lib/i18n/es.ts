@@ -3100,6 +3100,32 @@ export const es: UiText = {
     confirmWord: 'ELIMINAR',
     wordLabel: 'Palabra de confirmación',
   },
+  /* Added by spec 29 (guest invitations): the page a guest opens from an invitation. */
+  guestInvite: {
+    page: {
+      eyebrow: 'Invitación',
+      when: 'Cuándo',
+      where: 'Dónde',
+      itinerary: 'Cómo llegar',
+      agenda: 'Añadir a mi calendario',
+      join: 'Unirse al muro de fotos',
+      live: 'La fiesta ha empezado',
+      tonight:
+        'La noche de la fiesta, vuelva a esta página para compartir sus fotos en el muro de la fiesta.',
+      notOpen: 'El muro de fotos aún no está abierto.',
+      over: 'Esta fiesta ha terminado. Gracias por venir.',
+      gone: 'Esta invitación ya no está disponible',
+      goneSub: 'Puede que el organizador haya cambiado el enlace. Pídale el nuevo.',
+      report: 'Denunciar esta invitación',
+      madeWith: 'Invitación creada con EventSlide',
+      otherTz: (when: string, place: string) => `Es decir, ${when} en ${place}`,
+      loading: 'Cargando la invitación',
+      failed: 'No se pudo cargar la invitación. Compruebe su conexión.',
+      retry: 'Reintentar',
+      logoAlt: (title: string) => `Logo de ${title}`,
+    },
+  },
+
   titles: {
     print: 'Tarjetas de mesa y cartel',
     join: 'Únase a la fiesta',
@@ -3107,6 +3133,7 @@ export const es: UiText = {
     feed: 'Fotos de la velada',
     wall: 'Pantalla del evento',
     gallery: 'Álbum compartido',
+    guestInvite: 'Invitación',
     about: 'Acerca de',
     notFound: 'Página no encontrada',
     login: 'Inicio de sesión',

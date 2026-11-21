@@ -159,6 +159,33 @@ describe('DeferredLocale', () => {
     return <Screen />
   }
 
+  it('renders the fallback it was given, until the surface says what language it is in', () => {
+    // The invitation's page: nothing said yet, and "not available" never says: the reader's own.
+    browserSpeaks('de-DE')
+
+    render(
+      <LocaleProvider>
+        <DeferredLocale fallback="es">
+          <Announcing locale={null} />
+        </DeferredLocale>
+      </LocaleProvider>,
+    )
+
+    expect(screen.getByTestId('locale')).toHaveTextContent('es')
+  })
+
+  it('prefers what the surface announces to the fallback', () => {
+    render(
+      <LocaleProvider>
+        <DeferredLocale fallback="es">
+          <Announcing locale="it" />
+        </DeferredLocale>
+      </LocaleProvider>,
+    )
+
+    expect(screen.getByTestId('locale')).toHaveTextContent('it')
+  })
+
   it('renders the default until the surface says what language it is in', () => {
     // Before the response there is no event, so no event language — and reading the
     // browser would read the projector operator's laptop, which this exists to refuse.

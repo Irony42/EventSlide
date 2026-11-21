@@ -21,6 +21,10 @@ export type IconName =
   | 'globe'
   | 'check'
   | 'chevron'
+  | 'calendar'
+  | 'pin'
+  | 'camera'
+  | 'mail-off'
 
 export type IconSize = 'sm' | 'md'
 
@@ -60,6 +64,14 @@ const PATHS: Readonly<Record<IconName, string>> = {
     'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 1 0 0-17zM3.5 12h17M12 3.5c2.5 2.5 3.5 5.3 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.3-3.5-8.5s1-6 3.5-8.5z',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   chevron: 'M6 9.5l6 6 6-6',
+  // A page of a calendar: the frame, the rule under its head, the two rings.
+  calendar: square(3.5, 5, 17, 2.5) + 'M3.5 10h17M8 3v4M16 3v4',
+  // A map pin: the drop, and the hole in it.
+  pin: 'M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11zM12 7.7a2.3 2.3 0 1 0 0 4.6a2.3 2.3 0 1 0 0-4.6z',
+  // A camera: the body with its viewfinder bump, and the lens.
+  camera: 'M4 8h3l1.6-2.2h6.8L17 8h3v11H4zM12 9.9a3.4 3.4 0 1 0 0 6.8a3.4 3.4 0 1 0 0-6.8z',
+  // An envelope crossed out: a link nobody can open any more.
+  'mail-off': 'M4 7h16v12H4zM4 7l8 6 8-6M3 3l18 18',
 }
 
 export interface IconProps {

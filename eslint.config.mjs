@@ -140,6 +140,7 @@ const WEB_FEATURES = [
   'auth',
   'gallery',
   'guest-feed',
+  'guest-invite',
   'guest-upload',
   'join',
   'moderation',
