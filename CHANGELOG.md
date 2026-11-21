@@ -46,7 +46,7 @@ start-up. One setting is new in `.env.example`, optional.
   end, the time zone (taken from the browser on the first save, changed only on purpose), place, address and a word of up
   to 500 characters, and its language. « Activer l'invitation » gives it a link and a QR; the link can be copied, viewed
   as a guest, changed (the old link and printed QR codes stop working, after a confirmation) or switched off. Only the
-  owner writes it; a moderator reads it.
+  owner opens and changes it; a moderator does not see the page.
 - **Printed invitations in six designs** (#524, #525, #529): Essentiel, Ticket de caisse, Souvenir, Billet, Carte
   d'embarquement and Guirlande, four A6 cards or two A5 cards per A4 sheet, with the address printed, a short word of
   140 characters (the full word is on the page), the QR and the link in plain text. Colour and photograph as on the table
@@ -58,12 +58,13 @@ start-up. One setting is new in `.env.example`, optional.
 - **An e-mail sent from the host's own mailbox** (#527). EventSlide prepares the subject and the message, the host edits
   them if they wish, and « Ouvrir dans ma messagerie » opens their mail program; EventSlide sends nothing and keeps no
   address. A message too long for a mail link is cut with « suite sur la page de l'invitation », the link always kept.
+  The mail carries the address (it goes to the guests the host chose); the image does not unless the host ticks it.
 - **Fifteen designs for the printed table cards and poster** (#520): Essentiel, Classique, Ticket de caisse, Bande
   dessinée, Magazine, Souvenir, Carte postale, Billet, Carte d'embarquement, Appareil jetable, Affiche, Confettis,
   Années 70, Nuit and Guirlande, shown as live thumbnails of the host's own card. The host sets the title, the headline,
   a note, the date and place, a table number, a photograph and its framing, the colour (event, eleven swatches or any
-  colour) and the three steps. The A5 now prints as two portraits on a landscape A4. Nine OFL font families are
-  downloaded by this page only.
+  colour) and the three steps. The A5 now prints as two portraits on a landscape A4. Nine OFL font families (about
+  570 kB) are bundled and loaded by this page only.
 
 ### Operators
 
