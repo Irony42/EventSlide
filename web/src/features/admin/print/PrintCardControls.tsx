@@ -9,7 +9,7 @@ import { cx } from '../../../design-system/classNames'
 import { LocaleOverride } from '../../../lib/i18n/LocaleProvider'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { Locale } from '../../../lib/i18n/locale'
-import { PrintCard, type PrintCardTexts } from './PrintCard'
+import { PrintCard, type PrintCardInvitation, type PrintCardTexts } from './PrintCard'
 import { PRINT_SWATCHES, PRINT_SWATCH_IDS } from '../../../lib/print/printColours'
 import {
   PRINT_DESIGNS,
@@ -124,7 +124,29 @@ export function PrintCardControls(props: PrintCardControlsProps) {
   )
 }
 
-function DesignPicker({
+/** What a design picker needs; the table-card page gives it the whole of its props. */
+export type DesignPickerProps = Pick<
+  PrintCardControlsProps,
+  | 'design'
+  | 'onDesign'
+  | 'previewTexts'
+  | 'steps'
+  | 'photoUrl'
+  | 'focusX'
+  | 'focusY'
+  | 'accentHue'
+  | 'colour'
+  | 'eventColour'
+  | 'locale'
+> & {
+  /** The designs offered, in order: all fifteen by default. */
+  readonly designs?: readonly PrintDesign[]
+  /** Set for an invitation: the thumbnails then show the invitation layouts. */
+  readonly invitation?: PrintCardInvitation | undefined
+  readonly name?: string
+}
+
+export function DesignPicker({
   design,
   onDesign,
   previewTexts,
@@ -136,10 +158,16 @@ function DesignPicker({
   colour,
   eventColour,
   locale,
-}: PrintCardControlsProps) {
+  designs = PRINT_DESIGNS,
+  invitation,
+  name = 'print-design',
+}: DesignPickerProps) {
   const t = useTranslations()
   const root = useRef<HTMLDivElement>(null)
-  useFitText(root, `${JSON.stringify(previewTexts)}|${photoUrl === null}|${locale}`)
+  useFitText(
+    root,
+    `${JSON.stringify(previewTexts)}|${JSON.stringify(invitation)}|${photoUrl === null}|${locale}`,
+  )
   const style = {
     '--accent-hue': String(accentHue),
     '--pd-color': colour ?? eventColour,
@@ -149,14 +177,14 @@ function DesignPicker({
       <legend className={styles['legend']}>{t.admin.printKitDesign}</legend>
       <div ref={root} className={styles['designs']} style={style}>
         <LocaleOverride locale={locale}>
-          {PRINT_DESIGNS.map((choice) => (
+          {designs.map((choice) => (
             <label
               key={choice}
               className={cx(styles['design'], choice === design && styles['chosen'])}
             >
               <input
                 type="radio"
-                name="print-design"
+                name={name}
                 value={choice}
                 checked={choice === design}
                 onChange={() => onDesign(choice)}
@@ -172,6 +200,7 @@ function DesignPicker({
                   focusY={focusY}
                   joinCode="ABC123"
                   address={null}
+                  invitation={invitation}
                   qr={<span className={styles['qrStandIn']} />}
                 />
               </span>
@@ -184,7 +213,17 @@ function DesignPicker({
   )
 }
 
-function PhotoControls({ photoUrl, onPhoto, focusX, focusY, onFocus }: PrintCardControlsProps) {
+export function PhotoControls({
+  photoUrl,
+  onPhoto,
+  focusX,
+  focusY,
+  onFocus,
+  hint,
+}: Pick<PrintCardControlsProps, 'photoUrl' | 'onPhoto' | 'focusX' | 'focusY' | 'onFocus'> & {
+  /** Replaces the table card's sentence about where the photo stays. */
+  readonly hint?: string
+}) {
   const t = useTranslations()
   const input = useRef<HTMLInputElement>(null)
   const [failed, setFailed] = useState(false)
@@ -201,7 +240,7 @@ function PhotoControls({ photoUrl, onPhoto, focusX, focusY, onFocus }: PrintCard
   return (
     <fieldset className={styles['group']}>
       <legend className={styles['legend']}>{t.admin.printKitPhoto}</legend>
-      <p className={styles['help']}>{t.admin.printKitPhotoHint}</p>
+      <p className={styles['help']}>{hint ?? t.admin.printKitPhotoHint}</p>
       <input
         ref={input}
         type="file"

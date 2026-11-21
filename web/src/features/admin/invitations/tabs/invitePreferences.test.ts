@@ -79,4 +79,54 @@ describe('invite preferences', () => {
     expect(readInvitePreferences('fete')).toEqual({})
     expect(() => writeInvitePreferences('fete', { short: 'x' })).not.toThrow()
   })
+
+  it('offers only the designs that have an invitation layout', () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ design: 'classique' }))
+    expect(readInvitePreferences('fete')).toEqual({})
+
+    for (const design of [
+      'essentiel',
+      'ticket',
+      'souvenir',
+      'billet',
+      'embarquement',
+      'guirlande',
+    ]) {
+      window.localStorage.setItem(KEY, JSON.stringify({ design }))
+      expect(readInvitePreferences('fete').design, design).toBe(design)
+    }
+  })
+
+  it('keeps a photograph only when it is the JPEG the print kit writes, and a focus only in percent', () => {
+    const photo = 'data:image/jpeg;base64,AAAA'
+    window.localStorage.setItem(KEY, JSON.stringify({ photo, focusX: 20, focusY: 100 }))
+    expect(readInvitePreferences('fete')).toEqual({ photo, focusX: 20, focusY: 100 })
+
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify({ photo: 'https://example.test/a.jpg', focusX: 101, focusY: -1 }),
+    )
+    expect(readInvitePreferences('fete')).toEqual({})
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify({ photo: 'data:text/html;base64,AAAA', focusX: 'x' }),
+    )
+    expect(readInvitePreferences('fete')).toEqual({})
+  })
+
+  it('keeps the other choices when the photograph does not fit in the storage', () => {
+    const real = Storage.prototype.setItem
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (value.includes('data:image')) throw new Error('quota')
+      real.call(this, key, value)
+    })
+
+    writeInvitePreferences('fete', { format: 'a5', photo: 'data:image/jpeg;base64,AAAA' })
+
+    expect(readInvitePreferences('fete')).toEqual({ format: 'a5' })
+  })
 })

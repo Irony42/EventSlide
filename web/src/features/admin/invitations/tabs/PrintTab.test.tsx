@@ -229,4 +229,101 @@ describe('PrintTab', () => {
     expect(sheet()).not.toHaveTextContent('Guinguette')
     expect(sheet()).not.toHaveTextContent('quai de la Loire')
   })
+
+  it('offers the six designs that have an invitation layout, Essentiel first and chosen', () => {
+    renderTab()
+
+    const designs = screen.getAllByRole('radio', {
+      name: /^(Essentiel|Ticket de caisse|Souvenir|Billet|Carte d’embarquement|Guirlande)$/,
+    })
+    expect(designs.map((d) => d.getAttribute('value'))).toEqual([
+      'essentiel',
+      'ticket',
+      'souvenir',
+      'billet',
+      'embarquement',
+      'guirlande',
+    ])
+    expect(designs[0]).toBeChecked()
+    expect(screen.queryByRole('radio', { name: 'Classique' })).not.toBeInTheDocument()
+    expect(sheet().querySelector('[data-print-card]')).toHaveAttribute(
+      'data-print-card',
+      'essentiel',
+    )
+  })
+
+  it('draws the chosen design on the sheet, keeps it, and the QR still leads to the invitation', async () => {
+    const user = userEvent.setup()
+    renderTab()
+
+    await user.click(screen.getByRole('radio', { name: 'Billet' }))
+
+    expect(sheet().querySelector('[data-print-card]')).toHaveAttribute('data-print-card', 'billet')
+    expect(JSON.parse(window.localStorage.getItem(KEY) ?? '{}')).toEqual({ design: 'billet' })
+    const { container, unmount } = render(
+      <QRCodeSVG value={URL_OF_INVITE} level="M" marginSize={4} />,
+    )
+    const expected = qrPatternOf(container)
+    unmount()
+    expect(qrPatternOf(within(sheet()).getAllByRole('img', { name: /QR/ })[0] as HTMLElement)).toBe(
+      expected,
+    )
+  })
+
+  it('has the day, the hours, the place, the address and the link on every design', async () => {
+    const user = userEvent.setup()
+    renderTab()
+
+    for (const name of [
+      'Ticket de caisse',
+      'Souvenir',
+      'Billet',
+      'Carte d’embarquement',
+      'Guirlande',
+      'Essentiel',
+    ]) {
+      await user.click(screen.getByRole('radio', { name }))
+      const card = sheet().querySelector('[data-print-card]') as HTMLElement
+      expect(card, name).toHaveTextContent('19 h')
+      expect(card, name).toHaveTextContent('La Guinguette du Port')
+      expect(card, name).toHaveTextContent('12 quai de la Loire')
+      expect(card, name).toHaveTextContent('photos.example.test/i/7QX0M4TZ2KD9WB3H')
+    }
+  })
+
+  it('asks for a photograph only for a design that prints one', async () => {
+    const user = userEvent.setup()
+    renderTab()
+    expect(screen.queryByTestId('print-photo-input')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Guirlande' }))
+
+    expect(screen.getByTestId('print-photo-input')).toBeInTheDocument()
+    expect(screen.getByText((content) => content === plain(text.photoHint))).toBeInTheDocument()
+  })
+
+  it('puts the kept photograph on the card, and takes it off on demand', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify({ design: 'billet', photo: 'data:image/jpeg;base64,AAAA' }),
+    )
+    renderTab()
+    expect(sheet().querySelector('img[src^="data:image/jpeg"]')).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: fr.admin.printKitPhotoRemove }))
+
+    expect(sheet().querySelector('img[src^="data:image/jpeg"]')).toBeNull()
+    expect(JSON.parse(window.localStorage.getItem(KEY) ?? '{}')).toEqual({ design: 'billet' })
+  })
+
+  it('tells a design that is heavy on ink', async () => {
+    const user = userEvent.setup()
+    renderTab()
+    expect(screen.queryByText(fr.admin.printKitInkHeavy)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Souvenir' }))
+
+    expect(screen.getByText(fr.admin.printKitInkHeavy)).toBeInTheDocument()
+  })
 })

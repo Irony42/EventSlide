@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   dayLabel,
+  shortDayLabel,
   hourLabel,
   icsOf,
   instantToLocalInput,
@@ -345,5 +346,15 @@ describe('instantToLocalInput', () => {
       const instant = localInputToInstant(value, 'Europe/Paris')
       expect(instant.ok && instantToLocalInput(instant.instant, 'Europe/Paris')).toBe(value)
     }
+  })
+})
+
+describe('shortDayLabel', () => {
+  it('writes the day as numbers, in the zone of the invitation and the language of the card', () => {
+    const at = new Date('2027-12-11T23:30:00Z')
+
+    expect(shortDayLabel(at, 'fr', 'Europe/Paris')).toBe('12/12/2027')
+    expect(shortDayLabel(at, 'fr', 'America/Montreal')).toBe('11/12/2027')
+    expect(shortDayLabel(at, 'en', 'America/Montreal')).toBe('12/11/2027')
   })
 })

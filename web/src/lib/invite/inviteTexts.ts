@@ -60,6 +60,15 @@ export const dayLabel = (at: Date, lang: Locale, timeZone: string): string =>
     year: 'numeric',
   }).format(at)
 
+/** "11/12/2027" in French, the platform's own numeric date elsewhere: for a narrow column of a card. */
+export const shortDayLabel = (at: Date, lang: Locale, timeZone: string): string =>
+  new Intl.DateTimeFormat(lang, {
+    timeZone,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(at)
+
 const weekdayLabel = (at: Date, lang: Locale, timeZone: string): string =>
   new Intl.DateTimeFormat(lang, { timeZone, weekday: 'long' }).format(at)
 

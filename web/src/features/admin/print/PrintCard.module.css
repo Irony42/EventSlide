@@ -2242,3 +2242,76 @@
   color: var(--pd-ink-soft);
   overflow-wrap: anywhere;
 }
+
+/* ---------------------------------------------------------------- invitation parts shared by the designs (spec 29) */
+.invAddr {
+  display: block;
+  font-size: 0.85em;
+  font-weight: 400;
+  white-space: pre-line;
+  color: var(--pd-ink-soft);
+}
+
+.invMore {
+  display: block;
+  font-size: 0.8em;
+  font-style: normal;
+}
+
+.invLink {
+  font-size: 1.9cqw;
+  line-height: 1.3;
+  color: var(--pd-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.invLinkLine {
+  font-size: 0.8em;
+  overflow-wrap: anywhere;
+}
+
+.invAddrLine {
+  white-space: pre-line;
+}
+
+.glMsg {
+  inline-size: 92%;
+  max-block-size: 8cqw;
+  font-size: 3cqw;
+  font-weight: 300;
+  line-height: 1.3;
+}
+
+.svNoteInv {
+  font-size: 3.4cqw;
+  line-height: 1.15;
+}
+
+.svNote .invP {
+  font-size: 1em;
+  color: var(--pd-pen-brown);
+}
+
+.svNote .invP:first-child {
+  font-weight: 700;
+  color: var(--pd-pen);
+}
+
+.svNote .invP + .invP {
+  margin-block-start: 0.8cqw;
+}
+
+.rc .invAddrLine {
+  max-block-size: none;
+  margin-block: 0.6cqw;
+  white-space: pre-line;
+  line-height: 1.3;
+}
+
+.bpWord {
+  max-block-size: 12.5cqw;
+  font-size: 2.6cqw;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--pd-ink);
+}

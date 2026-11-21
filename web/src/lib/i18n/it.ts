@@ -3190,6 +3190,8 @@ export const it: UiText = {
       shortHint: 'Il messaggio completo è nella pagina dell’invito.',
       shortReset: 'Torna al testo automatico',
       printA5Help: 'Per l’A5, stampa da Chrome, Edge o Firefox: Safari non sa ruotare il foglio.',
+      photoHint:
+        'La foto resta in questo browser: EventSlide non la invia da nessuna parte e un altro dispositivo non la vedrà.',
       printButton: 'Stampa',
       previewLabel: 'Anteprima della cartolina',
       printHelp:
@@ -3199,6 +3201,12 @@ export const it: UiText = {
       eyebrow: 'Invito',
       more: 'Tutti i dettagli nella pagina dell’invito.',
       link: (link: string) => `Info e muro fotografico: ${link}`,
+      entry: 'Ingresso: tu',
+      hourLabel: 'Ora',
+      placeLabel: 'Luogo',
+      stubLine: 'Tutti i dettagli e, la sera stessa, il muro foto.',
+      startLabel: 'Inizio',
+      endLabel: 'Fine',
     },
   },
 

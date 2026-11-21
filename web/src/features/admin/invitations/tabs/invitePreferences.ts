@@ -1,5 +1,6 @@
 import { isHexColour } from '../../print/printKit'
-import { isPrintDesign, type PrintDesign } from '../../../../lib/print/printDesigns'
+import { isInvitationDesign, type InvitationDesign } from '../../../../lib/print/printDesigns'
+import { isPrintPhotoUrl } from '../../print/printPhoto'
 import { SHORT_MESSAGE_MAX, graphemeCount } from '../../../../lib/invite/cardTexts'
 
 /**
@@ -17,14 +18,20 @@ export type InviteFormat = 'card' | 'a5'
 
 export const INVITE_FORMATS: readonly InviteFormat[] = ['card', 'a5']
 export const DEFAULT_INVITE_FORMAT: InviteFormat = 'card'
+export const DEFAULT_INVITE_DESIGN: InvitationDesign = 'essentiel'
 
 export interface InvitePreferences {
-  readonly design?: PrintDesign
+  readonly design?: InvitationDesign
   /** `#rrggbb`; absent wears the event's own colour. */
   readonly colour?: string
   readonly format?: InviteFormat
   /** The word printed on the card **when the host wrote one of their own**; absent is the automatic cut. */
   readonly short?: string
+  /** The host's photograph, reduced in the browser (`printPhoto`): a JPEG `data:` URL. Never sent anywhere. */
+  readonly photo?: string
+  /** Where the photograph is framed, in percent of its width and height. */
+  readonly focusX?: number
+  readonly focusY?: number
 }
 
 const keyFor = (slug: string): string => `eventslide.invite.${slug}`
@@ -32,18 +39,27 @@ const keyFor = (slug: string): string => `eventslide.invite.${slug}`
 const isFormat = (value: unknown): value is InviteFormat =>
   INVITE_FORMATS.some((format) => format === value)
 
+const isPercent = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100
+
 export const readInvitePreferences = (slug: string): InvitePreferences => {
   try {
     const raw = window.localStorage.getItem(keyFor(slug))
     if (raw === null) return {}
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return {}
-    const { design, colour, format, short } = parsed as Record<string, unknown>
+    const { design, colour, format, short, photo, focusX, focusY } = parsed as Record<
+      string,
+      unknown
+    >
     return {
-      ...(isPrintDesign(design) ? { design } : {}),
+      ...(isInvitationDesign(design) ? { design } : {}),
       ...(isHexColour(colour) ? { colour: colour.toLowerCase() } : {}),
       ...(isFormat(format) ? { format } : {}),
       ...(typeof short === 'string' && graphemeCount(short) <= SHORT_MESSAGE_MAX ? { short } : {}),
+      ...(isPrintPhotoUrl(photo) ? { photo } : {}),
+      ...(isPercent(focusX) ? { focusX } : {}),
+      ...(isPercent(focusY) ? { focusY } : {}),
     }
   } catch {
     return {}
@@ -54,6 +70,12 @@ export const writeInvitePreferences = (slug: string, preferences: InvitePreferen
   try {
     window.localStorage.setItem(keyFor(slug), JSON.stringify(preferences))
   } catch {
-    // Storage is a convenience; the page works without it.
+    // A photograph that does not fit must not cost the host the rest of their choices.
+    try {
+      const { photo: _dropped, ...withoutPhoto } = preferences
+      window.localStorage.setItem(keyFor(slug), JSON.stringify(withoutPhoto))
+    } catch {
+      // Storage is a convenience; the page works without it.
+    }
   }
 }
