@@ -55,11 +55,22 @@ const linkOf = (body: Record<string, unknown>): string => {
   return invite.url
 }
 
-/** A draft event of its own: the seeded events are opened, and an event cannot go back to a draft. */
+/**
+ * A draft event of its own: the seeded events are opened, and an event cannot go back to a draft.
+ * The server is per worker, not per test, so a repeated spec meets its own slug again: on a
+ * conflict the next suffix is tried, as `seedEvent` does, and the spec follows the returned slug.
+ */
 const draftEvent = async (host: Host, slug: string) => {
-  const created = await call(host, 'post', '/api/events', { name: PARTY.title, slug })
-  expect(created.status).toBe(201)
-  return created.body as { readonly slug: string; readonly joinCode: string }
+  for (let attempt = 1; attempt <= 25; attempt += 1) {
+    const created = await call(host, 'post', '/api/events', {
+      name: attempt === 1 ? PARTY.title : `${PARTY.title} ${attempt}`,
+      slug: attempt === 1 ? slug : `${slug}-${attempt}`,
+    })
+    if (created.status === 409) continue
+    expect(created.status).toBe(201)
+    return created.body as { readonly slug: string; readonly joinCode: string }
+  }
+  throw new Error(`no free slug for ${slug}`)
 }
 
 const invite = async (host: Host, slug: string): Promise<string> => {
