@@ -498,6 +498,7 @@ describe('buildServer: which client a rate limit is counting', () => {
         trustProxyHops: 1,
         rateLimits: {
           joinPerMinute: 1,
+          guestInvitePerMinute: 200,
           uploadPerMinute: 12,
           uploadPerIpPerMinute: 300,
           loginPerMinute: 10,
@@ -556,6 +557,7 @@ describe('buildServer: which client a rate limit is counting', () => {
       config: {
         rateLimits: {
           joinPerMinute: 10,
+          guestInvitePerMinute: 200,
           uploadPerMinute: 12,
           uploadPerIpPerMinute: 1,
           loginPerMinute: 10,
@@ -596,6 +598,7 @@ describe('buildServer: which client a rate limit is counting', () => {
       config: {
         rateLimits: {
           joinPerMinute: 10,
+          guestInvitePerMinute: 200,
           uploadPerMinute: 1,
           uploadPerIpPerMinute: 300,
           loginPerMinute: 10,
@@ -1285,6 +1288,13 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     expect(response.get('permissions-policy')).not.toContain('microphone=(self)')
   })
 
+  it('keeps the microphone open on a guest invitation: its button into the wall is a client-side link, so this document hosts the join and upload pages next', async () => {
+    const response = await request(withClient().app).get('/i/' + '7'.repeat(16))
+
+    expect(response.status).toBe(200)
+    expect(response.get('permissions-policy')).toContain('microphone=(self)')
+  })
+
   it('still denies location, payment, usb and the magnetometer on a page that opens the microphone', async () => {
     const response = await request(withClient().app).get('/e/x/upload')
 
@@ -1345,6 +1355,8 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     ['a password reset', '/password/reset/' + 'Q'.repeat(43)],
     ['an invitation, in capitals, which Express routes the same', '/INVITE/' + 'Q'.repeat(43)],
     ['a reset, in capitals', '/Password/Reset/' + 'Q'.repeat(43)],
+    ['a guest invitation', '/i/' + '7'.repeat(16)],
+    ['a guest invitation, in capitals, which Express routes the same', '/I/' + '7'.repeat(16)],
     ['an invitation with a trailing slash', '/invite/' + 'Q'.repeat(43) + '/'],
   ])(
     'serves the page of %s with no referrer, no index and no cache, like the gallery',

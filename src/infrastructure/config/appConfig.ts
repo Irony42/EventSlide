@@ -213,6 +213,8 @@ export interface AppConfig {
     readonly guestWritePerMinute: number
     readonly galleryPerMinute: number
     readonly galleryMediaPerMinute: number
+    /** `GUEST_INVITE_RATE_LIMIT_PER_MINUTE`: the public invitation page (spec 29), per client address. */
+    readonly guestInvitePerMinute: number
     /** Failed password attempts per client, per fifteen minutes. */
     readonly galleryUnlockPerClient: number
     /** Failed password attempts per link, from every client together, per fifteen minutes. */

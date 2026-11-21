@@ -160,6 +160,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   startChallenge: notWired('startChallenge'),
   stopChallenge: notWired('stopChallenge'),
   getChallenge: notWired('getChallenge'),
+  viewGuestInvite: notWired('viewGuestInvite'),
+  getGuestInviteLogoMedia: notWired('getGuestInviteLogoMedia'),
   getGuestInvite: notWired('getGuestInvite'),
   saveGuestInvite: notWired('saveGuestInvite'),
   enableGuestInvite: notWired('enableGuestInvite'),

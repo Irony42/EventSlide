@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { NewTabLink } from '../../design-system/components/NewTabLink'
 import { useAbout } from '../../lib/useAbout'
@@ -47,12 +48,27 @@ const THIRD_PARTY_NOTICES_URL = '/third-party-licenses.txt'
  * reads the page as it always did. It says plainly that a donation unlocks nothing — the
  * same service for everyone — and it is a section of this page, never a banner over it.
  */
+/**
+ * The id a fragment names. A fragment is typed by whoever wrote the link: `#%E0%A4%A` does not
+ * decode, and a page that threw on it would be a page nobody could open from that link, so the
+ * raw text is used and names nothing.
+ */
+const fragmentOf = (hash: string): string => {
+  const raw = hash.slice(1)
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
 export function AboutPage() {
   const text = useTranslations()
   const about = useAbout()
   const navigate = useNavigate()
   // `default` is the key of the first entry of a document: nothing in this app came before it.
-  const hasHistory = useLocation().key !== 'default'
+  const location = useLocation()
+  const hasHistory = location.key !== 'default'
   const { donate, budget, terms, privacy, legalNotice, support } = about.links
   const { operator } = about
   const operatorLinks = [
@@ -61,6 +77,16 @@ export function AboutPage() {
     { href: legalNotice, label: text.about.legalNoticeLink },
     { href: support, label: text.about.helpLink },
   ].flatMap(({ href, label }) => (href === undefined ? [] : [{ href, label }]))
+
+  // An address with a fragment (`/about#about-operator-title`, from a guest invitation's "report" link)
+  // names a section of this page. The browser scrolls to a fragment only at load, before this page has
+  // rendered (it is lazy, and the operator's section waits for the box's answer), so it is done here,
+  // again when that section appears.
+  const hasOperatorSection = operator !== undefined || operatorLinks.length > 0
+  useEffect(() => {
+    if (location.hash === '') return
+    document.getElementById(fragmentOf(location.hash))?.scrollIntoView()
+  }, [location.hash, hasOperatorSection])
 
   return (
     <>

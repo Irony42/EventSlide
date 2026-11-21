@@ -122,6 +122,8 @@ import type { ListMyGuestbookEntries } from '../../application/usecases/guestboo
 import type { ModerateGuestbookEntry } from '../../application/usecases/guestbook/moderateGuestbookEntry'
 import type { OpenGuestbookVoice } from '../../application/usecases/guestbook/openGuestbookVoice'
 import type { StageGuestbookVoice } from '../../application/usecases/guestbook/stageGuestbookVoice'
+import type { ViewGuestInvite } from '../../application/usecases/guestInvites/viewGuestInvite'
+import type { GetGuestInviteLogoMedia } from '../../application/usecases/guestInvites/getGuestInviteLogoMedia'
 import type { GetGuestInvite } from '../../application/usecases/guestInvites/getGuestInvite'
 import type { SaveGuestInvite } from '../../application/usecases/guestInvites/saveGuestInvite'
 import type { EnableGuestInvite } from '../../application/usecases/guestInvites/enableGuestInvite'
@@ -332,6 +334,8 @@ export interface HttpUseCases {
   readonly stopChallenge: StopChallenge
   readonly getChallenge: GetChallenge
   // the guest invitation: the host's side (spec 29)
+  readonly viewGuestInvite: ViewGuestInvite
+  readonly getGuestInviteLogoMedia: GetGuestInviteLogoMedia
   readonly getGuestInvite: GetGuestInvite
   readonly saveGuestInvite: SaveGuestInvite
   readonly enableGuestInvite: EnableGuestInvite

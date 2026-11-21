@@ -32,6 +32,7 @@ import type {
   EventSettingsDto,
   GalleryDto,
   GalleryPhotoDto,
+  GuestInvitePageDto,
   GuestPhotoDto,
   GuestMissionDto,
   JoinResponse,
@@ -136,6 +137,25 @@ export const aGallery = (overrides: Partial<GalleryDto> = {}): GalleryDto => ({
   photoCount: 2,
   expiresAt: '2026-07-20T21:00:00.000Z',
   archiveUrl: '/api/gallery-media/link-1/album.zip?e=1&s=signature',
+  ...overrides,
+})
+
+/** The page of a guest invitation, as a guest opening the link before the party is shown it (spec 29). */
+export const aGuestInvitePage = (
+  overrides: Partial<GuestInvitePageDto> = {},
+): GuestInvitePageDto => ({
+  state: 'upcoming',
+  title: 'Léa fête ses 40 ans',
+  when: {
+    startsAt: '2026-12-12T18:00:00.000Z',
+    endsAt: '2026-12-13T01:00:00.000Z',
+    timeZone: 'Europe/Paris',
+  },
+  venueName: 'La Guinguette du Port',
+  address: '12 quai de la Loire\n44000 Nantes',
+  message: 'Apéro à 19 h, dîner à 20 h 30.',
+  language: 'fr',
+  accentHue: 305,
   ...overrides,
 })
 
@@ -878,6 +898,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   })),
   revokeShareLink: vi.fn(async () => undefined),
   gallery: vi.fn(async () => aGallery()),
+  guestInvitePage: vi.fn(async (): Promise<GuestInvitePageDto> => aGuestInvitePage()),
   unlockGallery: vi.fn(async () => undefined),
   galleryPhotos: vi.fn(async () => ({
     items: [aGalleryPhoto({ id: 'photo-1' }), aGalleryPhoto({ id: 'photo-2' })],

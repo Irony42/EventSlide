@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, Route, Routes } from 'react-router-dom'
@@ -437,5 +437,62 @@ describe('AboutPage: a way back (A7)', () => {
 
     expect(screen.getByRole('link', { name: fr.about.home })).toHaveAttribute('href', '/')
     expect(screen.queryByRole('button', { name: fr.about.back })).toBeNull()
+  })
+})
+
+describe('AboutPage, an address that names a section', () => {
+  const NAME = 'Association Les Photographes'
+  /** jsdom has no `scrollIntoView`: a stand-in on the prototype, removed with the test. */
+  const scrolled = () => {
+    const scroll = vi.fn()
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scroll,
+    })
+    return scroll
+  }
+  afterEach(() => {
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+  })
+
+  it('scrolls to the operator’s contact once the section is on the page, as a guest invitation’s "report" link asks', async () => {
+    const scroll = scrolled()
+    renderWithProviders(<AboutPage />, {
+      api: fakeApi({ about: vi.fn(async () => anAbout({ operator: { name: NAME } } as never)) }),
+      route: '/about#about-operator-title',
+    })
+
+    await screen.findByRole('heading', { name: fr.about.operatorTitle })
+
+    await waitFor(() => expect(scroll).toHaveBeenCalled())
+    expect(scroll.mock.contexts.at(-1)).toBe(
+      screen.getByRole('heading', { name: fr.about.operatorTitle }),
+    )
+  })
+
+  it('scrolls nowhere, and does not fail, for a fragment that names nothing on the page', async () => {
+    const scroll = scrolled()
+    renderWithProviders(<AboutPage />, { api: silentServer(), route: '/about#nothing-here' })
+
+    await screen.findByRole('heading', { name: fr.about.title })
+
+    expect(scroll).not.toHaveBeenCalled()
+  })
+
+  it('does not break on a fragment that cannot be decoded: the page is still the page', async () => {
+    const scroll = scrolled()
+    renderWithProviders(<AboutPage />, { api: silentServer(), route: '/about#%E0%A4%A' })
+
+    expect(await screen.findByRole('heading', { name: fr.about.title })).toBeVisible()
+    expect(scroll).not.toHaveBeenCalled()
+  })
+
+  it('scrolls nowhere for an address with no fragment', async () => {
+    const scroll = scrolled()
+    renderWithProviders(<AboutPage />, { api: silentServer(), route: '/about' })
+
+    await screen.findByRole('heading', { name: fr.about.title })
+
+    expect(scroll).not.toHaveBeenCalled()
   })
 })

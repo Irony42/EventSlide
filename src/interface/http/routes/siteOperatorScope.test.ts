@@ -132,6 +132,14 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'post /api/gallery/:token/unlock':
     'the gallery’s password, which is the second factor on top of the token and is ' +
     'answered by the token’s own rule',
+  'get /api/i/:token':
+    'a guest invitation (spec 29): the link’s token **is** the credential, and the use case ' +
+    'decides everything with it. The answer is one neutral 404 for a token that is unknown, ' +
+    'malformed, switched off, or whose event is archived, taken down or frozen, and the ' +
+    'same page for everybody who holds a live one: an operator holding no token learns nothing',
+  'get /api/i/:token/logo':
+    'the logo of that page, behind the same token and the same neutral 404: it is served only ' +
+    'while the page is, and an operator holding no token is a stranger to it',
   'get /api/invitations/:token':
     'an invitation link (roadmap §10.3): the token **is** the credential, and what it shows ' +
     'is the same neutral answer to everyone — the purpose, the target’s name and the end of ' +

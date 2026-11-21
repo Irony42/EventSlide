@@ -510,6 +510,13 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        */
       GALLERY_RATE_LIMIT_PER_MINUTE: positiveInt(120, 1_200),
       GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: positiveInt(3_000, 30_000),
+      /**
+       * The public page of a guest invitation (spec 29), per client address. Sized like the
+       * join endpoint, for guests behind one venue's Wi-Fi: three hundred of them open the
+       * invitation within minutes of the party starting. What it must still bound is guessing,
+       * and a token is 80 random bits.
+       */
+      GUEST_INVITE_RATE_LIMIT_PER_MINUTE: positiveInt(200, 6_000),
       GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT: positiveInt(10, 600),
       GALLERY_UNLOCK_ATTEMPTS_PER_LINK: positiveInt(50, 6_000),
 

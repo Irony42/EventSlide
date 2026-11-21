@@ -842,6 +842,7 @@ const limits = () => ({
   uploadPerMinute: 12,
   uploadPerIpPerMinute: 300,
   joinPerMinute: 20,
+  guestInvitePerMinute: 200,
   loginPerMinute: 10,
   reactionPerMinute: 30,
   reactionPerIpPerMinute: 600,

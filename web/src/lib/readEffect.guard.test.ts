@@ -120,6 +120,17 @@ const BESPOKE: ReadonlyMap<string, { readonly count: number; readonly reason: st
     },
   ],
   [
+    'features/guest-invite/hooks/useGuestInvite.ts',
+    {
+      count: 1,
+      reason:
+        'A read that repeats whenever the page returns to the front (focus, visibility): the ' +
+        'host opens the evening or changes the join code while a guest holds the tab open. ' +
+        'A re-read keeps the invitation on screen through a network failure and replaces it ' +
+        'by the one sentence on a "not available", which useLoader does not do.',
+    },
+  ],
+  [
     'features/guest-upload/hooks/useMyPhotos.ts',
     {
       count: 1,

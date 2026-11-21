@@ -35,6 +35,11 @@ export interface GuestInviteView {
   /** Absent once the event is over. */
   readonly message?: string | null
   readonly language: EventLanguage
+  /**
+   * The event's accent, in degrees on the hue circle: the **one** field of its look the page wears
+   * (the mock-up's colour), and nothing else of the theme, so no setting leaves with it.
+   */
+  readonly accentHue: number
   /** Whether the event has a logo; the page then asks for it by token. */
   readonly hasLogo: boolean
   /** Only while `joinable`. */
@@ -73,6 +78,7 @@ export const makeViewGuestInvite =
       schedule: served.schedule,
       venueName: content.venueName,
       language: content.language,
+      accentHue: event.settings.theme.accentHue,
       hasLogo: event.settings.logo !== null,
     }
     if (served.state === 'over') return ok(base)

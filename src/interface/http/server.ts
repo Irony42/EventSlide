@@ -35,6 +35,7 @@ import { guestbookRoutes } from './routes/guestbookRoutes'
 import { guestbookVoiceRoutes } from './routes/guestbookVoiceRoutes'
 import { announcementRoutes } from './routes/announcementRoutes'
 import { guestInviteRoutes } from './routes/guestInviteRoutes'
+import { guestInvitePublicRoutes } from './routes/guestInvitePublicRoutes'
 import { channelRoutes } from './routes/channelRoutes'
 import { challengeRoutes } from './routes/challengeRoutes'
 import { missionRoutes } from './routes/missionRoutes'
@@ -154,6 +155,9 @@ export const buildServer = ({
   // Two mounts, because a mount path matches at a `/` boundary and `/api/gallery` does
   // not cover `/api/gallery-media`.
   app.use(['/api/gallery', '/api/gallery-media'], galleryHeaders)
+  // The guest invitation's public page: the token is in the path, so the same headers on every
+  // answer, a refusal by the body parser or the CSRF gate included.
+  app.use('/api/i', galleryHeaders)
 
   // Bounded well below any legitimate payload: the only JSON bodies here are a login,
   // a caption and a list of at most 200 photo ids. Uploads go through multer.
@@ -263,6 +267,8 @@ export const buildServer = ({
   }
 
   app.use('/api', publicRoutes(routeDeps))
+  // The page a guest opens from an invitation (spec 29): public, one neutral refusal.
+  app.use('/api', guestInvitePublicRoutes(routeDeps))
   app.use('/api', authRoutes(routeDeps))
   // The invitee's side of an invitation link: what it offers, and accepting it. Public, and
   // after the auth routes because accepting with a password starts a session the same way a
@@ -442,7 +448,14 @@ const apiNotFound: RequestHandler = (_req, res) => {
  * headers, and `/api/gallery/<token>/…` and `/api/invitations/<token>/…` are API routes, not
  * pages, so they have no shell to serve.
  */
-const TOKEN_PAGES = ['/invite', '/invite/*splat', '/password/reset', '/password/reset/*splat']
+const TOKEN_PAGES = [
+  '/invite',
+  '/invite/*splat',
+  '/password/reset',
+  '/password/reset/*splat',
+  '/i',
+  '/i/*splat',
+]
 
 /**
  * Serves the built web app.

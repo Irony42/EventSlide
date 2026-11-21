@@ -1166,7 +1166,11 @@ nothing the policy above promises to keep.
 
 - **One migration (035)**: a new table, `guest_invites`, one row per event, with its unique token. Nothing existing is
   rewritten. Back up first, as for any upgrade: the migration only goes forward.
-- **Owner routes only** (`GET` and `PUT /api/events/:slug/guest-invite`, `POST …/enable`, `…/disable`, `…/rotate`):
-  nothing a guest can reach yet; the page they open comes with a later change of the same version. No setting is needed.
-  An invitation's token is stored in the clear, on purpose (the host must be able to show the link again; see ADR 0016),
-  and the rows go with their event when it is purged.
+- **Owner routes** (`GET` and `PUT /api/events/:slug/guest-invite`, `POST …/enable`, `…/disable`, `…/rotate`). An
+  invitation's token is stored in the clear, on purpose (the host must be able to show the link again; see ADR 0016), and
+  the rows go with their event when it is purged.
+- **A public page and route for guests**, `/i/<token>` and `GET /api/i/<token>` (and `GET /api/i/<token>/logo`): they
+  answer one neutral "not available" for every cause, are never indexed, send no referrer, are not cached, and the token is
+  masked in the access logs.
+- **One optional setting**: `GUEST_INVITE_RATE_LIMIT_PER_MINUTE` (default 200, 1 to 6000), the budget of that page per
+  client address. It is sized like `JOIN_RATE_LIMIT_PER_MINUTE`, for guests behind one venue's Wi-Fi.

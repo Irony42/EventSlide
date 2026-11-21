@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Event } from '../../../domain/events/event'
 import { ContentHash } from '../../../domain/photos/contentHash'
+import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
 import { JoinCode } from '../../../domain/shared/joinCode'
 import { aGuestInvite, anEvent } from '../../testing/builders'
 import {
@@ -109,6 +110,31 @@ describe('viewGuestInvite (spec 29)', () => {
     const seen = await view()
 
     expect(seen.ok && seen.value.title).toBe('Camille & Sacha')
+  })
+
+  it('hands over the event’s accent hue and nothing else of its look', async () => {
+    scene.events.seed(
+      anEvent({
+        id: 'evt-rose',
+        slug: 'rose',
+        joinCode: 'F8R5TV',
+        settings: { theme: { ...DEFAULT_EVENT_THEME, accentHue: 345, ambiance: 'guinguette' } },
+      }),
+    )
+    publish('evt-rose' as typeof WEDDING)
+
+    const seen = await view()
+
+    expect(seen.ok && seen.value.accentHue).toBe(345)
+    expect(JSON.stringify(seen)).not.toContain('guinguette')
+  })
+
+  it('says the product’s own hue for an event nobody themed', async () => {
+    publish(WEDDING)
+
+    const seen = await view()
+
+    expect(seen.ok && seen.value.accentHue).toBe(DEFAULT_EVENT_THEME.accentHue)
   })
 
   it('says whether the event has a logo', async () => {

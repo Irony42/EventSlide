@@ -62,6 +62,7 @@ const GUEST: readonly (readonly [string, Key])[] = [
   ['/e/camille-et-sacha/photos', 'feed'],
   ['/e/camille-et-sacha/display', 'wall'],
   [`/g/${TOKEN}`, 'gallery'],
+  ['/i/7QX0M4TZ2KD9WB3H', 'guestInvite'],
   ['/about', 'about'],
   ['/join/H7K2QM/too/many', 'notFound'],
   ['/e/camille-et-sacha/album', 'notFound'],

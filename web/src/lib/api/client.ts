@@ -3,6 +3,7 @@ import { accountApi } from './client/account'
 import { galleryApi } from './client/gallery'
 import { guestApi } from './client/guest'
 import { hostApi } from './client/host'
+import { guestInviteApi } from './client/invite'
 import { siteApi } from './client/site'
 
 /**
@@ -38,6 +39,7 @@ export const createApi = (transport: Transport) => ({
   ...siteApi(transport),
   ...hostApi(transport),
   ...galleryApi(transport),
+  ...guestInviteApi(transport),
 })
 
 export type Api = ReturnType<typeof createApi>

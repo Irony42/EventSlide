@@ -3776,6 +3776,33 @@ export const fr = {
     confirmWord: 'SUPPRIMER',
     wordLabel: 'Mot de confirmation',
   },
+  /* Added by spec 29 (guest invitations): the page a guest opens from an invitation. */
+  guestInvite: {
+    page: {
+      eyebrow: 'Invitation',
+      when: 'Quand',
+      where: 'Où',
+      itinerary: 'Itinéraire',
+      agenda: 'Ajouter à mon agenda',
+      join: 'Rejoindre le mur photo',
+      live: 'La soirée a commencé',
+      tonight:
+        'Le soir même, revenez sur cette page pour partager vos photos sur le mur de la soirée.',
+      notOpen: 'Le mur photo n’est pas encore ouvert.',
+      over: 'Cette soirée est terminée. Merci d’être venu·e.',
+      gone: 'Cette invitation n’est plus disponible',
+      goneSub: 'Le lien a peut-être été changé par l’organisateur. Demandez-lui le nouveau.',
+      report: 'Signaler cette invitation',
+      madeWith: 'Invitation créée avec EventSlide',
+      otherTz: (when: string, place: string) => `Soit ${when} à ${place}`,
+      loading: 'Chargement de l’invitation',
+      failed: 'L’invitation n’a pas pu être chargée. Vérifiez votre connexion.',
+      busy: 'Beaucoup de monde ouvre cette invitation en ce moment. Réessayez dans un instant.',
+      retry: 'Réessayer',
+      logoAlt: (title: string) => `Logo de ${title}`,
+    },
+  },
+
   titles: {
     print: 'Cartes de table et affiche',
     join: 'Rejoindre la soirée',
@@ -3783,6 +3810,7 @@ export const fr = {
     feed: 'Les photos de la soirée',
     wall: 'Écran de la soirée',
     gallery: 'Album partagé',
+    guestInvite: 'Invitation',
     about: 'À propos',
     notFound: 'Page introuvable',
     login: 'Connexion',

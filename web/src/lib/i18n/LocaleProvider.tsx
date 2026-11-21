@@ -83,6 +83,12 @@ export function LocaleOverride({ locale, children }: LocaleOverrideProps) {
 }
 
 export interface DeferredLocaleProps {
+  /**
+   * The language until the surface has announced its own. The wall leaves it out (the default,
+   * never the projector machine's); the invitation's page passes the **reader's**, because the one
+   * answer it can give with no language of its own ("not available") is for them.
+   */
+  readonly fallback?: Locale
   readonly children: ReactNode
 }
 
@@ -96,12 +102,12 @@ export interface DeferredLocaleProps {
  * visually-hidden spinner label renders in that window, so the room never watches the
  * wall change language.
  */
-export function DeferredLocale({ children }: DeferredLocaleProps) {
+export function DeferredLocale({ fallback = DEFAULT_LOCALE, children }: DeferredLocaleProps) {
   const [announced, setAnnounced] = useState<Locale | null>(null)
 
   return (
     <announceLocaleContext.Provider value={setAnnounced}>
-      <LocaleOverride locale={announced ?? DEFAULT_LOCALE}>{children}</LocaleOverride>
+      <LocaleOverride locale={announced ?? fallback}>{children}</LocaleOverride>
     </announceLocaleContext.Provider>
   )
 }

@@ -58,6 +58,7 @@ import type {
   ChannelsResponseDto,
   AnnouncementResponseDto,
   GuestInviteDto,
+  GuestInvitePageDto,
   GuestInviteResponseDto,
   ChallengeDto,
   GuestChallengeDto,
@@ -132,6 +133,7 @@ import type { IssuedInvitation } from '../../../application/usecases/auth/issueI
 import type { InvitationPreview } from '../../../application/usecases/auth/previewInvitation'
 import type { Announcement } from '../../../domain/announcements/announcement'
 import type { HostAnnouncement } from '../../../application/usecases/announcements/announcementAccess'
+import type { GuestInviteView } from '../../../application/usecases/guestInvites/viewGuestInvite'
 import type { HostGuestInvite } from '../../../application/usecases/guestInvites/getGuestInvite'
 import type { HostAnnouncementList } from '../../../application/usecases/announcements/listAnnouncements'
 import type { ChannelsView } from '../../../application/usecases/channels/listBindings'
@@ -1247,6 +1249,29 @@ export const toGuestInviteDto = (
     ...defaults,
   }
 }
+
+/**
+ * The public page of an invitation. Every optional key is **left out**, not nulled, when the
+ * state does not serve it: `address` and `message` are told apart from "the host wrote none"
+ * by the key's presence, and `joinUrl` must not exist before the evening. The paths are
+ * relative, so a page reached on any address leads to the same address.
+ */
+export const toGuestInvitePageDto = (view: GuestInviteView, token: string): GuestInvitePageDto => ({
+  state: view.state,
+  title: view.title,
+  when: {
+    startsAt: view.schedule.startsAt.toISOString(),
+    endsAt: view.schedule.endsAt === null ? null : view.schedule.endsAt.toISOString(),
+    timeZone: view.schedule.timeZone,
+  },
+  venueName: view.venueName,
+  ...(view.address === undefined ? {} : { address: view.address }),
+  ...(view.message === undefined ? {} : { message: view.message }),
+  language: view.language,
+  accentHue: view.accentHue,
+  ...(view.hasLogo ? { logoUrl: `/api/i/${encodeURIComponent(token)}/logo` } : {}),
+  ...(view.joinCode === undefined ? {} : { joinUrl: `/join/${encodeURIComponent(view.joinCode)}` }),
+})
 
 export const toGuestInviteResponseDto = (
   view: HostGuestInvite,

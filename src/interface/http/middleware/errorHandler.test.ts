@@ -221,6 +221,11 @@ describe('the path a request is logged under', () => {
       '/Password/Reset/:token',
     ],
     ['the page an invitation link opens', `/invite/${TOKEN}`, '/invite/:token'],
+    // A guest invitation (spec 29): its token is stored in the clear, so it must not also sit in the logs.
+    ['the page of a guest invitation', `/i/${TOKEN}`, '/i/:token'],
+    ['that page in capitals, which Express routes the same', `/I/${TOKEN}`, '/I/:token'],
+    ['the data of a guest invitation', `/api/i/${TOKEN}`, '/api/i/:token'],
+    ['the logo of a guest invitation', `/api/i/${TOKEN}/logo`, '/api/i/:token/logo'],
     ['that page in another case', `/Invite/${TOKEN}`, '/Invite/:token'],
     ['the preview of an invitation', `/api/invitations/${TOKEN}`, '/api/invitations/:token'],
     [

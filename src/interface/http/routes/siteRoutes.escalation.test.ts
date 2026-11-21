@@ -80,6 +80,7 @@ const NOT_ABOUT_EVENTS: readonly string[] = [
   '/api/gallery',
   '/api/gallery-media',
   '/api/join',
+  '/api/i',
   '/api/site',
   '/api/auth',
   '/api/health',
