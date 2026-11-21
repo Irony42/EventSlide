@@ -69,6 +69,15 @@ export const shortDayLabel = (at: Date, lang: Locale, timeZone: string): string 
     year: 'numeric',
   }).format(at)
 
+/** "samedi 12 décembre": the day without its year, for the top of a story. */
+export const dayMonthLabel = (at: Date, lang: Locale, timeZone: string): string =>
+  new Intl.DateTimeFormat(lang, {
+    timeZone,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(at)
+
 const weekdayLabel = (at: Date, lang: Locale, timeZone: string): string =>
   new Intl.DateTimeFormat(lang, { timeZone, weekday: 'long' }).format(at)
 

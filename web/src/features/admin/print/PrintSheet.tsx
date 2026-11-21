@@ -129,7 +129,7 @@ const logoSettings = (src: string) => ({
   excavate: true,
 })
 
-function SheetQr({
+export function SheetQr({
   eventName,
   joinUrl,
   logoUrl,

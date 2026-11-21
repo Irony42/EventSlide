@@ -17,6 +17,12 @@ import { SHORT_MESSAGE_MAX, graphemeCount } from '../../../../lib/invite/cardTex
 
 export type InviteFormat = 'card' | 'a5'
 
+/** The shape of the image to share: a square for groups and messages, a story. */
+export type InviteShot = 'square' | 'story'
+
+export const INVITE_SHOTS: readonly InviteShot[] = ['square', 'story']
+export const DEFAULT_INVITE_SHOT: InviteShot = 'square'
+
 export const INVITE_FORMATS: readonly InviteFormat[] = ['card', 'a5']
 export const DEFAULT_INVITE_FORMAT: InviteFormat = 'card'
 export const DEFAULT_INVITE_DESIGN: InvitationDesign = 'essentiel'
@@ -28,6 +34,9 @@ export interface InvitePreferences {
   readonly format?: InviteFormat
   /** The word printed on the card **when the host wrote one of their own**; absent is the automatic cut. */
   readonly short?: string
+  /** The image to share: its shape, and whether it shows the address (it does not by default). */
+  readonly shot?: InviteShot
+  readonly showAddress?: boolean
   /** Where the photograph is framed, in percent of its width and height. */
   readonly focusX?: number
   readonly focusY?: number
@@ -47,12 +56,17 @@ export const readInvitePreferences = (slug: string): InvitePreferences => {
     if (raw === null) return {}
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return {}
-    const { design, colour, format, short, focusX, focusY } = parsed as Record<string, unknown>
+    const { design, colour, format, short, focusX, focusY, shot, showAddress } = parsed as Record<
+      string,
+      unknown
+    >
     return {
       ...(isInvitationDesign(design) ? { design } : {}),
       ...(isHexColour(colour) ? { colour: colour.toLowerCase() } : {}),
       ...(isFormat(format) ? { format } : {}),
       ...(typeof short === 'string' && graphemeCount(short) <= SHORT_MESSAGE_MAX ? { short } : {}),
+      ...(INVITE_SHOTS.some((known) => known === shot) ? { shot: shot as InviteShot } : {}),
+      ...(typeof showAddress === 'boolean' ? { showAddress } : {}),
       ...(isPercent(focusX) ? { focusX } : {}),
       ...(isPercent(focusY) ? { focusY } : {}),
     }

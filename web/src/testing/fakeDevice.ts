@@ -36,7 +36,12 @@ export interface FakeDevice {
   /** Every `navigator.share` call, in order. */
   readonly shared: ShareData[]
   /** Every file handed to the download manager: its address and the name it was given. */
-  readonly downloads: { readonly href: string; readonly name: string }[]
+  readonly downloads: {
+    readonly href: string
+    readonly name: string
+    /** Whether the anchor was in the page when it was clicked: some browsers ignore one that is not. */
+    readonly connected: boolean
+  }[]
   readonly share: ReturnType<typeof vi.fn>
   readonly restore: () => void
 }
@@ -58,7 +63,7 @@ export const domError = (name: string): DOMException => new DOMException(name, n
 export const useFakeDevice = (options: FakeDeviceOptions): FakeDevice => {
   const facts = FACTS[options.kind]
   const shared: ShareData[] = []
-  const downloads: { href: string; name: string }[] = []
+  const downloads: { href: string; name: string; connected: boolean }[] = []
 
   const share = vi.fn(async (data: ShareData) => {
     shared.push(data)
@@ -91,7 +96,7 @@ export const useFakeDevice = (options: FakeDeviceOptions): FakeDevice => {
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
     this: HTMLAnchorElement,
   ) {
-    downloads.push({ href: this.href, name: this.download })
+    downloads.push({ href: this.href, name: this.download, connected: this.isConnected })
   })
 
   return {

@@ -3901,6 +3901,34 @@ export const fr = {
       printHelp:
         'Dans la fenêtre d’impression, choisissez une échelle de 100\u00a0% et aucune marge. L’adresse est imprimée sur la carte\u00a0: ne la donnez qu’aux invités que vous avez choisis.',
     },
+    image: {
+      sameLook: 'Le design, la couleur et la photo sont ceux de la carte (onglet Imprimer).',
+      formatLegend: 'Format',
+      formatSquare: 'Carré',
+      formatStory: 'Story',
+      addressLegend: 'Adresse sur l’image',
+      addressLabel: 'Montrer l’adresse',
+      addressHint:
+        'Une story est vue par tous vos abonnés\u00a0: sans adresse, seuls ceux qui ont le lien la verront.',
+      textLabel: 'Texte qui accompagne l’image',
+      textNote: 'cette fois seulement',
+      share: 'Partager',
+      download: 'Télécharger l’image',
+      copy: 'Copier le texte',
+      rendering: 'Préparation de l’image…',
+      copied: 'Texte copié.',
+      copiedBeforeShare:
+        'Texte copié\u00a0: collez-le sous l’image si l’application ne l’a pas repris.',
+      copyFailed: 'Le texte n’a pas pu être copié\u00a0: sélectionnez-le dans le champ.',
+      renderFailed: 'L’image n’a pas pu être produite sur cet appareil.',
+      retry: 'Réessayer',
+      downloaded: 'Image téléchargée.',
+      shareFailed:
+        'Le partage n’a pas abouti\u00a0: téléchargez l’image et envoyez-la depuis votre téléphone.',
+      previewLabel: 'Aperçu de l’image',
+      help: 'Sur téléphone, «\u00a0Partager\u00a0» ouvre WhatsApp, Instagram, Messages… avec l’image et le texte. Le texte est aussi copié, au cas où l’application l’oublierait.',
+      fileName: 'invitation',
+    },
     card: {
       eyebrow: 'Invitation',
       more: 'Tous les détails sur la page de l’invitation.',
@@ -3911,6 +3939,9 @@ export const fr = {
       stubLine: 'Tous les détails, et le soir même le mur photo.',
       startLabel: 'Début',
       endLabel: 'Fin',
+      storyTop: 'Vous êtes invité·e',
+      infos: 'Infos et mur photo',
+      shareIntro: (title: string) => `${title}\u00a0: vous êtes invité·e.`,
     },
   },
 

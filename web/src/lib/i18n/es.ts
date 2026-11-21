@@ -3224,6 +3224,33 @@ export const es: UiText = {
       printHelp:
         'En la ventana de impresión, elija una escala del 100 % y sin márgenes. La dirección va impresa en la tarjeta: entréguela solo a los invitados que haya elegido.',
     },
+    image: {
+      sameLook: 'El diseño, el color y la foto son los de la tarjeta (pestaña Imprimir).',
+      formatLegend: 'Formato',
+      formatSquare: 'Cuadrado',
+      formatStory: 'Story',
+      addressLegend: 'Dirección en la imagen',
+      addressLabel: 'Mostrar la dirección',
+      addressHint:
+        'Una story la ven todos sus seguidores: sin dirección, solo la verá quien tenga el enlace.',
+      textLabel: 'Texto que acompaña la imagen',
+      textNote: 'solo esta vez',
+      share: 'Compartir',
+      download: 'Descargar la imagen',
+      copy: 'Copiar el texto',
+      rendering: 'Preparando la imagen…',
+      copied: 'Texto copiado.',
+      copiedBeforeShare:
+        'Texto copiado: péguelo bajo la imagen si la aplicación no lo ha recogido.',
+      copyFailed: 'No se pudo copiar el texto: selecciónelo en el campo.',
+      renderFailed: 'No se pudo crear la imagen en este dispositivo.',
+      retry: 'Reintentar',
+      downloaded: 'Imagen descargada.',
+      shareFailed: 'No se pudo compartir: descargue la imagen y envíela desde su teléfono.',
+      previewLabel: 'Vista previa de la imagen',
+      help: 'En el teléfono, «Compartir» abre WhatsApp, Instagram, Mensajes… con la imagen y el texto. El texto también se copia, por si la aplicación lo olvida.',
+      fileName: 'invitacion',
+    },
     card: {
       eyebrow: 'Invitación',
       more: 'Todos los detalles en la página de la invitación.',
@@ -3234,6 +3261,9 @@ export const es: UiText = {
       stubLine: 'Todos los detalles y, esa noche, el muro de fotos.',
       startLabel: 'Inicio',
       endLabel: 'Fin',
+      storyTop: 'Está invitado/a',
+      infos: 'Info y muro de fotos',
+      shareIntro: (title: string) => `${title}: está invitado/a.`,
     },
   },
 

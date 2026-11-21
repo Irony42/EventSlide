@@ -3,17 +3,8 @@ import { Button } from '../../../../design-system/components/Button'
 import { cx } from '../../../../design-system/classNames'
 import { Field } from '../../../../design-system/components/Field'
 import { Textarea } from '../../../../design-system/components/Textarea'
-import { parseLocale } from '../../../../lib/i18n/locale'
-import { translationsFor } from '../../../../lib/i18n/translations'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
-import {
-  SHORT_MESSAGE_MAX,
-  graphemeCount,
-  graphemesOf,
-  readableLink,
-  shortMessageOf,
-} from '../../../../lib/invite/cardTexts'
-import { shortDayLabel, whenParts } from '../../../../lib/invite/inviteTexts'
+import { SHORT_MESSAGE_MAX, graphemeCount, graphemesOf } from '../../../../lib/invite/cardTexts'
 import { PRINT_SWATCHES, PRINT_SWATCH_IDS } from '../../../../lib/print/printColours'
 import {
   INVITATION_DESIGNS,
@@ -26,16 +17,15 @@ import { Notice } from '../../../../design-system/components/Notice'
 import { DesignPicker, PhotoControls } from '../../print/PrintCardControls'
 import { readPrintPhoto, writePrintPhoto } from '../../print/printPhoto'
 import { PrintSheet } from '../../print/PrintSheet'
-import { hueOfHex, isHexColour, isQrTooSmall } from '../../print/printKit'
+import { isHexColour, isQrTooSmall } from '../../print/printKit'
 import { usePrintPageRule } from '../../print/usePrintPageRule'
 import {
-  DEFAULT_INVITE_DESIGN,
-  DEFAULT_INVITE_FORMAT,
   INVITE_FORMATS,
   readInvitePreferences,
   writeInvitePreferences,
   type InvitePreferences,
 } from './invitePreferences'
+import { inviteCardOf } from './inviteCard'
 import type { InvitationTabProps } from './tabProps'
 import styles from './PrintTab.module.css'
 
@@ -96,29 +86,9 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
     setPhotoKept(writePrintPhoto(slug, url))
   }
 
-  const lang = parseLocale(invite.language) ?? 'fr'
-  const card = translationsFor(lang).guestInvite.card
-  const format = preferences.format ?? DEFAULT_INVITE_FORMAT
-  const design = preferences.design ?? DEFAULT_INVITE_DESIGN
-  const focusX = preferences.focusX ?? 50
-  const focusY = preferences.focusY ?? 50
-  const eventHue = event.settings.theme.accentHue
-  const eventColour = `oklch(58% 0.14 ${eventHue})`
-  const chosen = preferences.colour ?? null
-  const hue = chosen === null ? eventHue : (hueOfHex(chosen) ?? eventHue)
-
-  // Read in the invitation's own zone: the card is for the guests there, not for the host's desk.
-  const zone = invite.timeZone ?? 'UTC'
-  const when = whenParts(
-    { startsAt: invite.startsAt, endsAt: invite.endsAt, timeZone: zone },
-    lang,
-    zone,
-  )
-  const auto = shortMessageOf(invite.message)
-  const isAuto = preferences.short === undefined
-  const shown = isAuto ? (auto ?? '') : (preferences.short ?? '')
-  const printed = shortMessageOf(shown)
-  const full = shortMessageOf(invite.message, Number.MAX_SAFE_INTEGER)
+  const view = inviteCardOf(event, invite, preferences, { showAddress: true })
+  const { lang, format, design, focusX, focusY, eventColour, chosen, hue, auto, isAuto, shown } =
+    view
 
   const setShort = (value: string) => {
     const { short: _dropped, ...rest } = preferences
@@ -137,24 +107,7 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
     update(colour === null ? rest : { ...rest, colour })
   }
 
-  const texts = {
-    title: invite.title ?? event.name,
-    tagline: null,
-    note: null,
-    date: null,
-    table: null,
-  }
-  const invitation = {
-    eyebrow: card.eyebrow,
-    day: when.day,
-    dayShort: shortDayLabel(new Date(invite.startsAt), lang, zone),
-    hours: when.hours,
-    venue: invite.venueName,
-    address: invite.address,
-    message: printed,
-    more: full !== null && full !== printed ? card.more : null,
-    link: card.link(readableLink(invite.url)),
-  }
+  const { texts, invitation } = view
 
   const custom = chosen !== null && !Object.values(PRINT_SWATCHES).includes(chosen as never)
 

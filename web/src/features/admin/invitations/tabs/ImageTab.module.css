@@ -1,0 +1,81 @@
+.tab {
+  display: grid;
+  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+  min-width: 0;
+}
+
+@media (max-width: 62rem) {
+  .tab {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  padding: 0;
+  font-weight: 650;
+  font-size: var(--text-sm);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--touch-min);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.help {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.preview {
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+/* The picture is drawn at its true size and shrunk to the room: what is shown is what is captured. */
+.frame {
+  position: relative;
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-overlay);
+}
+
+.scaled {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  transform-origin: top left;
+}

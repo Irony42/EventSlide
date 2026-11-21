@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   dayLabel,
+  dayMonthLabel,
   shortDayLabel,
   hourLabel,
   icsOf,
@@ -366,5 +367,15 @@ describe('shortDayLabel', () => {
       expect(label, lang).toMatch(/\p{L}/u)
       expect(label, lang).toContain('2027')
     }
+  })
+})
+
+describe('dayMonthLabel', () => {
+  it('is the weekday, the day and the month, in the zone and the language of the invitation', () => {
+    const at = new Date('2027-12-11T23:30:00Z')
+
+    expect(dayMonthLabel(at, 'fr', 'Europe/Paris')).toBe('dimanche 12 décembre')
+    expect(dayMonthLabel(at, 'fr', 'America/Montreal')).toBe('samedi 11 décembre')
+    expect(dayMonthLabel(at, 'en', 'America/Montreal')).toBe('Saturday, December 11')
   })
 })

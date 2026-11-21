@@ -1491,3 +1491,12 @@
 [data-ink='event'] [data-print-card] {
   --pd-qr-ink: var(--print-ink-accent);
 }
+
+/*
+ * The invitation image (spec 29): the card laid on a ground of its colour, deepened under the
+ * captions and for the card's shadow. Drawn from `--pd-color`, set inline on the picture.
+ */
+[data-invite-shot] {
+  --shot-veil: color-mix(in oklch, var(--pd-color) 35%, oklch(0% 0 0) 65%);
+  --shot-shadow: color-mix(in oklch, var(--pd-color) 40%, oklch(0% 0 0) 60%);
+}
