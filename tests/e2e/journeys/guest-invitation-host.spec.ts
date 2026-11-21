@@ -1,4 +1,5 @@
-import { expect, test } from '../fixtures/app'
+import { expect, signInAsHost, test } from '../fixtures/app'
+import { SUITE_LOCALE } from '../fixtures/suiteLocale'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
@@ -104,11 +105,11 @@ test('the host writes the invitation, switches it on, and a guest opens it at th
   }
 })
 
-test('the page is for the owner: the form fits a 360 px phone', async ({ app, surfaces }) => {
+test('the page is for the owner: the form fits a 320 px phone', async ({ app, surfaces }) => {
   const { host } = surfaces
   const event = await app.seedEvent({ slug: 'fete-etroite', name: 'Camille & Sacha' })
 
-  await host.setViewportSize({ width: 360, height: 740 })
+  await host.setViewportSize({ width: 320, height: 640 })
   await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
   await expect(host.getByRole('heading', { level: 1, name: text.title })).toBeVisible()
 
@@ -118,4 +119,86 @@ test('the page is for the owner: the form fits a 360 px phone', async ({ app, su
   expect(overflow).toBeLessThanOrEqual(0)
   const save = await host.getByRole('button', { name: text.save }).boundingBox()
   expect(save?.height ?? 0).toBeGreaterThanOrEqual(44)
+})
+
+test('the zone is taken from the browser on the first save: a host in Auckland types Auckland time', async ({
+  app,
+  browser,
+}) => {
+  const event = await app.seedEvent({ slug: 'fete-auckland', name: 'Léa fête ses 40 ans' })
+  // A laptop in New Zealand, and a host who never touches the zone selector.
+  const context = await browser.newContext({
+    timezoneId: 'Pacific/Auckland',
+    locale: SUITE_LOCALE,
+    viewport: { width: 1280, height: 800 },
+  })
+  const page = await context.newPage()
+  try {
+    await signInAsHost(page, app)
+    await page.goto(app.url(`/admin/events/${event.slug}/invitations`))
+    const form = page.getByRole('form', { name: text.formTitle })
+
+    await form.getByLabel(/^Début/).fill('2027-12-11T19:00')
+    await form.getByRole('button', { name: text.save }).click()
+    await expect(page.getByRole('status').filter({ hasText: text.saved })).toBeVisible()
+
+    const stored = await page.request.get(app.url(`/api/events/${event.slug}/guest-invite`))
+    const body = (await stored.json()) as { guestInvite: { startsAt: string; timeZone: string } }
+    // 19:00 at +13:00 (New Zealand summer time) is 06:00 UTC, and the zone the invitation keeps is the laptop's.
+    expect(body.guestInvite.timeZone).toBe('Pacific/Auckland')
+    expect(body.guestInvite.startsAt).toBe('2027-12-11T06:00:00.000Z')
+
+    // Opened again from the same laptop, it reads what was typed; the zone is the saved one.
+    await page.reload()
+    await expect(page.getByRole('form', { name: text.formTitle }).getByLabel(/^Début/)).toHaveValue(
+      '2027-12-11T19:00',
+    )
+  } finally {
+    await context.close()
+  }
+})
+
+test('a moderator sees that only the owner writes the invitation, and no form', async ({
+  app,
+  surfaces,
+  browser,
+}) => {
+  const { host } = surfaces
+  const event = await app.seedEvent({ slug: 'fete-moderee', name: 'Camille & Sacha' })
+  const moderator = `moderateur-${app.baseUrl.split(':').at(-1) ?? '0'}@eventslide.test`
+
+  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.getByLabel(fr.admin.moderatorEmail).fill(moderator)
+  await host.getByRole('button', { name: fr.admin.inviteSubmit }).click()
+  const link = await host.getByLabel(fr.admin.inviteLinkUrl).inputValue()
+
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    baseURL: app.baseUrl,
+    locale: SUITE_LOCALE,
+  })
+  const page = await context.newPage()
+  try {
+    await page.goto(link)
+    await page.getByLabel(fr.auth.invitationName).fill('Le modérateur')
+    await page
+      .getByLabel(fr.auth.password, { exact: true })
+      .fill('phrase-que-seul-le-moderateur-connait')
+    await page
+      .getByLabel(fr.auth.invitationConfirmPassword, { exact: true })
+      .fill('phrase-que-seul-le-moderateur-connait')
+    await page.getByRole('button', { name: fr.auth.invitationSubmit }).click()
+    await expect(page).toHaveURL(new RegExp(`/admin/events/${event.slug}/moderation(/mobile)?$`))
+
+    await page.goto(app.url(`/admin/events/${event.slug}/invitations`))
+
+    await expect(page.getByText(text.ownerOnly)).toBeVisible()
+    await expect(page.getByRole('form', { name: text.formTitle })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: text.activate })).toHaveCount(0)
+    // And the event page does not lead there.
+    await page.goto(app.url(`/admin/events/${event.slug}`))
+    await expect(page.getByRole('link', { name: text.title })).toHaveCount(0)
+  } finally {
+    await context.close()
+  }
 })

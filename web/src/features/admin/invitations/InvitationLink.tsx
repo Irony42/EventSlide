@@ -1,8 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { ConfirmDialog } from '../../../design-system/components/ConfirmDialog'
-import { NewTabLink } from '../../../design-system/components/NewTabLink'
 import { Notice } from '../../../design-system/components/Notice'
 import { useToast } from '../../../design-system/components/useToast'
 import type { GuestInviteDto } from '../../../lib/api/dto'
@@ -36,6 +35,18 @@ export function InvitationLink({ slug, invite, disabled, onChanged }: Invitation
   const [busy, setBusy] = useState<'enable' | 'disable' | 'rotate' | null>(null)
   const [confirmingRotate, setConfirmingRotate] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  const linkField = useRef<HTMLInputElement>(null)
+  const activateButton = useRef<HTMLButtonElement>(null)
+  // Where the focus goes once the answer is on screen: the button that was pressed is gone by then
+  // (switching on replaces it by the link, switching off the link by the button), and focus on a
+  // removed control falls to the page.
+  const focusAfter = useRef<'link' | 'activate' | null>(null)
+
+  useEffect(() => {
+    if (focusAfter.current === 'link') linkField.current?.focus()
+    if (focusAfter.current === 'activate') activateButton.current?.focus()
+    focusAfter.current = null
+  }, [invite.enabled])
 
   const act = async (
     which: 'enable' | 'disable' | 'rotate',
@@ -46,6 +57,7 @@ export function InvitationLink({ slug, invite, disabled, onChanged }: Invitation
     setProblem(null)
     try {
       const answer = await call()
+      focusAfter.current = which === 'enable' ? 'link' : which === 'disable' ? 'activate' : null
       onChanged(answer.guestInvite)
       toast.show(done, { tone: 'success' })
     } catch (cause) {
@@ -81,6 +93,7 @@ export function InvitationLink({ slug, invite, disabled, onChanged }: Invitation
               className={styles['linkText']}
               readOnly
               value={url}
+              ref={linkField}
               aria-label={text.linkLabel}
               onFocus={(e) => e.currentTarget.select()}
             />
@@ -123,13 +136,9 @@ export function InvitationLink({ slug, invite, disabled, onChanged }: Invitation
       ) : (
         <>
           <p className={styles['note']}>{text.linkIntro}</p>
-          {url !== null ? (
-            <p className={styles['note']}>
-              <NewTabLink href={url}>{text.viewAsGuest}</NewTabLink>
-            </p>
-          ) : null}
           {dated ? null : <p className={styles['note']}>{text.activateNeedsDate}</p>}
           <Button
+            ref={activateButton}
             variant="primary"
             disabled={disabled || !dated}
             loading={busy === 'enable'}

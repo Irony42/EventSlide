@@ -3831,11 +3831,11 @@ export const fr = {
       titleHint: (name: string) => `défaut\u00a0: ${name}`,
       startLabel: 'Début',
       endLabel: 'Fin',
-      zoneLine: (place: string) => `Heure de ${place}`,
+      zoneLine: (zone: string) => `Fuseau\u00a0: ${zone}`,
       zoneChange: 'changer de fuseau',
       zoneLabel: 'Fuseau horaire',
       zoneHint:
-        'Celui du lieu de la fête. L’heure de l’invitation est lue dans ce fuseau, où que l’invité se trouve.',
+        'Celui du lieu de la fête\u00a0: l’heure de l’invitation est lue dans ce fuseau, où que l’invité se trouve. Changer de fuseau garde les heures saisies telles quelles.',
       venueLabel: 'Lieu',
       addressLabel: 'Adresse',
       addressHint: '2 lignes',
@@ -3843,6 +3843,7 @@ export const fr = {
         'Toute personne qui a le lien de l’invitation voit cette adresse jusqu’à la fin de la soirée.',
       messageLabel: 'Votre mot',
       messageCount: (count: number, max: number) => `${count} / ${max}`,
+      lineCount: (count: number, max: number) => `${count} / ${max} lignes`,
       languageLabel: 'Langue de l’invitation',
       languageHint: 'libellés fixes seulement',
       save: 'Enregistrer',
@@ -3860,14 +3861,14 @@ export const fr = {
       copyFailed: 'Le navigateur a refusé la copie. Sélectionnez le lien et copiez-le à la main.',
       viewAsGuest: 'Voir la page comme un invité',
       rotate: 'Changer le lien',
-      rotateTitle: 'Changer le lien de l’invitation ?',
+      rotateTitle: 'Changer le lien de l’invitation\u00a0?',
       rotateBody:
         'L’ancien lien et les QR codes déjà imprimés cesseront de marcher. Pensez à réimprimer et à renvoyer le nouveau lien. Le code de la soirée ne change pas.',
       rotateConfirm: 'Changer le lien',
       rotated: 'Nouveau lien. L’ancien ne marche plus.',
       disable: 'Désactiver',
       disabled:
-        'Invitation désactivée. La page répond « introuvable » ; la réactiver redonne le même lien.',
+        'Invitation désactivée. La page répond «\u00a0introuvable\u00a0»\u00a0; la réactiver redonne le même lien.',
       enabled: 'Invitation activée. Le lien et le QR code existent.',
       openNote:
         'Dès que vous ouvrez la soirée, même pour un essai, la page de l’invitation affiche le bouton pour rejoindre le mur.',

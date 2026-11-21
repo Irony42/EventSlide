@@ -151,24 +151,11 @@ const isAnswered = (
  * Exact in both directions: a code that is spelled somewhere has to leave the list, and a
  * name that is not an error sentence cannot be on it.
  */
-const GUEST_INVITE_FIELD_CODE =
-  '`DomainError.invalid(`guestInvite.${field}TooLong`)` and its siblings in src/domain/guestInvites/guestInviteContent.ts, `field` being the field it judges (title, venue, address, message)'
-
 const COMPOSED_CODES: Readonly<Record<string, string>> = {
   'client.liveNotAllowed':
     '`DomainError.forbidden(`client.${refusal}`)` in src/domain/events/event.ts, `refusal` being an `OpeningRefusal`',
   'client.liveWindowOver':
     '`DomainError.forbidden(`client.${refusal}`)` in src/domain/events/event.ts, `refusal` being an `OpeningRefusal`',
-  'guestInvite.titleTooLong': GUEST_INVITE_FIELD_CODE,
-  'guestInvite.titleInvalid': GUEST_INVITE_FIELD_CODE,
-  'guestInvite.venueTooLong': GUEST_INVITE_FIELD_CODE,
-  'guestInvite.venueInvalid': GUEST_INVITE_FIELD_CODE,
-  'guestInvite.addressTooLong': GUEST_INVITE_FIELD_CODE,
-  'guestInvite.addressTooManyLines': GUEST_INVITE_FIELD_CODE,
-  'guestInvite.addressInvalid': GUEST_INVITE_FIELD_CODE,
-  'guestInvite.messageTooLong': GUEST_INVITE_FIELD_CODE,
-  'guestInvite.messageTooManyLines': GUEST_INVITE_FIELD_CODE,
-  'guestInvite.messageInvalid': GUEST_INVITE_FIELD_CODE,
 }
 
 const codeOf = ({ keys }: Leaf): string => keys.slice(1).join('.')
