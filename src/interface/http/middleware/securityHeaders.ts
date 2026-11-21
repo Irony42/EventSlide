@@ -93,6 +93,8 @@ const NEVER_GUEST_PAGES: ReadonlySet<string> = new Set([
   'login',
   'g',
   'invite',
+  // A guest invitation (spec 29) records nothing: it is read, and a token is in its address.
+  'i',
   'password',
   'api',
 ])
@@ -107,7 +109,7 @@ const NEVER_GUEST_PAGES: ReadonlySet<string> = new Set([
  * `/e/<slug>` (which it redirects to the upload page), and the offline fallback of the service
  * worker, which answers a failed navigation with the cached `/` and **the headers stored for
  * `/`**, which is the bad-Wi-Fi scenario a voice message exists to serve. So the pages that are
- * closed are the ones that never carry a guest: `/admin/**`, `/login`, `/g/**`, `/invite/**`,
+ * closed are the ones that never carry a guest: `/admin/**`, `/login`, `/g/**`, `/invite/**`, `/i/**` (a guest invitation),
  * `/password/**`, the wall (`/e/<slug>/display`), and `/api`.
  *
  * The guard against widening is not this list but a static test: nothing outside

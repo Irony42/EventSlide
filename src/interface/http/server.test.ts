@@ -1279,6 +1279,7 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     ['the sign-in', '/login'],
     ['the shared gallery', '/g/some-token'],
     ['an invitation', '/invite/some-token'],
+    ['a guest invitation', '/i/some-token'],
     ['a password reset', '/password/reset/some-token'],
   ])('keeps the microphone shut on %s', async (_name, path) => {
     const response = await request(withClient().app).get(path)
@@ -1348,6 +1349,8 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     ['a password reset', '/password/reset/' + 'Q'.repeat(43)],
     ['an invitation, in capitals, which Express routes the same', '/INVITE/' + 'Q'.repeat(43)],
     ['a reset, in capitals', '/Password/Reset/' + 'Q'.repeat(43)],
+    ['a guest invitation', '/i/' + '7'.repeat(16)],
+    ['a guest invitation, in capitals, which Express routes the same', '/I/' + '7'.repeat(16)],
     ['an invitation with a trailing slash', '/invite/' + 'Q'.repeat(43) + '/'],
   ])(
     'serves the page of %s with no referrer, no index and no cache, like the gallery',
