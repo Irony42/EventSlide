@@ -3129,6 +3129,22 @@ export const en: UiText = {
         'That time does not exist on that day in this zone (the clocks go forward). Choose another.',
       loadFailed: 'The invitations could not be loaded.',
       ownerOnly: 'Only the owner of the event writes the invitation.',
+      printFormatLegend: 'Format',
+      printFormatCard: 'A6 card · 4 per A4',
+      printFormatA5: 'A5 · 2 per A4',
+      shortLabel: 'Message on the card',
+      shortCount: (count: number, max: number) => `${count} / ${max}`,
+      shortAuto: 'auto',
+      shortHint: 'The full message is on the invitation page.',
+      printButton: 'Print',
+      previewLabel: 'Card preview',
+      printHelp:
+        'In the print window, choose a scale of 100% and no margins. The address is printed on the card: hand it only to the guests you chose.',
+    },
+    card: {
+      eyebrow: 'Invitation',
+      more: 'All the details on the invitation page.',
+      link: (link: string) => `Details and photo wall: ${link}`,
     },
   },
 

@@ -3205,6 +3205,22 @@ export const es: UiText = {
         'Esa hora no existe ese día en esa zona (cambio a la hora de verano). Elija otra.',
       loadFailed: 'No se pudieron cargar las invitaciones.',
       ownerOnly: 'Solo el propietario del evento escribe la invitación.',
+      printFormatLegend: 'Formato',
+      printFormatCard: 'Tarjeta A6 · 4 por A4',
+      printFormatA5: 'A5 · 2 por A4',
+      shortLabel: 'Mensaje en la tarjeta',
+      shortCount: (count: number, max: number) => `${count} / ${max}`,
+      shortAuto: 'auto',
+      shortHint: 'El mensaje completo está en la página de la invitación.',
+      printButton: 'Imprimir',
+      previewLabel: 'Vista previa de la tarjeta',
+      printHelp:
+        'En la ventana de impresión, elija una escala del 100 % y sin márgenes. La dirección va impresa en la tarjeta: entréguela solo a los invitados que haya elegido.',
+    },
+    card: {
+      eyebrow: 'Invitación',
+      more: 'Todos los detalles en la página de la invitación.',
+      link: (link: string) => `Información y muro de fotos: ${link}`,
     },
   },
 
