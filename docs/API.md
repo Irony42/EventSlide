@@ -706,6 +706,7 @@ other limiters' bodies carry the header only.
 | the same four, and those two ◊                                     | 10 / 15 min   | **account**, failures only       | `auth.tooManySecondFactorAttempts`  |
 | `POST /api/events` (create)                                        | 20 / **hour** | account                          | `event.creationRateLimited`         |
 | `POST /api/events/:slug/moderators` (invite)                       | 30 / **hour** | account                          | `rate.limited`                      |
+| `GET /api/i/:token`, `GET …/logo` (guest invitation, spec 29)      | 200           | client IP, one bucket for both   | `rate.limited`                      |
 | `POST`, `PATCH`, `DELETE …/announcements…` (spec 21) ♯             | 60            | account, fixed                   | `rate.limited`                      |
 | `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §       | 300           | client IP **and** event          | `rate.limited`                      |
 | the same two, photos and clips together §                          | 12            | **guest** and event              | `rate.limited`                      |
@@ -1581,6 +1582,57 @@ client that disconnects part-way leaves nothing open on the server. `404 gallery
 otherwise.
 
 ---
+
+### Guest invitation, the page a guest opens (spec 29): `GET /api/i/:token`, `GET /api/i/:token/logo`
+
+**Public**: no session, no device token, no cookie of its own (the box-wide CSRF cookie is the only one it can set). The
+token is the whole credential, and it is the last segment of the address a guest opens (`/i/<token>`, the page; this is
+its data). Sixteen characters of Crockford's base32, read the way a join code is (case, `I`/`L`/`O` folded).
+
+**One refusal for everything**: `404 guestInvite.notAvailable`, the same body for a token that is unknown, malformed or
+too long to be one, an invitation switched off or with no date, an event that is archived or taken down by the operator,
+and a client that is suspended. Nothing in the answer tells a stranger which. Every answer, the refusal included, carries
+`Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow` and `Cache-Control: no-store`, ahead of the body
+parser, and the page's HTML shell (`/i/<token>`) carries the same three. The token is masked in the access log.
+Limited per client address by `GUEST_INVITE_RATE_LIMIT_PER_MINUTE` (200 by default, like the join lookup: guests behind
+one venue's Wi-Fi open the invitation together when the party starts); the page and its logo share one bucket.
+
+`200` answers:
+
+```json
+{
+  "state": "joinable",
+  "title": "Léa fête ses 40 ans",
+  "when": {
+    "startsAt": "2026-12-12T18:00:00.000Z",
+    "endsAt": "2026-12-13T01:00:00.000Z",
+    "timeZone": "Europe/Paris"
+  },
+  "venueName": "La Guinguette du Port",
+  "address": "12 quai de la Loire\n44000 Nantes",
+  "message": "Apéro à 19 h.",
+  "language": "fr",
+  "logoUrl": "/api/i/7QX0M4TZ2KD9WB3H/logo",
+  "joinUrl": "/join/H7K2QM"
+}
+```
+
+- `state` is the **server's** and the page never recomputes it: `upcoming` (the event is still a draft),
+  `joinable` (the event is live), `over` (the event is closed). It follows the event's **status**, never the hour of the
+  party: a party whose hour has passed but that its host has not opened stays `upcoming`.
+- `title` is the invitation's, or the event's name when the host wrote none. `when` is read in `timeZone`, the place's.
+  `venueName` is `null` when there is none.
+- **`joinUrl` (a path, `/join/<code of the moment>`) is present only while `joinable`**: the join code is not exposed at
+  any other time, and a re-read after a rotation answers the new one.
+- **`address` and `message` are absent (the keys are not there) once the state is `over`**: a closed event may be kept
+  for years, and its address and the host's word have no business staying readable behind a link.
+- `logoUrl` (a path) is present only when the event has a logo.
+- `language` is the invitation's, one of `fr`, `de`, `en`, `es`, `it`: the page reads in it, whatever the browser says.
+
+`GET /api/i/:token/logo` serves the event's logo (ranges, `ETag` of the digest, `no-store`) for as long as the page is
+served, **a draft's included** (the usual logo route serves a logo only while the wall is served, which would leave the
+weeks before the party without one), and answers the same `404 guestInvite.notAvailable` for an event with no logo or a
+token that no longer opens the page.
 
 ## 3. Guest
 
