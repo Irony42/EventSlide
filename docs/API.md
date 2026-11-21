@@ -1612,6 +1612,7 @@ one venue's Wi-Fi open the invitation together when the party starts); the page 
   "address": "12 quai de la Loire\n44000 Nantes",
   "message": "Apéro à 19 h.",
   "language": "fr",
+  "accentHue": 345,
   "logoUrl": "/api/i/7QX0M4TZ2KD9WB3H/logo",
   "joinUrl": "/join/H7K2QM"
 }
@@ -1626,6 +1627,7 @@ one venue's Wi-Fi open the invitation together when the party starts); the page 
   any other time, and a re-read after a rotation answers the new one.
 - **`address` and `message` are absent (the keys are not there) once the state is `over`**: a closed event may be kept
   for years, and its address and the host's word have no business staying readable behind a link.
+- `accentHue` (0 to 359) is the event's accent: the one field of its look the page wears, as `data-event-accent`, and nothing else of its theme is sent.
 - `logoUrl` (a path) is present only when the event has a logo.
 - `language` is the invitation's, one of `fr`, `de`, `en`, `es`, `it`: the page reads in it, whatever the browser says.
 

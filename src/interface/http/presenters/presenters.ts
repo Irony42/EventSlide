@@ -1268,6 +1268,7 @@ export const toGuestInvitePageDto = (view: GuestInviteView, token: string): Gues
   ...(view.address === undefined ? {} : { address: view.address }),
   ...(view.message === undefined ? {} : { message: view.message }),
   language: view.language,
+  accentHue: view.accentHue,
   ...(view.hasLogo ? { logoUrl: `/api/i/${encodeURIComponent(token)}/logo` } : {}),
   ...(view.joinCode === undefined ? {} : { joinUrl: `/join/${encodeURIComponent(view.joinCode)}` }),
 })

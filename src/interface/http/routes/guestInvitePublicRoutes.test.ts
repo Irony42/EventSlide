@@ -148,6 +148,7 @@ describe('GET /api/i/:token', () => {
       address: '1 rue de la Gare',
       message: 'Venez comme vous êtes.',
       language: 'de',
+      accentHue: 305,
       joinUrl: '/join/H7K2QM',
     })
     expectGuardHeaders(response)

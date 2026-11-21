@@ -269,6 +269,29 @@ describe('GuestInvitePage', () => {
     })
   })
 
+  describe('the event’s colour', () => {
+    const article = (): HTMLElement => {
+      const found = document.querySelector('article')
+      if (found === null) throw new Error('no invitation on screen')
+      return found
+    }
+
+    it('wears the event’s accent, as the other guest pages do', async () => {
+      render(fakeApi(answering({ accentHue: 345 })))
+      await screen.findByRole('heading', { level: 1 })
+
+      expect(article()).toHaveAttribute('data-event-accent', '345')
+      expect(article().style.getPropertyValue('--accent-hue')).toBe('345')
+    })
+
+    it('says nothing when the event kept the product’s own hue', async () => {
+      render(fakeApi(answering({ accentHue: 305 })))
+      await screen.findByRole('heading', { level: 1 })
+
+      expect(article()).not.toHaveAttribute('data-event-accent')
+    })
+  })
+
   describe('the logo', () => {
     it('shows the event’s own logo when it has one', async () => {
       render(fakeApi(answering({ logoUrl: `/api/i/${TOKEN}/logo` })))

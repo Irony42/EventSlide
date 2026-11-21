@@ -1290,6 +1290,8 @@ export interface GuestInvitePageDto {
   readonly address?: string | null
   readonly message?: string | null
   readonly language: string
+  /** The event's accent hue, 0 to 359: the one field of its look the page wears. */
+  readonly accentHue: number
   readonly logoUrl?: string
   readonly joinUrl?: string
 }

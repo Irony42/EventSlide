@@ -11,6 +11,7 @@ import type { GuestInvitePageDto } from '../../lib/api/dto'
 import { useAnnounceLocale } from '../../lib/i18n/deferredLocale'
 import { DEFAULT_LOCALE, parseLocale } from '../../lib/i18n/locale'
 import { useTranslations } from '../../lib/i18n/useTranslations'
+import { DEFAULT_EVENT_THEME, themeSurfaceProps } from '../../design-system/eventTheme'
 import { icsOf, itineraryHref, whenParts } from '../../lib/invite/inviteTexts'
 import { useGuestInvite } from './hooks/useGuestInvite'
 import styles from './GuestInvitePage.module.css'
@@ -124,7 +125,11 @@ function Invitation({
     )
 
   return (
-    <article className={styles['page']}>
+    <article
+      className={styles['page']}
+      // The event's colour, as every guest surface wears it: nothing when it is the product's own.
+      {...themeSurfaceProps({ ...DEFAULT_EVENT_THEME, accentHue: page.accentHue }, 'guest')}
+    >
       <Robots />
       <header className={styles['head']}>
         {page.logoUrl === undefined ? (

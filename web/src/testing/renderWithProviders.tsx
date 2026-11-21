@@ -155,6 +155,7 @@ export const aGuestInvitePage = (
   address: '12 quai de la Loire\n44000 Nantes',
   message: 'Apéro à 19 h, dîner à 20 h 30.',
   language: 'fr',
+  accentHue: 305,
   ...overrides,
 })
 
