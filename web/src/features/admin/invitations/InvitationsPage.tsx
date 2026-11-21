@@ -54,7 +54,9 @@ function EventInvitations({ slug }: { readonly slug: string }) {
 
   return (
     <div className={styles['page']}>
-      <HostBreadcrumb slug={slug} page="invitations" eventName={event.name} />
+      <div className={styles['screenOnly']}>
+        <HostBreadcrumb slug={slug} page="invitations" eventName={event.name} />
+      </div>
       <h1 className={styles['title']}>{t.guestInvite.host.title}</h1>
       {canManageEvent(event.role) ? (
         <OwnerPanels event={event} />

@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { LocaleOverride } from '../../../lib/i18n/LocaleProvider'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { joinHost } from '../../../lib/joinHost'
-import { PrintCard, type PrintCardTexts } from './PrintCard'
+import { PrintCard, type PrintCardInvitation, type PrintCardTexts } from './PrintCard'
 import {
   PRINT_FORMAT_SPECS,
   LOGO_MAX_SHARE,
@@ -42,6 +42,8 @@ export interface PrintSheetProps {
   readonly photoUrl: string | null
   readonly focusX: number
   readonly focusY: number
+  /** An invitation card (spec 29): the QR then leads to `joinUrl`, which is the invitation's link. */
+  readonly invitation?: PrintCardInvitation | undefined
   /** Told the module count of the rendered QR (quiet zone included), once it is drawn. */
   readonly onQrModules?: (totalModules: number | null) => void
 }
@@ -69,6 +71,7 @@ export function PrintSheet({
   photoUrl,
   focusX,
   focusY,
+  invitation,
   onQrModules,
 }: PrintSheetProps) {
   const root = useRef<HTMLDivElement>(null)
@@ -79,7 +82,7 @@ export function PrintSheet({
 
   useFitText(
     root,
-    `${format}|${design}|${locale}|${JSON.stringify(texts)}|${steps}|${photoUrl === null}`,
+    `${format}|${design}|${locale}|${JSON.stringify(texts)}|${steps}|${photoUrl === null}|${JSON.stringify(invitation ?? null)}`,
   )
 
   return (
@@ -102,6 +105,7 @@ export function PrintSheet({
                 photoUrl={photoUrl}
                 focusX={focusX}
                 focusY={focusY}
+                invitation={invitation}
                 joinCode={joinCode}
                 address={joinHost(joinUrl)}
                 qr={<SheetQr eventName={eventName} joinUrl={joinUrl} logoUrl={logoUrl} />}

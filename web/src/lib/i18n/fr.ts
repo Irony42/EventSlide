@@ -3892,7 +3892,7 @@ export const fr = {
       printButton: 'Imprimer',
       previewLabel: 'Aperçu de la carte',
       printHelp:
-        'Dans la fenêtre d’impression, choisissez une échelle de 100\u00a0% et aucune marge. L’adresse est imprimée sur la carte : ne la donnez qu’aux invités que vous avez choisis.',
+        'Dans la fenêtre d’impression, choisissez une échelle de 100\u00a0% et aucune marge. L’adresse est imprimée sur la carte\u00a0: ne la donnez qu’aux invités que vous avez choisis.',
     },
     card: {
       eyebrow: 'Invitation',

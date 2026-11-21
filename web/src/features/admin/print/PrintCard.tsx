@@ -19,6 +19,24 @@ export interface PrintCardTexts {
   readonly table: string | null
 }
 
+/**
+ * What an invitation card says (spec 29), already in the language of the invitation: the date and
+ * the hours in the zone of the party, the place and the address (**printed**: paper goes to guests
+ * the host chose, unlike a story), the short word, a line saying the rest is on the page, and the
+ * short readable link under the QR. The host's words are printed as written.
+ */
+export interface PrintCardInvitation {
+  readonly eyebrow: string
+  readonly day: string
+  readonly hours: string
+  readonly venue: string | null
+  readonly address: string | null
+  readonly message: string | null
+  /** Set when the full word is longer than the one printed. */
+  readonly more: string | null
+  readonly link: string
+}
+
 export interface PrintCardProps {
   readonly design: PrintDesign
   readonly texts: PrintCardTexts
@@ -31,6 +49,8 @@ export interface PrintCardProps {
   readonly qr: ReactNode
   readonly joinCode: string
   readonly address: string | null
+  /** An invitation card, not a table card: the design lays out its invitation disposition. */
+  readonly invitation?: PrintCardInvitation | undefined
 }
 
 interface DesignProps extends Omit<
@@ -52,7 +72,11 @@ interface DesignProps extends Omit<
  */
 export function PrintCard({ design, qr, focusX, focusY, texts, ...rest }: PrintCardProps) {
   const t = useTranslations()
-  const Design = DESIGNS[design]
+  // An invitation has its own disposition per design; a design with none yet wears the Essentiel one.
+  const Design =
+    rest.invitation === undefined
+      ? DESIGNS[design]
+      : (INVITATION_DESIGNS[design] ?? EssentielInvitation)
   const style = {
     '--qr-share': String(qrShareOf(design)),
     '--fx': `${focusX}%`,
@@ -131,6 +155,48 @@ function Essentiel({ texts, steps, qr, joinCode, address }: DesignProps) {
       {steps ? <Steps className={styles['esSteps']} /> : null}
       {texts.note === null ? null : <p className={styles['esNote']}>{texts.note}</p>}
       <Fallback joinCode={joinCode} address={address} />
+    </div>
+  )
+}
+
+/**
+ * The invitation, on the Essentiel card (spec 29): an eyebrow, the title, the moment, the place with
+ * its address, the host's short word, the QR, and the short link under it. No steps, no join code: the
+ * QR leads to the invitation page, which leads to the wall on the evening.
+ */
+function EssentielInvitation({ texts, qr, invitation }: DesignProps) {
+  if (invitation === undefined) return null
+  return (
+    <div className={styles['face']}>
+      <p className={styles['esEye']}>{invitation.eyebrow}</p>
+      <h2 className={styles['esInvTitle']} data-fit>
+        {texts.title}
+      </h2>
+      <div className={styles['esRule']} />
+      <div className={styles['esMoment']}>
+        <p className={styles['esWhen']} data-fit>
+          {invitation.day}
+        </p>
+        <p className={styles['esHours']}>{invitation.hours}</p>
+      </div>
+      {invitation.venue === null && invitation.address === null ? null : (
+        <p className={styles['esWhere']} data-fit>
+          {invitation.venue}
+          {invitation.address === null ? null : (
+            <span className={styles['esWhereAddress']}>{invitation.address}</span>
+          )}
+        </p>
+      )}
+      {invitation.message === null ? null : (
+        <p className={styles['esMsg']} data-fit>
+          {invitation.message}
+          {invitation.more === null ? null : (
+            <span className={styles['esMore']}>{invitation.more}</span>
+          )}
+        </p>
+      )}
+      {qr}
+      <p className={styles['esLink']}>{invitation.link}</p>
     </div>
   )
 }
@@ -846,6 +912,13 @@ function Guirlande({ texts, photoUrl, monogram, qr, joinCode, address }: DesignP
       </div>
     </div>
   )
+}
+
+/** The invitation dispositions (spec 29). Essentiel first; each design that gains one is a line here. */
+const INVITATION_DESIGNS: Readonly<
+  Partial<Record<PrintDesign, (props: DesignProps) => ReactNode>>
+> = {
+  essentiel: EssentielInvitation,
 }
 
 const DESIGNS: Readonly<Record<PrintDesign, (props: DesignProps) => ReactNode>> = {

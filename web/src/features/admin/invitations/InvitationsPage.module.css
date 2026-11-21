@@ -165,3 +165,55 @@
 .tabPanel {
   min-width: 0;
 }
+
+.screenOnly {
+  display: contents;
+}
+
+/*
+ * Paper takes the card sheet and nothing else (the Print tab only): the console's chrome goes, as
+ * on the table-card page. Scoped by :has([data-invite-sheet]), which only the open Print tab
+ * renders, so no other tab and no other page changes how it prints.
+ */
+@media print {
+  .screenOnly,
+  .title,
+  .column,
+  .tabs,
+  .locked {
+    display: none;
+  }
+
+  .page,
+  .layout {
+    display: block;
+    max-inline-size: none;
+  }
+
+  .panel {
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: none;
+  }
+
+  :global(body):has([data-invite-sheet]) :global(header),
+  :global(body):has([data-invite-sheet]) :global(footer),
+  :global(body):has([data-invite-sheet]) :global(a[href^='#']),
+  :global(body):has([data-invite-sheet]) :global([aria-live]) {
+    display: none;
+  }
+
+  :global(main):has([data-invite-sheet]) {
+    padding: 0;
+    max-inline-size: none;
+  }
+
+  :global(:has(> main)):has([data-invite-sheet]) > :not(main) {
+    display: none;
+  }
+
+  :global(body):has([data-invite-sheet]) {
+    background: var(--print-paper);
+  }
+}
