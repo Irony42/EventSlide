@@ -3828,7 +3828,7 @@ export const fr = {
       title: 'Invitations',
       formTitle: 'Le faire-part',
       titleLabel: 'Titre',
-      titleHint: (name: string) => `défaut : ${name}`,
+      titleHint: (name: string) => `défaut\u00a0: ${name}`,
       startLabel: 'Début',
       endLabel: 'Fin',
       zoneLine: (place: string) => `Heure de ${place}`,

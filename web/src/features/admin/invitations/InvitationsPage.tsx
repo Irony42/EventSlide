@@ -98,9 +98,8 @@ function OwnerPanels({ event }: { readonly event: EventDto }) {
     <div className={styles['layout']}>
       <div className={styles['column']}>
         <InvitationFormPanel
-          // The form is its own once it is mounted: a new answer to an act does not rewrite what
-          // the host is typing, but a first save, which creates the invitation, starts it afresh.
-          key={invite.configured ? 'saved' : 'blank'}
+          // The form is its own once it is mounted: an answer to an act (a new link, a switch) does
+          // not rewrite what the host is typing.
           slug={slug}
           eventName={event.name}
           invite={invite}
