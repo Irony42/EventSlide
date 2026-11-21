@@ -2,7 +2,13 @@ import { readFile } from 'node:fs/promises'
 import sharp from 'sharp'
 import { expect, test } from '../fixtures/app'
 import { invitedHost } from '../fixtures/invitation'
-import { downloadedInvitationImage, imageDependsOnItsFonts } from '../fixtures/invitationImage'
+import {
+  DESIGN_NAMES,
+  distanceFromPreview,
+  downloadedInvitationImage,
+  imageDependsOnItsFonts,
+  orangePhoto,
+} from '../fixtures/invitationImage'
 import { decodeQrInImage } from '../fixtures/qrDecode'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import type { Page } from '@playwright/test'
@@ -145,4 +151,28 @@ test('on a phone engine too, the card’s own typeface is in the picture, not a 
   const withFonts = await downloadedInvitationImage(host)
 
   await imageDependsOnItsFonts(host, withFonts, open, imageTab)
+})
+
+test('on a phone engine too, every design is drawn in the picture as it is in the preview', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const { event } = await invitedHost(host, app, 'image-fidelite-telephone')
+  await installPhone(host, false)
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+  await host
+    .getByTestId('print-photo-input')
+    .setInputFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: await orangePhoto() })
+  await expect(host.locator('[data-format] [data-print-card] img').first()).toBeVisible()
+
+  for (const name of DESIGN_NAMES) {
+    await host.getByRole('tab', { name: fr.guestInvite.host.tabPrint }).click()
+    await host.getByRole('radio', { name }).check({ force: true })
+    await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
+    const png = await downloadedInvitationImage(host)
+
+    expect(await distanceFromPreview(host, png), name).toBeLessThan(14)
+  }
 })

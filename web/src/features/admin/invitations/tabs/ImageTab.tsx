@@ -214,8 +214,7 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
           {(control) => (
             <Textarea
               {...control}
-              rows={6}
-              grow={false}
+              rows={8}
               value={words}
               maxLength={SHARE_TEXT_MAX}
               onChange={(e) =>

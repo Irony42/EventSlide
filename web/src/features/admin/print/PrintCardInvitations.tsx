@@ -291,7 +291,7 @@ export function EmbarquementInvitation(props: DesignProps) {
               <Photo url={photoUrl} className={styles['bpView']} />
             </div>
             <div className={styles['bpRoute']}>
-              <div className={styles['bpCodes']} data-fit>
+              <div className={cx(styles['bpCodes'], styles['bpCodesInv'])} data-fit>
                 <span>{from}</span>
                 {to === null ? null : <span aria-hidden="true">✈</span>}
               </div>
@@ -339,11 +339,11 @@ export function EmbarquementInvitation(props: DesignProps) {
 
 /** The prints on a string, the title and the moment below, the QR hung on a second string. */
 export function GuirlandeInvitation(props: DesignProps) {
-  const { texts, photoUrl, monogram, qr } = props
+  const { texts, photoUrl, monogram, qr, focusX, focusY } = props
   const invitation = useInvitation(props)
   return (
     <div className={cx(styles['face'], styles['glFace'])}>
-      <GarlandBanner photoUrl={photoUrl} monogram={monogram} />
+      <GarlandBanner photoUrl={photoUrl} monogram={monogram} focusX={focusX} focusY={focusY} />
       <div className={cx(styles['col'], styles['glBody'], styles['glBodyInv'])}>
         <h2 className={styles['glTitle']} data-fit>
           {texts.title}

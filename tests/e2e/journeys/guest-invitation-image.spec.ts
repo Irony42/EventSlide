@@ -2,7 +2,12 @@ import { readFile } from 'node:fs/promises'
 import sharp from 'sharp'
 import { expect, test } from '../fixtures/app'
 import { invitedHost } from '../fixtures/invitation'
-import { imageDependsOnItsFonts } from '../fixtures/invitationImage'
+import {
+  DESIGN_NAMES,
+  distanceFromPreview,
+  imageDependsOnItsFonts,
+  orangePhoto,
+} from '../fixtures/invitationImage'
 import { decodeQrInImage } from '../fixtures/qrDecode'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import type { Page } from '@playwright/test'
@@ -20,6 +25,9 @@ import type { Page } from '@playwright/test'
  */
 
 const text = fr.guestInvite.image
+
+/** Two renderings of one card differ by a few units; a black shape or a missing photograph by tens. */
+const DISTANCE_MAX = 14
 
 // Playwright insists on a destructured first argument.
 // eslint-disable-next-line no-empty-pattern
@@ -101,4 +109,43 @@ test('the card’s own typeface is in the picture: refuse its font files and the
   const withFonts = await downloadedImage(host)
 
   await imageDependsOnItsFonts(host, withFonts, open, imageTab)
+})
+
+test('every design is drawn in the picture as it is in the preview: no black shape, no missing photograph', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const { event } = await invitedHost(host, app, 'image-fidelite')
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+  await host
+    .getByTestId('print-photo-input')
+    .setInputFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: await orangePhoto() })
+  await expect(host.locator('[data-format] [data-print-card] img').first()).toBeVisible()
+
+  for (const name of DESIGN_NAMES) {
+    await host.getByRole('tab', { name: fr.guestInvite.host.tabPrint }).click()
+    await host.getByRole('radio', { name }).check({ force: true })
+    await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
+    const png = await downloadedImage(host)
+
+    expect(await distanceFromPreview(host, png), name).toBeLessThan(DISTANCE_MAX)
+  }
+})
+
+test('the words field shows all of the text, the link included, without a scroll', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const { event } = await invitedHost(host, app, 'image-champ')
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
+  await host.getByRole('checkbox', { name: text.addressLabel }).check()
+
+  const words = host.getByRole('textbox', { name: new RegExp(text.textLabel) })
+
+  const overflow = await words.evaluate((field) => field.scrollHeight - field.clientHeight)
+  expect(overflow).toBeLessThanOrEqual(1)
 })

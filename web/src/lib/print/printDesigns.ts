@@ -95,7 +95,8 @@ export const qrShareOf = (design: PrintDesign): number => SPECS[design].qrShare
  * judged by `printKit.isQrTooSmall`, from this very number.
  */
 const INVITATION_QR_SHARE: Partial<Record<InvitationDesign, number>> = {
-  guirlande: 0.3,
+  essentiel: 0.42,
+  guirlande: 0.286,
 }
 
 export const invitationQrShareOf = (design: InvitationDesign): number =>

@@ -2230,10 +2230,11 @@
   color: var(--pd-ink-soft);
 }
 
+/* The line saying the rest is on the page: sized in the card's own units, like the link line. */
 .esMore {
-  display: block;
-  font-size: 0.8em;
-  font-style: normal;
+  font-size: 2.35cqw;
+  line-height: 1.25;
+  color: var(--pd-ink-soft);
 }
 
 .esLink {
@@ -2341,9 +2342,21 @@
 }
 
 /* The Guirlande's body starts higher on an invitation, and its words wrap instead of shrinking. */
+/* Under the polaroid (its bottom edge is at 56.8 cqw of the card, 52 of the face), down to the face's margin. */
 .glBodyInv {
-  inset-block-start: 46cqw;
-  gap: 1.2cqw;
+  inset-block-start: 53.5cqw;
+  gap: 0.8cqw;
+  padding-block-end: 1.6cqw;
+}
+
+/* An invitation says more than a table card: its title is a little smaller so the rest fits under the polaroid. */
+.glBodyInv .glTitle {
+  max-block-size: 14.5cqw;
+  font-size: 6.8cqw;
+}
+
+.glBodyInv .glHang {
+  padding-block-start: 3cqw;
 }
 
 .glWhen {
@@ -2383,4 +2396,11 @@
 
 [data-clamped] + .invMoreClamped {
   display: block;
+}
+
+/* The hours of the evening are not a code: set in the sans face, a space is a space. */
+.bpCodesInv {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: 0;
 }

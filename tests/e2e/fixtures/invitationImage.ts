@@ -81,3 +81,36 @@ export const imageDependsOnItsFonts = async (
   // A title of a few hundred by a hundred pixels: well over 2 000 pixels change, none by chance.
   expect(await differingPixels(withFonts, withoutFont)).toBeGreaterThan(2_000)
 }
+
+/**
+ * How far a downloaded picture is from what the page shows of it: both are brought down to 48 by
+ * 48 and the mean difference of the channels is returned (0 to 255). A shape that is drawn black,
+ * a photograph that is missing or a ground that is not there is a large number; two renderings of
+ * the same card differ by a few.
+ */
+export const distanceFromPreview = async (page: Page, png: Buffer): Promise<number> => {
+  const preview = await page.locator('[data-invite-shot]').screenshot()
+  const small = (image: Buffer) =>
+    sharp(image).removeAlpha().resize(48, 48, { fit: 'fill' }).raw().toBuffer()
+  const [left, right] = await Promise.all([small(png), small(preview)])
+  let total = 0
+  for (let index = 0; index < left.length; index += 1) {
+    total += Math.abs((left[index] ?? 0) - (right[index] ?? 0))
+  }
+  return total / left.length
+}
+
+/** A flat orange photograph: anything drawn black or blank in its place is far from it. */
+export const orangePhoto = (): Promise<Buffer> =>
+  sharp({ create: { width: 640, height: 480, channels: 3, background: { r: 230, g: 120, b: 60 } } })
+    .jpeg()
+    .toBuffer()
+
+export const DESIGN_NAMES = [
+  'Essentiel',
+  'Ticket de caisse',
+  'Souvenir',
+  'Billet',
+  'Carte d’embarquement',
+  'Guirlande',
+] as const

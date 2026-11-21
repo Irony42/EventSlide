@@ -104,7 +104,11 @@ describe('PrintCard, as an invitation', () => {
   it('draws the host’s photograph in the designs that carry one', () => {
     for (const design of INVITATION_DESIGNS.filter(invitationUsesPhoto)) {
       const { container, unmount } = card(design, INVITATION, 'data:image/jpeg;base64,AAAA')
-      expect(container.querySelector('img[src^="data:image/jpeg"]'), design).not.toBeNull()
+      // An HTML picture, or an SVG one (the garland draws its own): both are the host's photograph.
+      expect(
+        container.querySelector('img[src^="data:image/jpeg"], image[href^="data:image/jpeg"]'),
+        design,
+      ).not.toBeNull()
       unmount()
     }
   })
@@ -128,5 +132,54 @@ describe('PrintCard, as an invitation', () => {
     expect(invitationQrShareOf('guirlande')).toBeLessThan(qrShareOf('guirlande'))
     // A design with no override of its own draws the table card's share.
     expect(invitationQrShareOf('billet')).toBe(qrShareOf('billet'))
+  })
+  it('draws the garland’s photograph as an SVG image, with no foreignObject, and frames it where the host asked', () => {
+    const { container } = renderWithProviders(
+      <PrintCard
+        design="guirlande"
+        qr={<svg role="img" aria-label="QR" />}
+        focusX={10}
+        focusY={90}
+        texts={{ title: 'Léa', tagline: null, note: null, date: null, table: null }}
+        steps={false}
+        photoUrl="data:image/jpeg;base64,AAAA"
+        joinCode=""
+        address={null}
+        invitation={INVITATION}
+      />,
+    )
+
+    const photo = container.querySelector('svg image[href^="data:image/jpeg"]')
+    expect(photo).not.toBeNull()
+    expect(photo).toHaveAttribute('preserveAspectRatio', 'xMinYMax slice')
+    expect(container.querySelector('foreignObject')).toBeNull()
+  })
+
+  it.each([
+    [0, 'xMin'],
+    [33, 'xMin'],
+    [34, 'xMid'],
+    [66, 'xMid'],
+    [67, 'xMax'],
+    [100, 'xMax'],
+  ])('frames a photograph for a horizontal focus of %i, on the side %s', (percent, align) => {
+    const { container } = renderWithProviders(
+      <PrintCard
+        design="guirlande"
+        qr={<svg role="img" aria-label="QR" />}
+        focusX={percent}
+        focusY={50}
+        texts={{ title: 'Léa', tagline: null, note: null, date: null, table: null }}
+        steps={false}
+        photoUrl="data:image/jpeg;base64,AAAA"
+        joinCode=""
+        address={null}
+        invitation={INVITATION}
+      />,
+    )
+
+    expect(container.querySelector('svg image')?.getAttribute('preserveAspectRatio')).toBe(
+      `${align}YMid slice`,
+    )
   })
 })

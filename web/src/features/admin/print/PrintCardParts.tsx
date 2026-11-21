@@ -41,12 +41,28 @@ const GARLAND_PRINTS = [
 const r2 = (value: number): string => value.toFixed(2)
 
 /** The prints pegged on a string, the photograph (or the monogram) in the middle one. */
+/**
+ * Where an SVG `<image>` that overflows its frame keeps its middle: the three places the format
+ * knows (start, middle, end) for the host's framing in percent. A photograph is drawn with
+ * `<image>` here, not an HTML one in a `foreignObject`: the picture of the card made for sharing
+ * would lose the second (a `foreignObject` inside the capture's own is empty in WebKit, and its
+ * styles are not carried over).
+ */
+const alignOf = (percent: number, axis: 'x' | 'Y'): string => {
+  const name = percent < 34 ? 'Min' : percent < 67 ? 'Mid' : 'Max'
+  return `${axis}${name}`
+}
+
 export function GarlandBanner({
   photoUrl,
   monogram,
+  focusX = 50,
+  focusY = 50,
 }: {
   readonly photoUrl: string | null
   readonly monogram: string
+  readonly focusX?: number
+  readonly focusY?: number
 }) {
   return (
     <svg className={styles['glBanner']} viewBox={`0 0 ${GARLAND_WIDTH} 56`} aria-hidden="true">
@@ -96,14 +112,14 @@ export function GarlandBanner({
                     </text>
                   </>
                 ) : (
-                  <foreignObject
+                  <image
+                    href={photoUrl}
                     x={r2(x - inner / 2)}
                     y={r2(y - 1 + pad)}
                     width={r2(inner)}
                     height={r2(inner)}
-                  >
-                    <Photo url={photoUrl} className={styles['glPhoto']} />
-                  </foreignObject>
+                    preserveAspectRatio={`${alignOf(focusX, 'x')}${alignOf(focusY, 'Y')} slice`}
+                  />
                 )}
               </>
             ) : (
