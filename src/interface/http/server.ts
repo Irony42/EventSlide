@@ -34,6 +34,7 @@ import { meRoutes } from './routes/meRoutes'
 import { guestbookRoutes } from './routes/guestbookRoutes'
 import { guestbookVoiceRoutes } from './routes/guestbookVoiceRoutes'
 import { announcementRoutes } from './routes/announcementRoutes'
+import { guestInviteRoutes } from './routes/guestInviteRoutes'
 import { channelRoutes } from './routes/channelRoutes'
 import { challengeRoutes } from './routes/challengeRoutes'
 import { missionRoutes } from './routes/missionRoutes'
@@ -390,6 +391,8 @@ export const buildServer = ({
   app.use('/api', challengeRoutes(routeDeps))
   // The scheduled announcements (spec 21): a moderator schedules, edits, launches or deletes them.
   app.use('/api', announcementRoutes(routeDeps))
+  // The guest invitation (spec 29), host side: the owner writes it, switches it and changes its link.
+  app.use('/api', guestInviteRoutes(routeDeps))
   // The groups that send photographs to an event (spec 27): a moderator reads them, the owner unlinks one.
   app.use('/api', channelRoutes(routeDeps))
   app.use(

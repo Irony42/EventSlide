@@ -151,6 +151,20 @@ export const AUDIT_ACTIONS = {
    * at least one was kept.
    */
   'event.voicesKept': { subject: 'event', details: { kept: detail.integer } },
+  /**
+   * The owner saved the event's guest invitation (`saveGuestInvite`, spec 29). Says that it was
+   * written, **never what**: the title, the address and the word are the host's own text, and the
+   * log has no word for one. Named for its subject (the event, whose opaque id is the subject),
+   * not `guestInvite.saved`: the subject types are a `CHECK` on `audit_log`, and widening it means
+   * rebuilding an append-only table for four lines that say nothing about the invitation's content.
+   */
+  'event.guestInviteSaved': { subject: 'event', details: {} },
+  /** The owner switched the invitation's link on (`enableGuestInvite`). Written once per switch. */
+  'event.guestInviteEnabled': { subject: 'event', details: {} },
+  /** The owner switched the link off (`disableGuestInvite`). The text and the token are kept. */
+  'event.guestInviteDisabled': { subject: 'event', details: {} },
+  /** The owner changed the link (`rotateGuestInviteToken`): the old one and its printed QR are dead. */
+  'event.guestInviteRotated': { subject: 'event', details: {} },
   /** An operator lifted a suspension (`resumeClient`, G2-14). */
   'client.resumed': { subject: 'client', details: {} },
   /**

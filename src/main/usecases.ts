@@ -19,6 +19,7 @@ import type { MediaStore } from '../application/ports/mediaStore'
 import type { ImageProcessor } from '../application/ports/imageProcessor'
 import type { ClipJobRepository } from '../application/ports/clipJobRepository'
 import type { AnnouncementRepository } from '../application/ports/announcementRepository'
+import type { GuestInviteRepository } from '../application/ports/guestInviteRepository'
 import type { ChallengeRepository } from '../application/ports/challengeRepository'
 import type { MissionRepository } from '../application/ports/missionRepository'
 import type { GuestbookRepository } from '../application/ports/guestbookRepository'
@@ -107,6 +108,8 @@ export interface Adapters {
   readonly challenges: ChallengeRepository
   /** Scheduled wall announcements (spec 21). */
   readonly announcements: AnnouncementRepository
+  /** The guest invitation of an event (spec 29). */
+  readonly guestInvites: GuestInviteRepository
   readonly guestbook: GuestbookRepository
   /** The recordings behind the guestbook's voice messages, and their queue (spec 25). */
   readonly voices: GuestbookVoiceRepository

@@ -57,6 +57,8 @@ import type {
   ChannelBindingDto,
   ChannelsResponseDto,
   AnnouncementResponseDto,
+  GuestInviteDto,
+  GuestInviteResponseDto,
   ChallengeDto,
   GuestChallengeDto,
   HostChallengeDto,
@@ -130,6 +132,7 @@ import type { IssuedInvitation } from '../../../application/usecases/auth/issueI
 import type { InvitationPreview } from '../../../application/usecases/auth/previewInvitation'
 import type { Announcement } from '../../../domain/announcements/announcement'
 import type { HostAnnouncement } from '../../../application/usecases/announcements/announcementAccess'
+import type { HostGuestInvite } from '../../../application/usecases/guestInvites/getGuestInvite'
 import type { HostAnnouncementList } from '../../../application/usecases/announcements/listAnnouncements'
 import type { ChannelsView } from '../../../application/usecases/channels/listBindings'
 import type { WallAnnouncements } from '../../../application/usecases/slideshow/getWallPlaylist'
@@ -1196,6 +1199,59 @@ export const toAnnouncementListResponseDto = (
   announcements: list.announcements.map(toAnnouncementDto),
   serverNowMs: list.serverNowMs,
 })
+
+/**
+ * The absolute link of an invitation. A path, not a query parameter, for the reason `joinUrl` gives;
+ * the token is already in the URL alphabet, and is encoded all the same.
+ */
+export const guestInviteUrl = (publicUrl: string, token: string): string =>
+  `${publicUrl}/i/${encodeURIComponent(token)}`
+
+export const toGuestInviteDto = (
+  { event, invite }: HostGuestInvite,
+  context: PresenterContext,
+): GuestInviteDto => {
+  const defaults = {
+    defaultTitle: event.name.value,
+    defaultStartsAt: event.startsAt === null ? null : event.startsAt.toISOString(),
+  }
+  if (invite === null) {
+    return {
+      configured: false,
+      enabled: false,
+      url: null,
+      title: null,
+      startsAt: null,
+      endsAt: null,
+      timeZone: null,
+      venueName: null,
+      address: null,
+      message: null,
+      language: event.settings.wallLanguage,
+      ...defaults,
+    }
+  }
+  const { content } = invite
+  return {
+    configured: true,
+    enabled: invite.enabled,
+    url: guestInviteUrl(context.publicUrl, invite.token.value),
+    title: content.title,
+    startsAt: content.startsAt === null ? null : content.startsAt.toISOString(),
+    endsAt: content.endsAt === null ? null : content.endsAt.toISOString(),
+    timeZone: content.timeZone,
+    venueName: content.venueName,
+    address: content.address,
+    message: content.message,
+    language: content.language,
+    ...defaults,
+  }
+}
+
+export const toGuestInviteResponseDto = (
+  view: HostGuestInvite,
+  context: PresenterContext,
+): GuestInviteResponseDto => ({ guestInvite: toGuestInviteDto(view, context) })
 
 export const toChannelsResponseDto = (view: ChannelsView): ChannelsResponseDto => ({
   available: view.available,

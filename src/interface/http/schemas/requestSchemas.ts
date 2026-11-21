@@ -722,6 +722,30 @@ export const announcementPatchBody = z.strictObject({
   countdownSeconds: announcementFields.countdownSeconds.optional(),
 })
 
+// ----------------------------------------------------------- guest invitation --
+
+/**
+ * `PUT /events/:slug/guest-invite` (spec 29). Every bound a host can break is **the domain's**
+ * (`guestInvite.*TooLong`, `*TooManyLines`, `badTimeZone`, `endBeforeStart`...), each with its own
+ * code and its limits, so the form can say what is wrong. What is checked here is that a field has
+ * the shape of its type and that a request cannot be arbitrarily large. **An absent field is left
+ * as it was and `null` clears it.** The instants are strings the domain reads (ISO 8601 with an
+ * offset), so a badly written one is `guestInvite.startsAtInvalid` and not a second kind of refusal.
+ */
+export const guestInviteBody = z.strictObject({
+  title: z.string().max(400).nullable().optional(),
+  startsAt: z.string().max(64).nullable().optional(),
+  endsAt: z.string().max(64).nullable().optional(),
+  timeZone: z.string().max(100).nullable().optional(),
+  venueName: z.string().max(400).nullable().optional(),
+  address: z.string().max(2_000).nullable().optional(),
+  message: z.string().max(8_000).nullable().optional(),
+  language: z.string().max(16).optional(),
+})
+
+/** `POST /guest-invite/enable|disable|rotate`: the act is the path, so the body is empty. */
+export const guestInviteActBody = z.strictObject({})
+
 // --------------------------------------------------------------- moderation --
 
 export const moderationDecisionBody = z.strictObject({

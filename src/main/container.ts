@@ -19,6 +19,7 @@ import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepos
 import { SqliteGuestbookRepository } from '../infrastructure/db/sqliteGuestbookRepository'
 import { SqliteGuestbookVoiceRepository } from '../infrastructure/db/sqliteGuestbookVoiceRepository'
 import { SqliteAnnouncementRepository } from '../infrastructure/db/sqliteAnnouncementRepository'
+import { SqliteGuestInviteRepository } from '../infrastructure/db/sqliteGuestInviteRepository'
 import { SqliteChallengeRepository } from '../infrastructure/db/sqliteChallengeRepository'
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
 import { SqliteShareLinkRepository } from '../infrastructure/db/sqliteShareLinkRepository'
@@ -540,6 +541,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     missions: new SqliteMissionRepository(db),
     challenges: new SqliteChallengeRepository(db),
     announcements: new SqliteAnnouncementRepository(db),
+    guestInvites: new SqliteGuestInviteRepository(db),
     guestbook: new SqliteGuestbookRepository(db),
     voices: new SqliteGuestbookVoiceRepository(db),
     users: new SqliteUserRepository(db),

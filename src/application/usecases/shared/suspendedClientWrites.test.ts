@@ -31,6 +31,10 @@ import { makeRevokeShareLink } from '../gallery/revokeShareLink'
 import { makeRevokeGuest } from '../guests/revokeGuest'
 import { makeKeepPendingGuestbookVoices } from '../guestbook/keepPendingGuestbookVoices'
 import { makeOpenGuestbookVoice } from '../guestbook/openGuestbookVoice'
+import { makeDisableGuestInvite } from '../guestInvites/disableGuestInvite'
+import { makeEnableGuestInvite } from '../guestInvites/enableGuestInvite'
+import { makeRotateGuestInviteToken } from '../guestInvites/rotateGuestInviteToken'
+import { makeSaveGuestInvite } from '../guestInvites/saveGuestInvite'
 import { makeCreateMission } from '../missions/createMission'
 import { makeStartChallenge } from '../challenges/startChallenge'
 import { makeStopChallenge } from '../challenges/stopChallenge'
@@ -351,6 +355,56 @@ const CASES: readonly Case[] = [
         decision: 'publish',
         actor: host(actorId),
       }),
+  },
+  {
+    name: 'saveGuestInvite',
+    member: 'owner',
+    ask: ({ events, memberships }, actorId) =>
+      makeSaveGuestInvite({
+        events,
+        memberships,
+        invites: gone(),
+        audit: gone(),
+        ids: gone(),
+        clock: gone(),
+      })({ eventId: EVENT, actorId, title: 'Léa fête ses 40 ans' }),
+  },
+  {
+    name: 'enableGuestInvite',
+    member: 'owner',
+    ask: ({ events, memberships }, actorId) =>
+      makeEnableGuestInvite({
+        events,
+        memberships,
+        invites: gone(),
+        audit: gone(),
+        clock: gone(),
+      })({ eventId: EVENT, actorId }),
+  },
+  {
+    name: 'disableGuestInvite',
+    member: 'owner',
+    ask: ({ events, memberships }, actorId) =>
+      makeDisableGuestInvite({
+        events,
+        memberships,
+        invites: gone(),
+        audit: gone(),
+        clock: gone(),
+      })({ eventId: EVENT, actorId }),
+  },
+  {
+    name: 'rotateGuestInviteToken',
+    member: 'owner',
+    ask: ({ events, memberships }, actorId) =>
+      makeRotateGuestInviteToken({
+        events,
+        memberships,
+        invites: gone(),
+        audit: gone(),
+        ids: gone(),
+        clock: gone(),
+      })({ eventId: EVENT, actorId }),
   },
   {
     name: 'openGuestbookVoice',

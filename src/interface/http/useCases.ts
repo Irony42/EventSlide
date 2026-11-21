@@ -122,6 +122,11 @@ import type { ListMyGuestbookEntries } from '../../application/usecases/guestboo
 import type { ModerateGuestbookEntry } from '../../application/usecases/guestbook/moderateGuestbookEntry'
 import type { OpenGuestbookVoice } from '../../application/usecases/guestbook/openGuestbookVoice'
 import type { StageGuestbookVoice } from '../../application/usecases/guestbook/stageGuestbookVoice'
+import type { GetGuestInvite } from '../../application/usecases/guestInvites/getGuestInvite'
+import type { SaveGuestInvite } from '../../application/usecases/guestInvites/saveGuestInvite'
+import type { EnableGuestInvite } from '../../application/usecases/guestInvites/enableGuestInvite'
+import type { DisableGuestInvite } from '../../application/usecases/guestInvites/disableGuestInvite'
+import type { RotateGuestInviteToken } from '../../application/usecases/guestInvites/rotateGuestInviteToken'
 import type { CreateAnnouncement } from '../../application/usecases/announcements/createAnnouncement'
 import type { DeleteAnnouncement } from '../../application/usecases/announcements/deleteAnnouncement'
 import type { LaunchAnnouncement } from '../../application/usecases/announcements/launchAnnouncement'
@@ -326,6 +331,12 @@ export interface HttpUseCases {
   readonly startChallenge: StartChallenge
   readonly stopChallenge: StopChallenge
   readonly getChallenge: GetChallenge
+  // the guest invitation: the host's side (spec 29)
+  readonly getGuestInvite: GetGuestInvite
+  readonly saveGuestInvite: SaveGuestInvite
+  readonly enableGuestInvite: EnableGuestInvite
+  readonly disableGuestInvite: DisableGuestInvite
+  readonly rotateGuestInviteToken: RotateGuestInviteToken
   // scheduled wall announcements (spec 21)
   readonly listAnnouncements: ListAnnouncements
   readonly createAnnouncement: CreateAnnouncement
