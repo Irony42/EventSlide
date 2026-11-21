@@ -40,7 +40,7 @@ guestInviteRepositoryContract('sqlite', async () => {
 describe('SqliteGuestInviteRepository storage', () => {
   it('stores instants as ISO UTC text and the switch as 0 or 1', async () => {
     const db = migratedDatabase()
-    await new SqliteGuestInviteRepository(db).save(
+    await new SqliteGuestInviteRepository(db).create(
       aGuestInvite({
         eventId: 'evt-wedding',
         enabled: true,

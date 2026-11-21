@@ -126,7 +126,6 @@ export const eventsUseCases = (
     memberships: adapters.memberships,
     invites: adapters.guestInvites,
     audit: adapters.audit,
-    ids: adapters.ids,
     clock: adapters.clock,
   }),
   disableGuestInvite: makeDisableGuestInvite({

@@ -26,7 +26,7 @@ again. The decision below is the one a later reader would otherwise reopen.
    host's right to see it again is the feature. It is a bearer credential of the same standing as the join code, which is
    also stored in the clear, and it is protected the same way: a refusal that is one neutral `404` for every cause, a
    per-IP limiter, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`, `Cache-Control: no-store`, and the token
-   **masked in the logs** (`/i` and `/api/i` join the token-bearing prefixes of the error handler, with the public route) because it is no
+   **masked in the logs** (`/i` and `/api/i` join the token-bearing prefixes of the error handler, in the change that adds the public route) because it is no
    longer only a digest on disk.
 2. **16 characters of Crockford's base32, 80 bits**, drawn from the injected `IdGenerator.bytes` and mapped by a pure
    domain function (`GuestInviteToken`), the join code's alphabet and its tolerant reading (`I`, `L`, `O`). Short enough

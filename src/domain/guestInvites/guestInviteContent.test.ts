@@ -114,6 +114,38 @@ describe('guest invitation content', () => {
       )
     })
 
+    it.each([
+      ['31 February, which Date would roll over to 3 March', '2026-02-31T10:00:00Z'],
+      ['hour 24, which Date would read as the next day', '2026-12-13T24:00:00Z'],
+      ['30 April + 1', '2026-04-31T10:00:00Z'],
+      ['29 February of a year that has none', '2027-02-29T10:00:00Z'],
+      ['month 13', '2026-13-01T10:00:00Z'],
+      ['day 0', '2026-12-00T10:00:00Z'],
+      ['minute 60', '2026-12-13T10:60:00Z'],
+      ['second 60', '2026-12-13T10:00:60Z'],
+      ['year 0000 with an offset that makes it negative', '0000-01-01T00:00:00+14:00'],
+      ['year 1999', '1999-12-31T23:59:00Z'],
+      ['year 2101', '2101-01-01T00:00:00Z'],
+      ['2100 written, 2101 once the offset is applied', '2100-12-31T23:30:00-01:00'],
+      ['1999 written, 2000 once the offset is applied', '1999-12-31T23:00:00-14:00'],
+      ['2101 written, 2100 once the offset is applied', '2101-01-01T00:00:00+14:00'],
+      ['2000 written, 1999 once the offset is applied', '2000-01-01T00:00:00+01:00'],
+    ])('refuses %s', (_name, startsAt) => {
+      expect(code(patched({ startsAt, timeZone: 'UTC' }))).toBe('guestInvite.startsAtInvalid')
+    })
+
+    it('accepts a real leap day and the first and last years of the range', () => {
+      for (const startsAt of [
+        '2028-02-29T10:00:00Z',
+        '2000-01-01T00:00:00Z',
+        '2100-12-31T23:59:59Z',
+        '2026-12-13T23:59:00+01:00',
+        '2026-12-13T18:00Z',
+      ]) {
+        expect(code(patched({ startsAt, timeZone: 'UTC' })), startsAt).toBeNull()
+      }
+    })
+
     it('needs the zone a start is read in', () => {
       expect(code(patched({ startsAt: START }))).toBe('guestInvite.timeZoneRequired')
       expect(code(patched({ startsAt: START, timeZone: 'Europe/Paris' }))).toBeNull()
@@ -124,6 +156,22 @@ describe('guest invitation content', () => {
       expect(code(patched({ timeZone: 'Mars/Olympus' }))).toBe('guestInvite.badTimeZone')
       expect(code(patched({ timeZone: 'x'.repeat(65) }))).toBe('guestInvite.badTimeZone')
       expect(code(patched({ timeZone: 5 }))).toBe('guestInvite.badTimeZone')
+    })
+
+    it.each(['+02:00', '-05:00', '+0200', 'EST', 'CET', 'GMT', 'Nowhere', 'Mars/Olympus'])(
+      'refuses %s: an offset or an abbreviation is not a zone',
+      (timeZone) => {
+        expect(code(patched({ timeZone }))).toBe('guestInvite.badTimeZone')
+      },
+    )
+
+    it('stores the platform’s own spelling of a zone, so the same zone is one value', () => {
+      const lower = patched({ timeZone: 'europe/paris' })
+      expect(lower.ok && lower.value.timeZone).toBe('Europe/Paris')
+      const utc = patched({ timeZone: 'utc' })
+      expect(utc.ok && utc.value.timeZone).toBe('UTC')
+      const padded = patched({ timeZone: '  Europe/Paris ' })
+      expect(padded.ok && padded.value.timeZone).toBe('Europe/Paris')
     })
 
     it('treats a blank zone as none', () => {

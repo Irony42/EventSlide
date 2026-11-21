@@ -41,6 +41,55 @@ describe('GuestInvite', () => {
     expect(saved.ok && saved.value.updatedAt).toBe(LATER)
   })
 
+  it('returns this very invitation for a save that changes nothing: it is not an edit', () => {
+    const invite = dated()
+
+    const same = invite.withContent(
+      { startsAt: '2026-12-13T18:00:00Z', timeZone: 'europe/paris', title: null },
+      LATER,
+    )
+
+    expect(same.ok && same.value).toBe(invite)
+    expect(same.ok && same.value.updatedAt).toBe(NOW)
+  })
+
+  it('sees a change of any one field as an edit', () => {
+    const base = dated()
+    const changes = [
+      { title: 'Autre' },
+      { startsAt: '2026-12-13T19:00:00Z' },
+      { endsAt: '2026-12-14T01:00:00Z' },
+      { timeZone: 'UTC' },
+      { venueName: 'Salle' },
+      { address: 'Rue 1' },
+      { message: 'Mot' },
+      { language: 'de' },
+    ]
+    for (const change of changes) {
+      const saved = base.withContent(change, LATER)
+      expect(saved.ok && saved.value !== base, JSON.stringify(change)).toBe(true)
+    }
+  })
+
+  it('refuses to take the date away from an invitation that is switched on', () => {
+    const on = dated().enable(NOW)
+    if (!on.ok) throw new Error('enable')
+
+    const saved = on.value.withContent({ startsAt: null, timeZone: null }, LATER)
+
+    expect(!saved.ok && saved.error.code).toBe('guestInvite.needsDate')
+  })
+
+  it('lets a switched-off invitation lose its date, and lets a switched-on one change it', () => {
+    const off = dated().withContent({ startsAt: null, timeZone: null }, LATER)
+    const on = dated().enable(NOW)
+    if (!on.ok) throw new Error('enable')
+    const moved = on.value.withContent({ startsAt: '2026-12-14T18:00:00Z' }, LATER)
+
+    expect(off.ok && off.value.content.startsAt).toBeNull()
+    expect(moved.ok && moved.value.content.startsAt?.toISOString()).toBe('2026-12-14T18:00:00.000Z')
+  })
+
   it('passes a refused save back and leaves the invitation as it was', () => {
     const invite = blank()
     const saved = invite.withContent({ title: 'x'.repeat(81) }, LATER)

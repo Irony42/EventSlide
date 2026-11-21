@@ -56,6 +56,6 @@ export const makeDisableGuestInvite =
     )
     if (!recorded.ok) return recorded
     const disabled = current.disable(now)
-    await invites.save(disabled)
+    await invites.setEnabled(eventId, false, now)
     return ok({ event, invite: disabled })
   }

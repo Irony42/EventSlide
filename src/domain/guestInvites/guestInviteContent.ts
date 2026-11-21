@@ -100,25 +100,67 @@ const parseLines = (
 }
 
 /** An instant in ISO 8601 **with** an offset (`Z` or `+02:00`): a bare local time is ambiguous. */
-const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/
+const INSTANT =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/
 
+/** The years an invitation may name: a party, not an archive. Also what `restoreContent` can re-read. */
+const MIN_YEAR = 2000
+const MAX_YEAR = 2100
+
+const daysInMonth = (year: number, month: number): number =>
+  new Date(Date.UTC(year, month, 0)).getUTCDate()
+
+/**
+ * An instant that **is** a date: `Date` would roll 31 February over to 3 March and read hour 24 as
+ * the next day, so each written field is checked against the calendar first. The year is bounded
+ * both as written and once the offset is applied, so what is stored always parses back.
+ */
 const parseInstant = (raw: unknown, code: string): Result<Date | null, DomainError> => {
   if (raw === null) return ok(null)
-  if (typeof raw !== 'string' || !INSTANT.test(raw)) return err(DomainError.invalid(code))
+  const parts = typeof raw === 'string' ? INSTANT.exec(raw) : null
+  if (typeof raw !== 'string' || parts === null) return err(DomainError.invalid(code))
+
+  const [year, month, day, hour, minute] = parts.slice(1, 6).map(Number) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+  ]
+  const second = parts[6] === undefined ? 0 : Number(parts[6])
+  const real =
+    year >= MIN_YEAR &&
+    year <= MAX_YEAR &&
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= daysInMonth(year, month) &&
+    hour <= 23 &&
+    minute <= 59 &&
+    second <= 59
+  if (!real) return err(DomainError.invalid(code))
+
   const at = new Date(raw)
-  return Number.isFinite(at.getTime()) ? ok(at) : err(DomainError.invalid(code))
+  const inRange = at.getUTCFullYear() >= MIN_YEAR && at.getUTCFullYear() <= MAX_YEAR
+  return inRange ? ok(at) : err(DomainError.invalid(code))
 }
 
 /**
- * Whether the platform knows `timeZone`. `Intl.DateTimeFormat` rather than
- * `Intl.supportedValuesOf('timeZone')`, which omits `UTC` and aliases that browsers send back.
+ * The canonical IANA identifier the platform knows `timeZone` by, or `null`.
+ * `Intl.DateTimeFormat` rather than `Intl.supportedValuesOf('timeZone')`, which omits `UTC` and
+ * aliases that browsers send back; the platform's own spelling is what is kept (`europe/paris` is
+ * stored `Europe/Paris`). An offset (`+02:00`) is not a zone, and neither is an abbreviation
+ * (`EST`, `CET`, `GMT`) that Intl accepts as a legacy identifier: what is written is `UTC` or an
+ * `Area/Location`, so the hour follows a country's rules when they change.
  */
-const knownTimeZone = (timeZone: string): boolean => {
+const canonicalTimeZone = (timeZone: string): string | null => {
+  // As written: Intl resolves `EST` to a city, which would hide that the host typed an abbreviation.
+  if (!(timeZone.toUpperCase() === 'UTC' || timeZone.includes('/'))) return null
   try {
-    new Intl.DateTimeFormat('en', { timeZone })
-    return true
+    const resolved = new Intl.DateTimeFormat('en', { timeZone }).resolvedOptions().timeZone
+    return resolved
   } catch {
-    return false
+    return null
   }
 }
 
@@ -127,10 +169,8 @@ const parseTimeZone = (raw: unknown): Result<string | null, DomainError> => {
   if (typeof raw !== 'string') return err(DomainError.invalid('guestInvite.badTimeZone'))
   const trimmed = raw.trim()
   if (trimmed.length === 0) return ok(null)
-  if (trimmed.length > TIME_ZONE_MAX_CHARS || !knownTimeZone(trimmed)) {
-    return err(DomainError.invalid('guestInvite.badTimeZone'))
-  }
-  return ok(trimmed)
+  const canonical = trimmed.length > TIME_ZONE_MAX_CHARS ? null : canonicalTimeZone(trimmed)
+  return canonical === null ? err(DomainError.invalid('guestInvite.badTimeZone')) : ok(canonical)
 }
 
 const parseLanguage = (raw: unknown): Result<EventLanguage, DomainError> =>
@@ -215,6 +255,20 @@ export const applyContentPatch = (
     language: language.value,
   })
 }
+
+const sameInstant = (a: Date | null, b: Date | null): boolean =>
+  a === null || b === null ? a === b : a.getTime() === b.getTime()
+
+/** Whether two contents say the same thing (a save that changes nothing is not an edit). */
+export const contentEquals = (a: GuestInviteContent, b: GuestInviteContent): boolean =>
+  a.title === b.title &&
+  sameInstant(a.startsAt, b.startsAt) &&
+  sameInstant(a.endsAt, b.endsAt) &&
+  a.timeZone === b.timeZone &&
+  a.venueName === b.venueName &&
+  a.address === b.address &&
+  a.message === b.message &&
+  a.language === b.language
 
 const valueOr = <T>(result: Result<T, DomainError>, fallback: T): T =>
   result.ok ? result.value : fallback

@@ -66,6 +66,6 @@ export const makeRotateGuestInviteToken =
     )
     if (!recorded.ok) return recorded
     const rotated = current.rotate(token.value, now)
-    await invites.save(rotated)
+    await invites.rotateToken(eventId, token.value, now)
     return ok({ event, invite: rotated })
   }

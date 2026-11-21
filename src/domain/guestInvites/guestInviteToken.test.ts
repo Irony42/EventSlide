@@ -10,6 +10,14 @@ describe('GuestInviteToken', () => {
     expect(made.ok && made.value.value).toBe('02468ACEGJMPRTWY')
   })
 
+  it('reads a byte modulo 32, so a byte above 31 wraps round the alphabet', () => {
+    const wrapped = GuestInviteToken.fromBytes(
+      Uint8Array.from([32, 33, 63, 64, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+    )
+
+    expect(wrapped.ok && wrapped.value.value).toBe('01Z0Z0123456789A')
+  })
+
   it('refuses a number of bytes other than sixteen, so no token is made from too little entropy', () => {
     for (const length of [0, 15, 17]) {
       const made = GuestInviteToken.fromBytes(bytes(1, length))
