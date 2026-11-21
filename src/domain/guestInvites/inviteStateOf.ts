@@ -18,12 +18,35 @@ import type { GuestInvite } from './guestInvite'
  */
 export type InviteState = 'upcoming' | 'joinable' | 'over' | 'unavailable'
 
-export const inviteStateOf = (event: Event, invite: GuestInvite): InviteState => {
-  if (!invite.enabled || invite.content.startsAt === null) return 'unavailable'
-  if (event.status === 'archived' || event.isTakenDown() || event.isClientSuspended()) {
-    return 'unavailable'
-  }
-  if (event.acceptsGuests()) return 'joinable'
-  if (event.status === 'closed') return 'over'
-  return 'upcoming'
+/** The moment an invitation announces, in the zone it is read in. */
+export interface InviteSchedule {
+  readonly startsAt: Date
+  readonly endsAt: Date | null
+  readonly timeZone: string
 }
+
+/** Present only when the invitation has a start and the zone to read it in. */
+export const scheduleOf = (invite: GuestInvite): InviteSchedule | null => {
+  const { startsAt, endsAt, timeZone } = invite.content
+  return startsAt === null || timeZone === null ? null : { startsAt, endsAt, timeZone }
+}
+
+export interface ServedInvite {
+  readonly state: Exclude<InviteState, 'unavailable'>
+  readonly schedule: InviteSchedule
+}
+
+/**
+ * The state **and** the schedule of a page that exists, or `null` for one that does not: a caller
+ * that serves a page gets both from one decision and never re-derives either.
+ */
+export const servedInviteOf = (event: Event, invite: GuestInvite): ServedInvite | null => {
+  const schedule = scheduleOf(invite)
+  if (!invite.enabled || schedule === null) return null
+  if (event.status === 'archived' || event.isTakenDown() || event.isClientSuspended()) return null
+  if (event.acceptsGuests()) return { state: 'joinable', schedule }
+  return { state: event.status === 'closed' ? 'over' : 'upcoming', schedule }
+}
+
+export const inviteStateOf = (event: Event, invite: GuestInvite): InviteState =>
+  servedInviteOf(event, invite)?.state ?? 'unavailable'

@@ -8,7 +8,7 @@ import { JoinCode } from '../shared/joinCode'
 import { Slug } from '../shared/slug'
 import { GuestInvite } from './guestInvite'
 import { GuestInviteToken } from './guestInviteToken'
-import { inviteStateOf, type InviteState } from './inviteStateOf'
+import { inviteStateOf, scheduleOf, servedInviteOf, type InviteState } from './inviteStateOf'
 
 const NOW = new Date('2026-11-21T10:00:00Z')
 
@@ -101,5 +101,33 @@ describe('inviteStateOf', () => {
     expect(
       inviteStateOf(eventIn('draft'), GuestInvite.restore({ ...past.toProps(), enabled: true })),
     ).toBe('upcoming')
+  })
+})
+
+describe('servedInviteOf', () => {
+  it('carries the schedule with the state, from one decision', () => {
+    const served = servedInviteOf(eventIn('live'), ON)
+
+    expect(served?.state).toBe('joinable')
+    expect(served?.schedule).toEqual({
+      startsAt: new Date('2026-12-13T18:00:00Z'),
+      endsAt: null,
+      timeZone: 'Europe/Paris',
+    })
+  })
+
+  it('is null for a page that does not exist', () => {
+    expect(servedInviteOf(eventIn('archived'), ON)).toBeNull()
+  })
+})
+
+describe('scheduleOf', () => {
+  it('is absent without a start, and without the zone the start is read in', () => {
+    expect(scheduleOf(inviteWith({ enabled: true, dated: false }))).toBeNull()
+    const lostZone = GuestInvite.restore({
+      ...ON.toProps(),
+      content: { ...ON.content, timeZone: null },
+    })
+    expect(scheduleOf(lostZone)).toBeNull()
   })
 })

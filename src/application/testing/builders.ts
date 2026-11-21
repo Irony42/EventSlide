@@ -170,8 +170,6 @@ export interface EventInput {
   readonly scheduleDiscardedAt?: Date | null
   /** The client's suspension as a lookup would carry it; `null` by default. */
   readonly clientSuspendedAt?: Date | null
-  /** The operator's take-down, as a lookup by id would carry it; `null` by default. */
-  readonly takenDownAt?: Date | null
 }
 
 const toSettings = (input: EventSettings | EventSettingsPatch): EventSettings =>
@@ -227,7 +225,6 @@ export const anEvent = (input: EventInput = {}): Event => {
     scheduledCloseAt: pick(input.scheduledCloseAt, null),
     scheduleDiscardedAt: pick(input.scheduleDiscardedAt, null),
     clientSuspendedAt: pick(input.clientSuspendedAt, null),
-    takenDownAt: pick(input.takenDownAt, null),
   })
 }
 
