@@ -249,9 +249,9 @@ test('the page fits a 320 px phone without a horizontal scrollbar, its buttons a
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     )
     expect(overflow).toBeLessThanOrEqual(0)
-    const button = await guest
-      .getByRole('button', { name: fr.guestInvite.page.agenda })
-      .boundingBox()
+    const agenda = guest.getByRole('button', { name: fr.guestInvite.page.agenda })
+    await expect(agenda).toBeVisible()
+    const button = await agenda.boundingBox()
     expect(button?.height ?? 0).toBeGreaterThanOrEqual(44)
 
     const { violations } = await new AxeBuilder({ page: guest })
