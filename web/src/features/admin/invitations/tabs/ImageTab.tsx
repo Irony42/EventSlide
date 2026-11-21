@@ -76,7 +76,26 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
     },
     view.lang,
   )
-  const [edited, setEdited] = useState<string | null>(null)
+  // The host's rewriting is theirs only for the invitation it was written from: a new date, place,
+  // word or link in the form is a new text, and the old edit goes with it. (Showing or hiding the
+  // address is not a new invitation: that one is handled below.)
+  const wordsKey = JSON.stringify([
+    view.texts.title,
+    view.when.day,
+    view.when.hours,
+    invite.venueName,
+    invite.address,
+    invite.url,
+    view.lang,
+  ])
+  const [rewrite, setRewrite] = useState<{ readonly key: string; readonly text: string } | null>(
+    null,
+  )
+  const edited = rewrite !== null && rewrite.key === wordsKey ? rewrite.text : null
+  const setEdited = (value: string | null) => {
+    setRewrite(value === null ? null : { key: wordsKey, text: value })
+    setSaid(null)
+  }
   const words = edited ?? automatic
 
   /** Showing or hiding the address: the host's own words never keep one the image no longer shows. */
@@ -205,6 +224,11 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
             />
           )}
         </Field>
+        {edited === null ? null : (
+          <button type="button" className={styles['revert']} onClick={() => setEdited(null)}>
+            {text.revertText}
+          </button>
+        )}
 
         <div className={styles['actions']}>
           {canShare ? (

@@ -1,4 +1,5 @@
 import type { Locale } from '../i18n/locale'
+import { wellFormed } from './wellFormed'
 
 /**
  * The words and files a guest invitation is made into (spec 29): the hour as a person says it,
@@ -162,7 +163,7 @@ export const itineraryHref = (venueName: string | null, address: string | null):
     .join(', ')
   return query === ''
     ? null
-    : `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`
+    : `https://www.openstreetmap.org/search?query=${encodeURIComponent(wellFormed(query))}`
 }
 
 // ---------------------------------------------------------------------------- the .ics --

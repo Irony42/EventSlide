@@ -3284,6 +3284,7 @@ export const de: UiText = {
       copyFailed: 'Der Text konnte nicht kopiert werden: Markieren Sie ihn im Feld.',
       renderFailed: 'Das Bild konnte auf diesem Gerät nicht erstellt werden.',
       retry: 'Erneut versuchen',
+      revertText: 'Zurück zum automatischen Text',
       downloaded: 'Bild heruntergeladen.',
       shareFailed:
         'Das Teilen hat nicht geklappt: Laden Sie das Bild herunter und senden Sie es von Ihrem Handy.',
@@ -3305,6 +3306,8 @@ export const de: UiText = {
       rendering: 'Bild wird vorbereitet…',
       renderFailed: 'Das Bild konnte auf diesem Gerät nicht erstellt werden.',
       retry: 'Erneut versuchen',
+      revertText: 'Zurück zum automatischen Text',
+      size: (kilobytes: number) => `${kilobytes} KB`,
       bccAdvice:
         'Setzen Sie Ihre Gäste in Blindkopie (Bcc), damit sie ihre Adressen nicht gegenseitig sehen. EventSlide verschickt nichts und speichert keine Adresse.',
       previewLabel: 'Vorschau der Nachricht',

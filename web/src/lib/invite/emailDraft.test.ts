@@ -115,8 +115,9 @@ describe('mailtoHref', () => {
       'fr',
     )
 
-    expect(link.href).not.toContain('%0A')
-    expect(link.href).not.toContain('%0D')
+    const subjectPart = link.href.slice(0, link.href.indexOf('&body='))
+    expect(subjectPart).not.toContain('%0A')
+    expect(subjectPart).not.toContain('%0D')
     expect(decode(link.href).subject).toBe('Invitation Bcc: someone@example.test')
   })
 
@@ -186,11 +187,11 @@ describe('mailtoHref', () => {
     expect(decode(link.href).body.endsWith(URL_OF_INVITE)).toBe(true)
   })
 
-  it('leaves a short text with no link of the host’s as the host wrote it', () => {
-    const link = mailtoHref({ subject: 'Salut', body: 'Venez nombreux' }, URL_OF_INVITE, 'fr')
+  it('gives the link to a text the host emptied of it, cut or not', () => {
+    const short = mailtoHref({ subject: 'Salut', body: 'Venez nombreux' }, URL_OF_INVITE, 'fr')
 
-    expect(link.cut).toBe(false)
-    expect(decode(link.href).body).toBe('Venez nombreux')
+    expect(short.cut).toBe(false)
+    expect(decode(short.href).body).toBe(`Venez nombreux\n\n${URL_OF_INVITE}`)
   })
 
   it('counts the subject too: a long subject leaves less room for the body', () => {
@@ -216,5 +217,90 @@ describe('the day in the subject', () => {
     expect(emailDraftOf({ ...PARTS, dayMonth: 'Sabato 11 dicembre' }, 'it').subject).toContain(
       'sabato 11 dicembre',
     )
+  })
+})
+
+describe('mailtoHref, hard cases', () => {
+  it('never goes over 1 800 characters, whatever the length of the subject', () => {
+    for (const letter of ['a', 'é', '🎉']) {
+      const link = mailtoHref(
+        { subject: letter.repeat(2_000), body: emailDraftOf(PARTS, 'fr').body },
+        URL_OF_INVITE,
+        'fr',
+      )
+
+      expect(link.href.length, letter).toBeLessThanOrEqual(MAILTO_MAX)
+      expect(link.cut, letter).toBe(true)
+      expect(decode(link.href).body.endsWith(URL_OF_INVITE), letter).toBe(true)
+      expect(decode(link.href).subject.endsWith('…'), letter).toBe(true)
+    }
+  })
+
+  it('does not cut a subject that fits with the page and the link, even when the body is cut', () => {
+    const draft = {
+      subject: 'Invitation : Léa fête ses 40 ans',
+      body: emailDraftOf({ ...PARTS, message: 'é'.repeat(600) }, 'fr').body,
+    }
+
+    expect(decode(mailtoHref(draft, URL_OF_INVITE, 'fr').href).subject).toBe(draft.subject)
+  })
+
+  it('says the host’s text is left in a body that was cut, and says it no more when only the page and the link remain', () => {
+    const body = emailDraftOf({ ...PARTS, message: 'é'.repeat(600) }, 'fr').body
+    expect(mailtoHref({ subject: 'Salut', body }, URL_OF_INVITE, 'fr').wordLeft).toBe(true)
+
+    const none = Array.from({ length: 120 }, (_, i) => 1_560 + i).some((length) => {
+      const link = mailtoHref({ subject: 'a'.repeat(length), body }, URL_OF_INVITE, 'fr')
+      return link.cut && !link.wordLeft
+    })
+    expect(none).toBe(true)
+  })
+
+  it('does not throw on half of an emoji in the subject, the body or the link: it becomes U+FFFD', () => {
+    const half = String.fromCharCode(0xd83c)
+    const draft = { subject: `Fête ${half}`, body: `Venez ${half} tous\n\n${URL_OF_INVITE}` }
+
+    const link = mailtoHref(draft, `${URL_OF_INVITE}${half}`, 'fr')
+
+    expect(link.cut).toBe(false)
+    expect(decode(link.href).subject).toBe('Fête \ufffd')
+    expect(decode(link.href).body).toContain('Venez \ufffd tous')
+  })
+
+  it('does not throw on half of an emoji in a body that is cut either', () => {
+    const half = String.fromCharCode(0xdf89)
+    const draft = emailDraftOf({ ...PARTS, message: `${half}${'é'.repeat(600)}${half}` }, 'fr')
+
+    const link = mailtoHref(draft, URL_OF_INVITE, 'fr')
+
+    expect(link.cut).toBe(true)
+    expect(link.href.length).toBeLessThanOrEqual(MAILTO_MAX)
+    expect(() => decode(link.href)).not.toThrow()
+  })
+
+  it('keeps a flag whole at the cut: two regional indicators are one letter', () => {
+    const flag = '🇫🇷'
+    const draft = emailDraftOf({ ...PARTS, message: flag.repeat(300) }, 'fr')
+
+    const { body } = decode(mailtoHref(draft, URL_OF_INVITE, 'fr').href)
+
+    const written = body.slice(0, body.lastIndexOf('… '))
+    const indicators = written.match(/[\u{1F1E6}-\u{1F1FF}]/gu) ?? []
+    expect(indicators.length).toBeGreaterThan(20)
+    // Never an odd one out: half a flag would show as two letters in a box.
+    expect(indicators.length % 2).toBe(0)
+  })
+
+  it('keeps a letter and its combining accent together at the cut', () => {
+    const accented = 'e\u0301'
+    const draft = emailDraftOf({ ...PARTS, message: accented.repeat(700) }, 'fr')
+
+    const { body } = decode(mailtoHref(draft, URL_OF_INVITE, 'fr').href)
+
+    // The word is the last thing written before the page and the link: it is only pairs.
+    const written = body.slice(0, body.lastIndexOf('… '))
+    const word = written.slice(written.indexOf(accented))
+    expect(word.length).toBeGreaterThan(100)
+    expect(word).toBe(accented.repeat(word.length / accented.length))
   })
 })

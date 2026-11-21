@@ -3245,6 +3245,7 @@ export const es: UiText = {
       copyFailed: 'No se pudo copiar el texto: selecciónelo en el campo.',
       renderFailed: 'No se pudo crear la imagen en este dispositivo.',
       retry: 'Reintentar',
+      revertText: 'Volver al texto automático',
       downloaded: 'Imagen descargada.',
       shareFailed: 'No se pudo compartir: descargue la imagen y envíela desde su teléfono.',
       previewLabel: 'Vista previa de la imagen',
@@ -3266,6 +3267,8 @@ export const es: UiText = {
       rendering: 'Preparando la imagen…',
       renderFailed: 'No se pudo crear la imagen en este dispositivo.',
       retry: 'Reintentar',
+      revertText: 'Volver al texto automático',
+      size: (kilobytes: number) => `${kilobytes} KB`,
       bccAdvice:
         'Ponga a sus invitados en copia oculta (CCO) para que no compartan sus direcciones entre sí. EventSlide no envía nada y no guarda ninguna dirección.',
       previewLabel: 'Vista previa del mensaje',

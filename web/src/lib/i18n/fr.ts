@@ -3922,6 +3922,7 @@ export const fr = {
       copyFailed: 'Le texte n’a pas pu être copié\u00a0: sélectionnez-le dans le champ.',
       renderFailed: 'L’image n’a pas pu être produite sur cet appareil.',
       retry: 'Réessayer',
+      revertText: 'Revenir au texte automatique',
       downloaded: 'Image téléchargée.',
       shareFailed:
         'Le partage n’a pas abouti\u00a0: téléchargez l’image et envoyez-la depuis votre téléphone.',
@@ -3944,6 +3945,8 @@ export const fr = {
       rendering: 'Préparation de l’image…',
       renderFailed: 'L’image n’a pas pu être produite sur cet appareil.',
       retry: 'Réessayer',
+      revertText: 'Revenir au texte automatique',
+      size: (kilobytes: number) => `${kilobytes} Ko`,
       bccAdvice:
         'Mettez vos invités en copie cachée (Cci) pour ne pas partager leurs adresses entre eux. EventSlide n’envoie rien et ne garde aucune adresse.',
       previewLabel: 'Aperçu du message',

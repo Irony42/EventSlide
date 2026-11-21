@@ -3219,6 +3219,7 @@ export const it: UiText = {
       copyFailed: 'Non è stato possibile copiare il testo: selezionalo nel campo.',
       renderFailed: 'Non è stato possibile creare l’immagine su questo dispositivo.',
       retry: 'Riprova',
+      revertText: 'Torna al testo automatico',
       downloaded: 'Immagine scaricata.',
       shareFailed: 'La condivisione non è riuscita: scarica l’immagine e inviala dal telefono.',
       previewLabel: 'Anteprima dell’immagine',
@@ -3240,6 +3241,8 @@ export const it: UiText = {
       rendering: 'Preparazione dell’immagine…',
       renderFailed: 'Non è stato possibile creare l’immagine su questo dispositivo.',
       retry: 'Riprova',
+      revertText: 'Torna al testo automatico',
+      size: (kilobytes: number) => `${kilobytes} KB`,
       bccAdvice:
         'Metti gli invitati in copia nascosta (Ccn) perché non condividano i loro indirizzi tra loro. EventSlide non invia nulla e non conserva alcun indirizzo.',
       previewLabel: 'Anteprima del messaggio',

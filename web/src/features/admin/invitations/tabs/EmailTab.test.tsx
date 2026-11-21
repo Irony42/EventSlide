@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
+import type * as React from 'react'
 import userEvent from '@testing-library/user-event'
 import { useFakeDevice, type FakeDevice } from '../../../../testing/fakeDevice'
 import {
@@ -229,5 +230,134 @@ describe('EmailTab', () => {
 
     expect(message().value).not.toContain('Où')
     expect(message().value).toContain('Quand')
+  })
+
+  /** The same tab, given another invitation: what the host changed in the form on the left. */
+  const again = (
+    rerender: (ui: React.ReactElement) => void,
+    overrides: Partial<GuestInviteDto>,
+  ) => {
+    const invite = aGuestInviteHost({ enabled: true, ...overrides })
+    rerender(
+      <EmailTab
+        event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
+        invite={{ ...invite, url: invite.url ?? URL_OF_INVITE, startsAt: invite.startsAt ?? '' }}
+        renderPng={ready()}
+      />,
+    )
+  }
+
+  it('drops what the host rewrote when the invitation changes: a new date, place, word or link is a new draft', () => {
+    const { rerender } = renderTab(ready())
+    fireEvent.change(message(), { target: { value: `Mon texte à moi\n\n${URL_OF_INVITE}` } })
+    fireEvent.change(subject(), { target: { value: 'Mon objet' } })
+    expect(message().value).toContain('Mon texte à moi')
+
+    again(rerender, {
+      startsAt: '2027-12-18T18:00:00.000Z',
+      endsAt: '2027-12-19T01:00:00.000Z',
+      venueName: 'Chez Camille',
+      message: 'Nouveau mot.',
+      url: 'https://photos.example.test/i/NEWTOKEN0000000A',
+    })
+
+    expect(message().value).not.toContain('Mon texte à moi')
+    expect(message().value).toContain('Samedi 18 décembre 2027')
+    expect(message().value).toContain('Chez Camille')
+    expect(message().value).toContain('Nouveau mot.')
+    expect(subject().value).toContain('samedi 18 décembre')
+    expect(carried().body).toContain('NEWTOKEN0000000A')
+    expect(carried().body).not.toContain('7QX0M4TZ2KD9WB3H')
+  })
+
+  it('keeps what the host rewrote while the invitation stays what it was', () => {
+    const { rerender } = renderTab(ready())
+    fireEvent.change(subject(), { target: { value: 'Mon objet' } })
+
+    again(rerender, {})
+
+    expect(subject().value).toBe('Mon objet')
+  })
+
+  it('offers the way back to the automatic text once the host has rewritten something, and only then', async () => {
+    const user = tapper()
+    renderTab(ready())
+    expect(screen.queryByRole('button', { name: text.revertText })).not.toBeInTheDocument()
+    const automatic = message().value
+
+    fireEvent.change(message(), { target: { value: 'Autre' } })
+    await user.click(screen.getByRole('button', { name: text.revertText }))
+
+    expect(message().value).toBe(automatic)
+    expect(screen.queryByRole('button', { name: text.revertText })).not.toBeInTheDocument()
+  })
+
+  it('forgets that the text was copied as soon as it is edited', async () => {
+    const user = tapper()
+    renderTab(ready())
+    await user.click(screen.getByRole('button', { name: text.copy }))
+    expect(await screen.findByText(text.copied)).toBeInTheDocument()
+
+    fireEvent.change(message(), { target: { value: 'Changé' } })
+
+    expect(screen.queryByText(text.copied)).not.toBeInTheDocument()
+  })
+
+  it('holds a subject to 200 characters, and keeps the link under the cap whatever is pasted', () => {
+    renderTab(ready())
+
+    fireEvent.change(subject(), { target: { value: '🎉'.repeat(2000) } })
+
+    expect([...subject().value]).toHaveLength(200)
+    expect(subject()).toHaveAttribute('maxlength', '200')
+    expect(open().getAttribute('href')?.length ?? 0).toBeLessThanOrEqual(1800)
+  })
+
+  it('does not crash on half of an emoji in the stored word: the link is made, the half is U+FFFD', () => {
+    const half = String.fromCharCode(0xd83c)
+
+    renderTab(ready(), { message: `Venez ${half} nombreux` })
+
+    expect(open().getAttribute('href')).toContain('%EF%BF%BD')
+    expect(carried().body).toContain('Venez \ufffd nombreux')
+  })
+
+  it('gives the link back to a message the host emptied of it', () => {
+    renderTab(ready())
+
+    fireEvent.change(message(), { target: { value: 'Venez nombreux' } })
+
+    expect(carried().body).toBe(`Venez nombreux\n\n${URL_OF_INVITE}`)
+  })
+
+  it('writes the size of the attachment in the unit of the reader’s language', async () => {
+    renderTab(ready(), {}, 'en')
+
+    await waitFor(() => expect(document.body).toHaveTextContent('invitation.png · 2 KB'))
+    expect(document.body).not.toHaveTextContent('2 Ko')
+  })
+
+  it('says the word was cut only while some of it is left', () => {
+    renderTab(ready())
+    fireEvent.change(message(), {
+      target: { value: `Bonjour\n\n${'é'.repeat(600)}\n\n${URL_OF_INVITE}` },
+    })
+    expect(screen.getByText(new RegExp(text.counterCut))).toBeInTheDocument()
+
+    // A subject so heavy that the page and the link are all that fits: no word is left to be cut.
+    // (Its length is the one that leaves less room than the next character of the text takes.)
+    const family = '👨‍👩‍👧‍👦'
+    let found = false
+    for (let families = 20; families <= 24 && !found; families += 1) {
+      for (let padding = 0; padding < 80 && !found; padding += 1) {
+        fireEvent.change(subject(), {
+          target: { value: family.repeat(families) + 'a'.repeat(padding) },
+        })
+        const href = open().getAttribute('href') ?? ''
+        expect(href.length).toBeLessThanOrEqual(1800)
+        found = screen.queryByText(new RegExp(text.counterCut)) === null
+      }
+    }
+    expect(found).toBe(true)
   })
 })

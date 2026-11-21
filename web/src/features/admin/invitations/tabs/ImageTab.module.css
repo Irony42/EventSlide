@@ -79,3 +79,15 @@
   inset-inline-start: 0;
   transform-origin: top left;
 }
+
+.revert {
+  align-self: flex-start;
+  min-block-size: var(--touch-min);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
