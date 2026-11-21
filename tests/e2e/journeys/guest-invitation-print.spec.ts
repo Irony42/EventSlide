@@ -1,5 +1,6 @@
 import { csrfHeaders, expect, test } from '../fixtures/app'
 import type { Page } from '@playwright/test'
+import { jpegWithLocation } from '../fixtures/media'
 import { decodeQr } from '../fixtures/qrDecode'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
@@ -97,6 +98,68 @@ test('the printed card carries the invitation link as a QR, the address, and not
 
     // A reader finds the invitation's link in what the paper shows.
     expect(await decodeQr(sheet.getByRole('img', { name: /QR/ }).first())).toBe(guestInvite.url)
+  }
+})
+
+test('every design of the first lot reads back the invitation link, prints its address on one page, and keeps the photo', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const event = await app.seedEvent({ slug: 'carte-designs', name: 'Léa fête ses 40 ans' })
+  const headers = await csrfHeaders(host.request, app)
+  await host.request.put(app.url(`/api/events/${event.slug}/guest-invite`), {
+    headers,
+    data: {
+      title: 'Léa fête ses 40 ans',
+      startsAt: '2027-12-11T18:00:00Z',
+      endsAt: '2027-12-12T01:00:00Z',
+      timeZone: 'Europe/Paris',
+      venueName: 'La Guinguette du Port',
+      address: '12 quai de la Loire\n44000 Nantes',
+      message: 'Venez comme vous êtes, avec une photo de vous petit pour le mur.',
+      language: 'fr',
+    },
+  })
+  const enabled = await host.request.post(
+    app.url(`/api/events/${event.slug}/guest-invite/enable`),
+    { headers, data: {} },
+  )
+  const { guestInvite } = (await enabled.json()) as { guestInvite: { url: string } }
+
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  const sheet = host.locator('[data-format]')
+  const card = sheet.locator('[data-print-card]').first()
+
+  // A photograph, chosen once on a design that prints one, is on the card and survives a reload.
+  await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+  await host.getByTestId('print-photo-input').setInputFiles(await jpegWithLocation('photo'))
+  await expect(card.locator('img[src^="data:image/jpeg"]')).toBeVisible()
+  await host.reload()
+  await expect(
+    sheet.locator('[data-print-card="billet"] img[src^="data:image/jpeg"]').first(),
+  ).toBeVisible()
+
+  for (const design of [
+    { name: 'Essentiel', id: 'essentiel' },
+    { name: 'Ticket de caisse', id: 'ticket' },
+    { name: 'Souvenir', id: 'souvenir' },
+    { name: 'Billet', id: 'billet' },
+    { name: 'Carte d’embarquement', id: 'embarquement' },
+    { name: 'Guirlande', id: 'guirlande' },
+  ]) {
+    await host.emulateMedia({ media: 'screen' })
+    await host.getByRole('radio', { name: design.name }).check({ force: true })
+    await expect(card).toHaveAttribute('data-print-card', design.id)
+    await expect(card).toContainText('12 quai de la Loire')
+    await expect(card).toContainText('19 h')
+
+    await host.emulateMedia({ media: 'print' })
+    await expect(sheet).toBeVisible()
+    expect(await pagesOf(host), design.id).toHaveLength(1)
+    expect(await decodeQr(sheet.getByRole('img', { name: /QR/ }).first()), design.id).toBe(
+      guestInvite.url,
+    )
   }
 })
 
