@@ -2150,3 +2150,95 @@
   margin-block-start: auto;
   color: var(--pd-brand-ink-soft);
 }
+
+/* ---------------------------------------------------------------- essentiel, as an invitation (spec 29) */
+.esEye {
+  font-size: 2.4cqw;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--pd-a);
+}
+
+.esInvTitle {
+  inline-size: 100%;
+  max-block-size: 18.5cqw;
+  font-size: 8.4cqw;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--pd-a-dark);
+}
+
+.esRule {
+  flex: none;
+  inline-size: 10cqw;
+  block-size: 0.5cqw;
+  background: var(--pd-a);
+}
+
+.esMoment {
+  display: grid;
+  gap: 0.6cqw;
+  inline-size: 100%;
+}
+
+.esWhen {
+  inline-size: 100%;
+  max-block-size: 5cqw;
+  font-size: 4.6cqw;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* The weekday starts the line: the formatter writes it in lower case. */
+.esWhen::first-letter {
+  text-transform: uppercase;
+}
+
+.esHours {
+  font-size: 3.9cqw;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--pd-ink-soft);
+}
+
+.esWhere {
+  inline-size: 100%;
+  /* A venue and a two-line address: 4.9 + 2 x 4.1 cqw, with a little air. */
+  max-block-size: 14cqw;
+  font-size: 3.9cqw;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.esWhereAddress {
+  display: block;
+  font-size: 0.85em;
+  font-weight: 400;
+  color: var(--pd-ink-soft);
+  white-space: pre-line;
+}
+
+.esMsg {
+  inline-size: 90%;
+  max-block-size: 15cqw;
+  font-size: 3.6cqw;
+  font-style: italic;
+  line-height: 1.35;
+  color: var(--pd-ink-soft);
+}
+
+.esMore {
+  display: block;
+  font-size: 0.8em;
+  font-style: normal;
+}
+
+.esLink {
+  font-size: 2cqw;
+  line-height: 1.3;
+  color: var(--pd-ink-soft);
+  overflow-wrap: anywhere;
+}

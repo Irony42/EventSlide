@@ -2753,14 +2753,14 @@ export const fr = {
     'venuePhoto.notFound': 'Cette photo n’existe plus.',
     'venuePhoto.saveFailed': 'La photo n’a pas pu être enregistrée. Réessayez.',
     /* ---- Added by spec 29: the host's invitation form. ---- */
-    'guestInvite.titleTooLong': 'Ce titre est trop long : 80 caractères au plus.',
+    'guestInvite.titleTooLong': 'Ce titre est trop long\u00a0: 80 caractères au plus.',
     'guestInvite.titleInvalid': 'Ce titre n’est pas valide.',
-    'guestInvite.venueTooLong': 'Ce nom de lieu est trop long : 80 caractères au plus.',
+    'guestInvite.venueTooLong': 'Ce nom de lieu est trop long\u00a0: 80 caractères au plus.',
     'guestInvite.venueInvalid': 'Ce nom de lieu n’est pas valide.',
-    'guestInvite.addressTooLong': 'Cette adresse est trop longue : 160 caractères au plus.',
+    'guestInvite.addressTooLong': 'Cette adresse est trop longue\u00a0: 160 caractères au plus.',
     'guestInvite.addressTooManyLines': 'L’adresse tient sur deux lignes au plus.',
     'guestInvite.addressInvalid': 'Cette adresse n’est pas valide.',
-    'guestInvite.messageTooLong': 'Votre mot est trop long : 500 caractères au plus.',
+    'guestInvite.messageTooLong': 'Votre mot est trop long\u00a0: 500 caractères au plus.',
     'guestInvite.messageTooManyLines': 'Votre mot tient sur huit lignes au plus.',
     'guestInvite.messageInvalid': 'Ce mot n’est pas valide.',
     'guestInvite.startsAtInvalid': 'Cette date de début n’est pas valide.',
@@ -2772,7 +2772,8 @@ export const fr = {
     'guestInvite.timeZoneRequired': 'Choisissez le fuseau horaire de la fête.',
     'guestInvite.languageInvalid': 'Cette langue n’est pas proposée.',
     'guestInvite.needsDate': 'Ajoutez la date de début avant d’activer l’invitation.',
-    'guestInvite.eventArchived': 'L’évènement est archivé : l’invitation ne peut plus changer.',
+    'guestInvite.eventArchived':
+      'L’évènement est archivé\u00a0: l’invitation ne peut plus changer.',
     'guestInvite.notFound': 'Cette invitation n’existe pas encore. Enregistrez-la d’abord.',
   },
 
@@ -3852,7 +3853,7 @@ export const fr = {
       pillOn: 'Active',
       pillOff: 'Désactivée',
       linkIntro:
-        'Une fois activée, l’invitation a un lien et un QR code. Avant la soirée, la page montre la date, le lieu et votre mot ; le soir même, elle mène au mur photo.',
+        'Une fois activée, l’invitation a un lien et un QR code. Avant la soirée, la page montre la date, le lieu et votre mot\u00a0; le soir même, elle mène au mur photo.',
       activate: 'Activer l’invitation',
       activateNeedsDate: 'Ajoutez la date de début et enregistrez avant d’activer l’invitation.',
       linkLabel: 'Adresse du lien',
@@ -3881,6 +3882,25 @@ export const fr = {
         'Cette heure n’existe pas ce jour-là dans ce fuseau (passage à l’heure d’été). Choisissez-en une autre.',
       loadFailed: 'Les invitations n’ont pas pu être chargées.',
       ownerOnly: 'Seul le propriétaire de l’évènement écrit l’invitation.',
+      printFormatLegend: 'Format',
+      printFormatCard: 'Carte A6 · 4 par A4',
+      printFormatA5: 'A5 · 2 par A4',
+      shortLabel: 'Mot sur la carte',
+      shortCount: (count: number, max: number) => `${count} / ${max}`,
+      shortAuto: 'auto',
+      shortHint: 'Le mot complet est sur la page de l’invitation.',
+      shortReset: 'Revenir au mot automatique',
+      printA5Help:
+        'Pour l’A5, imprimez depuis Chrome, Edge ou Firefox\u00a0: Safari ne sait pas tourner la feuille.',
+      printButton: 'Imprimer',
+      previewLabel: 'Aperçu de la carte',
+      printHelp:
+        'Dans la fenêtre d’impression, choisissez une échelle de 100\u00a0% et aucune marge. L’adresse est imprimée sur la carte\u00a0: ne la donnez qu’aux invités que vous avez choisis.',
+    },
+    card: {
+      eyebrow: 'Invitation',
+      more: 'Tous les détails sur la page de l’invitation.',
+      link: (link: string) => `Infos et mur photo\u00a0: ${link}`,
     },
   },
 

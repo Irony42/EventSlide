@@ -3244,6 +3244,25 @@ export const de: UiText = {
         'Diese Uhrzeit gibt es an diesem Tag in dieser Zeitzone nicht (Umstellung auf Sommerzeit). Wählen Sie eine andere.',
       loadFailed: 'Die Einladungen konnten nicht geladen werden.',
       ownerOnly: 'Nur der Inhaber der Veranstaltung schreibt die Einladung.',
+      printFormatLegend: 'Format',
+      printFormatCard: 'Karte A6 · 4 pro A4',
+      printFormatA5: 'A5 · 2 pro A4',
+      shortLabel: 'Nachricht auf der Karte',
+      shortCount: (count: number, max: number) => `${count} / ${max}`,
+      shortAuto: 'automatisch',
+      shortHint: 'Die ganze Nachricht steht auf der Einladungsseite.',
+      shortReset: 'Zurück zum automatischen Text',
+      printA5Help:
+        'Für A5 drucken Sie aus Chrome, Edge oder Firefox: Safari kann das Blatt nicht drehen.',
+      printButton: 'Drucken',
+      previewLabel: 'Vorschau der Karte',
+      printHelp:
+        'Wählen Sie im Druckdialog einen Maßstab von 100 % und keine Ränder. Die Adresse steht auf der Karte: Geben Sie sie nur den Gästen, die Sie ausgewählt haben.',
+    },
+    card: {
+      eyebrow: 'Einladung',
+      more: 'Alle Einzelheiten auf der Einladungsseite.',
+      link: (link: string) => `Infos und Fotowand: ${link}`,
     },
   },
 
