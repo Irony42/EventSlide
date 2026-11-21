@@ -177,7 +177,9 @@ describe('GET /api/i/:token', () => {
   it('starts no session and gives no guest identity: the only cookie is the box-wide CSRF one', async () => {
     const response = await request(world.app).get(`/api/i/${LIVE_TOKEN}`)
 
-    const names = (response.headers['set-cookie'] ?? []).map((cookie) => cookie.split('=')[0])
+    const raw: unknown = response.headers['set-cookie']
+    const cookies = Array.isArray(raw) ? raw.map(String) : []
+    const names = cookies.map((cookie) => cookie.split('=')[0])
     expect(names.filter((name) => name !== 'es_csrf')).toEqual([])
   })
 
