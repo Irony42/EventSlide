@@ -309,6 +309,11 @@ export function EventPage() {
               event.status === 'archived' ? undefined : (
                 <>
                   <Link to={`/admin/events/${event.slug}/print`}>{t.admin.printKitTitle}</Link>
+                  {isOwner ? (
+                    <Link to={`/admin/events/${event.slug}/invitations`}>
+                      {t.guestInvite.host.title}
+                    </Link>
+                  ) : null}
                   {isOwner && isMutable(event.status) ? (
                     <Button
                       size="sm"

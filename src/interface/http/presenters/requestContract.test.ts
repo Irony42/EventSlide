@@ -687,12 +687,6 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // its entry leaves this list the day `web/src` calls it.
   requestExportBody:
     'POST /api/events/:eventSlug/export: the host page that sends it is not built yet',
-  // The guest invitation (spec 29): the server half comes first (PR 1 of 7); the host page that
-  // sends the body, and the act routes (empty strict bodies), is the third PR, and its entries leave
-  // this list the day `web/src` calls them.
-  guestInviteBody: 'PUT /api/events/:eventSlug/guest-invite: the host page is not built yet',
-  guestInviteActBody:
-    'POST /api/events/:eventSlug/guest-invite/{enable,disable,rotate}: the host page is not built yet',
   // `PATCH /api/events/:slug` (rename) and `PATCH /api/events/:slug/photos/:photoId/caption`: both
   // routes are written and held at ring 4, and no screen sends either. The client methods were
   // deleted for having no caller (`web/src/lib/api/apiCallers.guard.test.ts` keeps it that way); a

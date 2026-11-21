@@ -32,6 +32,7 @@ import type {
   EventSettingsDto,
   GalleryDto,
   GalleryPhotoDto,
+  GuestInviteDto,
   GuestInvitePageDto,
   GuestPhotoDto,
   GuestMissionDto,
@@ -156,6 +157,24 @@ export const aGuestInvitePage = (
   message: 'Apéro à 19 h, dîner à 20 h 30.',
   language: 'fr',
   accentHue: 305,
+  ...overrides,
+})
+
+/** The host's reading of an invitation they have written and not yet switched on (spec 29). */
+export const aGuestInviteHost = (overrides: Partial<GuestInviteDto> = {}): GuestInviteDto => ({
+  configured: true,
+  enabled: false,
+  url: 'https://photos.example.test/i/7QX0M4TZ2KD9WB3H',
+  title: 'Léa fête ses 40 ans',
+  startsAt: '2027-12-11T18:00:00.000Z',
+  endsAt: '2027-12-12T01:00:00.000Z',
+  timeZone: 'Europe/Paris',
+  venueName: 'La Guinguette du Port',
+  address: '12 quai de la Loire\n44000 Nantes',
+  message: 'Apéro à 19 h.',
+  language: 'fr',
+  defaultTitle: 'Camille & Sacha',
+  defaultStartsAt: null,
   ...overrides,
 })
 
@@ -899,6 +918,11 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   revokeShareLink: vi.fn(async () => undefined),
   gallery: vi.fn(async () => aGallery()),
   guestInvitePage: vi.fn(async (): Promise<GuestInvitePageDto> => aGuestInvitePage()),
+  guestInvite: vi.fn(async () => ({ guestInvite: aGuestInviteHost() })),
+  saveGuestInvite: vi.fn(async () => ({ guestInvite: aGuestInviteHost() })),
+  enableGuestInvite: vi.fn(async () => ({ guestInvite: aGuestInviteHost({ enabled: true }) })),
+  disableGuestInvite: vi.fn(async () => ({ guestInvite: aGuestInviteHost() })),
+  rotateGuestInviteToken: vi.fn(async () => ({ guestInvite: aGuestInviteHost() })),
   unlockGallery: vi.fn(async () => undefined),
   galleryPhotos: vi.fn(async () => ({
     items: [aGalleryPhoto({ id: 'photo-1' }), aGalleryPhoto({ id: 'photo-2' })],

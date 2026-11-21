@@ -13,7 +13,14 @@ const EVENTS_PATH = '/admin'
 
 /** The host pages under one event. The page names itself, so a caller never writes a label. */
 export type HostEventPage =
-  'event' | 'moderation' | 'mobileModeration' | 'settings' | 'ambiance' | 'stats' | 'print'
+  | 'event'
+  | 'moderation'
+  | 'mobileModeration'
+  | 'settings'
+  | 'ambiance'
+  | 'stats'
+  | 'print'
+  | 'invitations'
 
 export interface HostBreadcrumbProps {
   readonly slug: string
@@ -150,6 +157,7 @@ function Trail({
     ambiance: t.admin.customAmbianceCrumb,
     stats: t.admin.stats.tile,
     print: t.admin.printKitCrumb,
+    invitations: t.guestInvite.host.crumb,
   }
 
   return (
