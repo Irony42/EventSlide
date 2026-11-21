@@ -317,3 +317,75 @@ export const icsOf = (invite: IcsInvite, url: string, now: Date): string => {
   ]
   return lines.map(fold).join('\r\n') + '\r\n'
 }
+
+// ------------------------------------------------------------------- the host's form --
+
+/** What a `datetime-local` value looks like: `YYYY-MM-DDTHH:mm`, with no zone at all. */
+const LOCAL_INPUT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/
+
+/** The wall clock of an instant in a zone, as if it were UTC: what two instants are compared on. */
+const wallClockMs = (at: number, timeZone: string): number => {
+  const parts = partsOf(new Date(at), 'en', timeZone, {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    hourCycle: 'h23',
+  })
+  return Date.UTC(
+    numberPart(parts, 'year'),
+    numberPart(parts, 'month') - 1,
+    numberPart(parts, 'day'),
+    numberPart(parts, 'hour'),
+    numberPart(parts, 'minute'),
+  )
+}
+
+export type LocalInputResult =
+  | { readonly ok: true; readonly instant: string }
+  /** `invalid`: not a date and a time. `nonexistent`: the clocks skipped that hour (spring). */
+  | { readonly ok: false; readonly reason: 'invalid' | 'nonexistent' }
+
+/**
+ * A `datetime-local` value read **in the invitation's zone** (the browser's own zone is where the
+ * host happens to be, not where the party is), as an ISO instant.
+ *
+ * The two days a year the clocks move: an hour that does not exist (the spring skip) is refused,
+ * so a host is told rather than given a time one hour off; an hour that happens twice (the autumn
+ * repeat) is the **first** occurrence.
+ */
+export const localInputToInstant = (value: string, timeZone: string): LocalInputResult => {
+  const match = LOCAL_INPUT.exec(value)
+  if (match === null) return { ok: false, reason: 'invalid' }
+  const [year, month, day, hour, minute] = match.slice(1).map(Number) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+  ]
+  const wanted = Date.UTC(year, month - 1, day, hour, minute)
+  // `Date` rolls 31 February to March and hour 25 to the next day: each field is checked as typed.
+  if (new Date(wanted).getUTCMonth() !== month - 1 || hour > 23 || minute > 59) {
+    return { ok: false, reason: 'invalid' }
+  }
+
+  // The offset on either side of the moment bounds every offset it can have; each, applied, is a
+  // candidate, and a candidate is real only if the clock in that zone reads what was typed.
+  const offsets = new Set(
+    [-DAY_MS, DAY_MS].map((shift) => wallClockMs(wanted + shift, timeZone) - (wanted + shift)),
+  )
+  const real = [...offsets]
+    .map((offset) => wanted - offset)
+    .filter((at) => wallClockMs(at, timeZone) === wanted)
+    .sort((a, b) => a - b)
+  const first = real[0]
+  return first === undefined
+    ? { ok: false, reason: 'nonexistent' }
+    : { ok: true, instant: new Date(first).toISOString() }
+}
+
+/** An instant as a `datetime-local` value in a zone: the other way of {@link localInputToInstant}. */
+export const instantToLocalInput = (instant: string, timeZone: string): string =>
+  new Date(wallClockMs(Date.parse(instant), timeZone)).toISOString().slice(0, 16)
