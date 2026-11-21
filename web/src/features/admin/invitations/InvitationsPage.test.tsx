@@ -454,10 +454,9 @@ describe('InvitationsPage', () => {
   it('reads in the host’s own language', async () => {
     render(answering(BLANK), 'en')
 
-    expect(
-      await screen.findByRole('heading', { level: 1, name: en.guestInvite.host.title }),
-    ).toBeVisible()
-    expect(screen.getByRole('button', { name: en.guestInvite.host.activate })).toBeVisible()
+    // The button comes with the invitation, a moment after the heading: wait for the later one.
+    expect(await screen.findByRole('button', { name: en.guestInvite.host.activate })).toBeVisible()
+    expect(screen.getByRole('heading', { level: 1, name: en.guestInvite.host.title })).toBeVisible()
   })
 
   it('offers a retry when the invitation itself could not be read', async () => {
