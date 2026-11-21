@@ -3,6 +3,45 @@ import sharp from 'sharp'
 import { expect } from '@playwright/test'
 import type { Locator } from '@playwright/test'
 
+/** Where the element is on the page, in page pixels, once the fonts are in and nothing has moved for five frames. */
+const settledBox = (qr: Locator): Promise<string> =>
+  qr.evaluate(async (element) => {
+    await document.fonts.ready
+    let last = ''
+    let still = 0
+    for (let frame = 0; frame < 300 && still < 5; frame += 1) {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+      const box = element.getBoundingClientRect()
+      const key = [box.x + scrollX, box.y + scrollY, box.width, box.height].join(',')
+      still = key === last ? still + 1 : 0
+      last = key
+    }
+    if (still < 5) throw new Error('the QR kept moving: its layout never settled')
+    return last
+  })
+
+/**
+ * A screenshot of the element taken while it is **known to be still**: the layout is waited on
+ * before the capture (the fit of the card's texts and the zoom both re-lay the sheet out), the box
+ * is read again after it, and a capture of a box that moved meanwhile, or that is not the whole
+ * square code at four pixels a module at least, is taken again rather than read.
+ */
+const captureStill = async (qr: Locator, modules: number): Promise<Buffer> => {
+  let reason = ''
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const before = await settledBox(qr)
+    const png = await qr.screenshot({ omitBackground: true })
+    const after = await settledBox(qr)
+    const { width = 0, height = 0 } = await sharp(png).metadata()
+    if (before !== after) reason = `the box moved from ${before} to ${after}`
+    else if (Math.abs(width - height) > 1) reason = `the capture is ${width}x${height}, not square`
+    else if (width < Math.ceil(modules) * 4)
+      reason = `the capture is ${width}px for ${modules} modules`
+    else return png
+  }
+  throw new Error(`no still, whole capture of the QR: ${reason}`)
+}
+
 /** What a QR reader finds in a screenshot of the element, flattened on white paper. */
 export const decodeQr = async (qr: Locator): Promise<string> => {
   // Paper is white, and a browser prints no background: the console's dark one would swallow the
@@ -27,7 +66,7 @@ export const decodeQr = async (qr: Locator): Promise<string> => {
   })
   let png: Buffer
   try {
-    png = await qr.screenshot({ omitBackground: true })
+    png = await captureStill(qr, modules)
   } finally {
     await page.evaluate(() => {
       document.documentElement.style.zoom = ''
