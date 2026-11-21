@@ -3921,6 +3921,7 @@ export const fr = {
         'Texte copié\u00a0: collez-le sous l’image si l’application ne l’a pas repris.',
       copyFailed: 'Le texte n’a pas pu être copié\u00a0: sélectionnez-le dans le champ.',
       renderFailed: 'L’image n’a pas pu être produite sur cet appareil.',
+      retry: 'Réessayer',
       downloaded: 'Image téléchargée.',
       shareFailed:
         'Le partage n’a pas abouti\u00a0: téléchargez l’image et envoyez-la depuis votre téléphone.',

@@ -3283,6 +3283,7 @@ export const de: UiText = {
         'Text kopiert: Fügen Sie ihn unter dem Bild ein, falls die App ihn nicht übernommen hat.',
       copyFailed: 'Der Text konnte nicht kopiert werden: Markieren Sie ihn im Feld.',
       renderFailed: 'Das Bild konnte auf diesem Gerät nicht erstellt werden.',
+      retry: 'Erneut versuchen',
       downloaded: 'Bild heruntergeladen.',
       shareFailed:
         'Das Teilen hat nicht geklappt: Laden Sie das Bild herunter und senden Sie es von Ihrem Handy.',

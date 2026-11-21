@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import sharp from 'sharp'
 import { expect, test } from '../fixtures/app'
 import { invitedHost } from '../fixtures/invitation'
+import { imageDependsOnItsFonts } from '../fixtures/invitationImage'
 import { decodeQrInImage } from '../fixtures/qrDecode'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import type { Page } from '@playwright/test'
@@ -82,4 +83,22 @@ test('the words that go with the image say the moment and the link, and the addr
   await host.getByRole('checkbox', { name: text.addressLabel }).check()
 
   await expect(words).toHaveValue(/La Guinguette du Port · 12 quai de la Loire, 44000 Nantes/)
+})
+
+test('the card’s own typeface is in the picture: refuse its font files and the title is drawn differently', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const { event } = await invitedHost(host, app, 'image-police')
+  const open = async () => {
+    await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+    await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+  }
+  const imageTab = () => host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
+  await open()
+  await imageTab()
+  const withFonts = await downloadedImage(host)
+
+  await imageDependsOnItsFonts(host, withFonts, open, imageTab)
 })

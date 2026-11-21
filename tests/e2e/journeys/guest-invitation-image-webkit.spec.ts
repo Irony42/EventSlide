@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import sharp from 'sharp'
 import { expect, test } from '../fixtures/app'
 import { invitedHost } from '../fixtures/invitation'
+import { downloadedInvitationImage, imageDependsOnItsFonts } from '../fixtures/invitationImage'
 import { decodeQrInImage } from '../fixtures/qrDecode'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import type { Page } from '@playwright/test'
@@ -125,4 +126,23 @@ test('on a phone that cannot share files, the image is offered as a download tha
   await host.getByRole('button', { name: text.copy }).click()
   await expect(host.getByText(text.copied)).toBeVisible()
   expect((await phone(host)).copied).toHaveLength(1)
+})
+
+test('on a phone engine too, the card’s own typeface is in the picture, not a stand-in', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const { event } = await invitedHost(host, app, 'image-police-telephone')
+  await installPhone(host, false)
+  const open = async () => {
+    await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+    await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+  }
+  const imageTab = () => host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
+  await open()
+  await imageTab()
+  const withFonts = await downloadedInvitationImage(host)
+
+  await imageDependsOnItsFonts(host, withFonts, open, imageTab)
 })

@@ -11,7 +11,14 @@ import {
 import { fr } from '../../../../lib/i18n/fr'
 import type { GuestInviteDto } from '../../../../lib/api/dto'
 import type { RenderPng } from './imageRender'
+import type * as ImageRender from './imageRender'
 import { ImageTab } from './ImageTab'
+
+const blur = vi.hoisted(() => vi.fn<(url: string) => Promise<string | null>>())
+vi.mock('./imageRender', async (original) => ({
+  ...(await original<typeof ImageRender>()),
+  blurPhoto: blur,
+}))
 
 const text = fr.guestInvite.image
 const KEY = 'eventslide.invite.camille-et-sacha'
@@ -22,6 +29,8 @@ let device: FakeDevice
 let writeText: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  blur.mockReset()
+  blur.mockResolvedValue(null)
   device = useFakeDevice({ kind: 'android' })
   writeText = vi.fn(async () => undefined)
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
@@ -51,6 +60,13 @@ const renderTab = (render: RenderPng, overrides: Partial<GuestInviteDto> = {}) =
       renderPng={render}
     />,
   )
+}
+
+/** The share button, once the picture it hands over is made. */
+const shareButton = async () => {
+  const button = await screen.findByRole('button', { name: text.share })
+  await waitFor(() => expect(button).toBeEnabled())
+  return button
 }
 
 const ready = () => vi.fn<RenderPng>(async () => png())
@@ -138,7 +154,8 @@ describe('ImageTab', () => {
     renderTab(vi.fn<RenderPng>(() => pending.promise))
 
     expect(screen.getByRole('button', { name: text.rendering })).toBeDisabled()
-    expect(screen.queryByRole('button', { name: text.share })).not.toBeInTheDocument()
+    // The share button is already there, and waits for the picture.
+    expect(screen.getByRole('button', { name: text.share })).toBeDisabled()
 
     await waitFor(() => expect(document.querySelector('[data-invite-shot]')).not.toBeNull())
     pending.resolve(png())
@@ -151,7 +168,7 @@ describe('ImageTab', () => {
 
     expect(await screen.findByText(text.renderFailed)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: text.download })).toBeDisabled()
-    expect(screen.queryByRole('button', { name: text.share })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: text.share })).toBeDisabled()
   })
 
   it('never shows an image made for what the host has changed since', async () => {
@@ -183,16 +200,16 @@ describe('ImageTab', () => {
       .mockResolvedValueOnce(png())
       .mockReturnValueOnce(second.promise)
     renderTab(render)
-    expect(await screen.findByRole('button', { name: text.share })).toBeEnabled()
+    expect(await shareButton()).toBeEnabled()
 
     await user.click(screen.getByRole('radio', { name: text.formatStory }))
 
     // The square's image is no longer the picture on screen: neither shared nor downloaded.
-    expect(screen.queryByRole('button', { name: text.share })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: text.share })).toBeDisabled()
     expect(screen.getByRole('button', { name: text.rendering })).toBeDisabled()
     await waitFor(() => expect(render).toHaveBeenCalledTimes(2))
     second.resolve(png())
-    expect(await screen.findByRole('button', { name: text.share })).toBeEnabled()
+    expect(await shareButton()).toBeEnabled()
   })
 
   it('downloads the image under a name that says its shape', async () => {
@@ -202,7 +219,7 @@ describe('ImageTab', () => {
     await user.click(await screen.findByRole('button', { name: text.download }))
 
     expect(device.downloads).toEqual([
-      { href: expect.stringContaining('blob:'), name: 'invitation-square.png' },
+      { href: expect.stringContaining('blob:'), name: 'invitation-square.png', connected: true },
     ])
     expect(screen.getByText(text.downloaded)).toBeInTheDocument()
   })
@@ -211,7 +228,7 @@ describe('ImageTab', () => {
     const user = tapper()
     renderTab(ready())
 
-    await user.click(await screen.findByRole('button', { name: text.share }))
+    await user.click(await shareButton())
 
     await waitFor(() => expect(device.shared).toHaveLength(1))
     const [data] = device.shared
@@ -230,7 +247,7 @@ describe('ImageTab', () => {
     const user = tapper()
     renderTab(ready())
 
-    await user.click(await screen.findByRole('button', { name: text.share }))
+    await user.click(await shareButton())
 
     await waitFor(() => expect(device.shared).toHaveLength(1))
     expect(writeText).toHaveBeenCalledTimes(1)
@@ -258,7 +275,7 @@ describe('ImageTab', () => {
     const user = tapper()
     renderTab(ready())
 
-    await user.click(await screen.findByRole('button', { name: text.share }))
+    await user.click(await shareButton())
 
     await waitFor(() => expect(device.shared).toHaveLength(1))
     await waitFor(() => expect(screen.getByText(text.copied)).toBeInTheDocument())
@@ -274,7 +291,7 @@ describe('ImageTab', () => {
     const user = tapper()
     renderTab(ready())
 
-    await user.click(await screen.findByRole('button', { name: text.share }))
+    await user.click(await shareButton())
 
     expect(await screen.findByText((c) => c === plain(text.shareFailed))).toBeInTheDocument()
     expect(screen.getByRole('button', { name: text.download })).toBeEnabled()
@@ -327,5 +344,187 @@ describe('ImageTab', () => {
     const node = render.mock.calls[0]?.[0] as HTMLElement
     expect(node.querySelector('img')).toBeNull()
     expect(node.style.getPropertyValue('--pd-color')).toMatch(/^oklch\(/)
+  })
+
+  it('takes the address out of the host’s own words when it is taken off the image', async () => {
+    const user = tapper()
+    renderTab(ready())
+    await user.click(screen.getByRole('checkbox', { name: text.addressLabel }))
+    const shown = (words() as HTMLTextAreaElement).value
+    expect(shown).toContain('12 quai de la Loire, 44000 Nantes')
+    // The host rewrites one word, keeping the address in it...
+    fireEvent.change(words(), { target: { value: shown.replace('Léa', 'Lélé') } })
+
+    await user.click(screen.getByRole('checkbox', { name: text.addressLabel }))
+
+    const now = (words() as HTMLTextAreaElement).value
+    expect(now).not.toContain('quai de la Loire')
+    expect(now).not.toContain('44000')
+    // ...and what they wrote around it is theirs still.
+    expect(now).toContain('Lélé')
+    expect(now).toContain('La Guinguette du Port')
+    expect(now.endsWith(URL_OF_INVITE)).toBe(true)
+  })
+
+  it('starts the words over when a trace of the address is left in what the host retyped', async () => {
+    const user = tapper()
+    renderTab(ready())
+    await user.click(screen.getByRole('checkbox', { name: text.addressLabel }))
+    fireEvent.change(words(), { target: { value: 'Chez nous, au 12 quai de la Loire !' } })
+
+    await user.click(screen.getByRole('checkbox', { name: text.addressLabel }))
+
+    const now = (words() as HTMLTextAreaElement).value
+    expect(now).not.toContain('quai de la Loire')
+    expect(now).toContain('vous êtes invité·e')
+  })
+
+  it('shares and copies the words without the address once it is off the image', async () => {
+    const user = tapper()
+    renderTab(ready())
+    await user.click(screen.getByRole('checkbox', { name: text.addressLabel }))
+    fireEvent.change(words(), {
+      target: { value: (words() as HTMLTextAreaElement).value.replace('Léa', 'Lélé') },
+    })
+    await user.click(screen.getByRole('checkbox', { name: text.addressLabel }))
+
+    await user.click(await shareButton())
+
+    await waitFor(() => expect(device.shared).toHaveLength(1))
+    expect(device.shared[0]?.text).not.toContain('quai de la Loire')
+    expect(writeText).toHaveBeenCalledWith(expect.not.stringContaining('quai de la Loire'))
+  })
+
+  it('never lets the words pass 600 characters, nor lose the link', async () => {
+    renderTab(ready(), {
+      title: 'T'.repeat(80),
+      venueName: 'V'.repeat(200),
+      address: ['A'.repeat(80), 'B'.repeat(80)].join('\n'),
+    })
+    const user = tapper()
+    await user.click(screen.getByRole('checkbox', { name: text.addressLabel }))
+
+    const value = (words() as HTMLTextAreaElement).value
+    expect([...value].length).toBeLessThanOrEqual(600)
+    expect(value.endsWith(URL_OF_INVITE)).toBe(true)
+    expect(words()).toHaveAttribute('maxlength', '600')
+
+    fireEvent.change(words(), { target: { value: 'x'.repeat(900) } })
+    expect([...(words() as HTMLTextAreaElement).value]).toHaveLength(600)
+  })
+
+  it('opens one share sheet for two quick taps, and keeps the button off while it is open', async () => {
+    const open = deferred<void>()
+    device.restore()
+    device = useFakeDevice({ kind: 'iphone', share: () => open.promise })
+    const user = tapper()
+    renderTab(ready())
+    const button = await shareButton()
+
+    // Two taps in one frame: the screen has not had time to show the button off.
+    fireEvent.click(button)
+    fireEvent.click(button)
+    await user.tab()
+
+    expect(device.shared).toHaveLength(1)
+    expect(button).toBeDisabled()
+    open.resolve()
+    await waitFor(() => expect(button).toBeEnabled())
+  })
+
+  it('says nothing of a second sheet the system refuses while one is open', async () => {
+    device.restore()
+    device = useFakeDevice({
+      kind: 'iphone',
+      share: async () => Promise.reject(domError('InvalidStateError')),
+    })
+    const user = tapper()
+    renderTab(ready())
+
+    await user.click(await shareButton())
+
+    await waitFor(() => expect(device.shared).toHaveLength(1))
+    await waitFor(() => expect(screen.getByRole('button', { name: text.share })).toBeEnabled())
+    expect(screen.queryByText((c) => c === plain(text.shareFailed))).not.toBeInTheDocument()
+  })
+
+  it('offers to try again when the image could not be made, and makes it again', async () => {
+    const user = tapper()
+    const render = vi
+      .fn<RenderPng>()
+      .mockRejectedValueOnce(new Error('no canvas'))
+      .mockResolvedValue(png())
+    renderTab(render)
+
+    await user.click(await screen.findByRole('button', { name: text.retry }))
+
+    await waitFor(() => expect(render).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('button', { name: text.download })).toBeEnabled()
+    expect(screen.queryByText(text.renderFailed)).not.toBeInTheDocument()
+  })
+
+  it('waits for the blurred ground before it makes the image', async () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ design: 'billet' }))
+    window.localStorage.setItem(
+      'eventslide.printPhoto.camille-et-sacha',
+      'data:image/jpeg;base64,AAAA',
+    )
+    const ground = deferred<string | null>()
+    blur.mockReturnValue(ground.promise)
+    const render = ready()
+    renderTab(render)
+
+    // Longer than the image waits after the last change: it would have been made by now.
+    await new Promise((resolve) => setTimeout(resolve, 900))
+    expect(render).not.toHaveBeenCalled()
+
+    ground.resolve('data:image/jpeg;base64,BBBB')
+    await waitFor(() => expect(render).toHaveBeenCalledTimes(1))
+    const node = render.mock.calls[0]?.[0] as HTMLElement
+    expect(node.innerHTML).toContain('data:image/jpeg;base64,BBBB')
+  })
+
+  it('draws a new image when the link changes: the QR must lead to the live one', async () => {
+    const render = ready()
+    const { rerender } = renderTab(render)
+    await waitFor(() => expect(render).toHaveBeenCalledTimes(1))
+    const rotated = 'https://photos.example.test/i/NEWTOKEN0000000A'
+    const invite = aGuestInviteHost({ enabled: true })
+
+    rerender(
+      <ImageTab
+        event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
+        invite={{ ...invite, url: rotated, startsAt: invite.startsAt ?? '' }}
+        renderPng={render}
+      />,
+    )
+
+    await waitFor(() => expect(render).toHaveBeenCalledTimes(2))
+    expect((render.mock.calls[1]?.[0] as HTMLElement).textContent).toContain('NEWTOKEN0000000A')
+  })
+
+  it('makes one image at a time: the next waits for the one in hand', async () => {
+    const user = tapper()
+    const first = deferred<Blob>()
+    const render = vi.fn<RenderPng>().mockReturnValueOnce(first.promise).mockResolvedValue(png())
+    renderTab(render)
+    await waitFor(() => expect(render).toHaveBeenCalledTimes(1))
+
+    await user.click(screen.getByRole('radio', { name: text.formatStory }))
+    await new Promise((resolve) => setTimeout(resolve, 900))
+    expect(render).toHaveBeenCalledTimes(1)
+
+    first.resolve(png())
+    await waitFor(() => expect(render).toHaveBeenCalledTimes(2))
+    expect(await shareButton()).toBeEnabled()
+  })
+
+  it('has the download anchor in the page when it clicks it', async () => {
+    const user = tapper()
+    renderTab(ready())
+
+    await user.click(await screen.findByRole('button', { name: text.download }))
+
+    expect(device.downloads[0]?.connected).toBe(true)
   })
 })

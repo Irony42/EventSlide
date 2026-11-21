@@ -3167,6 +3167,7 @@ export const en: UiText = {
       copiedBeforeShare: 'Text copied: paste it under the image if the app did not keep it.',
       copyFailed: 'The text could not be copied: select it in the field.',
       renderFailed: 'The image could not be made on this device.',
+      retry: 'Try again',
       downloaded: 'Image downloaded.',
       shareFailed: 'Sharing did not go through: download the image and send it from your phone.',
       previewLabel: 'Image preview',

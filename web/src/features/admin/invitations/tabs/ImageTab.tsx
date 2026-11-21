@@ -7,7 +7,8 @@ import { CheckboxField } from '../../../../design-system/components/CheckboxFiel
 import { copyToClipboard } from '../../../../lib/clipboard'
 import { isAbortError } from '../../../../lib/http'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
-import { shareTextOf } from '../../../../lib/invite/shareText'
+import { graphemesOf } from '../../../../lib/invite/cardTexts'
+import { SHARE_TEXT_MAX, shareTextOf, withoutAddress } from '../../../../lib/invite/shareText'
 import { readPrintPhoto } from '../../print/printPhoto'
 import { blurPhoto, renderCardPng, type RenderPng } from './imageRender'
 import { inviteCardOf } from './inviteCard'
@@ -24,6 +25,16 @@ import { SHOT_SIZE } from './shotSize'
 import type { InvitationTabProps } from './tabProps'
 import { useCardImage } from './useCardImage'
 import styles from './ImageTab.module.css'
+
+/** A short fingerprint of a long string (a photograph as a data URL), so a key does not carry it. */
+const fingerprint = (text: string | null): string => {
+  if (text === null) return ''
+  let hash = 0x811c9dc5
+  for (let index = 0; index < text.length; index += 1) {
+    hash = Math.imul(hash ^ text.charCodeAt(index), 0x01000193)
+  }
+  return `${text.length}:${(hash >>> 0).toString(36)}`
+}
 
 export interface ImageTabProps extends InvitationTabProps {
   /** Makes the PNG; the browser's own by default, a double in a component test. */
@@ -91,6 +102,18 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
   const [edited, setEdited] = useState<string | null>(null)
   const words = edited ?? automatic
 
+  /** Showing or hiding the address: the host's own words never keep one the image no longer shows. */
+  const showAddressOn = (checked: boolean) => {
+    if (!checked && edited !== null && invite.address !== null) {
+      setEdited(withoutAddress(edited, invite.address))
+    }
+    update({ ...preferences, showAddress: checked })
+  }
+
+  const photoKey = useMemo(() => fingerprint(photoUrl), [photoUrl])
+  const backdropKey = useMemo(() => fingerprint(backdropUrl), [backdropUrl])
+  const [attempt, setAttempt] = useState(0)
+
   const node = useRef<HTMLDivElement>(null)
   const image = useCardImage(
     node,
@@ -99,11 +122,16 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
       view.design,
       view.invitation,
       view.colour,
-      photoUrl,
+      photoKey,
       view.focusX,
       view.focusY,
       view.texts,
-      backdropUrl,
+      backdropKey,
+      // A rotated link, or a new date, is a new picture: the QR on it must lead to the live link.
+      invite.url,
+      invite.startsAt,
+      invite.endsAt,
+      attempt,
     ]),
     SHOT_SIZE[shot],
     renderPng,
@@ -117,11 +145,13 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
         : new File([ready], `${text.fileName}-${shot}.png`, { type: 'image/png' }),
     [ready, shot, text.fileName],
   )
-  const canShare =
-    file !== null &&
-    typeof navigator.share === 'function' &&
-    typeof navigator.canShare === 'function' &&
-    navigator.canShare({ files: [file] })
+  // The button is there as soon as the phone can share at all, and waits for the picture; it goes
+  // away only when the phone says it cannot share this file.
+  const canShareAtAll =
+    typeof navigator.share === 'function' && typeof navigator.canShare === 'function'
+  const canShare = canShareAtAll && (file === null || navigator.canShare({ files: [file] }))
+  const sharingNow = useRef(false)
+  const [sharing, setSharing] = useState(false)
 
   const [said, setSaid] = useState<Said>(null)
 
@@ -147,24 +177,39 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
     if (file === null) return
     const url = URL.createObjectURL(file)
     const link = Object.assign(document.createElement('a'), { href: url, download: file.name })
+    // Some browsers ignore a click on an anchor that is not in the page.
+    document.body.append(link)
     link.click()
+    link.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
     setSaid('downloaded')
   }
 
   const share = async () => {
-    if (file === null) return
+    // One sheet at a time: a second tap while it is open is the system's `InvalidStateError`.
+    if (file === null || sharingNow.current) return
+    sharingNow.current = true
+    setSharing(true)
     // Both start inside the tap: the sheet only opens from a gesture, so nothing is awaited before it.
     const copying = copyToClipboard(words)
     try {
       await navigator.share({ files: [file], text: words })
+      setSaid((await copying) ? 'copiedBeforeShare' : 'copyFailed')
     } catch (cause) {
       const copied = await copying
-      // Closing the sheet is a decision, not a failure.
-      setSaid(isAbortError(cause) ? (copied ? 'copied' : null) : 'shareFailed')
-      return
+      if (isAbortError(cause)) {
+        // Closing the sheet is a decision, not a failure.
+        setSaid(copied ? 'copied' : null)
+      } else if (cause instanceof DOMException && cause.name === 'InvalidStateError') {
+        // A sheet is already open: the first tap's answer is the one that counts.
+        setSaid(null)
+      } else {
+        setSaid('shareFailed')
+      }
+    } finally {
+      sharingNow.current = false
+      setSharing(false)
     }
-    setSaid((await copying) ? 'copiedBeforeShare' : 'copyFailed')
   }
 
   const busy = image.status === 'rendering'
@@ -199,7 +244,7 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
             label={text.addressLabel}
             checked={showAddress}
             disabled={invite.address === null}
-            onChange={(checked) => update({ ...preferences, showAddress: checked })}
+            onChange={showAddressOn}
           />
           <p className={styles['help']}>{text.addressHint}</p>
         </fieldset>
@@ -211,14 +256,22 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
               rows={6}
               grow={false}
               value={words}
-              onChange={(e) => setEdited(e.target.value)}
+              maxLength={SHARE_TEXT_MAX}
+              onChange={(e) =>
+                setEdited(graphemesOf(e.target.value).slice(0, SHARE_TEXT_MAX).join(''))
+              }
             />
           )}
         </Field>
 
         <div className={styles['actions']}>
           {canShare ? (
-            <Button variant="primary" onClick={() => void share()}>
+            <Button
+              variant="primary"
+              onClick={() => void share()}
+              disabled={file === null || sharing}
+              aria-busy={busy || sharing}
+            >
               {text.share}
             </Button>
           ) : null}
@@ -235,7 +288,8 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
 
         {image.status === 'failed' ? (
           <Notice tone="warning" role="alert" variant="boxed">
-            {text.renderFailed}
+            {text.renderFailed}{' '}
+            <Button onClick={() => setAttempt((count) => count + 1)}>{text.retry}</Button>
           </Notice>
         ) : null}
         <div role="status" aria-live="polite">

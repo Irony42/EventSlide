@@ -20,9 +20,9 @@ export type RenderPng = (node: HTMLElement, size: ShotSize) => Promise<Blob>
  * uses them, and a capture taken before they arrive would draw the fallback. Resolves once the
  * browser says its fonts are ready.
  */
-export const loadFacesOf = async (root: HTMLElement): Promise<void> => {
+export const loadFacesOf = async (root: HTMLElement): Promise<string> => {
   const fonts = (document as Document & { fonts?: FontFaceSet }).fonts
-  if (fonts === undefined) return
+  if (fonts === undefined) return ''
   const wanted = new Set<string>()
   for (const element of [root, ...root.querySelectorAll<HTMLElement>('*')]) {
     if (element.textContent?.trim() === '' && element.children.length === 0) continue
@@ -33,6 +33,7 @@ export const loadFacesOf = async (root: HTMLElement): Promise<void> => {
     [...wanted].map((face) => fonts.load(face, root.textContent ?? '').catch(() => [])),
   )
   await fonts.ready
+  return [...wanted].sort().join('|')
 }
 
 /** Safari draws the first capture of a page without its fonts and images: one is made and thrown away. */
@@ -42,10 +43,31 @@ const needsWarmUp = (): boolean => {
   return webkit || /CriOS|FxiOS|EdgiOS/.test(agent)
 }
 
+/**
+ * The `@font-face` CSS that is embedded in a capture, once per set of faces. `html-to-image` would
+ * otherwise read every rule of the page and fetch every font file again at each capture, the
+ * warm-up one included; here the faces the card is written in are embedded, as data, from one
+ * pass.
+ */
+const embedded = new Map<string, Promise<string>>()
+
+const fontEmbedCssOf = (node: HTMLElement, faces: string): Promise<string> => {
+  let css = embedded.get(faces)
+  if (css === undefined) {
+    css = import('html-to-image').then(({ getFontEmbedCSS }) => getFontEmbedCSS(node))
+    // A failure is not kept: the next capture asks again.
+    css.catch(() => embedded.delete(faces))
+    embedded.set(faces, css)
+  }
+  return css
+}
+
 export const renderCardPng: RenderPng = async (node, size) => {
-  await loadFacesOf(node)
+  const faces = await loadFacesOf(node)
   const { toBlob } = await import('html-to-image')
+  const fontEmbedCSS = await fontEmbedCssOf(node, faces)
   const options = {
+    fontEmbedCSS,
     width: size.width,
     height: size.height,
     canvasWidth: size.width,
@@ -65,7 +87,16 @@ export const renderCardPng: RenderPng = async (node, size) => {
  * browser's mood inside a `foreignObject` (Safari ignores it), and this is not. `null` when the
  * browser cannot draw it: the ground is then the card's colour.
  */
-export const blurPhoto = async (photoUrl: string): Promise<string | null> => {
+export const blurPhoto = (photoUrl: string): Promise<string | null> =>
+  // A photograph that never decodes must not hold the image back for ever: the colour is the ground then.
+  Promise.race([
+    blurred(photoUrl),
+    new Promise<null>((resolve) => window.setTimeout(() => resolve(null), BLUR_TIMEOUT_MS)),
+  ])
+
+const BLUR_TIMEOUT_MS = 5_000
+
+const blurred = async (photoUrl: string): Promise<string | null> => {
   try {
     const image = new Image()
     image.src = photoUrl

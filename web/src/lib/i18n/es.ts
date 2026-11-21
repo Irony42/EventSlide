@@ -3244,6 +3244,7 @@ export const es: UiText = {
         'Texto copiado: péguelo bajo la imagen si la aplicación no lo ha recogido.',
       copyFailed: 'No se pudo copiar el texto: selecciónelo en el campo.',
       renderFailed: 'No se pudo crear la imagen en este dispositivo.',
+      retry: 'Reintentar',
       downloaded: 'Imagen descargada.',
       shareFailed: 'No se pudo compartir: descargue la imagen y envíela desde su teléfono.',
       previewLabel: 'Vista previa de la imagen',

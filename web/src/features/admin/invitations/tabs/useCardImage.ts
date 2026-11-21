@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { RenderPng, ShotSize } from './imageRender'
 
 export type CardImageState =
@@ -32,6 +32,8 @@ export const useCardImage = (
   hold = false,
 ): CardImageState => {
   const [answer, setAnswer] = useState<Answer | null>(null)
+  // One capture at a time: a second drawn while the first still is would double the work of a phone.
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
 
   useEffect(() => {
     if (hold) return
@@ -42,9 +44,11 @@ export const useCardImage = (
       // Two frames: the fit of the card's texts and the fonts have had their turn.
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
-          void render(element, size).then(
+          const turn = queue.current.then(() => (cancelled ? null : render(element, size)))
+          queue.current = turn.catch(() => null)
+          void turn.then(
             (blob) => {
-              if (!cancelled) setAnswer({ key, state: { status: 'ready', blob } })
+              if (!cancelled && blob !== null) setAnswer({ key, state: { status: 'ready', blob } })
             },
             () => {
               if (!cancelled) setAnswer({ key, state: { status: 'failed' } })

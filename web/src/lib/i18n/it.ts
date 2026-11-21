@@ -3218,6 +3218,7 @@ export const it: UiText = {
       copiedBeforeShare: 'Testo copiato: incollalo sotto l’immagine se l’app non lo ha preso.',
       copyFailed: 'Non è stato possibile copiare il testo: selezionalo nel campo.',
       renderFailed: 'Non è stato possibile creare l’immagine su questo dispositivo.',
+      retry: 'Riprova',
       downloaded: 'Immagine scaricata.',
       shareFailed: 'La condivisione non è riuscita: scarica l’immagine e inviala dal telefono.',
       previewLabel: 'Anteprima dell’immagine',

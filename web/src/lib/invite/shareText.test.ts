@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SUPPORTED_LOCALES } from '../i18n/locale'
-import { shareTextOf, type ShareTextParts } from './shareText'
+import { SHARE_TEXT_MAX, shareTextOf, withoutAddress, type ShareTextParts } from './shareText'
 
 const PARTS: ShareTextParts = {
   title: 'Léa fête ses 40 ans',
@@ -61,5 +61,67 @@ describe('shareTextOf', () => {
 
   it('carries the host’s title as written, whatever the language of the card', () => {
     expect(shareTextOf({ ...PARTS, title: 'Hochzeit & Fest' }, 'en')).toContain('Hochzeit & Fest')
+  })
+
+  it('stays within 600 characters by cutting the place first, and always ends on the link', () => {
+    const long: ShareTextParts = {
+      ...PARTS,
+      venue: 'V'.repeat(300),
+      address: ['A'.repeat(100), 'B'.repeat(100)].join('\n'),
+    }
+
+    const text = shareTextOf(long, 'fr')
+
+    expect([...text].length).toBeLessThanOrEqual(SHARE_TEXT_MAX)
+    expect(text.endsWith(PARTS.url)).toBe(true)
+    expect(text).toContain('V')
+    expect(text).toContain('…')
+    expect(text.split('\n')[0]).toContain('Léa fête ses 40 ans')
+  })
+
+  it('cuts the title only when even the moment and the link leave it no room', () => {
+    const text = shareTextOf(
+      {
+        ...PARTS,
+        title: 'T'.repeat(500),
+        venue: null,
+        address: null,
+        url: `https://x.example/${'u'.repeat(60)}`,
+      },
+      'fr',
+    )
+
+    expect([...text].length).toBeLessThanOrEqual(SHARE_TEXT_MAX)
+    expect(text.endsWith('u'.repeat(60))).toBe(true)
+    expect(text).toContain('Samedi 12 décembre 2026, 19 h – 2 h')
+  })
+
+  it('does not touch a text that fits', () => {
+    expect(shareTextOf(PARTS, 'fr')).toBe(shareTextOf(PARTS, 'fr'))
+    expect([...shareTextOf(PARTS, 'fr')].length).toBeLessThan(SHARE_TEXT_MAX)
+  })
+})
+
+describe('withoutAddress', () => {
+  const ADDRESS = '12 quai de la Loire\n44000 Nantes'
+
+  it('removes the address as the text writes it, with its separator', () => {
+    const text = shareTextOf(PARTS, 'fr')
+
+    expect(withoutAddress(text, ADDRESS)).toBe(shareTextOf({ ...PARTS, address: null }, 'fr'))
+  })
+
+  it('removes the address as it was typed, on two lines', () => {
+    expect(withoutAddress('Chez Léa\n12 quai de la Loire\n44000 Nantes\nÀ bientôt', ADDRESS)).toBe(
+      'Chez Léa\n\nÀ bientôt',
+    )
+  })
+
+  it('gives up, rather than leave a part of it, when the host retyped it', () => {
+    expect(withoutAddress('Chez nous, 12 quai de la Loire, ça roule', ADDRESS)).toBeNull()
+  })
+
+  it('leaves a text with no address as it is', () => {
+    expect(withoutAddress('Venez nombreux', ADDRESS)).toBe('Venez nombreux')
   })
 })
