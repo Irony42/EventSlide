@@ -20,6 +20,79 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.16.0] - 2026-11-21
+
+Everything merged to `main` after the tag `v3.15.0`: pull requests #519 to #527 and #529 (10 pull requests: the README
+for 3.15 as #519, fifteen designs for the printed table cards as #520, and guest invitations as #521 to #527 and #529).
+This is a minor release with two themes: the printed table cards and poster come in fifteen designs, and a host can now
+invite guests before the party, by e-mail from their own mailbox, on a printed card or as an image to share, all leading
+to an invitation page that becomes the way into the wall on the night. One migration, 035 (`guest_invites`), applied at
+start-up. One setting is new in `.env.example`, optional.
+
+### Guests
+
+- **An invitation page, `/i/…`, opened from the link or the QR of an invitation** (#522). Before the party it shows the
+  title, when (in the venue's time zone, with the guest's own time on a second line when it differs), where with an
+  « Itinéraire » link to OpenStreetMap, the host's words, and « Ajouter à mon agenda », which saves a calendar file made in
+  the browser. Once the host opens the evening, the same page shows « Rejoindre le mur photo »; the wall's join code is
+  never given before. After the evening it keeps only the title and the date: the address and the words are no longer
+  served. A changed or switched-off link, an archived or taken-down event all answer one « Cette invitation n'est plus
+  disponible ». No account, no cookie, nothing asked. The page wears the event's colour and speaks the invitation's
+  language; « Signaler cette invitation » leads to the operator's contact.
+
+### Hosts and moderators
+
+- **An « Invitations » page next to the printed cards** (#523). The host fills the invitation once: title, start and
+  end, the time zone (taken from the browser on the first save, changed only on purpose), place, address and a word of up
+  to 500 characters, and its language. « Activer l'invitation » gives it a link and a QR; the link can be copied, viewed
+  as a guest, changed (the old link and printed QR codes stop working, after a confirmation) or switched off. Only the
+  owner opens and changes it; a moderator does not see the page.
+- **Printed invitations in six designs** (#524, #525, #529): Essentiel, Ticket de caisse, Souvenir, Billet, Carte
+  d'embarquement and Guirlande, four A6 cards or two A5 cards per A4 sheet, with the address printed, a short word of
+  140 characters (the full word is on the page), the QR and the link in plain text. Colour and photograph as on the table
+  cards; the photograph never leaves the browser.
+- **An image to share** (#526, #529): the same card on a square (1080 × 1080) or story (1080 × 1920) ground, made in the
+  browser. On a phone « Partager » opens WhatsApp, Messages, Instagram… with the image and the text, and copies the text
+  in case the app drops it; elsewhere « Télécharger l'image » and « Copier le texte ». The address is hidden on the image
+  unless the host ticks it.
+- **An e-mail sent from the host's own mailbox** (#527). EventSlide prepares the subject and the message, the host edits
+  them if they wish, and « Ouvrir dans ma messagerie » opens their mail program; EventSlide sends nothing and keeps no
+  address. A message too long for a mail link is cut with « suite sur la page de l'invitation », the link always kept.
+  The mail carries the address (it goes to the guests the host chose); the image does not unless the host ticks it.
+- **Fifteen designs for the printed table cards and poster** (#520): Essentiel, Classique, Ticket de caisse, Bande
+  dessinée, Magazine, Souvenir, Carte postale, Billet, Carte d'embarquement, Appareil jetable, Affiche, Confettis,
+  Années 70, Nuit and Guirlande, shown as live thumbnails of the host's own card. The host sets the title, the headline,
+  a note, the date and place, a table number, a photograph and its framing, the colour (event, eleven swatches or any
+  colour) and the three steps. The A5 now prints as two portraits on a landscape A4. Nine OFL font families (about
+  570 kB) are bundled and loaded by this page only.
+
+### Operators
+
+- **One new optional setting, `GUEST_INVITE_RATE_LIMIT_PER_MINUTE`** (default 200 per client address), the budget of the
+  public invitation page, sized like the join endpoint for guests behind one venue's Wi-Fi (#522).
+- **A new public route family, `/i/<token>` and `GET /api/i/<token>`** (and `/logo`). It is never indexed, sends no
+  referrer, is not cached, and the token is masked in the access logs. An invitation's token is stored in the clear,
+  on purpose: the host must be able to show the link again (ADR 0016) (#521, #522).
+
+### Under the hood
+
+- The README and its screenshots for 3.15 (#519).
+- Shared e2e helpers: the QR decoder now reads only a still, whole capture; invitation journeys on chromium-desktop and
+  webkit-mobile, including the generated images compared with their preview (#524, #526, #529).
+
+### Dependencies and security
+
+- **`html-to-image` 1.11** (MIT, no dependency, no install step) draws the invitation image in the host's browser. It is
+  loaded only when the image tab is opened; the guest pages and the wall never download it (#526).
+
+### Behaviour changes to check before upgrading
+
+- **One migration, 035** (`guest_invites`): a new table, one row per event, removed with its event. Nothing existing is
+  rewritten. Back up first, as for any upgrade.
+- **One optional setting**, `GUEST_INVITE_RATE_LIMIT_PER_MINUTE`; nothing to set otherwise. No invitation exists until a
+  host activates one.
+- The 3.14 request body of the photo book (`layout`, `showAuthors`, `showCaptions`) is still accepted in 3.16.
+
 ## [3.15.0] - 2026-11-20
 
 Everything merged to `main` after the tag `v3.14.0`: pull requests #505 to #517 (13 pull requests: the settings page in

@@ -1160,7 +1160,13 @@ nothing the policy above promises to keep.
   supported"), so after 3.15 has run the old version will not start on that data: follow [Going back](#going-back).
   Books are disposable (seven days) and are made again after the restore.
 
-## Upgrading to 3.16 (not released yet)
+## Upgrading to 3.16
+
+3.16.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no `BREAKING` section. It
+applies **one migration** (035 `guest_invites`: a new table; nothing existing is rewritten) and adds one optional setting
+(`GUEST_INVITE_RATE_LIMIT_PER_MINUTE`). Back up before upgrading, as for any release: the migrations only go forward. The
+fifteen designs of the printed table cards need nothing. Take the steps of [Upgrading with Docker](#upgrading-with-docker),
+or [without](#without-docker), with `vX.Y.Z` as `v3.16.0`; the image is `ghcr.io/irony42/eventslide:3.16.0`.
 
 ### Guest invitations (spec 29)
 
