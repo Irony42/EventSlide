@@ -4576,6 +4576,35 @@ not declare or a text far past the limit; `404 announcement.notFound`; `409 anno
 (`details.max`: 50) and `announcement.eventNotOpen`; `401` without a session, `404 event.notFound` for a non-member
 or an event the operator removed, `403 client.suspended`, `429 rate.limited`.
 
+### Guest invitation, host side (spec 29): `GET`, `PUT /api/events/:slug/guest-invite`, `POST …/guest-invite/enable`, `…/disable`, `…/rotate`
+
+**`owner`** (the settings' right: a moderator of the event is `403 auth.forbidden`, a stranger `404 event.notFound`). The invitation a host sends before the party: a title, a moment, a place and a word, behind a link. **One per event**, created by the first `PUT` or the first `enable` (nothing is created by a `GET`). The page guests open and its public route come with the next pull request of the spec.
+
+Every route answers `200 { "guestInvite": { … } }`:
+
+```json
+{ "guestInvite": {
+    "configured": true, "enabled": false, "url": "https://app.example/i/7QX0M4TZ2KD9WB3H",
+    "title": "Léa fête ses 40 ans", "startsAt": "2026-12-13T18:00:00.000Z", "endsAt": "2026-12-14T01:00:00.000Z",
+    "timeZone": "Europe/Paris", "venueName": "Salle des fêtes", "address": "1 rue de la Gare
+22100 Plouër",
+    "message": "Venez comme vous êtes.", "language": "fr",
+    "defaultTitle": "Camille & Sacha", "defaultStartsAt": null } }
+```
+
+Before anything is written, `GET` answers `configured: false`, `enabled: false`, `url: null`, every content field `null` and `language` the event's wall language; `defaultTitle` (the event's name) and `defaultStartsAt` (its `startsAt`) are what a form starts from. `url` is the absolute link (`PUBLIC_URL` + `/i/` + token) as soon as a row exists, switched on or not.
+
+`PUT` takes a strict body, every field optional: `{ title, startsAt, endsAt, timeZone, venueName, address, message }` (strings or `null`) and `language`. **An absent field is left as it was, `null` clears it.** The switch and the token are never changed by a save. The first save creates the row **switched off**. Every bound is the domain's and answers its own `400` with the limits:
+
+- `title`: one line, 80 characters (empty: the event's name is shown); `venueName`: one line, 80; `address`: 160 characters, 2 lines; `message`: 500 characters, 8 lines. Plain text: control and invisible characters are removed, a link stays text. `guestInvite.{title,venue,address,message}{Invalid,TooLong,TooManyLines}`.
+- `startsAt` and `endsAt`: ISO 8601 **with** an offset (`Z` or `+02:00`; a local time without one is `guestInvite.startsAtInvalid` / `endsAtInvalid`). The end is after the start (`guestInvite.endBeforeStart`), within 7 days of it (`guestInvite.tooLong`), and needs a start (`guestInvite.endNeedsStart`).
+- `timeZone`: an IANA identifier the platform knows (`UTC` included), `guestInvite.badTimeZone` otherwise; **required with a start** (`guestInvite.timeZoneRequired`). It is the zone the hour is read in, whoever opens the page.
+- `language`: one of `fr`, `de`, `en`, `es`, `it` (`guestInvite.languageInvalid`); the first save without one takes the event's wall language. It sets the fixed labels of the page, card, image and e-mail, never the host's text.
+
+`POST …/enable` ("Activer l'invitation") needs a start (`400 guestInvite.needsDate`); on one already on it is `200` with nothing written. `POST …/disable` keeps the text and the token (switching on again gives the **same link**); `404 guestInvite.notFound` before anything was saved. `POST …/rotate` ("Changer le lien") mints a new token: **the old link stops at once**, the switch and the text are untouched, and **the join code is not changed** (nor does changing the join code change this link); `404 guestInvite.notFound` before anything was saved. The three take an empty strict body.
+
+Writes are refused on an archived event (`409 guestInvite.eventArchived`) and for a suspended client (`403 client.suspended`, which also refuses the `GET`); a closed event, and an event whose purge is held, may still be edited. One audit line per act, `event.guestInviteSaved`, `event.guestInviteEnabled`, `event.guestInviteDisabled`, `event.guestInviteRotated`: the event, the account, **never a word of content**; a second tap that changes nothing writes none. **Errors** — `401`, `403 auth.forbidden`, `403 client.suspended`, `404 event.notFound`, `409 guestInvite.eventArchived`, `400 request.invalid` (a key the body does not know).
+
 ### Messaging channels (spec 27): `GET /api/events/:slug/channels`, `DELETE /api/events/:slug/channels/:bindingId`
 
 The host's "Groupe Telegram" panel. **There is no public route for the channel**: messages come in by an outbound long poll,
