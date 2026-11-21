@@ -295,6 +295,7 @@ describe('the real schema', () => {
       'event_purge_notices',
       'event_stats_counters',
       'events',
+      'guest_invites',
       'guestbook_entries',
       'guestbook_voices',
       'guests',
@@ -4180,4 +4181,97 @@ describe('migration 034: the photo book v2', () => {
        VALUES ('e-one', 'u', 'e', 'e', 'e', 'live', '{}', 1, ?)`,
     ).run(AT)
   }
+})
+
+describe('migration 035: guest invitations', () => {
+  const AT = '2026-11-21T10:00:00.000Z'
+
+  const migratedAt = (id: number): Db => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= id),
+    )
+    return db
+  }
+
+  const seedEvent = (db: Db, id = 'e-one'): void => {
+    db.prepare(
+      `INSERT OR IGNORE INTO users (id, email, password_hash, created_at) VALUES ('u', 'u@example.test', 'x', ?)`,
+    ).run(AT)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+       VALUES (?, 'u', ?, ?, ?, 'live', '{}', 1, ?)`,
+    ).run(id, id, id, id, AT)
+  }
+
+  const insertInvite = (
+    db: Db,
+    { event = 'e-one', token = 'TOKEN000000000AA', enabled = 0, language = 'fr' } = {},
+  ): void => {
+    db.prepare(
+      `INSERT INTO guest_invites (event_id, token, enabled, language, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(event, token, enabled, language, AT)
+  }
+
+  it('adds the table without touching what a 034 database held', () => {
+    const db = migratedAt(34)
+    seedEvent(db)
+
+    migrate(db, migrations)
+
+    expect(tableNames(db)).toContain('guest_invites')
+    expect(db.prepare(`SELECT slug FROM events`).all()).toEqual([{ slug: 'e-one' }])
+    expect(
+      (db.prepare(`PRAGMA table_info(guest_invites)`).all() as { name: string }[]).map(
+        (column) => column.name,
+      ),
+    ).toEqual([
+      'event_id',
+      'token',
+      'enabled',
+      'title',
+      'starts_at',
+      'ends_at',
+      'time_zone',
+      'venue_name',
+      'address',
+      'message',
+      'language',
+      'updated_at',
+    ])
+    closeDatabase(db)
+  })
+
+  it('holds at most one invitation per event and never two with the same token', () => {
+    const db = migratedAt(35)
+    seedEvent(db, 'e-one')
+    seedEvent(db, 'e-two')
+    insertInvite(db)
+
+    expect(() => insertInvite(db, { token: 'OTHER00000000000' })).toThrow(/UNIQUE|PRIMARY KEY/)
+    expect(() => insertInvite(db, { event: 'e-two' })).toThrow(/UNIQUE/)
+    closeDatabase(db)
+  })
+
+  it('refuses a switch that is not 0 or 1 and a language the product does not speak', () => {
+    const db = migratedAt(35)
+    seedEvent(db)
+
+    expect(() => insertInvite(db, { enabled: 2 })).toThrow(/CHECK constraint failed/)
+    expect(() => insertInvite(db, { language: 'pt' })).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('goes with its event: deleting the event deletes the invitation', () => {
+    const db = migratedAt(35)
+    seedEvent(db)
+    insertInvite(db)
+
+    db.prepare(`DELETE FROM events WHERE id = 'e-one'`).run()
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM guest_invites`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
 })

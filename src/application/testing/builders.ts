@@ -35,6 +35,10 @@ import {
   type PhotoReview,
 } from '../../domain/photos/photo'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
+import { GuestInvite } from '../../domain/guestInvites/guestInvite'
+import { GuestInviteToken } from '../../domain/guestInvites/guestInviteToken'
+import type { GuestInviteContentPatch } from '../../domain/guestInvites/guestInviteContent'
+import type { EventLanguage } from '../../domain/events/eventLanguage'
 import { Announcement } from '../../domain/announcements/announcement'
 import { AnnouncementText } from '../../domain/announcements/announcementText'
 import type { AnnouncementKind } from '../../domain/announcements/announcementRules'
@@ -405,6 +409,36 @@ export const anAnnouncement = (input: AnnouncementInput = {}): Announcement => {
           : asUserId(input.createdBy),
     createdAt: pick(input.createdAt, AT),
   })
+}
+
+export interface GuestInviteInput extends GuestInviteContentPatch {
+  readonly eventId?: string
+  /** One byte repeated sixteen times: two fixtures with different bytes have different tokens. */
+  readonly tokenByte?: number
+  readonly enabled?: boolean
+  readonly language?: EventLanguage
+  readonly updatedAt?: Date
+}
+
+/**
+ * A guest invitation (spec 29): switched off and blank unless the fixture says otherwise. Content
+ * goes through the domain's own rules (a fixture the rules refuse fails loudly); the switch is
+ * restored as given, so a test can hold an enabled invitation that has no date.
+ */
+export const aGuestInvite = (input: GuestInviteInput = {}): GuestInvite => {
+  const { eventId, tokenByte, enabled, language, updatedAt, ...content } = input
+  const token = must(
+    GuestInviteToken.fromBytes(new Uint8Array(16).fill(pick(tokenByte, 1))),
+    'aGuestInvite.token',
+  )
+  const blank = GuestInvite.blank(
+    asEventId(pick(eventId, 'event-1')),
+    token,
+    pick(language, 'fr'),
+    pick(updatedAt, AT),
+  )
+  const written = must(blank.withContent(content, pick(updatedAt, AT)), 'aGuestInvite.content')
+  return GuestInvite.restore({ ...written.toProps(), enabled: pick(enabled, false) })
 }
 
 /**
