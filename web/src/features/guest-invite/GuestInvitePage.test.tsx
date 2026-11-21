@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../../lib/http'
@@ -10,6 +10,7 @@ import { aGuestInvitePage, fakeApi, renderWithProviders } from '../../testing/re
 import type { Api } from '../../lib/api/client'
 import type { GuestInvitePageDto } from '../../lib/api/dto'
 import { GuestInvitePage } from './GuestInvitePage'
+import { REREAD_MIN_INTERVAL_MS } from './hooks/useGuestInvite'
 
 const TOKEN = '7QX0M4TZ2KD9WB3H'
 
@@ -292,7 +293,33 @@ describe('GuestInvitePage', () => {
     })
   })
 
+  describe('a busy box', () => {
+    it('says to try again in a moment, not to check the connection, when the box asked to slow down', async () => {
+      render(
+        fakeApi({
+          guestInvitePage: vi.fn(async () => {
+            throw new ApiError(429, 'rate.limited')
+          }),
+        }),
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.guestInvite.page.busy)
+      expect(screen.queryByText(fr.guestInvite.page.failed)).toBeNull()
+      expect(screen.getByRole('button', { name: fr.guestInvite.page.retry })).toBeVisible()
+    })
+  })
+
   describe('the logo', () => {
+    it('falls back to the initials when the logo does not load', async () => {
+      render(fakeApi(answering({ logoUrl: `/api/i/${TOKEN}/logo` })))
+      const logo = await screen.findByRole('img')
+
+      fireEvent.error(logo)
+
+      expect(await screen.findByText('LF')).toBeVisible()
+      expect(screen.queryByRole('img')).toBeNull()
+    })
+
     it('shows the event’s own logo when it has one', async () => {
       render(fakeApi(answering({ logoUrl: `/api/i/${TOKEN}/logo` })))
 
@@ -333,6 +360,16 @@ describe('GuestInvitePage', () => {
   })
 
   describe('reading again when the page comes back to the front', () => {
+    // A clock the test moves: two re-reads are never closer than REREAD_MIN_INTERVAL_MS.
+    let now = 1_000_000
+    beforeEach(() => {
+      now = 1_000_000
+      vi.spyOn(Date, 'now').mockImplementation(() => now)
+    })
+    const later = (ms = REREAD_MIN_INTERVAL_MS + 1): void => {
+      now += ms
+    }
+
     it('shows the way into the wall once the host has opened the evening, with no reload', async () => {
       const read = vi
         .fn<Api['guestInvitePage']>()
@@ -342,6 +379,7 @@ describe('GuestInvitePage', () => {
       await screen.findByRole('heading', { level: 1 })
       expect(screen.queryByRole('link', { name: fr.guestInvite.page.join })).toBeNull()
 
+      later()
       act(() => {
         window.dispatchEvent(new Event('focus'))
       })
@@ -363,6 +401,7 @@ describe('GuestInvitePage', () => {
         '/join/H7K2QM',
       )
 
+      later()
       act(() => {
         document.dispatchEvent(new Event('visibilitychange'))
       })
@@ -383,6 +422,7 @@ describe('GuestInvitePage', () => {
       render(fakeApi({ guestInvitePage: read }))
       await screen.findByRole('heading', { level: 1, name: 'Léa fête ses 40 ans' })
 
+      later()
       fireEvent(window, new Event('focus'))
 
       expect(
@@ -398,6 +438,7 @@ describe('GuestInvitePage', () => {
       render(fakeApi({ guestInvitePage: read }))
       await screen.findByRole('heading', { level: 1, name: 'Léa fête ses 40 ans' })
 
+      later()
       fireEvent(window, new Event('focus'))
       await waitFor(() => expect(read).toHaveBeenCalledTimes(2))
 
@@ -412,6 +453,7 @@ describe('GuestInvitePage', () => {
       )
       render(fakeApi({ guestInvitePage: read }))
 
+      later()
       fireEvent(window, new Event('focus'))
       fireEvent(window, new Event('focus'))
       expect(read).toHaveBeenCalledTimes(1)
@@ -422,12 +464,59 @@ describe('GuestInvitePage', () => {
       expect(await screen.findByRole('heading', { level: 1 })).toBeVisible()
     })
 
+    it('costs one request for a tab switch, which fires focus and visibilitychange together', async () => {
+      const read = vi.fn<Api['guestInvitePage']>(async () => aGuestInvitePage())
+      render(fakeApi({ guestInvitePage: read }))
+      await screen.findByRole('heading', { level: 1 })
+
+      later()
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'))
+        window.dispatchEvent(new Event('focus'))
+      })
+      await waitFor(() => expect(read).toHaveBeenCalledTimes(2))
+      await act(async () => undefined)
+
+      expect(read).toHaveBeenCalledTimes(2)
+    })
+
+    it('reads nothing for a return inside the minimum interval, and reads again after it', async () => {
+      const read = vi.fn<Api['guestInvitePage']>(async () => aGuestInvitePage())
+      render(fakeApi({ guestInvitePage: read }))
+      await screen.findByRole('heading', { level: 1 })
+
+      later(REREAD_MIN_INTERVAL_MS - 1)
+      fireEvent(window, new Event('focus'))
+      expect(read).toHaveBeenCalledTimes(1)
+
+      later(2)
+      fireEvent(window, new Event('focus'))
+      await waitFor(() => expect(read).toHaveBeenCalledTimes(2))
+    })
+
+    it('goes back to the reader’s own language when the invitation has gone: no German left over', async () => {
+      const read = vi
+        .fn<Api['guestInvitePage']>()
+        .mockResolvedValueOnce(aGuestInvitePage({ language: 'de' }))
+        .mockRejectedValue(new ApiError(404, 'guestInvite.notAvailable'))
+      render(fakeApi({ guestInvitePage: read }), 'fr')
+      expect(await screen.findByText(de.guestInvite.page.eyebrow)).toBeVisible()
+
+      later()
+      fireEvent(window, new Event('focus'))
+
+      expect(
+        await screen.findByRole('heading', { level: 1, name: fr.guestInvite.page.gone }),
+      ).toBeVisible()
+    })
+
     it('does not read when the page is hidden', async () => {
       const read = vi.fn<Api['guestInvitePage']>(async () => aGuestInvitePage())
       render(fakeApi({ guestInvitePage: read }))
       await screen.findByRole('heading', { level: 1 })
       vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
 
+      later()
       document.dispatchEvent(new Event('visibilitychange'))
 
       expect(read).toHaveBeenCalledTimes(1)

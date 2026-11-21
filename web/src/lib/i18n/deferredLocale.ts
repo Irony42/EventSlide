@@ -19,10 +19,11 @@ import type { Locale } from './locale'
  * a value breaks fast refresh. The default is a no-op rather than a swallowed error: a
  * `WallPage` mounted alone in a test has no shell above it to tell.
  */
-export const announceLocaleContext = createContext<(locale: Locale) => void>(() => {})
+export const announceLocaleContext = createContext<(locale: Locale | null) => void>(() => {})
 
 /**
  * Report the language this surface has resolved to, so the shell above it can follow.
  * Idempotent: the provider stores it in state and React bails out on an unchanged value.
  */
-export const useAnnounceLocale = (): ((locale: Locale) => void) => useContext(announceLocaleContext)
+export const useAnnounceLocale = (): ((locale: Locale | null) => void) =>
+  useContext(announceLocaleContext)

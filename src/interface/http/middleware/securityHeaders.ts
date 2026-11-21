@@ -93,8 +93,6 @@ const NEVER_GUEST_PAGES: ReadonlySet<string> = new Set([
   'login',
   'g',
   'invite',
-  // A guest invitation (spec 29) records nothing: it is read, and a token is in its address.
-  'i',
   'password',
   'api',
 ])

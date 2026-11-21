@@ -213,6 +213,18 @@ describe('icsOf', () => {
     )
   })
 
+  it('drops every control character but the line break: none of them can end a line', () => {
+    const controls = String.fromCharCode(0, 7, 9, 11, 12, 13, 27, 127)
+    const ics = unfold(
+      icsOf({ ...invite, title: `A${controls}B`, message: `x${controls}\ny` }, URL_OF, NOW),
+    )
+
+    expect(ics).toContain('SUMMARY:AB')
+    expect(ics).toContain('DESCRIPTION:x\\ny')
+    // eslint-disable-next-line no-control-regex
+    expect(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(ics)).toBe(false)
+  })
+
   it('folds a long line at 75 octets without cutting a character in two', () => {
     const ics = icsOf({ ...invite, message: 'é'.repeat(200) }, URL_OF, NOW)
 
@@ -231,6 +243,17 @@ describe('icsOf', () => {
     expect(lines[summary]).toHaveLength(75)
     expect(lines[summary + 1]?.startsWith(' ')).toBe(true)
     expect(lines[summary + 1]).toHaveLength(75)
+  })
+
+  it('names the same event for the same invitation, however its link was typed', () => {
+    const uid = (token: string) =>
+      icsOf({ ...invite, token }, URL_OF, NOW)
+        .split('\r\n')
+        .find((line) => line.startsWith('UID:'))
+
+    expect(uid('7qx0m4tz2kd9wb3h')).toBe(uid('7QX0M4TZ2KD9WB3H'))
+    expect(uid('7QXOM4TZ2KD9WB3H')).toBe(uid('7QX0M4TZ2KD9WB3H'))
+    expect(uid('7QX0M4TZ2KD9WB3H')).not.toBe(uid('7QX0M4TZ2KD9WB3J'))
   })
 
   it('names the event by a digest of the token, never the token itself, and always the same one', () => {

@@ -218,11 +218,38 @@ describe('GET /api/i/:token', () => {
     expect(response.body.error.code).toBe('guestInvite.notAvailable')
   })
 
-  it('has no POST: a guest cannot write anything here', async () => {
+  // The headers are mounted ahead of the body parser and the CSRF gate, so a refusal by either carries
+  // them too: the token is in the path of those requests as much as of a good one.
+  it('carries the three headers on a request the body parser refuses', async () => {
+    const response = await request(world.app)
+      .post(`/api/i/${LIVE_TOKEN}`)
+      .set('Content-Type', 'application/json')
+      .send('{ not json')
+
+    expect(response.status).toBe(400)
+    expectGuardHeaders(response)
+  })
+
+  it('carries the three headers on a write the CSRF gate refuses, and writes nothing', async () => {
     const response = await request(world.app).post(`/api/i/${LIVE_TOKEN}`).send({})
 
-    expect([403, 404, 405]).toContain(response.status)
-    expect(response.body.error?.code).not.toBe(undefined)
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('request.csrfMissing')
+    expectGuardHeaders(response)
+  })
+
+  it('has no write route: past the gate, a POST is the unknown route, with the headers', async () => {
+    const agent = request.agent(world.app)
+    const first = await agent.get(`/api/i/${LIVE_TOKEN}`)
+    const token = /es_csrf=([^;]+)/.exec(String(first.headers['set-cookie']))?.[1] ?? ''
+
+    const response = await agent
+      .post(`/api/i/${LIVE_TOKEN}`)
+      .set('x-csrf-token', decodeURIComponent(token))
+      .send({})
+
+    expect(response.status).toBe(404)
+    expectGuardHeaders(response)
   })
 })
 

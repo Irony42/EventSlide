@@ -479,6 +479,14 @@ describe('AboutPage, an address that names a section', () => {
     expect(scroll).not.toHaveBeenCalled()
   })
 
+  it('does not break on a fragment that cannot be decoded: the page is still the page', async () => {
+    const scroll = scrolled()
+    renderWithProviders(<AboutPage />, { api: silentServer(), route: '/about#%E0%A4%A' })
+
+    expect(await screen.findByRole('heading', { name: fr.about.title })).toBeVisible()
+    expect(scroll).not.toHaveBeenCalled()
+  })
+
   it('scrolls nowhere for an address with no fragment', async () => {
     const scroll = scrolled()
     renderWithProviders(<AboutPage />, { api: silentServer(), route: '/about' })

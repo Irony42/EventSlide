@@ -48,6 +48,20 @@ const THIRD_PARTY_NOTICES_URL = '/third-party-licenses.txt'
  * reads the page as it always did. It says plainly that a donation unlocks nothing — the
  * same service for everyone — and it is a section of this page, never a banner over it.
  */
+/**
+ * The id a fragment names. A fragment is typed by whoever wrote the link: `#%E0%A4%A` does not
+ * decode, and a page that threw on it would be a page nobody could open from that link, so the
+ * raw text is used and names nothing.
+ */
+const fragmentOf = (hash: string): string => {
+  const raw = hash.slice(1)
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
 export function AboutPage() {
   const text = useTranslations()
   const about = useAbout()
@@ -71,7 +85,7 @@ export function AboutPage() {
   const hasOperatorSection = operator !== undefined || operatorLinks.length > 0
   useEffect(() => {
     if (location.hash === '') return
-    document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView()
+    document.getElementById(fragmentOf(location.hash))?.scrollIntoView()
   }, [location.hash, hasOperatorSection])
 
   return (

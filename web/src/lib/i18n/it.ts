@@ -3097,6 +3097,7 @@ export const it: UiText = {
       otherTz: (when: string, place: string) => `Cioè ${when} a ${place}`,
       loading: 'Caricamento dell’invito',
       failed: 'Non è stato possibile caricare l’invito. Controlli la connessione.',
+      busy: 'In questo momento molte persone stanno aprendo questo invito. Riprovi tra un attimo.',
       retry: 'Riprova',
       logoAlt: (title: string) => `Logo di ${title}`,
     },

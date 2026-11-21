@@ -3797,6 +3797,7 @@ export const fr = {
       otherTz: (when: string, place: string) => `Soit ${when} à ${place}`,
       loading: 'Chargement de l’invitation',
       failed: 'L’invitation n’a pas pu être chargée. Vérifiez votre connexion.',
+      busy: 'Beaucoup de monde ouvre cette invitation en ce moment. Réessayez dans un instant.',
       retry: 'Réessayer',
       logoAlt: (title: string) => `Logo de ${title}`,
     },

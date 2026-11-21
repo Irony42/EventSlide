@@ -159,6 +159,17 @@ export interface IcsInvite {
   readonly message: string | null
 }
 
+/**
+ * The token as the server reads it: case, separators and the look-alike characters folded (the
+ * join code's rule), so `/i/abc…` and `/i/ABC…` are one invitation and one calendar event.
+ */
+const normaliseToken = (token: string): string =>
+  token
+    .toUpperCase()
+    .replace(/[\s\-_.]/g, '')
+    .replace(/[IL]/g, '1')
+    .replace(/O/g, '0')
+
 /** Without an end, a party lasts this long in the calendar. */
 const DEFAULT_DURATION_MS = 4 * 60 * 60 * 1000
 
@@ -244,7 +255,10 @@ const escapeText = (text: string): string =>
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\r/g, '')
+    // Every C0 control but the line feed (and DEL): none can be written in a text value, and
+    // each is one more way to end a line the parser would read as a new property.
+    // eslint-disable-next-line no-control-regex -- stripping them is the point
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '')
     .replace(/\n/g, '\\n')
 
 /** A content line longer than 75 octets is folded: CRLF and one space, never inside a character. */
@@ -291,7 +305,7 @@ export const icsOf = (invite: IcsInvite, url: string, now: Date): string => {
     'VERSION:2.0',
     'PRODID:-//EventSlide//Invitation//EN',
     'BEGIN:VEVENT',
-    `UID:${sha256Hex(invite.token).slice(0, 32)}@${new URL(url).host}`,
+    `UID:${sha256Hex(normaliseToken(invite.token)).slice(0, 32)}@${new URL(url).host}`,
     `DTSTAMP:${stamp(now)}`,
     `DTSTART:${stamp(start)}`,
     `DTEND:${stamp(end)}`,

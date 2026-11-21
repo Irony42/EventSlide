@@ -3157,6 +3157,7 @@ export const de: UiText = {
       otherTz: (when: string, place: string) => `Das ist ${when} in ${place}`,
       loading: 'Einladung wird geladen',
       failed: 'Die Einladung konnte nicht geladen werden. Prüfen Sie Ihre Verbindung.',
+      busy: 'Gerade öffnen viele Menschen diese Einladung. Versuchen Sie es gleich noch einmal.',
       retry: 'Erneut versuchen',
       logoAlt: (title: string) => `Logo von ${title}`,
     },

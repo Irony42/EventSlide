@@ -3046,6 +3046,7 @@ export const en: UiText = {
       otherTz: (when: string, place: string) => `That is ${when} in ${place}`,
       loading: 'Loading the invitation',
       failed: 'The invitation could not be loaded. Check your connection.',
+      busy: 'A lot of people are opening this invitation right now. Try again in a moment.',
       retry: 'Try again',
       logoAlt: (title: string) => `Logo of ${title}`,
     },

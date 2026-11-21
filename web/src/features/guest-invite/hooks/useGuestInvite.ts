@@ -24,6 +24,11 @@ export interface GuestInviteState {
   readonly phase: GuestInvitePhase
   /** Present once `ready`. */
   readonly page: GuestInvitePageDto | null
+  /**
+   * The failure was the box asking to slow down (`429`), not the connection: the page says so,
+   * because "check your connection" would send a guest in a crowded room to look at the wrong thing.
+   */
+  readonly busy: boolean
   /** The instant the page on screen was read (epoch ms): what "the hour has come" is measured against. */
   readonly readAt: number
   readonly retry: () => void
@@ -31,10 +36,20 @@ export interface GuestInviteState {
 
 type Answer =
   | { readonly phase: 'ready'; readonly page: GuestInvitePageDto; readonly readAt: number }
-  | { readonly phase: 'unavailable' | 'failed' }
+  | { readonly phase: 'unavailable' }
+  | { readonly phase: 'failed'; readonly busy: boolean }
 
 const isNotAvailable = (cause: unknown): boolean =>
   cause instanceof ApiError && cause.code === 'guestInvite.notAvailable'
+
+/**
+ * Two re-reads are never closer than this. A tab switch fires `visibilitychange` and `focus`
+ * together, and every read spends the per-address budget the whole room shares (the page and its
+ * logo, 200 a minute): one tap should cost one request.
+ */
+export const REREAD_MIN_INTERVAL_MS = 15_000
+
+const isBusy = (cause: unknown): boolean => cause instanceof ApiError && cause.status === 429
 
 export const useGuestInvite = (token: string): GuestInviteState => {
   const api = useApi()
@@ -49,9 +64,12 @@ export const useGuestInvite = (token: string): GuestInviteState => {
     const stop = new AbortController()
     let reading = false
 
+    let lastStarted = Number.NEGATIVE_INFINITY
+
     const read = () => {
       if (reading) return
       reading = true
+      lastStarted = Date.now()
       api.guestInvitePage(token, stop.signal).then(
         (page) => {
           reading = false
@@ -68,21 +86,28 @@ export const useGuestInvite = (token: string): GuestInviteState => {
             return
           }
           // A failed re-read leaves the invitation that is on screen: only a first read fails the page.
-          if (shown.current === null) setAnswer({ token, value: { phase: 'failed' } })
+          if (shown.current === null) {
+            setAnswer({ token, value: { phase: 'failed', busy: isBusy(cause) } })
+          }
         },
       )
+    }
+
+    // The page coming back to the front: at most one read per interval, however many events say so.
+    const reread = () => {
+      if (Date.now() - lastStarted >= REREAD_MIN_INTERVAL_MS) read()
     }
 
     shown.current = null
     read()
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') read()
+      if (document.visibilityState === 'visible') reread()
     }
     document.addEventListener('visibilitychange', onVisibility)
-    window.addEventListener('focus', read)
+    window.addEventListener('focus', reread)
     return () => {
       document.removeEventListener('visibilitychange', onVisibility)
-      window.removeEventListener('focus', read)
+      window.removeEventListener('focus', reread)
       stop.abort()
     }
   }, [api, token, attempt])
@@ -93,8 +118,14 @@ export const useGuestInvite = (token: string): GuestInviteState => {
   }, [])
 
   const current = answer !== null && answer.token === token ? answer.value : null
-  if (current === null) return { phase: 'loading', page: null, readAt: 0, retry }
+  if (current === null) return { phase: 'loading', page: null, busy: false, readAt: 0, retry }
   return current.phase === 'ready'
-    ? { phase: 'ready', page: current.page, readAt: current.readAt, retry }
-    : { phase: current.phase, page: null, readAt: 0, retry }
+    ? { phase: 'ready', page: current.page, busy: false, readAt: current.readAt, retry }
+    : {
+        phase: current.phase,
+        page: null,
+        busy: current.phase === 'failed' && current.busy,
+        readAt: 0,
+        retry,
+      }
 }

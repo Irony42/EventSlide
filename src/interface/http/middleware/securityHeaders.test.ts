@@ -7,12 +7,22 @@ import { microphoneOpenOn } from './securityHeaders'
  * loaded from and a guest enters by more doors than the ones that record.
  */
 describe('microphoneOpenOn', () => {
-  it.each(['/', '/join', '/join/ABC123', '/e/x', '/e/x/upload', '/e/x/photos', '/about'])(
-    'opens the microphone on %s',
-    (path) => {
-      expect(microphoneOpenOn(path)).toBe(true)
-    },
-  )
+  // A guest invitation is a door: its button into the wall is a client-side link, so the document
+  // that is loaded here is the one that later hosts the join and upload pages (spec 29). Shut here,
+  // the voice message of spec 25 would fail silently there, whatever those pages answer.
+  it.each([
+    '/',
+    '/join',
+    '/join/ABC123',
+    '/e/x',
+    '/e/x/upload',
+    '/e/x/photos',
+    '/about',
+    '/i/7QX0M4TZ2KD9WB3H',
+    '/I/7QX0M4TZ2KD9WB3H',
+  ])('opens the microphone on %s', (path) => {
+    expect(microphoneOpenOn(path)).toBe(true)
+  })
 
   it.each([
     '/admin',

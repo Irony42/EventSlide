@@ -1279,7 +1279,6 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     ['the sign-in', '/login'],
     ['the shared gallery', '/g/some-token'],
     ['an invitation', '/invite/some-token'],
-    ['a guest invitation', '/i/some-token'],
     ['a password reset', '/password/reset/some-token'],
   ])('keeps the microphone shut on %s', async (_name, path) => {
     const response = await request(withClient().app).get(path)
@@ -1287,6 +1286,13 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     expect(response.status).toBe(200)
     expect(response.get('permissions-policy')).toContain('microphone=()')
     expect(response.get('permissions-policy')).not.toContain('microphone=(self)')
+  })
+
+  it('keeps the microphone open on a guest invitation: its button into the wall is a client-side link, so this document hosts the join and upload pages next', async () => {
+    const response = await request(withClient().app).get('/i/' + '7'.repeat(16))
+
+    expect(response.status).toBe(200)
+    expect(response.get('permissions-policy')).toContain('microphone=(self)')
   })
 
   it('still denies location, payment, usb and the magnetometer on a page that opens the microphone', async () => {

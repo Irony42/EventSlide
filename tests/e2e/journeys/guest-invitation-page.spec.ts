@@ -71,10 +71,13 @@ const invite = async (host: Host, slug: string): Promise<string> => {
 }
 
 /** The tab comes back to the front: what a guest does after hours on another app. */
-const returnToTheTab = (page: Page): Promise<void> =>
-  page.evaluate(() => {
+const returnToTheTab = async (page: Page): Promise<void> => {
+  // The page re-reads at most every 15 s, so the guest has been away for 16.
+  await page.clock.fastForward(16_000)
+  await page.evaluate(() => {
     window.dispatchEvent(new Event('focus'))
   })
+}
 
 test('the page follows the evening: details, then the way into the wall, then over without the address', async ({
   app,
@@ -89,12 +92,17 @@ test('the page follows the evening: details, then the way into the wall, then ov
   // --- A guest opens the link: a fresh browser, no cookie, no session.
   const context = await browser.newContext({ locale: 'fr-FR' })
   const guest = await context.newPage()
+  await guest.clock.install()
   try {
     const response = await guest.goto(link)
     // The token is in this address: the shell carries the headers of every token page.
     expect(response?.headers()['x-robots-tag']).toBe('noindex, nofollow')
     expect(response?.headers()['referrer-policy']).toBe('no-referrer')
     expect(response?.headers()['cache-control']).toBe('no-store')
+    // The button into the wall is a client-side link, so this document later hosts the join and
+    // upload pages: it must keep the guest's microphone policy (spec 25), or a voice message
+    // fails there without a word.
+    expect(response?.headers()['permissions-policy']).toContain('microphone=(self)')
 
     await expect(guest.getByRole('heading', { level: 1, name: PARTY.title })).toBeVisible()
     await expect(guest.getByText(fr.guestInvite.page.when, { exact: true })).toBeVisible()
@@ -142,6 +150,15 @@ test('the page follows the evening: details, then the way into the wall, then ov
     // --- It leads to the wall's own door, with no other QR to look for.
     await join.click()
     await expect(guest).toHaveURL(new RegExp(`/join/${event.joinCode}$`))
+    // Same document, so the policy it was loaded with still allows the microphone.
+    const allowed = await guest.evaluate(() => {
+      // Not in the DOM typings yet: Chromium's `document.featurePolicy`.
+      const policy = (
+        document as unknown as { featurePolicy?: { allowsFeature(name: string): boolean } }
+      ).featurePolicy
+      return policy?.allowsFeature('microphone')
+    })
+    expect(allowed).toBe(true)
 
     // --- The host closes it: the date and "terminée", and not a trace of the address or the word.
     await guest.goto(link)

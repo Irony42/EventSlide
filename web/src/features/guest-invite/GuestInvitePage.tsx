@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
@@ -104,6 +104,8 @@ function Invitation({
   const parts = useMemo(() => whenParts(page.when, lang, viewerTimeZone()), [page.when, lang])
   const directions = itineraryHref(page.venueName, page.address ?? null)
   const hasPlace = page.venueName !== null || (page.address ?? null) !== null
+  // A logo that does not load (the file is gone) leaves the initials, not a broken image.
+  const [logoBroken, setLogoBroken] = useState(false)
   const opened = page.state === 'joinable'
   // A party whose hour has come and that its host has not opened: say so rather than "tonight".
   const hourPassed = Date.parse(page.when.startsAt) <= readAt
@@ -132,12 +134,17 @@ function Invitation({
     >
       <Robots />
       <header className={styles['head']}>
-        {page.logoUrl === undefined ? (
+        {page.logoUrl === undefined || logoBroken ? (
           <span className={styles['mark']} aria-hidden="true">
             {initialsOf(page.title)}
           </span>
         ) : (
-          <img className={styles['logo']} src={page.logoUrl} alt={t.logoAlt(page.title)} />
+          <img
+            className={styles['logo']}
+            src={page.logoUrl}
+            alt={t.logoAlt(page.title)}
+            onError={() => setLogoBroken(true)}
+          />
         )}
         <p className={styles['eyebrow']}>{t.eyebrow}</p>
         <h1 className={styles['title']}>{page.title}</h1>
@@ -212,8 +219,10 @@ export function GuestInvitePage() {
   const announce = useAnnounceLocale()
   // The language the page is in is the invitation's; until it is known, the surface's own.
   const language = state.page === null ? null : parseLocale(state.page.language)
+  // `null` takes the announcement back: an invitation that has gone (read again, and refused) is
+  // the reader's to read, not still in the language of a page that no longer exists.
   useEffect(() => {
-    if (language !== null) announce(language)
+    announce(language)
   }, [announce, language])
 
   if (state.phase === 'loading') {
@@ -230,7 +239,7 @@ export function GuestInvitePage() {
       <div className={styles['page']}>
         <Robots />
         <Notice tone="danger" variant="boxed" role="alert">
-          {t.failed}
+          {state.busy ? t.busy : t.failed}
         </Notice>
         <Button variant="secondary" size="lg" block onClick={state.retry}>
           {t.retry}
