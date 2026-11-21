@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Button } from '../../../../design-system/components/Button'
 import { Field } from '../../../../design-system/components/Field'
 import { Notice } from '../../../../design-system/components/Notice'
@@ -9,6 +9,7 @@ import { useTranslations } from '../../../../lib/i18n/useTranslations'
 import { MAILTO_MAX, emailDraftOf, mailtoHref } from '../../../../lib/invite/emailDraft'
 import { dayMonthLabel } from '../../../../lib/invite/inviteTexts'
 import type { RenderPng } from './imageRender'
+import { readInvitePreferences } from './invitePreferences'
 import { ShotCard } from './ShotCard'
 import type { InvitationTabProps } from './tabProps'
 import { useInviteImage } from './useInviteImage'
@@ -35,7 +36,15 @@ const kilobytes = (bytes: number): string => `${Math.max(1, Math.round(bytes / 1
 export function EmailTab({ event, invite, renderPng }: EmailTabProps) {
   const t = useTranslations()
   const text = t.guestInvite.email
-  const picture = useInviteImage(event, invite, text.fileName, renderPng)
+  const preferences = useMemo(() => readInvitePreferences(event.slug), [event.slug])
+  const picture = useInviteImage({
+    event,
+    invite,
+    preferences,
+    shot: 'square',
+    fileName: `${text.fileName}.png`,
+    renderPng,
+  })
   const { view } = picture
 
   const automatic = emailDraftOf(

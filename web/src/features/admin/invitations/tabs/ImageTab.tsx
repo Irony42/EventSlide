@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../../../design-system/components/Button'
 import { Field } from '../../../../design-system/components/Field'
 import { Notice } from '../../../../design-system/components/Notice'
@@ -9,9 +9,7 @@ import { isAbortError } from '../../../../lib/http'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
 import { graphemesOf } from '../../../../lib/invite/cardTexts'
 import { SHARE_TEXT_MAX, shareTextOf, withoutAddress } from '../../../../lib/invite/shareText'
-import { readPrintPhoto } from '../../print/printPhoto'
-import { blurPhoto, renderCardPng, type RenderPng } from './imageRender'
-import { inviteCardOf } from './inviteCard'
+import { renderCardPng, type RenderPng } from './imageRender'
 import {
   DEFAULT_INVITE_SHOT,
   INVITE_SHOTS,
@@ -23,18 +21,8 @@ import {
 import { ShotCard } from './ShotCard'
 import { SHOT_SIZE } from './shotSize'
 import type { InvitationTabProps } from './tabProps'
-import { useCardImage } from './useCardImage'
+import { useInviteImage } from './useInviteImage'
 import styles from './ImageTab.module.css'
-
-/** A short fingerprint of a long string (a photograph as a data URL), so a key does not carry it. */
-const fingerprint = (text: string | null): string => {
-  if (text === null) return ''
-  let hash = 0x811c9dc5
-  for (let index = 0; index < text.length; index += 1) {
-    hash = Math.imul(hash ^ text.charCodeAt(index), 0x01000193)
-  }
-  return `${text.length}:${(hash >>> 0).toString(36)}`
-}
 
 export interface ImageTabProps extends InvitationTabProps {
   /** Makes the PNG; the browser's own by default, a double in a component test. */
@@ -59,33 +47,22 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
   const [preferences, setPreferences] = useState<InvitePreferences>(() =>
     readInvitePreferences(slug),
   )
-  const photoUrl = useMemo(() => readPrintPhoto(slug), [slug])
   const shot: InviteShot = preferences.shot ?? DEFAULT_INVITE_SHOT
   const showAddress = preferences.showAddress ?? false
-  const view = inviteCardOf(event, invite, preferences, { showAddress })
+  const picture = useInviteImage({
+    event,
+    invite,
+    preferences,
+    shot,
+    fileName: `${text.fileName}-${shot}.png`,
+    renderPng,
+  })
+  const { view, photoUrl, backdropUrl, node, image, file } = picture
 
   const update = (next: InvitePreferences) => {
     setPreferences(next)
     writeInvitePreferences(slug, next)
   }
-
-  // The ground: the photograph, blurred; the card's colour until it is, and without one.
-  const [backdrop, setBackdrop] = useState<{
-    readonly of: string
-    readonly url: string | null
-  } | null>(null)
-  useEffect(() => {
-    if (photoUrl === null) return
-    let cancelled = false
-    void blurPhoto(photoUrl).then((url) => {
-      if (!cancelled) setBackdrop({ of: photoUrl, url })
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [photoUrl])
-  const backdropUrl = photoUrl !== null && backdrop?.of === photoUrl ? backdrop.url : null
-  const backdropPending = photoUrl !== null && backdrop?.of !== photoUrl
 
   // The words that go with the picture, in the language of the invitation; the host may rewrite them.
   const automatic = shareTextOf(
@@ -110,41 +87,6 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
     update({ ...preferences, showAddress: checked })
   }
 
-  const photoKey = useMemo(() => fingerprint(photoUrl), [photoUrl])
-  const backdropKey = useMemo(() => fingerprint(backdropUrl), [backdropUrl])
-  const [attempt, setAttempt] = useState(0)
-
-  const node = useRef<HTMLDivElement>(null)
-  const image = useCardImage(
-    node,
-    JSON.stringify([
-      shot,
-      view.design,
-      view.invitation,
-      view.colour,
-      photoKey,
-      view.focusX,
-      view.focusY,
-      view.texts,
-      backdropKey,
-      // A rotated link, or a new date, is a new picture: the QR on it must lead to the live link.
-      invite.url,
-      invite.startsAt,
-      invite.endsAt,
-      attempt,
-    ]),
-    SHOT_SIZE[shot],
-    renderPng,
-    backdropPending,
-  )
-  const ready = image.status === 'ready' ? image.blob : null
-  const file = useMemo(
-    () =>
-      ready === null
-        ? null
-        : new File([ready], `${text.fileName}-${shot}.png`, { type: 'image/png' }),
-    [ready, shot, text.fileName],
-  )
   // The button is there as soon as the phone can share at all, and waits for the picture; it goes
   // away only when the phone says it cannot share this file.
   const canShareAtAll =
@@ -288,8 +230,7 @@ export function ImageTab({ event, invite, renderPng = renderCardPng }: ImageTabP
 
         {image.status === 'failed' ? (
           <Notice tone="warning" role="alert" variant="boxed">
-            {text.renderFailed}{' '}
-            <Button onClick={() => setAttempt((count) => count + 1)}>{text.retry}</Button>
+            {text.renderFailed} <Button onClick={picture.retry}>{text.retry}</Button>
           </Notice>
         ) : null}
         <div role="status" aria-live="polite">
