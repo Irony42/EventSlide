@@ -2060,10 +2060,9 @@
   font-weight: 700;
 }
 
-.glPhoto {
-  inline-size: 100%;
-  block-size: 100%;
-  border-radius: 1px;
+/* The tint behind a photograph that does not cover its frame (a transparent picture). */
+.glPhotoBack {
+  fill: var(--pd-a-soft);
 }
 
 .glBody {

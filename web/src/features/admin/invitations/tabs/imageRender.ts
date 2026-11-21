@@ -94,16 +94,30 @@ const SVG_PAINT = [
  *
  * Through the style object, not the `style` attribute: the page's CSP allows the first and not
  * the second.
+ *
+ * The node is the live preview: between this call and `restore`, the capture is asynchronous and the
+ * shapes keep the computed values frozen onto them (a change of colour made in that window shows in
+ * the picture of the next capture, which the host's change starts anyway).
  */
 export const inlineSvgPaint = (root: HTMLElement): (() => void) => {
-  const undo: (() => void)[] = []
+  // Everything is read before anything is written: a write that changes the style the next read
+  // sees (an inherited value) must not leak into it.
+  const found: { readonly shape: SVGElement; readonly paint: [string, string][] }[] = []
   for (const shape of root.querySelectorAll('svg, svg *')) {
     if (!(shape instanceof SVGElement)) continue
     const computed = getComputedStyle(shape)
-    const was = new Map<string, string>()
+    const paint: [string, string][] = []
     for (const name of SVG_PAINT) {
       const value = computed.getPropertyValue(name)
-      if (value === '') continue
+      if (value !== '') paint.push([name, value])
+    }
+    found.push({ shape, paint })
+  }
+
+  const undo: (() => void)[] = []
+  for (const { shape, paint } of found) {
+    const was = new Map<string, string>()
+    for (const [name, value] of paint) {
       was.set(name, shape.style.getPropertyValue(name))
       shape.style.setProperty(name, value)
     }

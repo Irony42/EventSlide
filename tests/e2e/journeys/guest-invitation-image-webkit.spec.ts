@@ -4,7 +4,9 @@ import { expect, test } from '../fixtures/app'
 import { invitedHost } from '../fixtures/invitation'
 import {
   DESIGN_NAMES,
+  DISTANCE_LIMITS,
   distanceFromPreview,
+  garlandReport,
   downloadedInvitationImage,
   imageDependsOnItsFonts,
   orangePhoto,
@@ -153,7 +155,7 @@ test('on a phone engine too, the card’s own typeface is in the picture, not a 
   await imageDependsOnItsFonts(host, withFonts, open, imageTab)
 })
 
-test('on a phone engine too, every design is drawn in the picture as it is in the preview', async ({
+test('on a phone engine too, every design is drawn in the picture as it is in the preview, square and story', async ({
   app,
   surfaces,
 }) => {
@@ -167,12 +169,29 @@ test('on a phone engine too, every design is drawn in the picture as it is in th
     .setInputFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: await orangePhoto() })
   await expect(host.locator('[data-format] [data-print-card] img').first()).toBeVisible()
 
-  for (const name of DESIGN_NAMES) {
-    await host.getByRole('tab', { name: fr.guestInvite.host.tabPrint }).click()
-    await host.getByRole('radio', { name }).check({ force: true })
-    await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
-    const png = await downloadedInvitationImage(host)
+  for (const shape of [fr.guestInvite.image.formatSquare, fr.guestInvite.image.formatStory]) {
+    for (const name of DESIGN_NAMES) {
+      await host.getByRole('tab', { name: fr.guestInvite.host.tabPrint }).click()
+      await host.getByRole('radio', { name }).check({ force: true })
+      await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
+      await host.getByRole('radio', { name: shape }).check()
+      const png = await downloadedInvitationImage(host)
+      const label = name + ' ' + shape
 
-    expect(await distanceFromPreview(host, png), name).toBeLessThan(7)
+      expect(await distanceFromPreview(host, png), label).toBeLessThan(
+        DISTANCE_LIMITS[name]?.webkit ?? 0,
+      )
+
+      if (name === 'Guirlande') {
+        // Where it broke: the pennants, the polaroid's photograph, the black of the banner.
+        const report = await garlandReport(host, png)
+        for (const [part, distance] of Object.entries(report.parts)) {
+          expect(distance, label + ' ' + part).toBeLessThan(30)
+        }
+        expect(Object.keys(report.parts), label).toContain('glSun')
+        expect(report.photoFromOrange, label + ' photograph').toBeLessThan(40)
+        expect(report.blackShare, label + ' black in the banner').toBeLessThan(0.005)
+      }
+    }
   }
 })
