@@ -1,4 +1,6 @@
+import { useEffect, useId, useState } from 'react'
 import { cx } from '../../../design-system/classNames'
+import { coverRect } from '../../../lib/print/coverRect'
 import styles from './PrintCard.module.css'
 
 /** The host's photograph, or nothing. */
@@ -40,14 +42,54 @@ const GARLAND_PRINTS = [
 ] as const
 const r2 = (value: number): string => value.toFixed(2)
 
-/** The prints pegged on a string, the photograph (or the monogram) in the middle one. */
+/**
+ * The natural size of a picture, once the browser has it. `null` until then, and for a picture it
+ * cannot read: the banner then draws it at its frame.
+ */
+const useNaturalSize = (url: string | null): { width: number; height: number } | null => {
+  const [known, setKnown] = useState<{
+    readonly of: string
+    readonly width: number
+    readonly height: number
+  } | null>(null)
+  useEffect(() => {
+    if (url === null) return
+    let cancelled = false
+    const image = new Image()
+    image.onload = () => {
+      if (!cancelled) setKnown({ of: url, width: image.naturalWidth, height: image.naturalHeight })
+    }
+    image.src = url
+    return () => {
+      cancelled = true
+      image.onload = null
+    }
+  }, [url])
+  return known !== null && known.of === url ? known : null
+}
+
+/**
+ * The prints pegged on a string, the photograph (or the monogram) in the middle one.
+ *
+ * The photograph is an SVG `<image>`, not an HTML one in a `foreignObject`: the picture of the
+ * card made for sharing would lose the second (a `foreignObject` inside the capture's own is empty
+ * in WebKit, and its styles are not carried over). It is placed **exactly** where the host's framing
+ * puts it (`coverRect`, the box `object-fit: cover` and `object-position` would make), over the
+ * tint and under the rounded clip the HTML one had.
+ */
 export function GarlandBanner({
   photoUrl,
   monogram,
+  focusX = 50,
+  focusY = 50,
 }: {
   readonly photoUrl: string | null
   readonly monogram: string
+  readonly focusX?: number
+  readonly focusY?: number
 }) {
+  const natural = useNaturalSize(photoUrl)
+  const clip = `glClip${useId().replace(/[^a-zA-Z0-9]/g, '')}`
   return (
     <svg className={styles['glBanner']} viewBox={`0 0 ${GARLAND_WIDTH} 56`} aria-hidden="true">
       <path
@@ -96,14 +138,35 @@ export function GarlandBanner({
                     </text>
                   </>
                 ) : (
-                  <foreignObject
-                    x={r2(x - inner / 2)}
-                    y={r2(y - 1 + pad)}
-                    width={r2(inner)}
-                    height={r2(inner)}
-                  >
-                    <Photo url={photoUrl} className={styles['glPhoto']} />
-                  </foreignObject>
+                  <>
+                    <clipPath id={`${clip}-${r2(u * 100)}`}>
+                      <rect
+                        x={r2(x - inner / 2)}
+                        y={r2(y - 1 + pad)}
+                        width={r2(inner)}
+                        height={r2(inner)}
+                        rx="1"
+                      />
+                    </clipPath>
+                    <rect
+                      className={styles['glPhotoBack']}
+                      x={r2(x - inner / 2)}
+                      y={r2(y - 1 + pad)}
+                      width={r2(inner)}
+                      height={r2(inner)}
+                      rx="1"
+                    />
+                    <PhotoImage
+                      href={photoUrl}
+                      box={coverRect(
+                        natural,
+                        { x: x - inner / 2, y: y - 1 + pad, width: inner, height: inner },
+                        focusX,
+                        focusY,
+                      )}
+                      clip={`url(#${clip}-${r2(u * 100)})`}
+                    />
+                  </>
                 )}
               </>
             ) : (
@@ -128,5 +191,32 @@ export function GarlandBanner({
         )
       })}
     </svg>
+  )
+}
+
+function PhotoImage({
+  href,
+  box,
+  clip,
+}: {
+  readonly href: string
+  readonly box: {
+    readonly x: number
+    readonly y: number
+    readonly width: number
+    readonly height: number
+  }
+  readonly clip: string
+}) {
+  return (
+    <image
+      href={href}
+      x={r2(box.x)}
+      y={r2(box.y)}
+      width={r2(box.width)}
+      height={r2(box.height)}
+      preserveAspectRatio="none"
+      clipPath={clip}
+    />
   )
 }

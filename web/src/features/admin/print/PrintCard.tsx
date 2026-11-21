@@ -60,10 +60,7 @@ export interface PrintCardProps {
   readonly invitation?: PrintCardInvitation | undefined
 }
 
-export interface DesignProps extends Omit<
-  PrintCardProps,
-  'design' | 'qr' | 'focusX' | 'focusY' | 'texts'
-> {
+export interface DesignProps extends Omit<PrintCardProps, 'design' | 'qr' | 'texts'> {
   readonly texts: PrintCardTexts & { readonly tagline: string }
   readonly qr: ReactNode
   readonly monogram: string
@@ -93,6 +90,8 @@ export function PrintCard({ design, qr, focusX, focusY, texts, ...rest }: PrintC
   } as CSSProperties
   const props = {
     ...rest,
+    focusX,
+    focusY,
     texts: { ...texts, tagline: texts.tagline ?? t.printKit.title },
     qr: <div className={styles['qr']}>{qr}</div>,
     monogram: monogramOf(texts.title),
@@ -716,12 +715,21 @@ function Nuit({ texts, photoUrl, monogram, qr, joinCode, address }: DesignProps)
   )
 }
 
-function Guirlande({ texts, photoUrl, monogram, qr, joinCode, address }: DesignProps) {
+function Guirlande({
+  texts,
+  photoUrl,
+  monogram,
+  qr,
+  joinCode,
+  address,
+  focusX,
+  focusY,
+}: DesignProps) {
   const t = useTranslations()
   const meta = metaLine(texts.date, texts.table, t.printKit.table)
   return (
     <div className={cx(styles['face'], styles['glFace'])}>
-      <GarlandBanner photoUrl={photoUrl} monogram={monogram} />
+      <GarlandBanner photoUrl={photoUrl} monogram={monogram} focusX={focusX} focusY={focusY} />
       <div className={cx(styles['col'], styles['glBody'])}>
         <h2 className={styles['glTitle']} data-fit>
           {texts.title}

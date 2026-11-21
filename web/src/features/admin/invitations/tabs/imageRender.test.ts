@@ -35,6 +35,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.useRealTimers()
   document.body.innerHTML = ''
+  document.head.querySelectorAll('style').forEach((style) => style.remove())
   Reflect.deleteProperty(document, 'fonts')
   Reflect.deleteProperty(HTMLImageElement.prototype, 'decode')
 })
@@ -146,6 +147,87 @@ describe('renderCardPng', () => {
     await renderCardPng(root, { width: 1080, height: 1080 })
 
     expect(getFontEmbedCSS).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('inlineSvgPaint', () => {
+  const garland = () => {
+    const style = document.createElement('style')
+    style.textContent =
+      '.sun { fill: rgb(255, 200, 40); stroke: navy; stroke-width: 2 } .text { font-size: 8px; font-weight: 700 }'
+    document.head.append(style)
+    const root = document.createElement('div')
+    root.innerHTML =
+      '<svg><rect class="sun" width="4" height="4"/><text class="text">C</text><g><path class="sun" d="M0 0"/></g></svg><p class="sun">html</p>'
+    document.body.append(root)
+    return { root, style }
+  }
+
+  it('writes the paint a class gives each SVG shape onto the shape', async () => {
+    const { inlineSvgPaint } = await loaded()
+    const { root } = garland()
+
+    inlineSvgPaint(root)
+
+    const rect = root.querySelector('rect') as SVGElement
+    expect(rect.style.getPropertyValue('fill')).toBe('rgb(255, 200, 40)')
+    expect(rect.style.getPropertyValue('stroke-width')).toMatch(/^2/)
+    expect((root.querySelector('path') as SVGElement).style.getPropertyValue('fill')).toBe(
+      'rgb(255, 200, 40)',
+    )
+    expect((root.querySelector('text') as SVGElement).style.getPropertyValue('font-weight')).toBe(
+      '700',
+    )
+  })
+
+  it('leaves what is not an SVG shape alone', async () => {
+    const { inlineSvgPaint } = await loaded()
+    const { root } = garland()
+
+    inlineSvgPaint(root)
+
+    expect((root.querySelector('p') as HTMLElement).getAttribute('style')).toBeNull()
+  })
+
+  it('puts every shape back as it was', async () => {
+    const { inlineSvgPaint } = await loaded()
+    const { root } = garland()
+    const rect = root.querySelector('rect') as SVGElement
+    rect.style.setProperty('opacity', '0.5')
+
+    const restore = inlineSvgPaint(root)
+    expect(rect.style.getPropertyValue('fill')).not.toBe('')
+    restore()
+
+    expect(rect.getAttribute('style')).toBe('opacity: 0.5;')
+    expect((root.querySelector('path') as SVGElement).getAttribute('style')).toBeNull()
+  })
+
+  it('is applied for the capture, and taken off once it is made', async () => {
+    userAgent(CHROME)
+    const { renderCardPng } = await loaded()
+    const { root } = garland()
+    let during = ''
+    toBlob.mockImplementation(async () => {
+      during = (root.querySelector('rect') as SVGElement).style.getPropertyValue('fill')
+      return new Blob(['png'])
+    })
+
+    await renderCardPng(root, { width: 100, height: 100 })
+
+    expect(during).toBe('rgb(255, 200, 40)')
+    expect((root.querySelector('rect') as SVGElement).getAttribute('style')).toBeNull()
+  })
+
+  it('is taken off when the capture fails too', async () => {
+    userAgent(CHROME)
+    const { renderCardPng } = await loaded()
+    const { root } = garland()
+    toBlob.mockRejectedValue(new Error('no canvas'))
+
+    await expect(renderCardPng(root, { width: 100, height: 100 })).rejects.toThrow('no canvas')
+
+    expect((root.querySelector('rect') as SVGElement).getAttribute('style')).toBeNull()
   })
 })
 

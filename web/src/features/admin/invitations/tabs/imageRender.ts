@@ -62,6 +62,76 @@ const fontEmbedCssOf = (node: HTMLElement, faces: string): Promise<string> => {
   return css
 }
 
+/** What an SVG shape is painted with: the properties a style sheet gives it. */
+const SVG_PAINT = [
+  'fill',
+  'fill-opacity',
+  'fill-rule',
+  'stroke',
+  'stroke-width',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-opacity',
+  'stroke-dasharray',
+  'opacity',
+  'filter',
+  'vector-effect',
+  'font-family',
+  'font-size',
+  'font-weight',
+  'font-style',
+  'letter-spacing',
+  'text-anchor',
+  'dominant-baseline',
+] as const
+
+/**
+ * Writes the colours and strokes of every SVG shape in the node **onto the shape**, and returns what
+ * puts it back. `html-to-image` carries the computed style of the HTML it copies but not of an SVG
+ * shape, which keeps only its class: in the picture, which is a document of its own, the class
+ * names nothing, and a garland of coloured prints comes out black. The values written are the
+ * computed ones, so a colour that is a custom property of the card is already a colour.
+ *
+ * Through the style object, not the `style` attribute: the page's CSP allows the first and not
+ * the second.
+ *
+ * The node is the live preview: between this call and `restore`, the capture is asynchronous and the
+ * shapes keep the computed values frozen onto them (a change of colour made in that window shows in
+ * the picture of the next capture, which the host's change starts anyway).
+ */
+export const inlineSvgPaint = (root: HTMLElement): (() => void) => {
+  // Everything is read before anything is written: a write that changes the style the next read
+  // sees (an inherited value) must not leak into it.
+  const found: { readonly shape: SVGElement; readonly paint: [string, string][] }[] = []
+  for (const shape of root.querySelectorAll('svg, svg *')) {
+    if (!(shape instanceof SVGElement)) continue
+    const computed = getComputedStyle(shape)
+    const paint: [string, string][] = []
+    for (const name of SVG_PAINT) {
+      const value = computed.getPropertyValue(name)
+      if (value !== '') paint.push([name, value])
+    }
+    found.push({ shape, paint })
+  }
+
+  const undo: (() => void)[] = []
+  for (const { shape, paint } of found) {
+    const was = new Map<string, string>()
+    for (const [name, value] of paint) {
+      was.set(name, shape.style.getPropertyValue(name))
+      shape.style.setProperty(name, value)
+    }
+    undo.push(() => {
+      for (const [name, before] of was) {
+        if (before === '') shape.style.removeProperty(name)
+        else shape.style.setProperty(name, before)
+      }
+      if (shape.style.length === 0) shape.removeAttribute('style')
+    })
+  }
+  return () => undo.forEach((step) => step())
+}
+
 export const renderCardPng: RenderPng = async (node, size) => {
   const faces = await loadFacesOf(node)
   const { toBlob } = await import('html-to-image')
@@ -75,10 +145,15 @@ export const renderCardPng: RenderPng = async (node, size) => {
     pixelRatio: 1,
     cacheBust: false,
   }
-  if (needsWarmUp()) await toBlob(node, options)
-  const blob = await toBlob(node, options)
-  if (blob === null) throw new Error('the browser produced no image')
-  return blob
+  const restore = inlineSvgPaint(node)
+  try {
+    if (needsWarmUp()) await toBlob(node, options)
+    const blob = await toBlob(node, options)
+    if (blob === null) throw new Error('the browser produced no image')
+    return blob
+  } finally {
+    restore()
+  }
 }
 
 /**

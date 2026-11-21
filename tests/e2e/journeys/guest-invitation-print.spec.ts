@@ -172,7 +172,7 @@ const LONG = {
   address:
     '1204 route des Grands Tilleuls, Le Grand Pré, bâtiment B\n44000 Nantes, Loire-Atlantique, Pays de la Loire',
   message:
-    'Apéro à 19 h 30, dîner à 20 h 30, puis on danse jusqu’au bout de la nuit. Venez comme vous êtes, avec le sourire et une photo de vous petit.',
+    'Apéro à 19 h 30, dîner à 20 h 30, puis on danse jusqu’au bout de la nuit. Venez comme vous êtes, avec le sourire et une photo de vous petit. Pensez à prévenir de votre arrivée.',
 }
 
 /** A6 is 105 mm wide: 7 pt is 2.35 cqw, 6.5 pt is 2.18 cqw. */
@@ -196,6 +196,25 @@ for (const language of ['fr', 'en'] as const) {
       })
       await host.goto(app.url('/admin/events/' + event.slug + '/invitations'))
       const card = host.locator('[data-format] [data-print-card]').first()
+
+      await expect(card).toBeVisible()
+      await host.evaluate(() => document.fonts.ready)
+      // Every thumbnail of the picker draws the Essentiel line at the card's scale, not at the page's.
+      const thumbnails = await host.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>('[data-print-card="essentiel"]')].flatMap(
+          (card) => {
+            const more = card.querySelector('[class*="esMore"]')
+            if (more === null) return []
+            return [
+              (parseFloat(getComputedStyle(more).fontSize) / card.getBoundingClientRect().width) *
+                100,
+            ]
+          },
+        ),
+      )
+      expect(thumbnails.length).toBeGreaterThan(1)
+      for (const ratio of thumbnails) expect(ratio).toBeGreaterThan(2.2)
+      for (const ratio of thumbnails) expect(ratio).toBeLessThan(3.5)
 
       for (const design of [
         { name: 'Essentiel', id: 'essentiel' },
@@ -260,6 +279,28 @@ for (const language of ['fr', 'en'] as const) {
                 text.dataset['clamped'] === undefined
               )
                 out.push('overflowing: ' + text.textContent?.slice(0, 30))
+            }
+            // The line saying the rest is on the page is the size of the link line, on a thumbnail as well.
+            const more = root.querySelector('[class*="esMore"]')
+            if (more !== null) {
+              const ratio = (parseFloat(getComputedStyle(more).fontSize) / width) * 100
+              if (ratio < 2.2 || ratio > 3.5)
+                out.push('the rest-on-the-page line is ' + ratio.toFixed(2) + ' cqw')
+            }
+            // The garland's title starts under the polaroid, not on it.
+            const title = root.querySelector('h2')
+            const prints = [...root.querySelectorAll('rect[class*="glPrint"]')]
+            if (title !== null && prints.length > 0) {
+              const lowest = Math.max(
+                ...prints.map((print) => print.getBoundingClientRect().bottom),
+              )
+              if (title.getBoundingClientRect().top < lowest - 0.5)
+                out.push('the title overlaps the polaroid')
+            }
+            // The hours on a boarding pass are set in the sans face: a space is a space.
+            const code = root.querySelector('[class*="bpCodes"]')
+            if (code !== null && /mono|plex/i.test(getComputedStyle(code).fontFamily)) {
+              out.push('the hours are set in a monospace face')
             }
             return out
           },
