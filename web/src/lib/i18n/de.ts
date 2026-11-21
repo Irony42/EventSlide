@@ -3263,6 +3263,33 @@ export const de: UiText = {
       printHelp:
         'Wählen Sie im Druckdialog einen Maßstab von 100 % und keine Ränder. Die Adresse steht auf der Karte: Geben Sie sie nur den Gästen, die Sie ausgewählt haben.',
     },
+    image: {
+      sameLook: 'Design, Farbe und Foto sind die der Karte (Tab „Drucken“).',
+      formatLegend: 'Format',
+      formatSquare: 'Quadrat',
+      formatStory: 'Story',
+      addressLegend: 'Adresse auf dem Bild',
+      addressLabel: 'Adresse zeigen',
+      addressHint:
+        'Eine Story sehen alle Ihre Follower: ohne Adresse sehen sie nur Personen mit dem Link.',
+      textLabel: 'Text zum Bild',
+      textNote: 'nur dieses Mal',
+      share: 'Teilen',
+      download: 'Bild herunterladen',
+      copy: 'Text kopieren',
+      rendering: 'Bild wird vorbereitet…',
+      copied: 'Text kopiert.',
+      copiedBeforeShare:
+        'Text kopiert: Fügen Sie ihn unter dem Bild ein, falls die App ihn nicht übernommen hat.',
+      copyFailed: 'Der Text konnte nicht kopiert werden: Markieren Sie ihn im Feld.',
+      renderFailed: 'Das Bild konnte auf diesem Gerät nicht erstellt werden.',
+      downloaded: 'Bild heruntergeladen.',
+      shareFailed:
+        'Das Teilen hat nicht geklappt: Laden Sie das Bild herunter und senden Sie es von Ihrem Handy.',
+      previewLabel: 'Bildvorschau',
+      help: 'Auf dem Handy öffnet „Teilen“ WhatsApp, Instagram, Nachrichten … mit Bild und Text. Der Text wird auch kopiert, falls die App ihn vergisst.',
+      fileName: 'einladung',
+    },
     card: {
       eyebrow: 'Einladung',
       more: 'Alle Einzelheiten auf der Einladungsseite.',
@@ -3273,6 +3300,9 @@ export const de: UiText = {
       stubLine: 'Alle Details, und am Abend die Fotowand.',
       startLabel: 'Beginn',
       endLabel: 'Ende',
+      storyTop: 'Sie sind eingeladen',
+      infos: 'Infos und Fotowand',
+      shareIntro: (title: string) => `${title}: Sie sind eingeladen.`,
     },
   },
 

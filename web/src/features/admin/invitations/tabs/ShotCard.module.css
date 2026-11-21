@@ -1,0 +1,91 @@
+/*
+ * The invitation image (spec 29): the card laid on a ground, at the size of the picture a phone
+ * posts. Every length is in pixels of that picture (1080 wide), not interface spacing; the preview
+ * scales the whole by a transform on a parent, so what is shown is what is captured. Colours are
+ * the card's own (`--pd-color`, set inline) and the paper's white, never a new one.
+ */
+.shot {
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  color-scheme: light;
+  color: var(--print-paper);
+  font-family: var(--font-sans);
+}
+
+.ground {
+  position: absolute;
+  inset: 0;
+  background-color: var(--pd-color);
+  background-position: center;
+  background-size: cover;
+}
+
+/* Darkens the photograph behind the captions without hiding it: the card's colour, deepened. */
+.veil {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklch, var(--pd-color) 35%, black 65%);
+  opacity: 0.35;
+}
+
+.content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 56px;
+}
+
+.card {
+  flex: none;
+  box-shadow: 0 24px 60px -20px color-mix(in oklch, var(--pd-color) 40%, black 60%);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.top,
+.bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.top p,
+.bottom p {
+  margin: 0;
+}
+
+.topLine {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.topDay {
+  font-size: 92px;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.topDay::first-letter {
+  text-transform: uppercase;
+}
+
+.bottomLine {
+  font-size: 34px;
+  font-weight: 600;
+}
+
+.bottomLink {
+  font-family: var(--font-mono);
+  font-size: 40px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  max-inline-size: 960px;
+}

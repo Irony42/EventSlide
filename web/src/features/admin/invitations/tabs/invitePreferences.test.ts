@@ -109,4 +109,18 @@ describe('invite preferences', () => {
     window.localStorage.setItem(KEY, JSON.stringify({ focusX: 'x' }))
     expect(readInvitePreferences('fete')).toEqual({})
   })
+
+  it('keeps the shape of the image and whether it shows the address, and nothing else for them', () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ shot: 'story', showAddress: true }))
+    expect(readInvitePreferences('fete')).toEqual({ shot: 'story', showAddress: true })
+
+    window.localStorage.setItem(KEY, JSON.stringify({ shot: 'banner', showAddress: 'yes' }))
+    expect(readInvitePreferences('fete')).toEqual({})
+  })
+
+  it('shows no address on the image until the host says so', () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ shot: 'square' }))
+
+    expect(readInvitePreferences('fete').showAddress).toBeUndefined()
+  })
 })
