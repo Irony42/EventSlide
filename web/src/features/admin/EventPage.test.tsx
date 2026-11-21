@@ -208,6 +208,38 @@ describe('EventPage', () => {
     expect(screen.queryByRole('button', { name: fr.admin.goLive })).toBeNull()
   })
 
+  it('leads the owner of a draft to the invitations, from the "Maintenant" card and from the access card', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft' })) }))
+
+    const now = (await screen.findByRole('heading', { name: fr.admin.nowDraftTitle })).closest(
+      'section',
+    )
+    if (now === null) throw new Error('the "Maintenant" card is not a section')
+    expect(within(now).getByRole('link', { name: fr.guestInvite.host.title })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha/invitations',
+    )
+    expect(screen.getAllByRole('link', { name: fr.guestInvite.host.title })).toHaveLength(2)
+  })
+
+  it('does not lead a moderator to a page that only the owner writes', async () => {
+    renderPage(
+      fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft', role: 'moderator' })) }),
+    )
+
+    await screen.findByRole('heading', { name: fr.admin.nowDraftTitle })
+
+    expect(screen.queryByRole('link', { name: fr.guestInvite.host.title })).toBeNull()
+  })
+
+  it('offers an archived event no invitations link, like no table cards', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'archived' })) }))
+
+    await screen.findByRole('heading', { name: fr.admin.accessTitle })
+
+    expect(screen.queryByRole('link', { name: fr.guestInvite.host.title })).toBeNull()
+  })
+
   it('offers an archived event no table cards and no new code', async () => {
     renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'archived' })) }))
 

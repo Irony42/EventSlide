@@ -83,6 +83,10 @@ const EventSettingsPage = lazy(async () => ({
   default: (await import('../features/admin/EventSettingsPage')).EventSettingsPage,
 }))
 
+const InvitationsPage = lazy(async () => ({
+  default: (await import('../features/admin/invitations/InvitationsPage')).InvitationsPage,
+}))
+
 const PrintKitPage = lazy(async () => ({
   default: (await import('../features/admin/PrintKitPage')).PrintKitPage,
 }))
@@ -516,6 +520,11 @@ export function AppRoutes() {
                 element={titled('customAmbiance', <CustomAmbiancePage />)}
               />
               <Route path="/admin/events/:slug/print" element={titled('print', <PrintKitPage />)} />
+              {/* The invitation the host sends before the party (spec 29). */}
+              <Route
+                path="/admin/events/:slug/invitations"
+                element={titled('guestInviteHost', <InvitationsPage />)}
+              />
               {siteAdmin ? (
                 <Route path="/admin/client" element={titled('clientSpace', <ClientSpacePage />)} />
               ) : null}

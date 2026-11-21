@@ -19,6 +19,7 @@ import { siteApi } from './client/site'
  */
 export type { UploadInput, ClipUploadInput } from './client/guest'
 export type { InvitationAcceptance } from './client/account'
+export type { GuestInviteInput } from './client/invite'
 export type { SiteProvisionInput, SiteInvitationInput, SiteResetInput } from './client/site'
 export type {
   AlbumBookInput,

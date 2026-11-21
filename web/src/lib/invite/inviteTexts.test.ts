@@ -3,7 +3,9 @@ import {
   dayLabel,
   hourLabel,
   icsOf,
+  instantToLocalInput,
   itineraryHref,
+  localInputToInstant,
   sha256Hex,
   whenLabel,
   whenParts,
@@ -265,5 +267,83 @@ describe('icsOf', () => {
     expect(uid).toBe(`UID:${sha256Hex(invite.token).slice(0, 32)}@photos.example.test`)
     expect(uid).not.toContain(invite.token)
     expect(icsOf(invite, URL_OF, new Date('2027-01-01T00:00:00Z'))).toContain(uid ?? '#')
+  })
+})
+
+describe('localInputToInstant', () => {
+  const read = (value: string, zone: string) => localInputToInstant(value, zone)
+
+  it('reads a time in the zone of the party, not the browser’s', () => {
+    expect(read('2027-12-11T19:00', 'Europe/Paris')).toEqual({
+      ok: true,
+      instant: '2027-12-11T18:00:00.000Z',
+    })
+    expect(read('2027-12-11T19:00', 'America/New_York')).toEqual({
+      ok: true,
+      instant: '2027-12-12T00:00:00.000Z',
+    })
+    expect(read('2027-07-11T19:00', 'Europe/Paris')).toEqual({
+      ok: true,
+      instant: '2027-07-11T17:00:00.000Z',
+    })
+    expect(read('2027-12-11T19:00', 'UTC')).toEqual({
+      ok: true,
+      instant: '2027-12-11T19:00:00.000Z',
+    })
+  })
+
+  it('refuses an hour the clocks skip in the spring, so no time is given an hour off', () => {
+    expect(read('2027-03-28T02:30', 'Europe/Paris')).toEqual({ ok: false, reason: 'nonexistent' })
+    expect(read('2027-03-14T02:30', 'America/New_York')).toEqual({
+      ok: false,
+      reason: 'nonexistent',
+    })
+  })
+
+  it('accepts the minute either side of the spring skip', () => {
+    expect(read('2027-03-28T01:59', 'Europe/Paris')).toEqual({
+      ok: true,
+      instant: '2027-03-28T00:59:00.000Z',
+    })
+    expect(read('2027-03-28T03:00', 'Europe/Paris')).toEqual({
+      ok: true,
+      instant: '2027-03-28T01:00:00.000Z',
+    })
+  })
+
+  it('takes the first of an hour that happens twice in the autumn', () => {
+    // 02:30 is read twice on 31 October 2027 in Paris: at +02:00 (00:30Z) and at +01:00 (01:30Z).
+    expect(read('2027-10-31T02:30', 'Europe/Paris')).toEqual({
+      ok: true,
+      instant: '2027-10-31T00:30:00.000Z',
+    })
+  })
+
+  it('refuses what is not a date and a time', () => {
+    for (const value of [
+      '',
+      '2027-12-11',
+      '11/12/2027 19:00',
+      '2027-02-31T10:00',
+      '2027-12-11T25:00',
+    ]) {
+      expect(read(value, 'Europe/Paris'), value).toEqual({ ok: false, reason: 'invalid' })
+    }
+  })
+})
+
+describe('instantToLocalInput', () => {
+  it('writes an instant as the wall clock of the zone, ready for a datetime-local field', () => {
+    expect(instantToLocalInput('2027-12-11T18:00:00.000Z', 'Europe/Paris')).toBe('2027-12-11T19:00')
+    expect(instantToLocalInput('2027-12-11T18:00:00.000Z', 'America/New_York')).toBe(
+      '2027-12-11T13:00',
+    )
+  })
+
+  it('is the inverse of localInputToInstant, outside the two odd hours', () => {
+    for (const value of ['2027-12-11T19:00', '2027-07-01T00:00', '2028-02-29T23:59']) {
+      const instant = localInputToInstant(value, 'Europe/Paris')
+      expect(instant.ok && instantToLocalInput(instant.instant, 'Europe/Paris')).toBe(value)
+    }
   })
 })

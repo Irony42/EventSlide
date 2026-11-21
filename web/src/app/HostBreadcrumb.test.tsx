@@ -78,6 +78,15 @@ const PAGES = [
       [NAME, `/admin/events/${SLUG}`],
     ],
   },
+  {
+    page: 'the invitations page',
+    route: `/admin/events/${SLUG}/invitations`,
+    current: fr.guestInvite.host.crumb,
+    links: [
+      [fr.admin.events, '/admin'],
+      [NAME, `/admin/events/${SLUG}`],
+    ],
+  },
 ] as const
 
 describe('the way back from an event page', () => {

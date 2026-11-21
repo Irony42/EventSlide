@@ -129,6 +129,11 @@ function DraftSteps({
       <li className={styles['step']}>
         <Link to={`${base}/print`}>{t.admin.nowDraftPrint}</Link>
       </li>
+      {owner ? (
+        <li className={styles['step']}>
+          <Link to={`${base}/invitations`}>{t.guestInvite.host.title}</Link>
+        </li>
+      ) : null}
       <li className={styles['step']}>
         <Link
           to={`/e/${event.slug}/display`}

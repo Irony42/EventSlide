@@ -740,6 +740,36 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.guestInvitePage('7QX0M4TZ2KD9WB3H'),
   },
   {
+    name: 'guestInvite',
+    verb: 'get',
+    path: `/api/events/${SLUG}/guest-invite`,
+    invoke: (client) => client.guestInvite(SLUG),
+  },
+  {
+    name: 'saveGuestInvite',
+    verb: 'put',
+    path: `/api/events/${SLUG}/guest-invite`,
+    invoke: (client) => client.saveGuestInvite(SLUG, { title: 'Léa fête ses 40 ans' }),
+  },
+  {
+    name: 'enableGuestInvite',
+    verb: 'post',
+    path: `/api/events/${SLUG}/guest-invite/enable`,
+    invoke: (client) => client.enableGuestInvite(SLUG),
+  },
+  {
+    name: 'disableGuestInvite',
+    verb: 'post',
+    path: `/api/events/${SLUG}/guest-invite/disable`,
+    invoke: (client) => client.disableGuestInvite(SLUG),
+  },
+  {
+    name: 'rotateGuestInviteToken',
+    verb: 'post',
+    path: `/api/events/${SLUG}/guest-invite/rotate`,
+    invoke: (client) => client.rotateGuestInviteToken(SLUG),
+  },
+  {
     name: 'unlockGallery',
     verb: 'post',
     path: `/api/gallery/${GALLERY_TOKEN}/unlock`,
