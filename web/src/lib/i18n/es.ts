@@ -3217,6 +3217,8 @@ export const es: UiText = {
       printA5Help: 'Para A5, imprima desde Chrome, Edge o Firefox: Safari no puede girar la hoja.',
       photoHint:
         'La foto se queda en este navegador: EventSlide no la envía a ninguna parte, y otro dispositivo no la verá.',
+      photoNotKept:
+        'No se pudo guardar la foto en este dispositivo: desaparecerá al salir de la página.',
       printButton: 'Imprimir',
       previewLabel: 'Vista previa de la tarjeta',
       printHelp:

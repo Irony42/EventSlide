@@ -3894,6 +3894,8 @@ export const fr = {
         'Pour l’A5, imprimez depuis Chrome, Edge ou Firefox\u00a0: Safari ne sait pas tourner la feuille.',
       photoHint:
         'La photo reste dans ce navigateur\u00a0: EventSlide ne l’envoie nulle part, et un autre appareil ne la verra pas.',
+      photoNotKept:
+        'La photo n’a pas pu être gardée sur cet appareil\u00a0: elle disparaîtra quand vous quitterez la page.',
       printButton: 'Imprimer',
       previewLabel: 'Aperçu de la carte',
       printHelp:

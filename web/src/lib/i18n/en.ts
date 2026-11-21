@@ -3141,6 +3141,8 @@ export const en: UiText = {
       printA5Help: 'For A5, print from Chrome, Edge or Firefox: Safari cannot turn the sheet.',
       photoHint:
         'The photo stays in this browser: EventSlide sends it nowhere, and another device will not see it.',
+      photoNotKept:
+        'The photo could not be kept on this device: it will be gone when you leave the page.',
       printButton: 'Print',
       previewLabel: 'Card preview',
       printHelp:

@@ -2237,7 +2237,7 @@
 }
 
 .esLink {
-  font-size: 2cqw;
+  font-size: 2.2cqw;
   line-height: 1.3;
   color: var(--pd-ink-soft);
   overflow-wrap: anywhere;
@@ -2259,7 +2259,7 @@
 }
 
 .invLink {
-  font-size: 1.9cqw;
+  font-size: 2.2cqw;
   line-height: 1.3;
   color: var(--pd-ink-soft);
   overflow-wrap: anywhere;
@@ -2314,4 +2314,73 @@
   font-weight: 600;
   line-height: 1.2;
   color: var(--pd-ink);
+}
+
+.invMoreLine {
+  inline-size: 100%;
+  font-size: 2.35cqw;
+  line-height: 1.25;
+  color: var(--pd-ink-soft);
+}
+
+.invLinkCentre {
+  inline-size: 100%;
+  text-align: center;
+}
+
+.bpGridInv {
+  grid-template-columns: 1fr 1.6fr;
+}
+
+/* The invitation's note is wider and taller than the table card's, and never spills past it. */
+.svNoteInv {
+  inset-block-start: 83cqw;
+  inline-size: 37cqw;
+  max-block-size: 47cqw;
+  overflow: hidden;
+}
+
+/* The Guirlande's body starts higher on an invitation, and its words wrap instead of shrinking. */
+.glBodyInv {
+  inset-block-start: 46cqw;
+  gap: 1.2cqw;
+}
+
+.glWhen {
+  inline-size: 100%;
+  max-block-size: 9cqw;
+  font-size: 3.4cqw;
+  line-height: 1.2;
+  color: var(--pd-brand-ink-soft);
+}
+
+.glWhere {
+  inline-size: 100%;
+  max-block-size: 7.6cqw;
+  font-size: 2.9cqw;
+  line-height: 1.25;
+  color: var(--pd-brand-ink-soft);
+}
+
+/* The peg stays above the quiet zone of the code: it hangs from the string, not onto the modules. */
+.glQrPegInv {
+  inset-block-start: -3.8cqw;
+}
+
+/* Room for 140 characters at the legibility floor, so a whole word is not clipped. */
+.invBoxTi {
+  max-block-size: 9.5cqw;
+}
+
+.invBoxRc {
+  max-block-size: 9cqw;
+}
+
+/* Shown only when the fit had to clip the word: the reader is told the rest is on the page. */
+.invMoreClamped {
+  display: none;
+}
+
+[data-clamped] + .invMoreClamped {
+  display: block;
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QRCodeSVG } from 'qrcode.react'
 import { fr } from '../../../../lib/i18n/fr'
@@ -12,7 +12,17 @@ import {
 } from '../../../../testing/renderWithProviders'
 import type { GuestInviteDto } from '../../../../lib/api/dto'
 import { SHORT_MESSAGE_MAX } from '../../../../lib/invite/cardTexts'
+import type * as PrintPhoto from '../../print/printPhoto'
 import { PrintTab } from './PrintTab'
+
+const prepare = vi.hoisted(() => vi.fn<(file: Blob) => Promise<string | null>>())
+vi.mock('../../print/printPhoto', async (original) => ({
+  ...(await original<typeof PrintPhoto>()),
+  preparePrintPhoto: prepare,
+}))
+
+const JPEG = 'data:image/jpeg;base64,AAAA'
+const PHOTO_KEY = 'eventslide.printPhoto.camille-et-sacha'
 
 const text = fr.guestInvite.host
 const URL_OF_INVITE = 'https://photos.example.test/i/7QX0M4TZ2KD9WB3H'
@@ -304,10 +314,8 @@ describe('PrintTab', () => {
 
   it('puts the kept photograph on the card, and takes it off on demand', async () => {
     const user = userEvent.setup()
-    window.localStorage.setItem(
-      KEY,
-      JSON.stringify({ design: 'billet', photo: 'data:image/jpeg;base64,AAAA' }),
-    )
+    window.localStorage.setItem(KEY, JSON.stringify({ design: 'billet' }))
+    window.localStorage.setItem(PHOTO_KEY, JPEG)
     renderTab()
     expect(sheet().querySelector('img[src^="data:image/jpeg"]')).not.toBeNull()
 
@@ -315,6 +323,80 @@ describe('PrintTab', () => {
 
     expect(sheet().querySelector('img[src^="data:image/jpeg"]')).toBeNull()
     expect(JSON.parse(window.localStorage.getItem(KEY) ?? '{}')).toEqual({ design: 'billet' })
+    expect(window.localStorage.getItem(PHOTO_KEY)).toBeNull()
+  })
+
+  it('shares the photograph with the table cards: the kit’s key holds it, the invitation’s does not', async () => {
+    const user = userEvent.setup()
+    prepare.mockResolvedValue(JPEG)
+    renderTab()
+    await user.click(screen.getByRole('radio', { name: 'Billet' }))
+
+    fireEvent.change(screen.getByTestId('print-photo-input'), {
+      target: { files: [new File(['x'], 'photo.jpg', { type: 'image/jpeg' })] },
+    })
+
+    await vi.waitFor(() => expect(window.localStorage.getItem(PHOTO_KEY)).toBe(JPEG))
+    expect(window.localStorage.getItem(KEY)).not.toContain('data:image')
+    expect(screen.queryByText(fr.guestInvite.host.photoNotKept)).not.toBeInTheDocument()
+  })
+
+  it('tells the host when the photograph could not be kept on the device, and still shows it', async () => {
+    const user = userEvent.setup()
+    prepare.mockResolvedValue(JPEG)
+    const real = Storage.prototype.setItem
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (key === PHOTO_KEY) throw new Error('quota')
+      real.call(this, key, value)
+    })
+    renderTab()
+    await user.click(screen.getByRole('radio', { name: 'Billet' }))
+
+    fireEvent.change(screen.getByTestId('print-photo-input'), {
+      target: { files: [new File(['x'], 'photo.jpg', { type: 'image/jpeg' })] },
+    })
+
+    expect(await screen.findByText((c) => c === plain(text.photoNotKept))).toBeInTheDocument()
+    expect(sheet().querySelector('img[src^="data:image/jpeg"]')).not.toBeNull()
+  })
+
+  it('writes the framing of the photograph once the slider rests, not at every step', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      window.localStorage.setItem(PHOTO_KEY, JPEG)
+      window.localStorage.setItem(KEY, JSON.stringify({ design: 'billet' }))
+      renderTab()
+      const slider = screen.getAllByRole('slider')[0] as HTMLInputElement
+      const write = vi.spyOn(Storage.prototype, 'setItem')
+
+      fireEvent.change(slider, { target: { value: '10' } })
+      fireEvent.change(slider, { target: { value: '20' } })
+      fireEvent.change(slider, { target: { value: '30' } })
+
+      expect(write).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(400)
+      expect(write).toHaveBeenCalledTimes(1)
+      expect(JSON.parse(window.localStorage.getItem(KEY) ?? '{}')).toMatchObject({ focusX: 30 })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not lose the framing when the page is left before the slider rests', () => {
+    window.localStorage.setItem(PHOTO_KEY, JPEG)
+    window.localStorage.setItem(KEY, JSON.stringify({ design: 'billet' }))
+    const { unmount } = renderTab()
+    fireEvent.change(screen.getAllByRole('slider')[0] as HTMLInputElement, {
+      target: { value: '42' },
+    })
+
+    unmount()
+
+    expect(JSON.parse(window.localStorage.getItem(KEY) ?? '{}')).toMatchObject({ focusX: 42 })
   })
 
   it('tells a design that is heavy on ink', async () => {

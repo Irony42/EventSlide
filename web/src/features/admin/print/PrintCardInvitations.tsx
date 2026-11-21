@@ -22,6 +22,14 @@ import styles from './PrintCard.module.css'
  * the language of the invitation, through the sheet's locale override.
  */
 
+/**
+ * The smallest a printed text is allowed to be, in `cqw` of the card: 7 pt on an A6 card (2.35),
+ * and a little more for an address set at 0.85 of its line. `useFitText` stops shrinking there and
+ * clips the text with an ellipsis instead, so a long word is cut and never printed unreadable.
+ */
+const FLOOR_WORD = '2.35'
+const FLOOR_WHERE = '2.8'
+
 function useInvitation(props: DesignProps) {
   const { invitation } = props
   if (invitation === undefined) throw new Error('an invitation disposition needs its invitation')
@@ -61,7 +69,7 @@ export function EssentielInvitation(props: DesignProps) {
         <p className={styles['esHours']}>{invitation.hours}</p>
       </div>
       {invitation.venue === null && invitation.address === null ? null : (
-        <p className={styles['esWhere']} data-fit>
+        <p className={styles['esWhere']} data-fit data-fit-floor={FLOOR_WHERE}>
           {invitation.venue}
           {invitation.address === null ? null : (
             <span className={styles['esWhereAddress']}>{invitation.address}</span>
@@ -69,13 +77,11 @@ export function EssentielInvitation(props: DesignProps) {
         </p>
       )}
       {invitation.message === null ? null : (
-        <p className={styles['esMsg']} data-fit>
+        <p className={styles['esMsg']} data-fit data-fit-floor={FLOOR_WORD}>
           {invitation.message}
-          {invitation.more === null ? null : (
-            <span className={styles['esMore']}>{invitation.more}</span>
-          )}
         </p>
       )}
+      {invitation.more === null ? null : <p className={styles['esMore']}>{invitation.more}</p>}
       {qr}
       <p className={styles['esLink']}>{invitation.link}</p>
     </div>
@@ -90,14 +96,22 @@ function Word({
   readonly className: string | undefined
   readonly invitation: PrintCardInvitation
 }) {
+  const moreWhenClamped = useTranslations().guestInvite.card.more
   if (invitation.message === null) return null
   return (
-    <p className={className} data-fit>
-      {invitation.message}
-      {invitation.more === null ? null : (
-        <span className={styles['invMore']}>{invitation.more}</span>
+    <>
+      <p className={className} data-fit data-fit-floor={FLOOR_WORD}>
+        {invitation.message}
+      </p>
+      {invitation.more === null ? (
+        // The word was whole, but the box clipped it at the legibility floor: the line appears then.
+        <p className={cx(styles['invMoreLine'], styles['invMoreClamped'])} data-more-when-clamped>
+          {moreWhenClamped}
+        </p>
+      ) : (
+        <p className={styles['invMoreLine']}>{invitation.more}</p>
       )}
-    </p>
+    </>
   )
 }
 
@@ -144,11 +158,9 @@ export function TicketInvitation(props: DesignProps) {
             <p className={cx(styles['rcLine'], styles['invAddrLine'])}>{invitation.address}</p>
           )}
           <div className={styles['rcSep']} />
-          <Word className={styles['rcTag']} invitation={invitation} />
+          <Word className={cx(styles['rcTag'], styles['invBoxRc'])} invitation={invitation} />
           {qr}
-          <p className={styles['rcLine']} data-fit>
-            {invitation.link}
-          </p>
+          <p className={cx(styles['invLink'], styles['invLinkCentre'])}>{invitation.link}</p>
         </div>
       </div>
     </div>
@@ -179,7 +191,11 @@ export function SouvenirInvitation(props: DesignProps) {
         {qr}
         <span className={styles['hand']}>{t.printKit.scan}</span>
       </div>
-      <div className={cx(styles['svNote'], styles['svNoteInv'])} data-fit>
+      <div
+        className={cx(styles['svNote'], styles['svNoteInv'])}
+        data-fit
+        data-fit-floor={FLOOR_WORD}
+      >
         <p className={styles['invP']}>{invitation.hours}</p>
         {invitation.venue === null && invitation.address === null ? null : (
           <p className={styles['invP']}>
@@ -194,8 +210,8 @@ export function SouvenirInvitation(props: DesignProps) {
             )}
           </p>
         )}
-        <p className={cx(styles['invP'], styles['invLinkLine'])}>{invitation.link}</p>
       </div>
+      <p className={cx(styles['fallback'], styles['invLink'])}>{invitation.link}</p>
     </div>
   )
 }
@@ -222,7 +238,7 @@ export function BilletInvitation(props: DesignProps) {
           <h2 className={styles['tiTitle']} data-fit>
             {texts.title}
           </h2>
-          <Word className={styles['tiTag']} invitation={invitation} />
+          <Word className={cx(styles['tiTag'], styles['invBoxTi'])} invitation={invitation} />
           <div className={styles['tiInfo']}>
             <div>
               {t.printKit.dateLabel}
@@ -275,14 +291,17 @@ export function EmbarquementInvitation(props: DesignProps) {
               <Photo url={photoUrl} className={styles['bpView']} />
             </div>
             <div className={styles['bpRoute']}>
-              <div className={styles['bpCodes']}>
+              <div className={styles['bpCodes']} data-fit>
                 <span>{from}</span>
                 {to === null ? null : <span aria-hidden="true">✈</span>}
-                {to === null ? null : <span>{to}</span>}
               </div>
               <div className={styles['bpCities']}>
                 <span>{card.startLabel}</span>
-                {to === null ? null : <span>{card.endLabel}</span>}
+                {to === null ? null : (
+                  <span>
+                    {card.endLabel} {to}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -292,7 +311,7 @@ export function EmbarquementInvitation(props: DesignProps) {
               {texts.title}
             </h2>
           </div>
-          <div className={styles['bpGrid']}>
+          <div className={cx(styles['bpGrid'], styles['bpGridInv'])}>
             <div>
               <p className={styles['bpLabel']}>{t.printKit.dateLabel}</p>
               <b>{invitation.dayShort}</b>
@@ -325,15 +344,15 @@ export function GuirlandeInvitation(props: DesignProps) {
   return (
     <div className={cx(styles['face'], styles['glFace'])}>
       <GarlandBanner photoUrl={photoUrl} monogram={monogram} />
-      <div className={cx(styles['col'], styles['glBody'])}>
+      <div className={cx(styles['col'], styles['glBody'], styles['glBodyInv'])}>
         <h2 className={styles['glTitle']} data-fit>
           {texts.title}
         </h2>
-        <p className={styles['glTag']} data-fit>
+        <p className={styles['glWhen']} data-fit data-fit-floor={FLOOR_WORD}>
           {invitation.day} · {invitation.hours}
         </p>
         {invitation.venue === null && invitation.address === null ? null : (
-          <p className={styles['glMeta']} data-fit>
+          <p className={styles['glWhere']} data-fit data-fit-floor={FLOOR_WORD}>
             {[invitation.venue, invitation.address?.replace(/\s*\n\s*/g, ', ') ?? null]
               .filter((part) => part !== null)
               .join(' · ')}
@@ -350,7 +369,7 @@ export function GuirlandeInvitation(props: DesignProps) {
             />
           </svg>
           <div className={styles['glQr']}>
-            <div className={styles['glQrPeg']} />
+            <div className={cx(styles['glQrPeg'], styles['glQrPegInv'])} />
             {qr}
           </div>
         </div>

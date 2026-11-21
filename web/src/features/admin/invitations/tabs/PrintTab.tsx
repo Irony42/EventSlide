@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../../../design-system/components/Button'
 import { cx } from '../../../../design-system/classNames'
 import { Field } from '../../../../design-system/components/Field'
@@ -24,6 +24,7 @@ import {
 } from '../../../../lib/print/printDesigns'
 import { Notice } from '../../../../design-system/components/Notice'
 import { DesignPicker, PhotoControls } from '../../print/PrintCardControls'
+import { readPrintPhoto, writePrintPhoto } from '../../print/printPhoto'
 import { PrintSheet } from '../../print/PrintSheet'
 import { hueOfHex, isHexColour, isQrTooSmall } from '../../print/printKit'
 import { usePrintPageRule } from '../../print/usePrintPageRule'
@@ -56,16 +57,49 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
   const [totalModules, setTotalModules] = useState<number | null>(null)
   usePrintPageRule()
 
+  const [photoUrl, setPhotoUrl] = useState<string | null>(() => readPrintPhoto(slug))
+  const [photoKept, setPhotoKept] = useState(true)
+
+  // A slider moves a hundred times a second: the screen follows at once, the storage once it rests.
+  const pending = useRef<InvitePreferences | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+  const flush = () => {
+    window.clearTimeout(timer.current)
+    if (pending.current === null) return
+    writeInvitePreferences(slug, pending.current)
+    pending.current = null
+  }
+  // Leaving the page writes what the slider last said.
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current)
+      if (pending.current !== null) writeInvitePreferences(slug, pending.current)
+    },
+    [slug],
+  )
+
   const update = (next: InvitePreferences) => {
     setPreferences(next)
-    writeInvitePreferences(slug, next)
+    pending.current = next
+    flush()
+  }
+
+  const updateFocus = (next: InvitePreferences) => {
+    setPreferences(next)
+    pending.current = next
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(flush, 300)
+  }
+
+  const choosePhoto = (url: string | null) => {
+    setPhotoUrl(url)
+    setPhotoKept(writePrintPhoto(slug, url))
   }
 
   const lang = parseLocale(invite.language) ?? 'fr'
   const card = translationsFor(lang).guestInvite.card
   const format = preferences.format ?? DEFAULT_INVITE_FORMAT
   const design = preferences.design ?? DEFAULT_INVITE_DESIGN
-  const photoUrl = preferences.photo ?? null
   const focusX = preferences.focusX ?? 50
   const focusY = preferences.focusY ?? 50
   const eventHue = event.settings.theme.accentHue
@@ -212,14 +246,12 @@ export function PrintTab({ event, invite }: InvitationTabProps) {
         {invitationUsesPhoto(design) ? (
           <PhotoControls
             photoUrl={photoUrl}
-            onPhoto={(url) => {
-              const { photo: _dropped, ...rest } = preferences
-              update(url === null ? rest : { ...rest, photo: url })
-            }}
+            onPhoto={choosePhoto}
             focusX={focusX}
             focusY={focusY}
-            onFocus={(axis, value) => update({ ...preferences, [axis]: value })}
+            onFocus={(axis, value) => updateFocus({ ...preferences, [axis]: value })}
             hint={text.photoHint}
+            notKept={photoKept ? undefined : text.photoNotKept}
           />
         ) : null}
 

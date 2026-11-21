@@ -163,6 +163,114 @@ test('every design of the first lot reads back the invitation link, prints its a
   }
 })
 
+const LONG = {
+  title: 'Mariage de Camille et Sacha au Domaine',
+  startsAt: '2027-12-11T18:30:00Z',
+  endsAt: '2027-12-13T01:30:00Z',
+  timeZone: 'Europe/Paris',
+  venueName: 'Domaine des Grands Tilleuls et de la Vallée',
+  address:
+    '1204 route des Grands Tilleuls, Le Grand Pré, bâtiment B\n44000 Nantes, Loire-Atlantique, Pays de la Loire',
+  message:
+    'Apéro à 19 h 30, dîner à 20 h 30, puis on danse jusqu’au bout de la nuit. Venez comme vous êtes, avec le sourire et une photo de vous petit.',
+}
+
+/** A6 is 105 mm wide: 7 pt is 2.35 cqw, 6.5 pt is 2.18 cqw. */
+const FLOOR_WORD_CQW = 2.35
+const FLOOR_LINK_CQW = 2.18
+
+for (const language of ['fr', 'en'] as const) {
+  test(
+    'the longest case (' + language + ') stays legible and inside the card on every design',
+    async ({ app, surfaces }) => {
+      const { host } = surfaces
+      const event = await app.seedEvent({ slug: 'carte-longue', name: LONG.title })
+      const headers = await csrfHeaders(host.request, app)
+      await host.request.put(app.url('/api/events/' + event.slug + '/guest-invite'), {
+        headers,
+        data: { ...LONG, language },
+      })
+      await host.request.post(app.url('/api/events/' + event.slug + '/guest-invite/enable'), {
+        headers,
+        data: {},
+      })
+      await host.goto(app.url('/admin/events/' + event.slug + '/invitations'))
+      const card = host.locator('[data-format] [data-print-card]').first()
+
+      for (const design of [
+        { name: 'Essentiel', id: 'essentiel' },
+        { name: 'Ticket de caisse', id: 'ticket' },
+        { name: 'Souvenir', id: 'souvenir' },
+        { name: 'Billet', id: 'billet' },
+        { name: 'Carte d’embarquement', id: 'embarquement' },
+        { name: 'Guirlande', id: 'guirlande' },
+      ]) {
+        await host.getByRole('radio', { name: design.name }).check({ force: true })
+        await expect(card).toHaveAttribute('data-print-card', design.id)
+        await host.evaluate(() => document.fonts.ready)
+
+        const report = await card.evaluate(
+          (root, floors) => {
+            const width = root.getBoundingClientRect().width
+            const card = root.getBoundingClientRect()
+            const clipped = (element: Element): boolean => {
+              const box = element.getBoundingClientRect()
+              if (box.bottom > card.bottom + 0.5 || box.right > card.right + 0.5) return true
+              for (
+                let up = element.parentElement;
+                up !== null && up !== root;
+                up = up.parentElement
+              ) {
+                if (getComputedStyle(up).overflow === 'visible') continue
+                const outer = up.getBoundingClientRect()
+                if (box.bottom > outer.bottom + 1 || box.right > outer.right + 1) return true
+              }
+              return false
+            }
+            const out: string[] = []
+            for (const element of root.querySelectorAll<HTMLElement>('p[data-fit]')) {
+              const floor = floors.word // every shrinkable paragraph: none goes under 7 pt on A6, whatever its own attribute says
+              const size = parseFloat(getComputedStyle(element).fontSize)
+              if (size < (floor * width) / 100 - 0.05)
+                out.push(
+                  'font ' +
+                    ((size / width) * 100).toFixed(2) +
+                    'cqw < ' +
+                    floor +
+                    ' : ' +
+                    element.textContent?.slice(0, 30),
+                )
+            }
+            for (const link of root.querySelectorAll<HTMLElement>(
+              '[class*="invLink"], [class*="esLink"]',
+            )) {
+              const size = parseFloat(getComputedStyle(link).fontSize)
+              if (size < (floors.link * width) / 100 - 0.05)
+                out.push('link font ' + ((size / width) * 100).toFixed(2) + 'cqw')
+              if (clipped(link)) out.push('link clipped')
+            }
+            for (const qr of root.querySelectorAll('svg[role="img"]'))
+              if (clipped(qr)) out.push('QR clipped')
+            for (const text of root.querySelectorAll<HTMLElement>('[data-fit]')) {
+              if (clipped(text)) out.push('clipped: ' + text.textContent?.slice(0, 30))
+              // Content that spills out of its box and is not marked as clipped by the fit is lost.
+              if (
+                (text.tagName === 'P' || /svNote/.test(text.className)) &&
+                text.scrollHeight > text.clientHeight + 2 &&
+                text.dataset['clamped'] === undefined
+              )
+                out.push('overflowing: ' + text.textContent?.slice(0, 30))
+            }
+            return out
+          },
+          { link: FLOOR_LINK_CQW, word: FLOOR_WORD_CQW },
+        )
+        expect(report, design.id + ' ' + language).toEqual([])
+      }
+    },
+  )
+}
+
 test('on another tab, or while locked, Ctrl+P prints the page as it is, not a headless remainder', async ({
   app,
   surfaces,

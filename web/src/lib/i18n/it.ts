@@ -3192,6 +3192,8 @@ export const it: UiText = {
       printA5Help: 'Per l’A5, stampa da Chrome, Edge o Firefox: Safari non sa ruotare il foglio.',
       photoHint:
         'La foto resta in questo browser: EventSlide non la invia da nessuna parte e un altro dispositivo non la vedrà.',
+      photoNotKept:
+        'La foto non è stata salvata su questo dispositivo: sparirà quando lasci la pagina.',
       printButton: 'Stampa',
       previewLabel: 'Anteprima della cartolina',
       printHelp:

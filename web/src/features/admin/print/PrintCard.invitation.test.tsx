@@ -87,10 +87,16 @@ describe('PrintCard, as an invitation', () => {
     },
   )
 
-  it('shows no line about the rest being on the page when the word is whole', () => {
+  it('shows no line about the rest being on the page when the word is whole, but keeps one in reserve for a clipped word', () => {
     for (const design of INVITATION_DESIGNS) {
       const { container, unmount } = card(design, { ...INVITATION, more: null })
-      expect(container).not.toHaveTextContent('La suite est')
+      // Whatever is shown on the card: the line held back for a clipped word is hidden by the
+      // stylesheet until the fit clips the word, and is the only place that line is.
+      const lines = [...container.querySelectorAll('p')].filter((p) =>
+        /détails sur la page/i.test(p.textContent ?? ''),
+      )
+      expect(lines.length, design).toBeLessThanOrEqual(1)
+      for (const line of lines) expect(line, design).toHaveAttribute('data-more-when-clamped')
       unmount()
     }
   })

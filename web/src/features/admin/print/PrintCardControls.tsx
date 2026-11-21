@@ -220,7 +220,10 @@ export function PhotoControls({
   focusY,
   onFocus,
   hint,
+  notKept,
 }: Pick<PrintCardControlsProps, 'photoUrl' | 'onPhoto' | 'focusX' | 'focusY' | 'onFocus'> & {
+  /** Set when the photograph could not be kept on the device: the sentence that says so. */
+  readonly notKept?: string | undefined
   /** Replaces the table card's sentence about where the photo stays. */
   readonly hint?: string
 }) {
@@ -258,6 +261,11 @@ export function PhotoControls({
           <Button onClick={() => onPhoto(null)}>{t.admin.printKitPhotoRemove}</Button>
         )}
       </div>
+      {notKept === undefined ? null : (
+        <Notice tone="warning" role="status" variant="boxed">
+          {notKept}
+        </Notice>
+      )}
       {failed ? (
         <Notice tone="warning" role="alert" variant="boxed">
           {t.admin.printKitPhotoFailed}

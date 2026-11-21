@@ -3256,6 +3256,8 @@ export const de: UiText = {
         'Für A5 drucken Sie aus Chrome, Edge oder Firefox: Safari kann das Blatt nicht drehen.',
       photoHint:
         'Das Foto bleibt in diesem Browser: EventSlide schickt es nirgendwohin, und ein anderes Gerät sieht es nicht.',
+      photoNotKept:
+        'Das Foto konnte nicht auf diesem Gerät gespeichert werden: Es ist weg, sobald Sie die Seite verlassen.',
       printButton: 'Drucken',
       previewLabel: 'Vorschau der Karte',
       printHelp:

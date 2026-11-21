@@ -97,36 +97,16 @@ describe('invite preferences', () => {
     }
   })
 
-  it('keeps a photograph only when it is the JPEG the print kit writes, and a focus only in percent', () => {
-    const photo = 'data:image/jpeg;base64,AAAA'
-    window.localStorage.setItem(KEY, JSON.stringify({ photo, focusX: 20, focusY: 100 }))
-    expect(readInvitePreferences('fete')).toEqual({ photo, focusX: 20, focusY: 100 })
-
+  it('keeps a focus only in percent, and knows nothing of a photograph: that one is the kit’s', () => {
     window.localStorage.setItem(
       KEY,
-      JSON.stringify({ photo: 'https://example.test/a.jpg', focusX: 101, focusY: -1 }),
+      JSON.stringify({ focusX: 20, focusY: 100, photo: 'data:image/jpeg;base64,AAAA' }),
     )
+    expect(readInvitePreferences('fete')).toEqual({ focusX: 20, focusY: 100 })
+
+    window.localStorage.setItem(KEY, JSON.stringify({ focusX: 101, focusY: -1 }))
     expect(readInvitePreferences('fete')).toEqual({})
-    window.localStorage.setItem(
-      KEY,
-      JSON.stringify({ photo: 'data:text/html;base64,AAAA', focusX: 'x' }),
-    )
+    window.localStorage.setItem(KEY, JSON.stringify({ focusX: 'x' }))
     expect(readInvitePreferences('fete')).toEqual({})
-  })
-
-  it('keeps the other choices when the photograph does not fit in the storage', () => {
-    const real = Storage.prototype.setItem
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
-      this: Storage,
-      key: string,
-      value: string,
-    ) {
-      if (value.includes('data:image')) throw new Error('quota')
-      real.call(this, key, value)
-    })
-
-    writeInvitePreferences('fete', { format: 'a5', photo: 'data:image/jpeg;base64,AAAA' })
-
-    expect(readInvitePreferences('fete')).toEqual({ format: 'a5' })
   })
 })
