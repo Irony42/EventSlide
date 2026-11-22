@@ -260,10 +260,6 @@
   color: var(--accent-contrast);
 }
 
-.tab:focus-visible {
-  box-shadow: var(--focus-ring);
-}
-
 /* ---- The preview's pane */
 
 .previewPane {
@@ -302,10 +298,6 @@
   font: inherit;
   font-size: var(--text-sm);
   cursor: pointer;
-}
-
-.enlarge:focus-visible {
-  box-shadow: var(--focus-ring);
 }
 
 .options {
