@@ -3,6 +3,7 @@ import { composeBook } from '../../../domain/book/bookPlan'
 import { asEventId } from '../../../domain/shared/ids'
 import {
   AT,
+  aClient,
   aGuest,
   aGuestbookEntry,
   aMission,
@@ -13,6 +14,7 @@ import {
   atPlus,
   type PhotoInput,
 } from '../../testing/builders'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
@@ -44,6 +46,7 @@ const INPUT: PreviewAlbumBookInput = {
 
 interface World {
   events: FakeEventRepository
+  clients: FakeClientRepository
   guests: FakeGuestRepository
   photos: FakePhotoRepository
   reactions: FakeReactionRepository
@@ -56,8 +59,10 @@ let world: World
 
 const makeWorld = (maxPhotos = 300): World => {
   const photos = new FakePhotoRepository()
+  const clients = new FakeClientRepository()
   const state = {
-    events: new FakeEventRepository(),
+    clients,
+    events: new FakeEventRepository({ clients }),
     guests: new FakeGuestRepository(),
     photos,
     reactions: new FakeReactionRepository(),
@@ -69,7 +74,7 @@ const makeWorld = (maxPhotos = 300): World => {
     preview: makePreviewAlbumBook({
       ...state,
       clock: new FakeClock(atPlus(24 * 3_600_000)),
-      policy: { maxPhotos, maxMessages: 60 },
+      policy: { enabled: true, maxPhotos, maxMessages: 60 },
     }),
   }
 }
@@ -106,6 +111,39 @@ describe('previewAlbumBook', () => {
       world.events.seed(anEvent({ id: 'event-1', clientSuspendedAt: AT }))
       const result = await world.preview(INPUT)
       expect(result.ok).toBe(false)
+    })
+
+    it('refuses what the request would refuse: a box with books off, a client whose plan has none', async () => {
+      seed({ id: 'p1' })
+      const off = makePreviewAlbumBook({
+        events: world.events,
+        clients: world.clients,
+        photos: world.photos,
+        reactions: world.reactions,
+        guests: world.guests,
+        guestbook: world.guestbook,
+        missions: world.missions,
+        clock: new FakeClock(atPlus(24 * 3_600_000)),
+        policy: { enabled: false, maxPhotos: 300, maxMessages: 60 },
+      })
+      expect(await off(INPUT)).toMatchObject({ ok: false, error: { code: 'book.unavailable' } })
+
+      world = makeWorld()
+      world.clients.seed(aClient({ id: 'client-1', ceilings: { booksAllowed: false } }))
+      world.events.seed(anEvent({ id: 'event-1', clientId: 'client-1' }))
+      seed({ id: 'p1' })
+      expect(await world.preview(INPUT)).toMatchObject({
+        ok: false,
+        error: { code: 'book.notAllowed' },
+      })
+    })
+
+    it('answers a client whose plan has books like any other', async () => {
+      world = makeWorld()
+      world.clients.seed(aClient({ id: 'client-1' }))
+      world.events.seed(anEvent({ id: 'event-1', clientId: 'client-1' }))
+      seed({ id: 'p1' })
+      expect((await world.preview(INPUT)).ok).toBe(true)
     })
 
     it('refuses an album with nothing published, as the build does', async () => {
@@ -353,8 +391,9 @@ describe('previewAlbumBook', () => {
         guests: world.guests,
         guestbook: world.guestbook,
         missions: world.missions,
+        clients: world.clients,
         clock: new FakeClock(atPlus(24 * 3_600_000)),
-        policy: { maxPhotos: 300, maxMessages: 1 },
+        policy: { enabled: true, maxPhotos: 300, maxMessages: 1 },
       })
       seedMany(3)
       world.guestbook.seed(written('m1', 5), written('m2', 6))

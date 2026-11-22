@@ -110,13 +110,14 @@ const world = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World => {
         },
         previewAlbumBook: makePreviewAlbumBook({
           events: deps.events,
+          clients: base.clients,
           photos,
           reactions: new FakeReactionRepository(),
           guests: base.guests,
           guestbook: new FakeGuestbookRepository(),
           missions: new FakeMissionRepository(photos),
           clock: deps.clock,
-          policy: { maxPhotos: 300, maxMessages: 60 },
+          policy: { enabled: state.enabled, maxPhotos: 300, maxMessages: 60 },
         }),
         downloadAlbumBook: makeDownloadAlbumBook({
           events: deps.events,

@@ -110,6 +110,10 @@ export const bookRoutes = ({ deps, usecases }: RouteDeps): Router => {
         timeZone: query.timeZone,
       })
       res.setHeader('Cache-Control', 'no-store')
+      if (!result.ok && result.error.code === 'book.unavailable') {
+        res.status(503).json(errorBody(result.error))
+        return
+      }
       sendResult(res, result, (response, preview) =>
         sendJson<BookPreviewDto>(response, toBookPreviewDto(slug, preview)),
       )

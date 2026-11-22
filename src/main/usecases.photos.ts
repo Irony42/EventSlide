@@ -159,6 +159,7 @@ export const photosUseCases = (
   }),
   previewAlbumBook: makePreviewAlbumBook({
     events: adapters.events,
+    clients: adapters.clients,
     photos: adapters.photos,
     reactions: adapters.reactions,
     guests: adapters.guests,

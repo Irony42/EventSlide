@@ -28,6 +28,7 @@ import { totalReactions } from '../../../domain/reactions/reactionTally'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId, MissionId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
+import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
@@ -35,6 +36,7 @@ import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
 import type { PhotoPage, PhotoRepository } from '../../ports/photoRepository'
 import type { ReactionRepository } from '../../ports/reactionRepository'
+import { clientContextOf } from '../clients/clientContextOf'
 import { requireReadable } from '../shared/eventRole'
 
 /**
@@ -164,6 +166,7 @@ export type PreviewAlbumBook = (
 
 export interface PreviewAlbumBookDeps {
   readonly events: EventRepository
+  readonly clients: ClientRepository
   readonly photos: Pick<PhotoRepository, 'list'>
   readonly reactions: Pick<ReactionRepository, 'countsForEvent'>
   readonly guests: Pick<GuestRepository, 'findNamesByIds'>
@@ -171,7 +174,11 @@ export interface PreviewAlbumBookDeps {
   readonly missions: Pick<MissionRepository, 'findByIds'>
   readonly clock: Clock
   /** `BOOK_MAX_PHOTOS` and `BOOK_MAX_MESSAGES`: the ceilings of the real book. */
-  readonly policy: { readonly maxPhotos: number; readonly maxMessages: number }
+  readonly policy: {
+    readonly enabled: boolean
+    readonly maxPhotos: number
+    readonly maxMessages: number
+  }
 }
 
 const textOrNull = (text: string | null, maxLength: number): string | null => {
@@ -183,6 +190,7 @@ const textOrNull = (text: string | null, maxLength: number): string | null => {
 export const makePreviewAlbumBook =
   ({
     events,
+    clients,
     photos,
     reactions,
     guests,
@@ -196,6 +204,13 @@ export const makePreviewAlbumBook =
     if (event === null) return err(DomainError.notFound('event.notFound'))
     const readable = requireReadable(event)
     if (!readable.ok) return readable
+    // The gates of the request itself: a preview of a book that cannot be asked for would only
+    // lead the host to a refusal on "Create", and show the words of the album meanwhile.
+    if (!policy.enabled) return err(DomainError.unexpected('book.unavailable'))
+    const context = await clientContextOf(clients, event)
+    if (context !== null && !context.ceilings.booksAllowed) {
+      return err(DomainError.forbidden('book.notAllowed'))
+    }
     const { eventId } = input
     const language = input.language ?? event.settings.wallLanguage
     const timeZone = normalizeTimeZone(input.timeZone)
