@@ -12,6 +12,7 @@ import { fr } from '../../../../lib/i18n/fr'
 import type { GuestInviteDto } from '../../../../lib/api/dto'
 import type { RenderPng } from './imageRender'
 import { EmailTab } from './EmailTab'
+import { OutputHarness } from './outputHarness'
 
 const text = fr.guestInvite.email
 const URL_OF_INVITE = 'https://photos.example.test/i/7QX0M4TZ2KD9WB3H'
@@ -49,7 +50,8 @@ const renderTab = (
 ) => {
   const invite = aGuestInviteHost({ enabled: true, ...overrides })
   return renderWithProviders(
-    <EmailTab
+    <OutputHarness
+      Output={EmailTab}
       event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
       invite={{ ...invite, url: invite.url ?? URL_OF_INVITE, startsAt: invite.startsAt ?? '' }}
       renderPng={render}
@@ -239,7 +241,8 @@ describe('EmailTab', () => {
   ) => {
     const invite = aGuestInviteHost({ enabled: true, ...overrides })
     rerender(
-      <EmailTab
+      <OutputHarness
+        Output={EmailTab}
         event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
         invite={{ ...invite, url: invite.url ?? URL_OF_INVITE, startsAt: invite.startsAt ?? '' }}
         renderPng={ready()}

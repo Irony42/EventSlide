@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { expect, signInAsHost, test } from '../fixtures/app'
 import { SUITE_LOCALE } from '../fixtures/suiteLocale'
 import { fr } from '../../../web/src/lib/i18n/fr'
@@ -14,6 +15,20 @@ import { fr } from '../../../web/src/lib/i18n/fr'
 
 const text = fr.guestInvite.host
 
+/** What the server holds, read the way a reload would: the text is saved as it is typed. */
+const storedInvite = async (
+  page: Page,
+  url: string,
+): Promise<{
+  startsAt: string | null
+  timeZone: string | null
+  enabled: boolean
+  message: string | null
+}> => {
+  const answer = await page.request.get(url)
+  return ((await answer.json()) as { guestInvite: never }).guestInvite
+}
+
 test('the host writes the invitation, switches it on, and a guest opens it at the hour that was typed', async ({
   app,
   surfaces,
@@ -29,7 +44,8 @@ test('the host writes the invitation, switches it on, and a guest opens it at th
   await expect(host).toHaveURL(new RegExp(`/admin/events/${event.slug}/invitations$`))
 
   // --- Nothing saved yet: no switch-on, and the formats say why.
-  await expect(host.getByRole('button', { name: text.activate })).toBeDisabled()
+  const bar = host.getByRole('region', { name: text.statusBarLabel })
+  await expect(bar.getByRole('button', { name: text.activate })).toBeDisabled()
   await expect(host.getByText(text.locked)).toBeVisible()
 
   // --- The faire-part. The zone is the party's: Paris, whatever the laptop's.
@@ -41,23 +57,25 @@ test('the host writes the invitation, switches it on, and a guest opens it at th
   await form.getByLabel(/^Lieu/).fill('La Guinguette du Port')
   await form.getByLabel(/^Adresse/).fill('12 quai de la Loire\n44000 Nantes')
   await form.getByLabel(/^Votre mot/).fill('Apéro à 19 h, venez comme vous êtes.')
-  await form.getByRole('button', { name: text.save }).click()
-  await expect(host.getByRole('status').filter({ hasText: text.saved })).toBeVisible()
+  // No Save button: the text is saved as it is typed, and the last field typed is the last saved.
+  await expect(form.getByRole('button', { name: /^Enregistrer$/ })).toHaveCount(0)
+  await expect(host.getByRole('status').filter({ hasText: text.savedAuto })).toBeVisible()
 
   // --- The hour the host typed in the zone of the party is what the server holds.
-  const stored = await host.request.get(app.url(`/api/events/${event.slug}/guest-invite`))
-  const body = (await stored.json()) as {
-    guestInvite: { startsAt: string; timeZone: string; enabled: boolean }
-  }
-  expect(body.guestInvite.startsAt).toBe('2027-12-11T18:00:00.000Z')
-  expect(body.guestInvite.timeZone).toBe('Europe/Paris')
-  expect(body.guestInvite.enabled).toBe(false)
+  const guestInviteUrl = app.url(`/api/events/${event.slug}/guest-invite`)
+  await expect
+    .poll(async () => (await storedInvite(host, guestInviteUrl)).message)
+    .toBe('Apéro à 19 h, venez comme vous êtes.')
+  const stored = await storedInvite(host, guestInviteUrl)
+  expect(stored.startsAt).toBe('2027-12-11T18:00:00.000Z')
+  expect(stored.timeZone).toBe('Europe/Paris')
+  expect(stored.enabled).toBe(false)
 
   // --- Switch on: the link appears, and the formats open.
-  await host.getByRole('button', { name: text.activate }).click()
+  await bar.getByRole('button', { name: text.activate }).click()
   const link = host.getByLabel(text.linkLabel)
   await expect(link).toHaveValue(new RegExp(`^${app.baseUrl}/i/[0-9A-Z]{16}$`))
-  await expect(host.getByText(text.pillOn, { exact: true })).toBeVisible()
+  await expect(bar.getByText(text.statusOn, { exact: true })).toBeVisible()
   await expect(host.getByRole('tabpanel')).toBeAttached()
   await expect(host.getByText(text.locked)).toHaveCount(0)
   const url = await link.inputValue()
@@ -94,7 +112,7 @@ test('the host writes the invitation, switches it on, and a guest opens it at th
 
     // --- Switching off keeps the text and answers the same sentence.
     await host.getByRole('button', { name: text.disable }).click()
-    await expect(host.getByText(text.pillOff, { exact: true })).toBeVisible()
+    await expect(bar.getByText(text.statusOff, { exact: true })).toBeVisible()
     await expect(host.getByLabel(/^Lieu/)).toHaveValue('La Guinguette du Port')
     await guest.reload()
     await expect(
@@ -105,7 +123,10 @@ test('the host writes the invitation, switches it on, and a guest opens it at th
   }
 })
 
-test('the page is for the owner: the form fits a 320 px phone', async ({ app, surfaces }) => {
+test('the page is for the owner: the three columns stack on a 320 px phone without overflow', async ({
+  app,
+  surfaces,
+}) => {
   const { host } = surfaces
   const event = await app.seedEvent({ slug: 'fete-etroite', name: 'Camille & Sacha' })
 
@@ -117,8 +138,12 @@ test('the page is for the owner: the form fits a 320 px phone', async ({ app, su
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   )
   expect(overflow).toBeLessThanOrEqual(0)
-  const save = await host.getByRole('button', { name: text.save }).boundingBox()
-  expect(save?.height ?? 0).toBeGreaterThanOrEqual(44)
+  const tab = await host.getByRole('tab', { name: text.tabPrint }).boundingBox()
+  expect(tab?.height ?? 0).toBeGreaterThanOrEqual(44)
+  // The preview is pinned in view while the rest of the page scrolls under it.
+  // A scroll of the page, not a wheel: mobile WebKit has no mouse wheel to turn.
+  await host.evaluate(() => window.scrollBy(0, 600))
+  await expect(host.getByRole('tabpanel')).toBeInViewport()
 })
 
 test('the zone is taken from the browser on the first save: a host in Auckland types Auckland time', async ({
@@ -139,14 +164,12 @@ test('the zone is taken from the browser on the first save: a host in Auckland t
     const form = page.getByRole('form', { name: text.formTitle })
 
     await form.getByLabel(/^Début/).fill('2027-12-11T19:00')
-    await form.getByRole('button', { name: text.save }).click()
-    await expect(page.getByRole('status').filter({ hasText: text.saved })).toBeVisible()
-
-    const stored = await page.request.get(app.url(`/api/events/${event.slug}/guest-invite`))
-    const body = (await stored.json()) as { guestInvite: { startsAt: string; timeZone: string } }
+    const guestInviteUrl = app.url(`/api/events/${event.slug}/guest-invite`)
+    await expect
+      .poll(async () => (await storedInvite(page, guestInviteUrl)).startsAt)
+      .toBe('2027-12-11T06:00:00.000Z')
     // 19:00 at +13:00 (New Zealand summer time) is 06:00 UTC, and the zone the invitation keeps is the laptop's.
-    expect(body.guestInvite.timeZone).toBe('Pacific/Auckland')
-    expect(body.guestInvite.startsAt).toBe('2027-12-11T06:00:00.000Z')
+    expect((await storedInvite(page, guestInviteUrl)).timeZone).toBe('Pacific/Auckland')
 
     // Opened again from the same laptop, it reads what was typed; the zone is the saved one.
     await page.reload()

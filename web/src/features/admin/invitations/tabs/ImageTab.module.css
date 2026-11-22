@@ -1,17 +1,3 @@
-.tab {
-  display: grid;
-  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
-  gap: var(--space-5);
-  align-items: start;
-  min-width: 0;
-}
-
-@media (max-width: 62rem) {
-  .tab {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .controls {
   display: flex;
   flex-direction: column;
@@ -45,10 +31,15 @@
   min-block-size: var(--touch-min);
 }
 
+/* The format's actions stay in reach while its options scroll. */
 .actions {
+  position: sticky;
+  inset-block-end: 0;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+  padding-block: var(--space-3);
+  background: var(--surface-raised);
 }
 
 .help {
@@ -56,17 +47,11 @@
   color: var(--text-secondary);
 }
 
-.preview {
-  min-width: 0;
-  display: flex;
-  justify-content: center;
-}
-
 /* The picture is drawn at its true size and shrunk to the room: what is shown is what is captured. */
 .frame {
   position: relative;
   inline-size: 100%;
-  max-inline-size: 28rem;
+  block-size: 100%;
   overflow: hidden;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);

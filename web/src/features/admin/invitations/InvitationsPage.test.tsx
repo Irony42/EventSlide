@@ -58,6 +58,17 @@ const browserIn = (timeZone: string) =>
 const answering = (invite: GuestInviteDto, extra: Partial<Api> = {}): Api =>
   fakeApi({ guestInvite: vi.fn(async () => ({ guestInvite: invite })), ...extra })
 
+/** A change in the form: the text is saved as it is typed, there is no button to press. */
+const touch = (form: HTMLElement) =>
+  userEvent.type(within(form).getByLabelText(new RegExp(`^${text.titleLabel}`)), '!')
+
+const statusBar = () => screen.getByRole('region', { name: text.statusBarLabel })
+const activateNow = () => within(statusBar()).getByRole('button', { name: text.activate })
+const activateButton = async () => {
+  await screen.findByRole('region', { name: text.statusBarLabel })
+  return activateNow()
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
 })
@@ -119,18 +130,22 @@ describe('InvitationsPage', () => {
     it('keeps the link panel to one button, which waits for a saved date', async () => {
       render(answering(BLANK))
 
-      const activate = await screen.findByRole('button', { name: text.activate })
+      const activate = await activateButton()
       expect(activate).toBeDisabled()
       expect(screen.getByText(text.activateNeedsDate)).toBeVisible()
-      expect(screen.getByText(text.pillOff)).toBeVisible()
+      expect(screen.getByText(text.statusOff)).toBeVisible()
     })
 
-    it('locks the panel with one sentence, and leaves the three tabs to look at', async () => {
+    it('locks the panel with the two steps and the action of the first, and leaves the four tabs to look at', async () => {
       render(answering(BLANK))
 
       expect(await screen.findByText(text.locked)).toBeVisible()
-      expect(screen.getByRole('tabpanel')).toHaveTextContent(text.locked)
-      for (const name of [text.tabPrint, text.tabImage, text.tabEmail]) {
+      const panel = screen.getByRole('tabpanel')
+      expect(panel).toHaveTextContent(text.locked)
+      expect(within(panel).getByText(text.lockedStepDate)).toBeVisible()
+      expect(within(panel).getByText(text.lockedStepActivate)).toBeVisible()
+      expect(within(panel).getByRole('button', { name: text.lockedDateFocus })).toBeVisible()
+      for (const name of [text.tabPrint, text.tabImage, text.tabEmail, text.tabGuest]) {
         expect(screen.getByRole('tab', { name })).not.toHaveAttribute('aria-disabled')
       }
     })
@@ -154,8 +169,6 @@ describe('InvitationsPage', () => {
         within(form).getByLabelText(new RegExp(`^${text.venueLabel}`)),
         'La Guinguette',
       )
-      await userEvent.click(within(form).getByRole('button', { name: text.save }))
-
       await waitFor(() => expect(save).toHaveBeenCalled())
       expect(save).toHaveBeenCalledWith('camille-et-sacha', {
         title: 'Léa fête',
@@ -167,7 +180,7 @@ describe('InvitationsPage', () => {
         message: null,
         language: 'fr',
       })
-      expect(await screen.findByText(text.saved)).toBeVisible()
+      expect(await screen.findByText(text.savedAuto)).toBeVisible()
     })
 
     it('lets the host change the zone, and reads the same typed time in it', async () => {
@@ -186,7 +199,7 @@ describe('InvitationsPage', () => {
       expect(
         within(form).getByText(startingWith(text.zoneLine(zoneName('America/New_York', 'fr')))),
       ).toBeVisible()
-      await userEvent.click(within(form).getByRole('button', { name: text.save }))
+      await touch(form)
 
       await waitFor(() => expect(save).toHaveBeenCalled())
       // 19:00 typed, in New York: five hours later than in Paris.
@@ -205,7 +218,7 @@ describe('InvitationsPage', () => {
       render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
       const form = await screen.findByRole('form', { name: text.formTitle })
 
-      await userEvent.click(within(form).getByRole('button', { name: text.save }))
+      await touch(form)
 
       await waitFor(() => expect(save).toHaveBeenCalled())
       expect(save).toHaveBeenCalledWith(
@@ -223,11 +236,10 @@ describe('InvitationsPage', () => {
       fireEvent.change(within(form).getByLabelText(new RegExp(`^${text.startLabel}`)), {
         target: { value: '2027-03-28T02:30' },
       })
-      await userEvent.click(within(form).getByRole('button', { name: text.save }))
+      await touch(form)
 
       const start = within(form).getByLabelText(new RegExp(`^${text.startLabel}`))
       await waitFor(() => expect(start).toHaveAttribute('aria-invalid', 'true'))
-      expect(start).toHaveFocus()
       expect(start).toHaveAccessibleDescription(text.nonexistentHour)
       expect(save).not.toHaveBeenCalled()
     })
@@ -239,24 +251,95 @@ describe('InvitationsPage', () => {
       render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
       const form = await screen.findByRole('form', { name: text.formTitle })
 
-      await userEvent.click(within(form).getByRole('button', { name: text.save }))
+      await touch(form)
 
       const end = within(form).getByLabelText(new RegExp(`^${text.endLabel}`))
       await waitFor(() => expect(end).toHaveAttribute('aria-invalid', 'true'))
       expect(end).toHaveAccessibleDescription(fr.errors['guestInvite.endBeforeStart'])
-      expect(end).toHaveFocus()
-      expect(screen.queryByText(text.saved)).toBeNull()
+      expect(screen.queryByText(text.savedAuto)).toBeNull()
     })
 
-    it('forgets the "saved" sentence as soon as the host types again', async () => {
+    it('says it is saving while the host types, then that it is saved, and the form never has a Save button', async () => {
       render(answering(aGuestInviteHost()))
       const form = await screen.findByRole('form', { name: text.formTitle })
-      await userEvent.click(within(form).getByRole('button', { name: text.save }))
-      expect(await screen.findByText(text.saved)).toBeVisible()
+      expect(within(form).queryByRole('button', { name: /^Enregistrer$/ })).toBeNull()
 
-      await userEvent.type(within(form).getByLabelText(new RegExp(`^${text.titleLabel}`)), '!')
+      await touch(form)
+      expect(within(form).getByText(text.saving)).toBeVisible()
+      expect(await within(form).findByText(text.savedAuto)).toBeVisible()
 
-      expect(screen.queryByText(text.saved)).toBeNull()
+      await touch(form)
+      expect(within(form).queryByText(text.savedAuto)).toBeNull()
+    })
+
+    it('puts what is typed on the preview at once, before anything is saved', async () => {
+      render(answering(ON, { saveGuestInvite: vi.fn(() => new Promise<never>(() => undefined)) }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+
+      await userEvent.type(within(form).getByLabelText(new RegExp(`^${text.titleLabel}`)), ' Bis')
+
+      expect(document.querySelector('[data-format]')).toHaveTextContent('Léa fête ses 40 ans Bis')
+    })
+
+    it('shows the guest page from what is typed, in a frame the keyboard and the pointer cannot press', async () => {
+      render(answering(ON, { saveGuestInvite: vi.fn(() => new Promise<never>(() => undefined)) }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+      await userEvent.click(await screen.findByRole('tab', { name: text.tabGuest }))
+      await userEvent.type(within(form).getByLabelText(new RegExp(`^${text.titleLabel}`)), ' Bis')
+
+      const frame = screen.getByRole('group', { name: text.guestPreviewLabel })
+      expect(frame).toHaveTextContent('Léa fête ses 40 ans Bis')
+      expect(frame.querySelector('[inert]')).not.toBeNull()
+    })
+
+    it('sends what is still waiting when the page is left before the pause is over', async () => {
+      const save = vi.fn(async () => ({ guestInvite: aGuestInviteHost() }))
+      const view = render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+      await touch(form)
+      expect(save).not.toHaveBeenCalled()
+
+      view.unmount()
+
+      expect(save).toHaveBeenCalledWith(
+        'camille-et-sacha',
+        expect.objectContaining({ title: 'Léa fête ses 40 ans!' }),
+      )
+    })
+
+    it('does not say "saved" while a key typed during a request is still waiting', async () => {
+      let finish: () => void = () => undefined
+      const save = vi.fn(
+        () =>
+          new Promise<{ guestInvite: GuestInviteDto }>((resolve) => {
+            finish = () => resolve({ guestInvite: aGuestInviteHost() })
+          }),
+      )
+      render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+      await touch(form)
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+
+      await touch(form)
+      finish()
+
+      await waitFor(() => expect(within(form).getByText(text.saving)).toBeVisible())
+      expect(within(form).queryByText(text.savedAuto)).toBeNull()
+    })
+
+    it('says the last change was not saved, and tries again on request', async () => {
+      const save = vi
+        .fn<Api['saveGuestInvite']>()
+        .mockRejectedValueOnce(ApiError.network())
+        .mockResolvedValue({ guestInvite: aGuestInviteHost() })
+      render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+      await touch(form)
+
+      await userEvent.click(await within(form).findByRole('button', { name: text.saveRetry }))
+
+      expect(await within(form).findByText(text.savedAuto)).toBeVisible()
+      expect(save).toHaveBeenCalledTimes(2)
     })
 
     it('counts the host’s word against the 500', async () => {
@@ -272,14 +355,14 @@ describe('InvitationsPage', () => {
       const saved = aGuestInviteHost({ url: 'https://photos.example.test/i/AAAAAAAAAAAAAAAA' })
       render(answering(BLANK, { saveGuestInvite: vi.fn(async () => ({ guestInvite: saved })) }))
       const form = await screen.findByRole('form', { name: text.formTitle })
-      expect(screen.getByRole('button', { name: text.activate })).toBeDisabled()
+      expect(activateNow()).toBeDisabled()
 
       fireEvent.change(within(form).getByLabelText(new RegExp(`^${text.startLabel}`)), {
         target: { value: '2027-12-11T19:00' },
       })
-      await userEvent.click(within(form).getByRole('button', { name: text.save }))
+      await touch(form)
 
-      await waitFor(() => expect(screen.getByRole('button', { name: text.activate })).toBeEnabled())
+      await waitFor(() => expect(activateNow()).toBeEnabled())
     })
   })
 
@@ -299,12 +382,11 @@ describe('InvitationsPage', () => {
         render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
         const form = await screen.findByRole('form', { name: text.formTitle })
 
-        await userEvent.click(within(form).getByRole('button', { name: text.save }))
+        await touch(form)
 
         const field = within(form).getByLabelText(label)
         await waitFor(() => expect(field).toHaveAttribute('aria-invalid', 'true'))
         expect(field).toHaveAccessibleDescription(new RegExp(plain(fr.errors[code]).slice(0, 12)))
-        expect(field).toHaveFocus()
       },
     )
 
@@ -315,7 +397,7 @@ describe('InvitationsPage', () => {
       render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
       const form = await screen.findByRole('form', { name: text.formTitle })
 
-      await userEvent.click(within(form).getByRole('button', { name: text.save }))
+      await touch(form)
 
       expect(await within(form).findByRole('alert')).toHaveTextContent(
         fr.errors['guestInvite.badTimeZone'],
@@ -332,7 +414,7 @@ describe('InvitationsPage', () => {
         }),
       )
       const form = await screen.findByRole('form', { name: text.formTitle })
-      await userEvent.click(within(form).getByRole('button', { name: text.save }))
+      await touch(form)
       const title = within(form).getByLabelText(/^Titre/)
       await waitFor(() => expect(title).toHaveAttribute('aria-invalid', 'true'))
 
@@ -347,7 +429,7 @@ describe('InvitationsPage', () => {
       const form = await screen.findByRole('form', { name: text.formTitle })
       fireEvent.change(within(form).getByLabelText(/^Adresse/), { target: { value: 'a\nb\nc' } })
 
-      await userEvent.click(within(form).getByRole('button', { name: text.save }))
+      await touch(form)
 
       const address = within(form).getByLabelText(/^Adresse/)
       await waitFor(() => expect(address).toHaveAttribute('aria-invalid', 'true'))
@@ -357,7 +439,7 @@ describe('InvitationsPage', () => {
       expect(save).not.toHaveBeenCalled()
     })
 
-    it('sends one request when Enter is pressed twice while a save is on its way', async () => {
+    it('sends one request at a time: a change made while one is on its way goes after it', async () => {
       let finish: () => void = () => undefined
       const save = vi.fn(
         () =>
@@ -367,12 +449,19 @@ describe('InvitationsPage', () => {
       )
       render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
       const form = await screen.findByRole('form', { name: text.formTitle })
+      await touch(form)
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
 
-      fireEvent.submit(form)
-      fireEvent.submit(form)
+      await touch(form)
+      await new Promise((resolve) => setTimeout(resolve, 600))
+      expect(save).toHaveBeenCalledTimes(1)
       finish()
 
-      await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+      expect(save).toHaveBeenLastCalledWith(
+        'camille-et-sacha',
+        expect.objectContaining({ title: 'Léa fête ses 40 ans!!' }),
+      )
     })
 
     it('has an address of two rows and a word of eight, and counts the lines', async () => {
@@ -414,18 +503,25 @@ describe('InvitationsPage', () => {
   })
 
   describe('the link', () => {
-    it('switches the invitation on, and shows the link and the three formats', async () => {
+    it('switches the invitation on, and shows the link and the formats', async () => {
       const enable = vi.fn(async () => ({ guestInvite: ON }))
       render(answering(aGuestInviteHost(), { enableGuestInvite: enable }))
 
-      await userEvent.click(await screen.findByRole('button', { name: text.activate }))
+      await userEvent.click(await activateButton())
 
       expect(enable).toHaveBeenCalledWith('camille-et-sacha')
       expect(await screen.findByLabelText(text.linkLabel)).toHaveValue(ON.url)
-      expect(screen.getByText(text.pillOn)).toBeVisible()
-      expect(screen.getByText(text.openNote)).toBeVisible()
+      expect(screen.getByText(text.statusOn)).toBeVisible()
       expect(screen.queryByText(text.locked)).toBeNull()
       expect(screen.getByRole('tabpanel')).toBeInTheDocument()
+    })
+
+    it('tells, on the guest page format, that opening the evening opens the way to the wall', async () => {
+      render(answering(ON))
+
+      await userEvent.click(await screen.findByRole('tab', { name: text.tabGuest }))
+
+      expect(screen.getByText(text.openNote)).toBeVisible()
     })
 
     it('says in words why a switch-on was refused', async () => {
@@ -434,7 +530,7 @@ describe('InvitationsPage', () => {
       })
       render(answering(aGuestInviteHost(), { enableGuestInvite: enable }))
 
-      await userEvent.click(await screen.findByRole('button', { name: text.activate }))
+      await userEvent.click(await activateButton())
 
       expect(await screen.findByText(fr.errors['guestInvite.needsDate'])).toBeVisible()
     })
@@ -453,15 +549,6 @@ describe('InvitationsPage', () => {
       expect(await screen.findByText(text.copyFailed)).toBeVisible()
     })
 
-    it('offers no way to see the page as a guest while the invitation is off: it would say "not available"', async () => {
-      render(answering(aGuestInviteHost()))
-
-      await screen.findByRole('button', { name: text.activate })
-
-      expect(screen.queryByRole('button', { name: text.viewAsGuest })).toBeNull()
-      expect(screen.queryByRole('link', { name: new RegExp(text.viewAsGuest) })).toBeNull()
-    })
-
     it('puts the focus on the link once it is switched on, and on the button once it is switched off', async () => {
       render(
         answering(aGuestInviteHost(), {
@@ -470,18 +557,19 @@ describe('InvitationsPage', () => {
         }),
       )
 
-      await userEvent.click(await screen.findByRole('button', { name: text.activate }))
+      await userEvent.click(await activateButton())
       await waitFor(() => expect(screen.getByLabelText(text.linkLabel)).toHaveFocus())
 
       await userEvent.click(screen.getByRole('button', { name: text.disable }))
-      await waitFor(() => expect(screen.getByRole('button', { name: text.activate })).toHaveFocus())
+      await waitFor(() => expect(activateNow()).toHaveFocus())
     })
 
     it('opens the page as a guest sees it in a tab of its own, with no opener and no referrer', async () => {
       const open = vi.spyOn(window, 'open').mockReturnValue(null)
       render(answering(ON))
 
-      await userEvent.click(await screen.findByRole('button', { name: text.viewAsGuest }))
+      await userEvent.click(await screen.findByRole('tab', { name: text.tabGuest }))
+      await userEvent.click(screen.getByRole('button', { name: text.guestOpen }))
 
       expect(open).toHaveBeenCalledWith(ON.url, '_blank', 'noopener,noreferrer')
     })
@@ -528,7 +616,7 @@ describe('InvitationsPage', () => {
       await userEvent.click(await screen.findByRole('button', { name: text.disable }))
 
       expect(disable).toHaveBeenCalledWith('camille-et-sacha')
-      expect(await screen.findByText(text.pillOff)).toBeVisible()
+      expect(await screen.findByText(text.statusOff)).toBeVisible()
       expect(screen.getByText(text.locked)).toBeVisible()
       expect(screen.getByRole('textbox', { name: new RegExp(`^${text.titleLabel}`) })).toHaveValue(
         'Léa fête ses 40 ans',
@@ -551,7 +639,7 @@ describe('InvitationsPage', () => {
   })
 
   describe('the formats', () => {
-    it('moves between the three tabs with the arrow keys, and lands on the one it names', async () => {
+    it('moves between the four tabs with the arrow keys, and lands on the one it names', async () => {
       render(answering(ON))
       const print = await screen.findByRole('tab', { name: text.tabPrint })
       expect(print).toHaveAttribute('aria-selected', 'true')
@@ -564,13 +652,13 @@ describe('InvitationsPage', () => {
       )
       expect(screen.getByRole('tab', { name: text.tabImage })).toHaveFocus()
 
-      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+      await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}')
       expect(screen.getByRole('tab', { name: text.tabPrint })).toHaveAttribute(
         'aria-selected',
         'true',
       )
       await userEvent.keyboard('{ArrowLeft}')
-      expect(screen.getByRole('tab', { name: text.tabEmail })).toHaveAttribute(
+      expect(screen.getByRole('tab', { name: text.tabGuest })).toHaveAttribute(
         'aria-selected',
         'true',
       )
@@ -603,11 +691,11 @@ describe('InvitationsPage', () => {
       print.focus()
 
       await userEvent.keyboard('{End}')
-      expect(screen.getByRole('tab', { name: text.tabEmail })).toHaveAttribute(
+      expect(screen.getByRole('tab', { name: text.tabGuest })).toHaveAttribute(
         'aria-selected',
         'true',
       )
-      expect(screen.getByRole('tab', { name: text.tabEmail })).toHaveFocus()
+      expect(screen.getByRole('tab', { name: text.tabGuest })).toHaveFocus()
       await userEvent.keyboard('{Home}')
       expect(screen.getByRole('tab', { name: text.tabPrint })).toHaveAttribute(
         'aria-selected',
@@ -646,7 +734,6 @@ describe('InvitationsPage', () => {
 
       const form = await screen.findByRole('form', { name: text.formTitle })
       expect(within(form).getByLabelText(new RegExp(`^${text.titleLabel}`))).toBeDisabled()
-      expect(within(form).getByRole('button', { name: text.save })).toBeDisabled()
       expect(screen.getByRole('button', { name: text.rotate })).toBeDisabled()
       expect(screen.getByRole('button', { name: text.disable })).toBeDisabled()
     })
@@ -656,7 +743,10 @@ describe('InvitationsPage', () => {
     render(answering(BLANK), 'en')
 
     // The button comes with the invitation, a moment after the heading: wait for the later one.
-    expect(await screen.findByRole('button', { name: en.guestInvite.host.activate })).toBeVisible()
+    const bar = await screen.findByRole('region', { name: en.guestInvite.host.statusBarLabel })
+    expect(
+      await within(bar).findByRole('button', { name: en.guestInvite.host.activate }),
+    ).toBeVisible()
     expect(screen.getByRole('heading', { level: 1, name: en.guestInvite.host.title })).toBeVisible()
   })
 
@@ -669,6 +759,6 @@ describe('InvitationsPage', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: fr.app.retry }))
 
-    expect(await screen.findByRole('button', { name: text.activate })).toBeVisible()
+    expect(await activateButton()).toBeVisible()
   })
 })

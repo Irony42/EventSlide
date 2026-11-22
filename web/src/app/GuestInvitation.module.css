@@ -1,5 +1,5 @@
 /**
- * The page a guest opens from an invitation (spec 29): one column, readable at 320 px, light on
+ * The guest invitation (spec 29), shared by the guest page and the host preview: one column, readable at 320 px, light on
  * purpose (no decorative font, no photograph, nothing a venue's Wi-Fi has to carry) and in the
  * app's own tokens. The validated mock-up is `maquettes/invitations-2026-11-21/` (section 2).
  */
@@ -62,7 +62,7 @@
 
 /* The way into the wall: the one thing the page is for once the evening is on. */
 .join {
-  composes: button primary lg block from '../../design-system/components/Button.module.css';
+  composes: button primary lg block from '../design-system/components/Button.module.css';
   text-decoration: none;
   text-align: center;
   justify-content: center;

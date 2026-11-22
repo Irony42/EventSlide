@@ -14,6 +14,7 @@ import type { GuestInviteDto } from '../../../../lib/api/dto'
 import type { RenderPng } from './imageRender'
 import type * as ImageRender from './imageRender'
 import { ImageTab } from './ImageTab'
+import { OutputHarness } from './outputHarness'
 
 const blur = vi.hoisted(() => vi.fn<(url: string) => Promise<string | null>>())
 vi.mock('./imageRender', async (original) => ({
@@ -55,7 +56,8 @@ const png = (): Blob => new Blob(['png'], { type: 'image/png' })
 const renderTab = (render: RenderPng, overrides: Partial<GuestInviteDto> = {}) => {
   const invite = aGuestInviteHost({ enabled: true, ...overrides })
   return renderWithProviders(
-    <ImageTab
+    <OutputHarness
+      Output={ImageTab}
       event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
       invite={{ ...invite, url: invite.url ?? URL_OF_INVITE, startsAt: invite.startsAt ?? '' }}
       renderPng={render}
@@ -493,7 +495,8 @@ describe('ImageTab', () => {
     const invite = aGuestInviteHost({ enabled: true })
 
     rerender(
-      <ImageTab
+      <OutputHarness
+        Output={ImageTab}
         event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
         invite={{ ...invite, url: rotated, startsAt: invite.startsAt ?? '' }}
         renderPng={render}
@@ -535,7 +538,8 @@ describe('ImageTab', () => {
   ) => {
     const invite = aGuestInviteHost({ enabled: true, ...overrides })
     rerender(
-      <ImageTab
+      <OutputHarness
+        Output={ImageTab}
         event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
         invite={{ ...invite, url: invite.url ?? URL_OF_INVITE, startsAt: invite.startsAt ?? '' }}
         renderPng={ready()}
