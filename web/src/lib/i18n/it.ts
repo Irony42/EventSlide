@@ -3352,8 +3352,40 @@ export const it: UiText = {
     albumIntro: 'Tutte le foto e i video pubblicati, in un file ZIP.',
     dangerTitle: 'Elimina la festa',
   },
+  /* The photo book's own page (spec 26): the live preview beside the settings. */
+  bookPage: {
+    back: 'Torna all’evento',
+    coverLegend: 'Copertina',
+    previewLabel: 'Anteprima del libro',
+    previewNote: 'Anteprima: l’impaginazione finale si fa alla creazione.',
+    summary: (pages: number, photos: number, style: string) =>
+      `${t.number(pages)} pagine · ${t.number(photos)} foto · stile ${style}`,
+    refreshing: 'Aggiornamento dell’anteprima…',
+    failed: 'Impossibile caricare l’anteprima.',
+    retry: 'Riprova',
+    empty:
+      'Nessuna foto è ancora pubblicata. Il libro si fa con le foto pubblicate: ne pubblichi alcune dalla moderazione.',
+    unsupported: 'Il fotolibro non è disponibile su questo server.',
+    prev: 'Pagine precedenti',
+    next: 'Pagine successive',
+    cover: 'Copertina',
+    inside: 'Interno della copertina',
+    backCover: 'Quarta di copertina',
+    pageNumber: (n: number) => `Pagina ${n}`,
+    pageNumbers: (a: number, b: number) => `Pagine ${a} e ${b}`,
+    spreadPosition: (k: number, n: number) => `Doppia pagina ${k} di ${n}`,
+    stripLabel: 'Doppie pagine',
+    stripItem: (label: string) => `Vai a: ${label}`,
+    big: 'Ingrandisci',
+    queued: 'In attesa del suo turno…',
+    running: 'Impaginazione del libro sul server…',
+    workingNote:
+      'Il server non indica l’avanzamento. Può lasciare la pagina: il libro sarà pronto qui.',
+  },
+
   titles: {
     print: 'Segnaposto e locandina',
+    eventBook: 'Fotolibro',
     join: 'Entri nella serata',
     upload: 'Invio di foto',
     feed: 'Foto della serata',
@@ -3384,7 +3416,6 @@ export const it: UiText = {
     eventGuests: 'Invitati',
     eventAlbum: 'Album',
     eventBestOf: 'Best-of',
-    eventBook: 'Fotolibro',
     eventShare: 'Album condiviso',
     eventBefore: 'Preparare la festa',
     eventDuring: 'Durante la festa',

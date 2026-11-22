@@ -3378,8 +3378,40 @@ export const es: UiText = {
     albumIntro: 'Todas las fotos y vídeos publicados, en un archivo ZIP.',
     dangerTitle: 'Eliminar la fiesta',
   },
+  /* The photo book's own page (spec 26): the live preview beside the settings. */
+  bookPage: {
+    back: 'Volver al evento',
+    coverLegend: 'Portada',
+    previewLabel: 'Vista previa del libro',
+    previewNote: 'Vista previa: el diseño final se hace al crear el libro.',
+    summary: (pages: number, photos: number, style: string) =>
+      `${t.number(pages)} páginas · ${t.number(photos)} fotos · estilo ${style}`,
+    refreshing: 'Actualizando la vista previa…',
+    failed: 'No se pudo cargar la vista previa.',
+    retry: 'Reintentar',
+    empty:
+      'Todavía no hay ninguna foto publicada. El libro se hace con las fotos publicadas: publique algunas desde la moderación.',
+    unsupported: 'El libro de fotos no está disponible en este servidor.',
+    prev: 'Páginas anteriores',
+    next: 'Páginas siguientes',
+    cover: 'Portada',
+    inside: 'Interior de la portada',
+    backCover: 'Contraportada',
+    pageNumber: (n: number) => `Página ${n}`,
+    pageNumbers: (a: number, b: number) => `Páginas ${a} y ${b}`,
+    spreadPosition: (k: number, n: number) => `Doble página ${k} de ${n}`,
+    stripLabel: 'Dobles páginas',
+    stripItem: (label: string) => `Ir a: ${label}`,
+    big: 'Ver en grande',
+    queued: 'Esperando su turno…',
+    running: 'Maquetando el libro en el servidor…',
+    workingNote:
+      'El servidor no indica el avance. Puede salir de la página: el libro estará listo aquí.',
+  },
+
   titles: {
     print: 'Tarjetas de mesa y cartel',
+    eventBook: 'Libro de fotos',
     join: 'Únase a la fiesta',
     upload: 'Envío de fotos',
     feed: 'Fotos de la velada',
@@ -3410,7 +3442,6 @@ export const es: UiText = {
     eventGuests: 'Invitados',
     eventAlbum: 'Álbum',
     eventBestOf: 'Lo mejor',
-    eventBook: 'Libro de fotos',
     eventShare: 'Álbum compartido',
     eventBefore: 'Preparar la fiesta',
     eventDuring: 'Durante la fiesta',

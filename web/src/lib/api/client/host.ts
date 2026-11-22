@@ -24,6 +24,7 @@ import type {
   MissionListResponse,
   MissionScope,
   AlbumBookDto,
+  BookPreviewDto,
   AlbumBookSelection,
   AlbumBookStyle,
   AlbumExportDto,
@@ -169,6 +170,18 @@ export interface AlbumBookInput {
   readonly includeGuestbook: boolean
   readonly printVersion: boolean
   /** The browser's own zone: the dates of the book are written in it. */
+  readonly timeZone: string
+}
+
+/** What the preview of the book is planned from: the options of the request, without the printer version. */
+export interface AlbumBookPreviewInput {
+  readonly title: string
+  readonly subtitle: string
+  readonly style: AlbumBookStyle
+  readonly selection: AlbumBookSelection
+  readonly showAuthors: boolean
+  readonly showCaptions: boolean
+  readonly includeGuestbook: boolean
   readonly timeZone: string
 }
 
@@ -326,6 +339,28 @@ export const hostApi = (transport: Transport) => ({
   /** The photo book (spec 04): its state, a request for one, and throwing it away. */
   albumBook: (slug: string, signal?: AbortSignal): Promise<AlbumBookDto> =>
     transport.get(`/api/events/${encode(slug)}/book`, undefined, signal),
+
+  /** The plan a book of these options would have, for the live preview (nothing is written). */
+  albumBookPreview: (
+    slug: string,
+    input: AlbumBookPreviewInput,
+    signal?: AbortSignal,
+  ): Promise<BookPreviewDto> =>
+    transport.get(
+      `/api/events/${encode(slug)}/book/preview`,
+      {
+        title: input.title,
+        ...(input.subtitle === '' ? {} : { subtitle: input.subtitle }),
+        style: input.style,
+        selection: input.selection.kind,
+        ...(input.selection.kind === 'best' ? { target: input.selection.target } : {}),
+        showAuthors: String(input.showAuthors),
+        showCaptions: String(input.showCaptions),
+        includeGuestbook: String(input.includeGuestbook),
+        timeZone: input.timeZone,
+      },
+      signal,
+    ),
 
   requestAlbumBook: (slug: string, body: AlbumBookInput): Promise<AlbumBookDto> =>
     transport.post(`/api/events/${encode(slug)}/book`, body),

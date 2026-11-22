@@ -141,6 +141,17 @@ const BESPOKE: ReadonlyMap<string, { readonly count: number; readonly reason: st
     },
   ],
   [
+    'features/admin/book/useBookPreview.ts',
+    {
+      count: 1,
+      reason:
+        'A debounced read that keeps the previous plan on screen while the next one is made ' +
+        '(a book that blinks out at every keystroke is no preview), aborts the read a newer ' +
+        'one overtakes and tells a failure without dropping the last plan: `useLoader` ' +
+        'clears its data whenever the request changes.',
+    },
+  ],
+  [
     'features/guest-upload/hooks/usePrivacyNotice.ts',
     {
       count: 1,

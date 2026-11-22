@@ -24,6 +24,9 @@ import type { EventPurgeView } from '../../../application/usecases/events/getEve
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
   AlbumBookDto,
+  BookPreviewDto,
+  BookPreviewPageDto,
+  BookPreviewPhotoDto,
   AlbumExportDto,
   CreatedGuestbookEntryDto,
   CreatedGuestbookVoiceDto,
@@ -152,6 +155,10 @@ import type {
 import type { GalleryView } from '../../../application/usecases/gallery/openGallery'
 import type { EventStats } from '../../../application/usecases/stats/getEventStats'
 import type { AlbumBookState } from '../../../application/usecases/book/getAlbumBook'
+import type {
+  BookPreview,
+  BookPreviewPhoto,
+} from '../../../application/usecases/book/previewAlbumBook'
 import { canDeleteWithoutConfirmation, type AlbumExport } from '../../../domain/exports/albumExport'
 import { canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 
@@ -247,6 +254,22 @@ export const toAlbumBookDto = (state: AlbumBookState): AlbumBookDto => {
     offer,
   }
 }
+
+const toBookPreviewPhotoDto = (slug: string, photo: BookPreviewPhoto): BookPreviewPhotoDto => ({
+  ...photo,
+  thumbUrl: mediaUrl(slug, photo.id, THUMB_VARIANT.photo),
+  displayUrl: mediaUrl(slug, photo.id, DISPLAY_VARIANT.photo),
+})
+
+/** The book preview as the moderator's page reads it: ids become the URLs the API already serves. */
+export const toBookPreviewDto = (slug: string, preview: BookPreview): BookPreviewDto => ({
+  ...preview,
+  cover: { ...preview.cover, photo: toBookPreviewPhotoDto(slug, preview.cover.photo) },
+  pages: preview.pages.map((page): BookPreviewPageDto => ({
+    ...page,
+    photos: page.photos.map((photo) => toBookPreviewPhotoDto(slug, photo)),
+  })),
+})
 
 export const toAlbumExportDto = (archive: AlbumExport): AlbumExportDto => ({
   status: archive.status,

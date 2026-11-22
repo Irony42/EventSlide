@@ -1,0 +1,213 @@
+/*
+ * The page fills the column it is put in (not the viewport): on a phone the preview is pinned on top and
+ * the build button sticks to the bottom; from 44 rem of column the settings scroll on their own beside
+ * a preview that never moves.
+ *
+ * Two hooks for the layout around the page, both optional: --book-chrome (10.5rem by default) is the height of what sits
+ * above the page (header, title), taken off the viewport to size the two columns; --book-sticky-top and
+ * --book-sticky-bottom keep the pinned preview and the build bar clear of a fixed header and of a tab bar.
+ */
+.page {
+  container-type: inline-size;
+  container-name: book;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding-block-end: var(--space-8);
+}
+
+.head {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-min);
+  color: var(--accent-strong);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+/* ------------------------------------------------------------------ phone -- */
+
+/* The preview is pinned on top, in a reduced size, and above the settings. */
+.preview {
+  order: -1;
+  position: sticky;
+  inset-block-start: var(--book-sticky-top, 0px);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  block-size: min(40dvh, 23rem);
+  min-inline-size: 0;
+  padding-block: var(--space-2);
+  background: var(--surface-base);
+}
+
+.preview [data-part='strip'] {
+  display: none;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.fields {
+  min-inline-size: 0;
+}
+
+.action {
+  position: sticky;
+  inset-block-end: var(--book-sticky-bottom, 0px);
+  z-index: 1;
+  padding-block: var(--space-3);
+  border-block-start: 1px solid var(--border-subtle);
+  background: var(--surface-base);
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-1) var(--space-3);
+  min-block-size: var(--touch-min);
+  font-size: var(--text-sm);
+}
+
+.count {
+  min-inline-size: 0;
+  font-weight: 650;
+  font-size: var(--text-xs);
+}
+
+.bigButton {
+  flex: none;
+}
+
+.busy {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.stage {
+  flex: 1;
+  min-block-size: 0;
+}
+
+.placeholder {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  block-size: 100%;
+  padding: var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.placeholder p {
+  margin: 0;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-strong);
+  font: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* The dialog of a form is a narrow card; the book is not. */
+.bigDialog.bigDialog {
+  max-inline-size: min(64rem, calc(100% - var(--space-4)));
+}
+
+.bigViewer {
+  block-size: min(72dvh, 42rem);
+  min-inline-size: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
+}
+
+/* ------------------------------------------------- tablet and laptop -- */
+
+@container book (min-width: 44rem) {
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(15rem, 21.25rem) minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: start;
+  }
+
+  .settings {
+    max-block-size: calc(100dvh - var(--book-chrome, 10.5rem));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    gap: 0;
+    padding-inline-end: var(--space-2);
+  }
+
+  .fields {
+    flex: 1 0 auto;
+  }
+
+  .action {
+    inset-block-end: 0;
+    margin-block-start: var(--space-3);
+  }
+
+  .count {
+    font-size: var(--text-sm);
+  }
+
+  .preview {
+    order: 0;
+    inset-block-start: var(--space-2);
+    block-size: calc(100dvh - var(--book-chrome, 10.5rem));
+    min-block-size: 22rem;
+    padding-block: 0;
+    background: none;
+  }
+
+  .preview [data-part='strip'] {
+    display: flex;
+  }
+}

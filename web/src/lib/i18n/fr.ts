@@ -4056,8 +4056,40 @@ export const fr = {
     albumIntro: 'Toutes les photos et vidéos publiées, en un fichier ZIP.',
     dangerTitle: 'Supprimer la soirée',
   },
+  /* The photo book's own page (spec 26): the live preview beside the settings. */
+  bookPage: {
+    back: 'Retour à l’évènement',
+    coverLegend: 'Couverture',
+    previewLabel: 'Aperçu du livre',
+    previewNote: 'Aperçu : la mise en page finale est faite à la création.',
+    summary: (pages: number, photos: number, style: string) =>
+      `${t.number(pages)} pages · ${t.number(photos)} photos · style ${style}`,
+    refreshing: 'Mise à jour de l’aperçu…',
+    failed: 'L’aperçu n’a pas pu être chargé.',
+    retry: 'Réessayer',
+    empty:
+      'Aucune photo n’est publiée pour le moment. Le livre se fera avec les photos publiées : publiez-en depuis la modération.',
+    unsupported: 'Le livre photo n’est pas disponible sur ce serveur.',
+    prev: 'Pages précédentes',
+    next: 'Pages suivantes',
+    cover: 'Couverture',
+    inside: 'Intérieur de la couverture',
+    backCover: 'Quatrième de couverture',
+    pageNumber: (n: number) => `Page ${n}`,
+    pageNumbers: (a: number, b: number) => `Pages ${a} et ${b}`,
+    spreadPosition: (k: number, n: number) => `Double page ${k} sur ${n}`,
+    stripLabel: 'Doubles pages',
+    stripItem: (label: string) => `Aller à\u00a0: ${label}`,
+    big: 'Voir en grand',
+    queued: 'En attente de son tour…',
+    running: 'Mise en page en cours sur le serveur…',
+    workingNote:
+      'Le serveur ne donne pas d’avancement. Vous pouvez quitter la page : le livre sera prêt ici.',
+  },
+
   titles: {
     print: 'Cartes de table et affiche',
+    eventBook: 'Livre photo',
     join: 'Rejoindre la soirée',
     upload: 'Envoi de photos',
     feed: 'Les photos de la soirée',
@@ -4088,7 +4120,6 @@ export const fr = {
     eventGuests: 'Invités',
     eventAlbum: 'Album',
     eventBestOf: 'Best-of',
-    eventBook: 'Livre photo',
     eventShare: 'Album partagé',
     eventBefore: 'Préparer la soirée',
     eventDuring: 'Pendant la soirée',

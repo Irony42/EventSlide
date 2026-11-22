@@ -1368,7 +1368,8 @@
  * The fixed colours are paper, ink and the props of each design (kraft, a camera, a night sky),
  * and the garland wears the EventSlide palette of the logo.
  */
-[data-print-card] {
+[data-print-card],
+[data-book-page] {
   --print-ink-accent: oklch(30% 0.1 var(--accent-hue));
   --pd-qr-ink: var(--text-print);
   --pd-paper: oklch(100% 0 0);

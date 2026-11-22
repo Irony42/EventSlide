@@ -471,6 +471,22 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.albumBook(SLUG),
   },
   {
+    name: 'albumBookPreview',
+    verb: 'get',
+    path: `/api/events/${SLUG}/book/preview`,
+    invoke: (client) =>
+      client.albumBookPreview(SLUG, {
+        title: 'Mariage',
+        subtitle: '',
+        style: 'classique',
+        selection: { kind: 'all' },
+        showAuthors: true,
+        showCaptions: true,
+        includeGuestbook: false,
+        timeZone: 'Europe/Paris',
+      }),
+  },
+  {
     name: 'requestAlbumBook',
     verb: 'post',
     path: `/api/events/${SLUG}/book`,

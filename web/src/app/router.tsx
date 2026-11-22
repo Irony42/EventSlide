@@ -108,6 +108,10 @@ const PrintKitPage = lazy(async () => ({
   default: (await import('../features/admin/PrintKitPage')).PrintKitPage,
 }))
 
+const EventBookPage = lazy(async () => ({
+  default: (await import('../features/admin/book/BookPage')).BookPage,
+}))
+
 const CustomAmbiancePage = lazy(async () => ({
   default: (await import('../features/admin/CustomAmbiancePage')).CustomAmbiancePage,
 }))
@@ -586,7 +590,7 @@ export function AppRoutes() {
                 />
                 <Route
                   path="/admin/events/:slug/book"
-                  element={titled('eventBook', panelPage('book'))}
+                  element={titled('eventBook', <EventBookPage />)}
                 />
                 <Route
                   path="/admin/events/:slug/share"

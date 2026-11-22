@@ -48,6 +48,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
   authenticateUser: notWired('authenticateUser'),
   requestAlbumBook: notWired('requestAlbumBook'),
   getAlbumBook: notWired('getAlbumBook'),
+  previewAlbumBook: notWired('previewAlbumBook'),
   downloadAlbumBook: notWired('downloadAlbumBook'),
   deleteAlbumBook: notWired('deleteAlbumBook'),
   requestAlbumExport: notWired('requestAlbumExport'),

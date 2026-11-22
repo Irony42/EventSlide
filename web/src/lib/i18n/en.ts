@@ -3301,8 +3301,40 @@ export const en: UiText = {
     albumIntro: 'Every published photo and video, in one ZIP file.',
     dangerTitle: 'Delete the party',
   },
+  /* The photo book's own page (spec 26): the live preview beside the settings. */
+  bookPage: {
+    back: 'Back to the event',
+    coverLegend: 'Cover',
+    previewLabel: 'Book preview',
+    previewNote: 'Preview: the final layout is made when the book is created.',
+    summary: (pages: number, photos: number, style: string) =>
+      `${t.number(pages)} pages · ${t.number(photos)} photos · ${style} style`,
+    refreshing: 'Updating the preview…',
+    failed: 'The preview could not be loaded.',
+    retry: 'Try again',
+    empty:
+      'No photo is published yet. The book is made from published photos: publish some from moderation.',
+    unsupported: 'The photo book is not available on this server.',
+    prev: 'Previous pages',
+    next: 'Next pages',
+    cover: 'Cover',
+    inside: 'Inside of the cover',
+    backCover: 'Back cover',
+    pageNumber: (n: number) => `Page ${n}`,
+    pageNumbers: (a: number, b: number) => `Pages ${a} and ${b}`,
+    spreadPosition: (k: number, n: number) => `Spread ${k} of ${n}`,
+    stripLabel: 'Spreads',
+    stripItem: (label: string) => `Go to: ${label}`,
+    big: 'View larger',
+    queued: 'Waiting for its turn…',
+    running: 'Laying out the book on the server…',
+    workingNote:
+      'The server does not report progress. You can leave the page: the book will be ready here.',
+  },
+
   titles: {
     print: 'Table cards and poster',
+    eventBook: 'Photo book',
     join: 'Join the event',
     upload: 'Send photos',
     feed: 'Photos from the evening',
@@ -3333,7 +3365,6 @@ export const en: UiText = {
     eventGuests: 'Guests',
     eventAlbum: 'Album',
     eventBestOf: 'Best-of',
-    eventBook: 'Photo book',
     eventShare: 'Shared album',
     eventBefore: 'Get the party ready',
     eventDuring: 'During the party',
