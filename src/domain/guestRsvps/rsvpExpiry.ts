@@ -12,6 +12,10 @@ import { addDays } from '../shared/time'
  *   not keep them**.
  *
  * The earlier of the two dates wins.
+ *
+ * The dates compared in SQL are stored as ISO text from `toISOString()` (`events.closed_at`,
+ * `guest_invites.starts_at`): the sweep's TEXT comparison is correct only because every one of
+ * them has the same fixed-width UTC form.
  */
 export const RSVP_KEPT_AFTER_CLOSE_DAYS = 30
 export const RSVP_KEPT_AFTER_START_DAYS = 60

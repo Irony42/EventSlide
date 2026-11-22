@@ -329,6 +329,59 @@ export const guestRsvpRepositoryContract = (
       })
     })
 
+    describe('uniqueness', () => {
+      it('refuses a second reply with the same token digest, in the same event or another', async () => {
+        await add({ id: 'rsvp-1', editTokenHash: 'same' })
+
+        await expect(
+          repo.admit(aRsvp({ id: 'rsvp-2', eventId: 'evt-wedding', editTokenHash: 'same' }), NONE),
+        ).rejects.toThrow(/UNIQUE/)
+        await expect(
+          repo.admit(aRsvp({ id: 'rsvp-3', eventId: 'evt-gala', editTokenHash: 'same' }), NONE),
+        ).rejects.toThrow(/UNIQUE/)
+        expect(await repo.listByEvent(WEDDING)).toHaveLength(1)
+        expect(await repo.listByEvent(GALA)).toEqual([])
+      })
+
+      it('holds any number of replies without a token', async () => {
+        await add({ id: 'rsvp-1', editTokenHash: null, source: 'host' })
+        await add({ id: 'rsvp-2', editTokenHash: null, source: 'host' })
+
+        expect(await repo.listByEvent(WEDDING)).toHaveLength(2)
+      })
+
+      it('refuses to move a reply to a household that already has one, and changes nothing', async () => {
+        await add({ id: 'rsvp-1', householdId: 'h-1' })
+        await add({ id: 'rsvp-2', householdId: null, name: 'Avant' })
+
+        await expect(
+          repo.update(
+            aRsvp({ id: 'rsvp-2', eventId: 'evt-wedding', householdId: 'h-1', name: 'Après' }),
+          ),
+        ).rejects.toThrow(/UNIQUE/)
+
+        const read = await repo.findById(WEDDING, asGuestRsvpId('rsvp-2'))
+        expect(read?.householdId).toBeNull()
+        expect(read?.name).toBe('Avant')
+      })
+
+      it('lets a reply keep its own household on update, and another event reuse the id', async () => {
+        await add({ id: 'rsvp-1', householdId: 'h-1' })
+
+        await repo.update(
+          aRsvp({ id: 'rsvp-1', eventId: 'evt-wedding', householdId: 'h-1', name: 'Encore' }),
+        )
+        const other = await repo.admit(
+          aRsvp({ id: 'rsvp-2', eventId: 'evt-gala', householdId: 'h-1' }),
+          NONE,
+        )
+
+        expect((await repo.findById(WEDDING, asGuestRsvpId('rsvp-1')))?.name).toBe('Encore')
+        expect(other.kind).toBe('added')
+        expect((await repo.findByHousehold(WEDDING, 'h-1'))?.id).toBe('rsvp-1')
+      })
+    })
+
     describe('update, delete', () => {
       it('replaces the content and the household of a reply, and keeps its identity', async () => {
         await add({

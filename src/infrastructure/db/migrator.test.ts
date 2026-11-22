@@ -4417,6 +4417,25 @@ describe('migration 036: guest replies (RSVP)', () => {
     closeDatabase(db)
   })
 
+  it('holds one reply per household in an event, and any number without a household', () => {
+    const db = migratedAt(36)
+    seedEvent(db)
+    seedEvent(db, 'e-two')
+    const withHousehold = (id: string, event: string, household: string | null): void => {
+      db.prepare(
+        `INSERT INTO guest_rsvps (id, event_id, household_id, name, answer, source, created_at, updated_at)
+         VALUES (?, ?, ?, 'Léa', 'no', 'open', ?, ?)`,
+      ).run(id, event, household, AT, AT)
+    }
+
+    withHousehold('r-1', 'e-one', 'h-1')
+    expect(() => withHousehold('r-2', 'e-one', 'h-1')).toThrow(/UNIQUE/)
+    withHousehold('r-3', 'e-two', 'h-1')
+    withHousehold('r-4', 'e-one', null)
+    withHousehold('r-5', 'e-one', null)
+    closeDatabase(db)
+  })
+
   it('goes with its event: deleting the event deletes its replies', () => {
     const db = migratedAt(36)
     seedEvent(db)

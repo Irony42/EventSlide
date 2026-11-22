@@ -97,6 +97,16 @@ describe('parseRsvpInput: how many', () => {
     expect(result.ok && [result.value.adults, result.value.kids]).toEqual([1, 0])
   })
 
+  it('ignores, without judging it, a field the form does not ask for', () => {
+    const noKids: RsvpForm = { ...DEFAULT_RSVP_FORM, kidsSeparate: false }
+    const noCount: RsvpForm = { ...DEFAULT_RSVP_FORM, partySize: { enabled: false, max: 4 } }
+
+    expect(parse({ ...yes, adults: 2, kids: 'many' }, noKids).ok).toBe(true)
+    expect(parse({ ...yes, adults: 'two', kids: -3 }, noCount).ok).toBe(true)
+    expect(code(parse({ ...yes, adults: 'two' }, noKids))).toBe('rsvp.countInvalid')
+    expect(code(parse({ ...yes, adults: 2, kids: 'many' }))).toBe('rsvp.countInvalid')
+  })
+
   it('brings nobody for a "no", whatever was sent', () => {
     const result = parse({ ...yes, answer: 'no', adults: 3, kids: 1, diet: 'sans gluten' })
 
@@ -266,6 +276,26 @@ describe('restoreRsvpDetails', () => {
     })
 
     expect(odd).toEqual({ ...EMPTY_RSVP_DETAILS, meals: ['ok'] })
+  })
+
+  it('cuts by characters, never leaving half of a pair, and cleans each text of an answer', () => {
+    const emoji = '😀'
+    const cut = restoreRsvpDetails({
+      companions: [emoji.repeat(121)],
+      answers: [
+        {
+          questionId: emoji.repeat(50),
+          label: ` ${'a'.repeat(200)}${BELL}`,
+          value: `x
+${emoji.repeat(200)}`,
+        },
+      ],
+    })
+
+    expect(cut.companions[0]).toBe(emoji.repeat(120))
+    expect(cut.answers[0]?.questionId).toBe(emoji.repeat(40))
+    expect(cut.answers[0]?.label).toBe('a'.repeat(120))
+    expect(cut.answers[0]?.value).toBe(`x ${emoji.repeat(118)}`)
   })
 
   it('bounds the lists and the length of each text', () => {

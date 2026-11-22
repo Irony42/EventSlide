@@ -57,5 +57,10 @@ export const migration036: Migration = {
         CHECK (source IN ('open', 'household', 'host'))
       );
       CREATE INDEX IF NOT EXISTS guest_rsvps_event ON guest_rsvps (event_id, updated_at);
+
+      -- A household answers once (lot 3). Created here with the table, where it costs nothing:
+      -- the column has no foreign key (the households table comes with 037).
+      CREATE UNIQUE INDEX IF NOT EXISTS guest_rsvps_household
+        ON guest_rsvps (event_id, household_id) WHERE household_id IS NOT NULL;
   `,
 }

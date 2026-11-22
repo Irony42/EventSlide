@@ -16,6 +16,7 @@ export const MESSAGE_MAX_CHARS = 280
 export const MESSAGE_MAX_LINES = 4
 const DETAIL_TEXT_MAX_CHARS = 120
 const DETAIL_LIST_MAX = 12
+const ANSWER_ID_MAX_CHARS = 40
 
 export type RsvpAnswer = 'yes' | 'maybe' | 'no' | 'waitlist'
 /** `open`: the common link; `household`: a household's own link (lot 3); `host`: typed by the host. */
@@ -49,12 +50,15 @@ export const EMPTY_RSVP_DETAILS: RsvpDetails = {
   showName: false,
 }
 
+/** One line of at most `max` code points: cut between characters, never inside a pair. */
+const clip = (text: string, max: number): string => [...toSingleLine(text)].slice(0, max).join('')
+
 const texts = (raw: unknown): readonly string[] =>
   Array.isArray(raw)
     ? raw
         .filter((item): item is string => typeof item === 'string')
         .slice(0, DETAIL_LIST_MAX)
-        .map((item) => toSingleLine(item).slice(0, DETAIL_TEXT_MAX_CHARS))
+        .map((item) => clip(item, DETAIL_TEXT_MAX_CHARS))
     : []
 
 /** Details read back from a row, **never failing**: a malformed piece becomes empty. */
@@ -74,7 +78,13 @@ export const restoreRsvpDetails = (raw: unknown): RsvpDetails => {
       ) {
         return []
       }
-      return [{ questionId, label, value }]
+      return [
+        {
+          questionId: clip(questionId, ANSWER_ID_MAX_CHARS),
+          label: clip(label, DETAIL_TEXT_MAX_CHARS),
+          value: clip(value, DETAIL_TEXT_MAX_CHARS),
+        },
+      ]
     }),
     moments: texts(raw['moments']),
     showName: raw['showName'] === true,
@@ -108,6 +118,7 @@ const count = (raw: unknown, fallback: number): Result<number, DomainError> => {
     : err(DomainError.invalid('rsvp.countInvalid'))
 }
 
+/** Control and invisible characters are stripped (as the welcome message does), not refused. */
 const parseName = (raw: unknown): Result<string, DomainError> => {
   if (typeof raw !== 'string') return err(DomainError.invalid('rsvp.nameInvalid'))
   const cleaned = toSingleLine(raw)
@@ -177,13 +188,16 @@ export const parseRsvpInput = (
 
   let adults = 1
   let kids = 0
+  // A field the form does not ask for is ignored, not judged: it may hold anything.
   if (form.partySize.enabled) {
     const askedAdults = count(raw.adults, 0)
     if (!askedAdults.ok) return askedAdults
-    const askedKids = count(raw.kids, 0)
-    if (!askedKids.ok) return askedKids
     adults = askedAdults.value
-    kids = form.kidsSeparate ? askedKids.value : 0
+    if (form.kidsSeparate) {
+      const askedKids = count(raw.kids, 0)
+      if (!askedKids.ok) return askedKids
+      kids = askedKids.value
+    }
     if (adults < 1) return err(DomainError.invalid('rsvp.adultsRequired'))
     if (adults + kids > form.partySize.max) {
       return err(DomainError.invalid('rsvp.partyTooBig', { max: form.partySize.max }))

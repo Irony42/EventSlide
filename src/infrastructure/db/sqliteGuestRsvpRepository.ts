@@ -209,6 +209,8 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
 
   async deleteExpired(now: Date): Promise<number> {
     // The two cutoffs come from the domain rule (`rsvpExpiry.ts`), so SQL cannot disagree with it.
+    // `closed_at` and `starts_at` are ISO `toISOString()` text, fixed-width UTC, so comparing them
+    // as TEXT orders them as instants. Do not store another format in either column.
     const { closedBy, startedBy } = rsvpCutoffs(now)
     return this.db
       .prepare<[string, string]>(

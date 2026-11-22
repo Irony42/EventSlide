@@ -84,7 +84,12 @@ export const startOfLocalDay = (day: string, timeZone: string): Date => {
   const naive = naiveMidnightOf(day)
   // The offset depends on the instant being looked for: a second pass settles it across a change.
   const first = naive - offsetMs(naive, timeZone)
-  return new Date(naive - offsetMs(first, timeZone))
+  const second = naive - offsetMs(first, timeZone)
+  // Where the clocks skip midnight (Havana, Santiago, Asuncion: 00:00 becomes 01:00) the second
+  // pass lands in the previous day: the day then begins at the later candidate, the instant of
+  // the change itself.
+  if (localDayOf(new Date(second), timeZone) < day) return new Date(Math.max(first, second))
+  return new Date(second)
 }
 
 /** The first instant of the local day that follows `day`. */

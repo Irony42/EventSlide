@@ -67,6 +67,31 @@ describe('startOfLocalDay', () => {
   })
 })
 
+describe('startOfLocalDay where midnight does not exist', () => {
+  it('begins the day at the instant the clocks skip midnight', () => {
+    const cases: [string, string, string][] = [
+      ['2026-03-08', 'America/Havana', '2026-03-08T05:00:00.000Z'],
+      ['2026-09-06', 'America/Santiago', '2026-09-06T04:00:00.000Z'],
+    ]
+    for (const [day, zone, expected] of cases) {
+      const start = startOfLocalDay(day, zone)
+
+      expect(start.toISOString()).toBe(expected)
+      expect(localDayOf(start, zone)).toBe(day)
+      expect(localDayOf(new Date(start.getTime() - 1), zone) < day).toBe(true)
+    }
+  })
+
+  it('does the same in Asuncion', () => {
+    const zone = 'America/Asuncion'
+    // Whatever year the rule puts the change at midnight, the day never starts on the day before.
+    for (let day = 1; day <= 31; day += 1) {
+      const text = `2024-10-${String(day).padStart(2, '0')}`
+      expect(localDayOf(startOfLocalDay(text, zone), zone)).toBe(text)
+    }
+  })
+})
+
 describe('startOfNextLocalDay', () => {
   it('is when the day after begins, so the whole deadline day counts', () => {
     expect(startOfNextLocalDay('2026-12-13', 'Europe/Paris').toISOString()).toBe(

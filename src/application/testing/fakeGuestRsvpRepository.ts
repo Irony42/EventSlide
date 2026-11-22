@@ -90,6 +90,13 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
       this.rows.set(key(changed.eventId, changed.id), changed)
       return { kind: 'updated', rsvp: changed }
     }
+    // The adapter's unique index on the digest holds across events.
+    if (
+      rsvp.editTokenHash !== null &&
+      [...this.rows.values()].some((row) => row.editTokenHash === rsvp.editTokenHash)
+    ) {
+      throw new Error('UNIQUE constraint failed: guest_rsvps.edit_token_hash')
+    }
     this.rows.set(key(rsvp.eventId, rsvp.id), rsvp)
     return { kind: 'added', rsvp }
   }
@@ -97,6 +104,14 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
   async update(rsvp: GuestRsvp): Promise<void> {
     const stored = this.rows.get(key(rsvp.eventId, rsvp.id))
     if (stored === undefined) return
+    if (
+      rsvp.householdId !== null &&
+      this.inEvent(rsvp.eventId).some(
+        (row) => row.id !== rsvp.id && row.householdId === rsvp.householdId,
+      )
+    ) {
+      throw new Error('UNIQUE constraint failed: guest_rsvps.event_id, guest_rsvps.household_id')
+    }
     // Everything a host may change: the content, and the household. Identity stays.
     this.rows.set(
       key(rsvp.eventId, rsvp.id),
