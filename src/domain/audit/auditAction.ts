@@ -165,6 +165,23 @@ export const AUDIT_ACTIONS = {
   'event.guestInviteDisabled': { subject: 'event', details: {} },
   /** The owner changed the link (`rotateGuestInviteToken`): the old one and its printed QR are dead. */
   'event.guestInviteRotated': { subject: 'event', details: {} },
+  /**
+   * The owner saved the replies settings (`saveRsvpForm`, spec 30): the switch, the deadline, the form. Says that it
+   * happened, never what: the host's questions are their own text. Subject: the event (see `event.guestInviteSaved`).
+   */
+  'event.rsvpFormSaved': { subject: 'event', details: {} },
+  /** The owner closed the replies by hand (`closeRsvps`, spec 30). Written once: closing what is closed is no act. */
+  'event.rsvpsClosed': { subject: 'event', details: {} },
+  /** The owner reopened the replies (`reopenRsvps`, spec 30). */
+  'event.rsvpsReopened': { subject: 'event', details: {} },
+  /** The owner typed a reply for a guest (`hostAddRsvp`, spec 30). Never the name or the diet. */
+  'event.rsvpHostAdded': { subject: 'event', details: {} },
+  /** The owner changed a reply (`hostUpdateRsvp`, spec 30). */
+  'event.rsvpHostEdited': { subject: 'event', details: {} },
+  /** The owner deleted a reply (`hostDeleteRsvp`, spec 30). */
+  'event.rsvpHostDeleted': { subject: 'event', details: {} },
+  /** The owner downloaded the replies as a spreadsheet (`exportRsvps`, spec 30): the list holds names and diets. */
+  'event.rsvpsExported': { subject: 'event', details: {} },
   /** An operator lifted a suspension (`resumeClient`, G2-14). */
   'client.resumed': { subject: 'client', details: {} },
   /**

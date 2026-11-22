@@ -132,6 +132,13 @@ export type DomainEvent =
    * re-reads). Kept off the public wall's stream by `signalAudience.ts`.
    */
   | { readonly type: 'channel.bindingChanged'; readonly eventId: EventId }
+  /**
+   * A guest's reply to the invitation was written, changed or deleted, or the host closed or reopened the replies
+   * (spec 30): an invalidation signal with **no content**, for the host's replies page alone, which re-reads its
+   * list. Kept off the public wall's stream by `signalAudience.ts`: a room must not learn from the wall's stream
+   * that replies are coming in, and the wall re-reads its playlist on every public signal.
+   */
+  | { readonly type: 'rsvp.changed'; readonly eventId: EventId }
 
   /**
    * The host asked for a highlight reel (spec 08): wakes the worker, as `clip.queued` does. Never

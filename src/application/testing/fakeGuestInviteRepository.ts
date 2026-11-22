@@ -1,5 +1,6 @@
 import { GuestInvite } from '../../domain/guestInvites/guestInvite'
 import type { GuestInviteToken } from '../../domain/guestInvites/guestInviteToken'
+import { DEFAULT_RSVP_SETTINGS, type RsvpSettings } from '../../domain/guestRsvps/rsvpSettings'
 import type { EventId } from '../../domain/shared/ids'
 import type { GuestInviteRepository } from '../ports/guestInviteRepository'
 
@@ -10,6 +11,7 @@ import type { GuestInviteRepository } from '../ports/guestInviteRepository'
  */
 export class FakeGuestInviteRepository implements GuestInviteRepository {
   private readonly rows = new Map<string, GuestInvite>()
+  private readonly rsvp = new Map<string, RsvpSettings>()
 
   /** Puts a row in without any check, for a test that needs a state the rules would refuse. */
   seed(...invites: readonly GuestInvite[]): this {
@@ -61,6 +63,22 @@ export class FakeGuestInviteRepository implements GuestInviteRepository {
     const held = this.rows.get(eventId)
     if (held === undefined) return
     this.rows.set(eventId, GuestInvite.restore({ ...held.toProps(), enabled, updatedAt: at }))
+  }
+
+  async findRsvpSettings(eventId: EventId): Promise<RsvpSettings | null> {
+    if (!this.rows.has(eventId)) return null
+    return this.rsvp.get(eventId) ?? DEFAULT_RSVP_SETTINGS
+  }
+
+  async saveRsvpSettings(eventId: EventId, settings: RsvpSettings): Promise<void> {
+    if (!this.rows.has(eventId)) return
+    const held = this.rsvp.get(eventId) ?? DEFAULT_RSVP_SETTINGS
+    this.rsvp.set(eventId, { ...settings, closedAt: held.closedAt })
+  }
+
+  async setRsvpClosedAt(eventId: EventId, closedAt: Date | null): Promise<void> {
+    if (!this.rows.has(eventId)) return
+    this.rsvp.set(eventId, { ...(this.rsvp.get(eventId) ?? DEFAULT_RSVP_SETTINGS), closedAt })
   }
 
   async rotateToken(eventId: EventId, token: GuestInviteToken, at: Date): Promise<void> {

@@ -60,6 +60,11 @@ guestRsvpRepositoryContract('sqlite', async () => {
   const db = migratedDatabase()
   return {
     repo: new SqliteGuestRsvpRepository(db),
+    addMember: async (eventId, userId) => {
+      db.prepare(
+        `INSERT INTO event_memberships (event_id, user_id, role, granted_at) VALUES (?, ?, 'owner', ?)`,
+      ).run(eventId, userId, ISO_AT)
+    },
     setEventDates: setDates(db),
     dispose: async () => closeDatabase(db),
   }

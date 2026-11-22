@@ -22,6 +22,10 @@ describe('signal audience', () => {
       expect(canReceiveSignal(type, 'moderation')).toBe(true)
     }
   })
+  it('keeps the replies signal off the public channel (spec 30)', () => {
+    expect(canReceiveSignal('rsvp.changed', 'public')).toBe(false)
+    expect(canReceiveSignal('rsvp.changed', 'moderation')).toBe(true)
+  })
   it('lists exactly the private signals', () => {
     expect([...MODERATION_ONLY_SIGNALS]).toEqual([
       'book.changed',
@@ -30,6 +34,7 @@ describe('signal audience', () => {
       'voice.queued',
       'channel.mediaQueued',
       'channel.bindingChanged',
+      'rsvp.changed',
     ])
   })
   it('lets every other signal through to both channels', () => {

@@ -6,7 +6,13 @@ import {
 } from '../../domain/guestRsvps/rsvp'
 import { rsvpCutoffs } from '../../domain/guestRsvps/rsvpExpiry'
 import { rsvpRefusalFor } from '../../domain/guestRsvps/rsvpLimits'
-import { asEventId, asGuestRsvpId, type EventId, type GuestRsvpId } from '../../domain/shared/ids'
+import {
+  asEventId,
+  asGuestRsvpId,
+  type EventId,
+  type GuestRsvpId,
+  type UserId,
+} from '../../domain/shared/ids'
 import type {
   GuestRsvpAdmission,
   GuestRsvpAdmitLimits,
@@ -198,6 +204,29 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
         household_id: rsvp.householdId,
         ...contentParams(rsvp),
       })
+  }
+
+  async unseenCount(eventId: EventId, userId: UserId): Promise<number> {
+    // No membership, no "seen" instant to count from, and no badge to show: none.
+    const row = this.db
+      .prepare<[string, string, string, string, string], { readonly n: number }>(
+        `SELECT COUNT(*) AS n FROM guest_rsvps r
+          WHERE r.event_id = ?
+            AND EXISTS (SELECT 1 FROM event_memberships m WHERE m.event_id = ? AND m.user_id = ?)
+            AND r.updated_at > COALESCE(
+                  (SELECT m.rsvp_seen_at FROM event_memberships m
+                    WHERE m.event_id = ? AND m.user_id = ?), '')`,
+      )
+      .get(eventId, eventId, userId, eventId, userId)
+    return row?.n ?? 0
+  }
+
+  async markSeen(eventId: EventId, userId: UserId, at: Date): Promise<void> {
+    this.db
+      .prepare<[string, string, string]>(
+        `UPDATE event_memberships SET rsvp_seen_at = ? WHERE event_id = ? AND user_id = ?`,
+      )
+      .run(toIsoText(at), eventId, userId)
   }
 
   async delete(eventId: EventId, id: GuestRsvpId): Promise<boolean> {

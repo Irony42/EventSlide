@@ -1,5 +1,6 @@
 import type { GuestInvite } from '../../domain/guestInvites/guestInvite'
 import type { GuestInviteToken } from '../../domain/guestInvites/guestInviteToken'
+import type { RsvpSettings } from '../../domain/guestRsvps/rsvpSettings'
 import type { EventId } from '../../domain/shared/ids'
 
 /**
@@ -41,4 +42,21 @@ export interface GuestInviteRepository {
    * rejected, as in {@link GuestInviteRepository.create}. No row is a no-op.
    */
   rotateToken(eventId: EventId, token: GuestInviteToken, at: Date): Promise<void>
+
+  /**
+   * What the host decided about replies (spec 30): the switch, the deadline, the manual closing and
+   * the form, read with the invitation's row. `null` when the event has no invitation; a row that
+   * never saved any setting answers the defaults (switched off, no deadline, not closed).
+   */
+  findRsvpSettings(eventId: EventId): Promise<RsvpSettings | null>
+
+  /**
+   * Writes the switch, the deadline and the form, and **not** the closing, which a save of the form
+   * must not put back or lift (`setRsvpClosedAt` is the one door for it). The invitation's text,
+   * token, switch and `updatedAt` are not touched. No row is a no-op.
+   */
+  saveRsvpSettings(eventId: EventId, settings: RsvpSettings): Promise<void>
+
+  /** Closes the replies at `closedAt`, or reopens them with `null`. Nothing else is touched. No row is a no-op. */
+  setRsvpClosedAt(eventId: EventId, closedAt: Date | null): Promise<void>
 }

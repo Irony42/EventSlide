@@ -109,6 +109,14 @@ describe('SequentialIdGenerator', () => {
     ])
   })
 
+  it('numbers the replies from one', async () => {
+    const ids = new SequentialIdGenerator()
+
+    expect([ids.guestRsvpId(), ids.guestRsvpId()]).toEqual(['rsvp-1', 'rsvp-2'])
+    ids.reset()
+    expect(ids.guestRsvpId()).toBe('rsvp-1')
+  })
+
   it('starts over on reset', async () => {
     const ids = new SequentialIdGenerator()
     ids.eventId()

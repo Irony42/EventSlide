@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { MAX_RSVPS_PER_EVENT } from '../../../domain/guestRsvps/rsvpLimits'
 import { aRsvp } from '../../../domain/guestRsvps/testing/rsvpFixtures'
-import { asEventId, asGuestRsvpId, type EventId } from '../../../domain/shared/ids'
+import {
+  asEventId,
+  asGuestRsvpId,
+  asUserId,
+  type EventId,
+  type UserId,
+} from '../../../domain/shared/ids'
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
 
 /**
@@ -13,12 +19,14 @@ import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
 /** Rows the SQLite harness must create before the contract runs; the fake ignores them. */
 export const GUEST_RSVP_CONTRACT_FIXTURES = {
   eventIds: ['evt-wedding', 'evt-gala'],
-  userIds: ['user-host'],
+  userIds: ['user-host', 'user-other'],
 } as const
 
 export interface GuestRsvpRepositorySubject {
   readonly repo: GuestRsvpRepository
   /** Sets what the event's `closed_at` and its invitation's start say, for the expiry. */
+  /** Makes the user a member of the event, as an `event_memberships` row does. */
+  readonly addMember: (eventId: EventId, userId: UserId) => Promise<void>
   readonly setEventDates: (
     eventId: EventId,
     dates: { readonly closedAt: Date | null; readonly startsAt: Date | null },
@@ -453,6 +461,69 @@ export const guestRsvpRepositoryContract = (
 
         expect(await repo.delete(WEDDING, asGuestRsvpId('rsvp-1'))).toBe(false)
         expect(await repo.findById(GALA, asGuestRsvpId('rsvp-1'))).not.toBeNull()
+      })
+    })
+
+    describe('what the host has not seen yet', () => {
+      const HOST = asUserId('user-host')
+
+      it('counts every reply for a member who never visited, and none for a stranger', async () => {
+        await subject.addMember(WEDDING, HOST)
+        await add({ id: 'rsvp-1' })
+        await add({ id: 'rsvp-2' })
+
+        expect(await repo.unseenCount(WEDDING, HOST)).toBe(2)
+        expect(await repo.unseenCount(WEDDING, asUserId('user-stranger'))).toBe(0)
+        expect(await repo.unseenCount(GALA, HOST)).toBe(0)
+      })
+
+      it('counts what was written or changed after the last visit, and not what the visit saw', async () => {
+        await subject.addMember(WEDDING, HOST)
+        await add({ id: 'rsvp-1', updatedAt: T0 })
+        await add({ id: 'rsvp-2', updatedAt: T1 })
+        await add({ id: 'rsvp-3', updatedAt: T2 })
+
+        await repo.markSeen(WEDDING, HOST, T1)
+
+        expect(await repo.unseenCount(WEDDING, HOST)).toBe(1)
+
+        await repo.admit(
+          aRsvp({
+            id: 'rsvp-1',
+            eventId: 'evt-wedding',
+            name: 'Changé',
+            updatedAt: new Date(T2.getTime() + 1),
+          }),
+          NONE,
+        )
+        expect(await repo.unseenCount(WEDDING, HOST)).toBe(2)
+
+        await repo.markSeen(WEDDING, HOST, new Date(T2.getTime() + 1))
+        expect(await repo.unseenCount(WEDDING, HOST)).toBe(0)
+      })
+
+      it('keeps the instant of each member and of each event apart', async () => {
+        const other = asUserId('user-other')
+        await subject.addMember(WEDDING, HOST)
+        await subject.addMember(WEDDING, other)
+        await subject.addMember(GALA, HOST)
+        await add({ id: 'rsvp-1', updatedAt: T0 })
+        await repo.admit(aRsvp({ id: 'rsvp-2', eventId: 'evt-gala', updatedAt: T0 }), NONE)
+
+        await repo.markSeen(WEDDING, HOST, T2)
+
+        expect(await repo.unseenCount(WEDDING, HOST)).toBe(0)
+        expect(await repo.unseenCount(WEDDING, other)).toBe(1)
+        expect(await repo.unseenCount(GALA, HOST)).toBe(1)
+      })
+
+      it('notes nothing for someone who is not a member', async () => {
+        await add({ id: 'rsvp-1', updatedAt: T0 })
+
+        await repo.markSeen(WEDDING, HOST, T2)
+        await subject.addMember(WEDDING, HOST)
+
+        expect(await repo.unseenCount(WEDDING, HOST)).toBe(1)
       })
     })
 
