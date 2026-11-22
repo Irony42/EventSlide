@@ -56,8 +56,23 @@ const patternOfUrl = (url: string, level: 'M' | 'H' = 'M') => {
   return pattern
 }
 
+const KEY = 'eventslide.print.camille-et-sacha'
+
+type User = ReturnType<typeof userEvent.setup>
+const openPanel = (user: User, name: string) => user.click(screen.getByRole('tab', { name }))
+
+/** A phone: the media query of the page's phone layout matches, nothing else does. */
+const stubPhone = () =>
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('max-width: 47.99rem'),
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }))
+
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('PrintKitPage', () => {
@@ -109,7 +124,7 @@ describe('PrintKitPage', () => {
     await screen.findByRole('heading', { name: fr.admin.printKitTitle })
 
     await user.selectOptions(screen.getByLabelText(fr.admin.printKitLanguage), 'en')
-    await user.click(screen.getByRole('radio', { name: fr.admin.printFormatA4 }))
+    await user.click(screen.getByRole('radio', { name: fr.admin.printFormatShortA4 }))
 
     expect(sheet()).toHaveAttribute('lang', 'en')
     expect(sheet()).toHaveAttribute('data-format', 'a4')
@@ -128,6 +143,7 @@ describe('PrintKitPage', () => {
       }),
     )
     await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+    await openPanel(user, fr.admin.printPanelColours)
     expect(screen.getByRole('radio', { name: fr.admin.printInkBlack })).toBeChecked()
     expect(sheet()).toHaveAttribute('data-ink', 'black')
 
@@ -149,14 +165,15 @@ describe('PrintKitPage', () => {
   })
 
   it('shows 4, 2 or 1 copies for the three formats', async () => {
+    window.localStorage.setItem(KEY, '{"panel":"print"}')
     const user = userEvent.setup()
     renderPage(apiFor())
     await screen.findByRole('heading', { name: fr.admin.printKitTitle })
 
     expect(within(sheet() as HTMLElement).getAllByRole('img', { name: /QR/ })).toHaveLength(4)
-    await user.click(screen.getByRole('radio', { name: fr.admin.printFormatA5 }))
+    await user.click(screen.getByRole('radio', { name: fr.admin.printFormatShortA5 }))
     expect(within(sheet() as HTMLElement).getAllByRole('img', { name: /QR/ })).toHaveLength(2)
-    await user.click(screen.getByRole('radio', { name: fr.admin.printFormatA4 }))
+    await user.click(screen.getByRole('radio', { name: fr.admin.printFormatShortA4 }))
     expect(within(sheet() as HTMLElement).getAllByRole('img', { name: /QR/ })).toHaveLength(1)
   })
 
@@ -193,7 +210,7 @@ describe('PrintKitPage', () => {
     renderPage(apiFor({ joinUrl: long }))
 
     expect(await screen.findByText(fr.admin.printKitLongLink)).toBeInTheDocument()
-    await user.click(screen.getByRole('radio', { name: fr.admin.printFormatA4 }))
+    await user.click(screen.getByRole('radio', { name: fr.admin.printFormatShortA4 }))
     expect(screen.queryByText(fr.admin.printKitLongLink)).toBeNull()
   })
 
@@ -255,7 +272,7 @@ describe('PrintKitPage', () => {
     renderPage(apiFor())
     await screen.findByRole('heading', { name: fr.admin.printKitTitle })
 
-    await user.click(screen.getByRole('radio', { name: fr.admin.printFormatA4 }))
+    await user.click(screen.getByRole('radio', { name: fr.admin.printFormatShortA4 }))
 
     expect(sheet()).toHaveAttribute('data-format', 'a4')
   })
@@ -264,9 +281,9 @@ describe('PrintKitPage', () => {
     renderPage(apiFor())
     await screen.findByRole('heading', { name: fr.admin.printKitTitle })
 
-    // Three formats, two inks, fifteen designs, the event colour and eleven swatches (spec 28).
-    expect(screen.getAllByRole('radio')).toHaveLength(32)
-    expect(screen.getByRole('radio', { name: fr.admin.printFormatCard })).toBeChecked()
+    // The open entry (Modèle) holds fifteen designs; the toolbar holds the three formats.
+    expect(screen.getAllByRole('radio')).toHaveLength(18)
+    expect(screen.getByRole('radio', { name: fr.admin.printFormatShortCard })).toBeChecked()
     expect(screen.getByRole('combobox', { name: fr.admin.printKitLanguage })).toBeInTheDocument()
     expect(firstQr()).toHaveAccessibleName(fr.admin.qrAlt('Camille & Sacha'))
   })
@@ -285,7 +302,9 @@ describe('PrintKitPage', () => {
       const user = userEvent.setup()
       renderPage(apiFor())
       await screen.findByRole('heading', { name: fr.admin.printKitTitle })
-      const cards = () => [...(sheet()?.querySelectorAll('[data-print-card]') ?? [])]
+      // The copy for the paper is the last sheet in the page: every copy of it wears the design.
+      const paper = () => [...document.querySelectorAll('[data-format]')].at(-1) as HTMLElement
+      const cards = () => [...paper().querySelectorAll('[data-print-card]')]
       expect(cards().map((card) => card.getAttribute('data-print-card'))).toEqual(
         Array(4).fill('essentiel'),
       )
@@ -304,6 +323,7 @@ describe('PrintKitPage', () => {
       const user = userEvent.setup()
       renderPage(apiFor())
       await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      await openPanel(user, fr.admin.printPanelTexts)
       const titles = () => within(sheet() as HTMLElement).getAllByRole('heading', { level: 2 })
       expect(titles()[0]).toHaveTextContent('Camille & Sacha')
 
@@ -318,6 +338,7 @@ describe('PrintKitPage', () => {
       const user = userEvent.setup()
       renderPage(apiFor({ settings: eventSettings({ wallLanguage: 'de' }) }))
       await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      await openPanel(user, fr.admin.printPanelTexts)
 
       await user.type(screen.getByLabelText(fr.admin.printKitTable), '7')
 
@@ -331,6 +352,7 @@ describe('PrintKitPage', () => {
         apiFor({ settings: eventSettings({ theme: { ...DEFAULT_EVENT_THEME, accentHue: 345 } }) }),
       )
       await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      await openPanel(user, fr.admin.printPanelColours)
       expect(sheet()?.style.getPropertyValue('--pd-color')).toBe('oklch(58% 0.14 345)')
 
       await user.click(screen.getByRole('radio', { name: fr.admin.printSwatchNames.fir }))
@@ -340,7 +362,7 @@ describe('PrintKitPage', () => {
       await user.click(screen.getByRole('radio', { name: fr.admin.printKitColourEvent }))
       expect(sheet()?.style.getPropertyValue('--accent-hue')).toBe('345')
       expect(window.localStorage.getItem('eventslide.print.camille-et-sacha')).not.toContain(
-        'colour',
+        '"colour"',
       )
     })
 
@@ -354,6 +376,7 @@ describe('PrintKitPage', () => {
       await user.click(screen.getByRole('radio', { name: fr.admin.printDesignNames.classique }))
 
       expect(sheet()?.querySelector('img')).toHaveAttribute('src', photo)
+      await openPanel(user, fr.admin.printKitPhoto)
       await user.click(screen.getByRole('button', { name: fr.admin.printKitPhotoRemove }))
       expect(sheet()?.querySelector('img')).toBeNull()
       expect(window.localStorage.getItem('eventslide.printPhoto.camille-et-sacha')).toBeNull()
@@ -436,14 +459,18 @@ describe('PrintKitPage', () => {
     afterEach(() => vi.unstubAllGlobals())
 
     it('offers the logo only when the event has one', async () => {
+      const user = userEvent.setup()
       renderPage(withLogo(null))
       await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      await openPanel(user, fr.admin.printPanelColours)
       expect(screen.queryByRole('checkbox', { name: fr.admin.printKitLogo })).toBeNull()
     })
 
     it('never draws a logo address the server did not mint', async () => {
+      const user = userEvent.setup()
       renderPage(withLogo('https://evil.example/logo.png'))
       await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      await openPanel(user, fr.admin.printPanelColours)
       expect(screen.queryByRole('checkbox', { name: fr.admin.printKitLogo })).toBeNull()
       expect(sheet()?.querySelector('image')).toBeNull()
     })
@@ -453,6 +480,7 @@ describe('PrintKitPage', () => {
       const user = userEvent.setup()
       renderPage(withLogo(LOGO))
       await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      await openPanel(user, fr.admin.printPanelColours)
       expect(sheet()?.querySelector('image')).toBeNull()
       const plain = qrPatternOf(firstQr())
 
@@ -478,6 +506,7 @@ describe('PrintKitPage', () => {
       const user = userEvent.setup()
       renderPage(withLogo(LOGO))
       await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      await openPanel(user, fr.admin.printPanelColours)
       await user.click(screen.getByRole('checkbox', { name: fr.admin.printKitLogo }))
       arrive()
       await waitFor(() => expect(sheet()?.querySelector('image')).not.toBeNull())
@@ -523,6 +552,176 @@ describe('PrintKitPage', () => {
       await waitFor(() => expect(print).toHaveBeenCalledTimes(1))
       expect(sheet()?.querySelector('image')).toBeNull()
       expect(qrPatternOf(firstQr())).toBe(patternOfUrl(JOIN_URL))
+    })
+  })
+
+  describe('the workshop: a rail, one panel, the canvas', () => {
+    const ENTRIES = () => [
+      fr.admin.printKitDesign,
+      fr.admin.printPanelTexts,
+      fr.admin.printKitPhoto,
+      fr.admin.printPanelColours,
+      fr.admin.printPanelPrint,
+    ]
+    const selectedTab = () => screen.getByRole('tab', { selected: true })
+
+    it('offers five entries as a tablist and shows the panel the open one controls', async () => {
+      renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+
+      const tabs = within(screen.getByRole('tablist', { name: fr.admin.printWorkshopLabel }))
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent)
+      expect(tabs).toEqual(ENTRIES())
+      expect(selectedTab()).toHaveTextContent(fr.admin.printKitDesign)
+      const panel = screen.getByRole('tabpanel')
+      expect(selectedTab()).toHaveAttribute('aria-controls', panel.id)
+      expect(panel).toHaveAttribute('aria-labelledby', selectedTab().id)
+      // Only the open entry's controls are in the page.
+      expect(screen.queryByLabelText(fr.admin.printKitTitleField)).toBeNull()
+    })
+
+    it('moves between entries with the arrows, Home and End, one tab in the tab order', async () => {
+      const user = userEvent.setup()
+      renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      selectedTab().focus()
+
+      await user.keyboard('{ArrowDown}')
+      expect(selectedTab()).toHaveTextContent(fr.admin.printPanelTexts)
+      expect(selectedTab()).toHaveFocus()
+      expect(screen.getByLabelText(fr.admin.printKitTitleField)).toBeInTheDocument()
+      await user.keyboard('{End}')
+      expect(selectedTab()).toHaveTextContent(fr.admin.printPanelPrint)
+      await user.keyboard('{ArrowDown}')
+      expect(selectedTab()).toHaveTextContent(fr.admin.printKitDesign)
+      await user.keyboard('{ArrowUp}')
+      expect(selectedTab()).toHaveTextContent(fr.admin.printPanelPrint)
+      await user.keyboard('{Home}')
+      expect(selectedTab()).toHaveTextContent(fr.admin.printKitDesign)
+      expect(screen.getAllByRole('tab').filter((tab) => tab.tabIndex === 0)).toHaveLength(1)
+    })
+
+    it('remembers the open entry for this event and reopens on it', async () => {
+      const user = userEvent.setup()
+      const { unmount } = renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+
+      await openPanel(user, fr.admin.printPanelColours)
+      expect(JSON.parse(window.localStorage.getItem(KEY) ?? '{}')).toEqual({ panel: 'colours' })
+      unmount()
+
+      renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      expect(selectedTab()).toHaveTextContent(fr.admin.printPanelColours)
+    })
+
+    it('shows one card while designing and the whole sheet on the printing entry, the host free to switch', async () => {
+      const user = userEvent.setup()
+      renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      const preview = () => screen.getByRole('region', { name: fr.admin.printKitPreview })
+      const copies = () => within(preview()).getAllByRole('img', { name: /QR/ }).length
+      expect(screen.getByRole('button', { name: fr.admin.printViewCard })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+      expect(copies()).toBe(1)
+
+      await openPanel(user, fr.admin.printPanelPrint)
+      expect(screen.getByRole('button', { name: fr.admin.printViewSheet })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+      expect(copies()).toBe(4)
+
+      await user.click(screen.getByRole('button', { name: fr.admin.printViewCard }))
+      expect(copies()).toBe(1)
+      await openPanel(user, fr.admin.printPanelColours)
+      expect(copies()).toBe(1)
+    })
+
+    it('keeps the full sheet in the page for the paper while the preview shows one card', async () => {
+      renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+
+      const sheets = [...document.querySelectorAll('[data-format]')]
+      expect(sheets.map((element) => element.querySelectorAll('[data-print-card]').length)).toEqual(
+        [1, 4],
+      )
+      // The copy for the paper is the one outside the visible preview.
+      expect(sheets[1]?.closest('[data-print="sheet"]')).not.toBeNull()
+      expect(sheets[0]?.closest('[data-print="off"]')).not.toBeNull()
+    })
+
+    it('judges the card colour and the QR ink side by side, with the logo', async () => {
+      const user = userEvent.setup()
+      const logoUrl = `/api/events/camille-et-sacha/logo/${'a'.repeat(64)}`
+      renderPage(apiFor({ settings: eventSettings({ brand: { welcomeMessage: null, logoUrl } }) }))
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+
+      await openPanel(user, fr.admin.printPanelColours)
+
+      const panel = within(screen.getByRole('tabpanel'))
+      expect(panel.getByRole('radio', { name: fr.admin.printSwatchNames.fir })).toBeInTheDocument()
+      expect(panel.getByRole('radio', { name: fr.admin.printInkEvent })).toBeInTheDocument()
+      expect(panel.getByRole('checkbox', { name: fr.admin.printKitLogo })).toBeInTheDocument()
+    })
+
+    it('puts the format and the language in the toolbar above the preview, with the Print button', async () => {
+      renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+
+      const toolbar = within(screen.getByRole('group', { name: fr.admin.printToolbarLabel }))
+      expect(toolbar.getAllByRole('radio')).toHaveLength(3)
+      expect(toolbar.getByLabelText(fr.admin.printKitLanguage)).toBeInTheDocument()
+      expect(toolbar.getByRole('button', { name: fr.admin.printKitPrint })).toBeInTheDocument()
+    })
+
+    it('says what is wrong in a slim notice above the canvas, not among the controls', async () => {
+      renderPage(apiFor({ status: 'closed' }))
+
+      const notice = await screen.findByText(fr.admin.printKitClosed)
+
+      expect(screen.getByRole('tabpanel')).not.toContainElement(notice)
+    })
+
+    it('offers no rail for an archived event', async () => {
+      renderPage(apiFor({ status: 'archived' }))
+      await screen.findByText(fr.admin.printKitArchived)
+
+      expect(screen.queryByRole('tablist')).toBeNull()
+    })
+
+    it('says that a full-background design takes ink on the printing entry too', async () => {
+      const user = userEvent.setup()
+      window.localStorage.setItem(KEY, '{"design":"nuit","panel":"print"}')
+      renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      expect(screen.getByText(fr.admin.printKitInkHeavy)).toBeInTheDocument()
+
+      await openPanel(user, fr.admin.printKitDesign)
+      expect(screen.getByText(fr.admin.printKitInkHeavy)).toBeInTheDocument()
+    })
+
+    it('on a phone, moves the format and the language into the printing entry and offers the big view', async () => {
+      stubPhone()
+      const user = userEvent.setup()
+      renderPage(apiFor())
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      const toolbar = within(screen.getByRole('group', { name: fr.admin.printToolbarLabel }))
+      expect(toolbar.queryAllByRole('radio')).toHaveLength(0)
+      expect(toolbar.getByRole('button', { name: fr.admin.printKitPrint })).toBeInTheDocument()
+
+      await openPanel(user, fr.admin.printPanelPrint)
+      const panel = within(screen.getByRole('tabpanel'))
+      expect(panel.getAllByRole('radio')).toHaveLength(3)
+      expect(panel.getByRole('combobox', { name: fr.admin.printKitLanguage })).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: fr.admin.printSeeBig }))
+      expect(screen.getByRole('dialog', { name: fr.admin.printKitPreview })).toBeInTheDocument()
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog')).toBeNull()
     })
   })
 })
