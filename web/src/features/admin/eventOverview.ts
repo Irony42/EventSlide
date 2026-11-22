@@ -4,22 +4,20 @@ import { allowsModeration, canManageEvent, linksToWall } from '../../lib/eventLi
 /**
  * What the event page puts where (surface: the host and the moderator, on the event page).
  *
- * The page is two layers. The **"Maintenant" card** holds the one or two things the moment turns
+ * The **"Maintenant" card** of the event's home page holds the one or two things the moment turns
  * on, and it changes with the status: before the evening, getting ready and opening the doors;
- * during it, the queue and the screen; after it, the album. The **overview** under it lists
- * everything else the event has, one tile each, so nothing is lost by not being in the first
- * card. A tile is in one layer or the other, never both: two links with one name to one place is
- * what the page used to have and what this replaces. Before the evening the card is a list of
- * steps instead of tiles, and a step may lead where a tile also leads (the settings, the screen,
- * the moderators): it says why to go there ("Tester l'écran sur le vidéoprojecteur"), so its name
- * is its own and never the tile's.
+ * during it, the queue and the screen; after it, the album. Everything else the event has is in
+ * the menu beside the page (`eventLayout/eventSections.ts`), one page each. Before the evening the
+ * card is a list of steps instead of tiles, and a step may lead where the menu also leads (the
+ * settings, the screen, the moderators): it says why to go there ("Tester l'écran sur le
+ * vidéoprojecteur"), so its name is its own.
  *
  * Which destinations exist at all is not decided here. The lifecycle says whether there is a
  * screen or a queue (`linksToWall`, `allowsModeration`), the role says what is the owner's
  * (`canManageEvent`), and the settings say whether there is a guestbook.
  */
 
-/** A destination from the event page: a route, a download, or a panel further down the page. */
+/** A destination from the "Maintenant" card: a route, a download, or another page of the event. */
 export type EventDestination =
   | 'moderate'
   | 'wall'
@@ -42,9 +40,8 @@ export interface EventPageFacts {
 }
 
 /**
- * Every destination this viewer has on this event, in the order the overview lists them:
- * the evening's tools first, then the people, then what is kept afterwards, then the pages
- * about the event itself.
+ * Every destination this viewer has on this event: what the lifecycle, the role and the settings
+ * allow, of which the card takes the moment's own.
  */
 const available = ({ status, role, allowGuestbook }: EventPageFacts): EventDestination[] => {
   const owner = canManageEvent(role)
@@ -79,10 +76,4 @@ export const nowTiles = (facts: EventPageFacts): readonly EventDestination[] => 
   }
   const offered = available(facts)
   return wanted[facts.status].filter((destination) => offered.includes(destination))
-}
-
-/** The overview: every destination this viewer has that the "Maintenant" card does not hold. */
-export const overviewTiles = (facts: EventPageFacts): readonly EventDestination[] => {
-  const inNow = nowTiles(facts)
-  return available(facts).filter((destination) => !inNow.includes(destination))
 }

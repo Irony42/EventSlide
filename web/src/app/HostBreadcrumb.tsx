@@ -6,6 +6,7 @@ import { cx } from '../design-system/classNames'
 import { AmbianceMarker } from '../design-system/components/AmbianceMarker'
 import type { ThemeAmbiance, ThemeCustom } from '../lib/api/dto'
 import { useApi } from '../lib/useApi'
+import { useInsideEventLayout } from './eventChrome'
 import styles from './HostBreadcrumb.module.css'
 
 /** Where the host's list of events is: the one place that offers "Nouvel évènement". */
@@ -80,6 +81,8 @@ export function HostBreadcrumb({
   custom,
   groundUrl,
 }: HostBreadcrumbProps) {
+  // Under the event's layout the menu already says where the host is and leads back: no second trail.
+  if (useInsideEventLayout()) return null
   if (eventName === undefined) return <FetchedTrail slug={slug} page={page} compact={compact} />
   return (
     <Trail

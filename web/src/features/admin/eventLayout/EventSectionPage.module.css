@@ -1,0 +1,55 @@
+/**
+ * One subject on its own page. The width is a reading width rather than the whole column: a list
+ * of guests or a form of three fields is not easier to read on a 1 200 px line.
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-inline-size: calc(var(--container-guest) * 1.9);
+}
+
+/* The moment the section belongs to, where the menu has it. */
+.eyebrow {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.missingTitle {
+  font-size: var(--text-xl);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.note {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.danger {
+  border-color: color-mix(in oklch, var(--danger) 45%, var(--border-subtle));
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* "Supprimer maintenant" while the archive is not complete: reachable, explained, and inert. */
+.blocked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.blockedHint {
+  flex-basis: 100%;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}

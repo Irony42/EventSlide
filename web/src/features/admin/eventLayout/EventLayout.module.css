@@ -1,0 +1,90 @@
+/**
+ * The menu beside the page on a laptop, folded to its glyphs on a tablet, gone below 48rem where
+ * the phone's tab bar takes its place.
+ */
+.layout {
+  display: grid;
+  grid-template-columns: var(--event-nav-width) minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.failed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+@media (max-width: 64rem) {
+  .layout {
+    grid-template-columns: var(--event-nav-rail) minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+}
+
+.phoneHead {
+  display: none;
+}
+
+@media (max-width: 48rem) {
+  .layout {
+    display: block;
+  }
+
+  /* The page keeps clear of the tab bar, and of the home indicator under it. */
+  .content {
+    padding-block-end: calc(var(--event-tabbar-height) + env(safe-area-inset-bottom));
+  }
+
+  .phoneHead {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+}
+
+.phoneBack {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-block-size: var(--touch-min);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.phoneEvent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.phoneEventName {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  .layout {
+    display: block;
+  }
+
+  .phoneHead {
+    display: none;
+  }
+
+  .content {
+    padding: 0;
+  }
+}
