@@ -3,6 +3,7 @@ import { makeGetReelMedia } from '../application/usecases/highlights/getReelMedi
 import { makeDeleteAlbumBook } from '../application/usecases/book/deleteAlbumBook'
 import { makeDownloadAlbumBook } from '../application/usecases/book/downloadAlbumBook'
 import { makeGetAlbumBook } from '../application/usecases/book/getAlbumBook'
+import { makePreviewAlbumBook } from '../application/usecases/book/previewAlbumBook'
 import { makeRequestAlbumBook } from '../application/usecases/book/requestAlbumBook'
 import { makeRecoverReels } from '../application/usecases/highlights/recoverReels'
 import { makeRequestReel } from '../application/usecases/highlights/requestReel'
@@ -155,6 +156,16 @@ export const photosUseCases = (
     maxPhotos: policy.book.maxPhotos,
     maxMessages: policy.book.maxMessages,
     printEnabled: policy.book.printEnabled,
+  }),
+  previewAlbumBook: makePreviewAlbumBook({
+    events: adapters.events,
+    photos: adapters.photos,
+    reactions: adapters.reactions,
+    guests: adapters.guests,
+    guestbook: adapters.guestbook,
+    missions: adapters.missions,
+    clock: adapters.clock,
+    policy: policy.book,
   }),
   downloadAlbumBook: makeDownloadAlbumBook({
     events: adapters.events,

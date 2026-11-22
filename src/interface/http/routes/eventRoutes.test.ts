@@ -423,6 +423,7 @@ const buildWorld = ({
         preselectHighlights: absent('preselectHighlights'),
         requestAlbumBook: absent('requestAlbumBook'),
         getAlbumBook: absent('getAlbumBook'),
+        previewAlbumBook: absent('previewAlbumBook'),
         downloadAlbumBook: absent('downloadAlbumBook'),
         deleteAlbumBook: absent('deleteAlbumBook'),
         requestAlbumExport: absent('requestAlbumExport'),

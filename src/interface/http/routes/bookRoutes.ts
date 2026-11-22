@@ -7,11 +7,11 @@ import {
   bookRequestLimiter,
 } from '../middleware/rateLimit'
 import { withModerator } from '../middleware/scope'
-import type { AlbumBookDto } from '../presenters/dto'
-import { toAlbumBookDto } from '../presenters/presenters'
+import type { AlbumBookDto, BookPreviewDto } from '../presenters/dto'
+import { toAlbumBookDto, toBookPreviewDto } from '../presenters/presenters'
 import { errorBody, sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import { serveRanged } from '../presenters/serveRanged'
-import { requestBookBody } from '../schemas/requestSchemas'
+import { previewBookQuery, requestBookBody } from '../schemas/requestSchemas'
 import type { RouteDeps } from '../useCases'
 
 /**
@@ -80,6 +80,38 @@ export const bookRoutes = ({ deps, usecases }: RouteDeps): Router => {
       res.setHeader('Cache-Control', 'no-store')
       sendResult(res, result, (response, state) =>
         sendJson<AlbumBookDto>(response, toAlbumBookDto(state)),
+      )
+    }),
+  )
+
+  /**
+   * The plan a book of these options would have, for the host's live preview (spec 26). It reads and
+   * writes nothing and runs the same planning as the build. A moderator of the event, like the book
+   * itself: it carries captions, first names and guest-book words. Never cached.
+   */
+  router.get(
+    '/events/:eventSlug/book/preview',
+    requireRole('moderator', deps),
+    withModerator(async ({ eventId, slug }, req, res) => {
+      const query = previewBookQuery.parse(req.query)
+      const result = await usecases.previewAlbumBook({
+        eventId,
+        title: query.title,
+        subtitle: query.subtitle,
+        language: query.language,
+        style: query.style,
+        selection:
+          query.selection === 'all'
+            ? { kind: 'all' }
+            : { kind: 'best', target: query.target ?? 120 },
+        showAuthors: query.showAuthors,
+        showCaptions: query.showCaptions,
+        includeGuestbook: query.includeGuestbook,
+        timeZone: query.timeZone,
+      })
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, preview) =>
+        sendJson<BookPreviewDto>(response, toBookPreviewDto(slug, preview)),
       )
     }),
   )

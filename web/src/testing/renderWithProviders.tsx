@@ -15,6 +15,8 @@ import { ApiError } from '../lib/http'
 import { QUIET_VOICE_BOOK } from './guestbookVoiceFixtures'
 import type {
   AlbumBookDto,
+  BookPreviewDto,
+  BookPreviewPhotoDto,
   AlbumExportDto,
   InvitationAcceptedDto,
   InvitationPreviewDto,
@@ -554,6 +556,83 @@ export const anEventDto = (overrides: Partial<EventDto> = {}): EventDto => ({
   ...overrides,
 })
 
+/** A photograph of a book preview, as the API serves it. */
+export const aPreviewPhoto = (
+  id: string,
+  overrides: Partial<BookPreviewPhotoDto> = {},
+): BookPreviewPhotoDto => ({
+  id,
+  width: 4000,
+  height: 3000,
+  thumbUrl: `/api/events/camille/photos/${id}/thumb`,
+  displayUrl: `/api/events/camille/photos/${id}/display`,
+  caption: null,
+  author: null,
+  mission: null,
+  hearts: 0,
+  ...overrides,
+})
+
+/**
+ * The plan of a small book: cover, the evening in numbers, a page of one photograph, a page of two,
+ * the thanks and the closing page (six plan pages, eight in the file).
+ */
+export const aBookPreview = (overrides: Partial<BookPreviewDto> = {}): BookPreviewDto => ({
+  style: 'classique',
+  colours: {
+    paper: '#f8f5ef',
+    ink: '#2b2622',
+    accent: '#c9a56b',
+    accentText: '#7a5a22',
+    accentStrong: '#8f6a2a',
+    accentInk: '#ffffff',
+  },
+  language: 'fr',
+  cover: { title: 'Mariage', subtitle: '14 juin 2026', photo: aPreviewPhoto('p1') },
+  pages: [
+    { template: 'title', span: 1, chapter: null, photos: [], messages: [], firstMessages: false },
+    { template: 'stats', span: 1, chapter: null, photos: [], messages: [], firstMessages: false },
+    {
+      template: 'single',
+      span: 1,
+      chapter: null,
+      photos: [aPreviewPhoto('p1', { caption: 'Le gâteau', author: 'Léa' })],
+      messages: [],
+      firstMessages: false,
+    },
+    {
+      template: 'twoStack',
+      span: 1,
+      chapter: null,
+      photos: [aPreviewPhoto('p2'), aPreviewPhoto('p3')],
+      messages: [],
+      firstMessages: false,
+    },
+    { template: 'thanks', span: 1, chapter: null, photos: [], messages: [], firstMessages: false },
+    { template: 'end', span: 1, chapter: null, photos: [], messages: [], firstMessages: false },
+  ],
+  pageCount: 8,
+  photoCount: 3,
+  albumPhotos: 42,
+  chapters: [],
+  contents: [],
+  stats: { photos: 3, photographers: 1, hearts: 0, messages: 0 },
+  texts: {
+    contents: 'Sommaire',
+    statsTitle: 'La soirée en chiffres',
+    statPhotos: 'photos partagées',
+    statPhotographers: 'photographes',
+    statHearts: 'cœurs envoyés',
+    statMessages: "mots dans le livre d'or",
+    favourites: 'Les coups de cœur',
+    guestbook: "Le livre d'or",
+    createdWith: 'Album créé avec EventSlide',
+  },
+  thanks: { heading: 'Merci à nos 1 photographes', names: [{ name: 'Léa', photoCount: 3 }] },
+  closingNotes: [],
+  ...overrides,
+})
+
 /** The book's state when none was ever asked for: the album's counts, and what the box offers. */
 export const aNoBook = (
   albumCounts: { photos: number; messages: number } = { photos: 42, messages: 0 },
@@ -858,6 +937,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   }),
   requestAlbumExport: vi.fn(async () => anAlbumExport({ status: 'queued' })),
   albumBook: vi.fn(async (): Promise<AlbumBookDto> => aNoBook()),
+  albumBookPreview: vi.fn(async (): Promise<BookPreviewDto> => aBookPreview()),
   requestAlbumBook: vi.fn(async (): Promise<AlbumBookDto> => aNoBook()),
   deleteAlbumBook: vi.fn(async () => undefined),
   requestReel: vi.fn(async () => ({

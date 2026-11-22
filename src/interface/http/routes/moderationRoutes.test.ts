@@ -253,6 +253,9 @@ const usecasesFor = (
     getAlbumBook: async () => {
       throw new Error('getAlbumBook is not wired in this suite')
     },
+    previewAlbumBook: async () => {
+      throw new Error('previewAlbumBook is not wired in this suite')
+    },
     downloadAlbumBook: async () => {
       throw new Error('downloadAlbumBook is not wired in this suite')
     },

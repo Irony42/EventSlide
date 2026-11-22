@@ -999,3 +999,28 @@ export const galleryGrantQuery = z.strictObject({
   e: z.coerce.number().int().positive(),
   s: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 })
+
+/** A boolean in a query string: the two words, nothing else. */
+const queryFlag = z.enum(['true', 'false']).transform((value) => value === 'true')
+
+/**
+ * `GET /events/:eventSlug/book/preview` (spec 26): the options of `POST …/book`, as a query, so that
+ * the preview is planned from what the host has chosen. Strict like every query. The title and
+ * subtitle are bounded here and cleaned by the domain (`pdfSafeText`); the printer version is not a
+ * preview option (the screen book is what is drawn).
+ */
+export const previewBookQuery = z.strictObject({
+  title: z.string().max(400).default(''),
+  subtitle: z.string().max(400).optional(),
+  language: z.enum(EVENT_LANGUAGES).optional(),
+  style: z.enum(BOOK_STYLES),
+  selection: z.enum(['all', 'best']),
+  target: z.coerce
+    .number()
+    .pipe(z.union([z.literal(60), z.literal(120), z.literal(200)]))
+    .optional(),
+  showAuthors: queryFlag,
+  showCaptions: queryFlag,
+  includeGuestbook: queryFlag,
+  timeZone: z.string().min(1).max(64).optional(),
+})

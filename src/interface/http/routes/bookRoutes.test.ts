@@ -16,6 +16,9 @@ import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepos
 import { makeDeleteAlbumBook } from '../../../application/usecases/book/deleteAlbumBook'
 import { makeDownloadAlbumBook } from '../../../application/usecases/book/downloadAlbumBook'
 import { makeGetAlbumBook } from '../../../application/usecases/book/getAlbumBook'
+import { makePreviewAlbumBook } from '../../../application/usecases/book/previewAlbumBook'
+import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
+import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
 import { makeRequestAlbumBook } from '../../../application/usecases/book/requestAlbumBook'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 
@@ -105,6 +108,16 @@ const world = (rateLimits: Partial<HttpConfig['rateLimits']> = {}): World => {
             printEnabled: state.printEnabled,
           })(input)
         },
+        previewAlbumBook: makePreviewAlbumBook({
+          events: deps.events,
+          photos,
+          reactions: new FakeReactionRepository(),
+          guests: base.guests,
+          guestbook: new FakeGuestbookRepository(),
+          missions: new FakeMissionRepository(photos),
+          clock: deps.clock,
+          policy: { maxPhotos: 300, maxMessages: 60 },
+        }),
         downloadAlbumBook: makeDownloadAlbumBook({
           events: deps.events,
           books,
@@ -177,6 +190,9 @@ const seedDoneBook = async (
   }
 }
 
+const PREVIEW_QUERY =
+  'title=Camille&style=classique&selection=all&showAuthors=true&showCaptions=true&includeGuestbook=false'
+
 let subject: World
 
 beforeEach(() => {
@@ -187,6 +203,7 @@ describe('who may call the book routes', () => {
   const ROUTES = [
     ['post', '/api/events/mariage/book'],
     ['get', '/api/events/mariage/book'],
+    ['get', `/api/events/mariage/book/preview?${PREVIEW_QUERY}`],
     ['get', '/api/events/mariage/book.pdf'],
     ['get', '/api/events/mariage/book-print.pdf'],
     ['get', '/api/events/mariage/book-cover.pdf'],
@@ -675,5 +692,97 @@ describe('GET /api/events/:eventSlug/book, the files of a finished book', () => 
     const response = await agent.get('/api/events/mariage/book')
 
     expect(response.body.files).toEqual({ screen: { byteSize: PDF.length } })
+  })
+})
+
+describe('GET /api/events/:eventSlug/book/preview', () => {
+  const url = (query = PREVIEW_QUERY): string => `/api/events/mariage/book/preview?${query}`
+
+  it('answers the plan of the book with the URLs the API already serves, never cached', async () => {
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get(url())
+
+    expect(response.status).toBe(200)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.body).toMatchObject({
+      style: 'classique',
+      photoCount: 1,
+      albumPhotos: 1,
+      cover: {
+        title: 'Camille',
+        photo: {
+          id: 'p-wedding',
+          thumbUrl: '/api/events/mariage/photos/p-wedding/thumb',
+          displayUrl: '/api/events/mariage/photos/p-wedding/display',
+        },
+      },
+    })
+    expect(response.body.pages[0].template).toBe('title')
+  })
+
+  it('works for a moderator who is not the owner, and writes nothing', async () => {
+    const agent = await signedIn(subject, 'moderator')
+
+    await agent.get(url()).expect(200)
+
+    expect(await subject.books.find(asEventId(WEDDING))).toBeNull()
+  })
+
+  it('reads the photographs of this event only', async () => {
+    const agent = await signedIn(subject, 'gala')
+
+    const response = await agent.get('/api/events/gala/book/preview?' + PREVIEW_QUERY)
+
+    expect(response.status).toBe(200)
+    expect(JSON.stringify(response.body)).not.toContain('p-wedding')
+  })
+
+  it('takes a selection with its length, defaulting to the medium one', async () => {
+    const agent = await signedIn(subject, 'moderator')
+
+    const explicit = await agent.get(
+      url(PREVIEW_QUERY.replace('selection=all', 'selection=best&target=60')),
+    )
+    const implicit = await agent.get(url(PREVIEW_QUERY.replace('selection=all', 'selection=best')))
+
+    expect(explicit.status).toBe(200)
+    expect(implicit.status).toBe(200)
+  })
+
+  it.each([
+    ['an unknown style', PREVIEW_QUERY.replace('classique', 'neon')],
+    ['an unknown key', PREVIEW_QUERY + '&layout=four'],
+    ['a flag that is not a boolean', PREVIEW_QUERY.replace('showCaptions=true', 'showCaptions=1')],
+    [
+      'a length that is not offered',
+      PREVIEW_QUERY.replace('selection=all', 'selection=best&target=61'),
+    ],
+    ['no style at all', PREVIEW_QUERY.replace('style=classique&', '')],
+  ])('answers 400 for %s', async (_name, query) => {
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get(url(query))
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+  })
+
+  it('answers 409 book.empty for an album with nothing published', async () => {
+    subject.events.seed(
+      anEvent({ id: 'empty-id', slug: 'vide', ownerId: OWNER, joinCode: 'C5M8QR' }),
+    )
+    subject.memberships.seed({
+      eventId: asEventId('empty-id'),
+      userId: asUserId(OWNER),
+      role: 'owner',
+      grantedAt: AT,
+    })
+    const agent = await signedIn(subject, 'owner')
+
+    const response = await agent.get('/api/events/vide/book/preview?' + PREVIEW_QUERY)
+
+    expect(response.status).toBe(409)
+    expect(response.body.error.code).toBe('book.empty')
   })
 })

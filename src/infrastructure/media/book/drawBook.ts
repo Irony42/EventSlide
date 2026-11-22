@@ -3,6 +3,7 @@ import type { PlanPage } from '../../../domain/book/bookPlan'
 import { polaroidRotation } from '../../../domain/book/bookStyles'
 import { BOOK_TEMPLATES, type TemplateId, type TemplateSlot } from '../../../domain/book/bookTemplates'
 import { chapterSubtitleText, chapterTitleText } from '../../../domain/book/bookChapters'
+import { chapterNumeral, contentsEntries } from '../../../domain/book/bookContents'
 import type { PhotoId } from '../../../domain/shared/ids'
 import {
   kraftTexture,
@@ -154,8 +155,6 @@ const body = (ctx: DrawContext, size: number): number => Math.max(size, ctx.inpu
 
 /** Magazine speaks louder: bigger numbers and titles, uppercase kickers. */
 const loud = (ctx: DrawContext): boolean => ctx.input.style.id === 'magazine'
-
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
 
 // ----------------------------------------------------------------- images --
 
@@ -556,16 +555,7 @@ const drawContents = (ctx: DrawContext): void => {
     align: 'center',
     kicker: false,
   })
-  const lines: { label: string; page: number }[] = input.plan.chapters.map((chapter) => ({
-    label: `${ROMAN[chapter.index] ?? String(chapter.index + 1)} \u00B7 ${chapterTitleText(chapter.title, input.language)}`,
-    page: chapter.firstPage,
-  }))
-  if (input.plan.favouritesPage !== null) {
-    lines.push({ label: input.texts.favourites, page: input.plan.favouritesPage })
-  }
-  if (input.plan.guestbookPage !== null) {
-    lines.push({ label: input.texts.guestbook, page: input.plan.guestbookPage })
-  }
+  const lines = contentsEntries(input.plan, input.language)
   const step = Math.min(26, list.h / Math.max(1, lines.length))
   const numberWidth = 28
   lines.forEach((line, i) => {
@@ -643,7 +633,7 @@ const drawChapter = (ctx: DrawContext, page: PlanPage, overPhoto: boolean): void
     ctx.doc.save().opacity(0.35).rect(box.x - 10, box.y - 10, box.w + 20, box.h + 20).fill('#000000').restore()
   }
   let y = box.y
-  y += drawText(ctx, ROMAN[chapter.index] ?? String(chapter.index + 1), { ...box, y }, {
+  y += drawText(ctx, chapterNumeral(chapter.index), { ...box, y }, {
     role: 'title',
     size: loud(ctx) ? 72 : 40,
     color: accent,
