@@ -73,6 +73,8 @@ export type AccountTokenId = Branded<string, 'AccountTokenId'>
 export type ChannelBindingId = Branded<string, 'ChannelBindingId'>
 /** One queued media of a messaging channel, waiting to be downloaded and stored (spec 27). */
 export type ChannelMediaJobId = Branded<string, 'ChannelMediaJobId'>
+/** One guest's reply to an invitation (spec 30). Opaque: a host's URL carries it. */
+export type GuestRsvpId = Branded<string, 'GuestRsvpId'>
 
 /**
  * The only casts in the codebase. Use them at a boundary — a database row becoming an
@@ -94,3 +96,4 @@ export const asClientId = (value: string): ClientId => value as ClientId
 export const asAccountTokenId = (value: string): AccountTokenId => value as AccountTokenId
 export const asChannelBindingId = (value: string): ChannelBindingId => value as ChannelBindingId
 export const asChannelMediaJobId = (value: string): ChannelMediaJobId => value as ChannelMediaJobId
+export const asGuestRsvpId = (value: string): GuestRsvpId => value as GuestRsvpId
