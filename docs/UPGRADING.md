@@ -1180,3 +1180,19 @@ or [without](#without-docker), with `vX.Y.Z` as `v3.16.0`; the image is `ghcr.io
   masked in the access logs.
 - **One optional setting**: `GUEST_INVITE_RATE_LIMIT_PER_MINUTE` (default 200, 1 to 6000), the budget of that page per
   client address. It is sized like `JOIN_RATE_LIMIT_PER_MINUTE`, for guests behind one venue's Wi-Fi.
+
+## Upgrading to 3.17
+
+3.17.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no `BREAKING` section. It
+applies **no migration** (the last is still 035) and adds no setting. Take the steps of
+[Upgrading with Docker](#upgrading-with-docker), or [without](#without-docker), with `vX.Y.Z` as `v3.17.0`; the image is
+`ghcr.io/irony42/eventslide:3.17.0`.
+
+### The host's console
+
+- **Nothing to set.** The event page becomes a home page and a menu with one page per subject; every former panel has its
+  own address under `/admin/events/<slug>/`, and the address of the event page itself does not change. Tell your hosts:
+  the deletion of an event is now at the bottom of the album's page, and the invitations' text saves without a button.
+- **One new read route** for the moderators of an event, `/api/events/:slug/book/preview` (a `GET`), the live preview of the
+  photo book. It writes nothing and reads the published photographs at each call; it answers like the book itself when
+  books are off (`BOOK_ENABLED`) or not allowed for the client.
