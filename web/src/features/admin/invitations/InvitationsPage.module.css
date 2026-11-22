@@ -231,9 +231,8 @@
 /* ---- The format switcher: a segmented control, arrows move between the four */
 
 .switcher {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-1);
   padding: var(--space-2);
   border: 1px solid var(--border-subtle);
@@ -242,14 +241,15 @@
 }
 
 .tab {
-  flex: 1 1 auto;
   min-block-size: var(--touch-min);
-  padding-inline: var(--space-3);
+  padding: var(--space-1) var(--space-2);
   border: none;
   border-radius: var(--radius-md);
   background: none;
   color: var(--text-secondary);
   font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
   font-weight: 650;
   cursor: pointer;
 }
@@ -387,6 +387,10 @@
 /* ---- 48rem and up: the text left; the preview, pinned, with the options under it */
 
 @container invite (min-width: 36rem) {
+  .switcher {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .workspace {
     grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
     grid-template-areas:
@@ -454,7 +458,7 @@
     grid-template-areas: 'text middle options';
     grid-template-rows: minmax(0, 1fr);
     align-items: stretch;
-    block-size: max(32rem, calc(100dvh - 16.5rem));
+    block-size: max(26rem, calc(100dvh - 18.5rem));
     overflow: hidden;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
