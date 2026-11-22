@@ -16,6 +16,7 @@ import { QUIET_VOICE_BOOK } from './guestbookVoiceFixtures'
 import type {
   AlbumBookDto,
   BookPreviewDto,
+  BookPreviewPageDto,
   BookPreviewPhotoDto,
   AlbumExportDto,
   InvitationAcceptedDto,
@@ -569,7 +570,27 @@ export const aPreviewPhoto = (
   caption: null,
   author: null,
   mission: null,
+  missionLabel: null,
   hearts: 0,
+  ...overrides,
+})
+
+/** A page of a book preview; its slots default to none. */
+export const aPreviewPage = (
+  template: string,
+  photos: readonly BookPreviewPhotoDto[] = [],
+  boxes: BookPreviewPageDto['boxes'] = [],
+  slots: BookPreviewPageDto['slots'] = [],
+  overrides: Partial<BookPreviewPageDto> = {},
+): BookPreviewPageDto => ({
+  template,
+  span: 1,
+  chapter: null,
+  photos,
+  slots,
+  boxes,
+  messages: [],
+  firstMessages: false,
   ...overrides,
 })
 
@@ -579,6 +600,7 @@ export const aPreviewPhoto = (
  */
 export const aBookPreview = (overrides: Partial<BookPreviewDto> = {}): BookPreviewDto => ({
   style: 'classique',
+  look: { fullBleed: false, polaroid: false, minBodySize: 9 },
   colours: {
     paper: '#f8f5ef',
     ink: '#2b2622',
@@ -590,26 +612,48 @@ export const aBookPreview = (overrides: Partial<BookPreviewDto> = {}): BookPrevi
   language: 'fr',
   cover: { title: 'Mariage', subtitle: '14 juin 2026', photo: aPreviewPhoto('p1') },
   pages: [
-    { template: 'title', span: 1, chapter: null, photos: [], messages: [], firstMessages: false },
-    { template: 'stats', span: 1, chapter: null, photos: [], messages: [], firstMessages: false },
-    {
-      template: 'single',
-      span: 1,
-      chapter: null,
-      photos: [aPreviewPhoto('p1', { caption: 'Le gâteau', author: 'Léa' })],
-      messages: [],
-      firstMessages: false,
-    },
-    {
-      template: 'twoStack',
-      span: 1,
-      chapter: null,
-      photos: [aPreviewPhoto('p2'), aPreviewPhoto('p3')],
-      messages: [],
-      firstMessages: false,
-    },
-    { template: 'thanks', span: 1, chapter: null, photos: [], messages: [], firstMessages: false },
-    { template: 'end', span: 1, chapter: null, photos: [], messages: [], firstMessages: false },
+    aPreviewPage('title', [], [{ x: 20, y: 36, w: 60, h: 22 }]),
+    aPreviewPage(
+      'stats',
+      [],
+      [
+        { x: 15, y: 26, w: 32, h: 20 },
+        { x: 53, y: 26, w: 32, h: 20 },
+        { x: 15, y: 54, w: 32, h: 20 },
+        { x: 53, y: 54, w: 32, h: 20 },
+      ],
+    ),
+    aPreviewPage(
+      'single',
+      [aPreviewPhoto('p1', { caption: 'Le gâteau', author: 'Léa' })],
+      [{ x: 12, y: 80, w: 76, h: 6 }],
+      [{ x: 12, y: 10, w: 76, h: 66, contain: true, hero: true }],
+    ),
+    aPreviewPage(
+      'twoStack',
+      [aPreviewPhoto('p2'), aPreviewPhoto('p3')],
+      [],
+      [
+        { x: 17, y: 8, w: 66, h: 41, contain: false, hero: false },
+        { x: 17, y: 51, w: 66, h: 41, contain: false, hero: false },
+      ],
+    ),
+    aPreviewPage(
+      'thanks',
+      [],
+      [
+        { x: 15, y: 12, w: 70, h: 8 },
+        { x: 13, y: 30, w: 74, h: 50 },
+      ],
+    ),
+    aPreviewPage(
+      'end',
+      [],
+      [
+        { x: 15, y: 40, w: 70, h: 10 },
+        { x: 25, y: 86, w: 50, h: 4 },
+      ],
+    ),
   ],
   pageCount: 8,
   photoCount: 3,

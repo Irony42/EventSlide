@@ -561,6 +561,8 @@ export interface BookPreviewPhotoDto {
   readonly caption: string | null
   readonly author: string | null
   readonly mission: string | null
+  /** The mission as the book prints it, in the book's language. */
+  readonly missionLabel: string | null
   readonly hearts: number
 }
 
@@ -570,6 +572,22 @@ export interface BookPreviewPageDto {
   readonly span: 1 | 2
   readonly chapter: number | null
   readonly photos: readonly BookPreviewPhotoDto[]
+  /** Where each photograph sits in this style, in the order of `photos`. */
+  readonly slots: readonly {
+    readonly x: number
+    readonly y: number
+    readonly w: number
+    readonly h: number
+    readonly contain: boolean
+    readonly hero: boolean
+  }[]
+  /** The boxes the page's texts are drawn in. */
+  readonly boxes: readonly {
+    readonly x: number
+    readonly y: number
+    readonly w: number
+    readonly h: number
+  }[]
   readonly messages: readonly { readonly text: string; readonly author: string | null }[]
   readonly firstMessages: boolean
 }
@@ -587,6 +605,12 @@ export interface BookPreviewDto {
     readonly accentText: string
     readonly accentStrong: string
     readonly accentInk: string
+  }
+  /** What the style does to the page. */
+  readonly look: {
+    readonly fullBleed: boolean
+    readonly polaroid: boolean
+    readonly minBodySize: number
   }
   readonly language: string
   readonly cover: {

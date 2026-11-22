@@ -3342,8 +3342,40 @@ export const de: UiText = {
     },
   },
 
+  /* The photo book's own page (spec 26): the live preview beside the settings. */
+  bookPage: {
+    back: 'Zurück zur Veranstaltung',
+    coverLegend: 'Umschlag',
+    previewLabel: 'Vorschau des Buchs',
+    previewNote: 'Vorschau: Das endgültige Layout entsteht bei der Erstellung.',
+    summary: (pages: number, photos: number, style: string) =>
+      `${t.number(pages)} Seiten · ${t.number(photos)} Fotos · Stil ${style}`,
+    refreshing: 'Vorschau wird aktualisiert…',
+    failed: 'Die Vorschau konnte nicht geladen werden.',
+    retry: 'Erneut versuchen',
+    empty:
+      'Noch ist kein Foto veröffentlicht. Das Buch entsteht aus veröffentlichten Fotos: Veröffentlichen Sie welche in der Moderation.',
+    unsupported: 'Das Fotobuch ist auf diesem Server nicht verfügbar.',
+    prev: 'Vorherige Seiten',
+    next: 'Nächste Seiten',
+    cover: 'Umschlag',
+    inside: 'Umschlaginnenseite',
+    backCover: 'Rückseite',
+    pageNumber: (n: number) => `Seite ${n}`,
+    pageNumbers: (a: number, b: number) => `Seiten ${a} und ${b}`,
+    spreadPosition: (k: number, n: number) => `Doppelseite ${k} von ${n}`,
+    stripLabel: 'Doppelseiten',
+    stripItem: (label: string) => `Gehe zu: ${label}`,
+    big: 'Größer anzeigen',
+    queued: 'Wartet auf seinen Platz…',
+    running: 'Das Buch wird auf dem Server gesetzt…',
+    workingNote:
+      'Der Server meldet keinen Fortschritt. Sie können die Seite verlassen: Das Buch ist danach hier fertig.',
+  },
+
   titles: {
     print: 'Tischkarten und Plakat',
+    eventBook: 'Fotobuch',
     join: 'Der Feier beitreten',
     upload: 'Fotos senden',
     feed: 'Fotos des Abends',

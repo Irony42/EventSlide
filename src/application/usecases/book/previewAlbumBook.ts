@@ -9,7 +9,12 @@ import { pickCoverPhoto } from '../../../domain/book/bookCover'
 import type { BookMessage, BookPhoto } from '../../../domain/book/bookInput'
 import type { BookOptionsV2, BookSelection, BookStyle } from '../../../domain/book/bookOptionsV2'
 import { composeBook } from '../../../domain/book/bookPlan'
-import { resolveBookColours, type BookColours } from '../../../domain/book/bookStyles'
+import {
+  BOOK_STYLE_DEFS,
+  resolveBookColours,
+  type BookColours,
+} from '../../../domain/book/bookStyles'
+import { isContained, slotForStyle } from '../../../domain/book/bookSlots'
 import { BOOK_TEMPLATES, pageCountOf, type TemplateId } from '../../../domain/book/bookTemplates'
 import { BOOK_TEXTS, videosNoteFor } from '../../../domain/book/bookTexts'
 import { formatLongDate, normalizeTimeZone } from '../../../domain/book/bookTime'
@@ -71,7 +76,17 @@ export interface BookPreviewPhoto {
   readonly caption: string | null
   readonly author: string | null
   readonly mission: string | null
+  /** The mission as the book prints it ("Mission : …" in its language). */
+  readonly missionLabel: string | null
   readonly hearts: number
+}
+
+/** A box on the page, in percent of the cut page (of a double page for a `wide` photograph). */
+export interface PreviewBox {
+  readonly x: number
+  readonly y: number
+  readonly w: number
+  readonly h: number
 }
 
 export interface BookPreviewPage {
@@ -80,6 +95,10 @@ export interface BookPreviewPage {
   readonly span: 1 | 2
   readonly chapter: number | null
   readonly photos: readonly BookPreviewPhoto[]
+  /** Where each photograph sits in this style, in the order of `photos`. */
+  readonly slots: readonly (PreviewBox & { readonly contain: boolean; readonly hero: boolean })[]
+  /** The boxes the page's texts are drawn in (the template's own). */
+  readonly boxes: readonly PreviewBox[]
   readonly messages: readonly { readonly text: string; readonly author: string | null }[]
   /** The first `messages` page carries the guest book's heading. */
   readonly firstMessages: boolean
@@ -88,6 +107,12 @@ export interface BookPreviewPage {
 export interface BookPreview {
   readonly style: BookStyle
   readonly colours: BookColours
+  /** What the style does to the page, as `bookStyles.ts` says it. */
+  readonly look: {
+    readonly fullBleed: boolean
+    readonly polaroid: boolean
+    readonly minBodySize: number
+  }
   readonly language: EventLanguage
   readonly cover: {
     readonly title: string
@@ -299,6 +324,8 @@ export const makePreviewAlbumBook =
         wanted.add(photographer.guestId)
       }
     }
+    const texts = BOOK_TEXTS[language]
+    const style = BOOK_STYLE_DEFS[options.style]
     const names =
       wanted.size === 0
         ? new Map<GuestId, string>()
@@ -310,6 +337,7 @@ export const makePreviewAlbumBook =
     const previewPhoto = (id: PhotoId): BookPreviewPhoto => {
       const row = metaOf.get(id)!
       const photo = entities.get(id)!
+      const mission = row.missionId === null ? null : (promptOfMission.get(row.missionId) ?? null)
       return {
         id,
         width: row.width,
@@ -318,7 +346,8 @@ export const makePreviewAlbumBook =
           ? textOrNull(photo.caption === null ? null : photo.caption.toString(), Caption.maxLength)
           : null,
         author: nameOf(row.guestId),
-        mission: row.missionId === null ? null : (promptOfMission.get(row.missionId) ?? null),
+        mission,
+        missionLabel: mission === null ? null : texts.mission(mission),
         hearts: plan.hearts[id] ?? 0,
       }
     }
@@ -333,6 +362,19 @@ export const makePreviewAlbumBook =
         span: BOOK_TEMPLATES[page.template].span,
         chapter: page.chapter ?? null,
         photos: page.slots.map((slot) => previewPhoto(slot.photoId)),
+        slots: page.slots.map((_, index) => {
+          const slot = slotForStyle(style, page.template, index)
+          const { x, y, w, h } = slot
+          return {
+            x,
+            y,
+            w,
+            h,
+            contain: isContained(style, page.template, slot),
+            hero: slot.role === 'hero',
+          }
+        }),
+        boxes: BOOK_TEMPLATES[page.template].texts.map(({ x, y, w, h }) => ({ x, y, w, h })),
         messages: (page.messageIds ?? []).map((id) => {
           const entry = entryById.get(id)!
           return { text: pdfSafeText(entry.text.value, 500), author: nameOf(entry.guestId) }
@@ -341,7 +383,6 @@ export const makePreviewAlbumBook =
       }
     })
 
-    const texts = BOOK_TEXTS[language]
     // A plan of a non-empty album always has a photograph, hence a cover.
     const coverId = pickCoverPhoto(plan)!
     const thanked = plan.photographers.slice(0, MAX_THANKED).flatMap((p) => {
@@ -357,6 +398,11 @@ export const makePreviewAlbumBook =
     return ok({
       style: options.style,
       colours: resolveBookColours(options.style, event.settings.theme.accentHue),
+      look: {
+        fullBleed: style.fullBleed,
+        polaroid: style.polaroid,
+        minBodySize: style.minBodySize,
+      },
       language,
       cover: {
         title: pdfSafeText(options.title, 80),

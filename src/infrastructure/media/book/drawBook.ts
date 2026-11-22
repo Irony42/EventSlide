@@ -3,6 +3,7 @@ import type { PlanPage } from '../../../domain/book/bookPlan'
 import { polaroidRotation } from '../../../domain/book/bookStyles'
 import { BOOK_TEMPLATES, type TemplateId, type TemplateSlot } from '../../../domain/book/bookTemplates'
 import { chapterSubtitleText, chapterTitleText } from '../../../domain/book/bookChapters'
+import { isContained, slotForStyle } from '../../../domain/book/bookSlots'
 import { chapterNumeral, contentsEntries } from '../../../domain/book/bookContents'
 import type { PhotoId } from '../../../domain/shared/ids'
 import {
@@ -278,20 +279,8 @@ const heart = (doc: PDFKit.PDFDocument, x: number, y: number, size: number, colo
     .restore()
 }
 
-/** The slot a template gives a photograph in this style (`full` is a `single` in Classique, inset in Souvenir). */
-const slotFor = (ctx: DrawContext, template: TemplateId, index: number): TemplateSlot => {
-  const style = ctx.input.style.id
-  if (template === 'full' && style === 'classique') return BOOK_TEMPLATES.single.slots[0]!
-  if (template === 'full' && style === 'souvenir') {
-    return { x: 8, y: 8, w: 84, h: 84, role: 'hero' }
-  }
-  const slot = BOOK_TEMPLATES[template].slots[index]!
-  // Magazine grids have hairline gutters: each cell grows by 0.7 % on every side.
-  if (ctx.input.style.fullBleed && BOOK_TEMPLATES[template].slots.length > 1 && template !== 'favourites') {
-    return { ...slot, x: slot.x - 0.7, y: slot.y - 0.7, w: slot.w + 1.4, h: slot.h + 1.4 }
-  }
-  return slot
-}
+const slotFor = (ctx: DrawContext, template: TemplateId, index: number): TemplateSlot =>
+  slotForStyle(ctx.input.style, template, index)
 
 /**
  * A polaroid: the white frame **follows the photograph** (whole, never cropped), so there are no white
@@ -397,7 +386,7 @@ const drawPhoto = async (
   const style = input.style
   const slot = slotFor(ctx, template, index)
   const rect = toRect(mode, slot, BOOK_TEMPLATES[template].span)
-  const contain = slot.contain === true || (template === 'full' && style.id === 'classique')
+  const contain = isContained(style, template, slot)
 
   if (style.polaroid && template !== 'wide') {
     await drawPolaroid(ctx, id, rect, extras)

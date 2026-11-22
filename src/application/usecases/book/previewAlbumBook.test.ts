@@ -378,3 +378,29 @@ describe('previewAlbumBook', () => {
     })
   })
 })
+
+describe('where things sit on the page', () => {
+  it('gives each photograph the slot its style gives it, and says whether it is contained', async () => {
+    seed({ id: 'p1' })
+    const classique = await preview({ style: 'classique' })
+    const single = classique.pages.find((p) => p.photos.length > 0)!
+    expect(single.slots).toHaveLength(single.photos.length)
+    expect(single.slots[0]).toMatchObject({ contain: true })
+    expect(classique.look).toEqual({ fullBleed: false, polaroid: false, minBodySize: 9 })
+
+    const souvenir = await preview({ style: 'souvenir' })
+    expect(souvenir.look).toEqual({ fullBleed: false, polaroid: true, minBodySize: 11 })
+    const magazine = await preview({ style: 'magazine' })
+    expect(magazine.look.fullBleed).toBe(true)
+    expect(magazine.colours.paper).toBe('#ffffff')
+  })
+
+  it('carries the boxes of the texts of a story page, and the mission as the book prints it', async () => {
+    world.missions.seed(aMission({ id: 'm1', eventId: 'event-1', prompt: 'Les mariés' }))
+    seed({ id: 'p1', missionId: 'm1' })
+    const book = await preview()
+    expect(book.pages[0]!.boxes).toEqual([{ x: 20, y: 36, w: 60, h: 22 }])
+    const photo = book.pages.flatMap((p) => p.photos)[0]!
+    expect(photo.missionLabel).toBe('Mission : Les mariés')
+  })
+})

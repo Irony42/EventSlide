@@ -91,6 +91,10 @@ const PrintKitPage = lazy(async () => ({
   default: (await import('../features/admin/PrintKitPage')).PrintKitPage,
 }))
 
+const EventBookPage = lazy(async () => ({
+  default: (await import('../features/admin/book/BookPage')).BookPage,
+}))
+
 const CustomAmbiancePage = lazy(async () => ({
   default: (await import('../features/admin/CustomAmbiancePage')).CustomAmbiancePage,
 }))
@@ -520,6 +524,10 @@ export function AppRoutes() {
                 element={titled('customAmbiance', <CustomAmbiancePage />)}
               />
               <Route path="/admin/events/:slug/print" element={titled('print', <PrintKitPage />)} />
+              <Route
+                path="/admin/events/:slug/book"
+                element={titled('eventBook', <EventBookPage />)}
+              />
               {/* The invitation the host sends before the party (spec 29). */}
               <Route
                 path="/admin/events/:slug/invitations"
