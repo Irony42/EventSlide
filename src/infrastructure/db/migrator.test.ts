@@ -296,6 +296,7 @@ describe('the real schema', () => {
       'event_stats_counters',
       'events',
       'guest_invites',
+      'guest_rsvps',
       'guestbook_entries',
       'guestbook_voices',
       'guests',
@@ -4219,7 +4220,10 @@ describe('migration 035: guest invitations', () => {
     const db = migratedAt(34)
     seedEvent(db)
 
-    migrate(db, migrations)
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= 35),
+    )
 
     expect(tableNames(db)).toContain('guest_invites')
     expect(db.prepare(`SELECT slug FROM events`).all()).toEqual([{ slug: 'e-one' }])
@@ -4272,6 +4276,167 @@ describe('migration 035: guest invitations', () => {
     db.prepare(`DELETE FROM events WHERE id = 'e-one'`).run()
 
     expect(db.prepare(`SELECT COUNT(*) AS n FROM guest_invites`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+})
+
+describe('migration 036: guest replies (RSVP)', () => {
+  const AT = '2026-11-22T10:00:00.000Z'
+
+  const migratedAt = (id: number): Db => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= id),
+    )
+    return db
+  }
+
+  const seedEvent = (db: Db, id = 'e-one'): void => {
+    db.prepare(
+      `INSERT OR IGNORE INTO users (id, email, password_hash, created_at) VALUES ('u', 'u@example.test', 'x', ?)`,
+    ).run(AT)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+       VALUES (?, 'u', ?, ?, ?, 'live', '{}', 1, ?)`,
+    ).run(id, id, id, id, AT)
+  }
+
+  const columnsOf = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(
+      (column) => column.name,
+    )
+
+  const insertRsvp = (
+    db: Db,
+    values: Partial<{
+      id: string
+      event: string
+      token: string | null
+      answer: string
+      adults: number
+      kids: number
+      details: string | null
+      source: string
+    }> = {},
+  ): void => {
+    const { id = 'r-1', event = 'e-one', token = null, answer = 'yes' } = values
+    const { adults = 1, kids = 0, details = null, source = 'open' } = values
+    db.prepare(
+      `INSERT INTO guest_rsvps (id, event_id, edit_token_hash, name, answer, adults, kids, details,
+                                source, created_at, updated_at)
+       VALUES (?, ?, ?, 'Léa', ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(id, event, token, answer, adults, kids, details, source, AT, AT)
+  }
+
+  it('adds the columns and the table without touching what a 035 database held', () => {
+    const db = migratedAt(35)
+    seedEvent(db)
+    db.prepare(
+      `INSERT INTO guest_invites (event_id, token, enabled, title, language, updated_at)
+       VALUES ('e-one', 'TOKEN000000000AA', 1, 'Fête', 'fr', ?)`,
+    ).run(AT)
+
+    migrate(db, migrations)
+
+    expect(db.prepare(`SELECT enabled, title FROM guest_invites`).get()).toEqual({
+      enabled: 1,
+      title: 'Fête',
+    })
+    expect(
+      db
+        .prepare(`SELECT rsvp_enabled, rsvp_deadline, rsvp_closed_at, rsvp_form FROM guest_invites`)
+        .get(),
+    ).toEqual({
+      rsvp_enabled: 0,
+      rsvp_deadline: null,
+      rsvp_closed_at: null,
+      rsvp_form: null,
+    })
+    expect(columnsOf(db, 'event_memberships')).toContain('rsvp_seen_at')
+    expect(columnsOf(db, 'guest_rsvps')).toEqual([
+      'id',
+      'event_id',
+      'household_id',
+      'edit_token_hash',
+      'name',
+      'answer',
+      'adults',
+      'kids',
+      'details',
+      'diet',
+      'message',
+      'source',
+      'created_at',
+      'updated_at',
+    ])
+    closeDatabase(db)
+  })
+
+  it('refuses a switch that is not 0 or 1 and a form that is not JSON', () => {
+    const db = migratedAt(36)
+    seedEvent(db)
+    db.prepare(
+      `INSERT INTO guest_invites (event_id, token, language, updated_at)
+       VALUES ('e-one', 'TOKEN000000000AA', 'fr', ?)`,
+    ).run(AT)
+
+    expect(() => db.prepare(`UPDATE guest_invites SET rsvp_enabled = 2`).run()).toThrow(
+      /CHECK constraint failed/,
+    )
+    expect(() => db.prepare(`UPDATE guest_invites SET rsvp_form = 'not json'`).run()).toThrow(
+      /CHECK constraint failed/,
+    )
+    db.prepare(`UPDATE guest_invites SET rsvp_form = '{"maybe":true}'`).run()
+    closeDatabase(db)
+  })
+
+  it('keeps the answer, the source, the counts and the details inside their vocabularies', () => {
+    const db = migratedAt(36)
+    seedEvent(db)
+
+    expect(() => insertRsvp(db, { answer: 'perhaps' })).toThrow(/CHECK constraint failed/)
+    expect(() => insertRsvp(db, { source: 'robot' })).toThrow(/CHECK constraint failed/)
+    expect(() => insertRsvp(db, { adults: -1 })).toThrow(/CHECK constraint failed/)
+    expect(() => insertRsvp(db, { kids: -1 })).toThrow(/CHECK constraint failed/)
+    expect(() => insertRsvp(db, { details: 'not json' })).toThrow(/CHECK constraint failed/)
+    // `waitlist` and `household` are allowed from the start: a CHECK cannot be changed later.
+    insertRsvp(db, { id: 'r-a', answer: 'waitlist', source: 'household' })
+    insertRsvp(db, { id: 'r-b', details: '{"companions":[]}' })
+    closeDatabase(db)
+  })
+
+  it('never holds two replies with the same token digest, and any number without one', () => {
+    const db = migratedAt(36)
+    seedEvent(db)
+
+    insertRsvp(db, { id: 'r-1', token: 'digest' })
+    expect(() => insertRsvp(db, { id: 'r-2', token: 'digest' })).toThrow(/UNIQUE/)
+    insertRsvp(db, { id: 'r-3', source: 'host' })
+    insertRsvp(db, { id: 'r-4', source: 'host' })
+    closeDatabase(db)
+  })
+
+  it('goes with its event: deleting the event deletes its replies', () => {
+    const db = migratedAt(36)
+    seedEvent(db)
+    insertRsvp(db)
+
+    db.prepare(`DELETE FROM events WHERE id = 'e-one'`).run()
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM guest_rsvps`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
+  it('looks an event up by an index that leads with event_id', () => {
+    const db = migratedAt(36)
+    seedEvent(db)
+
+    const plan = db
+      .prepare(`EXPLAIN QUERY PLAN SELECT * FROM guest_rsvps WHERE event_id = 'e-one'`)
+      .all() as { detail: string }[]
+
+    expect(plan.map((row) => row.detail).join(' ')).toContain('guest_rsvps_event')
     closeDatabase(db)
   })
 })
