@@ -34,6 +34,8 @@ export function GuestTab({ event, invite, children }: OutputProps) {
   const t = useTranslations()
   const text = t.guestInvite.host
   const toast = useToast()
+  // Read once: the preview does not tick, and the render stays the same for the same draft.
+  const [readAt] = useState(() => Date.now())
   const [moment, setMoment] = useState<Moment>('upcoming')
   const [frame, scale] = useFitScale(PHONE_WIDTH)
   const language = parseLocale(invite.language) ?? DEFAULT_LOCALE
@@ -119,7 +121,7 @@ export function GuestTab({ event, invite, children }: OutputProps) {
           >
             <div inert>
               <LocaleOverride locale={language}>
-                <GuestInvitation page={page} token="preview" readAt={Date.now()} />
+                <GuestInvitation page={page} token="preview" readAt={readAt} />
               </LocaleOverride>
             </div>
           </div>

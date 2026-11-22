@@ -67,10 +67,12 @@ export const useInvitationAutosave = ({
   const latest = useRef(form)
   const timer = useRef<number | undefined>(undefined)
   const inflight = useRef(false)
-  const again = useRef(false)
   const waiting = useRef(false)
   const adopt = useRef(onSaved)
   const words = useRef(t)
+  // The save that follows one that was on its way: `run` calls itself through here.
+  const again = useRef(false)
+  const runAgain = useRef<() => void>(() => undefined)
   useEffect(() => {
     adopt.current = onSaved
     words.current = t
@@ -120,11 +122,15 @@ export const useInvitationAutosave = ({
     }
     if (again.current) {
       again.current = false
-      void run()
+      runAgain.current()
     } else if (!failed) {
       setState('saved')
     }
   }, [api, slug])
+
+  useEffect(() => {
+    runAgain.current = () => void run()
+  }, [run])
 
   const change = useCallback(
     (patch: Partial<InvitationForm>) => {

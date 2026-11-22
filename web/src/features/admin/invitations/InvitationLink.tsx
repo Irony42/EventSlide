@@ -54,7 +54,7 @@ export function InvitationLink({
     if (focusAfter.current === 'link') linkField.current?.focus()
     if (focusAfter.current === 'activate') activateButton.current?.focus()
     focusAfter.current = null
-  }, [invite.enabled])
+  }, [invite.enabled, activateButton])
 
   const act = async (
     which: 'enable' | 'disable' | 'rotate',
