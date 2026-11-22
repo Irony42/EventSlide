@@ -141,7 +141,8 @@ test('the page is for the owner: the three columns stack on a 320 px phone witho
   const tab = await host.getByRole('tab', { name: text.tabPrint }).boundingBox()
   expect(tab?.height ?? 0).toBeGreaterThanOrEqual(44)
   // The preview is pinned in view while the rest of the page scrolls under it.
-  await host.mouse.wheel(0, 600)
+  // A scroll of the page, not a wheel: mobile WebKit has no mouse wheel to turn.
+  await host.evaluate(() => window.scrollBy(0, 600))
   await expect(host.getByRole('tabpanel')).toBeInViewport()
 })
 
