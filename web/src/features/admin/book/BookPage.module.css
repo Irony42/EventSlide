@@ -38,8 +38,8 @@
 
 /* At the start of the line even when it is alone there (no way back under the event menu). */
 .title {
-  margin-inline-end: auto;
   margin: 0;
+  margin-inline-end: auto;
   font-size: var(--text-xl);
 }
 
