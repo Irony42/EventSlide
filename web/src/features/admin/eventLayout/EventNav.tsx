@@ -5,6 +5,7 @@ import { VisuallyHidden } from '../../../design-system/components/VisuallyHidden
 import type { EventDto } from '../../../lib/api/dto'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { EventActionIcon, type EventActionGlyph } from '../components/EventActionIcon'
+import { MOMENT_GLYPH, SECTION_GLYPH } from './sectionGlyphs'
 import { EventStatusBadge } from '../components/EventStatusBadge'
 import {
   eventBase,
@@ -21,35 +22,6 @@ import {
 } from './eventSections'
 import { sectionFactsOf } from './useEventPage'
 import styles from './EventNav.module.css'
-
-/** Each section's glyph, drawn once in `EventActionIcon`. */
-export const SECTION_GLYPH: Readonly<Record<EventSection, EventActionGlyph>> = {
-  access: 'access',
-  print: 'print',
-  invitations: 'invitations',
-  missions: 'missions',
-  moderators: 'moderators',
-  moderation: 'moderate',
-  wall: 'wall',
-  announcements: 'announcements',
-  challenge: 'challenge',
-  guestbook: 'guestbook',
-  reveal: 'reveal',
-  telegram: 'telegram',
-  guests: 'guests',
-  album: 'album',
-  bestOf: 'bestOf',
-  book: 'book',
-  share: 'share',
-  stats: 'stats',
-  settings: 'settings',
-}
-
-export const MOMENT_GLYPH: Readonly<Record<EventMoment, EventActionGlyph>> = {
-  before: 'before',
-  during: 'during',
-  after: 'after',
-}
 
 type NavEvent = Pick<
   EventDto,

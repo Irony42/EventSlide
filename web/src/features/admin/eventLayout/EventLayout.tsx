@@ -82,15 +82,10 @@ export function EventLayout() {
     refresh()
   }, [pathname, refresh])
 
-  const context = useMemo<EventPageContext | null>(
-    () => (event === null ? null : { event, replace, refresh, offsetMs, albumUrl, revealControl }),
-    [event, replace, refresh, offsetMs, albumUrl, revealControl],
-  )
-
   if (event === null && loading) return <Pending label={t.admin.eventLoading} />
   // A page that failed to load is still a dead end without the way out: a mistyped or revoked
   // address is exactly when the host needs the list.
-  if (event === null || context === null) {
+  if (event === null) {
     return (
       <div className={styles['failed']}>
         <HostBreadcrumb slug={slug} page="event" eventName={null} />
@@ -104,6 +99,7 @@ export function EventLayout() {
     )
   }
 
+  const context: EventPageContext = { event, replace, refresh, offsetMs, albumUrl, revealControl }
   const base = eventBase(event.slug)
   const home = pathname === base || pathname === `${base}/`
   // The pages where the host composes something to print or send, each with its own preview.
