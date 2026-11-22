@@ -293,6 +293,30 @@ export class GuestRsvp {
     return this.props
   }
 
+  /**
+   * This reply with the content and update instant of `other`: what an admission stores for a
+   * change. Id, token digest, source, household and creation instant stay as they are.
+   */
+  withContentOf(other: GuestRsvp): GuestRsvp {
+    const { name, answer, adults, kids, details, diet, message, updatedAt } = other.props
+    return new GuestRsvp({
+      ...this.props,
+      name,
+      answer,
+      adults,
+      kids,
+      details,
+      diet,
+      message,
+      updatedAt,
+    })
+  }
+
+  /** This reply attached to a household, or detached with `null` (lot 3). */
+  withHousehold(householdId: string | null): GuestRsvp {
+    return new GuestRsvp({ ...this.props, householdId })
+  }
+
   /** The same reply with its content replaced. Id, token, source, household and creation stay. */
   withReply(reply: RsvpInput, now: Date): GuestRsvp {
     return new GuestRsvp({ ...this.props, ...reply, updatedAt: now })

@@ -280,3 +280,54 @@ describe('restoreRsvpDetails', () => {
     expect(many.answers).toHaveLength(12)
   })
 })
+
+describe('GuestRsvp.withContentOf', () => {
+  it('takes the content and the update instant of the other, and keeps its own identity', () => {
+    const later = new Date('2026-11-24T10:00:00Z')
+    const stored = aRsvp({
+      id: 'r-1',
+      editTokenHash: 'hash',
+      source: 'open',
+      householdId: 'h-1',
+      name: 'Léa',
+    })
+    const incoming = aRsvp({
+      id: 'r-other',
+      editTokenHash: 'other',
+      source: 'host',
+      householdId: null,
+      name: 'Léa M.',
+      answer: 'maybe',
+      adults: 3,
+      kids: 1,
+      diet: 'noix',
+      message: 'Peut-être',
+      details: { showName: true },
+      createdAt: later,
+    })
+
+    expect(stored.withContentOf(incoming).toProps()).toEqual({
+      ...stored.toProps(),
+      name: 'Léa M.',
+      answer: 'maybe',
+      adults: 3,
+      kids: 1,
+      diet: 'noix',
+      message: 'Peut-être',
+      details: incoming.details,
+      updatedAt: later,
+    })
+  })
+})
+
+describe('GuestRsvp.withHousehold', () => {
+  it('attaches and detaches a household and changes nothing else', () => {
+    const rsvp = aRsvp({ householdId: null })
+
+    const attached = rsvp.withHousehold('h-1')
+
+    expect(attached.householdId).toBe('h-1')
+    expect(attached.toProps()).toEqual({ ...rsvp.toProps(), householdId: 'h-1' })
+    expect(attached.withHousehold(null).householdId).toBeNull()
+  })
+})
