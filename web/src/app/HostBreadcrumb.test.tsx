@@ -52,60 +52,53 @@ const at = (api: Api, route: string, locale: Locale = 'fr') =>
 const trail = async (locale: Locale = 'fr') =>
   screen.findByRole('navigation', { name: (locale === 'de' ? de : fr).admin.breadcrumbLabel })
 
-const PAGES = [
-  {
-    page: 'the event page',
-    route: `/admin/events/${SLUG}`,
-    current: NAME,
-    // The page's own name is the event, so the trail ends on it and has no second link.
-    links: [[fr.admin.events, '/admin']],
-  },
-  {
-    page: 'the moderation console',
-    route: `/admin/events/${SLUG}/moderation`,
-    current: fr.moderation.title,
-    links: [
-      [fr.admin.events, '/admin'],
-      [NAME, `/admin/events/${SLUG}`],
-    ],
-  },
-  {
-    page: 'the settings page',
-    route: `/admin/events/${SLUG}/settings`,
-    current: fr.admin.settings,
-    links: [
-      [fr.admin.events, '/admin'],
-      [NAME, `/admin/events/${SLUG}`],
-    ],
-  },
-  {
-    page: 'the invitations page',
-    route: `/admin/events/${SLUG}/invitations`,
-    current: fr.guestInvite.host.crumb,
-    links: [
-      [fr.admin.events, '/admin'],
-      [NAME, `/admin/events/${SLUG}`],
-    ],
-  },
+/** The menu beside every page of an event but the console (eventLayout/): the way back is in it. */
+const menu = async (locale: Locale = 'fr') =>
+  screen.findByRole('navigation', { name: (locale === 'de' ? de : fr).eventMenu.label })
+
+/** The pages under the event's menu, where the trail steps aside. */
+const UNDER_MENU = [
+  { page: 'the event page', route: `/admin/events/${SLUG}` },
+  { page: 'the settings page', route: `/admin/events/${SLUG}/settings` },
+  { page: 'the invitations page', route: `/admin/events/${SLUG}/invitations` },
 ] as const
 
 describe('the way back from an event page', () => {
-  it.each(PAGES)(
-    'offers $page a link to the list of events, and to the event where it is a sub-page',
-    async ({ route, current, links }) => {
+  it('offers the console a link to the list of events, and to the event', async () => {
+    at(signedIn(), `/admin/events/${SLUG}/moderation`)
+
+    const nav = await trail()
+    // The name arrives with the event, a moment after the first link.
+    await within(nav).findByText(fr.moderation.title)
+
+    const found = within(nav)
+      .getAllByRole('link')
+      .map((link) => [link.textContent?.replace('← ', ''), link.getAttribute('href')])
+    expect(found).toEqual([
+      [fr.admin.events, '/admin'],
+      [NAME, `/admin/events/${SLUG}`],
+    ])
+    expect(within(nav).getByText(fr.moderation.title)).toHaveAttribute('aria-current', 'page')
+    // Marked once, and never on a link: the page you are on is not a control.
+    expect(nav.querySelectorAll('[aria-current]')).toHaveLength(1)
+  })
+
+  it.each(UNDER_MENU)(
+    'offers $page the way back in the event menu, with no second trail above it',
+    async ({ route }) => {
       at(signedIn(), route)
 
-      const nav = await trail()
-      // The name arrives with the event, a moment after the first link.
-      await within(nav).findByText(current)
-
-      const found = within(nav)
-        .getAllByRole('link')
-        .map((link) => [link.textContent?.replace('← ', ''), link.getAttribute('href')])
-      expect(found).toEqual(links.map(([label, href]) => [label, href]))
-      expect(within(nav).getByText(current)).toHaveAttribute('aria-current', 'page')
-      // Marked once, and never on a link: the page you are on is not a control.
-      expect(nav.querySelectorAll('[aria-current]')).toHaveLength(1)
+      const nav = await menu()
+      expect(within(nav).getByRole('link', { name: fr.admin.events })).toHaveAttribute(
+        'href',
+        '/admin',
+      )
+      expect(within(nav).getByRole('link', { name: fr.eventMenu.home })).toHaveAttribute(
+        'href',
+        `/admin/events/${SLUG}`,
+      )
+      expect(await within(nav).findByText(NAME)).toBeVisible()
+      expect(screen.queryByRole('navigation', { name: fr.admin.breadcrumbLabel })).toBeNull()
     },
   )
 
@@ -138,13 +131,23 @@ describe('the way back from an event page', () => {
   })
 
   it('reads the trail in the host’s own language, and leaves the event’s name as it was written', async () => {
-    at(signedIn(), `/admin/events/${SLUG}/settings`, 'de')
+    at(signedIn(), `/admin/events/${SLUG}/moderation`, 'de')
 
     const nav = await trail('de')
 
     expect(await within(nav).findByRole('link', { name: NAME })).toBeVisible()
     expect(within(nav).getByRole('link', { name: de.admin.events })).toBeVisible()
-    expect(within(nav).getByText(de.admin.settings)).toBeVisible()
+    expect(within(nav).getByText(de.moderation.title)).toBeVisible()
+  })
+
+  it('reads the menu in the host language, and leaves the event name as it was written', async () => {
+    at(signedIn(), `/admin/events/${SLUG}/settings`, 'de')
+
+    const nav = await menu('de')
+
+    expect(await within(nav).findByText(NAME)).toBeVisible()
+    expect(within(nav).getByRole('link', { name: de.admin.events })).toBeVisible()
+    expect(within(nav).getByRole('link', { name: de.eventMenu.sections.settings })).toBeVisible()
   })
 
   it('still offers the way out when the event could not be read', async () => {
@@ -185,11 +188,15 @@ describe('the way back from an event page', () => {
     expect(api.getEvent).toHaveBeenCalledTimes(1)
   })
 
-  it('leaves the settings page one link to the event: the trail is it, not a second one beside it', async () => {
+  it('leaves the settings page one way to the event home: the menu, not a trail beside it', async () => {
     at(signedIn(), `/admin/events/${SLUG}/settings`)
-    await within(await trail()).findByRole('link', { name: NAME })
+    await menu()
 
-    expect(screen.getAllByRole('link', { name: NAME })).toHaveLength(1)
+    const home = screen
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('href') === `/admin/events/${SLUG}`)
+    expect(home).toHaveLength(1)
+    expect(home[0]).toHaveAccessibleName(fr.eventMenu.home)
   })
 
   it('still offers the event on the console when the name could not be read', async () => {
@@ -211,7 +218,7 @@ describe('the way back from an event page', () => {
   it('leads from an event page to the list that carries "Nouvel évènement"', async () => {
     at(signedIn(), `/admin/events/${SLUG}`)
 
-    await userEvent.click(await within(await trail()).findByRole('link', { name: fr.admin.events }))
+    await userEvent.click(await within(await menu()).findByRole('link', { name: fr.admin.events }))
 
     expect(await screen.findByRole('heading', { name: fr.admin.events })).toBeVisible()
     expect(screen.getByRole('link', { name: fr.admin.newEvent })).toHaveAttribute(
@@ -235,22 +242,48 @@ describe('the way back for an account that only moderates', () => {
     )
   }
 
-  it.each(PAGES)(
-    'links $page only to pages the account can open',
-    async ({ route, current, links }) => {
+  it('links the console only to pages the account can open', async () => {
+    at(moderator(), `/admin/events/${SLUG}/moderation`)
+
+    const nav = await trail()
+    // The way out is there at once; the event's link and the page's name come with the read of the
+    // event. Count the links only once that read is shown, or the count races the second item.
+    await within(nav).findByRole('link', { name: fr.admin.events })
+    await within(nav).findByText(fr.moderation.title)
+
+    // Never the operator's console nor the client's space: this account has neither.
+    for (const link of within(nav).getAllByRole('link')) {
+      expect(link.getAttribute('href')).toMatch(new RegExp(`^/admin(/events/${SLUG})?$`))
+    }
+    expect(within(nav).getAllByRole('link')).toHaveLength(2)
+  })
+
+  it.each(UNDER_MENU)(
+    'links the menu of $page only to pages the account can open',
+    async ({ route }) => {
       at(moderator(), route)
 
-      const nav = await trail()
-      // The way out is there at once; the event's link and the page's name come with the read of the
-      // event. Count the links only once that read is shown, or the count races the second item.
-      await within(nav).findByRole('link', { name: fr.admin.events })
-      await within(nav).findByText(current)
+      const nav = await menu()
+      await within(nav).findByText(NAME)
 
-      // Never the operator's console nor the client's space: this account has neither.
+      // The list, the event's own pages and the wall: never the operator's console, the client's
+      // space, nor a page of the event that is the owner's.
       for (const link of within(nav).getAllByRole('link')) {
-        expect(link.getAttribute('href')).toMatch(new RegExp(`^/admin(/events/${SLUG})?$`))
+        expect(link.getAttribute('href')).toMatch(
+          new RegExp(`^(/admin(/events/${SLUG}(/[a-z-]+)?)?|/e/${SLUG}/display)$`),
+        )
       }
-      expect(within(nav).getAllByRole('link')).toHaveLength(links.length)
+      for (const ownerOnly of [
+        'settings',
+        'invitations',
+        'missions',
+        'moderators',
+        'share',
+      ] as const) {
+        expect(
+          within(nav).queryByRole('link', { name: fr.eventMenu.sections[ownerOnly] }),
+        ).toBeNull()
+      }
     },
   )
 
@@ -270,7 +303,9 @@ describe('the way back for an account that only moderates', () => {
     at(moderator(), `/admin/events/${SLUG}/settings`)
     expect(await screen.findByText(fr.admin.settingsOwnerOnly)).toBeVisible()
 
-    await userEvent.click(await within(await trail()).findByRole('link', { name: NAME }))
+    await userEvent.click(
+      await within(await menu()).findByRole('link', { name: fr.eventMenu.home }),
+    )
 
     expect(await screen.findByRole('heading', { name: NAME, level: 1 })).toBeVisible()
     // The owner's controls are not on it, so the link did not lead to a page of refusals.

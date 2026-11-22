@@ -1,6 +1,7 @@
 import { useId, useState, type CSSProperties, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
+import { useSharedReplace } from '../../app/eventChrome'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { Button } from '../../design-system/components/Button'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
@@ -46,7 +47,9 @@ export function CustomAmbiancePage() {
   const { slug = '' } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
-  const { data: event, loading, error, reload, replace } = useEvent(slug)
+  const { data: event, loading, error, reload, replace: replaceOwn } = useEvent(slug)
+  // What a save returns reaches the menu and the ambiance around the page too (eventLayout/).
+  const replace = useSharedReplace(replaceOwn)
   const save = useSaveSettings()
 
   const [draft, setDraft] = useState<Draft | null>(null)

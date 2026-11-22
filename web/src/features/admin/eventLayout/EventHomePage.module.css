@@ -1,0 +1,98 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: var(--text-xl);
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The replay sits at the end of the line on a laptop, under the figures when the line wraps. */
+.tourButton {
+  margin-inline-start: auto;
+}
+
+/**
+ * The "Maintenant" card and the access card, side by side when there is room for both, stacked
+ * below that, the "Maintenant" card first.
+ *
+ * The access card's track is narrow on purpose: it holds a small QR, a code and three buttons,
+ * and every pixel it does not take goes to the card that says what to do now. The threshold is the
+ * width the two need together beside the menu, so it is a container's width and not the window's.
+ */
+.lead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, calc(var(--touch-min) * 7));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+/* The container the two cards measure, rather than the window: the menu beside it takes a share
+   of the window that differs with its width. Only this wrapper is a container, because a container
+   is also the box a `position: fixed` descendant is placed in, and the page's dialogs are below. */
+.leadContainer {
+  container-type: inline-size;
+}
+
+@container (max-width: 46rem) {
+  .lead {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.storage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-inline-size: calc(var(--container-guest) * 1.2);
+}
+
+.liveWindow {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.archived {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* What is armed to happen by itself, at the foot of the "Maintenant" card: the times and the way to change them. */
+.schedule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+/**
+ * Print takes the access card and nothing else: every other block carries this class, so the
+ * host presses the button and gets the card for the tables, with no second route.
+ */
+@media print {
+  .screenOnly {
+    display: none;
+  }
+
+  .lead {
+    display: block;
+  }
+}

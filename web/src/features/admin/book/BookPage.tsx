@@ -28,6 +28,7 @@ import {
 } from './bookOptions'
 import { useBookPreview } from './useBookPreview'
 import styles from './BookPage.module.css'
+import { useInsideEventLayout } from '../../../app/eventChrome'
 
 /**
  * The photo book (spec 04, spec 26) on a page of its own: the settings on one side, the book itself on
@@ -52,7 +53,7 @@ function BookLoader({ slug }: { readonly slug: string }) {
 
   if (event.error !== null || book.error !== null) {
     return (
-      <main className={styles['page']}>
+      <div className={styles['page']}>
         <LoadFailure
           message={event.error ?? book.error ?? ''}
           onRetry={() => {
@@ -60,23 +61,23 @@ function BookLoader({ slug }: { readonly slug: string }) {
             book.reload()
           }}
         />
-      </main>
+      </div>
     )
   }
   if (event.data === null || book.data === null) {
     return (
-      <main className={styles['page']}>
+      <div className={styles['page']}>
         <Pending label={t.app.loading} />
-      </main>
+      </div>
     )
   }
   if (book.data === 'unsupported') {
     return (
-      <main className={styles['page']}>
+      <div className={styles['page']}>
         <Notice tone="warning" variant="boxed">
           {t.bookPage.unsupported}
         </Notice>
-      </main>
+      </div>
     )
   }
   return (
@@ -98,6 +99,7 @@ interface WorkspaceProps {
 
 function Workspace({ slug, event, book, reload }: WorkspaceProps) {
   const t = useTranslations()
+  const inside = useInsideEventLayout()
   const toast = useToast()
   const request = useRequestAlbumBook()
   const remove = useDeleteAlbumBook()
@@ -157,11 +159,14 @@ function Workspace({ slug, event, book, reload }: WorkspaceProps) {
   const style = viewer === null ? '' : t.admin.bookStyleNames[viewer.style]
 
   return (
-    <main className={styles['page']}>
+    <div className={styles['page']}>
       <header className={styles['head']}>
-        <Link to={`/admin/events/${encodeURIComponent(slug)}`} className={styles['back']}>
-          {t.bookPage.back}
-        </Link>
+        {/* Under the event's menu the way back is the menu's. */}
+        {inside ? null : (
+          <Link to={`/admin/events/${encodeURIComponent(slug)}`} className={styles['back']}>
+            {t.bookPage.back}
+          </Link>
+        )}
         <h1 className={styles['title']}>{t.admin.book}</h1>
       </header>
 
@@ -283,6 +288,6 @@ function Workspace({ slug, event, book, reload }: WorkspaceProps) {
         onConfirm={confirmDelete}
         onCancel={() => setDeleting(false)}
       />
-    </main>
+    </div>
   )
 }

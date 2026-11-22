@@ -188,9 +188,10 @@ test('a moderator sees that only the owner writes the invitation, and no form', 
 }) => {
   const { host } = surfaces
   const event = await app.seedEvent({ slug: 'fete-moderee', name: 'Camille & Sacha' })
-  const moderator = `moderateur-${app.baseUrl.split(':').at(-1) ?? '0'}@eventslide.test`
+  // Its own address: moderator-invitation.spec.ts invites one on the same server.
+  const moderator = `invitations-moderateur-${app.baseUrl.split(':').at(-1) ?? '0'}-${test.info().repeatEachIndex}@eventslide.test`
 
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/moderators`))
   await host.getByLabel(fr.admin.moderatorEmail).fill(moderator)
   await host.getByRole('button', { name: fr.admin.inviteSubmit }).click()
   const link = await host.getByLabel(fr.admin.inviteLinkUrl).inputValue()

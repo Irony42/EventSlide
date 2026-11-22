@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Link, Route, Routes } from 'react-router-dom'
-import { EventPage } from './EventPage'
-import styles from './EventPage.module.css'
-import { ApiError } from '../../lib/http'
-import { formatBytes, formatDateTime } from '../../lib/format'
-import { fr } from '../../lib/i18n/fr'
-import { classesOf, cls } from '../../testing/classesOf'
+import { Link, Route } from 'react-router-dom'
+import styles from './EventHomePage.module.css'
+import { EventRoutes } from '../testing/eventRoutes'
+import { ApiError } from '../../../lib/http'
+import { formatBytes, formatDateTime } from '../../../lib/format'
+import { fr } from '../../../lib/i18n/fr'
+import { classesOf, cls } from '../../../testing/classesOf'
 import {
   aSessionUser,
   anAbout,
@@ -15,23 +15,35 @@ import {
   eventSettings,
   fakeApi,
   renderWithProviders,
-} from '../../testing/renderWithProviders'
-import type { Api } from '../../lib/api/client'
-import type { EventDto } from '../../lib/api/dto'
+} from '../../../testing/renderWithProviders'
+import type { Api } from '../../../lib/api/client'
+import type { EventDto } from '../../../lib/api/dto'
 
 const DASHBOARD = 'Tableau de bord'
 
 /** Testing Library folds every kind of space in rendered text down to a plain one. */
 const spaced = (value: string) => value.replace(/\s/g, ' ')
 
-const renderPage = (api: Api) =>
+/** The event's pages under its layout, at its home page or at one of its pages (`/album`, `/share`…). */
+const renderPage = (api: Api, page = '') =>
   renderWithProviders(
-    <Routes>
-      <Route path="/admin" element={<p>{DASHBOARD}</p>} />
-      <Route path="/admin/events/:slug" element={<EventPage />} />
-    </Routes>,
-    { api, route: '/admin/events/camille-et-sacha' },
+    <EventRoutes extra={<Route path="/admin" element={<p>{DASHBOARD}</p>} />} />,
+    {
+      api,
+      route: '/admin/events/camille-et-sacha' + page,
+    },
   )
+
+/**
+ * The status as the page's own header says it: the menu beside the page says it too, so a bare
+ * `getByText` would find two.
+ */
+const statusInHeader = async (label: string): Promise<HTMLElement> => {
+  const title = await screen.findByRole('heading', { level: 1 })
+  const header = title.closest('header')
+  if (header === null) throw new Error('the page title is not in a header')
+  return within(header).findByText(label)
+}
 
 /** The last button carrying a label is the one inside the dialog that just opened. */
 const inDialog = (name: string): HTMLElement => {
@@ -102,8 +114,8 @@ describe('EventPage', () => {
     renderPage(fakeApi())
     await screen.findByRole('heading', { name: 'Camille & Sacha' })
 
-    // The card for the tables is what the host prints; the "Maintenant" card, the overview and
-    // the panels have nothing to say on paper, and `screenOnly` is what hides them there.
+    // The card for the tables is what the host prints; the "Maintenant" card has nothing to say on
+    // paper, and `screenOnly` is what hides it there (the menu hides itself in print).
     const onScreenOnly = (element: HTMLElement): boolean => {
       for (let node: HTMLElement | null = element; node !== null; node = node.parentElement) {
         if (classesOf(node).includes(cls(styles, 'screenOnly'))) return true
@@ -115,11 +127,24 @@ describe('EventPage', () => {
       true,
     )
     expect(onScreenOnly(screen.getByRole('heading', { name: fr.admin.nowLiveTitle }))).toBe(true)
-    expect(onScreenOnly(screen.getByRole('heading', { name: fr.admin.overviewTitle }))).toBe(true)
-    expect(onScreenOnly(screen.getByRole('heading', { name: fr.admin.guestList }))).toBe(true)
   })
 
   it('links to the wall, the moderation console, the settings and the album', async () => {
+    renderPage(fakeApi())
+
+    const menu = await screen.findByRole('navigation', { name: fr.eventMenu.label })
+    expect(
+      within(menu).getByRole('link', { name: fr.eventMenu.sections.settings }),
+    ).toHaveAttribute('href', '/admin/events/camille-et-sacha/settings')
+    await userEvent.click(within(menu).getByRole('link', { name: fr.eventMenu.sections.album }))
+    // Built by the API client, so the ZIP link and the endpoint cannot drift apart.
+    expect(await screen.findByRole('link', { name: fr.admin.download })).toHaveAttribute(
+      'href',
+      '/api/events/camille-et-sacha/album.zip',
+    )
+  })
+
+  it('opens the screen and the queue from the "Maintenant" card of a live evening', async () => {
     renderPage(fakeApi())
 
     expect(await screen.findByRole('link', { name: fr.admin.openWall })).toHaveAttribute(
@@ -129,15 +154,6 @@ describe('EventPage', () => {
     expect(screen.getByRole('link', { name: fr.admin.openModeration })).toHaveAttribute(
       'href',
       '/admin/events/camille-et-sacha/moderation',
-    )
-    expect(screen.getByRole('link', { name: fr.admin.settings })).toHaveAttribute(
-      'href',
-      '/admin/events/camille-et-sacha/settings',
-    )
-    // Built by the API client, so the ZIP link and the endpoint cannot drift apart.
-    expect(screen.getByRole('link', { name: fr.admin.download })).toHaveAttribute(
-      'href',
-      '/api/events/camille-et-sacha/album.zip',
     )
   })
 
@@ -164,11 +180,9 @@ describe('EventPage', () => {
     ).toHaveAccessibleDescription(fr.admin.moderationWaiting(3))
     expect(within(now).getByRole('link', { name: fr.admin.openWall })).toBeVisible()
     expect(within(now).getByRole('button', { name: fr.admin.closeEvent })).toBeVisible()
-    // It leads: before the access card and the overview.
+    // It leads: before the access card.
     const access = screen.getByRole('heading', { name: fr.admin.accessTitle })
-    const overview = screen.getByRole('heading', { name: fr.admin.overviewTitle })
     expect(now.compareDocumentPosition(access) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(now.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('leads a draft with what to get ready and the button that opens the doors', async () => {
@@ -219,7 +233,9 @@ describe('EventPage', () => {
       'href',
       '/admin/events/camille-et-sacha/invitations',
     )
-    expect(screen.getAllByRole('link', { name: fr.guestInvite.host.title })).toHaveLength(2)
+    // And the access card, and the menu's own entry: three ways to one page, each where the host
+    // is looking (getting ready, printing the code, finding their way).
+    expect(screen.getAllByRole('link', { name: fr.guestInvite.host.title })).toHaveLength(3)
   })
 
   it('does not lead a moderator to a page that only the owner writes', async () => {
@@ -248,20 +264,20 @@ describe('EventPage', () => {
     expect(screen.queryByRole('button', { name: fr.admin.rotateJoinCode })).toBeNull()
   })
 
-  it('takes the host from an overview tile to its panel’s heading', async () => {
-    const scrollIntoView = vi.fn()
-    Element.prototype.scrollIntoView = scrollIntoView as unknown as Element['scrollIntoView']
-    try {
-      renderPage(fakeApi())
+  it('takes the host from a menu entry to that subject’s own page', async () => {
+    renderPage(fakeApi())
 
-      await userEvent.click(await screen.findByRole('button', { name: fr.admin.guestList }))
+    const menu = await screen.findByRole('navigation', { name: fr.eventMenu.label })
+    await userEvent.click(within(menu).getByRole('link', { name: fr.eventMenu.sections.guests }))
 
-      const panel = screen.getByRole('heading', { name: fr.admin.guestList })
-      expect(scrollIntoView.mock.contexts[0]).toBe(panel)
-      expect(panel).toHaveFocus()
-    } finally {
-      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
-    }
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Camille & Sacha' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: fr.admin.guestList })).toBeVisible()
+    expect(within(menu).getByRole('link', { name: fr.eventMenu.sections.guests })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
   })
 
   it('takes the owner of a draft from "invite someone to moderate" to the moderators panel', async () => {
@@ -269,7 +285,7 @@ describe('EventPage', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: fr.admin.nowDraftModerators }))
 
-    expect(screen.getByRole('heading', { name: fr.admin.moderators })).toHaveFocus()
+    expect(await screen.findByRole('heading', { name: fr.admin.moderators })).toBeVisible()
   })
 
   it('shows the storage used against the quota the event actually has', async () => {
@@ -277,7 +293,7 @@ describe('EventPage', () => {
       getEvent: vi.fn(async () => anEventDto({ usedBytes: 2_400_000, quotaBytes: 5_000_000_000 })),
     })
 
-    renderPage(api)
+    renderPage(api, '/album')
 
     const bar = await screen.findByRole('progressbar', { name: fr.admin.storageLabel })
     expect(bar).toHaveAttribute('aria-valuenow', '2400000')
@@ -298,7 +314,7 @@ describe('EventPage', () => {
       getEvent: vi.fn(async () => anEventDto({ usedBytes: 1_000, quotaBytes: 2_000 })),
     })
 
-    renderPage(api)
+    renderPage(api, '/album')
 
     const bar = await screen.findByRole('progressbar', { name: fr.admin.storageLabel })
     expect(bar).toHaveAttribute('aria-valuemax', '2000')
@@ -310,7 +326,7 @@ describe('EventPage', () => {
       getEvent: vi.fn(async () => anEventDto({ liveWindowEnd: closing })),
     })
 
-    renderPage(api)
+    renderPage(api, '/album')
 
     expect(
       await screen.findByText(
@@ -319,8 +335,17 @@ describe('EventPage', () => {
     ).toBeVisible()
   })
 
+  it('shows the storage used on the home page too, where the host looks during the evening', async () => {
+    renderPage(
+      fakeApi({ getEvent: vi.fn(async () => anEventDto({ usedBytes: 1_000, quotaBytes: 2_000 })) }),
+    )
+
+    const bar = await screen.findByRole('progressbar', { name: fr.admin.storageLabel })
+    expect(bar).toHaveAttribute('aria-valuemax', '2000')
+  })
+
   it('has no live window line for an event that has none', async () => {
-    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto()) }))
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto()) }), '/album')
 
     await screen.findByRole('progressbar', { name: fr.admin.storageLabel })
     expect(screen.queryByText(/L’évènement se termine/)).toBeNull()
@@ -390,7 +415,7 @@ describe('EventPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
 
     expect(api.setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'closed')
-    expect(await screen.findByText(fr.admin.statusClosed)).toBeVisible()
+    expect(await statusInHeader(fr.admin.statusClosed)).toBeVisible()
     expect(screen.getByRole('button', { name: fr.admin.reopenEvent })).toBeVisible()
     // One toast per move, saying what changed for the room (HOT-13).
     expect(screen.getByText(fr.admin.noticeClosed)).toBeVisible()
@@ -484,7 +509,7 @@ describe('EventPage', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.app.cancel }))
 
     expect(api.setEventStatus).not.toHaveBeenCalled()
-    expect(screen.getByText(fr.admin.statusClosed)).toBeVisible()
+    expect(await statusInHeader(fr.admin.statusClosed)).toBeVisible()
   })
 
   it('says the event was reopened, in its own words', async () => {
@@ -517,7 +542,7 @@ describe('EventPage', () => {
   it('gives the owner the shared gallery link, on the event it belongs to', async () => {
     const api = fakeApi()
 
-    renderPage(api)
+    renderPage(api, '/share')
 
     expect(await screen.findByRole('heading', { name: fr.admin.shareLink })).toBeVisible()
     // The heading is there from the panel's first render, and the read is an effect that runs
@@ -545,6 +570,24 @@ describe('EventPage', () => {
     expect(screen.queryByRole('button', { name: fr.admin.closeEvent })).toBeNull()
     // Moderating is still their job.
     expect(screen.getByRole('link', { name: fr.admin.openModeration })).toBeVisible()
+    // And the menu offers neither page.
+    const menu = screen.getByRole('navigation', { name: fr.eventMenu.label })
+    expect(within(menu).queryByRole('link', { name: fr.eventMenu.sections.moderators })).toBeNull()
+    expect(within(menu).queryByRole('link', { name: fr.eventMenu.sections.share })).toBeNull()
+    expect(within(menu).getByRole('link', { name: fr.eventMenu.sections.moderation })).toBeVisible()
+  })
+
+  it('tells a moderator who reaches an owner’s page by its address that it is not theirs', async () => {
+    const api = fakeApi({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) })
+
+    renderPage(api, '/share')
+
+    expect(await screen.findByText(fr.eventMenu.notHere)).toBeVisible()
+    expect(screen.getByRole('link', { name: fr.eventMenu.backHome })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha',
+    )
+    expect(api.shareLink).not.toHaveBeenCalled()
   })
 
   it('offers a moderator no settings tile, and an owner one', async () => {
@@ -562,7 +605,7 @@ describe('EventPage', () => {
   it('deletes the album only once the address has been typed, then returns to the dashboard', async () => {
     const api = fakeApi()
 
-    renderPage(api)
+    renderPage(api, '/album')
     await userEvent.click(await screen.findByRole('button', { name: fr.admin.purge }))
 
     expect(screen.getByText(fr.admin.purgeWarning)).toBeVisible()
@@ -582,7 +625,7 @@ describe('EventPage', () => {
       purgeEvent: vi.fn(() => Promise.reject(new ApiError(403, 'auth.forbidden'))),
     })
 
-    renderPage(api)
+    renderPage(api, '/album')
     await userEvent.click(await screen.findByRole('button', { name: fr.admin.purge }))
     await userEvent.type(screen.getByLabelText(fr.admin.purgeConfirmLabel), 'camille-et-sacha')
     await userEvent.click(inDialog(fr.admin.purge))
@@ -617,7 +660,7 @@ describe('EventPage', () => {
     await userEvent.click(inDialog(fr.admin.goLive))
 
     expect(api.setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'live')
-    expect(await screen.findByText(fr.admin.statusLive)).toBeVisible()
+    expect(await statusInHeader(fr.admin.statusLive)).toBeVisible()
     expect(screen.getByText(fr.admin.noticeOpened)).toBeVisible()
   })
 
@@ -629,17 +672,23 @@ describe('EventPage', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.app.cancel }))
 
     expect(api.setEventStatus).not.toHaveBeenCalled()
-    expect(screen.getByText(fr.admin.statusDraft)).toBeVisible()
+    expect(await statusInHeader(fr.admin.statusDraft)).toBeVisible()
   })
 
-  it('offers the screen from a draft, which waits for the opening', async () => {
+  it('offers the screen from a draft, in a new tab, from the menu and from the steps', async () => {
     const api = fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft' })) })
 
     renderPage(api)
 
-    const wall = await screen.findByRole('link', { name: fr.admin.openWall })
+    const menu = await screen.findByRole('navigation', { name: fr.eventMenu.label })
+    const wall = within(menu).getByRole('link', { name: new RegExp(fr.eventMenu.sections.wall) })
     expect(wall).toHaveAttribute('href', '/e/camille-et-sacha/display')
-    expect(within(wall).getByText(fr.admin.wallDraftHint)).toBeVisible()
+    expect(wall).toHaveAttribute('target', '_blank')
+    expect(wall).toHaveTextContent(fr.eventMenu.newTab)
+    expect(screen.getByRole('link', { name: fr.admin.nowDraftWall })).toHaveAttribute(
+      'href',
+      '/e/camille-et-sacha/display',
+    )
   })
 
   it('keeps the event as it was when the server refuses a change of state', async () => {
@@ -653,7 +702,7 @@ describe('EventPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['event.illegalTransition'])
-    expect(screen.getByText(fr.admin.statusLive)).toBeVisible()
+    expect(await statusInHeader(fr.admin.statusLive)).toBeVisible()
   })
 
   it('keeps the old join code when the server refuses to change it', async () => {
@@ -674,7 +723,7 @@ describe('EventPage', () => {
   it('leaves the album alone when the purge dialog is cancelled', async () => {
     const api = fakeApi()
 
-    renderPage(api)
+    renderPage(api, '/album')
     await userEvent.click(await screen.findByRole('button', { name: fr.admin.purge }))
     await userEvent.click(screen.getByRole('button', { name: fr.app.cancel }))
 
@@ -727,7 +776,7 @@ describe('EventPage: the Telegram group panel (spec 27)', () => {
       getEvent: vi.fn(async () => anEventDto({ settings: eventSettings({ allowTelegram: true }) })),
     })
 
-    renderPage(api)
+    renderPage(api, '/telegram')
 
     expect(await screen.findByRole('heading', { name: fr.channels.title })).toBeVisible()
     expect(await screen.findByText(fr.channels.step1('EventSlideBot'))).toBeVisible()
@@ -742,8 +791,9 @@ describe('EventPage: the Telegram group panel (spec 27)', () => {
     })
 
     renderPage(api)
-    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+    const menu = await screen.findByRole('navigation', { name: fr.eventMenu.label })
 
+    expect(within(menu).queryByRole('link', { name: fr.eventMenu.sections.telegram })).toBeNull()
     expect(screen.queryByRole('heading', { name: fr.channels.title })).toBeNull()
     expect(api.channels).not.toHaveBeenCalled()
   })
@@ -755,14 +805,12 @@ describe('EventPage, after the evening', () => {
     role: 'owner' | 'moderator' = 'owner',
   ) => renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status, role })) }))
 
-  it('leads a closed event with the album, before the code and the overview', async () => {
+  it('leads a closed event with the album, before the code', async () => {
     renderClosed()
 
     const after = await screen.findByRole('heading', { name: fr.admin.nowClosedTitle })
     const code = screen.getByRole('heading', { name: fr.admin.accessTitle })
-    const overview = screen.getByRole('heading', { name: fr.admin.overviewTitle })
     expect(after.compareDocumentPosition(code) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(after.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('leads an archived event with the album too', async () => {
@@ -788,20 +836,12 @@ describe('EventPage, after the evening', () => {
     expect(within(card).getByRole('link', { name: fr.admin.download })).toHaveAttribute('download')
   })
 
-  it('takes the owner to the album link panel from the card', async () => {
-    const scrollIntoView = vi.fn()
-    Element.prototype.scrollIntoView = scrollIntoView as unknown as Element['scrollIntoView']
-    try {
-      renderClosed()
+  it('takes the owner to the shared album’s page from the card', async () => {
+    renderClosed()
 
-      await userEvent.click(await screen.findByRole('button', { name: fr.admin.afterShare }))
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.afterShare }))
 
-      const panel = screen.getByRole('heading', { name: fr.admin.shareLink })
-      expect(scrollIntoView.mock.contexts[0]).toBe(panel)
-      expect(panel).toHaveFocus()
-    } finally {
-      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
-    }
+    expect(await screen.findByRole('heading', { name: fr.admin.shareLink })).toBeVisible()
   })
 
   it('offers a moderator the download but no way to make the link, which is the owner’s', async () => {
@@ -1028,7 +1068,7 @@ describe('EventPage, the support card', () => {
     })
     renderPage(api)
     await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
-    await screen.findByText(fr.admin.statusClosed)
+    await statusInHeader(fr.admin.statusClosed)
     await aboutApplied(api)
 
     expect(card()).toBeNull()
@@ -1045,7 +1085,7 @@ describe('EventPage, the support card', () => {
   })
 
   it('is offered again for the next event when the host walks to it without leaving the page', async () => {
-    // One `EventPage` instance serves every `/admin/events/:slug`: React Router keeps it
+    // One layout instance serves every `/admin/events/:slug`: React Router keeps it
     // mounted when only the parameter changes. A "closed it" held in that instance's state
     // would carry over to the next event and hide a card that event is owed.
     const api = fakeApi({
@@ -1057,9 +1097,7 @@ describe('EventPage, the support card', () => {
     renderWithProviders(
       <>
         <Link to="/admin/events/deuxieme">suivant</Link>
-        <Routes>
-          <Route path="/admin/events/:slug" element={<EventPage />} />
-        </Routes>
+        <EventRoutes />
       </>,
       { api, route: '/admin/events/premier' },
     )
@@ -1179,20 +1217,24 @@ describe('the reveal band on the console (spec 23)', () => {
       ...overrides,
     })
 
-  it('shows the band beside the challenge when the mode is on', async () => {
-    renderPage(fakeApi({ getEvent: vi.fn(async () => heldEvent()) }))
+  it('gives the reveal a page of its own, in the evening’s part of the menu, when the mode is on', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => heldEvent()) }), '/reveal')
 
     expect(await screen.findByRole('heading', { name: fr.reveal.title })).toBeVisible()
-    expect(screen.getByRole('heading', { name: fr.challenge.title })).toBeVisible()
-    // The banner at the top and the section lower down: two buttons, one question.
-    expect(screen.getAllByRole('button', { name: fr.reveal.revealNow })).toHaveLength(2)
+    expect(screen.getByRole('button', { name: fr.reveal.revealNow })).toBeVisible()
+    const menu = screen.getByRole('navigation', { name: fr.eventMenu.label })
+    expect(within(menu).getByRole('link', { name: fr.eventMenu.sections.reveal })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
   })
 
-  it('shows no band while the mode is off', async () => {
+  it('offers no reveal at all while the mode is off', async () => {
     renderPage(fakeApi())
 
-    await screen.findByRole('heading', { name: fr.challenge.title })
+    const menu = await screen.findByRole('navigation', { name: fr.eventMenu.label })
 
+    expect(within(menu).queryByRole('link', { name: fr.eventMenu.sections.reveal })).toBeNull()
     expect(screen.queryByRole('heading', { name: fr.reveal.title })).toBeNull()
   })
 
@@ -1208,7 +1250,7 @@ describe('the reveal band on the console (spec 23)', () => {
   })
 
   it('lets the owner move the hour from the band', async () => {
-    renderPage(fakeApi({ getEvent: vi.fn(async () => heldEvent()) }))
+    renderPage(fakeApi({ getEvent: vi.fn(async () => heldEvent()) }), '/reveal')
 
     expect(await screen.findByRole('link', { name: fr.reveal.editTime })).toHaveAttribute(
       'href',
@@ -1232,7 +1274,7 @@ describe('the reveal band on the console (spec 23)', () => {
       revealEvent: vi.fn(async () => revealed),
     })
 
-    renderPage(api)
+    renderPage(api, '/reveal')
     const section = (await screen.findByRole('heading', { name: fr.reveal.title })).closest(
       'section',
     )
@@ -1251,7 +1293,7 @@ describe('the reveal band on the console (spec 23)', () => {
   describe('the banner at the top of the page (spec 23b, point 4)', () => {
     const banner = () => screen.findByTestId('reveal-banner')
 
-    it('says the hour, the time left and how many photographs wait, above "Tout l’évènement"', async () => {
+    it('says the hour, the time left and how many photographs wait, above the "Maintenant" card', async () => {
       // Half a minute short of the hour, so the rounding up of a started minute lands on "1 h 00".
       const soon = heldEvent({
         reveal: {
@@ -1270,9 +1312,8 @@ describe('the reveal band on the console (spec 23)', () => {
       expect(line).toHaveTextContent(fr.reveal.guestLeft(1, 0))
       expect(line).toHaveTextContent(fr.reveal.bannerWaiting(12))
       expect(
-        line.compareDocumentPosition(
-          screen.getByRole('heading', { name: fr.admin.overviewTitle }),
-        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+        line.compareDocumentPosition(screen.getByRole('heading', { name: fr.admin.nowLiveTitle })) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy()
     })
 
@@ -1329,6 +1370,22 @@ describe('the reveal band on the console (spec 23)', () => {
     })
 
     it('is gone once the evening is revealed, and the section says when', async () => {
+      const revealedEvent = () =>
+        heldEvent({
+          reveal: {
+            enabled: true,
+            revealed: true,
+            atMs: NOW - 60_000,
+            serverNowMs: NOW,
+            film: true,
+            readyCount: null,
+          },
+        })
+      const home = renderPage(fakeApi({ getEvent: vi.fn(async () => revealedEvent()) }))
+      await screen.findByRole('heading', { level: 1, name: 'Camille & Sacha' })
+      expect(screen.queryByTestId('reveal-banner')).toBeNull()
+      home.unmount()
+
       renderPage(
         fakeApi({
           getEvent: vi.fn(async () =>
@@ -1344,16 +1401,16 @@ describe('the reveal band on the console (spec 23)', () => {
             }),
           ),
         }),
+        '/reveal',
       )
 
       expect(await screen.findByRole('heading', { name: fr.reveal.title })).toBeVisible()
-      expect(screen.queryByTestId('reveal-banner')).toBeNull()
     })
 
     it('is not there on an evening without the mode', async () => {
       renderPage(fakeApi())
 
-      await screen.findByRole('heading', { name: fr.challenge.title })
+      await screen.findByRole('heading', { name: fr.admin.nowLiveTitle })
 
       expect(screen.queryByTestId('reveal-banner')).toBeNull()
     })
@@ -1392,7 +1449,7 @@ describe('the reveal band, at the hour and at the closing (spec 23)', () => {
           : { reveal: { ...past.reveal, revealed: true, readyCount: null } }),
       }
       getEvent.mockResolvedValueOnce(revealedNow)
-      renderPage(fakeApi({ getEvent }))
+      renderPage(fakeApi({ getEvent }), '/announcements')
 
       const draft = await screen.findByLabelText(fr.announcement.text)
       await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).type(draft, 'Le gâteau')
@@ -1402,8 +1459,8 @@ describe('the reveal band, at the hour and at the closing (spec 23)', () => {
       })
 
       await waitFor(() => expect(getEvent).toHaveBeenCalledTimes(2))
-      // The panels never unmounted: the half-typed announcement is still there, and the page
-      // never said it was loading.
+      // The layout read the event again quietly: the half-typed announcement on its page is still
+      // there, and the page never said it was loading.
       expect(screen.queryByText(fr.admin.eventLoading)).toBeNull()
       expect(screen.getByLabelText(fr.announcement.text)).toHaveValue('Le gâteau')
       expect(screen.getByLabelText(fr.announcement.text)).toBe(draft)

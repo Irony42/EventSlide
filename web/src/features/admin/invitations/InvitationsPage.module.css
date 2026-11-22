@@ -556,13 +556,6 @@
   }
 }
 
-/* On a phone the host layout has a fixed tab bar at the bottom: the action sticks above it. */
-@media (max-width: 47.99rem) {
-  .actions {
-    inset-block-end: calc(4rem + env(safe-area-inset-bottom));
-  }
-}
-
 .unsaved {
   color: var(--warning);
   font-size: var(--text-sm);

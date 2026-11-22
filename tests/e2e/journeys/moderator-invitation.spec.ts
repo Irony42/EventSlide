@@ -33,9 +33,11 @@ test('a moderator invited by link accepts it on their own machine and can modera
   const event = await app.seedEvent({ slug: 'invitation', name: 'Camille & Sacha' })
   // Scoped to the worker: the server outlives this test, and an address that already has an
   // account is told to sign in instead of being given a second one.
-  const moderator = `moderateur-${app.baseUrl.split(':').at(-1) ?? '0'}@eventslide.test`
+  // Scoped to the server and to the repetition: the repeat job runs this test five times on one
+  // server, and another spec invites a moderator too.
+  const moderator = `moderateur-${app.baseUrl.split(':').at(-1) ?? '0'}-${test.info().repeatEachIndex}@eventslide.test`
 
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/moderators`))
 
   // ---- the host invites: an address, and nothing else ------------------------------
 
@@ -172,7 +174,7 @@ test('an address that already has an account is invited exactly like one that ha
   const moderator = `deja-vu-${app.baseUrl.split(':').at(-1) ?? '0'}@eventslide.test`
 
   const invite = async (slug: string): Promise<string> => {
-    await host.goto(app.url(`/admin/events/${slug}`))
+    await host.goto(app.url(`/admin/events/${slug}/moderators`))
     await host.getByLabel(fr.admin.moderatorEmail).fill(moderator)
     await host.getByRole('button', { name: fr.admin.inviteSubmit }).click()
     await expect(host.getByText(fr.admin.inviteLinkCreated(moderator))).toBeVisible()
@@ -240,7 +242,7 @@ test('a person who already has an account is sent to sign in, comes back to the 
   const moderator = `connu-${app.baseUrl.split(':').at(-1) ?? '0'}@eventslide.test`
 
   const invite = async (slug: string): Promise<string> => {
-    await host.goto(app.url(`/admin/events/${slug}`))
+    await host.goto(app.url(`/admin/events/${slug}/moderators`))
     await host.getByLabel(fr.admin.moderatorEmail).fill(moderator)
     await host.getByRole('button', { name: fr.admin.inviteSubmit }).click()
     await expect(host.getByText(fr.admin.inviteLinkCreated(moderator))).toBeVisible()

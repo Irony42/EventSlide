@@ -77,7 +77,9 @@ const METHODS = Object.keys(api)
 describe('every method of Api has a production caller, or a reason it has none', () => {
   it('has something to read, rather than an empty glob', () => {
     expect(production.length).toBeGreaterThan(150)
-    expect(production.map(([path]) => path)).toContain('features/admin/EventPage.tsx')
+    expect(production.map(([path]) => path)).toContain(
+      'features/admin/eventLayout/EventHomePage.tsx',
+    )
     expect(production.map(([path]) => path)).not.toContain('lib/api/client.ts')
     expect(production.map(([path]) => path)).not.toContain('lib/api/client/host.ts')
     expect(METHODS.length).toBeGreaterThan(70)

@@ -18,6 +18,16 @@ export type EventActionGlyph =
   | 'print'
   | 'copy'
   | 'expand'
+  | 'home'
+  | 'access'
+  | 'invitations'
+  | 'announcements'
+  | 'reveal'
+  | 'telegram'
+  | 'before'
+  | 'during'
+  | 'after'
+  | 'external'
 
 export interface EventActionIconProps {
   readonly glyph: EventActionGlyph
@@ -74,6 +84,31 @@ const SHAPES: Record<EventActionGlyph, string> = {
   copy: 'M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3',
   // Four corners pulled outward
   expand: 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10',
+  // A house: the event's home page
+  home: 'M2.5 7.5 8 2.8l5.5 4.7M4 6.4v6.6a.5.5 0 0 0 .5.5h2.5V10h2v3.5h2.5a.5.5 0 0 0 .5-.5V6.4',
+  // The three finder squares of a QR code and a few modules
+  access:
+    'M2.5 2.5h4v4h-4zM9.5 2.5h4v4h-4zM2.5 9.5h4v4h-4zM9.5 9.5h1.5v1.5H9.5zM12 12h1.5v1.5H12zM9.5 12.8h1M12.8 9.5v1',
+  // An envelope
+  invitations: 'M2.5 4h11v8.5h-11zM2.5 4.2 8 8.6l5.5-4.4',
+  // A loud-hailer
+  announcements:
+    'M2.5 6.5h2.5l5.5-3v9l-5.5-3H2.5zM5 9.5l.9 3.5h1.6l-.7-3M12.5 6.3a2.2 2.2 0 0 1 0 3.4',
+  // An eye: what the room may see, and when
+  reveal:
+    'M1.8 8S4 3.8 8 3.8 14.2 8 14.2 8 12 12.2 8 12.2 1.8 8 1.8 8zM8 9.9a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+  // A paper plane
+  telegram: 'M13.8 2.4 1.9 7.2l4.2 1.6 1.6 4.4 2.2-2.6 3.1 2.2zM6.1 8.8l7.7-6.4',
+  // A list with a tick: getting ready
+  before: 'M7 4h6.5M7 8h6.5M7 12h6.5M2.5 4l1 1 1.7-2M2.7 8h1.8M2.7 12h1.8',
+  // A spark: the evening itself
+  during:
+    'M8 1.8v3M8 11.2v3M1.8 8h3M11.2 8h3M3.6 3.6l2.1 2.1M10.3 10.3l2.1 2.1M3.6 12.4l2.1-2.1M10.3 5.7l2.1-2.1',
+  // A heart: what is kept afterwards
+  after: 'M8 13.2S2.3 9.9 2.3 6.1A2.9 2.9 0 0 1 8 4.8a2.9 2.9 0 0 1 5.7 1.3c0 3.8-5.7 7.1-5.7 7.1z',
+  // An arrow leaving its box: a page that opens elsewhere
+  external:
+    'M9.5 2.5h4v4M13.5 2.5 7.5 8.5M11.5 9.5v3.2a.8.8 0 0 1-.8.8H3.3a.8.8 0 0 1-.8-.8V5.3a.8.8 0 0 1 .8-.8h3.2',
 }
 
 export function EventActionIcon({ glyph, className }: EventActionIconProps) {

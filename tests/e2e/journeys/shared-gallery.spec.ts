@@ -56,7 +56,7 @@ test('a host sends the album, a relative opens it with the password and download
   await expect(host.getByTestId('moderation-card')).toHaveCount(1)
 
   // --- The host makes a password-protected link on the event page, and copies it.
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/share`))
   const panel = host
     .locator('section')
     .filter({ has: host.getByRole('heading', { name: 'Album partagé' }) })

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
+import { useSharedReplace } from '../../app/eventChrome'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { Button } from '../../design-system/components/Button'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
@@ -207,7 +208,9 @@ const saveStatus = (state: SettingsSaveState, text: UiText): string => {
 export function EventSettingsPage() {
   const t = useTranslations()
   const { slug = '' } = useParams()
-  const { data: event, loading, error, reload, replace } = useEvent(slug)
+  const { data: event, loading, error, reload, replace: replaceOwn } = useEvent(slug)
+  // What a save returns reaches the menu and the ambiance around the page too (eventLayout/).
+  const replace = useSharedReplace(replaceOwn)
 
   /**
    * This page shows state a **background job rewrites**, which no other admin screen does:

@@ -250,6 +250,11 @@
   /* ---- Layout ---- */
   --container-guest: 30rem; /* single column, phone-first */
   --container-host: 78rem; /* moderation console, admin */
+  /* The event's menu (eventLayout/): its width beside the page, the glyph-only rail it folds to
+     below 64rem, and the phone's tab bar under the thumb, which the page keeps clear of. */
+  --event-nav-width: 15rem;
+  --event-nav-rail: 4.25rem;
+  --event-tabbar-height: 4rem;
   --wall-safe: 4%; /* projector overscan inset */
   --wall-join-card: 36rem; /* the corner cartel (QR beside its title): declared, so layouts can reserve it */
   /* The mission panel (roadmap 2.1), in the corner the invitation does not use.
@@ -283,6 +288,7 @@
   /* A fullscreen announcement card (spec 21): above the challenge banner, because a promise made at a
      time beats a game in progress, and under the owner's controls (caption + 10). */
   --z-wall-announcement: 18;
+  --z-nav: 40; /* the event menu's phone tab bar: over the page, under a dialog */
   --z-dialog: 50;
   --z-toast: 60;
 

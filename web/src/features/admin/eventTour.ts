@@ -78,7 +78,8 @@ export const eventTourSteps = (facts: EventTourFacts, text: UiText): readonly To
     {
       id: 'overview',
       targets: ['overview'],
-      side: 'top',
+      // The menu: on the left on a laptop, the tab bar at the bottom on a phone.
+      side: 'right',
       title: text.admin.tourOverviewTitle,
       body: text.admin.tourOverviewBody,
     },

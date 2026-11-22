@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes } from 'react-router-dom'
-import { EventPage } from './EventPage'
+import { Route } from 'react-router-dom'
+import { EventRoutes } from './testing/eventRoutes'
 import { ApiError } from '../../lib/http'
 import { formatBytes, formatDateTime, formatDay } from '../../lib/format'
 import { en } from '../../lib/i18n/en'
@@ -48,14 +48,13 @@ const closedEvent = (at: string | null, overrides: Partial<EventDto> = {}): Even
     ...overrides,
   })
 
-const renderPage = (api: Api, locale: 'fr' | 'en' = 'fr') =>
-  renderWithProviders(
-    <Routes>
-      <Route path="/admin" element={<p>dashboard</p>} />
-      <Route path="/admin/events/:slug" element={<EventPage />} />
-    </Routes>,
-    { api, route: `/admin/events/${SLUG}`, locale },
-  )
+/** The album's page, where the band and the deletion are; the band also heads the home page. */
+const renderPage = (api: Api, locale: 'fr' | 'en' = 'fr', page = '/album') =>
+  renderWithProviders(<EventRoutes extra={<Route path="/admin" element={<p>dashboard</p>} />} />, {
+    api,
+    route: `/admin/events/${SLUG}${page}`,
+    locale,
+  })
 
 const apiWith = (event: EventDto, archive: AlbumExportDto | null, extra: Partial<Api> = {}): Api =>
   fakeApi({
@@ -258,7 +257,8 @@ describe('the deletion band: when the host closes the evening', () => {
       },
     })
     const api = apiWith(live, null, { setEventStatus: vi.fn(async () => closed) })
-    renderPage(api)
+    // On the home page, where the host closes the evening: the band heads it too.
+    renderPage(api, 'fr', '')
     await screen.findByRole('heading', { name: 'Camille & Sacha' })
 
     await act(async () => {
@@ -507,7 +507,7 @@ describe('the archive: what the band says of each state', () => {
     const heading = await screen.findByRole('heading', { name: en.exportPurge.title })
 
     expect(heading).toBeVisible()
-    expect(screen.getByRole('button', { name: en.exportPurge.prepare })).toBeVisible()
+    expect(await screen.findByRole('button', { name: en.exportPurge.prepare })).toBeVisible()
   })
 })
 

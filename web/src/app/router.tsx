@@ -22,6 +22,7 @@ import { SessionExpiredBanner } from './SessionExpiredBanner'
 import { SessionProvider } from '../lib/SessionProvider'
 import { SiteFooter } from './SiteFooter'
 import styles from './router.module.css'
+import type { PanelSection } from '../features/admin/eventLayout/EventSectionPage'
 
 /**
  * The route table, matching the surfaces in docs/API.md and CLAUDE.md section 1.
@@ -60,8 +61,24 @@ const EventCreatePage = lazy(async () => ({
   default: (await import('../features/admin/NewEventPage')).NewEventPage,
 }))
 
-const EventDetailPage = lazy(async () => ({
-  default: (await import('../features/admin/EventPage')).EventPage,
+/**
+ * Every page of one event, around its menu (22/11): the layout, its home page, the panels that each
+ * became a page, and the moments' lists the phone's tab bar opens. The console (moderation) keeps
+ * the whole screen and stays outside.
+ */
+const EventLayout = lazy(async () => ({
+  default: (await import('../features/admin/eventLayout/EventLayout')).EventLayout,
+}))
+const EventHomePage = lazy(async () => ({
+  default: (await import('../features/admin/eventLayout/EventHomePage')).EventHomePage,
+}))
+const EventSectionPage = lazy(async () => ({
+  default: (await import('../features/admin/eventLayout/EventSectionPage')).EventSectionPage,
+}))
+/** One of the event's former panels, on its page under the menu. */
+const panelPage = (section: PanelSection): ReactNode => <EventSectionPage section={section} />
+const EventMomentPage = lazy(async () => ({
+  default: (await import('../features/admin/eventLayout/EventMomentPage')).EventMomentPage,
 }))
 
 /**
@@ -500,7 +517,8 @@ export function AppRoutes() {
             <Route element={<MustChangePasswordGate />}>
               <Route path="/admin" element={titled('dashboard', <AdminDashboardPage />)} />
               <Route path="/admin/events/new" element={titled('newEvent', <EventCreatePage />)} />
-              <Route path="/admin/events/:slug" element={titled('event', <EventDetailPage />)} />
+              {/* The console takes the whole screen: the queue is the one page of an event that is not
+                  under its menu. */}
               <Route
                 path="/admin/events/:slug/moderation"
                 element={titled('moderation', <ModerationRoute />)}
@@ -511,28 +529,95 @@ export function AppRoutes() {
                 path="/admin/events/:slug/moderation/mobile"
                 element={<PhoneModerationRedirect />}
               />
-              <Route
-                path="/admin/events/:slug/stats"
-                element={titled('stats', <EventStatsPage />)}
-              />
-              <Route
-                path="/admin/events/:slug/settings"
-                element={titled('settings', <EventSettingsPage />)}
-              />
-              <Route
-                path="/admin/events/:slug/settings/ambiance"
-                element={titled('customAmbiance', <CustomAmbiancePage />)}
-              />
-              <Route path="/admin/events/:slug/print" element={titled('print', <PrintKitPage />)} />
-              <Route
-                path="/admin/events/:slug/book"
-                element={titled('eventBook', <EventBookPage />)}
-              />
-              {/* The invitation the host sends before the party (spec 29). */}
-              <Route
-                path="/admin/events/:slug/invitations"
-                element={titled('guestInviteHost', <InvitationsPage />)}
-              />
+              {/* Every other page of an event, around its menu (eventLayout/). */}
+              <Route element={<EventLayout />}>
+                <Route path="/admin/events/:slug" element={titled('event', <EventHomePage />)} />
+                <Route
+                  path="/admin/events/:slug/before"
+                  element={titled('eventBefore', <EventMomentPage moment="before" />)}
+                />
+                <Route
+                  path="/admin/events/:slug/during"
+                  element={titled('eventDuring', <EventMomentPage moment="during" />)}
+                />
+                <Route
+                  path="/admin/events/:slug/after"
+                  element={titled('eventAfter', <EventMomentPage moment="after" />)}
+                />
+                <Route
+                  path="/admin/events/:slug/access"
+                  element={titled('eventAccess', panelPage('access'))}
+                />
+                <Route
+                  path="/admin/events/:slug/missions"
+                  element={titled('eventMissions', panelPage('missions'))}
+                />
+                <Route
+                  path="/admin/events/:slug/moderators"
+                  element={titled('eventModerators', panelPage('moderators'))}
+                />
+                <Route
+                  path="/admin/events/:slug/announcements"
+                  element={titled('eventAnnouncements', panelPage('announcements'))}
+                />
+                <Route
+                  path="/admin/events/:slug/challenge"
+                  element={titled('eventChallenge', panelPage('challenge'))}
+                />
+                <Route
+                  path="/admin/events/:slug/guestbook"
+                  element={titled('eventGuestbook', panelPage('guestbook'))}
+                />
+                <Route
+                  path="/admin/events/:slug/reveal"
+                  element={titled('eventReveal', panelPage('reveal'))}
+                />
+                <Route
+                  path="/admin/events/:slug/telegram"
+                  element={titled('eventTelegram', panelPage('telegram'))}
+                />
+                <Route
+                  path="/admin/events/:slug/guests"
+                  element={titled('eventGuests', panelPage('guests'))}
+                />
+                <Route
+                  path="/admin/events/:slug/album"
+                  element={titled('eventAlbum', panelPage('album'))}
+                />
+                <Route
+                  path="/admin/events/:slug/best-of"
+                  element={titled('eventBestOf', panelPage('bestOf'))}
+                />
+                <Route
+                  path="/admin/events/:slug/book"
+                  element={titled('eventBook', <EventBookPage />)}
+                />
+                <Route
+                  path="/admin/events/:slug/share"
+                  element={titled('eventShare', panelPage('share'))}
+                />
+                <Route
+                  path="/admin/events/:slug/stats"
+                  element={titled('stats', <EventStatsPage />)}
+                />
+                <Route
+                  path="/admin/events/:slug/settings"
+                  element={titled('settings', <EventSettingsPage />)}
+                />
+                <Route
+                  path="/admin/events/:slug/settings/ambiance"
+                  element={titled('customAmbiance', <CustomAmbiancePage />)}
+                />
+                <Route
+                  path="/admin/events/:slug/print"
+                  element={titled('print', <PrintKitPage />)}
+                />
+                {/* The invitation the host sends before the party (spec 29). */}
+                <Route
+                  path="/admin/events/:slug/invitations"
+                  element={titled('guestInviteHost', <InvitationsPage />)}
+                />
+              </Route>
               {siteAdmin ? (
                 <Route path="/admin/client" element={titled('clientSpace', <ClientSpacePage />)} />
               ) : null}

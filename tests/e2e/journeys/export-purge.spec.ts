@@ -60,6 +60,10 @@ const closedAlbumWithOnePhoto = async (
     has: host.getByRole('heading', { name: fr.exportPurge.title }),
   })
   await expect(band).toBeVisible()
+  // The early deletion (a button of the owner's card) is on the album's page, with the same band:
+  // the rest of the journeys works from there.
+  await host.goto(app.url(`/admin/events/${event.slug}/album`))
+  await expect(band).toBeVisible()
   return { slug: event.slug, band }
 }
 

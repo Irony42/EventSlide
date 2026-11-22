@@ -1,0 +1,384 @@
+/**
+ * The event's menu on a laptop: a column beside the page that stays put while the page scrolls.
+ *
+ * It is sticky rather than fixed, so it sits inside the host container like the page does, and
+ * it scrolls on its own when a short window cannot hold it all (a moderator's menu is shorter, an
+ * owner's with every option on is about eighteen entries).
+ */
+.nav {
+  position: sticky;
+  inset-block-start: var(--space-4);
+  max-block-size: calc(100dvh - var(--space-8));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block-end: var(--space-4);
+  scrollbar-width: thin;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--text-primary);
+}
+
+.event {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+  margin-block-end: var(--space-1);
+  border-block-end: 1px solid var(--border-subtle);
+}
+
+/* The event's name is content: as long as the host made it, so it wraps and never pushes the menu wider. */
+.eventName {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block-start: var(--space-3);
+}
+
+/* Sentence case rather than capitals: « Pendant la soirée » and its badge share one line in 15rem. */
+.groupLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* « maintenant »: the moment the event is in. Words, not only a colour. */
+.now {
+  flex: none;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  border: 1px solid currentColor;
+  color: var(--success);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.foot {
+  margin-block-start: auto;
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--touch-min);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+/**
+ * With a mouse the entries are a little tighter, so the whole menu of a busy event holds in a
+ * laptop's 768 pixels without scrolling; a finger keeps the full 44 px.
+ */
+@media (pointer: fine) {
+  .entry {
+    min-block-size: calc(var(--touch-min) * 0.8);
+  }
+}
+
+.entry:hover {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+.active {
+  background: color-mix(in oklch, var(--accent) var(--selected-tint), var(--surface-raised));
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.glyph {
+  font-size: var(--text-lg);
+  color: var(--accent);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  font-size: var(--text-sm);
+  line-height: 1.25;
+}
+
+.hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.count {
+  flex: none;
+  min-inline-size: var(--space-5);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--warning);
+  color: var(--surface-base);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.external {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/**
+ * Below 64rem the column folds to its glyphs: the page keeps the width a print sheet or a table
+ * needs, and the names stay in the accessibility tree and as the tooltip.
+ */
+@media (max-width: 64rem) {
+  .nav {
+    align-items: center;
+  }
+
+  .backText,
+  .event,
+  .nav .text,
+  .groupLabel,
+  .nav .external {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .back {
+    justify-content: center;
+    min-inline-size: var(--touch-min);
+  }
+
+  .group {
+    padding-block-start: var(--space-2);
+    margin-block-start: var(--space-1);
+    border-block-start: 1px solid var(--border-subtle);
+  }
+
+  .nav .entry {
+    position: relative;
+    justify-content: center;
+    min-inline-size: var(--touch-min);
+    padding: var(--space-2);
+  }
+
+  /* The count rides the glyph's corner instead of the line's end. */
+  .nav .count {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+    min-inline-size: var(--space-4);
+    padding: 0 var(--space-1);
+  }
+}
+
+/**
+ * The pages where the host works on something to print or send (the cards, the invitations, the
+ * book) want every pixel for their preview: there the menu folds to its glyphs up to 90rem, the
+ * same rail a tablet gets, and opens again on a wide screen.
+ */
+@media (max-width: 90rem) {
+  .folded {
+    align-items: center;
+  }
+
+  .folded .backText,
+  .folded .event,
+  .folded .text,
+  .folded .groupLabel,
+  .folded .external {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .folded .back {
+    justify-content: center;
+    min-inline-size: var(--touch-min);
+  }
+
+  .folded .group {
+    padding-block-start: var(--space-2);
+    margin-block-start: var(--space-1);
+    border-block-start: 1px solid var(--border-subtle);
+  }
+
+  .folded .entry {
+    position: relative;
+    justify-content: center;
+    min-inline-size: var(--touch-min);
+    padding: var(--space-2);
+  }
+
+  .folded .count {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+    min-inline-size: var(--space-4);
+    padding: 0 var(--space-1);
+  }
+}
+
+/* ---- The phone's tab bar ---- */
+
+.tabBar {
+  display: none;
+}
+
+@media (max-width: 48rem) {
+  .nav {
+    display: none;
+  }
+
+  /* Those pages carry their own bar of tools at the bottom: one bar, not two stacked. */
+  .tabBar.besideTools {
+    display: none;
+  }
+
+  .tabBar {
+    display: block;
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: var(--z-nav);
+    padding-block-end: env(safe-area-inset-bottom);
+    background: var(--surface-raised);
+    border-block-start: 1px solid var(--border-subtle);
+  }
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  min-block-size: var(--event-tabbar-height);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-block-size: var(--event-tabbar-height);
+  padding: var(--space-1);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.tabActive {
+  color: var(--accent);
+}
+
+.tabGlyph {
+  position: relative;
+  display: inline-flex;
+  font-size: var(--text-lg);
+}
+
+.tabLabel {
+  max-inline-size: 100%;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabCount {
+  position: absolute;
+  inset-block-start: calc(var(--space-2) * -1);
+  inset-inline-start: 70%;
+  min-inline-size: var(--space-4);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--warning);
+  color: var(--surface-base);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* The moment the event is in: a dot under the glyph, said in words to a screen reader. */
+.tabNow {
+  position: absolute;
+  inset-block-end: calc(var(--space-1) * -1.5);
+  inset-inline-start: 50%;
+  inline-size: var(--space-1);
+  block-size: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--success);
+  transform: translateX(-50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry {
+    transition: none;
+  }
+}
+
+@media print {
+  .nav,
+  .tabBar {
+    display: none;
+  }
+}
