@@ -20,6 +20,63 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.17.0] - 2026-11-22
+
+Everything merged to `main` after the tag `v3.16.0`: pull requests #531 to #534 (the printed cards' workshop as #531, the
+invitations in three columns as #532, the photo book's own page as #533 and the event's pages around a menu as #534).
+This is a minor release for the host's console: the event page, which had grown into one long column of seventeen
+panels, becomes a home page and a menu with one page per subject, and the three pages where a host composes something to
+print or send (the table cards, the invitations, the photo book) keep their preview in view at every width. No
+migration, nothing to set.
+
+### Hosts and moderators
+
+- **The event's pages, around a menu** (#534). The event page was about seven screens long. It is now a home page that
+  holds what the moment asks for (the « Maintenant » card, the code and QR, the reveal and deletion bands, the storage
+  used) and a menu beside every page of the event, in three moments: « Préparer » (QR code et lien, Cartes et affiche,
+  Invitations, Missions, Modérateurs), « Pendant la soirée » (Modération, Écran de la salle, Annonces, Défi photo, Livre
+  d'or, Révélation, Telegram, Invités) and « Après la soirée » (Album, Best-of, Livre photo, Album partagé,
+  Statistiques), with « Réglages » apart. The moment the event is in is marked « maintenant » and never moves; the queue's
+  entry carries the photos waiting. Every former panel has its own page and address (`/admin/events/<slug>/guests`,
+  `/announcements`, `/best-of`…). Below 1024 px the menu folds to its icons; on a phone a tab bar at the bottom (Accueil,
+  Préparer, Soirée, Après) opens the list of each moment. The settings, statistics, print and invitations pages sit under
+  the same menu; the moderation console keeps the whole screen. A moderator's menu holds only what is theirs.
+- **« Supprimer l'évènement » moved to the album's page** (#534), under the download and the storage, where the archive
+  that gates it is.
+- **The table cards and poster in a workshop** (#531). A bar of five entries (Modèle, Textes, Photo, Couleurs,
+  Impression) opens one short panel at a time beside the card, which stays in view at every width; « Une carte / La
+  feuille » shows the card large or the whole sheet with its cut marks, and « Imprimer » is always in the toolbar. The
+  card's colour, the QR's ink and the logo sit together, so the contrast is judged at once. The photograph can be dragged
+  on the card to frame it (the sliders remain). On a phone the card is pinned on top and the five entries are a bar at the
+  bottom. The printed sheet is unchanged.
+- **The invitations in three columns** (#532): the text common to every format on the left, the preview in the middle
+  (« Carte imprimée », « Image à partager », « E-mail » and a new « Page de l'invité », what a guest sees at the link),
+  and on the right only the options of the chosen format with its action. The text saves itself as it is typed
+  (« Enregistrement… », « Enregistré »; there is no « Enregistrer » button any more) and every preview follows it at once;
+  the model, colour and photograph moved to the left, shared by the card and the image. The link's state and its actions
+  sit at the top of the page.
+- **The photo book on its own page, with the book open beside its settings** (#533). The double page, previous and next,
+  a strip of the pages, and « N pages · M photos · style X » change with each option a moment later: the title on the
+  cover, the names and captions under the photographs, the guest book's pages, the selection's length. The preview is
+  planned by the same code as the PDF, from the published photographs, and says that the final layout is made at the
+  creation. On a phone one page at a time, with « Voir en grand ».
+
+### Under the hood
+
+- The photo book's slots and contents lines moved from the PDF drawing into the domain, where the preview reads them too
+  (#533).
+- Each moderator invitation journey invites its own address, so the repeated end-to-end runs no longer meet an account
+  another journey created; the photograph's drag and every card design have their tests (#534).
+
+### Behaviour changes to check before upgrading
+
+- No migration (the last is still 035), nothing to set in `.env`.
+- **A new read route for moderators**, `/api/events/:slug/book/preview` (a `GET`): the plan of a book for the given options,
+  written nowhere, refused like the book itself (`403`, `503`, `409`, `413`). It reads the whole album at each call and
+  has no rate limit of its own beyond the session's.
+- **Hosts will find the event page changed**: the panels moved to pages of the menu, the deletion of an event to the
+  album's page, and the invitations' text saves without a button.
+
 ## [3.16.0] - 2026-11-21
 
 Everything merged to `main` after the tag `v3.15.0`: pull requests #519 to #527 and #529 (10 pull requests: the README
