@@ -25,6 +25,8 @@ export type IconName =
   | 'pin'
   | 'camera'
   | 'mail-off'
+  | 'text'
+  | 'printer'
 
 export type IconSize = 'sm' | 'md'
 
@@ -72,6 +74,10 @@ const PATHS: Readonly<Record<IconName, string>> = {
   camera: 'M4 8h3l1.6-2.2h6.8L17 8h3v11H4zM12 9.9a3.4 3.4 0 1 0 0 6.8a3.4 3.4 0 1 0 0-6.8z',
   // An envelope crossed out: a link nobody can open any more.
   'mail-off': 'M4 7h16v12H4zM4 7l8 6 8-6M3 3l18 18',
+  // A capital T: the words of a card.
+  text: 'M5 6.5V5h14v1.5M12 5v14M9.5 19h5',
+  // A printer: the paper in, the body, the sheet out.
+  printer: 'M7 9V4h10v5M7 17H4.5v-7h15v7H17M7 14h10v6H7z',
 }
 
 export interface IconProps {

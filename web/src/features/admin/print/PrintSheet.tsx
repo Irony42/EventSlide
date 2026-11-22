@@ -42,6 +42,8 @@ export interface PrintSheetProps {
   readonly photoUrl: string | null
   readonly focusX: number
   readonly focusY: number
+  /** One card, drawn alone and big, for design work; the sheet with its cut marks otherwise. */
+  readonly single?: boolean
   /** An invitation card (spec 29): the QR then leads to `joinUrl`, which is the invitation's link. */
   readonly invitation?: PrintCardInvitation | undefined
   /** Told the module count of the rendered QR (quiet zone included), once it is drawn. */
@@ -72,17 +74,18 @@ export function PrintSheet({
   focusX,
   focusY,
   invitation,
+  single = false,
   onQrModules,
 }: PrintSheetProps) {
   const root = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     onQrModules?.(totalModulesOf(root.current?.querySelector('svg') ?? null))
-  }, [joinUrl, format, logoUrl, design, onQrModules])
+  }, [joinUrl, format, logoUrl, design, single, onQrModules])
 
   useFitText(
     root,
-    `${format}|${design}|${locale}|${JSON.stringify(texts)}|${steps}|${photoUrl === null}|${JSON.stringify(invitation ?? null)}`,
+    `${format}|${single}|${design}|${locale}|${JSON.stringify(texts)}|${steps}|${photoUrl === null}|${JSON.stringify(invitation ?? null)}`,
   )
 
   return (
@@ -92,11 +95,12 @@ export function PrintSheet({
         className={styles['sheet']}
         data-format={format}
         data-ink={ink}
+        {...(single ? { 'data-single': '' } : {})}
         lang={locale}
         style={{ '--accent-hue': String(accentHue), '--pd-color': colour } as CSSProperties}
       >
         <LocaleOverride locale={locale}>
-          {Array.from({ length: PRINT_FORMAT_SPECS[format].perSheet }, (_, index) => (
+          {Array.from({ length: single ? 1 : PRINT_FORMAT_SPECS[format].perSheet }, (_, index) => (
             <div key={index} className={styles['cell']}>
               <PrintCard
                 design={design}

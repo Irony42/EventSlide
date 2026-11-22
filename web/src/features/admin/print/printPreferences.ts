@@ -1,5 +1,6 @@
 import { SUPPORTED_LOCALES, type Locale } from '../../../lib/i18n/locale'
 import { PRINT_FORMATS, PRINT_INKS, isHexColour, type PrintFormat, type PrintInk } from './printKit'
+import { isPrintPanel, type PrintPanel } from './printWorkshop'
 import {
   PRINT_TEXT_LIMITS,
   isPrintDesign,
@@ -33,6 +34,8 @@ export interface PrintPreferences {
   /** Where the photograph is anchored when it is cropped, in percent of each side. */
   readonly focusX?: number
   readonly focusY?: number
+  /** The rail entry that was open, so the page opens where the host left it. */
+  readonly panel?: PrintPanel
 }
 
 const keyFor = (slug: string): string => `eventslide.print.${slug}`
@@ -66,7 +69,7 @@ export const readPrintPreferences = (slug: string): PrintPreferences => {
     if (raw === null) return {}
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return {}
-    const { format, language, ink, logo, design, texts, steps, colour, focusX, focusY } =
+    const { format, language, ink, logo, design, texts, steps, colour, focusX, focusY, panel } =
       parsed as Record<string, unknown>
     const keptTexts = textsOf(texts)
     return {
@@ -80,6 +83,7 @@ export const readPrintPreferences = (slug: string): PrintPreferences => {
       ...(isHexColour(colour) ? { colour: colour.toLowerCase() } : {}),
       ...(isPercent(focusX) ? { focusX } : {}),
       ...(isPercent(focusY) ? { focusY } : {}),
+      ...(isPrintPanel(panel) ? { panel } : {}),
     }
   } catch {
     return {}
