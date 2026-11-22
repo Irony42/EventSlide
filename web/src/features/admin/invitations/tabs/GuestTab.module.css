@@ -1,0 +1,88 @@
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  padding: 0;
+  font-weight: 650;
+  font-size: var(--text-sm);
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--touch-min);
+}
+
+.help {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.actions {
+  position: sticky;
+  inset-block-end: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  background: var(--surface-raised);
+}
+
+/* The phone: the page is drawn at a phone's width and shrunk to the room, bezel on top. */
+.phone {
+  position: relative;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface-base);
+}
+
+.phone::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--space-1) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  pointer-events: none;
+}
+
+.scaled {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  transform-origin: top left;
+}
+
+.screen {
+  inline-size: 100%;
+  block-size: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-4);
+  background: var(--surface-base);
+  color: var(--text-primary);
+}
+
+/* The page is a column that fills a phone: it keeps that shape in the room it has. */
+.screen > div {
+  min-block-size: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.screen article {
+  flex: 1;
+}

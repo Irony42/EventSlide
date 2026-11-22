@@ -62,7 +62,7 @@
 
 /* The way into the wall: the one thing the page is for once the evening is on. */
 .join {
-  composes: button primary lg block from '../../design-system/components/Button.module.css';
+  composes: button primary lg block from '../design-system/components/Button.module.css';
   text-decoration: none;
   text-align: center;
   justify-content: center;

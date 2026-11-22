@@ -1,0 +1,42 @@
+/*
+ * A preview's room: `container-type: size` lets the box be sized from the room itself (cqw, cqh),
+ * so a sheet, a square, a story or a phone each take the largest size that fits without a script.
+ */
+.stage {
+  container-type: size;
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-block-size: 0;
+  min-width: 0;
+  padding: var(--space-4);
+}
+
+.fit {
+  position: relative;
+  inline-size: min(100cqw, calc(100cqh * var(--ratio-w) / var(--ratio-h)));
+  aspect-ratio: var(--ratio-w) / var(--ratio-h);
+  max-block-size: 100cqh;
+  min-width: 0;
+}
+
+.fit[data-fill='true'] {
+  inline-size: min(100cqw, 36rem);
+  aspect-ratio: auto;
+  block-size: 100cqh;
+}
+
+/* On paper the sheet is the page: no room to fit, no frame. */
+@media print {
+  .stage {
+    container-type: normal;
+    display: block;
+    padding: 0;
+  }
+
+  .fit {
+    inline-size: 100%;
+    aspect-ratio: auto;
+    max-block-size: none;
+  }
+}

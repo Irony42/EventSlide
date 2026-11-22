@@ -1,13 +1,26 @@
 /**
- * The host's "Invitations" page (spec 29): the invitation's text and its link on the left, the
- * three formats on the right. The validated mock-up is `maquettes/invitations-2026-11-21/`
- * (section 1); this is the app's own design system, not the mock-up's CSS.
+ * Breakpoints are the page's own width (container queries), not the screen's: the host layout puts a
+ * side menu beside it.
+ *
+ * The host's "Invitations" page (spec 29), three columns: the text and the look, the preview of the
+ * chosen format, its options and action. The validated mock-up is proposal B of
+ * `maquettes/apercus-2026-11-22/invitations.html`; this is the app's own design system, not the
+ * mock-up's CSS.
+ *
+ * Four layouts, one DOM:
+ *  - a container of 56rem and up (a laptop): three columns, each scrolling on its own, the page not at all.
+ *  - 36rem to 56rem: the text on the left; on the right the preview, pinned, and the options under it.
+ *  - under 36rem (a phone): one column in the order preview (pinned, reduced; a tap makes it big),
+ *    format switcher, text, look, options; the format's action sticks to the bottom of the screen.
+ * `.middle` and `.optionsCol` are `display: contents` on a phone so their children can be placed
+ * one by one.
  */
 
 .page {
+  container: invite / inline-size;
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
   max-inline-size: var(--container-host);
   min-width: 0;
 }
@@ -23,44 +36,154 @@
   max-inline-size: 36rem;
 }
 
-/* Two columns on a laptop; the formats fall under the form on a phone. */
-.layout {
+.screenOnly {
+  display: contents;
+}
+
+/* The title and the link's status, on one line when there is room. */
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+}
+
+/* ---- The link's status */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  flex: 1 1 28rem;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+  max-inline-size: 48rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.dot {
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  border-radius: var(--radius-full);
+  background: var(--text-muted);
+}
+
+.bar[data-on='true'] .dot {
+  background: var(--success);
+}
+
+.reason {
+  flex: 1 1 12rem;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.linkText {
+  flex: 1 1 10rem;
+  min-width: 0;
+  padding: var(--space-2);
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+}
+
+.barActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+/* ---- The workspace */
+
+.workspace {
   display: grid;
-  grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
-  gap: var(--space-5);
-  align-items: start;
+  gap: var(--space-4);
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'preview'
+    'switcher'
+    'text'
+    'options'
+    'actions';
 }
 
-@media (max-width: 62rem) {
-  .layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.middle,
+.optionsCol {
+  display: contents;
 }
 
-.column {
+.text {
+  grid-area: text;
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
   min-width: 0;
 }
 
-.panel {
+.switcher {
+  grid-area: switcher;
+}
+
+.previewPane {
+  grid-area: preview;
+}
+
+.options {
+  grid-area: options;
+}
+
+.actions {
+  grid-area: actions;
+}
+
+.formPanel,
+.look {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-5);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
   min-width: 0;
 }
 
 .panelTitle {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   font-size: var(--text-lg);
+}
+
+/* "Common to every format": a label on the heading, not a control. */
+.common {
+  padding: 0 var(--space-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.note {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
 }
 
 .two {
@@ -95,49 +218,35 @@
   gap: var(--space-3);
 }
 
-.saved {
-  color: var(--success);
-  font-size: var(--text-sm);
-}
-
-.note {
+.saveLine {
+  min-block-size: 1.25rem;
   color: var(--text-secondary);
   font-size: var(--text-sm);
 }
 
-.linkBox {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  padding: var(--space-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
+.saveLine[data-state='saved'] {
+  color: var(--success);
 }
 
-.linkText {
-  flex: 1;
-  min-width: 0;
-  padding: var(--space-2);
-  border: none;
-  background: none;
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  text-overflow: ellipsis;
-}
+/* ---- The format switcher: a segmented control, arrows move between the four */
 
-.tabs {
+.switcher {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--space-1);
-  border-block-end: 1px solid var(--border-subtle);
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
 }
 
 .tab {
+  flex: 1 1 auto;
   min-block-size: var(--touch-min);
-  padding-inline: var(--space-4);
+  padding-inline: var(--space-3);
   border: none;
-  border-block-end: 3px solid transparent;
+  border-radius: var(--radius-md);
   background: none;
   color: var(--text-secondary);
   font: inherit;
@@ -146,57 +255,280 @@
 }
 
 .tab[aria-selected='true'] {
-  color: var(--text-primary);
-  border-block-end-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
-.tab[aria-disabled='true'] {
-  color: var(--text-muted);
-  cursor: not-allowed;
+.tab:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
-.locked {
-  padding: var(--space-4);
+/* ---- The preview's pane */
+
+.previewPane {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  block-size: 11rem;
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--surface-overlay);
-  color: var(--text-secondary);
+  background: var(--surface-base);
 }
 
-.tabPanel {
+.previewPane[data-big='true'] {
+  block-size: min(70dvh, 38rem);
+}
+
+.enlarge {
+  position: absolute;
+  inset-block-end: var(--space-2);
+  inset-inline-end: var(--space-2);
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.enlarge:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
   min-width: 0;
 }
 
-.screenOnly {
-  display: contents;
+/* The format's action: on a phone it sticks to the bottom of the screen. */
+.actions {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-1);
+  padding-block-end: calc(var(--space-3) + env(safe-area-inset-bottom));
+  border-block-start: 1px solid var(--border-subtle);
+  background: var(--surface-base);
+}
+
+/* ---- The locked state: two steps and the action of the next */
+
+.locked {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.lockedTitle {
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  text-align: start;
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  counter-increment: step;
+}
+
+.steps li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.steps li[data-done='true']::before {
+  content: '✓';
+  border-color: var(--success);
+  background: var(--success);
+  color: var(--surface-base);
+}
+
+.steps li[data-current='true'] {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+/* ---- 48rem and up: the text left; the preview, pinned, with the options under it */
+
+@container invite (min-width: 36rem) {
+  .workspace {
+    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+    grid-template-areas:
+      'text middle'
+      'text options';
+    grid-template-rows: auto 1fr;
+    align-items: start;
+  }
+
+  .middle {
+    grid-area: middle;
+    position: sticky;
+    inset-block-start: var(--space-3);
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    block-size: min(34rem, 64dvh);
+    min-width: 0;
+    padding-block-end: var(--space-2);
+    background: var(--surface-base);
+  }
+
+  .switcher,
+  .previewPane {
+    grid-area: auto;
+  }
+
+  .previewPane,
+  .previewPane[data-big='true'] {
+    position: relative;
+    inset-block-start: auto;
+    flex: 1;
+    block-size: auto;
+    min-block-size: 0;
+  }
+
+  .enlarge {
+    display: none;
+  }
+
+  .optionsCol {
+    grid-area: options;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+
+  .options,
+  .actions {
+    grid-area: auto;
+  }
+
+  .actions {
+    background: var(--surface-base);
+  }
+}
+
+/* ---- 80rem and up: three columns, each on its own, the page still */
+
+@container invite (min-width: 56rem) {
+  .workspace {
+    grid-template-columns: minmax(16rem, 21rem) minmax(0, 1fr) minmax(15rem, 19rem);
+    grid-template-areas: 'text middle options';
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+    block-size: max(32rem, calc(100dvh - 16.5rem));
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+  }
+
+  .text,
+  .optionsCol {
+    min-block-size: 0;
+    padding: var(--space-4);
+  }
+
+  .text {
+    overflow-y: auto;
+  }
+
+  .middle {
+    position: static;
+    block-size: auto;
+    min-block-size: 0;
+    padding: var(--space-3);
+    border-inline: 1px solid var(--border-subtle);
+  }
+
+  .previewPane {
+    border: none;
+  }
+
+  .optionsCol {
+    gap: 0;
+    padding-block-end: 0;
+  }
+
+  .options {
+    flex: 1;
+    min-block-size: 0;
+    overflow-y: auto;
+  }
+
+  .actions {
+    position: static;
+    padding-inline: 0;
+    background: none;
+  }
 }
 
 /*
- * Paper takes the card sheet and nothing else (the Print tab only): the console's chrome goes, as
- * on the table-card page. Scoped by :has([data-invite-sheet]), which only the open Print tab
- * renders, so no other tab and no other page changes how it prints.
+ * Paper takes the card sheet and nothing else (the printed card only): the console's chrome goes, as
+ * on the table-card page. Scoped by :has([data-invite-sheet]), which only the open card renders, so
+ * no other format and no other page changes how it prints.
  */
 @media print {
-  /* Every rule is scoped to the page that holds the card: Ctrl+P on another tab, or on a locked
-     panel, prints the page as it is and not a headless remainder. */
+  /* Every rule is scoped to the page that holds the card: Ctrl+P on another format, or on a locked
+     page, prints the page as it is and not a headless remainder. */
   .page:has([data-invite-sheet]) {
     display: block;
     max-inline-size: none;
   }
 
-  .page:has([data-invite-sheet]) :is(.screenOnly, .title, .column, .tabs, .locked) {
+  .page:has([data-invite-sheet])
+    :is(.screenOnly, .head, .text, .switcher, .optionsCol, .enlarge, .options, .actions) {
     display: none;
   }
 
-  .page:has([data-invite-sheet]) .layout {
+  .page:has([data-invite-sheet]) :is(.workspace, .middle, .previewPane) {
     display: block;
+    position: static;
+    block-size: auto;
     max-inline-size: none;
-  }
-
-  .page:has([data-invite-sheet]) .panel {
     padding: 0;
     border: none;
     border-radius: 0;
     background: none;
+    overflow: visible;
   }
 
   :global(body):has([data-invite-sheet]) :global(header),
@@ -217,5 +549,12 @@
 
   :global(body):has([data-invite-sheet]) {
     background: var(--print-paper);
+  }
+}
+
+/* On a phone the host layout has a fixed tab bar at the bottom: the action sticks above it. */
+@media (max-width: 47.99rem) {
+  .actions {
+    inset-block-end: calc(4rem + env(safe-area-inset-bottom));
   }
 }
