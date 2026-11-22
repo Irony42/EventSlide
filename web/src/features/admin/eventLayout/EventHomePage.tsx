@@ -14,6 +14,7 @@ import type { PanelDestination } from '../components/EventDestinationTile'
 import { EventNowCard } from '../components/EventNowCard'
 import { EventStatusBadge } from '../components/EventStatusBadge'
 import { LifecycleConfirmDialog } from '../components/LifecycleConfirmDialog'
+import { StorageMeter } from '../components/StorageMeter'
 import { SupportCard } from '../components/SupportCard'
 import { RevealBanner } from '../RevealBanner'
 import { AlbumDeletionBand } from '../AlbumDeletionBand'
@@ -194,6 +195,20 @@ export function EventHomePage() {
             <EventAccessCard event={event} onChanged={replace} />
           </div>
         </div>
+      </div>
+
+      {/* The room the album takes against the event's quota, where the host looks during the evening
+          (a full quota stops the uploads), and when a client's live window ends. The album's page
+          says it again, beside the download. */}
+      <div className={cx(styles['storage'], styles['screenOnly'])}>
+        <StorageMeter usedBytes={event.usedBytes} quotaBytes={event.quotaBytes} />
+        {event.liveWindowEnd === undefined ? null : (
+          <p className={styles['liveWindow']}>
+            {t.clientSpace.liveWindowEnd(
+              formatDateTime(event.liveWindowEnd, locale) ?? event.liveWindowEnd,
+            )}
+          </p>
+        )}
       </div>
 
       {/* Once the event is closed, and only where the operator set `DONATION_URL` (roadmap G4-02). */}

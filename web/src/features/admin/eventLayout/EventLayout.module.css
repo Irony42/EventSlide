@@ -45,14 +45,11 @@
     display: block;
   }
 
-  /* The page keeps clear of the tab bar, and of the home indicator under it. */
-  .content {
+  /* The page and the site's footer under it (the source offer, the help) keep clear of the tab
+     bar and of the home indicator under it: the space is the body's, since the footer is outside
+     the layout. No tab bar beside a page that brings its own bar of tools, so no space either. */
+  :global(body):has(.layout:not(.workshop)) {
     padding-block-end: calc(var(--event-tabbar-height) + env(safe-area-inset-bottom));
-  }
-
-  /* No tab bar beside a page that brings its own bar of tools. */
-  .workshop .content {
-    padding-block-end: 0;
   }
 
   .phoneHead {
@@ -94,9 +91,5 @@
 
   .phoneHead {
     display: none;
-  }
-
-  .content {
-    padding: 0;
   }
 }

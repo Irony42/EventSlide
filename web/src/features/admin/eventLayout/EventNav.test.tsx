@@ -13,6 +13,7 @@ import {
 import type { Api } from '../../../lib/api/client'
 import type { EventDto } from '../../../lib/api/dto'
 import { EventRoutes } from '../testing/eventRoutes'
+import { deferred } from '../../../testing/deferred'
 import { classesOf, cls } from '../../../testing/classesOf'
 import styles from './EventNav.module.css'
 
@@ -89,6 +90,31 @@ describe('the event menu', () => {
     expect(screen.queryByText(fr.admin.eventLoading)).toBeNull()
   })
 
+  it('never lets a quiet read sent before a host’s action undo it', async () => {
+    // A read leaves when the host moves to the home page; before it answers, the host ends the
+    // evening. The late answer, read before the change, must not put the evening back to live.
+    const late = deferred<EventDto>()
+    const getEvent = vi.fn(async () => anEventDto({ status: 'live' }))
+    getEvent.mockResolvedValueOnce(anEventDto({ status: 'live' }))
+    getEvent.mockReturnValueOnce(late.promise)
+    const api = fakeApi({
+      getEvent,
+      setEventStatus: vi.fn(async () => anEventDto({ status: 'closed' })),
+    })
+    renderAt('/guests', {}, api)
+
+    await userEvent.click(within(await menu()).getByRole('link', { name: fr.eventMenu.home }))
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
+    expect(await screen.findByRole('button', { name: fr.admin.reopenEvent })).toBeVisible()
+
+    late.resolve(anEventDto({ status: 'live' }))
+    await waitFor(() => expect(getEvent).toHaveBeenCalledTimes(2))
+    await new Promise((settle) => setTimeout(settle, 0))
+
+    expect(screen.getByRole('button', { name: fr.admin.reopenEvent })).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.admin.closeEvent })).toBeNull()
+  })
+
   it('drops an entry the settings switched off, at the next read', async () => {
     // A guestbook switched off on the settings page leaves the menu at the next click.
     const getEvent = vi.fn(async () => anEventDto())
@@ -143,12 +169,13 @@ describe('the phone’s tab bar', () => {
     return link
   }
 
-  it('lights the moment of the page the host is on', async () => {
+  it('lights the moment of the page the host is on, and calls only the moment’s list the page', async () => {
     renderAt('/guests')
 
+    // A page inside the moment belongs to it; it is not the moment's own page.
     expect(await tab('/admin/events/camille-et-sacha/during')).toHaveAttribute(
       'aria-current',
-      'page',
+      'true',
     )
     expect(await tab('/admin/events/camille-et-sacha')).not.toHaveAttribute('aria-current')
   })
@@ -198,10 +225,23 @@ describe('a moment’s page', () => {
   })
 })
 
+describe('the moment’s own list, from the tab bar', () => {
+  it('is the page itself there', async () => {
+    renderAt('/during')
+
+    await screen.findByRole('heading', { level: 1, name: new RegExp(fr.eventMenu.moments.during) })
+    const bar = document.querySelector(`nav[aria-label="${fr.eventMenu.tabBar}"]`)
+    expect(bar?.querySelector('a[href="/admin/events/camille-et-sacha/during"]')).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  })
+})
+
 describe('the trail under the layout', () => {
   it('steps aside, since the menu already says where the host is', () => {
     renderWithProviders(
-      <EventChromeContext.Provider value={true}>
+      <EventChromeContext.Provider value={{ inside: true, adopt: () => undefined }}>
         <HostBreadcrumb slug="camille-et-sacha" page="settings" eventName="Camille & Sacha" />
       </EventChromeContext.Provider>,
     )

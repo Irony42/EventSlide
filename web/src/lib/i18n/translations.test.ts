@@ -89,7 +89,7 @@ describe('the scope', () => {
         'channels',
         'clientSpace',
         'errors',
-    'eventMenu',
+        'eventMenu',
         'exportPurge',
         'feed',
         'gallery',

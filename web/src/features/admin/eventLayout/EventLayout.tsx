@@ -1,6 +1,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
 import { Link, Outlet, useLocation, useParams } from 'react-router-dom'
-import { EventChromeContext } from '../../../app/eventChrome'
+import { EventChromeContext, type EventChrome } from '../../../app/eventChrome'
+import type { EventDto } from '../../../lib/api/dto'
 import { HostBreadcrumb } from '../../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../../app/HostEventsLink'
 import { LoadFailure, Pending } from '../../../design-system/components/Async'
@@ -36,17 +37,40 @@ const WORKSHOPS = [SECTION_PATH.print, SECTION_PATH.invitations, SECTION_PATH.bo
 export function EventLayout() {
   const t = useTranslations()
   const { slug = '' } = useParams()
-  const { data: event, loading, error, reload, replace, offsetMs } = useEvent(slug)
+  const { data: event, loading, error, reload, replace: store, offsetMs } = useEvent(slug)
   const api = useApi()
   const albumUrl = useAlbumUrl(slug)
   const { pathname } = useLocation()
+
+  // Every write of the event counts: a quiet read answers only if nothing was written since it left.
+  // Without it, a read sent on a move or on the tab's return could land after "Terminer la soirée"
+  // and put the evening back to live on screen, or land on the next event after a change of slug.
+  const generation = useRef(0)
+  const replace = useCallback(
+    (next: EventDto) => {
+      generation.current += 1
+      store(next)
+    },
+    [store],
+  )
+  useEffect(() => {
+    generation.current += 1
+  }, [slug])
 
   // Without `reload`, whose pending state would swap every page for the loading screen (a half-typed
   // announcement, an open dialog and the scroll position would go with it). A failed read changes
   // nothing on screen.
   const refresh = useCallback(() => {
-    api.getEvent(slug).then(replace, () => undefined)
-  }, [api, slug, replace])
+    generation.current += 1
+    const sent = generation.current
+    api.getEvent(slug).then(
+      (next) => {
+        if (generation.current === sent) store(next)
+      },
+      () => undefined,
+    )
+  }, [api, slug, store])
+  const chrome = useMemo<EventChrome>(() => ({ inside: true, adopt: replace }), [replace])
   const revealControl = useRevealControl({ event, onChanged: replace, onReload: refresh })
   useRevalidateWhenVisible(refresh)
 
@@ -86,7 +110,7 @@ export function EventLayout() {
   const workshop = WORKSHOPS.some((page) => pathname.startsWith(`${base}/${page}`))
 
   return (
-    <EventChromeContext.Provider value={true}>
+    <EventChromeContext.Provider value={chrome}>
       <AmbianceMarker
         ambiance={event.settings.theme.ambiance}
         custom={event.settings.theme.custom}

@@ -335,6 +335,15 @@ describe('EventPage', () => {
     ).toBeVisible()
   })
 
+  it('shows the storage used on the home page too, where the host looks during the evening', async () => {
+    renderPage(
+      fakeApi({ getEvent: vi.fn(async () => anEventDto({ usedBytes: 1_000, quotaBytes: 2_000 })) }),
+    )
+
+    const bar = await screen.findByRole('progressbar', { name: fr.admin.storageLabel })
+    expect(bar).toHaveAttribute('aria-valuemax', '2000')
+  })
+
   it('has no live window line for an event that has none', async () => {
     renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto()) }), '/album')
 

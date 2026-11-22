@@ -76,7 +76,6 @@ export function SectionLink({
   readonly hint?: string | undefined
 }) {
   const t = useTranslations()
-  const newTabId = useId()
   const name = t.eventMenu.sections[section]
   const pending = section === 'moderation' ? event.pendingCount : 0
   // The guided tour's « two gestures of the day » light these two entries when the home page has
@@ -100,7 +99,7 @@ export function SectionLink({
       {SECTION_KIND[section] === 'wall' ? (
         <>
           <EventActionIcon glyph="external" className={styles['external']} />
-          <VisuallyHidden id={newTabId}>{t.eventMenu.newTab}</VisuallyHidden>
+          <VisuallyHidden>{t.eventMenu.newTab}</VisuallyHidden>
         </>
       ) : null}
     </>
@@ -255,12 +254,14 @@ export function EventTabBar({
 
   const tab = (key: EventMoment | 'home', to: string, glyph: EventActionGlyph, label: string) => {
     const current = here === key
+    // The moment's own list is the page; a page inside the moment only belongs to it.
+    const exact = pathname === to || pathname === `${to}/`
     return (
       <li key={key}>
         <Link
           to={to}
           className={cx(styles['tab'], current && styles['tabActive'])}
-          aria-current={current ? 'page' : undefined}
+          aria-current={current ? (exact ? 'page' : 'true') : undefined}
         >
           <span className={styles['tabGlyph']}>
             <EventActionIcon glyph={glyph} />
