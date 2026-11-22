@@ -6,6 +6,11 @@ export const PRINT_PANELS = ['design', 'texts', 'photo', 'colours', 'print'] as 
 
 export type PrintPanel = (typeof PRINT_PANELS)[number]
 
+/** The id of the one tabpanel the rail controls: the page gives it to the panel it shows. */
+export const PRINT_PANEL_ID = 'print-panel'
+
+export const printTabId = (panel: PrintPanel): string => `print-tab-${panel}`
+
 export const DEFAULT_PRINT_PANEL: PrintPanel = 'design'
 
 export const isPrintPanel = (value: unknown): value is PrintPanel =>

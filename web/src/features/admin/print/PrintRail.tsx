@@ -3,13 +3,14 @@ import { Icon, type IconName } from '../../../design-system/components/Icon'
 import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { UiText } from '../../../lib/i18n/translations'
-import { PRINT_PANELS, panelAfterKey, type PrintPanel } from './printWorkshop'
+import {
+  PRINT_PANELS,
+  PRINT_PANEL_ID,
+  panelAfterKey,
+  printTabId,
+  type PrintPanel,
+} from './printWorkshop'
 import styles from './PrintRail.module.css'
-
-/** The id of the one tabpanel the rail controls: the page gives it to the panel it shows. */
-export const PRINT_PANEL_ID = 'print-panel'
-
-export const printTabId = (panel: PrintPanel): string => `print-tab-${panel}`
 
 const ICONS: Readonly<Record<PrintPanel, IconName>> = {
   design: 'layout',
@@ -19,7 +20,7 @@ const ICONS: Readonly<Record<PrintPanel, IconName>> = {
   print: 'printer',
 }
 
-export const PANEL_LABELS: Readonly<Record<PrintPanel, (text: UiText) => string>> = {
+const PANEL_LABELS: Readonly<Record<PrintPanel, (text: UiText) => string>> = {
   design: (text) => text.admin.printKitDesign,
   texts: (text) => text.admin.printPanelTexts,
   photo: (text) => text.admin.printKitPhoto,

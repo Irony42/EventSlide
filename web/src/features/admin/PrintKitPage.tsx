@@ -22,11 +22,13 @@ import {
   PhotoControls,
   TextControls,
 } from './print/PrintCardControls'
-import { PRINT_PANEL_ID, PrintRail, printTabId } from './print/PrintRail'
+import { PrintRail } from './print/PrintRail'
 import { FormatSegment, LanguageSelect, ViewToggle } from './print/PrintToolbarControls'
 import {
   DEFAULT_PRINT_PANEL,
+  PRINT_PANEL_ID,
   defaultViewOf,
+  printTabId,
   type PrintPanel,
   type PrintView,
 } from './print/printWorkshop'
@@ -138,6 +140,20 @@ function EventPrintKit({ slug }: { readonly slug: string }) {
     closeBigButton.current?.focus()
     return () => window.removeEventListener('keydown', onKey)
   }, [showingBig])
+
+  // The big view is a phone's: it is closed, not merely hidden, when the window grows past a phone,
+  // so turning the phone back does not reopen it.
+  if (!phone && big) setBig(false)
+
+  // Leaving the big view (button or Escape) puts focus back on the button that opened it.
+  const wasBig = useRef(false)
+  useEffect(() => {
+    if (wasBig.current && !showingBig) bigButton.current?.focus()
+    wasBig.current = showingBig
+  }, [showingBig])
+
+  // Behind the big view nothing can be reached: it says it is a modal, so it behaves like one.
+  const inertWhenBig = showingBig ? { inert: true } : {}
 
   const handlePrint = () => {
     printWanted.current = true
@@ -289,7 +305,9 @@ function EventPrintKit({ slug }: { readonly slug: string }) {
           focusY={focusY}
           onFocus={(axis, value) => update({ [axis]: value })}
         />
-        {photoUrl === null ? null : <p className={styles['help']}>{t.admin.printPhotoDragHint}</p>}
+        {photoUrl === null || phone ? null : (
+          <p className={styles['help']}>{t.admin.printPhotoDragHint}</p>
+        )}
       </>
     ),
     colours: (
@@ -372,7 +390,7 @@ function EventPrintKit({ slug }: { readonly slug: string }) {
         </div>
       ) : (
         <div className={styles['workspace']} data-big={showingBig ? '' : undefined}>
-          <div className={styles['rail']}>
+          <div className={styles['rail']} {...inertWhenBig}>
             <PrintRail active={panel} onChange={choosePanel} />
           </div>
 
@@ -381,11 +399,12 @@ function EventPrintKit({ slug }: { readonly slug: string }) {
             id={PRINT_PANEL_ID}
             aria-labelledby={printTabId(panel)}
             className={styles['panel']}
+            {...inertWhenBig}
           >
             <div className={styles['panelBody']}>{panelBody[panel]}</div>
           </div>
 
-          <div className={styles['notices']}>
+          <div className={styles['notices']} {...inertWhenBig}>
             {availability === 'closed' ? (
               <Notice tone="warning" role="status" variant="boxed" className={styles['slim']}>
                 {t.admin.printKitClosed}
@@ -443,10 +462,7 @@ function EventPrintKit({ slug }: { readonly slug: string }) {
                       aria-label={t.admin.printCloseBig}
                       title={t.admin.printCloseBig}
                       icon={<Icon name="close" />}
-                      onClick={() => {
-                        setBig(false)
-                        bigButton.current?.focus()
-                      }}
+                      onClick={() => setBig(false)}
                     />
                   ) : (
                     <IconButton

@@ -219,7 +219,8 @@
   position: fixed;
   inset-block-start: 0;
   inset-inline-start: 0;
-  inline-size: 30rem;
+  /* About an A4 at screen resolution, so the text fitting measures what the paper will draw. */
+  inline-size: 50rem;
   block-size: 0;
   overflow: hidden;
   visibility: hidden;
@@ -371,10 +372,16 @@
     display: none;
   }
 
-  .frame {
+  .frame,
+  .frame[data-landscape] {
     inline-size: auto;
     aspect-ratio: auto;
     box-shadow: none;
+  }
+
+  .page,
+  .workspace[data-big] .fit {
+    padding: 0;
   }
 
   .printCopy {

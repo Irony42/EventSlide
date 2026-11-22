@@ -722,6 +722,8 @@ describe('PrintKitPage', () => {
       expect(screen.getByRole('dialog', { name: fr.admin.printKitPreview })).toBeInTheDocument()
       await user.keyboard('{Escape}')
       expect(screen.queryByRole('dialog')).toBeNull()
+      // Focus goes back to the button that opened the big view.
+      expect(screen.getByRole('button', { name: fr.admin.printSeeBig })).toHaveFocus()
     })
   })
 })
