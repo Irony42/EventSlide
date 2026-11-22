@@ -127,7 +127,6 @@
   color: var(--text-primary);
 }
 
-
 .active {
   background: color-mix(in oklch, var(--accent) var(--selected-tint), var(--surface-raised));
   color: var(--text-primary);
@@ -226,6 +225,56 @@
   }
 }
 
+/**
+ * The pages where the host works on something to print or send (the cards, the invitations, the
+ * book) want every pixel for their preview: there the menu folds to its glyphs up to 90rem, the
+ * same rail a tablet gets, and opens again on a wide screen.
+ */
+@media (max-width: 90rem) {
+  .folded {
+    align-items: center;
+  }
+
+  .folded .backText,
+  .folded .event,
+  .folded .text,
+  .folded .groupLabel,
+  .folded .external {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .folded .back {
+    justify-content: center;
+    min-inline-size: var(--touch-min);
+  }
+
+  .folded .group {
+    padding-block-start: var(--space-2);
+    margin-block-start: var(--space-1);
+    border-block-start: 1px solid var(--border-subtle);
+  }
+
+  .folded .entry {
+    position: relative;
+    justify-content: center;
+    min-inline-size: var(--touch-min);
+    padding: var(--space-2);
+  }
+
+  .folded .count {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+    min-inline-size: var(--space-4);
+    padding: 0 var(--space-1);
+  }
+}
+
 /* ---- The phone's tab bar ---- */
 
 .tabBar {
@@ -234,6 +283,11 @@
 
 @media (max-width: 48rem) {
   .nav {
+    display: none;
+  }
+
+  /* Those pages carry their own bar of tools at the bottom: one bar, not two stacked. */
+  .tabBar.besideTools {
     display: none;
   }
 
@@ -269,7 +323,6 @@
   color: var(--text-secondary);
   text-decoration: none;
 }
-
 
 .tabActive {
   color: var(--accent);

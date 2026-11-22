@@ -11,10 +11,14 @@ import { EventStatusBadge } from '../components/EventStatusBadge'
 import { useAlbumUrl, useEvent } from '../hooks/useEventData'
 import { useRevalidateWhenVisible } from '../hooks/useRevalidateWhenVisible'
 import { useRevealControl } from '../useRevealControl'
-import { eventBase } from './eventSections'
+import { cx } from '../../../design-system/classNames'
+import { eventBase, SECTION_PATH } from './eventSections'
 import { EventNav, EventTabBar } from './EventNav'
 import type { EventPageContext } from './useEventPage'
 import styles from './EventLayout.module.css'
+
+/** The pages with a preview of their own and a bar of tools: the menu folds beside them. */
+const WORKSHOPS = [SECTION_PATH.print, SECTION_PATH.invitations, SECTION_PATH.book] as const
 
 /**
  * Every page of one event, around its menu (surface: the host and the moderator; laptop, tablet
@@ -76,7 +80,10 @@ export function EventLayout() {
     )
   }
 
-  const home = pathname === eventBase(event.slug) || pathname === `${eventBase(event.slug)}/`
+  const base = eventBase(event.slug)
+  const home = pathname === base || pathname === `${base}/`
+  // The pages where the host composes something to print or send, each with its own preview.
+  const workshop = WORKSHOPS.some((page) => pathname.startsWith(`${base}/${page}`))
 
   return (
     <EventChromeContext.Provider value={true}>
@@ -85,8 +92,8 @@ export function EventLayout() {
         custom={event.settings.theme.custom}
         groundUrl={event.settings.theme.groundUrl}
       />
-      <div className={styles['layout']}>
-        <EventNav event={event} />
+      <div className={cx(styles['layout'], workshop && styles['workshop'])}>
+        <EventNav event={event} folded={workshop} />
         <div className={styles['content']}>
           {/* The phone has no menu on the side: the way back and the event's name sit above the
               page. On the home page the name is the page's own heading, so it is not said twice. */}
@@ -110,7 +117,7 @@ export function EventLayout() {
           </Suspense>
         </div>
       </div>
-      <EventTabBar event={event} />
+      <EventTabBar event={event} besideTools={workshop} />
       {revealControl.dialog}
     </EventChromeContext.Provider>
   )

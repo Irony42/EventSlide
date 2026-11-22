@@ -22,6 +22,13 @@
   gap: var(--space-5);
 }
 
+@media (max-width: 90rem) {
+  .layout.workshop {
+    grid-template-columns: var(--event-nav-rail) minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+}
+
 @media (max-width: 64rem) {
   .layout {
     grid-template-columns: var(--event-nav-rail) minmax(0, 1fr);
@@ -41,6 +48,11 @@
   /* The page keeps clear of the tab bar, and of the home indicator under it. */
   .content {
     padding-block-end: calc(var(--event-tabbar-height) + env(safe-area-inset-bottom));
+  }
+
+  /* No tab bar beside a page that brings its own bar of tools. */
+  .workshop .content {
+    padding-block-end: 0;
   }
 
   .phoneHead {

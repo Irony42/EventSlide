@@ -140,7 +140,14 @@ export function SectionLink({
  * folds to its glyphs (the names stay, for a screen reader and as the tooltip), and below 48rem the
  * phone's tab bar takes over (`EventTabBar`).
  */
-export function EventNav({ event }: { readonly event: NavEvent }) {
+export function EventNav({
+  event,
+  folded = false,
+}: {
+  readonly event: NavEvent
+  /** A page that works on something to print or send: the menu folds to its glyphs up to 90rem. */
+  readonly folded?: boolean
+}) {
   const t = useTranslations()
   const idPrefix = useId()
   const menu = eventMenu(sectionFactsOf(event))
@@ -148,7 +155,11 @@ export function EventNav({ event }: { readonly event: NavEvent }) {
 
   return (
     // `data-tour`: the guided tour's last region before the replay ("Tout le reste est ici").
-    <nav className={styles['nav']} aria-label={t.eventMenu.label} data-tour="overview">
+    <nav
+      className={cx(styles['nav'], folded && styles['folded'])}
+      aria-label={t.eventMenu.label}
+      data-tour="overview"
+    >
       <Link className={styles['back']} to="/admin" title={t.admin.events}>
         <span aria-hidden="true">←</span>
         <span className={styles['backText']}>{t.admin.events}</span>
@@ -227,7 +238,14 @@ const momentOfPath = (slug: string, pathname: string): EventMoment | 'home' | nu
  * every one of them. The evening's tab carries the photos waiting, because on a phone during the
  * party that is the one number that matters. Hidden from 48rem up, where the menu is on the side.
  */
-export function EventTabBar({ event }: { readonly event: NavEvent }) {
+export function EventTabBar({
+  event,
+  besideTools = false,
+}: {
+  readonly event: NavEvent
+  /** The page has its own bar of tools at the bottom of a phone: the tab bar steps aside there. */
+  readonly besideTools?: boolean
+}) {
   const t = useTranslations()
   const { pathname } = useLocation()
   const base = eventBase(event.slug)
@@ -268,7 +286,11 @@ export function EventTabBar({ event }: { readonly event: NavEvent }) {
   }
 
   return (
-    <nav className={styles['tabBar']} aria-label={t.eventMenu.tabBar} data-tour="overview">
+    <nav
+      className={cx(styles['tabBar'], besideTools && styles['besideTools'])}
+      aria-label={t.eventMenu.tabBar}
+      data-tour="overview"
+    >
       <ul className={styles['tabs']}>
         {tab('home', base, 'home', t.eventMenu.home)}
         {(['before', 'during', 'after'] as const).map((moment) =>

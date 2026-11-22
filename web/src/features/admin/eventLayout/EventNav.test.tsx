@@ -13,6 +13,8 @@ import {
 import type { Api } from '../../../lib/api/client'
 import type { EventDto } from '../../../lib/api/dto'
 import { EventRoutes } from '../testing/eventRoutes'
+import { classesOf, cls } from '../../../testing/classesOf'
+import styles from './EventNav.module.css'
 
 const renderAt = (page: string, event: Partial<EventDto> = {}, api?: Api) =>
   renderWithProviders(<EventRoutes />, {
@@ -103,6 +105,28 @@ describe('the event menu', () => {
     await waitFor(() =>
       expect(within(nav).queryByRole('link', { name: fr.eventMenu.sections.guestbook })).toBeNull(),
     )
+  })
+})
+
+describe('beside a page that composes something to print or send', () => {
+  const tabBarOf = () =>
+    document.querySelector<HTMLElement>(`nav[aria-label="${fr.eventMenu.tabBar}"]`)
+
+  it.each(['/print', '/invitations', '/book'])(
+    'folds the menu to its glyphs and lets the page’s own bar replace the tab bar on %s',
+    async (page) => {
+      renderAt(page)
+
+      expect(classesOf(await menu())).toContain(cls(styles, 'folded'))
+      expect(classesOf(tabBarOf())).toContain(cls(styles, 'besideTools'))
+    },
+  )
+
+  it('keeps the whole menu and the tab bar everywhere else', async () => {
+    renderAt('/guests')
+
+    expect(classesOf(await menu())).not.toContain(cls(styles, 'folded'))
+    expect(classesOf(tabBarOf())).not.toContain(cls(styles, 'besideTools'))
   })
 })
 
