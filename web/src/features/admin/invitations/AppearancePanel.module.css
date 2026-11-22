@@ -1,0 +1,58 @@
+/* "L'apparence": the model, the colour and the photo the card and the image share. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+}
+
+.swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+
+.swatch:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.swatch input[type='radio'] {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.dot {
+  inline-size: 70%;
+  block-size: 70%;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-strong);
+}
+
+.swatch:has(input:checked) .dot {
+  outline: 3px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.customSwatch input[type='color'] {
+  inline-size: 70%;
+  block-size: 70%;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: none;
+  cursor: pointer;
+}
+
+.customOn input[type='color'] {
+  outline: 3px solid var(--text-primary);
+  outline-offset: 2px;
+}

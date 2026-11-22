@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '../../../../design-system/components/Button'
 import { Field } from '../../../../design-system/components/Field'
 import { Notice } from '../../../../design-system/components/Notice'
@@ -15,13 +15,13 @@ import {
 } from '../../../../lib/invite/emailDraft'
 import { dayMonthLabel } from '../../../../lib/invite/inviteTexts'
 import type { RenderPng } from './imageRender'
-import { readInvitePreferences } from './invitePreferences'
+import { PreviewBox } from './PreviewBox'
 import { ShotCard } from './ShotCard'
-import type { InvitationTabProps } from './tabProps'
+import type { OutputProps } from './tabProps'
 import { useInviteImage } from './useInviteImage'
 import styles from './EmailTab.module.css'
 
-export interface EmailTabProps extends InvitationTabProps {
+export interface EmailTabProps extends OutputProps {
   /** Makes the PNG to attach; the browser's own by default, a double in a component test. */
   readonly renderPng?: RenderPng
 }
@@ -39,15 +39,22 @@ const kilobytesOf = (bytes: number): number => Math.max(1, Math.round(bytes / 10
  * and the image to attach is made here, by the renderer of the image tab. The words are the
  * invitation's own (language, zone, the host's whole word) and editable for this time.
  */
-export function EmailTab({ event, invite, renderPng }: EmailTabProps) {
+export function EmailTab({
+  event,
+  invite,
+  preferences,
+  photoUrl,
+  renderPng,
+  children,
+}: EmailTabProps) {
   const t = useTranslations()
   const text = t.guestInvite.email
-  const preferences = useMemo(() => readInvitePreferences(event.slug), [event.slug])
   const picture = useInviteImage({
     event,
     invite,
     preferences,
     shot: 'square',
+    photoUrl,
     fileName: `${text.fileName}.png`,
     renderPng,
   })
@@ -114,66 +121,73 @@ export function EmailTab({ event, invite, renderPng }: EmailTabProps) {
 
   const busy = picture.image.status === 'rendering'
 
-  return (
-    <div className={styles['tab']}>
-      <div className={styles['controls']}>
-        <Field label={text.subjectLabel}>
-          {(control) => (
-            <TextInput
-              {...control}
-              value={subject}
-              maxLength={SUBJECT_MAX}
-              onChange={(e) =>
-                edit({ subject: graphemesOf(e.target.value).slice(0, SUBJECT_MAX).join('') })
-              }
-            />
-          )}
-        </Field>
-        <Field label={text.bodyLabel} hint={text.bodyNote}>
-          {(control) => (
-            <Textarea
-              {...control}
-              rows={10}
-              grow={false}
-              value={body}
-              onChange={(e) => edit({ body: e.target.value })}
-            />
-          )}
-        </Field>
-        <p className={styles['counter']} data-cut={link.cut}>
-          {text.counter(link.length, MAILTO_MAX)}
-          {link.cut && link.wordLeft ? ` · ${text.counterCut}` : ''}
-        </p>
+  const options = (
+    <div className={styles['controls']}>
+      <Field label={text.subjectLabel}>
+        {(control) => (
+          <TextInput
+            {...control}
+            value={subject}
+            maxLength={SUBJECT_MAX}
+            onChange={(e) =>
+              edit({ subject: graphemesOf(e.target.value).slice(0, SUBJECT_MAX).join('') })
+            }
+          />
+        )}
+      </Field>
+      <Field label={text.bodyLabel} hint={text.bodyNote}>
+        {(control) => (
+          <Textarea
+            {...control}
+            rows={10}
+            grow={false}
+            value={body}
+            onChange={(e) => edit({ body: e.target.value })}
+          />
+        )}
+      </Field>
+      <p className={styles['counter']} data-cut={link.cut}>
+        {text.counter(link.length, MAILTO_MAX)}
+        {link.cut && link.wordLeft ? ` · ${text.counterCut}` : ''}
+      </p>
 
-        <div className={styles['actions']}>
-          <a className={styles['open']} href={link.href}>
-            {text.open}
-          </a>
-          <Button onClick={() => void copy()}>{text.copy}</Button>
-          {live === null ? null : <Button onClick={revert}>{text.revertText}</Button>}
-          <Button onClick={download} disabled={picture.file === null} aria-busy={busy}>
-            {busy ? text.rendering : text.download}
-          </Button>
-        </div>
+      <Notice tone="accent" variant="boxed">
+        {text.bccAdvice}
+      </Notice>
+    </div>
+  )
 
-        {picture.image.status === 'failed' ? (
-          <Notice tone="warning" role="alert" variant="boxed">
-            {text.renderFailed} <Button onClick={picture.retry}>{text.retry}</Button>
-          </Notice>
-        ) : null}
-        <div role="status" aria-live="polite">
-          {said === null ? null : (
-            <Notice tone={said === 'copyFailed' ? 'warning' : 'neutral'} variant="inline">
-              {text[said]}
-            </Notice>
-          )}
-        </div>
-        <Notice tone="accent" variant="boxed">
-          {text.bccAdvice}
-        </Notice>
+  const actions = (
+    <>
+      <div className={styles['actions']}>
+        <a className={styles['open']} href={link.href}>
+          {text.open}
+        </a>
+        <Button onClick={() => void copy()}>{text.copy}</Button>
+        {live === null ? null : <Button onClick={revert}>{text.revertText}</Button>}
+        <Button onClick={download} disabled={picture.file === null} aria-busy={busy}>
+          {busy ? text.rendering : text.download}
+        </Button>
       </div>
 
-      <section className={styles['preview']} aria-label={text.previewLabel}>
+      {picture.image.status === 'failed' ? (
+        <Notice tone="warning" role="alert" variant="boxed">
+          {text.renderFailed} <Button onClick={picture.retry}>{text.retry}</Button>
+        </Notice>
+      ) : null}
+      <div role="status" aria-live="polite">
+        {said === null ? null : (
+          <Notice tone={said === 'copyFailed' ? 'warning' : 'neutral'} variant="inline">
+            {text[said]}
+          </Notice>
+        )}
+      </div>
+    </>
+  )
+
+  const preview = (
+    <>
+      <PreviewBox ratio={null} label={text.previewLabel}>
         <div className={styles['window']}>
           <p className={styles['windowTitle']}>{text.previewHeader}</p>
           <dl className={styles['headers']}>
@@ -199,7 +213,7 @@ export function EmailTab({ event, invite, renderPng }: EmailTabProps) {
             <span className={styles['hint']}>{text.attachmentNote}</span>
           </p>
         </div>
-      </section>
+      </PreviewBox>
 
       {/* The picture to attach is drawn out of sight, at its true size: it is what is captured. */}
       <div className={styles['offscreen']} aria-hidden="true" inert>
@@ -214,6 +228,8 @@ export function EmailTab({ event, invite, renderPng }: EmailTabProps) {
           nodeRef={picture.node}
         />
       </div>
-    </div>
+    </>
   )
+
+  return <>{children({ preview, options, actions })}</>
 }

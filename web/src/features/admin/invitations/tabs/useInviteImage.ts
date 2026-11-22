@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { EventDto } from '../../../../lib/api/dto'
-import { readPrintPhoto } from '../../print/printPhoto'
 import { blurPhoto, renderCardPng, type RenderPng } from './imageRender'
 import { inviteCardOf, type InviteCardView } from './inviteCard'
 import type { InvitePreferences, InviteShot } from './invitePreferences'
@@ -24,6 +23,8 @@ export interface InviteImageOptions {
   /** What the host chose on this device (`invitePreferences`): the design, the colour, the address... */
   readonly preferences: InvitePreferences
   readonly shot: InviteShot
+  /** The photograph the host chose (the print kit's, kept on this device), or none. */
+  readonly photoUrl: string | null
   /** The name of the file the picture becomes. */
   readonly fileName: string
   readonly renderPng?: RenderPng | undefined
@@ -56,11 +57,10 @@ export const useInviteImage = ({
   invite,
   preferences,
   shot,
+  photoUrl,
   fileName,
   renderPng = renderCardPng,
 }: InviteImageOptions): InviteImage => {
-  const slug = event.slug
-  const photoUrl = useMemo(() => readPrintPhoto(slug), [slug])
   const view = inviteCardOf(event, invite, preferences, {
     showAddress: preferences.showAddress ?? false,
   })
