@@ -15,6 +15,7 @@
   --sheet-w: var(--print-a4-w);
   --sheet-h: var(--print-a4-h);
   --cell-w: var(--print-card-w);
+  --cell-h: var(--print-card-h);
   --u: calc(100cqw / var(--sheet-w));
   position: relative;
   display: grid;
@@ -31,11 +32,24 @@
   --sheet-w: var(--print-a4-h);
   --sheet-h: var(--print-a4-w);
   --cell-w: var(--print-card-h);
+  --cell-h: var(--print-a4-w);
   page: print-landscape;
 }
 
 .sheet[data-format='a4'] {
   --cell-w: var(--print-a4-w);
+  --cell-h: var(--print-a4-h);
+}
+
+/* One card alone: the sheet shrinks to the card, and there is nothing to cut. */
+.sheet[data-single] {
+  --sheet-w: var(--cell-w);
+  --sheet-h: var(--cell-h);
+}
+
+.sheet[data-single]::before,
+.sheet[data-single]::after {
+  display: none;
 }
 
 @media screen {

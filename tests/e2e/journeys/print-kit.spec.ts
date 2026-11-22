@@ -2,7 +2,7 @@ import { jpegWithLocation } from '../fixtures/media'
 import { expect, test } from '../fixtures/app'
 import { decodeQr } from '../fixtures/qrDecode'
 import { openSettingsSection } from '../fixtures/settingsPage'
-import type { Locator } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 /**
  * Spec 02, end to end: what the host prints is what a guest can scan, and nothing else prints.
@@ -21,10 +21,14 @@ import type { Locator } from '@playwright/test'
 const A4_HEIGHT_PX = (297 * 96) / 25.4
 
 const FORMATS = [
-  { name: 'Cartes de table A6 (4 par feuille)', copies: 4 },
-  { name: 'Affiche A5 (2 par feuille)', copies: 2 },
-  { name: 'Affiche A4 (1 par feuille)', copies: 1 },
+  { name: 'Cartes A6 ×4', copies: 4 },
+  { name: 'A5 ×2', copies: 2 },
+  { name: 'Affiche A4', copies: 1 },
 ] as const
+
+/** The formats are a segmented control: its radios are drawn as the labels around them. */
+const chooseFormat = (page: Page, name: string): Promise<void> =>
+  page.getByRole('radiogroup', { name: 'Format' }).getByText(name, { exact: true }).click()
 
 const pathOf = (qr: Locator): Promise<string> =>
   qr
@@ -60,11 +64,13 @@ test('the sheet carries the wall’s QR, fits one page, and the console stays of
 
   await host.goto(app.url(`/admin/events/${event.slug}/print`))
   await expect(host.getByRole('heading', { name: 'Cartes de table et affiche' })).toBeVisible()
+  // The Impression entry shows the whole sheet, the thing that is printed.
+  await host.getByRole('tab', { name: 'Impression' }).click()
   const sheet = host.locator('[data-format]')
 
   for (const format of FORMATS) {
     await host.emulateMedia({ media: 'screen' })
-    await host.getByRole('radio', { name: format.name }).check()
+    await chooseFormat(host, format.name)
     await expect(sheet.getByRole('img', { name: /QR/ })).toHaveCount(format.copies)
     expect(await pathOf(sheet.getByRole('img', { name: /QR/ }).first())).toBe(wallPath)
 
@@ -91,11 +97,12 @@ test('the event colour reaches the QR ink as a dark colour, the black ink stays 
   const { host } = surfaces
   const event = await app.seedEvent({ slug: 'impression-couleur', name: 'Camille & Sacha' })
   await host.goto(app.url(`/admin/events/${event.slug}/print`))
-  await host.getByRole('radio', { name: 'Affiche A4 (1 par feuille)' }).check()
+  await chooseFormat(host, 'Affiche A4')
   const qr = host.locator('[data-format]').getByRole('img', { name: /QR/ }).first()
   const inkOf = () => qr.evaluate((element) => getComputedStyle(element).color)
   const black = await inkOf()
 
+  await host.getByRole('tab', { name: 'Couleurs' }).click()
   await host.getByRole('radio', { name: 'Couleur de l’évènement' }).check()
   const coloured = await inkOf()
 
@@ -124,9 +131,10 @@ test('the event logo sits at the centre of the QR at level H, and the reader sti
   await expect(host.getByRole('img', { name: 'Aperçu du logo de l’évènement' })).toBeVisible()
 
   await host.goto(app.url(`/admin/events/${event.slug}/print`))
-  await host.getByRole('radio', { name: 'Affiche A4 (1 par feuille)' }).check()
+  await chooseFormat(host, 'Affiche A4')
   const qr = host.locator('[data-format]').getByRole('img', { name: /QR/ }).first()
   const plain = await pathOf(qr)
+  await host.getByRole('tab', { name: 'Couleurs' }).click()
   await host.getByRole('checkbox', { name: 'Logo de l’évènement au centre du QR' }).check()
   const logo = qr.locator('image')
   await expect(logo).toHaveCount(1)
@@ -149,4 +157,29 @@ test('the event logo sits at the centre of the QR at level H, and the reader sti
   await host.emulateMedia({ media: 'print' })
   // Whatever the logo hides, the correction level gives the link back.
   expect(await decodeQr(qr)).toBe(joinUrl)
+})
+
+test('printing while the preview shows one card still prints the whole sheet and nothing else', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const event = await app.seedEvent({ slug: 'impression-carte', name: 'Camille & Sacha' })
+  await host.goto(app.url(`/admin/events/${event.slug}/print`))
+  // The design entry is open: the screen shows one big card.
+  await expect(host.getByRole('tab', { name: 'Modèle', selected: true })).toBeVisible()
+  await expect(host.locator('[data-format]:visible')).toHaveCount(1)
+  await expect(host.locator('[data-format]:visible [data-print-card]')).toHaveCount(1)
+
+  await host.emulateMedia({ media: 'print' })
+
+  // The paper carries the four cards of the sheet, on one page, with none of the workshop around it.
+  const sheet = host.locator('[data-format]:visible')
+  await expect(sheet).toHaveCount(1)
+  await expect(sheet.locator('[data-print-card]')).toHaveCount(4)
+  const box = await sheet.boundingBox()
+  expect(box?.height ?? Infinity).toBeLessThanOrEqual(A4_HEIGHT_PX + 1)
+  await expect(host.getByRole('tablist')).toBeHidden()
+  await expect(host.getByRole('tabpanel')).toBeHidden()
+  await expect(host.getByRole('button', { name: 'Imprimer' })).toBeHidden()
 })
