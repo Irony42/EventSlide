@@ -1,4 +1,12 @@
-import { useCallback, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../../app/HostEventsLink'
@@ -141,6 +149,18 @@ function Workspace({
   const activateRef = useRef<HTMLButtonElement>(null)
   const ids = useId()
   const [big, setBig] = useState(false)
+  // The format's own component draws the switcher too, so changing format remounts it: the focus
+  // is given back to the tab that was chosen once the new one is in the page.
+  const refocus = useRef<OutputName | null>(null)
+  useEffect(() => {
+    if (refocus.current === null) return
+    document.getElementById(`${ids}-tab-${refocus.current}`)?.focus()
+    refocus.current = null
+  }, [output, ids])
+  const choose = (name: OutputName) => {
+    refocus.current = name
+    setOutput(name)
+  }
 
   // What was typed and is not on the server yet exists nowhere else.
   useLeaveWarning(
@@ -183,8 +203,7 @@ function Workspace({
     if (target === null) return
     pressed.preventDefault()
     const next = OUTPUTS[target] ?? 'print'
-    setOutput(next)
-    document.getElementById(`${ids}-tab-${next}`)?.focus()
+    choose(next)
   }
 
   const focusStart = () =>
@@ -203,7 +222,7 @@ function Workspace({
           {...(output === name ? { 'aria-controls': `${ids}-panel` } : {})}
           tabIndex={output === name ? 0 : -1}
           className={styles['tab']}
-          onClick={() => setOutput(name)}
+          onClick={() => choose(name)}
           onKeyDown={move}
         >
           {names[name]}

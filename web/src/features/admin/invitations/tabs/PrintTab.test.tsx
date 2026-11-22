@@ -14,6 +14,7 @@ import type { GuestInviteDto } from '../../../../lib/api/dto'
 import { SHORT_MESSAGE_MAX } from '../../../../lib/invite/cardTexts'
 import type * as PrintPhoto from '../../print/printPhoto'
 import { PrintTab } from './PrintTab'
+import { OutputHarness } from './outputHarness'
 
 const prepare = vi.hoisted(() => vi.fn<(file: Blob) => Promise<string | null>>())
 vi.mock('../../print/printPhoto', async (original) => ({
@@ -34,7 +35,8 @@ const readyInvite = (overrides: Partial<GuestInviteDto> = {}) => {
 
 const renderTab = (overrides: Partial<GuestInviteDto> = {}, locale: 'fr' | 'en' = 'fr') =>
   renderWithProviders(
-    <PrintTab
+    <OutputHarness
+      Output={PrintTab}
       event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
       invite={readyInvite(overrides)}
     />,

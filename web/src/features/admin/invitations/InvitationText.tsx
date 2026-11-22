@@ -74,8 +74,8 @@ export function InvitationText({
       noValidate
       aria-labelledby="invite-form-title"
     >
-      <h2 id="invite-form-title" className={styles['panelTitle']}>
-        {text.formTitle}
+      <h2 className={styles['panelTitle']}>
+        <span id="invite-form-title">{text.formTitle}</span>
         <Badge tone="neutral">{text.commonBadge}</Badge>
       </h2>
 
