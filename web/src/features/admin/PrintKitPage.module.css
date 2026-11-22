@@ -1,30 +1,83 @@
+/*
+ * The print workshop: a rail of five entries, one panel, and the canvas that holds the preview.
+ *
+ * Laptop (64rem and up): the workspace fills what the window leaves under the page head, so the
+ * preview never scrolls away and only the panel scrolls, inside itself. Tablet (48 to 64rem): the
+ * rail is a row above, panel and canvas side by side. Phone: the canvas is pinned on top, the
+ * panel scrolls under it, the rail is a bar at the bottom.
+ */
 .page {
-  display: grid;
-  /* The sheet sizes itself from its column: it never shrinks to nothing beside the controls. */
-  grid-template-columns: minmax(0, 22rem) minmax(18rem, 1fr);
-  grid-template-areas:
-    'title title'
-    'controls preview';
-  gap: var(--space-5);
-  align-items: start;
+  /* What the shell takes above and below the workspace (header, host bar, footer, paddings, this
+     page's own head): measured, the workspace is the rest of the window. */
+  --print-chrome: 16.5rem;
+  --print-rail: 5.25rem;
+  --print-panel: 18rem;
+  /* The host layout's bottom tab bar, on a phone: nothing of ours may sit under it. */
+  --print-bottom-bar: calc(4rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-5);
+  row-gap: var(--space-1);
 }
 
 .title {
-  grid-area: title;
-  font-size: var(--text-xl);
+  margin: 0;
+  font-size: var(--text-lg);
 }
 
-.controls {
-  grid-area: controls;
+.intro {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: var(--print-rail) var(--print-panel) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'rail panel notices'
+    'rail panel canvas';
+  /* Never under 30rem: a short window scrolls the page rather than crushing the preview. */
+  block-size: max(30rem, calc(100dvh - var(--print-chrome)));
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+}
+
+.rail {
+  grid-area: rail;
+  display: flex;
+  min-block-size: 0;
+}
+
+.rail > * {
+  flex: 1;
+}
+
+.panel {
+  grid-area: panel;
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow-y: auto;
+  padding: var(--space-4);
+  border-inline-end: 1px solid var(--border-subtle);
+  /* The panel keeps its width when its content is shorter or longer than the last one's. */
+  scrollbar-gutter: stable;
+}
+
+.panelBody {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-}
-
-.preview {
-  grid-area: preview;
-  min-inline-size: 0;
-  max-inline-size: var(--container-host);
 }
 
 .group {
@@ -41,46 +94,304 @@
   font-size: var(--text-sm);
 }
 
-.radio {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-block-size: var(--touch-min);
-}
-
 .help {
+  margin: 0;
   font-size: var(--text-sm);
   color: var(--text-secondary);
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.summary dt {
+  color: var(--text-secondary);
+}
+
+.summary dd {
+  margin: 0;
+  font-weight: 650;
 }
 
 .back {
   color: var(--accent);
 }
 
-/* Phone: settings first, the sheet below at full width, no sideways scroll. */
-@media (max-width: 48rem) {
+/* Notices sit above the canvas, slim, and take no room while there is nothing to say. */
+.notices {
+  grid-area: notices;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  background: var(--surface-base);
+}
+
+.notices:not(:empty) {
+  padding: var(--space-2) var(--space-3) 0;
+}
+
+.notices .slim {
+  padding: var(--space-2) var(--space-3);
+}
+
+.canvas {
+  grid-area: canvas;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-inline-size: 0;
+  min-block-size: 0;
+  background: var(--surface-base);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-block-end: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+}
+
+.toolGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.toolEnd {
+  margin-inline-start: auto;
+}
+
+/*
+ * The room for the preview is the canvas minus the toolbar, whatever is drawn in it: a size
+ * container, so the frame can be fitted (contain) in both dimensions and the layout never jumps
+ * when the format or the view changes.
+ */
+.fit {
+  container-type: size;
+  display: grid;
+  place-items: center;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: var(--space-4);
+}
+
+.frame {
+  inline-size: min(100cqw, calc(100cqh * var(--print-a4-w) / var(--print-a4-h)));
+  aspect-ratio: calc(var(--print-a4-w) / var(--print-a4-h));
+  box-shadow: var(--shadow-lg);
+}
+
+/* Two A5 side by side: the sheet turned landscape. */
+.frame[data-landscape] {
+  inline-size: min(100cqw, calc(100cqh * var(--print-a4-h) / var(--print-a4-w)));
+  aspect-ratio: calc(var(--print-a4-h) / var(--print-a4-w));
+}
+
+/* A photograph can be dragged to be framed; the sliders stay the keyboard way. */
+.frame[data-framing] [data-print-photo] {
+  cursor: grab;
+  user-select: none;
+}
+
+.frame[data-framing] [data-print-photo]:active {
+  cursor: grabbing;
+}
+
+@media (min-width: 48rem) {
+  .frame[data-framing] [data-print-photo] {
+    touch-action: none;
+  }
+}
+
+/*
+ * The paper always prints the sheet, even while the preview shows one card: that copy is laid out
+ * (the text fitting measures it) but invisible on screen.
+ */
+.printCopy {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  /* About an A4 at screen resolution, so the text fitting measures what the paper will draw. */
+  inline-size: 50rem;
+  block-size: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* A wide window has room for a wider panel. */
+@media (min-width: 90rem) {
   .page {
-    grid-template-columns: minmax(0, 1fr);
+    --print-panel: 20rem;
+  }
+}
+
+/* Tablet: the rail is a row above; panel and canvas side by side, the canvas whole. */
+@media (max-width: 63.99rem) {
+  .page {
+    --print-panel: 16rem;
+  }
+
+  .workspace {
+    grid-template-columns: var(--print-panel) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
     grid-template-areas:
-      'title'
-      'controls'
-      'preview';
+      'rail rail'
+      'panel notices'
+      'panel canvas';
+  }
+}
+
+/* Phone: the canvas is pinned on top and reduced, the rail is the bottom bar, the page scrolls. */
+@media (max-width: 47.99rem) {
+  .page {
+    padding-block-end: var(--print-bottom-bar);
+  }
+
+  .head {
+    row-gap: 0;
+  }
+
+  .intro {
+    display: none;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas:
+      'notices'
+      'canvas'
+      'panel'
+      'rail';
+    block-size: auto;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  .canvas {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 2;
+    border-block-end: 1px solid var(--border-subtle);
+  }
+
+  .toolbar {
+    padding: var(--space-1) var(--space-2);
+    gap: var(--space-1);
+  }
+
+  .toolEnd {
+    flex: 1;
+    flex-wrap: nowrap;
+    gap: var(--space-1);
+  }
+
+  .toolEnd > :last-child {
+    margin-inline-start: auto;
+  }
+
+  .fit {
+    block-size: clamp(9rem, 30dvh, 16rem);
+    padding: var(--space-2);
+  }
+
+  .panel {
+    overflow: visible;
+    border-inline-end: 0;
+    padding-inline: 0;
+  }
+
+  .rail {
+    position: sticky;
+    inset-block-end: var(--print-bottom-bar);
+    z-index: 3;
+  }
+
+  /* The big view: the canvas takes the whole screen until it is closed. */
+  .workspace[data-big] .canvas {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-dialog);
+    block-size: 100dvh;
+  }
+
+  .workspace[data-big] .fit {
+    block-size: auto;
+    padding: var(--space-4);
   }
 }
 
 /*
  * Paper takes the sheet and nothing else: the shell's header, footer, skip link and toasts go,
  * and the page's own padding with them. Scoped by :has(), so no other page's printing changes.
+ * The rail, the panel, the notices and the toolbar are screen furniture.
  */
 @media print {
   .screenOnly,
-  .controls,
-  .title {
+  .head,
+  .rail,
+  .panel,
+  .notices,
+  .toolbar {
     display: none;
   }
 
-  .page {
+  .page,
+  .workspace,
+  .workspace[data-big] .canvas,
+  .canvas {
     display: block;
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  .fit {
+    display: block;
+    /* Block layout honours justify-items too: the centring of the screen would shrink the sheet. */
+    place-items: normal;
+    container-type: normal;
+    padding: 0;
+    block-size: auto;
+  }
+
+  .fit[data-print='off'] {
+    display: none;
+  }
+
+  .frame,
+  .frame[data-landscape] {
+    inline-size: auto;
+    aspect-ratio: auto;
+    box-shadow: none;
+  }
+
+  .page,
+  .workspace[data-big] .fit {
+    padding: 0;
+  }
+
+  .printCopy {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    visibility: visible;
   }
 
   .preview {

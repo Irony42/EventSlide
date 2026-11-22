@@ -13,7 +13,7 @@ export function Photo({
 }) {
   if (url === null) return null
   return (
-    <div className={cx(styles['photo'], className)}>
+    <div className={cx(styles['photo'], className)} data-print-photo="">
       <img src={url} alt="" />
     </div>
   )

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readPrintPreferences, writePrintPreferences } from './printPreferences'
 
 const KEY = 'eventslide.print.noces'
@@ -44,5 +44,26 @@ describe('the print preferences kept on this device', () => {
     )
 
     expect(readPrintPreferences('noces')).toEqual({ texts: { table: '7' } })
+  })
+
+  it('remembers the open rail entry and drops one it does not know', () => {
+    writePrintPreferences('noces', { panel: 'colours' })
+    expect(readPrintPreferences('noces')).toEqual({ panel: 'colours' })
+
+    window.localStorage.setItem(KEY, JSON.stringify({ panel: 'export' }))
+    expect(readPrintPreferences('noces')).toEqual({})
+  })
+
+  it('does not throw when the storage refuses to read or write', () => {
+    const blocked = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    const refused = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('full')
+    })
+    expect(readPrintPreferences('noces')).toEqual({})
+    expect(() => writePrintPreferences('noces', { panel: 'print' })).not.toThrow()
+    blocked.mockRestore()
+    refused.mockRestore()
   })
 })

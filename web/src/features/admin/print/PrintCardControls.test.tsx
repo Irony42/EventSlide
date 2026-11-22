@@ -3,7 +3,12 @@ import { fireEvent, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { fr } from '../../../lib/i18n/fr'
 import { fakeApi, renderWithProviders } from '../../../testing/renderWithProviders'
-import { PrintCardControls, type PrintCardControlsProps } from './PrintCardControls'
+import {
+  ColourPicker,
+  PhotoControls,
+  TextControls,
+  type PrintCardControlsProps,
+} from './PrintCardControls'
 import type * as PrintPhoto from './printPhoto'
 
 const prepare = vi.hoisted(() => vi.fn<(file: Blob) => Promise<string | null>>())
@@ -38,7 +43,14 @@ const props = (overrides: Partial<PrintCardControlsProps> = {}): PrintCardContro
 
 const renderControls = (overrides: Partial<PrintCardControlsProps> = {}) => {
   const all = props(overrides)
-  renderWithProviders(<PrintCardControls {...all} />, { api: fakeApi({}) })
+  renderWithProviders(
+    <>
+      <TextControls {...all} />
+      <PhotoControls {...all} />
+      <ColourPicker {...all} />
+    </>,
+    { api: fakeApi({}) },
+  )
   return all
 }
 
@@ -46,7 +58,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('PrintCardControls', () => {
+describe('the card controls: words, photograph, colour', () => {
   it('hands every word up as the host types it, the note included', async () => {
     const user = userEvent.setup()
     const { onText } = renderControls()
