@@ -1,0 +1,403 @@
+/*
+ * One face of the book. The page is a square container: a point of the PDF (595.28 pt across) is
+ * 100cqw / 595.28, so every size below is written in the points `drawBook.ts` uses and scales with the
+ * page. Positions are the server's, in percent of the page, passed as --x --y --w --h.
+ */
+.sheet {
+  --bk-title-weight: 600;
+  --bk-scrim: color-mix(in oklch, var(--pd-ink) 55%, transparent);
+  position: relative;
+  container-type: inline-size;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--bk-paper);
+  color: var(--bk-ink);
+  font-family: var(--bk-body);
+}
+
+.classique {
+  --bk-title: var(--pd-font-serif);
+  --bk-body: var(--pd-font-serif);
+  --bk-authors: var(--font-sans);
+  --bk-body-style: italic;
+}
+
+.magazine {
+  --bk-title: var(--pd-font-magazine);
+  --bk-title-weight: 900;
+  --bk-body: var(--font-sans);
+  --bk-authors: var(--font-sans);
+  --bk-body-style: normal;
+}
+
+.souvenir {
+  --bk-title: var(--pd-font-hand);
+  --bk-title-weight: 700;
+  --bk-body: var(--pd-font-hand);
+  --bk-authors: var(--pd-font-hand);
+  --bk-body-style: normal;
+  /* The kraft texture of the PDF, as a flat tone with a soft vignette. */
+  background: radial-gradient(
+    ellipse at center,
+    var(--bk-paper) 55%,
+    color-mix(in oklch, var(--bk-paper) 90%, var(--pd-ink))
+  );
+}
+
+.in {
+  --pt: calc(100cqw / 595.28);
+  position: absolute;
+  inset: 0;
+}
+
+/* A positioned box, in percent of the page. */
+.text,
+.photo,
+.polaroid,
+.rule,
+.credit,
+.chapter,
+.contents {
+  position: absolute;
+  inset-inline-start: calc(var(--x) * 1%);
+  inset-block-start: calc(var(--y) * 1%);
+  inline-size: calc(var(--w) * 1%);
+  block-size: calc(var(--h) * 1%);
+}
+
+.text {
+  margin: 0;
+  line-height: 1.2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.title,
+.body,
+.authors {
+  font-size: calc(var(--fs) * var(--pt));
+}
+
+.title {
+  font-family: var(--bk-title);
+  font-weight: var(--bk-title-weight);
+}
+
+.body {
+  font-family: var(--bk-body);
+  font-style: var(--bk-body-style);
+}
+
+.authors {
+  font-family: var(--bk-authors);
+  font-weight: 600;
+}
+
+/* Text set directly in a box takes the size its own --fs gives. */
+p.title,
+p.body,
+p.authors {
+  font-size: calc(var(--fs) * var(--pt));
+}
+
+.center {
+  text-align: center;
+}
+
+.left {
+  text-align: start;
+}
+
+.middle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.accentText {
+  color: var(--bk-accent-text);
+}
+
+.faint {
+  opacity: 0.6;
+}
+
+.light {
+  color: var(--pd-on-photo);
+  opacity: 0.9;
+}
+
+.rule {
+  block-size: 0;
+  border-block-start: calc(0.8 * var(--pt)) solid var(--bk-accent);
+}
+
+/* ------------------------------------------------------------ photographs -- */
+
+.photo {
+  object-fit: cover;
+  background: var(--surface-dim);
+}
+
+.contain {
+  object-fit: contain;
+  background: transparent;
+}
+
+.edge,
+.bleed {
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.bleed {
+  position: absolute;
+  object-fit: cover;
+}
+
+.shade {
+  position: absolute;
+  inset-inline: 0;
+  inset-block: 45% 0;
+  background: linear-gradient(to bottom, transparent, var(--bk-scrim));
+}
+
+.credit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(3 * var(--pt));
+  padding-block-start: calc(var(--gap, 6) * var(--pt));
+  text-align: center;
+  overflow: hidden;
+}
+
+.band {
+  inset-inline: 0;
+  inset-block: auto 0;
+  block-size: 12%;
+  padding: calc(6 * var(--pt)) calc(0.06 * 100cqw) 0;
+  background: var(--bk-scrim);
+  color: var(--pd-on-photo);
+  position: absolute;
+}
+
+.bar {
+  display: flex;
+  align-items: flex-end;
+  background: none;
+  color: var(--pd-on-photo);
+  pointer-events: none;
+}
+
+.bar > span {
+  inline-size: 100%;
+  padding: calc(3.5 * var(--pt)) calc(5 * var(--pt));
+  background: var(--bk-scrim);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.hearts {
+  position: absolute;
+  inset-block-start: calc(8 * var(--pt));
+  inset-inline-start: calc(8 * var(--pt));
+  padding: calc(3 * var(--pt)) calc(8 * var(--pt));
+  border-radius: var(--radius-full);
+  background: var(--bk-accent-strong);
+  color: var(--pd-on-photo);
+}
+
+/* A photograph that runs over the two pages of a spread: each face shows its own half. */
+.wide {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.wideImage {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 200%;
+  block-size: 100%;
+  object-fit: cover;
+  background: var(--surface-dim);
+}
+
+.wideRight {
+  inset-inline-start: -100%;
+}
+
+.wideCaption {
+  color: var(--pd-on-photo);
+}
+
+/* ---------------------------------------------------------------- polaroid -- */
+
+.polaroid {
+  background: var(--pd-paper);
+  box-shadow: 0 calc(2 * var(--pt)) calc(9 * var(--pt)) var(--pd-shadow);
+  rotate: var(--rot);
+}
+
+.polaroidPhoto {
+  position: absolute;
+  inset-inline-start: calc(var(--px) * 1%);
+  inset-block-start: calc(var(--py) * 1%);
+  inline-size: calc(var(--pw) * 1%);
+  block-size: calc(var(--ph) * 1%);
+  object-fit: cover;
+  background: var(--surface-dim);
+}
+
+.polaroidCaption {
+  position: absolute;
+  inset-inline: calc(var(--pad) * 1%);
+  inset-block-end: 0;
+  block-size: calc(var(--band) * var(--pt));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(14 * var(--pt));
+  color: var(--bk-ink);
+  text-align: center;
+  line-height: 1.1;
+  overflow: hidden;
+}
+
+.tape {
+  position: absolute;
+  inset-inline-start: 36%;
+  inset-block-start: -2%;
+  inline-size: 28%;
+  block-size: 4.5%;
+  background: var(--bk-accent);
+  opacity: 0.85;
+  rotate: -4deg;
+}
+
+.sticker {
+  position: absolute;
+  inset-inline-start: -4%;
+  inset-block-start: 5%;
+  max-inline-size: 62%;
+  padding: calc(2 * var(--pt)) calc(3 * var(--pt));
+  background: var(--bk-accent-text);
+  color: var(--pd-on-photo);
+  font-size: calc(7 * var(--pt));
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------- story pages -- */
+
+.stat,
+.message,
+.chapter,
+.notes {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat {
+  align-items: center;
+  gap: calc(6 * var(--pt));
+  text-align: center;
+}
+
+.message {
+  gap: calc(3 * var(--pt));
+}
+
+.message > .body {
+  line-height: 1.15;
+}
+
+.contents {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  padding-inline: 7%;
+  box-sizing: border-box;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: calc(6 * var(--pt));
+  block-size: calc(var(--step) * var(--pt));
+  overflow: hidden;
+}
+
+.leader {
+  flex: 1;
+  align-self: end;
+  margin-block-end: calc(4 * var(--pt));
+  border-block-end: calc(0.7 * var(--pt)) dotted var(--bk-ink);
+  opacity: 0.45;
+}
+
+.chapter {
+  align-items: center;
+  gap: calc(6 * var(--pt));
+  text-align: center;
+  justify-content: center;
+}
+
+.chapterNumeral {
+  color: var(--bk-accent-text);
+  line-height: 1;
+}
+
+.chapterTitle {
+  line-height: 1.15;
+}
+
+.chapterRule {
+  inline-size: 25%;
+  border-block-start: calc(0.8 * var(--pt)) solid var(--bk-accent);
+}
+
+.overPhoto {
+  padding: calc(10 * var(--pt));
+  box-sizing: content-box;
+  margin: calc(-10 * var(--pt));
+  background: color-mix(in oklch, var(--pd-ink) 35%, transparent);
+  color: var(--pd-on-photo);
+}
+
+.overPhoto .chapterNumeral {
+  color: var(--pd-on-photo);
+}
+
+.quoteMark {
+  line-height: 1;
+}
+
+.quote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notes {
+  align-items: center;
+  justify-content: center;
+  gap: calc(3 * var(--pt));
+}
+
+.thanksList {
+  line-height: 1.5;
+}

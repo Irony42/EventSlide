@@ -1986,3 +1986,107 @@ export interface EventStatsResponseDto {
   }
   readonly engagement: EngagementDto | null
 }
+
+/** A photograph of the book preview: its renditions (the API serves them) and the words printed with it. */
+export interface BookPreviewPhotoDto {
+  readonly id: string
+  readonly width: number
+  readonly height: number
+  readonly thumbUrl: string
+  readonly displayUrl: string
+  readonly caption: string | null
+  readonly author: string | null
+  readonly mission: string | null
+  /** The mission as the book prints it, in the book's language. */
+  readonly missionLabel: string | null
+  readonly hearts: number
+}
+
+/** One page of the plan; a `wide` one has `span: 2` and runs over a double page. */
+export interface BookPreviewPageDto {
+  readonly template: string
+  readonly span: 1 | 2
+  readonly chapter: number | null
+  readonly photos: readonly BookPreviewPhotoDto[]
+  /** Where each photograph sits in this style, in the order of `photos`. */
+  readonly slots: readonly {
+    readonly x: number
+    readonly y: number
+    readonly w: number
+    readonly h: number
+    readonly contain: boolean
+    readonly hero: boolean
+  }[]
+  /** The boxes the page's texts are drawn in. */
+  readonly boxes: readonly {
+    readonly x: number
+    readonly y: number
+    readonly w: number
+    readonly h: number
+  }[]
+  readonly messages: readonly { readonly text: string; readonly author: string | null }[]
+  readonly firstMessages: boolean
+}
+
+/**
+ * `GET /events/:eventSlug/book/preview` (spec 26): the plan the PDF would be made from, for a moderator
+ * of the event. It carries guest words (captions, first names, guest-book messages) on purpose: it is
+ * the book's content, shown to the people who may ask for the book.
+ */
+export interface BookPreviewDto {
+  readonly style: 'classique' | 'magazine' | 'souvenir'
+  readonly colours: {
+    readonly paper: string
+    readonly ink: string
+    readonly accent: string
+    readonly accentText: string
+    readonly accentStrong: string
+    readonly accentInk: string
+  }
+  /** What the style does to the page. */
+  readonly look: {
+    readonly fullBleed: boolean
+    readonly polaroid: boolean
+    readonly minBodySize: number
+  }
+  readonly language: string
+  readonly cover: {
+    readonly title: string
+    readonly subtitle: string
+    readonly photo: BookPreviewPhotoDto
+  }
+  readonly pages: readonly BookPreviewPageDto[]
+  readonly pageCount: number
+  readonly photoCount: number
+  readonly albumPhotos: number
+  readonly chapters: readonly {
+    readonly index: number
+    readonly numeral: string
+    readonly title: string
+    readonly subtitle: string
+    readonly firstPage: number
+  }[]
+  readonly contents: readonly { readonly label: string; readonly page: number }[]
+  readonly stats: {
+    readonly photos: number
+    readonly photographers: number
+    readonly hearts: number
+    readonly messages: number
+  }
+  readonly texts: {
+    readonly contents: string
+    readonly statsTitle: string
+    readonly statPhotos: string
+    readonly statPhotographers: string
+    readonly statHearts: string
+    readonly statMessages: string
+    readonly favourites: string
+    readonly guestbook: string
+    readonly createdWith: string
+  }
+  readonly thanks: {
+    readonly heading: string
+    readonly names: readonly { readonly name: string; readonly photoCount: number }[]
+  }
+  readonly closingNotes: readonly string[]
+}

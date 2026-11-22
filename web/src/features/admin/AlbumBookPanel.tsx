@@ -207,7 +207,7 @@ export function AlbumBookPanel({ slug, defaultTitle, ambiance }: AlbumBookPanelP
 }
 
 /** The finished files: the book, and the printer version's interior and cover when it was made. */
-function Downloads({ book, slug }: { readonly book: Book; readonly slug: string }) {
+export function Downloads({ book, slug }: { readonly book: Book; readonly slug: string }) {
   const t = useTranslations()
   const { locale } = useLocale()
   const api = useApi()

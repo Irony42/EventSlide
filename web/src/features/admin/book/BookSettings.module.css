@@ -1,0 +1,124 @@
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-block-end: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* The three styles: a real radio group, the thumbnail and the two lines inside one label. */
+.styles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.style {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-base);
+  cursor: pointer;
+}
+
+.style:has(.radio:checked) {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) var(--selected-tint), var(--surface-raised));
+}
+
+.style:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.radio {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.thumb {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.styleName {
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.styleHint {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-block-size: var(--touch-min);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.choice:has(.choiceInput:checked) {
+  border-color: var(--accent);
+}
+
+.choice:has(.choiceInput:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.choice:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.choiceInput {
+  accent-color: var(--accent);
+  margin-block-start: var(--space-1);
+  flex: none;
+}
+
+.choiceText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}

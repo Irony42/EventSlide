@@ -23,6 +23,7 @@ export type { GuestInviteInput } from './client/invite'
 export type { SiteProvisionInput, SiteInvitationInput, SiteResetInput } from './client/site'
 export type {
   AlbumBookInput,
+  AlbumBookPreviewInput,
   AnnouncementInput,
   AnnouncementPatchInput,
   ChallengeInput,

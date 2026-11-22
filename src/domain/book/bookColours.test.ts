@@ -88,6 +88,11 @@ describe('polaroidRotation', () => {
     expect(Math.max(...angles)).toBeGreaterThan(3)
     expect(new Set(angles).size).toBeGreaterThan(100)
   })
+
+  it("has the values the host's preview computes in the browser (bookGeometry.test.ts of the web app)", () => {
+    expect(polaroidRotation('photo-1')).toBeCloseTo(-1.54, 2)
+    expect(polaroidRotation('photo-2')).toBeCloseTo(2.27, 2)
+  })
 })
 
 describe('contrast of the text accent', () => {
