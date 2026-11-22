@@ -9,11 +9,12 @@
 .page {
   /* What the shell takes above and below the workspace (header, host bar, footer, paddings, this
      page's own head): measured, the workspace is the rest of the window. */
-  --print-chrome: 16.5rem;
+  --print-chrome: 14rem;
   --print-rail: 5.25rem;
   --print-panel: 18rem;
-  /* The host layout's bottom tab bar, on a phone: nothing of ours may sit under it. */
-  --print-bottom-bar: calc(4rem + env(safe-area-inset-bottom));
+  /* On a phone the event menu's tab bar steps aside on this page (eventLayout/), so our own bar
+     only keeps clear of the home indicator. */
+  --print-bottom-bar: env(safe-area-inset-bottom);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
