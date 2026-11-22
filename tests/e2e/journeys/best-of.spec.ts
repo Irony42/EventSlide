@@ -20,7 +20,7 @@ test('a host stars a photo, downloads the favourites as a ZIP, and loses the sta
   const event = await app.seedEvent({ slug: 'mariage', name: 'Camille & Sacha' })
   await signInAsHost(host, app)
 
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/best-of`))
   await expect(host.getByText(fr.admin.bestOfNone)).toBeVisible()
   await expect(host.getByRole('button', { name: fr.admin.bestOfDownload })).toBeDisabled()
   // Nothing is starred: the archive is refused before any header is sent.
@@ -42,7 +42,7 @@ test('a host stars a photo, downloads the favourites as a ZIP, and loses the sta
   await star.click()
   await expect(star).toHaveAttribute('aria-pressed', 'true')
 
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/best-of`))
   await expect(host.getByText(fr.admin.bestOfCount(1))).toBeVisible()
   const archive = await host.request.get(app.url(`/api/events/${event.slug}/best-of.zip`))
   expect(archive.status()).toBe(200)
@@ -59,7 +59,7 @@ test('a host stars a photo, downloads the favourites as a ZIP, and loses the sta
     .first()
     .getByRole('button', { name: /Retirer de l.écran/i })
     .click()
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/best-of`))
   await expect(host.getByText(fr.admin.bestOfNone)).toBeVisible()
 })
 
@@ -106,7 +106,7 @@ test('a host makes the highlight video from three favourites, and loses it when 
     await expect(star).toHaveAttribute('aria-pressed', 'true')
   }
 
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/best-of`))
   await host.getByRole('button', { name: fr.admin.reelCreate }).click()
   await expect(host.getByText(fr.admin.reelReady(3))).toBeVisible({ timeout: 120_000 })
 

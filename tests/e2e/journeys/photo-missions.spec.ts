@@ -83,7 +83,7 @@ test('a prompt the host types reaches a phone and comes back on the wall', async
   const event = await app.seedEvent({ slug: 'mariage-missions', name: 'Camille & Sacha' })
 
   await signInAsHost(host, app)
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/missions`))
   await addMission(host, 'un selfie avec les mariés')
 
   // The projector, before anybody has answered it: the prompt is on screen and open.
@@ -111,7 +111,7 @@ test('a photograph the host refuses does not answer its mission', async ({ app, 
   const event = await app.seedEvent({ slug: 'mariage-refuse', name: 'Camille & Sacha' })
 
   await signInAsHost(host, app)
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/missions`))
   await addMission(host, 'la première danse', 'event')
 
   await joinAndSendForMission(guest, app, event.joinCode, 'la première danse', 'Sacha')
@@ -178,7 +178,7 @@ test('each photograph is filed under the mission selected when it was picked', a
   const event = await app.seedEvent({ slug: 'mariage-deux-missions', name: 'Camille & Sacha' })
 
   await signInAsHost(host, app)
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/missions`))
   await addMission(host, 'un selfie avec les mariés')
   await addMission(host, 'la piste de danse')
 

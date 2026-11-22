@@ -51,7 +51,7 @@ test('a host connects a Telegram group, a photo posted there is moderated and pu
 
     // ---- the event page tells which bot to add and which command to send, with the current code -------------
 
-    await host.goto(app.url(`/admin/events/${event.slug}`))
+    await host.goto(app.url(`/admin/events/${event.slug}/telegram`))
     await expect(host.getByRole('heading', { name: fr.channels.title })).toBeVisible()
     await expect(host.getByText(fr.channels.step1('EventSlideE2EBot'))).toBeVisible()
     await expect(host.getByText(`/soiree ${event.joinCode}`)).toBeVisible()
@@ -99,7 +99,7 @@ test('a host connects a Telegram group, a photo posted there is moderated and pu
 
     // ---- the panel lists the group, and the owner unlinks it --------------------------------------------------
 
-    await host.goto(app.url(`/admin/events/${event.slug}`))
+    await host.goto(app.url(`/admin/events/${event.slug}/telegram`))
     await expect(host.getByText('Mariage Léa & Tom')).toBeVisible()
     await expect(host.getByText(/1 photo reçue/u)).toBeVisible()
     await host.getByRole('button', { name: fr.channels.unlink }).click()

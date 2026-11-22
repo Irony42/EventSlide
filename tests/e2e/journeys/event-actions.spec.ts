@@ -3,8 +3,8 @@ import { expect, signInAsHost, test } from '../fixtures/app'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
- * The host's way out of the event page: the large tiles of the "Maintenant" card and the small
- * ones of the overview (one tile into the queue, whatever the device).
+ * The host's way out of the event page: the large tiles of the "Maintenant" card on the home
+ * page, and the album's download tile on its own page (one tile into the queue, whatever the device).
  *
  * What a component test cannot say is how they land in a real browser: whether the page
  * stays inside the screen on a phone with a real viewport and a real scrollbar, whether
@@ -16,13 +16,11 @@ import { fr } from '../../../web/src/lib/i18n/fr'
 /** 44 px is the floor, not the aspiration — docs/DESIGN-SYSTEM.md section 8. */
 const TOUCH_MIN = 44
 
-const ACTIONS = [
-  fr.admin.openWall,
-  fr.admin.openModeration,
-  fr.admin.stats.tile,
-  fr.admin.settings,
-  fr.admin.download,
-] as const
+/** The large tiles of the "Maintenant" card of a live event: all the home page keeps. */
+const ACTIONS = [fr.admin.openWall, fr.admin.openModeration] as const
+
+/** The album page's one large tile: the whole album in one file. */
+const ALBUM_ACTIONS = [fr.admin.download] as const
 
 test('the event page lays its actions out inside the screen, as real targets', async ({
   app,
@@ -36,37 +34,35 @@ test('the event page lays its actions out inside the screen, as real targets', a
   const viewport = page.viewportSize()
   if (viewport === null) throw new Error('the project declares no viewport')
 
-  for (const name of ACTIONS) {
-    const link = page.getByRole('link', { name, exact: true })
-    await expect(link).toBeVisible()
-    const box = await link.boundingBox()
-    if (box === null) throw new Error(`${name} was never laid out`)
-    expect(box.height, `${name} is shorter than a thumb`).toBeGreaterThanOrEqual(TOUCH_MIN)
-    expect(box.x, `${name} starts off the left edge`).toBeGreaterThanOrEqual(0)
-    expect(box.x + box.width, `${name} runs off the right edge`).toBeLessThanOrEqual(viewport.width)
+  const checkTargets = async (names: readonly string[]): Promise<void> => {
+    for (const name of names) {
+      const link = page.getByRole('link', { name, exact: true })
+      await expect(link).toBeVisible()
+      const box = await link.boundingBox()
+      if (box === null) throw new Error(`${name} was never laid out`)
+      expect(box.height, `${name} is shorter than a thumb`).toBeGreaterThanOrEqual(TOUCH_MIN)
+      expect(box.x, `${name} starts off the left edge`).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width, `${name} runs off the right edge`).toBeLessThanOrEqual(
+        viewport.width,
+      )
+    }
+  }
+  const noSidewaysScroll = async (): Promise<void> => {
+    // The whole page, not only the tiles: a tile that cannot shrink drags the document wider
+    // than the screen, and it is the document that scrolls sideways.
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+    expect(overflow).toBeLessThanOrEqual(0)
   }
 
-  // The sizes are drawn, not only declared: the two actions the evening turns on (the
-  // "Maintenant" card of a live event) stand taller than the overview's, whatever the width.
-  const height = async (name: string): Promise<number> => {
-    const box = await page.getByRole('link', { name, exact: true }).boundingBox()
-    if (box === null) throw new Error()
-    return box.height
-  }
-  const secondary = Math.max(
-    await height(fr.admin.stats.tile),
-    await height(fr.admin.settings),
-    await height(fr.admin.download),
-  )
-  expect(await height(fr.admin.openWall)).toBeGreaterThan(secondary)
-  expect(await height(fr.admin.openModeration)).toBeGreaterThan(secondary)
+  await checkTargets(ACTIONS)
+  await noSidewaysScroll()
 
-  // The whole page, not only the tiles: a tile that cannot shrink drags the document wider
-  // than the screen, and it is the document that scrolls sideways.
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  )
-  expect(overflow).toBeLessThanOrEqual(0)
+  // The album's own page (it left the home page with the menu): the same floor, the same screen.
+  await page.goto(app.url(`/admin/events/${event.slug}/album`))
+  await checkTargets(ALBUM_ACTIONS)
+  await noSidewaysScroll()
 })
 
 test('the event page has no serious accessibility violation, tiles included', async ({
@@ -103,7 +99,7 @@ test('a tile shows the focus ring when the keyboard reaches it', async ({ app, p
 
   // `focus()` from a script is not a keyboard arrival and would not match `:focus-visible`
   // in every engine; Tab is what a host without a mouse actually does.
-  for (let presses = 0; presses < 20; presses += 1) {
+  for (let presses = 0; presses < 60; presses += 1) {
     await page.keyboard.press('Tab')
     if (await wall.evaluate((node) => node === document.activeElement)) break
   }

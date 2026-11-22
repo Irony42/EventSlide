@@ -96,7 +96,7 @@ test.describe('the announcements console', () => {
       await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
       await expect(other.getByTestId('wall-slide').first()).toBeVisible()
 
-      await host.goto(app.url(`/admin/events/${slug}`))
+      await host.goto(app.url(`/admin/events/${slug}/announcements`))
       await field(host, copy.text).fill('Le gâteau arrive')
       await chip(host, copy.countdown, '1 min').check()
       await chip(host, copy.duration, '15 s').check()
@@ -148,7 +148,7 @@ test.describe('the announcements console', () => {
     await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
     await expect(projector.locator(CARD)).toHaveCount(0)
 
-    await host.goto(app.url(`/admin/events/${slug}`))
+    await host.goto(app.url(`/admin/events/${slug}/announcements`))
     await field(host, copy.text).fill('Navettes à minuit')
     // No time asked for: the launch is the moment it is pressed.
     await host.getByRole('button', { name: copy.launchNow }).click()
@@ -171,7 +171,7 @@ test.describe('the announcements console', () => {
     await projector.goto(wallUrl(app, slug))
     await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
 
-    await host.goto(app.url(`/admin/events/${slug}`))
+    await host.goto(app.url(`/admin/events/${slug}/announcements`))
     await host.getByRole('radio', { name: new RegExp(copy.kindDiscreet, 'u') }).check()
     await expect(host.getByRole('group', { name: copy.countdown })).toHaveCount(0)
     await expect(chip(host, copy.duration, '15 min')).toBeChecked()
@@ -198,7 +198,7 @@ test.describe('the announcements console', () => {
     const { slug } = await arrange(app, 'console-mobile')
     const { host } = surfaces
     await host.setViewportSize({ width: 375, height: 812 })
-    await host.goto(app.url(`/admin/events/${slug}`))
+    await host.goto(app.url(`/admin/events/${slug}/announcements`))
 
     const heading = host.getByRole('heading', { name: copy.title })
     await heading.scrollIntoViewIfNeeded()

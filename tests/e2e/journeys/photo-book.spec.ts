@@ -30,7 +30,7 @@ test('a host makes the photo book, downloads the PDF, and loses it when hiding a
   await host.getByRole('button', { name: fr.moderation.filterPublished }).click()
   await expect(host.getByTestId('moderation-card')).toHaveCount(1)
 
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/book`))
   // Nothing was asked for: the PDF is a single 404, never a download.
   expect((await host.request.get(app.url(`/api/events/${event.slug}/book.pdf`))).status()).toBe(404)
 
@@ -90,7 +90,7 @@ test('a host makes the photo book, downloads the PDF, and loses it when hiding a
       .toBe(404)
   }
 
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/book`))
   await expect(host.getByText(fr.admin.bookStale)).toBeVisible()
   // Its choices are kept: the style and the printer version are what the host picked.
   await expect(

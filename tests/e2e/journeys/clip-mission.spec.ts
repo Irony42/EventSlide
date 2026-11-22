@@ -26,7 +26,7 @@ test('a clip stays on the mission selected when it was picked, and counts for it
   const { guest, host, projector } = surfaces
   const event = await app.seedEvent({ slug: 'clip-missions', name: 'Camille & Sacha' })
 
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/missions`))
   for (const prompt of ['un selfie avec les mariés', 'la piste de danse']) {
     await host.getByLabel('Consigne').fill(prompt)
     await host.getByRole('button', { name: 'Ajouter la mission' }).click()
