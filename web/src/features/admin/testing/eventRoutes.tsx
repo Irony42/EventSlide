@@ -22,7 +22,6 @@ const SECTION_OF: Readonly<Record<string, PanelSection>> = Object.fromEntries(
         'guests',
         'album',
         'bestOf',
-        'book',
         'share',
       ].includes(section),
     )
@@ -35,6 +34,7 @@ const ELSEWHERE: Readonly<Record<string, string>> = {
   stats: 'stats page',
   print: 'print page',
   invitations: 'invitations page',
+  book: 'book page',
 }
 
 function AnyEventPage() {

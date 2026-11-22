@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { Notice } from '../../../design-system/components/Notice'
 import { allowsModeration, canManageEvent } from '../../../lib/eventLifecycle'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { AlbumBookPanel } from '../AlbumBookPanel'
 import { AnnouncementsPanel } from '../AnnouncementsPanel'
 import { BestOfPanel } from '../BestOfPanel'
 import { ChallengePanel } from '../ChallengePanel'
@@ -40,7 +39,6 @@ export type PanelSection = Extract<
   | 'guests'
   | 'album'
   | 'bestOf'
-  | 'book'
   | 'share'
 >
 
@@ -84,13 +82,6 @@ const PANELS: Readonly<Record<PanelSection, (context: EventPageContext) => React
   ),
   album: () => <EventAlbumSection />,
   bestOf: ({ event }) => <BestOfPanel slug={event.slug} canStar={allowsModeration(event.status)} />,
-  book: ({ event }) => (
-    <AlbumBookPanel
-      slug={event.slug}
-      defaultTitle={event.name}
-      ambiance={event.settings.theme.ambiance}
-    />
-  ),
   share: ({ event }) => <ShareLinkPanel slug={event.slug} />,
 }
 
