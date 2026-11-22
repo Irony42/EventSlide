@@ -3989,7 +3989,7 @@ export const fr = {
     tabBar: 'Navigation de la soirée',
     home: 'Accueil',
     /** Beside the moment the event is in. */
-    now: 'maintenant',
+    current: 'maintenant',
     moments: {
       before: 'Préparer',
       during: 'Pendant la soirée',

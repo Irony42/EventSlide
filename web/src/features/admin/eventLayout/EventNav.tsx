@@ -180,7 +180,7 @@ export function EventNav({ event }: { readonly event: NavEvent }) {
           <div key={group.moment} className={styles['group']}>
             <p id={labelId} className={styles['groupLabel']}>
               <span>{t.eventMenu.moments[group.moment]}</span>
-              {group.current ? <span className={styles['now']}>{t.eventMenu.now}</span> : null}
+              {group.current ? <span className={styles['now']}>{t.eventMenu.current}</span> : null}
             </p>
             <ul className={styles['list']} aria-labelledby={labelId}>
               {group.sections.map((section) => (
@@ -260,7 +260,7 @@ export function EventTabBar({ event }: { readonly event: NavEvent }) {
             <VisuallyHidden>{`, ${t.moderation.pending(pending)}`}</VisuallyHidden>
           ) : null}
           {key !== 'home' && key === now ? (
-            <VisuallyHidden>{`, ${t.eventMenu.now}`}</VisuallyHidden>
+            <VisuallyHidden>{`, ${t.eventMenu.current}`}</VisuallyHidden>
           ) : null}
         </Link>
       </li>

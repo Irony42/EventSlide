@@ -22,6 +22,7 @@ import { SessionExpiredBanner } from './SessionExpiredBanner'
 import { SessionProvider } from '../lib/SessionProvider'
 import { SiteFooter } from './SiteFooter'
 import styles from './router.module.css'
+import type { PanelSection } from '../features/admin/eventLayout/EventSectionPage'
 
 /**
  * The route table, matching the surfaces in docs/API.md and CLAUDE.md section 1.
@@ -74,6 +75,8 @@ const EventHomePage = lazy(async () => ({
 const EventSectionPage = lazy(async () => ({
   default: (await import('../features/admin/eventLayout/EventSectionPage')).EventSectionPage,
 }))
+/** One of the event's former panels, on its page under the menu. */
+const panelPage = (section: PanelSection): ReactNode => <EventSectionPage section={section} />
 const EventMomentPage = lazy(async () => ({
   default: (await import('../features/admin/eventLayout/EventMomentPage')).EventMomentPage,
 }))
@@ -539,58 +542,55 @@ export function AppRoutes() {
                 />
                 <Route
                   path="/admin/events/:slug/access"
-                  element={titled('eventAccess', <EventSectionPage section="access" />)}
+                  element={titled('eventAccess', panelPage('access'))}
                 />
                 <Route
                   path="/admin/events/:slug/missions"
-                  element={titled('eventMissions', <EventSectionPage section="missions" />)}
+                  element={titled('eventMissions', panelPage('missions'))}
                 />
                 <Route
                   path="/admin/events/:slug/moderators"
-                  element={titled('eventModerators', <EventSectionPage section="moderators" />)}
+                  element={titled('eventModerators', panelPage('moderators'))}
                 />
                 <Route
                   path="/admin/events/:slug/announcements"
-                  element={titled(
-                    'eventAnnouncements',
-                    <EventSectionPage section="announcements" />,
-                  )}
+                  element={titled('eventAnnouncements', panelPage('announcements'))}
                 />
                 <Route
                   path="/admin/events/:slug/challenge"
-                  element={titled('eventChallenge', <EventSectionPage section="challenge" />)}
+                  element={titled('eventChallenge', panelPage('challenge'))}
                 />
                 <Route
                   path="/admin/events/:slug/guestbook"
-                  element={titled('eventGuestbook', <EventSectionPage section="guestbook" />)}
+                  element={titled('eventGuestbook', panelPage('guestbook'))}
                 />
                 <Route
                   path="/admin/events/:slug/reveal"
-                  element={titled('eventReveal', <EventSectionPage section="reveal" />)}
+                  element={titled('eventReveal', panelPage('reveal'))}
                 />
                 <Route
                   path="/admin/events/:slug/telegram"
-                  element={titled('eventTelegram', <EventSectionPage section="telegram" />)}
+                  element={titled('eventTelegram', panelPage('telegram'))}
                 />
                 <Route
                   path="/admin/events/:slug/guests"
-                  element={titled('eventGuests', <EventSectionPage section="guests" />)}
+                  element={titled('eventGuests', panelPage('guests'))}
                 />
                 <Route
                   path="/admin/events/:slug/album"
-                  element={titled('eventAlbum', <EventSectionPage section="album" />)}
+                  element={titled('eventAlbum', panelPage('album'))}
                 />
                 <Route
                   path="/admin/events/:slug/best-of"
-                  element={titled('eventBestOf', <EventSectionPage section="bestOf" />)}
+                  element={titled('eventBestOf', panelPage('bestOf'))}
                 />
                 <Route
                   path="/admin/events/:slug/book"
-                  element={titled('eventBook', <EventSectionPage section="book" />)}
+                  element={titled('eventBook', panelPage('book'))}
                 />
                 <Route
                   path="/admin/events/:slug/share"
-                  element={titled('eventShare', <EventSectionPage section="share" />)}
+                  element={titled('eventShare', panelPage('share'))}
                 />
                 <Route
                   path="/admin/events/:slug/stats"

@@ -127,10 +127,6 @@
   color: var(--text-primary);
 }
 
-.entry:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
 
 .active {
   background: color-mix(in oklch, var(--accent) var(--selected-tint), var(--surface-raised));
@@ -274,10 +270,6 @@
   text-decoration: none;
 }
 
-.tab:focus-visible {
-  outline: none;
-  box-shadow: inset var(--focus-ring);
-}
 
 .tabActive {
   color: var(--accent);

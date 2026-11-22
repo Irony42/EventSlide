@@ -3285,7 +3285,7 @@ export const it: UiText = {
     tabBar: 'Navigazione della festa',
     home: 'Home',
     /** Beside the moment the event is in. */
-    now: 'adesso',
+    current: 'adesso',
     moments: {
       before: 'Preparare',
       during: 'Durante la festa',

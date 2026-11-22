@@ -33,7 +33,7 @@ describe('the event menu', () => {
     renderAt('', { status: 'live' })
 
     const nav = await menu()
-    const marks = within(nav).getAllByText(fr.eventMenu.now)
+    const marks = within(nav).getAllByText(fr.eventMenu.current)
     expect(marks).toHaveLength(1)
     expect(marks[0]?.closest('p')).toHaveTextContent(fr.eventMenu.moments.during)
   })
@@ -135,9 +135,9 @@ describe('the phone’s tab bar', () => {
     const evening = await tab('/admin/events/camille-et-sacha/during')
     expect(evening).toHaveTextContent(fr.eventMenu.momentsShort.during)
     expect(evening).toHaveTextContent(fr.moderation.pending(2))
-    expect(evening).toHaveTextContent(fr.eventMenu.now)
+    expect(evening).toHaveTextContent(fr.eventMenu.current)
     expect(await tab('/admin/events/camille-et-sacha/after')).not.toHaveTextContent(
-      fr.eventMenu.now,
+      fr.eventMenu.current,
     )
   })
 })
@@ -151,7 +151,7 @@ describe('a moment’s page', () => {
         level: 1,
         name: new RegExp(fr.eventMenu.moments.after),
       }),
-    ).toHaveTextContent(fr.eventMenu.now)
+    ).toHaveTextContent(fr.eventMenu.current)
     expect(screen.getByRole('link', { name: new RegExp(fr.eventMenu.hints.book) })).toHaveAttribute(
       'href',
       '/admin/events/camille-et-sacha/book',

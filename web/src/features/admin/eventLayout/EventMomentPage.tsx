@@ -26,7 +26,7 @@ export function EventMomentPage({ moment }: { readonly moment: EventMoment }) {
         <h1 className={styles['title']}>
           {t.eventMenu.moments[moment]}
           {momentOf(event.status) === moment ? (
-            <span className={styles['now']}>{t.eventMenu.now}</span>
+            <span className={styles['now']}>{t.eventMenu.current}</span>
           ) : null}
         </h1>
         <p className={styles['intro']}>{t.eventMenu.momentIntros[moment]}</p>
