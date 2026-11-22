@@ -254,7 +254,12 @@ function Workspace({ slug, event, book, reload }: WorkspaceProps) {
         </section>
       </div>
 
-      <Dialog open={big} title={t.bookPage.previewLabel} onClose={() => setBig(false)}>
+      <Dialog
+        open={big}
+        title={t.bookPage.previewLabel}
+        onClose={() => setBig(false)}
+        className={styles['bigDialog']}
+      >
         {viewer === null ? null : (
           <div className={styles['bigViewer']}>
             <BookViewer

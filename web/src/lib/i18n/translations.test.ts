@@ -85,6 +85,7 @@ describe('the scope', () => {
         'announcement',
         'app',
         'auth',
+        'bookPage',
         'challenge',
         'channels',
         'clientSpace',

@@ -304,6 +304,26 @@ describe('BookPage, turning the pages', () => {
     expect(strip.getByLabelText(name)).toHaveAttribute('aria-current', 'true')
   })
 
+  it('draws miniatures only around the open spread of a very large book, and numbers the rest', async () => {
+    const user = userEvent.setup()
+    const pages = Array.from({ length: 200 }, () => aPreviewPage('blank'))
+    render(
+      fakeApi({ albumBookPreview: vi.fn(async () => aBookPreview({ pages, pageCount: 202 })) }),
+    )
+    await screen.findByText(/202 pages/)
+    const strip = screen.getByLabelText(fr.bookPage.stripLabel)
+
+    // 103 spreads (the cover, 101 pairs, the back cover), 21 of them drawn around the open one.
+    expect(strip.querySelectorAll('button')).toHaveLength(103)
+    expect(strip.querySelectorAll('[data-book-page]').length).toBeLessThanOrEqual(2 * 21)
+    const far = strip.querySelectorAll('button')[80]!
+    expect(far.querySelector('[data-book-page]')).toBeNull()
+    expect(far).toHaveTextContent('81')
+
+    await user.click(far)
+    expect(far.querySelector('[data-book-page]')).not.toBeNull()
+  })
+
   it('opens the book large in a dialog that follows the same page', async () => {
     const user = userEvent.setup()
     render(fakeApi())

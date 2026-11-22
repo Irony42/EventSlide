@@ -2,24 +2,11 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Button } from '../../../design-system/components/Button'
 import { cx } from '../../../design-system/classNames'
 import type { BookPreviewDto } from '../../../lib/api/dto'
-import type { UiText } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { BookPageView } from './BookPageView'
-import {
-  findSpread,
-  sheetsOf,
-  singlesOf,
-  spreadOfFace,
-  spreadsOf,
-  type Sheet,
-  type Spread,
-} from './bookSpreads'
+import { SINGLE_BELOW_PX, STRIP_WINDOW, spreadLabel } from './bookLabels'
+import { findSpread, sheetsOf, singlesOf, spreadOfFace, spreadsOf, type Sheet } from './bookSpreads'
 import styles from './BookViewer.module.css'
-
-/** Under this width, in pixels, the viewer shows one face at a time. */
-export const SINGLE_BELOW_PX = 560
-/** Miniatures are drawn this many spreads around the open one; farther ones are numbered chips. */
-export const STRIP_WINDOW = 20
 
 export interface BookViewerFocus {
   /** Changes when the host did something that deserves a look (a different value jumps again). */
@@ -43,31 +30,6 @@ export interface BookViewerProps {
   readonly strip?: boolean
   /** Forces one face at a time, whatever the width (the phone's pinned preview). */
   readonly single?: boolean
-}
-
-const faceLabel = (text: UiText, sheet: Sheet | null): string => {
-  if (sheet === null) return ''
-  switch (sheet.kind) {
-    case 'cover':
-      return text.bookPage.cover
-    case 'inside':
-      return text.bookPage.inside
-    case 'blank':
-      return ''
-    case 'back':
-      return text.bookPage.backCover
-    case 'page':
-      return text.bookPage.pageNumber(sheet.number)
-  }
-}
-
-/** What the two faces of a spread are called: "Pages 4 et 5", "Couverture"... */
-export const spreadLabel = (text: UiText, spread: Spread): string => {
-  const { left, right } = spread
-  if (left?.kind === 'page' && right?.kind === 'page') {
-    return text.bookPage.pageNumbers(left.number, right.number)
-  }
-  return [faceLabel(text, left), faceLabel(text, right)].filter((part) => part !== '').join(' · ')
 }
 
 /**

@@ -4004,7 +4004,7 @@ export const fr = {
     pageNumbers: (a: number, b: number) => `Pages ${a} et ${b}`,
     spreadPosition: (k: number, n: number) => `Double page ${k} sur ${n}`,
     stripLabel: 'Doubles pages',
-    stripItem: (label: string) => `Aller à : ${label}`,
+    stripItem: (label: string) => `Aller à\u00a0: ${label}`,
     big: 'Voir en grand',
     queued: 'En attente de son tour…',
     running: 'Mise en page en cours sur le serveur…',

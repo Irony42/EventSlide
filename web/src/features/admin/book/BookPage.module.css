@@ -154,9 +154,17 @@
   cursor: pointer;
 }
 
+/* The dialog of a form is a narrow card; the book is not. */
+.bigDialog.bigDialog {
+  max-inline-size: min(64rem, calc(100% - var(--space-4)));
+}
+
 .bigViewer {
-  block-size: min(78dvh, 42rem);
-  inline-size: min(88vw, 64rem);
+  block-size: min(72dvh, 42rem);
+  min-inline-size: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
 }
 
 /* ------------------------------------------------- tablet and laptop -- */

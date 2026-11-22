@@ -3,8 +3,8 @@ import { joinAndUpload } from '../fixtures/guest'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
- * The photo book (spec 04, spec 26): a guest uploads, the host publishes, asks for the book on the
- * event page in the style and with the printer version of their choice, the real worker renders
+ * The photo book (spec 04, spec 26): a guest uploads, the host publishes, opens the book page (its own
+ * page since the flip-book), sees the book drawn from the server's plan, asks for it in the style and with the printer version of their choice, the real worker renders
  * the real PDFs, the host downloads the three files, and loses them all when the photo leaves the
  * wall.
  *
@@ -30,7 +30,7 @@ test('a host makes the photo book, downloads the PDF, and loses it when hiding a
   await host.getByRole('button', { name: fr.moderation.filterPublished }).click()
   await expect(host.getByTestId('moderation-card')).toHaveCount(1)
 
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/book`))
   // Nothing was asked for: the PDF is a single 404, never a download.
   expect((await host.request.get(app.url(`/api/events/${event.slug}/book.pdf`))).status()).toBe(404)
 
@@ -39,9 +39,18 @@ test('a host makes the photo book, downloads the PDF, and loses it when hiding a
   // which is not always the one asked for (a worker's server keeps its events across tests, and
   // `seedEvent` numbers a name whose slug is taken: "Camille & Sacha 2").
   await expect(title).toHaveValue(event.name)
+  // The preview is the book the server planned: the cover carries that title, the one photograph is
+  // in it, and the totals name the style.
+  const preview = host.getByRole('group', { name: fr.bookPage.previewLabel })
+  await expect(preview.getByText(event.name, { exact: true })).toBeVisible()
+  await expect(preview.locator('img').first()).toBeVisible()
   // The form opens on the style the wall's ambiance suggests; the host takes another, and the
   // printer version, which the box offers by default.
   await host.getByRole('radio', { name: new RegExp(fr.admin.bookStyleNames.magazine) }).check()
+  await expect(host.getByText(/style Magazine/)).toBeVisible()
+  // Turning the pages: the cover is alone, the next spread has two faces.
+  await host.getByRole('button', { name: fr.bookPage.next }).click()
+  await expect(preview.locator('[data-book-page]')).toHaveCount(2)
   await host.getByLabel(fr.admin.bookPrintVersion).check()
   await host.getByRole('button', { name: fr.admin.bookCreate }).click()
 
@@ -90,7 +99,7 @@ test('a host makes the photo book, downloads the PDF, and loses it when hiding a
       .toBe(404)
   }
 
-  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.goto(app.url(`/admin/events/${event.slug}/book`))
   await expect(host.getByText(fr.admin.bookStale)).toBeVisible()
   // Its choices are kept: the style and the printer version are what the host picked.
   await expect(

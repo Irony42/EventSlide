@@ -53,23 +53,23 @@ export const useBookPreview = (slug: string, input: AlbumBookPreviewInput): Book
     const wait = seen.current ? BOOK_PREVIEW_DEBOUNCE_MS : 0
     const timer = window.setTimeout(() => {
       seen.current = true
-      void api
-        .albumBookPreview(slug, JSON.parse(key) as AlbumBookPreviewInput, controller.signal)
-        .then(
-          (preview) => {
-            setState({ preview, error: null, code: null })
-            setSettledFor(key)
-          },
-          (cause: unknown) => {
-            if (isAbortError(cause)) return
-            setState((current) => ({
-              preview: current.preview,
-              error: messageForError(cause, text.current),
-              code: cause instanceof ApiError ? cause.code : null,
-            }))
-            setSettledFor(key)
-          },
-        )
+      const input = JSON.parse(key) as AlbumBookPreviewInput
+      const read = api.albumBookPreview(slug, input, controller.signal)
+      void read.then(
+        (preview) => {
+          setState({ preview, error: null, code: null })
+          setSettledFor(key)
+        },
+        (cause: unknown) => {
+          if (isAbortError(cause)) return
+          setState((current) => ({
+            preview: current.preview,
+            error: messageForError(cause, text.current),
+            code: cause instanceof ApiError ? cause.code : null,
+          }))
+          setSettledFor(key)
+        },
+      )
     }, wait)
     return () => {
       window.clearTimeout(timer)
