@@ -363,6 +363,8 @@
 
   .fit {
     display: block;
+    /* Block layout honours justify-items too: the centring of the screen would shrink the sheet. */
+    place-items: normal;
     container-type: normal;
     padding: 0;
     block-size: auto;
