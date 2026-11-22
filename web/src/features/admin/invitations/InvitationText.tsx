@@ -120,7 +120,7 @@ export function InvitationText({
       </div>
       <p className={styles['zone']}>
         {text.zoneLine(zoneName(form.timeZone, locale))}
-        {' · '}
+        {'\u00a0·\u00a0'}
         <button
           type="button"
           className={styles['linkButton']}

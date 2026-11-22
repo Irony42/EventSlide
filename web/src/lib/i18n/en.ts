@@ -3148,7 +3148,6 @@ export const en: UiText = {
       statusBarLabel: 'Invitation link',
       saving: 'Saving…',
       savedAuto: 'Saved',
-      savePending: 'Changes waiting…',
       saveFailed: 'The last change was not saved.',
       saveRetry: 'Try again',
       leaveWarning: 'Changes to the invitation are not saved yet. Leave the page?',

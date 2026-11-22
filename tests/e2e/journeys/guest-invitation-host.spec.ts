@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { expect, signInAsHost, test } from '../fixtures/app'
 import { SUITE_LOCALE } from '../fixtures/suiteLocale'
 import { fr } from '../../../web/src/lib/i18n/fr'
@@ -16,7 +17,7 @@ const text = fr.guestInvite.host
 
 /** What the server holds, read the way a reload would: the text is saved as it is typed. */
 const storedInvite = async (
-  page: import('@playwright/test').Page,
+  page: Page,
   url: string,
 ): Promise<{
   startsAt: string | null

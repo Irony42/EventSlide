@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
 /**
  * The scale that fits something drawn at a true `width` (pixels) into the room its frame has:
@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 export const useFitScale = (width: number): readonly [RefObject<HTMLDivElement | null>, number] => {
   const frame = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.3)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = frame.current
     if (element === null) return
     const measure = () => {

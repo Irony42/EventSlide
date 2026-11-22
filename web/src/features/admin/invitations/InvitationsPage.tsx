@@ -242,13 +242,13 @@ function Workspace({
           aria-labelledby={`${ids}-tab-${output}`}
           className={styles['previewPane']}
           data-big={big}
+          data-locked={shown === null}
         >
           {preview}
           {shown === null ? null : (
             <button
               type="button"
               className={styles['enlarge']}
-              aria-expanded={big}
               onClick={() => setBig((open) => !open)}
             >
               {big ? text.previewClose : text.previewEnlarge}
@@ -260,7 +260,17 @@ function Workspace({
         <div className={styles['options']} role="group" aria-label={text.optionsLabel}>
           {options}
         </div>
-        {actions === null ? null : <div className={styles['actions']}>{actions}</div>}
+        {actions === null ? null : (
+          <div className={styles['actions']}>
+            {/* The previews keep the last text that could be saved: say so beside the buttons. */}
+            {autosave.state === 'failed' || autosave.state === 'invalid' ? (
+              <p className={styles['unsaved']} role="status">
+                {text.saveFailed}
+              </p>
+            ) : null}
+            {actions}
+          </div>
+        )}
       </div>
     </>
   )
@@ -368,15 +378,15 @@ function LockedState({
         </li>
       </ol>
       {dated ? (
-        <Button variant="primary" disabled={disabled} onClick={onActivate}>
+        <Button key="activate" variant="primary" disabled={disabled} onClick={onActivate}>
           {text.activate}
         </Button>
       ) : typedStart ? (
-        <Button variant="primary" disabled={disabled} onClick={onSaveStart}>
+        <Button key="save" variant="primary" disabled={disabled} onClick={onSaveStart}>
           {text.lockedDateSave}
         </Button>
       ) : (
-        <Button variant="primary" disabled={disabled} onClick={onFocusStart}>
+        <Button key="focus" variant="primary" disabled={disabled} onClick={onFocusStart}>
           {text.lockedDateFocus}
         </Button>
       )}

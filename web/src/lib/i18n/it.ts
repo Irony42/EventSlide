@@ -3199,7 +3199,6 @@ export const it: UiText = {
       statusBarLabel: 'Link dell’invito',
       saving: 'Salvataggio…',
       savedAuto: 'Salvato',
-      savePending: 'Modifiche in attesa…',
       saveFailed: 'L’ultima modifica non è stata salvata.',
       saveRetry: 'Riprova',
       leaveWarning: 'Le modifiche all’invito non sono ancora salvate. Lasciare la pagina?',

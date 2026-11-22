@@ -3901,7 +3901,6 @@ export const fr = {
       statusBarLabel: 'Lien de l’invitation',
       saving: 'Enregistrement…',
       savedAuto: 'Enregistré',
-      savePending: 'Modifications en attente…',
       saveFailed: 'La dernière modification n’a pas été enregistrée.',
       saveRetry: 'Réessayer',
       leaveWarning:

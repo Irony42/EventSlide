@@ -292,6 +292,41 @@ describe('InvitationsPage', () => {
       expect(frame.querySelector('[inert]')).not.toBeNull()
     })
 
+    it('sends what is still waiting when the page is left before the pause is over', async () => {
+      const save = vi.fn(async () => ({ guestInvite: aGuestInviteHost() }))
+      const view = render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+      await touch(form)
+      expect(save).not.toHaveBeenCalled()
+
+      view.unmount()
+
+      expect(save).toHaveBeenCalledWith(
+        'camille-et-sacha',
+        expect.objectContaining({ title: 'Léa fête ses 40 ans!' }),
+      )
+    })
+
+    it('does not say "saved" while a key typed during a request is still waiting', async () => {
+      let finish: () => void = () => undefined
+      const save = vi.fn(
+        () =>
+          new Promise<{ guestInvite: GuestInviteDto }>((resolve) => {
+            finish = () => resolve({ guestInvite: aGuestInviteHost() })
+          }),
+      )
+      render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+      await touch(form)
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+
+      await touch(form)
+      finish()
+
+      await waitFor(() => expect(within(form).getByText(text.saving)).toBeVisible())
+      expect(within(form).queryByText(text.savedAuto)).toBeNull()
+    })
+
     it('says the last change was not saved, and tries again on request', async () => {
       const save = vi
         .fn<Api['saveGuestInvite']>()

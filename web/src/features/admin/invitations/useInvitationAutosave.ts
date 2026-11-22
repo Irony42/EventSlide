@@ -81,7 +81,7 @@ export const useInvitationAutosave = ({
   const run = useCallback(async (): Promise<void> => {
     window.clearTimeout(timer.current)
     waiting.current = false
-    // Enter, a blur and the timer can all ask at once: one request, then one more if typed since.
+    // The timer and a retry can both ask at once: one request, then one more if typed since.
     if (inflight.current) {
       again.current = true
       return
@@ -123,7 +123,8 @@ export const useInvitationAutosave = ({
     if (again.current) {
       again.current = false
       runAgain.current()
-    } else if (!failed) {
+    } else if (!failed && !waiting.current) {
+      // A key typed while the request was on its way is still waiting: not "saved" yet.
       setState('saved')
     }
   }, [api, slug])

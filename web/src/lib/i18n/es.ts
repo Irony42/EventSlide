@@ -3224,7 +3224,6 @@ export const es: UiText = {
       statusBarLabel: 'Enlace de la invitación',
       saving: 'Guardando…',
       savedAuto: 'Guardado',
-      savePending: 'Cambios en espera…',
       saveFailed: 'El último cambio no se guardó.',
       saveRetry: 'Reintentar',
       leaveWarning: 'Los cambios de la invitación aún no están guardados. ¿Salir de la página?',

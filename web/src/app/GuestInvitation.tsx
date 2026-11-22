@@ -64,15 +64,13 @@ function Item({
 }
 
 /** The line under the invitation: where to report it, and who made it. */
-export function GuestInvitationFooter({ report = true }: { readonly report?: boolean }) {
+function GuestInvitationFooter() {
   const t = useTranslations().guestInvite.page
   return (
     <div className={styles['foot']}>
-      {report ? (
-        <Link to={REPORT_TO} className={styles['footLink']}>
-          {t.report}
-        </Link>
-      ) : null}
+      <Link to={REPORT_TO} className={styles['footLink']}>
+        {t.report}
+      </Link>
       <span>{t.madeWith}</span>
     </div>
   )

@@ -18,6 +18,7 @@
 
 .page {
   container: invite / inline-size;
+  inline-size: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -278,6 +279,12 @@
   background: var(--surface-base);
 }
 
+/* The locked state is text and a button, not a picture: it takes the room it needs. */
+.previewPane[data-locked='true'] {
+  block-size: auto;
+  min-block-size: 11rem;
+}
+
 .previewPane[data-big='true'] {
   block-size: min(70dvh, 38rem);
 }
@@ -384,7 +391,7 @@
   font-weight: 650;
 }
 
-/* ---- 48rem and up: the text left; the preview, pinned, with the options under it */
+/* ---- 36rem and up: the text left; the preview, pinned, with the options under it */
 
 @container invite (min-width: 36rem) {
   .switcher {
@@ -420,7 +427,8 @@
   }
 
   .previewPane,
-  .previewPane[data-big='true'] {
+  .previewPane[data-big='true'],
+  .previewPane[data-locked='true'] {
     position: relative;
     inset-block-start: auto;
     flex: 1;
@@ -450,7 +458,7 @@
   }
 }
 
-/* ---- 80rem and up: three columns, each on its own, the page still */
+/* ---- 56rem and up: three columns, each on its own, the page still */
 
 @container invite (min-width: 56rem) {
   .workspace {
@@ -561,4 +569,9 @@
   .actions {
     inset-block-end: calc(4rem + env(safe-area-inset-bottom));
   }
+}
+
+.unsaved {
+  color: var(--warning);
+  font-size: var(--text-sm);
 }

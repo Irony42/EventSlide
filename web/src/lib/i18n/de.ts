@@ -3262,7 +3262,6 @@ export const de: UiText = {
       statusBarLabel: 'Link der Einladung',
       saving: 'Wird gespeichert …',
       savedAuto: 'Gespeichert',
-      savePending: 'Änderungen warten …',
       saveFailed: 'Die letzte Änderung wurde nicht gespeichert.',
       saveRetry: 'Erneut versuchen',
       leaveWarning: 'Änderungen an der Einladung sind noch nicht gespeichert. Seite verlassen?',
