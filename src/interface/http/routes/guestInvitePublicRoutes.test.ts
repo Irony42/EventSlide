@@ -145,6 +145,16 @@ describe('GET /api/i/:token', () => {
 
     expect(response.status).toBe(200)
     expect(response.body).toEqual({
+      rsvp: {
+        state: 'off',
+        deadline: null,
+        form: {
+          maybe: true,
+          partySize: { enabled: true, max: 4 },
+          kidsSeparate: true,
+          diet: true,
+        },
+      },
       state: 'joinable',
       title: 'Léa fête ses 40 ans',
       when: {
