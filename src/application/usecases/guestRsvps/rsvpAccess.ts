@@ -13,6 +13,7 @@ import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { EventBus } from '../../ports/eventBus'
+import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestInviteRepository } from '../../ports/guestInviteRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
@@ -130,6 +131,22 @@ export const recordRsvpAct = async (
   if (!entry.ok) return entry
   await audit.record(entry.value)
   return ok(undefined)
+}
+
+/**
+ * After a host's own add or edit: the host has just seen what they wrote, so it must not count
+ * against their own badge. Only when they had **nothing unseen before** the write: marking seen
+ * would otherwise hide the guests' replies they have not read. A removal never adds to the count,
+ * so it needs none.
+ */
+export const keepOwnWriteSeen = async (
+  rsvps: Pick<GuestRsvpRepository, 'unseenCount' | 'markSeen'>,
+  eventId: EventId,
+  actorId: UserId,
+  unseenBefore: number,
+  now: Date,
+): Promise<void> => {
+  if (unseenBefore === 0) await rsvps.markSeen(eventId, actorId, now)
 }
 
 /** Announces that the replies changed, without any content (`rsvp.changed`). */

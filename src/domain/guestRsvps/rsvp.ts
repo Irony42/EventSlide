@@ -331,8 +331,14 @@ export class GuestRsvp {
     return new GuestRsvp({ ...this.props, householdId })
   }
 
-  /** The same reply with its content replaced. Id, token, source, household and creation stay. */
-  withReply(reply: RsvpInput, now: Date): GuestRsvp {
+  /**
+   * The same reply with its content replaced. Id, token, source, household and creation stay. A
+   * host may keep a reply on the waiting list, which no guest's input can ask for.
+   */
+  withReply(
+    reply: Omit<RsvpInput, 'answer'> & { readonly answer: RsvpAnswer },
+    now: Date,
+  ): GuestRsvp {
     return new GuestRsvp({ ...this.props, ...reply, updatedAt: now })
   }
 }

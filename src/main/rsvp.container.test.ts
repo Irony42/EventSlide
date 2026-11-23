@@ -144,11 +144,17 @@ describe('the guests replies, through the real container', () => {
   })
 
   it('counts the badge for the owner’s own account and empties it when they look', async () => {
-    const { agent, csrf } = await boot()
+    const { db, agent, csrf, eventId } = await boot()
+    // A guest's reply, as the public route of the next pull request will write it.
+    db.prepare(
+      `INSERT INTO guest_rsvps (id, event_id, name, answer, adults, kids, details, source, created_at, updated_at)
+       VALUES ('d1000000-0000-4000-8000-000000000001', ?, 'Invité', 'yes', 1, 0, '{}', 'open', ?, ?)`,
+    ).run(eventId, new Date().toISOString(), new Date().toISOString())
+    // The host's own add is not news to them, whatever the count already held.
     await agent.post(`${BASE}/rsvps`).set(CSRF_HEADER, csrf()).send(REPLY).expect(201)
 
-    expect((await agent.get(BASE)).body.unseenRsvps).toBe(1)
-    expect((await agent.get(`${BASE}/rsvps`)).body.unseen).toBe(1)
+    expect((await agent.get(BASE)).body.unseenRsvps).toBe(2)
+    expect((await agent.get(`${BASE}/rsvps`)).body.unseen).toBe(2)
 
     await agent.post(`${BASE}/rsvps/seen`).set(CSRF_HEADER, csrf()).send({}).expect(204)
 
@@ -209,6 +215,39 @@ describe('the guests replies, through the real container', () => {
     db.prepare('DELETE FROM events WHERE id = ?').run(eventId)
 
     expect(db.prepare('SELECT COUNT(*) AS n FROM guest_rsvps').get()).toEqual({ n: 0 })
+  })
+
+  it('erases the replies of an event closed long ago even when the operator holds its purge', async () => {
+    const { booted, db, agent, csrf, eventId } = await boot()
+    await agent.post(`${BASE}/rsvps`).set(CSRF_HEADER, csrf()).send(REPLY).expect(201)
+    db.prepare('UPDATE events SET closed_at = ?, purge_held_at = ? WHERE id = ?').run(
+      '2020-01-01T00:00:00.000Z',
+      '2020-02-01T00:00:00.000Z',
+      eventId,
+    )
+
+    expect(await booted.usecases.purgeExpiredRsvps()).toEqual({ deleted: 1 })
+    expect(db.prepare('SELECT COUNT(*) AS n FROM guest_rsvps').get()).toEqual({ n: 0 })
+  })
+
+  it('erases the replies of an event never closed once its invitation started more than 60 days ago', async () => {
+    const { booted, db, agent, csrf, eventId } = await boot()
+    await agent.post(`${BASE}/rsvps`).set(CSRF_HEADER, csrf()).send(REPLY).expect(201)
+    expect(db.prepare('SELECT closed_at FROM events WHERE id = ?').get(eventId)).toEqual({
+      closed_at: null,
+    })
+
+    db.prepare('UPDATE guest_invites SET starts_at = ? WHERE event_id = ?').run(
+      new Date(Date.now() - 59 * 86_400_000).toISOString(),
+      eventId,
+    )
+    expect(await booted.usecases.purgeExpiredRsvps()).toEqual({ deleted: 0 })
+
+    db.prepare('UPDATE guest_invites SET starts_at = ? WHERE event_id = ?').run(
+      new Date(Date.now() - 61 * 86_400_000).toISOString(),
+      eventId,
+    )
+    expect(await booted.usecases.purgeExpiredRsvps()).toEqual({ deleted: 1 })
   })
 
   it('erases the replies of an event closed long ago, through the use case the sweep runs', async () => {

@@ -9,7 +9,8 @@ import { announceRsvpsChanged, openRsvps, recordRsvpAct, type RsvpAccessDeps } f
 
 /**
  * The host deletes a reply (spec 30). `404 rsvp.notFound` for a reply that is not this event's or
- * that is already gone. Needs no invitation: replies outlive an invitation that was switched off,
+ * that is already gone. **Allowed on an archived event** (the replies hold names: they must stay
+ * removable, so this asks the door as a read); every other write is refused there. Needs no invitation: replies outlive an invitation that was switched off,
  * and the host must be able to remove one (it holds names and diets).
  */
 
@@ -20,7 +21,7 @@ export interface HostDeleteRsvpInput {
 }
 
 export interface HostDeleteRsvpDeps extends RsvpAccessDeps {
-  readonly rsvps: Pick<GuestRsvpRepository, 'findById' | 'delete'>
+  readonly rsvps: Pick<GuestRsvpRepository, 'findById' | 'delete' | 'admit'>
   readonly audit: AuditRecorder
   readonly bus: EventBus
   readonly clock: Clock
@@ -31,9 +32,12 @@ export type HostDeleteRsvp = (input: HostDeleteRsvpInput) => Promise<Result<void
 export const makeHostDeleteRsvp =
   (deps: HostDeleteRsvpDeps): HostDeleteRsvp =>
   async ({ eventId, actorId, rsvpId }) => {
-    const opened = await openRsvps(deps, eventId, actorId, 'write')
+    const opened = await openRsvps(deps, eventId, actorId, 'read')
     if (!opened.ok) return opened
-    if ((await deps.rsvps.findById(eventId, rsvpId)) === null) {
+    const held = await deps.rsvps.findById(eventId, rsvpId)
+    if (held === null) return err(DomainError.notFound('rsvp.notFound'))
+    // A reply deleted by someone else between the read and here: nothing was done, nothing is said.
+    if (!(await deps.rsvps.delete(eventId, rsvpId))) {
       return err(DomainError.notFound('rsvp.notFound'))
     }
 
@@ -44,8 +48,11 @@ export const makeHostDeleteRsvp =
       'event.rsvpHostDeleted',
       deps.clock.now(),
     )
-    if (!recorded.ok) return recorded
-    await deps.rsvps.delete(eventId, rsvpId)
+    if (!recorded.ok) {
+      // A log that refuses the line means no act: the reply is put back as it was.
+      await deps.rsvps.admit(held, { capacity: null })
+      return recorded
+    }
     announceRsvpsChanged(deps.bus, eventId)
     return ok(undefined)
   }

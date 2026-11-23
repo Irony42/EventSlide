@@ -426,6 +426,12 @@ export const guestRsvpRepositoryContract = (
         })
       })
 
+      it('says it changed a reply that was there', async () => {
+        await add({ id: 'rsvp-1' })
+
+        expect(await repo.update(aRsvp({ id: 'rsvp-1', eventId: 'evt-wedding' }))).toBe(true)
+      })
+
       it('detaches a household, and is not held to any ceiling', async () => {
         await add({ id: 'rsvp-1', householdId: 'h-1', adults: 1 })
 
@@ -441,8 +447,14 @@ export const guestRsvpRepositoryContract = (
       it('does nothing for a reply that is not there, or that is another event’s', async () => {
         await repo.admit(aRsvp({ id: 'rsvp-1', eventId: 'evt-gala', name: 'Gala' }), NONE)
 
-        await repo.update(aRsvp({ id: 'rsvp-1', eventId: 'evt-wedding', name: 'Fantôme' }))
-        await repo.update(aRsvp({ id: 'rsvp-9', eventId: 'evt-wedding', name: 'Fantôme' }))
+        const another = await repo.update(
+          aRsvp({ id: 'rsvp-1', eventId: 'evt-wedding', name: 'Fantôme' }),
+        )
+        const missing = await repo.update(
+          aRsvp({ id: 'rsvp-9', eventId: 'evt-wedding', name: 'Fantôme' }),
+        )
+
+        expect([another, missing]).toEqual([false, false])
 
         expect(await repo.listByEvent(WEDDING)).toEqual([])
         expect((await repo.findById(GALA, asGuestRsvpId('rsvp-1')))?.name).toBe('Gala')

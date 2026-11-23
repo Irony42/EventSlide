@@ -827,6 +827,30 @@ describe('the guest replies ride the follow-up (spec 30)', () => {
     expect(failure?.context).toMatchObject({ error: 'database is locked' })
   })
 
+  it('erases the replies and says so even when the events purge threw: its failure stops nothing after it', async () => {
+    const order: string[] = []
+    const { sweeper, lines } = build({
+      purge: () => Promise.reject(new Error('SQLITE_BUSY')),
+      purgeExpiredRsvps: async () => {
+        order.push('rsvps')
+        return { deleted: 2 }
+      },
+      sweepPurgeNotices: async () => {
+        order.push('warn')
+        return nobodyWarned
+      },
+    })
+
+    const outcome = await sweeper.runOnce()
+
+    expect(outcome).toMatchObject({ status: 'failed' })
+    expect(order).toEqual(['rsvps', 'warn'])
+    expect(
+      lines.find((entry) => entry.message === 'retention sweep erased expired guest replies')
+        ?.context,
+    ).toMatchObject({ deleted: 2 })
+  })
+
   it('erases a reply that is not an Error with its text', async () => {
     const { sweeper, lines } = build({
       purgeExpiredRsvps: async () => Promise.reject('disk full'),
