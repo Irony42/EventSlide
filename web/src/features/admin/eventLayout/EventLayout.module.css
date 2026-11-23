@@ -22,10 +22,17 @@
   gap: var(--space-5);
 }
 
-@media (max-width: 90rem) {
-  .layout.workshop {
-    grid-template-columns: var(--event-nav-rail) minmax(0, 1fr);
-    gap: var(--space-4);
+/* The workshops (cards, invitations, book) want every pixel for their preview: the menu stays on
+   its glyphs at every width, and the host container widens to what a wide screen gives. */
+.layout.workshop {
+  grid-template-columns: var(--event-nav-rail) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+/* On screen only: on paper each workshop says for itself what `main` becomes. */
+@media screen {
+  :global(main):has(.layout.workshop) {
+    max-inline-size: var(--container-workshop);
   }
 }
 
