@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted (the first part, with the domain and the storage; spec 30 completes this record: the household token in the clear
-with the households, Web Push without a dependency with the notifications).
+Accepted. The first part came with the domain and the storage; **the household token in the clear** (decision 7) came with the
+households (spec 30, lot 3). Spec 30 still completes this record with Web Push without a dependency, with the notifications.
 
 ## Date
 
@@ -55,6 +55,21 @@ Three decisions follow from that and a later reader would otherwise reopen them.
    derived (`rsvpStateOf`): the window ends at the start of the day after the deadline **where the party is**, daylight
    saving included, or at the start of the party, whichever comes first. Opening the wall the evening before for a trial does
    not close the replies, and a draft that was never opened does not keep them open for ever.
+7. **A household's token is kept in the clear, and it is the household's one key.** The host's guest list (lot 3) gives each
+   household a personal link, `/i/<invitation>#f=<token>`, so that a family answers once for everyone with the places the host
+   kept for it. Unlike a reply's token, **the host must be able to show this link again** (to copy it, to print it on a card, to
+   send it from another device), which a digest cannot give back: the token is stored as it is (`guest_households.token`,
+   unique), as the invitation's own token is (ADR 0016), and is the same kind of credential: 16 characters of Crockford's
+   base32, 80 bits, tolerant on input, masked like the invitation's. What it opens is **bounded**: the read, the change and the
+   deletion of **the household's one reply** (`source = household`, which has no reply token: every device of the household
+   shares the link), and its own name and places, never another household, the list, the host's notes or another reply. It
+   travels in the fragment and in an `X-Household-Token` header, never in a path or a query; every lookup is **bound to the
+   event** of the invitation (`findByToken(eventId, token)`), so a household token valid elsewhere is `404 rsvp.notFound`. The
+   host can change it at any time (`rotate`): the old link, and a card printed with it, stops at once, and the reply stays.
+   The household's places are the ceiling of its reply (the host counted them). No e-mail address or phone number is held: the
+   list holds names and places only, and the host reminds from their own applications. Households are **erased with the
+   replies**, on the same dates and whatever the purge hold says (decision 4): they are names the host typed, and nothing
+   about them outlives the party by more than two months.
 
 ## Consequences
 
@@ -64,11 +79,15 @@ Three decisions follow from that and a later reader would otherwise reopen them.
 - No reply token ends up in a log, a `Referer` or a browser history that syncs the URL to a server.
 - Names and diets do not outlive the party by more than two months, whatever the host does or forgets.
 - The ceilings and the capacity are decided in one transaction, so overlapping requests cannot pass them.
+- A household answers once for everyone on any of its devices with a link the host can show again and cut.
 
 ### Negative
 
 - A guest who loses their link and clears their phone cannot change their reply: the host can, from the replies page. This
   is the price of not asking for an e-mail address or a phone number, which EventSlide never collects.
+- A household link is a bearer credential held in the clear: whoever the family forwards it to can answer for the household,
+  and a database dump holds working household links (never working reply tokens). That is bounded by what it opens (one reply
+  of a party the host invited), by the host's "changer le lien", and by the early erasure.
 - No captcha: a determined script can fill the 1 000 places of an event with replies that the host then deletes. The
   limiter makes it slow and the ceiling makes it bounded, and the host can close the replies at once.
 
@@ -84,6 +103,10 @@ Three decisions follow from that and a later reader would otherwise reopen them.
 - **A cookie to recognise the guest.** Refused: the invitation page sets no identity cookie (spec 29), and a cookie would not
   follow the guest to another phone, which the token does.
 - **A captcha.** Refused, above.
+- **The household token as a digest, like a reply's.** Refused: the host would never see the link again, and the whole point of
+  the list is to hand the link out, reprint a card and resend it.
+- **One line per person with a toggle, in the household's page** (the mock-up's first idea). Refused: it needs a second model of
+  a reply; the household fills the same form as the common link, pre-filled, with its places as the ceiling.
 - **A separate table for the settings.** Refused: the public page already reads `guest_invites` by token, and the settings
   have no life of their own outside the invitation (one per event, deleted with it).
 
