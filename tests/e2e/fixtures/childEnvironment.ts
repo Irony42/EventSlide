@@ -95,6 +95,7 @@ export const serverEnvironment = ({
   LOGIN_RATE_LIMIT_PER_MINUTE: '600',
   REACTION_RATE_LIMIT_PER_MINUTE: '600',
   GUEST_WRITE_RATE_LIMIT_PER_MINUTE: '6000',
+  GUEST_RSVP_RATE_LIMIT_PER_MINUTE: '6000',
   GALLERY_RATE_LIMIT_PER_MINUTE: '600',
   GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: '6000',
   // The one that bit: `seedEvent` signs in as the one bootstrap owner and creates an event per

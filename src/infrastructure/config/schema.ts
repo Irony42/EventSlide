@@ -517,6 +517,13 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * and a token is 80 random bits.
        */
       GUEST_INVITE_RATE_LIMIT_PER_MINUTE: positiveInt(200, 6_000),
+      /**
+       * What one address may write to the guests' replies per minute (spec 30): a reply, a change, a
+       * deletion. The first public write nobody is signed in for, so the allowance is small: a guest
+       * answers once, perhaps changes it once. A second bucket per invitation (300 a minute, a
+       * constant) bounds a botnet spread over addresses.
+       */
+      GUEST_RSVP_RATE_LIMIT_PER_MINUTE: positiveInt(30, 6_000),
       GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT: positiveInt(10, 600),
       GALLERY_UNLOCK_ATTEMPTS_PER_LINK: positiveInt(50, 6_000),
 

@@ -95,6 +95,7 @@ const buildWorld = async (perMinute = 200): Promise<World> => {
         uploadPerIpPerMinute: 300,
         joinPerMinute: 20,
         guestInvitePerMinute: perMinute,
+        guestRsvpWritePerMinute: 30,
         loginPerMinute: 10,
         reactionPerMinute: 30,
         reactionPerIpPerMinute: 600,
