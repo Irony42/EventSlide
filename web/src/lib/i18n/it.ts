@@ -708,7 +708,6 @@ export const it: UiText = {
     'rsvp.closed': 'Le risposte sono chiuse.',
     'rsvp.off': 'Chi organizza per ora non chiede risposte.',
     'rsvp.tooMany': 'Questo invito ha raggiunto il numero massimo di risposte.',
-    'rsvp.full': 'È al completo.',
     'rsvp.inviteRequired': 'Salva prima l’invito.',
     'rsvp.nameEmpty': 'Indica il tuo nome e cognome.',
     'rsvp.nameInvalid': 'Questo nome non è valido.',
@@ -745,6 +744,7 @@ export const it: UiText = {
     'rsvp.momentsInvalid': 'Questi momenti non sono validi: al massimo quattro, tutti diversi.',
     'rsvp.momentsRequired': 'Scegli almeno un momento.',
     'household.momentsInvalid': 'Questi momenti non sono validi per questo nucleo.',
+    'rsvp.capacityInvalid': 'Il numero di posti va da 1 a 2000.',
     'household.nameEmpty': 'Indica un nome per il nucleo.',
     'household.nameInvalid': 'Questo nome di nucleo non è valido.',
     'household.nameTooLong': 'Questo nome è troppo lungo: al massimo 80 caratteri.',
@@ -3488,6 +3488,14 @@ export const it: UiText = {
       momentsHint: 'almeno uno',
       recapMoments: (moments: string) => `Momenti: ${moments}`,
       momentsGone: 'Il momento che avevi scelto non esiste più: scegline uno.',
+      fullTitle: 'È al completo',
+      fullSub:
+        'Non ci sono più posti. Puoi iscriverti alla lista d’attesa: chi organizza ti avvisa se si libera un posto.',
+      waitlistJoin: 'Iscrivimi alla lista d’attesa',
+      doneWaitlist: 'Sei nella lista d’attesa',
+      waitlistSub:
+        'Chi organizza ti avvisa se si libera un posto. Puoi cambiare idea finché le risposte sono aperte.',
+      recapWaitlist: 'Nella lista d’attesa',
       trap: 'Lascia vuoto questo campo',
       tooLarge: 'La tua risposta è troppo lunga per essere inviata. Accorcia i testi.',
     },
@@ -3589,6 +3597,11 @@ export const it: UiText = {
       momentRemoveUnknown:
         'Le risposte già date perderanno la scelta di questo momento. Per correggere un nome, rinomina il momento invece di toglierlo.',
       momentRemoveYes: 'Togli il momento',
+      capacityLabel: 'Posti limitati',
+      capacityHint:
+        'Oltre il numero di persone fissato, un «sì» va nella lista d’attesa e lo promuovi a mano. Ciò che aggiungi tu non è limitato.',
+      capacityField: 'Persone al massimo',
+      capacityFieldHint: 'da 1 a 2000, bambini compresi',
       presetConfirmTitle: 'Sostituire le impostazioni?',
       presetConfirm: (kind: string) =>
         `Le tue scelte su «Forse», numero di persone, bambini e nomi degli accompagnatori saranno sostituite da quelle di ${kind}.`,
@@ -3723,6 +3736,10 @@ export const it: UiText = {
       printMoments: 'Momenti',
       momentNoneLine: (people: string) => `Senza momento: ${people}`,
       formMomentsHint: 'almeno uno, per chi viene',
+      tabWaitlist: 'Lista d’attesa',
+      tileWaitlist: 'Lista d’attesa',
+      promote: 'Promuovi (viene)',
+      detailWaitlistHint: 'Nella lista d’attesa: questa risposta non conta nei posti.',
       tileNoReply: 'Senza risposta',
       tileNoReplyDetail: (households: string, places: number) => `${households} · ${places} posti`,
       household: { one: 'nucleo', other: 'nuclei' },

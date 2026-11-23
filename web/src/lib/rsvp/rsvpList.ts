@@ -9,17 +9,26 @@ import { plural } from './rsvpTexts'
  * words them, so the page and the spreadsheet cannot count differently.
  */
 
-export type RsvpTab = 'all' | 'yes' | 'maybe' | 'no'
+export type RsvpTab = 'all' | 'yes' | 'maybe' | 'waitlist' | 'no'
 
-/** The tabs the host's form leaves open: a "peut-être" tab exists only while "peut-être" is offered. */
-export const tabsOf = (maybeOffered: boolean): readonly RsvpTab[] =>
-  maybeOffered ? ['all', 'yes', 'maybe', 'no'] : ['all', 'yes', 'no']
+/**
+ * The tabs the host's form leaves open: a "peut-être" tab exists only while "peut-être" is offered,
+ * and the waiting list only while somebody is on it.
+ */
+export const tabsOf = (maybeOffered: boolean, waitlisted = false): readonly RsvpTab[] => [
+  'all',
+  'yes',
+  ...(maybeOffered ? (['maybe'] as const) : []),
+  ...(waitlisted ? (['waitlist'] as const) : []),
+  'no',
+]
 
-/** How many replies each tab holds. A reply on the waiting list belongs to "all" alone. */
+/** How many replies each tab holds. */
 export const countsOf = (rsvps: readonly RsvpDto[]): Readonly<Record<RsvpTab, number>> => ({
   all: rsvps.length,
   yes: rsvps.filter((reply) => reply.answer === 'yes').length,
   maybe: rsvps.filter((reply) => reply.answer === 'maybe').length,
+  waitlist: rsvps.filter((reply) => reply.answer === 'waitlist').length,
   no: rsvps.filter((reply) => reply.answer === 'no').length,
 })
 

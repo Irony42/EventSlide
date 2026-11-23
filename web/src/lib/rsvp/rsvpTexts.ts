@@ -36,7 +36,12 @@ export const recapLine = (
   text: UiText['rsvp']['guest'],
 ): string => {
   if (reply.answer === 'no') return text.recapNo
-  const head = reply.answer === 'maybe' ? text.recapMaybe : text.recapYes
+  const head =
+    reply.answer === 'maybe'
+      ? text.recapMaybe
+      : reply.answer === 'waitlist'
+        ? text.recapWaitlist
+        : text.recapYes
   if (!form.partySize.enabled) return head
   const people = reply.adults + reply.kids
   const kids =

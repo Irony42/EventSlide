@@ -24,6 +24,8 @@ export interface RsvpDetailProps {
   readonly households: readonly HouseholdDto[]
   /** Files the reply under a household, or detaches it with `null`. */
   readonly onFile: (reply: RsvpDto, householdId: string | null) => void
+  /** Promotes a waiting-list reply to a yes: the host decides, the places do not hold them back. */
+  readonly onPromote: (reply: RsvpDto) => void
   readonly onEdit: (reply: RsvpDto) => void
   readonly onDelete: (reply: RsvpDto) => void
   readonly onClose: () => void
@@ -41,6 +43,7 @@ export function RsvpDetail({
   problem,
   households,
   onFile,
+  onPromote,
   onEdit,
   onDelete,
   onClose,
@@ -76,6 +79,11 @@ export function RsvpDetail({
             <Button variant="danger" onClick={() => onDelete(reply)}>
               {text.remove}
             </Button>
+            {reply.answer === 'waitlist' ? (
+              <Button variant="secondary" disabled={locked} onClick={() => onPromote(reply)}>
+                {text.promote}
+              </Button>
+            ) : null}
             <Button variant="primary" disabled={locked} onClick={() => onEdit(reply)}>
               {text.edit}
             </Button>
@@ -88,6 +96,7 @@ export function RsvpDetail({
           <p>
             <Badge tone={answerTone(reply.answer)}>{answerName[reply.answer]}</Badge>
           </p>
+          {reply.answer === 'waitlist' ? <p>{text.detailWaitlistHint}</p> : null}
           <dl className={styles['list']}>
             {form.partySize.enabled && reply.answer !== 'no' ? (
               <>
