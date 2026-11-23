@@ -3,7 +3,7 @@ import { DEFAULT_RSVP_FORM } from '../../../domain/guestRsvps/rsvpForm'
 import { MAX_RSVPS_PER_EVENT } from '../../../domain/guestRsvps/rsvpLimits'
 import { aRsvp } from '../../../domain/guestRsvps/testing/rsvpFixtures'
 import { asGuestRsvpId } from '../../../domain/shared/ids'
-import { anEvent } from '../../testing/builders'
+import { aGuestInvite, anEvent } from '../../testing/builders'
 import { GALA, OWNER, WEDDING, rsvpScene, type RsvpScene } from '../../testing/rsvpScene'
 
 /**
@@ -394,6 +394,70 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
 
       expect(code(refused)).toBe('rsvp.notFound')
       expect(signals()).toHaveLength(before)
+    })
+  })
+
+  describe('the edges of the door', () => {
+    it('answers the neutral 404 for an invitation whose event is gone', async () => {
+      scene.invites.seed(
+        aGuestInvite({
+          eventId: 'evt-ghost',
+          tokenByte: 9,
+          enabled: true,
+          startsAt: '2099-12-13T18:00:00Z',
+          timeZone: 'Europe/Paris',
+        }),
+      )
+      const ghost = '9999999999999999'
+
+      const sent = await scene.submit({ token: ghost, ...ANSWER })
+      const read = await scene.getOwn({ token: ghost, editToken: 'x' })
+      const page = await scene.view({ token: ghost })
+
+      expect([code(sent), code(read), code(page)]).toEqual(
+        Array(3).fill('guestInvite.notAvailable'),
+      )
+    })
+
+    it('reads a settings row that vanished meanwhile as replies not asked', async () => {
+      scene.invites.findRsvpSettings = async () => null
+
+      const sent = await submit()
+      const page = await scene.view({ token })
+
+      expect(code(sent)).toBe('rsvp.off')
+      expect(page.ok && page.value.rsvp.state).toBe('off')
+    })
+
+    it('says full once the people coming reach the places, still takes a reply to the repository, which refuses it', async () => {
+      const settings = await scene.invites.findRsvpSettings(WEDDING)
+      await scene.invites.saveRsvpSettings(WEDDING, {
+        ...(settings ?? { enabled: true, deadline: null, closedAt: null, form: DEFAULT_RSVP_FORM }),
+        form: { ...DEFAULT_RSVP_FORM, capacity: 3 },
+      })
+      scene.rsvps.seed(aRsvp({ id: 'a', eventId: WEDDING, adults: 3 }))
+
+      const page = await scene.view({ token })
+      const sent = await submit({ adults: 1, kids: 0 })
+
+      expect(page.ok && page.value.rsvp.state).toBe('full')
+      expect(code(sent)).toBe('rsvp.full')
+    })
+
+    it('stays open while the places are not all taken', async () => {
+      const settings = await scene.invites.findRsvpSettings(WEDDING)
+      await scene.invites.saveRsvpSettings(WEDDING, {
+        ...(settings ?? { enabled: true, deadline: null, closedAt: null, form: DEFAULT_RSVP_FORM }),
+        form: { ...DEFAULT_RSVP_FORM, capacity: 10 },
+      })
+      scene.rsvps.seed(
+        aRsvp({ id: 'a', eventId: WEDDING, adults: 3 }),
+        aRsvp({ id: 'b', eventId: WEDDING, answer: 'maybe', adults: 5 }),
+      )
+
+      const page = await scene.view({ token })
+
+      expect(page.ok && page.value.rsvp.state).toBe('open')
     })
   })
 

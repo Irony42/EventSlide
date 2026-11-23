@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Button } from '../../design-system/components/Button'
 import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
-import type { GuestRsvpPageDto } from '../../lib/api/dto'
+import type { GuestOwnRsvpDto, GuestRsvpPageDto } from '../../lib/api/dto'
 import { copyToClipboard } from '../../lib/clipboard'
 import { messageForCode } from '../../lib/i18n/translations'
 import { useTranslations } from '../../lib/i18n/useTranslations'
@@ -93,9 +93,9 @@ export function GuestRsvpBlock({ rsvp, token, locale, interactive = true }: Gues
 
   const { form } = rsvp
   const open = rsvp.state === 'open' || rsvp.state === 'full'
-  const reply = state.reply
+  const own = state.own
   // A reply that vanished while it was being changed (a deletion elsewhere) ends the change.
-  const editing = editingRequested && reply !== null
+  const editing = editingRequested && own !== null
 
   if (state.phase === 'reading') {
     return (
@@ -106,7 +106,7 @@ export function GuestRsvpBlock({ rsvp, token, locale, interactive = true }: Gues
   }
 
   // Nothing is asked, and nothing is held: the page is the invitation alone.
-  if (rsvp.state === 'off' && reply === null && !deleted) return null
+  if (rsvp.state === 'off' && own === null && !deleted) return null
 
   const failureText = (code: string | null): string | null =>
     code === null
@@ -124,36 +124,35 @@ export function GuestRsvpBlock({ rsvp, token, locale, interactive = true }: Gues
     set({ answer })
   }
 
-  const send = async (event: FormEvent) => {
+  /** The form only exists once an answer is chosen, so the answer is the one it is built for. */
+  const send = (answer: RsvpAnswer) => async (event: FormEvent) => {
     event.preventDefault()
-    const input = inputOf(draft, form)
-    if (input === null) return
-    const ok = editing ? await state.update(input) : await state.submit(input, website)
+    const input = inputOf({ ...draft, answer }, form)
+    const ok =
+      editing && own !== null ? await state.update(own, input) : await state.submit(input, website)
     if (ok) {
       setEditing(false)
       setDraft(EMPTY_DRAFT)
     }
   }
 
-  const startEditing = () => {
-    if (reply === null) return
+  const startEditing = (current: GuestOwnRsvpDto) => {
     state.clearFailure()
-    setDraft(draftOf(reply))
+    setDraft(draftOf(current))
     setEditing(true)
     setAsking(false)
   }
 
   const erase = async () => {
-    if (await state.remove()) {
+    if (own !== null && (await state.remove(own))) {
       setAsking(false)
       setEditing(false)
       setDeleted(true)
     }
   }
 
-  const copy = async () => {
-    if (state.editToken === null) return
-    const link = ownReplyLink(window.location.origin, token, state.editToken)
+  const copy = async (editToken: string) => {
+    const link = ownReplyLink(window.location.origin, token, editToken)
     setCopied(await copyToClipboard(link))
   }
 
@@ -190,7 +189,7 @@ export function GuestRsvpBlock({ rsvp, token, locale, interactive = true }: Gues
 
   const formFields =
     draft.answer === null ? null : (
-      <form className={styles['form']} onSubmit={send} noValidate>
+      <form className={styles['form']} onSubmit={send(draft.answer)} noValidate>
         <label className={styles['field']}>
           <span>{t.nameLabel}</span>
           <input
@@ -315,7 +314,8 @@ export function GuestRsvpBlock({ rsvp, token, locale, interactive = true }: Gues
   })()
 
   // --- the reply the device knows ------------------------------------------------------------
-  if (reply !== null && !editing) {
+  if (own !== null && !editing) {
+    const { reply } = own
     const first = firstNameOf(reply.name)
     const heading =
       reply.answer === 'no'
@@ -352,19 +352,17 @@ export function GuestRsvpBlock({ rsvp, token, locale, interactive = true }: Gues
           ))}
         </ul>
         {open ? (
-          <Button variant="secondary" size="lg" block onClick={startEditing}>
+          <Button variant="secondary" size="lg" block onClick={() => startEditing(reply)}>
             {t.edit}
           </Button>
         ) : null}
-        {state.editToken === null ? null : (
-          <div className={styles['link']}>
-            <span className={styles['linkTitle']}>{t.linkTitle}</span>
-            <small>{t.linkHint}</small>
-            <Button variant="secondary" size="md" onClick={copy}>
-              {copied ? t.copied : t.copy}
-            </Button>
-          </div>
-        )}
+        <div className={styles['link']}>
+          <span className={styles['linkTitle']}>{t.linkTitle}</span>
+          <small>{t.linkHint}</small>
+          <Button variant="secondary" size="md" onClick={() => copy(own.editToken)}>
+            {copied ? t.copied : t.copy}
+          </Button>
+        </div>
         {deleteControl}
         {proof}
       </section>

@@ -23,12 +23,16 @@ import { useApi } from '../../lib/useApi'
 
 export type RsvpPhase = 'reading' | 'ready'
 
+/** A reply and the token it is reached by: always together, so nothing can hold one without the other. */
+export interface OwnReply {
+  readonly reply: GuestOwnRsvpDto
+  readonly editToken: string
+}
+
 export interface GuestRsvpState {
   readonly phase: RsvpPhase
   /** The reply this device (or the link it was opened with) holds, once read. */
-  readonly reply: GuestOwnRsvpDto | null
-  /** The token the reply is reached by, to build the private link. */
-  readonly editToken: string | null
+  readonly own: OwnReply | null
   /** A send is in flight: the buttons wait, and a second tap sends nothing. */
   readonly sending: boolean
   /** The last write's refusal, as the server's code, or `network` / `busy`; `null` when none. */
@@ -36,8 +40,8 @@ export interface GuestRsvpState {
   /** The device's token was refused and dropped: the page may say so once. */
   readonly forgotten: boolean
   readonly submit: (input: GuestRsvpInput, website: string) => Promise<boolean>
-  readonly update: (input: GuestRsvpInput) => Promise<boolean>
-  readonly remove: () => Promise<boolean>
+  readonly update: (own: OwnReply, input: GuestRsvpInput) => Promise<boolean>
+  readonly remove: (own: OwnReply) => Promise<boolean>
   readonly clearFailure: () => void
 }
 
@@ -58,8 +62,7 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
     return fromLink ?? readStoredEditToken(token)
   })
   const [phase, setPhase] = useState<RsvpPhase>(held === null ? 'ready' : 'reading')
-  const [reply, setReply] = useState<GuestOwnRsvpDto | null>(null)
-  const [editToken, setEditToken] = useState<string | null>(null)
+  const [own, setOwn] = useState<OwnReply | null>(null)
   const [sending, setSending] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [forgotten, setForgotten] = useState(false)
@@ -71,8 +74,7 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
     api.guestRsvp(token, held, stop.signal).then(
       ({ rsvp }) => {
         if (stop.signal.aborted) return
-        setReply(rsvp)
-        setEditToken(held)
+        setOwn({ reply: rsvp, editToken: held })
         setPhase('ready')
       },
       (cause: unknown) => {
@@ -103,8 +105,7 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
         // A reply that is gone, or a token refused, is not a stale form to retry: forget it.
         if (cause instanceof ApiError && cause.code === 'rsvp.notFound') {
           forgetEditToken(token)
-          setReply(null)
-          setEditToken(null)
+          setOwn(null)
           setForgotten(true)
         }
         setFailure(failureOf(cause))
@@ -122,41 +123,36 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
       write(async () => {
         const created = await api.guestRsvpCreate(token, { ...input, website })
         storeEditToken(token, created.editToken)
-        setEditToken(created.editToken)
-        setReply(created.rsvp)
+        setOwn({ reply: created.rsvp, editToken: created.editToken })
         setForgotten(false)
       }),
     [api, token, write],
   )
 
   const update = useCallback(
-    (input: GuestRsvpInput) =>
+    (current: OwnReply, input: GuestRsvpInput) =>
       write(async () => {
-        if (editToken === null) throw new ApiError(404, 'rsvp.notFound')
-        const changed = await api.guestRsvpUpdate(token, editToken, input)
-        setReply(changed.rsvp)
+        const changed = await api.guestRsvpUpdate(token, current.editToken, input)
+        setOwn({ reply: changed.rsvp, editToken: current.editToken })
       }),
-    [api, editToken, token, write],
+    [api, token, write],
   )
 
   const remove = useCallback(
-    () =>
+    (current: OwnReply) =>
       write(async () => {
-        if (editToken === null) throw new ApiError(404, 'rsvp.notFound')
-        await api.guestRsvpDelete(token, editToken)
+        await api.guestRsvpDelete(token, current.editToken)
         forgetEditToken(token)
-        setReply(null)
-        setEditToken(null)
+        setOwn(null)
       }),
-    [api, editToken, token, write],
+    [api, token, write],
   )
 
   const clearFailure = useCallback(() => setFailure(null), [])
 
   return {
     phase,
-    reply,
-    editToken,
+    own,
     sending,
     failure,
     forgotten,

@@ -7,7 +7,7 @@ import type { UiText } from '../i18n/translations'
  */
 
 /** "Léa Martin" is `Léa`: the first word, which is how a host's reply greets a guest. */
-export const firstNameOf = (name: string): string => name.trim().split(/\s+/)[0] ?? ''
+export const firstNameOf = (name: string): string => name.trim().split(/\s+/, 1).join('')
 
 /**
  * A deadline day (`2026-12-01`, a local day) as a date in the invitation's language: written in UTC

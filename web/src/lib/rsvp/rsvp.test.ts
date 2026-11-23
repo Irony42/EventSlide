@@ -136,10 +136,6 @@ describe('the guest’s form as data', () => {
     expect(bump(start, FORM, 'kids', 1)).toMatchObject({ adults: 1, kids: 1 })
   })
 
-  it('sends nothing before an answer is chosen', () => {
-    expect(inputOf(EMPTY_DRAFT, FORM)).toBeNull()
-  })
-
   it('sends a yes with what the form asks, and a blank optional field as null', () => {
     const input = inputOf(
       { answer: 'yes', name: 'Léa', adults: 2, kids: 1, diet: '  ', message: '' },

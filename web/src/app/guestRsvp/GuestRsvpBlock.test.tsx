@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
@@ -211,6 +211,110 @@ describe('asking: the window is open and this device holds no reply', () => {
     render({}, aGuestRsvpPage({ proof: { count: 12, names: [] } }))
 
     expect(screen.getByText(t.proofCount(12))).toBeInTheDocument()
+  })
+})
+
+describe('what is typed and sent', () => {
+  it('sends the diet, the word, the children and a lowered count of adults as typed', async () => {
+    const user = userEvent.setup()
+    const guestRsvpCreate = vi.fn(async () => ({ rsvp: aGuestOwnRsvp(), editToken: 'x' }))
+    render({ guestRsvpCreate })
+    await user.click(screen.getByRole('button', { name: t.maybe }))
+    await user.type(screen.getByLabelText(new RegExp(t.nameLabel)), 'Inès')
+    const adults = new RegExp(`${t.more}.*${t.adults}`)
+    await user.click(screen.getByRole('button', { name: adults }))
+    await user.click(screen.getByRole('button', { name: adults }))
+    await user.click(screen.getByRole('button', { name: new RegExp(`${t.less}.*${t.adults}`) }))
+    await user.click(screen.getByRole('button', { name: new RegExp(`${t.more}.*${t.kids}`) }))
+    await user.click(screen.getByRole('button', { name: new RegExp(`${t.more}.*${t.kids}`) }))
+    await user.click(screen.getByRole('button', { name: new RegExp(`${t.less}.*${t.kids}`) }))
+    await user.type(screen.getByLabelText(new RegExp(t.dietLabel)), 'végétarien')
+    await user.type(screen.getByLabelText(new RegExp(t.messageLabel)), 'À samedi')
+
+    await user.click(screen.getByRole('button', { name: t.send }))
+
+    await waitFor(() => expect(guestRsvpCreate).toHaveBeenCalled())
+    expect(guestRsvpCreate).toHaveBeenCalledWith(TOKEN, {
+      name: 'Inès',
+      answer: 'maybe',
+      adults: 2,
+      kids: 1,
+      diet: 'végétarien',
+      message: 'À samedi',
+      website: '',
+    })
+  })
+
+  it('sends one reply when the form is submitted twice while the first is on its way', async () => {
+    let release: (value: {
+      rsvp: ReturnType<typeof aGuestOwnRsvp>
+      editToken: string
+    }) => void = () => undefined
+    const guestRsvpCreate = vi.fn(
+      () =>
+        new Promise<{ rsvp: ReturnType<typeof aGuestOwnRsvp>; editToken: string }>((resolve) => {
+          release = resolve
+        }),
+    )
+    const user = userEvent.setup()
+    render({ guestRsvpCreate })
+    await user.click(screen.getByRole('button', { name: t.yes }))
+    await user.type(screen.getByLabelText(new RegExp(t.nameLabel)), 'Léa')
+    const form = document.querySelector('form') as HTMLFormElement
+
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+    release({ rsvp: aGuestOwnRsvp(), editToken: 'x' })
+
+    await screen.findByRole('heading', { name: t.doneYes('Léa') })
+    expect(guestRsvpCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('says it could not be sent when what failed is not a refusal of the box at all', async () => {
+    const user = userEvent.setup()
+    render({ guestRsvpCreate: vi.fn().mockRejectedValue(new Error('boom')) })
+    await user.click(screen.getByRole('button', { name: t.yes }))
+    await user.type(screen.getByLabelText(new RegExp(t.nameLabel)), 'Léa')
+
+    await user.click(screen.getByRole('button', { name: t.send }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.failed)
+  })
+
+  it('shows nothing of a reply that was read after the page was left', async () => {
+    storeEditToken(TOKEN, 'held-token')
+    let release: (value: { rsvp: ReturnType<typeof aGuestOwnRsvp> }) => void = () => undefined
+    const guestRsvp = vi.fn(
+      () =>
+        new Promise<{ rsvp: ReturnType<typeof aGuestOwnRsvp> }>((resolve) => {
+          release = resolve
+        }),
+    )
+    const { unmount } = render({ guestRsvp })
+    unmount()
+
+    release({ rsvp: aGuestOwnRsvp() })
+    await Promise.resolve()
+
+    expect(guestRsvp).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops reading when the page is left while the box was still answering with a refusal', async () => {
+    storeEditToken(TOKEN, 'held-token')
+    let refuse: (cause: unknown) => void = () => undefined
+    const guestRsvp = vi.fn(
+      () =>
+        new Promise<never>((_resolve, reject) => {
+          refuse = reject
+        }),
+    )
+    const { unmount } = render({ guestRsvp })
+    unmount()
+
+    refuse(new ApiError(404, 'rsvp.notFound'))
+    await Promise.resolve()
+
+    expect(readStoredEditToken(TOKEN)).toBe('held-token')
   })
 })
 

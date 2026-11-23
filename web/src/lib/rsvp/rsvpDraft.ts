@@ -64,10 +64,9 @@ export const bump = (
  * optional field is `null`, not an empty string.
  */
 export const inputOf = (
-  draft: RsvpDraft,
+  draft: RsvpDraft & { readonly answer: RsvpAnswer },
   form: GuestRsvpPageDto['form'],
-): GuestRsvpInput | null => {
-  if (draft.answer === null) return null
+): GuestRsvpInput => {
   const message = draft.message.trim() === '' ? null : draft.message
   if (draft.answer === 'no') return { name: draft.name, answer: 'no', message }
   const diet = draft.diet.trim() === '' ? null : draft.diet

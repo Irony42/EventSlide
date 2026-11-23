@@ -183,6 +183,24 @@ describe('GET /api/i/:token: the rsvp block', () => {
   })
 })
 
+describe('the proof on the page', () => {
+  it('names who agreed to be named and counts the people, and nothing else', async () => {
+    const world = await buildWorld()
+    await world.invites.saveRsvpSettings(LIVE, {
+      enabled: true,
+      deadline: null,
+      closedAt: null,
+      form: { ...DEFAULT_RSVP_FORM, visibility: 'names' },
+    })
+    const { post } = await guest(world)
+    await post(ANSWER)
+    const { page } = await guest(world)
+
+    expect(page.body.rsvp.proof).toEqual({ count: 3, names: [] })
+    expect(JSON.stringify(page.body.rsvp)).not.toMatch(/Martin|gluten/)
+  })
+})
+
 describe('POST /api/i/:token/rsvp', () => {
   let world: World
 
@@ -286,7 +304,7 @@ describe('POST /api/i/:token/rsvp', () => {
   })
 
   it('answers the same 201 to a script that fills the honeypot, and stores nothing', async () => {
-    const { post, get } = await guest(world)
+    const { post } = await guest(world)
 
     const trapped = await post({ ...ANSWER, website: 'https://spam.example' })
 
@@ -391,6 +409,21 @@ describe('GET, PUT, DELETE /api/i/:token/rsvp: a guest’s own reply', () => {
     expect(first.status).toBe(204)
     expect([second.status, second.body.error.code]).toEqual([404, 'rsvp.notFound'])
     expect((await get(editToken)).status).toBe(404)
+  })
+
+  it('answers the neutral 404 for a token too long to be one, whatever the method, without reading anything', async () => {
+    const { get, put, del } = await created()
+    const dead = `/api/i/${'1'.repeat(300)}/rsvp`
+
+    const answers = [
+      await get(editToken, dead),
+      await put(editToken, { name: 'A', answer: 'yes' }, dead),
+      await del(editToken, dead),
+    ]
+
+    for (const answer of answers) {
+      expect([answer.status, answer.body.error.code]).toEqual([404, 'guestInvite.notAvailable'])
+    }
   })
 
   it('answers the neutral 404 of the page for every method when the link cannot be served', async () => {
