@@ -66,6 +66,17 @@ export const previewPage = (settings: RsvpSettingsDto): GuestRsvpPageDto => ({
   },
 })
 
+/**
+ * The day a date field holds once it is a choice: `YYYY-MM-DD`, a real day, not older than last
+ * year. A field passes through "" and "0020-…" while it is typed; those are not choices.
+ */
+export const usableDeadline = (value: string, now: Date): string | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const date = new Date(`${value}T12:00:00Z`)
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) return null
+  return date.getUTCFullYear() >= now.getFullYear() - 1 ? value : null
+}
+
 export type PartyKind = 'party' | 'wedding'
 
 /**

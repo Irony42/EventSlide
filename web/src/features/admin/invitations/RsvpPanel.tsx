@@ -1,5 +1,7 @@
 import { Badge } from '../../../design-system/components/Badge'
+import { useState } from 'react'
 import { Button } from '../../../design-system/components/Button'
+import { ConfirmDialog } from '../../../design-system/components/ConfirmDialog'
 import { CheckboxField } from '../../../design-system/components/CheckboxField'
 import { Field } from '../../../design-system/components/Field'
 import { Notice } from '../../../design-system/components/Notice'
@@ -7,7 +9,13 @@ import { SelectField } from '../../../design-system/components/SelectField'
 import { Spinner } from '../../../design-system/components/Spinner'
 import { TextInput } from '../../../design-system/components/TextInput'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
-import { PARTY_SIZES, PRESETS, kindOf, type PartyKind } from '../../../lib/rsvp/rsvpSettings'
+import {
+  PARTY_SIZES,
+  PRESETS,
+  kindOf,
+  usableDeadline,
+  type PartyKind,
+} from '../../../lib/rsvp/rsvpSettings'
 import type { RsvpSettingsState } from './useRsvpSettings'
 import styles from './RsvpPanel.module.css'
 
@@ -15,13 +23,27 @@ export interface RsvpPanelProps {
   readonly rsvp: RsvpSettingsState
   /** An archived event is a record: the settings are read-only. */
   readonly archived: boolean
+  /** The invitation's own zone: the days it shows are the party's, not the host's browser's. */
+  readonly timeZone?: string | null
 }
 
-/** An ISO instant as a date a host reads, in the language they read. */
-const dateOf = (iso: string, locale: string): string =>
-  new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric' }).format(
-    new Date(iso),
-  )
+/** An ISO instant as a date a host reads, in the language they read and **the party's zone**. */
+const dateOf = (iso: string, locale: string, timeZone: string | null): string =>
+  new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    ...(timeZone === null ? {} : { timeZone }),
+  }).format(new Date(iso))
+
+/** A calendar day (`2026-12-12`) as a date: it has no zone, so it is read as it is written. */
+const dayOf = (day: string, locale: string): string =>
+  new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${day}T12:00:00Z`))
 
 /**
  * "Réponses des invités": what the host asks the guests on the invitation's page (spec 30, lot 1),
@@ -31,11 +53,17 @@ const dateOf = (iso: string, locale: string): string =>
  *
  * Replies hang on the invitation: until it exists the panel says so and asks nothing.
  */
-export function RsvpPanel({ rsvp, archived }: RsvpPanelProps) {
+export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
   const t = useTranslations()
   const text = t.rsvp.host
   const { locale } = useLocale()
   const { settings } = rsvp
+  /** What is being typed in the date field, until it is left: a half-typed date is not a choice. */
+  const [typed, setTyped] = useState<{ value: string; base: string | null } | null>(null)
+  /** A preset waiting for the host to agree to replace what they chose themselves. */
+  const [preset, setPreset] = useState<PartyKind | null>(null)
+  /** The time the page was read: a deadline gone by is judged against it, not re-read at every render. */
+  const [readAt] = useState(() => Date.now())
 
   if (settings === null) {
     return (
@@ -60,9 +88,14 @@ export function RsvpPanel({ rsvp, archived }: RsvpPanelProps) {
   const locked = archived || !settings.invited
   const { form } = settings
   const kind = kindOf(settings)
+  const closedByDate = settings.state === 'closed' && settings.closedAt === null
+  const deadlinePassed = settings.closesAt !== null && Date.parse(settings.closesAt) <= readAt
+  const reopenNeedsDate = settings.closedAt !== null && deadlinePassed
   const stateBadge =
     settings.state === 'closed' ? (
       <Badge tone="warning">{text.stateClosed}</Badge>
+    ) : settings.state === 'full' ? (
+      <Badge tone="warning">{text.stateFull}</Badge>
     ) : settings.enabled ? (
       <Badge tone="success">{text.stateOpen}</Badge>
     ) : (
@@ -100,11 +133,21 @@ export function RsvpPanel({ rsvp, archived }: RsvpPanelProps) {
             <TextInput
               {...control}
               type="date"
-              value={settings.deadline ?? ''}
-              disabled={locked}
-              onChange={(event) =>
-                rsvp.change({ deadline: event.target.value === '' ? null : event.target.value })
+              value={
+                typed !== null && typed.base === settings.deadline
+                  ? typed.value
+                  : (settings.deadline ?? '')
               }
+              disabled={locked}
+              onBlur={() => setTyped(null)}
+              onChange={(event) => {
+                // Typing passes through "" and "0020-…": only a real, recent day is a choice (the
+                // button beside the field clears the deadline).
+                const day = usableDeadline(event.target.value, new Date())
+                // Tied to the deadline it left on screen: a refusal puts the server's day back.
+                setTyped({ value: event.target.value, base: day ?? settings.deadline })
+                if (day !== null) rsvp.change({ deadline: day })
+              }}
             />
           )}
         </Field>
@@ -113,7 +156,10 @@ export function RsvpPanel({ rsvp, archived }: RsvpPanelProps) {
             variant="ghost"
             size="sm"
             disabled={locked}
-            onClick={() => rsvp.change({ deadline: null })}
+            onClick={() => {
+              setTyped(null)
+              rsvp.change({ deadline: null })
+            }}
           >
             {text.deadlineClear}
           </Button>
@@ -122,17 +168,18 @@ export function RsvpPanel({ rsvp, archived }: RsvpPanelProps) {
 
       {settings.invited && settings.enabled ? (
         <div className={styles['window']}>
-          {settings.state === 'closed' ? (
+          {closedByDate ? (
+            <p>{text.closedByDate}</p>
+          ) : settings.state === 'closed' ? (
             <p>{text.closedNote}</p>
+          ) : settings.deadline !== null ? (
+            <p>{text.openUntil(dayOf(settings.deadline, locale))}</p>
           ) : settings.closesAt === null ? null : (
-            <p>{text.closesOn(dateOf(settings.closesAt, locale))}</p>
+            <p>{text.closesOn(dateOf(settings.closesAt, locale, timeZone))}</p>
           )}
-          {settings.closedAt === null ? (
-            <Button
-              size="sm"
-              disabled={archived || rsvp.acting || settings.state === 'closed'}
-              onClick={rsvp.close}
-            >
+          {reopenNeedsDate ? <p>{text.reopenNeedsDate}</p> : null}
+          {closedByDate || reopenNeedsDate ? null : settings.closedAt === null ? (
+            <Button size="sm" disabled={archived || rsvp.acting} onClick={rsvp.close}>
               {text.closeAction}
             </Button>
           ) : (
@@ -143,7 +190,9 @@ export function RsvpPanel({ rsvp, archived }: RsvpPanelProps) {
         </div>
       ) : null}
       {settings.erasedAt === null ? null : (
-        <p className={styles['note']}>{text.erasedOn(dateOf(settings.erasedAt, locale))}</p>
+        <p className={styles['note']}>
+          {text.erasedOn(dateOf(settings.erasedAt, locale, timeZone))}
+        </p>
       )}
 
       <fieldset className={styles['asks']} disabled={locked}>
@@ -159,9 +208,11 @@ export function RsvpPanel({ rsvp, archived }: RsvpPanelProps) {
             ...(kind === null ? [{ value: 'custom', label: text.presetCustom }] : []),
           ]}
           onChange={(value) => {
-            if (value === 'party' || value === 'wedding') {
-              rsvp.change({ form: PRESETS[value as PartyKind] })
-            }
+            if (value !== 'party' && value !== 'wedding') return
+            // A preset replaces the choices: silently while they still are one, asked once the
+            // host went their own way.
+            if (kind === null) setPreset(value)
+            else rsvp.change({ form: PRESETS[value] })
           }}
         />
         <CheckboxField
@@ -213,7 +264,7 @@ export function RsvpPanel({ rsvp, archived }: RsvpPanelProps) {
       >
         {rsvp.saveState === 'pending' || rsvp.saveState === 'saving'
           ? text.saving
-          : rsvp.saveState === 'saved'
+          : rsvp.saveState === 'saved' && rsvp.problem === null
             ? text.saved
             : null}
       </div>
@@ -222,6 +273,21 @@ export function RsvpPanel({ rsvp, archived }: RsvpPanelProps) {
           {rsvp.problem}
         </Notice>
       )}
+
+      <ConfirmDialog
+        open={preset !== null}
+        title={text.presetConfirmTitle}
+        description={text.presetConfirm(
+          preset === 'wedding' ? text.presetKindWedding : text.presetKindParty,
+        )}
+        confirmLabel={text.presetConfirmYes}
+        confirmVariant="primary"
+        onConfirm={() => {
+          if (preset !== null) rsvp.change({ form: PRESETS[preset] })
+          setPreset(null)
+        }}
+        onCancel={() => setPreset(null)}
+      />
 
       <div className={styles['explain']}>
         <h3>{text.fewTitle}</h3>

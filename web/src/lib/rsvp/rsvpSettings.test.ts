@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { aRsvpSettings } from '../../testing/renderWithProviders'
-import { PRESETS, applyInput, kindOf, mergeInputs, previewPage } from './rsvpSettings'
+import {
+  PRESETS,
+  applyInput,
+  kindOf,
+  mergeInputs,
+  previewPage,
+  usableDeadline,
+} from './rsvpSettings'
 
 describe('a choice laid over what the server holds', () => {
   it('changes only what the choice names, and clears a deadline with null', () => {
@@ -89,5 +96,27 @@ describe('the kind of party', () => {
     expect(kindOf(applyInput(settings, { form: { maybe: false } }))).toBeNull()
     expect(kindOf(applyInput(settings, { form: { partySize: { max: 5 } } }))).toBeNull()
     expect(kindOf(applyInput(settings, { form: { partySize: { enabled: false } } }))).toBeNull()
+  })
+})
+
+describe('the day a date field holds once it is a choice', () => {
+  const now = new Date('2026-11-23T10:00:00')
+
+  it('takes a real day of this year, next year, or last year', () => {
+    expect(usableDeadline('2026-12-01', now)).toBe('2026-12-01')
+    expect(usableDeadline('2027-06-30', now)).toBe('2027-06-30')
+    expect(usableDeadline('2025-01-01', now)).toBe('2025-01-01')
+  })
+
+  it('leaves what is typed on the way: nothing, a half date, an old year', () => {
+    expect(usableDeadline('', now)).toBeNull()
+    expect(usableDeadline('0020-12-01', now)).toBeNull()
+    expect(usableDeadline('2024-12-31', now)).toBeNull()
+    expect(usableDeadline('2026-12', now)).toBeNull()
+  })
+
+  it('refuses a day that does not exist', () => {
+    expect(usableDeadline('2026-02-30', now)).toBeNull()
+    expect(usableDeadline('2026-13-01', now)).toBeNull()
   })
 })
