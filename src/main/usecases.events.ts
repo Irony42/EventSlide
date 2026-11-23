@@ -30,6 +30,7 @@ import { makeSaveGuestInvite } from '../application/usecases/guestInvites/saveGu
 import { makeEnableGuestInvite } from '../application/usecases/guestInvites/enableGuestInvite'
 import { makeDisableGuestInvite } from '../application/usecases/guestInvites/disableGuestInvite'
 import { makeRotateGuestInviteToken } from '../application/usecases/guestInvites/rotateGuestInviteToken'
+import { makePurgeExpiredRsvps } from '../application/usecases/guestRsvps/purgeExpiredRsvps'
 import { makeGetRsvpForm } from '../application/usecases/guestRsvps/getRsvpForm'
 import { makeSaveRsvpForm } from '../application/usecases/guestRsvps/saveRsvpForm'
 import { makeCloseRsvps } from '../application/usecases/guestRsvps/closeRsvps'
@@ -240,6 +241,8 @@ export const eventsUseCases = (
     clock: adapters.clock,
   }),
   countUnseenRsvps: makeCountUnseenRsvps({ rsvps: adapters.guestRsvps }),
+  // The replies whose time has come (spec 30): from the retention sweeper only, no route.
+  purgeExpiredRsvps: makePurgeExpiredRsvps({ rsvps: adapters.guestRsvps, clock: adapters.clock }),
   rotateJoinCode: makeRotateJoinCode({
     events: adapters.events,
     memberships: adapters.memberships,

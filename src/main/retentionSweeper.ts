@@ -6,6 +6,7 @@ import type {
 } from '../application/usecases/events/purgeExpiredEvents'
 import type { PruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import type { FinalizeOffboardedClients } from '../application/usecases/clients/finalizeOffboardedClients'
+import type { PurgeExpiredRsvps } from '../application/usecases/guestRsvps/purgeExpiredRsvps'
 import type { SweepPurgeNotices } from '../application/usecases/events/sweepPurgeNotices'
 import { leftWithArchive } from '../domain/clients/archiveState'
 import { createGuardedJob, type JobOutcome } from './guardedJob'
@@ -52,6 +53,8 @@ export interface RetentionSweeperDeps {
   readonly finalizeOffboardedClients: FinalizeOffboardedClients
   /** The warning to the owners of albums about to be deleted (spec 22). Required, like the others. */
   readonly sweepPurgeNotices: SweepPurgeNotices
+  /** The guests' replies whose time has come (spec 30). Required, like the others. */
+  readonly purgeExpiredRsvps: PurgeExpiredRsvps
   readonly logger: Logger
   /** For the duration in the log line. Injected so that duration is assertable. */
   readonly clock: Clock
@@ -70,6 +73,7 @@ export interface RetentionSweeper {
 }
 
 export interface RetentionFollowUpDeps {
+  readonly purgeExpiredRsvps: PurgeExpiredRsvps
   readonly finalizeOffboardedClients: FinalizeOffboardedClients
   readonly sweepPurgeNotices: SweepPurgeNotices
   readonly pruneAuditLog: PruneAuditLog
@@ -86,11 +90,28 @@ export interface RetentionFollowUpDeps {
  * rejects: each step catches its own failure.
  */
 export const makeRetentionFollowUp = ({
+  purgeExpiredRsvps,
   finalizeOffboardedClients,
   sweepPurgeNotices,
   pruneAuditLog,
   logger,
 }: RetentionFollowUpDeps): (() => Promise<void>) => {
+  /**
+   * The guests' replies whose time has come (spec 30): names and diets, erased 30 days after the
+   * event closed or 60 after the invitation's start. Run **first**, before anything else of the
+   * follow-up can fail, and it ignores the purge hold. Never throws, for the reason `pruneAudit` gives.
+   */
+  const purgeRsvps = async (): Promise<void> => {
+    try {
+      const { deleted } = await purgeExpiredRsvps()
+      if (deleted > 0) logger.info('retention sweep erased expired guest replies', { deleted })
+    } catch (error) {
+      logger.error('expired guest replies could not be erased', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
   /**
    * The warning before a purge: the owners of albums whose deletion is 14, 3 or 1 day away are
    * written to, once per threshold. Never throws, for the reason `pruneAudit` gives, and it never
@@ -176,6 +197,7 @@ export const makeRetentionFollowUp = ({
   }
 
   return async () => {
+    await purgeRsvps()
     await warnOwners()
     // The offboarded clients first, whose audit lines the prune should then see.
     await finalizeClients()
@@ -188,6 +210,7 @@ export const createRetentionSweeper = ({
   pruneAuditLog,
   finalizeOffboardedClients,
   sweepPurgeNotices,
+  purgeExpiredRsvps,
   logger,
   clock,
   intervalMs,
@@ -196,6 +219,7 @@ export const createRetentionSweeper = ({
     finalizeOffboardedClients,
     sweepPurgeNotices,
     pruneAuditLog,
+    purgeExpiredRsvps,
     logger,
   })
 

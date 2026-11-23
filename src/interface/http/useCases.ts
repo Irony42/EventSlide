@@ -133,7 +133,6 @@ import type { RotateGuestInviteToken } from '../../application/usecases/guestInv
 import type { GetRsvpForm } from '../../application/usecases/guestRsvps/getRsvpForm'
 import type { SaveRsvpForm } from '../../application/usecases/guestRsvps/saveRsvpForm'
 import type { CloseRsvps } from '../../application/usecases/guestRsvps/closeRsvps'
-import type { ReopenRsvps } from '../../application/usecases/guestRsvps/closeRsvps'
 import type { ListRsvps } from '../../application/usecases/guestRsvps/listRsvps'
 import type { HostAddRsvp } from '../../application/usecases/guestRsvps/hostAddRsvp'
 import type { HostUpdateRsvp } from '../../application/usecases/guestRsvps/hostUpdateRsvp'
@@ -357,7 +356,7 @@ export interface HttpUseCases {
   readonly getRsvpForm: GetRsvpForm
   readonly saveRsvpForm: SaveRsvpForm
   readonly closeRsvps: CloseRsvps
-  readonly reopenRsvps: ReopenRsvps
+  readonly reopenRsvps: CloseRsvps
   readonly listRsvps: ListRsvps
   readonly hostAddRsvp: HostAddRsvp
   readonly hostUpdateRsvp: HostUpdateRsvp

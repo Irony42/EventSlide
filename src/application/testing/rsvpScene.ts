@@ -1,4 +1,3 @@
-import { asEventId } from '../../domain/shared/ids'
 import { makeCloseRsvps, makeReopenRsvps } from '../usecases/guestRsvps/closeRsvps'
 import { makeCountUnseenRsvps } from '../usecases/guestRsvps/countUnseenRsvps'
 import { makeExportRsvps } from '../usecases/guestRsvps/exportRsvps'
