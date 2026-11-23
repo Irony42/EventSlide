@@ -22,7 +22,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-inline-size: var(--container-host);
   min-width: 0;
 }
 
@@ -454,11 +453,15 @@
 
 @container invite (min-width: 56rem) {
   .workspace {
-    grid-template-columns: minmax(16rem, 21rem) minmax(0, 1fr) minmax(15rem, 19rem);
+    grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr) minmax(14rem, 17rem);
     grid-template-areas: 'text middle options';
     grid-template-rows: minmax(0, 1fr);
     align-items: stretch;
-    block-size: max(26rem, calc(100dvh - 18.5rem));
+    /* What sits above it, measured at 1366 × 768 (the site's header, the shell's padding, the title
+       and the link's bar: 9.6rem) and the shell's padding under it: the workspace is the rest of
+       the window. The site's footer stays under the fold, as the event menu beside it already puts
+       it there on a laptop. */
+    block-size: max(26rem, calc(100dvh - 11rem));
     overflow: hidden;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
