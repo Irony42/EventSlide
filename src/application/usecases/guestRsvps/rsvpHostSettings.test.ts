@@ -99,6 +99,14 @@ describe('replies settings (spec 30)', () => {
       expect(view.ok && view.value.closesAt).toBeNull()
     })
 
+    it('is a read on an archived event too: the form, the replies and the spreadsheet stay readable', async () => {
+      const form = await scene.getForm({ eventId: ARCHIVED, actorId: OWNER })
+      const exported = await scene.exportCsv({ eventId: ARCHIVED, actorId: OWNER, view: 'all' })
+
+      expect(form.ok).toBe(true)
+      expect(exported.ok).toBe(true)
+    })
+
     it('reads on a closed event, and refuses a suspended client as the invitation does', async () => {
       const frozen = await scene.getForm({ eventId: FROZEN, actorId: OWNER })
 
