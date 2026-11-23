@@ -15,6 +15,7 @@ import {
 } from '../../../application/usecases/guestRsvps/ownRsvp'
 import { makeSubmitRsvp } from '../../../application/usecases/guestRsvps/submitRsvp'
 import { DEFAULT_RSVP_FORM } from '../../../domain/guestRsvps/rsvpForm'
+import { GuestInvite } from '../../../domain/guestInvites/guestInvite'
 import { GuestInviteToken } from '../../../domain/guestInvites/guestInviteToken'
 import { asEventId } from '../../../domain/shared/ids'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
@@ -38,9 +39,9 @@ const LIVE_TOKEN = '1111111111111111'
 const OTHER_TOKEN = '2222222222222222'
 /** What a minted token looks like: Crockford letters and digits. */
 const LETTERS_TOKEN = (() => {
-  const made = GuestInviteToken.fromBytes(new Uint8Array(16).fill(200))
+  const made = GuestInviteToken.fromBytes(Uint8Array.from({ length: 16 }, (_, i) => i * 37 + 11))
   if (!made.ok) throw new Error('token')
-  return made.value.value
+  return made.value
 })()
 const URL = `/api/i/${LIVE_TOKEN}/rsvp`
 
@@ -77,7 +78,10 @@ const buildWorld = async (
   invites.seed(
     aGuestInvite({ eventId: LIVE, tokenByte: 1, enabled: true, ...PARTY }),
     aGuestInvite({ eventId: OTHER, tokenByte: 2, enabled: true, ...PARTY }),
-    aGuestInvite({ eventId: asEventId('evt-letters'), tokenByte: 200, enabled: true, ...PARTY }),
+    GuestInvite.restore({
+      ...aGuestInvite({ eventId: asEventId('evt-letters'), enabled: true, ...PARTY }).toProps(),
+      token: LETTERS_TOKEN,
+    }),
   )
   for (const eventId of [LIVE, OTHER]) {
     await invites.saveRsvpSettings(eventId, {
@@ -481,7 +485,20 @@ describe('the limiters of the replies', () => {
     expect([flooded.status, flooded.body.error.code]).toEqual([429, 'rate.limited'])
     expect(other.status).toBe(204)
     // A real token, with letters in it: a bucket of its own, not the one invented links share.
-    const real = await del('nope', `/api/i/${LETTERS_TOKEN}/rsvp`)
+    const real = await del('nope', `/api/i/${LETTERS_TOKEN.value}/rsvp`)
+    expect(real.status).toBe(204)
+  }, 60_000)
+
+  it('gives every invented link one shared bucket, and a real token with letters its own', async () => {
+    expect(LETTERS_TOKEN.value).toMatch(/[A-Z]/)
+    const world = await buildWorld({ write: 6_000 })
+    const { del } = await guest(world)
+
+    for (let i = 0; i < 300; i += 1) await del('nope', `/api/i/inv${i}!/rsvp`)
+    const invented = await del('nope', '/api/i/inv-last!/rsvp')
+    const real = await del('nope', `/api/i/${LETTERS_TOKEN.value}/rsvp`)
+
+    expect([invented.status, invented.body.error.code]).toEqual([429, 'rate.limited'])
     expect(real.status).toBe(204)
   }, 60_000)
 
