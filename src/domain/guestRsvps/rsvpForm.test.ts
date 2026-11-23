@@ -134,14 +134,21 @@ describe('restoreRsvpForm', () => {
     expect(restoreRsvpForm({ partySize: 'x' })).toEqual(DEFAULT_RSVP_FORM)
   })
 
-  it('ignores an unknown field, and keeps the lot 4 fields at their defaults for now', () => {
-    const form = restoreRsvpForm({
-      surprise: true,
-      capacity: 5,
-      moments: [{ id: 'a', label: 'b' }],
-    })
+  it('ignores an unknown field, and keeps capacity at its default until its own pull request', () => {
+    const form = restoreRsvpForm({ surprise: true, capacity: 5, moments: 'x' })
 
     expect(form).toEqual(DEFAULT_RSVP_FORM)
+  })
+
+  it('reads the moments that hold and drops the rest', () => {
+    const form = restoreRsvpForm({
+      moments: [
+        { id: '0000000a', label: 'Brunch' },
+        { id: 'bad', label: 'X' },
+      ],
+    })
+
+    expect(form.moments).toEqual([{ id: '0000000a', label: 'Brunch' }])
   })
 
   it('reads who comes back, and brings an unknown value back to "nothing"', () => {

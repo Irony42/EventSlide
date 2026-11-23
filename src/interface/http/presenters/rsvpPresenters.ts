@@ -112,6 +112,12 @@ const toStatsDto = (stats: RsvpStats): RsvpStatsDto => ({
   diets: stats.diets.map(({ name, diet }) => ({ name, diet })),
   meals: stats.meals.map(({ label, count }) => ({ label, count })),
   noReply: { ...stats.noReply },
+  moments: stats.moments.map(({ id, label, yes, maybe }) => ({
+    id,
+    label,
+    yes: { ...yes },
+    maybe: { ...maybe },
+  })),
 })
 
 export const toRsvpListResponseDto = (view: RsvpList): RsvpListResponseDto => ({
@@ -136,6 +142,7 @@ export const toGuestOwnRsvpDto = (rsvp: GuestRsvp): GuestOwnRsvpDto => ({
     label,
     value,
   })),
+  moments: [...rsvp.details.moments],
   showName: rsvp.details.showName,
   updatedAt: rsvp.updatedAt.toISOString(),
 })
@@ -157,6 +164,7 @@ export const toHouseholdDto = ({ household, reply }: HostHousehold): HouseholdDt
   id: household.id,
   name: household.name,
   places: household.places,
+  moments: household.moments === null ? null : [...household.moments],
   token: household.token.value,
   remindedAt: isoOrNull(household.remindedAt),
   createdAt: household.createdAt.toISOString(),
@@ -186,6 +194,7 @@ export const toGuestHouseholdResponseDto = (
   household: {
     name: viewed.household.name,
     places: viewed.household.places,
+    moments: viewed.moments.map(({ id, label }) => ({ id, label })),
     ...(viewed.rsvp === null ? {} : { rsvp: toGuestOwnRsvpDto(viewed.rsvp) }),
   },
 })

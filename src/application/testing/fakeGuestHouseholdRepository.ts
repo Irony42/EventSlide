@@ -80,7 +80,11 @@ export class FakeGuestHouseholdRepository implements GuestHouseholdRepository {
     if (stored === undefined) return false
     this.rows.set(
       key(household.eventId, household.id),
-      stored.withInput({ name: household.name, places: household.places }, household.updatedAt),
+      stored.withInput(
+        { name: household.name, places: household.places },
+        household.updatedAt,
+        household.moments,
+      ),
     )
     return true
   }

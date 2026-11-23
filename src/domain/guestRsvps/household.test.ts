@@ -124,3 +124,25 @@ describe('formForHousehold', () => {
     expect(forHousehold.diet).toBe(form.diet)
   })
 })
+
+describe('a household and its moments', () => {
+  const BRUNCH = { id: 'aaaaaaaa', label: 'Brunch' }
+  const DINNER = { id: 'bbbbbbbb', label: 'Dîner' }
+  const form = { ...DEFAULT_RSVP_FORM, moments: [BRUNCH, DINNER] }
+
+  it('is invited to every moment by default, and its own form lists only the invited ones', () => {
+    expect(aHousehold().moments).toBeNull()
+    expect(formForHousehold(form, aHousehold()).moments).toEqual([BRUNCH, DINNER])
+    const invited = aHousehold().withInput({ name: 'Famille Martin', places: 4 }, LATER, [
+      DINNER.id,
+    ])
+    expect(formForHousehold(form, invited).moments).toEqual([DINNER])
+  })
+
+  it('keeps its moments through a change that names none, and clears them with null', () => {
+    const invited = aHousehold().withInput({ name: 'A', places: 2 }, LATER, [DINNER.id])
+
+    expect(invited.withInput({ name: 'B', places: 3 }, LATER).moments).toEqual([DINNER.id])
+    expect(invited.withInput({ name: 'B', places: 3 }, LATER, null).moments).toBeNull()
+  })
+})

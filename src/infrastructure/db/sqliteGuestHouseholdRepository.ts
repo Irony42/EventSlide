@@ -1,6 +1,7 @@
 import type { GuestHouseholdRepository } from '../../application/ports/guestHouseholdRepository'
 import { GuestHousehold, MAX_HOUSEHOLDS_PER_EVENT } from '../../domain/guestRsvps/household'
 import { HouseholdToken } from '../../domain/guestRsvps/householdToken'
+import { restoreHouseholdMoments } from '../../domain/guestRsvps/rsvpFormMoments'
 import { rsvpCutoffs } from '../../domain/guestRsvps/rsvpExpiry'
 import {
   asEventId,
@@ -13,11 +14,11 @@ import { fromIsoText, toIsoText } from './rowMapping'
 
 /**
  * `guest_households` (spec 30, lot 3): one row per household, every statement scoped by
- * `event_id`. The token is stored in the clear (ADR 0017). `moments` (lot 4) is not read or
- * written here yet: no statement names it, so it stays as it is.
+ * `event_id`. The token is stored in the clear (ADR 0017). `moments` (lot 4) is the JSON list of
+ * the moment ids the household is invited to, `NULL` for all of them.
  */
 
-const COLUMNS = `id, event_id, token, name, places, reminded_at, created_at, updated_at`
+const COLUMNS = `id, event_id, token, name, places, moments, reminded_at, created_at, updated_at`
 
 interface HouseholdRow {
   readonly id: string
@@ -25,10 +26,24 @@ interface HouseholdRow {
   readonly token: string
   readonly name: string
   readonly places: number
+  readonly moments: string | null
   readonly reminded_at: string | null
   readonly created_at: string
   readonly updated_at: string
 }
+
+/** A stored list read back: malformed JSON or a malformed list is "all the moments". */
+const restoreMoments = (raw: string | null): readonly string[] | null => {
+  if (raw === null) return null
+  try {
+    return restoreHouseholdMoments(JSON.parse(raw))
+  } catch {
+    return null
+  }
+}
+
+const momentsJson = (moments: readonly string[] | null): string | null =>
+  moments === null ? null : JSON.stringify(moments)
 
 const toHousehold = (row: HouseholdRow): GuestHousehold => {
   const token = HouseholdToken.create(row.token)
@@ -40,6 +55,7 @@ const toHousehold = (row: HouseholdRow): GuestHousehold => {
     token: token.value,
     name: row.name,
     places: row.places,
+    moments: restoreMoments(row.moments),
     remindedAt: row.reminded_at === null ? null : fromIsoText(row.reminded_at),
     createdAt: fromIsoText(row.created_at),
     updatedAt: fromIsoText(row.updated_at),
@@ -92,7 +108,7 @@ export class SqliteGuestHouseholdRepository implements GuestHouseholdRepository 
     )
     const insert = this.db.prepare(
       `INSERT INTO guest_households (${COLUMNS})
-            VALUES (@id, @event_id, @token, @name, @places, @reminded_at, @created_at, @updated_at)`,
+            VALUES (@id, @event_id, @token, @name, @places, @moments, @reminded_at, @created_at, @updated_at)`,
     )
     // One write transaction, taken up front: the count is the last committed state and nothing
     // can commit between it and the inserts, so the ceiling holds when requests overlap, and a
@@ -109,6 +125,7 @@ export class SqliteGuestHouseholdRepository implements GuestHouseholdRepository 
             token: household.token.value,
             name: household.name,
             places: household.places,
+            moments: momentsJson(household.moments),
             reminded_at: household.remindedAt === null ? null : toIsoText(household.remindedAt),
             created_at: toIsoText(household.createdAt),
             updated_at: toIsoText(household.updatedAt),
@@ -123,7 +140,7 @@ export class SqliteGuestHouseholdRepository implements GuestHouseholdRepository 
     return (
       this.db
         .prepare(
-          `UPDATE guest_households SET name = @name, places = @places, updated_at = @updated_at
+          `UPDATE guest_households SET name = @name, places = @places, moments = @moments, updated_at = @updated_at
             WHERE event_id = @event_id AND id = @id`,
         )
         .run({
@@ -131,6 +148,7 @@ export class SqliteGuestHouseholdRepository implements GuestHouseholdRepository 
           id: household.id,
           name: household.name,
           places: household.places,
+          moments: momentsJson(household.moments),
           updated_at: toIsoText(household.updatedAt),
         }).changes > 0
     )

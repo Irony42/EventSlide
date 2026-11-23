@@ -415,6 +415,7 @@ describe('parseRsvpInput: the lot 2 extras', () => {
       meals: [],
       answers: [],
       showName: false,
+      moments: [],
     })
   })
 
@@ -440,6 +441,8 @@ describe('parseRsvpInput: the lot 2 extras', () => {
       meals: [],
       answers: [],
       showName: false,
+      moments: [],
+      moments: [],
     })
   })
 
@@ -555,11 +558,13 @@ describe('retainExtras', () => {
           meals: ['Végé'],
           answers: [{ questionId: 'q1', label: 'Un chant ?', value: 'Ah' }],
           showName: false,
+          moments: [],
         },
         'yes',
       ),
     ).toEqual({
       showName: false,
+      moments: [],
       companions: ['New'],
       meals: ['Végé'],
       answers: [
@@ -570,10 +575,11 @@ describe('retainExtras', () => {
   })
 
   it('keeps what was given when the form no longer asks for it', () => {
-    const none = { companions: [], meals: [], answers: [], showName: false }
+    const none = { companions: [], meals: [], answers: [], showName: false, moments: [] }
 
     expect(retainExtras(DEFAULT_RSVP_FORM, { ...held, showName: true }, none, 'yes')).toEqual({
       showName: false,
+      moments: [],
       companions: ['Hugo'],
       meals: ['Poisson'],
       answers: held.answers,
@@ -581,10 +587,11 @@ describe('retainExtras', () => {
   })
 
   it('keeps the answers to removed questions through a no, and drops what a no brings', () => {
-    const none = { companions: [], meals: [], answers: [], showName: false }
+    const none = { companions: [], meals: [], answers: [], showName: false, moments: [] }
 
     expect(retainExtras(DEFAULT_RSVP_FORM, held, none, 'no')).toEqual({
       showName: false,
+      moments: [],
       companions: [],
       meals: [],
       answers: held.answers,
@@ -601,6 +608,7 @@ describe('retainExtras', () => {
       meals: [],
       answers: [{ questionId: 'q1', label: 'Un chant ?', value: 'Oh' }],
       showName: false,
+      moments: [],
     }
     const first = retainExtras(
       asked,
@@ -611,7 +619,7 @@ describe('retainExtras', () => {
     const declined = retainExtras(
       asked,
       { ...EMPTY_RSVP_DETAILS, ...first },
-      { companions: [], meals: [], answers: [], showName: false },
+      { companions: [], meals: [], answers: [], showName: false, moments: [] },
       'no',
     )
     const back = retainExtras(asked, { ...EMPTY_RSVP_DETAILS, ...declined }, yes, 'yes')
@@ -637,6 +645,7 @@ describe('retainExtras', () => {
         meals: [],
         answers: [{ questionId: 'q1', label: 'Q', value: 'a' }],
         showName: false,
+        moments: [],
       },
       'yes',
     )
@@ -658,7 +667,7 @@ describe('retainExtras', () => {
     const kept = retainExtras(
       asked,
       { ...EMPTY_RSVP_DETAILS, answers: [{ questionId: 'old', label: 'x', value: 'v' }] },
-      { companions: [], meals: [], answers: many, showName: false },
+      { companions: [], meals: [], answers: many, showName: false, moments: [] },
       'yes',
     )
 
@@ -745,7 +754,7 @@ describe('parseRsvpInput: show my first name', () => {
 
   it('stores a tick only while first names are shown: outside `names` nothing is kept', () => {
     const held = { ...EMPTY_RSVP_DETAILS, showName: true }
-    const none = { companions: [], meals: [], answers: [], showName: false }
+    const none = { companions: [], meals: [], answers: [], showName: false, moments: [] }
 
     expect(retainExtras(DEFAULT_RSVP_FORM, held, none, 'yes').showName).toBe(false)
     expect(
@@ -753,5 +762,77 @@ describe('parseRsvpInput: show my first name', () => {
     ).toBe(false)
     expect(retainExtras(naming, held, none, 'yes').showName).toBe(false)
     expect(retainExtras(naming, held, { ...none, showName: true }, 'yes').showName).toBe(true)
+  })
+})
+
+describe('parseRsvpInput: the moments', () => {
+  const BRUNCH = { id: 'aaaaaaaa', label: 'Brunch' }
+  const DINNER = { id: 'bbbbbbbb', label: 'Dîner' }
+  const asking: RsvpForm = { ...DEFAULT_RSVP_FORM, moments: [BRUNCH, DINNER] }
+  const party = { name: 'Léa', answer: 'yes', adults: 2, kids: 0 }
+  const judge = (raw: RawRsvpInput, form: RsvpForm = asking) =>
+    parseRsvpInput(form, { ...party, ...raw })
+  const momentsOf = (raw: RawRsvpInput, form: RsvpForm = asking): readonly string[] => {
+    const result = judge(raw, form)
+    if (!result.ok) throw new Error(result.error.code)
+    return result.value.extras.moments
+  }
+  const codeOf = (raw: RawRsvpInput, form: RsvpForm = asking): string | undefined => {
+    const result = judge(raw, form)
+    return result.ok ? undefined : result.error.code
+  }
+
+  it('keeps the moments chosen, in the form order whatever the order sent, once each', () => {
+    expect(momentsOf({ moments: [DINNER.id, BRUNCH.id, DINNER.id] })).toEqual([
+      BRUNCH.id,
+      DINNER.id,
+    ])
+  })
+
+  it('needs at least one moment from a yes and from a maybe', () => {
+    expect(codeOf({})).toBe('rsvp.momentsRequired')
+    expect(codeOf({ moments: [] })).toBe('rsvp.momentsRequired')
+    expect(codeOf({ answer: 'maybe', moments: null })).toBe('rsvp.momentsRequired')
+    expect(codeOf({ answer: 'maybe', moments: [DINNER.id] })).toBeUndefined()
+  })
+
+  it('ignores a moment the form does not have, but a reply of only those is refused', () => {
+    expect(momentsOf({ moments: ['dddddddd', BRUNCH.id] })).toEqual([BRUNCH.id])
+    expect(codeOf({ moments: ['dddddddd'] })).toBe('rsvp.momentsRequired')
+  })
+
+  it('refuses moments that are not a list of text', () => {
+    expect(codeOf({ moments: 'x' })).toBe('rsvp.momentsInvalid')
+    expect(codeOf({ moments: [4] })).toBe('rsvp.momentsInvalid')
+  })
+
+  it('asks nothing of a no', () => {
+    expect(momentsOf({ answer: 'no', moments: 'whatever' })).toEqual([])
+  })
+
+  it('does not judge what the form does not ask: a form without moments ignores the field', () => {
+    expect(momentsOf({ moments: 'x' }, DEFAULT_RSVP_FORM)).toEqual([])
+    expect(codeOf({}, DEFAULT_RSVP_FORM)).toBeUndefined()
+  })
+})
+
+describe('retainExtras: the moments', () => {
+  const none = { companions: [], meals: [], answers: [], showName: false, moments: [] }
+  const held = { ...EMPTY_RSVP_DETAILS, moments: ['aaaaaaaa', 'gone0000'] }
+
+  it('takes the moments judged today and drops the ones the form no longer has', () => {
+    const form = { ...DEFAULT_RSVP_FORM, moments: [{ id: 'aaaaaaaa', label: 'Brunch' }] }
+
+    expect(retainExtras(form, held, { ...none, moments: ['aaaaaaaa'] }, 'yes').moments).toEqual([
+      'aaaaaaaa',
+    ])
+  })
+
+  it('drops the moments of a no, who brings nobody', () => {
+    expect(retainExtras(DEFAULT_RSVP_FORM, held, none, 'no').moments).toEqual([])
+  })
+
+  it('drops them all when the form has no more moments', () => {
+    expect(retainExtras(DEFAULT_RSVP_FORM, held, none, 'yes').moments).toEqual([])
   })
 })

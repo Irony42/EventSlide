@@ -82,7 +82,7 @@ export const statsAndSituation = (
   households: readonly GuestHousehold[] = [],
 ): { readonly stats: RsvpStats; readonly situation: RsvpSituation } => {
   const { event, invite, settings } = opened
-  const stats = statsOf(rsvps, households)
+  const stats = statsOf(rsvps, households, settings.form.moments)
   const schedule = invite === null ? null : scheduleOf(invite)
   return {
     stats,

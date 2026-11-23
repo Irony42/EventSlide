@@ -57,7 +57,7 @@ export const makeExportRsvps =
       csv: rsvpCsv(rsvps, view, labels, settings.form.questions, {
         meals: settings.form.meals.enabled,
         diet: settings.form.diet,
-      }),
+      }, settings.form.moments),
       slug: event.slug.value,
     })
   }

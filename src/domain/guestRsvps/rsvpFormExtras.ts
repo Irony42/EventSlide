@@ -24,10 +24,10 @@ const QUESTION_ID_PATTERN = /^[0-9a-f]{8}$/
 export const questionIdFromBytes = (bytes: Uint8Array): string =>
   Array.from(bytes.slice(0, 4), (byte) => byte.toString(16).padStart(2, '0')).join('')
 
-const lower = (text: string): string => text.toLocaleLowerCase('en')
+export const lower = (text: string): string => text.toLocaleLowerCase('en')
 
 /** One short label: a single line, 1 to `max` characters, or `null`. */
-const label = (raw: unknown, max: number): string | null => {
+export const label = (raw: unknown, max: number): string | null => {
   if (typeof raw !== 'string') return null
   const cleaned = toSingleLine(raw)
   return cleaned.length > 0 && characterCount(cleaned) <= max ? cleaned : null
