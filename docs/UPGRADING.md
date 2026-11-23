@@ -1196,3 +1196,14 @@ applies **no migration** (the last is still 035) and adds no setting. Take the s
 - **One new read route** for the moderators of an event, `/api/events/:slug/book/preview` (a `GET`), the live preview of the
   photo book. It writes nothing and reads the published photographs at each call; it answers like the book itself when
   books are off (`BOOK_ENABLED`) or not allowed for the client.
+
+## Upgrading to 3.18
+
+3.18.0 is a minor release, **not published yet**: it breaks nothing the policy above promises to keep. It applies **one migration** (036 `guest_rsvps`: a new table, one new column set on `guest_invites` for the replies' settings and one column on `event_memberships`; nothing existing is rewritten) and adds one optional setting. Back up before upgrading, as for any release: the migrations only go forward.
+
+### Guests' replies (spec 30)
+
+- **Guests answer on the invitation's page** (`POST`, `GET`, `PUT`, `DELETE /api/i/<token>/rsvp`) and the host reads, corrects and exports the replies (owner routes under `/api/events/<slug>/rsvps` and `…/rsvp-form`). A reply holds a name, a number of people and, if the host asks, an allergy or diet (health data, seen only by the host): the retention sweep erases replies **30 days after the event closed or 60 days after the invitation's start, whichever comes first**, whatever the purge hold says.
+- **The only public write nobody is signed in for**: a reply is reached by a private token the guest keeps (stored only as its SHA-256), the JSON body is capped at 4 KB, and the writes are limited per IP and per invitation.
+- **One optional setting**: `GUEST_RSVP_RATE_LIMIT_PER_MINUTE` (default 30, 1 to 6000), what one address may write to the replies per minute. A second bucket of 300 a minute per invitation is not configurable. Raise it only if many guests answer from one address (a venue's Wi-Fi) and are refused with `429`.
+- No compose or reverse-proxy change: the variable is read like the others (`env_file`), and the logs never carry a name, a diet, a word or a token.
