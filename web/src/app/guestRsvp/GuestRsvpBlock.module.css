@@ -42,7 +42,7 @@
 }
 
 .choice {
-  min-block-size: 2.75rem;
+  min-block-size: var(--touch-min);
   padding: var(--space-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
@@ -58,14 +58,6 @@
   border-color: var(--accent);
   background: var(--accent);
   color: var(--accent-contrast);
-}
-
-.choice:focus-visible,
-.count button:focus-visible,
-.field input:focus-visible,
-.field textarea:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
 }
 
 .form {
@@ -92,7 +84,7 @@
 .field input,
 .field textarea {
   inline-size: 100%;
-  min-block-size: 2.75rem;
+  min-block-size: var(--touch-min);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
@@ -117,8 +109,8 @@
 }
 
 .count button {
-  inline-size: 2.75rem;
-  block-size: 2.75rem;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-full);
   background: var(--surface-base);

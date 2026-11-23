@@ -136,6 +136,7 @@ import type { IssuedInvitation } from '../../../application/usecases/auth/issueI
 import type { InvitationPreview } from '../../../application/usecases/auth/previewInvitation'
 import type { Announcement } from '../../../domain/announcements/announcement'
 import type { HostAnnouncement } from '../../../application/usecases/announcements/announcementAccess'
+import { toGuestRsvpPageDto } from './rsvpPresenters'
 import type { GuestInviteView } from '../../../application/usecases/guestInvites/viewGuestInvite'
 import type { HostGuestInvite } from '../../../application/usecases/guestInvites/getGuestInvite'
 import type { HostAnnouncementList } from '../../../application/usecases/announcements/listAnnouncements'
@@ -1283,14 +1284,7 @@ export const toGuestInviteDto = (
  * relative, so a page reached on any address leads to the same address.
  */
 export const toGuestInvitePageDto = (view: GuestInviteView, token: string): GuestInvitePageDto => ({
-  rsvp: {
-    state: view.rsvp.state,
-    deadline: view.rsvp.deadline,
-    form: view.rsvp.form,
-    ...(view.rsvp.proof === null
-      ? {}
-      : { proof: { count: view.rsvp.proof.count, names: [...view.rsvp.proof.names] } }),
-  },
+  rsvp: toGuestRsvpPageDto(view.rsvp),
   state: view.state,
   title: view.title,
   when: {

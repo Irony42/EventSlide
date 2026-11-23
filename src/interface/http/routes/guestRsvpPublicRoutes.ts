@@ -1,7 +1,7 @@
 import { Router, type Request, type RequestHandler } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
-import { toGuestOwnRsvpDto } from '../presenters/rsvpPresenters'
+import { toGuestOwnRsvpResponseDto, toGuestRsvpCreatedDto } from '../presenters/rsvpPresenters'
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   guestInviteTokenParams,
@@ -75,11 +75,7 @@ export const guestRsvpPublicRoutes = ({
       const result = await usecases.submitRsvp({ token, ...body })
 
       sendResult(res, result, (response, created) =>
-        sendJson(
-          response,
-          { rsvp: toGuestOwnRsvpDto(created.rsvp), editToken: created.editToken },
-          201,
-        ),
+        sendJson(response, toGuestRsvpCreatedDto(created), 201),
       )
     }),
   )
@@ -94,7 +90,7 @@ export const guestRsvpPublicRoutes = ({
       const result = await usecases.getOwnRsvp({ token, editToken: editTokenOf(req) })
 
       sendResult(res, result, (response, rsvp) =>
-        sendJson(response, { rsvp: toGuestOwnRsvpDto(rsvp) }),
+        sendJson(response, toGuestOwnRsvpResponseDto(rsvp)),
       )
     }),
   )
@@ -114,7 +110,7 @@ export const guestRsvpPublicRoutes = ({
       })
 
       sendResult(res, result, (response, rsvp) =>
-        sendJson(response, { rsvp: toGuestOwnRsvpDto(rsvp) }),
+        sendJson(response, toGuestOwnRsvpResponseDto(rsvp)),
       )
     }),
   )
