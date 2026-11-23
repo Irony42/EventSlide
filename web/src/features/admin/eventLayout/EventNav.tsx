@@ -20,12 +20,13 @@ import {
   type EventMoment,
   type EventSection,
 } from './eventSections'
+import { unseenLabel } from '../../../lib/rsvp/rsvpList'
 import { sectionFactsOf } from './useEventPage'
 import styles from './EventNav.module.css'
 
 type NavEvent = Pick<
   EventDto,
-  'slug' | 'name' | 'status' | 'role' | 'pendingCount' | 'settings' | 'reveal'
+  'slug' | 'name' | 'status' | 'role' | 'pendingCount' | 'unseenRsvps' | 'settings' | 'reveal'
 >
 
 /**
@@ -50,6 +51,11 @@ export function SectionLink({
   const t = useTranslations()
   const name = t.eventMenu.sections[section]
   const pending = section === 'moderation' ? event.pendingCount : 0
+  // The replies' entry carries how many guests' replies the host has not seen (spec 30).
+  const unseen = section === 'rsvps' ? (event.unseenRsvps ?? 0) : 0
+  const count = pending + unseen
+  const countSentence =
+    section === 'rsvps' ? unseenLabel(unseen, t.rsvp.list) : t.moderation.pending(pending)
   // The guided tour's « two gestures of the day » light these two entries when the home page has
   // no tile for them (before the evening).
   const tour = section === 'moderation' ? 'moderate' : section === 'wall' ? 'wall' : undefined
@@ -60,12 +66,12 @@ export function SectionLink({
         <span className={styles['name']}>{name}</span>
         {hint === undefined ? null : <span className={styles['hint']}>{hint}</span>}
       </span>
-      {pending > 0 ? (
+      {count > 0 ? (
         <>
           <span className={styles['count']} aria-hidden="true">
-            {pending}
+            {count}
           </span>
-          <VisuallyHidden>{`, ${t.moderation.pending(pending)}`}</VisuallyHidden>
+          <VisuallyHidden>{`, ${countSentence}`}</VisuallyHidden>
         </>
       ) : null}
       {SECTION_KIND[section] === 'wall' ? (

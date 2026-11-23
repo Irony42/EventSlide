@@ -54,6 +54,7 @@ describe('eventMenu', () => {
       'access',
       'print',
       'invitations',
+      'rsvps',
       'missions',
       'moderators',
       'moderation',
@@ -75,7 +76,7 @@ describe('eventMenu', () => {
   it('keeps what is the owner’s out of a moderator’s menu', () => {
     const sections = sectionsOf(eventMenu(facts({ role: 'moderator' })))
 
-    for (const ownerOnly of ['invitations', 'missions', 'moderators', 'share'] as const) {
+    for (const ownerOnly of ['invitations', 'rsvps', 'missions', 'moderators', 'share'] as const) {
       expect(sections).not.toContain(ownerOnly)
     }
     expect(sections).toContain('moderation')
@@ -102,7 +103,7 @@ describe('eventMenu', () => {
     for (const gone of ['moderation', 'wall', 'print', 'invitations'] as const) {
       expect(sections).not.toContain(gone)
     }
-    expect(sections).toEqual(expect.arrayContaining(['access', 'album', 'book', 'stats']))
+    expect(sections).toEqual(expect.arrayContaining(['access', 'rsvps', 'album', 'book', 'stats']))
   })
 
   it('puts every section under the moment it belongs to', () => {

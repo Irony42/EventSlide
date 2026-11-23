@@ -257,3 +257,41 @@ describe('the trail under the layout', () => {
     expect(screen.getByRole('navigation', { name: fr.admin.breadcrumbLabel })).toBeVisible()
   })
 })
+
+describe('the replies’ entry', () => {
+  it('reads out the replies the host has not seen with the entry, not as a lone number', async () => {
+    renderAt('', { unseenRsvps: 3 })
+
+    const nav = await menu()
+    expect(
+      within(nav).getByRole('link', {
+        name: spoken(fr.eventMenu.sections.rsvps, '3 nouvelles réponses'),
+      }),
+    ).toHaveAttribute('href', '/admin/events/camille-et-sacha/rsvps')
+  })
+
+  it('carries no number when nothing is new', async () => {
+    renderAt('', { unseenRsvps: 0 })
+
+    const nav = await menu()
+    expect(within(nav).getByRole('link', { name: fr.eventMenu.sections.rsvps })).toBeInTheDocument()
+  })
+
+  it('is not in a moderator’s menu', async () => {
+    renderAt('', { role: 'moderator' })
+
+    const nav = await menu()
+    expect(within(nav).queryByRole('link', { name: /Réponses/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('the replies’ count stays on its own entry', () => {
+  it('does not put the unseen replies on another entry of the menu', async () => {
+    renderAt('', { status: 'live', unseenRsvps: 3, pendingCount: 0 })
+
+    const nav = await menu()
+    expect(
+      within(nav).getByRole('link', { name: fr.eventMenu.sections.moderation }),
+    ).toBeInTheDocument()
+  })
+})

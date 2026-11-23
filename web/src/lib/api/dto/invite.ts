@@ -129,3 +129,56 @@ export interface RsvpSettingsDto {
 export interface RsvpFormResponseDto {
   readonly rsvpForm: RsvpSettingsDto
 }
+
+/** One reply as the host reads it. The guest's edit token is never part of it. */
+export interface RsvpDto {
+  readonly id: string
+  readonly name: string
+  readonly answer: 'yes' | 'maybe' | 'no' | 'waitlist'
+  readonly adults: number
+  readonly kids: number
+  readonly diet: string | null
+  readonly message: string | null
+  readonly source: 'open' | 'household' | 'host'
+  readonly details: {
+    readonly companions: readonly string[]
+    readonly meals: readonly string[]
+    readonly answers: readonly {
+      readonly questionId: string
+      readonly label: string
+      readonly value: string
+    }[]
+    readonly moments: readonly string[]
+    readonly showName: boolean
+  }
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
+export interface RsvpResponseDto {
+  readonly rsvp: RsvpDto
+}
+
+/** The figures of the replies: one function on the server, so the table, the tiles and the export agree. */
+export interface RsvpStatsDto {
+  readonly yes: {
+    readonly responses: number
+    readonly people: number
+    readonly adults: number
+    readonly kids: number
+  }
+  readonly maybe: { readonly responses: number; readonly people: number }
+  readonly no: { readonly responses: number }
+  readonly waitlist: { readonly responses: number; readonly people: number }
+  readonly diets: readonly { readonly name: string; readonly diet: string }[]
+  readonly meals: readonly { readonly label: string; readonly count: number }[]
+}
+
+/** `GET /events/:slug/rsvps`: the replies page, with the settings beside it. */
+export interface RsvpListResponseDto {
+  readonly rsvpForm: RsvpSettingsDto
+  readonly rsvps: readonly RsvpDto[]
+  readonly stats: RsvpStatsDto
+  /** How many replies were written or changed since the caller last looked. */
+  readonly unseen: number
+}

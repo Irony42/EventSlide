@@ -367,6 +367,11 @@ export interface EventDto extends EventSummaryDto {
    * an older server: read as an evening with nothing held back.
    */
   readonly reveal?: WallRevealDto
+  /**
+   * How many guests' replies were written or changed since the caller last looked (spec 30), for the
+   * badge of the menu. **The owner's answer only**; absent for a moderator.
+   */
+  readonly unseenRsvps?: number
 }
 export interface GuestDto {
   readonly id: string

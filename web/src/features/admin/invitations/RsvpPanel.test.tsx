@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
@@ -638,5 +638,32 @@ describe('the replies settings panel: reading again', () => {
     await user.click(screen.getByRole('button', { name: 'move' }))
 
     await waitFor(() => expect(rsvpForm).toHaveBeenCalledTimes(2))
+  })
+})
+
+describe('the replies settings panel: a clock that moves', () => {
+  it('stops offering to reopen once the deadline goes by while the page is open', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    try {
+      vi.setSystemTime(new Date('2026-11-23T10:00:00.000Z'))
+      render(
+        answering({
+          enabled: true,
+          state: 'closed',
+          closedAt: '2026-11-22T10:00:00.000Z',
+          closesAt: '2026-11-23T12:00:00.000Z',
+        }),
+      )
+      expect(await screen.findByRole('button', { name: t.reopenAction })).toBeInTheDocument()
+
+      await act(async () => {
+        vi.setSystemTime(new Date('2026-11-23T12:30:00.000Z'))
+        await vi.advanceTimersByTimeAsync(60_000)
+      })
+
+      expect(screen.queryByRole('button', { name: t.reopenAction })).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

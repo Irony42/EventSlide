@@ -23,6 +23,7 @@ export type EventSection =
   | 'access'
   | 'print'
   | 'invitations'
+  | 'rsvps'
   | 'missions'
   | 'moderators'
   | 'moderation'
@@ -60,6 +61,7 @@ export const SECTION_KIND: Readonly<Record<EventSection, SectionKind>> = {
   access: 'page',
   print: 'page',
   invitations: 'page',
+  rsvps: 'page',
   missions: 'page',
   moderators: 'page',
   moderation: 'console',
@@ -83,6 +85,7 @@ export const SECTION_PATH: Readonly<Record<Exclude<EventSection, 'wall'>, string
   access: 'access',
   print: 'print',
   invitations: 'invitations',
+  rsvps: 'rsvps',
   missions: 'missions',
   moderators: 'moderators',
   moderation: 'moderation',
@@ -123,6 +126,7 @@ export const SECTION_MOMENT: Readonly<Record<Exclude<EventSection, 'settings'>, 
   access: 'before',
   print: 'before',
   invitations: 'before',
+  rsvps: 'before',
   missions: 'before',
   moderators: 'before',
   moderation: 'during',
@@ -151,6 +155,8 @@ const catalogue = (
     ['access', true],
     ['print', inUse],
     ['invitations', owner && inUse],
+    // The replies to the invitation (spec 30): the owner's, and read for as long as the event is kept.
+    ['rsvps', owner],
     ['missions', owner],
     ['moderators', owner],
     // The evening: the two doors first, then what is done to the room, then the people.

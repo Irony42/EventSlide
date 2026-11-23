@@ -1,0 +1,117 @@
+/* The replies: a table on a laptop, a column of cards on a phone (spec 30). Tokens only. */
+
+.wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-3);
+  text-align: start;
+  vertical-align: top;
+  border-block-end: 1px solid var(--border-subtle);
+}
+
+.table thead th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child > * {
+  border-block-end: 0;
+}
+
+.name {
+  font-weight: 650;
+}
+
+/* The name is the row's one control; it is a button that looks like text, with the target a thumb needs. */
+.open {
+  min-block-size: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.open:hover {
+  text-decoration: underline;
+}
+
+.free {
+  max-inline-size: 18rem;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+}
+
+.when {
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+/* Below 768 px: each row is a card, each cell says what it is. */
+@media (max-width: 47.99rem) {
+  .wrap {
+    overflow-x: visible;
+    border: 0;
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table th,
+  .table td {
+    display: block;
+  }
+
+  .table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .table tr {
+    padding: var(--space-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+  }
+
+  .table th,
+  .table td {
+    padding: var(--space-1) 0;
+    border: 0;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .free {
+    max-inline-size: none;
+  }
+}

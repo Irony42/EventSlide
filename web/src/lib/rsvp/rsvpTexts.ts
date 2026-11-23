@@ -24,8 +24,10 @@ export const deadlineLabel = (day: string, locale: string): string => {
 }
 
 /** One or other, the way all five languages of the product count: exactly one, or more (or none). */
-const plural = (count: number, forms: { readonly one: string; readonly other: string }): string =>
-  count === 1 ? forms.one : forms.other
+export const plural = (
+  count: number,
+  forms: { readonly one: string; readonly other: string },
+): string => (count === 1 ? forms.one : forms.other)
 
 /** One line of what the guest sent, for the confirmation and for the banner of a closed page. */
 export const recapLine = (

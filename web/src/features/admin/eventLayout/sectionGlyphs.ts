@@ -6,6 +6,7 @@ export const SECTION_GLYPH: Readonly<Record<EventSection, EventActionGlyph>> = {
   access: 'access',
   print: 'print',
   invitations: 'invitations',
+  rsvps: 'rsvps',
   missions: 'missions',
   moderators: 'moderators',
   moderation: 'moderate',

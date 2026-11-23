@@ -34,6 +34,7 @@ const ELSEWHERE: Readonly<Record<string, string>> = {
   stats: 'stats page',
   print: 'print page',
   invitations: 'invitations page',
+  rsvps: 'replies page',
   book: 'book page',
 }
 

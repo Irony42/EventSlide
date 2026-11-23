@@ -8,6 +8,13 @@ The long version of the [README](../README.md#what-it-does): every feature, by w
   affiche" lays out A6 cards (four to a sheet), an A5 or an A4 poster with the QR code, the
   backup code and three lines of instructions, in the language of the evening, and prints it
   through the browser's own dialog. Nothing is generated on the server.
+- **Guests answer "Serez-vous là ?" on the invitation.** The host chooses what is asked (a "peut-être",
+  how many people and children, an allergy or a diet), sets a deadline and watches the answers arrive on the
+  **Réponses** page: the figures, who comes, a table that folds into cards on a phone, a word from each guest. The
+  host can add a reply received by phone, correct or delete one, close and reopen the replies, and download the
+  spreadsheet. Replies update live, and a badge in the menu counts the ones not seen yet. A guest changes or erases
+  their own reply from a private link, with no account; the diet is seen by the host alone, and everything is erased
+  within two months of the party.
 - **Nothing reaches the screen without you.** Every photo waits in a moderation queue
   until you approve it. Two hundred people are watching that screen; that is not a
   setting to leave to chance.
