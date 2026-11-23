@@ -1,10 +1,13 @@
 import { Router } from 'express'
-import { asGuestRsvpId } from '../../../domain/shared/ids'
+import { asGuestHouseholdId, asGuestRsvpId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireRole } from '../middleware/authz'
 import type { StreamLimiter } from '../middleware/rateLimit'
 import { hostScopeOf } from '../middleware/scope'
 import {
+  toHouseholdImportResponseDto,
+  toHouseholdListResponseDto,
+  toHouseholdResponseDto,
   toRsvpFormResponseDto,
   toRsvpListResponseDto,
   toRsvpResponseDto,
@@ -12,6 +15,10 @@ import {
 import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   eventSlugParams,
+  householdBody,
+  householdImportBody,
+  householdParams,
+  rsvpHouseholdBody,
   rsvpActBody,
   rsvpExportQuery,
   rsvpFormBody,
@@ -30,6 +37,12 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  *
  * `GET rsvp-form` answers the defaults before the host first saves, and nothing is created by a
  * read. A write that needs the invitation is `409 rsvp.inviteRequired` while there is none.
+ *
+ * **The guest list (lot 3)** is the same owner's: `GET|POST …/households`, `POST …/households/import`
+ * (a pasted list), `PUT|DELETE …/households/:householdId`, `POST …/:householdId/rotate` (a new link,
+ * the old one dead) and `…/reminded` (the host's own note), and `POST …/rsvps/:rsvpId/household` to
+ * file a reply under a household. The household's token is part of what the host reads (the link is
+ * shown again), so those answers are `no-store`.
  *
  * The spreadsheet goes through the concurrency bound the ZIP exports share (`hostExportLimiter`,
  * built once by `server.ts`), keyed by account, and a `HEAD` is answered without a slot or a
@@ -50,6 +63,13 @@ export interface RsvpHostRouteDeps extends Omit<RouteDeps, 'usecases'> {
     | 'hostDeleteRsvp'
     | 'exportRsvps'
     | 'markRsvpsSeen'
+    | 'listHouseholds'
+    | 'saveHousehold'
+    | 'importHouseholds'
+    | 'deleteHousehold'
+    | 'rotateHouseholdToken'
+    | 'markHouseholdReminded'
+    | 'attachRsvpToHousehold'
   >
   /** The bound the host's exports share: required, so a router cannot be a second allowance. */
   readonly hostExportLimiter: StreamLimiter
@@ -221,6 +241,168 @@ export const rsvpHostRoutes = ({
         )
         response.status(200).type('text/csv; charset=utf-8').send(file.csv)
       })
+    }),
+  )
+
+  /** The guest list: every household with the reply that answers for it. `no-store`: it carries links. */
+  router.get(
+    '/events/:eventSlug/households',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+      eventSlugParams.parse(req.params)
+
+      const result = await usecases.listHouseholds({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, views) =>
+        sendJson(response, toHouseholdListResponseDto(views)),
+      )
+    }),
+  )
+
+  /** A household joins the list, with a link of its own. */
+  router.post(
+    '/events/:eventSlug/households',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+      eventSlugParams.parse(req.params)
+      const body = householdBody.parse(req.body)
+
+      const result = await usecases.saveHousehold({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+        ...body,
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, view) =>
+        sendJson(response, toHouseholdResponseDto(view), 201),
+      )
+    }),
+  )
+
+  /** "Coller une liste": declared before `households/:householdId`, which would read `import` as an id. */
+  router.post(
+    '/events/:eventSlug/households/import',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+      eventSlugParams.parse(req.params)
+      const body = householdImportBody.parse(req.body)
+
+      const result = await usecases.importHouseholds({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+        text: body.text,
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, imported) =>
+        sendJson(response, toHouseholdImportResponseDto(imported), 201),
+      )
+    }),
+  )
+
+  router.put(
+    '/events/:eventSlug/households/:householdId',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+      const params = householdParams.parse(req.params)
+      const body = householdBody.parse(req.body)
+
+      const result = await usecases.saveHousehold({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+        householdId: asGuestHouseholdId(params.householdId),
+        ...body,
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, view) => sendJson(response, toHouseholdResponseDto(view)))
+    }),
+  )
+
+  /** The household leaves the list; its reply stays, filed under nobody: `204`. */
+  router.delete(
+    '/events/:eventSlug/households/:householdId',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+      const params = householdParams.parse(req.params)
+
+      const result = await usecases.deleteHousehold({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+        householdId: asGuestHouseholdId(params.householdId),
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /** "Changer le lien": the old link stops at once. */
+  router.post(
+    '/events/:eventSlug/households/:householdId/rotate',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+      const params = householdParams.parse(req.params)
+      rsvpActBody.parse(req.body)
+
+      const result = await usecases.rotateHouseholdToken({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+        householdId: asGuestHouseholdId(params.householdId),
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, view) => sendJson(response, toHouseholdResponseDto(view)))
+    }),
+  )
+
+  /** "Relancé le": the host's own note. */
+  router.post(
+    '/events/:eventSlug/households/:householdId/reminded',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+      const params = householdParams.parse(req.params)
+      rsvpActBody.parse(req.body)
+
+      const result = await usecases.markHouseholdReminded({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+        householdId: asGuestHouseholdId(params.householdId),
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, view) => sendJson(response, toHouseholdResponseDto(view)))
+    }),
+  )
+
+  /** "Associer à un foyer": `{ householdId }` files the reply, `{ householdId: null }` detaches it. */
+  router.post(
+    '/events/:eventSlug/rsvps/:rsvpId/household',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+      const params = rsvpParams.parse(req.params)
+      const body = rsvpHouseholdBody.parse(req.body)
+
+      const result = await usecases.attachRsvpToHousehold({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+        rsvpId: asGuestRsvpId(params.rsvpId),
+        householdId: body.householdId === null ? null : asGuestHouseholdId(body.householdId),
+      })
+
+      sendResult(res, result, (response, rsvp) => sendJson(response, toRsvpResponseDto(rsvp)))
     }),
   )
 

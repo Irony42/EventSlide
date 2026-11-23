@@ -2145,6 +2145,8 @@ export interface RsvpFormResponseDto {
 /** One reply as the host reads it. The guest's edit token is never part of it. */
 export interface RsvpDto {
   readonly id: string
+  /** The household of the guest list this reply answers for (lot 3), or `null`. */
+  readonly householdId: string | null
   readonly name: string
   readonly answer: 'yes' | 'maybe' | 'no' | 'waitlist'
   readonly adults: number
@@ -2183,6 +2185,8 @@ export interface RsvpStatsDto {
   readonly waitlist: { readonly responses: number; readonly people: number }
   readonly diets: readonly { readonly name: string; readonly diet: string }[]
   readonly meals: readonly { readonly label: string; readonly count: number }[]
+  /** Households of the guest list with no reply, and the places kept for them (lot 3). */
+  readonly noReply: { readonly households: number; readonly places: number }
 }
 
 /** `GET /events/:slug/rsvps`: the replies page, with the settings beside it. */
@@ -2240,7 +2244,56 @@ export interface GuestOwnRsvpResponseDto {
   readonly rsvp: GuestOwnRsvpDto
 }
 
-/** `201` of `POST /api/i/:token/rsvp`: the reply, and the token to keep, shown once. */
+/**
+ * `201` of `POST /api/i/:token/rsvp`: the reply, and the token to keep, shown once. A **household's**
+ * reply has no token (its link is the key): that answer is a plain {@link GuestOwnRsvpResponseDto},
+ * `201`, or `200` when the household's existing reply was changed.
+ */
 export interface GuestRsvpCreatedDto extends GuestOwnRsvpResponseDto {
   readonly editToken: string
+}
+
+/** One household of the host's guest list, with the link's token and the reply that answers for it. */
+export interface HouseholdDto {
+  readonly id: string
+  readonly name: string
+  readonly places: number
+  /** The personal link's secret: the page is `/i/<invitation token>#f=<this>`. */
+  readonly token: string
+  readonly remindedAt: string | null
+  readonly createdAt: string
+  readonly updatedAt: string
+  /** The reply filed under this household, or `null` while it has none. */
+  readonly reply: {
+    readonly id: string
+    readonly answer: 'yes' | 'maybe' | 'no' | 'waitlist'
+    readonly people: number
+  } | null
+}
+
+export interface HouseholdResponseDto {
+  readonly household: HouseholdDto
+}
+
+export interface HouseholdListResponseDto {
+  readonly households: readonly HouseholdDto[]
+}
+
+/** `POST …/households/import`: what was stored, and the lines left out with the reason. */
+export interface HouseholdImportResponseDto {
+  readonly households: readonly HouseholdDto[]
+  readonly skipped: readonly {
+    readonly line: number
+    readonly reason: 'name' | 'places' | 'duplicate'
+  }[]
+}
+
+/** What a household reads when it opens its link: nothing it did not already know, no token, no id. */
+export interface GuestHouseholdResponseDto {
+  readonly household: {
+    readonly name: string
+    readonly places: number
+    /** Its reply, when it gave one. */
+    readonly rsvp?: GuestOwnRsvpDto
+  }
 }

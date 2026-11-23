@@ -4,6 +4,7 @@ import { AT, aGuestInvite, anEvent } from '../../../application/testing/builders
 import { FakeClock } from '../../../application/testing/fakeClock'
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
 import { FakeGuestInviteRepository } from '../../../application/testing/fakeGuestInviteRepository'
+import { FakeGuestHouseholdRepository } from '../../../application/testing/fakeGuestHouseholdRepository'
 import { FakeGuestRsvpRepository } from '../../../application/testing/fakeGuestRsvpRepository'
 import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
@@ -13,6 +14,7 @@ import {
   makeGetOwnRsvp,
   makeUpdateOwnRsvp,
 } from '../../../application/usecases/guestRsvps/ownRsvp'
+import { makeViewHousehold } from '../../../application/usecases/guestRsvps/viewHousehold'
 import { makeSubmitRsvp } from '../../../application/usecases/guestRsvps/submitRsvp'
 import { DEFAULT_RSVP_FORM } from '../../../domain/guestRsvps/rsvpForm'
 import { GuestInvite } from '../../../domain/guestInvites/guestInvite'
@@ -55,6 +57,7 @@ const ANSWER = { name: 'Léa Martin', answer: 'yes', adults: 2, kids: 1, diet: '
 interface World {
   readonly app: ReturnType<typeof buildServerHarness>['app']
   readonly rsvps: FakeGuestRsvpRepository
+  readonly households: FakeGuestHouseholdRepository
   readonly bus: RecordingEventBus
   readonly invites: FakeGuestInviteRepository
 }
@@ -65,6 +68,7 @@ const buildWorld = async (
   const events = new FakeEventRepository()
   const invites = new FakeGuestInviteRepository()
   const rsvps = new FakeGuestRsvpRepository()
+  const households = new FakeGuestHouseholdRepository()
   const bus = new RecordingEventBus()
   const secrets = new FakeSecretTokens()
   const clock = new FakeClock(AT)
@@ -93,7 +97,7 @@ const buildWorld = async (
   }
 
   const access = { events, invites }
-  const own = { ...access, rsvps, secrets, bus, clock }
+  const own = { ...access, rsvps, households, secrets, bus, clock }
   const harness = buildServerHarness({
     config: {
       rateLimits: {
@@ -125,9 +129,10 @@ const buildWorld = async (
       getOwnRsvp: makeGetOwnRsvp(own),
       updateOwnRsvp: makeUpdateOwnRsvp(own),
       deleteOwnRsvp: makeDeleteOwnRsvp(own),
+      viewHousehold: makeViewHousehold(own),
     },
   })
-  return { app: harness.app, rsvps, bus, invites }
+  return { app: harness.app, rsvps, households, bus, invites }
 }
 
 /** A guest's browser: it opens the page (which issues the CSRF cookie) and then writes. */

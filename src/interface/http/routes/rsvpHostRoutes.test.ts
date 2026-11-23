@@ -6,19 +6,34 @@ import { AT, anEvent, aUser } from '../../../application/testing/builders'
 import { FakeAuditLog } from '../../../application/testing/fakeAuditLog'
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
 import { FakeGuestInviteRepository } from '../../../application/testing/fakeGuestInviteRepository'
+import { FakeGuestHouseholdRepository } from '../../../application/testing/fakeGuestHouseholdRepository'
 import { FakeGuestRsvpRepository } from '../../../application/testing/fakeGuestRsvpRepository'
 import { FakeMembershipRepository } from '../../../application/testing/fakeMembershipRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
-import { asGuestRsvpId, type GuestRsvpId } from '../../../domain/shared/ids'
+import {
+  asGuestHouseholdId,
+  asGuestRsvpId,
+  type GuestHouseholdId,
+  type GuestRsvpId,
+} from '../../../domain/shared/ids'
 import { makeEnableGuestInvite } from '../../../application/usecases/guestInvites/enableGuestInvite'
 import { makeSaveGuestInvite } from '../../../application/usecases/guestInvites/saveGuestInvite'
 import {
   makeCloseRsvps,
   makeReopenRsvps,
 } from '../../../application/usecases/guestRsvps/closeRsvps'
+import { makeAttachRsvpToHousehold } from '../../../application/usecases/guestRsvps/attachRsvpToHousehold'
+import { makeDeleteHousehold } from '../../../application/usecases/guestRsvps/deleteHousehold'
+import {
+  makeMarkHouseholdReminded,
+  makeRotateHouseholdToken,
+} from '../../../application/usecases/guestRsvps/householdActs'
+import { makeImportHouseholds } from '../../../application/usecases/guestRsvps/importHouseholds'
+import { makeListHouseholds } from '../../../application/usecases/guestRsvps/listHouseholds'
+import { makeSaveHousehold } from '../../../application/usecases/guestRsvps/saveHousehold'
 import { makeExportRsvps } from '../../../application/usecases/guestRsvps/exportRsvps'
 import { makeGetRsvpForm } from '../../../application/usecases/guestRsvps/getRsvpForm'
 import { makeHostAddRsvp } from '../../../application/usecases/guestRsvps/hostAddRsvp'
@@ -59,6 +74,7 @@ const RSVPS = `${BASE}/rsvps`
 interface World {
   readonly app: Express
   readonly rsvps: FakeGuestRsvpRepository
+  readonly households: FakeGuestHouseholdRepository
   readonly audit: FakeAuditLog
   readonly bus: RecordingEventBus
   readonly invites: FakeGuestInviteRepository
@@ -71,6 +87,7 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
   const events = new FakeEventRepository({ memberships, photos })
   const invites = new FakeGuestInviteRepository()
   const rsvps = new FakeGuestRsvpRepository()
+  const households = new FakeGuestHouseholdRepository()
   const bus = new RecordingEventBus()
   const audit = new FakeAuditLog().withAccounts(
     asUserId(OWNER),
@@ -80,6 +97,13 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
   // The fake's ids are not uuids, and the routes take a reply id from a path: only a uuid is one.
   const ids = new (class extends SequentialIdGenerator {
     private rsvpCount = 0
+    private householdCount = 0
+    override guestHouseholdId(): GuestHouseholdId {
+      this.householdCount += 1
+      return asGuestHouseholdId(
+        `d2000000-0000-4000-8000-${this.householdCount.toString(16).padStart(12, '0')}`,
+      )
+    }
     override guestRsvpId(): GuestRsvpId {
       this.rsvpCount += 1
       return asGuestRsvpId(
@@ -121,12 +145,49 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
             saveRsvpForm: makeSaveRsvpForm({ ...access, rsvps, audit, bus, clock, ids }),
             closeRsvps: makeCloseRsvps({ ...access, rsvps, audit, bus, clock }),
             reopenRsvps: makeReopenRsvps({ ...access, rsvps, audit, bus, clock }),
-            listRsvps: makeListRsvps({ ...access, rsvps, clock }),
+            listRsvps: makeListRsvps({ ...access, rsvps, households, clock }),
             hostAddRsvp: makeHostAddRsvp({ ...access, rsvps, audit, bus, ids, clock }),
-            hostUpdateRsvp: makeHostUpdateRsvp({ ...access, rsvps, audit, bus, clock }),
+            hostUpdateRsvp: makeHostUpdateRsvp({ ...access, rsvps, households, audit, bus, clock }),
             hostDeleteRsvp: makeHostDeleteRsvp({ ...access, rsvps, audit, bus, clock }),
             exportRsvps: makeExportRsvps({ ...access, rsvps, audit, clock }),
             markRsvpsSeen: makeMarkRsvpsSeen({ ...access, rsvps, clock }),
+            listHouseholds: makeListHouseholds({ ...access, rsvps, households }),
+            saveHousehold: makeSaveHousehold({ ...access, rsvps, households, bus, ids, clock }),
+            importHouseholds: makeImportHouseholds({
+              ...access,
+              households,
+              audit,
+              bus,
+              ids,
+              clock,
+            }),
+            deleteHousehold: makeDeleteHousehold({
+              ...access,
+              rsvps,
+              households,
+              audit,
+              bus,
+              clock,
+            }),
+            rotateHouseholdToken: makeRotateHouseholdToken({
+              ...access,
+              rsvps,
+              households,
+              audit,
+              bus,
+              ids,
+              clock,
+            }),
+            markHouseholdReminded: makeMarkHouseholdReminded({
+              ...access,
+              rsvps,
+              households,
+              audit,
+              bus,
+              ids,
+              clock,
+            }),
+            attachRsvpToHousehold: makeAttachRsvpToHousehold({ ...access, rsvps, households, bus }),
           },
         }),
       )
@@ -191,7 +252,7 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
   })({ eventId: WEDDING, actorId: asUserId(OWNER) })
   if (!enabled.ok) throw new Error('the world could not switch its invitation on')
 
-  return { app: harness.app, rsvps, audit, bus, invites }
+  return { app: harness.app, rsvps, households, audit, bus, invites }
 }
 
 type Who = 'owner' | 'moderator' | 'gala-owner'

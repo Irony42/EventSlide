@@ -3,6 +3,7 @@ import type { AuditAction } from '../../../domain/audit/auditAction'
 import type { Event } from '../../../domain/events/event'
 import type { GuestInvite } from '../../../domain/guestInvites/guestInvite'
 import { scheduleOf } from '../../../domain/guestInvites/inviteStateOf'
+import type { GuestHousehold } from '../../../domain/guestRsvps/household'
 import type { GuestRsvp } from '../../../domain/guestRsvps/rsvp'
 import { rsvpExpiryOf } from '../../../domain/guestRsvps/rsvpExpiry'
 import { DEFAULT_RSVP_SETTINGS, type RsvpSettings } from '../../../domain/guestRsvps/rsvpSettings'
@@ -78,9 +79,10 @@ export const statsAndSituation = (
   opened: OpenedRsvps,
   rsvps: readonly GuestRsvp[],
   now: Date,
+  households: readonly GuestHousehold[] = [],
 ): { readonly stats: RsvpStats; readonly situation: RsvpSituation } => {
   const { event, invite, settings } = opened
-  const stats = statsOf(rsvps)
+  const stats = statsOf(rsvps, households)
   const schedule = invite === null ? null : scheduleOf(invite)
   return {
     stats,

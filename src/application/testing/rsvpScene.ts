@@ -8,6 +8,16 @@ import { makeHostUpdateRsvp } from '../usecases/guestRsvps/hostUpdateRsvp'
 import { makeListRsvps } from '../usecases/guestRsvps/listRsvps'
 import { makeMarkRsvpsSeen } from '../usecases/guestRsvps/markRsvpsSeen'
 import { makePurgeExpiredRsvps } from '../usecases/guestRsvps/purgeExpiredRsvps'
+import { makeAttachRsvpToHousehold } from '../usecases/guestRsvps/attachRsvpToHousehold'
+import { makeDeleteHousehold } from '../usecases/guestRsvps/deleteHousehold'
+import {
+  makeMarkHouseholdReminded,
+  makeRotateHouseholdToken,
+} from '../usecases/guestRsvps/householdActs'
+import { makeImportHouseholds } from '../usecases/guestRsvps/importHouseholds'
+import { makeListHouseholds } from '../usecases/guestRsvps/listHouseholds'
+import { makeSaveHousehold } from '../usecases/guestRsvps/saveHousehold'
+import { makeViewHousehold } from '../usecases/guestRsvps/viewHousehold'
 import { makeViewGuestInvite } from '../usecases/guestInvites/viewGuestInvite'
 import {
   makeDeleteOwnRsvp,
@@ -17,6 +27,7 @@ import {
 import { makeSubmitRsvp } from '../usecases/guestRsvps/submitRsvp'
 import { FakeSecretTokens } from './fakeSecretTokens'
 import { makeSaveRsvpForm } from '../usecases/guestRsvps/saveRsvpForm'
+import { FakeGuestHouseholdRepository } from './fakeGuestHouseholdRepository'
 import { FakeGuestRsvpRepository } from './fakeGuestRsvpRepository'
 import { guestInviteScene, OWNER, PARTY, WEDDING, type GuestInviteScene } from './guestInviteScene'
 import { RecordingEventBus } from './recordingEventBus'
@@ -43,6 +54,7 @@ export { PARTY }
 
 export interface RsvpScene extends GuestInviteScene {
   readonly rsvps: FakeGuestRsvpRepository
+  readonly households: FakeGuestHouseholdRepository
   readonly bus: RecordingEventBus
   readonly ids: SequentialIdGenerator
   readonly getForm: ReturnType<typeof makeGetRsvpForm>
@@ -57,6 +69,14 @@ export interface RsvpScene extends GuestInviteScene {
   readonly markSeen: ReturnType<typeof makeMarkRsvpsSeen>
   readonly countUnseen: ReturnType<typeof makeCountUnseenRsvps>
   readonly purge: ReturnType<typeof makePurgeExpiredRsvps>
+  readonly listHouseholds: ReturnType<typeof makeListHouseholds>
+  readonly saveHousehold: ReturnType<typeof makeSaveHousehold>
+  readonly importHouseholds: ReturnType<typeof makeImportHouseholds>
+  readonly deleteHousehold: ReturnType<typeof makeDeleteHousehold>
+  readonly rotateHouseholdToken: ReturnType<typeof makeRotateHouseholdToken>
+  readonly markHouseholdReminded: ReturnType<typeof makeMarkHouseholdReminded>
+  readonly attachRsvp: ReturnType<typeof makeAttachRsvpToHousehold>
+  readonly viewHousehold: ReturnType<typeof makeViewHousehold>
   readonly secrets: FakeSecretTokens
   readonly submit: ReturnType<typeof makeSubmitRsvp>
   readonly getOwn: ReturnType<typeof makeGetOwnRsvp>
@@ -70,6 +90,7 @@ export interface RsvpScene extends GuestInviteScene {
 export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<RsvpScene> => {
   const base = await guestInviteScene()
   const rsvps = new FakeGuestRsvpRepository()
+  const households = new FakeGuestHouseholdRepository()
   const bus = new RecordingEventBus()
   const ids = new SequentialIdGenerator()
   const { events, memberships, invites, audit, clock } = base
@@ -87,25 +108,50 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
   return {
     ...base,
     rsvps,
+    households,
     bus,
     ids,
     getForm: makeGetRsvpForm({ ...access, rsvps, clock }),
     saveForm: makeSaveRsvpForm({ ...access, rsvps, audit, bus, clock, ids }),
     close: makeCloseRsvps({ ...access, rsvps, audit, bus, clock }),
     reopen: makeReopenRsvps({ ...access, rsvps, audit, bus, clock }),
-    list: makeListRsvps({ ...access, rsvps, clock }),
+    list: makeListRsvps({ ...access, rsvps, households, clock }),
     hostAdd: makeHostAddRsvp({ ...access, rsvps, audit, bus, ids, clock }),
-    hostUpdate: makeHostUpdateRsvp({ ...access, rsvps, audit, bus, clock }),
+    hostUpdate: makeHostUpdateRsvp({ ...access, rsvps, households, audit, bus, clock }),
     hostDelete: makeHostDeleteRsvp({ ...access, rsvps, audit, bus, clock }),
     exportCsv: makeExportRsvps({ ...access, rsvps, audit, clock }),
     markSeen: makeMarkRsvpsSeen({ ...access, rsvps, clock }),
     countUnseen: makeCountUnseenRsvps({ rsvps }),
-    purge: makePurgeExpiredRsvps({ rsvps, clock }),
+    purge: makePurgeExpiredRsvps({ rsvps, households, clock }),
+    listHouseholds: makeListHouseholds({ ...access, rsvps, households }),
+    saveHousehold: makeSaveHousehold({ ...access, rsvps, households, bus, ids, clock }),
+    importHouseholds: makeImportHouseholds({ ...access, households, audit, bus, ids, clock }),
+    deleteHousehold: makeDeleteHousehold({ ...access, rsvps, households, audit, bus, clock }),
+    rotateHouseholdToken: makeRotateHouseholdToken({
+      ...access,
+      rsvps,
+      households,
+      audit,
+      bus,
+      ids,
+      clock,
+    }),
+    markHouseholdReminded: makeMarkHouseholdReminded({
+      ...access,
+      rsvps,
+      households,
+      audit,
+      bus,
+      ids,
+      clock,
+    }),
+    attachRsvp: makeAttachRsvpToHousehold({ ...access, rsvps, households, bus }),
+    viewHousehold: makeViewHousehold({ ...publicAccess, rsvps, households }),
     secrets,
-    submit: makeSubmitRsvp({ ...publicAccess, rsvps, secrets, ids, bus, clock }),
-    getOwn: makeGetOwnRsvp({ ...publicAccess, rsvps, secrets, bus, clock }),
-    updateOwn: makeUpdateOwnRsvp({ ...publicAccess, rsvps, secrets, bus, clock }),
-    deleteOwn: makeDeleteOwnRsvp({ ...publicAccess, rsvps, secrets, bus, clock }),
+    submit: makeSubmitRsvp({ ...publicAccess, rsvps, households, secrets, ids, bus, clock }),
+    getOwn: makeGetOwnRsvp({ ...publicAccess, rsvps, households, secrets, bus, clock }),
+    updateOwn: makeUpdateOwnRsvp({ ...publicAccess, rsvps, households, secrets, bus, clock }),
+    deleteOwn: makeDeleteOwnRsvp({ ...publicAccess, rsvps, households, secrets, bus, clock }),
     view: makeViewGuestInvite({ events, invites, rsvps, clock }),
     token: async () => (await invites.findByEvent(WEDDING))?.token.value ?? 'absent',
   }

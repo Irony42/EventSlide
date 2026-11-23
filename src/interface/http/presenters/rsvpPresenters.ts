@@ -4,12 +4,20 @@ import type { RsvpStats } from '../../../domain/guestRsvps/rsvpStats'
 import type { RsvpForm } from '../../../domain/guestRsvps/rsvpForm'
 import type { RsvpFormView } from '../../../application/usecases/guestRsvps/getRsvpForm'
 import type { GuestRsvpPageView } from '../../../application/usecases/guestInvites/viewGuestInvite'
+import type { ImportedHouseholds } from '../../../application/usecases/guestRsvps/importHouseholds'
+import type { HostHousehold } from '../../../application/usecases/guestRsvps/householdAccess'
+import type { ViewedHousehold } from '../../../application/usecases/guestRsvps/viewHousehold'
 import type { RsvpList } from '../../../application/usecases/guestRsvps/listRsvps'
 import type {
   GuestOwnRsvpDto,
   GuestOwnRsvpResponseDto,
   GuestRsvpCreatedDto,
+  GuestHouseholdResponseDto,
   GuestRsvpPageDto,
+  HouseholdDto,
+  HouseholdImportResponseDto,
+  HouseholdListResponseDto,
+  HouseholdResponseDto,
   RsvpDto,
   RsvpFormDto,
   RsvpFormResponseDto,
@@ -67,6 +75,7 @@ const toSettingsDto = (view: SettingsView): RsvpSettingsDto => ({
 
 export const toRsvpDto = (rsvp: GuestRsvp): RsvpDto => ({
   id: rsvp.id,
+  householdId: rsvp.householdId,
   name: rsvp.name,
   answer: rsvp.answer,
   adults: rsvp.adults,
@@ -102,6 +111,7 @@ const toStatsDto = (stats: RsvpStats): RsvpStatsDto => ({
   waitlist: { ...stats.waitlist },
   diets: stats.diets.map(({ name, diet }) => ({ name, diet })),
   meals: stats.meals.map(({ label, count }) => ({ label, count })),
+  noReply: { ...stats.noReply },
 })
 
 export const toRsvpListResponseDto = (view: RsvpList): RsvpListResponseDto => ({
@@ -141,6 +151,43 @@ export const toGuestRsvpCreatedDto = (created: {
 }): GuestRsvpCreatedDto => ({
   ...toGuestOwnRsvpResponseDto(created.rsvp),
   editToken: created.editToken,
+})
+
+export const toHouseholdDto = ({ household, reply }: HostHousehold): HouseholdDto => ({
+  id: household.id,
+  name: household.name,
+  places: household.places,
+  token: household.token.value,
+  remindedAt: isoOrNull(household.remindedAt),
+  createdAt: household.createdAt.toISOString(),
+  updatedAt: household.updatedAt.toISOString(),
+  reply: reply === null ? null : { id: reply.id, answer: reply.answer, people: reply.people },
+})
+
+export const toHouseholdResponseDto = (view: HostHousehold): HouseholdResponseDto => ({
+  household: toHouseholdDto(view),
+})
+
+export const toHouseholdListResponseDto = (
+  views: readonly HostHousehold[],
+): HouseholdListResponseDto => ({ households: views.map(toHouseholdDto) })
+
+export const toHouseholdImportResponseDto = (
+  imported: ImportedHouseholds,
+): HouseholdImportResponseDto => ({
+  households: imported.households.map((household) => toHouseholdDto({ household, reply: null })),
+  skipped: imported.skipped.map(({ line, reason }) => ({ line, reason })),
+})
+
+/** What a household reads of itself: its name, its places and its own reply. No token, no id. */
+export const toGuestHouseholdResponseDto = (
+  viewed: ViewedHousehold,
+): GuestHouseholdResponseDto => ({
+  household: {
+    name: viewed.household.name,
+    places: viewed.household.places,
+    ...(viewed.rsvp === null ? {} : { rsvp: toGuestOwnRsvpDto(viewed.rsvp) }),
+  },
 })
 
 /** What the invitation page says about answering: the form the guest must see, and the proof if the host chose one. */

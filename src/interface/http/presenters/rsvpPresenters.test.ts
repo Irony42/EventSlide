@@ -109,7 +109,8 @@ describe('toRsvpDto', () => {
       showName: true,
     })
     expect(JSON.stringify(dto)).not.toContain('aaaaaaaa')
-    expect(dto).not.toHaveProperty('householdId')
+    // The household the host filed it under is the host's to see (lot 3).
+    expect(dto.householdId).toBe('h-1')
   })
 })
 

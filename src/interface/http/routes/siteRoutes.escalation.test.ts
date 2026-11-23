@@ -53,6 +53,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   bindingId: '33333333-3333-4333-8333-333333333333',
   entryId: '33333333-3333-4333-8333-333333333333',
   rsvpId: '33333333-3333-4333-8333-333333333333',
+  householdId: '33333333-3333-4333-8333-333333333333',
   linkId: '33333333-3333-4333-8333-333333333333',
   variant: 'display',
   hash: '0'.repeat(64),

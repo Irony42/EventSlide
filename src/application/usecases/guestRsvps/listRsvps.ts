@@ -7,6 +7,7 @@ import type { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
+import type { GuestHouseholdRepository } from '../../ports/guestHouseholdRepository'
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
 import { openRsvps, statsAndSituation, type RsvpAccessDeps, type RsvpSituation } from './rsvpAccess'
 
@@ -32,6 +33,7 @@ export interface RsvpList extends RsvpSituation {
 
 export interface ListRsvpsDeps extends RsvpAccessDeps {
   readonly rsvps: Pick<GuestRsvpRepository, 'listByEvent' | 'unseenCount'>
+  readonly households: Pick<GuestHouseholdRepository, 'listByEvent'>
   readonly clock: Clock
 }
 
@@ -43,7 +45,14 @@ export const makeListRsvps =
     const opened = await openRsvps(deps, eventId, actorId, 'read')
     if (!opened.ok) return opened
     const rsvps = await deps.rsvps.listByEvent(eventId)
-    const { stats, situation } = statsAndSituation(opened.value, rsvps, deps.clock.now())
+    // The households the figures call "sans réponse" (the list holds 500 at most).
+    const households = await deps.households.listByEvent(eventId)
+    const { stats, situation } = statsAndSituation(
+      opened.value,
+      rsvps,
+      deps.clock.now(),
+      households,
+    )
     return ok({
       ...opened.value,
       ...situation,

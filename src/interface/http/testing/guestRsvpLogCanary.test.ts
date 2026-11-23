@@ -4,6 +4,7 @@ import { AT, aGuestInvite, anEvent } from '../../../application/testing/builders
 import { FakeClock } from '../../../application/testing/fakeClock'
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
 import { FakeGuestInviteRepository } from '../../../application/testing/fakeGuestInviteRepository'
+import { FakeGuestHouseholdRepository } from '../../../application/testing/fakeGuestHouseholdRepository'
 import { FakeGuestRsvpRepository } from '../../../application/testing/fakeGuestRsvpRepository'
 import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
@@ -72,6 +73,7 @@ const journey = async (): Promise<{ editToken: string }> => {
     events,
     invites,
     rsvps,
+    households: new FakeGuestHouseholdRepository(),
     secrets: new FakeSecretTokens(),
     bus: new RecordingEventBus(),
     clock: new FakeClock(AT),

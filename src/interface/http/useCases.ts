@@ -145,6 +145,16 @@ import type { HostUpdateRsvp } from '../../application/usecases/guestRsvps/hostU
 import type { HostDeleteRsvp } from '../../application/usecases/guestRsvps/hostDeleteRsvp'
 import type { ExportRsvps } from '../../application/usecases/guestRsvps/exportRsvps'
 import type { MarkRsvpsSeen } from '../../application/usecases/guestRsvps/markRsvpsSeen'
+import type { ListHouseholds } from '../../application/usecases/guestRsvps/listHouseholds'
+import type { SaveHousehold } from '../../application/usecases/guestRsvps/saveHousehold'
+import type { ImportHouseholds } from '../../application/usecases/guestRsvps/importHouseholds'
+import type { DeleteHousehold } from '../../application/usecases/guestRsvps/deleteHousehold'
+import type {
+  MarkHouseholdReminded,
+  RotateHouseholdToken,
+} from '../../application/usecases/guestRsvps/householdActs'
+import type { AttachRsvpToHousehold } from '../../application/usecases/guestRsvps/attachRsvpToHousehold'
+import type { ViewHousehold } from '../../application/usecases/guestRsvps/viewHousehold'
 import type { CountUnseenRsvps } from '../../application/usecases/guestRsvps/countUnseenRsvps'
 import type { CreateAnnouncement } from '../../application/usecases/announcements/createAnnouncement'
 import type { DeleteAnnouncement } from '../../application/usecases/announcements/deleteAnnouncement'
@@ -374,6 +384,14 @@ export interface HttpUseCases {
   readonly exportRsvps: ExportRsvps
   readonly markRsvpsSeen: MarkRsvpsSeen
   readonly countUnseenRsvps: CountUnseenRsvps
+  readonly listHouseholds: ListHouseholds
+  readonly saveHousehold: SaveHousehold
+  readonly importHouseholds: ImportHouseholds
+  readonly deleteHousehold: DeleteHousehold
+  readonly rotateHouseholdToken: RotateHouseholdToken
+  readonly markHouseholdReminded: MarkHouseholdReminded
+  readonly attachRsvpToHousehold: AttachRsvpToHousehold
+  readonly viewHousehold: ViewHousehold
   // scheduled wall announcements (spec 21)
   readonly listAnnouncements: ListAnnouncements
   readonly createAnnouncement: CreateAnnouncement
