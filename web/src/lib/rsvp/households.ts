@@ -91,3 +91,17 @@ export const fileableHouseholds = (
   reply: RsvpDto,
 ): readonly HouseholdDto[] =>
   households.filter((household) => household.reply === null && reply.householdId === null)
+
+/** The most characters of a household's name a printed card's eyebrow takes: a long name is cut, never squeezed. */
+export const CARD_NAME_MAX_CHARS = 36
+
+/** A household's name as the printed card says it: one line, cut between characters with an ellipsis. */
+export const cardNameOf = (name: string): string => {
+  const letters = [...name.trim().replace(/\s+/g, ' ')]
+  return letters.length <= CARD_NAME_MAX_CHARS
+    ? letters.join('')
+    : `${letters
+        .slice(0, CARD_NAME_MAX_CHARS - 1)
+        .join('')
+        .trimEnd()}…`
+}

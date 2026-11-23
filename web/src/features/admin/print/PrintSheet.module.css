@@ -94,3 +94,16 @@
   inset-block-start: 50%;
   border-block-start-width: calc(var(--print-cut-line) * var(--u));
 }
+
+/* A card for each household (spec 30, lot 3): the screen shows the first sheet, the paper one page each. */
+@media screen {
+  .stage > .sheet[data-household-sheet]:not(:first-child) {
+    display: none;
+  }
+}
+
+@media print {
+  .stage > .sheet[data-household-sheet] + .sheet[data-household-sheet] {
+    break-before: page;
+  }
+}
