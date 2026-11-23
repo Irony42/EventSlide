@@ -617,6 +617,56 @@ describe('what goes on the wire', () => {
   })
 })
 
+describe('a header of the caller’s own (the token of a guest’s reply, spec 30)', () => {
+  const HEADER = { 'X-Rsvp-Token': 'secret-token' }
+
+  it('goes on a GET, a POST, a PUT and a DELETE, and in no URL', async () => {
+    answerWith(() => jsonBody(200, {}))
+
+    await http.get('/api/i/abc/rsvp', undefined, undefined, HEADER)
+    await http.post('/api/i/abc/rsvp', {}, undefined, HEADER)
+    await http.put('/api/i/abc/rsvp', {}, undefined, HEADER)
+    await http.del('/api/i/abc/rsvp', undefined, HEADER)
+
+    expect(sent.map((request) => headersOf(request)['x-rsvp-token'])).toEqual([
+      'secret-token',
+      'secret-token',
+      'secret-token',
+      'secret-token',
+    ])
+    expect(sent.map((request) => request.url).join(' ')).not.toContain('secret-token')
+  })
+
+  it('is absent when none is given, and never replaces what the client sets itself', async () => {
+    answerWith(() => jsonBody(200, {}))
+
+    await http.get('/api/i/abc/rsvp')
+    await http.get('/api/i/abc/rsvp', undefined, undefined, { accept: 'text/html' })
+
+    expect(headersOf(requestAt(0))).not.toHaveProperty('x-rsvp-token')
+    expect(headersOf(requestAt(1))['accept']).toBe('application/json')
+  })
+
+  it('is kept when a stale CSRF token makes the client repeat the request', async () => {
+    document.cookie = 'es_csrf=perime'
+    let attempt = 0
+    stubFetch(() => {
+      attempt += 1
+      if (attempt === 1) {
+        document.cookie = 'es_csrf=frais'
+        return Promise.resolve(jsonBody(403, { error: { code: 'request.csrfMismatch' } }))
+      }
+      return Promise.resolve(jsonBody(200, { ok: true }))
+    })
+
+    await http.put('/api/i/abc/rsvp', {}, undefined, HEADER)
+
+    expect(sent).toHaveLength(2)
+    expect(headersOf(requestAt(1))['x-rsvp-token']).toBe('secret-token')
+    expect(headersOf(requestAt(1))['x-csrf-token']).toBe('frais')
+  })
+})
+
 describe('query strings', () => {
   it('appends the values the caller set', async () => {
     answerWith(() => jsonBody(200, {}))

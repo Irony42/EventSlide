@@ -86,7 +86,7 @@ export function GuestRsvpBlock({ rsvp, token, locale, interactive = true }: Gues
   const state = useGuestRsvp(token, interactive)
   const [draft, setDraft] = useState<RsvpDraft>(EMPTY_DRAFT)
   const [website, setWebsite] = useState('')
-  const [editing, setEditing] = useState(false)
+  const [editingRequested, setEditing] = useState(false)
   const [asking, setAsking] = useState(false)
   const [copied, setCopied] = useState(false)
   const [deleted, setDeleted] = useState(false)
@@ -94,6 +94,8 @@ export function GuestRsvpBlock({ rsvp, token, locale, interactive = true }: Gues
   const { form } = rsvp
   const open = rsvp.state === 'open' || rsvp.state === 'full'
   const reply = state.reply
+  // A reply that vanished while it was being changed (a deletion elsewhere) ends the change.
+  const editing = editingRequested && reply !== null
 
   if (state.phase === 'reading') {
     return (
