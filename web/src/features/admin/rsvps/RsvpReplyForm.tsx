@@ -7,7 +7,8 @@ import { SelectField } from '../../../design-system/components/SelectField'
 import { Notice } from '../../../design-system/components/Notice'
 import { Textarea } from '../../../design-system/components/Textarea'
 import { TextInput } from '../../../design-system/components/TextInput'
-import type { RsvpDto, RsvpFormDto } from '../../../lib/api/dto'
+import type { HouseholdDto, RsvpDto, RsvpFormDto } from '../../../lib/api/dto'
+import { formForReply } from '../../../lib/rsvp/households'
 import type { RsvpReplyInput } from '../../../lib/api/client/invite'
 import { messageForError } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
@@ -17,6 +18,7 @@ import {
   inputOf,
   peopleOfDraft,
   personName,
+  toggleMoment,
   type RsvpAnswer,
   type RsvpDraft,
 } from '../../../lib/rsvp/rsvpDraft'
@@ -27,6 +29,8 @@ export interface RsvpReplyFormProps {
   readonly reply: RsvpDto | null
   /** The host's own form: what it asks decides which fields are here. */
   readonly form: RsvpFormDto
+  /** The guest list: a reply filed under a household is asked only that household's moments. */
+  readonly households?: readonly HouseholdDto[]
   /** Sends the reply; a refusal is thrown and shown as its sentence. */
   readonly onSubmit: (input: RsvpReplyInput) => Promise<void>
   readonly onClose: () => void
@@ -40,8 +44,15 @@ export interface RsvpReplyFormProps {
  *
  * Mounted only while open, so each opening starts from the reply it is about.
  */
-export function RsvpReplyForm({ reply, form, onSubmit, onClose }: RsvpReplyFormProps) {
+export function RsvpReplyForm({
+  reply,
+  form: hostForm,
+  households = [],
+  onSubmit,
+  onClose,
+}: RsvpReplyFormProps) {
   const t = useTranslations()
+  const form = formForReply(hostForm, reply, households)
   const text = t.rsvp.list
   const [draft, setDraft] = useState<RsvpDraft>(
     reply === null ? EMPTY_DRAFT : draftOfHostReply(reply, form),
@@ -154,6 +165,21 @@ export function RsvpReplyForm({ reply, form, onSubmit, onClose }: RsvpReplyFormP
               </Field>
             ) : null}
           </div>
+        ) : null}
+        {coming && form.moments.length > 0 ? (
+          <fieldset className={styles['moments']}>
+            <legend>{text.formMoments}</legend>
+            {form.moments.map((moment) => (
+              <label key={moment.id}>
+                <input
+                  type="checkbox"
+                  checked={draft.moments.includes(moment.id)}
+                  onChange={() => setDraft((current) => toggleMoment(current, moment.id))}
+                />{' '}
+                {moment.label}
+              </label>
+            ))}
+          </fieldset>
         ) : null}
         {coming && form.companionNames
           ? Array.from({ length: Math.max(people - 1, 0) }, (_, index) => (

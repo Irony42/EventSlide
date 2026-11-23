@@ -13,6 +13,8 @@ import styles from './HouseholdsPage.module.css'
 export interface HouseholdFormProps {
   /** The household being changed, or `null` for one the host adds. */
   readonly household: HouseholdDto | null
+  /** The moments of the host's form (lot 4): empty while the host has none, and nothing is asked. */
+  readonly moments: readonly { readonly id: string; readonly label: string }[]
   /** Sends it; a refusal is thrown and shown as its sentence. */
   readonly onSubmit: (input: HouseholdInput) => Promise<void>
   readonly onClose: () => void
@@ -23,11 +25,17 @@ export interface HouseholdFormProps {
  * The server judges both (a name of 1 to 80 characters, 1 to 10 places). Mounted only while open, so
  * each opening starts from the household it is about.
  */
-export function HouseholdForm({ household, onSubmit, onClose }: HouseholdFormProps) {
+export function HouseholdForm({ household, moments, onSubmit, onClose }: HouseholdFormProps) {
   const t = useTranslations()
   const text = t.rsvp.households
   const [name, setName] = useState(household?.name ?? '')
   const [places, setPlaces] = useState(String(household?.places ?? 2))
+  /** The moments ticked: every one of the form's by default, and for a household invited to all. */
+  const [invited, setInvited] = useState<readonly string[]>(() =>
+    moments
+      .filter((moment) => household?.moments == null || household.moments.includes(moment.id))
+      .map((moment) => moment.id),
+  )
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
 
@@ -36,7 +44,14 @@ export function HouseholdForm({ household, onSubmit, onClose }: HouseholdFormPro
     setBusy(true)
     setProblem(null)
     try {
-      await onSubmit({ name, places: Number(places) })
+      await onSubmit({
+        name,
+        places: Number(places),
+        // Every moment ticked is "all" (`null`): a moment the host adds later reaches this household too.
+        ...(moments.length > 0
+          ? { moments: invited.length === moments.length ? null : invited }
+          : {}),
+      })
       onClose()
     } catch (cause) {
       setProblem(messageForError(cause, t))
@@ -59,7 +74,7 @@ export function HouseholdForm({ household, onSubmit, onClose }: HouseholdFormPro
             variant="primary"
             type="submit"
             form="household-form"
-            disabled={name.trim() === ''}
+            disabled={name.trim() === '' || (moments.length > 0 && invited.length === 0)}
             loading={busy}
           >
             {busy ? text.formSaving : text.formSave}
@@ -93,6 +108,28 @@ export function HouseholdForm({ household, onSubmit, onClose }: HouseholdFormPro
             />
           )}
         </Field>
+        {moments.length > 0 ? (
+          <fieldset className={styles['momentsField']}>
+            <legend>{text.formMoments}</legend>
+            {moments.map((moment) => (
+              <label key={moment.id}>
+                <input
+                  type="checkbox"
+                  checked={invited.includes(moment.id)}
+                  onChange={() =>
+                    setInvited((current) =>
+                      current.includes(moment.id)
+                        ? current.filter((id) => id !== moment.id)
+                        : [...current, moment.id],
+                    )
+                  }
+                />{' '}
+                {moment.label}
+              </label>
+            ))}
+            <small>{text.formMomentsHint}</small>
+          </fieldset>
+        ) : null}
         {problem === null ? null : (
           <Notice tone="danger" variant="boxed" role="alert">
             {problem}

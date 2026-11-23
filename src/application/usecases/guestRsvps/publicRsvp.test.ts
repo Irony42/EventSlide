@@ -568,6 +568,7 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
           meals: { enabled: false, options: [] },
           questions: [],
           visibility: 'off',
+          moments: [],
         },
         proof: null,
       })

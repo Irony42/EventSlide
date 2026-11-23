@@ -49,6 +49,8 @@ export interface OwnReply {
 export interface HouseholdView {
   readonly name: string
   readonly places: number
+  /** The moments it is invited to (lot 4), among the form's. */
+  readonly moments: readonly { readonly id: string; readonly label: string }[]
 }
 
 export interface GuestRsvpState {
@@ -187,7 +189,7 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
     api.guestHousehold(token, householdToken, stop.signal).then(
       ({ household: opened }) => {
         if (stop.signal.aborted) return
-        setHousehold({ name: opened.name, places: opened.places })
+        setHousehold({ name: opened.name, places: opened.places, moments: opened.moments })
         setOwn(opened.rsvp === undefined ? null : { reply: opened.rsvp, editToken: null })
         setHouseholdUnread(false)
         setPhase('ready')

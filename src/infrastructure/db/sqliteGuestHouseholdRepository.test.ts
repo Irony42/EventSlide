@@ -93,16 +93,33 @@ describe('SqliteGuestHouseholdRepository storage', () => {
     closeDatabase(db)
   })
 
-  it('leaves the moments of lot 4 as they are when the household is changed', async () => {
+  it('stores the moments as a JSON list of ids, NULL for all of them', async () => {
     const db = migratedDatabase()
     const repo = new SqliteGuestHouseholdRepository(db)
     const household = aHousehold({ eventId: 'evt-wedding' })
     await repo.addAll(asEventId('evt-wedding'), [household])
-    db.prepare(`UPDATE guest_households SET moments = '["m-1"]'`).run()
+    expect(db.prepare(`SELECT moments FROM guest_households`).get()).toEqual({ moments: null })
 
-    await repo.update(household.withInput({ name: 'Les Martin', places: 3 }, HOUSEHOLD_AT))
+    await repo.update(
+      household.withInput({ name: 'Les Martin', places: 3 }, HOUSEHOLD_AT, ['aaaaaaaa']),
+    )
 
-    expect(db.prepare(`SELECT moments FROM guest_households`).get()).toEqual({ moments: '["m-1"]' })
+    expect(db.prepare(`SELECT moments FROM guest_households`).get()).toEqual({
+      moments: '["aaaaaaaa"]',
+    })
+    closeDatabase(db)
+  })
+
+  it('reads a malformed list of moments as all of them, never failing', async () => {
+    const db = migratedDatabase()
+    const repo = new SqliteGuestHouseholdRepository(db)
+    await repo.addAll(asEventId('evt-wedding'), [aHousehold({ eventId: 'evt-wedding' })])
+
+    db.pragma('ignore_check_constraints = ON')
+    db.prepare(`UPDATE guest_households SET moments = 'not json'`).run()
+    const [household] = await repo.listByEvent(asEventId('evt-wedding'))
+
+    expect(household?.moments).toBeNull()
     closeDatabase(db)
   })
 

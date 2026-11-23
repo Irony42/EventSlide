@@ -7,6 +7,7 @@ import type { RsvpFormInput } from '../api/client/invite'
  */
 
 export const QUESTIONS_MAX = 3
+export const MOMENTS_MAX = 4
 
 /** A question as the panel holds it: `id` is `''` until the server has given it one. */
 export interface QuestionDraft {
@@ -15,6 +16,21 @@ export interface QuestionDraft {
   readonly kind: 'text' | 'choice'
   readonly options?: readonly string[]
 }
+
+/** A moment as the panel holds it: `id` is `''` until the server has given it one. */
+export interface MomentDraft {
+  readonly id: string
+  readonly label: string
+}
+
+/** The list the server takes: an existing moment keeps its id, a new one has none. */
+export const momentsInput = (
+  moments: readonly MomentDraft[],
+): NonNullable<NonNullable<RsvpFormInput['form']>['moments']> =>
+  moments.map((moment) => ({
+    ...(moment.id === '' ? {} : { id: moment.id }),
+    label: moment.label,
+  }))
 
 /** The non-empty lines of a text, each trimmed: "one per line". */
 export const linesOf = (raw: string): readonly string[] =>

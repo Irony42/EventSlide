@@ -45,6 +45,8 @@ export interface GuestRsvpInput {
   readonly companions?: readonly string[]
   readonly meals?: readonly string[]
   readonly answers?: readonly { readonly questionId: string; readonly value: string }[]
+  /** Ids of the moments the guest comes to (lot 4). */
+  readonly moments?: readonly string[]
   readonly showName?: boolean
 }
 
@@ -55,7 +57,7 @@ export interface GuestRsvpCreateInput extends GuestRsvpInput {
 
 /**
  * What a host saves of the replies' settings (spec 30): every field optional, **an absent one is
- * left as it was**, `null` clears the deadline. The questions are sent whole: one with an uid=197609(pierr) gid=197609 groups=197609 is an existing one, one without gets its id from the server.
+ * left as it was**, `null` clears the deadline. The questions are sent whole: one with an `id` is an existing one, one without gets its id from the server.
  */
 export interface RsvpFormInput {
   readonly enabled?: boolean
@@ -68,6 +70,8 @@ export interface RsvpFormInput {
     readonly companionNames?: boolean
     readonly meals?: { readonly enabled?: boolean; readonly options?: readonly string[] }
     readonly visibility?: 'off' | 'count' | 'names'
+    /** The moments sent whole, in order: one with an `id` is an existing one (lot 4). */
+    readonly moments?: readonly { readonly id?: string; readonly label: string }[]
     readonly questions?: readonly {
       readonly id?: string
       readonly label: string
@@ -88,12 +92,15 @@ export interface RsvpReplyInput {
   readonly companions?: readonly string[]
   readonly meals?: readonly string[]
   readonly answers?: readonly { readonly questionId: string; readonly value: string }[]
+  readonly moments?: readonly string[]
 }
 
 /** What the host types of a household (spec 30, lot 3). */
 export interface HouseholdInput {
   readonly name: string
   readonly places: number
+  /** `null`: all the form's moments; absent: unchanged (lot 4). */
+  readonly moments?: readonly string[] | null
 }
 
 /** The guest's token travels in this header, never in a path or a query (those reach access logs). */

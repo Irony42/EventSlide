@@ -93,6 +93,42 @@ export const fileableHouseholds = (
 ): readonly HouseholdDto[] =>
   households.filter((household) => household.reply === null && reply.householdId === null)
 
+/**
+ * The form a host's reply is judged by: a reply filed under a household is only asked the moments that
+ * household is invited to (`null` is all of them), as the server judges it. Anything else keeps the form.
+ */
+export const formForReply = <
+  F extends { readonly moments: readonly { readonly id: string; readonly label: string }[] },
+>(
+  form: F,
+  reply: RsvpDto | null,
+  households: readonly HouseholdDto[],
+): F => {
+  const household =
+    reply === null || reply.householdId === null
+      ? undefined
+      : households.find((candidate) => candidate.id === reply.householdId)
+  if (household === undefined || household.moments === null) return form
+  const invited = household.moments
+  return { ...form, moments: form.moments.filter((moment) => invited.includes(moment.id)) }
+}
+
+/**
+ * The moments a household is invited to, as the guest list says them: "Tous" for the default, else the
+ * labels of its moments **among the form's today** (a removed moment has no label and is not told).
+ */
+export const invitedMomentsLabel = (
+  household: HouseholdDto,
+  moments: readonly { readonly id: string; readonly label: string }[],
+  all: string,
+): string =>
+  household.moments === null
+    ? all
+    : moments
+        .filter((moment) => household.moments?.includes(moment.id) === true)
+        .map((moment) => moment.label)
+        .join(', ')
+
 /** The most characters (as a reader counts them) of a household's name a printed card takes. */
 export const CARD_NAME_MAX_CHARS = 36
 

@@ -15,6 +15,7 @@ import {
   maxPeople,
   peopleOfDraft,
   personName,
+  toggleMoment,
   type RsvpAnswer,
   type RsvpDraft,
 } from '../../lib/rsvp/rsvpDraft'
@@ -121,7 +122,7 @@ export function GuestRsvpBlock({
 
   // A household answers with the host's form, its own places as the ceiling and the counter always asked.
   const household = state.household
-  const form = household === null ? rsvp.form : householdForm(rsvp.form, household.places)
+  const form = household === null ? rsvp.form : householdForm(rsvp.form, household)
   // The household's name is what the form starts from: the link tells the page who is answering.
   const householdName = household?.name ?? null
   const [nameSeeded, setNameSeeded] = useState(false)
@@ -138,7 +139,11 @@ export function GuestRsvpBlock({
   }, [knownName, onKnownName])
   const failureCode = state.failure
   useEffect(() => {
-    if (failureCode === 'rsvp.mealNotOffered' || failureCode === 'rsvp.answerNotAnOption')
+    if (
+      failureCode === 'rsvp.mealNotOffered' ||
+      failureCode === 'rsvp.answerNotAnOption' ||
+      failureCode === 'rsvp.momentsRequired'
+    )
       onStale?.()
   }, [failureCode, onStale])
   const open = rsvp.state === 'open' || rsvp.state === 'full'
@@ -332,6 +337,24 @@ export function GuestRsvpBlock({
               />
             ) : null}
           </div>
+        ) : null}
+        {draft.answer !== 'no' && form.moments.length > 0 ? (
+          <fieldset className={styles['field']}>
+            <legend>
+              {t.momentsLabel} <small>{t.momentsHint}</small>
+            </legend>
+            {form.moments.map((moment) => (
+              <label key={moment.id} className={styles['check']}>
+                <input
+                  type="checkbox"
+                  name={`moment-${moment.id}`}
+                  checked={draft.moments.includes(moment.id)}
+                  onChange={() => setDraft((current) => toggleMoment(current, moment.id))}
+                />
+                <span>{moment.label}</span>
+              </label>
+            ))}
+          </fieldset>
         ) : null}
         {draft.answer !== 'no' && form.companionNames && people > 1 ? (
           <fieldset className={styles['field']}>

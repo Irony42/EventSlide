@@ -442,7 +442,6 @@ describe('parseRsvpInput: the lot 2 extras', () => {
       answers: [],
       showName: false,
       moments: [],
-      moments: [],
     })
   })
 

@@ -206,3 +206,19 @@
   padding-inline-start: var(--space-5);
   font-size: var(--text-sm);
 }
+
+/* The moments a household is invited to (lot 4): a column of checkboxes in the household's dialog. */
+.momentsField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.momentsField legend {
+  padding: 0;
+  margin-block-end: var(--space-1);
+}

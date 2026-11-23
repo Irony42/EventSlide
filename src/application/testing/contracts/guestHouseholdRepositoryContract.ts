@@ -208,6 +208,27 @@ export const guestHouseholdRepositoryContract = (
         expect(read?.createdAt).toEqual(T0)
       })
 
+      it('stores the moments a household is invited to, and null for all of them', async () => {
+        const stored = await add({ id: 'h-1', createdAt: T0 })
+        expect((await repo.findById(WEDDING, asGuestHouseholdId('h-1')))?.moments).toBeNull()
+
+        const input = { name: stored.name, places: stored.places }
+        await repo.update(stored.withInput(input, T1, ['aaaaaaaa', 'bbbbbbbb']))
+        const invited = await repo.findById(WEDDING, asGuestHouseholdId('h-1'))
+        expect(invited?.moments).toEqual(['aaaaaaaa', 'bbbbbbbb'])
+
+        await repo.update(invited!.withInput(input, T1, null))
+        expect((await repo.findById(WEDDING, asGuestHouseholdId('h-1')))?.moments).toBeNull()
+      })
+
+      it('stores the moments of a household added with them', async () => {
+        await add({ id: 'h-2', moments: ['cccccccc'], token: tokenOf(2) })
+
+        expect((await repo.findById(WEDDING, asGuestHouseholdId('h-2')))?.moments).toEqual([
+          'cccccccc',
+        ])
+      })
+
       it('says false for a household that is gone', async () => {
         expect(await repo.update(aHousehold({ eventId: 'evt-wedding' }))).toBe(false)
         expect(

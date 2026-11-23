@@ -7,6 +7,7 @@ import { SelectField } from '../../../design-system/components/SelectField'
 import type { HouseholdDto, RsvpDto, RsvpFormDto } from '../../../lib/api/dto'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import { fileableHouseholds } from '../../../lib/rsvp/households'
+import { momentsLabel } from '../../../lib/rsvp/rsvpCaterer'
 import { answerTone, peopleDetail } from '../../../lib/rsvp/rsvpList'
 import { receivedAt } from './receivedAt'
 import styles from './RsvpDetail.module.css'
@@ -94,6 +95,12 @@ export function RsvpDetail({
                 <dd>{peopleDetail(reply, text)}</dd>
               </>
             ) : null}
+            {momentsLabel(reply, form) === '' ? null : (
+              <>
+                <dt>{text.detailMoments}</dt>
+                <dd>{momentsLabel(reply, form)}</dd>
+              </>
+            )}
             {reply.details.showName ? (
               <>
                 <dt>{text.detailShowName}</dt>

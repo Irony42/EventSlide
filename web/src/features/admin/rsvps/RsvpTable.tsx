@@ -46,6 +46,11 @@ export function RsvpTable({ rows, form, onOpen }: RsvpTableProps) {
                 {text.colPeople}
               </th>
             ) : null}
+            {form.moments.map((moment) => (
+              <th key={moment.id} scope="col" role="columnheader">
+                {moment.label}
+              </th>
+            ))}
             {form.companionNames ? (
               <th scope="col" role="columnheader">
                 {text.colCompanions}
@@ -90,6 +95,13 @@ export function RsvpTable({ rows, form, onOpen }: RsvpTableProps) {
                   {peopleCell(reply, text)}
                 </td>
               ) : null}
+              {form.moments.map((moment) => (
+                <td key={moment.id} role="cell" data-label={moment.label}>
+                  {reply.answer !== 'no' && reply.details.moments.includes(moment.id)
+                    ? text.detailYes
+                    : text.none}
+                </td>
+              ))}
               {form.companionNames ? (
                 <td role="cell" data-label={text.colCompanions} className={styles['free']}>
                   {reply.details.companions.filter((name) => name !== '').join(', ') || text.none}

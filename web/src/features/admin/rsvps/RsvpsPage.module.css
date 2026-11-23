@@ -278,3 +278,20 @@
 .legend li[data-kind='no']::before {
   background: var(--danger);
 }
+
+/* "Par moment": who comes to each part of the day, a line of figures under the bar. */
+.moments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.momentsTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+}
