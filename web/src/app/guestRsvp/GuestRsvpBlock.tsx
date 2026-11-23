@@ -10,6 +10,7 @@ import {
   EMPTY_DRAFT,
   bump,
   draftOf,
+  householdForm,
   inputOf,
   maxPeople,
   peopleOfDraft,
@@ -118,7 +119,16 @@ export function GuestRsvpBlock({
   const [copied, setCopied] = useState(false)
   const [deleted, setDeleted] = useState(false)
 
-  const { form } = rsvp
+  // A household answers with the host's form, its own places as the ceiling and the counter always asked.
+  const household = state.household
+  const form = household === null ? rsvp.form : householdForm(rsvp.form, household.places)
+  // The household's name is what the form starts from: the link tells the page who is answering.
+  const householdName = household?.name ?? null
+  const [nameSeeded, setNameSeeded] = useState(false)
+  if (householdName !== null && !nameSeeded) {
+    setNameSeeded(true)
+    setDraft((current) => (current.name === '' ? { ...current, name: householdName } : current))
+  }
   const knownName = state.own?.reply.name ?? null
   useEffect(() => {
     onKnownName?.(knownName)
@@ -137,6 +147,20 @@ export function GuestRsvpBlock({
     return (
       <section className={styles['block']} aria-busy="true">
         <Spinner size="sm" label={t.title} />
+      </section>
+    )
+  }
+
+  // The household's link could not be read (the network, not a refusal): say so, and let the guest ask again.
+  if (state.householdUnread) {
+    return (
+      <section className={styles['block']}>
+        <Notice tone="warning" variant="boxed" role="alert">
+          {t.householdFailed}
+        </Notice>
+        <Button variant="secondary" size="lg" block onClick={state.retryHousehold}>
+          {t.householdRetry}
+        </Button>
       </section>
     )
   }
@@ -193,6 +217,15 @@ export function GuestRsvpBlock({
     const link = ownReplyLink(window.location.origin, token, editToken)
     setCopied(await copyToClipboard(link))
   }
+
+  /** Who is answering, when the link is a household's: "Bonjour Famille Martin · 4 places prévues pour vous". */
+  const greeting =
+    household === null ? null : (
+      <p className={styles['household']}>
+        <strong>{t.householdGreeting(household.name)}</strong> ·{' '}
+        <span>{t.householdPlaces(household.places)}</span>
+      </p>
+    )
 
   const deadline =
     rsvp.deadline === null ? null : (
@@ -480,6 +513,7 @@ export function GuestRsvpBlock({
     }
     return (
       <section className={styles['block']} aria-live="polite">
+        {greeting}
         {rsvp.state === 'closed' ? (
           <div className={styles['done']}>
             <h2>{t.closedTitle}</h2>
@@ -501,13 +535,16 @@ export function GuestRsvpBlock({
             {t.edit}
           </Button>
         ) : null}
-        <div className={styles['link']}>
-          <span className={styles['linkTitle']}>{t.linkTitle}</span>
-          <small>{t.linkHint}</small>
-          <Button variant="secondary" size="md" onClick={() => copy(own.editToken)}>
-            {copied ? t.copied : t.copy}
-          </Button>
-        </div>
+        {/* A household's link is its key: nothing to copy, every device of the household has it. */}
+        {own.editToken === null ? null : (
+          <div className={styles['link']}>
+            <span className={styles['linkTitle']}>{t.linkTitle}</span>
+            <small>{t.linkHint}</small>
+            <Button variant="secondary" size="md" onClick={() => copy(own.editToken as string)}>
+              {copied ? t.copied : t.copy}
+            </Button>
+          </div>
+        )}
         {deleteControl}
         {proof}
       </section>
@@ -518,6 +555,7 @@ export function GuestRsvpBlock({
   if (editing) {
     return (
       <section className={styles['block']}>
+        {greeting}
         <h2>{t.title}</h2>
         {choices}
         {formFields}
@@ -550,6 +588,10 @@ export function GuestRsvpBlock({
     <section className={styles['block']}>
       {deleted ? <p className={styles['deleted']}>{t.deleted}</p> : null}
       {state.forgotten && !deleted ? <p className={styles['deleted']}>{t.forgotten}</p> : null}
+      {state.householdGone && !deleted ? (
+        <p className={styles['deleted']}>{t.householdGone}</p>
+      ) : null}
+      {greeting}
       <h2>{t.title}</h2>
       {deadline}
       {choices}

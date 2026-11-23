@@ -172,3 +172,13 @@ export const NO_RSVP_PAGE: GuestRsvpPageDto = {
     visibility: 'off',
   },
 }
+
+/**
+ * The form a **household** answers with (spec 30, lot 3): the host's own, except that the household's
+ * places are the ceiling of the party and "how many" is always asked, since a household of four is
+ * not one person even when the host did not ask a party size. Mirrors what the server judges with.
+ */
+export const householdForm = (
+  form: GuestRsvpPageDto['form'],
+  places: number,
+): GuestRsvpPageDto['form'] => ({ ...form, partySize: { enabled: true, max: places } })

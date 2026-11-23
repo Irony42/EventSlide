@@ -44,6 +44,7 @@ import type {
   RsvpDto,
   RsvpFormResponseDto,
   RsvpListResponseDto,
+  GuestHouseholdResponseDto,
   HouseholdDto,
   HouseholdImportResponseDto,
   HouseholdListResponseDto,
@@ -1165,6 +1166,16 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   guestRsvp: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({ rsvp: aGuestOwnRsvp() })),
   guestRsvpUpdate: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({ rsvp: aGuestOwnRsvp() })),
   guestRsvpDelete: vi.fn(async (): Promise<void> => undefined),
+  guestHousehold: vi.fn(async (): Promise<GuestHouseholdResponseDto> => ({
+    household: { name: 'Famille Martin', places: 4 },
+  })),
+  guestHouseholdRsvpCreate: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({
+    rsvp: aGuestOwnRsvp(),
+  })),
+  guestHouseholdRsvpUpdate: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({
+    rsvp: aGuestOwnRsvp(),
+  })),
+  guestHouseholdRsvpDelete: vi.fn(async (): Promise<void> => undefined),
   rsvps: vi.fn(async (): Promise<RsvpListResponseDto> => ({
     rsvpForm: aRsvpSettings({ enabled: true, state: 'open' }),
     rsvps: [],
