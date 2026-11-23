@@ -4,7 +4,11 @@ import { aGuestOwnRsvp, aGuestRsvpPage } from '../../testing/renderWithProviders
 import {
   discardEditTokenFragment,
   forgetEditToken,
+  forgetHouseholdToken,
   ownReplyLink,
+  readStoredHouseholdToken,
+  storeHouseholdToken,
+  takeHouseholdTokenFromFragment,
   readStoredEditToken,
   storeEditToken,
   takeEditTokenFromFragment,
@@ -424,5 +428,99 @@ describe('the first name offered at join (spec 30, section 9.1)', () => {
     expect(() => writeJoinNamePrefill('Léa', JOIN)).not.toThrow()
     expect(readJoinNamePrefill('H7K2QM')).toBeNull()
     expect(() => clearJoinNamePrefill()).not.toThrow()
+  })
+})
+
+describe('what the device remembers of a household link (spec 30, lot 3)', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    forgetHouseholdToken(TOKEN)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.history.replaceState(null, '', '/')
+  })
+
+  it('keeps one household token per invitation, apart from the reply token', () => {
+    storeHouseholdToken(TOKEN, 'household-a')
+    storeHouseholdToken('OTHERINVITE0000', 'household-b')
+    storeEditToken(TOKEN, 'edit-a')
+
+    expect(readStoredHouseholdToken(TOKEN)).toBe('household-a')
+    expect(readStoredHouseholdToken('OTHERINVITE0000')).toBe('household-b')
+    expect(readStoredEditToken(TOKEN)).toBe('edit-a')
+    forgetHouseholdToken(TOKEN)
+    expect(readStoredHouseholdToken(TOKEN)).toBeNull()
+    expect(readStoredEditToken(TOKEN)).toBe('edit-a')
+  })
+
+  it('reads what is not a token as nothing, and works with no storage at all', () => {
+    window.localStorage.setItem(`eventslide.rsvp.household.${TOKEN}`, 'not json')
+    expect(readStoredHouseholdToken(TOKEN)).toBeNull()
+    window.localStorage.setItem(`eventslide.rsvp.household.${TOKEN}`, '{"householdToken":3}')
+    expect(readStoredHouseholdToken(TOKEN)).toBeNull()
+    window.localStorage.setItem(`eventslide.rsvp.household.${TOKEN}`, '[]')
+    expect(readStoredHouseholdToken(TOKEN)).toBeNull()
+
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    expect(() => storeHouseholdToken(TOKEN, 'x')).not.toThrow()
+    expect(readStoredHouseholdToken(TOKEN)).toBeNull()
+    expect(() => forgetHouseholdToken(TOKEN)).not.toThrow()
+  })
+
+  it('reads the fragment once, keeps it, and removes it from the address bar', () => {
+    window.history.replaceState(null, '', `/i/${TOKEN}?x=1#f=ABCDEFGH12345678`)
+
+    const taken = takeHouseholdTokenFromFragment(TOKEN)
+
+    expect(taken).toBe('ABCDEFGH12345678')
+    expect(window.location.hash).toBe('')
+    expect(window.location.pathname + window.location.search).toBe(`/i/${TOKEN}?x=1`)
+    expect(readStoredHouseholdToken(TOKEN)).toBe('ABCDEFGH12345678')
+  })
+
+  it('answers the same token a second time, once the bar is clean: StrictMode runs an initializer twice', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    window.history.replaceState(null, '', `/i/${TOKEN}#f=ABCDEFGH12345678`)
+
+    const first = takeHouseholdTokenFromFragment(TOKEN)
+    const second = takeHouseholdTokenFromFragment(TOKEN)
+
+    expect([first, second]).toEqual(['ABCDEFGH12345678', 'ABCDEFGH12345678'])
+    expect(takeHouseholdTokenFromFragment('OTHERINVITE0000')).toBeNull()
+    forgetHouseholdToken(TOKEN)
+    expect(takeHouseholdTokenFromFragment(TOKEN)).toBeNull()
+  })
+
+  it('removes a fragment that holds no token, leaves another tool’s and a reply fragment alone', () => {
+    window.history.replaceState(null, '', `/i/${TOKEN}#f=<script>`)
+    expect(takeHouseholdTokenFromFragment(TOKEN)).toBeNull()
+    expect(window.location.hash).toBe('')
+
+    window.history.replaceState(null, '', `/i/${TOKEN}#section`)
+    expect(takeHouseholdTokenFromFragment(TOKEN)).toBeNull()
+    expect(window.location.hash).toBe('#section')
+
+    window.history.replaceState(null, '', `/i/${TOKEN}#r=abcdefgh12345678`)
+    expect(takeHouseholdTokenFromFragment(TOKEN)).toBeNull()
+    expect(window.location.hash).toBe('#r=abcdefgh12345678')
+  })
+
+  it('takes either fragment out of the bar for the host’s preview', () => {
+    window.history.replaceState(null, '', `/i/${TOKEN}#f=ABCDEFGH12345678`)
+    discardEditTokenFragment()
+    expect(window.location.hash).toBe('')
+    expect(readStoredHouseholdToken(TOKEN)).toBeNull()
   })
 })

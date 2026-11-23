@@ -3443,6 +3443,21 @@ export const it: UiText = {
       earlier: (summary: string) => `Avevi risposto: ${summary}`,
       failed: 'Non è stato possibile inviare la risposta. Controlla la connessione e riprova.',
       busy: 'In questo momento stanno rispondendo in tanti. Riprova tra un attimo.',
+      householdGreeting: (name: string) => `Ciao ${name}`,
+      householdPlaces: (n: number) =>
+        n === 1 ? 'Un posto riservato per voi' : `${n} posti riservati per voi`,
+      householdFailed:
+        'Non è stato possibile leggere il link del vostro nucleo. Controllate la connessione e riprovate.',
+      householdRetry: 'Riprova',
+      householdIncomplete:
+        'Questo link del nucleo è incompleto: probabilmente è stato tagliato lungo la strada. Copiatelo per intero, oppure chiedetelo all’organizzatore.',
+      householdNotYours: 'Non è il vostro nucleo?',
+      replyNotYours: 'Non è la vostra risposta?',
+      olderReply: (name: string) =>
+        `Questo dispositivo conserva anche una risposta salvata con il nome «${name}».`,
+      olderReplyDelete: 'Elimina questa risposta',
+      householdGone:
+        'Questo link del nucleo non funziona più. Chiedetene uno nuovo all’organizzatore, oppure rispondete qui sotto.',
       forgotten:
         'Questo dispositivo non trova più la tua risposta: è stata eliminata o il link è cambiato.',
       companionsLabel: 'Nomi di chi viene con te',

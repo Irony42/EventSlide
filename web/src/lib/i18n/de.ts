@@ -3511,6 +3511,21 @@ export const de: UiText = {
       failed:
         'Die Antwort konnte nicht gesendet werden. Prüfe deine Verbindung und versuche es erneut.',
       busy: 'Gerade antworten viele Leute. Versuche es gleich noch einmal.',
+      householdGreeting: (name: string) => `Hallo ${name}`,
+      householdPlaces: (n: number) =>
+        n === 1 ? 'Ein Platz für Sie reserviert' : `${n} Plätze für Sie reserviert`,
+      householdFailed:
+        'Der Link Ihres Haushalts konnte nicht gelesen werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',
+      householdRetry: 'Erneut versuchen',
+      householdIncomplete:
+        'Dieser Haushaltslink ist unvollständig: Er wurde wohl unterwegs abgeschnitten. Kopieren Sie ihn vollständig oder fragen Sie die Gastgeber danach.',
+      householdNotYours: 'Nicht Ihr Haushalt?',
+      replyNotYours: 'Nicht Ihre Antwort?',
+      olderReply: (name: string) =>
+        `Dieses Gerät speichert außerdem eine Antwort unter dem Namen „${name}“.`,
+      olderReplyDelete: 'Diese Antwort löschen',
+      householdGone:
+        'Dieser Haushaltslink funktioniert nicht mehr. Bitten Sie die Gastgeber um einen neuen oder antworten Sie unten.',
       forgotten:
         'Dieses Gerät findet deine Antwort nicht mehr: Sie wurde gelöscht oder der Link hat sich geändert.',
       companionsLabel: 'Vornamen derer, die mit Ihnen kommen',

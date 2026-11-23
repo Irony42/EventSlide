@@ -147,6 +147,16 @@ export interface RsvpFormResponseDto {
   readonly rsvpForm: RsvpSettingsDto
 }
 
+/** What a household reads when it opens its personal link (spec 30, lot 3): no token, no id. */
+export interface GuestHouseholdResponseDto {
+  readonly household: {
+    readonly name: string
+    readonly places: number
+    /** Its reply, when it gave one. */
+    readonly rsvp?: GuestOwnRsvpDto
+  }
+}
+
 /** One reply as the host reads it. The guest's edit token is never part of it. */
 export interface RsvpDto {
   readonly id: string

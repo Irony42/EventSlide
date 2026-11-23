@@ -3391,6 +3391,21 @@ export const en: UiText = {
       earlier: (summary: string) => `You had replied: ${summary}`,
       failed: 'Your reply could not be sent. Check your connection and try again.',
       busy: 'Many people are replying right now. Try again in a moment.',
+      householdGreeting: (name: string) => `Hello ${name}`,
+      householdPlaces: (n: number) =>
+        n === 1 ? 'One place kept for you' : `${n} places kept for you`,
+      householdFailed:
+        'Your household’s link could not be read. Check your connection and try again.',
+      householdRetry: 'Try again',
+      householdIncomplete:
+        'This household link is incomplete: it was probably cut off on the way. Copy it in full, or ask the host for it.',
+      householdNotYours: 'Not your household?',
+      replyNotYours: 'Not your reply?',
+      olderReply: (name: string) =>
+        `This device also keeps a reply saved under the name “${name}”.`,
+      olderReplyDelete: 'Delete this reply',
+      householdGone:
+        'This household link no longer works. Ask the host for a new one, or answer below.',
       forgotten: 'This device can no longer find your reply: it was deleted or the link changed.',
       companionsLabel: 'First names of those coming with you',
       companionLabel: (n: number) => `Companion ${n}`,

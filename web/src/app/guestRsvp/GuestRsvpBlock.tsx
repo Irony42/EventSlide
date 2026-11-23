@@ -10,6 +10,7 @@ import {
   EMPTY_DRAFT,
   bump,
   draftOf,
+  householdForm,
   inputOf,
   maxPeople,
   peopleOfDraft,
@@ -118,7 +119,19 @@ export function GuestRsvpBlock({
   const [copied, setCopied] = useState(false)
   const [deleted, setDeleted] = useState(false)
 
-  const { form } = rsvp
+  // A household answers with the host's form, its own places as the ceiling and the counter always asked.
+  const household = state.household
+  const form = household === null ? rsvp.form : householdForm(rsvp.form, household.places)
+  // The household's name is what the form starts from: the link tells the page who is answering.
+  const householdName = household?.name ?? null
+  const [nameSeeded, setNameSeeded] = useState(false)
+  if (householdName !== null && !nameSeeded) {
+    setNameSeeded(true)
+    setDraft((current) => (current.name === '' ? { ...current, name: householdName } : current))
+  }
+  // What an empty form is: the household's name stays in it after a send or an erasure.
+  const emptyDraft: RsvpDraft =
+    household === null ? EMPTY_DRAFT : { ...EMPTY_DRAFT, name: household.name }
   const knownName = state.own?.reply.name ?? null
   useEffect(() => {
     onKnownName?.(knownName)
@@ -141,8 +154,38 @@ export function GuestRsvpBlock({
     )
   }
 
+  // The household's link could not be read (the network, not a refusal): say so, and let the guest ask again.
+  if (state.householdUnread) {
+    return (
+      <section className={styles['block']}>
+        <Notice tone="warning" variant="boxed" role="alert">
+          {t.householdFailed}
+        </Notice>
+        <Button variant="secondary" size="lg" block onClick={state.retryHousehold}>
+          {t.householdRetry}
+        </Button>
+      </section>
+    )
+  }
+
+  // What a link that opens nothing says, whatever state the replies are in: a household that follows a
+  // dead or cut-off link must know why it is asked as a stranger.
+  const deadText = state.householdGone
+    ? t.householdGone
+    : state.householdIncomplete
+      ? t.householdIncomplete
+      : null
+  const deadNotice =
+    deadText === null || deleted ? null : (
+      <p className={styles['deleted']} role="status">
+        {deadText}
+      </p>
+    )
+
   // Nothing is asked, and nothing is held: the page is the invitation alone.
-  if (rsvp.state === 'off' && own === null && !deleted) return null
+  if (rsvp.state === 'off' && own === null && !deleted) {
+    return deadNotice === null ? null : <section className={styles['block']}>{deadNotice}</section>
+  }
 
   const failureText = (code: string | null): string | null =>
     code === null
@@ -170,13 +213,13 @@ export function GuestRsvpBlock({
       editing && own !== null ? await state.update(own, input) : await state.submit(input, website)
     if (ok) {
       setEditing(false)
-      setDraft(EMPTY_DRAFT)
+      setDraft(emptyDraft)
     }
   }
 
   const startEditing = (current: GuestOwnRsvpDto) => {
     state.clearFailure()
-    setDraft(draftOf(current, form))
+    setDraft(draftOf(current, form, { clamp: true }))
     setEditing(true)
     setAsking(false)
   }
@@ -186,6 +229,7 @@ export function GuestRsvpBlock({
       setAsking(false)
       setEditing(false)
       setDeleted(true)
+      setDraft(emptyDraft)
     }
   }
 
@@ -193,6 +237,34 @@ export function GuestRsvpBlock({
     const link = ownReplyLink(window.location.origin, token, editToken)
     setCopied(await copyToClipboard(link))
   }
+
+  /** Who is answering, when the link is a household's: "Bonjour Famille Martin · 4 places prévues pour vous". */
+  const greeting =
+    household === null ? null : (
+      <div className={styles['household']}>
+        <p>
+          <strong>{t.householdGreeting(household.name)}</strong> <span aria-hidden="true">·</span>{' '}
+          <span>{t.householdPlaces(household.places)}</span>
+        </p>
+        {/* A shared phone: whoever holds it can drop the household from this device. */}
+        <Button variant="ghost" size="sm" onClick={state.forgetDevice}>
+          {t.householdNotYours}
+        </Button>
+        {state.older === null ? null : (
+          <Notice tone="neutral" variant="boxed" role="status">
+            {t.olderReply(state.older.reply.name)}
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={state.sending}
+              onClick={() => void state.removeOlder()}
+            >
+              {t.olderReplyDelete}
+            </Button>
+          </Notice>
+        )}
+      </div>
+    )
 
   const deadline =
     rsvp.deadline === null ? null : (
@@ -480,6 +552,7 @@ export function GuestRsvpBlock({
     }
     return (
       <section className={styles['block']} aria-live="polite">
+        {greeting}
         {rsvp.state === 'closed' ? (
           <div className={styles['done']}>
             <h2>{t.closedTitle}</h2>
@@ -501,13 +574,22 @@ export function GuestRsvpBlock({
             {t.edit}
           </Button>
         ) : null}
-        <div className={styles['link']}>
-          <span className={styles['linkTitle']}>{t.linkTitle}</span>
-          <small>{t.linkHint}</small>
-          <Button variant="secondary" size="md" onClick={() => copy(own.editToken)}>
-            {copied ? t.copied : t.copy}
+        {/* A household's link is its key: nothing to copy, every device of the household has it. */}
+        {own.editToken === null ? null : (
+          <div className={styles['link']}>
+            <span className={styles['linkTitle']}>{t.linkTitle}</span>
+            <small>{t.linkHint}</small>
+            <Button variant="secondary" size="md" onClick={() => copy(own.editToken as string)}>
+              {copied ? t.copied : t.copy}
+            </Button>
+          </div>
+        )}
+        {/* A shared phone: the device can let go of a reply that is not its owner's. */}
+        {own.editToken === null ? null : (
+          <Button variant="ghost" size="sm" onClick={state.forgetDevice}>
+            {t.replyNotYours}
           </Button>
-        </div>
+        )}
         {deleteControl}
         {proof}
       </section>
@@ -518,6 +600,7 @@ export function GuestRsvpBlock({
   if (editing) {
     return (
       <section className={styles['block']}>
+        {greeting}
         <h2>{t.title}</h2>
         {choices}
         {formFields}
@@ -538,6 +621,7 @@ export function GuestRsvpBlock({
   if (rsvp.state === 'closed') {
     return (
       <section className={styles['block']}>
+        {deadNotice}
         <div className={styles['done']}>
           <h2>{t.closedTitle}</h2>
           <p>{t.closedSub}</p>
@@ -550,6 +634,8 @@ export function GuestRsvpBlock({
     <section className={styles['block']}>
       {deleted ? <p className={styles['deleted']}>{t.deleted}</p> : null}
       {state.forgotten && !deleted ? <p className={styles['deleted']}>{t.forgotten}</p> : null}
+      {deadNotice}
+      {greeting}
       <h2>{t.title}</h2>
       {deadline}
       {choices}

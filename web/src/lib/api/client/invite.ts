@@ -3,6 +3,7 @@ import type {
   GuestInvitePageDto,
   GuestInviteResponse,
   GuestOwnRsvpResponseDto,
+  GuestHouseholdResponseDto,
   GuestRsvpCreatedDto,
   HouseholdImportResponseDto,
   HouseholdListResponseDto,
@@ -100,6 +101,11 @@ const rsvpToken = (editToken: string): Readonly<Record<string, string>> => ({
   'X-Rsvp-Token': editToken,
 })
 
+/** The household's link travels in this header, never in a path or a query (those reach access logs). */
+const householdToken = (token: string): Readonly<Record<string, string>> => ({
+  'X-Household-Token': token,
+})
+
 export const guestInviteApi = (transport: Transport) => ({
   /**
    * What the invitation's page shows. `404 guestInvite.notAvailable` for a link that is dead,
@@ -117,6 +123,49 @@ export const guestInviteApi = (transport: Transport) => ({
     input: GuestRsvpCreateInput,
     signal?: AbortSignal,
   ): Promise<GuestRsvpCreatedDto> => transport.post(`/api/i/${encode(token)}/rsvp`, input, signal),
+
+  /**
+   * What a household's personal link opens (spec 30, lot 3): its name, its places and its reply if it
+   * gave one. `404 rsvp.notFound` for a link the box does not know (another event's, changed, deleted).
+   */
+  guestHousehold: (
+    token: string,
+    household: string,
+    signal?: AbortSignal,
+  ): Promise<GuestHouseholdResponseDto> =>
+    transport.get(
+      `/api/i/${encode(token)}/household`,
+      undefined,
+      signal,
+      householdToken(household),
+    ),
+
+  /**
+   * The household answers: `201` for its first reply, `200` when it changed the one it had (a
+   * household has one reply). No reply token comes back: the link is the key.
+   */
+  guestHouseholdRsvpCreate: (
+    token: string,
+    household: string,
+    input: GuestRsvpCreateInput,
+    signal?: AbortSignal,
+  ): Promise<GuestOwnRsvpResponseDto> =>
+    transport.post(`/api/i/${encode(token)}/rsvp`, input, signal, householdToken(household)),
+
+  guestHouseholdRsvpUpdate: (
+    token: string,
+    household: string,
+    input: GuestRsvpInput,
+    signal?: AbortSignal,
+  ): Promise<GuestOwnRsvpResponseDto> =>
+    transport.put(`/api/i/${encode(token)}/rsvp`, input, signal, householdToken(household)),
+
+  guestHouseholdRsvpDelete: (
+    token: string,
+    household: string,
+    signal?: AbortSignal,
+  ): Promise<void> =>
+    transport.del(`/api/i/${encode(token)}/rsvp`, signal, householdToken(household)),
 
   /** The reply the token stands for; `404 rsvp.notFound` for a token the box does not know. */
   guestRsvp: (

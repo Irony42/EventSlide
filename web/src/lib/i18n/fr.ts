@@ -4154,6 +4154,21 @@ export const fr = {
       earlier: (summary: string) => `Vous aviez répondu\u00a0: ${summary}`,
       failed: 'La réponse n’a pas pu être envoyée. Vérifiez votre connexion et réessayez.',
       busy: 'Beaucoup de monde répond en ce moment. Réessayez dans un instant.',
+      householdGreeting: (name: string) => `Bonjour ${name}`,
+      householdPlaces: (n: number) =>
+        n === 1 ? 'Une place prévue pour vous' : `${n} places prévues pour vous`,
+      householdFailed:
+        'Le lien de votre foyer n’a pas pu être lu. Vérifiez votre connexion puis réessayez.',
+      householdRetry: 'Réessayer',
+      householdIncomplete:
+        'Ce lien de foyer est incomplet\u00a0: il a sans doute été coupé en route. Copiez-le en entier, ou demandez-le à l’organisateur.',
+      householdNotYours: 'Ce n’est pas votre foyer\u00a0?',
+      replyNotYours: 'Ce n’est pas votre réponse\u00a0?',
+      olderReply: (name: string) =>
+        `Cet appareil garde aussi une réponse enregistrée sous le nom «\u00a0${name}\u00a0».`,
+      olderReplyDelete: 'Supprimer cette réponse',
+      householdGone:
+        'Ce lien de foyer ne fonctionne plus. Demandez-en un nouveau à l’organisateur, ou répondez ci-dessous.',
       forgotten:
         'Cet appareil ne retrouve plus votre réponse\u00a0: elle a été supprimée ou le lien a changé.',
       companionsLabel: 'Prénoms de ceux qui viennent avec vous',

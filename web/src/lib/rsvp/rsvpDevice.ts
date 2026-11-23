@@ -55,10 +55,10 @@ const FRAGMENT_TOKEN = /^[A-Za-z0-9_-]{8,128}$/
  */
 let taken: { readonly invite: string; readonly token: string } | null = null
 
-/** Removes a `#r=` fragment from the address bar, whatever it holds, and says what it held. */
-const stripFragment = (): string | null => {
+/** Removes a `#r=` or `#f=` fragment (`prefix`) from the address bar, whatever it holds, and says what it held. */
+const stripFragment = (prefix: '#r=' | '#f='): string | null => {
   const hash = window.location.hash
-  if (!hash.startsWith('#r=')) return null
+  if (!hash.startsWith(prefix)) return null
   window.history.replaceState(
     window.history.state,
     '',
@@ -73,7 +73,7 @@ const stripFragment = (): string | null => {
  * left alone: another tool may own it). Asked twice for the same invitation, the same answer.
  */
 export const takeEditTokenFromFragment = (inviteToken: string): string | null => {
-  const raw = stripFragment()
+  const raw = stripFragment('#r=')
   if (raw === null) return taken?.invite === inviteToken ? taken.token : null
   if (!FRAGMENT_TOKEN.test(raw)) return null
   taken = { invite: inviteToken, token: raw }
@@ -86,8 +86,78 @@ export const takeEditTokenFromFragment = (inviteToken: string): string | null =>
  * the address bar of the person who opened a link on the wrong screen.
  */
 export const discardEditTokenFragment = (): void => {
-  stripFragment()
+  stripFragment('#r=')
+  stripFragment('#f=')
 }
+
+const HOUSEHOLD_KEY = (inviteToken: string): string => `eventslide.rsvp.household.${inviteToken}`
+
+/**
+ * A **household's personal link** (spec 30, lot 3) works like the reply link with `#f=<token>`: its
+ * token is read once from the fragment, **removed from the address bar** and kept for the device
+ * (`eventslide.rsvp.household.<invitation>`), so a reload or a return finds the household again.
+ * A link carries one of the two fragments, never both.
+ */
+
+/** The token of the household link this device holds for the invitation, or `null`. */
+export const readStoredHouseholdToken = (inviteToken: string): string | null => {
+  try {
+    const raw = window.localStorage.getItem(HOUSEHOLD_KEY(inviteToken))
+    if (raw === null) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return null
+    const value: unknown = Reflect.get(parsed, 'householdToken')
+    return typeof value === 'string' && value.length > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+export const storeHouseholdToken = (inviteToken: string, householdToken: string): void => {
+  try {
+    window.localStorage.setItem(HOUSEHOLD_KEY(inviteToken), JSON.stringify({ householdToken }))
+  } catch {
+    // The page works without a memory: the link is the way back.
+  }
+}
+
+/** The last household fragment taken, per invitation: StrictMode runs an initializer twice (see `taken`). */
+let takenHousehold: { readonly invite: string; readonly token: string } | null = null
+
+/** The invitation whose last `#f=` fragment held no token (cut off in a message, say): the page says so. */
+let incompleteHousehold: string | null = null
+
+export const forgetHouseholdToken = (inviteToken: string): void => {
+  if (takenHousehold?.invite === inviteToken) takenHousehold = null
+  if (incompleteHousehold === inviteToken) incompleteHousehold = null
+  try {
+    window.localStorage.removeItem(HOUSEHOLD_KEY(inviteToken))
+  } catch {
+    // Nothing to forget where nothing could be kept.
+  }
+}
+
+/**
+ * The household token a link carries in its fragment (`#f=<token>`), taken **and removed** from the
+ * address bar, and kept for the device. `null` when there is none; asked twice for the same
+ * invitation, the same answer. A fragment that holds no token is removed and answers `null`.
+ */
+export const takeHouseholdTokenFromFragment = (inviteToken: string): string | null => {
+  const raw = stripFragment('#f=')
+  if (raw === null) return takenHousehold?.invite === inviteToken ? takenHousehold.token : null
+  if (!FRAGMENT_TOKEN.test(raw)) {
+    incompleteHousehold = inviteToken
+    return null
+  }
+  incompleteHousehold = null
+  takenHousehold = { invite: inviteToken, token: raw }
+  storeHouseholdToken(inviteToken, raw)
+  return raw
+}
+
+/** Whether the household link opened for this invitation was **cut off** (a `#f=` that holds no token). */
+export const householdFragmentWasIncomplete = (inviteToken: string): boolean =>
+  incompleteHousehold === inviteToken
 
 /**
  * The private link a guest keeps to change their reply from another device: the invitation's own
