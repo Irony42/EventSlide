@@ -106,7 +106,7 @@ export interface RsvpScene extends GuestInviteScene {
 export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<RsvpScene> => {
   const base = await guestInviteScene()
   const rsvps = new FakeGuestRsvpRepository()
-  const households = new FakeGuestHouseholdRepository()
+  const households = new FakeGuestHouseholdRepository(rsvps)
   const bus = new RecordingEventBus()
   const ids = new SceneIds()
   const { events, memberships, invites, audit, clock } = base
@@ -142,7 +142,7 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
     listHouseholds: makeListHouseholds({ ...access, rsvps, households }),
     saveHousehold: makeSaveHousehold({ ...access, rsvps, households, bus, ids, clock }),
     importHouseholds: makeImportHouseholds({ ...access, households, audit, bus, ids, clock }),
-    deleteHousehold: makeDeleteHousehold({ ...access, rsvps, households, audit, bus, clock }),
+    deleteHousehold: makeDeleteHousehold({ ...access, households, audit, bus, clock }),
     rotateHouseholdToken: makeRotateHouseholdToken({
       ...access,
       rsvps,

@@ -4,7 +4,7 @@ import type { HouseholdToken } from '../../domain/guestRsvps/householdToken'
 import { isRsvpExpired } from '../../domain/guestRsvps/rsvpExpiry'
 import type { EventId, GuestHouseholdId } from '../../domain/shared/ids'
 import type { GuestHouseholdRepository } from '../ports/guestHouseholdRepository'
-import type { EventDates } from './fakeGuestRsvpRepository'
+import type { EventDates, FakeGuestRsvpRepository } from './fakeGuestRsvpRepository'
 
 /**
  * In-memory `GuestHouseholdRepository`, held to the same contract suite as the SQLite adapter.
@@ -24,6 +24,9 @@ const inListedOrder = (a: GuestHousehold, b: GuestHousehold): number =>
 export class FakeGuestHouseholdRepository implements GuestHouseholdRepository {
   private readonly rows = new Map<string, GuestHousehold>()
   private readonly dates = new Map<string, EventDates>()
+
+  /** The replies repository the adapter's `delete` detaches from, in the same step (one database in SQLite). */
+  constructor(private readonly rsvps: FakeGuestRsvpRepository | null = null) {}
 
   /** Puts rows in without any check, for a test that needs a state the rules would refuse. */
   seed(...households: readonly GuestHousehold[]): this {
@@ -105,7 +108,9 @@ export class FakeGuestHouseholdRepository implements GuestHouseholdRepository {
   }
 
   async delete(eventId: EventId, id: GuestHouseholdId): Promise<boolean> {
-    return this.rows.delete(key(eventId, id))
+    if (!this.rows.delete(key(eventId, id))) return false
+    await this.rsvps?.detachHousehold(eventId, id)
+    return true
   }
 
   async deleteExpired(now: Date): Promise<number> {

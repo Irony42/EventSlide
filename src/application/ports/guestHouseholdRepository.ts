@@ -49,7 +49,12 @@ export interface GuestHouseholdRepository {
   /** Notes the host's reminder (`reminded_at` and `updatedAt`). Says whether it existed. */
   markReminded(eventId: EventId, id: GuestHouseholdId, at: Date): Promise<boolean>
 
-  /** Whether a household was deleted. Its reply is the caller's to detach first. */
+  /**
+   * Whether a household was deleted. **In the same write transaction** the reply filed under it,
+   * if any, is detached (`household_id` back to `NULL`) and kept: the household is gone first, so
+   * no answer can be filed under it afterwards, and no reply is ever left pointing at a household
+   * that no longer exists. Another event's reply is never touched.
+   */
   delete(eventId: EventId, id: GuestHouseholdId): Promise<boolean>
 
   /**

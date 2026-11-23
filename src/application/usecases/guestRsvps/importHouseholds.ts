@@ -28,10 +28,11 @@ import {
  *
  * - needs the invitation (`409 rsvp.inviteRequired`) and an event that is not archived;
  * - **all or none**: the 500-household ceiling is decided inside the write (`409 household.tooMany`),
- *   and checked first from a count so that a refusal leaves no audit line;
+ *   and checked first from a count (a cheap early refusal);
  * - every household gets its own link token; the paste's order is the list's order;
- * - audited once, without any name (`event.householdsImported`), only when something is stored;
- *   announced. A paste with nothing to add writes, audits and announces nothing.
+ * - audited once, without any name (`event.householdsImported`), **after** the write succeeded, so a
+ *   refusal (the ceiling reached between the count and the write) leaves no line; a log that refuses
+ *   the line takes the households back, as `hostAddRsvp` takes a reply back; announced. A paste with nothing to add writes, audits and announces nothing.
  */
 
 export interface ImportHouseholdsInput {
@@ -46,7 +47,7 @@ export interface ImportedHouseholds {
 }
 
 export interface ImportHouseholdsDeps extends RsvpAccessDeps {
-  readonly households: Pick<GuestHouseholdRepository, 'listByEvent' | 'addAll'>
+  readonly households: Pick<GuestHouseholdRepository, 'listByEvent' | 'addAll' | 'delete'>
   readonly audit: AuditRecorder
   readonly bus: EventBus
   readonly ids: IdGenerator
@@ -93,7 +94,7 @@ export const makeImportHouseholds =
       )
     }
 
-    // Written before the change, as every owner's act is.
+    if (!(await deps.households.addAll(eventId, created))) return err(householdsTooMany())
     const recorded = await recordRsvpAct(
       deps.audit,
       needed.value.event,
@@ -101,8 +102,11 @@ export const makeImportHouseholds =
       'event.householdsImported',
       now,
     )
-    if (!recorded.ok) return recorded
-    if (!(await deps.households.addAll(eventId, created))) return err(householdsTooMany())
+    if (!recorded.ok) {
+      // A log that refuses the line means no act: the households are taken back.
+      for (const household of created) await deps.households.delete(eventId, household.id)
+      return recorded
+    }
     announceRsvpsChanged(deps.bus, eventId)
     return ok({ households: created, skipped })
   }

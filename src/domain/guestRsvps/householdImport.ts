@@ -38,12 +38,17 @@ export interface ParsedHouseholdList {
 export const householdNameKey = (name: string): string =>
   name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
-/** The cell separator of a line: the last `;` or tab, so a name may hold the other one. */
+/**
+ * The cell separator of a line: the last `;` or tab **after the empty cells at its end are dropped**
+ * (a spreadsheet range with an empty last column pastes `Dupont<tab>3<tab>`: the places are the last
+ * cell that holds something), so a name may hold the other separator.
+ */
 const splitLine = (line: string): { name: string; places: string | null } => {
-  const cut = Math.max(line.lastIndexOf(';'), line.lastIndexOf('\t'))
+  const trimmed = line.replace(/[;\t\s]+$/, '')
+  const cut = Math.max(trimmed.lastIndexOf(';'), trimmed.lastIndexOf('\t'))
   return cut < 0
-    ? { name: line, places: null }
-    : { name: line.slice(0, cut), places: line.slice(cut + 1).trim() }
+    ? { name: trimmed, places: null }
+    : { name: trimmed.slice(0, cut), places: trimmed.slice(cut + 1).trim() }
 }
 
 export const parseHouseholdList = (

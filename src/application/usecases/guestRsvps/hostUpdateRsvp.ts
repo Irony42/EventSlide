@@ -95,6 +95,8 @@ export const makeHostUpdateRsvp =
     if (held === null) return err(DomainError.notFound('rsvp.notFound'))
     const now = deps.clock.now()
     // A reply filed under a household is judged by that household's form: its places are the ceiling.
+    // A `householdId` that names no household (stale: deleting one detaches its reply in the same
+    // transaction, so this is defensive) falls back to the general form.
     const household =
       held.householdId === null
         ? null

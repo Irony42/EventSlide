@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { aHousehold } from '../../domain/guestRsvps/testing/householdFixtures'
 import { asEventId } from '../../domain/shared/ids'
+import { aRsvp } from '../../domain/guestRsvps/testing/rsvpFixtures'
+import { asGuestRsvpId } from '../../domain/shared/ids'
+import { FakeGuestRsvpRepository } from './fakeGuestRsvpRepository'
 import { guestHouseholdRepositoryContract } from './contracts/guestHouseholdRepositoryContract'
 import { FakeGuestHouseholdRepository } from './fakeGuestHouseholdRepository'
 
 guestHouseholdRepositoryContract('fake', async () => {
-  const repo = new FakeGuestHouseholdRepository()
+  const rsvps = new FakeGuestRsvpRepository()
+  const repo = new FakeGuestHouseholdRepository(rsvps)
   return {
     repo,
+    seedReply: async (eventId, id, householdId) =>
+      void rsvps.seed(aRsvp({ id, eventId, householdId })),
+    replyHousehold: async (eventId, id) =>
+      (await rsvps.findById(eventId, asGuestRsvpId(id)))?.householdId,
     setEventDates: async (eventId, dates) => void repo.setEventDates(eventId, dates),
   }
 })

@@ -551,17 +551,6 @@ export const guestRsvpRepositoryContract = (
         expect(await repo.setHousehold(WEDDING, asGuestRsvpId('nope'), 'h-1')).toBe('gone')
         expect(await repo.findByHousehold(WEDDING, 'h-1')).toBeNull()
       })
-
-      it('detaches the reply of a household and no other event’s', async () => {
-        await add({ id: 'rsvp-1', householdId: 'h-1' })
-        await repo.admit(aRsvp({ id: 'rsvp-2', eventId: 'evt-gala', householdId: 'h-1' }), NONE)
-
-        expect(await repo.detachHousehold(WEDDING, 'h-1')).toBe(1)
-        expect(await repo.detachHousehold(WEDDING, 'h-1')).toBe(0)
-
-        expect((await repo.findById(WEDDING, asGuestRsvpId('rsvp-1')))?.householdId).toBeNull()
-        expect(await repo.findByHousehold(GALA, 'h-1')).not.toBeNull()
-      })
     })
 
     describe('the narrow reads of the hot paths', () => {

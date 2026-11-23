@@ -88,7 +88,7 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
   const events = new FakeEventRepository({ memberships, photos })
   const invites = new FakeGuestInviteRepository()
   const rsvps = new FakeGuestRsvpRepository()
-  const households = new FakeGuestHouseholdRepository()
+  const households = new FakeGuestHouseholdRepository(rsvps)
   const bus = new RecordingEventBus()
   const audit = new FakeAuditLog().withAccounts(
     asUserId(OWNER),
@@ -172,7 +172,6 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
             }),
             deleteHousehold: makeDeleteHousehold({
               ...access,
-              rsvps,
               households,
               audit,
               bus,

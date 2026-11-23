@@ -6,8 +6,8 @@ import type { Migration } from '../migrator'
  *
  * - **`token` is stored in the clear** (ADR 0017), unlike a reply's token: the host shows the link
  *   again, to copy it or to print it on a card. It is a bearer credential of the invitation's kind
- *   (16 Crockford base32 characters, 80 bits) and `UNIQUE`, so a lookup is an index seek; every
- *   read also names the event.
+ *   (16 Crockford base32 characters, 80 bits, hence `CHECK (length(token) = 16)`) and `UNIQUE`, so a
+ *   lookup is an index seek; every read also names the event.
  * - **`places`** is what the host keeps for the household (the reply's ceiling); the table's
  *   `CHECK`s repeat the domain's bounds so no writer can break them.
  * - **`moments`** holds the ids of the moments the household is invited to (lot 4), `NULL` for
@@ -40,6 +40,7 @@ export const migration037: Migration = {
         updated_at  TEXT NOT NULL,
 
         CHECK (length(name) BETWEEN 1 AND 80),
+        CHECK (length(token) = 16),
         CHECK (places BETWEEN 1 AND 10),
         CHECK (moments IS NULL OR json_valid(moments))
       );

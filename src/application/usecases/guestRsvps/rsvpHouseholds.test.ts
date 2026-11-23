@@ -253,6 +253,8 @@ describe('the guest list, on the host’s side (spec 30, lot 3)', () => {
 
       expect(code(refused)).toBe('household.tooMany')
       expect(signals()).toEqual([])
+      // The line is written after the write: a refusal leaves none.
+      expect(await act()).toEqual([])
     })
 
     it('needs the invitation', async () => {
@@ -333,6 +335,41 @@ describe('the guest list, on the host’s side (spec 30, lot 3)', () => {
       expect(await act()).toEqual(['event.householdDeleted'])
       expect(JSON.stringify((await scene.audit.list({ limit: 50 })).items)).not.toContain('Secrète')
       expect(signals().length).toBeGreaterThan(1)
+    })
+
+    it('leaves no reply pointing at the household when a guest answers while it is being deleted', async () => {
+      const added = await add()
+      await scene.saveForm({ eventId: WEDDING, actorId: OWNER, enabled: true })
+      const token = await scene.token()
+      const link = added.ok ? added.value.household.token.value : ''
+      const delet = scene.households.delete.bind(scene.households)
+      // The household's own answer lands between the use case's read and its write.
+      scene.households.delete = async (eventId, id) => {
+        const answered = await scene.submit({
+          token,
+          householdToken: link,
+          name: 'Famille Martin',
+          answer: 'yes',
+          adults: 2,
+        })
+        expect(answered.ok).toBe(true)
+        return delet(eventId, id)
+      }
+
+      const deleted = await remove()
+
+      expect(deleted.ok).toBe(true)
+      const replies = await scene.rsvps.listByEvent(WEDDING)
+      expect(replies).toHaveLength(1)
+      expect(replies[0]?.householdId).toBeNull()
+      // And the link opens nothing any more: no answer can be filed under a household that is gone.
+      const late = await scene.submit({
+        token,
+        householdToken: link,
+        name: 'Famille Martin',
+        answer: 'no',
+      })
+      expect(code(late)).toBe('rsvp.notFound')
     })
 
     it('finds nothing for a household that is another event’s or already gone, and audits nothing', async () => {
@@ -473,6 +510,28 @@ describe('the guest list, on the host’s side (spec 30, lot 3)', () => {
       expect(attached.ok && attached.value.updatedAt).toEqual(new Date('2026-06-01T10:00:00Z'))
       expect((await list())[0]?.reply?.id).toBe('r-1')
       expect(signals().length).toBeGreaterThan(1)
+    })
+
+    it('refuses a reply of more people than the household has places, and files nothing', async () => {
+      scene.rsvps.seed(aRsvp({ id: 'r-big', eventId: WEDDING, adults: 4, kids: 1 }))
+
+      const refused = await attach({ rsvpId: asGuestRsvpId('r-big') })
+      const exact = await attach({ rsvpId: asGuestRsvpId('r-1') })
+
+      expect(code(refused)).toBe('household.placesExceeded')
+      expect(!refused.ok && refused.error.details).toEqual({ places: 4, people: 5 })
+      expect((await scene.rsvps.findById(WEDDING, asGuestRsvpId('r-big')))?.householdId).toBeNull()
+      expect(exact.ok).toBe(true)
+    })
+
+    it('detaches a large reply all the same: the places only limit what is filed', async () => {
+      scene.rsvps.seed(
+        aRsvp({ id: 'r-big', eventId: WEDDING, adults: 9, householdId: 'household-1' }),
+      )
+
+      const detached = await attach({ rsvpId: asGuestRsvpId('r-big'), householdId: null })
+
+      expect(detached.ok && detached.value.householdId).toBeNull()
     })
 
     it('detaches it with null', async () => {
@@ -629,18 +688,19 @@ describe('the guest list passes a refusal of the audit log back, before it chang
     })
     // An invitation exists, but the log refuses every line about this event.
     scene.invites.seed(aGuestInvite({ eventId: UNAUDITABLE, tokenByte: 7, ...PARTY }))
-    scene.households.seed(aHousehold({ id: 'household-1', eventId: UNAUDITABLE, token: LINK }))
+    scene.households.seed(aHousehold({ id: 'h-seed', eventId: UNAUDITABLE, token: LINK }))
     return scene
   }
   const LINK = '7QX0M4TZ2KD9WB3H'
 
   it('importHouseholds, deleteHousehold, rotateHouseholdToken', async () => {
     const scene = await unauditable()
+    const SEED = asGuestHouseholdId('h-seed')
     const act = { eventId: UNAUDITABLE, actorId: OWNER }
 
     const imported = await scene.importHouseholds({ ...act, text: 'Nouveau ; 2' })
-    const deleted = await scene.deleteHousehold({ ...act, householdId: H1 })
-    const rotated = await scene.rotateHouseholdToken({ ...act, householdId: H1 })
+    const deleted = await scene.deleteHousehold({ ...act, householdId: SEED })
+    const rotated = await scene.rotateHouseholdToken({ ...act, householdId: SEED })
 
     expect([imported.ok, deleted.ok, rotated.ok]).toEqual([false, false, false])
     const kept = await scene.households.listByEvent(UNAUDITABLE)

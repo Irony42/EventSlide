@@ -16,6 +16,9 @@ import { announceRsvpsChanged, openRsvps, type RsvpAccessDeps } from './rsvpAcce
  *
  * - the household must be **this event's** (`404 household.notFound`), the reply too
  *   (`404 rsvp.notFound`, also for one that vanished meanwhile);
+ * - **the household's places hold the reply**: a reply of more people than the household has places is
+ *   `400 household.placesExceeded` (`details.places`, `details.people`), as its own link would have
+ *   refused it; detaching has no such limit;
  * - **one reply per household**: `409 household.alreadyAnswered` when another already answers for
  *   it (decided inside the write: two hosts' tabs cannot both win);
  * - changes nothing else, **not even the reply's `updatedAt`** (the badge counts what guests wrote,
@@ -45,8 +48,19 @@ export const makeAttachRsvpToHousehold =
   async ({ eventId, actorId, rsvpId, householdId }) => {
     const opened = await openRsvps(deps, eventId, actorId, 'write')
     if (!opened.ok) return opened
-    if (householdId !== null && (await deps.households.findById(eventId, householdId)) === null) {
-      return err(householdNotFound())
+    if (householdId !== null) {
+      const household = await deps.households.findById(eventId, householdId)
+      if (household === null) return err(householdNotFound())
+      const reply = await deps.rsvps.findById(eventId, rsvpId)
+      if (reply === null) return err(DomainError.notFound('rsvp.notFound'))
+      if (reply.people > household.places) {
+        return err(
+          DomainError.invalid('household.placesExceeded', {
+            places: household.places,
+            people: reply.people,
+          }),
+        )
+      }
     }
     const outcome = await deps.rsvps.setHousehold(eventId, rsvpId, householdId)
     if (outcome === 'gone') return err(DomainError.notFound('rsvp.notFound'))

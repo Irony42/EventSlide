@@ -148,6 +148,7 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
     return 'set'
   }
 
+  /** Not on the port: the households' `delete` does this in its own transaction (the fake's household repository calls it). */
   async detachHousehold(eventId: EventId, householdId: string): Promise<number> {
     const attached = this.inEvent(eventId).filter((row) => row.householdId === householdId)
     for (const row of attached) this.rows.set(key(eventId, row.id), row.withHousehold(null))
