@@ -245,6 +245,33 @@ many recordings the host would lose, and **Garder les N messages en attente** pu
 burst of voices does not delay a video. The figure on a small VPS has not been measured yet; do it on your box before a
 big wedding (record a minute, watch the load while it transcodes).
 
+## Guests' replies
+
+A host can ask the guests "Serez-vous là ?" on the invitation's page (the **Réponses des invités** panel of the
+Invitations page), and reads the answers on the **Réponses** page of the event. What the box does with them is in
+[API.md](API.md) and [SECURITY.md](SECURITY.md); what you operate is this.
+
+**Nothing to install, one optional variable.** `GUEST_RSVP_RATE_LIMIT_PER_MINUTE` (30, from 1 to 6000) is what one
+address may write per minute; a second bucket of 300 a minute per invitation is fixed. Raise the first only if many guests
+answer from one address (a venue's Wi-Fi behind one connection), and say so to the host: the limit is per address.
+The reply is the only public write nobody is signed in for, so the body is capped at 4 KB and a guest keeps a private
+token (stored only as its SHA-256): a reply is reached by that link and by nothing else.
+
+**What is kept, and for how long.** A reply holds a name, a number of people and, if the host asks, a diet or an
+allergy (health data, read by the owner alone, never in a log, an audit line or an export of the album). The retention
+sweep erases the replies **30 days after the event closed or 60 days after the invitation's start, whichever comes
+first**, whatever the purge hold says: they are names and diets, not an album. The page says the day beside the list.
+Tell the host to export them first: the spreadsheet (**Exporter**, a CSV with a BOM and `;`, which Excel and LibreOffice
+open directly) is the only copy that outlives the sweep.
+
+**Live, and the badge.** The host's page re-reads the list on each `rsvp.changed` signal of the moderation stream (a
+signal with no content); the badge on the **Réponses** entry counts the replies written or changed since the host last
+looked, and is cleared by opening the page. The page also re-reads when the tab comes back into view and
+when the stream reconnects, so a dropped connection costs a few seconds, not a reply.
+
+**No e-mail.** The hosted instance sends none, so nobody is told by message that a reply arrived: the badge and the open
+page are the notice.
+
 ## Backups
 
 Take one before the event and one the morning after. The server stays up while you do,

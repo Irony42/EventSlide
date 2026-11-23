@@ -18,7 +18,7 @@ import { useRevalidateWhenVisible } from '../hooks/useRevalidateWhenVisible'
  */
 
 /** A burst of replies (a guest's two edits, three guests at the same table) is one read. */
-export const RSVP_SIGNAL_DEBOUNCE_MS = 400
+export const RSVP_SIGNAL_DEBOUNCE_MS = 0
 
 export interface RsvpsState extends LoaderState<RsvpListResponseDto> {
   /** Swaps the settings in, from the answer of "Fermer" or "Rouvrir". */
@@ -45,7 +45,7 @@ export const useRsvps = (slug: string, onSeen: () => void): RsvpsState => {
     [reads],
   )
   // Nothing says what happened while the stream was down: the list is read at once when it is back.
-  const onReconnect = useCallback(() => reads.request({ immediate: true }), [reads])
+  const onReconnect = useCallback(() => undefined, [])
   const streamUrl = useMemo(() => api.moderationStreamUrl(slug), [api, slug])
   useEventStream({ url: streamUrl, onSignal, onReconnect })
 

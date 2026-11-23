@@ -291,6 +291,22 @@ describe('the replies page: filtering', () => {
     expect(screen.getAllByRole('row')).toHaveLength(16)
   })
 
+  it('shows every match of a search, not only the first twelve', async () => {
+    const user = userEvent.setup()
+    const many: RsvpDto[] = Array.from({ length: 15 }, (_, i) =>
+      anRsvp({
+        id: `r-${i}`,
+        name: `Invité ${String(i).padStart(2, '0')}`,
+        updatedAt: '2026-11-22T10:00:00.000Z',
+      }),
+    )
+    render(answering(list({ rsvps: many })))
+
+    await user.type(await screen.findByRole('searchbox', { name: text.searchLabel }), 'invité')
+
+    expect(screen.getAllByRole('row')).toHaveLength(16)
+  })
+
   it('says the last replies, newest first', async () => {
     render(answering(list()))
 

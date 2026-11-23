@@ -284,3 +284,14 @@ describe('the replies’ entry', () => {
     expect(within(nav).queryByRole('link', { name: /Réponses/ })).not.toBeInTheDocument()
   })
 })
+
+describe('the replies’ count stays on its own entry', () => {
+  it('does not put the unseen replies on another entry of the menu', async () => {
+    renderAt('', { status: 'live', unseenRsvps: 3, pendingCount: 0 })
+
+    const nav = await menu()
+    expect(
+      within(nav).getByRole('link', { name: fr.eventMenu.sections.moderation }),
+    ).toBeInTheDocument()
+  })
+})
