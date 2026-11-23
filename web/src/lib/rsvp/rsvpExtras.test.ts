@@ -61,7 +61,7 @@ describe('the guest’s draft, lot 2', () => {
 
     expect(input).toMatchObject({
       companions: ['Hugo', 'Inès'],
-      meals: ['Poisson', 'Végé'],
+      meals: ['Poisson', '', 'Végé'],
       answers: [
         { questionId: 'q1', value: 'Oh' },
         { questionId: 'q2', value: '' },
@@ -113,31 +113,34 @@ describe('the guest’s draft, lot 2', () => {
       answers: [{ questionId: 'q1', label: 'Un chant ?', value: 'Oh' }],
     })
 
-    expect(draftOf(reply)).toMatchObject({
+    expect(draftOf(reply, FORM)).toMatchObject({
       companions: ['Hugo'],
       meals: ['Poisson'],
       answers: { q1: 'Oh' },
     })
     expect(
-      draftOfHostReply({
-        id: 'r1',
-        name: 'Zoé',
-        answer: 'yes',
-        adults: 2,
-        kids: 0,
-        diet: null,
-        message: null,
-        source: 'host',
-        details: {
-          companions: ['Max'],
-          meals: ['Végé'],
-          answers: [{ questionId: 'q1', label: 'Un chant ?', value: 'Sol' }],
-          moments: [],
-          showName: false,
+      draftOfHostReply(
+        {
+          id: 'r1',
+          name: 'Zoé',
+          answer: 'yes',
+          adults: 2,
+          kids: 0,
+          diet: null,
+          message: null,
+          source: 'host',
+          details: {
+            companions: ['Max'],
+            meals: ['Végé'],
+            answers: [{ questionId: 'q1', label: 'Un chant ?', value: 'Sol' }],
+            moments: [],
+            showName: false,
+          },
+          createdAt: '2026-11-20T10:00:00.000Z',
+          updatedAt: '2026-11-20T10:00:00.000Z',
         },
-        createdAt: '2026-11-20T10:00:00.000Z',
-        updatedAt: '2026-11-20T10:00:00.000Z',
-      }),
+        FORM,
+      ),
     ).toMatchObject({ companions: ['Max'], meals: ['Végé'], answers: { q1: 'Sol' } })
   })
 })
@@ -215,5 +218,79 @@ describe('the settings, lot 2', () => {
       meals: { enabled: true, options: ['A', 'B'] },
       questions: [],
     })
+  })
+})
+
+describe('a choice the host changed since the reply was given', () => {
+  const reply = aGuestOwnRsvp({
+    adults: 2,
+    companions: ['', 'Inès'],
+    meals: ['Poisson', 'Végé'],
+    answers: [
+      { questionId: 'q1', label: 'Un chant ?', value: 'Oh' },
+      { questionId: 'q2', label: 'Voiture ?', value: 'Peut-être' },
+    ],
+  })
+  const renamed = { ...FORM, meals: { enabled: true, options: ['Viande', 'Végé'] } }
+
+  it('blanks a menu or a choice the form no longer offers, so the screen and the payload agree', () => {
+    const draft = draftOf(reply, renamed)
+
+    expect(draft.meals).toEqual(['', 'Végé'])
+    expect(draft.answers).toEqual({ q1: 'Oh', q2: '' })
+    expect(inputOf({ ...draft, answer: 'yes' }, renamed)).toMatchObject({
+      meals: ['', 'Végé'],
+      answers: [
+        { questionId: 'q1', value: 'Oh' },
+        { questionId: 'q2', value: '' },
+      ],
+    })
+  })
+
+  it('does not send a stale menu even when the draft still holds it', () => {
+    const input = inputOf({ ...YES, adults: 2, kids: 0, meals: ['Poisson', 'Végé'] }, renamed)
+
+    expect(input.meals).toEqual(['', 'Végé'])
+  })
+
+  it('does the same for the host’s correction', () => {
+    const host = draftOfHostReply(
+      {
+        id: 'r1',
+        name: 'Zoé',
+        answer: 'yes',
+        adults: 2,
+        kids: 0,
+        diet: null,
+        message: null,
+        source: 'host',
+        details: {
+          companions: [],
+          meals: ['Poisson', 'Végé'],
+          answers: [{ questionId: 'q2', label: 'Voiture ?', value: 'Peut-être' }],
+          moments: [],
+          showName: false,
+        },
+        createdAt: '2026-11-20T10:00:00.000Z',
+        updatedAt: '2026-11-20T10:00:00.000Z',
+      },
+      renamed,
+    )
+
+    expect(host.meals).toEqual(['', 'Végé'])
+    expect(host.answers).toEqual({ q2: '' })
+  })
+
+  it('keeps each menu with its person: nothing is filtered out of the list', () => {
+    const draft = { ...YES, adults: 3, kids: 0, meals: ['', 'Végé', ''] }
+
+    expect(inputOf(draft, FORM).meals).toEqual(['', 'Végé', ''])
+    expect(personName({ ...draft, companions: ['', 'Inès'] }, 2, 'Personne 3')).toBe('Inès')
+  })
+
+  it('does not name a menu while the menus are off', () => {
+    const off = { ...FORM, meals: { enabled: false, options: [] } }
+
+    expect(draftOf(reply, off).meals).toEqual(['', ''])
   })
 })

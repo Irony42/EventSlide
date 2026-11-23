@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../../design-system/components/Button'
 import { CheckboxField } from '../../../design-system/components/CheckboxField'
 import { Field } from '../../../design-system/components/Field'
+import { Notice } from '../../../design-system/components/Notice'
 import { SelectField } from '../../../design-system/components/SelectField'
 import { Textarea } from '../../../design-system/components/Textarea'
 import { TextInput } from '../../../design-system/components/TextInput'
 import type { RsvpFormInput } from '../../../lib/api/client/invite'
 import type { RsvpFormDto } from '../../../lib/api/dto'
+import type { RsvpSaveState } from './useRsvpSettings'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import {
   linesOf,
@@ -27,9 +29,17 @@ export interface RsvpExtrasProps {
   readonly form: RsvpFormDto
   readonly locked: boolean
   readonly change: (input: RsvpFormInput) => void
+  /** Where the save stands and the sentence of its last refusal: a refused text stays beside its field. */
+  readonly saveState: RsvpSaveState
+  readonly problem: string | null
 }
 
-/** A text kept on screen while it is typed, sent when the field is left and only if it changed. */
+/**
+ * A text kept on screen while it is typed, sent when the field is left (or when the page is, so
+ * nothing typed is lost) and only if it changed. **It stays on screen until the save is settled**: a
+ * refused text is still what the host typed, with the refusal beside it, not the old value silently
+ * back.
+ */
 function CommitField({
   label,
   hint,
@@ -37,6 +47,8 @@ function CommitField({
   multiline = false,
   disabled,
   onCommit,
+  saveState,
+  problem,
 }: {
   readonly label: string
   readonly hint?: string
@@ -44,47 +56,87 @@ function CommitField({
   readonly multiline?: boolean
   readonly disabled: boolean
   readonly onCommit: (value: string) => void
+  readonly saveState: RsvpSaveState
+  readonly problem: string | null
 }) {
   const [typed, setTyped] = useState<string | null>(null)
+  /** The typed text was handed to the save: it stays until the save has answered. */
+  const [sent, setSent] = useState(false)
   const shown = typed ?? value
-  const leave = () => {
-    if (typed !== null && typed !== value) onCommit(typed)
+  const latest = useRef({ typed, value, sent, onCommit })
+  useEffect(() => {
+    latest.current = { typed, value, sent, onCommit }
+  })
+  // Leaving the page with a text typed and not yet left: it is sent, not lost.
+  useEffect(
+    () => () => {
+      const now = latest.current
+      if (now.typed !== null && now.typed !== now.value && !now.sent) now.onCommit(now.typed)
+    },
+    [],
+  )
+  // Settled: the save answered and nothing was refused, so the server's word is the screen again.
+  // (State adjusted while rendering, the documented way to derive it from a prop.)
+  if (sent && saveState === 'saved' && problem === null) {
     setTyped(null)
+    setSent(false)
+  }
+  const leave = () => {
+    if (typed !== null && typed !== value && !sent) {
+      onCommit(typed)
+      setSent(true)
+    } else if (!sent) {
+      setTyped(null)
+    }
+  }
+  const change = (text: string) => {
+    setTyped(text)
+    setSent(false)
   }
   return (
-    <Field label={label} {...(hint === undefined ? {} : { hint })}>
-      {(control) =>
-        multiline ? (
-          <Textarea
-            {...control}
-            rows={3}
-            value={shown}
-            disabled={disabled}
-            onChange={(event) => setTyped(event.target.value)}
-            onBlur={leave}
-          />
-        ) : (
-          <TextInput
-            {...control}
-            value={shown}
-            maxLength={80}
-            disabled={disabled}
-            onChange={(event) => setTyped(event.target.value)}
-            onBlur={leave}
-          />
-        )
-      }
-    </Field>
+    <>
+      <Field label={label} {...(hint === undefined ? {} : { hint })}>
+        {(control) =>
+          multiline ? (
+            <Textarea
+              {...control}
+              rows={3}
+              value={shown}
+              disabled={disabled}
+              onChange={(event) => change(event.target.value)}
+              onBlur={leave}
+            />
+          ) : (
+            <TextInput
+              {...control}
+              value={shown}
+              maxLength={80}
+              disabled={disabled}
+              onChange={(event) => change(event.target.value)}
+              onBlur={leave}
+            />
+          )
+        }
+      </Field>
+      {sent && problem !== null ? (
+        <Notice tone="danger" variant="inline" role="alert">
+          {problem}
+        </Notice>
+      ) : null}
+    </>
   )
 }
 
-export function RsvpExtras({ form, locked, change }: RsvpExtrasProps) {
+export function RsvpExtras({ form, locked, change, saveState, problem }: RsvpExtrasProps) {
   const all = useTranslations()
   const text = all.rsvp.host
   /** The menus are being written: the switch is on screen before it can be sent (it needs 2 menus). */
   const [mealsOpen, setMealsOpen] = useState(false)
   const [draft, setDraft] = useState<QuestionDraft | null>(null)
   const mealsOn = form.meals.enabled || mealsOpen
+  /** A question the server has not named yet: nothing about the questions changes until it has, or a
+   * second request would give the same question a second id. */
+  const naming = form.questions.some((question) => question.id === '')
 
   const save = (questions: readonly QuestionDraft[]) =>
     change({ form: { questions: questionsInput(questions) } })
@@ -98,6 +150,9 @@ export function RsvpExtras({ form, locked, change }: RsvpExtrasProps) {
         disabled={locked}
         onChange={(companionNames) => change({ form: { companionNames } })}
       />
+      {form.companionNames && !form.partySize.enabled ? (
+        <p className={styles['note']}>{text.companionsNeedSize}</p>
+      ) : null}
       <CheckboxField
         label={text.mealsLabel}
         hint={text.mealsHint}
@@ -122,6 +177,8 @@ export function RsvpExtras({ form, locked, change }: RsvpExtrasProps) {
             value={form.meals.options.join('\n')}
             multiline
             disabled={locked}
+            saveState={saveState}
+            problem={problem}
             onCommit={(raw) => {
               const options = linesOf(raw)
               change({
@@ -140,7 +197,9 @@ export function RsvpExtras({ form, locked, change }: RsvpExtrasProps) {
             <CommitField
               label={text.questionLabelLabel}
               value={question.label}
-              disabled={locked || question.id === ''}
+              saveState={saveState}
+              problem={problem}
+              disabled={locked || naming}
               onCommit={(label) =>
                 save(
                   form.questions.map((other, at) =>
@@ -155,7 +214,9 @@ export function RsvpExtras({ form, locked, change }: RsvpExtrasProps) {
                 hint={text.questionOptionsHint}
                 value={(question.options ?? []).join('\n')}
                 multiline
-                disabled={locked || question.id === ''}
+                saveState={saveState}
+                problem={problem}
+                disabled={locked || naming}
                 onCommit={(raw) =>
                   save(
                     form.questions.map((other, at) =>
@@ -168,7 +229,7 @@ export function RsvpExtras({ form, locked, change }: RsvpExtrasProps) {
             <Button
               variant="ghost"
               size="sm"
-              disabled={locked || question.id === ''}
+              disabled={locked || naming}
               aria-label={text.questionRemove(question.label)}
               onClick={() => save(form.questions.filter((_, at) => at !== index))}
             >
@@ -236,7 +297,7 @@ export function RsvpExtras({ form, locked, change }: RsvpExtrasProps) {
           <Button
             variant="secondary"
             size="sm"
-            disabled={locked}
+            disabled={locked || naming}
             onClick={() => setDraft({ id: '', label: '', kind: 'text', options: [] })}
           >
             {text.questionAdd}

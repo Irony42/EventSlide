@@ -254,7 +254,7 @@ Invitations page), and reads the answers on the **Réponses** page of the event.
 **Nothing to install, one optional variable.** `GUEST_RSVP_RATE_LIMIT_PER_MINUTE` (30, from 1 to 6000) is what one
 address may write per minute; a second bucket of 300 a minute per invitation is fixed. Raise the first only if many guests
 answer from one address (a venue's Wi-Fi behind one connection), and say so to the host: the limit is per address.
-The reply is the only public write nobody is signed in for, so the body is capped at 4 KB and a guest keeps a private
+The reply is the only public write nobody is signed in for, so the body is capped at 8 KB and a guest keeps a private
 token (stored only as its SHA-256): a reply is reached by that link and by nothing else.
 
 **What is kept, and for how long.** A reply holds a name, a number of people and, if the host asks, a diet or an

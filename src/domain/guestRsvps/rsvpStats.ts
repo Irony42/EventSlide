@@ -39,7 +39,10 @@ export const statsOf = (rsvps: readonly GuestRsvp[]): RsvpStats => {
         yesResponses += 1
         yesAdults += rsvp.adults
         yesKids += rsvp.kids
-        for (const meal of rsvp.details.meals) meals.set(meal, (meals.get(meal) ?? 0) + 1)
+        // A blank entry is a person who chose no menu: it counts for nobody.
+        for (const meal of rsvp.details.meals) {
+          if (meal !== '') meals.set(meal, (meals.get(meal) ?? 0) + 1)
+        }
         break
       case 'maybe':
         maybeResponses += 1

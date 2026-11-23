@@ -84,16 +84,16 @@ export function RsvpDetail({
                 <dd>{peopleDetail(reply, text)}</dd>
               </>
             ) : null}
-            {reply.details.companions.length === 0 ? null : (
+            {reply.details.companions.every((name) => name === '') ? null : (
               <>
                 <dt>{text.detailCompanions}</dt>
-                <dd>{reply.details.companions.join(', ')}</dd>
+                <dd>{reply.details.companions.filter((name) => name !== '').join(', ')}</dd>
               </>
             )}
-            {reply.details.meals.length === 0 ? null : (
+            {reply.details.meals.every((meal) => meal === '') ? null : (
               <>
                 <dt>{text.detailMeals}</dt>
-                <dd>{reply.details.meals.join(', ')}</dd>
+                <dd>{reply.details.meals.filter((meal) => meal !== '').join(', ')}</dd>
               </>
             )}
             {reply.diet === null ? null : (

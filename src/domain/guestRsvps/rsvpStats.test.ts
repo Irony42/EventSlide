@@ -50,6 +50,12 @@ describe('statsOf', () => {
     ])
   })
 
+  it('counts no menu for a person who chose none: a blank entry is nobody menu', () => {
+    const stats = statsOf([aRsvp({ details: { meals: ['', 'Poisson', ''] } })])
+
+    expect(stats.meals).toEqual([{ label: 'Poisson', count: 1 }])
+  })
+
   it('counts the menus of those who come, most chosen first, then by label', () => {
     const stats = statsOf([
       aRsvp({ id: 'a', details: { meals: ['Viande', 'Poisson'] } }),

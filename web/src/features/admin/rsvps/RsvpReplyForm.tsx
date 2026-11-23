@@ -44,7 +44,7 @@ export function RsvpReplyForm({ reply, form, onSubmit, onClose }: RsvpReplyFormP
   const t = useTranslations()
   const text = t.rsvp.list
   const [draft, setDraft] = useState<RsvpDraft>(
-    reply === null ? EMPTY_DRAFT : draftOfHostReply(reply),
+    reply === null ? EMPTY_DRAFT : draftOfHostReply(reply, form),
   )
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)

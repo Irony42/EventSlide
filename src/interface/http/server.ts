@@ -162,15 +162,15 @@ export const buildServer = ({
   // The guest invitation's public page: the token is in the path, so the same headers on every
   // answer, a refusal by the body parser or the CSRF gate included.
   app.use('/api/i', galleryHeaders)
-  // The guests' replies (spec 30) are the one public write here nobody is signed in for: **4 KB**, not
+  // The guests' replies (spec 30) are the one public write here nobody is signed in for: **8 KB**, not
   // the global 64 KB. Mounted ahead of the global parser, which does not read a body already read, so
   // this limit is the one that applies (`413` beyond it).
   //
   // **A body this parser refuses (`400` malformed, `413` too large) is not counted by the write limiter**,
-  // which sits on the routes behind it. That is acceptable: such a request costs a read of at most 4 KB
+  // which sits on the routes behind it. That is acceptable: such a request costs a read of at most 8 KB
   // and a parse, never a write, a lookup or a hash; the connection-level limits of the reverse proxy are
   // what bound a flood of them, and an attacker who can only send refusals stores nothing.
-  app.use('/api/i', express.json({ limit: '4kb' }))
+  app.use('/api/i', express.json({ limit: '8kb' }))
 
   // Bounded well below any legitimate payload: the only JSON bodies here are a login,
   // a caption and a list of at most 200 photo ids. Uploads go through multer.

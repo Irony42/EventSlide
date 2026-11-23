@@ -239,19 +239,138 @@ describe('the form extras (spec 30, lot 2)', () => {
       })
     })
 
-    it('refuses an answer to a question the form does not ask', async () => {
-      await asked()
+    it('refuses a repeated answer, and ignores one to a question the form does not ask', async () => {
+      const [q1] = await asked()
+      const add = (answers: unknown) =>
+        scene.hostAdd({
+          eventId: WEDDING,
+          actorId: OWNER,
+          name: 'Zoé',
+          answer: 'yes',
+          adults: 1,
+          answers,
+        })
 
-      const refused = await scene.hostAdd({
+      const repeated = await add([
+        { questionId: q1?.id, value: 'a' },
+        { questionId: q1?.id, value: 'b' },
+      ])
+      const stale = await add([{ questionId: 'zzzzzzzz', value: 'x' }])
+
+      expect(!repeated.ok && repeated.error.code).toBe('rsvp.answersInvalid')
+      expect(stale.ok).toBe(true)
+    })
+  })
+
+  describe('a guest on a stale page, and the answers of a removed question', () => {
+    it('is told the menu is no longer offered, and nothing is stored', async () => {
+      await asked()
+      await save({ meals: { options: ['Viande', 'Végé'] } })
+
+      const sent = await scene.submit({
+        token,
+        name: 'Léa',
+        answer: 'yes',
+        adults: 1,
+        meals: ['Poisson'],
+      })
+
+      expect(!sent.ok && sent.error.code).toBe('rsvp.mealNotOffered')
+      expect(await scene.rsvps.listByEvent(WEDDING)).toEqual([])
+    })
+
+    it('keeps the answer to a removed question through a no and back to a yes', async () => {
+      const [q1, q2] = await asked()
+      const sent = await scene.submit({
+        token,
+        name: 'Léa',
+        answer: 'yes',
+        adults: 1,
+        answers: [{ questionId: q1?.id, value: 'Un chant' }],
+      })
+      if (!sent.ok) throw new Error('sent')
+      await save({
+        questions: [{ id: q2?.id, label: 'Voiture ?', kind: 'choice', options: ['Oui', 'Non'] }],
+      })
+      const own = { token, editToken: sent.value.editToken, name: 'Léa', adults: 1 }
+
+      const declined = await scene.updateOwn({ ...own, answer: 'no' })
+      const back = await scene.updateOwn({ ...own, answer: 'yes' })
+
+      expect(declined.ok && declined.value.details.answers).toEqual([
+        { questionId: q1?.id, label: 'Un chant ?', value: 'Un chant' },
+      ])
+      expect(back.ok && back.value.details.answers).toContainEqual({
+        questionId: q1?.id,
+        label: 'Un chant ?',
+        value: 'Un chant',
+      })
+    })
+
+    it('keeps it through a no typed by the host too', async () => {
+      const [q1] = await asked()
+      const added = await scene.hostAdd({
         eventId: WEDDING,
         actorId: OWNER,
         name: 'Zoé',
         answer: 'yes',
         adults: 1,
-        answers: [{ questionId: 'zzzzzzzz', value: 'x' }],
+        answers: [{ questionId: q1?.id, value: 'Sol' }],
+      })
+      if (!added.ok) throw new Error('added')
+      await save({ questions: [] })
+
+      const declined = await scene.hostUpdate({
+        eventId: WEDDING,
+        actorId: OWNER,
+        rsvpId: added.value.id,
+        name: 'Zoé',
+        answer: 'no',
       })
 
-      expect(!refused.ok && refused.error.code).toBe('rsvp.questionUnknown')
+      expect(declined.ok && declined.value.details.answers).toEqual([
+        { questionId: q1?.id, label: 'Un chant ?', value: 'Sol' },
+      ])
+    })
+
+    it('tells the page the menus while they are on', async () => {
+      await asked()
+
+      const page = await scene.view({ token })
+
+      expect(page.ok && page.value.rsvp.form.meals).toEqual({
+        enabled: true,
+        options: MENUS.options,
+      })
+    })
+
+    it('does not tell the page the menus while they are switched off', async () => {
+      await asked()
+      await save({ meals: { enabled: false } })
+
+      const page = await scene.view({ token })
+
+      expect(page.ok && page.value.rsvp.form.meals).toEqual({ enabled: false, options: [] })
+    })
+
+    it('keeps a menu with its person: a blank one in the middle stays blank', async () => {
+      await asked()
+
+      const sent = await scene.submit({
+        token,
+        name: 'Léa',
+        answer: 'yes',
+        adults: 3,
+        companions: ['', 'Inès'],
+        meals: ['', 'Végé'],
+      })
+
+      expect(sent.ok && sent.value.rsvp.details).toMatchObject({
+        companions: ['', 'Inès'],
+        meals: ['', 'Végé'],
+      })
+      const stored = await scene.rsvps.listByEvent(WEDDING)
+      expect(stored[0]?.details.meals).toEqual(['', 'Végé'])
     })
   })
 

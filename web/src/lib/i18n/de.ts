@@ -754,11 +754,12 @@ export const de: UiText = {
     'rsvp.companionsTooMany': 'Es sind zu viele Vornamen für die Personenzahl.',
     'rsvp.mealsInvalid': 'Diese Menüs sind ungültig: 2 bis 6 Menüs, alle verschieden.',
     'rsvp.mealsTooMany': 'Es gibt mehr Menüs als Personen.',
-    'rsvp.mealNotOffered': 'Dieses Menü wird nicht angeboten.',
+    'rsvp.mealNotOffered':
+      'Die Menüs haben sich geändert: Die Seite wurde gerade aktualisiert. Bitte wählen Sie erneut.',
     'rsvp.answersInvalid': 'Diese Antworten sind ungültig.',
-    'rsvp.questionUnknown': 'Diese Frage gibt es nicht.',
     'rsvp.answerTooLong': 'Eine Antwort ist zu lang: höchstens 120 Zeichen.',
-    'rsvp.answerNotAnOption': 'Wählen Sie eine der angebotenen Antworten.',
+    'rsvp.answerNotAnOption':
+      'Die Auswahl hat sich geändert: Die Seite wurde gerade aktualisiert. Bitte wählen Sie erneut.',
     'rsvp.questionsInvalid':
       'Diese Fragen sind ungültig: höchstens drei, und 2 bis 6 Auswahlmöglichkeiten bei einer Auswahlfrage.',
     'guestInvite.notFound': 'Diese Einladung gibt es noch nicht. Speichern Sie sie zuerst.',
@@ -3499,13 +3500,13 @@ export const de: UiText = {
       companionPlaceholder: 'Vorname',
       mealsLabel: 'Menüs',
       mealFor: (who: string) => `Menü für ${who}`,
-      mealPick: 'Menü wählen',
       personFallback: (n: number) => `Person ${n}`,
       answerPick: 'Wählen',
       recapCompanions: (names: string) => `Mit Ihnen: ${names}`,
       recapMeals: (meals: string) => `Menüs: ${meals}`,
       recapAnswer: (label: string, value: string) => `${label}: ${value}`,
       trap: 'Dieses Feld leer lassen',
+      tooLarge: 'Ihre Antwort ist zu lang zum Senden. Bitte kürzen Sie Ihre Texte.',
     },
     host: {
       title: 'Antworten der Gäste',
@@ -3564,13 +3565,15 @@ export const de: UiText = {
       stateFull: 'Voll',
       companionsLabel: 'Vornamen der Begleitung',
       companionsHint: 'Die Gäste tragen den Vornamen jeder Person ein, die mit ihnen kommt.',
+      companionsNeedSize:
+        'Vornamen werden für jede Person neben dem Gast abgefragt: Schalten Sie auch die Personenzahl ein.',
       mealsLabel: 'Menüauswahl',
       mealsHint: 'Ein Menü pro Person, nur bei denen gefragt, die kommen.',
       mealsOptionsLabel: 'Die Menüs',
       mealsOptionsHint: 'Eines pro Zeile, 2 bis 6.',
       questionsTitle: 'Ihre Fragen',
       questionsHint:
-        'Höchstens drei, gestellt nach dem „Ja“. Eine Frage zu entfernen löscht die bereits gegebenen Antworten nicht.',
+        'Höchstens drei, gestellt bei „Ja“ oder „Vielleicht“. Eine Frage zu entfernen löscht die bereits gegebenen Antworten nicht.',
       questionAdd: 'Frage hinzufügen',
       questionLabelLabel: 'Die Frage',
       questionKindLabel: 'Art der Antwort',

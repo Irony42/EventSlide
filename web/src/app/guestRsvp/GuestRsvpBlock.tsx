@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Button } from '../../design-system/components/Button'
 import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
@@ -50,6 +50,11 @@ export interface GuestRsvpBlockProps {
   readonly interactive?: boolean
   /** The host's preview shows the form open on a "yes", this name typed in. */
   readonly previewName?: string
+  /**
+   * Asks the page to read the invitation again: the host changed the form while this one was open
+   * (a menu or a choice is gone), so what the guest typed is kept and the form is read anew.
+   */
+  readonly onStale?: () => void
 }
 
 const CHOICES: readonly RsvpAnswer[] = ['yes', 'maybe', 'no']
@@ -96,6 +101,7 @@ export function GuestRsvpBlock({
   locale,
   interactive = true,
   previewName,
+  onStale,
 }: GuestRsvpBlockProps) {
   const all = useTranslations()
   const t = all.rsvp.guest
@@ -110,6 +116,11 @@ export function GuestRsvpBlock({
   const [deleted, setDeleted] = useState(false)
 
   const { form } = rsvp
+  const failureCode = state.failure
+  useEffect(() => {
+    if (failureCode === 'rsvp.mealNotOffered' || failureCode === 'rsvp.answerNotAnOption')
+      onStale?.()
+  }, [failureCode, onStale])
   const open = rsvp.state === 'open' || rsvp.state === 'full'
   const own = state.own
   // A reply that vanished while it was being changed (a deletion elsewhere) ends the change.
@@ -133,7 +144,9 @@ export function GuestRsvpBlock({
         ? t.failed
         : code === 'busy'
           ? t.busy
-          : messageForCode(code, all)
+          : code === 'request.tooLarge'
+            ? t.tooLarge
+            : messageForCode(code, all)
 
   const failure = failureText(state.failure)
   const set = (patch: Partial<RsvpDraft>) => setDraft((current) => ({ ...current, ...patch }))
@@ -156,7 +169,7 @@ export function GuestRsvpBlock({
 
   const startEditing = (current: GuestOwnRsvpDto) => {
     state.clearFailure()
-    setDraft(draftOf(current))
+    setDraft(draftOf(current, form))
     setEditing(true)
     setAsking(false)
   }

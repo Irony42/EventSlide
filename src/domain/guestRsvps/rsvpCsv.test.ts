@@ -193,3 +193,55 @@ describe('rsvpCsv, the lot 2 columns', () => {
     expect(linesOf(csv)).toEqual(['Nom;Adultes;Enfants;Menus;Régime', 'Léa;2;0;Poisson, Végé;', ''])
   })
 })
+
+describe('rsvpCsv, a removed question', () => {
+  it('is headed by the label of the most recently updated reply that answered it', () => {
+    const answer = (label: string) => [{ questionId: 'gone', label, value: 'x' }]
+    const csv = rsvpCsv(
+      [
+        aRsvp({
+          id: 'a',
+          updatedAt: new Date('2026-11-22T10:00:00Z'),
+          details: { answers: answer('Ancien libellé') },
+        }),
+        aRsvp({
+          id: 'b',
+          updatedAt: new Date('2026-11-23T10:00:00Z'),
+          details: { answers: answer('Dernier libellé') },
+        }),
+        aRsvp({
+          id: 'c',
+          updatedAt: new Date('2026-11-21T10:00:00Z'),
+          details: { answers: answer('Très ancien') },
+        }),
+      ],
+      'all',
+      LABELS,
+      [],
+    )
+
+    expect(linesOf(csv)[0]).toContain(';Dernier libellé;')
+    expect(linesOf(csv)[0]).not.toContain('Ancien libellé')
+  })
+
+  it('is a column of its own when the host adds a question again: the new one has another id', () => {
+    const csv = rsvpCsv(
+      [aRsvp({ details: { answers: [{ questionId: 'old', label: 'Un chant ?', value: 'a' }] } })],
+      'all',
+      LABELS,
+      [{ id: 'new', label: 'Un chant ?' }],
+    )
+
+    expect(linesOf(csv)[0]?.match(/Un chant \?/g)).toHaveLength(2)
+  })
+
+  it('writes a blank menu or companion as nothing, and joins the rest', () => {
+    const csv = rsvpCsv(
+      [aRsvp({ adults: 3, details: { companions: ['', 'Inès'], meals: ['', 'Végé'] } })],
+      'all',
+      LABELS,
+    )
+
+    expect(linesOf(csv)[1]).toContain(';Inès;Végé;')
+  })
+})

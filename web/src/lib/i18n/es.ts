@@ -720,11 +720,12 @@ export const es: UiText = {
     'rsvp.companionsTooMany': 'Hay demasiados nombres para el número de personas.',
     'rsvp.mealsInvalid': 'Estos menús no son válidos: de 2 a 6 menús, todos distintos.',
     'rsvp.mealsTooMany': 'Hay más menús que personas.',
-    'rsvp.mealNotOffered': 'Este menú no se ofrece.',
+    'rsvp.mealNotOffered':
+      'Los menús han cambiado: la página se acaba de actualizar. Elige de nuevo.',
     'rsvp.answersInvalid': 'Estas respuestas no son válidas.',
-    'rsvp.questionUnknown': 'Esta pregunta no existe.',
     'rsvp.answerTooLong': 'Una respuesta es demasiado larga: 120 caracteres como máximo.',
-    'rsvp.answerNotAnOption': 'Elige una de las respuestas propuestas.',
+    'rsvp.answerNotAnOption':
+      'Las opciones han cambiado: la página se acaba de actualizar. Elige de nuevo.',
     'rsvp.questionsInvalid':
       'Estas preguntas no son válidas: tres como máximo, y de 2 a 6 opciones en una pregunta de opciones.',
     'guestInvite.notFound': 'Esta invitación aún no existe. Guárdela primero.',
@@ -3459,13 +3460,13 @@ export const es: UiText = {
       companionPlaceholder: 'Nombre',
       mealsLabel: 'Menús',
       mealFor: (who: string) => `Menú de ${who}`,
-      mealPick: 'Elegir un menú',
       personFallback: (n: number) => `Persona ${n}`,
       answerPick: 'Elegir',
       recapCompanions: (names: string) => `Contigo: ${names}`,
       recapMeals: (meals: string) => `Menús: ${meals}`,
       recapAnswer: (label: string, value: string) => `${label}: ${value}`,
       trap: 'Deja este campo vacío',
+      tooLarge: 'Tu respuesta es demasiado larga para enviarla. Acorta tus textos.',
     },
     host: {
       title: 'Respuestas de los invitados',
@@ -3523,13 +3524,15 @@ export const es: UiText = {
       stateFull: 'Completo',
       companionsLabel: 'Nombres de los acompañantes',
       companionsHint: 'El invitado anota el nombre de cada persona que viene con él.',
+      companionsNeedSize:
+        'Los nombres se piden por cada persona además del invitado: activa también el número de personas.',
       mealsLabel: 'Menús a elegir',
       mealsHint: 'Un menú por persona, solo para quienes vienen.',
       mealsOptionsLabel: 'Los menús',
       mealsOptionsHint: 'Uno por línea, de 2 a 6.',
       questionsTitle: 'Tus preguntas',
       questionsHint:
-        'Tres como máximo, tras el «sí». Quitar una pregunta no borra las respuestas ya dadas.',
+        'Tres como máximo, para quienes responden «sí» o «quizás». Quitar una pregunta no borra las respuestas ya dadas.',
       questionAdd: 'Añadir una pregunta',
       questionLabelLabel: 'La pregunta',
       questionKindLabel: 'Tipo de respuesta',

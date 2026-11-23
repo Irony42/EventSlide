@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 
 const plain = (sentence: string): string => sentence.replaceAll(String.fromCharCode(160), ' ')
@@ -168,5 +169,53 @@ describe('the lot 2 fields', () => {
     expect(screen.getByLabelText(t.companionLabel(1))).toHaveValue('Hugo')
     expect(screen.getByRole('combobox', { name: t.mealFor('Hugo') })).toHaveValue('Végé')
     expect(screen.getByLabelText(/Un chant/)).toHaveValue('Oh')
+  })
+})
+
+describe('a page the host changed meanwhile, and a reply too large', () => {
+  const sendOne = async (guestRsvpCreate: Api['guestRsvpCreate'], onStale = vi.fn()) => {
+    const user = userEvent.setup()
+    renderWithProviders(
+      <GuestRsvpBlock rsvp={page} token={TOKEN} locale="fr" onStale={onStale} />,
+      { api: fakeApi({ guestRsvpCreate }) },
+    )
+    await user.click(screen.getByRole('button', { name: t.yes }))
+    await user.type(screen.getByLabelText(new RegExp(t.nameLabel)), 'Léa Martin')
+    await user.type(screen.getByLabelText(/Un chant/), 'Le Temps des cerises')
+    await user.click(screen.getByRole('button', { name: t.send }))
+    return onStale
+  }
+
+  it('asks the page to read the form again when a menu is no longer offered, keeping what was typed', async () => {
+    const onStale = await sendOne(
+      vi.fn().mockRejectedValue(new ApiError(400, 'rsvp.mealNotOffered')),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/ont changé/)
+    expect(onStale).toHaveBeenCalled()
+    expect(screen.getByLabelText(/Un chant/)).toHaveValue('Le Temps des cerises')
+    expect(screen.getByLabelText(new RegExp(t.nameLabel))).toHaveValue('Léa Martin')
+  })
+
+  it('does the same for a choice that is gone', async () => {
+    const onStale = await sendOne(
+      vi.fn().mockRejectedValue(new ApiError(400, 'rsvp.answerNotAnOption')),
+    )
+
+    await screen.findByRole('alert')
+    expect(onStale).toHaveBeenCalled()
+  })
+
+  it('does not ask for a new page for any other refusal', async () => {
+    const onStale = await sendOne(vi.fn().mockRejectedValue(new ApiError(400, 'rsvp.nameEmpty')))
+
+    await screen.findByRole('alert')
+    expect(onStale).not.toHaveBeenCalled()
+  })
+
+  it('says a reply that is too large to be sent in a readable sentence', async () => {
+    await sendOne(vi.fn().mockRejectedValue(new ApiError(413, 'request.tooLarge')))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.tooLarge)
   })
 })

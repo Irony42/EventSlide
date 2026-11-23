@@ -54,21 +54,26 @@ const LIST_SEPARATOR = ', '
 
 /**
  * The columns of the questions: the form's, in its order, then one for every question that was
- * removed but still has answers (its label is the one the answer was given under).
+ * removed but still has answers, in the order they are met. A removed question's header is the label
+ * of **the most recently updated reply** that answered it (a host who reworded it before removing it
+ * sees the last wording), ties going to the first met. A question removed and added again is a new
+ * question, with a column of its own.
  */
 const questionColumns = (
   rsvps: readonly GuestRsvp[],
   questions: readonly RsvpCsvQuestion[],
 ): readonly RsvpCsvQuestion[] => {
-  const columns = [...questions]
+  const asked = new Set(questions.map((question) => question.id))
+  const orphans = new Map<string, { label: string; at: number }>()
   for (const rsvp of rsvps) {
     for (const { questionId, label } of rsvp.details.answers) {
-      if (!columns.some((column) => column.id === questionId)) {
-        columns.push({ id: questionId, label })
-      }
+      if (asked.has(questionId)) continue
+      const at = rsvp.updatedAt.getTime()
+      const seen = orphans.get(questionId)
+      if (seen === undefined || at > seen.at) orphans.set(questionId, { label, at })
     }
   }
-  return columns
+  return [...questions, ...[...orphans].map(([id, { label }]) => ({ id, label }))]
 }
 
 const answerOf = (rsvp: GuestRsvp, questionId: string): string | null => {
@@ -76,8 +81,11 @@ const answerOf = (rsvp: GuestRsvp, questionId: string): string | null => {
   return value === undefined || value === '' ? null : value
 }
 
-const listOf = (items: readonly string[]): string | null =>
-  items.length === 0 ? null : items.join(LIST_SEPARATOR)
+/** The entries written, the blank ones (a person who gave nothing) left out. */
+const listOf = (items: readonly string[]): string | null => {
+  const written = items.filter((item) => item !== '')
+  return written.length === 0 ? null : written.join(LIST_SEPARATOR)
+}
 
 export const rsvpCsv = (
   rsvps: readonly GuestRsvp[],

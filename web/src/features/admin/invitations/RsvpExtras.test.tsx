@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
 import type { Api } from '../../../lib/api/client'
 import { aRsvpSettings, fakeApi, renderWithProviders } from '../../../testing/renderWithProviders'
@@ -294,7 +295,9 @@ describe('the questions', () => {
     await user.click(screen.getByRole('button', { name: t.questionConfirm }))
 
     await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(1))
+    // Everything about the questions waits for the name: a second request would give a second id.
     expect(screen.getByLabelText(t.questionLabelLabel)).toBeDisabled()
+    expect(screen.getByRole('button', { name: t.questionAdd })).toBeDisabled()
     release()
     await waitFor(() => expect(screen.getAllByLabelText(t.questionLabelLabel)[0]).toBeEnabled())
   })
@@ -304,5 +307,79 @@ describe('the questions', () => {
 
     expect(await screen.findByRole('button', { name: t.questionAdd })).toBeDisabled()
     expect(screen.getAllByLabelText(t.questionLabelLabel)[0]).toBeDisabled()
+  })
+})
+
+describe('a text typed and not yet left', () => {
+  it('is sent when the page is left, not lost', async () => {
+    const user = userEvent.setup()
+    const saveRsvpForm = vi.fn(async () => ({ rsvpForm: aRsvpSettings() }))
+    const view = render(
+      aRsvpSettings({ form: form({ meals: { enabled: true, options: ['A', 'B'] } }) }),
+      { saveRsvpForm },
+    )
+
+    await user.type(await screen.findByLabelText(t.mealsOptionsLabel), '{Enter}C')
+    view.unmount()
+
+    await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(1))
+    expect(saveRsvpForm).toHaveBeenCalledWith('mariage', {
+      form: { meals: { options: ['A', 'B', 'C'], enabled: true } },
+    })
+  })
+
+  it('stays on screen when the save is refused, with the refusal beside the field', async () => {
+    const user = userEvent.setup()
+    const saveRsvpForm = vi.fn().mockRejectedValue(new ApiError(400, 'rsvp.mealsInvalid'))
+    render(aRsvpSettings({ form: form({ meals: { enabled: true, options: ['A', 'B'] } }) }), {
+      saveRsvpForm,
+    })
+
+    const field = await screen.findByLabelText(t.mealsOptionsLabel)
+    await user.clear(field)
+    await user.type(field, 'Seul')
+    await user.tab()
+
+    await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(1))
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts.length).toBeGreaterThan(0)
+    expect(screen.getByLabelText(t.mealsOptionsLabel)).toHaveValue('Seul')
+  })
+
+  it('gives the server’s word back once the save is settled', async () => {
+    const user = userEvent.setup()
+    const saved = aRsvpSettings({
+      form: form({ meals: { enabled: true, options: ['A', 'B', 'C'] } }),
+    })
+    const saveRsvpForm = vi.fn(async () => ({ rsvpForm: saved }))
+    render(aRsvpSettings({ form: form({ meals: { enabled: true, options: ['A', 'B'] } }) }), {
+      saveRsvpForm,
+    })
+
+    await user.type(await screen.findByLabelText(t.mealsOptionsLabel), '{Enter}  C  ')
+    await user.tab()
+
+    await waitFor(() => expect(screen.getByLabelText(t.mealsOptionsLabel)).toHaveValue('A\nB\nC'))
+  })
+})
+
+describe('the panel’s hints', () => {
+  it('says first names need the number of people when that is off', async () => {
+    render(
+      aRsvpSettings({
+        form: form({ companionNames: true, partySize: { enabled: false, max: 4 } }),
+      }),
+    )
+
+    expect(
+      await screen.findByText(t.companionsNeedSize.replaceAll(String.fromCharCode(160), ' ')),
+    ).toBeInTheDocument()
+  })
+
+  it('says nothing of it while the number of people is asked', async () => {
+    render(aRsvpSettings({ form: form({ companionNames: true }) }))
+
+    await screen.findByRole('checkbox', { name: t.companionsLabel })
+    expect(screen.queryByText(t.companionsNeedSize)).not.toBeInTheDocument()
   })
 })
