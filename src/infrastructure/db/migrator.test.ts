@@ -303,6 +303,7 @@ describe('the real schema', () => {
       'guests',
       'highlight_reels',
       'photos',
+      'push_subscriptions',
       'reactions',
       'schema_migrations',
       'sessions',
@@ -4577,6 +4578,87 @@ describe('migration 037: guest households (spec 30, lot 3)', () => {
 
     db.prepare(`DELETE FROM events WHERE id = 'e-one'`).run()
     expect(db.prepare(`SELECT COUNT(*) AS n FROM guest_households`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+})
+
+describe('migration 038: push subscriptions (spec 30, lot 4)', () => {
+  const AT = '2026-11-23T10:00:00.000Z'
+  const migrated = (): Db => {
+    const db = freshDb()
+    migrate(db, migrations)
+    return db
+  }
+  const seed = (db: Db, event = 'e-one', user = 'u-one'): void => {
+    db.prepare(
+      `INSERT OR IGNORE INTO users (id, email, password_hash, created_at) VALUES (?, ?, 'x', ?)`,
+    ).run(user, `${user}@example.test`, AT)
+    db.prepare(
+      `INSERT OR IGNORE INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+       VALUES (?, ?, ?, ?, ?, 'live', '{}', 1, ?)`,
+    ).run(event, user, event, event, event, AT)
+  }
+  const insert = (
+    db: Db,
+    id: string,
+    event: string,
+    user: string,
+    endpoint = 'https://fcm.googleapis.com/x',
+  ): void => {
+    db.prepare(
+      `INSERT INTO push_subscriptions (id, user_id, event_id, endpoint, p256dh, auth, created_at)
+       VALUES (?, ?, ?, ?, 'k', 'a', ?)`,
+    ).run(id, user, event, endpoint, AT)
+  }
+
+  it('is the 38th migration and creates the table with an index on each foreign key', () => {
+    const db = migrated()
+
+    expect(migrations.at(-1)?.id).toBeGreaterThanOrEqual(38)
+    const indexes = (
+      db.prepare(`PRAGMA index_list(push_subscriptions)`).all() as { name: string }[]
+    ).map((row) => row.name)
+    expect(indexes).toEqual(
+      expect.arrayContaining(['push_subscriptions_user', 'push_subscriptions_event']),
+    )
+    closeDatabase(db)
+  })
+
+  it('holds one row per browser, event and account, and refuses the same triple twice', () => {
+    const db = migrated()
+    seed(db, 'e-one', 'u-one')
+    seed(db, 'e-two', 'u-one')
+    seed(db, 'e-one', 'u-two')
+    insert(db, 's-1', 'e-one', 'u-one')
+
+    // The same browser for another event, and for another account, is allowed.
+    insert(db, 's-2', 'e-two', 'u-one')
+    insert(db, 's-3', 'e-one', 'u-two')
+    expect(() => insert(db, 's-4', 'e-one', 'u-one')).toThrow(/UNIQUE/)
+    closeDatabase(db)
+  })
+
+  it('refuses an endpoint of more than 2048 characters or none', () => {
+    const db = migrated()
+    seed(db)
+
+    expect(() => insert(db, 's-1', 'e-one', 'u-one', '')).toThrow(/CHECK/)
+    expect(() => insert(db, 's-2', 'e-one', 'u-one', 'x'.repeat(2049))).toThrow(/CHECK/)
+    closeDatabase(db)
+  })
+
+  it('goes with its event and with its account', () => {
+    const db = migrated()
+    seed(db, 'e-one', 'u-one')
+    seed(db, 'e-two', 'u-two')
+    insert(db, 's-1', 'e-one', 'u-one')
+    insert(db, 's-2', 'e-two', 'u-two')
+
+    db.prepare(`DELETE FROM events WHERE id = 'e-one'`).run()
+    expect(db.prepare(`SELECT id FROM push_subscriptions`).all()).toEqual([{ id: 's-2' }])
+    db.prepare(`DELETE FROM events WHERE owner_id = 'u-two'`).run()
+    db.prepare(`DELETE FROM users WHERE id = 'u-two'`).run()
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM push_subscriptions`).get()).toEqual({ n: 0 })
     closeDatabase(db)
   })
 })
