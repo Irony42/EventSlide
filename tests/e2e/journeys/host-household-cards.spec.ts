@@ -2,7 +2,7 @@ import { csrfHeaders, expect, test } from '../fixtures/app'
 import { invitedHost } from '../fixtures/invitation'
 import { decodeQr } from '../fixtures/qrDecode'
 import { fr } from '../../../web/src/lib/i18n/fr'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 /**
  * One printed card per household (spec 30, lot 3, PR 12), from the host's tab to what a phone reads.
@@ -53,12 +53,12 @@ test('each household’s card carries its own link as a QR, four to a sheet, the
 
   // --- Ticking the option lays one card per household: five cards, two sheets.
   await host.getByLabel(text.printPerHousehold).check()
-  await expect(sheets).toHaveCount(2)
   await expect(host.getByText(text.printPerHouseholdHint(5, 2))).toBeVisible()
-  // On the screen only the first sheet is shown: the preview stays one sheet, the paper has them all.
+  // On the screen only the first sheet is built (a list of 500 must not redraw 500 cards); the paper has them all.
+  await expect(sheets).toHaveCount(1)
   await expect(sheets.first()).toBeVisible()
-  await expect(sheets.nth(1)).toBeHidden()
   await host.emulateMedia({ media: 'print' })
+  await expect(sheets).toHaveCount(2)
   await expect(sheets.first().getByRole('img', { name: /QR/ })).toHaveCount(4)
   await expect(sheets.nth(1).getByRole('img', { name: /QR/ })).toHaveCount(1)
   expect(await pagesOf(host)).toBe(2)
@@ -87,4 +87,68 @@ test('each household’s card carries its own link as a QR, four to a sheet, the
   await expect(common.getByRole('img', { name: /QR/ })).toHaveCount(4)
   await host.emulateMedia({ media: 'print' })
   expect(await pagesOf(host)).toBe(1)
+})
+
+const fontOf = (card: Locator) =>
+  card
+    .locator('[data-fit]')
+    .first()
+    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+
+test('a long title is fitted on the sheets after the first like on the first, and a 36-character name fits every design', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const { event } = await invitedHost(host, app, 'cartes-foyers-longues')
+  const headers = await csrfHeaders(host.request, app)
+  const name = 'Famille Montmorency-Castelnau-Vi'.padEnd(36, 'x')
+  expect([...name]).toHaveLength(36)
+  for (let i = 0; i < 5; i += 1) {
+    const created = await host.request.post(app.url(`/api/events/${event.slug}/households`), {
+      headers,
+      data: { name: i === 0 ? name : `Foyer ${i}`, places: 2 },
+    })
+    expect(created.status()).toBe(201)
+  }
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  await host.getByLabel(text.printPerHousehold).check()
+  await host.emulateMedia({ media: 'print' })
+  const sheets = host.locator('[data-household-sheet]')
+  await expect(sheets).toHaveCount(2)
+
+  // Page 1 and page 2 carry the same card text: fitted alike, nothing overflowing.
+  const first = await fontOf(sheets.first().locator('[data-print-card]').first())
+  const second = await fontOf(sheets.nth(1).locator('[data-print-card]').first())
+  expect(first).toBeGreaterThan(0)
+  expect(Math.abs(first - second)).toBeLessThan(first * 0.35)
+  const sizesOf = (sheet: Locator) =>
+    sheet
+      .locator('[data-print-card]')
+      .first()
+      .locator('[data-fit]')
+      .evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))
+  // Same texts, so the same fitted sizes: a sheet that was never fitted keeps the unfitted CSS size.
+  expect(await sizesOf(sheets.nth(1))).toEqual(await sizesOf(sheets.first()))
+
+  for (const design of [
+    'Essentiel',
+    'Ticket de caisse',
+    'Souvenir',
+    'Billet',
+    'Carte d’embarquement',
+    'Guirlande',
+  ]) {
+    await host.emulateMedia({ media: 'screen' })
+    await host.getByRole('radio', { name: design }).check({ force: true })
+    await host.emulateMedia({ media: 'print' })
+    const label = sheets.first().locator('[data-household-name]').first()
+    await expect(label).toContainText('Famille Montmorency', { timeout: 5000 })
+    const box = await label.evaluate((n) => ({
+      inside:
+        n.getBoundingClientRect().right <=
+        (n.closest('[data-print-card]') as HTMLElement).getBoundingClientRect().right + 1,
+    }))
+    expect(box.inside, design).toBe(true)
+  }
 })

@@ -3202,6 +3202,11 @@ export const en: UiText = {
         'The photo could not be kept on this device: it will be gone when you leave the page.',
       printButton: 'Print',
       previewLabel: 'Card preview',
+      printPerHouseholdLegend: 'Cards for the households',
+      printPerHouseholdFailed: 'The list of households could not be read.',
+      printPerHouseholdStale:
+        'The list of households could not be read again: nothing was printed. Check your connection and try again.',
+      printHouseholdQrAlt: (name: string) => `QR code of the personal link of ${name}`,
       printPerHousehold: 'One card per household',
       printPerHouseholdHint: (households: number, sheets: number) =>
         `${households} ${households === 1 ? 'card' : 'cards'} to print, on ${sheets} ${sheets === 1 ? 'sheet' : 'sheets'}. The household’s name is on the card.`,

@@ -3957,6 +3957,11 @@ export const fr = {
         'La photo n’a pas pu être gardée sur cet appareil\u00a0: elle disparaîtra quand vous quitterez la page.',
       printButton: 'Imprimer',
       previewLabel: 'Aperçu de la carte',
+      printPerHouseholdLegend: 'Cartes pour les foyers',
+      printPerHouseholdFailed: 'La liste des foyers n’a pas pu être lue.',
+      printPerHouseholdStale:
+        'La liste des foyers n’a pas pu être relue\u00a0: rien n’est imprimé. Vérifiez votre connexion puis réessayez.',
+      printHouseholdQrAlt: (name: string) => `Code QR du lien personnel de ${name}`,
       printPerHousehold: 'Une carte par foyer',
       printPerHouseholdHint: (households: number, sheets: number) =>
         `${households} ${households === 1 ? 'carte' : 'cartes'} à imprimer, sur ${sheets} ${sheets === 1 ? 'feuille' : 'feuilles'}. Le nom du foyer est sur la carte.`,

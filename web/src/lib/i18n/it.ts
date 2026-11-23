@@ -3253,11 +3253,16 @@ export const it: UiText = {
         'La foto non è stata salvata su questo dispositivo: sparirà quando lasci la pagina.',
       printButton: 'Stampa',
       previewLabel: 'Anteprima della cartolina',
-      printPerHousehold: 'Un biglietto per nucleo',
+      printPerHouseholdLegend: 'Cartoline per i nuclei',
+      printPerHouseholdFailed: 'Non è stato possibile leggere la lista dei nuclei.',
+      printPerHouseholdStale:
+        'Non è stato possibile rileggere la lista dei nuclei: non è stato stampato nulla. Controlli la connessione e riprovi.',
+      printHouseholdQrAlt: (name: string) => `Codice QR del link personale di ${name}`,
+      printPerHousehold: 'Una cartolina per nucleo',
       printPerHouseholdHint: (households: number, sheets: number) =>
-        `${households} ${households === 1 ? 'biglietto' : 'biglietti'} da stampare, su ${sheets} ${sheets === 1 ? 'foglio' : 'fogli'}. Il nome del nucleo è sul biglietto.`,
+        `${households} ${households === 1 ? 'cartolina' : 'cartoline'} da stampare, su ${sheets} ${sheets === 1 ? 'foglio' : 'fogli'}. Il nome del nucleo è sulla cartolina.`,
       printPerHouseholdPrivacy:
-        'Il QR di ogni biglietto apre il link personale del suo nucleo: consegnate il biglietto solo a quel nucleo. Il link segreto non è scritto in chiaro da nessuna parte.',
+        'Il QR di ogni cartolina apre il link personale del suo nucleo: la consegni solo a quel nucleo. Il link segreto non è scritto in chiaro da nessuna parte.',
       printPerHouseholdPreview: 'L’anteprima mostra il primo foglio; la stampa li comprende tutti.',
       printHelp:
         'Nella finestra di stampa, scelga una scala del 100 % e nessun margine. L’indirizzo è stampato sulla cartolina: la consegni solo agli invitati che ha scelto.',
@@ -3451,19 +3456,19 @@ export const it: UiText = {
       busy: 'In questo momento stanno rispondendo in tanti. Riprova tra un attimo.',
       householdGreeting: (name: string) => `Ciao ${name}`,
       householdPlaces: (n: number) =>
-        n === 1 ? 'Un posto riservato per voi' : `${n} posti riservati per voi`,
+        n === 1 ? 'Un posto riservato per te' : `${n} posti riservati per te`,
       householdFailed:
-        'Non è stato possibile leggere il link del vostro nucleo. Controllate la connessione e riprovate.',
+        'Non è stato possibile leggere il link del tuo nucleo. Controlla la connessione e riprova.',
       householdRetry: 'Riprova',
       householdIncomplete:
-        'Questo link del nucleo è incompleto: probabilmente è stato tagliato lungo la strada. Copiatelo per intero, oppure chiedetelo all’organizzatore.',
-      householdNotYours: 'Non è il vostro nucleo?',
-      replyNotYours: 'Non è la vostra risposta?',
+        'Questo link del nucleo è incompleto: probabilmente è stato tagliato lungo la strada. Copialo per intero, oppure chiedilo all’organizzatore.',
+      householdNotYours: 'Non è il tuo nucleo?',
+      replyNotYours: 'Non è la tua risposta?',
       olderReply: (name: string) =>
         `Questo dispositivo conserva anche una risposta salvata con il nome «${name}».`,
       olderReplyDelete: 'Elimina questa risposta',
       householdGone:
-        'Questo link del nucleo non funziona più. Chiedetene uno nuovo all’organizzatore, oppure rispondete qui sotto.',
+        'Questo link del nucleo non funziona più. Chiedine uno nuovo all’organizzatore, oppure rispondi qui sotto.',
       forgotten:
         'Questo dispositivo non trova più la tua risposta: è stata eliminata o il link è cambiato.',
       companionsLabel: 'Nomi di chi viene con te',
@@ -3699,7 +3704,7 @@ export const it: UiText = {
       title: 'Lista degli invitati',
       backToReplies: 'Risposte',
       intro:
-        'Facoltativo. Inserisci i tuoi nuclei (un nome e un numero di posti, mai un indirizzo e-mail né un numero di telefono). Ogni nucleo riceve il suo link personale. EventSlide non invia nulla: sollecita dalle tue app.',
+        'Facoltativo. Inserisca i suoi nuclei (un nome e un numero di posti, mai un indirizzo e-mail né un numero di telefono). Ogni nucleo riceve il suo link personale. EventSlide non invia nulla: solleciti dalle sue app.',
       loadFailed: 'Non è stato possibile caricare la lista.',
       retry: 'Riprova',
       summary: (households: number, places: number) =>
@@ -3724,7 +3729,7 @@ export const it: UiText = {
       statusWaitlist: 'Lista d’attesa',
       copyLink: 'Copia il link',
       linkCopied: 'Link copiato.',
-      copyFailed: (link: string) => `La copia non è riuscita. Copia il link a mano: ${link}`,
+      copyFailed: (link: string) => `La copia non è riuscita. Copi il link a mano: ${link}`,
       edit: 'Modifica',
       remove: 'Elimina',
       rotate: 'Cambia il link',
@@ -3732,12 +3737,12 @@ export const it: UiText = {
       noneHere: 'Nessun nucleo qui.',
       emptyTitle: 'Ancora nessun nucleo',
       emptyBody:
-        'Aggiungi un nucleo, oppure incolla la tua lista in una volta: una riga per nucleo, «Famiglia Martin ; 4».',
-      noInvite: 'Salva prima l’invito: il link di ogni nucleo ne dipende.',
+        'Aggiungi un nucleo, oppure incolli la sua lista in una volta: una riga per nucleo, «Famiglia Martin ; 4».',
+      noInvite: 'Salvi prima l’invito: il link di ogni nucleo ne dipende.',
       noInviteLink: 'Apri l’invito',
       formAddTitle: 'Aggiungi un nucleo',
       formEditTitle: 'Modifica il nucleo',
-      formHint: 'Un nome e il numero di posti che tieni per lui. Nient’altro.',
+      formHint: 'Un nome e il numero di posti che tiene per lui. Nient’altro.',
       formName: 'Nome del nucleo',
       formNamePlaceholder: 'Es. Famiglia Martin',
       formPlaces: 'Posti',
@@ -3747,7 +3752,7 @@ export const it: UiText = {
       importTitle: 'Incolla una lista',
       importHint:
         'Una riga per nucleo: «Famiglia Martin ; 4». Va bene anche una lista copiata da un foglio di calcolo (il nome, una tabulazione, i posti). Senza numero, un nucleo ha un posto. Al massimo 300 righe.',
-      importLabel: 'La tua lista',
+      importLabel: 'La sua lista',
       importPlaceholder: 'Famiglia Martin ; 4\nLea Durand ; 2',
       importSubmit: 'Aggiungi questi nuclei',
       importSending: 'Aggiunta…',
@@ -3781,13 +3786,13 @@ export const it: UiText = {
       reminderPrevious: 'Precedente',
       reminderNext: 'Successivo',
       reminderNote:
-        'WhatsApp, SMS ed e-mail si aprono con il messaggio pronto: scegli il contatto nella tua app. EventSlide non conosce né numeri né indirizzi.',
+        'WhatsApp, SMS ed e-mail si aprono con il messaggio pronto: sceglie il contatto nella sua app. EventSlide non conosce né numeri né indirizzi.',
       reminderArchived: 'L’evento è archiviato: non è più possibile sollecitare.',
       reminderLoading: 'Caricamento dell’invito…',
       reminderInviteFailed: 'Non è stato possibile leggere l’invito.',
-      reminderNoteMarked: 'La nota «sollecitato» viene salvata appena clicchi su un canale.',
+      reminderNoteMarked: 'La nota «sollecitato» viene salvata appena clicca su un canale.',
       reminderAllDone: 'Tutti hanno risposto.',
-      reminderNoLink: 'Salva prima l’invito: senza link non c’è nulla da inviare.',
+      reminderNoLink: 'Salvi prima l’invito: senza link non c’è nulla da inviare.',
       reminderNoteFailed: 'La nota «sollecitato» non è stata salvata.',
       reminderSubject: (title: string) => `Un piccolo promemoria: ${title}`,
       reminderMessage: (

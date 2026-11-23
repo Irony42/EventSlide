@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Button } from '../../../../design-system/components/Button'
 import { Field } from '../../../../design-system/components/Field'
 import { Notice } from '../../../../design-system/components/Notice'
@@ -7,6 +8,7 @@ import { useTranslations } from '../../../../lib/i18n/useTranslations'
 import { householdLink } from '../../../../lib/rsvp/households'
 import { useApi } from '../../../../lib/useApi'
 import { useLoader } from '../../../../lib/useLoader'
+import { useRevalidateWhenVisible } from '../../hooks/useRevalidateWhenVisible'
 import { SHORT_MESSAGE_MAX, graphemeCount, graphemesOf } from '../../../../lib/invite/cardTexts'
 import { inkLoadOf, invitationQrShareOf } from '../../../../lib/print/printDesigns'
 import { PrintSheet } from '../../print/PrintSheet'
@@ -46,8 +48,22 @@ export function PrintTab({
     (signal: AbortSignal) => api.households(event.slug, signal),
     [api, event.slug],
   )
-  const households = useLoader(loadHouseholds).data?.households ?? []
+  const listed = useLoader(loadHouseholds)
+  const households = useMemo(() => listed.data?.households ?? [], [listed.data])
   const [perHousehold, setPerHousehold] = useState(false)
+  const [stale, setStale] = useState(false)
+  // The list is the host's, and changes while this tab is open (a household added in another one): it is
+  // read again when the tab comes back, and **right before printing**, so no card is missed or stale.
+  useRevalidateWhenVisible(listed.reload)
+  const cards = useMemo(
+    () =>
+      households.map((household) => ({
+        id: household.id,
+        name: household.name,
+        url: householdLink(invite.url, household) ?? invite.url,
+      })),
+    [households, invite.url],
+  )
 
   const view = inviteCardOf(event, invite, preferences, { showAddress: true })
   const { lang, format, design, focusX, focusY, eventColour, chosen, hue, auto, isAuto, shown } =
@@ -91,8 +107,18 @@ export function PrintTab({
         <p className={styles['help']}>{text.printA5Help}</p>
       </fieldset>
 
+      {listed.error !== null && listed.data === null ? (
+        <Notice tone="warning" role="status" variant="boxed">
+          {text.printPerHouseholdFailed}
+          <Button size="sm" onClick={listed.reload}>
+            {t.rsvp.households.retry}
+          </Button>
+        </Notice>
+      ) : null}
+
       {households.length === 0 ? null : (
-        <div className={styles['group']}>
+        <fieldset className={styles['group']}>
+          <legend className={styles['legend']}>{text.printPerHouseholdLegend}</legend>
           <label className={styles['radio']}>
             <input
               type="checkbox"
@@ -110,13 +136,14 @@ export function PrintTab({
                   Math.ceil(households.length / PRINT_FORMAT_SPECS[format].perSheet),
                 )}
               </p>
-              <Notice tone="warning" role="status" variant="boxed">
+              {/* Static text, not a live region: ticking the box again must not read it out again. */}
+              <Notice tone="warning" variant="boxed">
                 {text.printPerHouseholdPrivacy}
               </Notice>
               <p className={styles['help']}>{text.printPerHouseholdPreview}</p>
             </>
           ) : null}
-        </div>
+        </fieldset>
       )}
 
       <Field label={text.shortLabel} hint={text.shortHint}>
@@ -152,10 +179,37 @@ export function PrintTab({
     </div>
   )
 
+  /**
+   * Prints. With a card for each household the list is read again first and the sheets built from the
+   * answer, then the browser's dialog opens; a list that cannot be read is said, and nothing is printed:
+   * a card missing for a household is worse than no print.
+   */
+  const print = async (): Promise<void> => {
+    if (!perHousehold) {
+      window.print()
+      return
+    }
+    try {
+      const fresh = await api.households(event.slug)
+      flushSync(() => listed.replace(fresh))
+      setStale(false)
+      window.print()
+    } catch {
+      setStale(true)
+    }
+  }
+
   const actions = (
-    <Button variant="primary" onClick={() => window.print()}>
-      {text.printButton}
-    </Button>
+    <>
+      {stale ? (
+        <Notice tone="danger" role="alert" variant="boxed">
+          {text.printPerHouseholdStale}
+        </Notice>
+      ) : null}
+      <Button variant="primary" onClick={() => void print()}>
+        {text.printButton}
+      </Button>
+    </>
   )
 
   const preview = (
@@ -178,15 +232,7 @@ export function PrintTab({
           focusX={focusX}
           focusY={focusY}
           invitation={invitation}
-          households={
-            perHousehold && households.length > 0
-              ? households.map((household) => ({
-                  id: household.id,
-                  name: household.name,
-                  url: householdLink(invite.url, household) ?? invite.url,
-                }))
-              : undefined
-          }
+          households={perHousehold && cards.length > 0 ? cards : undefined}
         />
       </PreviewBox>
     </div>

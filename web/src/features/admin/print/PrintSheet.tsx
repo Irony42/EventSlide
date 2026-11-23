@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { memo, useEffect, useRef, type CSSProperties } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { LocaleOverride } from '../../../lib/i18n/LocaleProvider'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
@@ -16,6 +16,7 @@ import {
 } from './printKit'
 import type { PrintDesign } from '../../../lib/print/printDesigns'
 import { useFitText } from './useFitText'
+import { useIsPrinting } from './useIsPrinting'
 import styles from './PrintSheet.module.css'
 import type { Locale } from '../../../lib/i18n/locale'
 
@@ -96,6 +97,10 @@ export function PrintSheet({
   households,
 }: PrintSheetProps) {
   const root = useRef<HTMLDivElement>(null)
+  const t = useTranslations()
+  // The households' sheets other than the first exist only while printing: on a list of 500 the screen
+  // would otherwise build, fit and redraw 500 cards on every keystroke.
+  const printing = useIsPrinting()
 
   useEffect(() => {
     onQrModules?.(totalModulesOf(root.current?.querySelector('svg') ?? null))
@@ -103,7 +108,7 @@ export function PrintSheet({
 
   useFitText(
     root,
-    `${format}|${single}|${design}|${locale}|${JSON.stringify(texts)}|${steps}|${photoUrl === null}|${JSON.stringify(invitation ?? null)}|${JSON.stringify(households ?? null)}`,
+    `${format}|${single}|${design}|${locale}|${JSON.stringify(texts)}|${steps}|${photoUrl === null}|${JSON.stringify(invitation ?? null)}|${JSON.stringify(households ?? null)}|${printing}`,
   )
 
   // A card for each household: the sheets are laid one after the other, one page each on paper.
@@ -112,9 +117,10 @@ export function PrintSheet({
     const sheets = Array.from({ length: Math.ceil(households.length / perSheet) }, (_, page) =>
       households.slice(page * perSheet, (page + 1) * perSheet),
     )
+    const shown = printing ? sheets : sheets.slice(0, 1)
     return (
       <div className={styles['stage']} ref={root}>
-        {sheets.map((cards, page) => (
+        {shown.map((cards, page) => (
           <div
             key={cards[0]?.id ?? page}
             className={styles['sheet']}
@@ -134,10 +140,18 @@ export function PrintSheet({
                     photoUrl={photoUrl}
                     focusX={focusX}
                     focusY={focusY}
-                    invitation={{ ...invitation, eyebrow: cardNameOf(card.name) }}
+                    invitation={invitation}
+                    forHousehold={cardNameOf(card.name)}
                     joinCode={joinCode}
                     address={joinHost(joinUrl)}
-                    qr={<SheetQr eventName={eventName} joinUrl={card.url} logoUrl={logoUrl} />}
+                    qr={
+                      <SheetQr
+                        eventName={eventName}
+                        joinUrl={card.url}
+                        logoUrl={logoUrl}
+                        label={t.guestInvite.host.printHouseholdQrAlt(card.name)}
+                      />
+                    }
                   />
                 </div>
               ))}
@@ -193,18 +207,21 @@ const logoSettings = (src: string) => ({
   excavate: true,
 })
 
-export function SheetQr({
+export const SheetQr = memo(function SheetQr({
   eventName,
   joinUrl,
   logoUrl,
+  label,
 }: {
   readonly eventName: string
   readonly joinUrl: string
   readonly logoUrl: string | null
+  /** What the code is called for a reader that cannot see it: the household's name, never its link. */
+  readonly label?: string
 }) {
   const t = useTranslations()
   return (
-    <div role="img" aria-label={t.admin.qrAlt(eventName)}>
+    <div role="img" aria-label={label ?? t.admin.qrAlt(eventName)}>
       <QRCodeSVG
         value={joinUrl}
         fgColor="currentColor"
@@ -216,4 +233,4 @@ export function SheetQr({
       />
     </div>
   )
-}
+})

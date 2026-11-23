@@ -253,3 +253,40 @@ describe('PrintCard, as an invitation', () => {
     })
   })
 })
+
+describe('PrintCard, for a household (spec 30, lot 3)', () => {
+  const name = 'Famille Martin-Dupont-Lefèvre de Saint-A'.slice(0, 36)
+
+  it.each(INVITATION_DESIGNS)(
+    '%s prints the household’s name, one line, whatever its disposition',
+    (design) => {
+      const { container } = renderWithProviders(
+        <PrintCard
+          design={design}
+          qr={<svg role="img" aria-label="QR" />}
+          focusX={50}
+          focusY={50}
+          texts={{ title: 'Léa', tagline: null, note: null, date: null, table: null }}
+          steps={false}
+          photoUrl={null}
+          joinCode=""
+          address={null}
+          invitation={INVITATION}
+          forHousehold={name}
+        />,
+      )
+
+      const printed = container.querySelectorAll('[data-household-name]')
+      expect(printed).toHaveLength(1)
+      expect(printed[0]).toHaveTextContent(name)
+      // Not squeezed into the eyebrow (three of the six designs print none): a line of its own.
+      expect(printed[0]?.tagName).toBe('P')
+    },
+  )
+
+  it('prints no name on a card that is not for a household', () => {
+    const { container } = card('essentiel')
+
+    expect(container.querySelector('[data-household-name]')).toBeNull()
+  })
+})
