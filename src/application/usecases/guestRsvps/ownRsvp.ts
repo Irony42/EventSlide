@@ -6,6 +6,7 @@ import {
   type GuestRsvp,
   type RawRsvpInput,
 } from '../../../domain/guestRsvps/rsvp'
+import { asGuestHouseholdId } from '../../../domain/shared/ids'
 import { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
@@ -48,7 +49,7 @@ export interface OwnRsvpDeps extends PublicRsvpDeps {
     GuestRsvpRepository,
     'findByEditTokenHash' | 'findByHousehold' | 'admit' | 'delete' | 'yesPeople'
   >
-  readonly households: Pick<GuestHouseholdRepository, 'findByToken'>
+  readonly households: Pick<GuestHouseholdRepository, 'findByToken' | 'findById'>
   readonly secrets: SecretTokens
   readonly bus: EventBus
   readonly clock: Clock
@@ -80,7 +81,15 @@ const findOwnReply = async (
 ): Promise<Result<OwnReply, DomainError>> => {
   if (householdToken === undefined) {
     const own = await findOwnRsvp(deps, event, editToken)
-    return own.ok ? ok({ rsvp: own.value, household: null }) : own
+    if (!own.ok) return own
+    // A reply the host filed under a household is the household's: its places are the ceiling of a
+    // change made with the reply's own token too (scoped to the event). A household that is no longer
+    // there (deleted: the use case detaches the reply first, so this is a defensive read) leaves the
+    // general form.
+    const filed = own.value.householdId
+    const household =
+      filed === null ? null : await deps.households.findById(event.id, asGuestHouseholdId(filed))
+    return ok({ rsvp: own.value, household })
   }
   const household = await findHouseholdByLink(deps, event, householdToken)
   if (!household.ok) return household

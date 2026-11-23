@@ -4544,6 +4544,17 @@ describe('migration 037: guest households (spec 30, lot 3)', () => {
     closeDatabase(db)
   })
 
+  it('refuses a token that is not 16 characters long', () => {
+    const db = migratedAt(37)
+    seedEvent(db)
+
+    for (const token of ['', 'SHORT', 'TOKEN000000000AAA']) {
+      expect(() => insertHousehold(db, { token }), token).toThrow(/CHECK constraint failed/)
+    }
+    insertHousehold(db, { token: 'TOKEN000000000AA' })
+    closeDatabase(db)
+  })
+
   it('never holds two households with the same token', () => {
     const db = migratedAt(37)
     seedEvent(db)

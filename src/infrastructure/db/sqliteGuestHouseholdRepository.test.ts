@@ -52,6 +52,18 @@ guestHouseholdRepositoryContract('sqlite', async () => {
         ISO_AT,
       )
     },
+    seedReply: async (eventId, id, householdId) => {
+      db.prepare(
+        `INSERT INTO guest_rsvps (id, event_id, household_id, name, answer, source, created_at, updated_at)
+         VALUES (?, ?, ?, 'Léa', 'no', 'household', ?, ?)`,
+      ).run(id, eventId, householdId, ISO_AT, ISO_AT)
+    },
+    replyHousehold: async (eventId, id) =>
+      db
+        .prepare<[string, string], { household_id: string | null }>(
+          `SELECT household_id FROM guest_rsvps WHERE event_id = ? AND id = ?`,
+        )
+        .get(eventId, id)?.household_id,
     dispose: async () => closeDatabase(db),
   }
 })
@@ -98,7 +110,7 @@ describe('SqliteGuestHouseholdRepository storage', () => {
     const db = migratedDatabase()
     const repo = new SqliteGuestHouseholdRepository(db)
     await repo.addAll(asEventId('evt-wedding'), [aHousehold({ eventId: 'evt-wedding' })])
-    db.prepare(`UPDATE guest_households SET token = 'broken'`).run()
+    db.prepare(`UPDATE guest_households SET token = 'UUUUUUUUUUUUUUUU'`).run()
 
     await expect(repo.listByEvent(asEventId('evt-wedding'))).rejects.toThrow(/malformed token/)
     closeDatabase(db)

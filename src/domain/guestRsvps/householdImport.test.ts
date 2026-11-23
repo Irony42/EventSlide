@@ -49,6 +49,39 @@ describe('parseHouseholdList', () => {
     expect(parse('Martin; Léa ; 3').households).toEqual([{ name: 'Martin; Léa', places: 3 }])
   })
 
+  it('drops the empty cells at the end of a line: a spreadsheet range keeps its places', () => {
+    const { households, skipped } = parse(
+      [
+        'Dupont\t3\t',
+        'Durand;4;',
+        'Roux\t2\t\t\t',
+        'Lopez ; 5 ;; ',
+        'Petit;1;\t;',
+        'Seul\t',
+        'Vide;;',
+      ].join('\r\n'),
+    )
+
+    expect(households).toEqual([
+      { name: 'Dupont', places: 3 },
+      { name: 'Durand', places: 4 },
+      { name: 'Roux', places: 2 },
+      { name: 'Lopez', places: 5 },
+      { name: 'Petit', places: 1 },
+      { name: 'Seul', places: 1 },
+      { name: 'Vide', places: 1 },
+    ])
+    expect(skipped).toEqual([])
+  })
+
+  it('still skips a line made only of separators', () => {
+    // A line of tabs alone is blank (ignored); one with a semicolon is an empty name.
+    expect(parse(';;\n; ;\n\t\t\nA ; 2').skipped).toEqual([
+      { line: 1, reason: 'name' },
+      { line: 2, reason: 'name' },
+    ])
+  })
+
   it('skips an empty name and a name over 80 characters', () => {
     const { households, skipped } = parse(` ; 3\n${'x'.repeat(81)} ; 2\n${'y'.repeat(80)} ; 2`)
 

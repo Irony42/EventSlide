@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { aHousehold } from '../../../domain/guestRsvps/testing/householdFixtures'
 import { aRsvp } from '../../../domain/guestRsvps/testing/rsvpFixtures'
-import { asEventId } from '../../../domain/shared/ids'
+import { asEventId, type GuestRsvpId } from '../../../domain/shared/ids'
 import { GALA, OWNER, WEDDING, rsvpScene, type RsvpScene } from '../../testing/rsvpScene'
 
 /**
@@ -285,6 +285,26 @@ describe('a household’s own link, on the guest’s side (spec 30, lot 3)', () 
       })
       expect(code(tooMany)).toBe('rsvp.partyTooBig')
       expect((await scene.rsvps.listByEvent(WEDDING))[0]?.adults).toBe(5)
+    })
+
+    it('judges a change made with the reply’s own token by the household it is filed under', async () => {
+      await scene.households.update(
+        aHousehold({ id: 'h-1', eventId: WEDDING, token: LINK, places: 6 }),
+      )
+      const open = await scene.submit({ token, ...ANSWER, name: 'Léa', adults: 1, kids: 0 })
+      const editToken = open.ok ? open.value.editToken : null
+      const stored = (await scene.rsvps.listByEvent(WEDDING))[0]
+      await scene.rsvps.setHousehold(WEDDING, stored?.id as GuestRsvpId, 'h-1')
+
+      const five = await scene.updateOwn({ token, editToken, ...ANSWER, adults: 5, kids: 0 })
+      const seven = await scene.updateOwn({ token, editToken, ...ANSWER, adults: 5, kids: 2 })
+      // Filed under a household that is gone: the general form (4 at most) judges again.
+      await scene.rsvps.setHousehold(WEDDING, stored?.id as GuestRsvpId, 'gone')
+      const dangling = await scene.updateOwn({ token, editToken, ...ANSWER, adults: 5, kids: 0 })
+
+      expect(five.ok).toBe(true)
+      expect(code(seven)).toBe('rsvp.partyTooBig')
+      expect(code(dangling)).toBe('rsvp.partyTooBig')
     })
 
     it('does not make a reply from a change: with none yet it is rsvp.notFound, and with one deleted meanwhile too', async () => {

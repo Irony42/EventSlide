@@ -25,6 +25,10 @@ export interface GuestHouseholdRepositorySubject {
     eventId: EventId,
     dates: { readonly closedAt: Date | null; readonly startsAt: Date | null },
   ) => Promise<void>
+  /** A reply filed under a household, as `guest_rsvps` holds it (the other port's rows, here only to be detached). */
+  readonly seedReply: (eventId: EventId, id: string, householdId: string) => Promise<void>
+  /** What `household_id` of that reply says now, or `undefined` for a reply that does not exist. */
+  readonly replyHousehold: (eventId: EventId, id: string) => Promise<string | null | undefined>
   readonly dispose?: () => Promise<void>
 }
 
@@ -249,6 +253,29 @@ export const guestHouseholdRepositoryContract = (
         const read = await repo.findById(WEDDING, asGuestHouseholdId('h-1'))
         expect(read?.remindedAt).toEqual(T1)
         expect(read?.updatedAt).toEqual(T1)
+      })
+
+      it('detaches the reply filed under the deleted household, keeps it, and touches no other event’s', async () => {
+        await add({ id: 'h-1' })
+        await repo.addAll(GALA, [
+          aHousehold({ id: 'g-1', eventId: 'evt-gala', token: tokenOf(77) }),
+        ])
+        await subject.seedReply(WEDDING, 'r-1', 'h-1')
+        await subject.seedReply(GALA, 'r-2', 'h-1')
+
+        expect(await repo.delete(WEDDING, asGuestHouseholdId('h-1'))).toBe(true)
+
+        expect(await subject.replyHousehold(WEDDING, 'r-1')).toBeNull()
+        expect(await subject.replyHousehold(GALA, 'r-2')).toBe('h-1')
+      })
+
+      it('leaves a reply alone when the household to delete is not the event’s', async () => {
+        await add({ id: 'h-1' })
+        await subject.seedReply(WEDDING, 'r-1', 'h-1')
+
+        expect(await repo.delete(GALA, asGuestHouseholdId('h-1'))).toBe(false)
+
+        expect(await subject.replyHousehold(WEDDING, 'r-1')).toBe('h-1')
       })
 
       it('deletes a household, once', async () => {

@@ -277,14 +277,6 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
       .immediate()
   }
 
-  async detachHousehold(eventId: EventId, householdId: string): Promise<number> {
-    return this.db
-      .prepare<[string, string]>(
-        `UPDATE guest_rsvps SET household_id = NULL WHERE event_id = ? AND household_id = ?`,
-      )
-      .run(eventId, householdId).changes
-  }
-
   async unseenCount(eventId: EventId, userId: UserId): Promise<number> {
     // No membership, no "seen" instant to count from, and no badge to show: none.
     const row = this.db

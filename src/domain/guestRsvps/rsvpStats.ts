@@ -89,7 +89,11 @@ export const statsOf = (
   }
 }
 
-/** Households no reply is attached to, with their places. */
+/**
+ * Households no reply is attached to, with their places. A reply whose `householdId` names no
+ * household of the list (a stale id: deleting a household detaches its reply in the same transaction,
+ * so this is defensive) simply answers for nobody here: it is never counted twice nor dropped.
+ */
 const noReplyOf = (
   households: readonly GuestHousehold[],
   rsvps: readonly GuestRsvp[],

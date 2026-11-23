@@ -162,11 +162,21 @@ export class SqliteGuestHouseholdRepository implements GuestHouseholdRepository 
   }
 
   async delete(eventId: EventId, id: GuestHouseholdId): Promise<boolean> {
-    return (
-      this.db
-        .prepare<[string, string]>(`DELETE FROM guest_households WHERE event_id = ? AND id = ?`)
-        .run(eventId, id).changes > 0
+    const remove = this.db.prepare<[string, string]>(
+      `DELETE FROM guest_households WHERE event_id = ? AND id = ?`,
     )
+    const detach = this.db.prepare<[string, string]>(
+      `UPDATE guest_rsvps SET household_id = NULL WHERE event_id = ? AND household_id = ?`,
+    )
+    // One write transaction: the household goes first, then its reply is detached, so a reply is
+    // never left pointing at a household that no longer exists (and nothing can file one under it).
+    return this.db
+      .transaction((): boolean => {
+        if (remove.run(eventId, id).changes === 0) return false
+        detach.run(eventId, id)
+        return true
+      })
+      .immediate()
   }
 
   async deleteExpired(now: Date): Promise<number> {

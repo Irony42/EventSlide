@@ -329,7 +329,6 @@ export const eventsUseCases = (
     events: adapters.events,
     memberships: adapters.memberships,
     invites: adapters.guestInvites,
-    rsvps: adapters.guestRsvps,
     households: adapters.guestHouseholds,
     audit: adapters.audit,
     bus: adapters.bus,
