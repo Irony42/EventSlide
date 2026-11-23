@@ -309,7 +309,7 @@ export const guestRsvpRepositoryContract = (
         expect(change.kind).toBe('updated')
       })
 
-      it('refuses a "yes" that would pass the capacity, whole, and writes nothing', async () => {
+      it('stores a "yes" that would pass the capacity as a waiting-list entry, whole, never partly', async () => {
         await add({ id: 'rsvp-1', adults: 8 })
 
         const outcome = await repo.admit(
@@ -317,8 +317,44 @@ export const guestRsvpRepositoryContract = (
           { capacity: 10 },
         )
 
-        expect(outcome).toEqual({ kind: 'refused', refusal: 'full' })
-        expect(await repo.findById(WEDDING, asGuestRsvpId('rsvp-2'))).toBeNull()
+        expect(outcome.kind).toBe('added')
+        expect(outcome.kind === 'added' && outcome.rsvp.answer).toBe('waitlist')
+        const stored = await repo.findById(WEDDING, asGuestRsvpId('rsvp-2'))
+        expect([stored?.answer, stored?.adults]).toEqual(['waitlist', 3])
+      })
+
+      it('lets the waiting list take no place: a yes that fits is admitted beside it', async () => {
+        await add({ id: 'rsvp-1', adults: 8 })
+        await repo.admit(aRsvp({ eventId: 'evt-wedding', id: 'rsvp-2', adults: 5 }), {
+          capacity: 10,
+        })
+
+        const fits = await repo.admit(aRsvp({ eventId: 'evt-wedding', id: 'rsvp-3', adults: 2 }), {
+          capacity: 10,
+        })
+
+        expect(fits.kind === 'added' && fits.rsvp.answer).toBe('yes')
+        expect(await repo.yesPeople(WEDDING)).toBe(10)
+      })
+
+      it('keeps a waiting-list entry on the list when its guest says yes again, and lets a maybe or a no through', async () => {
+        await add({ id: 'rsvp-1', adults: 10 })
+        await repo.admit(aRsvp({ eventId: 'evt-wedding', id: 'rsvp-2', adults: 1 }), {
+          capacity: 10,
+        })
+        await repo.update(aRsvp({ eventId: 'evt-wedding', id: 'rsvp-1', adults: 1 }))
+
+        const again = await repo.admit(
+          aRsvp({ eventId: 'evt-wedding', id: 'rsvp-2', answer: 'yes', adults: 1 }),
+          { capacity: 10 },
+        )
+        const maybe = await repo.admit(
+          aRsvp({ eventId: 'evt-wedding', id: 'rsvp-2', answer: 'maybe', adults: 1 }),
+          { capacity: 10 },
+        )
+
+        expect(again.kind === 'updated' && again.rsvp.answer).toBe('waitlist')
+        expect(maybe.kind === 'updated' && maybe.rsvp.answer).toBe('maybe')
       })
 
       it('accepts a "yes" that exactly fills the capacity', async () => {
@@ -352,8 +388,8 @@ export const guestRsvpRepositoryContract = (
           { capacity: 10 },
         )
 
-        expect(outcome).toEqual({ kind: 'refused', refusal: 'full' })
-        expect((await repo.findById(WEDDING, asGuestRsvpId('rsvp-2')))?.answer).toBe('no')
+        expect(outcome.kind === 'updated' && outcome.rsvp.answer).toBe('waitlist')
+        expect((await repo.findById(WEDDING, asGuestRsvpId('rsvp-2')))?.answer).toBe('waitlist')
       })
 
       it('applies the capacity to "yes" only, and counts only the people who say yes', async () => {

@@ -131,10 +131,10 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       expect(signals()).toEqual([])
     })
 
-    it('says rsvp.full when the places are taken', async () => {
-      scene.rsvps.admit = async () => ({ kind: 'refused', refusal: 'full' })
+    it('says rsvp.tooMany when the repository refuses the reply', async () => {
+      scene.rsvps.admit = async () => ({ kind: 'refused', refusal: 'tooMany' })
 
-      expect(code(await submit())).toBe('rsvp.full')
+      expect(code(await submit())).toBe('rsvp.tooMany')
     })
 
     it.each([
@@ -172,7 +172,7 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       expect(await scene.rsvps.count(WEDDING)).toBe(MAX_RSVPS_PER_EVENT)
     })
 
-    it('gives the honeypot the places refusal too, from the people already coming', async () => {
+    it('gives the honeypot the waiting list too, from the people already coming', async () => {
       const settings = await scene.invites.findRsvpSettings(WEDDING)
       await scene.invites.saveRsvpSettings(WEDDING, {
         ...(settings ?? { enabled: true, deadline: null, closedAt: null, form: DEFAULT_RSVP_FORM }),
@@ -184,7 +184,12 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       const real = await submit({ adults: 1, kids: 0 })
       const trapped = await submit({ adults: 1, kids: 0, website: 'x' })
 
-      expect([code(real), code(trapped)]).toEqual(['rsvp.full', 'rsvp.full'])
+      expect([real.ok && real.value.rsvp.answer, trapped.ok && trapped.value.rsvp.answer]).toEqual([
+        'waitlist',
+        'waitlist',
+      ])
+      // Only the real one was stored.
+      expect(await scene.rsvps.count(WEDDING)).toBe(2)
     })
 
     it('hands a script that fills the honeypot the same 201 and a token that opens nothing', async () => {
@@ -386,18 +391,16 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       expect(await scene.rsvps.listByEvent(WEDDING)).toEqual([])
     })
 
-    it('says rsvp.full or rsvp.tooMany when the repository refuses the change', async () => {
+    it('says rsvp.tooMany when the repository refuses the change', async () => {
       const sent = await submit()
       const editToken = sent.ok ? sent.value.editToken : ''
       const change = () =>
         scene.updateOwn({ token, editToken, name: 'A', answer: 'yes', adults: 1 })
 
-      scene.rsvps.admit = async () => ({ kind: 'refused', refusal: 'full' })
-      const full = await change()
       scene.rsvps.admit = async () => ({ kind: 'refused', refusal: 'tooMany' })
       const many = await change()
 
-      expect([code(full), code(many)]).toEqual(['rsvp.full', 'rsvp.tooMany'])
+      expect(code(many)).toBe('rsvp.tooMany')
     })
   })
 
@@ -503,7 +506,7 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       expect(page.ok && page.value.rsvp.state).toBe('off')
     })
 
-    it('says full once the people coming reach the places, still takes a reply to the repository, which refuses it', async () => {
+    it('says full once the people coming reach the places, and takes a yes as a waiting-list entry', async () => {
       const settings = await scene.invites.findRsvpSettings(WEDDING)
       await scene.invites.saveRsvpSettings(WEDDING, {
         ...(settings ?? { enabled: true, deadline: null, closedAt: null, form: DEFAULT_RSVP_FORM }),
@@ -515,7 +518,7 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       const sent = await submit({ adults: 1, kids: 0 })
 
       expect(page.ok && page.value.rsvp.state).toBe('full')
-      expect(code(sent)).toBe('rsvp.full')
+      expect(sent.ok && sent.value.rsvp.answer).toBe('waitlist')
     })
 
     it('stays open while the places are not all taken', async () => {

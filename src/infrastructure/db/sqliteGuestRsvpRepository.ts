@@ -5,7 +5,7 @@ import {
   type RsvpSource,
 } from '../../domain/guestRsvps/rsvp'
 import { rsvpCutoffs } from '../../domain/guestRsvps/rsvpExpiry'
-import { rsvpRefusalFor } from '../../domain/guestRsvps/rsvpLimits'
+import { rsvpAdmissionFor } from '../../domain/guestRsvps/rsvpLimits'
 import {
   asEventId,
   asGuestRsvpId,
@@ -201,20 +201,23 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
         const existing = found === undefined ? undefined : toRsvp(found)
         if (existing === undefined && limits.changeOnly === true) return { kind: 'gone' }
 
-        const refusal = rsvpRefusalFor({
+        const decision = rsvpAdmissionFor({
           isNew: existing === undefined,
           heldInEvent: countAll.get(rsvp.eventId)?.n ?? 0,
           answer: rsvp.answer,
+          heldAnswer: existing?.answer ?? null,
           people: rsvp.people,
           // `id <> ?` with an id no row has (a new reply) excludes nothing, as it must.
           yesPeopleElsewhere: yesPeopleExcept.get(rsvp.eventId, existing?.id ?? rsvp.id)?.n ?? 0,
           capacity: limits.capacity,
         })
-        if (refusal !== null) return { kind: 'refused', refusal }
+        if (decision === 'tooMany') return { kind: 'refused', refusal: decision }
+        // A yes the places cannot hold is stored as a waiting-list entry: it takes no place.
+        const stored = decision === 'waitlist' ? rsvp.withAnswer('waitlist') : rsvp
 
         if (existing !== undefined) {
-          change.run({ event_id: existing.eventId, id: existing.id, ...contentParams(rsvp) })
-          return { kind: 'updated', rsvp: existing.withContentOf(rsvp) }
+          change.run({ event_id: existing.eventId, id: existing.id, ...contentParams(stored) })
+          return { kind: 'updated', rsvp: existing.withContentOf(stored) }
         }
         insert.run({
           id: rsvp.id,
@@ -223,9 +226,9 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
           edit_token_hash: rsvp.editTokenHash,
           source: rsvp.source,
           created_at: toIsoText(rsvp.createdAt),
-          ...contentParams(rsvp),
+          ...contentParams(stored),
         })
-        return { kind: 'added', rsvp }
+        return { kind: 'added', rsvp: stored }
       })
       .immediate()
   }

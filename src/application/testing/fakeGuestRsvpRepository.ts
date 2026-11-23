@@ -1,6 +1,6 @@
 import type { GuestRsvp } from '../../domain/guestRsvps/rsvp'
 import { isRsvpExpired } from '../../domain/guestRsvps/rsvpExpiry'
-import { rsvpRefusalFor } from '../../domain/guestRsvps/rsvpLimits'
+import { rsvpAdmissionFor } from '../../domain/guestRsvps/rsvpLimits'
 import { namesToShow } from '../../domain/guestRsvps/rsvpStats'
 import type { EventId, GuestRsvpId, UserId } from '../../domain/shared/ids'
 import type {
@@ -13,7 +13,7 @@ import type {
  * In-memory `GuestRsvpRepository`, held to the same contract suite as the SQLite adapter.
  *
  * - **Every lookup is scoped by the event**, a token digest included.
- * - **`admit` runs the same decision** (`rsvpRefusalFor`, the change-or-add rule) the adapter runs
+ * - **`admit` runs the same decision** (`rsvpAdmissionFor`, the change-or-add rule) the adapter runs
  *   inside its transaction.
  * - **Expiry needs the event's dates**, which live in other tables in SQLite: a test gives them
  *   with {@link FakeGuestRsvpRepository.setEventDates}.
@@ -84,20 +84,23 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
 
     if (existing === undefined && limits.changeOnly === true) return { kind: 'gone' }
 
-    const refusal = rsvpRefusalFor({
+    const decision = rsvpAdmissionFor({
       isNew: existing === undefined,
       heldInEvent: held.length,
       answer: rsvp.answer,
+      heldAnswer: existing?.answer ?? null,
       people: rsvp.people,
       yesPeopleElsewhere: held
         .filter((row) => row !== existing && row.answer === 'yes')
         .reduce((sum, row) => sum + row.people, 0),
       capacity: limits.capacity,
     })
-    if (refusal !== null) return { kind: 'refused', refusal }
+    if (decision === 'tooMany') return { kind: 'refused', refusal: decision }
+    // A yes the places cannot hold is stored as a waiting-list entry: it takes no place.
+    const stored = decision === 'waitlist' ? rsvp.withAnswer('waitlist') : rsvp
 
     if (existing !== undefined) {
-      const changed = existing.withContentOf(rsvp)
+      const changed = existing.withContentOf(stored)
       this.rows.set(key(changed.eventId, changed.id), changed)
       return { kind: 'updated', rsvp: changed }
     }
@@ -108,8 +111,8 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
     ) {
       throw new Error('UNIQUE constraint failed: guest_rsvps.edit_token_hash')
     }
-    this.rows.set(key(rsvp.eventId, rsvp.id), rsvp)
-    return { kind: 'added', rsvp }
+    this.rows.set(key(stored.eventId, stored.id), stored)
+    return { kind: 'added', rsvp: stored }
   }
 
   async update(rsvp: GuestRsvp): Promise<boolean> {

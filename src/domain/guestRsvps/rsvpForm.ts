@@ -2,6 +2,7 @@ import type { EventTemplateKey } from '../events/eventTemplate'
 import { DomainError } from '../shared/errors'
 import { isPlainObject } from '../shared/plainObject'
 import { err, ok, type Result } from '../shared/result'
+import { CAPACITY_MAX, CAPACITY_MIN } from './rsvpLimits'
 import {
   applyMealsPatch,
   applyQuestionsPatch,
@@ -93,6 +94,7 @@ const PATCHABLE: readonly string[] = [
   'questions',
   'visibility',
   'moments',
+  'capacity',
 ]
 
 /** The fields a host may change. An absent field is left as it was. */
@@ -106,6 +108,7 @@ export interface RsvpFormPatch {
   readonly questions?: unknown
   readonly visibility?: unknown
   readonly moments?: unknown
+  readonly capacity?: unknown
 }
 
 const isMax = (value: unknown): value is number =>
@@ -116,6 +119,12 @@ const isMax = (value: unknown): value is number =>
 
 const flag = (raw: unknown, current: boolean): Result<boolean, DomainError> =>
   raw === undefined ? ok(current) : typeof raw === 'boolean' ? ok(raw) : err(invalidForm())
+
+const isCapacity = (value: unknown): value is number =>
+  typeof value === 'number' &&
+  Number.isInteger(value) &&
+  value >= CAPACITY_MIN &&
+  value <= CAPACITY_MAX
 
 const isVisibility = (value: unknown): value is RsvpVisibility =>
   value === 'off' || value === 'count' || value === 'names'
@@ -159,6 +168,15 @@ export const applyFormPatch = (
       : applyMomentsPatch(current.moments, patch.moments, mintQuestionId)
   if (!moments.ok) return moments
 
+  // `null` lifts the limit. Lowering it under the people already coming evicts nobody: the page says full.
+  const capacity =
+    patch.capacity === undefined
+      ? ok(current.capacity)
+      : patch.capacity === null || isCapacity(patch.capacity)
+        ? ok(patch.capacity)
+        : err(DomainError.invalid('rsvp.capacityInvalid', { min: CAPACITY_MIN, max: CAPACITY_MAX }))
+  if (!capacity.ok) return capacity
+
   const visibility =
     patch.visibility === undefined
       ? ok(current.visibility)
@@ -191,14 +209,15 @@ export const applyFormPatch = (
     questions: questions.value,
     visibility: visibility.value,
     moments: moments.value,
+    capacity: capacity.value,
   })
 }
 
 /**
  * A stored form read back, **never failing**: an unknown field is ignored and a value out of
  * bounds is brought back to the default, so a rule tightened later cannot make a printed
- * invitation's page vanish. Capacity and the absent's word (lot 4) stay at their defaults until their own
- * pull requests teach this function to read them.
+ * invitation's page vanish. The absent's word (lot 4) stays at its default until its own pull request teaches
+ * this function to read it.
  */
 export const restoreRsvpForm = (raw: unknown): RsvpForm => {
   if (!isPlainObject(raw)) return DEFAULT_RSVP_FORM
@@ -219,5 +238,6 @@ export const restoreRsvpForm = (raw: unknown): RsvpForm => {
     questions: restoreQuestions(raw['questions']),
     visibility: isVisibility(raw['visibility']) ? raw['visibility'] : DEFAULT_RSVP_FORM.visibility,
     moments: restoreMoments(raw['moments']),
+    capacity: isCapacity(raw['capacity']) ? raw['capacity'] : DEFAULT_RSVP_FORM.capacity,
   }
 }

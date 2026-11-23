@@ -531,6 +531,11 @@ export class GuestRsvp {
     })
   }
 
+  /** This reply with another answer and the rest as it is: a `yes` the places could not hold becomes a waiting-list entry. */
+  withAnswer(answer: RsvpAnswer): GuestRsvp {
+    return new GuestRsvp({ ...this.props, answer })
+  }
+
   /** This reply with its first name no longer shown to the other guests: the tick is withdrawn. */
   withShownNameCleared(): GuestRsvp {
     return new GuestRsvp({ ...this.props, details: { ...this.props.details, showName: false } })

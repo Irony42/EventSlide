@@ -6,7 +6,7 @@ import {
   type RawRsvpInput,
   type RsvpInput,
 } from '../../../domain/guestRsvps/rsvp'
-import { rsvpRefusalFor, type RsvpRefusal } from '../../../domain/guestRsvps/rsvpLimits'
+import { rsvpAdmissionFor, type RsvpRefusal } from '../../../domain/guestRsvps/rsvpLimits'
 import { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
@@ -76,8 +76,7 @@ export interface SubmitRsvpDeps extends PublicRsvpDeps {
   readonly clock: Clock
 }
 
-const refused = (refusal: RsvpRefusal): DomainError =>
-  DomainError.conflict(refusal === 'full' ? 'rsvp.full' : 'rsvp.tooMany')
+const refused = (_refusal: RsvpRefusal): DomainError => DomainError.conflict('rsvp.tooMany')
 
 export type SubmitRsvp = (input: SubmitRsvpInput) => Promise<Result<SubmittedRsvp, DomainError>>
 
@@ -134,22 +133,31 @@ export const makeSubmitRsvp =
 
     if (typeof website === 'string' && website.length > 0) {
       // Judged **read-only**, by the very function `admit` decides with: counts, no write.
-      const refusal = rsvpRefusalFor({
+      const decision = rsvpAdmissionFor({
         isNew: existing === null,
         heldInEvent: await deps.rsvps.count(event.id),
         answer: rsvp.answer,
+        heldAnswer: existing === null ? null : existing.answer,
         people: rsvp.people,
         yesPeopleElsewhere:
           (await deps.rsvps.yesPeople(event.id)) -
           (existing !== null && existing.answer === 'yes' ? existing.people : 0),
         capacity: settings.form.capacity,
       })
-      if (refusal !== null) return err(refused(refusal))
-      return ok({ rsvp, editToken, created: existing === null })
+      if (decision === 'tooMany') return err(refused(decision))
+      // The same `201` a real reply gets, the waiting list included: no answer gives the trap away.
+      return ok({
+        rsvp: decision === 'waitlist' ? rsvp.withAnswer('waitlist') : rsvp,
+        editToken,
+        created: existing === null,
+      })
     }
 
     const admission = await deps.rsvps.admit(rsvp, { capacity: settings.form.capacity })
     if (admission.kind === 'refused') return err(refused(admission.refusal))
+    // `gone` is only answered to a change that asked for it: never here.
+    if (admission.kind === 'gone') return err(DomainError.notFound('rsvp.notFound'))
     announceRsvpsChanged(deps.bus, event.id)
-    return ok({ rsvp, editToken, created: admission.kind === 'added' })
+    // What was stored: a yes the places could not hold is a waiting-list entry.
+    return ok({ rsvp: admission.rsvp, editToken, created: admission.kind === 'added' })
   }
