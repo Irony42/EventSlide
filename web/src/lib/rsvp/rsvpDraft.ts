@@ -55,7 +55,10 @@ const offeredMeal = (meal: string, form: GuestRsvpPageDto['form']): string =>
  * The moments the form still offers: an id the host removed (or a household is not invited to) is not
  * one the screen can show, so it is not one the draft holds (screen and payload agree).
  */
-const offeredMoments = (ids: readonly string[], form: GuestRsvpPageDto['form']): readonly string[] =>
+const offeredMoments = (
+  ids: readonly string[],
+  form: GuestRsvpPageDto['form'],
+): readonly string[] =>
   form.moments.filter((moment) => ids.includes(moment.id)).map((moment) => moment.id)
 
 /** The draft with a moment ticked or unticked. */

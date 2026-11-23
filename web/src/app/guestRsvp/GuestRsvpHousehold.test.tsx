@@ -180,7 +180,9 @@ describe('the household link: the form', () => {
 
   it('says "one place" for a household of one', async () => {
     arriveBy(`#f=${LINK}`)
-    render({ guestHousehold: vi.fn(async () => ({ household: { name: 'Hugo', places: 1, moments: [] } })) })
+    render({
+      guestHousehold: vi.fn(async () => ({ household: { name: 'Hugo', places: 1, moments: [] } })),
+    })
 
     expect(await screen.findByText(t.householdPlaces(1))).toBeInTheDocument()
   })
@@ -188,7 +190,11 @@ describe('the household link: the form', () => {
   it('takes the places as the ceiling, not the form’s maximum of 4', async () => {
     arriveBy(`#f=${LINK}`)
     const user = userEvent.setup()
-    render({ guestHousehold: vi.fn(async () => ({ household: { name: 'Les Roux', places: 6, moments: [] } })) })
+    render({
+      guestHousehold: vi.fn(async () => ({
+        household: { name: 'Les Roux', places: 6, moments: [] },
+      })),
+    })
     await screen.findByText(t.householdPlaces(6))
     await user.click(screen.getByRole('button', { name: t.yes }))
 

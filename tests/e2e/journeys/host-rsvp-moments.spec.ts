@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { csrfHeaders, expect, test } from '../fixtures/app'
 import { invitedHost } from '../fixtures/invitation'
 import { fr } from '../../../web/src/lib/i18n/fr'
@@ -51,10 +52,7 @@ test('a guest ticks moments, a household is asked only its own, and the host rea
   expect(household.status()).toBe(201)
   const link = (await household.json()).household.token as string
 
-  const phone = async <T>(
-    fragment: string,
-    act: (page: import('@playwright/test').Page) => Promise<T>,
-  ): Promise<T> => {
+  const phone = async <T>(fragment: string, act: (page: Page) => Promise<T>): Promise<T> => {
     const context = await browser.newContext({
       locale: 'fr-FR',
       viewport: { width: 375, height: 800 },

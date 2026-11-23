@@ -1,7 +1,12 @@
 import { createPortal } from 'react-dom'
 import type { RsvpDto, RsvpFormDto, RsvpStatsDto } from '../../../lib/api/dto'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { companionsLabel, mealsLabel, momentsLabel, printRowsOf } from '../../../lib/rsvp/rsvpCaterer'
+import {
+  companionsLabel,
+  mealsLabel,
+  momentsLabel,
+  printRowsOf,
+} from '../../../lib/rsvp/rsvpCaterer'
 import styles from './RsvpPrintList.module.css'
 
 export interface RsvpPrintListProps {

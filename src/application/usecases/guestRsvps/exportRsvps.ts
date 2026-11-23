@@ -54,10 +54,17 @@ export const makeExportRsvps =
     )
     if (!recorded.ok) return recorded
     return ok({
-      csv: rsvpCsv(rsvps, view, labels, settings.form.questions, {
-        meals: settings.form.meals.enabled,
-        diet: settings.form.diet,
-      }, settings.form.moments),
+      csv: rsvpCsv(
+        rsvps,
+        view,
+        labels,
+        settings.form.questions,
+        {
+          meals: settings.form.meals.enabled,
+          diet: settings.form.diet,
+        },
+        settings.form.moments,
+      ),
       slug: event.slug.value,
     })
   }

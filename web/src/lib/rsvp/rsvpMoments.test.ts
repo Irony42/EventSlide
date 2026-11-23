@@ -78,11 +78,11 @@ describe('the guest’s moments', () => {
       fr.rsvp.guest,
     )
 
-    expect(lines).toContain(`Moments : Dîner`)
+    expect(lines).toContain(`Moments\u00a0: Dîner`)
     expect(lines.join(' ')).not.toContain('removed0')
     expect(
       recapLines(aGuestOwnRsvp({ answer: 'no', moments: [DINNER.id] }), FORM, fr.rsvp.guest),
-    ).not.toContain(`Moments : Dîner`)
+    ).not.toContain(`Moments\u00a0: Dîner`)
   })
 
   it('lists the labels of the moments named, in the form order', () => {

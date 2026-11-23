@@ -172,22 +172,23 @@ describe('proofOf', () => {
 describe('statsOf: the moments', () => {
   const BRUNCH = { id: 'aaaaaaaa', label: 'Brunch' }
   const DINNER = { id: 'bbbbbbbb', label: 'Dîner' }
-  const stats = statsOf(
-    [
-      aRsvp({ id: 'a', adults: 2, kids: 1, details: { moments: [BRUNCH.id, DINNER.id] } }),
-      aRsvp({ id: 'b', adults: 1, details: { moments: [DINNER.id] } }),
-      aRsvp({ id: 'c', answer: 'maybe', adults: 2, details: { moments: [DINNER.id] } }),
-      aRsvp({ id: 'd', answer: 'no', details: { moments: [DINNER.id] } }),
-      aRsvp({ id: 'e', answer: 'waitlist', adults: 4, details: { moments: [DINNER.id] } }),
-      aRsvp({ id: 'f', adults: 5, details: { moments: [] } }),
-      aRsvp({ id: 'g', adults: 7, details: { moments: ['removed0'] } }),
-    ],
-    [],
-    [BRUNCH, DINNER],
-  )
+  const stats = () =>
+    statsOf(
+      [
+        aRsvp({ id: 'a', adults: 2, kids: 1, details: { moments: [BRUNCH.id, DINNER.id] } }),
+        aRsvp({ id: 'b', adults: 1, details: { moments: [DINNER.id] } }),
+        aRsvp({ id: 'c', answer: 'maybe', adults: 2, details: { moments: [DINNER.id] } }),
+        aRsvp({ id: 'd', answer: 'no', details: { moments: [DINNER.id] } }),
+        aRsvp({ id: 'e', answer: 'waitlist', adults: 4, details: { moments: [DINNER.id] } }),
+        aRsvp({ id: 'f', adults: 5, details: { moments: [] } }),
+        aRsvp({ id: 'g', adults: 7, details: { moments: ['removed0'] } }),
+      ],
+      [],
+      [BRUNCH, DINNER],
+    )
 
   it('counts, per moment of the form, the replies and people of the yes and of the maybe', () => {
-    expect(stats.moments).toEqual([
+    expect(stats().moments).toEqual([
       {
         ...BRUNCH,
         yes: { responses: 1, people: 3 },
@@ -202,7 +203,7 @@ describe('statsOf: the moments', () => {
   })
 
   it('does not count a no or the waiting list, nor a removed moment, nor a reply that chose none', () => {
-    const total = stats.moments.reduce((sum, moment) => sum + moment.yes.people, 0)
+    const total = stats().moments.reduce((sum, moment) => sum + moment.yes.people, 0)
 
     expect(total).toBe(3 + 4)
   })
