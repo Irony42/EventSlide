@@ -1,0 +1,208 @@
+/* The host's guest list (spec 30, lot 3). Tokens only; a phone is one column. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.back {
+  font-size: var(--text-sm);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.sub,
+.note {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+@media (min-width: 64rem) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+  }
+}
+
+.main,
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--touch-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tabs button[aria-pressed='true'] {
+  border-color: var(--accent-strong);
+  font-weight: 650;
+}
+
+.tabs i {
+  color: var(--text-secondary);
+  font-style: normal;
+  font-size: var(--text-sm);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-3);
+  text-align: start;
+  vertical-align: middle;
+  border-block-end: 1px solid var(--border-subtle);
+}
+
+.table thead th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child > * {
+  border-block-end: 0;
+}
+
+.name {
+  font-weight: 650;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.reminder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.progress {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.who {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.channel {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: inherit;
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.channel[data-primary='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.steps {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.skippedTitle {
+  font-size: var(--text-md);
+}
+
+.skipped {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-size: var(--text-sm);
+}

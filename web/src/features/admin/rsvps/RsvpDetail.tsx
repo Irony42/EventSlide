@@ -1,10 +1,12 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { Notice } from '../../../design-system/components/Notice'
 import { Dialog } from '../../../design-system/components/Dialog'
-import type { RsvpDto, RsvpFormDto } from '../../../lib/api/dto'
+import { SelectField } from '../../../design-system/components/SelectField'
+import type { HouseholdDto, RsvpDto, RsvpFormDto } from '../../../lib/api/dto'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
+import { fileableHouseholds } from '../../../lib/rsvp/households'
 import { answerTone, peopleDetail } from '../../../lib/rsvp/rsvpList'
 import { receivedAt } from './receivedAt'
 import styles from './RsvpDetail.module.css'
@@ -17,6 +19,10 @@ export interface RsvpDetailProps {
   readonly locked: boolean
   /** Why the last act on this reply failed, shown here because the confirmation that asked is shut. */
   readonly problem: string | null
+  /** The host's guest list (lot 3): empty while there is none, and the section stays out. */
+  readonly households: readonly HouseholdDto[]
+  /** Files the reply under a household, or detaches it with `null`. */
+  readonly onFile: (reply: RsvpDto, householdId: string | null) => void
   readonly onEdit: (reply: RsvpDto) => void
   readonly onDelete: (reply: RsvpDto) => void
   readonly onClose: () => void
@@ -32,12 +38,16 @@ export function RsvpDetail({
   form,
   locked,
   problem,
+  households,
+  onFile,
   onEdit,
   onDelete,
   onClose,
 }: RsvpDetailProps) {
   const text = useTranslations().rsvp.list
   const { locale } = useLocale()
+  // The household chosen to file the reply under, per reply: a change of reply starts afresh.
+  const [chosen, setChosen] = useState<{ readonly of: string; readonly id: string } | null>(null)
   const answerName = {
     yes: text.answerYes,
     maybe: text.answerMaybe,
@@ -128,6 +138,16 @@ export function RsvpDetail({
               {text.receivedVia(receivedAt(reply.updatedAt, locale), sourceName[reply.source])}
             </dd>
           </dl>
+          {households.length === 0 ? null : (
+            <Filing
+              reply={reply}
+              households={households}
+              chosen={chosen?.of === reply.id ? chosen.id : ''}
+              onChoose={(id) => setChosen({ of: reply.id, id })}
+              onFile={onFile}
+              locked={locked}
+            />
+          )}
           {problem === null ? null : (
             <Notice tone="danger" variant="boxed" role="alert">
               {problem}
@@ -137,5 +157,65 @@ export function RsvpDetail({
         </div>
       )}
     </Dialog>
+  )
+}
+
+/**
+ * "Associer à un foyer" (spec 30, lot 3): the host files a reply under a household of the list that
+ * has no reply yet (a guest who answered on the common link), or detaches it. The household's name
+ * is the host's own typing, shown as it is.
+ */
+function Filing({
+  reply,
+  households,
+  chosen,
+  onChoose,
+  onFile,
+  locked,
+}: {
+  readonly reply: RsvpDto
+  readonly households: readonly HouseholdDto[]
+  readonly chosen: string
+  readonly onChoose: (id: string) => void
+  readonly onFile: (reply: RsvpDto, householdId: string | null) => void
+  readonly locked: boolean
+}) {
+  const text = useTranslations().rsvp.list
+  const filedUnder = households.find((household) => household.id === reply.householdId) ?? null
+  const options = fileableHouseholds(households, reply)
+  return (
+    <div className={styles['filing']}>
+      {filedUnder === null ? (
+        <>
+          <SelectField
+            label={text.detailHousehold}
+            hint={text.detailHouseholdHint}
+            value={chosen}
+            disabled={locked}
+            options={[
+              { value: '', label: text.detailHouseholdNone },
+              ...options.map((household) => ({ value: household.id, label: household.name })),
+            ]}
+            onChange={onChoose}
+          />
+          <Button
+            size="sm"
+            disabled={locked || chosen === ''}
+            onClick={() => onFile(reply, chosen)}
+          >
+            {text.detailHouseholdFile}
+          </Button>
+        </>
+      ) : (
+        <>
+          <p>
+            <b>{text.detailHousehold}</b> {filedUnder.name}
+          </p>
+          <Button size="sm" disabled={locked} onClick={() => onFile(reply, null)}>
+            {text.detailHouseholdUnfile}
+          </Button>
+        </>
+      )}
+    </div>
   )
 }

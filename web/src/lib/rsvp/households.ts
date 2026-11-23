@@ -82,12 +82,9 @@ export const smsUrl = (message: string): string => `sms:?&body=${encodeURICompon
 export const mailtoUrl = (subject: string, message: string): string =>
   `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`
 
-/** The reply to file under a household: the ones no household answers for, plus the one it holds. */
-export const fileableReplies = (
-  rsvps: readonly RsvpDto[],
-  household: HouseholdDto | null,
-): readonly RsvpDto[] =>
-  rsvps.filter(
-    (reply) =>
-      reply.householdId === null || (household !== null && reply.householdId === household.id),
-  )
+/** The households a reply may be filed under: those with no reply yet (one reply per household). */
+export const fileableHouseholds = (
+  households: readonly HouseholdDto[],
+  reply: RsvpDto,
+): readonly HouseholdDto[] =>
+  households.filter((household) => household.reply === null && reply.householdId === null)

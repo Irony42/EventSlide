@@ -44,6 +44,10 @@ import type {
   RsvpDto,
   RsvpFormResponseDto,
   RsvpListResponseDto,
+  HouseholdDto,
+  HouseholdImportResponseDto,
+  HouseholdListResponseDto,
+  HouseholdResponseDto,
   RsvpResponseDto,
   RsvpSettingsDto,
   RsvpStatsDto,
@@ -214,6 +218,19 @@ export const anRsvp = (overrides: Partial<RsvpDto> = {}): RsvpDto => ({
   details: { companions: [], meals: [], answers: [], moments: [], showName: false },
   createdAt: '2026-11-20T10:00:00.000Z',
   updatedAt: '2026-11-20T10:00:00.000Z',
+  ...overrides,
+})
+
+/** One household of the guest list (spec 30, lot 3): the Martins, four places, no reply yet. */
+export const aHousehold = (overrides: Partial<HouseholdDto> = {}): HouseholdDto => ({
+  id: 'd2000000-0000-4000-8000-000000000001',
+  name: 'Famille Martin',
+  places: 4,
+  token: '7QX0M4TZ2KD9WB3H',
+  remindedAt: null,
+  createdAt: '2026-11-23T10:00:00.000Z',
+  updatedAt: '2026-11-23T10:00:00.000Z',
+  reply: null,
   ...overrides,
 })
 
@@ -1158,6 +1175,17 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   updateRsvp: vi.fn(async (): Promise<RsvpResponseDto> => ({ rsvp: anRsvp() })),
   deleteRsvp: vi.fn(async (): Promise<void> => undefined),
   markRsvpsSeen: vi.fn(async (): Promise<void> => undefined),
+  households: vi.fn(async (): Promise<HouseholdListResponseDto> => ({ households: [] })),
+  addHousehold: vi.fn(async (): Promise<HouseholdResponseDto> => ({ household: aHousehold() })),
+  updateHousehold: vi.fn(async (): Promise<HouseholdResponseDto> => ({ household: aHousehold() })),
+  deleteHousehold: vi.fn(async (): Promise<void> => undefined),
+  importHouseholds: vi.fn(async (): Promise<HouseholdImportResponseDto> => ({
+    households: [],
+    skipped: [],
+  })),
+  rotateHousehold: vi.fn(async (): Promise<HouseholdResponseDto> => ({ household: aHousehold() })),
+  remindHousehold: vi.fn(async (): Promise<HouseholdResponseDto> => ({ household: aHousehold() })),
+  fileRsvpUnderHousehold: vi.fn(async (): Promise<RsvpResponseDto> => ({ rsvp: anRsvp() })),
   rsvpExportUrl: (slug: string, view: 'all' | 'caterer' = 'all'): string =>
     `/api/events/${slug}/rsvps/export?view=${view}`,
   rsvpForm: vi.fn(async (): Promise<RsvpFormResponseDto> => ({ rsvpForm: aRsvpSettings() })),
