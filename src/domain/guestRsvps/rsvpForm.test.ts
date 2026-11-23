@@ -134,9 +134,30 @@ describe('restoreRsvpForm', () => {
     expect(restoreRsvpForm({ partySize: 'x' })).toEqual(DEFAULT_RSVP_FORM)
   })
 
-  it('ignores an unknown field, and keeps the later lots at their defaults for now', () => {
-    const form = restoreRsvpForm({ surprise: true, capacity: 5, visibility: 'names' })
+  it('ignores an unknown field, and keeps the lot 4 fields at their defaults for now', () => {
+    const form = restoreRsvpForm({
+      surprise: true,
+      capacity: 5,
+      moments: [{ id: 'a', label: 'b' }],
+    })
 
     expect(form).toEqual(DEFAULT_RSVP_FORM)
+  })
+
+  it('reads who comes back, and brings an unknown value back to "nothing"', () => {
+    expect(restoreRsvpForm({ visibility: 'names' }).visibility).toBe('names')
+    expect(restoreRsvpForm({ visibility: 'count' }).visibility).toBe('count')
+    expect(restoreRsvpForm({ visibility: 'everyone' }).visibility).toBe('off')
+  })
+
+  it('changes who comes with one of the three values and refuses any other', () => {
+    for (const visibility of ['off', 'count', 'names']) {
+      const result = patched({ visibility })
+      expect(result.ok && result.value.visibility).toBe(visibility)
+    }
+    for (const visibility of ['all', true, null, 1]) {
+      const result = patched({ visibility })
+      expect(!result.ok && result.error.code).toBe('rsvp.visibilityInvalid')
+    }
   })
 })

@@ -24,6 +24,7 @@ export const applyInput = (settings: RsvpSettingsDto, input: RsvpFormInput): Rsv
             kidsSeparate: form.kidsSeparate ?? settings.form.kidsSeparate,
             diet: form.diet ?? settings.form.diet,
             companionNames: form.companionNames ?? settings.form.companionNames,
+            visibility: form.visibility ?? settings.form.visibility,
             meals: {
               enabled: form.meals?.enabled ?? settings.form.meals.enabled,
               options: form.meals?.options ?? settings.form.meals.options,
@@ -82,6 +83,7 @@ export const previewPage = (settings: RsvpSettingsDto): GuestRsvpPageDto => ({
     companionNames: settings.form.companionNames,
     meals: { enabled: settings.form.meals.enabled, options: settings.form.meals.options },
     questions: settings.form.questions,
+    visibility: settings.form.visibility,
   },
 })
 

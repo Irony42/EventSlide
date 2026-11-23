@@ -53,7 +53,17 @@ export type HostUpdateRsvp = (input: HostUpdateRsvpInput) => Promise<Result<Gues
 const keepingWhatIsNotAsked = (form: RsvpForm, held: GuestRsvp, reply: RsvpInput): RsvpInput => {
   // The answers to removed questions stay whatever the answer is; the rest only between two replies
   // that bring people: a "no" holds nothing to keep.
-  const extras = retainExtras(form, held.details, reply.extras, reply.answer)
+  // **Showing a first name is the guest's choice, never the host's**: a correction keeps the guest's
+  // opt-in as it was (a host's own input carries none), unless the host changes the name (what was
+  // agreed to be shown is the old one), and a "no" shows nobody.
+  const extras = {
+    ...retainExtras(form, held.details, reply.extras, reply.answer),
+    showName:
+      reply.answer === 'yes' &&
+      form.visibility === 'names' &&
+      reply.name === held.name &&
+      held.details.showName,
+  }
   if (reply.answer === 'no' || held.answer === 'no') return { ...reply, extras }
   const partySizeAsked = form.partySize.enabled
   return {

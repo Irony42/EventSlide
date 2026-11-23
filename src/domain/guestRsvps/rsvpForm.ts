@@ -90,6 +90,7 @@ const PATCHABLE: readonly string[] = [
   'companionNames',
   'meals',
   'questions',
+  'visibility',
 ]
 
 /** The fields a host may change. An absent field is left as it was. */
@@ -101,6 +102,7 @@ export interface RsvpFormPatch {
   readonly companionNames?: unknown
   readonly meals?: unknown
   readonly questions?: unknown
+  readonly visibility?: unknown
 }
 
 const isMax = (value: unknown): value is number =>
@@ -111,6 +113,9 @@ const isMax = (value: unknown): value is number =>
 
 const flag = (raw: unknown, current: boolean): Result<boolean, DomainError> =>
   raw === undefined ? ok(current) : typeof raw === 'boolean' ? ok(raw) : err(invalidForm())
+
+const isVisibility = (value: unknown): value is RsvpVisibility =>
+  value === 'off' || value === 'count' || value === 'names'
 
 const invalidForm = (): DomainError => DomainError.invalid('rsvp.formInvalid')
 
@@ -145,6 +150,14 @@ export const applyFormPatch = (
       : applyQuestionsPatch(current.questions, patch.questions, mintQuestionId)
   if (!questions.ok) return questions
 
+  const visibility =
+    patch.visibility === undefined
+      ? ok(current.visibility)
+      : isVisibility(patch.visibility)
+        ? ok(patch.visibility)
+        : err(DomainError.invalid('rsvp.visibilityInvalid'))
+  if (!visibility.ok) return visibility
+
   let partySize = current.partySize
   if (patch.partySize !== undefined) {
     if (!isPlainObject(patch.partySize)) return err(invalidForm())
@@ -167,6 +180,7 @@ export const applyFormPatch = (
     companionNames: companionNames.value,
     meals: meals.value,
     questions: questions.value,
+    visibility: visibility.value,
   })
 }
 
@@ -193,5 +207,6 @@ export const restoreRsvpForm = (raw: unknown): RsvpForm => {
     companionNames: bool(raw['companionNames'], DEFAULT_RSVP_FORM.companionNames),
     meals: restoreMeals(raw['meals'], DEFAULT_RSVP_FORM.meals),
     questions: restoreQuestions(raw['questions']),
+    visibility: isVisibility(raw['visibility']) ? raw['visibility'] : DEFAULT_RSVP_FORM.visibility,
   }
 }

@@ -294,3 +294,39 @@ describe('a choice the host changed since the reply was given', () => {
     expect(draftOf(reply, off).meals).toEqual(['', ''])
   })
 })
+
+describe('who comes: the guest’s box', () => {
+  const NAMES = { ...FORM, visibility: 'names' as const }
+
+  it('sends the tick only for a yes while first names are shown', () => {
+    const draft = { ...YES, showName: true }
+
+    expect(inputOf(draft, NAMES)).toMatchObject({ showName: true })
+    expect(inputOf({ ...draft, showName: false }, NAMES)).toMatchObject({ showName: false })
+    expect(inputOf(draft, { ...FORM, visibility: 'count' })).not.toHaveProperty('showName')
+    expect(inputOf(draft, FORM)).not.toHaveProperty('showName')
+    expect(inputOf({ ...draft, answer: 'maybe' }, NAMES)).not.toHaveProperty('showName')
+    expect(inputOf({ ...draft, answer: 'no' }, NAMES)).not.toHaveProperty('showName')
+  })
+
+  it('starts a change from the tick the reply holds, and from none for a new reply', () => {
+    expect(draftOf(aGuestOwnRsvp({ showName: true }), NAMES).showName).toBe(true)
+    expect(EMPTY_DRAFT.showName).toBe(false)
+  })
+
+  it('says in the confirmation that the first name is shown, only when it is', () => {
+    const lines = (showName: boolean) =>
+      recapLines(aGuestOwnRsvp({ showName }), NAMES, fr.rsvp.guest)
+
+    expect(lines(true)).toContain(fr.rsvp.guest.recapShowName)
+    expect(lines(false)).not.toContain(fr.rsvp.guest.recapShowName)
+  })
+
+  it('lays the choice of the page over the server’s word, and shows it in the preview', () => {
+    const settings = applyInput(aRsvpSettings({ enabled: true }), { form: { visibility: 'names' } })
+
+    expect(settings.form.visibility).toBe('names')
+    expect(previewPage(settings).form.visibility).toBe('names')
+    expect(applyInput(settings, {}).form.visibility).toBe('names')
+  })
+})

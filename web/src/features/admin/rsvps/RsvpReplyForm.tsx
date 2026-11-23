@@ -58,7 +58,9 @@ export function RsvpReplyForm({ reply, form, onSubmit, onClose }: RsvpReplyFormP
     setBusy(true)
     setProblem(null)
     try {
-      await onSubmit(inputOf({ ...draft, answer: draft.answer }, form))
+      // Showing a first name is the guest's own choice: the host's form never carries it.
+      const { showName: _theirs, ...input } = inputOf({ ...draft, answer: draft.answer }, form)
+      await onSubmit(input)
       onClose()
     } catch (cause) {
       setProblem(messageForError(cause, t))

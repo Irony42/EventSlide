@@ -145,6 +145,12 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
     return namesToShow(this.inEvent(eventId)).slice(0, limit)
   }
 
+  async clearShownNames(eventId: EventId): Promise<number> {
+    const ticked = this.inEvent(eventId).filter((row) => row.details.showName)
+    for (const row of ticked) this.rows.set(key(eventId, row.id), row.withShownNameCleared())
+    return ticked.length
+  }
+
   async unseenCount(eventId: EventId, userId: UserId): Promise<number> {
     const seen = this.members.get(`${eventId}:${userId}`)
     if (seen === undefined) return 0

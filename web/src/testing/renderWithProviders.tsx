@@ -239,6 +239,7 @@ export const aGuestRsvpPage = (overrides: Partial<GuestRsvpPageDto> = {}): Guest
     companionNames: false,
     meals: { enabled: false, options: [] },
     questions: [],
+    visibility: 'off',
   },
   ...overrides,
 })
@@ -254,6 +255,7 @@ export const aGuestOwnRsvp = (overrides: Partial<GuestOwnRsvpDto> = {}): GuestOw
   companions: [],
   meals: [],
   answers: [],
+  showName: false,
   updatedAt: '2026-11-20T10:00:00.000Z',
   ...overrides,
 })

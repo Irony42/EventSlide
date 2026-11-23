@@ -126,6 +126,7 @@ export const toGuestOwnRsvpDto = (rsvp: GuestRsvp): GuestOwnRsvpDto => ({
     label,
     value,
   })),
+  showName: rsvp.details.showName,
   updatedAt: rsvp.updatedAt.toISOString(),
 })
 

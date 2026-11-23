@@ -501,6 +501,17 @@ describe('the replies: GET, POST, PUT and DELETE /api/events/:eventSlug/rsvps', 
     if (code !== null) expect(response.body.error.code).toBe(code)
   })
 
+  it('refuses showName from the host: showing a first name is a guest choice', async () => {
+    const response = await (
+      await signedIn(world, 'owner')
+    )
+      .post(RSVPS)
+      .send({ ...REPLY, showName: true })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+  })
+
   it('refuses a stray key, such as a source or a token, as a malformed request', async () => {
     const response = await (
       await signedIn(world, 'owner')

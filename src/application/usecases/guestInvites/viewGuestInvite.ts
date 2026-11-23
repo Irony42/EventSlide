@@ -48,6 +48,7 @@ export interface GuestRsvpPageView {
     readonly companionNames: boolean
     readonly meals: { readonly enabled: boolean; readonly options: readonly string[] }
     readonly questions: RsvpForm['questions']
+    readonly visibility: RsvpForm['visibility']
   }
   /** `null` unless the host asked to show it **and** replies are still part of the story. */
   readonly proof: RsvpProof | null
@@ -131,6 +132,7 @@ export const makeViewGuestInvite =
         // The menus are not told while they are off: nothing the host has not asked leaves the box.
         meals: form.meals.enabled ? form.meals : { enabled: false, options: [] },
         questions: form.questions,
+        visibility: form.visibility,
       },
       proof,
     }

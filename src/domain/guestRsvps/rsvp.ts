@@ -109,12 +109,19 @@ export interface RawRsvpInput {
   readonly meals?: unknown
   /** `{ questionId, value }[]`, one per question the host asks (lot 2). */
   readonly answers?: unknown
+  /** "Show my first name to the other guests" (spec 30, section 4.4), a `yes` only. */
+  readonly showName?: unknown
 }
 
 /** What the form's lot 2 questions add to a reply. */
-export type RsvpExtras = Pick<RsvpDetails, 'companions' | 'meals' | 'answers'>
+export type RsvpExtras = Pick<RsvpDetails, 'companions' | 'meals' | 'answers' | 'showName'>
 
-export const NO_RSVP_EXTRAS: RsvpExtras = { companions: [], meals: [], answers: [] }
+export const NO_RSVP_EXTRAS: RsvpExtras = {
+  companions: [],
+  meals: [],
+  answers: [],
+  showName: false,
+}
 
 /** A reply that passed {@link parseRsvpInput}. */
 export interface RsvpInput {
@@ -337,6 +344,17 @@ export const parseRsvpInput = (
   if (!meals.ok) return meals
   const answers = parseAnswers(raw.answers, form.questions)
   if (!answers.ok) return answers
+  // Asked only when the host shows first names, and only a yes is ever named.
+  if (
+    answer === 'yes' &&
+    form.visibility === 'names' &&
+    raw.showName !== undefined &&
+    raw.showName !== null &&
+    typeof raw.showName !== 'boolean'
+  ) {
+    return err(DomainError.invalid('rsvp.showNameInvalid'))
+  }
+  const showName = answer === 'yes' && form.visibility === 'names' && raw.showName === true
   return ok({
     name: name.value,
     answer,
@@ -344,7 +362,12 @@ export const parseRsvpInput = (
     kids,
     diet: diet.value,
     message: message.value,
-    extras: { companions: companions.value, meals: meals.value, answers: answers.value },
+    extras: {
+      companions: companions.value,
+      meals: meals.value,
+      answers: answers.value,
+      showName,
+    },
   })
 }
 
@@ -475,6 +498,11 @@ export class GuestRsvp {
     })
   }
 
+  /** This reply with its first name no longer shown to the other guests: the tick is withdrawn. */
+  withShownNameCleared(): GuestRsvp {
+    return new GuestRsvp({ ...this.props, details: { ...this.props.details, showName: false } })
+  }
+
   /** This reply attached to a household, or detached with `null` (lot 3). */
   withHousehold(householdId: string | null): GuestRsvp {
     return new GuestRsvp({ ...this.props, householdId })
@@ -515,10 +543,14 @@ export const retainExtras = (
   )
   const room = Math.max(ANSWERS_MAX - extras.answers.length, 0)
   const kept = room === 0 ? [] : orphans.slice(-room)
-  if (answer === 'no') return { companions: [], meals: [], answers: kept }
+  if (answer === 'no') return { companions: [], meals: [], answers: kept, showName: false }
   return {
     companions: form.companionNames ? extras.companions : held.companions,
     meals: form.meals.enabled ? extras.meals : held.meals,
+    // The tick means something only while first names are shown, and the guest can only withdraw it
+    // while they are: so outside `names` nothing is stored, and the host's switch away from `names`
+    // clears every tick (guests tick again when it comes back).
+    showName: form.visibility === 'names' ? extras.showName : false,
     answers: [...extras.answers, ...kept],
   }
 }

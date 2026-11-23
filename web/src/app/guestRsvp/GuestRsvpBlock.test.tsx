@@ -97,6 +97,7 @@ describe('asking: the window is open and this device holds no reply', () => {
           companionNames: false,
           meals: { enabled: false, options: [] },
           questions: [],
+          visibility: 'off' as const,
         },
       }),
     )
@@ -120,6 +121,7 @@ describe('asking: the window is open and this device holds no reply', () => {
           companionNames: false,
           meals: { enabled: false, options: [] },
           questions: [],
+          visibility: 'off' as const,
         },
       }),
     )

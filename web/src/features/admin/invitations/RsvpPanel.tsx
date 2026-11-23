@@ -240,6 +240,22 @@ export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
           disabled={locked}
           onChange={(diet) => rsvp.change({ form: { diet } })}
         />
+        <SelectField
+          label={text.visibilityLabel}
+          hint={text.visibilityHint}
+          value={form.visibility}
+          disabled={locked}
+          options={[
+            { value: 'off', label: text.visibilityOff },
+            { value: 'count', label: text.visibilityCount },
+            { value: 'names', label: text.visibilityNames },
+          ]}
+          onChange={(value) => {
+            if (value === 'off' || value === 'count' || value === 'names') {
+              rsvp.change({ form: { visibility: value } })
+            }
+          }}
+        />
         <RsvpExtras
           form={form}
           locked={locked}

@@ -356,6 +356,25 @@ export function GuestRsvpBlock({
               </label>
             ))
           : null}
+        {draft.answer === 'yes' && form.visibility === 'names' ? (
+          <div className={styles['shown']}>
+            <label className={styles['check']}>
+              <input
+                type="checkbox"
+                name="showName"
+                checked={draft.showName}
+                onChange={(event) => set({ showName: event.target.checked })}
+              />
+              <span>{t.showNameLabel}</span>
+            </label>
+            {/* Exactly what would be published: the first word of the name typed above. */}
+            {firstNameOf(draft.name) === '' ? null : (
+              <small className={styles['shownLine']} aria-live="polite">
+                {t.showNameShown(firstNameOf(draft.name))}
+              </small>
+            )}
+          </div>
+        ) : null}
         <label className={styles['field']}>
           <span>
             {t.messageLabel} <small>{t.optional}</small>
@@ -395,7 +414,13 @@ export function GuestRsvpBlock({
             {t.cancel}
           </Button>
         ) : null}
-        <p className={styles['notice']}>{t.notice}</p>
+        <p className={styles['notice']}>
+          {form.visibility === 'names'
+            ? t.noticeNames
+            : form.visibility === 'count'
+              ? t.noticeCount
+              : t.notice}
+        </p>
       </form>
     )
 

@@ -1079,6 +1079,7 @@ export const guestRsvpBody = z.strictObject({
   companions: z.unknown().optional(),
   meals: z.unknown().optional(),
   answers: z.unknown().optional(),
+  showName: z.unknown().optional(),
 })
 
 /**
