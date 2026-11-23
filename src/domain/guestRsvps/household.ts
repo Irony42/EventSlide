@@ -4,6 +4,7 @@ import { characterCount, toSingleLine } from '../shared/plainText'
 import { err, ok, type Result } from '../shared/result'
 import type { HouseholdToken } from './householdToken'
 import type { RsvpForm } from './rsvpForm'
+import { momentsOfHousehold } from './rsvpFormMoments'
 
 /**
  * A household of the guest list (spec 30, lot 3): a family or a couple the host listed, the places
@@ -74,6 +75,11 @@ export interface GuestHouseholdProps {
   readonly token: HouseholdToken
   readonly name: string
   readonly places: number
+  /**
+   * Ids of the moments the household is invited to (lot 4), or `null` for all of the form's moments
+   * (the default: a moment the host adds later reaches them too).
+   */
+  readonly moments: readonly string[] | null
   /** The host's own note "relancé le"; EventSlide sends nothing. */
   readonly remindedAt: Date | null
   readonly createdAt: Date
@@ -88,6 +94,8 @@ export class GuestHousehold {
     readonly eventId: EventId
     readonly token: HouseholdToken
     readonly household: HouseholdInput
+    /** Default: all the moments. */
+    readonly moments?: readonly string[] | null | undefined
     readonly now: Date
   }): GuestHousehold {
     return new GuestHousehold({
@@ -96,6 +104,7 @@ export class GuestHousehold {
       token: input.token,
       name: input.household.name,
       places: input.household.places,
+      moments: input.moments ?? null,
       remindedAt: null,
       createdAt: input.now,
       updatedAt: input.now,
@@ -122,6 +131,9 @@ export class GuestHousehold {
   get places(): number {
     return this.props.places
   }
+  get moments(): readonly string[] | null {
+    return this.props.moments
+  }
   get remindedAt(): Date | null {
     return this.props.remindedAt
   }
@@ -136,12 +148,20 @@ export class GuestHousehold {
     return this.props
   }
 
-  /** The household with another name and places. The token, the note and the creation stay. */
-  withInput(input: HouseholdInput, now: Date): GuestHousehold {
+  /**
+   * The household with another name and places, and other moments when `moments` is given (`null`
+   * is all of them). The token, the note and the creation stay.
+   */
+  withInput(
+    input: HouseholdInput,
+    now: Date,
+    moments: readonly string[] | null | undefined = this.props.moments,
+  ): GuestHousehold {
     return new GuestHousehold({
       ...this.props,
       name: input.name,
       places: input.places,
+      moments: moments ?? null,
       updatedAt: now,
     })
   }
@@ -161,9 +181,11 @@ export class GuestHousehold {
  * The form a household answers with: the host's own, except that **the household's places are the
  * ceiling** of the party (the host counted them, so the form's general maximum does not apply) and
  * "how many" is always asked, since a household of four is not one person. Children stay separate
- * or not as the form says.
+ * or not as the form says. **Its moments are the ones it is invited to** (all by default), so a
+ * household is never asked, nor counted at, a moment it was not invited to.
  */
 export const formForHousehold = (form: RsvpForm, household: GuestHousehold): RsvpForm => ({
   ...form,
   partySize: { enabled: true, max: household.places },
+  moments: momentsOfHousehold(form.moments, household.moments),
 })

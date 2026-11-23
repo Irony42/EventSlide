@@ -1,4 +1,7 @@
 import type { GuestRsvp, RsvpAnswer, RsvpSource } from './rsvp'
+import type { GuestHousehold } from './household'
+import type { RsvpMoment } from './rsvpForm'
+import { narrowMoments } from './rsvpFormMoments'
 
 /**
  * The replies as a spreadsheet (spec 30, section 4.5), for the host and the caterer.
@@ -9,6 +12,11 @@ import type { GuestRsvp, RsvpAnswer, RsvpSource } from './rsvp'
  *   carriage return gets a leading apostrophe, headers included (a question's label is the host's
  *   own text). Numeric columns are written as numbers and are not touched, or a negative count
  *   would be turned into text.
+ *
+ * - **moments** (lot 4): one column per moment **of the form today**, headed by its label (neutralised
+ *   like any header). In the full file the cell is the number 1 when the reply (a yes or a maybe)
+ *   comes to it; in the caterer's file it is the people of that yes reply, and the total line adds
+ *   them up. A removed moment has no column: its id means nothing any more.
  *
  * The file is written in the host's language: the labels come in, the domain translates nothing.
  */
@@ -109,26 +117,53 @@ export interface RsvpCsvAsked {
   readonly diet: boolean
 }
 
+/** 1 when the reply comes to the moment, or nothing. */
+const comesTo = (rsvp: GuestRsvp, moment: RsvpMoment): Cell =>
+  (rsvp.answer === 'yes' || rsvp.answer === 'maybe') && rsvp.details.moments.includes(moment.id)
+    ? 1
+    : null
+
 export const rsvpCsv = (
   rsvps: readonly GuestRsvp[],
   view: RsvpCsvView,
   labels: RsvpCsvLabels,
   questions: readonly RsvpCsvQuestion[] = [],
   asked: RsvpCsvAsked = { meals: true, diet: true },
+  moments: readonly RsvpMoment[] = [],
+  households: readonly GuestHousehold[] = [],
 ): string => {
+  // A reply is only written at a moment that exists today and that its household is invited to.
+  rsvps = moments.length === 0 ? rsvps : narrowMoments(rsvps, moments, households)
   if (view === 'caterer') {
     const coming = rsvps.filter((rsvp) => rsvp.answer === 'yes')
     // Only the columns the form asks: a menu or a diet the host no longer asks is not told to the
     // caterer, as the panel and the printed list do not tell it.
-    const cells = (name: Cell, adults: Cell, kids: Cell, meals: Cell, diet: Cell): Cell[] => [
+    const cells = (
+      name: Cell,
+      adults: Cell,
+      kids: Cell,
+      meals: Cell,
+      diet: Cell,
+      atMoments: readonly Cell[],
+    ): Cell[] => [
       name,
       adults,
       kids,
+      ...atMoments,
       ...(asked.meals ? [meals] : []),
       ...(asked.diet ? [diet] : []),
     ]
     const rows = coming.map((rsvp) =>
-      line(cells(rsvp.name, rsvp.adults, rsvp.kids, mealsSummary(rsvp.details.meals), rsvp.diet)),
+      line(
+        cells(
+          rsvp.name,
+          rsvp.adults,
+          rsvp.kids,
+          mealsSummary(rsvp.details.meals),
+          rsvp.diet,
+          moments.map((moment) => (comesTo(rsvp, moment) === null ? null : rsvp.people)),
+        ),
+      ),
     )
     // The last line adds it up, so the caterer reads the order without a formula.
     const total = line(
@@ -138,11 +173,23 @@ export const rsvpCsv = (
         coming.reduce((sum, rsvp) => sum + rsvp.kids, 0),
         mealsSummary(coming.flatMap((rsvp) => rsvp.details.meals)),
         null,
+        moments.map((moment) =>
+          coming.reduce((sum, rsvp) => sum + (comesTo(rsvp, moment) === null ? 0 : rsvp.people), 0),
+        ),
       ),
     )
     return (
       BOM +
-      line(cells(labels.name, labels.adults, labels.kids, labels.meals, labels.diet)) +
+      line(
+        cells(
+          labels.name,
+          labels.adults,
+          labels.kids,
+          labels.meals,
+          labels.diet,
+          moments.map((moment) => moment.label),
+        ),
+      ) +
       rows.join('') +
       (coming.length === 0 ? '' : total)
     )
@@ -157,6 +204,7 @@ export const rsvpCsv = (
       listOf(rsvp.details.companions),
       listOf(rsvp.details.meals),
       rsvp.diet,
+      ...moments.map((moment) => comesTo(rsvp, moment)),
       ...columns.map((column) => answerOf(rsvp, column.id)),
       rsvp.message,
       labels.sources[rsvp.source],
@@ -173,6 +221,7 @@ export const rsvpCsv = (
       labels.companions,
       labels.meals,
       labels.diet,
+      ...moments.map((moment) => moment.label),
       ...columns.map((column) => column.label),
       labels.message,
       labels.source,

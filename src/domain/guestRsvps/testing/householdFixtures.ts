@@ -10,6 +10,7 @@ export interface HouseholdFixture {
   readonly token?: string
   readonly name?: string
   readonly places?: number
+  readonly moments?: readonly string[] | null
   readonly remindedAt?: Date | null
   readonly createdAt?: Date
   readonly updatedAt?: Date
@@ -26,6 +27,7 @@ export const aHousehold = (input: HouseholdFixture = {}): GuestHousehold => {
     token: token.value,
     name: input.name ?? 'Famille Martin',
     places: input.places ?? 4,
+    moments: input.moments ?? null,
     remindedAt: input.remindedAt ?? null,
     createdAt,
     updatedAt: input.updatedAt ?? createdAt,

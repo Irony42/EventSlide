@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Button } from '../../design-system/components/Button'
 import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
@@ -15,6 +15,7 @@ import {
   maxPeople,
   peopleOfDraft,
   personName,
+  toggleMoment,
   type RsvpAnswer,
   type RsvpDraft,
 } from '../../lib/rsvp/rsvpDraft'
@@ -22,6 +23,7 @@ import { ownReplyLink } from '../../lib/rsvp/rsvpDevice'
 import {
   deadlineLabel,
   firstNameOf,
+  momentLabels,
   proofLine,
   recapLine,
   recapLines,
@@ -121,7 +123,7 @@ export function GuestRsvpBlock({
 
   // A household answers with the host's form, its own places as the ceiling and the counter always asked.
   const household = state.household
-  const form = household === null ? rsvp.form : householdForm(rsvp.form, household.places)
+  const form = household === null ? rsvp.form : householdForm(rsvp.form, household)
   // The household's name is what the form starts from: the link tells the page who is answering.
   const householdName = household?.name ?? null
   const [nameSeeded, setNameSeeded] = useState(false)
@@ -137,10 +139,24 @@ export function GuestRsvpBlock({
     onKnownName?.(knownName)
   }, [knownName, onKnownName])
   const failureCode = state.failure
+  // The server ignores a moment the form (or the household) no longer has, so "none chosen" after
+  // something was ticked means the page is stale; the plain "forgot to tick" case is not.
+  const momentsStale = failureCode === 'rsvp.momentsRequired' && draft.moments.length > 0
+  const refreshHousehold = state.refreshHousehold
+  const hasHousehold = household !== null
   useEffect(() => {
-    if (failureCode === 'rsvp.mealNotOffered' || failureCode === 'rsvp.answerNotAnOption')
+    if (failureCode === 'rsvp.mealNotOffered' || failureCode === 'rsvp.answerNotAnOption') {
       onStale?.()
+    }
   }, [failureCode, onStale])
+  useEffect(() => {
+    if (!momentsStale) return
+    onStale?.()
+    if (hasHousehold) refreshHousehold()
+  }, [momentsStale, onStale, hasHousehold, refreshHousehold])
+  const momentsHintId = useId()
+  const momentsErrorId = useId()
+  const momentsGoneId = useId()
   const open = rsvp.state === 'open' || rsvp.state === 'full'
   const own = state.own
   // A reply that vanished while it was being changed (a deletion elsewhere) ends the change.
@@ -292,6 +308,15 @@ export function GuestRsvpBlock({
   )
 
   const people = peopleOfDraft(draft, form)
+  /** Nothing ticked after the server asked for one. */
+  const momentsMissing = failureCode === 'rsvp.momentsRequired' && draft.moments.length === 0
+  /** Changing a reply whose own moments no longer exist (removed, or the household was narrowed). */
+  const momentsGone =
+    editing &&
+    own !== null &&
+    own.reply.answer !== 'no' &&
+    form.moments.length > 0 &&
+    momentLabels(own.reply.moments, form).length === 0
   const formFields =
     draft.answer === null ? null : (
       <form className={styles['form']} onSubmit={send(draft.answer)} noValidate>
@@ -332,6 +357,32 @@ export function GuestRsvpBlock({
               />
             ) : null}
           </div>
+        ) : null}
+        {draft.answer !== 'no' && form.moments.length > 0 ? (
+          <fieldset
+            className={styles['field']}
+            aria-describedby={`${momentsHintId}${momentsGone ? ` ${momentsGoneId}` : ''}${momentsMissing ? ` ${momentsErrorId}` : ''}`}
+          >
+            <legend>{t.momentsLabel}</legend>
+            <small id={momentsHintId}>{t.momentsHint}</small>
+            {momentsGone ? (
+              <small id={momentsGoneId} role="status">
+                {t.momentsGone}
+              </small>
+            ) : null}
+            {form.moments.map((moment) => (
+              <label key={moment.id} className={styles['check']}>
+                <input
+                  type="checkbox"
+                  aria-invalid={momentsMissing ? true : undefined}
+                  name={`moment-${moment.id}`}
+                  checked={draft.moments.includes(moment.id)}
+                  onChange={() => setDraft((current) => toggleMoment(current, moment.id))}
+                />
+                <span>{moment.label}</span>
+              </label>
+            ))}
+          </fieldset>
         ) : null}
         {draft.answer !== 'no' && form.companionNames && people > 1 ? (
           <fieldset className={styles['field']}>
@@ -481,7 +532,7 @@ export function GuestRsvpBlock({
           </label>
         )}
         {failure === null ? null : (
-          <Notice tone="danger" variant="boxed" role="alert">
+          <Notice tone="danger" variant="boxed" role="alert" id={momentsErrorId}>
             {failure}
           </Notice>
         )}

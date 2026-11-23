@@ -39,6 +39,8 @@ export interface RsvpSettingsState {
   /** The sentence of the last refusal, or `null`. */
   readonly problem: string | null
   readonly acting: boolean
+  /** How many replies (yes and maybe) hold a moment, or `null` when the count could not be read. */
+  readonly momentReplies: (momentId: string) => Promise<number | null>
   readonly close: () => void
   readonly reopen: () => void
 }
@@ -184,6 +186,15 @@ export const useRsvpSettings = (slug: string, reloadWhen: unknown): RsvpSettings
     saveState,
     problem,
     acting,
+    momentReplies: async (momentId: string) => {
+      try {
+        const { stats } = await api.rsvps(slug)
+        const held = stats.moments.find((moment) => moment.id === momentId)
+        return held === undefined ? 0 : held.yes.responses + held.maybe.responses
+      } catch {
+        return null
+      }
+    },
     close: () => void act(() => api.closeRsvps(slug)),
     reopen: () => void act(() => api.reopenRsvps(slug)),
   }

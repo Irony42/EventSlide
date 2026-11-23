@@ -33,7 +33,7 @@ export interface GuestHouseholdRepository {
   addAll(eventId: EventId, households: readonly GuestHousehold[]): Promise<boolean>
 
   /**
-   * Replaces the **name, places and `updatedAt`** of a household and nothing else (not the token,
+   * Replaces the **name, places, moments and `updatedAt`** of a household and nothing else (not the token,
    * the reminder or the creation). Says whether such a household existed.
    */
   update(household: GuestHousehold): Promise<boolean>

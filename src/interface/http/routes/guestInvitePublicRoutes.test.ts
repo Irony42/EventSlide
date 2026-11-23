@@ -157,6 +157,7 @@ describe('GET /api/i/:token', () => {
           meals: { enabled: false, options: [] },
           questions: [],
           visibility: 'off',
+          moments: [],
         },
       },
       state: 'joinable',

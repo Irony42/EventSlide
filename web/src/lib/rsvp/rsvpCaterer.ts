@@ -17,6 +17,21 @@ export const mealsLabel = (meals: readonly string[]): string => {
   return [...counts].map(([meal, count]) => (count === 1 ? meal : `${meal} ×${count}`)).join(', ')
 }
 
+/**
+ * The moments of a reply, by label, among the moments the form has **today** (a removed moment has
+ * no label and is not told), in the form's order. Empty for a reply that brings nobody.
+ */
+export const momentsLabel = (
+  reply: RsvpDto,
+  form: { readonly moments: readonly { readonly id: string; readonly label: string }[] },
+): string =>
+  reply.answer === 'no'
+    ? ''
+    : form.moments
+        .filter((moment) => reply.details.moments.includes(moment.id))
+        .map((moment) => moment.label)
+        .join(', ')
+
 /** The first names of those who come with a guest, the blank ones (nobody typed) left out. */
 export const companionsLabel = (reply: RsvpDto): string =>
   reply.details.companions.filter((name) => name !== '').join(', ')

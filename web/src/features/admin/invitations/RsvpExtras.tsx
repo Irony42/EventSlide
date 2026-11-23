@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../../design-system/components/Button'
+import { ConfirmDialog } from '../../../design-system/components/ConfirmDialog'
 import { CheckboxField } from '../../../design-system/components/CheckboxField'
 import { Field } from '../../../design-system/components/Field'
 import { Notice } from '../../../design-system/components/Notice'
@@ -12,15 +13,19 @@ import type { RsvpSaveState } from './useRsvpSettings'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import {
   linesOf,
+  momentsInput,
+  MOMENTS_MAX,
   questionsInput,
   QUESTIONS_MAX,
+  type MomentDraft,
   type QuestionDraft,
 } from '../../../lib/rsvp/rsvpExtras'
 import styles from './RsvpPanel.module.css'
 
 /**
  * What a wedding or a dinner asks beyond the count (spec 30, lot 2): the companions' first names,
- * a menu per person and up to three questions of the host's own. **A text is sent when it is left**
+ * a menu per person and up to three questions of the host's own; and (lot 4) up to four moments of
+ * the party the guest ticks. A moment already saved keeps its id whatever its label becomes. **A text is sent when it is left**
  * (a half-typed list of menus is not a choice), and a question already saved keeps its id whatever
  * its label becomes; the server judges every value.
  */
@@ -32,6 +37,8 @@ export interface RsvpExtrasProps {
   /** Where the save stands and the sentence of its last refusal: a refused text stays beside its field. */
   readonly saveState: RsvpSaveState
   readonly problem: string | null
+  /** How many replies hold a moment, for the confirmation of its removal (`null`: unknown). */
+  readonly momentReplies: (momentId: string) => Promise<number | null>
 }
 
 /**
@@ -127,12 +134,26 @@ function CommitField({
   )
 }
 
-export function RsvpExtras({ form, locked, change, saveState, problem }: RsvpExtrasProps) {
+export function RsvpExtras({
+  form,
+  locked,
+  change,
+  saveState,
+  problem,
+  momentReplies,
+}: RsvpExtrasProps) {
   const all = useTranslations()
   const text = all.rsvp.host
   /** The menus are being written: the switch is on screen before it can be sent (it needs 2 menus). */
   const [mealsOpen, setMealsOpen] = useState(false)
   const [draft, setDraft] = useState<QuestionDraft | null>(null)
+  /** The label of a moment being added: it is sent with the button, not while it is typed. */
+  const [momentDraft, setMomentDraft] = useState<string | null>(null)
+  /** The moment the host asked to remove, and how many replies hold it once known. */
+  const [removing, setRemoving] = useState<{
+    readonly index: number
+    readonly count: number | null | 'reading'
+  } | null>(null)
   const mealsOn = form.meals.enabled || mealsOpen
   /** A question the server has not named yet: nothing about the questions changes until it has, or a
    * second request would give the same question a second id. */
@@ -140,6 +161,10 @@ export function RsvpExtras({ form, locked, change, saveState, problem }: RsvpExt
 
   const save = (questions: readonly QuestionDraft[]) =>
     change({ form: { questions: questionsInput(questions) } })
+  /** A moment the server has not named yet: nothing about the moments changes until it has. */
+  const momentNaming = form.moments.some((moment) => moment.id === '')
+  const saveMoments = (moments: readonly MomentDraft[]) =>
+    change({ form: { moments: momentsInput(moments) } })
 
   return (
     <>
@@ -306,6 +331,104 @@ export function RsvpExtras({ form, locked, change, saveState, problem }: RsvpExt
           <p className={styles['note']}>{text.questionsFull}</p>
         )}
       </div>
+
+      <div className={styles['questions']}>
+        <h3 className={styles['legend']}>{text.momentsTitle}</h3>
+        <p className={styles['note']}>{text.momentsHint}</p>
+        {form.moments.map((moment, index) => (
+          <div key={moment.id === '' ? `new-${index}` : moment.id} className={styles['sub']}>
+            <CommitField
+              label={text.momentLabelLabel(index + 1)}
+              value={moment.label}
+              saveState={saveState}
+              problem={problem}
+              disabled={locked || momentNaming}
+              onCommit={(label) =>
+                saveMoments(
+                  form.moments.map((other, at) =>
+                    at === index ? { ...other, label: label.trim() } : other,
+                  ),
+                )
+              }
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={locked || momentNaming}
+              aria-label={text.momentRemove(moment.label)}
+              onClick={() => {
+                setRemoving({ index, count: 'reading' })
+                void momentReplies(moment.id).then((count) =>
+                  setRemoving((current) => (current?.index === index ? { index, count } : current)),
+                )
+              }}
+            >
+              {text.momentRemove(moment.label)}
+            </Button>
+          </div>
+        ))}
+        {momentDraft !== null ? (
+          <div className={styles['sub']}>
+            <Field label={text.momentLabelLabel(form.moments.length + 1)}>
+              {(control) => (
+                <TextInput
+                  {...control}
+                  value={momentDraft}
+                  maxLength={40}
+                  placeholder={text.momentPlaceholder}
+                  onChange={(event) => setMomentDraft(event.target.value)}
+                />
+              )}
+            </Field>
+            <div className={styles['row']}>
+              <Button
+                size="sm"
+                disabled={momentDraft.trim() === ''}
+                onClick={() => {
+                  saveMoments([...form.moments, { id: '', label: momentDraft.trim() }])
+                  setMomentDraft(null)
+                }}
+              >
+                {text.momentAdd}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setMomentDraft(null)}>
+                {all.app.cancel}
+              </Button>
+            </div>
+          </div>
+        ) : form.moments.length < MOMENTS_MAX ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={locked || momentNaming}
+            onClick={() => setMomentDraft('')}
+          >
+            {text.momentAdd}
+          </Button>
+        ) : (
+          <p className={styles['note']}>{text.momentsFull}</p>
+        )}
+      </div>
+      <ConfirmDialog
+        open={removing !== null}
+        title={text.momentRemoveTitle(form.moments[removing?.index ?? 0]?.label ?? '')}
+        description={
+          removing === null || removing.count === 'reading'
+            ? ''
+            : removing.count === null
+              ? text.momentRemoveUnknown
+              : text.momentRemoveBody(removing.count)
+        }
+        confirmLabel={text.momentRemoveYes}
+        busy={removing?.count === 'reading'}
+        onConfirm={() => {
+          if (removing !== null) {
+            saveMoments(form.moments.filter((_, at) => at !== removing.index))
+          }
+          setRemoving(null)
+        }}
+        onCancel={() => setRemoving(null)}
+      />
     </>
   )
 }

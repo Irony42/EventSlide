@@ -596,6 +596,7 @@ describe('the way into the wall, for a guest who answered (spec 30, section 9.1)
     companions: [],
     meals: [],
     answers: [],
+    moments: [],
     showName: false,
     updatedAt: '2026-11-20T10:00:00.000Z',
   }

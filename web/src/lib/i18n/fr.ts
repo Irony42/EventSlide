@@ -1662,7 +1662,8 @@ export const fr = {
     printPanelTexts: 'Textes',
     printPanelColours: 'Couleurs',
     printPanelPrint: 'Impression',
-    printKitColoursHint: 'Carte et QR code ensemble : vous jugez le contraste d’un coup d’œil.',
+    printKitColoursHint:
+      'Carte et QR code ensemble\u00a0: vous jugez le contraste d’un coup d’œil.',
     printFormatShortCard: 'Cartes A6 ×4',
     printFormatShortA5: 'A5 ×2',
     printFormatShortA4: 'Affiche A4',
@@ -2800,7 +2801,7 @@ export const fr = {
     'rsvp.nameInvalid': 'Ce nom n’est pas valide.',
     'rsvp.nameTooLong': 'Ce nom est trop long\u00a0: 60 caractères au plus.',
     'rsvp.answerInvalid': 'Choisissez une réponse.',
-    'rsvp.maybeNotOffered': '« Peut-être » n’est pas proposé pour cette fête.',
+    'rsvp.maybeNotOffered': '«\u00a0Peut-être\u00a0» n’est pas proposé pour cette fête.',
     'rsvp.adultsRequired': 'Il faut au moins un adulte.',
     'rsvp.partyTooBig': 'Vous êtes trop nombreux pour ce formulaire.',
     'rsvp.countInvalid': 'Ce nombre de personnes n’est pas valide.',
@@ -2828,6 +2829,10 @@ export const fr = {
       'Les choix ont changé\u00a0: la page vient d’être mise à jour. Choisissez à nouveau.',
     'rsvp.questionsInvalid':
       'Ces questions ne sont pas valides\u00a0: trois au plus, et de 2 à 6 choix pour une question à choix.',
+    'rsvp.momentsInvalid':
+      'Ces moments ne sont pas valides\u00a0: quatre au plus, tous différents.',
+    'rsvp.momentsRequired': 'Choisissez au moins un moment.',
+    'household.momentsInvalid': 'Ces moments ne sont pas valides pour ce foyer.',
     'household.nameEmpty': 'Indiquez un nom de foyer.',
     'household.nameInvalid': 'Ce nom de foyer n’est pas valide.',
     'household.nameTooLong': 'Ce nom est trop long\u00a0: 80 caractères au plus.',
@@ -4193,6 +4198,10 @@ export const fr = {
       recapCompanions: (names: string) => `Avec vous\u00a0: ${names}`,
       recapMeals: (meals: string) => `Menus\u00a0: ${meals}`,
       recapAnswer: (label: string, value: string) => `${label}\u00a0: ${value}`,
+      momentsLabel: 'À quels moments serez-vous là\u00a0?',
+      momentsHint: 'au moins un',
+      recapMoments: (moments: string) => `Moments\u00a0: ${moments}`,
+      momentsGone: 'Le moment que vous aviez choisi n’existe plus\u00a0: choisissez-en un.',
       trap: 'Ne pas remplir ce champ',
       tooLarge: 'Votre réponse est trop longue pour être envoyée. Raccourcissez vos textes.',
     },
@@ -4279,6 +4288,22 @@ export const fr = {
       questionRemove: (label: string) => `Retirer la question «\u00a0${label}\u00a0»`,
       questionConfirm: 'Ajouter la question',
       questionsFull: 'Trois questions au plus.',
+      momentsTitle: 'Plusieurs moments',
+      momentsHint:
+        'Par exemple un brunch et une soirée. Quatre au plus. Chaque invité coche les moments où il sera\u00a0; un foyer peut n’être invité qu’à certains. Retirer un moment retire les choix des invités pour celui-ci.',
+      momentAdd: 'Ajouter un moment',
+      momentLabelLabel: (n: number) => `Moment ${n}`,
+      momentPlaceholder: 'Ex. Brunch du dimanche',
+      momentRemove: (label: string) => `Retirer le moment «\u00a0${label}\u00a0»`,
+      momentsFull: 'Quatre moments au plus.',
+      momentRemoveTitle: (label: string) => `Retirer le moment «\u00a0${label}\u00a0»\u00a0?`,
+      momentRemoveBody: (count: number) =>
+        count === 0
+          ? 'Aucune réponse n’a choisi ce moment. Pour corriger un nom, renommez le moment plutôt que de le retirer.'
+          : `${count} ${count === 1 ? 'réponse a' : 'réponses ont'} choisi ce moment et perdront ce choix. Pour corriger un nom, renommez le moment plutôt que de le retirer.`,
+      momentRemoveUnknown:
+        'Les réponses déjà données pour ce moment perdront ce choix. Pour corriger un nom, renommez le moment plutôt que de le retirer.',
+      momentRemoveYes: 'Retirer le moment',
       presetConfirmTitle: 'Remplacer vos réglages\u00a0?',
       presetConfirm: (kind: string) =>
         `Vos choix de «\u00a0Peut-être\u00a0», de nombre de personnes, d’enfants et de prénoms des accompagnants seront remplacés par ceux d’${kind}.`,
@@ -4408,6 +4433,16 @@ export const fr = {
       printTotals: (adults: number, kids: number) =>
         `Adultes\u00a0: ${adults} · Enfants\u00a0: ${kids}`,
       printPeople: (n: number) => `Personnes\u00a0: ${n}`,
+      colMoments: 'Moments',
+      detailMoments: 'Moments',
+      formMoments: 'Moments',
+      momentsTitle: 'Par moment',
+      momentLine: (label: string, yes: string, maybe: string | null) =>
+        `${label}\u00a0: ${yes}${maybe === null ? '' : ` (+ ${maybe} avec les «\u00a0peut-être\u00a0»)`}`,
+      catererMoments: 'Par moment',
+      printMoments: 'Moments',
+      momentNoneLine: (people: string) => `Sans moment\u00a0: ${people}`,
+      formMomentsHint: 'au moins un, pour ceux qui viennent',
       tileNoReply: 'Sans réponse',
       tileNoReplyDetail: (households: string, places: number) => `${households} · ${places} places`,
       household: { one: 'foyer', other: 'foyers' },
@@ -4435,6 +4470,10 @@ export const fr = {
       add: 'Ajouter un foyer',
       importList: 'Coller une liste',
       remindAll: (n: number) => `Relancer les ${n} sans réponse`,
+      colMoments: 'Moments',
+      momentsAll: 'Tous',
+      formMoments: 'Moments invités',
+      formMomentsHint: 'Par défaut, un foyer est invité à tous les moments.',
       colHousehold: 'Foyer',
       colPlaces: 'Places',
       colStatus: 'Réponse',
@@ -4604,7 +4643,7 @@ export const fr = {
     back: 'Retour à l’évènement',
     coverLegend: 'Couverture',
     previewLabel: 'Aperçu du livre',
-    previewNote: 'Aperçu : la mise en page finale est faite à la création.',
+    previewNote: 'Aperçu\u00a0: la mise en page finale est faite à la création.',
     summary: (pages: number, photos: number, style: string) =>
       `${t.number(pages)} pages · ${t.number(photos)} photos · style ${style}`,
     refreshing: 'Mise à jour de l’aperçu…',

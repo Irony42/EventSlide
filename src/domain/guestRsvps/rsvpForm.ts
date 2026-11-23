@@ -8,6 +8,7 @@ import {
   restoreMeals,
   restoreQuestions,
 } from './rsvpFormExtras'
+import { applyMomentsPatch, restoreMoments } from './rsvpFormMoments'
 
 /**
  * What a host asks guests when they answer an invitation (spec 30, section 4.1).
@@ -91,6 +92,7 @@ const PATCHABLE: readonly string[] = [
   'meals',
   'questions',
   'visibility',
+  'moments',
 ]
 
 /** The fields a host may change. An absent field is left as it was. */
@@ -103,6 +105,7 @@ export interface RsvpFormPatch {
   readonly meals?: unknown
   readonly questions?: unknown
   readonly visibility?: unknown
+  readonly moments?: unknown
 }
 
 const isMax = (value: unknown): value is number =>
@@ -150,6 +153,12 @@ export const applyFormPatch = (
       : applyQuestionsPatch(current.questions, patch.questions, mintQuestionId)
   if (!questions.ok) return questions
 
+  const moments =
+    patch.moments === undefined
+      ? ok(current.moments)
+      : applyMomentsPatch(current.moments, patch.moments, mintQuestionId)
+  if (!moments.ok) return moments
+
   const visibility =
     patch.visibility === undefined
       ? ok(current.visibility)
@@ -181,14 +190,15 @@ export const applyFormPatch = (
     meals: meals.value,
     questions: questions.value,
     visibility: visibility.value,
+    moments: moments.value,
   })
 }
 
 /**
  * A stored form read back, **never failing**: an unknown field is ignored and a value out of
  * bounds is brought back to the default, so a rule tightened later cannot make a printed
- * invitation's page vanish. The lot 4 fields stay at their defaults until their own pull request
- * teaches this function to read them.
+ * invitation's page vanish. Capacity and the absent's word (lot 4) stay at their defaults until their own
+ * pull requests teach this function to read them.
  */
 export const restoreRsvpForm = (raw: unknown): RsvpForm => {
   if (!isPlainObject(raw)) return DEFAULT_RSVP_FORM
@@ -208,5 +218,6 @@ export const restoreRsvpForm = (raw: unknown): RsvpForm => {
     meals: restoreMeals(raw['meals'], DEFAULT_RSVP_FORM.meals),
     questions: restoreQuestions(raw['questions']),
     visibility: isVisibility(raw['visibility']) ? raw['visibility'] : DEFAULT_RSVP_FORM.visibility,
+    moments: restoreMoments(raw['moments']),
   }
 }

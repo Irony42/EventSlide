@@ -435,6 +435,32 @@ function Replies({
               </ul>
             </div>
 
+            {stats.moments.length === 0 ? null : (
+              <div>
+                <h2 className={styles['momentsTitle']}>{text.momentsTitle}</h2>
+                <ul className={styles['moments']}>
+                  {stats.moments.map((moment) => (
+                    <li key={moment.id}>
+                      {text.momentLine(
+                        moment.label,
+                        `${moment.yes.people} ${plural(moment.yes.people, text.person)}`,
+                        moment.maybe.people === 0
+                          ? null
+                          : `${moment.maybe.people} ${plural(moment.maybe.people, text.person)}`,
+                      )}
+                    </li>
+                  ))}
+                  {stats.noMoment.responses === 0 ? null : (
+                    <li>
+                      {text.momentNoneLine(
+                        `${stats.noMoment.people} ${plural(stats.noMoment.people, text.person)}`,
+                      )}
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
+
             {empty ? (
               <EmptyState title={text.emptyTitle} description={text.emptyBody} />
             ) : (
@@ -563,6 +589,7 @@ function Replies({
         <RsvpReplyForm
           reply={dialog.reply}
           form={form}
+          households={households}
           onSubmit={(input) => save(input, dialog.reply)}
           onClose={() => setDialog({ kind: 'none' })}
         />

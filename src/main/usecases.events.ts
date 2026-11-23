@@ -280,6 +280,7 @@ export const eventsUseCases = (
     memberships: adapters.memberships,
     invites: adapters.guestInvites,
     rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
     audit: adapters.audit,
     clock: adapters.clock,
   }),

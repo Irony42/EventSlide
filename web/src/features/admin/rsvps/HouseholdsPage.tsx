@@ -22,6 +22,7 @@ import {
   householdCounts,
   householdLink,
   pendingOf,
+  invitedMomentsLabel,
   placesOf,
   visibleHouseholds,
   type HouseholdFilter,
@@ -137,6 +138,7 @@ function OwnerHouseholds({
   }
 
   const households = data.households
+  const formMoments = settings?.form.moments ?? []
   const counts = householdCounts(households)
   const pending = pendingOf(households)
   const shown = visibleHouseholds(households, filter, query)
@@ -349,6 +351,7 @@ function OwnerHouseholds({
                     <tr>
                       <th scope="col">{text.colHousehold}</th>
                       <th scope="col">{text.colPlaces}</th>
+                      {formMoments.length > 0 ? <th scope="col">{text.colMoments}</th> : null}
                       <th scope="col">{text.colStatus}</th>
                       <th scope="col">{text.colLink}</th>
                     </tr>
@@ -360,6 +363,9 @@ function OwnerHouseholds({
                           {household.name}
                         </th>
                         <td>{household.places}</td>
+                        {formMoments.length > 0 ? (
+                          <td>{invitedMomentsLabel(household, formMoments, text.momentsAll)}</td>
+                        ) : null}
                         <td>
                           {statusOf(household)}
                           {household.reply === null ? null : (
@@ -434,6 +440,7 @@ function OwnerHouseholds({
       {dialog.kind === 'form' ? (
         <HouseholdForm
           household={dialog.household}
+          moments={settings?.form.moments ?? []}
           onSubmit={(input) => save(input, dialog.household)}
           onClose={() => setDialog({ kind: 'none' })}
         />

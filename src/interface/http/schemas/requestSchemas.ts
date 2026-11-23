@@ -1054,6 +1054,7 @@ export const rsvpReplyBody = z.strictObject({
   companions: z.unknown().optional(),
   meals: z.unknown().optional(),
   answers: z.unknown().optional(),
+  moments: z.unknown().optional(),
 })
 
 export const rsvpParams = z.strictObject({ eventSlug: slug, rsvpId: uuid })
@@ -1065,6 +1066,8 @@ export const rsvpParams = z.strictObject({ eventSlug: slug, rsvpId: uuid })
 export const householdBody = z.strictObject({
   name: z.unknown().optional(),
   places: z.unknown().optional(),
+  // Lot 4: `null` for all the form's moments, else a list of their ids; judged by the domain.
+  moments: z.unknown().optional(),
 })
 
 /**
@@ -1103,6 +1106,7 @@ export const guestRsvpBody = z.strictObject({
   companions: z.unknown().optional(),
   meals: z.unknown().optional(),
   answers: z.unknown().optional(),
+  moments: z.unknown().optional(),
   showName: z.unknown().optional(),
 })
 

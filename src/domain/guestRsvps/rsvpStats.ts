@@ -1,6 +1,7 @@
 import type { GuestHousehold } from './household'
 import type { GuestRsvp } from './rsvp'
-import type { RsvpVisibility } from './rsvpForm'
+import type { RsvpMoment, RsvpVisibility } from './rsvpForm'
+import { narrowMoments } from './rsvpFormMoments'
 
 /**
  * The figures of the replies (spec 30, section 4.4): **one function** for the table, the phone,
@@ -25,11 +26,30 @@ export interface RsvpStats {
    * for them. A household that said `no` has replied. Zero while the event has no list.
    */
   readonly noReply: { readonly households: number; readonly places: number }
+  /**
+   * Who comes to each moment of the form today (lot 4), in the form's order: the replies and people
+   * of the `yes` and of the `maybe` that chose it. A moment the host removed is not counted (its
+   * id means nothing any more), and a reply that chose none (given before the moment existed) is
+   * counted in none. Empty while the form has no moments.
+   */
+  readonly moments: readonly {
+    readonly id: string
+    readonly label: string
+    readonly yes: { readonly responses: number; readonly people: number }
+    readonly maybe: { readonly responses: number; readonly people: number }
+  }[]
+  /**
+   * The `yes` replies that come to **no moment that exists today** (given before the moments were
+   * asked, or whose moments were all removed): how many replies and people. Zero while the form has
+   * no moments.
+   */
+  readonly noMoment: { readonly responses: number; readonly people: number }
 }
 
 export const statsOf = (
   rsvps: readonly GuestRsvp[],
   households: readonly GuestHousehold[] = [],
+  moments: readonly RsvpMoment[] = [],
 ): RsvpStats => {
   let yesResponses = 0
   let yesAdults = 0
@@ -41,6 +61,8 @@ export const statsOf = (
   let waitPeople = 0
   const diets: { name: string; diet: string }[] = []
   const meals = new Map<string, number>()
+  // What a reply may be counted at: the moments of today, and a household reply only its own.
+  const narrowed = moments.length === 0 ? rsvps : narrowMoments(rsvps, moments, households)
 
   for (const rsvp of rsvps) {
     switch (rsvp.answer) {
@@ -83,10 +105,44 @@ export const statsOf = (
     waitlist: { responses: waitResponses, people: waitPeople },
     diets,
     noReply: noReplyOf(households, rsvps),
+    moments: moments.map((moment) => ({ ...moment, ...momentFigures(narrowed, moment.id) })),
+    noMoment: noMomentOf(narrowed, moments),
     meals: [...meals]
       .map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
   }
+}
+
+/** The yes replies that come to no moment of the form: told apart so the host can ask them again. */
+const noMomentOf = (
+  rsvps: readonly GuestRsvp[],
+  moments: readonly RsvpMoment[],
+): RsvpStats['noMoment'] => {
+  if (moments.length === 0) return { responses: 0, people: 0 }
+  const lost = rsvps.filter((rsvp) => rsvp.answer === 'yes' && rsvp.details.moments.length === 0)
+  return { responses: lost.length, people: lost.reduce((sum, rsvp) => sum + rsvp.people, 0) }
+}
+
+/** Who of the `yes` and the `maybe` comes to one moment. */
+const momentFigures = (
+  rsvps: readonly GuestRsvp[],
+  momentId: string,
+): Pick<RsvpStats['moments'][number], 'yes' | 'maybe'> => {
+  const figures = {
+    yes: { responses: 0, people: 0 },
+    maybe: { responses: 0, people: 0 },
+  }
+  for (const rsvp of rsvps) {
+    if (
+      (rsvp.answer !== 'yes' && rsvp.answer !== 'maybe') ||
+      !rsvp.details.moments.includes(momentId)
+    ) {
+      continue
+    }
+    figures[rsvp.answer].responses += 1
+    figures[rsvp.answer].people += rsvp.people
+  }
+  return figures
 }
 
 /**

@@ -6,6 +6,7 @@ import type { EventId, UserId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
+import type { GuestHouseholdRepository } from '../../ports/guestHouseholdRepository'
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
 import { openRsvps, recordRsvpAct, type RsvpAccessDeps } from './rsvpAccess'
 
@@ -30,6 +31,7 @@ export interface ExportedRsvps {
 
 export interface ExportRsvpsDeps extends RsvpAccessDeps {
   readonly rsvps: Pick<GuestRsvpRepository, 'listByEvent'>
+  readonly households: Pick<GuestHouseholdRepository, 'listByEvent'>
   readonly audit: AuditRecorder
   readonly clock: Clock
 }
@@ -44,6 +46,7 @@ export const makeExportRsvps =
     const { event, invite, settings } = opened.value
 
     const rsvps = await deps.rsvps.listByEvent(eventId)
+    const households = await deps.households.listByEvent(eventId)
     const labels = RSVP_CSV_LABELS[invite?.content.language ?? DEFAULT_EVENT_LANGUAGE]
     const recorded = await recordRsvpAct(
       deps.audit,
@@ -54,10 +57,18 @@ export const makeExportRsvps =
     )
     if (!recorded.ok) return recorded
     return ok({
-      csv: rsvpCsv(rsvps, view, labels, settings.form.questions, {
-        meals: settings.form.meals.enabled,
-        diet: settings.form.diet,
-      }),
+      csv: rsvpCsv(
+        rsvps,
+        view,
+        labels,
+        settings.form.questions,
+        {
+          meals: settings.form.meals.enabled,
+          diet: settings.form.diet,
+        },
+        settings.form.moments,
+        households,
+      ),
       slug: event.slug.value,
     })
   }

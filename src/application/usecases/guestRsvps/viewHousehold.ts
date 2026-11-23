@@ -1,5 +1,7 @@
 import type { GuestHousehold } from '../../../domain/guestRsvps/household'
 import type { GuestRsvp } from '../../../domain/guestRsvps/rsvp'
+import type { RsvpMoment } from '../../../domain/guestRsvps/rsvpForm'
+import { momentsOfHousehold } from '../../../domain/guestRsvps/rsvpFormMoments'
 import type { DomainError } from '../../../domain/shared/errors'
 import { ok, type Result } from '../../../domain/shared/result'
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
@@ -29,6 +31,8 @@ export interface ViewHouseholdInput {
 export interface ViewedHousehold {
   readonly household: GuestHousehold
   readonly rsvp: GuestRsvp | null
+  /** The moments it is invited to, among the form's today (lot 4): empty while the form has none. */
+  readonly moments: readonly RsvpMoment[]
 }
 
 export interface ViewHouseholdDeps extends PublicRsvpDeps, HouseholdAccessDeps {
@@ -44,9 +48,13 @@ export const makeViewHousehold =
   async ({ token, householdToken }) => {
     const opened = await openPublicRsvp(deps, token)
     if (!opened.ok) return opened
-    const { event } = opened.value
+    const { event, settings } = opened.value
     const household = await findHouseholdByLink(deps, event, householdToken)
     if (!household.ok) return household
     const rsvp = await deps.rsvps.findByHousehold(event.id, household.value.id)
-    return ok({ household: household.value, rsvp })
+    return ok({
+      household: household.value,
+      rsvp,
+      moments: momentsOfHousehold(settings.form.moments, household.value.moments),
+    })
   }

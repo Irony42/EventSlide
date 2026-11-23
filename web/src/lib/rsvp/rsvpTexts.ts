@@ -64,6 +64,13 @@ export const proofLine = (
   return others === 1 ? text.proofNamesAndOne(names) : text.proofNamesAndMany(names, others)
 }
 
+/** The labels of the moments `ids` names, among the form's today, in the form's order. */
+export const momentLabels = (
+  ids: readonly string[],
+  form: { readonly moments: readonly { readonly id: string; readonly label: string }[] },
+): readonly string[] =>
+  form.moments.filter((moment) => ids.includes(moment.id)).map((moment) => moment.label)
+
 /** The whole confirmation: the line, then what else was sent. Plain text, never a link. */
 export const recapLines = (
   reply: GuestOwnRsvpDto,
@@ -71,6 +78,10 @@ export const recapLines = (
   text: UiText['rsvp']['guest'],
 ): readonly string[] => [
   recapLine(reply, form, text),
+  // Only the moments the form still has: a removed one has no label and is not told.
+  ...(reply.answer !== 'no' && momentLabels(reply.moments, form).length > 0
+    ? [text.recapMoments(momentLabels(reply.moments, form).join(', '))]
+    : []),
   ...(reply.companions.some((name) => name !== '')
     ? [text.recapCompanions(reply.companions.filter((name) => name !== '').join(', '))]
     : []),

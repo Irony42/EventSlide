@@ -49,6 +49,8 @@ export interface OwnReply {
 export interface HouseholdView {
   readonly name: string
   readonly places: number
+  /** The moments it is invited to (lot 4), among the form's. */
+  readonly moments: readonly { readonly id: string; readonly label: string }[]
 }
 
 export interface GuestRsvpState {
@@ -69,6 +71,8 @@ export interface GuestRsvpState {
   /** The link was cut off (a `#f=` with no token in it): it opens nothing. */
   readonly householdIncomplete: boolean
   readonly retryHousehold: () => void
+  /** Reads the household again without leaving the form (its moments changed under a page left open). */
+  readonly refreshHousehold: () => void
   /** "Ce n'est pas votre foyer ?": the device forgets the household and the reply token, and asks afresh. */
   readonly forgetDevice: () => void
   readonly removeOlder: () => Promise<boolean>
@@ -187,7 +191,7 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
     api.guestHousehold(token, householdToken, stop.signal).then(
       ({ household: opened }) => {
         if (stop.signal.aborted) return
-        setHousehold({ name: opened.name, places: opened.places })
+        setHousehold({ name: opened.name, places: opened.places, moments: opened.moments })
         setOwn(opened.rsvp === undefined ? null : { reply: opened.rsvp, editToken: null })
         setHouseholdUnread(false)
         setPhase('ready')
@@ -236,6 +240,8 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
     setPhase('reading')
     setAttempt((count) => count + 1)
   }, [])
+
+  const refreshHousehold = useCallback(() => setAttempt((count) => count + 1), [])
 
   const forgetDevice = useCallback(() => {
     forgetHouseholdToken(token)
@@ -369,6 +375,7 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
     householdGone,
     householdIncomplete: incomplete,
     retryHousehold,
+    refreshHousehold,
     forgetDevice,
     removeOlder,
     sending,

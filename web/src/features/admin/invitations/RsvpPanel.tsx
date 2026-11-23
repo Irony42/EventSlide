@@ -262,6 +262,7 @@ export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
           change={rsvp.change}
           saveState={rsvp.saveState}
           problem={rsvp.problem}
+          momentReplies={rsvp.momentReplies}
         />
       </fieldset>
 

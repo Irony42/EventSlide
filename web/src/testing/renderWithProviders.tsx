@@ -227,6 +227,7 @@ export const aHousehold = (overrides: Partial<HouseholdDto> = {}): HouseholdDto 
   id: 'd2000000-0000-4000-8000-000000000001',
   name: 'Famille Martin',
   places: 4,
+  moments: null,
   token: '7QX0M4TZ2KD9WB3H',
   remindedAt: null,
   createdAt: '2026-11-23T10:00:00.000Z',
@@ -244,6 +245,8 @@ export const anRsvpStats = (overrides: Partial<RsvpStatsDto> = {}): RsvpStatsDto
   diets: [],
   meals: [],
   noReply: { households: 0, places: 0 },
+  moments: [],
+  noMoment: { responses: 0, people: 0 },
   ...overrides,
 })
 
@@ -260,6 +263,7 @@ export const aGuestRsvpPage = (overrides: Partial<GuestRsvpPageDto> = {}): Guest
     meals: { enabled: false, options: [] },
     questions: [],
     visibility: 'off',
+    moments: [],
   },
   ...overrides,
 })
@@ -275,6 +279,7 @@ export const aGuestOwnRsvp = (overrides: Partial<GuestOwnRsvpDto> = {}): GuestOw
   companions: [],
   meals: [],
   answers: [],
+  moments: [],
   showName: false,
   updatedAt: '2026-11-20T10:00:00.000Z',
   ...overrides,
@@ -1167,7 +1172,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   guestRsvpUpdate: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({ rsvp: aGuestOwnRsvp() })),
   guestRsvpDelete: vi.fn(async (): Promise<void> => undefined),
   guestHousehold: vi.fn(async (): Promise<GuestHouseholdResponseDto> => ({
-    household: { name: 'Famille Martin', places: 4 },
+    household: { name: 'Famille Martin', places: 4, moments: [] },
   })),
   guestHouseholdRsvpCreate: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({
     rsvp: aGuestOwnRsvp(),

@@ -90,6 +90,7 @@ describe('what the guest’s page would say', () => {
         meals: { enabled: false, options: [] },
         questions: [],
         visibility: 'off',
+        moments: [],
       },
     })
     expect(previewPage(aRsvpSettings({ enabled: false })).state).toBe('off')

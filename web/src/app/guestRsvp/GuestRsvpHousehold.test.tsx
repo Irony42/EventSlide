@@ -33,7 +33,7 @@ const LINK = 'AAAAAAAAAAAAAAAA'
 const t = fr.rsvp.guest
 const plain = (sentence: string): string => sentence.replaceAll(String.fromCodePoint(0x00a0), ' ')
 
-const MARTIN = { household: { name: 'Famille Martin', places: 4 } }
+const MARTIN = { household: { name: 'Famille Martin', places: 4, moments: [] } }
 
 const render = (api: Partial<Api> = {}, page = aGuestRsvpPage(), strict = false) => {
   const block = <GuestRsvpBlock rsvp={page} token={TOKEN} locale="fr" />
@@ -180,7 +180,9 @@ describe('the household link: the form', () => {
 
   it('says "one place" for a household of one', async () => {
     arriveBy(`#f=${LINK}`)
-    render({ guestHousehold: vi.fn(async () => ({ household: { name: 'Hugo', places: 1 } })) })
+    render({
+      guestHousehold: vi.fn(async () => ({ household: { name: 'Hugo', places: 1, moments: [] } })),
+    })
 
     expect(await screen.findByText(t.householdPlaces(1))).toBeInTheDocument()
   })
@@ -188,7 +190,11 @@ describe('the household link: the form', () => {
   it('takes the places as the ceiling, not the form’s maximum of 4', async () => {
     arriveBy(`#f=${LINK}`)
     const user = userEvent.setup()
-    render({ guestHousehold: vi.fn(async () => ({ household: { name: 'Les Roux', places: 6 } })) })
+    render({
+      guestHousehold: vi.fn(async () => ({
+        household: { name: 'Les Roux', places: 6, moments: [] },
+      })),
+    })
     await screen.findByText(t.householdPlaces(6))
     await user.click(screen.getByRole('button', { name: t.yes }))
 
@@ -611,6 +617,7 @@ describe('the household link: what review of #548 asked', () => {
         household: {
           name: 'Famille Martin',
           places: 2,
+          moments: [],
           rsvp: aGuestOwnRsvp({ name: 'Famille Martin', adults: 3, kids: 2 }),
         },
       })),

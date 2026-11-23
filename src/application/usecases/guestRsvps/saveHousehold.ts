@@ -3,6 +3,7 @@ import {
   parseHouseholdInput,
   type RawHouseholdInput,
 } from '../../../domain/guestRsvps/household'
+import { parseHouseholdMoments } from '../../../domain/guestRsvps/rsvpFormMoments'
 import type { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestHouseholdId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
@@ -27,6 +28,8 @@ import { announceRsvpsChanged, openRsvps, requireInvite, type RsvpAccessDeps } f
  * - judged by the domain (a name of 1 to 80 characters, 1 to 10 places);
  * - **a new household needs the invitation** (its link points at it): `409 rsvp.inviteRequired`;
  * - at most 500 per event, decided inside the repository's write (`409 household.tooMany`);
+ * - **the moments it is invited to** (lot 4): `null` for all (the default), else 1 to 4 ids of the
+ *   form's moments (`400 household.momentsInvalid`); absent on a change, they stay as they were;
  * - a change keeps the link, the reminder note and the reply: lowering the places does not touch
  *   a reply already given;
  * - refused on an archived event, like every write; not audited (the list is the host's own
@@ -38,6 +41,8 @@ export interface SaveHouseholdInput extends RawHouseholdInput {
   readonly actorId: UserId
   /** Absent for a new household. */
   readonly householdId?: GuestHouseholdId
+  /** `null`: all the form's moments; absent: unchanged (all, for a new household). */
+  readonly moments?: unknown
 }
 
 export interface SaveHouseholdDeps extends RsvpAccessDeps {
@@ -54,11 +59,16 @@ export type SaveHousehold = (
 
 export const makeSaveHousehold =
   (deps: SaveHouseholdDeps): SaveHousehold =>
-  async ({ eventId, actorId, householdId, ...raw }) => {
+  async ({ eventId, actorId, householdId, moments: rawMoments, ...raw }) => {
     const opened = await openRsvps(deps, eventId, actorId, 'write')
     if (!opened.ok) return opened
     const judged = parseHouseholdInput(raw)
     if (!judged.ok) return judged
+    const moments =
+      rawMoments === undefined
+        ? ok(undefined)
+        : parseHouseholdMoments(rawMoments, opened.value.settings.form.moments)
+    if (!moments.ok) return moments
     const now = deps.clock.now()
 
     if (householdId === undefined) {
@@ -71,6 +81,7 @@ export const makeSaveHousehold =
         eventId,
         token: token.value,
         household: judged.value,
+        moments: moments.value,
         now,
       })
       if (!(await deps.households.addAll(eventId, [created]))) return err(householdsTooMany())
@@ -80,7 +91,7 @@ export const makeSaveHousehold =
 
     const held = await deps.households.findById(eventId, householdId)
     if (held === null) return err(householdNotFound())
-    const changed = held.withInput(judged.value, now)
+    const changed = held.withInput(judged.value, now, moments.value)
     // A household deleted between the read and here: nothing was changed, so nothing is said.
     if (!(await deps.households.update(changed))) return err(householdNotFound())
     announceRsvpsChanged(deps.bus, eventId)

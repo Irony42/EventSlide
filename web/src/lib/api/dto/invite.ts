@@ -72,6 +72,7 @@ export interface GuestRsvpPageDto {
       readonly options?: readonly string[]
     }[]
     readonly visibility: 'off' | 'count' | 'names'
+    readonly moments: readonly { readonly id: string; readonly label: string }[]
   }
   /** Only when the host chose to show who comes: the people coming, and the first names allowed. */
   readonly proof?: { readonly count: number; readonly names: readonly string[] }
@@ -92,6 +93,8 @@ export interface GuestOwnRsvpDto {
     readonly label: string
     readonly value: string
   }[]
+  /** Ids of the moments chosen (some may no longer be in the form: the page ignores those). */
+  readonly moments: readonly string[]
   readonly showName: boolean
   readonly updatedAt: string
 }
@@ -152,6 +155,8 @@ export interface GuestHouseholdResponseDto {
   readonly household: {
     readonly name: string
     readonly places: number
+    /** The moments it is invited to (lot 4): only the form's today, empty when the form has none. */
+    readonly moments: readonly { readonly id: string; readonly label: string }[]
     /** Its reply, when it gave one. */
     readonly rsvp?: GuestOwnRsvpDto
   }
@@ -203,6 +208,15 @@ export interface RsvpStatsDto {
   readonly meals: readonly { readonly label: string; readonly count: number }[]
   /** Households of the guest list with no reply, and the places kept for them (lot 3). */
   readonly noReply: { readonly households: number; readonly places: number }
+  /** Who comes to each moment of the form today (lot 4), in the form's order. */
+  readonly moments: readonly {
+    readonly id: string
+    readonly label: string
+    readonly yes: { readonly responses: number; readonly people: number }
+    readonly maybe: { readonly responses: number; readonly people: number }
+  }[]
+  /** The yes replies that come to no moment that exists today (told apart so they can be asked again). */
+  readonly noMoment: { readonly responses: number; readonly people: number }
 }
 
 /** One household of the host's guest list (spec 30, lot 3), with the secret of its personal link. */
@@ -210,6 +224,8 @@ export interface HouseholdDto {
   readonly id: string
   readonly name: string
   readonly places: number
+  /** Ids of the moments it is invited to (lot 4), or `null` for all of the form's. */
+  readonly moments: readonly string[] | null
   /** The link's secret: the page is `/i/<invitation token>#f=<this>`. */
   readonly token: string
   readonly remindedAt: string | null

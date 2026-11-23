@@ -188,6 +188,7 @@ describe('GET /api/i/:token: the rsvp block', () => {
         meals: { enabled: false, options: [] },
         questions: [],
         visibility: 'off',
+        moments: [],
       },
     })
   })
@@ -247,6 +248,7 @@ describe('POST /api/i/:token/rsvp', () => {
         message: null,
         companions: [],
         meals: [],
+        moments: [],
         answers: [],
         showName: false,
         updatedAt: AT.toISOString(),
@@ -590,7 +592,7 @@ describe('a household’s own link: GET /api/i/:token/household and the reply ro
     const after = await household.view()
 
     expect(before.status).toBe(200)
-    expect(before.body).toEqual({ household: { name: 'Famille Martin', places: 4 } })
+    expect(before.body).toEqual({ household: { name: 'Famille Martin', places: 4, moments: [] } })
     expect(after.body.household.rsvp).toMatchObject({ name: 'Famille Martin', answer: 'yes' })
     expect(before.headers['cache-control']).toBe('no-store')
     expect(before.headers['referrer-policy']).toBe('no-referrer')
@@ -736,5 +738,80 @@ describe('a household’s own link: GET /api/i/:token/household and the reply ro
     const statuses = [(await send()).status, (await send()).status, (await send()).status]
 
     expect(statuses).toEqual([201, 200, 429])
+  })
+})
+
+describe('the moments of the party (lot 4)', () => {
+  const BRUNCH = { id: 'aaaaaaaa', label: 'Brunch' }
+  const DINNER = { id: 'bbbbbbbb', label: 'Dîner' }
+  const HOUSEHOLD_LINK = '7QX0M4TZ2KD9WB3H'
+  let world: World
+
+  beforeEach(async () => {
+    world = await buildWorld()
+    await world.invites.saveRsvpSettings(LIVE, {
+      enabled: true,
+      deadline: null,
+      closedAt: null,
+      form: { ...DEFAULT_RSVP_FORM, moments: [BRUNCH, DINNER] },
+    })
+    world.households.seed(
+      aHousehold({
+        id: 'h-1',
+        eventId: LIVE,
+        token: HOUSEHOLD_LINK,
+        name: 'Famille Martin',
+        places: 4,
+        moments: [DINNER.id],
+      }),
+    )
+  })
+
+  it('tells the page the moments to choose among, and nothing about who chose them', async () => {
+    const { page } = await guest(world)
+
+    expect(page.body.rsvp.form.moments).toEqual([BRUNCH, DINNER])
+  })
+
+  it('refuses a yes that names no moment, and keeps the ones chosen, in the form order', async () => {
+    const { post } = await guest(world)
+
+    const none = await post(ANSWER)
+    const chosen = await post({ ...ANSWER, moments: [DINNER.id, BRUNCH.id] })
+
+    expect(none.status).toBe(400)
+    expect(none.body.error.code).toBe('rsvp.momentsRequired')
+    expect(chosen.status).toBe(201)
+    expect(chosen.body.rsvp.moments).toEqual([BRUNCH.id, DINNER.id])
+  })
+
+  it('judges the honeypot like a real reply', async () => {
+    const { post } = await guest(world)
+
+    const trap = await post({ ...ANSWER, website: 'x' })
+
+    expect(trap.status).toBe(400)
+    expect(trap.body.error.code).toBe('rsvp.momentsRequired')
+  })
+
+  it('shows a household only the moments it is invited to, and judges its reply by them', async () => {
+    const browser = await guest(world)
+    const view = await browser.agent
+      .get(`/api/i/${LIVE_TOKEN}/household`)
+      .set('X-Household-Token', HOUSEHOLD_LINK)
+    const send = (moments: string[]) =>
+      browser.agent
+        .post(URL)
+        .set(CSRF_HEADER, browser.csrf)
+        .set('X-Household-Token', HOUSEHOLD_LINK)
+        .send({ ...ANSWER, moments })
+
+    const onlyBrunch = await send([BRUNCH.id])
+    const both = await send([BRUNCH.id, DINNER.id])
+
+    expect(view.body.household.moments).toEqual([DINNER])
+    expect(onlyBrunch.status).toBe(400)
+    expect(onlyBrunch.body.error.code).toBe('rsvp.momentsRequired')
+    expect(both.body.rsvp.moments).toEqual([DINNER.id])
   })
 })

@@ -44,6 +44,19 @@ export function RsvpCaterer({ stats, form, exportHref, onPrint }: RsvpCatererPro
           </div>
         ) : null}
       </dl>
+      {stats.moments.length > 0 ? (
+        <div>
+          <h3>{text.catererMoments}</h3>
+          <dl className={styles['list']}>
+            {stats.moments.map((moment) => (
+              <div key={moment.id}>
+                <dt>{moment.label}</dt>
+                <dd>{moment.yes.people}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : null}
       {form.meals.enabled ? (
         <div>
           <h3>{text.catererMeals}</h3>

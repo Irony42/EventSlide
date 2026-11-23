@@ -1,7 +1,12 @@
 import { createPortal } from 'react-dom'
 import type { RsvpDto, RsvpFormDto, RsvpStatsDto } from '../../../lib/api/dto'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { companionsLabel, mealsLabel, printRowsOf } from '../../../lib/rsvp/rsvpCaterer'
+import {
+  companionsLabel,
+  mealsLabel,
+  momentsLabel,
+  printRowsOf,
+} from '../../../lib/rsvp/rsvpCaterer'
 import styles from './RsvpPrintList.module.css'
 
 export interface RsvpPrintListProps {
@@ -30,6 +35,7 @@ export function RsvpPrintList({ eventName, rsvps, stats, form }: RsvpPrintListPr
           <tr>
             <th scope="col">{text.colName}</th>
             <th scope="col">{text.colPeople}</th>
+            {form.moments.length > 0 ? <th scope="col">{text.printMoments}</th> : null}
             {form.companionNames ? <th scope="col">{text.colCompanions}</th> : null}
             {form.meals.enabled ? <th scope="col">{text.colMeals}</th> : null}
             {form.diet ? <th scope="col">{text.colDiet}</th> : null}
@@ -40,6 +46,7 @@ export function RsvpPrintList({ eventName, rsvps, stats, form }: RsvpPrintListPr
             <tr key={reply.id}>
               <th scope="row">{reply.name}</th>
               <td>{reply.adults + reply.kids}</td>
+              {form.moments.length > 0 ? <td>{momentsLabel(reply, form)}</td> : null}
               {form.companionNames ? <td>{companionsLabel(reply)}</td> : null}
               {form.meals.enabled ? <td>{mealsLabel(reply.details.meals)}</td> : null}
               {form.diet ? <td>{reply.diet ?? ''}</td> : null}

@@ -26,6 +26,8 @@ export interface RsvpDraft {
   readonly answers: Readonly<Record<string, string>>
   /** "Show my first name to the other guests": the guest's own choice, off until they tick it. */
   readonly showName: boolean
+  /** Ids of the moments the guest comes to, in any order (lot 4). */
+  readonly moments: readonly string[]
 }
 
 export const EMPTY_DRAFT: RsvpDraft = {
@@ -39,6 +41,7 @@ export const EMPTY_DRAFT: RsvpDraft = {
   meals: [],
   answers: {},
   showName: false,
+  moments: [],
 }
 
 /**
@@ -47,6 +50,24 @@ export const EMPTY_DRAFT: RsvpDraft = {
  */
 const offeredMeal = (meal: string, form: GuestRsvpPageDto['form']): string =>
   form.meals.enabled && form.meals.options.includes(meal) ? meal : ''
+
+/**
+ * The moments the form still offers: an id the host removed (or a household is not invited to) is not
+ * one the screen can show, so it is not one the draft holds (screen and payload agree).
+ */
+const offeredMoments = (
+  ids: readonly string[],
+  form: GuestRsvpPageDto['form'],
+): readonly string[] =>
+  form.moments.filter((moment) => ids.includes(moment.id)).map((moment) => moment.id)
+
+/** The draft with a moment ticked or unticked. */
+export const toggleMoment = (draft: RsvpDraft, id: string): RsvpDraft => ({
+  ...draft,
+  moments: draft.moments.includes(id)
+    ? draft.moments.filter((held) => held !== id)
+    : [...draft.moments, id],
+})
 
 /** An answer the form still takes: a text as it is, a choice only while it is one of the options. */
 const offeredAnswer = (
@@ -93,6 +114,7 @@ export const draftOf = (
     reply.answers.map((a) => [a.questionId, offeredAnswer(a.questionId, a.value, form)]),
   ),
   showName: reply.showName,
+  moments: offeredMoments(reply.moments, form),
 })
 
 /** The form of a host who is correcting a reply: the same shape, read from the host's DTO. */
@@ -104,6 +126,7 @@ export const draftOfHostReply = (reply: RsvpDto, form: GuestRsvpPageDto['form'])
       meals: reply.details.meals,
       answers: reply.details.answers,
       showName: reply.details.showName,
+      moments: reply.details.moments,
     },
     form,
   )
@@ -161,6 +184,7 @@ export const inputOf = (
         }
       : {}),
     ...(form.visibility === 'names' && draft.answer === 'yes' ? { showName: draft.showName } : {}),
+    ...(form.moments.length > 0 ? { moments: offeredMoments(draft.moments, form) } : {}),
     message,
   }
 }
@@ -190,15 +214,25 @@ export const NO_RSVP_PAGE: GuestRsvpPageDto = {
     meals: { enabled: false, options: [] },
     questions: [],
     visibility: 'off',
+    moments: [],
   },
 }
 
 /**
  * The form a **household** answers with (spec 30, lot 3): the host's own, except that the household's
  * places are the ceiling of the party and "how many" is always asked, since a household of four is
- * not one person even when the host did not ask a party size. Mirrors what the server judges with.
+ * not one person even when the host did not ask a party size, and **its moments are the ones it is
+ * invited to**. Mirrors what the server judges with.
  */
 export const householdForm = (
   form: GuestRsvpPageDto['form'],
-  places: number,
-): GuestRsvpPageDto['form'] => ({ ...form, partySize: { enabled: true, max: places } })
+  household: {
+    readonly places: number
+    readonly moments: readonly { readonly id: string }[]
+  },
+): GuestRsvpPageDto['form'] => ({
+  ...form,
+  partySize: { enabled: true, max: household.places },
+  // Only the moments the page's form still has: the household's own list may be a step behind.
+  moments: form.moments.filter((moment) => household.moments.some((held) => held.id === moment.id)),
+})

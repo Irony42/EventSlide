@@ -111,16 +111,22 @@ export interface RawRsvpInput {
   readonly answers?: unknown
   /** "Show my first name to the other guests" (spec 30, section 4.4), a `yes` only. */
   readonly showName?: unknown
+  /** Ids of the moments the guest comes to (lot 4), `yes` and `maybe`. */
+  readonly moments?: unknown
 }
 
-/** What the form's lot 2 questions add to a reply. */
-export type RsvpExtras = Pick<RsvpDetails, 'companions' | 'meals' | 'answers' | 'showName'>
+/** What the form's lot 2 and 4 questions add to a reply. */
+export type RsvpExtras = Pick<
+  RsvpDetails,
+  'companions' | 'meals' | 'answers' | 'showName' | 'moments'
+>
 
 export const NO_RSVP_EXTRAS: RsvpExtras = {
   companions: [],
   meals: [],
   answers: [],
   showName: false,
+  moments: [],
 }
 
 /** A reply that passed {@link parseRsvpInput}. */
@@ -276,6 +282,33 @@ const parseAnswers = (
 }
 
 /**
+ * The moments the guest comes to, as ids **in the form's order**. Judged only when the form has
+ * moments (a form without any ignores the field, whatever it holds). An id the form does not have
+ * (a page written before the host removed it, or a household not invited to it) is ignored, not
+ * refused: the guest did nothing wrong. But a reply that brings people must come to at least one
+ * moment that is asked: `rsvp.momentsRequired`, so the host never counts a "yes" for nothing.
+ */
+const parseMoments = (
+  raw: unknown,
+  moments: RsvpForm['moments'],
+  optional: boolean,
+): Result<readonly string[], DomainError> => {
+  if (moments.length === 0) return ok([])
+  if (
+    raw !== undefined &&
+    raw !== null &&
+    (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string'))
+  ) {
+    return err(DomainError.invalid('rsvp.momentsInvalid'))
+  }
+  const chosen = new Set((raw ?? []) as string[])
+  const kept = moments.filter((moment) => chosen.has(moment.id)).map((moment) => moment.id)
+  return kept.length === 0 && !optional
+    ? err(DomainError.invalid('rsvp.momentsRequired'))
+    : ok(kept)
+}
+
+/**
  * Judges a reply against the host's form:
  *
  * - `maybe` is refused when the form does not offer it, and `waitlist` is never a guest's to
@@ -287,9 +320,19 @@ const parseAnswers = (
  * - the companions' names, one menu per person (`yes` only) and the answers to the host's questions
  *   are judged only when the form asks for them, and a field it does not ask for is not judged.
  */
+/**
+ * `momentsOptional`: the host corrects a reply that comes to no moment that exists any more (given
+ * before the moments were asked, or all removed): the host is not the guest and may save it as it
+ * is, without forcing a moment.
+ */
+export interface ParseRsvpOptions {
+  readonly momentsOptional?: boolean
+}
+
 export const parseRsvpInput = (
   form: RsvpForm,
   raw: RawRsvpInput,
+  options: ParseRsvpOptions = {},
 ): Result<RsvpInput, DomainError> => {
   const name = parseName(raw.name)
   if (!name.ok) return name
@@ -344,6 +387,8 @@ export const parseRsvpInput = (
   if (!meals.ok) return meals
   const answers = parseAnswers(raw.answers, form.questions)
   if (!answers.ok) return answers
+  const moments = parseMoments(raw.moments, form.moments, options.momentsOptional === true)
+  if (!moments.ok) return moments
   // Asked only when the host shows first names, and only a yes is ever named.
   if (
     answer === 'yes' &&
@@ -367,6 +412,7 @@ export const parseRsvpInput = (
       meals: meals.value,
       answers: answers.value,
       showName,
+      moments: moments.value,
     },
   })
 }
@@ -498,6 +544,11 @@ export class GuestRsvp {
     })
   }
 
+  /** This reply with other moments and the rest as it is (a read path narrowing what is shown). */
+  withMoments(moments: readonly string[]): GuestRsvp {
+    return new GuestRsvp({ ...this.props, details: { ...this.props.details, moments } })
+  }
+
   /** This reply with its first name no longer shown to the other guests: the tick is withdrawn. */
   withShownNameCleared(): GuestRsvp {
     return new GuestRsvp({ ...this.props, details: { ...this.props.details, showName: false } })
@@ -543,7 +594,9 @@ export const retainExtras = (
   )
   const room = Math.max(ANSWERS_MAX - extras.answers.length, 0)
   const kept = room === 0 ? [] : orphans.slice(-room)
-  if (answer === 'no') return { companions: [], meals: [], answers: kept, showName: false }
+  if (answer === 'no') {
+    return { companions: [], meals: [], answers: kept, showName: false, moments: [] }
+  }
   return {
     companions: form.companionNames ? extras.companions : held.companions,
     meals: form.meals.enabled ? extras.meals : held.meals,
@@ -552,5 +605,9 @@ export const retainExtras = (
     // clears every tick (guests tick again when it comes back).
     showName: form.visibility === 'names' ? extras.showName : false,
     answers: [...extras.answers, ...kept],
+    // **Dropped, not kept**: a moment id carries no label of its own and a removed moment never comes
+    // back (a new one gets a new id), so what the form no longer asks is dead data. `extras.moments`
+    // is already judged against the moments asked today.
+    moments: extras.moments,
   }
 }
