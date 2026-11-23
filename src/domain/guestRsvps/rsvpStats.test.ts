@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { proofOf, statsOf } from './rsvpStats'
+import { aHousehold } from './testing/householdFixtures'
 import { aRsvp } from './testing/rsvpFixtures'
 
 describe('statsOf', () => {
@@ -11,6 +12,7 @@ describe('statsOf', () => {
       waitlist: { responses: 0, people: 0 },
       diets: [],
       meals: [],
+      noReply: { households: 0, places: 0 },
     })
   })
 
@@ -66,6 +68,37 @@ describe('statsOf', () => {
       { label: 'Agneau', count: 1 },
       { label: 'Viande', count: 1 },
     ])
+  })
+})
+
+describe('statsOf, the households without a reply', () => {
+  const martin = aHousehold({ id: 'h-1', places: 4 })
+  const durand = aHousehold({ id: 'h-2', places: 2 })
+  const seul = aHousehold({ id: 'h-3', places: 1 })
+
+  it('counts the households no reply is attached to, and the places kept for them', () => {
+    const stats = statsOf([aRsvp({ id: 'a', householdId: 'h-1' })], [martin, durand, seul])
+
+    expect(stats.noReply).toEqual({ households: 2, places: 3 })
+  })
+
+  it('takes a household that said no, or maybe, for one that replied', () => {
+    const stats = statsOf(
+      [
+        aRsvp({ id: 'a', householdId: 'h-1', answer: 'no' }),
+        aRsvp({ id: 'b', householdId: 'h-2', answer: 'maybe' }),
+      ],
+      [martin, durand],
+    )
+
+    expect(stats.noReply).toEqual({ households: 0, places: 0 })
+  })
+
+  it('leaves the replies of nobody’s household and the open ones out of it', () => {
+    const stats = statsOf([aRsvp({ id: 'a' }), aRsvp({ id: 'b', householdId: 'gone' })], [martin])
+
+    expect(stats.noReply).toEqual({ households: 1, places: 4 })
+    expect(stats.yes.responses).toBe(2)
   })
 })
 

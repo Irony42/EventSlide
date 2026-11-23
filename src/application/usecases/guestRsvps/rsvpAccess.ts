@@ -107,6 +107,9 @@ export type RsvpAuditAction = Extract<
   | 'event.rsvpHostEdited'
   | 'event.rsvpHostDeleted'
   | 'event.rsvpsExported'
+  | 'event.householdsImported'
+  | 'event.householdDeleted'
+  | 'event.householdTokenRotated'
 >
 
 /**

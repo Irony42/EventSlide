@@ -96,6 +96,7 @@ type Kind =
   | 'channelBinding'
   | 'channelMediaJob'
   | 'guestRsvp'
+  | 'guestHousehold'
 
 const PREFIX: Record<Kind, string> = {
   event: 'e0000000',
@@ -114,6 +115,7 @@ const PREFIX: Record<Kind, string> = {
   channelBinding: 'c0000000',
   channelMediaJob: 'd0000000',
   guestRsvp: 'd1000000',
+  guestHousehold: 'd2000000',
 }
 
 export const createSequentialIdGenerator = (): IdGenerator => {

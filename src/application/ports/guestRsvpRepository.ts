@@ -86,6 +86,24 @@ export interface GuestRsvpRepository {
   update(rsvp: GuestRsvp): Promise<boolean>
 
   /**
+   * Attaches a reply to a household, or detaches it with `null`, **in one write transaction** that
+   * keeps "one reply per household": `taken` (nothing written) when another reply of the event
+   * already answers for it, `gone` for a reply that is not the event's. Changes nothing else, and
+   * not `updatedAt` (the badge counts guests' words, not the host's filing).
+   */
+  setHousehold(
+    eventId: EventId,
+    id: GuestRsvpId,
+    householdId: string | null,
+  ): Promise<'set' | 'taken' | 'gone'>
+
+  /**
+   * Detaches whatever reply answers for the household, in one write: the household is deleted and
+   * its reply stays, filed under nobody. Says how many replies were detached (0 or 1).
+   */
+  detachHousehold(eventId: EventId, householdId: string): Promise<number>
+
+  /**
    * How many replies were written or changed after this member's last visit to the replies page
    * (`event_memberships.rsvp_seen_at`): the badge. A member who never visited, or who has no
    * membership of the event, has seen none.
