@@ -29,8 +29,11 @@
   gap: var(--space-4);
 }
 
-:global(main):has(.layout.workshop) {
-  max-inline-size: var(--container-workshop);
+/* On screen only: on paper each workshop says for itself what `main` becomes. */
+@media screen {
+  :global(main):has(.layout.workshop) {
+    max-inline-size: var(--container-workshop);
+  }
 }
 
 @media (max-width: 64rem) {

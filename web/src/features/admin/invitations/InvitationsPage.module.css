@@ -17,6 +17,11 @@
  */
 
 .page {
+  /* What the shell and this page's head take above the workspace, and the shell's padding under it
+     (measured at 1366 × 768: 9.6rem above, 1.25rem under): on a laptop the workspace is the rest of
+     the window. The site's footer stays under the fold, as the event menu beside it already puts it
+     there on a laptop. */
+  --invite-chrome: 11rem;
   container: invite / inline-size;
   inline-size: 100%;
   display: flex;
@@ -457,11 +462,7 @@
     grid-template-areas: 'text middle options';
     grid-template-rows: minmax(0, 1fr);
     align-items: stretch;
-    /* What sits above it, measured at 1366 × 768 (the site's header, the shell's padding, the title
-       and the link's bar: 9.6rem) and the shell's padding under it: the workspace is the rest of
-       the window. The site's footer stays under the fold, as the event menu beside it already puts
-       it there on a laptop. */
-    block-size: max(26rem, calc(100dvh - 11rem));
+    block-size: max(26rem, calc(100dvh - var(--invite-chrome)));
     overflow: hidden;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
