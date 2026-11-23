@@ -89,6 +89,8 @@ export interface GuestInvitationProps {
   readonly interactive?: boolean
   /** A name to fill the form with in the host's preview, which shows it open on a "yes" (spec 30). */
   readonly previewName?: string
+  /** Reads the invitation again, keeping what is on screen (the answering block asks for it). */
+  readonly onRefresh?: () => void
 }
 
 export function GuestInvitation({
@@ -97,6 +99,7 @@ export function GuestInvitation({
   readAt,
   interactive = true,
   previewName,
+  onRefresh,
 }: GuestInvitationProps) {
   const t = useTranslations().guestInvite.page
   const lang = parseLocale(page.language) ?? DEFAULT_LOCALE
@@ -193,6 +196,7 @@ export function GuestInvitation({
         locale={lang}
         interactive={interactive}
         {...(previewName === undefined ? {} : { previewName })}
+        {...(onRefresh === undefined ? {} : { onStale: onRefresh })}
       />
 
       {page.state === 'upcoming' ? (

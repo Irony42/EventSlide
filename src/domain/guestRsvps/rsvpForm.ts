@@ -2,6 +2,12 @@ import type { EventTemplateKey } from '../events/eventTemplate'
 import { DomainError } from '../shared/errors'
 import { isPlainObject } from '../shared/plainObject'
 import { err, ok, type Result } from '../shared/result'
+import {
+  applyMealsPatch,
+  applyQuestionsPatch,
+  restoreMeals,
+  restoreQuestions,
+} from './rsvpFormExtras'
 
 /**
  * What a host asks guests when they answer an invitation (spec 30, section 4.1).
@@ -75,15 +81,26 @@ export const defaultRsvpForm = (template: EventTemplateKey | null): RsvpForm => 
 
 export const DEFAULT_RSVP_FORM: RsvpForm = defaultRsvpForm(null)
 
-/** The only keys lot 1 accepts in a form patch: a later lot adds its own to this list. */
-const PATCHABLE: readonly string[] = ['maybe', 'partySize', 'kidsSeparate', 'diet']
+/** The only keys a form patch accepts: a later lot adds its own to this list. */
+const PATCHABLE: readonly string[] = [
+  'maybe',
+  'partySize',
+  'kidsSeparate',
+  'diet',
+  'companionNames',
+  'meals',
+  'questions',
+]
 
-/** The fields a host may change in lot 1. An absent field is left as it was. */
+/** The fields a host may change. An absent field is left as it was. */
 export interface RsvpFormPatch {
   readonly maybe?: unknown
   readonly partySize?: unknown
   readonly kidsSeparate?: unknown
   readonly diet?: unknown
+  readonly companionNames?: unknown
+  readonly meals?: unknown
+  readonly questions?: unknown
 }
 
 const isMax = (value: unknown): value is number =>
@@ -97,10 +114,14 @@ const flag = (raw: unknown, current: boolean): Result<boolean, DomainError> =>
 
 const invalidForm = (): DomainError => DomainError.invalid('rsvp.formInvalid')
 
-/** `current` with `patch` applied, every changed field judged. */
+/**
+ * `current` with `patch` applied, every changed field judged. `mintQuestionId` gives a question
+ * added by this patch its stable id (the domain draws no randomness).
+ */
 export const applyFormPatch = (
   current: RsvpForm,
   rawPatch: unknown,
+  mintQuestionId: () => string,
 ): Result<RsvpForm, DomainError> => {
   // Not an object, or a key this lot does not know: `rsvp.formInvalid`, never a silent ignore.
   if (!isPlainObject(rawPatch) || Object.keys(rawPatch).some((key) => !PATCHABLE.includes(key))) {
@@ -113,6 +134,16 @@ export const applyFormPatch = (
   if (!kidsSeparate.ok) return kidsSeparate
   const diet = flag(patch.diet, current.diet)
   if (!diet.ok) return diet
+  const companionNames = flag(patch.companionNames, current.companionNames)
+  if (!companionNames.ok) return companionNames
+  const meals =
+    patch.meals === undefined ? ok(current.meals) : applyMealsPatch(current.meals, patch.meals)
+  if (!meals.ok) return meals
+  const questions =
+    patch.questions === undefined
+      ? ok(current.questions)
+      : applyQuestionsPatch(current.questions, patch.questions, mintQuestionId)
+  if (!questions.ok) return questions
 
   let partySize = current.partySize
   if (patch.partySize !== undefined) {
@@ -133,14 +164,17 @@ export const applyFormPatch = (
     partySize,
     kidsSeparate: kidsSeparate.value,
     diet: diet.value,
+    companionNames: companionNames.value,
+    meals: meals.value,
+    questions: questions.value,
   })
 }
 
 /**
  * A stored form read back, **never failing**: an unknown field is ignored and a value out of
  * bounds is brought back to the default, so a rule tightened later cannot make a printed
- * invitation's page vanish. Lot 2 and 4 fields stay at their defaults until their own pull
- * request teaches this function to read them.
+ * invitation's page vanish. The lot 4 fields stay at their defaults until their own pull request
+ * teaches this function to read them.
  */
 export const restoreRsvpForm = (raw: unknown): RsvpForm => {
   if (!isPlainObject(raw)) return DEFAULT_RSVP_FORM
@@ -156,5 +190,8 @@ export const restoreRsvpForm = (raw: unknown): RsvpForm => {
     },
     kidsSeparate: bool(raw['kidsSeparate'], DEFAULT_RSVP_FORM.kidsSeparate),
     diet: bool(raw['diet'], DEFAULT_RSVP_FORM.diet),
+    companionNames: bool(raw['companionNames'], DEFAULT_RSVP_FORM.companionNames),
+    meals: restoreMeals(raw['meals'], DEFAULT_RSVP_FORM.meals),
+    questions: restoreQuestions(raw['questions']),
   }
 }

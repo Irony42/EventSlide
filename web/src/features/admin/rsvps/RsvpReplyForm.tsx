@@ -3,6 +3,7 @@ import { Button } from '../../../design-system/components/Button'
 import { ChoiceChips } from '../../../design-system/components/ChoiceChips'
 import { Dialog } from '../../../design-system/components/Dialog'
 import { Field } from '../../../design-system/components/Field'
+import { SelectField } from '../../../design-system/components/SelectField'
 import { Notice } from '../../../design-system/components/Notice'
 import { Textarea } from '../../../design-system/components/Textarea'
 import { TextInput } from '../../../design-system/components/TextInput'
@@ -12,8 +13,10 @@ import { messageForError } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import {
   EMPTY_DRAFT,
-  draftOf,
+  draftOfHostReply,
   inputOf,
+  peopleOfDraft,
+  personName,
   type RsvpAnswer,
   type RsvpDraft,
 } from '../../../lib/rsvp/rsvpDraft'
@@ -40,7 +43,9 @@ export interface RsvpReplyFormProps {
 export function RsvpReplyForm({ reply, form, onSubmit, onClose }: RsvpReplyFormProps) {
   const t = useTranslations()
   const text = t.rsvp.list
-  const [draft, setDraft] = useState<RsvpDraft>(reply === null ? EMPTY_DRAFT : draftOf(reply))
+  const [draft, setDraft] = useState<RsvpDraft>(
+    reply === null ? EMPTY_DRAFT : draftOfHostReply(reply, form),
+  )
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
 
@@ -67,6 +72,13 @@ export function RsvpReplyForm({ reply, form, onSubmit, onClose }: RsvpReplyFormP
     { value: 'no', label: text.answerNo },
   ]
   const coming = draft.answer !== null && draft.answer !== 'no'
+  const people = peopleOfDraft(draft, form)
+  const slot = (list: readonly string[], index: number, value: string): readonly string[] => {
+    const next = [...list]
+    while (next.length <= index) next.push('')
+    next[index] = value
+    return next
+  }
 
   return (
     <Dialog
@@ -141,6 +153,39 @@ export function RsvpReplyForm({ reply, form, onSubmit, onClose }: RsvpReplyFormP
             ) : null}
           </div>
         ) : null}
+        {coming && form.companionNames
+          ? Array.from({ length: Math.max(people - 1, 0) }, (_, index) => (
+              <Field key={`companion-${index}`} label={text.formCompanion(index + 1)} optional>
+                {(control) => (
+                  <TextInput
+                    {...control}
+                    value={draft.companions[index] ?? ''}
+                    maxLength={40}
+                    onChange={(event) =>
+                      change({ companions: slot(draft.companions, index, event.target.value) })
+                    }
+                  />
+                )}
+              </Field>
+            ))
+          : null}
+        {draft.answer === 'yes' && form.meals.enabled
+          ? Array.from({ length: people }, (_, index) => {
+              const who = personName(draft, index, `${index + 1}`)
+              return (
+                <SelectField
+                  key={`meal-${index}`}
+                  label={text.formMeal(who)}
+                  value={draft.meals[index] ?? ''}
+                  options={[
+                    { value: '', label: text.none },
+                    ...form.meals.options.map((option) => ({ value: option, label: option })),
+                  ]}
+                  onChange={(value) => change({ meals: slot(draft.meals, index, value) })}
+                />
+              )
+            })
+          : null}
         {coming && form.diet ? (
           <Field label={text.formDiet} optional>
             {(control) => (
@@ -153,6 +198,37 @@ export function RsvpReplyForm({ reply, form, onSubmit, onClose }: RsvpReplyFormP
             )}
           </Field>
         ) : null}
+        {coming
+          ? form.questions.map((question) =>
+              question.kind === 'choice' ? (
+                <SelectField
+                  key={question.id}
+                  label={question.label}
+                  value={draft.answers[question.id] ?? ''}
+                  options={[
+                    { value: '', label: text.none },
+                    ...(question.options ?? []).map((option) => ({ value: option, label: option })),
+                  ]}
+                  onChange={(value) =>
+                    change({ answers: { ...draft.answers, [question.id]: value } })
+                  }
+                />
+              ) : (
+                <Field key={question.id} label={question.label} optional>
+                  {(control) => (
+                    <TextInput
+                      {...control}
+                      value={draft.answers[question.id] ?? ''}
+                      maxLength={120}
+                      onChange={(event) =>
+                        change({ answers: { ...draft.answers, [question.id]: event.target.value } })
+                      }
+                    />
+                  )}
+                </Field>
+              ),
+            )
+          : null}
         <Field label={text.formMessage} optional>
           {(control) => (
             <Textarea

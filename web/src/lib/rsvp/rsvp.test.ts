@@ -144,7 +144,7 @@ describe('the guest’s form as data', () => {
   })
 
   it('is filled back from a reply, a waiting-list reply asking as a yes', () => {
-    expect(draftOf(aGuestOwnRsvp({ diet: 'noix', message: 'Hâte' }))).toMatchObject({
+    expect(draftOf(aGuestOwnRsvp({ diet: 'noix', message: 'Hâte' }), FORM)).toMatchObject({
       answer: 'yes',
       name: 'Léa Martin',
       adults: 2,
@@ -152,8 +152,8 @@ describe('the guest’s form as data', () => {
       diet: 'noix',
       message: 'Hâte',
     })
-    expect(draftOf(aGuestOwnRsvp({ answer: 'waitlist' })).answer).toBe('yes')
-    expect(draftOf(aGuestOwnRsvp({ answer: 'no', adults: 0, kids: 0 })).adults).toBe(1)
+    expect(draftOf(aGuestOwnRsvp({ answer: 'waitlist' }), FORM).answer).toBe('yes')
+    expect(draftOf(aGuestOwnRsvp({ answer: 'no', adults: 0, kids: 0 }), FORM).adults).toBe(1)
   })
 
   it('lets a party be as large as the host’s form says, or one adult when it asks nothing', () => {
@@ -175,7 +175,7 @@ describe('the guest’s form as data', () => {
 
   it('sends a yes with what the form asks, and a blank optional field as null', () => {
     const input = inputOf(
-      { answer: 'yes', name: 'Léa', adults: 2, kids: 1, diet: '  ', message: '' },
+      { ...EMPTY_DRAFT, answer: 'yes', name: 'Léa', adults: 2, kids: 1, diet: '  ', message: '' },
       FORM,
     )
 
@@ -191,7 +191,15 @@ describe('the guest’s form as data', () => {
 
   it('sends a no with nobody and no diet, whatever was typed before the guest changed their mind', () => {
     const input = inputOf(
-      { answer: 'no', name: 'Léa', adults: 3, kids: 1, diet: 'noix', message: 'Dommage' },
+      {
+        ...EMPTY_DRAFT,
+        answer: 'no',
+        name: 'Léa',
+        adults: 3,
+        kids: 1,
+        diet: 'noix',
+        message: 'Dommage',
+      },
       FORM,
     )
 
@@ -200,6 +208,7 @@ describe('the guest’s form as data', () => {
 
   it('does not send what the host’s form does not ask', () => {
     const draft = {
+      ...EMPTY_DRAFT,
       answer: 'maybe' as const,
       name: 'Léa',
       adults: 3,

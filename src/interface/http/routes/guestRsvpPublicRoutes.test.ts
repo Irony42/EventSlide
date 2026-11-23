@@ -24,7 +24,7 @@ import { csrfTokenFrom } from '../testing/signIn'
 import { buildServerHarness } from '../testing/serverHarness'
 
 /**
- * The guests' replies on the invitation's page (spec 30), through the real server: the 4 KB parser
+ * The guests' replies on the invitation's page (spec 30), through the real server: the 8 KB parser
  * mounted ahead of the global one, the CSRF gate, the two write limiters built once, and the
  * headers of the invitation namespace. The use cases are the real ones over fakes.
  *
@@ -178,6 +178,9 @@ describe('GET /api/i/:token: the rsvp block', () => {
         partySize: { enabled: true, max: 4 },
         kidsSeparate: true,
         diet: true,
+        companionNames: false,
+        meals: { enabled: false, options: [] },
+        questions: [],
       },
     })
   })
@@ -235,6 +238,9 @@ describe('POST /api/i/:token/rsvp', () => {
         kids: 1,
         diet: 'sans gluten',
         message: null,
+        companions: [],
+        meals: [],
+        answers: [],
         updatedAt: AT.toISOString(),
       },
       editToken: 'secret-1',
@@ -260,17 +266,39 @@ describe('POST /api/i/:token/rsvp', () => {
     expect(await world.rsvps.listByEvent(LIVE)).toEqual([])
   })
 
-  it('takes 4 KB of JSON and answers 413 request.tooLarge beyond it, ahead of anything else', async () => {
+  it('takes 8 KB of JSON and answers 413 request.tooLarge beyond it, ahead of anything else', async () => {
     const { post } = await guest(world)
 
-    const small = await post({ ...ANSWER, message: 'a'.repeat(2_000) })
-    const large = await post({ ...ANSWER, message: 'a'.repeat(5_000) })
+    const small = await post({ ...ANSWER, message: 'a'.repeat(5_000) })
+    const large = await post({ ...ANSWER, message: 'a'.repeat(9_000) })
 
     expect(small.status).toBe(400)
     expect(small.body.error.code).toBe('rsvp.messageTooLong')
     expect(large.status).toBe(413)
     expect(large.body.error.code).toBe('request.tooLarge')
     expect(await world.rsvps.listByEvent(LIVE)).toEqual([])
+  })
+
+  it('takes the largest reply the form can hold, written in four-byte characters', async () => {
+    const { post } = await guest(world)
+    const wide = (count: number): string => '😀'.repeat(count)
+    const largest = {
+      name: wide(60),
+      answer: 'yes',
+      adults: 5,
+      kids: 5,
+      diet: wide(120),
+      message: wide(280),
+      companions: Array.from({ length: 9 }, () => wide(40)),
+      meals: Array.from({ length: 10 }, () => wide(40)),
+      answers: ['a', 'b', 'c'].map((id) => ({ questionId: id.repeat(8), value: wide(120) })),
+    }
+    // About 6.7 KB: over the old 4 KB, under the 8 KB the page is given.
+    expect(Buffer.byteLength(JSON.stringify(largest))).toBeGreaterThan(6_000)
+
+    const response = await post(largest)
+
+    expect(response.status).not.toBe(413)
   })
 
   it('refuses a stray key as a malformed request: no source, household, id or token is a guest’s to send', async () => {

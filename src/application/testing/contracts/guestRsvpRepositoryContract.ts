@@ -83,8 +83,8 @@ export const guestRsvpRepositoryContract = (
           message: 'On vient\navec plaisir ; à samedi',
           source: 'household',
           details: {
-            companions: ['Hugo'],
-            meals: ['Végétarien'],
+            companions: ['', 'Inès'],
+            meals: ['', 'Végétarien'],
             answers: [{ questionId: 'q1', label: 'Voiture ?', value: 'oui' }],
             moments: ['m1'],
             showName: true,

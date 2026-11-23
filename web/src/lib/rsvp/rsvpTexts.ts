@@ -71,6 +71,15 @@ export const recapLines = (
   text: UiText['rsvp']['guest'],
 ): readonly string[] => [
   recapLine(reply, form, text),
+  ...(reply.companions.some((name) => name !== '')
+    ? [text.recapCompanions(reply.companions.filter((name) => name !== '').join(', '))]
+    : []),
+  ...(reply.meals.some((meal) => meal !== '')
+    ? [text.recapMeals(reply.meals.filter((meal) => meal !== '').join(', '))]
+    : []),
   ...(reply.diet === null ? [] : [text.recapDiet(reply.diet)]),
+  ...reply.answers
+    .filter((answer) => answer.value !== '')
+    .map((answer) => text.recapAnswer(answer.label, answer.value)),
   ...(reply.message === null ? [] : [text.recapMessage(reply.message)]),
 ]

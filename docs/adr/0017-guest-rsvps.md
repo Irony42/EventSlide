@@ -32,7 +32,7 @@ Three decisions follow from that and a later reader would otherwise reopen them.
    own; the writes go through the anti-CSRF cookie every public page of the instance already carries, which identifies
    nobody. What stands between the form and abuse is a write limiter per IP **and** per invitation, a ceiling of 1 000
    replies per event decided inside the write transaction (`GuestRsvpRepository.admit`, with the same arithmetic as the
-   use case's early refusal), a body of at most 4 KB, and a honeypot field that is answered with a fake success and no
+   use case's early refusal), a body of at most 8 KB, and a honeypot field that is answered with a fake success and no
    write. There is no captcha: it would put a third party in front of a guest who has one thumb and bad Wi-Fi, and the
    ceiling bounds what a flood can cost the host.
 3. **Allergies and diets are health data and are treated as such.** The field is optional and free text. The legal basis is

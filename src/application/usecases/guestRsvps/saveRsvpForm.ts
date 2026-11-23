@@ -1,3 +1,4 @@
+import { questionIdFromBytes } from '../../../domain/guestRsvps/rsvpFormExtras'
 import { scheduleOf } from '../../../domain/guestInvites/inviteStateOf'
 import {
   applySettingsPatch,
@@ -10,6 +11,7 @@ import { ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
+import type { IdGenerator } from '../../ports/idGenerator'
 import type { GuestInviteRepository } from '../../ports/guestInviteRepository'
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
 import { rsvpFormViewOf, type RsvpFormView } from './getRsvpForm'
@@ -45,6 +47,8 @@ export interface SaveRsvpFormDeps extends RsvpAccessDeps {
   readonly audit: AuditRecorder
   readonly bus: EventBus
   readonly clock: Clock
+  /** Draws the stable id of a question the host adds. */
+  readonly ids: Pick<IdGenerator, 'bytes'>
 }
 
 export type SaveRsvpForm = (input: SaveRsvpFormInput) => Promise<Result<RsvpFormView, DomainError>>
@@ -64,7 +68,9 @@ export const makeSaveRsvpForm =
     const { event, invite, settings } = needed.value
     const now = deps.clock.now()
 
-    const saved = applySettingsPatch(settings, patch, scheduleOf(invite))
+    const saved = applySettingsPatch(settings, patch, scheduleOf(invite), () =>
+      questionIdFromBytes(deps.ids.bytes(4)),
+    )
     if (!saved.ok) return saved
     if (!same(saved.value, settings)) {
       const recorded = await recordRsvpAct(deps.audit, event, actorId, 'event.rsvpFormSaved', now)

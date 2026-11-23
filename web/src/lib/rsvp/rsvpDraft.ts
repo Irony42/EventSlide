@@ -1,5 +1,6 @@
-import type { GuestOwnRsvpDto, GuestRsvpPageDto } from '../api/dto'
+import type { GuestOwnRsvpDto, GuestRsvpPageDto, RsvpDto } from '../api/dto'
 import type { GuestRsvpInput } from '../api/client/invite'
+import { firstNameOf } from './rsvpTexts'
 
 /**
  * The guest's form as data (spec 30), with no React in it: what it starts from, how it is bounded
@@ -17,6 +18,12 @@ export interface RsvpDraft {
   readonly kids: number
   readonly diet: string
   readonly message: string
+  /** One field per companion, in order: the guest is the first person, so the second one is `[0]`. */
+  readonly companions: readonly string[]
+  /** One menu per person, in order; `''` while none is chosen. */
+  readonly meals: readonly string[]
+  /** The answer to each question of the form, by the question's id. */
+  readonly answers: Readonly<Record<string, string>>
 }
 
 export const EMPTY_DRAFT: RsvpDraft = {
@@ -26,17 +33,55 @@ export const EMPTY_DRAFT: RsvpDraft = {
   kids: 0,
   diet: '',
   message: '',
+  companions: [],
+  meals: [],
+  answers: {},
+}
+
+/**
+ * A menu the form still offers, or blank: a choice the host renamed or removed since is not one the
+ * screen can show, so it is not one the draft holds (screen and payload agree).
+ */
+const offeredMeal = (meal: string, form: GuestRsvpPageDto['form']): string =>
+  form.meals.enabled && form.meals.options.includes(meal) ? meal : ''
+
+/** An answer the form still takes: a text as it is, a choice only while it is one of the options. */
+const offeredAnswer = (
+  questionId: string,
+  value: string,
+  form: GuestRsvpPageDto['form'],
+): string => {
+  const question = form.questions.find((asked) => asked.id === questionId)
+  if (question?.kind !== 'choice') return value
+  return question.options?.includes(value) ? value : ''
 }
 
 /** The form of a guest who is changing their reply: what they sent, in the shape they typed it. */
-export const draftOf = (reply: GuestOwnRsvpDto): RsvpDraft => ({
+export const draftOf = (reply: GuestOwnRsvpDto, form: GuestRsvpPageDto['form']): RsvpDraft => ({
   answer: reply.answer === 'waitlist' ? 'yes' : reply.answer,
   name: reply.name,
   adults: Math.max(reply.adults, 1),
   kids: reply.kids,
   diet: reply.diet ?? '',
   message: reply.message ?? '',
+  companions: reply.companions,
+  meals: reply.meals.map((meal) => offeredMeal(meal, form)),
+  answers: Object.fromEntries(
+    reply.answers.map((a) => [a.questionId, offeredAnswer(a.questionId, a.value, form)]),
+  ),
 })
+
+/** The form of a host who is correcting a reply: the same shape, read from the host's DTO. */
+export const draftOfHostReply = (reply: RsvpDto, form: GuestRsvpPageDto['form']): RsvpDraft =>
+  draftOf(
+    {
+      ...reply,
+      companions: reply.details.companions,
+      meals: reply.details.meals,
+      answers: reply.details.answers,
+    },
+    form,
+  )
 
 /** How many people the form lets one reply bring: the host's limit, or exactly one adult. */
 export const maxPeople = (form: GuestRsvpPageDto['form']): number =>
@@ -70,6 +115,7 @@ export const inputOf = (
   const message = draft.message.trim() === '' ? null : draft.message
   if (draft.answer === 'no') return { name: draft.name, answer: 'no', message }
   const diet = draft.diet.trim() === '' ? null : draft.diet
+  const people = form.partySize.enabled ? draft.adults + (form.kidsSeparate ? draft.kids : 0) : 1
   return {
     name: draft.name,
     answer: draft.answer,
@@ -77,13 +123,45 @@ export const inputOf = (
       ? { adults: draft.adults, ...(form.kidsSeparate ? { kids: draft.kids } : {}) }
       : {}),
     ...(form.diet ? { diet } : {}),
+    ...(form.companionNames ? { companions: draft.companions.slice(0, people - 1) } : {}),
+    ...(form.meals.enabled && draft.answer === 'yes'
+      ? { meals: draft.meals.slice(0, people).map((meal) => offeredMeal(meal, form)) }
+      : {}),
+    ...(form.questions.length > 0
+      ? {
+          answers: form.questions.map((question) => ({
+            questionId: question.id,
+            value: offeredAnswer(question.id, draft.answers[question.id] ?? '', form),
+          })),
+        }
+      : {}),
     message,
   }
 }
+
+/** The name of person `index` (0 is the guest) for a menu's label: first name, or "Person n". */
+export const personName = (draft: RsvpDraft, index: number, fallback: string): string =>
+  (index === 0 ? firstNameOf(draft.name) : draft.companions[index - 1]?.trim()) || fallback
+
+/** How many people the draft brings now (a `no` brings nobody). */
+export const peopleOfDraft = (draft: RsvpDraft, form: GuestRsvpPageDto['form']): number =>
+  draft.answer === 'no'
+    ? 0
+    : form.partySize.enabled
+      ? draft.adults + (form.kidsSeparate ? draft.kids : 0)
+      : 1
 
 /** What a page says when nobody is asked to answer: the host's own preview, and a party with no form. */
 export const NO_RSVP_PAGE: GuestRsvpPageDto = {
   state: 'off',
   deadline: null,
-  form: { maybe: true, partySize: { enabled: true, max: 4 }, kidsSeparate: true, diet: true },
+  form: {
+    maybe: true,
+    partySize: { enabled: true, max: 4 },
+    kidsSeparate: true,
+    diet: true,
+    companionNames: false,
+    meals: { enabled: false, options: [] },
+    questions: [],
+  },
 }

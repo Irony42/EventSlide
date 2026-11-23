@@ -1,4 +1,9 @@
-import { parseRsvpInput, type GuestRsvp, type RawRsvpInput } from '../../../domain/guestRsvps/rsvp'
+import {
+  parseRsvpInput,
+  retainExtras,
+  type GuestRsvp,
+  type RawRsvpInput,
+} from '../../../domain/guestRsvps/rsvp'
 import { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
@@ -72,7 +77,18 @@ export const makeUpdateOwnRsvp =
     const judged = parseRsvpInput(settings.form, raw)
     if (!judged.ok) return judged
 
-    const admission = await deps.rsvps.admit(own.value.withReply(judged.value, now), {
+    // What the form no longer asks stays (a removed question keeps its answers).
+    const reply = {
+      ...judged.value,
+      extras: retainExtras(
+        settings.form,
+        own.value.details,
+        judged.value.extras,
+        judged.value.answer,
+      ),
+    }
+    const changed = own.value.withReply(reply, now)
+    const admission = await deps.rsvps.admit(changed, {
       capacity: settings.form.capacity,
       changeOnly: true,
     })
@@ -81,7 +97,7 @@ export const makeUpdateOwnRsvp =
       return err(DomainError.conflict(admission.refusal === 'full' ? 'rsvp.full' : 'rsvp.tooMany'))
     }
     announceRsvpsChanged(deps.bus, event.id)
-    return ok(own.value.withReply(judged.value, now))
+    return ok(changed)
   }
 
 export const makeDeleteOwnRsvp =

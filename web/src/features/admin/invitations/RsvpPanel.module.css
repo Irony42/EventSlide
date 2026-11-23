@@ -63,6 +63,19 @@
   border-inline-start: 2px solid var(--border-subtle);
 }
 
+.questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .saveLine {
   min-block-size: 1.25rem;
   color: var(--text-muted);

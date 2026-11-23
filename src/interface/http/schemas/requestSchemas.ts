@@ -1036,7 +1036,7 @@ export const previewBookQuery = z.strictObject({
 export const rsvpFormBody = z.strictObject({
   enabled: z.unknown().optional(),
   deadline: z.unknown().optional(),
-  // Judged whole by the domain (`rsvp.formInvalid`): a wrong type, a key lot 1 does not know.
+  // Judged whole by the domain (`rsvp.formInvalid`): a wrong type, a key the form does not know.
   form: z.unknown().optional(),
 })
 
@@ -1051,6 +1051,9 @@ export const rsvpReplyBody = z.strictObject({
   kids: z.unknown().optional(),
   diet: z.unknown().optional(),
   message: z.unknown().optional(),
+  companions: z.unknown().optional(),
+  meals: z.unknown().optional(),
+  answers: z.unknown().optional(),
 })
 
 export const rsvpParams = z.strictObject({ eventSlug: slug, rsvpId: uuid })
@@ -1073,6 +1076,9 @@ export const guestRsvpBody = z.strictObject({
   kids: z.unknown().optional(),
   diet: z.unknown().optional(),
   message: z.unknown().optional(),
+  companions: z.unknown().optional(),
+  meals: z.unknown().optional(),
+  answers: z.unknown().optional(),
 })
 
 /**

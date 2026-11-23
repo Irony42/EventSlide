@@ -90,7 +90,7 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
     bus,
     ids,
     getForm: makeGetRsvpForm({ ...access, rsvps, clock }),
-    saveForm: makeSaveRsvpForm({ ...access, rsvps, audit, bus, clock }),
+    saveForm: makeSaveRsvpForm({ ...access, rsvps, audit, bus, clock, ids }),
     close: makeCloseRsvps({ ...access, rsvps, audit, bus, clock }),
     reopen: makeReopenRsvps({ ...access, rsvps, audit, bus, clock }),
     list: makeListRsvps({ ...access, rsvps, clock }),

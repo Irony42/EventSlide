@@ -41,7 +41,7 @@ export const makeExportRsvps =
   async ({ eventId, actorId, view }) => {
     const opened = await openRsvps(deps, eventId, actorId, 'read')
     if (!opened.ok) return opened
-    const { event, invite } = opened.value
+    const { event, invite, settings } = opened.value
 
     const rsvps = await deps.rsvps.listByEvent(eventId)
     const labels = RSVP_CSV_LABELS[invite?.content.language ?? DEFAULT_EVENT_LANGUAGE]
@@ -53,5 +53,8 @@ export const makeExportRsvps =
       deps.clock.now(),
     )
     if (!recorded.ok) return recorded
-    return ok({ csv: rsvpCsv(rsvps, view, labels), slug: event.slug.value })
+    return ok({
+      csv: rsvpCsv(rsvps, view, labels, settings.form.questions),
+      slug: event.slug.value,
+    })
   }

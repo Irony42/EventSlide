@@ -338,7 +338,7 @@ describe('a guest’s side of the replies, through the real container', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM guest_rsvps').get()).toEqual({ n: 0 })
   })
 
-  it('stores nothing for a honeypot, takes 4 KB and not more, and needs the CSRF header', async () => {
+  it('stores nothing for a honeypot, takes 8 KB and not more, and needs the CSRF header', async () => {
     const { db, guest, cookie, reply } = await guestBrowser()
     const answer = { name: 'Bot', answer: 'yes', adults: 1 }
 
@@ -349,7 +349,7 @@ describe('a guest’s side of the replies, through the real container', () => {
     const large = await guest
       .post(reply)
       .set(CSRF_HEADER, cookie)
-      .send({ ...answer, message: 'a'.repeat(5_000) })
+      .send({ ...answer, message: 'a'.repeat(9_000) })
     const bare = await guest.post(reply).send(answer)
 
     expect(trapped.status).toBe(201)

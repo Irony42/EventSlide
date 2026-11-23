@@ -119,6 +119,13 @@ export const toGuestOwnRsvpDto = (rsvp: GuestRsvp): GuestOwnRsvpDto => ({
   kids: rsvp.kids,
   diet: rsvp.diet,
   message: rsvp.message,
+  companions: [...rsvp.details.companions],
+  meals: [...rsvp.details.meals],
+  answers: rsvp.details.answers.map(({ questionId, label, value }) => ({
+    questionId,
+    label,
+    value,
+  })),
   updatedAt: rsvp.updatedAt.toISOString(),
 })
 
@@ -139,7 +146,16 @@ export const toGuestRsvpCreatedDto = (created: {
 export const toGuestRsvpPageDto = (view: GuestRsvpPageView): GuestRsvpPageDto => ({
   state: view.state,
   deadline: view.deadline,
-  form: view.form,
+  form: {
+    ...view.form,
+    meals: { enabled: view.form.meals.enabled, options: [...view.form.meals.options] },
+    questions: view.form.questions.map((question) => ({
+      id: question.id,
+      label: question.label,
+      kind: question.kind,
+      ...(question.options === undefined ? {} : { options: [...question.options] }),
+    })),
+  },
   ...(view.proof === null
     ? {}
     : { proof: { count: view.proof.count, names: [...view.proof.names] } }),

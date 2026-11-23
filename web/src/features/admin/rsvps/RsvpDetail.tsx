@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { Notice } from '../../../design-system/components/Notice'
@@ -83,12 +84,33 @@ export function RsvpDetail({
                 <dd>{peopleDetail(reply, text)}</dd>
               </>
             ) : null}
+            {reply.details.companions.every((name) => name === '') ? null : (
+              <>
+                <dt>{text.detailCompanions}</dt>
+                <dd>{reply.details.companions.filter((name) => name !== '').join(', ')}</dd>
+              </>
+            )}
+            {reply.details.meals.every((meal) => meal === '') ? null : (
+              <>
+                <dt>{text.detailMeals}</dt>
+                <dd>{reply.details.meals.filter((meal) => meal !== '').join(', ')}</dd>
+              </>
+            )}
             {reply.diet === null ? null : (
               <>
                 <dt>{text.detailDiet}</dt>
                 <dd>{reply.diet}</dd>
               </>
             )}
+            {/* Every answer given, a question removed since included, under the label it was given with. */}
+            {reply.details.answers
+              .filter((answer) => answer.value !== '')
+              .map((answer) => (
+                <Fragment key={answer.questionId}>
+                  <dt>{answer.label}</dt>
+                  <dd>{answer.value}</dd>
+                </Fragment>
+              ))}
             {reply.message === null ? null : (
               <>
                 <dt>{text.detailMessage}</dt>

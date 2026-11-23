@@ -15,7 +15,7 @@ const PARTY: InviteSchedule = {
 }
 
 const apply = (patch: RsvpSettingsPatch, schedule: InviteSchedule | null = PARTY) =>
-  applySettingsPatch(DEFAULT_RSVP_SETTINGS, patch, schedule)
+  applySettingsPatch(DEFAULT_RSVP_SETTINGS, patch, schedule, () => 'aaaaaaaa')
 
 describe('applySettingsPatch', () => {
   it('starts switched off, with no deadline, not closed, and the default form', () => {
@@ -60,7 +60,7 @@ describe('applySettingsPatch', () => {
     const set = apply({ deadline: '2026-12-01' })
     if (!set.ok) throw new Error('set')
 
-    const cleared = applySettingsPatch(set.value, { deadline: null }, null)
+    const cleared = applySettingsPatch(set.value, { deadline: null }, null, () => 'aaaaaaaa')
 
     expect(cleared.ok && cleared.value.deadline).toBeNull()
   })
@@ -79,7 +79,7 @@ describe('applySettingsPatch', () => {
     if (!set.ok) throw new Error('set')
     const movedEarlier: InviteSchedule = { ...PARTY, startsAt: new Date('2026-12-01T18:00:00Z') }
 
-    const result = applySettingsPatch(set.value, { enabled: true }, movedEarlier)
+    const result = applySettingsPatch(set.value, { enabled: true }, movedEarlier, () => 'aaaaaaaa')
 
     expect(result.ok && result.value.deadline).toBe('2026-12-13')
   })

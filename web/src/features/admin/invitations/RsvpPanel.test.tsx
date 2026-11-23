@@ -156,7 +156,7 @@ describe('the replies settings panel: choosing', () => {
     expect(screen.getByRole('checkbox', { name: /Peut-être/ })).not.toBeChecked()
     await waitFor(() => expect(saveRsvpForm).toHaveBeenCalled())
     expect(saveRsvpForm).toHaveBeenCalledWith('mariage', {
-      form: { maybe: false, partySize: { enabled: true, max: 6 } },
+      form: { maybe: false, partySize: { enabled: true, max: 6 }, companionNames: true },
     })
   })
 

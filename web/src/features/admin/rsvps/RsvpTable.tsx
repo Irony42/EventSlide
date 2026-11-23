@@ -46,11 +46,26 @@ export function RsvpTable({ rows, form, onOpen }: RsvpTableProps) {
                 {text.colPeople}
               </th>
             ) : null}
+            {form.companionNames ? (
+              <th scope="col" role="columnheader">
+                {text.colCompanions}
+              </th>
+            ) : null}
+            {form.meals.enabled ? (
+              <th scope="col" role="columnheader">
+                {text.colMeals}
+              </th>
+            ) : null}
             {form.diet ? (
               <th scope="col" role="columnheader">
                 {text.colDiet}
               </th>
             ) : null}
+            {form.questions.map((question) => (
+              <th key={question.id} scope="col" role="columnheader">
+                {question.label}
+              </th>
+            ))}
             <th scope="col" role="columnheader">
               {text.colMessage}
             </th>
@@ -75,11 +90,32 @@ export function RsvpTable({ rows, form, onOpen }: RsvpTableProps) {
                   {peopleCell(reply, text)}
                 </td>
               ) : null}
+              {form.companionNames ? (
+                <td role="cell" data-label={text.colCompanions} className={styles['free']}>
+                  {reply.details.companions.filter((name) => name !== '').join(', ') || text.none}
+                </td>
+              ) : null}
+              {form.meals.enabled ? (
+                <td role="cell" data-label={text.colMeals} className={styles['free']}>
+                  {reply.details.meals.filter((meal) => meal !== '').join(', ') || text.none}
+                </td>
+              ) : null}
               {form.diet ? (
                 <td role="cell" data-label={text.colDiet} className={styles['free']}>
                   {reply.diet ?? text.none}
                 </td>
               ) : null}
+              {form.questions.map((question) => (
+                <td
+                  key={question.id}
+                  role="cell"
+                  data-label={question.label}
+                  className={styles['free']}
+                >
+                  {reply.details.answers.find((answer) => answer.questionId === question.id)
+                    ?.value || text.none}
+                </td>
+              ))}
               <td role="cell" data-label={text.colMessage} className={styles['free']}>
                 {reply.message ?? text.none}
               </td>

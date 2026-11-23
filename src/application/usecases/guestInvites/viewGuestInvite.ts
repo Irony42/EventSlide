@@ -4,6 +4,7 @@ import { servedInviteOf, type ServedInvite } from '../../../domain/guestInvites/
 import { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import { DEFAULT_RSVP_SETTINGS } from '../../../domain/guestRsvps/rsvpSettings'
+import type { RsvpForm } from '../../../domain/guestRsvps/rsvpForm'
 import { PROOF_MAX_NAMES, proofFrom, type RsvpProof } from '../../../domain/guestRsvps/rsvpStats'
 import type { RsvpState } from '../../../domain/guestRsvps/rsvpWindow'
 import type { Clock } from '../../ports/clock'
@@ -44,6 +45,9 @@ export interface GuestRsvpPageView {
     readonly partySize: { readonly enabled: boolean; readonly max: number }
     readonly kidsSeparate: boolean
     readonly diet: boolean
+    readonly companionNames: boolean
+    readonly meals: { readonly enabled: boolean; readonly options: readonly string[] }
+    readonly questions: RsvpForm['questions']
   }
   /** `null` unless the host asked to show it **and** replies are still part of the story. */
   readonly proof: RsvpProof | null
@@ -123,6 +127,10 @@ export const makeViewGuestInvite =
         partySize: { enabled: form.partySize.enabled, max: form.partySize.max },
         kidsSeparate: form.kidsSeparate,
         diet: form.diet,
+        companionNames: form.companionNames,
+        // The menus are not told while they are off: nothing the host has not asked leaves the box.
+        meals: form.meals.enabled ? form.meals : { enabled: false, options: [] },
+        questions: form.questions,
       },
       proof,
     }

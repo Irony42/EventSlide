@@ -23,6 +23,19 @@ export const applyInput = (settings: RsvpSettingsDto, input: RsvpFormInput): Rsv
             maybe: form.maybe ?? settings.form.maybe,
             kidsSeparate: form.kidsSeparate ?? settings.form.kidsSeparate,
             diet: form.diet ?? settings.form.diet,
+            companionNames: form.companionNames ?? settings.form.companionNames,
+            meals: {
+              enabled: form.meals?.enabled ?? settings.form.meals.enabled,
+              options: form.meals?.options ?? settings.form.meals.options,
+            },
+            // A question the host just added has no id until the server answers.
+            questions:
+              form.questions?.map((question) => ({
+                id: question.id ?? '',
+                label: question.label,
+                kind: question.kind,
+                ...(question.options === undefined ? {} : { options: question.options }),
+              })) ?? settings.form.questions,
             partySize: {
               enabled: form.partySize?.enabled ?? settings.form.partySize.enabled,
               max: form.partySize?.max ?? settings.form.partySize.max,
@@ -42,6 +55,9 @@ export const mergeInputs = (earlier: RsvpFormInput, later: RsvpFormInput): RsvpF
           ...(earlier.form?.partySize === undefined && later.form?.partySize === undefined
             ? {}
             : { partySize: { ...earlier.form?.partySize, ...later.form?.partySize } }),
+          ...(earlier.form?.meals === undefined && later.form?.meals === undefined
+            ? {}
+            : { meals: { ...earlier.form?.meals, ...later.form?.meals } }),
         }
   return {
     ...earlier,
@@ -63,6 +79,9 @@ export const previewPage = (settings: RsvpSettingsDto): GuestRsvpPageDto => ({
     partySize: { enabled: settings.form.partySize.enabled, max: settings.form.partySize.max },
     kidsSeparate: settings.form.kidsSeparate,
     diet: settings.form.diet,
+    companionNames: settings.form.companionNames,
+    meals: { enabled: settings.form.meals.enabled, options: settings.form.meals.options },
+    questions: settings.form.questions,
   },
 })
 
@@ -85,8 +104,8 @@ export type PartyKind = 'party' | 'wedding'
  * (a couple needs a count) and allows a larger party; any other does the opposite.
  */
 export const PRESETS: Readonly<Record<PartyKind, NonNullable<RsvpFormInput['form']>>> = {
-  party: { maybe: true, partySize: { enabled: true, max: 4 } },
-  wedding: { maybe: false, partySize: { enabled: true, max: 6 } },
+  party: { maybe: true, partySize: { enabled: true, max: 4 }, companionNames: false },
+  wedding: { maybe: false, partySize: { enabled: true, max: 6 }, companionNames: true },
 }
 
 /** The kind of party these settings look like, or `null` when the host went their own way. */

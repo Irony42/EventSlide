@@ -8,6 +8,7 @@ import { Notice } from '../../../design-system/components/Notice'
 import { SelectField } from '../../../design-system/components/SelectField'
 import { Spinner } from '../../../design-system/components/Spinner'
 import { TextInput } from '../../../design-system/components/TextInput'
+import { RsvpExtras } from './RsvpExtras'
 import { useNow } from '../rsvps/useNow'
 import { dateOf, dayOf } from '../../../lib/rsvp/rsvpDates'
 import { windowAction } from '../../../lib/rsvp/rsvpList'
@@ -238,6 +239,13 @@ export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
           checked={form.diet}
           disabled={locked}
           onChange={(diet) => rsvp.change({ form: { diet } })}
+        />
+        <RsvpExtras
+          form={form}
+          locked={locked}
+          change={rsvp.change}
+          saveState={rsvp.saveState}
+          problem={rsvp.problem}
         />
       </fieldset>
 

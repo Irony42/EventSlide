@@ -52,6 +52,7 @@ export const applySettingsPatch = (
   current: RsvpSettings,
   patch: RsvpSettingsPatch,
   schedule: InviteSchedule | null,
+  mintQuestionId: () => string,
 ): Result<RsvpSettings, DomainError> => {
   if (patch.enabled !== undefined && typeof patch.enabled !== 'boolean') {
     return err(DomainError.invalid('rsvp.enabledInvalid'))
@@ -60,7 +61,9 @@ export const applySettingsPatch = (
     patch.deadline === undefined ? ok(current.deadline) : parseDeadline(patch.deadline, schedule)
   if (!deadline.ok) return deadline
   const form =
-    patch.form === undefined ? ok(current.form) : applyFormPatch(current.form, patch.form)
+    patch.form === undefined
+      ? ok(current.form)
+      : applyFormPatch(current.form, patch.form, mintQuestionId)
   if (!form.ok) return form
   return ok({
     ...current,

@@ -63,6 +63,14 @@ export interface GuestRsvpPageDto {
     readonly partySize: { readonly enabled: boolean; readonly max: number }
     readonly kidsSeparate: boolean
     readonly diet: boolean
+    readonly companionNames: boolean
+    readonly meals: { readonly enabled: boolean; readonly options: readonly string[] }
+    readonly questions: readonly {
+      readonly id: string
+      readonly label: string
+      readonly kind: 'text' | 'choice'
+      readonly options?: readonly string[]
+    }[]
   }
   /** Only when the host chose to show who comes: the people coming, and the first names allowed. */
   readonly proof?: { readonly count: number; readonly names: readonly string[] }
@@ -76,6 +84,13 @@ export interface GuestOwnRsvpDto {
   readonly kids: number
   readonly diet: string | null
   readonly message: string | null
+  readonly companions: readonly string[]
+  readonly meals: readonly string[]
+  readonly answers: readonly {
+    readonly questionId: string
+    readonly label: string
+    readonly value: string
+  }[]
   readonly updatedAt: string
 }
 
