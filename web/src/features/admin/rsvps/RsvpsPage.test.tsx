@@ -197,7 +197,7 @@ describe('the replies page: reading', () => {
 
     expect(await screen.findByRole('link', { name: text.export })).toHaveAttribute(
       'href',
-      '/api/events/camille-et-sacha/rsvps/export',
+      '/api/events/camille-et-sacha/rsvps/export?view=all',
     )
   })
 

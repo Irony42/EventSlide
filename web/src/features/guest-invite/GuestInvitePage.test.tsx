@@ -579,3 +579,85 @@ describe('a form the host changed under an open page (spec 30)', () => {
     expect(screen.getByLabelText(new RegExp(fr.rsvp.guest.nameLabel))).toHaveValue('Léa Martin')
   })
 })
+
+describe('the way into the wall, for a guest who answered (spec 30, section 9.1)', () => {
+  afterEach(() => {
+    window.sessionStorage.clear()
+    window.localStorage.clear()
+  })
+
+  const ownReply = {
+    name: 'Léa Martin',
+    answer: 'yes' as const,
+    adults: 1,
+    kids: 0,
+    diet: null,
+    message: null,
+    companions: [],
+    meals: [],
+    answers: [],
+    showName: false,
+    updatedAt: '2026-11-20T10:00:00.000Z',
+  }
+
+  const opened = (): Partial<Api> => {
+    const page = aGuestInvitePage({ state: 'joinable', joinUrl: '/join/H7K2QM' })
+    return {
+      guestInvitePage: vi.fn(async () => ({
+        ...page,
+        rsvp: { ...page.rsvp, state: 'open' as const },
+      })),
+    }
+  }
+
+  it('hands the first name this device gave to the join screen, only when it is pressed', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(`eventslide.rsvp.${TOKEN}`, JSON.stringify({ editToken: 'tok' }))
+    render(
+      fakeApi({
+        ...opened(),
+        guestRsvp: vi.fn(async () => ({ rsvp: ownReply })),
+      }),
+    )
+
+    const join = await screen.findByRole('link', { name: fr.guestInvite.page.join })
+    await screen.findByText(/Vous venez/)
+    expect(window.sessionStorage.getItem('eventslide.joinNamePrefill')).toBeNull()
+    await user.click(join)
+
+    expect(
+      JSON.parse(window.sessionStorage.getItem('eventslide.joinNamePrefill') ?? 'null'),
+    ).toMatchObject({
+      code: 'H7K2QM',
+      name: 'Léa',
+    })
+  })
+
+  it('writes nothing for a press that opens a new tab (a modifier key)', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(`eventslide.rsvp.${TOKEN}`, JSON.stringify({ editToken: 'tok' }))
+    render(
+      fakeApi({
+        ...opened(),
+        guestRsvp: vi.fn(async () => ({ rsvp: ownReply })),
+      }),
+    )
+    const join = await screen.findByRole('link', { name: fr.guestInvite.page.join })
+    await screen.findByText(/Vous venez/)
+
+    await user.keyboard('{Control>}')
+    await user.click(join)
+    await user.keyboard('{/Control}')
+
+    expect(window.sessionStorage.getItem('eventslide.joinNamePrefill')).toBeNull()
+  })
+
+  it('writes nothing for a device that holds no reply', async () => {
+    const user = userEvent.setup()
+    render(fakeApi(opened()))
+
+    await user.click(await screen.findByRole('link', { name: fr.guestInvite.page.join }))
+
+    expect(window.sessionStorage.getItem('eventslide.joinNamePrefill')).toBeNull()
+  })
+})

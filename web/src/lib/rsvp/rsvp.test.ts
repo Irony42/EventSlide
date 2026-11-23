@@ -8,6 +8,9 @@ import {
   readStoredEditToken,
   storeEditToken,
   takeEditTokenFromFragment,
+  clearJoinNamePrefill,
+  readJoinNamePrefill,
+  writeJoinNamePrefill,
 } from './rsvpDevice'
 import { EMPTY_DRAFT, bump, draftOf, inputOf, maxPeople } from './rsvpDraft'
 import { deadlineLabel, firstNameOf, proofLine, recapLine, recapLines } from './rsvpTexts'
@@ -321,5 +324,105 @@ describe('the French of the guest’s and the host’s blocks (settings and repl
 
   it('has sentences to check', () => {
     expect(sentences().length).toBeGreaterThan(60)
+  })
+})
+
+describe('the first name offered at join (spec 30, section 9.1)', () => {
+  const JOIN = '/join/H7K2QM'
+
+  beforeEach(() => {
+    window.sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('keeps the first word of the name, nothing else, in the session only', () => {
+    writeJoinNamePrefill('  Léa   Martin ', JOIN)
+
+    expect(readJoinNamePrefill('H7K2QM')).toBe('Léa')
+    expect(window.localStorage.getItem('eventslide.joinNamePrefill')).toBeNull()
+  })
+
+  it('is offered for the join code of the link that was pressed, and for no other', () => {
+    writeJoinNamePrefill('Léa', JOIN)
+
+    expect(readJoinNamePrefill('h7k-2qm')).toBe('Léa')
+    expect(readJoinNamePrefill('ZZZZZZ')).toBeNull()
+    expect(readJoinNamePrefill(undefined)).toBeNull()
+  })
+
+  it('reads the code of a link with a query, a fragment or a trailing slash, and none of a bare one', () => {
+    writeJoinNamePrefill('Léa', '/join/H7K2QM/?from=invite#x')
+    expect(readJoinNamePrefill('H7K2QM')).toBe('Léa')
+
+    window.sessionStorage.clear()
+    writeJoinNamePrefill('Léa', '/')
+    expect(readJoinNamePrefill('H7K2QM')).toBeNull()
+    writeJoinNamePrefill('Léa', '/join/%E0%A4%A')
+    expect(readJoinNamePrefill('H7K2QM')).toBeNull()
+  })
+
+  it('expires after two minutes', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-23T10:00:00Z'))
+    writeJoinNamePrefill('Léa', JOIN)
+
+    vi.setSystemTime(new Date('2026-11-23T10:01:59Z'))
+    expect(readJoinNamePrefill('H7K2QM')).toBe('Léa')
+
+    vi.setSystemTime(new Date('2026-11-23T10:02:01Z'))
+    expect(readJoinNamePrefill('H7K2QM')).toBeNull()
+  })
+
+  it('is cleared when the page goes away', () => {
+    writeJoinNamePrefill('Léa', JOIN)
+
+    window.dispatchEvent(new Event('pagehide'))
+
+    expect(readJoinNamePrefill('H7K2QM')).toBeNull()
+  })
+
+  it('cuts to 40 characters, never inside an emoji, and keeps nothing for a blank name', () => {
+    writeJoinNamePrefill('😀'.repeat(60), JOIN)
+    expect([...(readJoinNamePrefill('H7K2QM') ?? '')]).toHaveLength(40)
+
+    window.sessionStorage.clear()
+    writeJoinNamePrefill('   ', JOIN)
+    expect(readJoinNamePrefill('H7K2QM')).toBeNull()
+  })
+
+  it('ignores what is not ours in the session', () => {
+    for (const raw of [
+      'x',
+      '3',
+      'null',
+      '{"code":"H7K2QM"}',
+      '{"code":"H7K2QM","name":"","at":1}',
+    ]) {
+      window.sessionStorage.setItem('eventslide.joinNamePrefill', raw)
+      expect(readJoinNamePrefill('H7K2QM')).toBeNull()
+    }
+  })
+
+  it('clears what it offered, and works without any storage', () => {
+    writeJoinNamePrefill('Léa', JOIN)
+    clearJoinNamePrefill()
+    expect(readJoinNamePrefill('H7K2QM')).toBeNull()
+
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    expect(() => writeJoinNamePrefill('Léa', JOIN)).not.toThrow()
+    expect(readJoinNamePrefill('H7K2QM')).toBeNull()
+    expect(() => clearJoinNamePrefill()).not.toThrow()
   })
 })

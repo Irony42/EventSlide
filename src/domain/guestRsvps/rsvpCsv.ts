@@ -22,6 +22,8 @@ export interface RsvpCsvLabels {
   readonly diet: string
   readonly companions: string
   readonly meals: string
+  /** The caterer's last line: the sum of what is above it. */
+  readonly total: string
   readonly message: string
   readonly source: string
   readonly updatedAt: string
@@ -87,22 +89,62 @@ const listOf = (items: readonly string[]): string | null => {
   return written.length === 0 ? null : written.join(LIST_SEPARATOR)
 }
 
+/**
+ * The menus of one reply, or of all of them, as a caterer reads them: each menu once, with how many
+ * when more than one (\"Poisson ×2, Végé\"), in the order they are first met. Blank entries (a person
+ * who chose none) count for nobody.
+ */
+export const mealsSummary = (meals: readonly string[]): string | null => {
+  const counts = new Map<string, number>()
+  for (const meal of meals) if (meal !== '') counts.set(meal, (counts.get(meal) ?? 0) + 1)
+  if (counts.size === 0) return null
+  return [...counts]
+    .map(([meal, count]) => (count === 1 ? meal : `${meal} ×${count}`))
+    .join(LIST_SEPARATOR)
+}
+
+/** What the host's form asks, for the caterer's file: a column the form does not ask is not written. */
+export interface RsvpCsvAsked {
+  readonly meals: boolean
+  readonly diet: boolean
+}
+
 export const rsvpCsv = (
   rsvps: readonly GuestRsvp[],
   view: RsvpCsvView,
   labels: RsvpCsvLabels,
   questions: readonly RsvpCsvQuestion[] = [],
+  asked: RsvpCsvAsked = { meals: true, diet: true },
 ): string => {
   if (view === 'caterer') {
-    const rows = rsvps
-      .filter((rsvp) => rsvp.answer === 'yes')
-      .map((rsvp) =>
-        line([rsvp.name, rsvp.adults, rsvp.kids, listOf(rsvp.details.meals), rsvp.diet]),
-      )
+    const coming = rsvps.filter((rsvp) => rsvp.answer === 'yes')
+    // Only the columns the form asks: a menu or a diet the host no longer asks is not told to the
+    // caterer, as the panel and the printed list do not tell it.
+    const cells = (name: Cell, adults: Cell, kids: Cell, meals: Cell, diet: Cell): Cell[] => [
+      name,
+      adults,
+      kids,
+      ...(asked.meals ? [meals] : []),
+      ...(asked.diet ? [diet] : []),
+    ]
+    const rows = coming.map((rsvp) =>
+      line(cells(rsvp.name, rsvp.adults, rsvp.kids, mealsSummary(rsvp.details.meals), rsvp.diet)),
+    )
+    // The last line adds it up, so the caterer reads the order without a formula.
+    const total = line(
+      cells(
+        labels.total,
+        coming.reduce((sum, rsvp) => sum + rsvp.adults, 0),
+        coming.reduce((sum, rsvp) => sum + rsvp.kids, 0),
+        mealsSummary(coming.flatMap((rsvp) => rsvp.details.meals)),
+        null,
+      ),
+    )
     return (
       BOM +
-      line([labels.name, labels.adults, labels.kids, labels.meals, labels.diet]) +
-      rows.join('')
+      line(cells(labels.name, labels.adults, labels.kids, labels.meals, labels.diet)) +
+      rows.join('') +
+      (coming.length === 0 ? '' : total)
     )
   }
   const columns = questionColumns(rsvps, questions)

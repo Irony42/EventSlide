@@ -375,6 +375,34 @@ describe('the form extras (spec 30, lot 2)', () => {
   })
 
   describe('the spreadsheet', () => {
+    it('writes the caterer’s file with the columns the form asks: menus off, diet off, neither is written', async () => {
+      await asked()
+      await scene.hostAdd({
+        eventId: WEDDING,
+        actorId: OWNER,
+        name: 'Zoé',
+        answer: 'yes',
+        adults: 2,
+        diet: 'noix',
+        meals: ['Végé'],
+      })
+      const header = async () => {
+        const exported = await scene.exportCsv({
+          eventId: WEDDING,
+          actorId: OWNER,
+          view: 'caterer',
+        })
+        return exported.ok ? (exported.value.csv.split(String.fromCharCode(13, 10))[0] ?? '') : ''
+      }
+      expect(await header()).toContain('Menus;Allergies ou régime')
+
+      await save({ meals: { enabled: false } })
+      expect(await header()).not.toContain('Menus')
+
+      await save({ diet: false })
+      expect(await header()).toBe(String.fromCharCode(0xfeff) + 'Nom;Adultes;Enfants')
+    })
+
     it('writes a column per question of the form and the companions and menus', async () => {
       const [q1] = await asked()
       await scene.hostAdd({

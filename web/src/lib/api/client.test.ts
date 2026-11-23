@@ -1633,7 +1633,10 @@ describe('links the app builds rather than requests', () => {
   })
 
   it('points the spreadsheet of the replies at the documented export endpoint', () => {
-    expect(subject().rsvpExportUrl(SLUG)).toBe(`/api/events/${SLUG}/rsvps/export`)
+    expect(subject().rsvpExportUrl(SLUG)).toBe(`/api/events/${SLUG}/rsvps/export?view=all`)
+    expect(subject().rsvpExportUrl(SLUG, 'caterer')).toBe(
+      `/api/events/${SLUG}/rsvps/export?view=caterer`,
+    )
   })
 
   it('points the montage player at the documented MP4 endpoint', () => {
