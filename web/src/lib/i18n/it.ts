@@ -3449,6 +3449,13 @@ export const it: UiText = {
       householdFailed:
         'Non è stato possibile leggere il link del vostro nucleo. Controllate la connessione e riprovate.',
       householdRetry: 'Riprova',
+      householdIncomplete:
+        'Questo link del nucleo è incompleto: probabilmente è stato tagliato lungo la strada. Copiatelo per intero, oppure chiedetelo all’organizzatore.',
+      householdNotYours: 'Non è il vostro nucleo?',
+      replyNotYours: 'Non è la vostra risposta?',
+      olderReply: (name: string) =>
+        `Questo dispositivo conserva anche una risposta salvata con il nome «${name}».`,
+      olderReplyDelete: 'Elimina questa risposta',
       householdGone:
         'Questo link del nucleo non funziona più. Chiedetene uno nuovo all’organizzatore, oppure rispondete qui sotto.',
       forgotten:

@@ -59,12 +59,32 @@ const offeredAnswer = (
   return question.options?.includes(value) ? value : ''
 }
 
+/**
+ * A party kept inside what the form allows **today**: the host may have lowered the maximum or a
+ * household's places since the reply was given, and a form that opens on more people than it can
+ * send would be refused. One adult at least, then the children that still fit.
+ */
+const clampedParty = (
+  reply: GuestOwnRsvpDto,
+  form: GuestRsvpPageDto['form'],
+): { readonly adults: number; readonly kids: number } => {
+  if (!form.partySize.enabled) return { adults: 1, kids: 0 }
+  const adults = Math.min(Math.max(reply.adults, 1), form.partySize.max)
+  const kids = form.kidsSeparate ? Math.min(reply.kids, form.partySize.max - adults) : 0
+  return { adults, kids }
+}
+
 /** The form of a guest who is changing their reply: what they sent, in the shape they typed it. */
-export const draftOf = (reply: GuestOwnRsvpDto, form: GuestRsvpPageDto['form']): RsvpDraft => ({
+export const draftOf = (
+  reply: GuestOwnRsvpDto,
+  form: GuestRsvpPageDto['form'],
+  options: { readonly clamp?: boolean } = {},
+): RsvpDraft => ({
   answer: reply.answer === 'waitlist' ? 'yes' : reply.answer,
   name: reply.name,
-  adults: Math.max(reply.adults, 1),
-  kids: reply.kids,
+  ...(options.clamp === true
+    ? clampedParty(reply, form)
+    : { adults: Math.max(reply.adults, 1), kids: reply.kids }),
   diet: reply.diet ?? '',
   message: reply.message ?? '',
   companions: reply.companions,

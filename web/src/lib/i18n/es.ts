@@ -3478,6 +3478,13 @@ export const es: UiText = {
       householdFailed:
         'No se pudo leer el enlace de su hogar. Compruebe su conexión e inténtelo de nuevo.',
       householdRetry: 'Reintentar',
+      householdIncomplete:
+        'Este enlace de hogar está incompleto: seguramente se cortó por el camino. Cópielo entero, o pídaselo al organizador.',
+      householdNotYours: '¿No es su hogar?',
+      replyNotYours: '¿No es su respuesta?',
+      olderReply: (name: string) =>
+        `Este dispositivo también guarda una respuesta con el nombre «${name}».`,
+      olderReplyDelete: 'Eliminar esta respuesta',
       householdGone:
         'Este enlace de hogar ya no funciona. Pida uno nuevo al organizador, o responda más abajo.',
       forgotten: 'Este dispositivo ya no encuentra tu respuesta: se borró o el enlace cambió.',

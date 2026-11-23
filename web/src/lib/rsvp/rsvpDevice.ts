@@ -124,8 +124,12 @@ export const storeHouseholdToken = (inviteToken: string, householdToken: string)
 /** The last household fragment taken, per invitation: StrictMode runs an initializer twice (see `taken`). */
 let takenHousehold: { readonly invite: string; readonly token: string } | null = null
 
+/** The invitation whose last `#f=` fragment held no token (cut off in a message, say): the page says so. */
+let incompleteHousehold: string | null = null
+
 export const forgetHouseholdToken = (inviteToken: string): void => {
   if (takenHousehold?.invite === inviteToken) takenHousehold = null
+  if (incompleteHousehold === inviteToken) incompleteHousehold = null
   try {
     window.localStorage.removeItem(HOUSEHOLD_KEY(inviteToken))
   } catch {
@@ -141,11 +145,19 @@ export const forgetHouseholdToken = (inviteToken: string): void => {
 export const takeHouseholdTokenFromFragment = (inviteToken: string): string | null => {
   const raw = stripFragment('#f=')
   if (raw === null) return takenHousehold?.invite === inviteToken ? takenHousehold.token : null
-  if (!FRAGMENT_TOKEN.test(raw)) return null
+  if (!FRAGMENT_TOKEN.test(raw)) {
+    incompleteHousehold = inviteToken
+    return null
+  }
+  incompleteHousehold = null
   takenHousehold = { invite: inviteToken, token: raw }
   storeHouseholdToken(inviteToken, raw)
   return raw
 }
+
+/** Whether the household link opened for this invitation was **cut off** (a `#f=` that holds no token). */
+export const householdFragmentWasIncomplete = (inviteToken: string): boolean =>
+  incompleteHousehold === inviteToken
 
 /**
  * The private link a guest keeps to change their reply from another device: the invitation's own
