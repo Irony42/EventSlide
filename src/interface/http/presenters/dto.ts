@@ -1285,6 +1285,8 @@ export interface GuestInviteDto {
  * (a path) only when the event has a logo.
  */
 export interface GuestInvitePageDto {
+  /** Whether and how the guest may answer (spec 30); with `state: 'off'` the page shows no block. */
+  readonly rsvp: GuestRsvpPageDto
   readonly state: 'upcoming' | 'joinable' | 'over'
   readonly title: string
   readonly when: {
@@ -2190,4 +2192,38 @@ export interface RsvpListResponseDto {
   readonly stats: RsvpStatsDto
   /** How many replies were written or changed since the caller last looked. */
   readonly unseen: number
+}
+
+/** What the invitation page says about answering (spec 30), as the guest reads it. */
+export interface GuestRsvpPageDto {
+  readonly state: 'off' | 'open' | 'closed' | 'full'
+  readonly deadline: string | null
+  readonly form: {
+    readonly maybe: boolean
+    readonly partySize: { readonly enabled: boolean; readonly max: number }
+    readonly kidsSeparate: boolean
+    readonly diet: boolean
+  }
+  /** Only when the host chose to show who comes: the people coming, and the first names allowed. */
+  readonly proof?: { readonly count: number; readonly names: readonly string[] }
+}
+
+/** A guest's own reply, as they read it back. No id, no source: nothing they could not know. */
+export interface GuestOwnRsvpDto {
+  readonly name: string
+  readonly answer: 'yes' | 'maybe' | 'no' | 'waitlist'
+  readonly adults: number
+  readonly kids: number
+  readonly diet: string | null
+  readonly message: string | null
+  readonly updatedAt: string
+}
+
+export interface GuestOwnRsvpResponseDto {
+  readonly rsvp: GuestOwnRsvpDto
+}
+
+/** `201` of `POST /api/i/:token/rsvp`: the reply, and the token to keep, shown once. */
+export interface GuestRsvpCreatedDto extends GuestOwnRsvpResponseDto {
+  readonly editToken: string
 }

@@ -131,6 +131,17 @@ const BESPOKE: ReadonlyMap<string, { readonly count: number; readonly reason: st
     },
   ],
   [
+    'app/guestRsvp/useGuestRsvp.ts',
+    {
+      count: 1,
+      reason:
+        'A read keyed on a secret the device holds, whose refusal means something: a `404 rsvp.notFound` ' +
+        'makes the device forget the token (the reply is gone, or the link changed) while a network ' +
+        'failure leaves the memory alone. The same hook then owns the writes of that reply, so the ' +
+        'token and the reply are one state.',
+    },
+  ],
+  [
     'features/guest-upload/hooks/useMyPhotos.ts',
     {
       count: 1,

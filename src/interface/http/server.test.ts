@@ -499,6 +499,7 @@ describe('buildServer: which client a rate limit is counting', () => {
         rateLimits: {
           joinPerMinute: 1,
           guestInvitePerMinute: 200,
+          guestRsvpWritePerMinute: 30,
           uploadPerMinute: 12,
           uploadPerIpPerMinute: 300,
           loginPerMinute: 10,
@@ -558,6 +559,7 @@ describe('buildServer: which client a rate limit is counting', () => {
         rateLimits: {
           joinPerMinute: 10,
           guestInvitePerMinute: 200,
+          guestRsvpWritePerMinute: 30,
           uploadPerMinute: 12,
           uploadPerIpPerMinute: 1,
           loginPerMinute: 10,
@@ -599,6 +601,7 @@ describe('buildServer: which client a rate limit is counting', () => {
         rateLimits: {
           joinPerMinute: 10,
           guestInvitePerMinute: 200,
+          guestRsvpWritePerMinute: 30,
           uploadPerMinute: 1,
           uploadPerIpPerMinute: 300,
           loginPerMinute: 10,

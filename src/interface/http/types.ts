@@ -244,6 +244,8 @@ export interface HttpConfig {
     readonly galleryMediaPerMinute: number
     /** The public page of a guest invitation (spec 29), per client address. */
     readonly guestInvitePerMinute: number
+    /** Writes to the guests' replies (spec 30), per client address; a second bucket per invitation. */
+    readonly guestRsvpWritePerMinute: number
     /** Failed password attempts per client, per fifteen minutes. */
     readonly galleryUnlockPerClient: number
     /** Failed password attempts per link, from everybody, per fifteen minutes. */

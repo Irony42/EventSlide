@@ -693,34 +693,36 @@ use-case refusals (`invitation.tooManyForAddress`, `reset.tooManyForAddress`,
 `reaction.rateLimited`), because a client that cannot read response headers can read the body; the
 other limiters' bodies carry the header only.
 
-| Endpoint                                                           | Default       | Bucket                           | Code                                |
-| ------------------------------------------------------------------ | ------------- | -------------------------------- | ----------------------------------- |
-| `POST /api/join`                                                   | 200           | client IP                        | `rate.limited`                      |
-| `GET /api/join/:code`                                              | 200           | client IP, same as join          | `rate.limited`                      |
-| `POST /api/auth/login` †                                           | 10            | client IP                        | `rate.limited`                      |
-| `POST /api/auth/password-reset/request` †                          | 10            | client IP, own bucket            | `rate.limited`                      |
-| `POST /api/auth/password-reset/confirm`                            | 10            | client IP, own bucket            | `rate.limited`                      |
-| `GET /api/invitations/:token`, `POST …/accept`                     | 10            | client IP, own bucket each       | `rate.limited`                      |
-| `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm` | 10            | client IP, own bucket each       | `rate.limited`                      |
-| `POST /api/auth/password`, `POST /api/auth/account/delete`         | 10            | client IP, own bucket each       | `rate.limited`                      |
-| the same four, and those two ◊                                     | 10 / 15 min   | **account**, failures only       | `auth.tooManySecondFactorAttempts`  |
-| `POST /api/events` (create)                                        | 20 / **hour** | account                          | `event.creationRateLimited`         |
-| `POST /api/events/:slug/moderators` (invite)                       | 30 / **hour** | account                          | `rate.limited`                      |
-| `GET /api/i/:token`, `GET …/logo` (guest invitation, spec 29)      | 200           | client IP, one bucket for both   | `rate.limited`                      |
-| `POST`, `PATCH`, `DELETE …/announcements…` (spec 21) ♯             | 60            | account, fixed                   | `rate.limited`                      |
-| `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §       | 300           | client IP **and** event          | `rate.limited`                      |
-| the same two, photos and clips together §                          | 12            | **guest** and event              | `rate.limited`                      |
-| `POST /api/events/:slug/photos/:id/reactions` (flood ceiling) §    | 600           | client IP **and** event          | `reaction.rateLimited`              |
-| the same reaction §                                                | 30            | **guest** and event              | `reaction.rateLimited`              |
-| the five other guest writes ‡                                      | 300           | client IP **and** event          | `rate.limited`                      |
-| `POST …/guestbook` and `DELETE …/guestbook/:id` ¶                  | 6             | **guest** and event, fixed       | `rate.limited`                      |
-| `POST …/guestbook/voice` (the upload bucket of §, then ¶)          | 300, 12, 6    | IP + event, **guest**, **guest** | `rate.limited`                      |
-| `GET …/photos/:id/save` (flood ceiling) ☆                          | 600, fixed    | client IP **and** event          | `rate.limited`                      |
-| the same save ☆                                                    | 40, fixed     | **guest** and event              | `rate.limited`                      |
-| the same save, open at once ☆                                      | 2 / 64        | **guest** / the box              | `rate.limited` / `service.notReady` |
-| `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                        | `rate.limited`                      |
-| `GET /api/gallery-media/…`                                         | 3000          | client IP                        | `rate.limited`                      |
-| `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min            | `gallery.tooManyAttempts`           |
+| Endpoint                                                            | Default       | Bucket                              | Code                                |
+| ------------------------------------------------------------------- | ------------- | ----------------------------------- | ----------------------------------- |
+| `POST /api/join`                                                    | 200           | client IP                           | `rate.limited`                      |
+| `GET /api/join/:code`                                               | 200           | client IP, same as join             | `rate.limited`                      |
+| `POST /api/auth/login` †                                            | 10            | client IP                           | `rate.limited`                      |
+| `POST /api/auth/password-reset/request` †                           | 10            | client IP, own bucket               | `rate.limited`                      |
+| `POST /api/auth/password-reset/confirm`                             | 10            | client IP, own bucket               | `rate.limited`                      |
+| `GET /api/invitations/:token`, `POST …/accept`                      | 10            | client IP, own bucket each          | `rate.limited`                      |
+| `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm`  | 10            | client IP, own bucket each          | `rate.limited`                      |
+| `POST /api/auth/password`, `POST /api/auth/account/delete`          | 10            | client IP, own bucket each          | `rate.limited`                      |
+| the same four, and those two ◊                                      | 10 / 15 min   | **account**, failures only          | `auth.tooManySecondFactorAttempts`  |
+| `POST /api/events` (create)                                         | 20 / **hour** | account                             | `event.creationRateLimited`         |
+| `POST /api/events/:slug/moderators` (invite)                        | 30 / **hour** | account                             | `rate.limited`                      |
+| `GET /api/i/:token`, `GET …/logo`, `GET …/rsvp` (spec 29, 30)       | 200           | client IP, one bucket for all       | `rate.limited`                      |
+| `POST`, `PUT`, `DELETE /api/i/:token/rsvp` (guest replies, spec 30) | 30            | client IP, one bucket for the three | `rate.limited`                      |
+| the same three, from every address together                         | 300           | **invitation**, fixed               | `rate.limited`                      |
+| `POST`, `PATCH`, `DELETE …/announcements…` (spec 21) ♯              | 60            | account, fixed                      | `rate.limited`                      |
+| `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §        | 300           | client IP **and** event             | `rate.limited`                      |
+| the same two, photos and clips together §                           | 12            | **guest** and event                 | `rate.limited`                      |
+| `POST /api/events/:slug/photos/:id/reactions` (flood ceiling) §     | 600           | client IP **and** event             | `reaction.rateLimited`              |
+| the same reaction §                                                 | 30            | **guest** and event                 | `reaction.rateLimited`              |
+| the five other guest writes ‡                                       | 300           | client IP **and** event             | `rate.limited`                      |
+| `POST …/guestbook` and `DELETE …/guestbook/:id` ¶                   | 6             | **guest** and event, fixed          | `rate.limited`                      |
+| `POST …/guestbook/voice` (the upload bucket of §, then ¶)           | 300, 12, 6    | IP + event, **guest**, **guest**    | `rate.limited`                      |
+| `GET …/photos/:id/save` (flood ceiling) ☆                           | 600, fixed    | client IP **and** event             | `rate.limited`                      |
+| the same save ☆                                                     | 40, fixed     | **guest** and event                 | `rate.limited`                      |
+| the same save, open at once ☆                                       | 2 / 64        | **guest** / the box                 | `rate.limited` / `service.notReady` |
+| `GET /api/gallery/:token`, `…/photos`, unlock                       | 120           | client IP                           | `rate.limited`                      |
+| `GET /api/gallery-media/…`                                          | 3000          | client IP                           | `rate.limited`                      |
+| `POST /api/gallery/:token/unlock`                                   | 10 / 50       | IP / link, per 15 min               | `gallery.tooManyAttempts`           |
 
 ◊ One budget for all six doors (a guess at one is spent at the others). On `POST /api/auth/password` a failure is **only** `401 auth.invalidCredentials`, the wrong current password: a `400` (a new password the policy refuses, `password.unchanged`, a malformed body) spends nothing, so a person who is learning the policy, an invited moderator who must choose a password included, cannot lock themselves out. The other five doors count every answer of 400 or more.
 
@@ -1601,6 +1603,16 @@ one venue's Wi-Fi open the invitation together when the party starts); the page 
 
 ```json
 {
+  "rsvp": {
+    "state": "open",
+    "deadline": "2026-12-01",
+    "form": {
+      "maybe": true,
+      "partySize": { "enabled": true, "max": 4 },
+      "kidsSeparate": true,
+      "diet": true
+    }
+  },
   "state": "joinable",
   "title": "Léa fête ses 40 ans",
   "when": {
@@ -1630,11 +1642,41 @@ one venue's Wi-Fi open the invitation together when the party starts); the page 
 - `accentHue` (0 to 359) is the event's accent: the one field of its look the page wears, as `data-event-accent`, and nothing else of its theme is sent.
 - `logoUrl` (a path) is present only when the event has a logo.
 - `language` is the invitation's, one of `fr`, `de`, `en`, `es`, `it`: the page reads in it, whatever the browser says.
+- **`rsvp`** (spec 30) is on every served page, the `over` one included: `state` is `off` (replies are not asked, or the party is over), `open`, `closed` (the deadline day has ended in the invitation's zone, the party has started, or the host closed it) or `full`; `deadline` is a local day or `null`; `form` is **only what the guest must see** (never the closing instant, never the lots to come); `proof` (`{ count, names }`) is present only when the host chose to show who comes, counts the people of the `yes` replies and names (first word, at most three) **only guests who ticked "show my first name"**: never a `no`, a `maybe`, a diet or a word. With `state: "off"` the page shows no block.
 
 `GET /api/i/:token/logo` serves the event's logo (ranges, `ETag` of the digest, `no-store`) for as long as the page is
 served, **a draft's included** (the usual logo route serves a logo only while the wall is served, which would leave the
 weeks before the party without one), and answers the same `404 guestInvite.notAvailable` for an event with no logo or a
 token that no longer opens the page.
+
+### The guests' replies, the guest's side (spec 30): `POST`, `GET`, `PUT`, `DELETE /api/i/:token/rsvp`
+
+The first public write nobody is signed in for. The credential is the invitation's token in the path (as above) and, for a reply
+that exists, **the reply's own token in the `X-Rsvp-Token` header: never in a path or a query** (those reach access logs). The token
+is minted by the box (256 random bits), handed back **once**, and only its SHA-256 is stored; a token valid for another event is the same
+`404 rsvp.notFound` as an unknown one. The same `Referrer-Policy`, `X-Robots-Tag` and `Cache-Control: no-store` as the page.
+
+- **`POST`** (`{ name, answer, adults?, kids?, diet?, message?, website? }`) answers `201 { "rsvp", "editToken" }`, where `rsvp` is
+  `{ name, answer, adults, kids, diet, message, updatedAt }` (no id, no source). The form is the host's, judged by the same function as the host's own add:
+  `400` with the `rsvp.*` codes (`rsvp.nameEmpty`, `rsvp.nameInvalid`, `rsvp.nameTooLong`, `rsvp.answerInvalid`, `rsvp.maybeNotOffered`,
+  `rsvp.adultsRequired`, `rsvp.partyTooBig`, `rsvp.countInvalid`, `rsvp.dietInvalid`, `rsvp.dietTooLong`, `rsvp.messageInvalid`,
+  `rsvp.messageTooLong`, `rsvp.messageTooManyLines`). Only while the window is open: `409 rsvp.closed` once it stopped, `409 rsvp.off` while replies are not asked.
+  `409 rsvp.tooMany` at **1 000 replies per event** (decided inside the write, so it holds when requests overlap).
+- **`GET`** (header `X-Rsvp-Token`) answers `200 { "rsvp" }`; **`PUT`** (the whole reply again, no `website`) answers `200 { "rsvp" }`, **only while the window is open**
+  (`409 rsvp.closed|off`); **`DELETE`** answers `204`, **idempotent**: a reply already gone (a double tap, the other tab, the host) and a token that opens nothing answer the same `204`, so the answer says nothing about what exists. `GET` and `DELETE` work **for as long as the invitation page is served** (closed window, party over included): the
+  right to erase one's own reply does not end with either. A `PUT` whose reply was deleted a moment earlier (another tab, the host) answers `404 rsvp.notFound`
+  and **does not store it again**.
+- **Refusals**: `404 guestInvite.notAvailable` (the one neutral answer of the page, a malformed token included) first, then `404 rsvp.notFound` (no token, an empty,
+  oversized or unknown one, another event's, one a host-typed reply cannot have; `GET` and `PUT` only: `DELETE` answers `204`), then `409`, then `400`.
+- **Body**: JSON of **4 KB at most** (`413 request.tooLarge`: `/api/i` has its own parser, mounted ahead of the 64 KB one), **strict**: a key other than the six above
+  is `400 request.invalid` (no `source`, `householdId`, id or token field is a guest's to send). **CSRF** like every write of the instance (`403 request.csrfMissing|csrfMismatch`):
+  the page's own client already echoes the cookie, which identifies nobody.
+- **The honeypot**: `website` is a field of the form a person never sees. When it holds text, the request gets **every refusal a real one would**, in the same order (`409 rsvp.closed|off`, the `400` of the form, `409 rsvp.tooMany`, `409 rsvp.full`: the ceilings are judged read-only from two counts, by the same function), so no status code gives it away;
+  when nothing refuses it, the same `201` with a token that opens nothing, and **nothing is stored or announced**.
+- **Limits**: `POST`, `PUT` and `DELETE` share **one bucket per client address** (`GUEST_RSVP_RATE_LIMIT_PER_MINUTE`, 30 by default) **and one per invitation**
+  (300 a minute from every address together, a constant); both answer `429 rate.limited`. The reads share the page's own bucket.
+- A change publishes the content-free `rsvp.changed` signal on the moderation stream, and **a guest's reply is not audited** (volume, and no value as proof). Replies
+  are erased by the retention sweep, as described for the host's side.
 
 ## 3. Guest
 

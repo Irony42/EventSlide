@@ -95,15 +95,40 @@ export interface RsvpProof {
 export const proofOf = (
   rsvps: readonly GuestRsvp[],
   visibility: RsvpVisibility,
+): RsvpProof | null =>
+  proofFrom(
+    {
+      yesPeople: rsvps
+        .filter((rsvp) => rsvp.answer === 'yes')
+        .reduce((sum, rsvp) => sum + rsvp.people, 0),
+      names: namesToShow(rsvps),
+    },
+    visibility,
+  )
+
+/**
+ * The names of the `yes` replies whose guest ticked "show my first name", **oldest reply first**
+ * (ties: the smaller id). The one ordering rule: a repository that answers it in SQL must agree.
+ */
+export const namesToShow = (rsvps: readonly GuestRsvp[]): readonly string[] =>
+  rsvps
+    .filter((rsvp) => rsvp.answer === 'yes' && rsvp.details.showName)
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1))
+    .map((rsvp) => rsvp.name)
+
+/**
+ * The same line from the two figures a repository can answer without reading a reply's diet or
+ * word: the people in the `yes` replies, and the names (in full, oldest first) of those who agreed
+ * to be shown. The public page asks it on every read, so it must stay cheap.
+ */
+export const proofFrom = (
+  parts: { readonly yesPeople: number; readonly names: readonly string[] },
+  visibility: RsvpVisibility,
 ): RsvpProof | null => {
   if (visibility === 'off') return null
-  const yes = rsvps.filter((rsvp) => rsvp.answer === 'yes')
-  const count = yes.reduce((sum, rsvp) => sum + rsvp.people, 0)
-  if (visibility === 'count') return { count, names: [] }
-  const names = yes
-    .filter((rsvp) => rsvp.details.showName)
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1))
-    .slice(0, PROOF_MAX_NAMES)
-    .map((rsvp) => rsvp.name.split(' ')[0] as string)
-  return { count, names }
+  if (visibility === 'count') return { count: parts.yesPeople, names: [] }
+  return {
+    count: parts.yesPeople,
+    names: parts.names.slice(0, PROOF_MAX_NAMES).map((name) => name.split(' ')[0] as string),
+  }
 }

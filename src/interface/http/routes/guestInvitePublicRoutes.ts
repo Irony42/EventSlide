@@ -1,7 +1,6 @@
-import { Router, type Request } from 'express'
+import { Router, type Request, type RequestHandler } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
-import { guestInviteLimiter } from '../middleware/rateLimit'
 import { toGuestInvitePageDto } from '../presenters/presenters'
 import { sendError, sendJson, sendResult } from '../presenters/send'
 import { serveRanged } from '../presenters/serveRanged'
@@ -25,6 +24,8 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
 
 export interface GuestInvitePublicRouteDeps extends Omit<RouteDeps, 'usecases'> {
   readonly usecases: Pick<HttpUseCases, 'viewGuestInvite' | 'getGuestInviteLogoMedia'>
+  /** The one read limiter of `/api/i`, built by `server.ts` and shared with the replies' router. */
+  readonly inviteReadLimiter: RequestHandler
 }
 
 /** A token that is not token-shaped is answered exactly as a dead one. */
@@ -33,9 +34,11 @@ const tokenOf = (req: Request): string | null => {
   return parsed.success ? parsed.data.token : null
 }
 
-export const guestInvitePublicRoutes = ({ deps, usecases }: GuestInvitePublicRouteDeps): Router => {
+export const guestInvitePublicRoutes = ({
+  usecases,
+  inviteReadLimiter: limit,
+}: GuestInvitePublicRouteDeps): Router => {
   const router = Router()
-  const limit = guestInviteLimiter(deps.config.rateLimits.guestInvitePerMinute)
   const notAvailable = (): DomainError => DomainError.notFound('guestInvite.notAvailable')
 
   router.get(

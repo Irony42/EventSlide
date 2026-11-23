@@ -110,6 +110,7 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
     galleryPerMinute: 60,
     galleryMediaPerMinute: 600,
     guestInvitePerMinute: 200,
+    guestRsvpWritePerMinute: 30,
     galleryUnlockPerClient: 10,
     galleryUnlockPerLink: 50,
     eventCreationPerHour: 20,

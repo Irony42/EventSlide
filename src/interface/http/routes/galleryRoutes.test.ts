@@ -843,6 +843,7 @@ const limits = () => ({
   uploadPerIpPerMinute: 300,
   joinPerMinute: 20,
   guestInvitePerMinute: 200,
+  guestRsvpWritePerMinute: 30,
   loginPerMinute: 10,
   reactionPerMinute: 30,
   reactionPerIpPerMinute: 600,

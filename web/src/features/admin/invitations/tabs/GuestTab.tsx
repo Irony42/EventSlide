@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { GuestInvitation } from '../../../../app/GuestInvitation'
+import { NO_RSVP_PAGE } from '../../../../lib/rsvp/rsvpDraft'
 import { Button } from '../../../../design-system/components/Button'
 import { Notice } from '../../../../design-system/components/Notice'
 import { useToast } from '../../../../design-system/components/useToast'
@@ -53,6 +54,8 @@ export function GuestTab({ event, invite, children }: OutputProps) {
     ...(moment === 'over' ? {} : { address: invite.address, message: invite.message }),
     language: invite.language,
     accentHue: event.settings.theme.accentHue,
+    // The host's own preview shows no answering block until the panel of the replies exists.
+    rsvp: { ...NO_RSVP_PAGE },
     ...(moment === 'joinable' ? { joinUrl: `/join/${event.joinCode}` } : {}),
   }
 
@@ -121,7 +124,7 @@ export function GuestTab({ event, invite, children }: OutputProps) {
           >
             <div inert>
               <LocaleOverride locale={language}>
-                <GuestInvitation page={page} token="preview" readAt={readAt} />
+                <GuestInvitation page={page} token="preview" readAt={readAt} interactive={false} />
               </LocaleOverride>
             </div>
           </div>

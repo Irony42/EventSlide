@@ -3,8 +3,13 @@ import type { RsvpSettings } from '../../../domain/guestRsvps/rsvpSettings'
 import type { RsvpStats } from '../../../domain/guestRsvps/rsvpStats'
 import type { RsvpForm } from '../../../domain/guestRsvps/rsvpForm'
 import type { RsvpFormView } from '../../../application/usecases/guestRsvps/getRsvpForm'
+import type { GuestRsvpPageView } from '../../../application/usecases/guestInvites/viewGuestInvite'
 import type { RsvpList } from '../../../application/usecases/guestRsvps/listRsvps'
 import type {
+  GuestOwnRsvpDto,
+  GuestOwnRsvpResponseDto,
+  GuestRsvpCreatedDto,
+  GuestRsvpPageDto,
   RsvpDto,
   RsvpFormDto,
   RsvpFormResponseDto,
@@ -104,4 +109,38 @@ export const toRsvpListResponseDto = (view: RsvpList): RsvpListResponseDto => ({
   rsvps: view.rsvps.map(toRsvpDto),
   stats: toStatsDto(view.stats),
   unseen: view.unseen,
+})
+
+/** What a guest reads of their own reply: nothing they could not already have typed. */
+export const toGuestOwnRsvpDto = (rsvp: GuestRsvp): GuestOwnRsvpDto => ({
+  name: rsvp.name,
+  answer: rsvp.answer,
+  adults: rsvp.adults,
+  kids: rsvp.kids,
+  diet: rsvp.diet,
+  message: rsvp.message,
+  updatedAt: rsvp.updatedAt.toISOString(),
+})
+
+export const toGuestOwnRsvpResponseDto = (rsvp: GuestRsvp): GuestOwnRsvpResponseDto => ({
+  rsvp: toGuestOwnRsvpDto(rsvp),
+})
+
+/** `201`: the reply, and the token to keep, shown once. */
+export const toGuestRsvpCreatedDto = (created: {
+  readonly rsvp: GuestRsvp
+  readonly editToken: string
+}): GuestRsvpCreatedDto => ({
+  ...toGuestOwnRsvpResponseDto(created.rsvp),
+  editToken: created.editToken,
+})
+
+/** What the invitation page says about answering: the form the guest must see, and the proof if the host chose one. */
+export const toGuestRsvpPageDto = (view: GuestRsvpPageView): GuestRsvpPageDto => ({
+  state: view.state,
+  deadline: view.deadline,
+  form: view.form,
+  ...(view.proof === null
+    ? {}
+    : { proof: { count: view.proof.count, names: [...view.proof.names] } }),
 })

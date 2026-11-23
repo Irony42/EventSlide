@@ -22,6 +22,7 @@ interface RecordedCall {
   readonly query?: Readonly<Record<string, string | number | undefined>>
   readonly form?: FormData
   readonly signal?: AbortSignal
+  readonly headers?: Readonly<Record<string, string>>
   readonly onProgress?: (progress: UploadProgress) => void
 }
 
@@ -41,24 +42,62 @@ const recorder: Transport = {
     path: string,
     query?: Readonly<Record<string, string | number | undefined>>,
     signal?: AbortSignal,
+    headers?: Readonly<Record<string, string>>,
   ): Promise<T> => {
-    calls.push({ verb: 'get', path, ...(query ? { query } : {}), ...(signal ? { signal } : {}) })
+    calls.push({
+      verb: 'get',
+      path,
+      ...(query ? { query } : {}),
+      ...(signal ? { signal } : {}),
+      ...(headers ? { headers } : {}),
+    })
     return reply as T
   },
-  post: async <T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
-    calls.push({ verb: 'post', path, body, ...(signal ? { signal } : {}) })
+  post: async <T>(
+    path: string,
+    body?: unknown,
+    signal?: AbortSignal,
+    headers?: Readonly<Record<string, string>>,
+  ): Promise<T> => {
+    calls.push({
+      verb: 'post',
+      path,
+      body,
+      ...(signal ? { signal } : {}),
+      ...(headers ? { headers } : {}),
+    })
     return reply as T
   },
-  put: async <T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
-    calls.push({ verb: 'put', path, body, ...(signal ? { signal } : {}) })
+  put: async <T>(
+    path: string,
+    body?: unknown,
+    signal?: AbortSignal,
+    headers?: Readonly<Record<string, string>>,
+  ): Promise<T> => {
+    calls.push({
+      verb: 'put',
+      path,
+      body,
+      ...(signal ? { signal } : {}),
+      ...(headers ? { headers } : {}),
+    })
     return reply as T
   },
   patch: async <T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
     calls.push({ verb: 'patch', path, body, ...(signal ? { signal } : {}) })
     return reply as T
   },
-  del: async <T>(path: string, signal?: AbortSignal): Promise<T> => {
-    calls.push({ verb: 'del', path, ...(signal ? { signal } : {}) })
+  del: async <T>(
+    path: string,
+    signal?: AbortSignal,
+    headers?: Readonly<Record<string, string>>,
+  ): Promise<T> => {
+    calls.push({
+      verb: 'del',
+      path,
+      ...(signal ? { signal } : {}),
+      ...(headers ? { headers } : {}),
+    })
     return reply as T
   },
   upload: async <T>(
@@ -756,6 +795,32 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.guestInvitePage('7QX0M4TZ2KD9WB3H'),
   },
   {
+    name: 'guestRsvpCreate',
+    verb: 'post',
+    path: '/api/i/7QX0M4TZ2KD9WB3H/rsvp',
+    invoke: (client) =>
+      client.guestRsvpCreate('7QX0M4TZ2KD9WB3H', { name: 'Léa Martin', answer: 'yes', adults: 2 }),
+  },
+  {
+    name: 'guestRsvp',
+    verb: 'get',
+    path: '/api/i/7QX0M4TZ2KD9WB3H/rsvp',
+    invoke: (client) => client.guestRsvp('7QX0M4TZ2KD9WB3H', 'edit-token'),
+  },
+  {
+    name: 'guestRsvpUpdate',
+    verb: 'put',
+    path: '/api/i/7QX0M4TZ2KD9WB3H/rsvp',
+    invoke: (client) =>
+      client.guestRsvpUpdate('7QX0M4TZ2KD9WB3H', 'edit-token', { name: 'Léa', answer: 'no' }),
+  },
+  {
+    name: 'guestRsvpDelete',
+    verb: 'del',
+    path: '/api/i/7QX0M4TZ2KD9WB3H/rsvp',
+    invoke: (client) => client.guestRsvpDelete('7QX0M4TZ2KD9WB3H', 'edit-token'),
+  },
+  {
     name: 'guestInvite',
     verb: 'get',
     path: `/api/events/${SLUG}/guest-invite`,
@@ -945,6 +1010,31 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.siteResetPassword(ACCOUNT, { locale: 'fr' }),
   },
 ]
+
+describe('the token of a guest’s own reply (spec 30)', () => {
+  const INVITE = '7QX0M4TZ2KD9WB3H'
+
+  it('travels in the X-Rsvp-Token header of the read, the change and the deletion, never in a path', async () => {
+    const client = subject()
+
+    await client.guestRsvp(INVITE, 'tok/en')
+    await client.guestRsvpUpdate(INVITE, 'tok/en', { name: 'Léa', answer: 'no' })
+    await client.guestRsvpDelete(INVITE, 'tok/en')
+
+    expect(calls.map((call) => call.headers)).toEqual([
+      { 'X-Rsvp-Token': 'tok/en' },
+      { 'X-Rsvp-Token': 'tok/en' },
+      { 'X-Rsvp-Token': 'tok/en' },
+    ])
+    expect(calls.map((call) => call.path).join(' ')).not.toContain('tok')
+  })
+
+  it('is not sent with the creation, which has none yet: the server mints it', async () => {
+    await subject().guestRsvpCreate(INVITE, { name: 'Léa', answer: 'yes' })
+
+    expect(calls[0]?.headers).toBeUndefined()
+  })
+})
 
 describe('every endpoint addresses the documented method and path', () => {
   it.each(ENDPOINTS)('$name → $verb $path', async ({ verb, path, invoke }) => {

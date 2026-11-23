@@ -264,3 +264,116 @@ describe('the guests replies, through the real container', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM guest_rsvps').get()).toEqual({ n: 0 })
   })
 })
+
+describe('a guest’s side of the replies, through the real container', () => {
+  /** The invitation's token and a browser that has opened its page (so it holds the CSRF cookie). */
+  const guestBrowser = async () => {
+    const world = await boot()
+    await world.agent
+      .put(`${BASE}/rsvp-form`)
+      .set(CSRF_HEADER, world.csrf())
+      .send({ enabled: true })
+      .expect(200)
+    const url = (await world.agent.get(`${BASE}/guest-invite`)).body.guestInvite.url as string
+    const invite = url.split('/i/')[1] ?? ''
+    const guest = request.agent(world.booted.app)
+    const page = await guest.get(`/api/i/${invite}`)
+    const cookie = csrfOf(page.headers) ?? ''
+    return { ...world, guest, invite, page, cookie, reply: `/api/i/${invite}/rsvp` }
+  }
+
+  it('answers, reads, changes and erases a reply with the token in a header, and the host sees it', async () => {
+    const { db, agent, guest, page, cookie, reply } = await guestBrowser()
+    expect(page.body.rsvp.state).toBe('open')
+
+    const created = await guest
+      .post(reply)
+      .set(CSRF_HEADER, cookie)
+      .send({ name: 'Hugo Roux', answer: 'yes', adults: 2, diet: 'noix' })
+    expect(created.status, JSON.stringify(created.body)).toBe(201)
+    const editToken = created.body.editToken as string
+
+    // Only the digest is stored; the host's list carries the reply and never the token.
+    const stored = db.prepare('SELECT edit_token_hash, source FROM guest_rsvps').get() as {
+      edit_token_hash: string
+      source: string
+    }
+    expect(stored.source).toBe('open')
+    expect(stored.edit_token_hash).toMatch(/^[0-9a-f]{64}$/)
+    expect(stored.edit_token_hash).not.toBe(editToken)
+    const listed = await agent.get(`${BASE}/rsvps`)
+    expect(listed.body.rsvps).toHaveLength(1)
+    expect(JSON.stringify(listed.body)).not.toContain(editToken)
+
+    const read = await guest.get(reply).set('X-Rsvp-Token', editToken)
+    expect(read.body.rsvp).toMatchObject({ name: 'Hugo Roux', adults: 2 })
+    const changed = await guest
+      .put(reply)
+      .set(CSRF_HEADER, cookie)
+      .set('X-Rsvp-Token', editToken)
+      .send({ name: 'Hugo R.', answer: 'no' })
+    expect(changed.body.rsvp).toMatchObject({ name: 'Hugo R.', answer: 'no' })
+
+    const erased = await guest.delete(reply).set(CSRF_HEADER, cookie).set('X-Rsvp-Token', editToken)
+    expect(erased.status).toBe(204)
+    expect(db.prepare('SELECT COUNT(*) AS n FROM guest_rsvps').get()).toEqual({ n: 0 })
+  })
+
+  it('refuses a change to a reply deleted meanwhile, and does not store it again', async () => {
+    const { db, guest, cookie, reply } = await guestBrowser()
+    const created = await guest
+      .post(reply)
+      .set(CSRF_HEADER, cookie)
+      .send({ name: 'Hugo Roux', answer: 'yes', adults: 1 })
+    const editToken = created.body.editToken as string
+    await guest.delete(reply).set(CSRF_HEADER, cookie).set('X-Rsvp-Token', editToken).expect(204)
+
+    const late = await guest
+      .put(reply)
+      .set(CSRF_HEADER, cookie)
+      .set('X-Rsvp-Token', editToken)
+      .send({ name: 'Hugo Roux', answer: 'yes', adults: 1 })
+
+    expect([late.status, late.body.error.code]).toEqual([404, 'rsvp.notFound'])
+    expect(db.prepare('SELECT COUNT(*) AS n FROM guest_rsvps').get()).toEqual({ n: 0 })
+  })
+
+  it('stores nothing for a honeypot, takes 4 KB and not more, and needs the CSRF header', async () => {
+    const { db, guest, cookie, reply } = await guestBrowser()
+    const answer = { name: 'Bot', answer: 'yes', adults: 1 }
+
+    const trapped = await guest
+      .post(reply)
+      .set(CSRF_HEADER, cookie)
+      .send({ ...answer, website: 'x' })
+    const large = await guest
+      .post(reply)
+      .set(CSRF_HEADER, cookie)
+      .send({ ...answer, message: 'a'.repeat(5_000) })
+    const bare = await guest.post(reply).send(answer)
+
+    expect(trapped.status).toBe(201)
+    expect([large.status, large.body.error.code]).toEqual([413, 'request.tooLarge'])
+    expect(bare.status).toBe(403)
+    expect(db.prepare('SELECT COUNT(*) AS n FROM guest_rsvps').get()).toEqual({ n: 0 })
+  })
+
+  it('stops answering once the host closes the replies, and keeps the right to erase', async () => {
+    const { agent, csrf, guest, cookie, reply } = await guestBrowser()
+    const created = await guest
+      .post(reply)
+      .set(CSRF_HEADER, cookie)
+      .send({ name: 'Hugo Roux', answer: 'yes', adults: 1 })
+    const editToken = created.body.editToken as string
+    await agent.post(`${BASE}/rsvp-form/close`).set(CSRF_HEADER, csrf()).send({}).expect(200)
+
+    const late = await guest
+      .post(reply)
+      .set(CSRF_HEADER, cookie)
+      .send({ name: 'Tom', answer: 'no' })
+    const erased = await guest.delete(reply).set(CSRF_HEADER, cookie).set('X-Rsvp-Token', editToken)
+
+    expect([late.status, late.body.error.code]).toEqual([409, 'rsvp.closed'])
+    expect(erased.status).toBe(204)
+  })
+})

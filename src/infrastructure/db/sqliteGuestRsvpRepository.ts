@@ -94,6 +94,37 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
       .map(toRsvp)
   }
 
+  async count(eventId: EventId): Promise<number> {
+    const row = this.db
+      .prepare<[string], { readonly n: number }>(
+        `SELECT COUNT(*) AS n FROM guest_rsvps WHERE event_id = ?`,
+      )
+      .get(eventId)
+    return row?.n ?? 0
+  }
+
+  async yesPeople(eventId: EventId): Promise<number> {
+    const row = this.db
+      .prepare<[string], { readonly n: number }>(
+        `SELECT COALESCE(SUM(adults + kids), 0) AS n FROM guest_rsvps
+          WHERE event_id = ? AND answer = 'yes'`,
+      )
+      .get(eventId)
+    return row?.n ?? 0
+  }
+
+  async showNames(eventId: EventId, limit: number): Promise<readonly string[]> {
+    // The ordering of `namesToShow`: oldest first, the smaller id on a tie. `details` is JSON.
+    return this.db
+      .prepare<[string, number], { readonly name: string }>(
+        `SELECT name FROM guest_rsvps
+          WHERE event_id = ? AND answer = 'yes' AND json_extract(details, '$.showName') = 1
+          ORDER BY created_at ASC, id ASC LIMIT ?`,
+      )
+      .all(eventId, limit)
+      .map((row) => row.name)
+  }
+
   async findById(eventId: EventId, id: GuestRsvpId): Promise<GuestRsvp | null> {
     const row = this.db
       .prepare<[string, string], RsvpRow>(
@@ -158,6 +189,7 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
           byId.get(rsvp.eventId, rsvp.id) ??
           (rsvp.householdId === null ? undefined : byHousehold.get(rsvp.eventId, rsvp.householdId))
         const existing = found === undefined ? undefined : toRsvp(found)
+        if (existing === undefined && limits.changeOnly === true) return { kind: 'gone' }
 
         const refusal = rsvpRefusalFor({
           isNew: existing === undefined,

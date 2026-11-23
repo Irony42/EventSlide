@@ -140,8 +140,14 @@ const readCookie = (name: string): string | null => {
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
-const headersFor = (method: string, body: unknown, csrfToken?: string): HeadersInit => {
-  const headers: Record<string, string> = { accept: 'application/json' }
+const headersFor = (
+  method: string,
+  body: unknown,
+  csrfToken?: string,
+  extra?: Readonly<Record<string, string>>,
+): HeadersInit => {
+  // A header of the caller's own (a guest's reply token, spec 30) goes first: it never overrides ours.
+  const headers: Record<string, string> = { ...extra, accept: 'application/json' }
   if (body !== undefined && !(body instanceof FormData)) {
     headers['content-type'] = 'application/json'
   }
@@ -247,6 +253,8 @@ interface RequestOptions {
   signal?: AbortSignal
   /** The token to send instead of the one `document.cookie` holds: a retry's, see {@link echoedToken}. */
   csrfToken?: string
+  /** Extra request headers: a secret that must not travel in a path or a query. */
+  headers?: Readonly<Record<string, string>>
 }
 
 const send = async <T>(method: string, path: string, options: RequestOptions): Promise<T> => {
@@ -257,7 +265,7 @@ const send = async <T>(method: string, path: string, options: RequestOptions): P
     method,
     // Session cookie for a host, device-token cookie for a guest.
     credentials: 'same-origin',
-    headers: headersFor(method, options.body, options.csrfToken),
+    headers: headersFor(method, options.body, options.csrfToken, options.headers),
     ...(options.body === undefined
       ? {}
       : {
@@ -595,11 +603,22 @@ export interface Transport {
     path: string,
     query?: Readonly<Record<string, string | number | undefined>>,
     signal?: AbortSignal,
+    headers?: Readonly<Record<string, string>>,
   ): Promise<T>
-  post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>
-  put<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>
+  post<T>(
+    path: string,
+    body?: unknown,
+    signal?: AbortSignal,
+    headers?: Readonly<Record<string, string>>,
+  ): Promise<T>
+  put<T>(
+    path: string,
+    body?: unknown,
+    signal?: AbortSignal,
+    headers?: Readonly<Record<string, string>>,
+  ): Promise<T>
   patch<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>
-  del<T>(path: string, signal?: AbortSignal): Promise<T>
+  del<T>(path: string, signal?: AbortSignal, headers?: Readonly<Record<string, string>>): Promise<T>
   upload<T>(
     path: string,
     form: FormData,
@@ -610,24 +629,34 @@ export interface Transport {
 }
 
 export const http: Transport = {
-  get: (path, query, signal) =>
-    request('GET', path, { ...(query ? { query } : {}), ...(signal ? { signal } : {}) }),
-  post: (path, body, signal) =>
+  get: (path, query, signal, headers) =>
+    request('GET', path, {
+      ...(query ? { query } : {}),
+      ...(signal ? { signal } : {}),
+      ...(headers ? { headers } : {}),
+    }),
+  post: (path, body, signal, headers) =>
     request('POST', path, {
       ...(body !== undefined ? { body } : {}),
       ...(signal ? { signal } : {}),
+      ...(headers ? { headers } : {}),
     }),
-  put: (path, body, signal) =>
+  put: (path, body, signal, headers) =>
     request('PUT', path, {
       ...(body !== undefined ? { body } : {}),
       ...(signal ? { signal } : {}),
+      ...(headers ? { headers } : {}),
     }),
   patch: (path, body, signal) =>
     request('PATCH', path, {
       ...(body !== undefined ? { body } : {}),
       ...(signal ? { signal } : {}),
     }),
-  del: (path, signal) => request('DELETE', path, signal ? { signal } : {}),
+  del: (path, signal, headers) =>
+    request('DELETE', path, {
+      ...(signal ? { signal } : {}),
+      ...(headers ? { headers } : {}),
+    }),
   upload,
   download,
 }

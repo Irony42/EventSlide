@@ -11,6 +11,7 @@ import { FakeClientRepository } from './fakeClientRepository'
 import { FakeClock } from './fakeClock'
 import { FakeEventRepository } from './fakeEventRepository'
 import { FakeGuestInviteRepository } from './fakeGuestInviteRepository'
+import { FakeGuestRsvpRepository } from './fakeGuestRsvpRepository'
 import { FakeMembershipRepository } from './fakeMembershipRepository'
 import { SequentialIdGenerator } from './sequentialIdGenerator'
 
@@ -93,6 +94,6 @@ export const guestInviteScene = async (): Promise<GuestInviteScene> => {
     enable: makeEnableGuestInvite({ events, memberships, invites, audit, clock }),
     disable: makeDisableGuestInvite({ events, memberships, invites, audit, clock }),
     rotate: makeRotateGuestInviteToken({ events, memberships, invites, audit, ids, clock }),
-    view: makeViewGuestInvite({ events, invites }),
+    view: makeViewGuestInvite({ events, invites, rsvps: new FakeGuestRsvpRepository(), clock }),
   }
 }
