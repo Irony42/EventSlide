@@ -1090,7 +1090,9 @@ describe('the replies page: coming from the guest list', () => {
     expect(within(dialog).getByRole('heading', { name: 'Léa Martin' })).toBeInTheDocument()
     // Opened once: closed by the host, it stays closed when the replies are read again.
     const user = userEvent.setup()
-    await user.click(within(dialog).getByRole('button', { name: text.closeDetail, exact: true }))
+    await user.click(
+      within(dialog).getByRole('button', { name: new RegExp(`^${text.closeDetail}$`) }),
+    )
     signal('rsvp.changed')
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
