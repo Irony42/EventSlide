@@ -131,6 +131,30 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
     return true
   }
 
+  async setHousehold(
+    eventId: EventId,
+    id: GuestRsvpId,
+    householdId: string | null,
+  ): Promise<'set' | 'taken' | 'gone'> {
+    const stored = this.rows.get(key(eventId, id))
+    if (stored === undefined) return 'gone'
+    if (
+      householdId !== null &&
+      this.inEvent(eventId).some((row) => row.id !== id && row.householdId === householdId)
+    ) {
+      return 'taken'
+    }
+    this.rows.set(key(eventId, id), stored.withHousehold(householdId))
+    return 'set'
+  }
+
+  /** Not on the port: the households' `delete` does this in its own transaction (the fake's household repository calls it). */
+  async detachHousehold(eventId: EventId, householdId: string): Promise<number> {
+    const attached = this.inEvent(eventId).filter((row) => row.householdId === householdId)
+    for (const row of attached) this.rows.set(key(eventId, row.id), row.withHousehold(null))
+    return attached.length
+  }
+
   async count(eventId: EventId): Promise<number> {
     return this.inEvent(eventId).length
   }

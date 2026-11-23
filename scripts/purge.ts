@@ -62,6 +62,7 @@ import { createFsMediaStore } from '../src/infrastructure/media/fsMediaStore'
 import { systemClock } from '../src/infrastructure/time/systemClock'
 import { isTooDangerousToSweep, MEDIA_SWEEP_MIN_AGE_MS } from '../src/main/mediaSweeper'
 import { makePurgeExpiredRsvps } from '../src/application/usecases/guestRsvps/purgeExpiredRsvps'
+import { SqliteGuestHouseholdRepository } from '../src/infrastructure/db/sqliteGuestHouseholdRepository'
 import { SqliteGuestRsvpRepository } from '../src/infrastructure/db/sqliteGuestRsvpRepository'
 import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
 
@@ -174,6 +175,7 @@ const execute = async (
         }),
         purgeExpiredRsvps: makePurgeExpiredRsvps({
           rsvps: new SqliteGuestRsvpRepository(db),
+          households: new SqliteGuestHouseholdRepository(db),
           clock: systemClock,
         }),
         pruneAuditLog: makePruneAuditLog({

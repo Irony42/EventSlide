@@ -337,7 +337,7 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       })
       const stored = await scene.rsvps.listByEvent(WEDDING)
       expect(stored).toHaveLength(1)
-      expect(stored[0]?.editTokenHash).toBe(scene.secrets.digestOf(editToken))
+      expect(stored[0]?.editTokenHash).toBe(scene.secrets.digestOf(editToken ?? ''))
       expect(signals()).toHaveLength(2)
     })
 

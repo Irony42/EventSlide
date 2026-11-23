@@ -20,6 +20,7 @@ import { SqliteGuestbookRepository } from '../infrastructure/db/sqliteGuestbookR
 import { SqliteGuestbookVoiceRepository } from '../infrastructure/db/sqliteGuestbookVoiceRepository'
 import { SqliteAnnouncementRepository } from '../infrastructure/db/sqliteAnnouncementRepository'
 import { SqliteGuestInviteRepository } from '../infrastructure/db/sqliteGuestInviteRepository'
+import { SqliteGuestHouseholdRepository } from '../infrastructure/db/sqliteGuestHouseholdRepository'
 import { SqliteGuestRsvpRepository } from '../infrastructure/db/sqliteGuestRsvpRepository'
 import { SqliteChallengeRepository } from '../infrastructure/db/sqliteChallengeRepository'
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
@@ -544,6 +545,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     announcements: new SqliteAnnouncementRepository(db),
     guestInvites: new SqliteGuestInviteRepository(db),
     guestRsvps: new SqliteGuestRsvpRepository(db),
+    guestHouseholds: new SqliteGuestHouseholdRepository(db),
     guestbook: new SqliteGuestbookRepository(db),
     voices: new SqliteGuestbookVoiceRepository(db),
     users: new SqliteUserRepository(db),

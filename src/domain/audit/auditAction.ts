@@ -182,6 +182,12 @@ export const AUDIT_ACTIONS = {
   'event.rsvpHostDeleted': { subject: 'event', details: {} },
   /** The owner downloaded the replies as a spreadsheet (`exportRsvps`, spec 30): the list holds names and diets. */
   'event.rsvpsExported': { subject: 'event', details: {} },
+  /** The owner pasted a list of households (`importHouseholds`, spec 30, lot 3). Never a name. */
+  'event.householdsImported': { subject: 'event', details: {} },
+  /** The owner deleted a household (`deleteHousehold`): its reply stays, detached. */
+  'event.householdDeleted': { subject: 'event', details: {} },
+  /** The owner changed a household's link (`rotateHouseholdToken`): the old one is dead. */
+  'event.householdTokenRotated': { subject: 'event', details: {} },
   /** An operator lifted a suspension (`resumeClient`, G2-14). */
   'client.resumed': { subject: 'client', details: {} },
   /**

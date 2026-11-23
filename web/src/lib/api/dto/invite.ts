@@ -150,6 +150,8 @@ export interface RsvpFormResponseDto {
 /** One reply as the host reads it. The guest's edit token is never part of it. */
 export interface RsvpDto {
   readonly id: string
+  /** The household of the guest list this reply answers for (lot 3), or `null`. */
+  readonly householdId: string | null
   readonly name: string
   readonly answer: 'yes' | 'maybe' | 'no' | 'waitlist'
   readonly adults: number
@@ -189,6 +191,8 @@ export interface RsvpStatsDto {
   readonly waitlist: { readonly responses: number; readonly people: number }
   readonly diets: readonly { readonly name: string; readonly diet: string }[]
   readonly meals: readonly { readonly label: string; readonly count: number }[]
+  /** Households of the guest list with no reply, and the places kept for them (lot 3). */
+  readonly noReply: { readonly households: number; readonly places: number }
 }
 
 /** `GET /events/:slug/rsvps`: the replies page, with the settings beside it. */

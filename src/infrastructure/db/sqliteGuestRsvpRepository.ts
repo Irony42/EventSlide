@@ -249,6 +249,34 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
     return result.changes > 0
   }
 
+  async setHousehold(
+    eventId: EventId,
+    id: GuestRsvpId,
+    householdId: string | null,
+  ): Promise<'set' | 'taken' | 'gone'> {
+    const exists = this.db.prepare<[string, string], { readonly id: string }>(
+      `SELECT id FROM guest_rsvps WHERE event_id = ? AND id = ?`,
+    )
+    const taken = this.db.prepare<[string, string, string], { readonly id: string }>(
+      `SELECT id FROM guest_rsvps WHERE event_id = ? AND household_id = ? AND id <> ?`,
+    )
+    const set = this.db.prepare<[string | null, string, string]>(
+      `UPDATE guest_rsvps SET household_id = ? WHERE event_id = ? AND id = ?`,
+    )
+    // One write transaction: the check and the write cannot be split by another reply (the
+    // partial unique index is the last line, this is the answer a caller can read).
+    return this.db
+      .transaction((): 'set' | 'taken' | 'gone' => {
+        if (exists.get(eventId, id) === undefined) return 'gone'
+        if (householdId !== null && taken.get(eventId, householdId, id) !== undefined) {
+          return 'taken'
+        }
+        set.run(householdId, eventId, id)
+        return 'set'
+      })
+      .immediate()
+  }
+
   async unseenCount(eventId: EventId, userId: UserId): Promise<number> {
     // No membership, no "seen" instant to count from, and no badge to show: none.
     const row = this.db

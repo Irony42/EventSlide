@@ -377,3 +377,170 @@ describe('a guest’s side of the replies, through the real container', () => {
     expect(erased.status).toBe(204)
   })
 })
+
+describe('the guest list, through the real container (spec 30, lot 3)', () => {
+  const guestBrowser = async () => {
+    const world = await boot()
+    await world.agent
+      .put(`${BASE}/rsvp-form`)
+      .set(CSRF_HEADER, world.csrf())
+      .send({ enabled: true })
+      .expect(200)
+    const url = (await world.agent.get(`${BASE}/guest-invite`)).body.guestInvite.url as string
+    const invite = url.split('/i/')[1] ?? ''
+    const guest = request.agent(world.booted.app)
+    const cookie = csrfOf((await guest.get(`/api/i/${invite}`)).headers) ?? ''
+    return { ...world, guest, invite, cookie, reply: `/api/i/${invite}/rsvp` }
+  }
+
+  it('pastes a list, hands each household its link, takes its answer, and the host sees who has not answered', async () => {
+    const { db, agent, csrf, guest, invite, cookie, reply } = await guestBrowser()
+
+    const pasted = await agent
+      .post(`${BASE}/households/import`)
+      .set(CSRF_HEADER, csrf())
+      .send({ text: 'Famille Martin ; 4\nLéa Durand ; 2\nHugo Roux ; 1' })
+    expect(pasted.status, JSON.stringify(pasted.body)).toBe(201)
+    const [martin, durand] = pasted.body.households as { id: string; token: string }[]
+    expect(new Set(pasted.body.households.map((h: { token: string }) => h.token)).size).toBe(3)
+    expect(
+      db.prepare('SELECT COUNT(*) AS n FROM guest_households WHERE token = ?').get(martin?.token),
+    ).toEqual({ n: 1 })
+
+    const opened = await guest
+      .get(`/api/i/${invite}/household`)
+      .set('X-Household-Token', martin?.token ?? '')
+    expect(opened.body).toEqual({ household: { name: 'Famille Martin', places: 4 } })
+    const answered = await guest
+      .post(reply)
+      .set(CSRF_HEADER, cookie)
+      .set('X-Household-Token', martin?.token ?? '')
+      .send({ name: 'Famille Martin', answer: 'yes', adults: 3, kids: 1 })
+    expect(answered.status, JSON.stringify(answered.body)).toBe(201)
+    expect(answered.body).not.toHaveProperty('editToken')
+    expect(
+      db.prepare('SELECT household_id, source, edit_token_hash FROM guest_rsvps').get(),
+    ).toEqual({
+      household_id: martin?.id,
+      source: 'household',
+      edit_token_hash: null,
+    })
+
+    const listed = await agent.get(`${BASE}/rsvps`)
+    expect(listed.body.stats.noReply).toEqual({ households: 2, places: 3 })
+    const households = await agent.get(`${BASE}/households`)
+    expect(households.body.households.map((h: { reply: unknown }) => h.reply)).toEqual([
+      { id: listed.body.rsvps[0].id, answer: 'yes', people: 4 },
+      null,
+      null,
+    ])
+    expect(durand?.id).toBeDefined()
+  })
+
+  it('kills the old link when the host changes it, and keeps the reply it had', async () => {
+    const { agent, csrf, guest, invite, cookie, reply } = await guestBrowser()
+    const added = await agent
+      .post(`${BASE}/households`)
+      .set(CSRF_HEADER, csrf())
+      .send({ name: 'Famille Martin', places: 4 })
+    const { id, token } = added.body.household as { id: string; token: string }
+    await guest
+      .post(reply)
+      .set(CSRF_HEADER, cookie)
+      .set('X-Household-Token', token)
+      .send({ name: 'Famille Martin', answer: 'yes', adults: 2 })
+      .expect(201)
+
+    const rotated = await agent
+      .post(`${BASE}/households/${id}/rotate`)
+      .set(CSRF_HEADER, csrf())
+      .send({})
+    const fresh = rotated.body.household.token as string
+
+    const stale = await guest.get(`/api/i/${invite}/household`).set('X-Household-Token', token)
+    const current = await guest.get(`/api/i/${invite}/household`).set('X-Household-Token', fresh)
+    expect(stale.status).toBe(404)
+    expect(current.body.household.rsvp).toMatchObject({ name: 'Famille Martin', adults: 2 })
+  })
+
+  it('detaches the reply of a household that is deleted, and keeps it in the list of replies', async () => {
+    const { db, agent, csrf, guest, cookie, reply } = await guestBrowser()
+    const added = await agent
+      .post(`${BASE}/households`)
+      .set(CSRF_HEADER, csrf())
+      .send({ name: 'Famille Martin', places: 4 })
+    const { id, token } = added.body.household as { id: string; token: string }
+    await guest
+      .post(reply)
+      .set(CSRF_HEADER, cookie)
+      .set('X-Household-Token', token)
+      .send({ name: 'Famille Martin', answer: 'yes', adults: 2 })
+      .expect(201)
+
+    await agent.delete(`${BASE}/households/${id}`).set(CSRF_HEADER, csrf()).expect(204)
+
+    expect(db.prepare('SELECT COUNT(*) AS n FROM guest_households').get()).toEqual({ n: 0 })
+    expect(db.prepare('SELECT household_id FROM guest_rsvps').get()).toEqual({ household_id: null })
+    expect(
+      db
+        .prepare(`SELECT COUNT(*) AS n FROM audit_log WHERE action = 'event.householdDeleted'`)
+        .get(),
+    ).toEqual({ n: 1 })
+  })
+
+  it('files a reply under a household through the real one-reply-per-household index', async () => {
+    const { db, agent, csrf } = await guestBrowser()
+    const added = await agent
+      .post(`${BASE}/households`)
+      .set(CSRF_HEADER, csrf())
+      .send({ name: 'Famille Martin', places: 4 })
+    const id = added.body.household.id as string
+    const first = (await agent.post(`${BASE}/rsvps`).set(CSRF_HEADER, csrf()).send(REPLY)).body.rsvp
+    const second = (
+      await agent
+        .post(`${BASE}/rsvps`)
+        .set(CSRF_HEADER, csrf())
+        .send({ ...REPLY, name: 'Autre' })
+    ).body.rsvp
+
+    const filed = await agent
+      .post(`${BASE}/rsvps/${first.id}/household`)
+      .set(CSRF_HEADER, csrf())
+      .send({ householdId: id })
+    const taken = await agent
+      .post(`${BASE}/rsvps/${second.id}/household`)
+      .set(CSRF_HEADER, csrf())
+      .send({ householdId: id })
+
+    expect(filed.status).toBe(200)
+    expect([taken.status, taken.body.error.code]).toEqual([409, 'household.alreadyAnswered'])
+    expect(
+      db.prepare('SELECT COUNT(*) AS n FROM guest_rsvps WHERE household_id = ?').get(id),
+    ).toEqual({
+      n: 1,
+    })
+  })
+
+  it('goes with its event, and is erased by the sweep’s use case with the replies, whatever the hold says', async () => {
+    const { booted, db, agent, csrf, eventId } = await guestBrowser()
+    await agent
+      .post(`${BASE}/households/import`)
+      .set(CSRF_HEADER, csrf())
+      .send({ text: 'A ; 2\nB ; 3' })
+      .expect(201)
+    await agent.post(`${BASE}/rsvps`).set(CSRF_HEADER, csrf()).send(REPLY).expect(201)
+    expect(await booted.usecases.purgeExpiredRsvps()).toEqual({ deleted: 0 })
+
+    db.prepare('UPDATE events SET closed_at = ?, purge_held_at = ? WHERE id = ?').run(
+      '2020-01-01T00:00:00.000Z',
+      '2020-02-01T00:00:00.000Z',
+      eventId,
+    )
+
+    expect(await booted.usecases.purgeExpiredRsvps()).toEqual({ deleted: 3 })
+    expect(db.prepare('SELECT COUNT(*) AS n FROM guest_households').get()).toEqual({ n: 0 })
+    await agent.post(`${BASE}/households`).set(CSRF_HEADER, csrf()).send({ name: 'C', places: 1 })
+    db.prepare('DELETE FROM events WHERE id = ?').run(eventId)
+    expect(db.prepare('SELECT COUNT(*) AS n FROM guest_households').get()).toEqual({ n: 0 })
+  })
+})

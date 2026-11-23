@@ -626,6 +626,7 @@ describe('the replies use cases pass a refusal of the audit log back, before the
     const deps = {
       ...base,
       rsvps: scene.rsvps,
+      households: scene.households,
       audit: scene.audit,
       bus: scene.bus,
       clock: scene.clock,

@@ -5,13 +5,20 @@ import {
   type RsvpInput,
 } from '../../../domain/guestRsvps/rsvp'
 import { retainExtras } from '../../../domain/guestRsvps/rsvp'
+import { formForHousehold } from '../../../domain/guestRsvps/household'
 import type { RsvpForm } from '../../../domain/guestRsvps/rsvpForm'
 import { DomainError } from '../../../domain/shared/errors'
-import type { EventId, GuestRsvpId, UserId } from '../../../domain/shared/ids'
+import {
+  asGuestHouseholdId,
+  type EventId,
+  type GuestRsvpId,
+  type UserId,
+} from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
+import type { GuestHouseholdRepository } from '../../ports/guestHouseholdRepository'
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
 import {
   announceRsvpsChanged,
@@ -42,6 +49,7 @@ export interface HostUpdateRsvpInput extends RawRsvpInput {
 
 export interface HostUpdateRsvpDeps extends RsvpAccessDeps {
   readonly rsvps: Pick<GuestRsvpRepository, 'findById' | 'update' | 'unseenCount' | 'markSeen'>
+  readonly households: Pick<GuestHouseholdRepository, 'findById'>
   readonly audit: AuditRecorder
   readonly bus: EventBus
   readonly clock: Clock
@@ -86,7 +94,17 @@ export const makeHostUpdateRsvp =
     const held = await deps.rsvps.findById(eventId, rsvpId)
     if (held === null) return err(DomainError.notFound('rsvp.notFound'))
     const now = deps.clock.now()
-    const { form } = needed.value.settings
+    // A reply filed under a household is judged by that household's form: its places are the ceiling.
+    // A `householdId` that names no household (stale: deleting one detaches its reply in the same
+    // transaction, so this is defensive) falls back to the general form.
+    const household =
+      held.householdId === null
+        ? null
+        : await deps.households.findById(eventId, asGuestHouseholdId(held.householdId))
+    const form =
+      household === null
+        ? needed.value.settings.form
+        : formForHousehold(needed.value.settings.form, household)
 
     // The waiting list is the server's to give, and the host's to keep: `waitlist` sent back for a
     // reply that is on it is judged as a `yes` (the form's rules) and put back as it was.

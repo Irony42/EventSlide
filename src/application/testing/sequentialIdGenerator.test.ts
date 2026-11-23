@@ -117,6 +117,14 @@ describe('SequentialIdGenerator', () => {
     expect(ids.guestRsvpId()).toBe('rsvp-1')
   })
 
+  it('numbers the households from one', async () => {
+    const ids = new SequentialIdGenerator()
+
+    expect([ids.guestHouseholdId(), ids.guestHouseholdId()]).toEqual(['household-1', 'household-2'])
+    ids.reset()
+    expect(ids.guestHouseholdId()).toBe('household-1')
+  })
+
   it('starts over on reset', async () => {
     const ids = new SequentialIdGenerator()
     ids.eventId()

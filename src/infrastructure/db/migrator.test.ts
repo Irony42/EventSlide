@@ -295,6 +295,7 @@ describe('the real schema', () => {
       'event_purge_notices',
       'event_stats_counters',
       'events',
+      'guest_households',
       'guest_invites',
       'guest_rsvps',
       'guestbook_entries',
@@ -4456,6 +4457,126 @@ describe('migration 036: guest replies (RSVP)', () => {
       .all() as { detail: string }[]
 
     expect(plan.map((row) => row.detail).join(' ')).toContain('guest_rsvps_event')
+    closeDatabase(db)
+  })
+})
+
+describe('migration 037: guest households (spec 30, lot 3)', () => {
+  const AT = '2026-11-23T10:00:00.000Z'
+
+  const migratedAt = (id: number): Db => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= id),
+    )
+    return db
+  }
+
+  const seedEvent = (db: Db, id = 'e-one'): void => {
+    db.prepare(
+      `INSERT OR IGNORE INTO users (id, email, password_hash, created_at) VALUES ('u', 'u@example.test', 'x', ?)`,
+    ).run(AT)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+       VALUES (?, 'u', ?, ?, ?, 'live', '{}', 1, ?)`,
+    ).run(id, id, id, id, AT)
+  }
+
+  const insertHousehold = (
+    db: Db,
+    values: Partial<{
+      id: string
+      event: string
+      token: string
+      name: string
+      places: number
+      moments: string | null
+    }> = {},
+  ): void => {
+    const {
+      id = 'h-1',
+      event = 'e-one',
+      token = 'TOKEN000000000AA',
+      name = 'Famille Martin',
+    } = values
+    const { places = 4, moments = null } = values
+    db.prepare(
+      `INSERT INTO guest_households (id, event_id, token, name, places, moments, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(id, event, token, name, places, moments, AT, AT)
+  }
+
+  it('creates the households table and leaves the reply household index to 036', () => {
+    const db = migratedAt(37)
+
+    const columns = (
+      db.prepare(`PRAGMA table_info(guest_households)`).all() as { name: string }[]
+    ).map((column) => column.name)
+    expect(columns).toEqual([
+      'id',
+      'event_id',
+      'token',
+      'name',
+      'places',
+      'moments',
+      'reminded_at',
+      'created_at',
+      'updated_at',
+    ])
+    const indexes = (
+      db.prepare(`PRAGMA index_list(guest_rsvps)`).all() as { name: string }[]
+    ).filter((index) => index.name === 'guest_rsvps_household')
+    expect(indexes).toHaveLength(1)
+    closeDatabase(db)
+  })
+
+  it('keeps the places, the name and the moments inside their bounds', () => {
+    const db = migratedAt(37)
+    seedEvent(db)
+
+    expect(() => insertHousehold(db, { places: 0 })).toThrow(/CHECK constraint failed/)
+    expect(() => insertHousehold(db, { places: 11 })).toThrow(/CHECK constraint failed/)
+    expect(() => insertHousehold(db, { name: '' })).toThrow(/CHECK constraint failed/)
+    expect(() => insertHousehold(db, { name: 'x'.repeat(81) })).toThrow(/CHECK constraint failed/)
+    expect(() => insertHousehold(db, { moments: 'not json' })).toThrow(/CHECK constraint failed/)
+    insertHousehold(db, { id: 'h-ok', places: 10, name: 'x'.repeat(80), moments: '["m-1"]' })
+    closeDatabase(db)
+  })
+
+  it('refuses a token that is not 16 characters long', () => {
+    const db = migratedAt(37)
+    seedEvent(db)
+
+    for (const token of ['', 'SHORT', 'TOKEN000000000AAA']) {
+      expect(() => insertHousehold(db, { token }), token).toThrow(/CHECK constraint failed/)
+    }
+    insertHousehold(db, { token: 'TOKEN000000000AA' })
+    closeDatabase(db)
+  })
+
+  it('never holds two households with the same token', () => {
+    const db = migratedAt(37)
+    seedEvent(db)
+    seedEvent(db, 'e-two')
+
+    insertHousehold(db, { id: 'h-1' })
+    expect(() => insertHousehold(db, { id: 'h-2', event: 'e-two' })).toThrow(/UNIQUE/)
+    closeDatabase(db)
+  })
+
+  it('goes with its event, and is looked up by an index that leads with event_id', () => {
+    const db = migratedAt(37)
+    seedEvent(db)
+    insertHousehold(db)
+
+    const plan = db
+      .prepare(`EXPLAIN QUERY PLAN SELECT * FROM guest_households WHERE event_id = 'e-one'`)
+      .all() as { detail: string }[]
+    expect(plan.map((row) => row.detail).join(' ')).toContain('guest_households_event')
+
+    db.prepare(`DELETE FROM events WHERE id = 'e-one'`).run()
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM guest_households`).get()).toEqual({ n: 0 })
     closeDatabase(db)
   })
 })

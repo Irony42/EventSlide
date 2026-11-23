@@ -426,6 +426,30 @@ describe('a suspended client, through the real composition root', () => {
     { method: 'delete', path: '/api/events/:eventSlug/rsvps/:rsvpId', body: {} },
     // The badge's note is a write of the member's own, and a frozen client's host reads nothing.
     { method: 'post', path: '/api/events/:eventSlug/rsvps/seen', body: {} },
+    // The guest list (spec 30, lot 3): a frozen event's owner reads it and cannot change it, nor delete from it.
+    {
+      method: 'post',
+      path: '/api/events/:eventSlug/households',
+      body: { name: 'Martin', places: 4 },
+    },
+    {
+      method: 'post',
+      path: '/api/events/:eventSlug/households/import',
+      body: { text: 'Martin ; 4' },
+    },
+    {
+      method: 'put',
+      path: '/api/events/:eventSlug/households/:householdId',
+      body: { name: 'Martin', places: 4 },
+    },
+    { method: 'delete', path: '/api/events/:eventSlug/households/:householdId', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/households/:householdId/rotate', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/households/:householdId/reminded', body: {} },
+    {
+      method: 'post',
+      path: '/api/events/:eventSlug/rsvps/:rsvpId/household',
+      body: { householdId: null },
+    },
     // A messaging channel (spec 27): a frozen event keeps its groups until the client is back.
     { method: 'delete', path: '/api/events/:eventSlug/channels/:bindingId', body: {} },
     {

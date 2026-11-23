@@ -26,6 +26,7 @@ const MINTERS: ReadonlyArray<[string, (ids: IdGenerator) => string]> = [
   ['channelBindingId', (ids) => ids.channelBindingId()],
   ['channelMediaJobId', (ids) => ids.channelMediaJobId()],
   ['guestRsvpId', (ids) => ids.guestRsvpId()],
+  ['guestHouseholdId', (ids) => ids.guestHouseholdId()],
 ]
 
 describe('randomIdGenerator', () => {

@@ -122,6 +122,7 @@ describe('the guest’s draft, lot 2', () => {
       draftOfHostReply(
         {
           id: 'r1',
+          householdId: null,
           name: 'Zoé',
           answer: 'yes',
           adults: 2,
@@ -257,6 +258,7 @@ describe('a choice the host changed since the reply was given', () => {
     const host = draftOfHostReply(
       {
         id: 'r1',
+        householdId: null,
         name: 'Zoé',
         answer: 'yes',
         adults: 2,

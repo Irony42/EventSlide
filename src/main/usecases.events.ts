@@ -37,6 +37,16 @@ import {
   makeUpdateOwnRsvp,
   type OwnRsvpDeps,
 } from '../application/usecases/guestRsvps/ownRsvp'
+import { makeAttachRsvpToHousehold } from '../application/usecases/guestRsvps/attachRsvpToHousehold'
+import { makeDeleteHousehold } from '../application/usecases/guestRsvps/deleteHousehold'
+import {
+  makeMarkHouseholdReminded,
+  makeRotateHouseholdToken,
+} from '../application/usecases/guestRsvps/householdActs'
+import { makeImportHouseholds } from '../application/usecases/guestRsvps/importHouseholds'
+import { makeListHouseholds } from '../application/usecases/guestRsvps/listHouseholds'
+import { makeSaveHousehold } from '../application/usecases/guestRsvps/saveHousehold'
+import { makeViewHousehold } from '../application/usecases/guestRsvps/viewHousehold'
 import { makePurgeExpiredRsvps } from '../application/usecases/guestRsvps/purgeExpiredRsvps'
 import { makeGetRsvpForm } from '../application/usecases/guestRsvps/getRsvpForm'
 import { makeSaveRsvpForm } from '../application/usecases/guestRsvps/saveRsvpForm'
@@ -58,6 +68,7 @@ const ownRsvpDeps = (adapters: Adapters): OwnRsvpDeps => ({
   events: adapters.events,
   invites: adapters.guestInvites,
   rsvps: adapters.guestRsvps,
+  households: adapters.guestHouseholds,
   secrets: adapters.secretTokens,
   bus: adapters.bus,
   clock: adapters.clock,
@@ -142,6 +153,7 @@ export const eventsUseCases = (
     events: adapters.events,
     invites: adapters.guestInvites,
     rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
     secrets: adapters.secretTokens,
     ids: adapters.ids,
     bus: adapters.bus,
@@ -231,6 +243,7 @@ export const eventsUseCases = (
     memberships: adapters.memberships,
     invites: adapters.guestInvites,
     rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
     clock: adapters.clock,
   }),
   hostAddRsvp: makeHostAddRsvp({
@@ -248,6 +261,7 @@ export const eventsUseCases = (
     memberships: adapters.memberships,
     invites: adapters.guestInvites,
     rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
     audit: adapters.audit,
     bus: adapters.bus,
     clock: adapters.clock,
@@ -278,7 +292,84 @@ export const eventsUseCases = (
   }),
   countUnseenRsvps: makeCountUnseenRsvps({ rsvps: adapters.guestRsvps }),
   // The replies whose time has come (spec 30): from the retention sweeper only, no route.
-  purgeExpiredRsvps: makePurgeExpiredRsvps({ rsvps: adapters.guestRsvps, clock: adapters.clock }),
+  purgeExpiredRsvps: makePurgeExpiredRsvps({
+    rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
+    clock: adapters.clock,
+  }),
+  // The guest list (spec 30, lot 3): the owner's, and the household's own link on the public side.
+  listHouseholds: makeListHouseholds({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
+  }),
+  saveHousehold: makeSaveHousehold({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
+    bus: adapters.bus,
+    ids: adapters.ids,
+    clock: adapters.clock,
+  }),
+  importHouseholds: makeImportHouseholds({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    households: adapters.guestHouseholds,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    ids: adapters.ids,
+    clock: adapters.clock,
+  }),
+  deleteHousehold: makeDeleteHousehold({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    households: adapters.guestHouseholds,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  rotateHouseholdToken: makeRotateHouseholdToken({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    ids: adapters.ids,
+    clock: adapters.clock,
+  }),
+  markHouseholdReminded: makeMarkHouseholdReminded({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    ids: adapters.ids,
+    clock: adapters.clock,
+  }),
+  attachRsvpToHousehold: makeAttachRsvpToHousehold({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
+    bus: adapters.bus,
+  }),
+  viewHousehold: makeViewHousehold({
+    events: adapters.events,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
+  }),
   rotateJoinCode: makeRotateJoinCode({
     events: adapters.events,
     memberships: adapters.memberships,

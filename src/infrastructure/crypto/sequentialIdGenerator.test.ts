@@ -59,6 +59,7 @@ describe('createSequentialIdGenerator', () => {
       ids.channelBindingId(),
       ids.channelMediaJobId(),
       ids.guestRsvpId(),
+      ids.guestHouseholdId(),
     ].map(String)
 
     // Every counter is at one, so the ids can only differ by their prefix.
@@ -86,6 +87,7 @@ describe('createSequentialIdGenerator', () => {
       ids.channelBindingId(),
       ids.channelMediaJobId(),
       ids.guestRsvpId(),
+      ids.guestHouseholdId(),
     ]) {
       expect(String(id)).toMatch(uuid)
     }

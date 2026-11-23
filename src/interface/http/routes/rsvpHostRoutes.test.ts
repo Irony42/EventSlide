@@ -6,19 +6,34 @@ import { AT, anEvent, aUser } from '../../../application/testing/builders'
 import { FakeAuditLog } from '../../../application/testing/fakeAuditLog'
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
 import { FakeGuestInviteRepository } from '../../../application/testing/fakeGuestInviteRepository'
+import { FakeGuestHouseholdRepository } from '../../../application/testing/fakeGuestHouseholdRepository'
 import { FakeGuestRsvpRepository } from '../../../application/testing/fakeGuestRsvpRepository'
 import { FakeMembershipRepository } from '../../../application/testing/fakeMembershipRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
-import { asGuestRsvpId, type GuestRsvpId } from '../../../domain/shared/ids'
+import {
+  asGuestHouseholdId,
+  asGuestRsvpId,
+  type GuestHouseholdId,
+  type GuestRsvpId,
+} from '../../../domain/shared/ids'
 import { makeEnableGuestInvite } from '../../../application/usecases/guestInvites/enableGuestInvite'
 import { makeSaveGuestInvite } from '../../../application/usecases/guestInvites/saveGuestInvite'
 import {
   makeCloseRsvps,
   makeReopenRsvps,
 } from '../../../application/usecases/guestRsvps/closeRsvps'
+import { makeAttachRsvpToHousehold } from '../../../application/usecases/guestRsvps/attachRsvpToHousehold'
+import { makeDeleteHousehold } from '../../../application/usecases/guestRsvps/deleteHousehold'
+import {
+  makeMarkHouseholdReminded,
+  makeRotateHouseholdToken,
+} from '../../../application/usecases/guestRsvps/householdActs'
+import { makeImportHouseholds } from '../../../application/usecases/guestRsvps/importHouseholds'
+import { makeListHouseholds } from '../../../application/usecases/guestRsvps/listHouseholds'
+import { makeSaveHousehold } from '../../../application/usecases/guestRsvps/saveHousehold'
 import { makeExportRsvps } from '../../../application/usecases/guestRsvps/exportRsvps'
 import { makeGetRsvpForm } from '../../../application/usecases/guestRsvps/getRsvpForm'
 import { makeHostAddRsvp } from '../../../application/usecases/guestRsvps/hostAddRsvp'
@@ -27,6 +42,7 @@ import { makeHostUpdateRsvp } from '../../../application/usecases/guestRsvps/hos
 import { makeListRsvps } from '../../../application/usecases/guestRsvps/listRsvps'
 import { makeMarkRsvpsSeen } from '../../../application/usecases/guestRsvps/markRsvpsSeen'
 import { makeSaveRsvpForm } from '../../../application/usecases/guestRsvps/saveRsvpForm'
+import { aHousehold } from '../../../domain/guestRsvps/testing/householdFixtures'
 import { aRsvp } from '../../../domain/guestRsvps/testing/rsvpFixtures'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { hostExportLimiter } from '../middleware/rateLimit'
@@ -59,6 +75,7 @@ const RSVPS = `${BASE}/rsvps`
 interface World {
   readonly app: Express
   readonly rsvps: FakeGuestRsvpRepository
+  readonly households: FakeGuestHouseholdRepository
   readonly audit: FakeAuditLog
   readonly bus: RecordingEventBus
   readonly invites: FakeGuestInviteRepository
@@ -71,6 +88,7 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
   const events = new FakeEventRepository({ memberships, photos })
   const invites = new FakeGuestInviteRepository()
   const rsvps = new FakeGuestRsvpRepository()
+  const households = new FakeGuestHouseholdRepository(rsvps)
   const bus = new RecordingEventBus()
   const audit = new FakeAuditLog().withAccounts(
     asUserId(OWNER),
@@ -80,6 +98,21 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
   // The fake's ids are not uuids, and the routes take a reply id from a path: only a uuid is one.
   const ids = new (class extends SequentialIdGenerator {
     private rsvpCount = 0
+    private householdCount = 0
+    private tokenCount = 0
+    /** A household's link must be its own: the sequential ramp repeats a 16-byte token every second call. */
+    override bytes(count: number): Uint8Array {
+      if (count !== 16) return super.bytes(count)
+      this.tokenCount += 1
+      const n = this.tokenCount
+      return Uint8Array.from({ length: 16 }, (_, i) => (i < 3 ? (n >> (5 * i)) % 32 : i))
+    }
+    override guestHouseholdId(): GuestHouseholdId {
+      this.householdCount += 1
+      return asGuestHouseholdId(
+        `d2000000-0000-4000-8000-${this.householdCount.toString(16).padStart(12, '0')}`,
+      )
+    }
     override guestRsvpId(): GuestRsvpId {
       this.rsvpCount += 1
       return asGuestRsvpId(
@@ -121,12 +154,48 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
             saveRsvpForm: makeSaveRsvpForm({ ...access, rsvps, audit, bus, clock, ids }),
             closeRsvps: makeCloseRsvps({ ...access, rsvps, audit, bus, clock }),
             reopenRsvps: makeReopenRsvps({ ...access, rsvps, audit, bus, clock }),
-            listRsvps: makeListRsvps({ ...access, rsvps, clock }),
+            listRsvps: makeListRsvps({ ...access, rsvps, households, clock }),
             hostAddRsvp: makeHostAddRsvp({ ...access, rsvps, audit, bus, ids, clock }),
-            hostUpdateRsvp: makeHostUpdateRsvp({ ...access, rsvps, audit, bus, clock }),
+            hostUpdateRsvp: makeHostUpdateRsvp({ ...access, rsvps, households, audit, bus, clock }),
             hostDeleteRsvp: makeHostDeleteRsvp({ ...access, rsvps, audit, bus, clock }),
             exportRsvps: makeExportRsvps({ ...access, rsvps, audit, clock }),
             markRsvpsSeen: makeMarkRsvpsSeen({ ...access, rsvps, clock }),
+            listHouseholds: makeListHouseholds({ ...access, rsvps, households }),
+            saveHousehold: makeSaveHousehold({ ...access, rsvps, households, bus, ids, clock }),
+            importHouseholds: makeImportHouseholds({
+              ...access,
+              households,
+              audit,
+              bus,
+              ids,
+              clock,
+            }),
+            deleteHousehold: makeDeleteHousehold({
+              ...access,
+              households,
+              audit,
+              bus,
+              clock,
+            }),
+            rotateHouseholdToken: makeRotateHouseholdToken({
+              ...access,
+              rsvps,
+              households,
+              audit,
+              bus,
+              ids,
+              clock,
+            }),
+            markHouseholdReminded: makeMarkHouseholdReminded({
+              ...access,
+              rsvps,
+              households,
+              audit,
+              bus,
+              ids,
+              clock,
+            }),
+            attachRsvpToHousehold: makeAttachRsvpToHousehold({ ...access, rsvps, households, bus }),
           },
         }),
       )
@@ -191,7 +260,7 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
   })({ eventId: WEDDING, actorId: asUserId(OWNER) })
   if (!enabled.ok) throw new Error('the world could not switch its invitation on')
 
-  return { app: harness.app, rsvps, audit, bus, invites }
+  return { app: harness.app, rsvps, households, audit, bus, invites }
 }
 
 type Who = 'owner' | 'moderator' | 'gala-owner'
@@ -725,5 +794,258 @@ describe('GET /api/events/:eventSlug/rsvps/export', () => {
 
   it('answers 401 without a session', async () => {
     expect((await request(world.app).get(`${RSVPS}/export`)).status).toBe(401)
+  })
+})
+
+const HOUSEHOLDS = `${BASE}/households`
+const HOUSEHOLD_ID = 'd2000000-0000-4000-8000-000000000001'
+
+describe('the guest list: /api/events/:eventSlug/households', () => {
+  let world: World
+
+  beforeEach(async () => {
+    world = await buildWorld()
+  })
+
+  const addHousehold = async (agent: Agent, body: object = { name: 'Famille Martin', places: 4 }) =>
+    agent.post(HOUSEHOLDS).send(body)
+
+  it('answers an empty list, no-store', async () => {
+    const response = await (await signedIn(world, 'owner')).get(HOUSEHOLDS)
+
+    expect(response.status).toBe(200)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.body).toEqual({ households: [] })
+  })
+
+  it('adds a household with a link of its own, and lists it, the link included, no-store', async () => {
+    const agent = await signedIn(world, 'owner')
+
+    const created = await addHousehold(agent)
+
+    expect(created.status).toBe(201)
+    expect(created.headers['cache-control']).toBe('no-store')
+    expect(created.body.household).toMatchObject({
+      id: HOUSEHOLD_ID,
+      name: 'Famille Martin',
+      places: 4,
+      remindedAt: null,
+      reply: null,
+    })
+    expect(created.body.household.token).toMatch(/^[0-9A-Z]{16}$/)
+    const list = await agent.get(HOUSEHOLDS)
+    expect(list.body.households).toHaveLength(1)
+    expect(list.body.households[0].token).toBe(created.body.household.token)
+    expect(world.bus.published).toEqual([{ type: 'rsvp.changed', eventId: WEDDING }])
+  })
+
+  it.each([
+    ['no name', { places: 2 }, 'household.nameInvalid'],
+    ['an empty name', { name: ' ', places: 2 }, 'household.nameEmpty'],
+    ['no places', { name: 'A' }, 'household.placesInvalid'],
+    ['11 places', { name: 'A', places: 11 }, 'household.placesInvalid'],
+  ])('answers 400 for %s', async (_label, body, code) => {
+    const response = await addHousehold(await signedIn(world, 'owner'), body)
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe(code)
+  })
+
+  it('refuses a key it does not know, and a body that is not an object', async () => {
+    const agent = await signedIn(world, 'owner')
+
+    expect((await addHousehold(agent, { name: 'A', places: 2, token: 'x' })).status).toBe(400)
+    expect((await agent.post(HOUSEHOLDS).send([])).status).toBe(400)
+  })
+
+  it('pastes a list: what it stored and what it left out, 201', async () => {
+    const agent = await signedIn(world, 'owner')
+
+    const response = await agent
+      .post(`${HOUSEHOLDS}/import`)
+      .send({ text: 'Famille Martin ; 4\nLéa Durand ; 2\nfamille MARTIN ; 3\nZoé ; 99' })
+
+    expect(response.status).toBe(201)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.body.households.map((h: { name: string }) => h.name)).toEqual([
+      'Famille Martin',
+      'Léa Durand',
+    ])
+    expect(response.body.households[0].token).toMatch(/^[0-9A-Z]{16}$/)
+    expect(response.body.skipped).toEqual([
+      { line: 3, reason: 'duplicate' },
+      { line: 4, reason: 'places' },
+    ])
+    expect(actionsOf(world)).toEqual(['event.householdsImported'])
+    expect(JSON.stringify(world.audit.all())).not.toMatch(/Martin|Durand/)
+  })
+
+  it('answers 400 to a paste of more than 300 lines, a stray key, and a text that is not text', async () => {
+    const agent = await signedIn(world, 'owner')
+    const many = Array.from({ length: 301 }, (_, i) => `F${i}`).join('\n')
+
+    const long = await agent.post(`${HOUSEHOLDS}/import`).send({ text: many })
+    const stray = await agent.post(`${HOUSEHOLDS}/import`).send({ text: 'A', more: 1 })
+    const notText = await agent.post(`${HOUSEHOLDS}/import`).send({ text: 12 })
+
+    expect(long.status).toBe(400)
+    expect(long.body.error.code).toBe('household.importTooLong')
+    expect(stray.status).toBe(400)
+    expect(notText.status).toBe(400)
+  })
+
+  it('changes a household, and keeps its link', async () => {
+    const agent = await signedIn(world, 'owner')
+    const created = await addHousehold(agent)
+
+    const changed = await agent
+      .put(`${HOUSEHOLDS}/${HOUSEHOLD_ID}`)
+      .send({ name: 'Les Martin', places: 2 })
+
+    expect(changed.status).toBe(200)
+    expect(changed.body.household).toMatchObject({ name: 'Les Martin', places: 2 })
+    expect(changed.body.household.token).toBe(created.body.household.token)
+  })
+
+  it('answers 404 household.notFound for an id that is not this event’s, 400 for one that is no id', async () => {
+    const agent = await signedIn(world, 'owner')
+
+    const unknown = await agent.put(`${HOUSEHOLDS}/${HOUSEHOLD_ID}`).send({ name: 'A', places: 1 })
+    const malformed = await agent.put(`${HOUSEHOLDS}/not-an-id`).send({ name: 'A', places: 1 })
+
+    expect(unknown.status).toBe(404)
+    expect(unknown.body.error.code).toBe('household.notFound')
+    expect(malformed.status).toBe(400)
+  })
+
+  it('gives a new link on rotate, and notes a reminder, both answering the household', async () => {
+    const agent = await signedIn(world, 'owner')
+    const created = await addHousehold(agent)
+
+    const rotated = await agent.post(`${HOUSEHOLDS}/${HOUSEHOLD_ID}/rotate`).send({})
+    const reminded = await agent.post(`${HOUSEHOLDS}/${HOUSEHOLD_ID}/reminded`).send({})
+
+    expect(rotated.status).toBe(200)
+    expect(rotated.headers['cache-control']).toBe('no-store')
+    expect(rotated.body.household.token).not.toBe(created.body.household.token)
+    expect(reminded.status).toBe(200)
+    expect(reminded.body.household.remindedAt).not.toBeNull()
+    expect(reminded.body.household.token).toBe(rotated.body.household.token)
+    expect(actionsOf(world)).toEqual(['event.householdTokenRotated'])
+  })
+
+  it('refuses a body on rotate and reminded', async () => {
+    const agent = await signedIn(world, 'owner')
+    await addHousehold(agent)
+
+    expect((await agent.post(`${HOUSEHOLDS}/${HOUSEHOLD_ID}/rotate`).send({ a: 1 })).status).toBe(
+      400,
+    )
+    expect((await agent.post(`${HOUSEHOLDS}/${HOUSEHOLD_ID}/reminded`).send({ a: 1 })).status).toBe(
+      400,
+    )
+  })
+
+  it('deletes a household, 204, and keeps the reply it had, detached', async () => {
+    const agent = await signedIn(world, 'owner')
+    await addHousehold(agent)
+    world.rsvps.seed(
+      aRsvp({
+        id: '66666666-6666-4666-8666-666666666666',
+        eventId: WEDDING,
+        householdId: HOUSEHOLD_ID,
+      }),
+    )
+
+    const deleted = await agent.delete(`${HOUSEHOLDS}/${HOUSEHOLD_ID}`)
+
+    expect(deleted.status).toBe(204)
+    expect((await agent.get(HOUSEHOLDS)).body.households).toEqual([])
+    const replies = (await agent.get(RSVPS)).body.rsvps
+    expect(replies).toHaveLength(1)
+    expect(replies[0].householdId).toBeNull()
+    expect(actionsOf(world)).toEqual(['event.householdDeleted'])
+    expect((await agent.delete(`${HOUSEHOLDS}/${HOUSEHOLD_ID}`)).status).toBe(404)
+  })
+
+  it('files a reply under a household and detaches it, and the list and the figures follow', async () => {
+    const agent = await signedIn(world, 'owner')
+    await addHousehold(agent)
+    await addHousehold(agent, { name: 'Les Durand', places: 2 })
+    const reply = await agent.post(RSVPS).send(REPLY)
+    const rsvpId = reply.body.rsvp.id
+
+    const filed = await agent
+      .post(`${RSVPS}/${rsvpId}/household`)
+      .send({ householdId: HOUSEHOLD_ID })
+
+    expect(filed.status).toBe(200)
+    expect(filed.body.rsvp.householdId).toBe(HOUSEHOLD_ID)
+    const list = await agent.get(HOUSEHOLDS)
+    expect(list.body.households[0].reply).toEqual({ id: rsvpId, answer: 'yes', people: 3 })
+    expect(list.body.households[1].reply).toBeNull()
+    expect((await agent.get(RSVPS)).body.stats.noReply).toEqual({ households: 1, places: 2 })
+
+    const detached = await agent.post(`${RSVPS}/${rsvpId}/household`).send({ householdId: null })
+    expect(detached.body.rsvp.householdId).toBeNull()
+    expect((await agent.get(RSVPS)).body.stats.noReply).toEqual({ households: 2, places: 6 })
+  })
+
+  it('answers 409 when the household already has a reply, 404 for one that is not there, 400 for a bad body', async () => {
+    const agent = await signedIn(world, 'owner')
+    await addHousehold(agent)
+    const first = (await agent.post(RSVPS).send(REPLY)).body.rsvp.id
+    const second = (await agent.post(RSVPS).send({ ...REPLY, name: 'Autre' })).body.rsvp.id
+    await agent.post(`${RSVPS}/${first}/household`).send({ householdId: HOUSEHOLD_ID }).expect(200)
+
+    const taken = await agent
+      .post(`${RSVPS}/${second}/household`)
+      .send({ householdId: HOUSEHOLD_ID })
+    const nobody = await agent
+      .post(`${RSVPS}/${second}/household`)
+      .send({ householdId: 'd2000000-0000-4000-8000-0000000000ff' })
+    const stray = await agent.post(`${RSVPS}/${second}/household`).send({ householdId: 3 })
+    const missing = await agent.post(`${RSVPS}/${second}/household`).send({})
+
+    expect(taken.status).toBe(409)
+    expect(taken.body.error.code).toBe('household.alreadyAnswered')
+    expect(nobody.status).toBe(404)
+    expect(nobody.body.error.code).toBe('household.notFound')
+    expect(stray.status).toBe(400)
+    expect(missing.status).toBe(400)
+  })
+
+  it('is the owner’s: 401 without a session, 403 for a moderator, 404 for the owner of another event', async () => {
+    const owner = await signedIn(world, 'owner')
+    await addHousehold(owner)
+
+    const anonymous = await request(world.app).get(HOUSEHOLDS)
+    const moderator = await (await signedIn(world, 'moderator')).get(HOUSEHOLDS)
+    const stranger = await (await signedIn(world, 'gala-owner')).get(HOUSEHOLDS)
+    const strangerWrite = await (
+      await signedIn(world, 'gala-owner')
+    ).delete(`${HOUSEHOLDS}/${HOUSEHOLD_ID}`)
+
+    expect(anonymous.status).toBe(401)
+    expect(moderator.status).toBe(403)
+    expect(stranger.status).toBe(404)
+    expect(strangerWrite.status).toBe(404)
+    expect(await world.households.count(WEDDING)).toBe(1)
+  })
+
+  it('never reads or touches another event’s household through this event’s path', async () => {
+    const owner = await signedIn(world, 'owner')
+    world.households.seed(
+      aHousehold({ id: HOUSEHOLD_ID, eventId: GALA, token: '00000000000000AA' }),
+    )
+
+    const read = await owner.get(HOUSEHOLDS)
+    const changed = await owner.put(`${HOUSEHOLDS}/${HOUSEHOLD_ID}`).send({ name: 'A', places: 1 })
+    const deleted = await owner.delete(`${HOUSEHOLDS}/${HOUSEHOLD_ID}`)
+
+    expect(read.body.households).toEqual([])
+    expect(changed.status).toBe(404)
+    expect(deleted.status).toBe(404)
+    expect(await world.households.count(GALA)).toBe(1)
   })
 })

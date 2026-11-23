@@ -1,3 +1,4 @@
+import type { GuestHousehold } from './household'
 import type { GuestRsvp } from './rsvp'
 import type { RsvpVisibility } from './rsvpForm'
 
@@ -19,9 +20,17 @@ export interface RsvpStats {
   readonly diets: readonly { readonly name: string; readonly diet: string }[]
   /** The menus of those who come, most chosen first. */
   readonly meals: readonly { readonly label: string; readonly count: number }[]
+  /**
+   * The households of the guest list that have **no reply** (lot 3): how many, and the places kept
+   * for them. A household that said `no` has replied. Zero while the event has no list.
+   */
+  readonly noReply: { readonly households: number; readonly places: number }
 }
 
-export const statsOf = (rsvps: readonly GuestRsvp[]): RsvpStats => {
+export const statsOf = (
+  rsvps: readonly GuestRsvp[],
+  households: readonly GuestHousehold[] = [],
+): RsvpStats => {
   let yesResponses = 0
   let yesAdults = 0
   let yesKids = 0
@@ -73,9 +82,29 @@ export const statsOf = (rsvps: readonly GuestRsvp[]): RsvpStats => {
     no: { responses: noResponses },
     waitlist: { responses: waitResponses, people: waitPeople },
     diets,
+    noReply: noReplyOf(households, rsvps),
     meals: [...meals]
       .map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
+  }
+}
+
+/**
+ * Households no reply is attached to, with their places. A reply whose `householdId` names no
+ * household of the list (a stale id: deleting a household detaches its reply in the same transaction,
+ * so this is defensive) simply answers for nobody here: it is never counted twice nor dropped.
+ */
+const noReplyOf = (
+  households: readonly GuestHousehold[],
+  rsvps: readonly GuestRsvp[],
+): RsvpStats['noReply'] => {
+  const answered = new Set(
+    rsvps.flatMap((rsvp) => (rsvp.householdId === null ? [] : [rsvp.householdId])),
+  )
+  const waiting = households.filter((household) => !answered.has(household.id))
+  return {
+    households: waiting.length,
+    places: waiting.reduce((sum, household) => sum + household.places, 0),
   }
 }
 

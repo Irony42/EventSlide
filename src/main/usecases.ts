@@ -20,6 +20,7 @@ import type { ImageProcessor } from '../application/ports/imageProcessor'
 import type { ClipJobRepository } from '../application/ports/clipJobRepository'
 import type { AnnouncementRepository } from '../application/ports/announcementRepository'
 import type { GuestInviteRepository } from '../application/ports/guestInviteRepository'
+import type { GuestHouseholdRepository } from '../application/ports/guestHouseholdRepository'
 import type { GuestRsvpRepository } from '../application/ports/guestRsvpRepository'
 import type { ChallengeRepository } from '../application/ports/challengeRepository'
 import type { MissionRepository } from '../application/ports/missionRepository'
@@ -113,6 +114,8 @@ export interface Adapters {
   readonly guestInvites: GuestInviteRepository
   /** The replies of the guests to the invitation (spec 30). */
   readonly guestRsvps: GuestRsvpRepository
+  /** The households of the guest list (spec 30, lot 3). */
+  readonly guestHouseholds: GuestHouseholdRepository
   readonly guestbook: GuestbookRepository
   /** The recordings behind the guestbook's voice messages, and their queue (spec 25). */
   readonly voices: GuestbookVoiceRepository

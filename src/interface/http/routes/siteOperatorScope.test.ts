@@ -140,6 +140,9 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'get /api/i/:token/logo':
     'the logo of that page, behind the same token and the same neutral 404: it is served only ' +
     'while the page is, and an operator holding no token is a stranger to it',
+  'get /api/i/:token/household':
+    'a household opens its personal link (spec 30, lot 3): the invitation’s token **and** the household’s own, in a header, bound to the event. ' +
+    'One neutral 404 for a page that cannot be served, `rsvp.notFound` for a link that opens nothing; an operator holding neither learns nothing',
   'post /api/i/:token/rsvp':
     'a guest answers the invitation (spec 30): the link’s token **is** the credential, and the use ' +
     'case decides everything with it. One neutral 404 for a link that cannot be served, the same ' +
@@ -522,6 +525,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   bindingId: A_PHOTO,
   entryId: A_PHOTO,
   rsvpId: A_PHOTO,
+  householdId: A_PHOTO,
   variant: 'display',
   hash: '0'.repeat(64),
   kind: 'love',

@@ -75,6 +75,8 @@ export type ChannelBindingId = Branded<string, 'ChannelBindingId'>
 export type ChannelMediaJobId = Branded<string, 'ChannelMediaJobId'>
 /** One guest's reply to an invitation (spec 30). Opaque: a host's URL carries it. */
 export type GuestRsvpId = Branded<string, 'GuestRsvpId'>
+/** One household of the guest list (spec 30, lot 3). Opaque: a host's URL carries it. */
+export type GuestHouseholdId = Branded<string, 'GuestHouseholdId'>
 
 /**
  * The only casts in the codebase. Use them at a boundary — a database row becoming an
@@ -97,3 +99,4 @@ export const asAccountTokenId = (value: string): AccountTokenId => value as Acco
 export const asChannelBindingId = (value: string): ChannelBindingId => value as ChannelBindingId
 export const asChannelMediaJobId = (value: string): ChannelMediaJobId => value as ChannelMediaJobId
 export const asGuestRsvpId = (value: string): GuestRsvpId => value as GuestRsvpId
+export const asGuestHouseholdId = (value: string): GuestHouseholdId => value as GuestHouseholdId

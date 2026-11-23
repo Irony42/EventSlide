@@ -693,36 +693,36 @@ use-case refusals (`invitation.tooManyForAddress`, `reset.tooManyForAddress`,
 `reaction.rateLimited`), because a client that cannot read response headers can read the body; the
 other limiters' bodies carry the header only.
 
-| Endpoint                                                            | Default       | Bucket                              | Code                                |
-| ------------------------------------------------------------------- | ------------- | ----------------------------------- | ----------------------------------- |
-| `POST /api/join`                                                    | 200           | client IP                           | `rate.limited`                      |
-| `GET /api/join/:code`                                               | 200           | client IP, same as join             | `rate.limited`                      |
-| `POST /api/auth/login` †                                            | 10            | client IP                           | `rate.limited`                      |
-| `POST /api/auth/password-reset/request` †                           | 10            | client IP, own bucket               | `rate.limited`                      |
-| `POST /api/auth/password-reset/confirm`                             | 10            | client IP, own bucket               | `rate.limited`                      |
-| `GET /api/invitations/:token`, `POST …/accept`                      | 10            | client IP, own bucket each          | `rate.limited`                      |
-| `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm`  | 10            | client IP, own bucket each          | `rate.limited`                      |
-| `POST /api/auth/password`, `POST /api/auth/account/delete`          | 10            | client IP, own bucket each          | `rate.limited`                      |
-| the same four, and those two ◊                                      | 10 / 15 min   | **account**, failures only          | `auth.tooManySecondFactorAttempts`  |
-| `POST /api/events` (create)                                         | 20 / **hour** | account                             | `event.creationRateLimited`         |
-| `POST /api/events/:slug/moderators` (invite)                        | 30 / **hour** | account                             | `rate.limited`                      |
-| `GET /api/i/:token`, `GET …/logo`, `GET …/rsvp` (spec 29, 30)       | 200           | client IP, one bucket for all       | `rate.limited`                      |
-| `POST`, `PUT`, `DELETE /api/i/:token/rsvp` (guest replies, spec 30) | 30            | client IP, one bucket for the three | `rate.limited`                      |
-| the same three, from every address together                         | 300           | **invitation**, fixed               | `rate.limited`                      |
-| `POST`, `PATCH`, `DELETE …/announcements…` (spec 21) ♯              | 60            | account, fixed                      | `rate.limited`                      |
-| `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §        | 300           | client IP **and** event             | `rate.limited`                      |
-| the same two, photos and clips together §                           | 12            | **guest** and event                 | `rate.limited`                      |
-| `POST /api/events/:slug/photos/:id/reactions` (flood ceiling) §     | 600           | client IP **and** event             | `reaction.rateLimited`              |
-| the same reaction §                                                 | 30            | **guest** and event                 | `reaction.rateLimited`              |
-| the five other guest writes ‡                                       | 300           | client IP **and** event             | `rate.limited`                      |
-| `POST …/guestbook` and `DELETE …/guestbook/:id` ¶                   | 6             | **guest** and event, fixed          | `rate.limited`                      |
-| `POST …/guestbook/voice` (the upload bucket of §, then ¶)           | 300, 12, 6    | IP + event, **guest**, **guest**    | `rate.limited`                      |
-| `GET …/photos/:id/save` (flood ceiling) ☆                           | 600, fixed    | client IP **and** event             | `rate.limited`                      |
-| the same save ☆                                                     | 40, fixed     | **guest** and event                 | `rate.limited`                      |
-| the same save, open at once ☆                                       | 2 / 64        | **guest** / the box                 | `rate.limited` / `service.notReady` |
-| `GET /api/gallery/:token`, `…/photos`, unlock                       | 120           | client IP                           | `rate.limited`                      |
-| `GET /api/gallery-media/…`                                          | 3000          | client IP                           | `rate.limited`                      |
-| `POST /api/gallery/:token/unlock`                                   | 10 / 50       | IP / link, per 15 min               | `gallery.tooManyAttempts`           |
+| Endpoint                                                                              | Default       | Bucket                              | Code                                |
+| ------------------------------------------------------------------------------------- | ------------- | ----------------------------------- | ----------------------------------- |
+| `POST /api/join`                                                                      | 200           | client IP                           | `rate.limited`                      |
+| `GET /api/join/:code`                                                                 | 200           | client IP, same as join             | `rate.limited`                      |
+| `POST /api/auth/login` †                                                              | 10            | client IP                           | `rate.limited`                      |
+| `POST /api/auth/password-reset/request` †                                             | 10            | client IP, own bucket               | `rate.limited`                      |
+| `POST /api/auth/password-reset/confirm`                                               | 10            | client IP, own bucket               | `rate.limited`                      |
+| `GET /api/invitations/:token`, `POST …/accept`                                        | 10            | client IP, own bucket each          | `rate.limited`                      |
+| `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm`                    | 10            | client IP, own bucket each          | `rate.limited`                      |
+| `POST /api/auth/password`, `POST /api/auth/account/delete`                            | 10            | client IP, own bucket each          | `rate.limited`                      |
+| the same four, and those two ◊                                                        | 10 / 15 min   | **account**, failures only          | `auth.tooManySecondFactorAttempts`  |
+| `POST /api/events` (create)                                                           | 20 / **hour** | account                             | `event.creationRateLimited`         |
+| `POST /api/events/:slug/moderators` (invite)                                          | 30 / **hour** | account                             | `rate.limited`                      |
+| `GET /api/i/:token`, `GET …/logo`, `GET …/rsvp`, `GET …/household` (spec 29, 30)      | 200           | client IP, one bucket for all       | `rate.limited`                      |
+| `POST`, `PUT`, `DELETE /api/i/:token/rsvp` (guest replies and a household's, spec 30) | 30            | client IP, one bucket for the three | `rate.limited`                      |
+| the same three, from every address together                                           | 300           | **invitation**, fixed               | `rate.limited`                      |
+| `POST`, `PATCH`, `DELETE …/announcements…` (spec 21) ♯                                | 60            | account, fixed                      | `rate.limited`                      |
+| `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §                          | 300           | client IP **and** event             | `rate.limited`                      |
+| the same two, photos and clips together §                                             | 12            | **guest** and event                 | `rate.limited`                      |
+| `POST /api/events/:slug/photos/:id/reactions` (flood ceiling) §                       | 600           | client IP **and** event             | `reaction.rateLimited`              |
+| the same reaction §                                                                   | 30            | **guest** and event                 | `reaction.rateLimited`              |
+| the five other guest writes ‡                                                         | 300           | client IP **and** event             | `rate.limited`                      |
+| `POST …/guestbook` and `DELETE …/guestbook/:id` ¶                                     | 6             | **guest** and event, fixed          | `rate.limited`                      |
+| `POST …/guestbook/voice` (the upload bucket of §, then ¶)                             | 300, 12, 6    | IP + event, **guest**, **guest**    | `rate.limited`                      |
+| `GET …/photos/:id/save` (flood ceiling) ☆                                             | 600, fixed    | client IP **and** event             | `rate.limited`                      |
+| the same save ☆                                                                       | 40, fixed     | **guest** and event                 | `rate.limited`                      |
+| the same save, open at once ☆                                                         | 2 / 64        | **guest** / the box                 | `rate.limited` / `service.notReady` |
+| `GET /api/gallery/:token`, `…/photos`, unlock                                         | 120           | client IP                           | `rate.limited`                      |
+| `GET /api/gallery-media/…`                                                            | 3000          | client IP                           | `rate.limited`                      |
+| `POST /api/gallery/:token/unlock`                                                     | 10 / 50       | IP / link, per 15 min               | `gallery.tooManyAttempts`           |
 
 ◊ One budget for all six doors (a guess at one is spent at the others). On `POST /api/auth/password` a failure is **only** `401 auth.invalidCredentials`, the wrong current password: a `400` (a new password the policy refuses, `password.unchanged`, a malformed body) spends nothing, so a person who is learning the policy, an invited moderator who must choose a password included, cannot lock themselves out. The other five doors count every answer of 400 or more.
 
@@ -1681,6 +1681,33 @@ is minted by the box (256 random bits), handed back **once**, and only its SHA-2
   (300 a minute from every address together, a constant); both answer `429 rate.limited`. The reads share the page's own bucket.
 - A change publishes the content-free `rsvp.changed` signal on the moderation stream, and **a guest's reply is not audited** (volume, and no value as proof). Replies
   are erased by the retention sweep, as described for the host's side.
+
+### A household's personal link (spec 30, lot 3): `GET /api/i/:token/household`, and `POST`, `GET`, `PUT`, `DELETE /api/i/:token/rsvp` with `X-Household-Token`
+
+A household of the host's guest list has a **link of its own**, `/i/<invitation>#f=<household token>`. The token is 16 characters of
+Crockford's base32 (80 bits, the invitation's own alphabet: case, separators and look-alike characters are tolerated). It travels in
+the URL's **fragment**, so it reaches no access log and no `Referer`, and to the API **in the `X-Household-Token` header: never in a path or a
+query**. It is a bearer key to **one thing**: the household's one reply (read, make, change, delete), and it is bound to the event of the
+invitation: another event's household token, an unknown, a malformed or an oversized one, or none at all, is `404 rsvp.notFound`.
+The invitation page's own refusal (`404 guestInvite.notAvailable`) comes first, as for every route of the page. The same
+`Referrer-Policy`, `X-Robots-Tag` and `Cache-Control: no-store` as the page.
+
+- **`GET /api/i/:token/household`** answers `200 { "household": { "name", "places", "rsvp"? } }`: what the household needs to fill the same form
+  as the common link, pre-filled. `rsvp` (the shape of `GET …/rsvp`) is present once the household has answered. No id, no token, no other
+  household. It works **for as long as the page is served**, the window closed and the party over included. It shares the page's read limiter.
+- **`POST …/rsvp`** with the header makes the household's reply: `source: "household"`, filed under the household, **no reply token** (the answer is
+  `201 { "rsvp" }` with no `editToken`: the link is the key, and every device of the household shares it). A household has **one**
+  reply: when it already answered, the call **changes** that reply and answers `200 { "rsvp" }`, so a second tap or a second phone never
+  doubles it (a reply the host filed under the household by hand is the one changed). **The household's places are the ceiling**
+  of the party (`400 rsvp.partyTooBig`, `details.max` = the places), the form's own maximum does not apply, and "how many" is always asked even
+  when the form does not ask it. The rest of the form is judged as for any guest, with the same `409 rsvp.closed|off`, `409 rsvp.tooMany` and
+  `409 rsvp.full`. The honeypot keeps its every-refusal rule, an unknown household token included.
+- **`GET`, `PUT`, `DELETE …/rsvp`** with the header act on the household's reply: `GET` and `DELETE` for as long as the page is served, `PUT` only
+  while the window is open. `DELETE` is idempotent as for a reply token (`204` whatever the link or the reply). `GET` and `PUT` with no reply
+  yet are `404 rsvp.notFound` (the first answer is a `POST`), and a `PUT` never makes a reply. When both `X-Household-Token` and `X-Rsvp-Token` are sent, the
+  household's is the one used.
+- A change made with a reply's **own token** to a reply the host filed under a household is judged by that household's places too. The write limiter is the replies' own (one bucket per address and one per invitation, shared with the three writes above). A household's reply is
+  announced like any other (`rsvp.changed`) and not audited. It is erased with the replies and the households, by the retention sweep.
 
 ## 3. Guest
 
@@ -4781,6 +4808,32 @@ Writes are refused on an archived event (`409 guestInvite.eventArchived`) and fo
 **A host's own add or edit is not news to them**: if they had nothing unseen before it, `unseen` stays at 0; unread replies from guests are never hidden by it. Reads and writes are refused for a suspended client (`403 client.suspended`); every write but `DELETE …/rsvps/:rsvpId` is refused on an archived event (`409 guestInvite.eventArchived`); a closed event may still be read, corrected and exported. A reply that disappears between the read and the write (a concurrent delete) is `404 rsvp.notFound` with no audit line and no signal. **Audit**: one line per act, `event.rsvpFormSaved`, `event.rsvpsClosed`, `event.rsvpsReopened`, `event.rsvpHostAdded`, `event.rsvpHostEdited`, `event.rsvpHostDeleted`, `event.rsvpsExported`: the event and the account, **never a name, a diet or a word**. Each change also publishes a content-free `{ "type": "rsvp.changed" }` signal on the **moderation** stream only (never the wall's). The retention sweep erases replies 30 days after the event closed or 60 days after the invitation's start, whichever comes first, **whatever the purge hold says** (they are names and diets, not an album). **Errors** — `401`, `403 auth.forbidden`, `403 client.suspended`, `404 event.notFound`, `404 rsvp.notFound`, `409 rsvp.inviteRequired`, `409 rsvp.tooMany`, `400 request.invalid`, and the `400 rsvp.*` codes above.
 
 `GET /api/events/:slug` carries `unseenRsvps` (an integer) **in the owner's answer only**: the badge of the replies entry, counted for the caller's own account. It is absent for a moderator.
+
+**The guest list (spec 30, lot 3)** is the owner's too, and optional: nothing in EventSlide needs it, and **no contact (e-mail address, phone number) is ever held**: the host sends each link from their own applications and notes "relancé" by hand. A **household** is a name (1 to 80 characters, one line), the **places** kept for it (1 to 10), a **personal link** and the host's reminder note. At most **500 households per event**. Every answer carrying a household is `Cache-Control: no-store` (it carries the link). A household is:
+
+```json
+{
+  "id": "…",
+  "name": "Famille Martin",
+  "places": 4,
+  "token": "7QX0M4TZ2KD9WB3H",
+  "remindedAt": null,
+  "createdAt": "2026-11-23T10:00:00.000Z",
+  "updatedAt": "2026-11-23T10:00:00.000Z",
+  "reply": { "id": "…", "answer": "yes", "people": 4 }
+}
+```
+
+`token` is the link's secret, **kept in the clear** so that the host can show the link again: the page is `/i/<invitation token>#f=<token>` (see ADR 0017). `reply` is the reply filed under the household (`null` while there is none: "sans réponse"; a household that said `no` has replied).
+
+- `GET …/households` answers `200 { "households": [ … ] }`, in the order they were listed (a pasted list keeps its order). A read: it works on a closed or archived event.
+- `POST …/households` (`{ name, places }`) answers `201 { "household" }` with a fresh link. It needs the invitation (`409 rsvp.inviteRequired`), and answers `409 household.tooMany` at the 500th. **Names are not unique**: only the paste folds duplicates, `POST` and `PUT` accept the same name twice. `400`: `household.nameInvalid`, `household.nameEmpty`, `household.nameTooLong` (`details.max` 80), `household.placesInvalid` (`details.min`, `details.max`).
+- `POST …/households/import` (`{ text }`, at most 40 000 characters) is "Coller une liste": **one household per line, `Nom ; places`** (a tab, as a spreadsheet copies it, is the same separator; **the empty cells at the end of a line are dropped first**, so `Dupont<tab>3<tab>` keeps its 3 places, and the last separator left splits). It answers `201 { "households": [ … ], "skipped": [ { "line", "reason" } ] }`. **Tolerant, and it says what it left out**: a blank line is nothing; a line without a number keeps one place; `reason` is `name` (empty, or over 80 characters), `places` (not a whole number from 1 to 10) or `duplicate` (a name already in the list or above in the paste, **without regard to case and accents**). `line` counts the paste's lines from 1, blank ones included. **All or none**, audited **after** the write: a paste that would take the list past 500 is `409 household.tooMany`, and one of more than **300 lines** is `400 household.importTooLong` (`details.max` 300); a text that is not text is `400 request.invalid`. A paste with nothing to add stores, audits and announces nothing. Declared before `households/:householdId`.
+- `PUT …/households/:householdId` (`{ name, places }`) changes the name and the places and keeps the link, the note and the reply, and answers `200 { "household" }`. `DELETE …/households/:householdId` answers `204`: **the household's reply is kept, detached** (its `householdId` back to `null`, in the same transaction that deletes the household, so no reply is ever left pointing at it); it is the one write allowed on an archived event, as the list holds names. `404 household.notFound` for an id that is not this event's or is gone; `:householdId` is a UUID (`400 request.invalid` otherwise).
+- `POST …/households/:householdId/rotate` ("Changer le lien", empty strict body) gives a new link and **the old one stops at once**, and `POST …/households/:householdId/reminded` ("Relancé") notes the instant in `remindedAt`; both answer `200 { "household" }`.
+- `POST …/rsvps/:rsvpId/household` (`{ householdId }`, a household of this event or `null` to detach) is "Associer à un foyer": it files the reply under the household and answers `200 { "rsvp" }`. **One reply per household**: `409 household.alreadyAnswered` when another already answers for it (decided inside the write), **`400 household.placesExceeded`** (`details.places`, `details.people`) when the reply's people exceed the household's places (detaching has no such limit), `404 household.notFound`, `404 rsvp.notFound`. It changes nothing else, **not even the reply's `updatedAt`** (the badge counts what guests wrote, not the host's filing).
+- A reply carries `householdId` (the household it is filed under, or `null`), and `stats` carries `noReply: { households, places }`: the households with no reply and the places kept for them. `PUT …/rsvps/:rsvpId` on a reply filed under a household is judged by **the household's places**, not the form's maximum.
+- Reads and writes are refused for a suspended client (`403 client.suspended`) and every write but the deletion is refused on an archived event (`409 guestInvite.eventArchived`). **Audit**, without any name: `event.householdsImported`, `event.householdDeleted`, `event.householdTokenRotated` (adding, changing, noting a reminder and filing a reply are not audited). Each change publishes the content-free `rsvp.changed` signal on the moderation stream. The retention sweep erases the households with the replies, on the same dates, **whatever the purge hold says**.
 
 ### Messaging channels (spec 27): `GET /api/events/:slug/channels`, `DELETE /api/events/:slug/channels/:bindingId`
 

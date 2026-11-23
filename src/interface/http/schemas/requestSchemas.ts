@@ -1058,6 +1058,30 @@ export const rsvpReplyBody = z.strictObject({
 
 export const rsvpParams = z.strictObject({ eventSlug: slug, rsvpId: uuid })
 
+/**
+ * `POST /events/:slug/households` and `PUT …/households/:householdId` (spec 30, lot 3): a household
+ * of the guest list. Judged whole by the domain (`household.nameInvalid`, `household.placesInvalid`).
+ */
+export const householdBody = z.strictObject({
+  name: z.unknown().optional(),
+  places: z.unknown().optional(),
+})
+
+/**
+ * `POST /events/:slug/households/import`: the pasted list. 300 lines of 80-odd characters fit in
+ * 40 000; the use case judges the lines, this only bounds what is read.
+ */
+export const householdImportBody = z.strictObject({
+  text: z.string().max(40_000),
+})
+
+export const householdParams = z.strictObject({ eventSlug: slug, householdId: uuid })
+
+/** `POST /events/:slug/rsvps/:rsvpId/household`: file the reply under a household, or `null` to detach it. */
+export const rsvpHouseholdBody = z.strictObject({
+  householdId: z.union([uuid, z.null()]),
+})
+
 /** `POST /rsvp-form/close|reopen` and `POST /rsvps/seen`: the act is the path, the body is empty. */
 export const rsvpActBody = z.strictObject({})
 

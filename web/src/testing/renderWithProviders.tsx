@@ -203,6 +203,7 @@ export const aRsvpSettings = (overrides: Partial<RsvpSettingsDto> = {}): RsvpSet
 /** One reply as the host reads it (spec 30): a yes of two adults and a child, typed by the guest. */
 export const anRsvp = (overrides: Partial<RsvpDto> = {}): RsvpDto => ({
   id: 'd1000000-0000-4000-8000-000000000001',
+  householdId: null,
   name: 'Léa Martin',
   answer: 'yes',
   adults: 2,
@@ -224,6 +225,7 @@ export const anRsvpStats = (overrides: Partial<RsvpStatsDto> = {}): RsvpStatsDto
   waitlist: { responses: 0, people: 0 },
   diets: [],
   meals: [],
+  noReply: { households: 0, places: 0 },
   ...overrides,
 })
 

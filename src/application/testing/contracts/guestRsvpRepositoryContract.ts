@@ -514,6 +514,45 @@ export const guestRsvpRepositoryContract = (
       })
     })
 
+    describe('filing a reply under a household', () => {
+      it('attaches a reply, detaches it with null, and moves nothing else, not even updatedAt', async () => {
+        await add({ id: 'rsvp-1', updatedAt: T0 })
+
+        expect(await repo.setHousehold(WEDDING, asGuestRsvpId('rsvp-1'), 'h-1')).toBe('set')
+        const attached = await repo.findByHousehold(WEDDING, 'h-1')
+        expect(attached?.id).toBe('rsvp-1')
+        expect(attached?.updatedAt).toEqual(T0)
+        expect(attached?.name).toBe('Léa Martin')
+
+        expect(await repo.setHousehold(WEDDING, asGuestRsvpId('rsvp-1'), null)).toBe('set')
+        expect(await repo.findByHousehold(WEDDING, 'h-1')).toBeNull()
+      })
+
+      it('says taken, and writes nothing, when another reply already answers for the household', async () => {
+        await add({ id: 'rsvp-1', householdId: 'h-1' })
+        await add({ id: 'rsvp-2' })
+
+        expect(await repo.setHousehold(WEDDING, asGuestRsvpId('rsvp-2'), 'h-1')).toBe('taken')
+
+        expect((await repo.findByHousehold(WEDDING, 'h-1'))?.id).toBe('rsvp-1')
+        expect((await repo.findById(WEDDING, asGuestRsvpId('rsvp-2')))?.householdId).toBeNull()
+      })
+
+      it('lets the reply that holds a household take it again', async () => {
+        await add({ id: 'rsvp-1', householdId: 'h-1' })
+
+        expect(await repo.setHousehold(WEDDING, asGuestRsvpId('rsvp-1'), 'h-1')).toBe('set')
+      })
+
+      it('says gone for a reply that is not the event’s, and writes nothing', async () => {
+        await add({ id: 'rsvp-1' })
+
+        expect(await repo.setHousehold(GALA, asGuestRsvpId('rsvp-1'), 'h-1')).toBe('gone')
+        expect(await repo.setHousehold(WEDDING, asGuestRsvpId('nope'), 'h-1')).toBe('gone')
+        expect(await repo.findByHousehold(WEDDING, 'h-1')).toBeNull()
+      })
+    })
+
     describe('the narrow reads of the hot paths', () => {
       it('counts the replies of an event, and only its own', async () => {
         await add({ id: 'rsvp-1' })

@@ -2,12 +2,15 @@ import type { Event } from '../../../domain/events/event'
 import type { GuestInvite } from '../../../domain/guestInvites/guestInvite'
 import { GuestInviteToken } from '../../../domain/guestInvites/guestInviteToken'
 import { servedInviteOf, type ServedInvite } from '../../../domain/guestInvites/inviteStateOf'
+import type { GuestHousehold } from '../../../domain/guestRsvps/household'
+import { HouseholdToken } from '../../../domain/guestRsvps/householdToken'
 import type { GuestRsvp } from '../../../domain/guestRsvps/rsvp'
 import { DEFAULT_RSVP_SETTINGS, type RsvpSettings } from '../../../domain/guestRsvps/rsvpSettings'
 import { guestMayWrite, rsvpStateOf, type RsvpState } from '../../../domain/guestRsvps/rsvpWindow'
 import { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { GuestHouseholdRepository } from '../../ports/guestHouseholdRepository'
 import type { GuestInviteRepository } from '../../ports/guestInviteRepository'
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
 import type { SecretTokens } from '../../ports/secretTokens'
@@ -100,4 +103,28 @@ export const findOwnRsvp = async (
   if (found === null || found.editTokenHash === null) return notFound()
   // The second line: a repository that matched loosely must not turn a near miss into a key.
   return deps.secrets.verify(rawEditToken, found.editTokenHash) ? ok(found) : notFound()
+}
+
+export interface HouseholdAccessDeps {
+  readonly households: Pick<GuestHouseholdRepository, 'findByToken'>
+}
+
+/**
+ * The household the presented link stands for, **in this event only** (CLAUDE.md section 3,
+ * rule 5): an unknown token, one valid for another event, an empty, oversized or malformed one, or
+ * one that is not text at all is the same `404 rsvp.notFound`. The household's token is its
+ * owner's key to the household's one reply, so a near miss must never open anything.
+ */
+export const findHouseholdByLink = async (
+  deps: HouseholdAccessDeps,
+  event: Event,
+  rawToken: unknown,
+): Promise<Result<GuestHousehold, DomainError>> => {
+  const notFound = (): Result<GuestHousehold, DomainError> =>
+    err(DomainError.notFound('rsvp.notFound'))
+  if (typeof rawToken !== 'string' || rawToken.length > EDIT_TOKEN_MAX) return notFound()
+  const token = HouseholdToken.create(rawToken)
+  if (!token.ok) return notFound()
+  const found = await deps.households.findByToken(event.id, token.value)
+  return found === null ? notFound() : ok(found)
 }
