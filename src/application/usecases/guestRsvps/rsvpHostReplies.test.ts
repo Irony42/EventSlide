@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { aRsvp } from '../../../domain/guestRsvps/testing/rsvpFixtures'
 import { MAX_RSVPS_PER_EVENT } from '../../../domain/guestRsvps/rsvpLimits'
-import { asGuestRsvpId } from '../../../domain/shared/ids'
+import { asGuestRsvpId, type GuestRsvpId } from '../../../domain/shared/ids'
 import { aGuestInvite, anEvent } from '../../testing/builders'
 import { makeHostAddRsvp } from './hostAddRsvp'
 import { makeHostDeleteRsvp } from './hostDeleteRsvp'
@@ -121,6 +121,8 @@ describe('the replies of an event, on the host’s side (spec 30)', () => {
       expect(!refused.ok && refused.error.code).toBe('rsvp.tooMany')
       expect(!refused.ok && refused.error.kind).toBe('conflict')
       expect(signals()).toHaveLength(before)
+      // No act, no line: a refusal leaves nothing in the log.
+      expect(await act()).toEqual([])
     })
 
     it('needs the invitation', async () => {
@@ -218,6 +220,132 @@ describe('the replies of an event, on the host’s side (spec 30)', () => {
       expect(!foreign.ok && foreign.error.code).toBe('rsvp.notFound')
     })
 
+    it('keeps what the form no longer asks instead of wiping it', async () => {
+      scene.rsvps.seed(
+        aRsvp({ id: 'r-1', eventId: WEDDING, adults: 3, kids: 2, diet: 'noix', name: 'Avant' }),
+      )
+      await scene.saveForm({
+        eventId: WEDDING,
+        actorId: OWNER,
+        form: { diet: false, partySize: { enabled: false } },
+      })
+
+      const updated = await scene.hostUpdate({
+        eventId: WEDDING,
+        actorId: OWNER,
+        rsvpId: asGuestRsvpId('r-1'),
+        name: 'Léa',
+        answer: 'yes',
+      })
+
+      expect(updated.ok && updated.value.toProps()).toMatchObject({
+        adults: 3,
+        kids: 2,
+        diet: 'noix',
+      })
+    })
+
+    it('keeps the children when only the separate question is switched off, and still changes what is asked', async () => {
+      scene.rsvps.seed(aRsvp({ id: 'r-1', eventId: WEDDING, adults: 2, kids: 2, diet: 'noix' }))
+      await scene.saveForm({ eventId: WEDDING, actorId: OWNER, form: { kidsSeparate: false } })
+
+      const kept = await scene.hostUpdate({
+        eventId: WEDDING,
+        actorId: OWNER,
+        rsvpId: asGuestRsvpId('r-1'),
+        name: 'Léa',
+        answer: 'yes',
+        adults: 2,
+      })
+      const asked = await scene.hostUpdate({
+        eventId: WEDDING,
+        actorId: OWNER,
+        rsvpId: asGuestRsvpId('r-1'),
+        name: 'Léa',
+        answer: 'yes',
+        adults: 2,
+        diet: null,
+      })
+
+      expect(kept.ok && kept.value.kids).toBe(2)
+      expect(asked.ok && asked.value.diet).toBeNull()
+    })
+
+    it('takes a "no" for what it is: nothing is kept from a reply that brought people', async () => {
+      scene.rsvps.seed(aRsvp({ id: 'r-1', eventId: WEDDING, adults: 3, diet: 'noix' }))
+      await scene.saveForm({ eventId: WEDDING, actorId: OWNER, form: { diet: false } })
+
+      const declined = await scene.hostUpdate({
+        eventId: WEDDING,
+        actorId: OWNER,
+        rsvpId: asGuestRsvpId('r-1'),
+        name: 'Léa',
+        answer: 'no',
+      })
+
+      expect(declined.ok && declined.value.toProps()).toMatchObject({
+        adults: 0,
+        kids: 0,
+        diet: null,
+      })
+    })
+
+    it('leaves a reply on the waiting list when sent back as it is, and promotes it only on a yes', async () => {
+      scene.rsvps.seed(aRsvp({ id: 'r-1', eventId: WEDDING, answer: 'waitlist', adults: 2 }))
+
+      const kept = await scene.hostUpdate({
+        eventId: WEDDING,
+        actorId: OWNER,
+        rsvpId: asGuestRsvpId('r-1'),
+        name: 'Léa',
+        answer: 'waitlist',
+        adults: 2,
+      })
+      const promoted = await scene.hostUpdate({
+        eventId: WEDDING,
+        actorId: OWNER,
+        rsvpId: asGuestRsvpId('r-1'),
+        name: 'Léa',
+        answer: 'yes',
+        adults: 2,
+      })
+
+      expect(kept.ok && kept.value.answer).toBe('waitlist')
+      expect(promoted.ok && promoted.value.answer).toBe('yes')
+    })
+
+    it('does not let a host move a reply onto the waiting list', async () => {
+      scene.rsvps.seed(aRsvp({ id: 'r-1', eventId: WEDDING, answer: 'yes' }))
+
+      const refused = await scene.hostUpdate({
+        eventId: WEDDING,
+        actorId: OWNER,
+        rsvpId: asGuestRsvpId('r-1'),
+        name: 'Léa',
+        answer: 'waitlist',
+      })
+
+      expect(!refused.ok && refused.error.code).toBe('rsvp.answerInvalid')
+    })
+
+    it('says nothing when the reply went between the read and the write: 404, no line, no signal', async () => {
+      scene.rsvps.seed(aRsvp({ id: 'r-1', eventId: WEDDING }))
+      scene.rsvps.update = async () => false
+
+      const refused = await scene.hostUpdate({
+        eventId: WEDDING,
+        actorId: OWNER,
+        rsvpId: asGuestRsvpId('r-1'),
+        name: 'Léa',
+        answer: 'yes',
+        adults: 1,
+      })
+
+      expect(!refused.ok && refused.error.code).toBe('rsvp.notFound')
+      expect(await act()).toEqual([])
+      expect(signals()).toEqual([])
+    })
+
     it('needs the invitation', async () => {
       const bare = await rsvpScene({ invited: false })
 
@@ -264,6 +392,21 @@ describe('the replies of an event, on the host’s side (spec 30)', () => {
       expect(await act()).toEqual([])
     })
 
+    it('says nothing when the reply went between the read and the delete: 404, no line, no signal', async () => {
+      scene.rsvps.seed(aRsvp({ id: 'r-1', eventId: WEDDING }))
+      scene.rsvps.delete = async () => false
+
+      const refused = await scene.hostDelete({
+        eventId: WEDDING,
+        actorId: OWNER,
+        rsvpId: asGuestRsvpId('r-1'),
+      })
+
+      expect(!refused.ok && refused.error.code).toBe('rsvp.notFound')
+      expect(await act()).toEqual([])
+      expect(signals()).toEqual([])
+    })
+
     it('needs no invitation: a host must be able to remove the names an invitation once collected', async () => {
       const bare = await rsvpScene({ invited: false })
       bare.rsvps.seed(aRsvp({ id: 'r-1', eventId: WEDDING }))
@@ -275,6 +418,38 @@ describe('the replies of an event, on the host’s side (spec 30)', () => {
       })
 
       expect(deleted.ok).toBe(true)
+    })
+  })
+
+  describe('the host’s own writes and the badge', () => {
+    const unseen = async () => {
+      const listed = await scene.list({ eventId: WEDDING, actorId: OWNER })
+      return listed.ok ? listed.value.unseen : -1
+    }
+
+    it('do not count against the host who made them', async () => {
+      await add()
+      const stored = (await scene.rsvps.listByEvent(WEDDING))[0]
+      scene.clock.advance(1_000)
+      await scene.hostUpdate({
+        eventId: WEDDING,
+        actorId: OWNER,
+        rsvpId: stored?.id as GuestRsvpId,
+        name: 'Corrigé',
+        answer: 'yes',
+        adults: 1,
+      })
+
+      expect(await unseen()).toBe(0)
+    })
+
+    it('leave the replies of guests the host has not read unseen', async () => {
+      scene.rsvps.seed(aRsvp({ id: 'guest-1', eventId: WEDDING, updatedAt: new Date(0) }))
+      scene.rsvps.seed(aRsvp({ id: 'guest-2', eventId: WEDDING, updatedAt: new Date(0) }))
+
+      await add()
+
+      expect(await unseen()).toBe(3)
     })
   })
 

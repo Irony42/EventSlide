@@ -9,6 +9,7 @@ import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import {
   announceRsvpsChanged,
+  keepOwnWriteSeen,
   openRsvps,
   recordRsvpAct,
   requireInvite,
@@ -20,7 +21,8 @@ import {
  * or by message. The reply is judged by the **same form** a guest's is, comes from `host`, has no
  * token to keep, and **is not held to the places** (the host decides): only the thousand-reply
  * ceiling applies, `409 rsvp.tooMany`. Allowed whatever the window says, as long as the event is not
- * archived. Audited without content, and announced.
+ * archived. Audited without content (only once the reply is stored: a refusal leaves no line), and
+ * announced. The host's own write does not count against their badge.
  */
 
 export interface HostAddRsvpInput extends RawRsvpInput {
@@ -29,7 +31,7 @@ export interface HostAddRsvpInput extends RawRsvpInput {
 }
 
 export interface HostAddRsvpDeps extends RsvpAccessDeps {
-  readonly rsvps: Pick<GuestRsvpRepository, 'admit'>
+  readonly rsvps: Pick<GuestRsvpRepository, 'admit' | 'delete' | 'unseenCount' | 'markSeen'>
   readonly audit: AuditRecorder
   readonly bus: EventBus
   readonly ids: IdGenerator
@@ -59,6 +61,10 @@ export const makeHostAddRsvp =
       source: 'host',
       now,
     })
+    const unseenBefore = await deps.rsvps.unseenCount(eventId, actorId)
+    const admission = await deps.rsvps.admit(rsvp, { capacity: null })
+    // Nothing is audited for a refusal: the line says an act happened.
+    if (admission.kind === 'refused') return err(DomainError.conflict('rsvp.tooMany'))
     const recorded = await recordRsvpAct(
       deps.audit,
       needed.value.event,
@@ -66,10 +72,12 @@ export const makeHostAddRsvp =
       'event.rsvpHostAdded',
       now,
     )
-    if (!recorded.ok) return recorded
-
-    const admission = await deps.rsvps.admit(rsvp, { capacity: null })
-    if (admission.kind === 'refused') return err(DomainError.conflict('rsvp.tooMany'))
+    if (!recorded.ok) {
+      // A log that refuses the line means no act: the reply is taken back.
+      await deps.rsvps.delete(eventId, rsvp.id)
+      return recorded
+    }
+    await keepOwnWriteSeen(deps.rsvps, eventId, actorId, unseenBefore, now)
     announceRsvpsChanged(deps.bus, eventId)
     return ok(admission.rsvp)
   }

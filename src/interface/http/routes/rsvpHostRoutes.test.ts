@@ -324,16 +324,26 @@ describe('PUT /api/events/:eventSlug/rsvp-form', () => {
     expect(response.body.error.code).toBe(code)
   })
 
-  it('refuses a stray key, at the top and in the form, as a malformed request', async () => {
-    const agent = await signedIn(world, 'owner')
+  it('refuses a stray key at the top as a malformed request', async () => {
+    const response = await (
+      await signedIn(world, 'owner')
+    )
+      .put(FORM)
+      .send({ closedAt: '2026-01-01' })
 
-    const top = await agent.put(FORM).send({ closedAt: '2026-01-01' })
-    const nested = await agent.put(FORM).send({ form: { capacity: 3 } })
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+  })
 
-    expect(top.status).toBe(400)
-    expect(top.body.error.code).toBe('request.invalid')
-    expect(nested.status).toBe(400)
-    expect(nested.body.error.code).toBe('request.invalid')
+  it.each([
+    ['a key lot 1 does not know', { capacity: 3 }],
+    ['a form that is not an object', 4],
+    ['a null form', null],
+  ])('answers rsvp.formInvalid for %s, from the domain', async (_name, form) => {
+    const response = await (await signedIn(world, 'owner')).put(FORM).send({ form })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('rsvp.formInvalid')
   })
 
   it('answers 409 rsvp.inviteRequired for an event with no invitation', async () => {
@@ -347,6 +357,18 @@ describe('PUT /api/events/:eventSlug/rsvp-form', () => {
     expect(response.body.error.code).toBe('rsvp.inviteRequired')
   })
 
+  it('lets the host delete a reply on an archived event, and refuses every other write there', async () => {
+    const agent = await signedIn(world, 'owner')
+    const id = '99999999-9999-4999-8999-999999999999'
+    world.rsvps.seed(aRsvp({ id, eventId: ARCHIVED }))
+
+    const add = await agent.post('/api/events/archive/rsvps').send(REPLY)
+    const del = await agent.delete(`/api/events/archive/rsvps/${id}`)
+
+    expect([add.status, add.body.error.code]).toEqual([409, 'guestInvite.eventArchived'])
+    expect(del.status).toBe(204)
+  })
+
   it('is refused on an archived event', async () => {
     const response = await (
       await signedIn(world, 'owner')
@@ -354,8 +376,8 @@ describe('PUT /api/events/:eventSlug/rsvp-form', () => {
       .put('/api/events/archive/rsvp-form')
       .send({ enabled: true })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(409)
+    expect(response.body.error.code).toBe('guestInvite.eventArchived')
   })
 
   it('is the owner’s, and the other event’s owner is 404', async () => {
@@ -450,7 +472,8 @@ describe('the replies: GET, POST, PUT and DELETE /api/events/:eventSlug/rsvps', 
     expect(list.body.rsvps).toHaveLength(1)
     expect(list.body.stats.yes).toEqual({ responses: 1, people: 3, adults: 2, kids: 1 })
     expect(list.body.stats.diets).toEqual([{ name: 'Léa Martin', diet: 'sans gluten' }])
-    expect(list.body.unseen).toBe(1)
+    // The host's own write is not news to the host.
+    expect(list.body.unseen).toBe(0)
     expect(list.body.rsvpForm.erasedAt).not.toBeNull()
     expect(actionsOf(world)).toEqual(['event.rsvpHostAdded'])
     expect(world.bus.published).toEqual([{ type: 'rsvp.changed', eventId: WEDDING }])
@@ -526,6 +549,20 @@ describe('the replies: GET, POST, PUT and DELETE /api/events/:eventSlug/rsvps', 
     expect(del.status).toBe(404)
     expect(del.body.error.code).toBe('rsvp.notFound')
     expect(await world.rsvps.findById(GALA, aRsvp({ id: foreign }).id)).not.toBeNull()
+  })
+
+  it('leaves a guest’s reply the host has not read unseen after the host adds one', async () => {
+    world.rsvps.seed(
+      aRsvp({
+        id: '88888888-8888-4888-8888-888888888888',
+        eventId: WEDDING,
+        updatedAt: new Date(0),
+      }),
+    )
+    const agent = await signedIn(world, 'owner')
+    await agent.post(RSVPS).send(REPLY).expect(201)
+
+    expect((await agent.get(RSVPS)).body.unseen).toBe(2)
   })
 
   it('refuses an id that is not an id', async () => {

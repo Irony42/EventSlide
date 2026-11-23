@@ -85,6 +85,7 @@ export const rsvpHostRoutes = ({
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
       const scope = hostScopeOf(req)
+      eventSlugParams.parse(req.params)
       const body = rsvpFormBody.parse(req.body)
 
       const result = await usecases.saveRsvpForm({
@@ -105,6 +106,7 @@ export const rsvpHostRoutes = ({
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
       const scope = hostScopeOf(req)
+      eventSlugParams.parse(req.params)
       rsvpActBody.parse(req.body)
 
       const result = await usecases.closeRsvps({
@@ -122,6 +124,7 @@ export const rsvpHostRoutes = ({
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
       const scope = hostScopeOf(req)
+      eventSlugParams.parse(req.params)
       rsvpActBody.parse(req.body)
 
       const result = await usecases.reopenRsvps({
@@ -157,6 +160,7 @@ export const rsvpHostRoutes = ({
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
       const scope = hostScopeOf(req)
+      eventSlugParams.parse(req.params)
       const body = rsvpReplyBody.parse(req.body)
 
       const result = await usecases.hostAddRsvp({
@@ -178,6 +182,7 @@ export const rsvpHostRoutes = ({
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
       const scope = hostScopeOf(req)
+      eventSlugParams.parse(req.params)
       rsvpActBody.parse(req.body)
 
       const result = await usecases.markRsvpsSeen({

@@ -189,8 +189,8 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
   }
 
   /** Content, household and `updated_at`: the statement names neither the token, the source nor the creation. */
-  async update(rsvp: GuestRsvp): Promise<void> {
-    this.db
+  async update(rsvp: GuestRsvp): Promise<boolean> {
+    const result = this.db
       .prepare(
         `UPDATE guest_rsvps
             SET household_id = @household_id, name = @name, answer = @answer, adults = @adults,
@@ -204,6 +204,7 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
         household_id: rsvp.householdId,
         ...contentParams(rsvp),
       })
+    return result.changes > 0
   }
 
   async unseenCount(eventId: EventId, userId: UserId): Promise<number> {

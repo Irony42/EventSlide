@@ -97,7 +97,9 @@ export const eventRoutes = ({
     const { event, counts, limits, purge, now, readyCount } = await usecases.getEventView({
       event: result.value,
     })
-    // The badge of the replies page: the owner's own, read per account; nobody else is told.
+    // The badge of the replies page: the owner's own, read per account; nobody else is told. One
+    // extra count per owner answer on purpose: the figure is per member (`rsvp_seen_at`), so it cannot
+    // ride the shared event view.
     const unseenRsvps =
       actor.role === 'owner'
         ? await usecases.countUnseenRsvps({ eventId: event.id, actorId: actor.userId })

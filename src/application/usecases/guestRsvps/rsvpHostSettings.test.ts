@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { aRsvp } from '../../../domain/guestRsvps/testing/rsvpFixtures'
-import { asEventId } from '../../../domain/shared/ids'
+import { asEventId, asGuestRsvpId } from '../../../domain/shared/ids'
 import {
   ARCHIVED,
   CLOSED,
@@ -312,7 +312,7 @@ describe('replies settings (spec 30)', () => {
     })
 
     it('refuses every write on an archived event, and every write of a suspended client', async () => {
-      for (const name of ['saveForm', 'close', 'reopen', 'hostAdd', 'hostUpdate', 'hostDelete']) {
+      for (const name of ['saveForm', 'close', 'reopen', 'hostAdd', 'hostUpdate']) {
         const ask = asks()[name]
         expect([name, code(await ask?.(ARCHIVED, OWNER))]).toEqual([
           name,
@@ -320,6 +320,28 @@ describe('replies settings (spec 30)', () => {
         ])
         expect([name, code(await ask?.(FROZEN, OWNER))]).toEqual([name, 'client.suspended'])
       }
+    })
+
+    it('still lets the host delete a reply on an archived event, as it holds names; a suspended client still cannot', async () => {
+      scene.rsvps.seed(
+        aRsvp({ id: 'r-arch', eventId: ARCHIVED }),
+        aRsvp({ id: 'r-frozen', eventId: FROZEN }),
+      )
+
+      const archived = await scene.hostDelete({
+        eventId: ARCHIVED,
+        actorId: OWNER,
+        rsvpId: asGuestRsvpId('r-arch'),
+      })
+      const frozen = await scene.hostDelete({
+        eventId: FROZEN,
+        actorId: OWNER,
+        rsvpId: asGuestRsvpId('r-frozen'),
+      })
+
+      expect(archived.ok).toBe(true)
+      expect(!frozen.ok && frozen.error.code).toBe('client.suspended')
+      expect(await scene.rsvps.listByEvent(FROZEN)).toHaveLength(1)
     })
 
     it('still reads, lists, exports and marks seen on a closed event and on a draft', async () => {

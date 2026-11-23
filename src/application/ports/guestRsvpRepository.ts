@@ -55,9 +55,10 @@ export interface GuestRsvpRepository {
 
   /**
    * Replaces everything about a reply that a host may change: the content, the household and
-   * `updatedAt`. Not subject to any ceiling (the host decides). No such reply is a no-op.
+   * `updatedAt`. Not subject to any ceiling (the host decides). Says whether such a reply existed
+   * and was changed: `false` for one that is gone or another event's, nothing written.
    */
-  update(rsvp: GuestRsvp): Promise<void>
+  update(rsvp: GuestRsvp): Promise<boolean>
 
   /**
    * How many replies were written or changed after this member's last visit to the replies page

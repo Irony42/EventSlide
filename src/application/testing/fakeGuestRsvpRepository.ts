@@ -109,9 +109,9 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
     return { kind: 'added', rsvp }
   }
 
-  async update(rsvp: GuestRsvp): Promise<void> {
+  async update(rsvp: GuestRsvp): Promise<boolean> {
     const stored = this.rows.get(key(rsvp.eventId, rsvp.id))
-    if (stored === undefined) return
+    if (stored === undefined) return false
     if (
       rsvp.householdId !== null &&
       this.inEvent(rsvp.eventId).some(
@@ -125,6 +125,7 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
       key(rsvp.eventId, rsvp.id),
       stored.withContentOf(rsvp).withHousehold(rsvp.householdId),
     )
+    return true
   }
 
   async unseenCount(eventId: EventId, userId: UserId): Promise<number> {
