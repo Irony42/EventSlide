@@ -240,7 +240,13 @@ export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
           disabled={locked}
           onChange={(diet) => rsvp.change({ form: { diet } })}
         />
-        <RsvpExtras form={form} locked={locked} change={rsvp.change} />
+        <RsvpExtras
+          form={form}
+          locked={locked}
+          change={rsvp.change}
+          saveState={rsvp.saveState}
+          problem={rsvp.problem}
+        />
       </fieldset>
 
       <div

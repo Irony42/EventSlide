@@ -2820,11 +2820,12 @@ export const fr = {
     'rsvp.companionsTooMany': 'Il y a trop de prénoms pour le nombre de personnes.',
     'rsvp.mealsInvalid': 'Ces menus ne sont pas valides\u00a0: de 2 à 6 menus, tous différents.',
     'rsvp.mealsTooMany': 'Il y a plus de menus que de personnes.',
-    'rsvp.mealNotOffered': 'Ce menu n’est pas proposé.',
+    'rsvp.mealNotOffered':
+      'Les menus ont changé\u00a0: la page vient d’être mise à jour. Choisissez à nouveau.',
     'rsvp.answersInvalid': 'Ces réponses ne sont pas valides.',
-    'rsvp.questionUnknown': 'Cette question n’existe pas.',
     'rsvp.answerTooLong': 'Une réponse est trop longue\u00a0: 120 caractères au plus.',
-    'rsvp.answerNotAnOption': 'Choisissez l’une des réponses proposées.',
+    'rsvp.answerNotAnOption':
+      'Les choix ont changé\u00a0: la page vient d’être mise à jour. Choisissez à nouveau.',
     'rsvp.questionsInvalid':
       'Ces questions ne sont pas valides\u00a0: trois au plus, et de 2 à 6 choix pour une question à choix.',
     'guestInvite.notFound': 'Cette invitation n’existe pas encore. Enregistrez-la d’abord.',
@@ -4140,13 +4141,13 @@ export const fr = {
       companionPlaceholder: 'Prénom',
       mealsLabel: 'Menus',
       mealFor: (who: string) => `Menu de ${who}`,
-      mealPick: 'Choisir un menu',
       personFallback: (n: number) => `Personne ${n}`,
       answerPick: 'Choisir',
       recapCompanions: (names: string) => `Avec vous\u00a0: ${names}`,
       recapMeals: (meals: string) => `Menus\u00a0: ${meals}`,
       recapAnswer: (label: string, value: string) => `${label}\u00a0: ${value}`,
       trap: 'Ne pas remplir ce champ',
+      tooLarge: 'Votre réponse est trop longue pour être envoyée. Raccourcissez vos textes.',
     },
     host: {
       title: 'Réponses des invités',
@@ -4206,13 +4207,15 @@ export const fr = {
       stateFull: 'Complet',
       companionsLabel: 'Prénoms des accompagnants',
       companionsHint: 'L’invité note le prénom de chaque personne qui vient avec lui.',
+      companionsNeedSize:
+        'Les prénoms se demandent pour chaque personne en plus de l’invité\u00a0: activez aussi le nombre de personnes.',
       mealsLabel: 'Menus au choix',
       mealsHint: 'Un menu par personne, demandé seulement à ceux qui viennent.',
       mealsOptionsLabel: 'Les menus',
       mealsOptionsHint: 'Un par ligne, de 2 à 6.',
       questionsTitle: 'Vos questions',
       questionsHint:
-        'Trois au plus, posées après le «\u00a0oui\u00a0». Retirer une question n’efface pas les réponses déjà données.',
+        'Trois au plus, posées à ceux qui répondent «\u00a0oui\u00a0» ou «\u00a0peut-être\u00a0». Retirer une question n’efface pas les réponses déjà données.',
       questionAdd: 'Ajouter une question',
       questionLabelLabel: 'La question',
       questionKindLabel: 'Type de réponse',

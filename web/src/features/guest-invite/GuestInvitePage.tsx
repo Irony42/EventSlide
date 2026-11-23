@@ -87,7 +87,12 @@ export function GuestInvitePage() {
   return (
     <>
       <Robots />
-      <GuestInvitation page={state.page} token={token} readAt={state.readAt} />
+      <GuestInvitation
+        page={state.page}
+        token={token}
+        readAt={state.readAt}
+        onRefresh={state.refresh}
+      />
     </>
   )
 }

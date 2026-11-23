@@ -92,12 +92,12 @@ export function RsvpTable({ rows, form, onOpen }: RsvpTableProps) {
               ) : null}
               {form.companionNames ? (
                 <td role="cell" data-label={text.colCompanions} className={styles['free']}>
-                  {reply.details.companions.join(', ') || text.none}
+                  {reply.details.companions.filter((name) => name !== '').join(', ') || text.none}
                 </td>
               ) : null}
               {form.meals.enabled ? (
                 <td role="cell" data-label={text.colMeals} className={styles['free']}>
-                  {reply.details.meals.join(', ') || text.none}
+                  {reply.details.meals.filter((meal) => meal !== '').join(', ') || text.none}
                 </td>
               ) : null}
               {form.diet ? (

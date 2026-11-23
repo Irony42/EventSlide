@@ -144,7 +144,7 @@ describe('the guest’s form as data', () => {
   })
 
   it('is filled back from a reply, a waiting-list reply asking as a yes', () => {
-    expect(draftOf(aGuestOwnRsvp({ diet: 'noix', message: 'Hâte' }))).toMatchObject({
+    expect(draftOf(aGuestOwnRsvp({ diet: 'noix', message: 'Hâte' }), FORM)).toMatchObject({
       answer: 'yes',
       name: 'Léa Martin',
       adults: 2,
@@ -152,8 +152,8 @@ describe('the guest’s form as data', () => {
       diet: 'noix',
       message: 'Hâte',
     })
-    expect(draftOf(aGuestOwnRsvp({ answer: 'waitlist' })).answer).toBe('yes')
-    expect(draftOf(aGuestOwnRsvp({ answer: 'no', adults: 0, kids: 0 })).adults).toBe(1)
+    expect(draftOf(aGuestOwnRsvp({ answer: 'waitlist' }), FORM).answer).toBe('yes')
+    expect(draftOf(aGuestOwnRsvp({ answer: 'no', adults: 0, kids: 0 }), FORM).adults).toBe(1)
   })
 
   it('lets a party be as large as the host’s form says, or one adult when it asks nothing', () => {

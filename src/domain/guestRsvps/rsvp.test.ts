@@ -386,8 +386,10 @@ describe('parseRsvpInput: the lot 2 extras', () => {
     return result.value.extras
   }
 
-  it('keeps the companions of a party, cleaned, the empty ones dropped', () => {
-    expect(okExtras({ companions: [' Hugo ', '', 'Inès\n'] }).companions).toEqual(['Hugo', 'Inès'])
+  it('keeps the companions of a party, cleaned', () => {
+    expect(
+      okExtras({ companions: [' Hugo ', 'Inès ' + String.fromCharCode(10)] }).companions,
+    ).toEqual(['Hugo', 'Inès'])
   })
 
   it('accepts as many companions as people minus one, and refuses one more', () => {
@@ -472,11 +474,11 @@ describe('parseRsvpInput: the lot 2 extras', () => {
     )
   })
 
-  it('refuses a choice that is not one of the options, an unknown or a repeated question', () => {
+  it('refuses a choice that is not one of the options and a repeated question, and ignores an unknown one', () => {
     expect(codeOf({ answers: [{ questionId: 'q2', value: 'Peut-être' }] })).toBe(
       'rsvp.answerNotAnOption',
     )
-    expect(codeOf({ answers: [{ questionId: 'zz', value: 'x' }] })).toBe('rsvp.questionUnknown')
+    expect(codeOf({ answers: [{ questionId: 'zz', value: 'x' }] })).toBeUndefined()
     expect(
       codeOf({
         answers: [
@@ -484,7 +486,7 @@ describe('parseRsvpInput: the lot 2 extras', () => {
           { questionId: 'q1', value: 'b' },
         ],
       }),
-    ).toBe('rsvp.questionUnknown')
+    ).toBe('rsvp.answersInvalid')
   })
 
   it('refuses answers that are not a list of { questionId, value }', () => {
@@ -545,12 +547,17 @@ describe('retainExtras', () => {
     }
 
     expect(
-      retainExtras(form, held, {
-        companions: ['New'],
-        meals: ['Végé'],
-        answers: [{ questionId: 'q1', label: 'Un chant ?', value: 'Ah' }],
-        showName: false,
-      }),
+      retainExtras(
+        form,
+        held,
+        {
+          companions: ['New'],
+          meals: ['Végé'],
+          answers: [{ questionId: 'q1', label: 'Un chant ?', value: 'Ah' }],
+          showName: false,
+        },
+        'yes',
+      ),
     ).toEqual({
       showName: false,
       companions: ['New'],
@@ -565,12 +572,147 @@ describe('retainExtras', () => {
   it('keeps what was given when the form no longer asks for it', () => {
     const none = { companions: [], meals: [], answers: [], showName: false }
 
-    expect(retainExtras(DEFAULT_RSVP_FORM, { ...held, showName: true }, none)).toEqual({
+    expect(retainExtras(DEFAULT_RSVP_FORM, { ...held, showName: true }, none, 'yes')).toEqual({
       showName: true,
       companions: ['Hugo'],
       meals: ['Poisson'],
       answers: held.answers,
     })
+  })
+
+  it('keeps the answers to removed questions through a no, and drops what a no brings', () => {
+    const none = { companions: [], meals: [], answers: [], showName: false }
+
+    expect(retainExtras(DEFAULT_RSVP_FORM, held, none, 'no')).toEqual({
+      showName: false,
+      companions: [],
+      meals: [],
+      answers: held.answers,
+    })
+  })
+
+  it('goes yes, no, yes without losing the answer to a removed question', () => {
+    const asked = {
+      ...DEFAULT_RSVP_FORM,
+      questions: [{ id: 'q1', label: 'Un chant ?', kind: 'text' as const }],
+    }
+    const yes = {
+      companions: [],
+      meals: [],
+      answers: [{ questionId: 'q1', label: 'Un chant ?', value: 'Oh' }],
+      showName: false,
+    }
+    const first = retainExtras(
+      asked,
+      { ...EMPTY_RSVP_DETAILS, answers: [{ questionId: 'old', label: 'Ancienne', value: 'Oui' }] },
+      yes,
+      'yes',
+    )
+    const declined = retainExtras(
+      asked,
+      { ...EMPTY_RSVP_DETAILS, ...first },
+      { companions: [], meals: [], answers: [], showName: false },
+      'no',
+    )
+    const back = retainExtras(asked, { ...EMPTY_RSVP_DETAILS, ...declined }, yes, 'yes')
+
+    expect(back.answers.map((a) => a.questionId)).toEqual(['q1', 'old'])
+  })
+
+  it('keeps at most twelve answers, the oldest orphans going first', () => {
+    const orphans = Array.from({ length: 12 }, (_, i) => ({
+      questionId: 'o' + String(i).padStart(2, '0'),
+      label: 'x',
+      value: 'v',
+    }))
+    const asked = {
+      ...DEFAULT_RSVP_FORM,
+      questions: [{ id: 'q1', label: 'Q', kind: 'text' as const }],
+    }
+    const kept = retainExtras(
+      asked,
+      { ...EMPTY_RSVP_DETAILS, answers: orphans },
+      {
+        companions: [],
+        meals: [],
+        answers: [{ questionId: 'q1', label: 'Q', value: 'a' }],
+        showName: false,
+      },
+      'yes',
+    )
+
+    expect(kept.answers).toHaveLength(12)
+    expect(kept.answers[0]?.questionId).toBe('q1')
+    expect(kept.answers.slice(1).map((a) => a.questionId)).toEqual(
+      orphans.slice(1).map((a) => a.questionId),
+    )
+  })
+
+  it('keeps no orphan when the asked answers fill the room', () => {
+    const asked = { ...DEFAULT_RSVP_FORM, questions: [] }
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      questionId: 'q' + i,
+      label: 'x',
+      value: 'v',
+    }))
+    const kept = retainExtras(
+      asked,
+      { ...EMPTY_RSVP_DETAILS, answers: [{ questionId: 'old', label: 'x', value: 'v' }] },
+      { companions: [], meals: [], answers: many, showName: false },
+      'yes',
+    )
+
+    expect(kept.answers).toEqual(many)
+  })
+})
+
+describe('parseRsvpInput: positions and stale pages', () => {
+  const form: RsvpForm = {
+    ...DEFAULT_RSVP_FORM,
+    companionNames: true,
+    meals: { enabled: true, options: ['Poisson', 'Végé'] },
+    questions: [{ id: 'q1', label: 'Un chant ?', kind: 'text' }],
+  }
+  const party = { name: 'Léa', answer: 'yes', adults: 3, kids: 0 }
+  const extras = (raw: RawRsvpInput) => {
+    const result = parseRsvpInput(form, { ...party, ...raw })
+    if (!result.ok) throw new Error(result.error.code)
+    return result.value.extras
+  }
+  const codeOf = (raw: RawRsvpInput): string | undefined => {
+    const result = parseRsvpInput(form, { ...party, ...raw })
+    return result.ok ? undefined : result.error.code
+  }
+
+  it('keeps a blank companion in the middle, so a name stays with its person', () => {
+    expect(extras({ companions: ['', 'Inès'] }).companions).toEqual(['', 'Inès'])
+    expect(extras({ companions: ['Hugo', '', ''] }).companions).toEqual(['Hugo'])
+  })
+
+  it('keeps a blank menu in the middle, and counts only the entries up to the last chosen', () => {
+    expect(extras({ meals: ['', 'Végé'] }).meals).toEqual(['', 'Végé'])
+    expect(extras({ meals: ['Poisson', '', ''] }).meals).toEqual(['Poisson'])
+    expect(extras({ meals: ['', '', '', ''] }).meals).toEqual([])
+    expect(codeOf({ meals: ['', '', '', 'Végé'] })).toBe('rsvp.mealsTooMany')
+  })
+
+  it('ignores an answer to a question the form does not ask, and refuses a repeated one', () => {
+    expect(
+      extras({
+        answers: [
+          { questionId: 'gone', value: 'x' },
+          { questionId: 'q1', value: 'y' },
+        ],
+      }).answers,
+    ).toEqual([{ questionId: 'q1', label: 'Un chant ?', value: 'y' }])
+    expect(
+      codeOf({
+        answers: [
+          { questionId: 'q1', value: 'a' },
+          { questionId: 'q1', value: 'b' },
+        ],
+      }),
+    ).toBe('rsvp.answersInvalid')
   })
 })
 
@@ -605,7 +747,7 @@ describe('parseRsvpInput: show my first name', () => {
     const held = { ...EMPTY_RSVP_DETAILS, showName: true }
     const none = { companions: [], meals: [], answers: [], showName: false }
 
-    expect(retainExtras(DEFAULT_RSVP_FORM, held, none).showName).toBe(true)
-    expect(retainExtras(naming, held, none).showName).toBe(false)
+    expect(retainExtras(DEFAULT_RSVP_FORM, held, none, 'yes').showName).toBe(true)
+    expect(retainExtras(naming, held, none, 'yes').showName).toBe(false)
   })
 })

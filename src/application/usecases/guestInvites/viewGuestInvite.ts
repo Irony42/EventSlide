@@ -129,7 +129,8 @@ export const makeViewGuestInvite =
         kidsSeparate: form.kidsSeparate,
         diet: form.diet,
         companionNames: form.companionNames,
-        meals: form.meals,
+        // The menus are not told while they are off: nothing the host has not asked leaves the box.
+        meals: form.meals.enabled ? form.meals : { enabled: false, options: [] },
         questions: form.questions,
         visibility: form.visibility,
       },

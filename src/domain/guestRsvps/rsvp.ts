@@ -16,6 +16,8 @@ export const MESSAGE_MAX_CHARS = 280
 export const MESSAGE_MAX_LINES = 4
 const DETAIL_TEXT_MAX_CHARS = 120
 const DETAIL_LIST_MAX = 12
+/** The answers a reply keeps: the three asked, and the orphans of removed questions in what is left. */
+export const ANSWERS_MAX = DETAIL_LIST_MAX
 export const COMPANION_MAX_CHARS = 40
 export const ANSWER_MAX_CHARS = 120
 const ANSWER_ID_MAX_CHARS = 40
@@ -177,7 +179,18 @@ const parseMessage = (raw: unknown): Result<string | null, DomainError> => {
 
 const tooMany = (code: string, max: number): DomainError => DomainError.invalid(code, { max })
 
-/** The companions' first names: the empty ones dropped, at most `people - 1`, 40 characters each. */
+/** `list` without its trailing empty entries: a blank field at the end says nothing. */
+const withoutTrailingBlanks = (list: readonly string[]): readonly string[] => {
+  let end = list.length
+  while (end > 0 && list[end - 1] === '') end -= 1
+  return list.slice(0, end)
+}
+
+/**
+ * The companions' first names **by position** (the second person is `[0]`): a blank field in the
+ * middle stays a blank entry, so a name keeps the person it was typed for, and the menus beside it
+ * keep theirs. Trailing blanks are dropped; at most `people - 1` remain, 40 characters each.
+ */
 const parseCompanions = (raw: unknown, people: number): Result<readonly string[], DomainError> => {
   if (raw === undefined || raw === null) return ok([])
   if (!Array.isArray(raw)) return err(DomainError.invalid('rsvp.companionsInvalid'))
@@ -188,13 +201,18 @@ const parseCompanions = (raw: unknown, people: number): Result<readonly string[]
     if (characterCount(cleaned) > COMPANION_MAX_CHARS) {
       return err(tooMany('rsvp.companionTooLong', COMPANION_MAX_CHARS))
     }
-    if (cleaned.length > 0) names.push(cleaned)
+    names.push(cleaned)
   }
-  if (names.length > people - 1) return err(tooMany('rsvp.companionsTooMany', people - 1))
-  return ok(names)
+  const kept = withoutTrailingBlanks(names)
+  if (kept.length > people - 1) return err(tooMany('rsvp.companionsTooMany', people - 1))
+  return ok(kept)
 }
 
-/** One menu per person at most, each one of the menus the form offers today. */
+/**
+ * One menu per person at most, **by position** (the guest is `[0]`), each one of the menus the form
+ * offers today or blank for a person who has not chosen. A menu that is not offered any more is a
+ * `rsvp.mealNotOffered`: the guest's page was written before the host changed them.
+ */
 const parseMeals = (
   raw: unknown,
   options: readonly string[],
@@ -202,14 +220,17 @@ const parseMeals = (
 ): Result<readonly string[], DomainError> => {
   if (raw === undefined || raw === null) return ok([])
   if (!Array.isArray(raw)) return err(DomainError.invalid('rsvp.mealsInvalid'))
-  if (raw.length > people) return err(tooMany('rsvp.mealsTooMany', people))
   const meals: string[] = []
   for (const item of raw) {
-    const cleaned = typeof item === 'string' ? toSingleLine(item) : ''
-    if (!options.includes(cleaned)) return err(DomainError.invalid('rsvp.mealNotOffered'))
+    const cleaned = typeof item === 'string' ? toSingleLine(item) : null
+    if (cleaned === null || (cleaned !== '' && !options.includes(cleaned))) {
+      return err(DomainError.invalid('rsvp.mealNotOffered'))
+    }
     meals.push(cleaned)
   }
-  return ok(meals)
+  const kept = withoutTrailingBlanks(meals)
+  if (kept.length > people) return err(tooMany('rsvp.mealsTooMany', people))
+  return ok(kept)
 }
 
 /**
@@ -232,12 +253,12 @@ const parseAnswers = (
       return err(DomainError.invalid('rsvp.answersInvalid'))
     }
     const { questionId, value } = item
-    if (!questions.some((question) => question.id === questionId) || given.has(questionId)) {
-      return err(DomainError.invalid('rsvp.questionUnknown'))
-    }
+    if (given.has(questionId)) return err(DomainError.invalid('rsvp.answersInvalid'))
     if (value !== undefined && value !== null && typeof value !== 'string') {
       return err(DomainError.invalid('rsvp.answersInvalid'))
     }
+    // An answer to a question the form does not ask (a page written before the host removed it) is
+    // ignored, not refused: the guest did nothing wrong.
     given.set(questionId, toSingleLine(value ?? ''))
   }
   const answers: RsvpExtras['answers'][number][] = []
@@ -500,22 +521,30 @@ export class GuestRsvp {
  * The extras of a changed reply, **keeping what the form no longer asks** (spec 30, section 4.1:
  * removing a question or a menu never erases an answer already given). A switched-off companions'
  * field or menu keeps what was given; an answer to a question the host removed stays, with the
- * label it was given under, after the answers to the questions asked today.
+ * label it was given under, after the answers to the questions asked today, **whatever the new
+ * answer is**: a `no` brings nobody, so its companions and menus are dropped by design, but the
+ * answers to removed questions stay (yes, no, yes loses none). At most {@link ANSWERS_MAX} entries
+ * are kept: when there are too many, **the oldest orphans go first** (they are stored oldest first).
  */
 export const retainExtras = (
   form: RsvpForm,
   held: RsvpDetails,
   extras: RsvpExtras,
-): RsvpExtras => ({
-  companions: form.companionNames ? extras.companions : held.companions,
-  meals: form.meals.enabled ? extras.meals : held.meals,
-  // The opt-in is the guest's: switching the display off keeps it, so switching it on again does not
-  // name a guest who never said so, nor forget one who did.
-  showName: form.visibility === 'names' ? extras.showName : held.showName,
-  answers: [
-    ...extras.answers,
-    ...held.answers.filter(
-      (answer) => !form.questions.some((question) => question.id === answer.questionId),
-    ),
-  ],
-})
+  answer: RsvpAnswer,
+): RsvpExtras => {
+  const orphans = held.answers.filter(
+    (kept) =>
+      kept.value !== '' && !form.questions.some((question) => question.id === kept.questionId),
+  )
+  const room = Math.max(ANSWERS_MAX - extras.answers.length, 0)
+  const kept = room === 0 ? [] : orphans.slice(-room)
+  if (answer === 'no') return { companions: [], meals: [], answers: kept, showName: false }
+  return {
+    companions: form.companionNames ? extras.companions : held.companions,
+    meals: form.meals.enabled ? extras.meals : held.meals,
+    // The opt-in is the guest's: switching the display off keeps it, so switching it on again does
+    // not name a guest who never said so, nor forget one who did.
+    showName: form.visibility === 'names' ? extras.showName : held.showName,
+    answers: [...extras.answers, ...kept],
+  }
+}

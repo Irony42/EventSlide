@@ -80,10 +80,12 @@ export const makeUpdateOwnRsvp =
     // What the form no longer asks stays (a removed question keeps its answers).
     const reply = {
       ...judged.value,
-      extras:
-        judged.value.answer === 'no'
-          ? judged.value.extras
-          : retainExtras(settings.form, own.value.details, judged.value.extras),
+      extras: retainExtras(
+        settings.form,
+        own.value.details,
+        judged.value.extras,
+        judged.value.answer,
+      ),
     }
     const changed = own.value.withReply(reply, now)
     const admission = await deps.rsvps.admit(changed, {

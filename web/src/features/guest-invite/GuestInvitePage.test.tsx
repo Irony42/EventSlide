@@ -554,3 +554,28 @@ describe('GuestInvitePage', () => {
     })
   })
 })
+
+describe('a form the host changed under an open page (spec 30)', () => {
+  it('reads the invitation again when a menu is refused, without clearing the page or the typed name', async () => {
+    const user = userEvent.setup()
+    const page = aGuestInvitePage()
+    const guestInvitePage = vi.fn(async () => ({
+      ...page,
+      rsvp: {
+        ...page.rsvp,
+        state: 'open' as const,
+        form: { ...page.rsvp.form, meals: { enabled: true, options: ['Poisson', 'Végé'] } },
+      },
+    }))
+    const guestRsvpCreate = vi.fn().mockRejectedValue(new ApiError(400, 'rsvp.mealNotOffered'))
+    render(fakeApi({ guestInvitePage, guestRsvpCreate }))
+
+    await user.click(await screen.findByRole('button', { name: fr.rsvp.guest.yes }))
+    await user.type(screen.getByLabelText(new RegExp(fr.rsvp.guest.nameLabel)), 'Léa Martin')
+    await user.selectOptions(screen.getByRole('combobox', { name: /Menu de/ }), 'Poisson')
+    await user.click(screen.getByRole('button', { name: fr.rsvp.guest.send }))
+
+    await waitFor(() => expect(guestInvitePage).toHaveBeenCalledTimes(2))
+    expect(screen.getByLabelText(new RegExp(fr.rsvp.guest.nameLabel))).toHaveValue('Léa Martin')
+  })
+})

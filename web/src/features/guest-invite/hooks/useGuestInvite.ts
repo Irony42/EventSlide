@@ -32,6 +32,8 @@ export interface GuestInviteState {
   /** The instant the page on screen was read (epoch ms): what "the hour has come" is measured against. */
   readonly readAt: number
   readonly retry: () => void
+  /** Reads again **without** clearing the page: what a guest is typing on it stays. */
+  readonly refresh: () => void
 }
 
 type Answer =
@@ -117,15 +119,19 @@ export const useGuestInvite = (token: string): GuestInviteState => {
     setAttempt((n) => n + 1)
   }, [])
 
+  const refresh = useCallback(() => setAttempt((n) => n + 1), [])
+
   const current = answer !== null && answer.token === token ? answer.value : null
-  if (current === null) return { phase: 'loading', page: null, busy: false, readAt: 0, retry }
+  if (current === null)
+    return { phase: 'loading', page: null, busy: false, readAt: 0, retry, refresh }
   return current.phase === 'ready'
-    ? { phase: 'ready', page: current.page, busy: false, readAt: current.readAt, retry }
+    ? { phase: 'ready', page: current.page, busy: false, readAt: current.readAt, retry, refresh }
     : {
         phase: current.phase,
         page: null,
         busy: current.phase === 'failed' && current.busy,
         readAt: 0,
         retry,
+        refresh,
       }
 }

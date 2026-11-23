@@ -19,7 +19,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  *   and, for the reply itself, the token the guest was given **in the `X-Rsvp-Token` header**, never
  *   in a path or a query (those reach access logs). A token valid for another event is the same
  *   `404 rsvp.notFound` as an unknown one;
- * - **4 KB of JSON** at most (\`server.ts\` mounts that parser on \`/api/i\` ahead of the global one:
+ * - **8 KB of JSON** at most (\`server.ts\` mounts that parser on \`/api/i\` ahead of the global one:
  *   \`413\` beyond), and a **strict** body: no source, no household, no token field;
  * - **CSRF** like every write of the instance (\`requireCsrfToken\`, which the page's client already
  *   satisfies); the cookie identifies nobody, the limiter and the ceiling are what bound a script;

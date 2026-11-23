@@ -38,8 +38,26 @@ export const EMPTY_DRAFT: RsvpDraft = {
   answers: {},
 }
 
+/**
+ * A menu the form still offers, or blank: a choice the host renamed or removed since is not one the
+ * screen can show, so it is not one the draft holds (screen and payload agree).
+ */
+const offeredMeal = (meal: string, form: GuestRsvpPageDto['form']): string =>
+  form.meals.enabled && form.meals.options.includes(meal) ? meal : ''
+
+/** An answer the form still takes: a text as it is, a choice only while it is one of the options. */
+const offeredAnswer = (
+  questionId: string,
+  value: string,
+  form: GuestRsvpPageDto['form'],
+): string => {
+  const question = form.questions.find((asked) => asked.id === questionId)
+  if (question?.kind !== 'choice') return value
+  return question.options?.includes(value) ? value : ''
+}
+
 /** The form of a guest who is changing their reply: what they sent, in the shape they typed it. */
-export const draftOf = (reply: GuestOwnRsvpDto): RsvpDraft => ({
+export const draftOf = (reply: GuestOwnRsvpDto, form: GuestRsvpPageDto['form']): RsvpDraft => ({
   answer: reply.answer === 'waitlist' ? 'yes' : reply.answer,
   name: reply.name,
   adults: Math.max(reply.adults, 1),
@@ -47,18 +65,23 @@ export const draftOf = (reply: GuestOwnRsvpDto): RsvpDraft => ({
   diet: reply.diet ?? '',
   message: reply.message ?? '',
   companions: reply.companions,
-  meals: reply.meals,
-  answers: Object.fromEntries(reply.answers.map((a) => [a.questionId, a.value])),
+  meals: reply.meals.map((meal) => offeredMeal(meal, form)),
+  answers: Object.fromEntries(
+    reply.answers.map((a) => [a.questionId, offeredAnswer(a.questionId, a.value, form)]),
+  ),
 })
 
 /** The form of a host who is correcting a reply: the same shape, read from the host's DTO. */
-export const draftOfHostReply = (reply: RsvpDto): RsvpDraft =>
-  draftOf({
-    ...reply,
-    companions: reply.details.companions,
-    meals: reply.details.meals,
-    answers: reply.details.answers,
-  })
+export const draftOfHostReply = (reply: RsvpDto, form: GuestRsvpPageDto['form']): RsvpDraft =>
+  draftOf(
+    {
+      ...reply,
+      companions: reply.details.companions,
+      meals: reply.details.meals,
+      answers: reply.details.answers,
+    },
+    form,
+  )
 
 /** How many people the form lets one reply bring: the host's limit, or exactly one adult. */
 export const maxPeople = (form: GuestRsvpPageDto['form']): number =>
@@ -102,13 +125,13 @@ export const inputOf = (
     ...(form.diet ? { diet } : {}),
     ...(form.companionNames ? { companions: draft.companions.slice(0, people - 1) } : {}),
     ...(form.meals.enabled && draft.answer === 'yes'
-      ? { meals: draft.meals.slice(0, people).filter((meal) => meal !== '') }
+      ? { meals: draft.meals.slice(0, people).map((meal) => offeredMeal(meal, form)) }
       : {}),
     ...(form.questions.length > 0
       ? {
           answers: form.questions.map((question) => ({
             questionId: question.id,
-            value: draft.answers[question.id] ?? '',
+            value: offeredAnswer(question.id, draft.answers[question.id] ?? '', form),
           })),
         }
       : {}),

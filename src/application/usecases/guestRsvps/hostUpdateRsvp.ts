@@ -51,15 +51,17 @@ export type HostUpdateRsvp = (input: HostUpdateRsvpInput) => Promise<Result<Gues
 
 /** The judged reply, with what the form does not ask taken from what was stored. */
 const keepingWhatIsNotAsked = (form: RsvpForm, held: GuestRsvp, reply: RsvpInput): RsvpInput => {
-  // Only between two replies that bring people: a `no` holds nothing to keep.
-  if (reply.answer === 'no' || held.answer === 'no') return reply
+  // The answers to removed questions stay whatever the answer is; the rest only between two replies
+  // that bring people: a "no" holds nothing to keep.
+  const extras = retainExtras(form, held.details, reply.extras, reply.answer)
+  if (reply.answer === 'no' || held.answer === 'no') return { ...reply, extras }
   const partySizeAsked = form.partySize.enabled
   return {
     ...reply,
     diet: form.diet ? reply.diet : held.diet,
     adults: partySizeAsked ? reply.adults : held.adults,
     kids: partySizeAsked && form.kidsSeparate ? reply.kids : held.kids,
-    extras: retainExtras(form, held.details, reply.extras),
+    extras,
   }
 }
 

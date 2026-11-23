@@ -693,11 +693,12 @@ export const en: UiText = {
     'rsvp.companionsTooMany': 'There are too many first names for the number of people.',
     'rsvp.mealsInvalid': 'These meals are not valid: 2 to 6 meals, all different.',
     'rsvp.mealsTooMany': 'There are more meals than people.',
-    'rsvp.mealNotOffered': 'This meal is not offered.',
+    'rsvp.mealNotOffered':
+      'The meals have changed: the page has just been updated. Please choose again.',
     'rsvp.answersInvalid': 'These answers are not valid.',
-    'rsvp.questionUnknown': 'This question does not exist.',
     'rsvp.answerTooLong': 'An answer is too long: 120 characters at most.',
-    'rsvp.answerNotAnOption': 'Choose one of the answers offered.',
+    'rsvp.answerNotAnOption':
+      'The choices have changed: the page has just been updated. Please choose again.',
     'rsvp.questionsInvalid':
       'These questions are not valid: three at most, and 2 to 6 choices for a multiple-choice question.',
     'guestInvite.notFound': 'This invitation does not exist yet. Save it first.',
@@ -3378,13 +3379,13 @@ export const en: UiText = {
       companionPlaceholder: 'First name',
       mealsLabel: 'Meals',
       mealFor: (who: string) => `Meal for ${who}`,
-      mealPick: 'Choose a meal',
       personFallback: (n: number) => `Person ${n}`,
       answerPick: 'Choose',
       recapCompanions: (names: string) => `With you: ${names}`,
       recapMeals: (meals: string) => `Meals: ${meals}`,
       recapAnswer: (label: string, value: string) => `${label}: ${value}`,
       trap: 'Leave this field empty',
+      tooLarge: 'Your reply is too long to be sent. Please shorten your texts.',
     },
     host: {
       title: 'Guests’ replies',
@@ -3441,13 +3442,15 @@ export const en: UiText = {
       stateFull: 'Full',
       companionsLabel: 'Companions’ first names',
       companionsHint: 'The guest writes the first name of each person coming with them.',
+      companionsNeedSize:
+        'First names are asked for each person besides the guest: also switch on the number of people.',
       mealsLabel: 'Choice of meals',
       mealsHint: 'One meal per person, asked only of those who come.',
       mealsOptionsLabel: 'The meals',
       mealsOptionsHint: 'One per line, 2 to 6.',
       questionsTitle: 'Your questions',
       questionsHint:
-        'Three at most, asked after the “yes”. Removing a question does not erase the answers already given.',
+        'Three at most, asked of those who answer “yes” or “maybe”. Removing a question does not erase the answers already given.',
       questionAdd: 'Add a question',
       questionLabelLabel: 'The question',
       questionKindLabel: 'Type of answer',
