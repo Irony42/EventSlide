@@ -4352,6 +4352,22 @@ export const fr = {
       notifyLive: 'Tableau en direct',
       notifyLiveHint: 'Ouvert, il se met à jour seul à chaque réponse.',
       notifyNoEmail: 'Pas d’e-mail\u00a0: l’instance hébergée n’envoie pas d’e-mails.',
+      catererTitle: 'Traiteur',
+      catererHint:
+        'Ce qu’il faut lui dire\u00a0: ceux qui viennent, sans les «\u00a0peut-être\u00a0».',
+      catererAdults: 'Adultes',
+      catererKids: 'Enfants',
+      catererMaybe: 'Peut-être (pas comptés)',
+      catererMeals: 'Menus',
+      catererNoMeals: 'Aucun menu choisi pour le moment.',
+      catererDiets: 'Régimes et allergies',
+      catererPrivate: 'Données de santé\u00a0: vues par vous seul, jamais sur la page des invités.',
+      catererExport: 'Exporter pour le traiteur',
+      catererPrint: 'Imprimer la liste',
+      printTitle: (event: string) => `Invités qui viennent · ${event}`,
+      printConfidential: 'Document confidentiel\u00a0: il contient des régimes.',
+      printTotals: (adults: number, kids: number) =>
+        `Adultes\u00a0: ${adults} · Enfants\u00a0: ${kids}`,
     },
   },
 

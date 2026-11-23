@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
@@ -409,5 +409,29 @@ describe('JoinPage: the organiser’s way in (H1)', () => {
     )
     expect(api.session).not.toHaveBeenCalled()
     expect(api.join).not.toHaveBeenCalled()
+  })
+})
+
+describe('JoinPage: the first name taken from the invitation (spec 30, section 9.1)', () => {
+  afterEach(() => {
+    window.sessionStorage.clear()
+  })
+
+  it('offers the first name this device gave on the invitation, editable, and clears it once read', async () => {
+    window.sessionStorage.setItem('eventslide.joinNamePrefill', 'Léa')
+    const api = fakeApi({ join: vi.fn(async () => aJoinResponse({ displayName: 'Léa' })) })
+    renderJoin('/join', api)
+
+    const field = screen.getByLabelText(/Votre prénom/)
+    expect(field).toHaveValue('Léa')
+    await userEvent.clear(field)
+    await userEvent.type(field, 'Léa M.')
+    expect(window.sessionStorage.getItem('eventslide.joinNamePrefill')).toBeNull()
+  })
+
+  it('offers nothing when the device holds no name, and still sends none', async () => {
+    renderJoin('/join', fakeApi())
+
+    expect(screen.getByLabelText(/Votre prénom/)).toHaveValue('')
   })
 })

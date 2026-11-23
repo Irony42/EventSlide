@@ -55,6 +55,8 @@ export interface GuestRsvpBlockProps {
    * (a menu or a choice is gone), so what the guest typed is kept and the form is read anew.
    */
   readonly onStale?: () => void
+  /** Tells the page the name this device's reply was given under (or `null`), for the join screen. */
+  readonly onKnownName?: (name: string | null) => void
 }
 
 const CHOICES: readonly RsvpAnswer[] = ['yes', 'maybe', 'no']
@@ -102,6 +104,7 @@ export function GuestRsvpBlock({
   interactive = true,
   previewName,
   onStale,
+  onKnownName,
 }: GuestRsvpBlockProps) {
   const all = useTranslations()
   const t = all.rsvp.guest
@@ -116,6 +119,10 @@ export function GuestRsvpBlock({
   const [deleted, setDeleted] = useState(false)
 
   const { form } = rsvp
+  const knownName = state.own?.reply.name ?? null
+  useEffect(() => {
+    onKnownName?.(knownName)
+  }, [knownName, onKnownName])
   const failureCode = state.failure
   useEffect(() => {
     if (failureCode === 'rsvp.mealNotOffered' || failureCode === 'rsvp.answerNotAnOption')

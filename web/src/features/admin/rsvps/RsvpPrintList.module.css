@@ -1,0 +1,49 @@
+/*
+ * The printed list of those who come (spec 30, lot 2). Not on screen: it exists only while the
+ * browser's print dialog is open, and then it is the whole page. Tokens only.
+ */
+
+.sheet {
+  display: none;
+}
+
+.sheet h1 {
+  margin-block-end: var(--space-2);
+  font-size: var(--text-xl);
+}
+
+.note {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.sheet table {
+  inline-size: 100%;
+  margin-block-start: var(--space-3);
+  border-collapse: collapse;
+}
+
+.sheet th,
+.sheet td {
+  padding: var(--space-2);
+  border-block-end: 1px solid var(--border-strong);
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  /* Everything the app drew is left off the paper; the sheet is the page. */
+  :global(body[data-printing-rsvps]) > :not(.sheet) {
+    display: none !important;
+  }
+
+  .sheet {
+    display: block;
+    color: var(--text-print);
+  }
+
+  .sheet tr {
+    break-inside: avoid;
+  }
+}

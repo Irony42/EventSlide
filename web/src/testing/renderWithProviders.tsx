@@ -1156,7 +1156,8 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   updateRsvp: vi.fn(async (): Promise<RsvpResponseDto> => ({ rsvp: anRsvp() })),
   deleteRsvp: vi.fn(async (): Promise<void> => undefined),
   markRsvpsSeen: vi.fn(async (): Promise<void> => undefined),
-  rsvpExportUrl: (slug: string): string => `/api/events/${slug}/rsvps/export`,
+  rsvpExportUrl: (slug: string, view: 'all' | 'caterer' = 'all'): string =>
+    `/api/events/${slug}/rsvps/export?view=${view}`,
   rsvpForm: vi.fn(async (): Promise<RsvpFormResponseDto> => ({ rsvpForm: aRsvpSettings() })),
   saveRsvpForm: vi.fn(async (): Promise<RsvpFormResponseDto> => ({ rsvpForm: aRsvpSettings() })),
   closeRsvps: vi.fn(async (): Promise<RsvpFormResponseDto> => ({

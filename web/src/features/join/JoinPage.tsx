@@ -11,6 +11,7 @@ import { readRememberedGuestSession } from '../../lib/guestSession'
 import { isInstalled } from '../../lib/pwa/install'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { fromOf, useJoin } from './hooks/useJoin'
+import { clearJoinNamePrefill, readJoinNamePrefill } from '../../lib/rsvp/rsvpDevice'
 import styles from './JoinPage.module.css'
 import { HostGreeting } from '../../design-system/components/HostGreeting'
 import { HostLogo } from '../../design-system/components/HostLogo'
@@ -57,7 +58,12 @@ export function JoinPage() {
       ? readRememberedGuestSession()
       : null,
   )
-  const [name, setName] = useState('')
+  // The first name this device gave on the invitation, if it answered there (spec 30, section 9.1).
+  const [name, setName] = useState(() => readJoinNamePrefill() ?? '')
+  useEffect(() => {
+    // Read once: it is offered here and nowhere else.
+    clearJoinNamePrefill()
+  }, [])
 
   const autoSubmitted = useRef(false)
   /**

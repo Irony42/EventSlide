@@ -359,7 +359,8 @@ const { CLIENT_CALLS, CLIENT_LINKS } = ((): {
     if (!ts.isBlock(returned)) {
       const literal = pathOf(returned)
       if (literal !== null) {
-        links.push({ name, path: literal })
+        // A query string is not part of the route a link addresses (`export?view=caterer`).
+        links.push({ name, path: literal.split('?')[0] ?? literal })
         continue
       }
     }
@@ -688,7 +689,8 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   requestExportBody:
     'POST /api/events/:eventSlug/export: the host page that sends it is not built yet',
   // The spreadsheet of the replies (spec 30) is an address the replies page links to, with the default
-  // `view`: no client request sends its query, and the caterer's view is lot 2.
+  // `view`: the page links to it (`rsvpExportUrl`, the caterer's view included); no client request
+  // sends its query.
   rsvpExportQuery: 'GET /api/events/:eventSlug/rsvps/export: the replies page is not built yet',
   // `PATCH /api/events/:slug` (rename) and `PATCH /api/events/:slug/photos/:photoId/caption`: both
   // routes are written and held at ring 4, and no screen sends either. The client methods were

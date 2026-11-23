@@ -95,3 +95,43 @@ export const discardEditTokenFragment = (): void => {
  */
 export const ownReplyLink = (origin: string, inviteToken: string, editToken: string): string =>
   `${origin}/i/${encodeURIComponent(inviteToken)}#r=${editToken}`
+
+const JOIN_NAME_KEY = 'eventslide.joinNamePrefill'
+const JOIN_NAME_MAX_CHARS = 40
+
+/**
+ * The first name the join screen offers a guest whose device knows their reply (spec 30, section
+ * 9.1): the first word of the name they gave, at most 40 characters, in `sessionStorage` only for
+ * the move from the invitation to the join screen. **Nothing goes through the address or the
+ * server**, and the join screen reads it once and clears it. Wrapped like the rest: without
+ * storage the guest simply types their name.
+ */
+export const writeJoinNamePrefill = (fullName: string): void => {
+  const first = [...(fullName.trim().split(/\s+/, 1)[0] ?? '')]
+    .slice(0, JOIN_NAME_MAX_CHARS)
+    .join('')
+  if (first === '') return
+  try {
+    window.sessionStorage.setItem(JOIN_NAME_KEY, first)
+  } catch {
+    // The guest types their name.
+  }
+}
+
+/** What the join screen offers, or `null`. Does not clear: {@link clearJoinNamePrefill} does. */
+export const readJoinNamePrefill = (): string | null => {
+  try {
+    const value = window.sessionStorage.getItem(JOIN_NAME_KEY)
+    return value === null || value === '' ? null : value
+  } catch {
+    return null
+  }
+}
+
+export const clearJoinNamePrefill = (): void => {
+  try {
+    window.sessionStorage.removeItem(JOIN_NAME_KEY)
+  } catch {
+    // Nothing was kept.
+  }
+}

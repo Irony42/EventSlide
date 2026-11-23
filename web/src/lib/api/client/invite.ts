@@ -150,7 +150,8 @@ export const guestInviteApi = (transport: Transport) => ({
     transport.post(`/api/events/${encode(slug)}/rsvps/seen`, {}),
 
   /** The replies as a spreadsheet, for the browser to download. */
-  rsvpExportUrl: (slug: string): string => `/api/events/${encode(slug)}/rsvps/export`,
+  rsvpExportUrl: (slug: string, view: 'all' | 'caterer' = 'all'): string =>
+    `/api/events/${encode(slug)}/rsvps/export?view=${view}`,
 
   /** The owner's reading of the replies' settings: the defaults, with `invited: false`, before an invitation exists. */
   rsvpForm: (slug: string, signal?: AbortSignal): Promise<RsvpFormResponseDto> =>

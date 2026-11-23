@@ -35,7 +35,10 @@ import { useApi } from '../../../lib/useApi'
 import { useLoader } from '../../../lib/useLoader'
 import { useEvent } from '../hooks/useEventData'
 import type { EventPageContext } from '../eventLayout/useEventPage'
+import { RsvpCaterer } from './RsvpCaterer'
 import { RsvpDetail } from './RsvpDetail'
+import { RsvpPrintList } from './RsvpPrintList'
+import { usePrintList } from './usePrintList'
 import { RsvpReplyForm } from './RsvpReplyForm'
 import { RsvpTable } from './RsvpTable'
 import { useNow } from './useNow'
@@ -84,7 +87,7 @@ function EventReplies({ slug }: { readonly slug: string }) {
     <div className={styles['page']}>
       <HostBreadcrumb slug={slug} page="rsvps" eventName={event.name} />
       {canManageEvent(event.role) ? (
-        <OwnerReplies slug={slug} archived={event.status === 'archived'} />
+        <OwnerReplies slug={slug} archived={event.status === 'archived'} eventName={event.name} />
       ) : (
         <>
           <h1 className={styles['title']}>{t.rsvp.list.title}</h1>
@@ -98,7 +101,15 @@ function EventReplies({ slug }: { readonly slug: string }) {
   )
 }
 
-function OwnerReplies({ slug, archived }: { readonly slug: string; readonly archived: boolean }) {
+function OwnerReplies({
+  slug,
+  archived,
+  eventName,
+}: {
+  readonly slug: string
+  readonly archived: boolean
+  readonly eventName: string
+}) {
   const t = useTranslations()
   // The layout reads the event again when told: the menu's badge counts what was not seen.
   const layout = useOutletContext<EventPageContext | undefined>()
@@ -114,7 +125,16 @@ function OwnerReplies({ slug, archived }: { readonly slug: string; readonly arch
       </>
     )
   }
-  return <Replies slug={slug} data={data} archived={archived} state={state} error={error} />
+  return (
+    <Replies
+      slug={slug}
+      data={data}
+      archived={archived}
+      state={state}
+      error={error}
+      eventName={eventName}
+    />
+  )
 }
 
 type Dialogs =
@@ -129,8 +149,10 @@ function Replies({
   archived,
   state,
   error,
+  eventName,
 }: {
   readonly slug: string
+  readonly eventName: string
   readonly data: RsvpListResponseDto
   readonly archived: boolean
   readonly state: ReturnType<typeof useRsvps>
@@ -150,6 +172,7 @@ function Replies({
   const [showAll, setShowAll] = useState(false)
   const [dialog, setDialog] = useState<Dialogs>({ kind: 'none' })
   const [problem, setProblem] = useState<string | null>(null)
+  const printing = usePrintList()
   const [acting, setActing] = useState(false)
   // Judged against a clock that moves: a page left open past the deadline says so.
   const now = useNow(60_000)
@@ -443,6 +466,14 @@ function Replies({
                 </ul>
               </section>
             )}
+            {empty ? null : (
+              <RsvpCaterer
+                stats={stats}
+                form={form}
+                exportHref={api.rsvpExportUrl(slug, 'caterer')}
+                onPrint={printing.print}
+              />
+            )}
             <section className={styles['panel']}>
               <h2>{text.notifyTitle}</h2>
               <ul className={styles['notify']}>
@@ -460,6 +491,10 @@ function Replies({
           </aside>
         </div>
       )}
+
+      {printing.printing ? (
+        <RsvpPrintList eventName={eventName} rsvps={rsvps} stats={stats} form={form} />
+      ) : null}
 
       <RsvpDetail
         reply={detail}

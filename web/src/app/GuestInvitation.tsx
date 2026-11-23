@@ -9,6 +9,7 @@ import type { GuestInvitePageDto } from '../lib/api/dto'
 import { DEFAULT_LOCALE, parseLocale } from '../lib/i18n/locale'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { icsOf, itineraryHref, whenParts } from '../lib/invite/inviteTexts'
+import { writeJoinNamePrefill } from '../lib/rsvp/rsvpDevice'
 import { GuestRsvpBlock } from './guestRsvp/GuestRsvpBlock'
 import styles from './GuestInvitation.module.css'
 
@@ -102,6 +103,7 @@ export function GuestInvitation({
   onRefresh,
 }: GuestInvitationProps) {
   const t = useTranslations().guestInvite.page
+  const [knownName, setKnownName] = useState<string | null>(null)
   const lang = parseLocale(page.language) ?? DEFAULT_LOCALE
   const parts = useMemo(() => whenParts(page.when, lang, viewerTimeZone()), [page.when, lang])
   const directions = itineraryHref(page.venueName, page.address ?? null)
@@ -155,7 +157,14 @@ export function GuestInvitation({
         <>
           <Badge tone="success">{t.live}</Badge>
           {page.joinUrl === undefined ? null : (
-            <Link to={page.joinUrl} className={styles['join']}>
+            <Link
+              to={page.joinUrl}
+              className={styles['join']}
+              onClick={() => {
+                // The first name this device gave, offered on the join screen (nothing in the address).
+                if (interactive && knownName !== null) writeJoinNamePrefill(knownName)
+              }}
+            >
               {t.join}
             </Link>
           )}
@@ -197,6 +206,7 @@ export function GuestInvitation({
         interactive={interactive}
         {...(previewName === undefined ? {} : { previewName })}
         {...(onRefresh === undefined ? {} : { onStale: onRefresh })}
+        onKnownName={setKnownName}
       />
 
       {page.state === 'upcoming' ? (

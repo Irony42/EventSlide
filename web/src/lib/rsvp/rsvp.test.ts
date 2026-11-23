@@ -8,6 +8,9 @@ import {
   readStoredEditToken,
   storeEditToken,
   takeEditTokenFromFragment,
+  clearJoinNamePrefill,
+  readJoinNamePrefill,
+  writeJoinNamePrefill,
 } from './rsvpDevice'
 import { EMPTY_DRAFT, bump, draftOf, inputOf, maxPeople } from './rsvpDraft'
 import { deadlineLabel, firstNameOf, proofLine, recapLine, recapLines } from './rsvpTexts'
@@ -321,5 +324,46 @@ describe('the French of the guest’s and the host’s blocks (settings and repl
 
   it('has sentences to check', () => {
     expect(sentences().length).toBeGreaterThan(60)
+  })
+})
+
+describe('the first name offered at join (spec 30, section 9.1)', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear()
+  })
+
+  it('keeps the first word of the name, nothing else, in the session only', () => {
+    writeJoinNamePrefill('  Léa   Martin ')
+
+    expect(readJoinNamePrefill()).toBe('Léa')
+    expect(window.localStorage.getItem('eventslide.joinNamePrefill')).toBeNull()
+  })
+
+  it('cuts to 40 characters, never inside an emoji, and keeps nothing for a blank name', () => {
+    writeJoinNamePrefill('😀'.repeat(60))
+    expect([...(readJoinNamePrefill() ?? '')]).toHaveLength(40)
+
+    window.sessionStorage.clear()
+    writeJoinNamePrefill('   ')
+    expect(readJoinNamePrefill()).toBeNull()
+  })
+
+  it('clears what it offered, and works without any storage', () => {
+    writeJoinNamePrefill('Léa')
+    clearJoinNamePrefill()
+    expect(readJoinNamePrefill()).toBeNull()
+
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    expect(() => writeJoinNamePrefill('Léa')).not.toThrow()
+    expect(readJoinNamePrefill()).toBeNull()
+    expect(() => clearJoinNamePrefill()).not.toThrow()
   })
 })
