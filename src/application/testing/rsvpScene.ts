@@ -52,6 +52,22 @@ export {
 } from './guestInviteScene'
 export { PARTY }
 
+/**
+ * The scene's entropy. `SequentialIdGenerator.bytes` is a fixed ramp that, read mod 32, repeats a
+ * 16-byte token every second call: fine for one join code, not for a list of households that must
+ * each have a link of their own. A 16-byte request gets a counter in its first three bytes instead.
+ */
+class SceneIds extends SequentialIdGenerator {
+  private tokens = 0
+
+  override bytes(count: number): Uint8Array {
+    if (count !== 16) return super.bytes(count)
+    this.tokens += 1
+    const n = this.tokens
+    return Uint8Array.from({ length: 16 }, (_, i) => (i < 3 ? (n >> (5 * i)) % 32 : i))
+  }
+}
+
 export interface RsvpScene extends GuestInviteScene {
   readonly rsvps: FakeGuestRsvpRepository
   readonly households: FakeGuestHouseholdRepository
@@ -92,7 +108,7 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
   const rsvps = new FakeGuestRsvpRepository()
   const households = new FakeGuestHouseholdRepository()
   const bus = new RecordingEventBus()
-  const ids = new SequentialIdGenerator()
+  const ids = new SceneIds()
   const { events, memberships, invites, audit, clock } = base
   const access = { events, memberships, invites }
   const publicAccess = { events, invites }

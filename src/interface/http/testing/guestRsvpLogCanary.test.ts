@@ -15,6 +15,8 @@ import {
   makeGetOwnRsvp,
   makeUpdateOwnRsvp,
 } from '../../../application/usecases/guestRsvps/ownRsvp'
+import { makeViewHousehold } from '../../../application/usecases/guestRsvps/viewHousehold'
+import { aHousehold } from '../../../domain/guestRsvps/testing/householdFixtures'
 import { makeSubmitRsvp } from '../../../application/usecases/guestRsvps/submitRsvp'
 import { DEFAULT_RSVP_FORM } from '../../../domain/guestRsvps/rsvpForm'
 import { asEventId } from '../../../domain/shared/ids'
@@ -45,6 +47,10 @@ const WORD = 'canary-un-mot-4d1e7b9a'
 const BOGUS_TOKEN = 'canary-bogus-edit-token-4d1e7b9a'
 const LIVE = asEventId('evt-live')
 const INVITE = '1111111111111111'
+/** A household's personal link (it travels in a header) and its name, both planted. */
+const HOUSEHOLD_LINK = '7QX0M4TZ2KD9WB3H'
+const HOUSEHOLD_NAME = 'Canary Foyer 4d1e7b9a'
+const BOGUS_HOUSEHOLD_LINK = 'canary-bogus-household-4d1e7b9a'
 
 const journey = async (): Promise<{ editToken: string }> => {
   const logger = createPinoLogger({ level: 'trace', pretty: false, bindings: INSTANCE })
@@ -69,11 +75,14 @@ const journey = async (): Promise<{ editToken: string }> => {
     form: DEFAULT_RSVP_FORM,
   })
   const rsvps = new FakeGuestRsvpRepository()
+  const households = new FakeGuestHouseholdRepository().seed(
+    aHousehold({ id: 'h-1', eventId: LIVE, token: HOUSEHOLD_LINK, name: HOUSEHOLD_NAME }),
+  )
   const own = {
     events,
     invites,
     rsvps,
-    households: new FakeGuestHouseholdRepository(),
+    households,
     secrets: new FakeSecretTokens(),
     bus: new RecordingEventBus(),
     clock: new FakeClock(AT),
@@ -87,6 +96,7 @@ const journey = async (): Promise<{ editToken: string }> => {
       getOwnRsvp: makeGetOwnRsvp(own),
       updateOwnRsvp: makeUpdateOwnRsvp(own),
       deleteOwnRsvp: makeDeleteOwnRsvp(own),
+      viewHousehold: makeViewHousehold(own),
     },
   })
 
@@ -119,11 +129,33 @@ const journey = async (): Promise<{ editToken: string }> => {
     .send({ name: NAME, answer: 'yes', diet: DIET })
   await agent.delete(url).set(CSRF_HEADER, csrf).set('X-Rsvp-Token', editToken)
 
+  // A household's own link: open it, answer, read, change, delete, and a link that opens nothing.
+  const household = `/api/i/${INVITE}/household`
+  await agent.get(household).set('X-Household-Token', HOUSEHOLD_LINK)
+  await agent
+    .post(url)
+    .set(CSRF_HEADER, csrf)
+    .set('X-Household-Token', HOUSEHOLD_LINK)
+    .send({ name: HOUSEHOLD_NAME, answer: 'yes', adults: 2, kids: 0, diet: DIET, message: WORD })
+  await agent.get(url).set('X-Household-Token', HOUSEHOLD_LINK)
+  await agent
+    .put(url)
+    .set(CSRF_HEADER, csrf)
+    .set('X-Household-Token', HOUSEHOLD_LINK)
+    .send({ name: HOUSEHOLD_NAME, answer: 'maybe', adults: 1, diet: DIET, message: WORD })
+  await agent.get(household).set('X-Household-Token', BOGUS_HOUSEHOLD_LINK)
+  await agent
+    .post(url)
+    .set(CSRF_HEADER, csrf)
+    .set('X-Household-Token', BOGUS_HOUSEHOLD_LINK)
+    .send({ name: HOUSEHOLD_NAME, answer: 'yes', diet: DIET })
+  await agent.delete(url).set(CSRF_HEADER, csrf).set('X-Household-Token', HOUSEHOLD_LINK)
+
   return { editToken }
 }
 
 describe('the log canary: a guest’s reply', () => {
-  it('writes neither the name, the diet, the word, the token nor the invitation’s link, on any channel', async () => {
+  it('writes neither the name, the diet, the word, the tokens (a reply’s, a household’s) nor the invitation’s link, on any channel', async () => {
     let planted = { editToken: '' }
     const output = await captureAllOutputWhile(async () => {
       planted = await journey()
@@ -131,7 +163,17 @@ describe('the log canary: a guest’s reply', () => {
 
     expect(planted.editToken).not.toBe('')
     expect(output.length).toBeGreaterThan(0)
-    for (const secret of [NAME, DIET, WORD, BOGUS_TOKEN, planted.editToken, INVITE]) {
+    for (const secret of [
+      NAME,
+      DIET,
+      WORD,
+      BOGUS_TOKEN,
+      planted.editToken,
+      INVITE,
+      HOUSEHOLD_LINK,
+      HOUSEHOLD_NAME,
+      BOGUS_HOUSEHOLD_LINK,
+    ]) {
       expect(output).not.toContain(secret)
     }
   })

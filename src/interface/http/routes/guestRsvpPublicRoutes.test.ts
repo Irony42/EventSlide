@@ -17,6 +17,7 @@ import {
 import { makeViewHousehold } from '../../../application/usecases/guestRsvps/viewHousehold'
 import { makeSubmitRsvp } from '../../../application/usecases/guestRsvps/submitRsvp'
 import { DEFAULT_RSVP_FORM } from '../../../domain/guestRsvps/rsvpForm'
+import { aHousehold } from '../../../domain/guestRsvps/testing/householdFixtures'
 import { GuestInvite } from '../../../domain/guestInvites/guestInvite'
 import { GuestInviteToken } from '../../../domain/guestInvites/guestInviteToken'
 import { asEventId } from '../../../domain/shared/ids'
@@ -548,5 +549,192 @@ describe('the limiters of the replies', () => {
 
     expect([page.status, own.status, again.status]).toEqual([200, 404, 200])
     expect([refused.status, refused.body.error.code]).toEqual([429, 'rate.limited'])
+  })
+})
+
+describe('a household’s own link: GET /api/i/:token/household and the reply routes (lot 3)', () => {
+  const LINK = '7QX0M4TZ2KD9WB3H'
+  const OTHER_LINK = '8RY1N5V0A3MEXC4J'
+  const HOUSEHOLD_URL = `/api/i/${LIVE_TOKEN}/household`
+  let world: World
+
+  beforeEach(async () => {
+    world = await buildWorld()
+    world.households.seed(
+      aHousehold({ id: 'h-1', eventId: LIVE, token: LINK, name: 'Famille Martin', places: 4 }),
+      aHousehold({ id: 'h-2', eventId: OTHER, token: OTHER_LINK, name: 'Les Autres', places: 2 }),
+    )
+  })
+
+  const withLink = async (link: string = LINK) => {
+    const browser = await guest(world)
+    const set = <T extends { set: (name: string, value: string) => T }>(call: T): T =>
+      call.set('X-Household-Token', link)
+    return {
+      ...browser,
+      view: (url = HOUSEHOLD_URL) => set(browser.agent.get(url)),
+      send: (body: unknown) =>
+        set(browser.agent.post(URL).set(CSRF_HEADER, browser.csrf)).send(body as object),
+      change: (body: unknown) =>
+        set(browser.agent.put(URL).set(CSRF_HEADER, browser.csrf)).send(body as object),
+      read: () => set(browser.agent.get(URL)),
+      erase: () => set(browser.agent.delete(URL).set(CSRF_HEADER, browser.csrf)),
+    }
+  }
+
+  it('shows the household its name and places, and its reply once it gave one, with the page’s headers', async () => {
+    const household = await withLink()
+
+    const before = await household.view()
+    await household.send({ ...ANSWER, name: 'Famille Martin' }).expect(201)
+    const after = await household.view()
+
+    expect(before.status).toBe(200)
+    expect(before.body).toEqual({ household: { name: 'Famille Martin', places: 4 } })
+    expect(after.body.household.rsvp).toMatchObject({ name: 'Famille Martin', answer: 'yes' })
+    expect(before.headers['cache-control']).toBe('no-store')
+    expect(before.headers['referrer-policy']).toBe('no-referrer')
+    expect(before.headers['x-robots-tag']).toContain('noindex')
+    expect(JSON.stringify(after.body)).not.toContain(LINK)
+  })
+
+  it('creates the household’s reply with 201 and no reply token, then changes it with 200, never doubling it', async () => {
+    const household = await withLink()
+
+    const created = await household.send({
+      name: 'Famille Martin',
+      answer: 'yes',
+      adults: 2,
+      kids: 2,
+    })
+    const again = await household.send({ name: 'Famille Martin', answer: 'no' })
+
+    expect(created.status).toBe(201)
+    expect(created.body).not.toHaveProperty('editToken')
+    expect(created.body.rsvp).toMatchObject({ answer: 'yes', adults: 2, kids: 2 })
+    expect(again.status).toBe(200)
+    expect(again.body).not.toHaveProperty('editToken')
+    expect(again.body.rsvp.answer).toBe('no')
+    const stored = await world.rsvps.listByEvent(LIVE)
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({
+      householdId: 'h-1',
+      source: 'household',
+      editTokenHash: null,
+    })
+  })
+
+  it('takes the household’s places as the ceiling', async () => {
+    const household = await withLink()
+
+    const tooMany = await household.send({
+      name: 'Famille Martin',
+      answer: 'yes',
+      adults: 3,
+      kids: 2,
+    })
+
+    expect(tooMany.status).toBe(400)
+    expect(tooMany.body.error.code).toBe('rsvp.partyTooBig')
+    expect(tooMany.body.error.details).toEqual({ max: 4 })
+  })
+
+  it('reads, changes and deletes the one reply with the link alone', async () => {
+    const household = await withLink()
+    await household.send({ name: 'Famille Martin', answer: 'yes', adults: 2 }).expect(201)
+
+    const read = await household.read()
+    const changed = await household.change({ name: 'Famille Martin', answer: 'yes', adults: 4 })
+    const erased = await household.erase()
+    const gone = await household.read()
+
+    expect(read.status).toBe(200)
+    expect(changed.status).toBe(200)
+    expect(changed.body.rsvp.adults).toBe(4)
+    expect(erased.status).toBe(204)
+    expect(gone.status).toBe(404)
+    expect(gone.body.error.code).toBe('rsvp.notFound')
+    expect(await world.rsvps.listByEvent(LIVE)).toEqual([])
+  })
+
+  it('answers 404 rsvp.notFound for a link that is another event’s, unknown or malformed, and 404 notAvailable for a dead page first', async () => {
+    for (const link of [OTHER_LINK, '00000000000000AA', 'short', 'X'.repeat(300)]) {
+      const household = await withLink(link)
+      const view = await household.view()
+      const send = await household.send({ name: 'A', answer: 'no' })
+      expect([link.slice(0, 6), view.status, view.body.error.code]).toEqual([
+        link.slice(0, 6),
+        404,
+        'rsvp.notFound',
+      ])
+      expect([link.slice(0, 6), send.status, send.body.error.code]).toEqual([
+        link.slice(0, 6),
+        404,
+        'rsvp.notFound',
+      ])
+    }
+    const dead = await (await withLink()).view(`/api/i/${OTHER_TOKEN.replace(/2/g, '3')}/household`)
+    expect(dead.status).toBe(404)
+    expect(dead.body.error.code).toBe('guestInvite.notAvailable')
+    expect(await world.rsvps.listByEvent(LIVE)).toEqual([])
+  })
+
+  it('opens nothing without the header: a link in the path or the query is not a key', async () => {
+    const household = await withLink()
+    await household.send({ name: 'Famille Martin', answer: 'no' }).expect(201)
+
+    const bare = await household.agent.get(HOUSEHOLD_URL)
+    const inQuery = await household.agent.get(`${HOUSEHOLD_URL}?token=${LINK}`)
+    const inPath = await household.agent.get(`${HOUSEHOLD_URL}/${LINK}`)
+
+    expect(bare.status).toBe(404)
+    expect(bare.body.error.code).toBe('rsvp.notFound')
+    expect(inQuery.status).toBe(404)
+    expect(inPath.status).toBe(404)
+  })
+
+  it('refuses a write without the CSRF token, and a stray field, as every write of the page', async () => {
+    const household = await withLink()
+
+    const noCsrf = await household.agent
+      .post(URL)
+      .set('X-Household-Token', LINK)
+      .send({ name: 'A', answer: 'no' })
+    const stray = await household.send({ name: 'A', answer: 'no', householdId: 'h-2' })
+
+    expect(noCsrf.status).toBe(403)
+    expect(stray.status).toBe(400)
+    expect(await world.rsvps.listByEvent(LIVE)).toEqual([])
+  })
+
+  it('is closed with the replies: no change once closed, but the household still reads and erases', async () => {
+    const household = await withLink()
+    await household.send({ name: 'Famille Martin', answer: 'yes', adults: 2 }).expect(201)
+    await world.invites.setRsvpClosedAt(LIVE, AT)
+
+    const change = await household.change({ name: 'Famille Martin', answer: 'no' })
+    const read = await household.read()
+    const erased = await household.erase()
+
+    expect(change.status).toBe(409)
+    expect(change.body.error.code).toBe('rsvp.closed')
+    expect(read.status).toBe(200)
+    expect(erased.status).toBe(204)
+  })
+
+  it('shares the write limiter with the guests’ replies', async () => {
+    const limited = await buildWorld({ write: 2 })
+    limited.households.seed(aHousehold({ id: 'h-1', eventId: LIVE, token: LINK }))
+    const browser = await guest(limited)
+    const send = () =>
+      browser.agent
+        .post(URL)
+        .set(CSRF_HEADER, browser.csrf)
+        .set('X-Household-Token', LINK)
+        .send({ name: 'A', answer: 'no' })
+
+    const statuses = [(await send()).status, (await send()).status, (await send()).status]
+
+    expect(statuses).toEqual([201, 200, 429])
   })
 })
