@@ -55,7 +55,7 @@ export function SectionLink({
   const unseen = section === 'rsvps' ? (event.unseenRsvps ?? 0) : 0
   const count = pending + unseen
   const countSentence =
-    t.moderation.pending(pending)
+    section === 'rsvps' ? unseenLabel(unseen, t.rsvp.list) : t.moderation.pending(pending)
   // The guided tour's « two gestures of the day » light these two entries when the home page has
   // no tile for them (before the evening).
   const tour = section === 'moderation' ? 'moderate' : section === 'wall' ? 'wall' : undefined
