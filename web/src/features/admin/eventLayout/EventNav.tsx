@@ -122,7 +122,7 @@ export function EventNav({
   folded = false,
 }: {
   readonly event: NavEvent
-  /** A page that works on something to print or send: the menu folds to its glyphs up to 90rem. */
+  /** A page that works on something to print or send: the menu stays folded to its glyphs at every width. */
   readonly folded?: boolean
 }) {
   const t = useTranslations()
