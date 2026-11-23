@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QRCodeSVG } from 'qrcode.react'
 import { fr } from '../../../../lib/i18n/fr'
@@ -7,10 +7,12 @@ import { en } from '../../../../lib/i18n/en'
 import { qrPatternOf } from '../../../../testing/qrPattern'
 import {
   aGuestInviteHost,
+  aHousehold,
   anEventDto,
+  fakeApi,
   renderWithProviders,
 } from '../../../../testing/renderWithProviders'
-import type { GuestInviteDto } from '../../../../lib/api/dto'
+import type { GuestInviteDto, HouseholdDto } from '../../../../lib/api/dto'
 import { SHORT_MESSAGE_MAX } from '../../../../lib/invite/cardTexts'
 import type * as PrintPhoto from '../../print/printPhoto'
 import { PrintTab } from './PrintTab'
@@ -409,5 +411,263 @@ describe('PrintTab', () => {
     await user.click(screen.getByRole('radio', { name: 'Souvenir' }))
 
     expect(screen.getByText(fr.admin.printKitInkHeavy)).toBeInTheDocument()
+  })
+})
+
+describe('PrintTab: one card per household (spec 30, lot 3)', () => {
+  const martin = aHousehold({ id: 'h-1', name: 'Famille Martin', token: 'AAAAAAAAAAAAAAAA' })
+  const durand = aHousehold({ id: 'h-2', name: 'Les Durand', token: 'BBBBBBBBBBBBBBBB' })
+  const roux = aHousehold({ id: 'h-3', name: 'Roux', token: 'CCCCCCCCCCCCCCCC' })
+
+  const renderWith = (households: readonly HouseholdDto[]) =>
+    renderWithProviders(
+      <OutputHarness
+        Output={PrintTab}
+        event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
+        invite={readyInvite()}
+      />,
+      { api: fakeApi({ households: vi.fn(async () => ({ households })) }) },
+    )
+
+  const qrOf = (value: string): string => {
+    const { container, unmount } = render(<QRCodeSVG value={value} level="M" marginSize={4} />)
+    const pattern = qrPatternOf(container)
+    unmount()
+    return pattern
+  }
+
+  it('offers nothing while the host listed no household, and keeps four identical cards', async () => {
+    renderWith([])
+
+    expect(within(sheet()).getAllByRole('img', { name: /QR/ })).toHaveLength(4)
+    expect(screen.queryByLabelText(text.printPerHousehold)).not.toBeInTheDocument()
+  })
+
+  it('prints a card for each household with its name and its own link in the QR, the secret only in the code', async () => {
+    const user = userEvent.setup()
+    renderWith([martin, durand, roux])
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    const sheets = document.querySelectorAll<HTMLElement>('[data-household-sheet]')
+    expect(sheets).toHaveLength(1)
+    const codes = within(sheets[0] as HTMLElement).getAllByRole('img', { name: /QR/ })
+    expect(codes).toHaveLength(3)
+    expect(qrPatternOf(codes[0] as HTMLElement)).toBe(qrOf(`${URL_OF_INVITE}#f=AAAAAAAAAAAAAAAA`))
+    expect(qrPatternOf(codes[1] as HTMLElement)).toBe(qrOf(`${URL_OF_INVITE}#f=BBBBBBBBBBBBBBBB`))
+    expect(qrPatternOf(codes[2] as HTMLElement)).toBe(qrOf(`${URL_OF_INVITE}#f=CCCCCCCCCCCCCCCC`))
+    for (const name of ['Famille Martin', 'Les Durand', 'Roux']) {
+      expect(within(sheets[0] as HTMLElement).getByText(name)).toBeInTheDocument()
+    }
+    // The secret is not printed as text anywhere on the sheet.
+    expect(sheets[0]?.textContent).not.toContain('AAAAAAAAAAAAAAAA')
+    expect(sheets[0]?.textContent).not.toContain('#f=')
+  })
+
+  const many = (count: number) =>
+    Array.from({ length: count }, (_, i) =>
+      aHousehold({ id: `h-${i}`, name: `Foyer ${i}`, token: `T${String(i).padStart(15, '0')}` }),
+    )
+  const sheetsNow = () =>
+    Array.from(document.querySelectorAll<HTMLElement>('[data-household-sheet]')).map(
+      (page) => within(page).getAllByRole('img', { name: /QR/ }).length,
+    )
+  const goPrinting = () => act(() => void window.dispatchEvent(new Event('beforeprint')))
+  const endPrinting = () => act(() => void window.dispatchEvent(new Event('afterprint')))
+
+  it('builds only the first sheet on the screen, and every sheet, four to a sheet, while printing', async () => {
+    const user = userEvent.setup()
+    renderWith(many(9))
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    expect(sheetsNow()).toEqual([4])
+    expect(screen.getByText(text.printPerHouseholdHint(9, 3))).toBeInTheDocument()
+
+    goPrinting()
+    expect(sheetsNow()).toEqual([4, 4, 1])
+    endPrinting()
+    expect(sheetsNow()).toEqual([4])
+
+    await user.click(screen.getByRole('radio', { name: text.printFormatA5 }))
+    expect(sheetsNow()).toEqual([2])
+    goPrinting()
+    expect(sheetsNow()).toEqual([2, 2, 2, 2, 1])
+    expect(screen.getByText(text.printPerHouseholdHint(9, 5))).toBeInTheDocument()
+  })
+
+  it('does not build the other sheets while the host types: a list of 500 stays four cards on the screen', async () => {
+    const user = userEvent.setup()
+    renderWith(many(500))
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    await user.type(screen.getByRole('textbox', { name: text.shortLabel }), ' et voilà')
+
+    expect(sheetsNow()).toEqual([4])
+    expect(document.querySelectorAll('[data-household-sheet] [data-print-card]')).toHaveLength(4)
+    goPrinting()
+    expect(document.querySelectorAll('[data-household-sheet] [data-print-card]')).toHaveLength(500)
+  })
+
+  it('fits the sheets built for printing like the first one: they are laid out, measurable, when they appear', async () => {
+    const user = userEvent.setup()
+    renderWith(many(6))
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    goPrinting()
+
+    const pages = document.querySelectorAll<HTMLElement>('[data-household-sheet]')
+    expect(pages).toHaveLength(2)
+    // None is hidden from the layout: a sheet at `display: none` has no width and the fit skips it.
+    for (const page of pages) expect(getComputedStyle(page).display).not.toBe('none')
+  })
+
+  it('warns that each card holds a link to give to that household only, and says the preview shows the first sheet', async () => {
+    const user = userEvent.setup()
+    renderWith([martin])
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    expect(screen.getByText(plain(text.printPerHouseholdPrivacy))).toBeInTheDocument()
+    expect(screen.getByText(plain(text.printPerHouseholdPreview))).toBeInTheDocument()
+  })
+
+  it('goes back to the same card repeated when the option is unticked', async () => {
+    const user = userEvent.setup()
+    renderWith([martin, durand])
+    const box = await screen.findByLabelText(text.printPerHousehold)
+    await user.click(box)
+    expect(document.querySelectorAll('[data-household-sheet]')).toHaveLength(1)
+
+    await user.click(box)
+
+    expect(document.querySelectorAll('[data-household-sheet]')).toHaveLength(0)
+    expect(within(sheet()).getAllByRole('img', { name: /QR/ })).toHaveLength(4)
+  })
+
+  it('cuts a very long household name for the card, never squeezing it', async () => {
+    const user = userEvent.setup()
+    renderWith([
+      aHousehold({ id: 'h-long', name: 'Famille '.repeat(12).trim(), token: 'DDDDDDDDDDDDDDDD' }),
+    ])
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    const card = document.querySelector<HTMLElement>('[data-household-sheet]') as HTMLElement
+    expect(card.textContent).toContain('…')
+  })
+})
+
+describe('PrintTab: the list of households is read again, and says when it cannot be', () => {
+  const martin = aHousehold({ id: 'h-1', name: 'Famille Martin', token: 'AAAAAAAAAAAAAAAA' })
+  const durand = aHousehold({ id: 'h-2', name: 'Les Durand', token: 'BBBBBBBBBBBBBBBB' })
+
+  const renderApi = (households: () => Promise<{ households: HouseholdDto[] }>) =>
+    renderWithProviders(
+      <OutputHarness
+        Output={PrintTab}
+        event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
+        invite={readyInvite()}
+      />,
+      { api: fakeApi({ households }) },
+    )
+
+  it('reads the list again right before printing, and prints the sheets built from that answer', async () => {
+    const user = userEvent.setup()
+    const households = vi
+      .fn()
+      .mockResolvedValueOnce({ households: [martin] })
+      .mockResolvedValue({ households: [martin, durand] })
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined)
+    renderApi(households)
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    await user.click(screen.getByRole('button', { name: text.printButton }))
+
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1))
+    expect(households).toHaveBeenCalledTimes(2)
+    // The household added meanwhile is on the sheet the dialog was opened on.
+    expect(
+      within(document.querySelector('[data-household-sheet]') as HTMLElement).getAllByRole('img', {
+        name: /QR/,
+      }),
+    ).toHaveLength(2)
+  })
+
+  it('does not re-read the list to print the repeated card, and prints at once', async () => {
+    const user = userEvent.setup()
+    const households = vi.fn(async () => ({ households: [martin] }))
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined)
+    renderApi(households)
+    await screen.findByLabelText(text.printPerHousehold)
+    const reads = households.mock.calls.length
+
+    await user.click(screen.getByRole('button', { name: text.printButton }))
+
+    expect(print).toHaveBeenCalledTimes(1)
+    expect(households).toHaveBeenCalledTimes(reads)
+  })
+
+  it('prints nothing, and says so, when the list cannot be read again', async () => {
+    const user = userEvent.setup()
+    const households = vi
+      .fn()
+      .mockResolvedValueOnce({ households: [martin] })
+      .mockRejectedValue(new Error('offline'))
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined)
+    renderApi(households)
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    await user.click(screen.getByRole('button', { name: text.printButton }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(plain(text.printPerHouseholdStale))
+    expect(print).not.toHaveBeenCalled()
+  })
+
+  it('says the list could not be read, with a retry, instead of silently hiding the option', async () => {
+    const user = userEvent.setup()
+    const households = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ households: [martin] })
+    renderApi(households)
+
+    expect(await screen.findByText(new RegExp(text.printPerHouseholdFailed))).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: fr.rsvp.households.retry }))
+
+    expect(await screen.findByLabelText(text.printPerHousehold)).toBeInTheDocument()
+  })
+
+  it('reads the list again when the tab comes back', async () => {
+    const households = vi.fn(async () => ({ households: [martin] }))
+    renderApi(households)
+    await screen.findByLabelText(text.printPerHousehold)
+    const reads = households.mock.calls.length
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    await waitFor(() => expect(households.mock.calls.length).toBeGreaterThan(reads))
+  })
+
+  it('names each QR by its household and never by its link, puts the option in a fieldset and keeps the warning out of a live region', async () => {
+    const user = userEvent.setup()
+    renderApi(vi.fn(async () => ({ households: [martin, durand] })))
+    const box = await screen.findByLabelText(text.printPerHousehold)
+    expect(box.closest('fieldset')).not.toBeNull()
+    expect(screen.getByRole('group', { name: text.printPerHouseholdLegend })).toBeInTheDocument()
+    await user.click(box)
+
+    expect(
+      screen.getByRole('img', { name: text.printHouseholdQrAlt('Famille Martin') }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: text.printHouseholdQrAlt('Les Durand') }),
+    ).toBeInTheDocument()
+    for (const code of screen.getAllByRole('img', { name: /QR/ })) {
+      expect(code.getAttribute('aria-label')).not.toMatch(/AAAA|BBBB|#f=|http/)
+    }
+    const warning = screen.getByText(plain(text.printPerHouseholdPrivacy))
+    expect(warning.closest('[role="status"], [role="alert"], [aria-live]')).toBeNull()
   })
 })

@@ -2403,3 +2403,17 @@
   font-weight: 700;
   letter-spacing: 0;
 }
+
+/* The household a card is for (spec 30, lot 3): in the edge of white every card keeps, whatever the design. */
+.forHousehold {
+  position: absolute;
+  inset-inline: 4.8cqw;
+  inset-block-end: 1.1cqw;
+  overflow: hidden;
+  font-size: 2.6cqw;
+  line-height: 1.1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pd-ink);
+}

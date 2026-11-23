@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { fr } from '../i18n/fr'
 import { aHousehold, anRsvp } from '../../testing/renderWithProviders'
 import {
+  cardNameOf,
   fileableHouseholds,
   householdCounts,
   householdLink,
@@ -122,5 +123,36 @@ describe('fileableHouseholds', () => {
 
   it('offers nothing for a reply that is already filed (it is detached first)', () => {
     expect(fileableHouseholds(LIST, anRsvp({ householdId: 'h-2' }))).toEqual([])
+  })
+})
+
+describe('cardNameOf', () => {
+  const family = String.fromCodePoint(0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467)
+  const flag = String.fromCodePoint(0x1f1eb, 0x1f1f7)
+  const decomposed = 'e' + String.fromCodePoint(0x0301)
+
+  it('keeps a name that fits, on one line', () => {
+    expect(cardNameOf('  Famille   Martin ')).toBe('Famille Martin')
+  })
+
+  it('cuts a long name at 36 characters with an ellipsis', () => {
+    const cut = cardNameOf('x'.repeat(50))
+    expect([...cut]).toHaveLength(36)
+    expect(cut.endsWith('…')).toBe(true)
+    expect(cardNameOf('y'.repeat(36))).toBe('y'.repeat(36))
+  })
+
+  it('cuts between characters as a reader counts them: a family emoji joined by ZWJ, a flag', () => {
+    expect(cardNameOf(family.repeat(40))).toBe(family.repeat(35) + '…')
+    expect(cardNameOf(flag.repeat(40))).toBe(flag.repeat(35) + '…')
+    // A name of exactly 36 of them is kept whole.
+    expect(cardNameOf(family.repeat(36))).toBe(family.repeat(36))
+  })
+
+  it('reads a letter and its combining accent as one, in NFC', () => {
+    const name = decomposed.repeat(40)
+
+    expect(cardNameOf(name)).toBe('é'.repeat(35) + '…')
+    expect(cardNameOf(decomposed.repeat(36))).toBe('é'.repeat(36))
   })
 })

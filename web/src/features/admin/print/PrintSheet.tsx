@@ -1,8 +1,9 @@
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { memo, useEffect, useRef, type CSSProperties } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { LocaleOverride } from '../../../lib/i18n/LocaleProvider'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { joinHost } from '../../../lib/joinHost'
+import { cardNameOf } from '../../../lib/rsvp/households'
 import { PrintCard, type PrintCardInvitation, type PrintCardTexts } from './PrintCard'
 import {
   PRINT_FORMAT_SPECS,
@@ -15,8 +16,20 @@ import {
 } from './printKit'
 import type { PrintDesign } from '../../../lib/print/printDesigns'
 import { useFitText } from './useFitText'
+import { useIsPrinting } from './useIsPrinting'
 import styles from './PrintSheet.module.css'
 import type { Locale } from '../../../lib/i18n/locale'
+
+/**
+ * One household's card (spec 30, lot 3, PR 12): its name replaces the card's eyebrow, and **its own
+ * link** (`<invitation>#f=<token>`) is what the QR carries. The secret is in the fragment, so it is
+ * in no log and no request; it is printed only inside the code, never as text.
+ */
+export interface PrintHouseholdCard {
+  readonly id: string
+  readonly name: string
+  readonly url: string
+}
 
 export interface PrintSheetProps {
   /** Content: printed as written, never translated. */
@@ -48,6 +61,11 @@ export interface PrintSheetProps {
   readonly invitation?: PrintCardInvitation | undefined
   /** Told the module count of the rendered QR (quiet zone included), once it is drawn. */
   readonly onQrModules?: (totalModules: number | null) => void
+  /**
+   * One card per household instead of the same card repeated (an invitation card only): as many
+   * sheets as it takes, the last one short. The screen shows the first sheet, the paper all of them.
+   */
+  readonly households?: readonly PrintHouseholdCard[] | undefined
 }
 
 /**
@@ -76,17 +94,73 @@ export function PrintSheet({
   invitation,
   single = false,
   onQrModules,
+  households,
 }: PrintSheetProps) {
   const root = useRef<HTMLDivElement>(null)
+  const t = useTranslations()
+  // The households' sheets other than the first exist only while printing: on a list of 500 the screen
+  // would otherwise build, fit and redraw 500 cards on every keystroke.
+  const printing = useIsPrinting()
 
   useEffect(() => {
     onQrModules?.(totalModulesOf(root.current?.querySelector('svg') ?? null))
-  }, [joinUrl, format, logoUrl, design, single, onQrModules])
+  }, [joinUrl, format, logoUrl, design, single, onQrModules, households])
 
   useFitText(
     root,
-    `${format}|${single}|${design}|${locale}|${JSON.stringify(texts)}|${steps}|${photoUrl === null}|${JSON.stringify(invitation ?? null)}`,
+    `${format}|${single}|${design}|${locale}|${JSON.stringify(texts)}|${steps}|${photoUrl === null}|${JSON.stringify(invitation ?? null)}|${JSON.stringify(households ?? null)}|${printing}`,
   )
+
+  // A card for each household: the sheets are laid one after the other, one page each on paper.
+  if (households !== undefined && invitation !== undefined && !single) {
+    const perSheet = PRINT_FORMAT_SPECS[format].perSheet
+    const sheets = Array.from({ length: Math.ceil(households.length / perSheet) }, (_, page) =>
+      households.slice(page * perSheet, (page + 1) * perSheet),
+    )
+    const shown = printing ? sheets : sheets.slice(0, 1)
+    return (
+      <div className={styles['stage']} ref={root}>
+        {shown.map((cards, page) => (
+          <div
+            key={cards[0]?.id ?? page}
+            className={styles['sheet']}
+            data-format={format}
+            data-ink={ink}
+            data-household-sheet=""
+            lang={locale}
+            style={{ '--accent-hue': String(accentHue), '--pd-color': colour } as CSSProperties}
+          >
+            <LocaleOverride locale={locale}>
+              {cards.map((card) => (
+                <div key={card.id} className={styles['cell']}>
+                  <PrintCard
+                    design={design}
+                    texts={texts}
+                    steps={steps}
+                    photoUrl={photoUrl}
+                    focusX={focusX}
+                    focusY={focusY}
+                    invitation={invitation}
+                    forHousehold={cardNameOf(card.name)}
+                    joinCode={joinCode}
+                    address={joinHost(joinUrl)}
+                    qr={
+                      <SheetQr
+                        eventName={eventName}
+                        joinUrl={card.url}
+                        logoUrl={logoUrl}
+                        label={t.guestInvite.host.printHouseholdQrAlt(card.name)}
+                      />
+                    }
+                  />
+                </div>
+              ))}
+            </LocaleOverride>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className={styles['stage']}>
@@ -133,18 +207,21 @@ const logoSettings = (src: string) => ({
   excavate: true,
 })
 
-export function SheetQr({
+export const SheetQr = memo(function SheetQr({
   eventName,
   joinUrl,
   logoUrl,
+  label,
 }: {
   readonly eventName: string
   readonly joinUrl: string
   readonly logoUrl: string | null
+  /** What the code is called for a reader that cannot see it: the household's name, never its link. */
+  readonly label?: string
 }) {
   const t = useTranslations()
   return (
-    <div role="img" aria-label={t.admin.qrAlt(eventName)}>
+    <div role="img" aria-label={label ?? t.admin.qrAlt(eventName)}>
       <QRCodeSVG
         value={joinUrl}
         fgColor="currentColor"
@@ -156,4 +233,4 @@ export function SheetQr({
       />
     </div>
   )
-}
+})

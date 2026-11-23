@@ -3280,6 +3280,17 @@ export const es: UiText = {
         'No se pudo guardar la foto en este dispositivo: desaparecerá al salir de la página.',
       printButton: 'Imprimir',
       previewLabel: 'Vista previa de la tarjeta',
+      printPerHouseholdLegend: 'Tarjetas para los hogares',
+      printPerHouseholdFailed: 'No se pudo leer la lista de hogares.',
+      printPerHouseholdStale:
+        'No se pudo volver a leer la lista de hogares: no se imprimió nada. Compruebe su conexión e inténtelo de nuevo.',
+      printHouseholdQrAlt: (name: string) => `Código QR del enlace personal de ${name}`,
+      printPerHousehold: 'Una tarjeta por hogar',
+      printPerHouseholdHint: (households: number, sheets: number) =>
+        `${households} ${households === 1 ? 'tarjeta' : 'tarjetas'} por imprimir, en ${sheets} ${sheets === 1 ? 'hoja' : 'hojas'}. El nombre del hogar está en la tarjeta.`,
+      printPerHouseholdPrivacy:
+        'El QR de cada tarjeta abre el enlace personal de su hogar: entregue la tarjeta solo a ese hogar. El enlace secreto no está escrito en claro en ninguna parte.',
+      printPerHouseholdPreview: 'La vista previa muestra la primera hoja; al imprimir salen todas.',
       printHelp:
         'En la ventana de impresión, elija una escala del 100 % y sin márgenes. La dirección va impresa en la tarjeta: entréguela solo a los invitados que haya elegido.',
       commonBadge: 'común a todos los formatos',
@@ -3474,19 +3485,19 @@ export const es: UiText = {
       busy: 'Mucha gente está respondiendo ahora. Inténtalo de nuevo en un momento.',
       householdGreeting: (name: string) => `Hola ${name}`,
       householdPlaces: (n: number) =>
-        n === 1 ? 'Una plaza reservada para usted' : `${n} plazas reservadas para usted`,
+        n === 1 ? 'Una plaza reservada para ti' : `${n} plazas reservadas para ti`,
       householdFailed:
-        'No se pudo leer el enlace de su hogar. Compruebe su conexión e inténtelo de nuevo.',
+        'No se pudo leer el enlace de tu hogar. Comprueba tu conexión e inténtalo de nuevo.',
       householdRetry: 'Reintentar',
       householdIncomplete:
-        'Este enlace de hogar está incompleto: seguramente se cortó por el camino. Cópielo entero, o pídaselo al organizador.',
-      householdNotYours: '¿No es su hogar?',
-      replyNotYours: '¿No es su respuesta?',
+        'Este enlace de hogar está incompleto: seguramente se cortó por el camino. Cópialo entero, o pídeselo al organizador.',
+      householdNotYours: '¿No es tu hogar?',
+      replyNotYours: '¿No es tu respuesta?',
       olderReply: (name: string) =>
         `Este dispositivo también guarda una respuesta con el nombre «${name}».`,
       olderReplyDelete: 'Eliminar esta respuesta',
       householdGone:
-        'Este enlace de hogar ya no funciona. Pida uno nuevo al organizador, o responda más abajo.',
+        'Este enlace de hogar ya no funciona. Pide uno nuevo al organizador, o responde más abajo.',
       forgotten: 'Este dispositivo ya no encuentra tu respuesta: se borró o el enlace cambió.',
       companionsLabel: 'Nombres de quienes vienen contigo',
       companionLabel: (n: number) => `Acompañante ${n}`,

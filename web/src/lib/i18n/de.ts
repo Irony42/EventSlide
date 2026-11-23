@@ -3318,6 +3318,17 @@ export const de: UiText = {
         'Das Foto konnte nicht auf diesem Gerät gespeichert werden: Es ist weg, sobald Sie die Seite verlassen.',
       printButton: 'Drucken',
       previewLabel: 'Vorschau der Karte',
+      printPerHouseholdLegend: 'Karten für die Haushalte',
+      printPerHouseholdFailed: 'Die Liste der Haushalte konnte nicht gelesen werden.',
+      printPerHouseholdStale:
+        'Die Liste der Haushalte konnte nicht neu gelesen werden: Es wurde nichts gedruckt. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',
+      printHouseholdQrAlt: (name: string) => `QR-Code des persönlichen Links von ${name}`,
+      printPerHousehold: 'Eine Karte pro Haushalt',
+      printPerHouseholdHint: (households: number, sheets: number) =>
+        `${households} ${households === 1 ? 'Karte' : 'Karten'} zu drucken, auf ${sheets} ${sheets === 1 ? 'Blatt' : 'Blättern'}. Der Name des Haushalts steht auf der Karte.`,
+      printPerHouseholdPrivacy:
+        'Der QR-Code jeder Karte öffnet den persönlichen Link ihres Haushalts: Geben Sie die Karte nur diesem Haushalt. Der geheime Link steht nirgends im Klartext.',
+      printPerHouseholdPreview: 'Die Vorschau zeigt das erste Blatt; gedruckt werden alle.',
       printHelp:
         'Wählen Sie im Druckdialog einen Maßstab von 100 % und keine Ränder. Die Adresse steht auf der Karte: Geben Sie sie nur den Gästen, die Sie ausgewählt haben.',
       commonBadge: 'gilt für alle Formate',

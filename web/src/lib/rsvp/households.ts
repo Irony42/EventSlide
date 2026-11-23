@@ -1,4 +1,5 @@
 import type { HouseholdDto, RsvpDto } from '../api/dto'
+import { graphemesOf } from '../invite/cardTexts'
 import type { UiText } from '../i18n/translations'
 
 /**
@@ -91,3 +92,21 @@ export const fileableHouseholds = (
   reply: RsvpDto,
 ): readonly HouseholdDto[] =>
   households.filter((household) => household.reply === null && reply.householdId === null)
+
+/** The most characters (as a reader counts them) of a household's name a printed card takes. */
+export const CARD_NAME_MAX_CHARS = 36
+
+/**
+ * A household's name as the printed card says it: one line, in NFC, **cut by graphemes** (a family
+ * emoji joined by zero-width joiners, a flag, a letter and its combining accent are each one) with an
+ * ellipsis, never in the middle of one.
+ */
+export const cardNameOf = (name: string): string => {
+  const letters = graphemesOf(name.normalize('NFC').trim().replace(/\s+/g, ' '))
+  return letters.length <= CARD_NAME_MAX_CHARS
+    ? letters.join('')
+    : letters
+        .slice(0, CARD_NAME_MAX_CHARS - 1)
+        .join('')
+        .trimEnd() + '…'
+}

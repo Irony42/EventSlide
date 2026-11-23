@@ -58,6 +58,11 @@ export interface PrintCardProps {
   readonly address: string | null
   /** An invitation card, not a table card: the design lays out its invitation disposition. */
   readonly invitation?: PrintCardInvitation | undefined
+  /**
+   * The household this card is for (spec 30, lot 3): its name, printed in the card's white edge, **the
+   * same for every design** (a design that has no eyebrow would otherwise lose it).
+   */
+  readonly forHousehold?: string | undefined
 }
 
 export interface DesignProps extends Omit<PrintCardProps, 'design' | 'qr' | 'texts'> {
@@ -74,7 +79,15 @@ export interface DesignProps extends Omit<PrintCardProps, 'design' | 'qr' | 'tex
  * Every title-like text carries `data-fit`: `useFitText` shrinks it until it fits its box, so a
  * long name never pushes the QR off the card.
  */
-export function PrintCard({ design, qr, focusX, focusY, texts, ...rest }: PrintCardProps) {
+export function PrintCard({
+  design,
+  qr,
+  focusX,
+  focusY,
+  texts,
+  forHousehold,
+  ...rest
+}: PrintCardProps) {
   const t = useTranslations()
   // An invitation has its own disposition per design; a design with none wears the Essentiel one
   // **and its stylesheet**: the card is then an Essentiel one all the way down.
@@ -99,6 +112,11 @@ export function PrintCard({ design, qr, focusX, focusY, texts, ...rest }: PrintC
   return (
     <article className={cx(styles['card'], styles[shown])} data-print-card={shown} style={style}>
       {invitation ? <InvitationLayout design={design} {...props} /> : <Design {...props} />}
+      {forHousehold === undefined ? null : (
+        <p className={styles['forHousehold']} data-household-name>
+          {forHousehold}
+        </p>
+      )}
     </article>
   )
 }
