@@ -45,6 +45,15 @@ describe('two choices as one', () => {
     })
   })
 
+  it('lets the later win on the switch and the deadline too', () => {
+    expect(
+      mergeInputs({ enabled: true, deadline: '2026-12-01' }, { enabled: false, deadline: null }),
+    ).toEqual({
+      enabled: false,
+      deadline: null,
+    })
+  })
+
   it('has no form until one of them names it, and keeps a form when only one does', () => {
     expect(mergeInputs({ enabled: true }, { deadline: null })).toEqual({
       enabled: true,
