@@ -37,6 +37,10 @@ import type {
   GalleryPhotoDto,
   GuestInviteDto,
   GuestInvitePageDto,
+  GuestOwnRsvpDto,
+  GuestOwnRsvpResponseDto,
+  GuestRsvpCreatedDto,
+  GuestRsvpPageDto,
   GuestPhotoDto,
   GuestMissionDto,
   JoinResponse,
@@ -160,6 +164,28 @@ export const aGuestInvitePage = (
   message: 'Apéro à 19 h, dîner à 20 h 30.',
   language: 'fr',
   accentHue: 305,
+  // Replies are not asked until a test says so: the page of spec 29 as it was.
+  rsvp: aGuestRsvpPage({ state: 'off' }),
+  ...overrides,
+})
+
+/** What the page says about answering (spec 30): open, the form of a plain party, no deadline. */
+export const aGuestRsvpPage = (overrides: Partial<GuestRsvpPageDto> = {}): GuestRsvpPageDto => ({
+  state: 'open',
+  deadline: null,
+  form: { maybe: true, partySize: { enabled: true, max: 4 }, kidsSeparate: true, diet: true },
+  ...overrides,
+})
+
+/** A guest's own reply, as they read it back. */
+export const aGuestOwnRsvp = (overrides: Partial<GuestOwnRsvpDto> = {}): GuestOwnRsvpDto => ({
+  name: 'Léa Martin',
+  answer: 'yes',
+  adults: 2,
+  kids: 1,
+  diet: null,
+  message: null,
+  updatedAt: '2026-11-20T10:00:00.000Z',
   ...overrides,
 })
 
@@ -1042,6 +1068,13 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   revokeShareLink: vi.fn(async () => undefined),
   gallery: vi.fn(async () => aGallery()),
   guestInvitePage: vi.fn(async (): Promise<GuestInvitePageDto> => aGuestInvitePage()),
+  guestRsvpCreate: vi.fn(async (): Promise<GuestRsvpCreatedDto> => ({
+    rsvp: aGuestOwnRsvp(),
+    editToken: 'token-1',
+  })),
+  guestRsvp: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({ rsvp: aGuestOwnRsvp() })),
+  guestRsvpUpdate: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({ rsvp: aGuestOwnRsvp() })),
+  guestRsvpDelete: vi.fn(async (): Promise<void> => undefined),
   guestInvite: vi.fn(async () => ({ guestInvite: aGuestInviteHost() })),
   saveGuestInvite: vi.fn(async () => ({ guestInvite: aGuestInviteHost() })),
   enableGuestInvite: vi.fn(async () => ({ guestInvite: aGuestInviteHost({ enabled: true }) })),

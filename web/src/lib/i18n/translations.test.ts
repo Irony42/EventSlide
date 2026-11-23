@@ -104,6 +104,7 @@ describe('the scope', () => {
         'moderation',
         'printKit',
         'reveal',
+        'rsvp',
         'shell',
         'site',
         'titles',

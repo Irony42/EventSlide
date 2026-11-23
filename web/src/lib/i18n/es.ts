@@ -690,6 +690,31 @@ export const es: UiText = {
     'guestInvite.languageInvalid': 'Este idioma no está disponible.',
     'guestInvite.needsDate': 'Añada la fecha de inicio antes de activar la invitación.',
     'guestInvite.eventArchived': 'El evento está archivado: la invitación ya no puede cambiar.',
+    'rsvp.notFound': 'Esta respuesta ya no existe.',
+    'rsvp.closed': 'Las respuestas están cerradas.',
+    'rsvp.off': 'El anfitrión no pide respuestas por ahora.',
+    'rsvp.tooMany': 'Esta invitación ha alcanzado su número máximo de respuestas.',
+    'rsvp.full': 'Está completo.',
+    'rsvp.inviteRequired': 'Guarda primero la invitación.',
+    'rsvp.nameEmpty': 'Indica tu nombre y apellido.',
+    'rsvp.nameInvalid': 'Este nombre no es válido.',
+    'rsvp.nameTooLong': 'Este nombre es demasiado largo: 60 caracteres como máximo.',
+    'rsvp.answerInvalid': 'Elige una respuesta.',
+    'rsvp.maybeNotOffered': '«Quizás» no se ofrece para esta fiesta.',
+    'rsvp.adultsRequired': 'Hace falta al menos un adulto.',
+    'rsvp.partyTooBig': 'Sois demasiados para este formulario.',
+    'rsvp.countInvalid': 'Este número de personas no es válido.',
+    'rsvp.dietInvalid': 'Este texto no es válido.',
+    'rsvp.dietTooLong': 'Este texto es demasiado largo: 120 caracteres como máximo.',
+    'rsvp.messageInvalid': 'Estas palabras no son válidas.',
+    'rsvp.messageTooLong': 'Este texto es demasiado largo: 280 caracteres como máximo.',
+    'rsvp.messageTooManyLines': 'Este texto cabe en cuatro líneas como máximo.',
+    'rsvp.enabledInvalid': 'Este ajuste no es válido.',
+    'rsvp.deadlineInvalid': 'Esta fecha límite no es válida.',
+    'rsvp.deadlineNeedsDate': 'Añade primero la fecha de inicio de la invitación.',
+    'rsvp.deadlineAfterStart': 'La fecha límite no puede ser posterior al día de la fiesta.',
+    'rsvp.formInvalid': 'Este ajuste del formulario no es válido.',
+    'rsvp.partyMaxInvalid': 'El número de personas va de 1 a 10.',
     'guestInvite.notFound': 'Esta invitación aún no existe. Guárdela primero.',
   },
 
@@ -3348,6 +3373,76 @@ export const es: UiText = {
    * The menu of one event (`eventLayout/`): the three moments, one entry per subject, the phone's
    * tab bar, and the few words of the pages that only exist because the event page was cut up.
    */
+  /**
+   * The guests' replies on the invitation's page (spec 30): the guest's block. Read in the
+   * invitation's language, like the rest of the page. The host's panel and page come with their own
+   * namespaces in later pull requests.
+   */
+  rsvp: {
+    guest: {
+      title: '¿Vendrás?',
+      deadline: (day: string) => `Responde antes del ${day}, por favor.`,
+      yes: 'Voy',
+      maybe: 'Quizás',
+      no: 'No puedo',
+      nameLabel: 'Tu nombre y apellido',
+      namePlaceholder: 'Para que el anfitrión te reconozca',
+      howManyLabel: '¿Cuántos seréis?',
+      howManyHint: (max: number) => `contigo incluido, ${max} como máximo`,
+      adults: 'Adultos',
+      people: 'Personas',
+      kids: 'Niños',
+      kidsHint: 'menores de 12 años',
+      less: 'Menos',
+      more: 'Más',
+      dietLabel: 'Alergias o dieta',
+      dietHint: 'opcional, solo lo ve el anfitrión',
+      dietPlaceholder: 'P. ej. sin gluten',
+      messageLabel: 'Unas palabras para el anfitrión',
+      optional: 'opcional',
+      send: 'Enviar mi respuesta',
+      save: 'Guardar mis cambios',
+      cancel: 'Cancelar',
+      notice:
+        'Tu respuesta solo la ve el anfitrión. Se borra como máximo dos meses después de la fiesta. Puedes cambiarla o borrarla con tu enlace.',
+      doneYes: (first: string) => `Anotado, ${first}`,
+      doneMaybe: 'Anotado: quizás',
+      doneNo: (first: string) => `Qué pena, ${first}`,
+      maybeSub: 'El anfitrión cuenta con una respuesta firme antes de la fiesta.',
+      noSub:
+        'El anfitrión ha recibido tu respuesta. Puedes cambiar de opinión mientras las respuestas estén abiertas.',
+      recapYes: (people: number | null, kids: number) =>
+        `Vienes${people === null ? '' : ` · ${people} ${people === 1 ? 'persona' : 'personas'}`}${kids > 0 ? ` de ellas ${kids} ${kids === 1 ? 'niño' : 'niños'}` : ''}`,
+      recapMaybe: (people: number | null, kids: number) =>
+        `Quizás${people === null ? '' : ` · ${people} ${people === 1 ? 'persona' : 'personas'}`}${kids > 0 ? ` de ellas ${kids} ${kids === 1 ? 'niño' : 'niños'}` : ''}`,
+      recapNo: 'No vienes',
+      recapDiet: (diet: string) => `Dieta: ${diet}`,
+      recapMessage: (message: string) => `Tus palabras: ${message}`,
+      edit: 'Cambiar mi respuesta',
+      delete: 'Borrar mi respuesta',
+      deleteAsk: '¿Borrar mi respuesta?',
+      deleteSub:
+        'El anfitrión dejará de verla. Podrás responder de nuevo mientras las respuestas estén abiertas.',
+      deleteYes: 'Sí, borrar',
+      deleted: 'Tu respuesta se ha borrado.',
+      linkTitle: 'Tu enlace para cambiarla desde otro dispositivo',
+      linkHint: 'Guárdalo para cambiarla desde otro dispositivo. Este se acuerda solo.',
+      copy: 'Copiar',
+      copied: 'Enlace copiado',
+      closedTitle: 'Las respuestas están cerradas',
+      closedSub: '¿Un cambio? Avisa al anfitrión directamente.',
+      earlier: (summary: string) => `Habías respondido: ${summary}`,
+      proofCount: (count: number) =>
+        `${count} ${count === 1 ? 'persona ha dicho' : 'personas han dicho'} que sí`,
+      proofNames: (names: readonly string[], others: number) =>
+        `${names.join(', ')}${others > 0 ? ` y ${others} ${others === 1 ? 'más' : 'más'}` : ''} ${names.length + others > 1 ? 'vienen' : 'viene'}`,
+      failed: 'No se ha podido enviar tu respuesta. Comprueba tu conexión e inténtalo de nuevo.',
+      busy: 'Mucha gente está respondiendo ahora. Inténtalo de nuevo en un momento.',
+      forgotten: 'Este dispositivo ya no encuentra tu respuesta: se borró o el enlace cambió.',
+      trap: 'Deja este campo vacío',
+    },
+  },
+
   eventMenu: {
     label: 'Menú de la fiesta',
     tabBar: 'Navegación de la fiesta',

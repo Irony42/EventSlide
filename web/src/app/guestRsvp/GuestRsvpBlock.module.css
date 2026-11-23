@@ -1,0 +1,207 @@
+/*
+ * "Serez-vous là ?" (spec 30), inside the guest invitation: one column, readable at 320 px, every
+ * target at least 44 px, the app's own tokens and nothing else. The validated mock-up is
+ * `maquettes/rsvp-2026-11-22/` (section 1).
+ */
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+}
+
+.block h2 {
+  font-size: var(--text-lg);
+  line-height: var(--leading-tight);
+}
+
+.deadline,
+.proof,
+.notice,
+.deleted {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.notice {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.choices {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--space-2);
+}
+
+.choice {
+  min-block-size: 2.75rem;
+  padding: var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.choice[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.choice:focus-visible,
+.count button:focus-visible,
+.field input:focus-visible,
+.field textarea:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  font-weight: 600;
+}
+
+.field small,
+.stepper small {
+  display: block;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.field input,
+.field textarea {
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 400;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-weight: 500;
+}
+
+.count {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.count button {
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-lg);
+  cursor: pointer;
+}
+
+.count output {
+  min-inline-size: 2ch;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* The honeypot: out of the layout and out of sight, but not `display: none`, which a script skips. */
+.trap {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.done p {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.recap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+.recap li:first-child {
+  font-weight: 650;
+}
+
+.banner {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.linkTitle {
+  font-weight: 600;
+}
+
+.link small {
+  color: var(--text-muted);
+}
+
+.delete {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+}
+
+.delete p {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}

@@ -2790,6 +2790,31 @@ export const fr = {
     'guestInvite.needsDate': 'Ajoutez la date de début avant d’activer l’invitation.',
     'guestInvite.eventArchived':
       'L’évènement est archivé\u00a0: l’invitation ne peut plus changer.',
+    'rsvp.notFound': 'Cette réponse n’existe plus.',
+    'rsvp.closed': 'Les réponses sont closes.',
+    'rsvp.off': 'L’organisateur ne demande pas de réponse pour l’instant.',
+    'rsvp.tooMany': 'Cette invitation a atteint son nombre maximal de réponses.',
+    'rsvp.full': 'C’est complet.',
+    'rsvp.inviteRequired': 'Enregistrez d’abord l’invitation.',
+    'rsvp.nameEmpty': 'Indiquez votre prénom et nom.',
+    'rsvp.nameInvalid': 'Ce nom n’est pas valide.',
+    'rsvp.nameTooLong': 'Ce nom est trop long\u00a0: 60 caractères au plus.',
+    'rsvp.answerInvalid': 'Choisissez une réponse.',
+    'rsvp.maybeNotOffered': '« Peut-être » n’est pas proposé pour cette fête.',
+    'rsvp.adultsRequired': 'Il faut au moins un adulte.',
+    'rsvp.partyTooBig': 'Vous êtes trop nombreux pour ce formulaire.',
+    'rsvp.countInvalid': 'Ce nombre de personnes n’est pas valide.',
+    'rsvp.dietInvalid': 'Ce texte n’est pas valide.',
+    'rsvp.dietTooLong': 'Ce texte est trop long\u00a0: 120 caractères au plus.',
+    'rsvp.messageInvalid': 'Ce mot n’est pas valide.',
+    'rsvp.messageTooLong': 'Ce mot est trop long\u00a0: 280 caractères au plus.',
+    'rsvp.messageTooManyLines': 'Ce mot tient sur quatre lignes au plus.',
+    'rsvp.enabledInvalid': 'Ce réglage n’est pas valide.',
+    'rsvp.deadlineInvalid': 'Cette date limite n’est pas valide.',
+    'rsvp.deadlineNeedsDate': 'Ajoutez d’abord la date de début de l’invitation.',
+    'rsvp.deadlineAfterStart': 'La date limite ne peut pas dépasser le jour de la fête.',
+    'rsvp.formInvalid': 'Ce réglage du formulaire n’est pas valide.',
+    'rsvp.partyMaxInvalid': 'Le nombre de personnes va de 1 à 10.',
     'guestInvite.notFound': 'Cette invitation n’existe pas encore. Enregistrez-la d’abord.',
   },
 
@@ -4027,6 +4052,78 @@ export const fr = {
    * The menu of one event (`eventLayout/`): the three moments, one entry per subject, the phone's
    * tab bar, and the few words of the pages that only exist because the event page was cut up.
    */
+  /**
+   * The guests' replies on the invitation's page (spec 30): the guest's block. Read in the
+   * invitation's language, like the rest of the page. The host's panel and page come with their own
+   * namespaces in later pull requests.
+   */
+  rsvp: {
+    guest: {
+      title: 'Serez-vous là\u00a0?',
+      deadline: (day: string) => `Merci de répondre avant le ${day}.`,
+      yes: 'Je viens',
+      maybe: 'Peut-être',
+      no: 'Je ne peux pas',
+      nameLabel: 'Votre prénom et nom',
+      namePlaceholder: 'Pour que l’organisateur vous reconnaisse',
+      howManyLabel: 'Combien serez-vous\u00a0?',
+      howManyHint: (max: number) => `vous compris, ${max} au plus`,
+      adults: 'Adultes',
+      people: 'Personnes',
+      kids: 'Enfants',
+      kidsHint: 'moins de 12 ans',
+      less: 'Moins',
+      more: 'Plus',
+      dietLabel: 'Allergies ou régime',
+      dietHint: 'facultatif, vu seulement par l’organisateur',
+      dietPlaceholder: 'Ex. sans gluten',
+      messageLabel: 'Un mot pour l’organisateur',
+      optional: 'facultatif',
+      send: 'Envoyer ma réponse',
+      save: 'Enregistrer mes changements',
+      cancel: 'Annuler',
+      notice:
+        'Votre réponse n’est vue que par l’organisateur. Elle est effacée au plus tard deux mois après la fête. Vous pouvez la modifier ou la supprimer avec votre lien.',
+      doneYes: (first: string) => `C’est noté, ${first}`,
+      doneMaybe: 'Noté\u00a0: peut-être',
+      doneNo: (first: string) => `Dommage, ${first}`,
+      maybeSub: 'L’organisateur compte sur une réponse ferme avant la fête.',
+      noSub:
+        'L’organisateur a bien reçu votre réponse. Vous pouvez changer d’avis tant que les réponses sont ouvertes.',
+      recapYes: (people: number | null, kids: number) =>
+        `Vous venez${people === null ? '' : ` · ${people} ${people === 1 ? 'personne' : 'personnes'}`}${kids > 0 ? ` dont ${kids} ${kids === 1 ? 'enfant' : 'enfants'}` : ''}`,
+      recapMaybe: (people: number | null, kids: number) =>
+        `Peut-être${people === null ? '' : ` · ${people} ${people === 1 ? 'personne' : 'personnes'}`}${kids > 0 ? ` dont ${kids} ${kids === 1 ? 'enfant' : 'enfants'}` : ''}`,
+      recapNo: 'Vous ne venez pas',
+      recapDiet: (diet: string) => `Régime\u00a0: ${diet}`,
+      recapMessage: (message: string) => `Votre mot\u00a0: ${message}`,
+      edit: 'Modifier ma réponse',
+      delete: 'Supprimer ma réponse',
+      deleteAsk: 'Supprimer ma réponse\u00a0?',
+      deleteSub:
+        'L’organisateur ne la verra plus. Vous pourrez répondre à nouveau tant que les réponses sont ouvertes.',
+      deleteYes: 'Oui, supprimer',
+      deleted: 'Votre réponse est supprimée.',
+      linkTitle: 'Votre lien pour modifier depuis un autre appareil',
+      linkHint:
+        'Gardez-le pour modifier depuis un autre appareil. Celui-ci s’en souvient tout seul.',
+      copy: 'Copier',
+      copied: 'Lien copié',
+      closedTitle: 'Les réponses sont closes',
+      closedSub: 'Un changement\u00a0? Prévenez l’organisateur directement.',
+      earlier: (summary: string) => `Vous aviez répondu\u00a0: ${summary}`,
+      proofCount: (count: number) =>
+        `${count} ${count === 1 ? 'personne a dit oui' : 'personnes ont dit oui'}`,
+      proofNames: (names: readonly string[], others: number) =>
+        `${names.join(', ')}${others > 0 ? ` et ${others} ${others === 1 ? 'autre' : 'autres'}` : ''} ${names.length + others > 1 ? 'viennent' : 'vient'}`,
+      failed: 'La réponse n’a pas pu être envoyée. Vérifiez votre connexion et réessayez.',
+      busy: 'Beaucoup de monde répond en ce moment. Réessayez dans un instant.',
+      forgotten:
+        'Cet appareil ne retrouve plus votre réponse\u00a0: elle a été supprimée ou le lien a changé.',
+      trap: 'Ne pas remplir ce champ',
+    },
+  },
+
   eventMenu: {
     label: 'Menu de la soirée',
     tabBar: 'Navigation de la soirée',

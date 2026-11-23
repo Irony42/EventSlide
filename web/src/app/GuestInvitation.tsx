@@ -9,6 +9,7 @@ import type { GuestInvitePageDto } from '../lib/api/dto'
 import { DEFAULT_LOCALE, parseLocale } from '../lib/i18n/locale'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { icsOf, itineraryHref, whenParts } from '../lib/invite/inviteTexts'
+import { GuestRsvpBlock } from './guestRsvp/GuestRsvpBlock'
 import styles from './GuestInvitation.module.css'
 
 /**
@@ -81,9 +82,14 @@ export interface GuestInvitationProps {
   readonly token: string
   /** The instant the page is read at, for "the hour has come and the wall is not open". */
   readonly readAt: number
+  /**
+   * Whether the answering block reads and sends (spec 30). `false` in the host's preview, which
+   * draws it and does nothing more.
+   */
+  readonly interactive?: boolean
 }
 
-export function GuestInvitation({ page, token, readAt }: GuestInvitationProps) {
+export function GuestInvitation({ page, token, readAt, interactive = true }: GuestInvitationProps) {
   const t = useTranslations().guestInvite.page
   const lang = parseLocale(page.language) ?? DEFAULT_LOCALE
   const parts = useMemo(() => whenParts(page.when, lang, viewerTimeZone()), [page.when, lang])
@@ -171,6 +177,9 @@ export function GuestInvitation({ page, token, readAt }: GuestInvitationProps) {
       </section>
 
       {(page.message ?? null) === null ? null : <p className={styles['message']}>{page.message}</p>}
+
+      {/* Serez-vous là ? Asked while the host asks it, and kept reachable (the reply, its deletion) after. */}
+      <GuestRsvpBlock rsvp={page.rsvp} token={token} locale={lang} interactive={interactive} />
 
       {page.state === 'upcoming' ? (
         <>
