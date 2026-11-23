@@ -2833,6 +2833,8 @@ export const fr = {
     'rsvp.momentsRequired': 'Choisissez au moins un moment.',
     'household.momentsInvalid': 'Ces moments ne sont pas valides pour ce foyer.',
     'rsvp.capacityInvalid': 'Le nombre de places va de 1 à 2000.',
+    'rsvp.full':
+      'Il ne reste pas assez de places pour ce nombre\u00a0: réduisez-le ou prévenez l’organisateur.',
     'household.nameEmpty': 'Indiquez un nom de foyer.',
     'household.nameInvalid': 'Ce nom de foyer n’est pas valide.',
     'household.nameTooLong': 'Ce nom est trop long\u00a0: 80 caractères au plus.',
@@ -4210,6 +4212,10 @@ export const fr = {
       waitlistSub:
         'L’organisateur vous prévient si une place se libère. Vous pouvez changer d’avis tant que les réponses sont ouvertes.',
       recapWaitlist: 'Sur la liste d’attente',
+      limitedPlaces: 'Places limitées.',
+      stayWaitlist:
+        'Vous restez sur la liste d’attente tant que l’organisateur ne vous a pas fait passer.',
+      stayWaitlistChoice: 'Rester sur la liste d’attente',
       trap: 'Ne pas remplir ce champ',
       tooLarge: 'Votre réponse est trop longue pour être envoyée. Raccourcissez vos textes.',
     },
@@ -4458,9 +4464,13 @@ export const fr = {
       formMomentsHint: 'au moins un, pour ceux qui viennent',
       tabWaitlist: 'Liste d’attente',
       tileWaitlist: 'Liste d’attente',
-      promote: 'Promouvoir (je viens)',
+      promote: 'Promouvoir',
       detailWaitlistHint:
         'Sur la liste d’attente\u00a0: cette réponse ne compte pas dans les places.',
+      promoteOver: (capacity: number) => `Cette promotion dépasse la capacité de ${capacity}.`,
+      promoteAnyway: 'Promouvoir quand même',
+      overCapacity: (capacity: number) => `au-delà de la capacité de ${capacity}`,
+      waitlistOrderHint: 'Du plus ancien au plus récent\u00a0: promouvez dans cet ordre.',
       tileNoReply: 'Sans réponse',
       tileNoReplyDetail: (households: string, places: number) => `${households} · ${places} places`,
       household: { one: 'foyer', other: 'foyers' },

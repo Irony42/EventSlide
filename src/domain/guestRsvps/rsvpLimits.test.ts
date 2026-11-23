@@ -6,6 +6,7 @@ const base = {
   heldInEvent: 0,
   answer: 'yes',
   heldAnswer: null,
+  heldPeople: 0,
   people: 2,
   yesPeopleElsewhere: 0,
   capacity: null,
@@ -52,17 +53,44 @@ describe('rsvpAdmissionFor', () => {
     expect(rsvpAdmissionFor({ ...limited, answer: 'maybe' })).toBe('admit')
   })
 
-  it('judges a confirmed yes that grows against the other yes replies only', () => {
-    const limited = {
+  it('always admits a held yes whose people stay equal or shrink, even under a lowered capacity', () => {
+    const lowered = {
+      ...base,
+      capacity: 2,
+      isNew: false,
+      heldAnswer: 'yes',
+      heldPeople: 4,
+      yesPeopleElsewhere: 3,
+    }
+
+    expect(rsvpAdmissionFor({ ...lowered, people: 4 })).toBe('admit')
+    expect(rsvpAdmissionFor({ ...lowered, people: 1 })).toBe('admit')
+  })
+
+  it('refuses a held yes that grows beyond the places left, whole, and admits one that still fits', () => {
+    const held = {
       ...base,
       capacity: 10,
       isNew: false,
       heldAnswer: 'yes',
+      heldPeople: 2,
       yesPeopleElsewhere: 7,
     }
 
-    expect(rsvpAdmissionFor({ ...limited, people: 3 })).toBe('admit')
-    expect(rsvpAdmissionFor({ ...limited, people: 4 })).toBe('waitlist')
+    expect(rsvpAdmissionFor({ ...held, people: 3 })).toBe('admit')
+    expect(rsvpAdmissionFor({ ...held, people: 4 })).toBe('full')
+  })
+
+  it('puts a new yes, or a maybe or a no turned into a yes, on the waiting list when it does not fit', () => {
+    const crowded = { ...base, capacity: 10, yesPeopleElsewhere: 9 }
+
+    expect(rsvpAdmissionFor({ ...crowded, isNew: false, heldAnswer: 'maybe', heldPeople: 0 })).toBe(
+      'waitlist',
+    )
+    expect(rsvpAdmissionFor({ ...crowded, isNew: false, heldAnswer: 'no', heldPeople: 0 })).toBe(
+      'waitlist',
+    )
+    expect(rsvpAdmissionFor({ ...crowded })).toBe('waitlist')
   })
 
   it('names the ceiling first when both apply', () => {

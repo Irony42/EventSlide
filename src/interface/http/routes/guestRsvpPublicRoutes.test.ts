@@ -189,6 +189,7 @@ describe('GET /api/i/:token: the rsvp block', () => {
         questions: [],
         visibility: 'off',
         moments: [],
+        limited: false,
       },
     })
   })
@@ -813,5 +814,43 @@ describe('the moments of the party (lot 4)', () => {
     expect(onlyBrunch.status).toBe(400)
     expect(onlyBrunch.body.error.code).toBe('rsvp.momentsRequired')
     expect(both.body.rsvp.moments).toEqual([DINNER.id])
+  })
+})
+
+describe('limited places (lot 4)', () => {
+  it('answers 409 rsvp.full to a held yes that grows beyond the places, and a yes over the places as a waiting-list entry', async () => {
+    const world = await buildWorld()
+    await world.invites.saveRsvpSettings(LIVE, {
+      enabled: true,
+      deadline: null,
+      closedAt: null,
+      form: { ...DEFAULT_RSVP_FORM, capacity: 3 },
+    })
+    const { post, put } = await guest(world)
+
+    const first = await post({ ...ANSWER, adults: 2, kids: 0 })
+    const second = await post({ ...ANSWER, name: 'Hugo', adults: 2, kids: 0 })
+    const grown = await put(first.body.editToken, { ...ANSWER, adults: 4, kids: 0 })
+
+    expect(first.body.rsvp.answer).toBe('yes')
+    expect(second.status).toBe(201)
+    expect(second.body.rsvp.answer).toBe('waitlist')
+    expect(grown.status).toBe(409)
+    expect(grown.body.error.code).toBe('rsvp.full')
+  })
+
+  it('tells the page the places are limited, and nothing more', async () => {
+    const world = await buildWorld()
+    await world.invites.saveRsvpSettings(LIVE, {
+      enabled: true,
+      deadline: null,
+      closedAt: null,
+      form: { ...DEFAULT_RSVP_FORM, capacity: 3 },
+    })
+
+    const { page } = await guest(world)
+
+    expect(page.body.rsvp.form.limited).toBe(true)
+    expect(JSON.stringify(page.body.rsvp)).not.toMatch(/capacity/)
   })
 })

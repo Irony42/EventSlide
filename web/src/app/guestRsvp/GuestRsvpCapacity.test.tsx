@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import { forgetEditToken, forgetHouseholdToken } from '../../lib/rsvp/rsvpDevice'
 import type { Api } from '../../lib/api/client'
@@ -102,5 +103,60 @@ describe('a page whose places are all taken', () => {
 
     expect(screen.getByRole('button', { name: t.yes })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t.waitlistJoin })).not.toBeInTheDocument()
+  })
+})
+
+describe('places that are limited, before and after answering', () => {
+  const limited = aGuestRsvpPage({ form: { ...aGuestRsvpPage().form, limited: true } })
+
+  it('says the places are limited before answering, and not once the page is full or unlimited', () => {
+    const { unmount } = render({}, limited)
+    expect(screen.getByText(t.limitedPlaces)).toBeInTheDocument()
+    unmount()
+
+    render({}, aGuestRsvpPage())
+    expect(screen.queryByText(t.limitedPlaces)).not.toBeInTheDocument()
+  })
+
+  it('says it plainly when a waiting-list reply is changed, with no "Oui" as a way out', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(`eventslide.rsvp.${TOKEN}`, JSON.stringify({ editToken: 'tok' }))
+    render(
+      { guestRsvp: vi.fn(async () => ({ rsvp: aGuestOwnRsvp({ answer: 'waitlist' }) })) },
+      aGuestRsvpPage(),
+    )
+
+    await user.click(await screen.findByRole('button', { name: t.edit }))
+
+    expect(screen.getByText(t.stayWaitlist)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t.yes })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t.stayWaitlistChoice })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: t.maybe })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t.no })).toBeInTheDocument()
+  })
+
+  it('shows the refusal of a growth beyond the places in the page, and keeps what was typed', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(`eventslide.rsvp.${TOKEN}`, JSON.stringify({ editToken: 'tok' }))
+    const guestRsvpUpdate = vi.fn(async (..._args: never[]): Promise<never> => {
+      throw new ApiError(409, 'rsvp.full')
+    })
+    render(
+      {
+        guestRsvp: vi.fn(async () => ({ rsvp: aGuestOwnRsvp({ answer: 'yes' }) })),
+        guestRsvpUpdate: guestRsvpUpdate as never,
+      },
+      aGuestRsvpPage({ state: 'full' }),
+    )
+
+    await user.click(await screen.findByRole('button', { name: t.edit }))
+    await user.click(screen.getByRole('button', { name: t.save }))
+
+    const alert = await screen.findByRole('alert')
+    expect(flat(alert.textContent ?? '')).toBe(flat(fr.errors['rsvp.full']))
+    expect(screen.getByLabelText(new RegExp(t.nameLabel))).toHaveValue('Léa Martin')
   })
 })

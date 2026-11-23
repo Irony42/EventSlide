@@ -765,6 +765,8 @@ export const de: UiText = {
     'rsvp.momentsRequired': 'Wähle mindestens einen Programmpunkt.',
     'household.momentsInvalid': 'Diese Programmpunkte sind für diesen Haushalt ungültig.',
     'rsvp.capacityInvalid': 'Die Platzzahl geht von 1 bis 2000.',
+    'rsvp.full':
+      'Für diese Zahl sind nicht genug Plätze übrig: Verringere sie oder sprich die Gastgeber an.',
     'household.nameEmpty': 'Geben Sie einen Namen für den Haushalt an.',
     'household.nameInvalid': 'Dieser Haushaltsname ist nicht gültig.',
     'household.nameTooLong': 'Dieser Name ist zu lang: höchstens 80 Zeichen.',
@@ -3564,6 +3566,9 @@ export const de: UiText = {
       waitlistSub:
         'Die Gastgeber melden sich, wenn ein Platz frei wird. Du kannst deine Meinung ändern, solange Antworten möglich sind.',
       recapWaitlist: 'Auf der Warteliste',
+      limitedPlaces: 'Die Plätze sind begrenzt.',
+      stayWaitlist: 'Du bleibst auf der Warteliste, bis die Gastgeber dich nachrücken lassen.',
+      stayWaitlistChoice: 'Auf der Warteliste bleiben',
       trap: 'Dieses Feld leer lassen',
       tooLarge: 'Ihre Antwort ist zu lang zum Senden. Bitte kürzen Sie Ihre Texte.',
     },
@@ -3809,8 +3814,13 @@ export const de: UiText = {
       formMomentsHint: 'mindestens einer, für alle, die kommen',
       tabWaitlist: 'Warteliste',
       tileWaitlist: 'Warteliste',
-      promote: 'Befördern (kommt)',
+      promote: 'Befördern',
       detailWaitlistHint: 'Auf der Warteliste: Diese Antwort zählt nicht zu den Plätzen.',
+      promoteOver: (capacity: number) =>
+        `Diese Beförderung übersteigt die Kapazität von ${capacity}.`,
+      promoteAnyway: 'Trotzdem befördern',
+      overCapacity: (capacity: number) => `über der Kapazität von ${capacity}`,
+      waitlistOrderHint: 'Älteste zuerst: In dieser Reihenfolge befördern.',
       tileNoReply: 'Ohne Antwort',
       tileNoReplyDetail: (households: string, places: number) => `${households} · ${places} Plätze`,
       household: { one: 'Haushalt', other: 'Haushalte' },

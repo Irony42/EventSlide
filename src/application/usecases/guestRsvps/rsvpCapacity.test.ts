@@ -44,6 +44,19 @@ describe('limited places (spec 30, lot 4)', () => {
     })
   })
 
+  describe('what the page says before anybody answers', () => {
+    it('says the places are limited, never the number nor how many are taken', async () => {
+      const before = await scene.view({ token })
+      await limit(40)
+      await yes('Léa', 2)
+      const after = await scene.view({ token })
+
+      expect(before.ok && before.value.rsvp.form.limited).toBe(false)
+      expect(after.ok && after.value.rsvp.form.limited).toBe(true)
+      expect(JSON.stringify(after.ok && after.value.rsvp)).not.toContain('40')
+    })
+  })
+
   describe('a guest’s yes', () => {
     it('is admitted while the places last, whole, and goes on the waiting list when it would pass them', async () => {
       await limit(3)
@@ -151,7 +164,7 @@ describe('limited places (spec 30, lot 4)', () => {
       expect(back.ok && back.value.answer).toBe('waitlist')
     })
 
-    it('moves a confirmed yes that grows past the places to the waiting list, and frees its places', async () => {
+    it('refuses a confirmed yes that grows past the places left, rsvp.full, and touches nothing stored', async () => {
       await limit(3)
       const sent = await yes('Léa', 2)
       if (!sent.ok) throw new Error('sent')
@@ -165,8 +178,82 @@ describe('limited places (spec 30, lot 4)', () => {
         adults: 3,
       })
 
-      expect(grown.ok && grown.value.answer).toBe('waitlist')
-      expect(await scene.rsvps.yesPeople(WEDDING)).toBe(1)
+      expect(code(grown)).toBe('rsvp.full')
+      const stored = await scene.rsvps.findById(WEDDING, sent.value.rsvp.id)
+      expect([stored?.answer, stored?.adults]).toEqual(['yes', 2])
+      expect(await scene.rsvps.yesPeople(WEDDING)).toBe(3)
+    })
+
+    it('lets a confirmed yes grow into the places that are left', async () => {
+      await limit(4)
+      const sent = await yes('Léa', 2)
+      if (!sent.ok) throw new Error('sent')
+      await yes('Hugo', 1)
+
+      const grown = await scene.updateOwn({
+        token,
+        editToken: sent.value.editToken,
+        name: 'Léa',
+        answer: 'yes',
+        adults: 3,
+      })
+
+      expect(grown.ok && grown.value.answer).toBe('yes')
+    })
+
+    it('never evicts a held yes that edits its note after the host lowered the capacity under it', async () => {
+      await limit(5)
+      const sent = await yes('Léa', 4)
+      if (!sent.ok) throw new Error('sent')
+      await limit(2)
+
+      const same = await scene.updateOwn({
+        token,
+        editToken: sent.value.editToken,
+        name: 'Léa Martin',
+        answer: 'yes',
+        adults: 4,
+        diet: 'sans gluten',
+      })
+      const fewer = await scene.updateOwn({
+        token,
+        editToken: sent.value.editToken,
+        name: 'Léa Martin',
+        answer: 'yes',
+        adults: 3,
+      })
+
+      expect([same, fewer].map((reply) => reply.ok && reply.value.answer)).toEqual(['yes', 'yes'])
+      expect(await scene.rsvps.yesPeople(WEDDING)).toBe(3)
+    })
+
+    it('judges the honeypot like a household’s real change: the same rsvp.full', async () => {
+      await limit(3)
+      scene.households.seed(
+        aHousehold({ id: 'h-1', eventId: WEDDING, token: LINK, name: 'Famille Martin', places: 4 }),
+      )
+      await scene.submit({
+        token,
+        householdToken: LINK,
+        name: 'Famille Martin',
+        answer: 'yes',
+        adults: 2,
+      })
+      await yes('Hugo', 1)
+      const grow = (extra: Record<string, unknown>) =>
+        scene.submit({
+          token,
+          householdToken: LINK,
+          name: 'Famille Martin',
+          answer: 'yes',
+          adults: 3,
+          ...extra,
+        })
+
+      const real = await grow({})
+      const trapped = await grow({ website: 'x' })
+
+      expect([code(real), code(trapped)]).toEqual(['rsvp.full', 'rsvp.full'])
     })
   })
 

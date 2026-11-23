@@ -14,18 +14,22 @@ export const MAX_RSVPS_PER_EVENT = 1000
 export const CAPACITY_MIN = 1
 export const CAPACITY_MAX = 2000
 
-export type RsvpRefusal = 'tooMany'
+export type RsvpRefusal = 'tooMany' | 'full'
 
 /** What the ceilings say of a reply: refused, put on the waiting list, or stored as it is. */
 export type RsvpAdmissionDecision = RsvpRefusal | 'waitlist' | 'admit'
 
 /**
  * - `tooMany`: a new reply when the event already holds 1 000 (nothing is stored);
- * - `waitlist` (places are limited): a `yes` is admitted when the people of the other `yes` replies
- *   plus its own stay within `capacity`, **whole** (no partial admission), otherwise it becomes a
- *   waiting-list entry, which takes no place. **A reply already on the waiting list stays there when
- *   its guest says `yes` again**: the host promotes by hand (the guest may still change to a maybe
- *   or a no). A `maybe` and a `no` take no place and are never held back;
+ * - **a held `yes` whose people stay equal or shrink is always admitted**, even when the host has
+ *   lowered the capacity under the people already coming: editing a diet note must never evict;
+ * - `full`: a held `yes` that **grows** beyond the places left is refused, whole (no partial
+ *   admission), and what is stored (the reply and its seats) is untouched;
+ * - `waitlist` (places are limited): a new `yes`, or a `maybe`/`no` turned into a `yes`, is admitted
+ *   when the people of the other `yes` replies plus its own stay within `capacity`, otherwise it
+ *   becomes a waiting-list entry, which takes no place. **A reply already on the waiting list stays
+ *   there when its guest says `yes` again**: the host promotes by hand, oldest first (the guest may
+ *   still change to a maybe or a no). A `maybe` and a `no` take no place and are never held back;
  * - `admit` otherwise.
  *
  * The host's own additions and corrections are not judged here (they pass no capacity: the host decides).
@@ -37,6 +41,8 @@ export const rsvpAdmissionFor = (input: {
   readonly answer: string
   /** What the stored reply being changed says, or `null` for a new one. */
   readonly heldAnswer: string | null
+  /** The people the stored reply stands for (a `yes` that is being changed), or `0`. */
+  readonly heldPeople: number
   /** The reply's people. */
   readonly people: number
   /** People in the `yes` replies **other than this one**. */
@@ -46,7 +52,10 @@ export const rsvpAdmissionFor = (input: {
   if (input.isNew && input.heldInEvent >= MAX_RSVPS_PER_EVENT) return 'tooMany'
   if (input.answer === 'yes' && input.capacity !== null) {
     if (input.heldAnswer === 'waitlist') return 'waitlist'
-    if (input.yesPeopleElsewhere + input.people > input.capacity) return 'waitlist'
+    if (input.heldAnswer === 'yes' && input.people <= input.heldPeople) return 'admit'
+    if (input.yesPeopleElsewhere + input.people > input.capacity) {
+      return input.heldAnswer === 'yes' ? 'full' : 'waitlist'
+    }
   }
   return 'admit'
 }

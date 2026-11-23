@@ -206,12 +206,15 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
           heldInEvent: countAll.get(rsvp.eventId)?.n ?? 0,
           answer: rsvp.answer,
           heldAnswer: existing?.answer ?? null,
+          heldPeople: existing?.answer === 'yes' ? existing.people : 0,
           people: rsvp.people,
           // `id <> ?` with an id no row has (a new reply) excludes nothing, as it must.
           yesPeopleElsewhere: yesPeopleExcept.get(rsvp.eventId, existing?.id ?? rsvp.id)?.n ?? 0,
           capacity: limits.capacity,
         })
-        if (decision === 'tooMany') return { kind: 'refused', refusal: decision }
+        if (decision === 'tooMany' || decision === 'full') {
+          return { kind: 'refused', refusal: decision }
+        }
         // A yes the places cannot hold is stored as a waiting-list entry: it takes no place.
         const stored = decision === 'waitlist' ? rsvp.withAnswer('waitlist') : rsvp
 

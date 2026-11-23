@@ -73,6 +73,7 @@ export interface GuestRsvpPageDto {
     }[]
     readonly visibility: 'off' | 'count' | 'names'
     readonly moments: readonly { readonly id: string; readonly label: string }[]
+    readonly limited: boolean
   }
   /** Only when the host chose to show who comes: the people coming, and the first names allowed. */
   readonly proof?: { readonly count: number; readonly names: readonly string[] }

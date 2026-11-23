@@ -83,10 +83,57 @@ test('a full party sends a yes to the waiting list, which the host promotes', as
   const detail = host.getByRole('dialog', { name: 'Hugo Attente' })
   await expect(detail.getByRole('button', { name: list.promote })).toBeVisible()
   await detail.getByRole('button', { name: list.promote }).click()
+  // Three people under a capacity of two: the promotion asks once more.
+  await expect(detail.getByRole('alert')).toContainText(list.promoteOver(2))
+  await detail.getByRole('button', { name: list.promoteAnyway }).click()
   await expect(detail.getByRole('button', { name: list.promote })).toHaveCount(0)
   await detail.getByRole('button', { name: list.closeDetail }).last().click()
   await expect(tabs.getByRole('button', { name: new RegExp(`^${list.tabWaitlist}`) })).toHaveCount(
     0,
   )
   await expect(host.locator('button[data-kind="yes"]')).toContainText('3')
+})
+
+test('a guest whose seats the host lowered the capacity under can still edit a note without losing them', async ({
+  app,
+  surfaces,
+  browser,
+}) => {
+  const { host } = surfaces
+  const { event, url } = await invitedHost(host, app, 'fete-baissee')
+  const headers = await csrfHeaders(host.request, app)
+  const put = (capacity: number) =>
+    host.request.put(app.url(`/api/events/${event.slug}/rsvp-form`), {
+      headers,
+      data: { enabled: true, form: { capacity } },
+    })
+  expect((await put(4)).status()).toBe(200)
+
+  const context = await browser.newContext({
+    locale: 'fr-FR',
+    viewport: { width: 375, height: 800 },
+  })
+  const page = await context.newPage()
+  try {
+    await page.goto(url)
+    await page.getByRole('button', { name: guest.yes }).click()
+    await page.getByLabel(new RegExp(guest.nameLabel)).fill('Léa Martin')
+    for (let i = 0; i < 3; i += 1) {
+      await page.getByRole('button', { name: new RegExp(`${guest.more}.*${guest.adults}`) }).click()
+    }
+    await page.getByRole('button', { name: guest.send }).click()
+    await expect(page.getByRole('heading', { name: guest.doneYes('Léa') })).toBeVisible()
+
+    // The host lowers the places under the four she holds; she edits her allergies.
+    expect((await put(2)).status()).toBe(200)
+    await page.reload()
+    await page.getByRole('button', { name: guest.edit }).click()
+    await page.getByLabel(new RegExp(guest.dietLabel)).fill('sans gluten')
+    await page.getByRole('button', { name: guest.save }).click()
+
+    await expect(page.getByRole('heading', { name: guest.doneYes('Léa') })).toBeVisible()
+    await expect(page.getByText(/sans gluten/)).toBeVisible()
+  } finally {
+    await context.close()
+  }
 })

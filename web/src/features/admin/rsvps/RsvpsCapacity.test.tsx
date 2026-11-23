@@ -23,7 +23,8 @@ import { RsvpsPage } from './RsvpsPage'
 
 const text = fr.rsvp.list
 const base = aRsvpSettings({ enabled: true, state: 'full' })
-const settings = { ...base, form: { ...base.form, capacity: 2 } }
+const settings = { ...base, form: { ...base.form, capacity: 10 } }
+const tight = { ...base, form: { ...base.form, capacity: 2 } }
 
 const coming = anRsvp({ id: 'r-yes', name: 'Léa Martin', adults: 2, kids: 0 })
 const waiting = anRsvp({
@@ -172,5 +173,96 @@ describe('the waiting list on the replies page', () => {
 
     const form = await screen.findByRole('dialog', { name: text.formAddTitle })
     expect(within(form).queryByLabelText(text.answerWaitlist)).not.toBeInTheDocument()
+  })
+})
+
+describe('promoting past the capacity, and the order of the list', () => {
+  const older = anRsvp({
+    id: 'r-old',
+    name: 'Ancien Attente',
+    answer: 'waitlist',
+    adults: 1,
+    createdAt: '2026-11-20T08:00:00.000Z',
+    updatedAt: '2026-11-23T08:00:00.000Z',
+  })
+  const newer = anRsvp({
+    id: 'r-new',
+    name: 'Récent Attente',
+    answer: 'waitlist',
+    adults: 1,
+    createdAt: '2026-11-22T08:00:00.000Z',
+    updatedAt: '2026-11-22T08:00:00.000Z',
+  })
+
+  it('sorts the waiting-list tab oldest first by arrival, not by last change, and says so', async () => {
+    const user = userEvent.setup()
+    render({ rsvps: vi.fn(async () => ({ ...list(), rsvps: [coming, newer, older] })) })
+
+    await user.click(
+      within(await screen.findByRole('group', { name: text.tabsLabel })).getByRole('button', {
+        name: new RegExp(`^${text.tabWaitlist}`),
+      }),
+    )
+
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1)
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Ancien Attente'),
+      expect.stringContaining('Récent Attente'),
+    ])
+    const flat = (words: string): string => words.replaceAll(String.fromCharCode(160), ' ')
+    expect(
+      screen.getByText((content) => flat(content) === flat(text.waitlistOrderHint)),
+    ).toBeInTheDocument()
+  })
+
+  it('asks once more before a promotion that goes past the capacity, and promotes on the second click', async () => {
+    const user = userEvent.setup()
+    const updateRsvp = vi.fn(async (_slug: string, _id: string, _input: RsvpReplyInput) => ({
+      rsvp: waiting,
+    }))
+    // Two people already come under a capacity of two: the waiting reply of three goes past it.
+    render({ updateRsvp, rsvps: vi.fn(async () => ({ ...list(), rsvpForm: tight })) })
+
+    await user.click(await screen.findByRole('button', { name: 'Hugo Attente' }))
+    const detail = await screen.findByRole('dialog', { name: 'Hugo Attente' })
+    await user.click(within(detail).getByRole('button', { name: text.promote }))
+
+    expect(updateRsvp).not.toHaveBeenCalled()
+    expect(within(detail).getByRole('alert')).toHaveTextContent(text.promoteOver(2))
+    await user.click(within(detail).getByRole('button', { name: text.promoteAnyway }))
+    await waitFor(() => expect(updateRsvp).toHaveBeenCalledTimes(1))
+  })
+
+  it('promotes at once when the reply still fits', async () => {
+    const user = userEvent.setup()
+    const updateRsvp = vi.fn(async (_slug: string, _id: string, _input: RsvpReplyInput) => ({
+      rsvp: waiting,
+    }))
+    const roomy = {
+      ...list([coming, older]),
+      rsvpForm: { ...settings, form: { ...settings.form, capacity: 10 } },
+    }
+    render({ updateRsvp, rsvps: vi.fn(async () => roomy) })
+
+    await user.click(await screen.findByRole('button', { name: 'Ancien Attente' }))
+    const detail = await screen.findByRole('dialog', { name: 'Ancien Attente' })
+    await user.click(within(detail).getByRole('button', { name: text.promote }))
+
+    await waitFor(() => expect(updateRsvp).toHaveBeenCalledTimes(1))
+  })
+
+  it('hints on the yes tile when the people coming are past the capacity, and not otherwise', async () => {
+    const over = {
+      ...list(),
+      rsvpForm: tight,
+      stats: { ...list().stats, yes: { responses: 1, people: 5, adults: 5, kids: 0 } },
+    }
+    const { unmount } = render({ rsvps: vi.fn(async () => over) })
+    expect(await screen.findByText(new RegExp(text.overCapacity(2)))).toBeInTheDocument()
+    unmount()
+
+    render()
+    await screen.findByRole('table')
+    expect(screen.queryByText(new RegExp(text.overCapacity(10)))).not.toBeInTheDocument()
   })
 })

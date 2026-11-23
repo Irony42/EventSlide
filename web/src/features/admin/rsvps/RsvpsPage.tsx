@@ -292,7 +292,11 @@ function Replies({
       kind: 'yes',
       label: text.tileYes,
       value: stats.yes.people,
-      detail: yesDetail(stats, form.partySize.enabled && form.kidsSeparate, text),
+      detail:
+        yesDetail(stats, form.partySize.enabled && form.kidsSeparate, text) +
+        (form.capacity !== null && stats.yes.people > form.capacity
+          ? ` · ${text.overCapacity(form.capacity)}`
+          : ''),
     },
     ...(form.maybe
       ? [
@@ -513,6 +517,9 @@ function Replies({
                     </button>
                   ))}
                 </div>
+                {current === 'waitlist' ? (
+                  <p className={styles['note']}>{text.waitlistOrderHint}</p>
+                ) : null}
                 <div className={styles['toolbar']}>
                   <TextInput
                     type="search"
@@ -617,6 +624,8 @@ function Replies({
         households={households}
         onFile={(reply, householdId) => void fileUnder(reply, householdId)}
         onPromote={(reply) => void promote(reply)}
+        capacity={form.capacity}
+        yesPeople={stats.yes.people}
         onEdit={(reply) => setDialog({ kind: 'form', reply })}
         onDelete={(reply) => setDialog({ kind: 'delete', reply })}
         onClose={() => setDialog({ kind: 'none' })}

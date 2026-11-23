@@ -76,7 +76,8 @@ export interface SubmitRsvpDeps extends PublicRsvpDeps {
   readonly clock: Clock
 }
 
-const refused = (_refusal: RsvpRefusal): DomainError => DomainError.conflict('rsvp.tooMany')
+const refused = (refusal: RsvpRefusal): DomainError =>
+  DomainError.conflict(refusal === 'full' ? 'rsvp.full' : 'rsvp.tooMany')
 
 export type SubmitRsvp = (input: SubmitRsvpInput) => Promise<Result<SubmittedRsvp, DomainError>>
 
@@ -138,13 +139,14 @@ export const makeSubmitRsvp =
         heldInEvent: await deps.rsvps.count(event.id),
         answer: rsvp.answer,
         heldAnswer: existing === null ? null : existing.answer,
+        heldPeople: existing !== null && existing.answer === 'yes' ? existing.people : 0,
         people: rsvp.people,
         yesPeopleElsewhere:
           (await deps.rsvps.yesPeople(event.id)) -
           (existing !== null && existing.answer === 'yes' ? existing.people : 0),
         capacity: settings.form.capacity,
       })
-      if (decision === 'tooMany') return err(refused(decision))
+      if (decision === 'tooMany' || decision === 'full') return err(refused(decision))
       // The same `201` a real reply gets, the waiting list included: no answer gives the trap away.
       return ok({
         rsvp: decision === 'waitlist' ? rsvp.withAnswer('waitlist') : rsvp,
@@ -156,7 +158,8 @@ export const makeSubmitRsvp =
     const admission = await deps.rsvps.admit(rsvp, { capacity: settings.form.capacity })
     // `gone` is only answered to a change that asked for it (`changeOnly`): never here, so it shares
     // the refusal rather than a branch nothing can reach.
-    if (admission.kind === 'refused' || admission.kind === 'gone') return err(refused('tooMany'))
+    if (admission.kind === 'refused') return err(refused(admission.refusal))
+    if (admission.kind === 'gone') return err(refused('tooMany'))
     announceRsvpsChanged(deps.bus, event.id)
     // What was stored: a yes the places could not hold is a waiting-list entry.
     return ok({ rsvp: admission.rsvp, editToken, created: admission.kind === 'added' })

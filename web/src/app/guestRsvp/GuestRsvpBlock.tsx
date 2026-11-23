@@ -293,6 +293,8 @@ export function GuestRsvpBlock({
   // --- the form, to answer or to change ------------------------------------------------------
   /** Places are all taken and this guest has none: a yes is an entry on the waiting list. */
   const full = rsvp.state === 'full' && own?.reply.answer !== 'yes'
+  /** A reply on the waiting list stays there when its guest says yes: "Oui" is no way out of it. */
+  const waiting = editing && own?.reply.answer === 'waitlist'
   const choices = (
     <div className={styles['choices']} role="group" aria-label={t.title}>
       {CHOICES.filter((answer) => answer !== 'maybe' || form.maybe).map((answer) => (
@@ -303,7 +305,13 @@ export function GuestRsvpBlock({
           aria-pressed={draft.answer === answer}
           onClick={() => choose(answer)}
         >
-          {answer === 'yes' && full ? t.waitlistJoin : t[answer]}
+          {answer === 'yes'
+            ? waiting
+              ? t.stayWaitlistChoice
+              : full
+                ? t.waitlistJoin
+                : t.yes
+            : t[answer]}
         </button>
       ))}
     </div>
@@ -664,6 +672,11 @@ export function GuestRsvpBlock({
       <section className={styles['block']}>
         {greeting}
         <h2>{t.title}</h2>
+        {waiting ? (
+          <p className={styles['full']} role="status">
+            {t.stayWaitlist}
+          </p>
+        ) : null}
         {choices}
         {formFields}
         {deleteControl}
@@ -700,6 +713,9 @@ export function GuestRsvpBlock({
       {greeting}
       <h2>{t.title}</h2>
       {deadline}
+      {rsvp.form.limited && rsvp.state === 'open' ? (
+        <p className={styles['deadline']}>{t.limitedPlaces}</p>
+      ) : null}
       {full ? (
         <div className={styles['full']} role="status">
           <strong>{t.fullTitle}</strong>

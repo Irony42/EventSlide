@@ -89,13 +89,16 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
       heldInEvent: held.length,
       answer: rsvp.answer,
       heldAnswer: existing?.answer ?? null,
+      heldPeople: existing?.answer === 'yes' ? existing.people : 0,
       people: rsvp.people,
       yesPeopleElsewhere: held
         .filter((row) => row !== existing && row.answer === 'yes')
         .reduce((sum, row) => sum + row.people, 0),
       capacity: limits.capacity,
     })
-    if (decision === 'tooMany') return { kind: 'refused', refusal: decision }
+    if (decision === 'tooMany' || decision === 'full') {
+      return { kind: 'refused', refusal: decision }
+    }
     // A yes the places cannot hold is stored as a waiting-list entry: it takes no place.
     const stored = decision === 'waitlist' ? rsvp.withAnswer('waitlist') : rsvp
 

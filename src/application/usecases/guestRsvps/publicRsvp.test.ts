@@ -131,6 +131,18 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       expect(signals()).toEqual([])
     })
 
+    it('answers a reply the repository says is gone, which only a change asks for, as a refusal', async () => {
+      scene.rsvps.admit = async () => ({ kind: 'gone' })
+
+      expect(code(await submit())).toBe('rsvp.tooMany')
+    })
+
+    it('says rsvp.full when the repository refuses a growth beyond the places', async () => {
+      scene.rsvps.admit = async () => ({ kind: 'refused', refusal: 'full' })
+
+      expect(code(await submit())).toBe('rsvp.full')
+    })
+
     it('says rsvp.tooMany when the repository refuses the reply', async () => {
       scene.rsvps.admit = async () => ({ kind: 'refused', refusal: 'tooMany' })
 
@@ -572,6 +584,7 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
           questions: [],
           visibility: 'off',
           moments: [],
+          limited: false,
         },
         proof: null,
       })

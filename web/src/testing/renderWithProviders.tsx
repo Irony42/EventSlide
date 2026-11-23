@@ -264,6 +264,7 @@ export const aGuestRsvpPage = (overrides: Partial<GuestRsvpPageDto> = {}): Guest
     questions: [],
     visibility: 'off',
     moments: [],
+    limited: false,
   },
   ...overrides,
 })

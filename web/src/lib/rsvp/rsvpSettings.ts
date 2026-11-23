@@ -90,6 +90,7 @@ export const previewPage = (settings: RsvpSettingsDto): GuestRsvpPageDto => ({
     questions: settings.form.questions,
     visibility: settings.form.visibility,
     moments: settings.form.moments,
+    limited: settings.form.capacity !== null,
   },
 })
 

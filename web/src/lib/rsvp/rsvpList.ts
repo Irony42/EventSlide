@@ -43,11 +43,15 @@ export const visibleRsvps = (
   query: string,
 ): readonly RsvpDto[] => {
   const needle = fold(query)
-  return rsvps.filter(
+  const matching = rsvps.filter(
     (reply) =>
       (tab === 'all' || reply.answer === tab) &&
       fold([reply.name, ...reply.details.companions].join(' ')).includes(needle),
   )
+  // The waiting list is promoted in the order people came: the oldest first.
+  return tab === 'waitlist'
+    ? [...matching].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    : matching
 }
 
 /** The people a reply brings: nobody for a "no". */

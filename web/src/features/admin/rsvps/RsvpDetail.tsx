@@ -26,6 +26,9 @@ export interface RsvpDetailProps {
   readonly onFile: (reply: RsvpDto, householdId: string | null) => void
   /** Promotes a waiting-list reply to a yes: the host decides, the places do not hold them back. */
   readonly onPromote: (reply: RsvpDto) => void
+  /** The capacity and the people already coming: a promotion past it asks once more. */
+  readonly capacity: number | null
+  readonly yesPeople: number
   readonly onEdit: (reply: RsvpDto) => void
   readonly onDelete: (reply: RsvpDto) => void
   readonly onClose: () => void
@@ -44,6 +47,8 @@ export function RsvpDetail({
   households,
   onFile,
   onPromote,
+  capacity,
+  yesPeople,
   onEdit,
   onDelete,
   onClose,
@@ -51,6 +56,8 @@ export function RsvpDetail({
   const text = useTranslations().rsvp.list
   const { locale } = useLocale()
   // The household chosen to file the reply under, per reply: a change of reply starts afresh.
+  /** The promotion past the capacity was asked once: the next click confirms it. */
+  const [confirming, setConfirming] = useState<string | null>(null)
   const [chosen, setChosen] = useState<{ readonly of: string; readonly id: string } | null>(null)
   const answerName = {
     yes: text.answerYes,
@@ -80,8 +87,23 @@ export function RsvpDetail({
               {text.remove}
             </Button>
             {reply.answer === 'waitlist' ? (
-              <Button variant="secondary" disabled={locked} onClick={() => onPromote(reply)}>
-                {text.promote}
+              <Button
+                variant="secondary"
+                disabled={locked}
+                onClick={() => {
+                  if (
+                    capacity !== null &&
+                    yesPeople + reply.adults + reply.kids > capacity &&
+                    confirming !== reply.id
+                  ) {
+                    setConfirming(reply.id)
+                  } else {
+                    setConfirming(null)
+                    onPromote(reply)
+                  }
+                }}
+              >
+                {confirming === reply.id ? text.promoteAnyway : text.promote}
               </Button>
             ) : null}
             <Button variant="primary" disabled={locked} onClick={() => onEdit(reply)}>
@@ -97,6 +119,9 @@ export function RsvpDetail({
             <Badge tone={answerTone(reply.answer)}>{answerName[reply.answer]}</Badge>
           </p>
           {reply.answer === 'waitlist' ? <p>{text.detailWaitlistHint}</p> : null}
+          {reply.answer === 'waitlist' && capacity !== null && confirming === reply.id ? (
+            <p role="alert">{text.promoteOver(capacity)}</p>
+          ) : null}
           <dl className={styles['list']}>
             {form.partySize.enabled && reply.answer !== 'no' ? (
               <>

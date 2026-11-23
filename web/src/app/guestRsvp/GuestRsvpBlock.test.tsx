@@ -99,6 +99,7 @@ describe('asking: the window is open and this device holds no reply', () => {
           questions: [],
           visibility: 'off' as const,
           moments: [],
+          limited: false,
         },
       }),
     )
@@ -124,6 +125,7 @@ describe('asking: the window is open and this device holds no reply', () => {
           questions: [],
           visibility: 'off' as const,
           moments: [],
+          limited: false,
         },
       }),
     )

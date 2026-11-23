@@ -323,6 +323,52 @@ export const guestRsvpRepositoryContract = (
         expect([stored?.answer, stored?.adults]).toEqual(['waitlist', 3])
       })
 
+      it('always admits a held yes whose people stay equal or shrink, whatever the lowered capacity', async () => {
+        await add({ id: 'rsvp-1', adults: 4 })
+
+        const same = await repo.admit(
+          aRsvp({ eventId: 'evt-wedding', id: 'rsvp-1', adults: 4, diet: 'noix' }),
+          { capacity: 2 },
+        )
+        const fewer = await repo.admit(aRsvp({ eventId: 'evt-wedding', id: 'rsvp-1', adults: 3 }), {
+          capacity: 2,
+        })
+
+        expect([same.kind, fewer.kind]).toEqual(['updated', 'updated'])
+        expect((await repo.findById(WEDDING, asGuestRsvpId('rsvp-1')))?.adults).toBe(3)
+      })
+
+      it('refuses a held yes that grows beyond the places left, whole, leaving it as it was', async () => {
+        await add({ id: 'rsvp-1', adults: 2 })
+        await add({ id: 'rsvp-2', adults: 7 })
+
+        const grown = await repo.admit(aRsvp({ eventId: 'evt-wedding', id: 'rsvp-1', adults: 4 }), {
+          capacity: 10,
+        })
+
+        expect(grown).toEqual({ kind: 'refused', refusal: 'full' })
+        const stored = await repo.findById(WEDDING, asGuestRsvpId('rsvp-1'))
+        expect([stored?.answer, stored?.adults]).toEqual(['yes', 2])
+      })
+
+      it('gives the last seat to one of two held replies that both grow into it', async () => {
+        await add({ id: 'rsvp-1', adults: 4 })
+        await add({ id: 'rsvp-2', adults: 5 })
+
+        const first = await repo.admit(aRsvp({ eventId: 'evt-wedding', id: 'rsvp-1', adults: 5 }), {
+          capacity: 10,
+        })
+        const second = await repo.admit(
+          aRsvp({ eventId: 'evt-wedding', id: 'rsvp-2', adults: 6 }),
+          {
+            capacity: 10,
+          },
+        )
+
+        expect([first.kind, second]).toEqual(['updated', { kind: 'refused', refusal: 'full' }])
+        expect(await repo.yesPeople(WEDDING)).toBe(10)
+      })
+
       it('lets the waiting list take no place: a yes that fits is admitted beside it', async () => {
         await add({ id: 'rsvp-1', adults: 8 })
         await repo.admit(aRsvp({ eventId: 'evt-wedding', id: 'rsvp-2', adults: 5 }), {

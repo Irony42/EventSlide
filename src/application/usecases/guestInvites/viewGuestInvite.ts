@@ -51,6 +51,8 @@ export interface GuestRsvpPageView {
     readonly visibility: RsvpForm['visibility']
     /** The moments of the party the guest chooses among; empty when the host has none. */
     readonly moments: RsvpForm['moments']
+    /** The places are limited (lot 4): the page says so before answering. Never the number nor the count. */
+    readonly limited: boolean
   }
   /** `null` unless the host asked to show it **and** replies are still part of the story. */
   readonly proof: RsvpProof | null
@@ -136,6 +138,7 @@ export const makeViewGuestInvite =
         questions: form.questions,
         visibility: form.visibility,
         moments: form.moments,
+        limited: form.capacity !== null,
       },
       proof,
     }
