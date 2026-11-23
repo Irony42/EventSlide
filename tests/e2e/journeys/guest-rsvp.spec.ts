@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { csrfHeaders, expect, test } from '../fixtures/app'
 import { invitedHost } from '../fixtures/invitation'
@@ -135,10 +136,10 @@ test('a guest answers, finds the reply again, changes it from another device by 
     await expect(phone.getByRole('heading', { name: text.title })).toBeVisible()
 
     // --- The host closes the replies: the page says so, and offers no form.
-    const closed = await host.request.post(
-      app.url(`/api/events/${event.slug}/rsvp-form/close`),
-      { headers, data: {} },
-    )
+    const closed = await host.request.post(app.url(`/api/events/${event.slug}/rsvp-form/close`), {
+      headers,
+      data: {},
+    })
     expect(closed.status()).toBe(200)
     await phone.reload()
     await expect(phone.getByRole('heading', { name: text.closedTitle })).toBeVisible()
@@ -146,5 +147,51 @@ test('a guest answers, finds the reply again, changes it from another device by 
   } finally {
     await first.close()
     await second.close()
+  }
+})
+
+test('the answering form fits a 320 px phone, its targets are 44 px and axe finds nothing serious', async ({
+  app,
+  surfaces,
+  browser,
+}) => {
+  const { host } = surfaces
+  const { event, url } = await invitedHost(host, app, 'fete-reponses-etroite')
+  const asked = await host.request.put(app.url(`/api/events/${event.slug}/rsvp-form`), {
+    headers: await csrfHeaders(host.request, app),
+    data: { enabled: true, deadline: '2027-12-01' },
+  })
+  expect(asked.status()).toBe(200)
+
+  const context = await browser.newContext({
+    locale: 'fr-FR',
+    viewport: { width: 320, height: 640 },
+  })
+  const guest = await context.newPage()
+  try {
+    await guest.goto(url)
+    await expect(guest.getByText(text.deadline('1 décembre'))).toBeVisible()
+    await guest.getByRole('button', { name: text.yes }).click()
+    await expect(guest.getByRole('button', { name: text.send })).toBeVisible()
+
+    const overflow = await guest.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+    expect(overflow).toBeLessThanOrEqual(0)
+    for (const name of [text.yes, text.no, text.send]) {
+      const box = await guest.getByRole('button', { name }).boundingBox()
+      expect(box?.height ?? 0, name).toBeGreaterThanOrEqual(44)
+    }
+    const more = await guest
+      .getByRole('button', { name: new RegExp(`${text.more}.*${text.adults}`) })
+      .boundingBox()
+    expect(more?.width ?? 0).toBeGreaterThanOrEqual(44)
+
+    const { violations } = await new AxeBuilder({ page: guest })
+      .withTags(['wcag2a', 'wcag2aa'])
+      .analyze()
+    expect(violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? ''))).toEqual([])
+  } finally {
+    await context.close()
   }
 })
