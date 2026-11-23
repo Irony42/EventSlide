@@ -795,6 +795,30 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.guestInvitePage('7QX0M4TZ2KD9WB3H'),
   },
   {
+    name: 'rsvpForm',
+    verb: 'get',
+    path: `/api/events/${SLUG}/rsvp-form`,
+    invoke: (client) => client.rsvpForm(SLUG),
+  },
+  {
+    name: 'saveRsvpForm',
+    verb: 'put',
+    path: `/api/events/${SLUG}/rsvp-form`,
+    invoke: (client) => client.saveRsvpForm(SLUG, { enabled: true, form: { maybe: false } }),
+  },
+  {
+    name: 'closeRsvps',
+    verb: 'post',
+    path: `/api/events/${SLUG}/rsvp-form/close`,
+    invoke: (client) => client.closeRsvps(SLUG),
+  },
+  {
+    name: 'reopenRsvps',
+    verb: 'post',
+    path: `/api/events/${SLUG}/rsvp-form/reopen`,
+    invoke: (client) => client.reopenRsvps(SLUG),
+  },
+  {
     name: 'guestRsvpCreate',
     verb: 'post',
     path: '/api/i/7QX0M4TZ2KD9WB3H/rsvp',

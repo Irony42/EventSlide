@@ -6,6 +6,7 @@ import { en } from '../../../lib/i18n/en'
 import { fr } from '../../../lib/i18n/fr'
 import {
   aGuestInviteHost,
+  aRsvpSettings,
   anEventDto,
   fakeApi,
   renderWithProviders,
@@ -721,6 +722,65 @@ describe('InvitationsPage', () => {
       render(answering(aGuestInviteHost({ enabled: true, startsAt: null, endsAt: null })))
 
       expect(await screen.findByText(text.locked)).toBeVisible()
+    })
+  })
+
+  describe('the guests’ replies (spec 30)', () => {
+    const asked = fr.rsvp.host
+    const guest = fr.rsvp.guest
+
+    it('shows the panel under the look, and no answering block in the preview while replies are not asked', async () => {
+      render(answering(ON))
+
+      expect(await screen.findByRole('heading', { name: new RegExp(asked.title) })).toBeVisible()
+      await userEvent.click(screen.getByRole('tab', { name: text.tabGuest }))
+
+      expect(screen.getByRole('group', { name: text.guestPreviewLabel })).not.toHaveTextContent(
+        guest.title,
+      )
+    })
+
+    it('puts the answering block in the preview, open on a "yes", as the host switches replies on and chooses what to ask', async () => {
+      const saveRsvpForm = vi.fn(async () => ({ rsvpForm: aRsvpSettings({ enabled: true }) }))
+      render(answering(ON, { saveRsvpForm }))
+      await userEvent.click(await screen.findByRole('tab', { name: text.tabGuest }))
+      const frame = screen.getByRole('group', { name: text.guestPreviewLabel })
+
+      await userEvent.click(await screen.findByRole('checkbox', { name: asked.askLabel }))
+
+      expect(within(frame).getByRole('heading', { name: guest.title })).toBeVisible()
+      expect(within(frame).getByLabelText(new RegExp(guest.nameLabel))).toHaveValue(
+        asked.previewName,
+      )
+      expect(within(frame).getByRole('button', { name: guest.maybe })).toBeVisible()
+
+      await userEvent.click(screen.getByRole('checkbox', { name: /Peut-être/ }))
+
+      expect(within(frame).queryByRole('button', { name: guest.maybe })).not.toBeInTheDocument()
+      expect(frame.querySelector('[inert]')).not.toBeNull()
+    })
+
+    it('says the invitation comes first while it has no date or no text of its own', async () => {
+      render(
+        answering(BLANK, {
+          rsvpForm: vi.fn(async () => ({
+            rsvpForm: aRsvpSettings({ invited: false, state: null, closesAt: null }),
+          })),
+        }),
+      )
+
+      expect(await screen.findByText(asked.needsInvite)).toBeVisible()
+    })
+
+    it('reads the settings again once the invitation is saved', async () => {
+      const rsvpForm = vi.fn(async () => ({ rsvpForm: aRsvpSettings() }))
+      const save = vi.fn(async () => ({ guestInvite: aGuestInviteHost() }))
+      render(answering(BLANK, { rsvpForm, saveGuestInvite: save }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+
+      await touch(form)
+
+      await waitFor(() => expect(rsvpForm.mock.calls.length).toBeGreaterThanOrEqual(2))
     })
   })
 

@@ -4174,7 +4174,7 @@ export const fr = {
         'EventSlide n’envoie ni e-mail ni SMS. L’invité garde son lien privé\u00a0; vous relancez depuis vos propres applications.',
       erasedTitle: 'Effacées après la fête',
       erased:
-        'Les réponses disparaissent 30 jours après la fermeture de la soirée, ou 60 jours après son début. Exportez-les avant.',
+        'Les réponses disparaissent 30 jours après que la soirée est fermée, ou 60 jours après son début. Exportez-les avant.',
       previewTitle: 'Aperçu du formulaire',
       previewHint: 'Ce que voit l’invité après «\u00a0Je viens\u00a0».',
       previewName: 'Camille',
