@@ -4,6 +4,7 @@ import type {
   GuestInviteResponse,
   GuestOwnRsvpResponseDto,
   GuestRsvpCreatedDto,
+  RsvpFormResponseDto,
 } from '../dto'
 import { encode } from './shared'
 
@@ -40,6 +41,21 @@ export interface GuestRsvpInput {
 /** The creation adds the honeypot: a hidden field a person leaves empty and a script fills. */
 export interface GuestRsvpCreateInput extends GuestRsvpInput {
   readonly website?: string
+}
+
+/**
+ * What a host saves of the replies' settings (spec 30): every field optional, **an absent one is
+ * left as it was**, `null` clears the deadline. Lot 1 knows only these four keys of the form.
+ */
+export interface RsvpFormInput {
+  readonly enabled?: boolean
+  readonly deadline?: string | null
+  readonly form?: {
+    readonly maybe?: boolean
+    readonly partySize?: { readonly enabled?: boolean; readonly max?: number }
+    readonly kidsSeparate?: boolean
+    readonly diet?: boolean
+  }
 }
 
 /** The guest's token travels in this header, never in a path or a query (those reach access logs). */
@@ -85,6 +101,21 @@ export const guestInviteApi = (transport: Transport) => ({
   /** Always, while the page is served: the right to erase does not end with the window. */
   guestRsvpDelete: (token: string, editToken: string, signal?: AbortSignal): Promise<void> =>
     transport.del(`/api/i/${encode(token)}/rsvp`, signal, rsvpToken(editToken)),
+
+  /** The owner's reading of the replies' settings: the defaults, with `invited: false`, before an invitation exists. */
+  rsvpForm: (slug: string, signal?: AbortSignal): Promise<RsvpFormResponseDto> =>
+    transport.get(`/api/events/${encode(slug)}/rsvp-form`, undefined, signal),
+
+  /** `409 rsvp.inviteRequired` while the event has no invitation. */
+  saveRsvpForm: (slug: string, input: RsvpFormInput): Promise<RsvpFormResponseDto> =>
+    transport.put(`/api/events/${encode(slug)}/rsvp-form`, input),
+
+  /** "Fermer les réponses": the host's hand on the window, whatever the deadline says. */
+  closeRsvps: (slug: string): Promise<RsvpFormResponseDto> =>
+    transport.post(`/api/events/${encode(slug)}/rsvp-form/close`, {}),
+
+  reopenRsvps: (slug: string): Promise<RsvpFormResponseDto> =>
+    transport.post(`/api/events/${encode(slug)}/rsvp-form/reopen`, {}),
 
   /** The owner's reading: `configured: false` and the blanks to start from until something is saved. */
   guestInvite: (slug: string, signal?: AbortSignal): Promise<GuestInviteResponse> =>
