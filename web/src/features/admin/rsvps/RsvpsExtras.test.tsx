@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { fr } from '../../../lib/i18n/fr'
-import type { RsvpListResponseDto } from '../../../lib/api/dto'
+import type { RsvpListResponseDto, RsvpSettingsDto } from '../../../lib/api/dto'
 import { FakeEventSource } from '../../../testing/fakeEventSource'
 import {
   anRsvp,
@@ -51,7 +51,7 @@ const lea = anRsvp({
   },
 })
 
-const list = (form = asking): RsvpListResponseDto => ({
+const list = (form: RsvpSettingsDto = asking): RsvpListResponseDto => ({
   rsvpForm: form,
   rsvps: [lea],
   stats: anRsvpStats(),

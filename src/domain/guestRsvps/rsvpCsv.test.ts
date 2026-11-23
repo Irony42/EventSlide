@@ -190,10 +190,6 @@ describe('rsvpCsv, the lot 2 columns', () => {
   it('gives the caterer the menus of those who come', () => {
     const csv = rsvpCsv([answered], 'caterer', LABELS, questions)
 
-    expect(linesOf(csv)).toEqual([
-      'Nom;Adultes;Enfants;Menus;Régime',
-      'Léa;2;0;Poisson, Végé;',
-      '',
-    ])
+    expect(linesOf(csv)).toEqual(['Nom;Adultes;Enfants;Menus;Régime', 'Léa;2;0;Poisson, Végé;', ''])
   })
 })
