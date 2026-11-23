@@ -31,38 +31,59 @@ export function RsvpTable({ rows, form, onOpen }: RsvpTableProps) {
 
   return (
     <div className={styles['wrap']}>
-      <table className={styles['table']}>
-        <thead>
-          <tr>
-            <th scope="col">{text.colName}</th>
-            <th scope="col">{text.colAnswer}</th>
-            {people ? <th scope="col">{text.colPeople}</th> : null}
-            {form.diet ? <th scope="col">{text.colDiet}</th> : null}
-            <th scope="col">{text.colMessage}</th>
-            <th scope="col">{text.colReceived}</th>
+      {/* Explicit roles: the card layout sets the cells to blocks, which drops the native table semantics. */}
+      <table className={styles['table']} role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">
+              {text.colName}
+            </th>
+            <th scope="col" role="columnheader">
+              {text.colAnswer}
+            </th>
+            {people ? (
+              <th scope="col" role="columnheader">
+                {text.colPeople}
+              </th>
+            ) : null}
+            {form.diet ? (
+              <th scope="col" role="columnheader">
+                {text.colDiet}
+              </th>
+            ) : null}
+            <th scope="col" role="columnheader">
+              {text.colMessage}
+            </th>
+            <th scope="col" role="columnheader">
+              {text.colReceived}
+            </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {rows.map((reply) => (
-            <tr key={reply.id}>
-              <th scope="row" className={styles['name']}>
+            <tr key={reply.id} role="row">
+              <th scope="row" role="rowheader" className={styles['name']}>
                 <button type="button" className={styles['open']} onClick={() => onOpen(reply)}>
                   {reply.name}
                 </button>
               </th>
-              <td data-label={text.colAnswer}>
+              <td role="cell" data-label={text.colAnswer}>
                 <Badge tone={answerTone(reply.answer)}>{answerName[reply.answer]}</Badge>
               </td>
-              {people ? <td data-label={text.colPeople}>{peopleCell(reply, text)}</td> : null}
+              {people ? (
+                <td role="cell" data-label={text.colPeople}>
+                  {peopleCell(reply, text)}
+                </td>
+              ) : null}
               {form.diet ? (
-                <td data-label={text.colDiet} className={styles['free']}>
+                <td role="cell" data-label={text.colDiet} className={styles['free']}>
                   {reply.diet ?? text.none}
                 </td>
               ) : null}
-              <td data-label={text.colMessage} className={styles['free']}>
+              <td role="cell" data-label={text.colMessage} className={styles['free']}>
                 {reply.message ?? text.none}
               </td>
-              <td data-label={text.colReceived} className={styles['when']}>
+              <td role="cell" data-label={text.colReceived} className={styles['when']}>
                 {receivedAt(reply.updatedAt, locale)}
               </td>
             </tr>

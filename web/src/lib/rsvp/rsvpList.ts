@@ -23,17 +23,21 @@ export const countsOf = (rsvps: readonly RsvpDto[]): Readonly<Record<RsvpTab, nu
   no: rsvps.filter((reply) => reply.answer === 'no').length,
 })
 
+/** A name as it is searched: without case, accents or the spaces around ("chloe" finds "Chloé"). */
+const fold = (value: string): string =>
+  value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
+
 /** The replies of a tab whose name (or a companion's) holds what was typed, in the order the server gave. */
 export const visibleRsvps = (
   rsvps: readonly RsvpDto[],
   tab: RsvpTab,
   query: string,
 ): readonly RsvpDto[] => {
-  const needle = query.trim().toLowerCase()
+  const needle = fold(query)
   return rsvps.filter(
     (reply) =>
       (tab === 'all' || reply.answer === tab) &&
-      [reply.name, ...reply.details.companions].join(' ').toLowerCase().includes(needle),
+      fold([reply.name, ...reply.details.companions].join(' ')).includes(needle),
   )
 }
 
@@ -70,6 +74,42 @@ export const barOf = (stats: RsvpStatsDto, maybeOffered: boolean): readonly BarS
 }
 
 type ListText = UiText['rsvp']['list']
+
+export interface BarLegendItem {
+  readonly kind: BarSegment['kind']
+  readonly text: string
+}
+
+/**
+ * The bar's legend, with its units said: the people who come and who might, the replies that
+ * decline (a refusal brings nobody to count). Shown under the bar and read out as its description.
+ */
+export const barLegend = (
+  stats: RsvpStatsDto,
+  maybeOffered: boolean,
+  text: UiText['rsvp']['list'],
+): readonly BarLegendItem[] => [
+  {
+    kind: 'yes',
+    text: text.legendItem(text.tileYes, stats.yes.people, plural(stats.yes.people, text.person)),
+  },
+  ...(maybeOffered
+    ? [
+        {
+          kind: 'maybe' as const,
+          text: text.legendItem(
+            text.tileMaybe,
+            stats.maybe.people,
+            plural(stats.maybe.people, text.person),
+          ),
+        },
+      ]
+    : []),
+  {
+    kind: 'no',
+    text: text.legendItem(text.tileNo, stats.no.responses, plural(stats.no.responses, text.reply)),
+  },
+]
 
 /** "3 réponses", "1 réponse". */
 export const repliesLabel = (count: number, text: ListText): string =>

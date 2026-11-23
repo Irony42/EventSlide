@@ -8,6 +8,7 @@ import { Notice } from '../../../design-system/components/Notice'
 import { SelectField } from '../../../design-system/components/SelectField'
 import { Spinner } from '../../../design-system/components/Spinner'
 import { TextInput } from '../../../design-system/components/TextInput'
+import { useNow } from '../rsvps/useNow'
 import { dateOf, dayOf } from '../../../lib/rsvp/rsvpDates'
 import { windowAction } from '../../../lib/rsvp/rsvpList'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
@@ -47,7 +48,7 @@ export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
   /** A preset waiting for the host to agree to replace what they chose themselves. */
   const [preset, setPreset] = useState<PartyKind | null>(null)
   /** The time the page was read: a deadline gone by is judged against it, not re-read at every render. */
-  const [readAt] = useState(() => Date.now())
+  const readAt = useNow(60_000)
 
   if (settings === null) {
     return (

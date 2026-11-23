@@ -97,7 +97,7 @@ describe('the replies page: reading', () => {
     )
     expect(
       within(tiles).getByRole('button', { name: new RegExp(text.tileMaybe) }),
-    ).toHaveTextContent('11 réponse, en personnes')
+    ).toHaveTextContent('1 réponse · 1 personne')
     expect(within(tiles).getByRole('button', { name: new RegExp(text.tileNo) })).toHaveTextContent(
       '11 réponse',
     )
@@ -472,25 +472,63 @@ describe('the replies page: working on a reply', () => {
     expect(deleteRsvp).not.toHaveBeenCalled()
   })
 
-  it('says why a deletion failed', async () => {
-    const user = userEvent.setup()
-    const deleteRsvp = vi.fn().mockRejectedValue(new ApiError(404, 'rsvp.notFound'))
-    render(fakeApi({ rsvps: vi.fn(async () => list()), deleteRsvp }))
-    await user.click(await screen.findByRole('button', { name: 'Ana Lopez' }))
+  const openDelete = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+    await user.click(await screen.findByRole('button', { name }))
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: text.remove }),
     )
     await user.click(
-      within(await screen.findByRole('dialog', { name: text.deleteTitle('Ana Lopez') })).getByRole(
+      within(await screen.findByRole('dialog', { name: text.deleteTitle(name) })).getByRole(
         'button',
         { name: text.deleteYes },
       ),
     )
+  }
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['rsvp.notFound'])
+  it('says why a deletion failed, in the detail the host is back on, not behind a shut modal', async () => {
+    const user = userEvent.setup()
+    const deleteRsvp = vi.fn().mockRejectedValue(new ApiError(409, 'rsvp.inviteRequired'))
+    render(fakeApi({ rsvps: vi.fn(async () => list()), deleteRsvp }))
+
+    await openDelete(user, 'Ana Lopez')
+
+    const dialog = await screen.findByRole('dialog', { name: 'Ana Lopez' })
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      fr.errors['rsvp.inviteRequired'],
+    )
   })
 
-  it('is read-only on an archived event: no add, no change, no delete', async () => {
+  it('takes a reply that is already gone for a deletion done: the dialog closes and the list is read again', async () => {
+    const user = userEvent.setup()
+    const deleteRsvp = vi.fn().mockRejectedValue(new ApiError(404, 'rsvp.notFound'))
+    const rsvps = vi.fn(async () => list())
+    render(fakeApi({ rsvps, deleteRsvp }))
+
+    await openDelete(user, 'Ana Lopez')
+
+    await waitFor(() => expect(rsvps).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows in the form, and reads the list again, when the reply being changed is already gone', async () => {
+    const user = userEvent.setup()
+    const updateRsvp = vi.fn().mockRejectedValue(new ApiError(404, 'rsvp.notFound'))
+    const rsvps = vi.fn(async () => list())
+    render(fakeApi({ rsvps, updateRsvp }))
+    await user.click(await screen.findByRole('button', { name: 'Léa Martin' }))
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: text.edit }),
+    )
+    const form = await screen.findByRole('dialog', { name: text.formEditTitle })
+
+    await user.click(within(form).getByRole('button', { name: text.formSave }))
+
+    expect(await within(form).findByRole('alert')).toHaveTextContent(fr.errors['rsvp.notFound'])
+    await waitFor(() => expect(rsvps).toHaveBeenCalledTimes(2))
+  })
+
+  it('is read-only on an archived event, except for erasing: no add, no change, but a delete', async () => {
     const user = userEvent.setup()
     render(answering(list(), { getEvent: vi.fn(async () => anEventDto({ status: 'archived' })) }))
 
@@ -498,25 +536,47 @@ describe('the replies page: working on a reply', () => {
     await user.click(screen.getByRole('button', { name: 'Ana Lopez' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByRole('button', { name: text.edit })).toBeDisabled()
-    expect(within(dialog).getByRole('button', { name: text.remove })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: text.remove })).toBeEnabled()
+  })
+
+  it('erases a reply of an archived event', async () => {
+    const user = userEvent.setup()
+    const deleteRsvp = vi.fn(async () => undefined)
+    render(
+      fakeApi({
+        rsvps: vi.fn(async () => list()),
+        deleteRsvp,
+        getEvent: vi.fn(async () => anEventDto({ status: 'archived' })),
+      }),
+    )
+
+    await openDelete(user, 'Ana Lopez')
+
+    await waitFor(() => expect(deleteRsvp).toHaveBeenCalledWith('camille-et-sacha', 'r-ana'))
   })
 })
 
 describe('the replies page: closing and reopening', () => {
   it('closes the replies and says so, then reopens them', async () => {
     const user = userEvent.setup()
-    const closeRsvps = vi.fn(async () => ({
-      rsvpForm: aRsvpSettings({
-        enabled: true,
-        state: 'closed',
-        closedAt: '2026-11-23T10:00:00.000Z',
-        closesAt: '2099-01-01T00:00:00.000Z',
-      }),
-    }))
+    let held = aRsvpSettings({ enabled: true, state: 'open' })
+    const closed = aRsvpSettings({
+      enabled: true,
+      state: 'closed',
+      closedAt: '2026-11-23T10:00:00.000Z',
+      closesAt: '2099-01-01T00:00:00.000Z',
+    })
+    const closeRsvps = vi.fn(async () => ({ rsvpForm: (held = closed) }))
     const reopenRsvps = vi.fn(async () => ({
-      rsvpForm: aRsvpSettings({ enabled: true, state: 'open' }),
+      rsvpForm: (held = aRsvpSettings({ enabled: true, state: 'open' })),
     }))
-    render(fakeApi({ rsvps: vi.fn(async () => list()), closeRsvps, reopenRsvps }))
+    render(
+      fakeApi({
+        rsvps: vi.fn(async () => list({ rsvpForm: held })),
+        closeRsvps,
+        reopenRsvps,
+      }),
+    )
 
     await user.click(await screen.findByRole('button', { name: host.closeAction }))
     expect(await screen.findByText(/réponses fermées/)).toBeInTheDocument()
@@ -525,6 +585,43 @@ describe('the replies page: closing and reopening', () => {
     await waitFor(() => expect(screen.queryByText(/réponses fermées/)).not.toBeInTheDocument())
     expect(closeRsvps).toHaveBeenCalledWith('camille-et-sacha')
     expect(reopenRsvps).toHaveBeenCalledWith('camille-et-sacha')
+  })
+
+  it('does not lose a reply that arrives while the replies are being closed', async () => {
+    const user = userEvent.setup()
+    let release: () => void = () => undefined
+    const closing = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const closed = aRsvpSettings({
+      enabled: true,
+      state: 'closed',
+      closedAt: '2026-11-23T10:00:00.000Z',
+      closesAt: '2099-01-01T00:00:00.000Z',
+    })
+    const late = anRsvp({ id: 'r-late', name: 'Nina Roux' })
+    let landed = false
+    const rsvps = vi.fn(async () =>
+      list({
+        rsvpForm: landed ? closed : aRsvpSettings({ enabled: true, state: 'open' }),
+        rsvps: landed ? [lea, late] : [lea],
+      }),
+    )
+    const closeRsvps = vi.fn(async () => {
+      await closing
+      landed = true
+      return { rsvpForm: closed }
+    })
+    render(fakeApi({ rsvps, closeRsvps }))
+    await user.click(await screen.findByRole('button', { name: host.closeAction }))
+    await waitFor(() => expect(closeRsvps).toHaveBeenCalled())
+
+    // The reply is in while the close is on its way, and the stream says so.
+    signal('rsvp.changed')
+    release()
+
+    expect(await screen.findByText('Nina Roux')).toBeInTheDocument()
+    expect(screen.getByText(/réponses fermées/)).toBeInTheDocument()
   })
 
   it('says why the act failed', async () => {
@@ -640,14 +737,18 @@ describe('the replies page: live', () => {
     await waitFor(() => expect(rsvps.mock.calls.length).toBeGreaterThanOrEqual(2))
   })
 
-  it('marks the replies seen when it shows some the host had not, once per answer', async () => {
+  it('marks the replies seen when it shows some the host had not, then reads again so what was marked is shown', async () => {
     const markRsvpsSeen = vi.fn(async () => undefined)
-    const rsvps = vi.fn(async () => list({ unseen: 2 }))
+    const rsvps = vi
+      .fn()
+      .mockResolvedValueOnce(list({ unseen: 2 }))
+      .mockResolvedValue(
+        list({ unseen: 0, rsvps: [lea, tom, ana, anRsvp({ id: 'r-n', name: 'Nina Roux' })] }),
+      )
     render(fakeApi({ rsvps, markRsvpsSeen }))
-    await screen.findByRole('table')
 
     await waitFor(() => expect(markRsvpsSeen).toHaveBeenCalledWith('camille-et-sacha'))
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(await screen.findByText('Nina Roux')).toBeInTheDocument()
     expect(markRsvpsSeen).toHaveBeenCalledTimes(1)
   })
 
@@ -711,5 +812,99 @@ describe('the replies page: the menu’s badge', () => {
     await new Promise((resolve) => setTimeout(resolve, 100))
 
     expect(refresh).not.toHaveBeenCalled()
+  })
+})
+
+describe('the replies page: what it owes the host', () => {
+  it('says the refresh failed and keeps the figures it had', async () => {
+    const rsvps = vi.fn().mockResolvedValueOnce(list()).mockRejectedValue(ApiError.network())
+    render(fakeApi({ rsvps }))
+    await screen.findByRole('table')
+
+    signal('rsvp.changed')
+
+    expect(await screen.findByRole('status')).toHaveTextContent(fr.errors.network)
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByText('Léa Martin')).toBeInTheDocument()
+  })
+
+  it('judges the deadline by a clock that moves: a page left open past it says so', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    try {
+      vi.setSystemTime(new Date('2026-11-23T10:00:00.000Z'))
+      render(
+        answering(
+          list({
+            rsvpForm: aRsvpSettings({
+              enabled: true,
+              state: 'closed',
+              closedAt: '2026-11-22T10:00:00.000Z',
+              deadline: '2026-11-23',
+              closesAt: '2026-11-23T12:00:00.000Z',
+            }),
+          }),
+        ),
+      )
+      expect(await screen.findByRole('button', { name: host.reopenAction })).toBeInTheDocument()
+
+      await act(async () => {
+        vi.setSystemTime(new Date('2026-11-23T12:30:00.000Z'))
+        await vi.advanceTimersByTimeAsync(60_000)
+      })
+
+      expect(screen.queryByRole('button', { name: host.reopenAction })).not.toBeInTheDocument()
+      expect(screen.getByText(plain(host.reopenNeedsDate))).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('finds "Chloé" by "chloe", whatever the case', async () => {
+    const user = userEvent.setup()
+    render(answering(list({ rsvps: [anRsvp({ id: 'r-c', name: 'Chloé Dupont' }), lea] })))
+
+    await user.type(await screen.findByRole('searchbox', { name: text.searchLabel }), 'CHLOE')
+
+    expect(within(screen.getByRole('table')).getByText('Chloé Dupont')).toBeInTheDocument()
+    expect(within(screen.getByRole('table')).queryByText('Léa Martin')).not.toBeInTheDocument()
+  })
+
+  it('keeps the table’s roles, which the card layout would otherwise lose', async () => {
+    render(answering(list()))
+
+    const table = await screen.findByRole('table')
+    expect(within(table).getAllByRole('columnheader').length).toBeGreaterThanOrEqual(5)
+    expect(within(table).getAllByRole('rowheader')).toHaveLength(3)
+    expect(within(table).getAllByRole('cell').length).toBeGreaterThan(10)
+    expect(within(table).getAllByRole('rowgroup')).toHaveLength(2)
+  })
+
+  it('says each part of the bar in its unit, in the legend and to a screen reader', async () => {
+    render(answering(list()))
+
+    const bar = await screen.findByRole('img', { name: /Répartition des réponses/ })
+    expect(bar.getAttribute('aria-label')).toBe(
+      fr.rsvp.list.barSummary(
+        [
+          fr.rsvp.list.legendItem(text.tileYes, 3, 'personnes'),
+          fr.rsvp.list.legendItem(text.tileMaybe, 1, 'personne'),
+          fr.rsvp.list.legendItem(text.tileNo, 1, 'réponse'),
+        ].join(', '),
+      ),
+    )
+    expect(screen.getAllByText(/personnes/).length).toBeGreaterThan(0)
+  })
+
+  it('reads again once, not twice, when the stream first opens, and not as a reconnection', async () => {
+    const rsvps = vi.fn(async () => list())
+    render(fakeApi({ rsvps }))
+    await screen.findByRole('table')
+    expect(rsvps).toHaveBeenCalledTimes(1)
+
+    act(() => FakeEventSource.latest('the page').emitOpen())
+
+    await waitFor(() => expect(rsvps).toHaveBeenCalledTimes(2))
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(rsvps).toHaveBeenCalledTimes(2)
   })
 })

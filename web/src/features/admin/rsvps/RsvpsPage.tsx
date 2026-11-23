@@ -14,6 +14,7 @@ import { canManageEvent } from '../../../lib/eventLifecycle'
 import { messageForError } from '../../../lib/i18n/translations'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import {
+  barLegend,
   barLine,
   barOf,
   countsOf,
@@ -29,6 +30,7 @@ import {
 } from '../../../lib/rsvp/rsvpList'
 import { dateOf } from '../../../lib/rsvp/rsvpDates'
 import { deadlineLabel, plural } from '../../../lib/rsvp/rsvpTexts'
+import { ApiError } from '../../../lib/http'
 import { useApi } from '../../../lib/useApi'
 import { useLoader } from '../../../lib/useLoader'
 import { useEvent } from '../hooks/useEventData'
@@ -36,6 +38,7 @@ import type { EventPageContext } from '../eventLayout/useEventPage'
 import { RsvpDetail } from './RsvpDetail'
 import { RsvpReplyForm } from './RsvpReplyForm'
 import { RsvpTable } from './RsvpTable'
+import { useNow } from './useNow'
 import { useRsvps } from './useRsvps'
 import styles from './RsvpsPage.module.css'
 
@@ -111,7 +114,7 @@ function OwnerReplies({ slug, archived }: { readonly slug: string; readonly arch
       </>
     )
   }
-  return <Replies slug={slug} data={data} archived={archived} state={state} />
+  return <Replies slug={slug} data={data} archived={archived} state={state} error={error} />
 }
 
 type Dialogs =
@@ -125,11 +128,14 @@ function Replies({
   data,
   archived,
   state,
+  error,
 }: {
   readonly slug: string
   readonly data: RsvpListResponseDto
   readonly archived: boolean
   readonly state: ReturnType<typeof useRsvps>
+  /** The last refresh failed: the figures below are the previous ones. */
+  readonly error: string | null
 }) {
   const t = useTranslations()
   const text = t.rsvp.list
@@ -145,7 +151,9 @@ function Replies({
   const [dialog, setDialog] = useState<Dialogs>({ kind: 'none' })
   const [problem, setProblem] = useState<string | null>(null)
   const [acting, setActing] = useState(false)
-  const [readAt] = useState(() => Date.now())
+  // Judged against a clock that moves: a page left open past the deadline says so.
+  const now = useNow(60_000)
+  const [dialogProblem, setDialogProblem] = useState<string | null>(null)
   // The day the replies are erased is the party's: read in its zone, once the invitation says it.
   const loadInvite = useCallback(
     (signal: AbortSignal) => api.guestInvite(slug, signal),
@@ -162,9 +170,10 @@ function Replies({
   const rows = showAll || searching ? matching : matching.slice(0, FIRST_ROWS)
   const locked = archived
   const bar = barOf(stats, form.maybe)
+  const legend = barLegend(stats, form.maybe, text)
   const detail = dialog.kind === 'detail' ? (rsvps.find((r) => r.id === dialog.id) ?? null) : null
 
-  const action = windowAction(settings, readAt)
+  const action = windowAction(settings, now)
   const deadline = settings.deadline === null ? null : deadlineLabel(settings.deadline, locale)
   const answerNames = {
     yes: text.tabYes,
@@ -189,15 +198,38 @@ function Replies({
       const answer = await (action === 'close' ? api.closeRsvps(slug) : api.reopenRsvps(slug))
       state.adoptSettings(answer.rsvpForm)
     })
-  const remove = (reply: RsvpDto) =>
-    act(async () => {
+  /** A reply that is already gone (the guest erased it, another tab) is a deletion done, not a failure. */
+  const isGone = (cause: unknown): boolean =>
+    cause instanceof ApiError && cause.code === 'rsvp.notFound'
+  const remove = async (reply: RsvpDto) => {
+    setActing(true)
+    setDialogProblem(null)
+    try {
       await api.deleteRsvp(slug, reply.id)
       setDialog({ kind: 'none' })
       state.reload()
-    })
+    } catch (cause) {
+      if (isGone(cause)) {
+        setDialog({ kind: 'none' })
+        state.reload()
+      } else {
+        // The confirmation is a modal: the sentence goes where the host is looking, in the detail.
+        setDialogProblem(messageForError(cause, t))
+        setDialog({ kind: 'detail', id: reply.id })
+      }
+    } finally {
+      setActing(false)
+    }
+  }
   const save = async (input: RsvpReplyInput, reply: RsvpDto | null) => {
-    if (reply === null) await api.addRsvp(slug, input)
-    else await api.updateRsvp(slug, reply.id, input)
+    try {
+      if (reply === null) await api.addRsvp(slug, input)
+      else await api.updateRsvp(slug, reply.id, input)
+    } catch (cause) {
+      // The form shows the sentence; the list learns that the reply is gone.
+      if (isGone(cause)) state.reload()
+      throw cause
+    }
     state.reload()
   }
 
@@ -220,7 +252,10 @@ function Replies({
             kind: 'maybe' as const,
             label: text.tileMaybe,
             value: stats.maybe.people,
-            detail: text.tileMaybeDetail(repliesLabel(stats.maybe.responses, text)),
+            detail: text.tileMaybeDetail(
+              repliesLabel(stats.maybe.responses, text),
+              `${stats.maybe.people} ${plural(stats.maybe.people, text.person)}`,
+            ),
           },
         ]
       : []),
@@ -262,6 +297,14 @@ function Replies({
           {host.reopenNeedsDate}
         </Notice>
       ) : null}
+      {error === null ? null : (
+        <Notice tone="warning" variant="boxed" role="status">
+          {error}
+          <Button size="sm" onClick={state.reload}>
+            {text.retry}
+          </Button>
+        </Notice>
+      )}
       {problem === null ? null : (
         <Notice tone="danger" variant="boxed" role="alert">
           {problem}
@@ -298,9 +341,7 @@ function Replies({
               <div
                 className={styles['track']}
                 role="img"
-                aria-label={`${text.barLabel} : ${bar
-                  .map((s) => `${answerNames[s.kind]} ${s.value}`)
-                  .join(', ')}`}
+                aria-label={text.barSummary(legend.map((item) => item.text).join(', '))}
               >
                 {bar.map((segment) => (
                   <span
@@ -310,6 +351,13 @@ function Replies({
                   />
                 ))}
               </div>
+              <ul className={styles['legend']}>
+                {legend.map((item) => (
+                  <li key={item.kind} data-kind={item.kind}>
+                    {item.text}
+                  </li>
+                ))}
+              </ul>
             </div>
 
             {empty ? (
@@ -355,7 +403,10 @@ function Replies({
                   <RsvpTable
                     rows={rows}
                     form={form}
-                    onOpen={(reply) => setDialog({ kind: 'detail', id: reply.id })}
+                    onOpen={(reply) => {
+                      setDialogProblem(null)
+                      setDialog({ kind: 'detail', id: reply.id })
+                    }}
                   />
                 )}
                 <p className={styles['note']}>
@@ -414,6 +465,7 @@ function Replies({
         reply={detail}
         form={form}
         locked={locked}
+        problem={dialogProblem}
         onEdit={(reply) => setDialog({ kind: 'form', reply })}
         onDelete={(reply) => setDialog({ kind: 'delete', reply })}
         onClose={() => setDialog({ kind: 'none' })}

@@ -3,6 +3,7 @@ import { fr } from '../i18n/fr'
 import { anRsvp, anRsvpStats, aRsvpSettings } from '../../testing/renderWithProviders'
 import {
   answerTone,
+  barLegend,
   barLine,
   barOf,
   countsOf,
@@ -244,5 +245,37 @@ describe('what the window offers', () => {
     })
 
     expect(windowAction(closed, NOW)).toBe('moveDate')
+  })
+})
+
+describe('the search ignores accents', () => {
+  it('finds an accented name by its plain spelling, either way round', () => {
+    const chloe = anRsvp({ id: 'c', name: 'Chloé Dupont' })
+
+    expect(visibleRsvps([chloe, lea], 'all', 'chloe')).toEqual([chloe])
+    expect(
+      visibleRsvps([anRsvp({ id: 'z', name: 'Zoe' }), lea], 'all', 'zoé').map((r) => r.id),
+    ).toEqual(['z'])
+    expect(visibleRsvps([chloe], 'all', 'CHLOÉ')).toEqual([chloe])
+  })
+})
+
+describe('the bar’s legend', () => {
+  const stats = anRsvpStats({
+    yes: { responses: 2, people: 6, adults: 4, kids: 2 },
+    maybe: { responses: 1, people: 1 },
+    no: { responses: 2 },
+  })
+
+  it('says each part in its unit: people for who comes and who might, replies for who declines', () => {
+    expect(barLegend(stats, true, text).map((item) => plain(item.text))).toEqual([
+      'Viennent : 6 personnes',
+      'Peut-être : 1 personne',
+      'Ne viennent pas : 2 réponses',
+    ])
+  })
+
+  it('leaves the "peut-être" out when it is not offered', () => {
+    expect(barLegend(stats, false, text).map((item) => item.kind)).toEqual(['yes', 'no'])
   })
 })
