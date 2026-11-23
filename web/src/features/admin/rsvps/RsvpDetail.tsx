@@ -84,6 +84,12 @@ export function RsvpDetail({
                 <dd>{peopleDetail(reply, text)}</dd>
               </>
             ) : null}
+            {reply.details.showName ? (
+              <>
+                <dt>{text.detailShowName}</dt>
+                <dd>{text.detailYes}</dd>
+              </>
+            ) : null}
             {reply.details.companions.every((name) => name === '') ? null : (
               <>
                 <dt>{text.detailCompanions}</dt>

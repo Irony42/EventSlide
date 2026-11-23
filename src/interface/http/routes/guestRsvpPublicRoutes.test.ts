@@ -181,6 +181,7 @@ describe('GET /api/i/:token: the rsvp block', () => {
         companionNames: false,
         meals: { enabled: false, options: [] },
         questions: [],
+        visibility: 'off',
       },
     })
   })
@@ -241,6 +242,7 @@ describe('POST /api/i/:token/rsvp', () => {
         companions: [],
         meals: [],
         answers: [],
+        showName: false,
         updatedAt: AT.toISOString(),
       },
       editToken: 'secret-1',

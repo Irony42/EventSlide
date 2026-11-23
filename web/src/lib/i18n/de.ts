@@ -3455,6 +3455,10 @@ export const de: UiText = {
       cancel: 'Abbrechen',
       notice:
         'Deine Antwort sehen nur die Gastgeber. Sie wird spätestens zwei Monate nach der Feier gelöscht. Mit deinem Link kannst du sie ändern oder löschen.',
+      showNameLabel: 'Meinen Vornamen anderen Gästen zeigen',
+      noticeNames:
+        'Deine Antwort sehen nur die Gastgeber. Nur dein Vorname kann anderen Gästen gezeigt werden, wenn du das Kästchen oben ankreuzt. Sie wird spätestens zwei Monate nach der Feier gelöscht. Mit deinem Link kannst du sie ändern oder löschen.',
+      recapShowName: 'Dein Vorname wird den anderen Gästen gezeigt',
       doneYes: (first: string) => `Notiert, ${first}`,
       doneMaybe: 'Notiert: vielleicht',
       doneNo: (first: string) => `Schade, ${first}`,
@@ -3567,6 +3571,12 @@ export const de: UiText = {
       companionsHint: 'Die Gäste tragen den Vornamen jeder Person ein, die mit ihnen kommt.',
       companionsNeedSize:
         'Vornamen werden für jede Person neben dem Gast abgefragt: Schalten Sie auch die Personenzahl ein.',
+      visibilityLabel: 'Wer kommt',
+      visibilityHint:
+        'Was die Einladungsseite über die Antworten sagt. Nie die „Nein“, die „Vielleicht“, die Nachrichten oder die Ernährungsangaben.',
+      visibilityOff: 'Nichts',
+      visibilityCount: 'Die Zahl der Personen, die kommen',
+      visibilityNames: 'Die Zahl und die Vornamen derer, die zustimmen',
       mealsLabel: 'Menüauswahl',
       mealsHint: 'Ein Menü pro Person, nur bei denen gefragt, die kommen.',
       mealsOptionsLabel: 'Die Menüs',
@@ -3652,6 +3662,8 @@ export const de: UiText = {
       detailDiet: 'Ernährung',
       detailCompanions: 'Begleitung',
       detailMeals: 'Menüs',
+      detailShowName: 'Vorname den Gästen gezeigt',
+      detailYes: 'Ja',
       detailMessage: 'Nachricht',
       detailReceived: 'Erhalten',
       sourceOpen: 'gemeinsamer Link',

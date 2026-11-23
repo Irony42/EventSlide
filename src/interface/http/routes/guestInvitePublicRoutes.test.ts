@@ -156,6 +156,7 @@ describe('GET /api/i/:token', () => {
           companionNames: false,
           meals: { enabled: false, options: [] },
           questions: [],
+          visibility: 'off',
         },
       },
       state: 'joinable',

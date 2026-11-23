@@ -3418,6 +3418,10 @@ export const es: UiText = {
       cancel: 'Cancelar',
       notice:
         'Tu respuesta solo la ve el anfitrión. Se borra como máximo dos meses después de la fiesta. Puedes cambiarla o borrarla con tu enlace.',
+      showNameLabel: 'Mostrar mi nombre a los demás invitados',
+      noticeNames:
+        'Tu respuesta solo la ve el anfitrión. Solo tu nombre puede mostrarse a los demás invitados, si marcas la casilla de arriba. Se borra como máximo dos meses después de la fiesta. Puedes cambiarla o borrarla con tu enlace.',
+      recapShowName: 'Tu nombre se muestra a los demás invitados',
       doneYes: (first: string) => `Anotado, ${first}`,
       doneMaybe: 'Anotado: quizás',
       doneNo: (first: string) => `Qué pena, ${first}`,
@@ -3526,6 +3530,12 @@ export const es: UiText = {
       companionsHint: 'El invitado anota el nombre de cada persona que viene con él.',
       companionsNeedSize:
         'Los nombres se piden por cada persona además del invitado: activa también el número de personas.',
+      visibilityLabel: 'Quién viene',
+      visibilityHint:
+        'Lo que la página de la invitación dice de las respuestas. Nunca los «no», los «quizás», las notas ni las dietas.',
+      visibilityOff: 'Nada',
+      visibilityCount: 'El número de personas que vienen',
+      visibilityNames: 'El número y los nombres de quienes aceptan',
       mealsLabel: 'Menús a elegir',
       mealsHint: 'Un menú por persona, solo para quienes vienen.',
       mealsOptionsLabel: 'Los menús',
@@ -3610,6 +3620,8 @@ export const es: UiText = {
       detailDiet: 'Dieta',
       detailCompanions: 'Acompañantes',
       detailMeals: 'Menús',
+      detailShowName: 'Nombre mostrado a los invitados',
+      detailYes: 'Sí',
       detailMessage: 'Nota',
       detailReceived: 'Recibida',
       sourceOpen: 'enlace común',

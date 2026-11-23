@@ -24,6 +24,8 @@ export interface RsvpDraft {
   readonly meals: readonly string[]
   /** The answer to each question of the form, by the question's id. */
   readonly answers: Readonly<Record<string, string>>
+  /** "Show my first name to the other guests": the guest's own choice, off until they tick it. */
+  readonly showName: boolean
 }
 
 export const EMPTY_DRAFT: RsvpDraft = {
@@ -36,6 +38,7 @@ export const EMPTY_DRAFT: RsvpDraft = {
   companions: [],
   meals: [],
   answers: {},
+  showName: false,
 }
 
 /**
@@ -69,6 +72,7 @@ export const draftOf = (reply: GuestOwnRsvpDto, form: GuestRsvpPageDto['form']):
   answers: Object.fromEntries(
     reply.answers.map((a) => [a.questionId, offeredAnswer(a.questionId, a.value, form)]),
   ),
+  showName: reply.showName,
 })
 
 /** The form of a host who is correcting a reply: the same shape, read from the host's DTO. */
@@ -79,6 +83,7 @@ export const draftOfHostReply = (reply: RsvpDto, form: GuestRsvpPageDto['form'])
       companions: reply.details.companions,
       meals: reply.details.meals,
       answers: reply.details.answers,
+      showName: reply.details.showName,
     },
     form,
   )
@@ -135,6 +140,7 @@ export const inputOf = (
           })),
         }
       : {}),
+    ...(form.visibility === 'names' && draft.answer === 'yes' ? { showName: draft.showName } : {}),
     message,
   }
 }
@@ -163,5 +169,6 @@ export const NO_RSVP_PAGE: GuestRsvpPageDto = {
     companionNames: false,
     meals: { enabled: false, options: [] },
     questions: [],
+    visibility: 'off',
   },
 }

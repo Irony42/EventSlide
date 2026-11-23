@@ -3338,6 +3338,10 @@ export const en: UiText = {
       cancel: 'Cancel',
       notice:
         'Your reply is seen only by the host. It is erased two months after the party at the latest. You can change or delete it with your link.',
+      showNameLabel: 'Show my first name to the other guests',
+      noticeNames:
+        'Your reply is seen only by the host. Only your first name can be shown to the other guests, if you tick the box above. It is erased two months after the party at the latest. You can change or delete it with your link.',
+      recapShowName: 'Your first name is shown to the other guests',
       doneYes: (first: string) => `Got it, ${first}`,
       doneMaybe: 'Noted: maybe',
       doneNo: (first: string) => `Too bad, ${first}`,
@@ -3444,6 +3448,12 @@ export const en: UiText = {
       companionsHint: 'The guest writes the first name of each person coming with them.',
       companionsNeedSize:
         'First names are asked for each person besides the guest: also switch on the number of people.',
+      visibilityLabel: 'Who is coming',
+      visibilityHint:
+        'What the invitation page says about the replies. Never the “no”, the “maybe”, the notes or the diets.',
+      visibilityOff: 'Nothing',
+      visibilityCount: 'The number of people coming',
+      visibilityNames: 'The number, and the first names of those who agree',
       mealsLabel: 'Choice of meals',
       mealsHint: 'One meal per person, asked only of those who come.',
       mealsOptionsLabel: 'The meals',
@@ -3528,6 +3538,8 @@ export const en: UiText = {
       detailDiet: 'Diet',
       detailCompanions: 'Companions',
       detailMeals: 'Meals',
+      detailShowName: 'First name shown to the guests',
+      detailYes: 'Yes',
       detailMessage: 'Note',
       detailReceived: 'Received',
       sourceOpen: 'shared link',

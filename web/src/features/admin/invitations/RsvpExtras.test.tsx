@@ -383,3 +383,29 @@ describe('the panel’s hints', () => {
     expect(screen.queryByText(t.companionsNeedSize)).not.toBeInTheDocument()
   })
 })
+
+describe('who comes', () => {
+  it('says nothing by default and sends the choice of the page when it is changed', async () => {
+    const user = userEvent.setup()
+    const saveRsvpForm = vi.fn(async () => ({
+      rsvpForm: aRsvpSettings({ form: form({ visibility: 'names' }) }),
+    }))
+    render(aRsvpSettings(), { saveRsvpForm })
+
+    const select = await screen.findByLabelText(t.visibilityLabel)
+    expect(select).toHaveValue('off')
+    await user.selectOptions(select, 'names')
+
+    await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(1))
+    expect(saveRsvpForm).toHaveBeenCalledWith('mariage', { form: { visibility: 'names' } })
+    expect(select).toHaveValue('names')
+  })
+
+  it('shows what the server holds, and is read-only without an invitation', async () => {
+    render(aRsvpSettings({ invited: false, form: form({ visibility: 'count' }) }))
+
+    const select = await screen.findByLabelText(t.visibilityLabel)
+    expect(select).toHaveValue('count')
+    expect(select).toBeDisabled()
+  })
+})

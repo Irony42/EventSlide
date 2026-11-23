@@ -77,6 +77,7 @@ export const recapLines = (
   ...(reply.meals.some((meal) => meal !== '')
     ? [text.recapMeals(reply.meals.filter((meal) => meal !== '').join(', '))]
     : []),
+  ...(reply.showName ? [text.recapShowName] : []),
   ...(reply.diet === null ? [] : [text.recapDiet(reply.diet)]),
   ...reply.answers
     .filter((answer) => answer.value !== '')

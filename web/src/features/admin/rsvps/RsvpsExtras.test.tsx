@@ -192,3 +192,37 @@ describe('the form the host fills for a guest, lot 2', () => {
     expect(within(form).getByLabelText(/Un chant/)).toHaveValue('Le Temps des cerises')
   })
 })
+
+describe('the first name a guest agreed to show', () => {
+  it('is told in the detail, and the host’s form never carries it', async () => {
+    const user = userEvent.setup()
+    const named = anRsvp({
+      id: 'r-named',
+      name: 'Inès Lab',
+      details: { ...lea.details, showName: true, companions: [], meals: [], answers: [] },
+    })
+    const updateRsvp = vi.fn(async (_slug: string, _id: string, _input: unknown) => ({
+      rsvp: named,
+    }))
+    render(
+      fakeApi({
+        rsvps: vi.fn(async () => ({
+          ...list({ ...asking, form: { ...asking.form, visibility: 'names' } }),
+          rsvps: [named],
+        })),
+        updateRsvp,
+      }),
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Inès Lab' }))
+    const detail = await screen.findByRole('dialog', { name: 'Inès Lab' })
+    expect(within(detail).getByText(text.detailShowName)).toBeInTheDocument()
+
+    await user.click(within(detail).getByRole('button', { name: text.edit }))
+    const form = await screen.findByRole('dialog', { name: text.formEditTitle })
+    await user.click(within(form).getByRole('button', { name: text.formSave }))
+
+    await waitFor(() => expect(updateRsvp).toHaveBeenCalledTimes(1))
+    expect(updateRsvp.mock.calls[0]?.[2]).not.toHaveProperty('showName')
+  })
+})

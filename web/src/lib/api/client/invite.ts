@@ -84,7 +84,6 @@ export interface RsvpReplyInput {
   readonly companions?: readonly string[]
   readonly meals?: readonly string[]
   readonly answers?: readonly { readonly questionId: string; readonly value: string }[]
-  readonly showName?: boolean
 }
 
 /** The guest's token travels in this header, never in a path or a query (those reach access logs). */

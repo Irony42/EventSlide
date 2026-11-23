@@ -4097,6 +4097,10 @@ export const fr = {
       cancel: 'Annuler',
       notice:
         'Votre réponse n’est vue que par l’organisateur. Elle est effacée au plus tard deux mois après la fête. Vous pouvez la modifier ou la supprimer avec votre lien.',
+      showNameLabel: 'Montrer mon prénom aux autres invités',
+      noticeNames:
+        'Votre réponse n’est vue que par l’organisateur. Seul votre prénom peut être montré aux autres invités, si vous cochez la case ci-dessus. Elle est effacée au plus tard deux mois après la fête. Vous pouvez la modifier ou la supprimer avec votre lien.',
+      recapShowName: 'Votre prénom est montré aux autres invités',
       doneYes: (first: string) => `C’est noté, ${first}`,
       doneMaybe: 'Noté\u00a0: peut-être',
       doneNo: (first: string) => `Dommage, ${first}`,
@@ -4209,6 +4213,12 @@ export const fr = {
       companionsHint: 'L’invité note le prénom de chaque personne qui vient avec lui.',
       companionsNeedSize:
         'Les prénoms se demandent pour chaque personne en plus de l’invité\u00a0: activez aussi le nombre de personnes.',
+      visibilityLabel: 'Qui vient',
+      visibilityHint:
+        'Ce que la page de l’invitation dit des réponses. Jamais les «\u00a0non\u00a0», les «\u00a0peut-être\u00a0», les mots ni les régimes.',
+      visibilityOff: 'Rien',
+      visibilityCount: 'Le nombre de personnes qui viennent',
+      visibilityNames: 'Le nombre, et les prénoms de ceux qui acceptent',
       mealsLabel: 'Menus au choix',
       mealsHint: 'Un menu par personne, demandé seulement à ceux qui viennent.',
       mealsOptionsLabel: 'Les menus',
@@ -4295,6 +4305,8 @@ export const fr = {
       detailDiet: 'Régime',
       detailCompanions: 'Accompagnants',
       detailMeals: 'Menus',
+      detailShowName: 'Prénom montré aux invités',
+      detailYes: 'Oui',
       detailMessage: 'Mot',
       detailReceived: 'Reçue',
       sourceOpen: 'lien commun',

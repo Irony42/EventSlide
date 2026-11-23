@@ -106,6 +106,21 @@ fieldset.field legend {
   font-weight: 400;
 }
 
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--touch-min);
+  font-weight: 500;
+}
+
+.check input {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  flex: none;
+  accent-color: var(--accent);
+}
+
 .stepper {
   display: flex;
   align-items: center;

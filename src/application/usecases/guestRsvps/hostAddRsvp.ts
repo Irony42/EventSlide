@@ -49,7 +49,8 @@ export const makeHostAddRsvp =
     if (!needed.ok) return needed
     const now = deps.clock.now()
 
-    const reply = parseRsvpInput(needed.value.settings.form, raw)
+    // Showing a first name is the guest's choice: nothing the host types can make it.
+    const reply = parseRsvpInput(needed.value.settings.form, { ...raw, showName: undefined })
     if (!reply.ok) return reply
 
     const rsvp = GuestRsvp.create({
