@@ -23,6 +23,10 @@ export const deadlineLabel = (day: string, locale: string): string => {
   }).format(new Date(Date.UTC(year, month - 1, date)))
 }
 
+/** One or other, the way all five languages of the product count: exactly one, or more (or none). */
+const plural = (count: number, forms: { readonly one: string; readonly other: string }): string =>
+  count === 1 ? forms.one : forms.other
+
 /** One line of what the guest sent, for the confirmation and for the banner of a closed page. */
 export const recapLine = (
   reply: GuestOwnRsvpDto,
@@ -30,9 +34,32 @@ export const recapLine = (
   text: UiText['rsvp']['guest'],
 ): string => {
   if (reply.answer === 'no') return text.recapNo
-  const people = form.partySize.enabled ? reply.adults + reply.kids : null
-  const kids = form.partySize.enabled && form.kidsSeparate ? reply.kids : 0
-  return reply.answer === 'maybe' ? text.recapMaybe(people, kids) : text.recapYes(people, kids)
+  const head = reply.answer === 'maybe' ? text.recapMaybe : text.recapYes
+  if (!form.partySize.enabled) return head
+  const people = reply.adults + reply.kids
+  const kids =
+    form.kidsSeparate && reply.kids > 0
+      ? ` ${text.recapKids(reply.kids, plural(reply.kids, text.child))}`
+      : ''
+  return `${head} · ${people} ${plural(people, text.person)}${kids}`
+}
+
+/**
+ * "Who comes", for the host's choice to show it: the count alone, or the first names that agreed
+ * (at most three) and how many others come. Plain text.
+ */
+export const proofLine = (
+  proof: NonNullable<GuestRsvpPageDto['proof']>,
+  text: UiText['rsvp']['guest'],
+): string => {
+  const [first, ...rest] = proof.names
+  if (first === undefined) {
+    return proof.count === 1 ? text.proofCountOne : text.proofCount(proof.count)
+  }
+  const others = Math.max(proof.count - proof.names.length, 0)
+  const names = proof.names.join(', ')
+  if (others === 0) return rest.length === 0 ? text.proofNameOne(first) : text.proofNames(names)
+  return others === 1 ? text.proofNamesAndOne(names) : text.proofNamesAndMany(names, others)
 }
 
 /** The whole confirmation: the line, then what else was sent. Plain text, never a link. */

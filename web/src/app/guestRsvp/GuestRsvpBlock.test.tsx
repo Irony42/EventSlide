@@ -204,7 +204,7 @@ describe('asking: the window is open and this device holds no reply', () => {
   it('shows who comes when the host chose to, as text', () => {
     render({}, aGuestRsvpPage({ proof: { count: 6, names: ['Léa', 'Hugo'] } }))
 
-    expect(screen.getByText(t.proofNames(['Léa', 'Hugo'], 4))).toBeInTheDocument()
+    expect(screen.getByText(t.proofNamesAndMany('Léa, Hugo', 4))).toBeInTheDocument()
   })
 
   it('shows only the number when the host chose to count', () => {

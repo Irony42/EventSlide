@@ -3448,10 +3448,17 @@ export const de: UiText = {
       maybeSub: 'Die Gastgeber zählen vor der Feier auf eine feste Antwort.',
       noSub:
         'Die Gastgeber haben deine Antwort erhalten. Du kannst es dir anders überlegen, solange Antworten möglich sind.',
-      recapYes: (people: number | null, kids: number) =>
-        `Du kommst${people === null ? '' : ` · ${people} ${people === 1 ? 'Person' : 'Personen'}`}${kids > 0 ? ` davon ${kids} ${kids === 1 ? 'Kind' : 'Kinder'}` : ''}`,
-      recapMaybe: (people: number | null, kids: number) =>
-        `Vielleicht${people === null ? '' : ` · ${people} ${people === 1 ? 'Person' : 'Personen'}`}${kids > 0 ? ` davon ${kids} ${kids === 1 ? 'Kind' : 'Kinder'}` : ''}`,
+      recapYes: 'Du kommst',
+      recapMaybe: 'Vielleicht',
+      person: { one: 'Person', other: 'Personen' },
+      child: { one: 'Kind', other: 'Kinder' },
+      recapKids: (count: number, label: string) => `davon ${count} ${label}`,
+      proofCountOne: '1 Person hat zugesagt',
+      proofCount: (count: number) => `${count} Personen haben zugesagt`,
+      proofNameOne: (name: string) => `${name} kommt`,
+      proofNames: (names: string) => `${names} kommen`,
+      proofNamesAndOne: (names: string) => `${names} und 1 weitere Person kommen`,
+      proofNamesAndMany: (names: string, others: number) => `${names} und ${others} weitere kommen`,
       recapNo: 'Du kommst nicht',
       recapDiet: (diet: string) => `Ernährung: ${diet}`,
       recapMessage: (message: string) => `Dein Wort: ${message}`,
@@ -3470,10 +3477,6 @@ export const de: UiText = {
       closedTitle: 'Die Antworten sind geschlossen',
       closedSub: 'Eine Änderung? Sag den Gastgebern direkt Bescheid.',
       earlier: (summary: string) => `Du hattest geantwortet: ${summary}`,
-      proofCount: (count: number) =>
-        `${count} ${count === 1 ? 'Person hat' : 'Personen haben'} zugesagt`,
-      proofNames: (names: readonly string[], others: number) =>
-        `${names.join(', ')}${others > 0 ? ` und ${others} ${others === 1 ? 'weitere' : 'weitere'}` : ''} ${names.length + others > 1 ? 'kommen' : 'kommt'}`,
       failed:
         'Die Antwort konnte nicht gesendet werden. Prüfe deine Verbindung und versuche es erneut.',
       busy: 'Gerade antworten viele Leute. Versuche es gleich noch einmal.',

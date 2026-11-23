@@ -3411,10 +3411,17 @@ export const es: UiText = {
       maybeSub: 'El anfitrión cuenta con una respuesta firme antes de la fiesta.',
       noSub:
         'El anfitrión ha recibido tu respuesta. Puedes cambiar de opinión mientras las respuestas estén abiertas.',
-      recapYes: (people: number | null, kids: number) =>
-        `Vienes${people === null ? '' : ` · ${people} ${people === 1 ? 'persona' : 'personas'}`}${kids > 0 ? ` de ellas ${kids} ${kids === 1 ? 'niño' : 'niños'}` : ''}`,
-      recapMaybe: (people: number | null, kids: number) =>
-        `Quizás${people === null ? '' : ` · ${people} ${people === 1 ? 'persona' : 'personas'}`}${kids > 0 ? ` de ellas ${kids} ${kids === 1 ? 'niño' : 'niños'}` : ''}`,
+      recapYes: 'Vienes',
+      recapMaybe: 'Quizás',
+      person: { one: 'persona', other: 'personas' },
+      child: { one: 'niño', other: 'niños' },
+      recapKids: (count: number, label: string) => `de ellas ${count} ${label}`,
+      proofCountOne: '1 persona ha dicho que sí',
+      proofCount: (count: number) => `${count} personas han dicho que sí`,
+      proofNameOne: (name: string) => `${name} viene`,
+      proofNames: (names: string) => `${names} vienen`,
+      proofNamesAndOne: (names: string) => `${names} y 1 más vienen`,
+      proofNamesAndMany: (names: string, others: number) => `${names} y ${others} más vienen`,
       recapNo: 'No vienes',
       recapDiet: (diet: string) => `Dieta: ${diet}`,
       recapMessage: (message: string) => `Tus palabras: ${message}`,
@@ -3432,10 +3439,6 @@ export const es: UiText = {
       closedTitle: 'Las respuestas están cerradas',
       closedSub: '¿Un cambio? Avisa al anfitrión directamente.',
       earlier: (summary: string) => `Habías respondido: ${summary}`,
-      proofCount: (count: number) =>
-        `${count} ${count === 1 ? 'persona ha dicho' : 'personas han dicho'} que sí`,
-      proofNames: (names: readonly string[], others: number) =>
-        `${names.join(', ')}${others > 0 ? ` y ${others} ${others === 1 ? 'más' : 'más'}` : ''} ${names.length + others > 1 ? 'vienen' : 'viene'}`,
       failed: 'No se ha podido enviar tu respuesta. Comprueba tu conexión e inténtalo de nuevo.',
       busy: 'Mucha gente está respondiendo ahora. Inténtalo de nuevo en un momento.',
       forgotten: 'Este dispositivo ya no encuentra tu respuesta: se borró o el enlace cambió.',

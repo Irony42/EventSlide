@@ -3330,10 +3330,18 @@ export const en: UiText = {
       doneNo: (first: string) => `Too bad, ${first}`,
       maybeSub: 'The host is counting on a firm answer before the party.',
       noSub: 'The host has received your reply. You can change your mind while replies are open.',
-      recapYes: (people: number | null, kids: number) =>
-        `You’re coming${people === null ? '' : ` · ${people} ${people === 1 ? 'person' : 'people'}`}${kids > 0 ? ` including ${kids} ${kids === 1 ? 'child' : 'children'}` : ''}`,
-      recapMaybe: (people: number | null, kids: number) =>
-        `Maybe${people === null ? '' : ` · ${people} ${people === 1 ? 'person' : 'people'}`}${kids > 0 ? ` including ${kids} ${kids === 1 ? 'child' : 'children'}` : ''}`,
+      recapYes: 'You’re coming',
+      recapMaybe: 'Maybe',
+      person: { one: 'person', other: 'people' },
+      child: { one: 'child', other: 'children' },
+      recapKids: (count: number, label: string) => `including ${count} ${label}`,
+      proofCountOne: '1 person has said yes',
+      proofCount: (count: number) => `${count} people have said yes`,
+      proofNameOne: (name: string) => `${name} is coming`,
+      proofNames: (names: string) => `${names} are coming`,
+      proofNamesAndOne: (names: string) => `${names} and 1 other are coming`,
+      proofNamesAndMany: (names: string, others: number) =>
+        `${names} and ${others} others are coming`,
       recapNo: 'You’re not coming',
       recapDiet: (diet: string) => `Diet: ${diet}`,
       recapMessage: (message: string) => `Your word: ${message}`,
@@ -3350,10 +3358,6 @@ export const en: UiText = {
       closedTitle: 'Replies are closed',
       closedSub: 'A change? Please tell the host directly.',
       earlier: (summary: string) => `You had replied: ${summary}`,
-      proofCount: (count: number) =>
-        `${count} ${count === 1 ? 'person has' : 'people have'} said yes`,
-      proofNames: (names: readonly string[], others: number) =>
-        `${names.join(', ')}${others > 0 ? ` and ${others} ${others === 1 ? 'other' : 'others'}` : ''} ${names.length + others > 1 ? 'are' : 'is'} coming`,
       failed: 'Your reply could not be sent. Check your connection and try again.',
       busy: 'Many people are replying right now. Try again in a moment.',
       forgotten: 'This device can no longer find your reply: it was deleted or the link changed.',

@@ -3382,10 +3382,17 @@ export const it: UiText = {
       maybeSub: 'Chi organizza conta su una risposta definitiva prima della festa.',
       noSub:
         'Chi organizza ha ricevuto la tua risposta. Puoi cambiare idea finché le risposte sono aperte.',
-      recapYes: (people: number | null, kids: number) =>
-        `Vieni${people === null ? '' : ` · ${people} ${people === 1 ? 'persona' : 'persone'}`}${kids > 0 ? ` di cui ${kids} ${kids === 1 ? 'bambino' : 'bambini'}` : ''}`,
-      recapMaybe: (people: number | null, kids: number) =>
-        `Forse${people === null ? '' : ` · ${people} ${people === 1 ? 'persona' : 'persone'}`}${kids > 0 ? ` di cui ${kids} ${kids === 1 ? 'bambino' : 'bambini'}` : ''}`,
+      recapYes: 'Vieni',
+      recapMaybe: 'Forse',
+      person: { one: 'persona', other: 'persone' },
+      child: { one: 'bambino', other: 'bambini' },
+      recapKids: (count: number, label: string) => `di cui ${count} ${label}`,
+      proofCountOne: '1 persona ha detto di sì',
+      proofCount: (count: number) => `${count} persone hanno detto di sì`,
+      proofNameOne: (name: string) => `${name} viene`,
+      proofNames: (names: string) => `${names} vengono`,
+      proofNamesAndOne: (names: string) => `${names} e 1 altro vengono`,
+      proofNamesAndMany: (names: string, others: number) => `${names} e altri ${others} vengono`,
       recapNo: 'Non vieni',
       recapDiet: (diet: string) => `Dieta: ${diet}`,
       recapMessage: (message: string) => `Le tue parole: ${message}`,
@@ -3403,10 +3410,6 @@ export const it: UiText = {
       closedTitle: 'Le risposte sono chiuse',
       closedSub: 'Un cambiamento? Avvisa direttamente chi organizza.',
       earlier: (summary: string) => `Avevi risposto: ${summary}`,
-      proofCount: (count: number) =>
-        `${count} ${count === 1 ? 'persona ha detto' : 'persone hanno detto'} di sì`,
-      proofNames: (names: readonly string[], others: number) =>
-        `${names.join(', ')}${others > 0 ? ` e altri ${others}` : ''} ${names.length + others > 1 ? 'vengono' : 'viene'}`,
       failed: 'Non è stato possibile inviare la risposta. Controlla la connessione e riprova.',
       busy: 'In questo momento stanno rispondendo in tanti. Riprova tra un attimo.',
       forgotten:

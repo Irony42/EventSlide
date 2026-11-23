@@ -9,7 +9,7 @@ import {
   takeEditTokenFromFragment,
 } from './rsvpDevice'
 import { EMPTY_DRAFT, bump, draftOf, inputOf, maxPeople } from './rsvpDraft'
-import { deadlineLabel, firstNameOf, recapLine, recapLines } from './rsvpTexts'
+import { deadlineLabel, firstNameOf, proofLine, recapLine, recapLines } from './rsvpTexts'
 
 const FORM = aGuestRsvpPage().form
 const TOKEN = '7QX0M4TZ2KD9WB3H'
@@ -213,6 +213,19 @@ describe('the words of a reply', () => {
     expect(recapLine(aGuestOwnRsvp(), { ...FORM, kidsSeparate: false }, text)).toBe(
       'Vous venez · 3 personnes',
     )
+  })
+
+  it.each([
+    [{ count: 12, names: [] }, '12 personnes ont dit oui'],
+    [{ count: 1, names: [] }, '1 personne a dit oui'],
+    [{ count: 2, names: ['Léa'] }, 'Léa et 1 autre viennent'],
+    [{ count: 6, names: ['Léa', 'Hugo'] }, 'Léa, Hugo et 4 autres viennent'],
+    [{ count: 3, names: ['Léa', 'Hugo'] }, 'Léa, Hugo et 1 autre viennent'],
+    [{ count: 2, names: ['Léa', 'Hugo'] }, 'Léa, Hugo viennent'],
+    [{ count: 1, names: ['Léa'] }, 'Léa vient'],
+    [{ count: 0, names: ['Léa'] }, 'Léa vient'],
+  ])('says who comes, as text: %j', (proof, line) => {
+    expect(proofLine(proof, text)).toBe(line)
   })
 
   it('adds the diet and the word the guest wrote, as plain text', () => {

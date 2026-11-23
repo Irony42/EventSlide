@@ -16,7 +16,13 @@ import {
   type RsvpDraft,
 } from '../../lib/rsvp/rsvpDraft'
 import { ownReplyLink } from '../../lib/rsvp/rsvpDevice'
-import { deadlineLabel, firstNameOf, recapLine, recapLines } from '../../lib/rsvp/rsvpTexts'
+import {
+  deadlineLabel,
+  firstNameOf,
+  proofLine,
+  recapLine,
+  recapLines,
+} from '../../lib/rsvp/rsvpTexts'
 import styles from './GuestRsvpBlock.module.css'
 import { useGuestRsvp } from './useGuestRsvp'
 
@@ -162,13 +168,7 @@ export function GuestRsvpBlock({ rsvp, token, locale, interactive = true }: Gues
     )
 
   const proof =
-    rsvp.proof === undefined ? null : (
-      <p className={styles['proof']}>
-        {rsvp.proof.names.length === 0
-          ? t.proofCount(rsvp.proof.count)
-          : t.proofNames(rsvp.proof.names, Math.max(rsvp.proof.count - rsvp.proof.names.length, 0))}
-      </p>
-    )
+    rsvp.proof === undefined ? null : <p className={styles['proof']}>{proofLine(rsvp.proof, t)}</p>
 
   // --- the form, to answer or to change ------------------------------------------------------
   const choices = (

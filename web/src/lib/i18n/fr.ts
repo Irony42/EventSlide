@@ -4090,10 +4090,17 @@ export const fr = {
       maybeSub: 'L’organisateur compte sur une réponse ferme avant la fête.',
       noSub:
         'L’organisateur a bien reçu votre réponse. Vous pouvez changer d’avis tant que les réponses sont ouvertes.',
-      recapYes: (people: number | null, kids: number) =>
-        `Vous venez${people === null ? '' : ` · ${people} ${people === 1 ? 'personne' : 'personnes'}`}${kids > 0 ? ` dont ${kids} ${kids === 1 ? 'enfant' : 'enfants'}` : ''}`,
-      recapMaybe: (people: number | null, kids: number) =>
-        `Peut-être${people === null ? '' : ` · ${people} ${people === 1 ? 'personne' : 'personnes'}`}${kids > 0 ? ` dont ${kids} ${kids === 1 ? 'enfant' : 'enfants'}` : ''}`,
+      recapYes: 'Vous venez',
+      recapMaybe: 'Peut-être',
+      person: { one: 'personne', other: 'personnes' },
+      child: { one: 'enfant', other: 'enfants' },
+      recapKids: (count: number, label: string) => `dont ${count} ${label}`,
+      proofCountOne: '1 personne a dit oui',
+      proofCount: (count: number) => `${count} personnes ont dit oui`,
+      proofNameOne: (name: string) => `${name} vient`,
+      proofNames: (names: string) => `${names} viennent`,
+      proofNamesAndOne: (names: string) => `${names} et 1 autre viennent`,
+      proofNamesAndMany: (names: string, others: number) => `${names} et ${others} autres viennent`,
       recapNo: 'Vous ne venez pas',
       recapDiet: (diet: string) => `Régime\u00a0: ${diet}`,
       recapMessage: (message: string) => `Votre mot\u00a0: ${message}`,
@@ -4112,10 +4119,6 @@ export const fr = {
       closedTitle: 'Les réponses sont closes',
       closedSub: 'Un changement\u00a0? Prévenez l’organisateur directement.',
       earlier: (summary: string) => `Vous aviez répondu\u00a0: ${summary}`,
-      proofCount: (count: number) =>
-        `${count} ${count === 1 ? 'personne a dit oui' : 'personnes ont dit oui'}`,
-      proofNames: (names: readonly string[], others: number) =>
-        `${names.join(', ')}${others > 0 ? ` et ${others} ${others === 1 ? 'autre' : 'autres'}` : ''} ${names.length + others > 1 ? 'viennent' : 'vient'}`,
       failed: 'La réponse n’a pas pu être envoyée. Vérifiez votre connexion et réessayez.',
       busy: 'Beaucoup de monde répond en ce moment. Réessayez dans un instant.',
       forgotten:
