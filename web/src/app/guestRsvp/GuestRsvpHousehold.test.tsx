@@ -76,7 +76,12 @@ describe('the household link: reading it', () => {
 
     await screen.findByText(plain(t.householdGreeting('Famille Martin')))
 
-    expect(guestHousehold.mock.calls.every((call) => call[1] === LINK)).toBe(true)
+    expect(guestHousehold).toHaveBeenCalledWith(TOKEN, LINK, expect.anything())
+    expect(guestHousehold).not.toHaveBeenCalledWith(
+      TOKEN,
+      expect.not.stringMatching(LINK),
+      expect.anything(),
+    )
     expect(window.location.hash).toBe('')
   })
 
