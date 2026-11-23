@@ -3,8 +3,10 @@ import { asEventId, asGuestRsvpId } from '../shared/ids'
 import {
   EMPTY_RSVP_DETAILS,
   GuestRsvp,
+  NO_RSVP_EXTRAS,
   parseRsvpInput,
   restoreRsvpDetails,
+  retainExtras,
   type RawRsvpInput,
 } from './rsvp'
 import { DEFAULT_RSVP_FORM, defaultRsvpForm, type RsvpForm } from './rsvpForm'
@@ -174,6 +176,7 @@ describe('GuestRsvp', () => {
     kids: 1,
     diet: null,
     message: null,
+    extras: NO_RSVP_EXTRAS,
   } as const
 
   it('is created with the reply, empty details, and the same creation and update instant', () => {
@@ -359,5 +362,208 @@ describe('GuestRsvp.withHousehold', () => {
     expect(attached.householdId).toBe('h-1')
     expect(attached.toProps()).toEqual({ ...rsvp.toProps(), householdId: 'h-1' })
     expect(attached.withHousehold(null).householdId).toBeNull()
+  })
+})
+
+describe('parseRsvpInput: the lot 2 extras', () => {
+  const asking: RsvpForm = {
+    ...DEFAULT_RSVP_FORM,
+    companionNames: true,
+    meals: { enabled: true, options: ['Poisson', 'Végé'] },
+    questions: [
+      { id: 'q1', label: 'Un chant ?', kind: 'text' },
+      { id: 'q2', label: 'Voiture ?', kind: 'choice', options: ['Oui', 'Non'] },
+    ],
+  }
+  const party = { name: 'Léa', answer: 'yes', adults: 2, kids: 1 }
+  const codeOf = (raw: RawRsvpInput, form: RsvpForm = asking): string | undefined => {
+    const result = parseRsvpInput(form, { ...party, ...raw })
+    return result.ok ? undefined : result.error.code
+  }
+  const okExtras = (raw: RawRsvpInput, form: RsvpForm = asking) => {
+    const result = parseRsvpInput(form, { ...party, ...raw })
+    if (!result.ok) throw new Error(result.error.code)
+    return result.value.extras
+  }
+
+  it('keeps the companions of a party, cleaned, the empty ones dropped', () => {
+    expect(okExtras({ companions: [' Hugo ', '', 'Inès\n'] }).companions).toEqual(['Hugo', 'Inès'])
+  })
+
+  it('accepts as many companions as people minus one, and refuses one more', () => {
+    expect(okExtras({ companions: ['A', 'B'] }).companions).toEqual(['A', 'B'])
+    expect(codeOf({ companions: ['A', 'B', 'C'] })).toBe('rsvp.companionsTooMany')
+    expect(codeOf({ adults: 1, kids: 0, companions: ['A'] })).toBe('rsvp.companionsTooMany')
+  })
+
+  it('accepts a first name of 40 characters and refuses 41', () => {
+    expect(okExtras({ companions: ['x'.repeat(40)] }).companions).toHaveLength(1)
+    expect(codeOf({ companions: ['x'.repeat(41)] })).toBe('rsvp.companionTooLong')
+  })
+
+  it('refuses companions that are not a list of texts', () => {
+    expect(codeOf({ companions: 'Hugo' })).toBe('rsvp.companionsInvalid')
+    expect(codeOf({ companions: [4] })).toBe('rsvp.companionsInvalid')
+    expect(okExtras({ companions: null }).companions).toEqual([])
+  })
+
+  it('does not judge what the form does not ask: companions, menus, answers are ignored', () => {
+    expect(okExtras({ companions: 'x', meals: 'x', answers: 'x' }, DEFAULT_RSVP_FORM)).toEqual({
+      companions: [],
+      meals: [],
+      answers: [],
+    })
+  })
+
+  it('keeps a menu per person, as the label the form offers, for a yes', () => {
+    expect(okExtras({ meals: ['Poisson', 'Végé'] }).meals).toEqual(['Poisson', 'Végé'])
+    expect(okExtras({ meals: ['Poisson', 'Poisson', 'Végé'] }).meals).toHaveLength(3)
+  })
+
+  it('refuses more menus than people, and a menu the form does not offer', () => {
+    expect(codeOf({ meals: ['Poisson', 'Poisson', 'Poisson', 'Poisson'] })).toBe(
+      'rsvp.mealsTooMany',
+    )
+    expect(codeOf({ meals: ['Burger'] })).toBe('rsvp.mealNotOffered')
+    expect(codeOf({ meals: [3] })).toBe('rsvp.mealNotOffered')
+    expect(codeOf({ meals: 'Poisson' })).toBe('rsvp.mealsInvalid')
+    expect(okExtras({ meals: null }).meals).toEqual([])
+  })
+
+  it('asks no menu of a maybe, and nothing of a no', () => {
+    expect(okExtras({ answer: 'maybe', meals: ['Burger'] }).meals).toEqual([])
+    expect(okExtras({ answer: 'no', meals: ['Poisson'], companions: ['A'] })).toEqual({
+      companions: [],
+      meals: [],
+      answers: [],
+    })
+  })
+
+  it('keeps one answer per question, with the label of today, in the form order', () => {
+    const answers = okExtras({
+      answers: [
+        { questionId: 'q2', value: 'Oui' },
+        { questionId: 'q1', value: '  Le Temps des cerises ' },
+      ],
+    }).answers
+
+    expect(answers).toEqual([
+      { questionId: 'q1', label: 'Un chant ?', value: 'Le Temps des cerises' },
+      { questionId: 'q2', label: 'Voiture ?', value: 'Oui' },
+    ])
+  })
+
+  it('writes an empty answer for a question left blank: none is required', () => {
+    expect(okExtras({}).answers).toEqual([
+      { questionId: 'q1', label: 'Un chant ?', value: '' },
+      { questionId: 'q2', label: 'Voiture ?', value: '' },
+    ])
+    expect(okExtras({ answers: [{ questionId: 'q1', value: null }] }).answers).toHaveLength(2)
+  })
+
+  it('accepts an answer of 120 characters and refuses 121', () => {
+    expect(
+      okExtras({ answers: [{ questionId: 'q1', value: 'x'.repeat(120) }] }).answers,
+    ).toHaveLength(2)
+    expect(codeOf({ answers: [{ questionId: 'q1', value: 'x'.repeat(121) }] })).toBe(
+      'rsvp.answerTooLong',
+    )
+  })
+
+  it('refuses a choice that is not one of the options, an unknown or a repeated question', () => {
+    expect(codeOf({ answers: [{ questionId: 'q2', value: 'Peut-être' }] })).toBe(
+      'rsvp.answerNotAnOption',
+    )
+    expect(codeOf({ answers: [{ questionId: 'zz', value: 'x' }] })).toBe('rsvp.questionUnknown')
+    expect(
+      codeOf({
+        answers: [
+          { questionId: 'q1', value: 'a' },
+          { questionId: 'q1', value: 'b' },
+        ],
+      }),
+    ).toBe('rsvp.questionUnknown')
+  })
+
+  it('refuses answers that are not a list of { questionId, value }', () => {
+    expect(codeOf({ answers: 'x' })).toBe('rsvp.answersInvalid')
+    expect(codeOf({ answers: ['x'] })).toBe('rsvp.answersInvalid')
+    expect(codeOf({ answers: [{ value: 'x' }] })).toBe('rsvp.answersInvalid')
+    expect(codeOf({ answers: [{ questionId: 'q1', value: 3 }] })).toBe('rsvp.answersInvalid')
+    expect(okExtras({ answers: null }).answers).toHaveLength(2)
+  })
+
+  it('stores the extras in the details when the reply is created and when it is changed', () => {
+    const parsed = parseRsvpInput(asking, { ...party, companions: ['Hugo'], meals: ['Végé'] })
+    if (!parsed.ok) throw new Error('parsed')
+    const created = GuestRsvp.create({
+      id: asGuestRsvpId('r-9'),
+      eventId: asEventId('e-1'),
+      householdId: null,
+      editTokenHash: null,
+      reply: parsed.value,
+      source: 'open',
+      now: RSVP_AT,
+    })
+    expect(created.details).toMatchObject({
+      companions: ['Hugo'],
+      meals: ['Végé'],
+      showName: false,
+    })
+
+    const again = parseRsvpInput(asking, { ...party, adults: 1, kids: 0 })
+    if (!again.ok) throw new Error('again')
+    const changed = aRsvp({ details: { showName: true, companions: ['Old'] } }).withReply(
+      again.value,
+      RSVP_AT,
+    )
+    expect(changed.details.companions).toEqual([])
+    expect(changed.details.showName).toBe(true)
+  })
+})
+
+describe('retainExtras', () => {
+  const held = {
+    ...EMPTY_RSVP_DETAILS,
+    companions: ['Hugo'],
+    meals: ['Poisson'],
+    answers: [
+      { questionId: 'q1', label: 'Un chant ?', value: 'Oh' },
+      { questionId: 'old', label: 'Ancienne question', value: 'Oui' },
+    ],
+  }
+
+  it('takes the new extras for what the form asks today, after them the removed answers', () => {
+    const form = {
+      ...DEFAULT_RSVP_FORM,
+      companionNames: true,
+      meals: { enabled: true, options: ['Poisson', 'Végé'] },
+      questions: [{ id: 'q1', label: 'Un chant ?', kind: 'text' as const }],
+    }
+
+    expect(
+      retainExtras(form, held, {
+        companions: ['New'],
+        meals: ['Végé'],
+        answers: [{ questionId: 'q1', label: 'Un chant ?', value: 'Ah' }],
+      }),
+    ).toEqual({
+      companions: ['New'],
+      meals: ['Végé'],
+      answers: [
+        { questionId: 'q1', label: 'Un chant ?', value: 'Ah' },
+        { questionId: 'old', label: 'Ancienne question', value: 'Oui' },
+      ],
+    })
+  })
+
+  it('keeps what was given when the form no longer asks for it', () => {
+    const none = { companions: [], meals: [], answers: [] }
+
+    expect(retainExtras(DEFAULT_RSVP_FORM, held, none)).toEqual({
+      companions: ['Hugo'],
+      meals: ['Poisson'],
+      answers: held.answers,
+    })
   })
 })

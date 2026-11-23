@@ -16,6 +16,8 @@ export const MESSAGE_MAX_CHARS = 280
 export const MESSAGE_MAX_LINES = 4
 const DETAIL_TEXT_MAX_CHARS = 120
 const DETAIL_LIST_MAX = 12
+export const COMPANION_MAX_CHARS = 40
+export const ANSWER_MAX_CHARS = 120
 const ANSWER_ID_MAX_CHARS = 40
 
 export type RsvpAnswer = 'yes' | 'maybe' | 'no' | 'waitlist'
@@ -99,7 +101,18 @@ export interface RawRsvpInput {
   readonly kids?: unknown
   readonly diet?: unknown
   readonly message?: unknown
+  /** First names of the people who come along (lot 2). */
+  readonly companions?: unknown
+  /** One menu label per person (lot 2), `yes` only. */
+  readonly meals?: unknown
+  /** `{ questionId, value }[]`, one per question the host asks (lot 2). */
+  readonly answers?: unknown
 }
+
+/** What the form's lot 2 questions add to a reply. */
+export type RsvpExtras = Pick<RsvpDetails, 'companions' | 'meals' | 'answers'>
+
+export const NO_RSVP_EXTRAS: RsvpExtras = { companions: [], meals: [], answers: [] }
 
 /** A reply that passed {@link parseRsvpInput}. */
 export interface RsvpInput {
@@ -109,6 +122,7 @@ export interface RsvpInput {
   readonly kids: number
   readonly diet: string | null
   readonly message: string | null
+  readonly extras: RsvpExtras
 }
 
 const count = (raw: unknown, fallback: number): Result<number, DomainError> => {
@@ -154,6 +168,85 @@ const parseMessage = (raw: unknown): Result<string | null, DomainError> => {
   return ok(cleaned)
 }
 
+const tooMany = (code: string, max: number): DomainError => DomainError.invalid(code, { max })
+
+/** The companions' first names: the empty ones dropped, at most `people - 1`, 40 characters each. */
+const parseCompanions = (raw: unknown, people: number): Result<readonly string[], DomainError> => {
+  if (raw === undefined || raw === null) return ok([])
+  if (!Array.isArray(raw)) return err(DomainError.invalid('rsvp.companionsInvalid'))
+  const names: string[] = []
+  for (const item of raw) {
+    if (typeof item !== 'string') return err(DomainError.invalid('rsvp.companionsInvalid'))
+    const cleaned = toSingleLine(item)
+    if (characterCount(cleaned) > COMPANION_MAX_CHARS) {
+      return err(tooMany('rsvp.companionTooLong', COMPANION_MAX_CHARS))
+    }
+    if (cleaned.length > 0) names.push(cleaned)
+  }
+  if (names.length > people - 1) return err(tooMany('rsvp.companionsTooMany', people - 1))
+  return ok(names)
+}
+
+/** One menu per person at most, each one of the menus the form offers today. */
+const parseMeals = (
+  raw: unknown,
+  options: readonly string[],
+  people: number,
+): Result<readonly string[], DomainError> => {
+  if (raw === undefined || raw === null) return ok([])
+  if (!Array.isArray(raw)) return err(DomainError.invalid('rsvp.mealsInvalid'))
+  if (raw.length > people) return err(tooMany('rsvp.mealsTooMany', people))
+  const meals: string[] = []
+  for (const item of raw) {
+    const cleaned = typeof item === 'string' ? toSingleLine(item) : ''
+    if (!options.includes(cleaned)) return err(DomainError.invalid('rsvp.mealNotOffered'))
+    meals.push(cleaned)
+  }
+  return ok(meals)
+}
+
+/**
+ * The answers to the host's questions: at most one per question the form asks, each with the
+ * question's label of today (an answer keeps it when the host rewrites it). A choice is one of the
+ * options; empty is allowed (a question is never required). The result holds **one entry per
+ * question**, in the form's order.
+ */
+const parseAnswers = (
+  raw: unknown,
+  questions: RsvpForm['questions'],
+): Result<RsvpExtras['answers'], DomainError> => {
+  if (questions.length === 0) return ok([])
+  if (raw !== undefined && raw !== null && !Array.isArray(raw)) {
+    return err(DomainError.invalid('rsvp.answersInvalid'))
+  }
+  const given = new Map<string, string>()
+  for (const item of (raw ?? []) as unknown[]) {
+    if (!isPlainObject(item) || typeof item['questionId'] !== 'string') {
+      return err(DomainError.invalid('rsvp.answersInvalid'))
+    }
+    const { questionId, value } = item
+    if (!questions.some((question) => question.id === questionId) || given.has(questionId)) {
+      return err(DomainError.invalid('rsvp.questionUnknown'))
+    }
+    if (value !== undefined && value !== null && typeof value !== 'string') {
+      return err(DomainError.invalid('rsvp.answersInvalid'))
+    }
+    given.set(questionId, toSingleLine(value ?? ''))
+  }
+  const answers: RsvpExtras['answers'][number][] = []
+  for (const question of questions) {
+    const value = given.get(question.id) ?? ''
+    if (characterCount(value) > ANSWER_MAX_CHARS) {
+      return err(tooMany('rsvp.answerTooLong', ANSWER_MAX_CHARS))
+    }
+    if (question.kind === 'choice' && value.length > 0 && !question.options?.includes(value)) {
+      return err(DomainError.invalid('rsvp.answerNotAnOption'))
+    }
+    answers.push({ questionId: question.id, label: question.label, value })
+  }
+  return ok(answers)
+}
+
 /**
  * Judges a reply against the host's form:
  *
@@ -162,7 +255,9 @@ const parseMessage = (raw: unknown): Result<string | null, DomainError> => {
  * - `no` brings nobody (0 and 0), and keeps no diet;
  * - `yes` and `maybe` bring at least one adult and at most `partySize.max` people in all; a form
  *   that does not ask how many means exactly one adult, and one that does not separate children
- *   counts none.
+ *   counts none;
+ * - the companions' names, one menu per person (`yes` only) and the answers to the host's questions
+ *   are judged only when the form asks for them, and a field it does not ask for is not judged.
  */
 export const parseRsvpInput = (
   form: RsvpForm,
@@ -180,7 +275,15 @@ export const parseRsvpInput = (
   if (answer === 'maybe' && !form.maybe) return err(DomainError.invalid('rsvp.maybeNotOffered'))
 
   if (answer === 'no') {
-    return ok({ name: name.value, answer, adults: 0, kids: 0, diet: null, message: message.value })
+    return ok({
+      name: name.value,
+      answer,
+      adults: 0,
+      kids: 0,
+      diet: null,
+      message: message.value,
+      extras: NO_RSVP_EXTRAS,
+    })
   }
 
   const diet = form.diet ? parseDiet(raw.diet) : ok(null)
@@ -203,7 +306,25 @@ export const parseRsvpInput = (
       return err(DomainError.invalid('rsvp.partyTooBig', { max: form.partySize.max }))
     }
   }
-  return ok({ name: name.value, answer, adults, kids, diet: diet.value, message: message.value })
+  const people = adults + kids
+  const companions = form.companionNames ? parseCompanions(raw.companions, people) : ok([])
+  if (!companions.ok) return companions
+  const meals =
+    answer === 'yes' && form.meals.enabled
+      ? parseMeals(raw.meals, form.meals.options, people)
+      : ok([])
+  if (!meals.ok) return meals
+  const answers = parseAnswers(raw.answers, form.questions)
+  if (!answers.ok) return answers
+  return ok({
+    name: name.value,
+    answer,
+    adults,
+    kids,
+    diet: diet.value,
+    message: message.value,
+    extras: { companions: companions.value, meals: meals.value, answers: answers.value },
+  })
 }
 
 export interface GuestRsvpProps {
@@ -225,6 +346,13 @@ export interface GuestRsvpProps {
   readonly updatedAt: Date
 }
 
+/** A reply as it is stored: the answer may be `waitlist`, which no guest's input asks for. */
+export type RsvpReply = Omit<RsvpInput, 'answer'> & { readonly answer: RsvpAnswer }
+
+/** The columns of a reply, without the extras that live in its details. */
+const replyContent = ({ extras: _extras, ...content }: RsvpReply): Omit<RsvpReply, 'extras'> =>
+  content
+
 export class GuestRsvp {
   private constructor(private readonly props: GuestRsvpProps) {}
 
@@ -233,7 +361,7 @@ export class GuestRsvp {
     readonly eventId: EventId
     readonly householdId: string | null
     readonly editTokenHash: string | null
-    readonly reply: RsvpInput
+    readonly reply: RsvpReply
     readonly source: RsvpSource
     readonly now: Date
   }): GuestRsvp {
@@ -242,8 +370,8 @@ export class GuestRsvp {
       eventId: input.eventId,
       householdId: input.householdId,
       editTokenHash: input.editTokenHash,
-      ...input.reply,
-      details: EMPTY_RSVP_DETAILS,
+      ...replyContent(input.reply),
+      details: { ...EMPTY_RSVP_DETAILS, ...input.reply.extras },
       source: input.source,
       createdAt: input.now,
       updatedAt: input.now,
@@ -335,10 +463,33 @@ export class GuestRsvp {
    * The same reply with its content replaced. Id, token, source, household and creation stay. A
    * host may keep a reply on the waiting list, which no guest's input can ask for.
    */
-  withReply(
-    reply: Omit<RsvpInput, 'answer'> & { readonly answer: RsvpAnswer },
-    now: Date,
-  ): GuestRsvp {
-    return new GuestRsvp({ ...this.props, ...reply, updatedAt: now })
+  withReply(reply: RsvpReply, now: Date): GuestRsvp {
+    return new GuestRsvp({
+      ...this.props,
+      ...replyContent(reply),
+      details: { ...this.props.details, ...reply.extras },
+      updatedAt: now,
+    })
   }
 }
+
+/**
+ * The extras of a changed reply, **keeping what the form no longer asks** (spec 30, section 4.1:
+ * removing a question or a menu never erases an answer already given). A switched-off companions'
+ * field or menu keeps what was given; an answer to a question the host removed stays, with the
+ * label it was given under, after the answers to the questions asked today.
+ */
+export const retainExtras = (
+  form: RsvpForm,
+  held: RsvpDetails,
+  extras: RsvpExtras,
+): RsvpExtras => ({
+  companions: form.companionNames ? extras.companions : held.companions,
+  meals: form.meals.enabled ? extras.meals : held.meals,
+  answers: [
+    ...extras.answers,
+    ...held.answers.filter(
+      (answer) => !form.questions.some((question) => question.id === answer.questionId),
+    ),
+  ],
+})

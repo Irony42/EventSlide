@@ -206,6 +206,7 @@ export const eventsUseCases = (
     audit: adapters.audit,
     bus: adapters.bus,
     clock: adapters.clock,
+    ids: adapters.ids,
   }),
   closeRsvps: makeCloseRsvps({
     events: adapters.events,

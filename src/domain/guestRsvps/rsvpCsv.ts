@@ -20,6 +20,8 @@ export interface RsvpCsvLabels {
   readonly adults: string
   readonly kids: string
   readonly diet: string
+  readonly companions: string
+  readonly meals: string
   readonly message: string
   readonly source: string
   readonly updatedAt: string
@@ -42,24 +44,70 @@ const writeCell = (cell: Cell): string => {
 
 const line = (cells: readonly Cell[]): string => `${cells.map(writeCell).join(';')}\r\n`
 
+/** A question as a column: its id (what answers point at) and the label of today. */
+export interface RsvpCsvQuestion {
+  readonly id: string
+  readonly label: string
+}
+
+const LIST_SEPARATOR = ', '
+
+/**
+ * The columns of the questions: the form's, in its order, then one for every question that was
+ * removed but still has answers (its label is the one the answer was given under).
+ */
+const questionColumns = (
+  rsvps: readonly GuestRsvp[],
+  questions: readonly RsvpCsvQuestion[],
+): readonly RsvpCsvQuestion[] => {
+  const columns = [...questions]
+  for (const rsvp of rsvps) {
+    for (const { questionId, label } of rsvp.details.answers) {
+      if (!columns.some((column) => column.id === questionId)) {
+        columns.push({ id: questionId, label })
+      }
+    }
+  }
+  return columns
+}
+
+const answerOf = (rsvp: GuestRsvp, questionId: string): string | null => {
+  const value = rsvp.details.answers.find((answer) => answer.questionId === questionId)?.value
+  return value === undefined || value === '' ? null : value
+}
+
+const listOf = (items: readonly string[]): string | null =>
+  items.length === 0 ? null : items.join(LIST_SEPARATOR)
+
 export const rsvpCsv = (
   rsvps: readonly GuestRsvp[],
   view: RsvpCsvView,
   labels: RsvpCsvLabels,
+  questions: readonly RsvpCsvQuestion[] = [],
 ): string => {
   if (view === 'caterer') {
     const rows = rsvps
       .filter((rsvp) => rsvp.answer === 'yes')
-      .map((rsvp) => line([rsvp.name, rsvp.adults, rsvp.kids, rsvp.diet]))
-    return BOM + line([labels.name, labels.adults, labels.kids, labels.diet]) + rows.join('')
+      .map((rsvp) =>
+        line([rsvp.name, rsvp.adults, rsvp.kids, listOf(rsvp.details.meals), rsvp.diet]),
+      )
+    return (
+      BOM +
+      line([labels.name, labels.adults, labels.kids, labels.meals, labels.diet]) +
+      rows.join('')
+    )
   }
+  const columns = questionColumns(rsvps, questions)
   const rows = rsvps.map((rsvp) =>
     line([
       rsvp.name,
       labels.answers[rsvp.answer],
       rsvp.adults,
       rsvp.kids,
+      listOf(rsvp.details.companions),
+      listOf(rsvp.details.meals),
       rsvp.diet,
+      ...columns.map((column) => answerOf(rsvp, column.id)),
       rsvp.message,
       labels.sources[rsvp.source],
       rsvp.updatedAt.toISOString(),
@@ -72,7 +120,10 @@ export const rsvpCsv = (
       labels.answer,
       labels.adults,
       labels.kids,
+      labels.companions,
+      labels.meals,
       labels.diet,
+      ...columns.map((column) => column.label),
       labels.message,
       labels.source,
       labels.updatedAt,

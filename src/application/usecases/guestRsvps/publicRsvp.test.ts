@@ -564,6 +564,9 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
           partySize: { enabled: true, max: 6 },
           kidsSeparate: true,
           diet: true,
+          companionNames: false,
+          meals: { enabled: false, options: [] },
+          questions: [],
         },
         proof: null,
       })

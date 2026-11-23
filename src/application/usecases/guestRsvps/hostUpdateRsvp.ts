@@ -4,6 +4,7 @@ import {
   type RawRsvpInput,
   type RsvpInput,
 } from '../../../domain/guestRsvps/rsvp'
+import { retainExtras } from '../../../domain/guestRsvps/rsvp'
 import type { RsvpForm } from '../../../domain/guestRsvps/rsvpForm'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestRsvpId, UserId } from '../../../domain/shared/ids'
@@ -58,6 +59,7 @@ const keepingWhatIsNotAsked = (form: RsvpForm, held: GuestRsvp, reply: RsvpInput
     diet: form.diet ? reply.diet : held.diet,
     adults: partySizeAsked ? reply.adults : held.adults,
     kids: partySizeAsked && form.kidsSeparate ? reply.kids : held.kids,
+    extras: retainExtras(form, held.details, reply.extras),
   }
 }
 

@@ -118,7 +118,7 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
           hostExportLimiter: limiter,
           usecases: {
             getRsvpForm: makeGetRsvpForm({ ...access, rsvps, clock }),
-            saveRsvpForm: makeSaveRsvpForm({ ...access, rsvps, audit, bus, clock }),
+            saveRsvpForm: makeSaveRsvpForm({ ...access, rsvps, audit, bus, clock, ids }),
             closeRsvps: makeCloseRsvps({ ...access, rsvps, audit, bus, clock }),
             reopenRsvps: makeReopenRsvps({ ...access, rsvps, audit, bus, clock }),
             listRsvps: makeListRsvps({ ...access, rsvps, clock }),

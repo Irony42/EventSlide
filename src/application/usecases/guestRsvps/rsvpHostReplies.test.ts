@@ -631,7 +631,7 @@ describe('the replies use cases pass a refusal of the audit log back, before the
       clock: scene.clock,
     }
 
-    const saved = await makeSaveRsvpForm(deps)({
+    const saved = await makeSaveRsvpForm({ ...deps, ids: scene.ids })({
       eventId: UNAUDITABLE,
       actorId: OWNER,
       enabled: true,

@@ -8,7 +8,7 @@ import {
 } from './rsvpForm'
 
 const patched = (patch: Parameters<typeof applyFormPatch>[1], from: RsvpForm = DEFAULT_RSVP_FORM) =>
-  applyFormPatch(from, patch)
+  applyFormPatch(from, patch, () => 'aaaaaaaa')
 
 describe('defaultRsvpForm', () => {
   it('offers "maybe" and four places for an ordinary evening', () => {

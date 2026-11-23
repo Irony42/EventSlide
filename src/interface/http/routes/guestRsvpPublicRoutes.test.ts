@@ -178,6 +178,9 @@ describe('GET /api/i/:token: the rsvp block', () => {
         partySize: { enabled: true, max: 4 },
         kidsSeparate: true,
         diet: true,
+        companionNames: false,
+        meals: { enabled: false, options: [] },
+        questions: [],
       },
     })
   })
@@ -235,6 +238,9 @@ describe('POST /api/i/:token/rsvp', () => {
         kids: 1,
         diet: 'sans gluten',
         message: null,
+        companions: [],
+        meals: [],
+        answers: [],
         updatedAt: AT.toISOString(),
       },
       editToken: 'secret-1',

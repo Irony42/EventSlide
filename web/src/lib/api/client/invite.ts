@@ -38,6 +38,9 @@ export interface GuestRsvpInput {
   readonly kids?: number
   readonly diet?: string | null
   readonly message?: string | null
+  readonly companions?: readonly string[]
+  readonly meals?: readonly string[]
+  readonly answers?: readonly { readonly questionId: string; readonly value: string }[]
 }
 
 /** The creation adds the honeypot: a hidden field a person leaves empty and a script fills. */
@@ -47,7 +50,7 @@ export interface GuestRsvpCreateInput extends GuestRsvpInput {
 
 /**
  * What a host saves of the replies' settings (spec 30): every field optional, **an absent one is
- * left as it was**, `null` clears the deadline. Lot 1 knows only these four keys of the form.
+ * left as it was**, `null` clears the deadline. The questions are sent whole: one with an uid=197609(pierr) gid=197609 groups=197609 is an existing one, one without gets its id from the server.
  */
 export interface RsvpFormInput {
   readonly enabled?: boolean
@@ -57,6 +60,14 @@ export interface RsvpFormInput {
     readonly partySize?: { readonly enabled?: boolean; readonly max?: number }
     readonly kidsSeparate?: boolean
     readonly diet?: boolean
+    readonly companionNames?: boolean
+    readonly meals?: { readonly enabled?: boolean; readonly options?: readonly string[] }
+    readonly questions?: readonly {
+      readonly id?: string
+      readonly label: string
+      readonly kind: 'text' | 'choice'
+      readonly options?: readonly string[]
+    }[]
   }
 }
 
@@ -68,6 +79,9 @@ export interface RsvpReplyInput {
   readonly kids?: number
   readonly diet?: string | null
   readonly message?: string | null
+  readonly companions?: readonly string[]
+  readonly meals?: readonly string[]
+  readonly answers?: readonly { readonly questionId: string; readonly value: string }[]
 }
 
 /** The guest's token travels in this header, never in a path or a query (those reach access logs). */
