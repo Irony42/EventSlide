@@ -55,10 +55,8 @@ const tom = anRsvp({
 const STATS = anRsvpStats({
   yes: { responses: 1, people: 3, adults: 2, kids: 1 },
   maybe: { responses: 1, people: 3 },
-  diets: [
-    { name: 'Léa Martin', diet: 'sans gluten' },
-    { name: 'Tom Durand', diet: 'noix' },
-  ],
+  // The server tells the caterer the diets of those who come only: Tom's is not here.
+  diets: [{ name: 'Léa Martin', diet: 'sans gluten' }],
   meals: [
     { label: 'Poisson', count: 2 },
     { label: 'Végé', count: 1 },
@@ -103,10 +101,13 @@ describe('the caterer panel', () => {
     expect(within(caterer).getByText(text.catererAdults).nextSibling).toHaveTextContent('2')
     expect(within(caterer).getByText(text.catererKids).nextSibling).toHaveTextContent('1')
     expect(within(caterer).getByText(text.catererMaybe).nextSibling).toHaveTextContent('3')
+    // Each figure is the description of its menu, so it is read with its name.
+    expect(within(caterer).getByText('Poisson').tagName).toBe('DT')
     expect(within(caterer).getByText('Poisson').nextSibling).toHaveTextContent('2')
     expect(within(caterer).getByText('Végé').nextSibling).toHaveTextContent('1')
+    expect(within(caterer).getByText('Léa Martin').nextSibling).toHaveTextContent('sans gluten')
     expect(within(caterer).getByText('sans gluten')).toBeInTheDocument()
-    expect(within(caterer).getByText('noix')).toBeInTheDocument()
+    expect(within(caterer).queryByText('noix')).toBeNull()
   })
 
   it('leaves out what the form does not ask: no maybe, no children, no menus, no diets', async () => {
@@ -142,6 +143,17 @@ describe('the caterer panel', () => {
 
     const link = within(await panel()).getByRole('link', { name: text.catererExport })
     expect(link).toHaveAttribute('href', '/api/events/camille-et-sacha/rsvps/export?view=caterer')
+  })
+
+  it('names the file type on the export link, and the link is unavailable while nobody comes', async () => {
+    const { unmount } = render()
+    expect(within(await panel()).getByRole('link', { name: /(CSV)/ })).toBeInTheDocument()
+    unmount()
+
+    render(list({ rsvps: [tom], stats: anRsvpStats({ maybe: { responses: 1, people: 3 } }) }))
+    const caterer = await panel()
+    expect(within(caterer).queryByRole('link', { name: text.catererExport })).toBeNull()
+    expect(within(caterer).getByText(text.catererExport)).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('is not there before the first reply', async () => {
@@ -191,6 +203,37 @@ describe('"Imprimer la liste"', () => {
 
     await waitFor(() => expect(document.querySelector('[data-rsvp-print]')).toBeNull())
     expect(document.body).not.toHaveAttribute('data-printing-rsvps')
+  })
+
+  it('says the people in all, not the children apart, when the form does not tell them apart', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('print', vi.fn())
+    render(list({ rsvpForm: { ...asking, form: { ...asking.form, kidsSeparate: false } } }))
+
+    await user.click(within(await panel()).getByRole('button', { name: text.catererPrint }))
+
+    const sheet = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>('[data-rsvp-print]')
+      if (found === null) throw new Error('not yet')
+      return found
+    })
+    expect(within(sheet).getByText(plain(text.printPeople(3)))).toBeInTheDocument()
+    expect(sheet.textContent).not.toContain(plain(text.printTotals(2, 1)))
+  })
+
+  it('says adults and children apart when the form does', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('print', vi.fn())
+    render()
+
+    await user.click(within(await panel()).getByRole('button', { name: text.catererPrint }))
+
+    const sheet = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>('[data-rsvp-print]')
+      if (found === null) throw new Error('not yet')
+      return found
+    })
+    expect(within(sheet).getByText(plain(text.printTotals(2, 1)))).toBeInTheDocument()
   })
 
   it('is not offered while nobody comes', async () => {

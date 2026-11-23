@@ -15,7 +15,7 @@ export interface RsvpStats {
   readonly maybe: { readonly responses: number; readonly people: number }
   readonly no: { readonly responses: number }
   readonly waitlist: { readonly responses: number; readonly people: number }
-  /** Diets of those who come or may come: the name and what they wrote. */
+  /** Diets of those who come (a `maybe` is not told to the caterer): the name and what they wrote. */
   readonly diets: readonly { readonly name: string; readonly diet: string }[]
   /** The menus of those who come, most chosen first. */
   readonly meals: readonly { readonly label: string; readonly count: number }[]
@@ -56,7 +56,8 @@ export const statsOf = (rsvps: readonly GuestRsvp[]): RsvpStats => {
         waitPeople += rsvp.people
         break
     }
-    if ((rsvp.answer === 'yes' || rsvp.answer === 'maybe') && rsvp.diet !== null) {
+    // Those who come: a "peut-être" is not told to the caterer, in the panel, the file or the list.
+    if (rsvp.answer === 'yes' && rsvp.diet !== null) {
       diets.push({ name: rsvp.name, diet: rsvp.diet })
     }
   }

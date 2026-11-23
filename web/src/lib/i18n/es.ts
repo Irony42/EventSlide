@@ -3675,11 +3675,12 @@ export const es: UiText = {
       catererNoMeals: 'Aún no se ha elegido ningún menú.',
       catererDiets: 'Dietas y alergias',
       catererPrivate: 'Datos de salud: solo los ves tú, nunca en la página de los invitados.',
-      catererExport: 'Exportar para el catering',
+      catererExport: 'Exportar para el catering (CSV)',
       catererPrint: 'Imprimir la lista',
       printTitle: (event: string) => `Invitados que vienen · ${event}`,
       printConfidential: 'Documento confidencial: contiene dietas.',
       printTotals: (adults: number, kids: number) => `Adultos: ${adults} · Niños: ${kids}`,
+      printPeople: (n: number) => `Personas: ${n}`,
     },
   },
 

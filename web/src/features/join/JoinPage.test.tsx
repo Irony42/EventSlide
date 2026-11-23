@@ -418,10 +418,16 @@ describe('JoinPage: the first name taken from the invitation (spec 30, section 9
   })
 
   it('offers the first name this device gave on the invitation, editable, and clears it once read', async () => {
-    window.sessionStorage.setItem('eventslide.joinNamePrefill', 'Léa')
-    const api = fakeApi({ join: vi.fn(async () => aJoinResponse({ displayName: 'Léa' })) })
-    renderJoin('/join', api)
+    window.sessionStorage.setItem(
+      'eventslide.joinNamePrefill',
+      JSON.stringify({ code: 'H7K2QM', name: 'Léa', at: Date.now() }),
+    )
+    const api = fakeApi({
+      join: vi.fn(async () => aJoinResponse({ event: aPublicEvent({ name: 'Kermesse' }) })),
+    })
+    renderJoin('/join/H7K2QM', api)
 
+    await screen.findByRole('heading', { name: fr.join.welcome('Kermesse') })
     const field = screen.getByLabelText(/Votre prénom/)
     expect(field).toHaveValue('Léa')
     await userEvent.clear(field)
@@ -429,9 +435,23 @@ describe('JoinPage: the first name taken from the invitation (spec 30, section 9
     expect(window.sessionStorage.getItem('eventslide.joinNamePrefill')).toBeNull()
   })
 
-  it('offers nothing when the device holds no name, and still sends none', async () => {
+  it('offers nothing when the device holds no name', () => {
     renderJoin('/join', fakeApi())
 
+    expect(screen.getByLabelText(/Votre prénom/)).toHaveValue('')
+  })
+
+  it('does not offer a name given for another event’s link', async () => {
+    window.sessionStorage.setItem(
+      'eventslide.joinNamePrefill',
+      JSON.stringify({ code: 'ZZZZZZ', name: 'Léa', at: Date.now() }),
+    )
+    const api = fakeApi({
+      join: vi.fn(async () => aJoinResponse({ event: aPublicEvent({ name: 'Kermesse' }) })),
+    })
+    renderJoin('/join/H7K2QM', api)
+
+    await screen.findByRole('heading', { name: fr.join.welcome('Kermesse') })
     expect(screen.getByLabelText(/Votre prénom/)).toHaveValue('')
   })
 })

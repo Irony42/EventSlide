@@ -103,28 +103,46 @@ export const mealsSummary = (meals: readonly string[]): string | null => {
     .join(LIST_SEPARATOR)
 }
 
+/** What the host's form asks, for the caterer's file: a column the form does not ask is not written. */
+export interface RsvpCsvAsked {
+  readonly meals: boolean
+  readonly diet: boolean
+}
+
 export const rsvpCsv = (
   rsvps: readonly GuestRsvp[],
   view: RsvpCsvView,
   labels: RsvpCsvLabels,
   questions: readonly RsvpCsvQuestion[] = [],
+  asked: RsvpCsvAsked = { meals: true, diet: true },
 ): string => {
   if (view === 'caterer') {
     const coming = rsvps.filter((rsvp) => rsvp.answer === 'yes')
+    // Only the columns the form asks: a menu or a diet the host no longer asks is not told to the
+    // caterer, as the panel and the printed list do not tell it.
+    const cells = (name: Cell, adults: Cell, kids: Cell, meals: Cell, diet: Cell): Cell[] => [
+      name,
+      adults,
+      kids,
+      ...(asked.meals ? [meals] : []),
+      ...(asked.diet ? [diet] : []),
+    ]
     const rows = coming.map((rsvp) =>
-      line([rsvp.name, rsvp.adults, rsvp.kids, mealsSummary(rsvp.details.meals), rsvp.diet]),
+      line(cells(rsvp.name, rsvp.adults, rsvp.kids, mealsSummary(rsvp.details.meals), rsvp.diet)),
     )
     // The last line adds it up, so the caterer reads the order without a formula.
-    const total = line([
-      labels.total,
-      coming.reduce((sum, rsvp) => sum + rsvp.adults, 0),
-      coming.reduce((sum, rsvp) => sum + rsvp.kids, 0),
-      mealsSummary(coming.flatMap((rsvp) => rsvp.details.meals)),
-      null,
-    ])
+    const total = line(
+      cells(
+        labels.total,
+        coming.reduce((sum, rsvp) => sum + rsvp.adults, 0),
+        coming.reduce((sum, rsvp) => sum + rsvp.kids, 0),
+        mealsSummary(coming.flatMap((rsvp) => rsvp.details.meals)),
+        null,
+      ),
+    )
     return (
       BOM +
-      line([labels.name, labels.adults, labels.kids, labels.meals, labels.diet]) +
+      line(cells(labels.name, labels.adults, labels.kids, labels.meals, labels.diet)) +
       rows.join('') +
       (coming.length === 0 ? '' : total)
     )

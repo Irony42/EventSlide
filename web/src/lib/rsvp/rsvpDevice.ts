@@ -98,31 +98,64 @@ export const ownReplyLink = (origin: string, inviteToken: string, editToken: str
 
 const JOIN_NAME_KEY = 'eventslide.joinNamePrefill'
 const JOIN_NAME_MAX_CHARS = 40
+/** How long an offered name stays: a guest who does not go straight on to the join screen is not offered it. */
+export const JOIN_NAME_TTL_MS = 120_000
+
+/** A join code as the two screens compare it: letters and digits, upper case. */
+const codeKey = (code: string): string => code.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+
+/** The code of a join link (`/join/H7K2QM`): its last path segment, or `null`. */
+const codeOfJoinUrl = (joinUrl: string): string | null => {
+  const last = joinUrl.split(/[?#]/, 1)[0]?.split('/').filter(Boolean).at(-1)
+  if (last === undefined) return null
+  try {
+    return codeKey(decodeURIComponent(last)) || null
+  } catch {
+    return null
+  }
+}
 
 /**
  * The first name the join screen offers a guest whose device knows their reply (spec 30, section
  * 9.1): the first word of the name they gave, at most 40 characters, in `sessionStorage` only for
  * the move from the invitation to the join screen. **Nothing goes through the address or the
- * server**, and the join screen reads it once and clears it. Wrapped like the rest: without
- * storage the guest simply types their name.
+ * server.** It is **scoped to the join code of the link that was pressed** (the join screen offers it
+ * for that event only), expires after two minutes, is cleared when the join screen reads it and
+ * when the page goes away. Wrapped like the rest: without storage the guest types their name.
  */
-export const writeJoinNamePrefill = (fullName: string): void => {
+export const writeJoinNamePrefill = (fullName: string, joinUrl: string): void => {
   const first = [...(fullName.trim().split(/\s+/, 1)[0] ?? '')]
     .slice(0, JOIN_NAME_MAX_CHARS)
     .join('')
-  if (first === '') return
+  const code = codeOfJoinUrl(joinUrl)
+  if (first === '' || code === null) return
   try {
-    window.sessionStorage.setItem(JOIN_NAME_KEY, first)
+    window.sessionStorage.setItem(
+      JOIN_NAME_KEY,
+      JSON.stringify({ code, name: first, at: Date.now() }),
+    )
+    window.addEventListener('pagehide', clearJoinNamePrefill, { once: true })
   } catch {
     // The guest types their name.
   }
 }
 
-/** What the join screen offers, or `null`. Does not clear: {@link clearJoinNamePrefill} does. */
-export const readJoinNamePrefill = (): string | null => {
+/**
+ * What the join screen offers for **this** join code, or `null`: another event's name, an expired
+ * one or one that is not ours is never offered. Does not clear: {@link clearJoinNamePrefill} does.
+ */
+export const readJoinNamePrefill = (code: string | undefined): string | null => {
+  if (code === undefined) return null
   try {
-    const value = window.sessionStorage.getItem(JOIN_NAME_KEY)
-    return value === null || value === '' ? null : value
+    const raw = window.sessionStorage.getItem(JOIN_NAME_KEY)
+    if (raw === null) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return null
+    const stored: Record<string, unknown> = Object.fromEntries(Object.entries(parsed))
+    const { name, at } = stored
+    if (typeof name !== 'string' || name === '' || typeof at !== 'number') return null
+    if (Date.now() - at > JOIN_NAME_TTL_MS) return null
+    return typeof stored['code'] === 'string' && stored['code'] === codeKey(code) ? name : null
   } catch {
     return null
   }

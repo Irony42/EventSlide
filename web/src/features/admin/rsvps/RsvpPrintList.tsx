@@ -20,7 +20,11 @@ export function RsvpPrintList({ eventName, rsvps, stats, form }: RsvpPrintListPr
     <section className={styles['sheet']} data-rsvp-print>
       <h1>{text.printTitle(eventName)}</h1>
       <p className={styles['note']}>{text.printConfidential}</p>
-      <p>{text.printTotals(stats.yes.adults, stats.yes.kids)}</p>
+      <p>
+        {form.kidsSeparate
+          ? text.printTotals(stats.yes.adults, stats.yes.kids)
+          : text.printPeople(stats.yes.people)}
+      </p>
       <table>
         <thead>
           <tr>

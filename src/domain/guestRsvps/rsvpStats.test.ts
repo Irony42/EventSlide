@@ -35,7 +35,7 @@ describe('statsOf', () => {
     expect(stats.yes.people).toBe(0)
   })
 
-  it('lists the diets of those who come or may come, with their name, and never a "no"', () => {
+  it('lists the diets of those who come, with their name: never a maybe, a no or a waiting list', () => {
     const stats = statsOf([
       aRsvp({ id: 'a', name: 'Léa', answer: 'yes', diet: 'sans gluten' }),
       aRsvp({ id: 'b', name: 'Hugo', answer: 'maybe', diet: 'noix' }),
@@ -44,10 +44,7 @@ describe('statsOf', () => {
       aRsvp({ id: 'e', name: 'Max', answer: 'yes', diet: null }),
     ])
 
-    expect(stats.diets).toEqual([
-      { name: 'Léa', diet: 'sans gluten' },
-      { name: 'Hugo', diet: 'noix' },
-    ])
+    expect(stats.diets).toEqual([{ name: 'Léa', diet: 'sans gluten' }])
   })
 
   it('counts no menu for a person who chose none: a blank entry is nobody menu', () => {

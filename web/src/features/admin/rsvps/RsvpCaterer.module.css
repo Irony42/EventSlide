@@ -52,17 +52,23 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A description list: each menu or name is the term of its figure or diet, so a screen reader reads
+   "Poisson, 2" and "Léa, sans gluten" rather than a bare number. */
 .list {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   margin: 0;
   padding: 0;
-  list-style: none;
   font-size: var(--text-sm);
 }
 
-.list li {
+.list dd {
+  margin: 0;
+  font-weight: 650;
+}
+
+.list div {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -77,9 +83,15 @@
   gap: var(--space-2) var(--space-3);
 }
 
+/* A file that does not exist yet reads as unavailable, like the print button beside it. */
 .export {
   min-block-size: var(--touch-min);
   display: inline-flex;
   align-items: center;
   font-size: var(--text-sm);
+}
+
+.export[aria-disabled='true'] {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }

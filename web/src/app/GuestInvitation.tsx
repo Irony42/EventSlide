@@ -160,9 +160,18 @@ export function GuestInvitation({
             <Link
               to={page.joinUrl}
               className={styles['join']}
-              onClick={() => {
-                // The first name this device gave, offered on the join screen (nothing in the address).
-                if (interactive && knownName !== null) writeJoinNamePrefill(knownName)
+              onClick={(event) => {
+                // The first name this device gave, offered on the join screen (nothing in the address),
+                // only for a plain press: a new tab or window is not the move it is meant for.
+                const plain =
+                  event.button === 0 &&
+                  !event.metaKey &&
+                  !event.ctrlKey &&
+                  !event.shiftKey &&
+                  !event.altKey
+                if (interactive && plain && knownName !== null && page.joinUrl !== undefined) {
+                  writeJoinNamePrefill(knownName, page.joinUrl)
+                }
               }}
             >
               {t.join}

@@ -4362,12 +4362,13 @@ export const fr = {
       catererNoMeals: 'Aucun menu choisi pour le moment.',
       catererDiets: 'Régimes et allergies',
       catererPrivate: 'Données de santé\u00a0: vues par vous seul, jamais sur la page des invités.',
-      catererExport: 'Exporter pour le traiteur',
+      catererExport: 'Exporter pour le traiteur (CSV)',
       catererPrint: 'Imprimer la liste',
       printTitle: (event: string) => `Invités qui viennent · ${event}`,
       printConfidential: 'Document confidentiel\u00a0: il contient des régimes.',
       printTotals: (adults: number, kids: number) =>
         `Adultes\u00a0: ${adults} · Enfants\u00a0: ${kids}`,
+      printPeople: (n: number) => `Personnes\u00a0: ${n}`,
     },
   },
 

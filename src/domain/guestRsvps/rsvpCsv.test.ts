@@ -312,3 +312,43 @@ describe('rsvpCsv, the caterer’s file', () => {
     ])
   })
 })
+
+describe('rsvpCsv, the caterer’s file follows the form', () => {
+  const coming = [
+    aRsvp({
+      id: 'a',
+      name: 'Léa',
+      adults: 2,
+      diet: 'noix',
+      details: { meals: ['Poisson', 'Végé'] },
+    }),
+    aRsvp({ id: 'b', name: 'Tom', answer: 'maybe', diet: 'lait' }),
+  ]
+  const caterer = (asked: { meals: boolean; diet: boolean }) =>
+    linesOf(rsvpCsv(coming, 'caterer', LABELS, [], asked))
+
+  it('has no menus column, and no menus in the total, when the form no longer asks for menus', () => {
+    expect(caterer({ meals: false, diet: true })).toEqual([
+      'Nom;Adultes;Enfants;Régime',
+      'Léa;2;0;noix',
+      'Total;2;0;',
+      '',
+    ])
+  })
+
+  it('has no diet column when the form no longer asks for it', () => {
+    expect(caterer({ meals: true, diet: false })).toEqual([
+      'Nom;Adultes;Enfants;Menus',
+      'Léa;2;0;Poisson, Végé',
+      'Total;2;0;Poisson, Végé',
+      '',
+    ])
+  })
+
+  it('keeps every column by default, and never writes the diet of a maybe', () => {
+    const lines = linesOf(rsvpCsv(coming, 'caterer', LABELS))
+
+    expect(lines[0]).toBe('Nom;Adultes;Enfants;Menus;Régime')
+    expect(lines.join('')).not.toContain('lait')
+  })
+})

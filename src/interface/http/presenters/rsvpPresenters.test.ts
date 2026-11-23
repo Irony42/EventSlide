@@ -126,10 +126,8 @@ describe('toRsvpListResponseDto', () => {
     expect(dto.unseen).toBe(2)
     expect(dto.rsvps.map((rsvp) => rsvp.name)).toEqual(['Léa', 'Tom'])
     expect(dto.stats).toEqual(statsOf(rsvps))
-    expect(dto.stats.diets).toEqual([
-      { name: 'Léa', diet: 'sans gluten' },
-      { name: 'Tom', diet: 'végétarien' },
-    ])
+    // A maybe's diet is not told to the caterer: the panel, the file and the list agree.
+    expect(dto.stats.diets).toEqual([{ name: 'Léa', diet: 'sans gluten' }])
     expect(dto.stats.meals).toEqual([{ label: 'Viande', count: 1 }])
   })
 })

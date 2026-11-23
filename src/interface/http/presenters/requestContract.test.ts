@@ -157,6 +157,8 @@ interface ClientCall {
 interface ClientLink {
   readonly name: string
   readonly path: string
+  /** The query the link carries, as written (`view=*`), or `''`. */
+  readonly query: string
 }
 
 const PARAM = '*'
@@ -360,7 +362,8 @@ const { CLIENT_CALLS, CLIENT_LINKS } = ((): {
       const literal = pathOf(returned)
       if (literal !== null) {
         // A query string is not part of the route a link addresses (`export?view=caterer`).
-        links.push({ name, path: literal.split('?')[0] ?? literal })
+        const [route = literal, query = ''] = literal.split('?')
+        links.push({ name, path: route, query })
         continue
       }
     }
@@ -858,6 +861,35 @@ describe('the channels the client opens', () => {
     ).map((link) => `${link.name}: ${link.path}`)
 
     expect(unmatched, 'links the client builds that address no route').toEqual([])
+  })
+
+  it('writes the query of a link with keys, and values, the server’s schema accepts', () => {
+    // `rsvpExportUrl` is the one link that carries a query (`?view=`): every key it writes must be one
+    // of the route's strict query schema, or the server answers `400 request.invalid` to the button.
+    const withQuery = CLIENT_LINKS.filter((link) => link.query !== '')
+    expect(withQuery.map((link) => link.name)).toEqual(['rsvpExportUrl'])
+    const schemaKeys = Object.keys(requestSchemas.rsvpExportQuery.shape)
+    for (const link of withQuery) {
+      const keys = link.query.split('&').map((pair) => pair.split('=')[0])
+      expect(keys.filter((key) => !schemaKeys.includes(key ?? ''))).toEqual([])
+    }
+  })
+
+  it('offers, in the link builder, only the views the server’s schema accepts', () => {
+    // Read from the source the app is built from, so a typo in the client's own list of views fails
+    // here and not at the host's button.
+    const source = clientSources.find((file) => file.text.includes('rsvpExportUrl:'))?.text
+    expect(source, 'rsvpExportUrl is missing from the api client').toBeDefined()
+    const declared = /rsvpExportUrl: \(slug: string, view: ([^=]+?) =/.exec(source ?? '')?.[1]
+    const views = [...(declared ?? '').matchAll(/'([^']+)'/g)].map((match) => match[1])
+
+    expect(views.length).toBeGreaterThan(1)
+    for (const view of views) {
+      expect(requestSchemas.rsvpExportQuery.safeParse({ view }).success, view).toBe(true)
+    }
+    // The check bites: a mistyped value or key is refused by the same schema.
+    expect(requestSchemas.rsvpExportQuery.safeParse({ view: 'caterr' }).success).toBe(false)
+    expect(requestSchemas.rsvpExportQuery.safeParse({ vew: 'all' }).success).toBe(false)
   })
 
   it(`refuses ${MODERATION_LINK} without a session`, async () => {

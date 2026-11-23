@@ -92,7 +92,7 @@ test('the caterer panel, file and printed list carry what guests said, the maybe
   await expect(
     panel.getByText(list.catererAdults).locator('xpath=following-sibling::dd'),
   ).toHaveText('3')
-  await expect(panel.getByText('Poisson').locator('xpath=following-sibling::b')).toHaveText('2')
+  await expect(panel.getByText('Poisson').locator('xpath=following-sibling::dd')).toHaveText('2')
 
   // --- The file for the caterer: those who come, a total, no maybe, no word.
   const download = host.waitForEvent('download')

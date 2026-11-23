@@ -50,14 +50,14 @@ export function RsvpCaterer({ stats, form, exportHref, onPrint }: RsvpCatererPro
           {stats.meals.length === 0 ? (
             <p className={styles['hint']}>{text.catererNoMeals}</p>
           ) : (
-            <ul className={styles['list']}>
+            <dl className={styles['list']}>
               {stats.meals.map((meal) => (
-                <li key={meal.label}>
-                  <span>{meal.label}</span>
-                  <b>{meal.count}</b>
-                </li>
+                <div key={meal.label}>
+                  <dt>{meal.label}</dt>
+                  <dd>{meal.count}</dd>
+                </div>
               ))}
-            </ul>
+            </dl>
           )}
         </div>
       ) : null}
@@ -67,22 +67,28 @@ export function RsvpCaterer({ stats, form, exportHref, onPrint }: RsvpCatererPro
           {stats.diets.length === 0 ? (
             <p className={styles['hint']}>{text.none}</p>
           ) : (
-            <ul className={styles['list']}>
+            <dl className={styles['list']}>
               {stats.diets.map((entry, index) => (
-                <li key={`${entry.name}-${index}`}>
-                  <span>{entry.name}</span>
-                  <span>{entry.diet}</span>
-                </li>
+                <div key={`${entry.name}-${index}`}>
+                  <dt>{entry.name}</dt>
+                  <dd>{entry.diet}</dd>
+                </div>
               ))}
-            </ul>
+            </dl>
           )}
           <p className={styles['hint']}>{text.catererPrivate}</p>
         </div>
       ) : null}
       <div className={styles['actions']}>
-        <a className={styles['export']} href={exportHref} download>
-          {text.catererExport}
-        </a>
+        {none ? (
+          <span className={styles['export']} aria-disabled="true">
+            {text.catererExport}
+          </span>
+        ) : (
+          <a className={styles['export']} href={exportHref} download>
+            {text.catererExport}
+          </a>
+        )}
         <Button size="sm" variant="secondary" disabled={none} onClick={onPrint}>
           {text.catererPrint}
         </Button>

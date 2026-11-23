@@ -59,7 +59,7 @@ export function JoinPage() {
       : null,
   )
   // The first name this device gave on the invitation, if it answered there (spec 30, section 9.1).
-  const [name, setName] = useState(() => readJoinNamePrefill() ?? '')
+  const [name, setName] = useState(() => readJoinNamePrefill(codeFromPath) ?? '')
   useEffect(() => {
     // Read once: it is offered here and nowhere else.
     clearJoinNamePrefill()
