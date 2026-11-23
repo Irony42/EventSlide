@@ -12,6 +12,8 @@ import {
   draftOf,
   inputOf,
   maxPeople,
+  peopleOfDraft,
+  personName,
   type RsvpAnswer,
   type RsvpDraft,
 } from '../../lib/rsvp/rsvpDraft'
@@ -197,6 +199,7 @@ export function GuestRsvpBlock({
     </div>
   )
 
+  const people = peopleOfDraft(draft, form)
   const formFields =
     draft.answer === null ? null : (
       <form className={styles['form']} onSubmit={send(draft.answer)} noValidate>
@@ -238,6 +241,58 @@ export function GuestRsvpBlock({
             ) : null}
           </div>
         ) : null}
+        {draft.answer !== 'no' && form.companionNames && people > 1 ? (
+          <fieldset className={styles['field']}>
+            <legend>{t.companionsLabel}</legend>
+            {Array.from({ length: people - 1 }, (_, index) => (
+              <input
+                key={index}
+                type="text"
+                name={`companion-${index + 1}`}
+                autoComplete="off"
+                maxLength={40}
+                aria-label={t.companionLabel(index + 1)}
+                placeholder={t.companionPlaceholder}
+                value={draft.companions[index] ?? ''}
+                onChange={(event) => {
+                  const next = [...draft.companions]
+                  while (next.length <= index) next.push('')
+                  next[index] = event.target.value
+                  set({ companions: next })
+                }}
+              />
+            ))}
+          </fieldset>
+        ) : null}
+        {draft.answer === 'yes' && form.meals.enabled ? (
+          <fieldset className={styles['field']}>
+            <legend>{t.mealsLabel}</legend>
+            {Array.from({ length: people }, (_, index) => {
+              const who = personName(draft, index, t.personFallback(index + 1))
+              return (
+                <select
+                  key={index}
+                  name={`meal-${index + 1}`}
+                  aria-label={t.mealFor(who)}
+                  value={draft.meals[index] ?? ''}
+                  onChange={(event) => {
+                    const next = [...draft.meals]
+                    while (next.length <= index) next.push('')
+                    next[index] = event.target.value
+                    set({ meals: next })
+                  }}
+                >
+                  <option value="">{t.mealFor(who)}</option>
+                  {form.meals.options.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              )
+            })}
+          </fieldset>
+        ) : null}
         {draft.answer !== 'no' && form.diet ? (
           <label className={styles['field']}>
             <span>
@@ -253,6 +308,41 @@ export function GuestRsvpBlock({
             />
           </label>
         ) : null}
+        {draft.answer !== 'no'
+          ? form.questions.map((question) => (
+              <label key={question.id} className={styles['field']}>
+                <span>
+                  {question.label} <small>{t.optional}</small>
+                </span>
+                {question.kind === 'choice' ? (
+                  <select
+                    name={`question-${question.id}`}
+                    value={draft.answers[question.id] ?? ''}
+                    onChange={(event) =>
+                      set({ answers: { ...draft.answers, [question.id]: event.target.value } })
+                    }
+                  >
+                    <option value="">{t.answerPick}</option>
+                    {(question.options ?? []).map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    name={`question-${question.id}`}
+                    maxLength={120}
+                    value={draft.answers[question.id] ?? ''}
+                    onChange={(event) =>
+                      set({ answers: { ...draft.answers, [question.id]: event.target.value } })
+                    }
+                  />
+                )}
+              </label>
+            ))
+          : null}
         <label className={styles['field']}>
           <span>
             {t.messageLabel} <small>{t.optional}</small>

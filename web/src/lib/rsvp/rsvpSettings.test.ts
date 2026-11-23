@@ -81,7 +81,15 @@ describe('what the guest’s page would say', () => {
     expect(previewPage(settings)).toEqual({
       state: 'open',
       deadline: '2026-12-01',
-      form: { maybe: true, partySize: { enabled: true, max: 4 }, kidsSeparate: true, diet: true },
+      form: {
+        maybe: true,
+        partySize: { enabled: true, max: 4 },
+        kidsSeparate: true,
+        diet: true,
+        companionNames: false,
+        meals: { enabled: false, options: [] },
+        questions: [],
+      },
     })
     expect(previewPage(aRsvpSettings({ enabled: false })).state).toBe('off')
   })

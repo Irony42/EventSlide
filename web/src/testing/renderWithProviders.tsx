@@ -231,7 +231,15 @@ export const anRsvpStats = (overrides: Partial<RsvpStatsDto> = {}): RsvpStatsDto
 export const aGuestRsvpPage = (overrides: Partial<GuestRsvpPageDto> = {}): GuestRsvpPageDto => ({
   state: 'open',
   deadline: null,
-  form: { maybe: true, partySize: { enabled: true, max: 4 }, kidsSeparate: true, diet: true },
+  form: {
+    maybe: true,
+    partySize: { enabled: true, max: 4 },
+    kidsSeparate: true,
+    diet: true,
+    companionNames: false,
+    meals: { enabled: false, options: [] },
+    questions: [],
+  },
   ...overrides,
 })
 
@@ -243,6 +251,9 @@ export const aGuestOwnRsvp = (overrides: Partial<GuestOwnRsvpDto> = {}): GuestOw
   kids: 1,
   diet: null,
   message: null,
+  companions: [],
+  meals: [],
+  answers: [],
   updatedAt: '2026-11-20T10:00:00.000Z',
   ...overrides,
 })

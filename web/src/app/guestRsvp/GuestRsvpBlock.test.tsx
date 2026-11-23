@@ -94,6 +94,9 @@ describe('asking: the window is open and this device holds no reply', () => {
           partySize: { enabled: false, max: 4 },
           kidsSeparate: false,
           diet: false,
+          companionNames: false,
+          meals: { enabled: false, options: [] },
+          questions: [],
         },
       }),
     )
@@ -114,6 +117,9 @@ describe('asking: the window is open and this device holds no reply', () => {
           partySize: { enabled: true, max: 2 },
           kidsSeparate: false,
           diet: true,
+          companionNames: false,
+          meals: { enabled: false, options: [] },
+          questions: [],
         },
       }),
     )

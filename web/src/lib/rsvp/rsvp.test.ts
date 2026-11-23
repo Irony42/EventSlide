@@ -175,7 +175,7 @@ describe('the guest’s form as data', () => {
 
   it('sends a yes with what the form asks, and a blank optional field as null', () => {
     const input = inputOf(
-      { answer: 'yes', name: 'Léa', adults: 2, kids: 1, diet: '  ', message: '' },
+      { ...EMPTY_DRAFT, answer: 'yes', name: 'Léa', adults: 2, kids: 1, diet: '  ', message: '' },
       FORM,
     )
 
@@ -191,7 +191,15 @@ describe('the guest’s form as data', () => {
 
   it('sends a no with nobody and no diet, whatever was typed before the guest changed their mind', () => {
     const input = inputOf(
-      { answer: 'no', name: 'Léa', adults: 3, kids: 1, diet: 'noix', message: 'Dommage' },
+      {
+        ...EMPTY_DRAFT,
+        answer: 'no',
+        name: 'Léa',
+        adults: 3,
+        kids: 1,
+        diet: 'noix',
+        message: 'Dommage',
+      },
       FORM,
     )
 
@@ -200,6 +208,7 @@ describe('the guest’s form as data', () => {
 
   it('does not send what the host’s form does not ask', () => {
     const draft = {
+      ...EMPTY_DRAFT,
       answer: 'maybe' as const,
       name: 'Léa',
       adults: 3,
