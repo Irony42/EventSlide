@@ -41,8 +41,12 @@ import type {
   GuestOwnRsvpResponseDto,
   GuestRsvpCreatedDto,
   GuestRsvpPageDto,
+  RsvpDto,
   RsvpFormResponseDto,
+  RsvpListResponseDto,
+  RsvpResponseDto,
   RsvpSettingsDto,
+  RsvpStatsDto,
   GuestPhotoDto,
   GuestMissionDto,
   JoinResponse,
@@ -193,6 +197,33 @@ export const aRsvpSettings = (overrides: Partial<RsvpSettingsDto> = {}): RsvpSet
   state: 'off',
   closesAt: '2026-12-12T18:00:00.000Z',
   erasedAt: null,
+  ...overrides,
+})
+
+/** One reply as the host reads it (spec 30): a yes of two adults and a child, typed by the guest. */
+export const anRsvp = (overrides: Partial<RsvpDto> = {}): RsvpDto => ({
+  id: 'd1000000-0000-4000-8000-000000000001',
+  name: 'Léa Martin',
+  answer: 'yes',
+  adults: 2,
+  kids: 1,
+  diet: null,
+  message: null,
+  source: 'open',
+  details: { companions: [], meals: [], answers: [], moments: [], showName: false },
+  createdAt: '2026-11-20T10:00:00.000Z',
+  updatedAt: '2026-11-20T10:00:00.000Z',
+  ...overrides,
+})
+
+/** The figures of no reply at all. */
+export const anRsvpStats = (overrides: Partial<RsvpStatsDto> = {}): RsvpStatsDto => ({
+  yes: { responses: 0, people: 0, adults: 0, kids: 0 },
+  maybe: { responses: 0, people: 0 },
+  no: { responses: 0 },
+  waitlist: { responses: 0, people: 0 },
+  diets: [],
+  meals: [],
   ...overrides,
 })
 
@@ -1102,6 +1133,17 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   guestRsvp: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({ rsvp: aGuestOwnRsvp() })),
   guestRsvpUpdate: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({ rsvp: aGuestOwnRsvp() })),
   guestRsvpDelete: vi.fn(async (): Promise<void> => undefined),
+  rsvps: vi.fn(async (): Promise<RsvpListResponseDto> => ({
+    rsvpForm: aRsvpSettings({ enabled: true, state: 'open' }),
+    rsvps: [],
+    stats: anRsvpStats(),
+    unseen: 0,
+  })),
+  addRsvp: vi.fn(async (): Promise<RsvpResponseDto> => ({ rsvp: anRsvp() })),
+  updateRsvp: vi.fn(async (): Promise<RsvpResponseDto> => ({ rsvp: anRsvp() })),
+  deleteRsvp: vi.fn(async (): Promise<void> => undefined),
+  markRsvpsSeen: vi.fn(async (): Promise<void> => undefined),
+  rsvpExportUrl: (slug: string): string => `/api/events/${slug}/rsvps/export`,
   rsvpForm: vi.fn(async (): Promise<RsvpFormResponseDto> => ({ rsvpForm: aRsvpSettings() })),
   saveRsvpForm: vi.fn(async (): Promise<RsvpFormResponseDto> => ({ rsvpForm: aRsvpSettings() })),
   closeRsvps: vi.fn(async (): Promise<RsvpFormResponseDto> => ({

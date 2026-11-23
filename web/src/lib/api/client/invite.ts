@@ -5,6 +5,8 @@ import type {
   GuestOwnRsvpResponseDto,
   GuestRsvpCreatedDto,
   RsvpFormResponseDto,
+  RsvpListResponseDto,
+  RsvpResponseDto,
 } from '../dto'
 import { encode } from './shared'
 
@@ -58,6 +60,16 @@ export interface RsvpFormInput {
   }
 }
 
+/** What the host types of a reply (spec 30): the guest's fields, judged by the same form. */
+export interface RsvpReplyInput {
+  readonly name: string
+  readonly answer: 'yes' | 'maybe' | 'no'
+  readonly adults?: number
+  readonly kids?: number
+  readonly diet?: string | null
+  readonly message?: string | null
+}
+
 /** The guest's token travels in this header, never in a path or a query (those reach access logs). */
 const rsvpToken = (editToken: string): Readonly<Record<string, string>> => ({
   'X-Rsvp-Token': editToken,
@@ -101,6 +113,28 @@ export const guestInviteApi = (transport: Transport) => ({
   /** Always, while the page is served: the right to erase does not end with the window. */
   guestRsvpDelete: (token: string, editToken: string, signal?: AbortSignal): Promise<void> =>
     transport.del(`/api/i/${encode(token)}/rsvp`, signal, rsvpToken(editToken)),
+
+  /** The replies page: every reply, the figures, how many the caller has not seen. */
+  rsvps: (slug: string, signal?: AbortSignal): Promise<RsvpListResponseDto> =>
+    transport.get(`/api/events/${encode(slug)}/rsvps`, undefined, signal),
+
+  /** "Ajouter une réponse": a reply the host types, not held to the places. */
+  addRsvp: (slug: string, input: RsvpReplyInput): Promise<RsvpResponseDto> =>
+    transport.post(`/api/events/${encode(slug)}/rsvps`, input),
+
+  /** The whole reply is sent again, judged by the form of the moment. */
+  updateRsvp: (slug: string, id: string, input: RsvpReplyInput): Promise<RsvpResponseDto> =>
+    transport.put(`/api/events/${encode(slug)}/rsvps/${encode(id)}`, input),
+
+  deleteRsvp: (slug: string, id: string): Promise<void> =>
+    transport.del(`/api/events/${encode(slug)}/rsvps/${encode(id)}`),
+
+  /** The host looked: the badge counts from now on. */
+  markRsvpsSeen: (slug: string): Promise<void> =>
+    transport.post(`/api/events/${encode(slug)}/rsvps/seen`, {}),
+
+  /** The replies as a spreadsheet, for the browser to download. */
+  rsvpExportUrl: (slug: string): string => `/api/events/${encode(slug)}/rsvps/export`,
 
   /** The owner's reading of the replies' settings: the defaults, with `invited: false`, before an invitation exists. */
   rsvpForm: (slug: string, signal?: AbortSignal): Promise<RsvpFormResponseDto> =>

@@ -145,9 +145,6 @@ const UNREAD_BY_CLIENT: Readonly<Record<string, readonly string[]>> = {
   // deliberately. It stays on the server's gallery row (`ModerationPhotoDto`) because
   // `GET /events/:slug/photos` has no client consumer at all today.
   ModerationPhotoDto: ['byteSize'],
-  // The badge of the replies entry (spec 30, PR 2): the host page that reads it is PR 5 of the same
-  // spec, and its entry leaves this list the day `web/src` renders it.
-  EventDto: ['unseenRsvps'],
   // The clip facet and the host's switch over video were exempted here while only the
   // server spine of roadmap 1.4 existed. The web surfaces have since landed and read
   // every one of those fields, so the entries are gone rather than kept as a habit — an
