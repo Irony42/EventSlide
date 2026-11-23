@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { aRsvp } from '../../../domain/guestRsvps/testing/rsvpFixtures'
 import { OWNER, WEDDING, rsvpScene, type RsvpScene } from '../../testing/rsvpScene'
 
 /**
@@ -37,8 +38,52 @@ describe('who comes (spec 30)', () => {
     await show('count')
     expect(await proof()).toEqual({ count: 2, names: [] })
 
+    // The ticks were withdrawn with the display: nobody is named when it comes back.
     await show('names')
-    expect(await proof()).toEqual({ count: 2, names: ['Léa'] })
+    expect(await proof()).toEqual({ count: 2, names: [] })
+  })
+
+  it('withdraws every tick when first names stop being shown, and a guest must tick again', async () => {
+    await show('names')
+    const sent = await answer('Léa Martin', { showName: true })
+    if (!sent.ok) throw new Error('sent')
+    expect(await proof()).toEqual({ count: 1, names: ['Léa'] })
+
+    await show('count')
+    await show('names')
+    expect(await proof()).toEqual({ count: 1, names: [] })
+    const stored = await scene.rsvps.listByEvent(WEDDING)
+    expect(stored[0]?.details.showName).toBe(false)
+    expect(stored[0]?.updatedAt).toEqual(sent.value.rsvp.updatedAt)
+
+    const again = await scene.updateOwn({
+      token,
+      editToken: sent.value.editToken,
+      name: 'Léa Martin',
+      answer: 'yes',
+      adults: 1,
+      showName: true,
+    })
+    expect(again.ok && again.value.details.showName).toBe(true)
+    expect(await proof()).toEqual({ count: 1, names: ['Léa'] })
+  })
+
+  it('clears nothing while the choice stays names, or when it was never names', async () => {
+    await show('names')
+    await answer('Léa Martin', { showName: true })
+    await show('names')
+    await scene.saveForm({ eventId: WEDDING, actorId: OWNER, form: { maybe: false } })
+    expect(await proof()).toEqual({ count: 1, names: ['Léa'] })
+
+    await show('count')
+    const cleared = scene.rsvps.clearShownNames
+    let calls = 0
+    scene.rsvps.clearShownNames = async (eventId) => {
+      calls += 1
+      return cleared.call(scene.rsvps, eventId)
+    }
+    await show('off')
+    expect(calls).toBe(0)
   })
 
   it('refuses a value that is not one of the three, and saves nothing', async () => {
@@ -80,17 +125,17 @@ describe('who comes (spec 30)', () => {
     expect(ignored.ok).toBe(true)
   })
 
-  it('never names a guest who unticks the box, and keeps a tick while the display is off', async () => {
+  it('stores no tick while the display is off, and a guest can untick or decline', async () => {
     await show('names')
     const sent = await answer('Léa Martin', { showName: true })
     if (!sent.ok) throw new Error('sent')
     const own = { token, editToken: sent.value.editToken, name: 'Léa Martin', adults: 1 }
 
     await show('off')
-    const quiet = await scene.updateOwn({ ...own, answer: 'yes' })
+    const quiet = await scene.updateOwn({ ...own, answer: 'yes', showName: true })
     await show('names')
-    expect(quiet.ok && quiet.value.details.showName).toBe(true)
-    expect(await proof()).toEqual({ count: 1, names: ['Léa'] })
+    expect(quiet.ok && quiet.value.details.showName).toBe(false)
+    expect(await proof()).toEqual({ count: 1, names: [] })
 
     const declined = await scene.updateOwn({ ...own, answer: 'no', showName: true })
     expect(declined.ok && declined.value.details.showName).toBe(false)
@@ -98,6 +143,7 @@ describe('who comes (spec 30)', () => {
     expect(back.ok && back.value.details.showName).toBe(false)
 
     await scene.updateOwn({ ...own, answer: 'yes', showName: true })
+    expect(await proof()).toEqual({ count: 1, names: ['Léa'] })
     const unticked = await scene.updateOwn({ ...own, answer: 'yes', showName: false })
     expect(unticked.ok && unticked.value.details.showName).toBe(false)
     expect(await proof()).toEqual({ count: 1, names: [] })
@@ -111,9 +157,17 @@ describe('who comes (spec 30)', () => {
       eventId: WEDDING,
       actorId: OWNER,
       rsvpId: sent.value.rsvp.id,
-      name: 'Léa M.',
+      name: 'Léa Martin',
       answer: 'yes',
-      adults: 1,
+      adults: 2,
+    })
+    const renamed = await scene.hostUpdate({
+      eventId: WEDDING,
+      actorId: OWNER,
+      rsvpId: sent.value.rsvp.id,
+      name: 'Quelqu’un d’autre',
+      answer: 'yes',
+      adults: 2,
     })
     const added = await scene.hostAdd({
       eventId: WEDDING,
@@ -125,8 +179,31 @@ describe('who comes (spec 30)', () => {
     })
 
     expect(corrected.ok && corrected.value.details.showName).toBe(true)
+    // The host changing the name changes what was agreed to be shown: the tick goes.
+    expect(renamed.ok && renamed.value.details.showName).toBe(false)
     expect(added.ok && added.value.details.showName).toBe(false)
-    expect(await proof()).toEqual({ count: 2, names: ['Léa'] })
+    expect(await proof()).toEqual({ count: 3, names: [] })
+  })
+
+  it('keeps no tick through a host correction while first names are not shown, even one left in the store', async () => {
+    const left = aRsvp({
+      id: 'left',
+      eventId: WEDDING,
+      name: 'Léa Martin',
+      details: { showName: true },
+    })
+    scene.rsvps.seed(left)
+
+    const corrected = await scene.hostUpdate({
+      eventId: WEDDING,
+      actorId: OWNER,
+      rsvpId: left.id,
+      name: 'Léa Martin',
+      answer: 'yes',
+      adults: 1,
+    })
+
+    expect(corrected.ok && corrected.value.details.showName).toBe(false)
   })
 
   it('takes the name back when the host turns a yes into a no', async () => {

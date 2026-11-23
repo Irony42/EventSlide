@@ -4099,7 +4099,11 @@ export const fr = {
         'Votre réponse n’est vue que par l’organisateur. Elle est effacée au plus tard deux mois après la fête. Vous pouvez la modifier ou la supprimer avec votre lien.',
       showNameLabel: 'Montrer mon prénom aux autres invités',
       noticeNames:
-        'Votre réponse n’est vue que par l’organisateur. Seul votre prénom peut être montré aux autres invités, si vous cochez la case ci-dessus. Elle est effacée au plus tard deux mois après la fête. Vous pouvez la modifier ou la supprimer avec votre lien.',
+        'Votre réponse est vue par l’organisateur. Seul votre prénom peut être montré à toute personne qui a le lien de l’invitation, si vous cochez la case. Elle est effacée au plus tard deux mois après la fête. Vous pouvez la modifier ou la supprimer avec votre lien.',
+      noticeCount:
+        'Votre réponse est vue par l’organisateur. Le nombre de personnes qui viennent est montré à toute personne qui a le lien de l’invitation. Elle est effacée au plus tard deux mois après la fête. Vous pouvez la modifier ou la supprimer avec votre lien.',
+      showNameShown: (first: string) =>
+        `Sera montré\u00a0: «\u00a0${first}\u00a0» (le premier mot de votre nom)`,
       recapShowName: 'Votre prénom est montré aux autres invités',
       doneYes: (first: string) => `C’est noté, ${first}`,
       doneMaybe: 'Noté\u00a0: peut-être',
@@ -4215,7 +4219,7 @@ export const fr = {
         'Les prénoms se demandent pour chaque personne en plus de l’invité\u00a0: activez aussi le nombre de personnes.',
       visibilityLabel: 'Qui vient',
       visibilityHint:
-        'Ce que la page de l’invitation dit des réponses. Jamais les «\u00a0non\u00a0», les «\u00a0peut-être\u00a0», les mots ni les régimes.',
+        'Ce que la page de l’invitation dit des réponses, à toute personne qui a le lien. Jamais les «\u00a0non\u00a0», les «\u00a0peut-être\u00a0», les mots ni les régimes. Sur une petite fête, le nombre peut révéler la réponse d’une seule personne. Quitter «\u00a0prénoms\u00a0» retire les cases cochées\u00a0: les invités devront cocher à nouveau.',
       visibilityOff: 'Rien',
       visibilityCount: 'Le nombre de personnes qui viennent',
       visibilityNames: 'Le nombre, et les prénoms de ceux qui acceptent',

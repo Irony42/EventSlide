@@ -3457,7 +3457,10 @@ export const de: UiText = {
         'Deine Antwort sehen nur die Gastgeber. Sie wird spätestens zwei Monate nach der Feier gelöscht. Mit deinem Link kannst du sie ändern oder löschen.',
       showNameLabel: 'Meinen Vornamen anderen Gästen zeigen',
       noticeNames:
-        'Deine Antwort sehen nur die Gastgeber. Nur dein Vorname kann anderen Gästen gezeigt werden, wenn du das Kästchen oben ankreuzt. Sie wird spätestens zwei Monate nach der Feier gelöscht. Mit deinem Link kannst du sie ändern oder löschen.',
+        'Deine Antwort sehen die Gastgeber. Nur dein Vorname kann jeder Person gezeigt werden, die den Einladungslink hat, wenn du das Kästchen ankreuzt. Sie wird spätestens zwei Monate nach der Feier gelöscht. Mit deinem Link kannst du sie ändern oder löschen.',
+      noticeCount:
+        'Deine Antwort sehen die Gastgeber. Die Zahl der Personen, die kommen, wird jeder Person gezeigt, die den Einladungslink hat. Sie wird spätestens zwei Monate nach der Feier gelöscht. Mit deinem Link kannst du sie ändern oder löschen.',
+      showNameShown: (first: string) => `Wird gezeigt: „${first}“ (das erste Wort deines Namens)`,
       recapShowName: 'Dein Vorname wird den anderen Gästen gezeigt',
       doneYes: (first: string) => `Notiert, ${first}`,
       doneMaybe: 'Notiert: vielleicht',
@@ -3573,7 +3576,7 @@ export const de: UiText = {
         'Vornamen werden für jede Person neben dem Gast abgefragt: Schalten Sie auch die Personenzahl ein.',
       visibilityLabel: 'Wer kommt',
       visibilityHint:
-        'Was die Einladungsseite über die Antworten sagt. Nie die „Nein“, die „Vielleicht“, die Nachrichten oder die Ernährungsangaben.',
+        'Was die Einladungsseite über die Antworten sagt, jeder Person mit dem Link. Nie die „Nein“, die „Vielleicht“, die Nachrichten oder die Ernährungsangaben. Bei einer kleinen Feier kann die Zahl die Antwort einer einzelnen Person verraten. Wer „Vornamen“ verlässt, nimmt die gesetzten Häkchen zurück: Die Gäste müssen erneut ankreuzen.',
       visibilityOff: 'Nichts',
       visibilityCount: 'Die Zahl der Personen, die kommen',
       visibilityNames: 'Die Zahl und die Vornamen derer, die zustimmen',

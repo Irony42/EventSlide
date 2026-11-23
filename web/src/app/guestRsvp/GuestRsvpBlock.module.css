@@ -114,6 +114,18 @@ fieldset.field legend {
   font-weight: 500;
 }
 
+.shown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.shownLine {
+  padding-inline-start: calc(1.5rem + var(--space-3));
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
 .check input {
   inline-size: 1.5rem;
   block-size: 1.5rem;

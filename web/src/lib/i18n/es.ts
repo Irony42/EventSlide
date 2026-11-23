@@ -3418,9 +3418,12 @@ export const es: UiText = {
       cancel: 'Cancelar',
       notice:
         'Tu respuesta solo la ve el anfitrión. Se borra como máximo dos meses después de la fiesta. Puedes cambiarla o borrarla con tu enlace.',
-      showNameLabel: 'Mostrar mi nombre a los demás invitados',
+      showNameLabel: 'Mostrar mi nombre de pila a los demás invitados',
       noticeNames:
-        'Tu respuesta solo la ve el anfitrión. Solo tu nombre puede mostrarse a los demás invitados, si marcas la casilla de arriba. Se borra como máximo dos meses después de la fiesta. Puedes cambiarla o borrarla con tu enlace.',
+        'Tu respuesta la ve el anfitrión. Solo tu nombre de pila (la primera palabra de tu nombre) puede mostrarse a cualquiera que tenga el enlace de la invitación, si marcas la casilla. Se borra como máximo dos meses después de la fiesta. Puedes cambiarla o borrarla con tu enlace.',
+      noticeCount:
+        'Tu respuesta la ve el anfitrión. El número de personas que vienen se muestra a cualquiera que tenga el enlace de la invitación. Se borra como máximo dos meses después de la fiesta. Puedes cambiarla o borrarla con tu enlace.',
+      showNameShown: (first: string) => `Se mostrará: «${first}» (la primera palabra de tu nombre)`,
       recapShowName: 'Tu nombre se muestra a los demás invitados',
       doneYes: (first: string) => `Anotado, ${first}`,
       doneMaybe: 'Anotado: quizás',
@@ -3532,7 +3535,7 @@ export const es: UiText = {
         'Los nombres se piden por cada persona además del invitado: activa también el número de personas.',
       visibilityLabel: 'Quién viene',
       visibilityHint:
-        'Lo que la página de la invitación dice de las respuestas. Nunca los «no», los «quizás», las notas ni las dietas.',
+        'Lo que la página de la invitación dice de las respuestas, a cualquiera que tenga el enlace. Nunca los «no», los «quizás», las notas ni las dietas. En una fiesta pequeña, el número puede revelar la respuesta de una sola persona. Salir de «nombres» retira las casillas marcadas: los invitados tendrán que marcar de nuevo.',
       visibilityOff: 'Nada',
       visibilityCount: 'El número de personas que vienen',
       visibilityNames: 'El número y los nombres de quienes aceptan',

@@ -498,6 +498,11 @@ export class GuestRsvp {
     })
   }
 
+  /** This reply with its first name no longer shown to the other guests: the tick is withdrawn. */
+  withShownNameCleared(): GuestRsvp {
+    return new GuestRsvp({ ...this.props, details: { ...this.props.details, showName: false } })
+  }
+
   /** This reply attached to a household, or detached with `null` (lot 3). */
   withHousehold(householdId: string | null): GuestRsvp {
     return new GuestRsvp({ ...this.props, householdId })
@@ -542,9 +547,10 @@ export const retainExtras = (
   return {
     companions: form.companionNames ? extras.companions : held.companions,
     meals: form.meals.enabled ? extras.meals : held.meals,
-    // The opt-in is the guest's: switching the display off keeps it, so switching it on again does
-    // not name a guest who never said so, nor forget one who did.
-    showName: form.visibility === 'names' ? extras.showName : held.showName,
+    // The tick means something only while first names are shown, and the guest can only withdraw it
+    // while they are: so outside `names` nothing is stored, and the host's switch away from `names`
+    // clears every tick (guests tick again when it comes back).
+    showName: form.visibility === 'names' ? extras.showName : false,
     answers: [...extras.answers, ...kept],
   }
 }
