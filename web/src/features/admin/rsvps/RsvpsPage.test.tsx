@@ -982,7 +982,6 @@ describe('the replies page: the guest list (lot 3)', () => {
     places: 2,
     reply: { id: 'r-x', answer: 'yes', people: 2 },
   })
-  const households = fr.rsvp.households
 
   it('leads to the guest list, and counts the households without a reply in a tile of their own', async () => {
     render(
@@ -1058,7 +1057,7 @@ describe('the replies page: the guest list (lot 3)', () => {
   it('says why a filing was refused', async () => {
     const user = userEvent.setup()
     const refusing = vi.fn(async () => {
-      throw new ApiError(409, 'household.alreadyAnswered', 'x')
+      throw new ApiError(409, 'household.alreadyAnswered')
     })
     render(
       fakeApi({

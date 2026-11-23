@@ -117,7 +117,7 @@ describe('the guest list: reading', () => {
   it('says when the list could not be loaded, and tries again', async () => {
     const households = vi
       .fn()
-      .mockRejectedValueOnce(new ApiError(500, 'server.error', 'x'))
+      .mockRejectedValueOnce(new ApiError(500, 'server.error'))
       .mockResolvedValue({ households: [martin] })
     const user = userEvent.setup()
     render(listing([], { households }))
@@ -169,7 +169,7 @@ describe('the guest list: adding and changing', () => {
 
   it('shows the sentence of a refusal in the form and keeps what was typed', async () => {
     const addHousehold = vi.fn(async () => {
-      throw new ApiError(409, 'household.tooMany', 'x')
+      throw new ApiError(409, 'household.tooMany')
     })
     const user = userEvent.setup()
     render(listing([], { addHousehold }))
@@ -250,7 +250,7 @@ describe('the guest list: pasting a list', () => {
   it('says so when nothing was added, and shows a refusal in the dialog', async () => {
     const importHouseholds = vi
       .fn()
-      .mockRejectedValueOnce(new ApiError(400, 'household.importTooLong', 'x'))
+      .mockRejectedValueOnce(new ApiError(400, 'household.importTooLong'))
       .mockResolvedValueOnce({ households: [], skipped: [{ line: 1, reason: 'name' }] })
     const user = userEvent.setup()
     render(listing([], { importHouseholds }))
@@ -319,7 +319,7 @@ describe('the guest list: links, deletion and a new link', () => {
 
   it('takes a household that is already gone for a deletion done', async () => {
     const deleteHousehold = vi.fn(async () => {
-      throw new ApiError(404, 'household.notFound', 'x')
+      throw new ApiError(404, 'household.notFound')
     })
     const user = userEvent.setup()
     render(listing([martin], { deleteHousehold }))
@@ -333,7 +333,7 @@ describe('the guest list: links, deletion and a new link', () => {
 
   it('shows the sentence of any other failure to delete', async () => {
     const deleteHousehold = vi.fn(async () => {
-      throw new ApiError(403, 'client.suspended', 'x')
+      throw new ApiError(403, 'client.suspended')
     })
     const user = userEvent.setup()
     render(listing([martin], { deleteHousehold }))
@@ -443,7 +443,7 @@ describe('the guest list: the guided reminder', () => {
 
   it('says when the note "relancé" could not be saved, and the host still has the message', async () => {
     const remindHousehold = vi.fn(async () => {
-      throw new ApiError(403, 'client.suspended', 'x')
+      throw new ApiError(403, 'client.suspended')
     })
     const user = userEvent.setup()
     render(listing([martin], { remindHousehold }))
