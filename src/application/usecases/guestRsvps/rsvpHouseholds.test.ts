@@ -567,12 +567,21 @@ describe('the guest list, on the host’s side (spec 30, lot 3)', () => {
 
     it('says the reply is gone when it vanished between the write and the read', async () => {
       const findById = scene.rsvps.findById.bind(scene.rsvps)
+      let reads = 0
       scene.rsvps.findById = async (eventId, id) => {
-        await scene.rsvps.delete(eventId, id)
+        reads += 1
+        // The first read is the places check, the second the answer after the write.
+        if (reads === 2) await scene.rsvps.delete(eventId, id)
         return findById(eventId, id)
       }
 
       expect(code(await attach())).toBe('rsvp.notFound')
+    })
+
+    it('says the reply is gone when detaching one that does not exist', async () => {
+      const detached = await attach({ rsvpId: asGuestRsvpId('nope'), householdId: null })
+
+      expect(code(detached)).toBe('rsvp.notFound')
     })
   })
 
