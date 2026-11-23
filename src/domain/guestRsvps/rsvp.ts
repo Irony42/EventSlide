@@ -291,6 +291,7 @@ const parseAnswers = (
 const parseMoments = (
   raw: unknown,
   moments: RsvpForm['moments'],
+  optional: boolean,
 ): Result<readonly string[], DomainError> => {
   if (moments.length === 0) return ok([])
   if (
@@ -302,7 +303,9 @@ const parseMoments = (
   }
   const chosen = new Set((raw ?? []) as string[])
   const kept = moments.filter((moment) => chosen.has(moment.id)).map((moment) => moment.id)
-  return kept.length === 0 ? err(DomainError.invalid('rsvp.momentsRequired')) : ok(kept)
+  return kept.length === 0 && !optional
+    ? err(DomainError.invalid('rsvp.momentsRequired'))
+    : ok(kept)
 }
 
 /**
@@ -317,9 +320,19 @@ const parseMoments = (
  * - the companions' names, one menu per person (`yes` only) and the answers to the host's questions
  *   are judged only when the form asks for them, and a field it does not ask for is not judged.
  */
+/**
+ * `momentsOptional`: the host corrects a reply that comes to no moment that exists any more (given
+ * before the moments were asked, or all removed): the host is not the guest and may save it as it
+ * is, without forcing a moment.
+ */
+export interface ParseRsvpOptions {
+  readonly momentsOptional?: boolean
+}
+
 export const parseRsvpInput = (
   form: RsvpForm,
   raw: RawRsvpInput,
+  options: ParseRsvpOptions = {},
 ): Result<RsvpInput, DomainError> => {
   const name = parseName(raw.name)
   if (!name.ok) return name
@@ -374,7 +387,7 @@ export const parseRsvpInput = (
   if (!meals.ok) return meals
   const answers = parseAnswers(raw.answers, form.questions)
   if (!answers.ok) return answers
-  const moments = parseMoments(raw.moments, form.moments)
+  const moments = parseMoments(raw.moments, form.moments, options.momentsOptional === true)
   if (!moments.ok) return moments
   // Asked only when the host shows first names, and only a yes is ever named.
   if (
@@ -534,6 +547,11 @@ export class GuestRsvp {
   /** This reply with another answer and the rest as it is: a `yes` the places could not hold becomes a waiting-list entry. */
   withAnswer(answer: RsvpAnswer): GuestRsvp {
     return new GuestRsvp({ ...this.props, answer })
+  }
+
+  /** This reply with other moments and the rest as it is (a read path narrowing what is shown). */
+  withMoments(moments: readonly string[]): GuestRsvp {
+    return new GuestRsvp({ ...this.props, details: { ...this.props.details, moments } })
   }
 
   /** This reply with its first name no longer shown to the other guests: the tick is withdrawn. */

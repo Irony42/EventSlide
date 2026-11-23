@@ -3434,6 +3434,7 @@ export const en: UiText = {
       momentsLabel: 'Which moments will you be there for?',
       momentsHint: 'at least one',
       recapMoments: (moments: string) => `Moments: ${moments}`,
+      momentsGone: 'The moment you picked no longer exists: please pick one.',
       trap: 'Leave this field empty',
       tooLarge: 'Your reply is too long to be sent. Please shorten your texts.',
     },
@@ -3525,6 +3526,14 @@ export const en: UiText = {
       momentPlaceholder: 'E.g. Sunday brunch',
       momentRemove: (label: string) => `Remove the moment “${label}”`,
       momentsFull: 'Four moments at most.',
+      momentRemoveTitle: (label: string) => `Remove the moment “${label}”?`,
+      momentRemoveBody: (count: number) =>
+        count === 0
+          ? 'No reply has picked this moment. To fix a name, rename the moment instead of removing it.'
+          : `${count} ${count === 1 ? 'reply has' : 'replies have'} picked this moment and will lose that choice. To fix a name, rename the moment instead of removing it.`,
+      momentRemoveUnknown:
+        'Replies already given for this moment will lose that choice. To fix a name, rename the moment instead of removing it.',
+      momentRemoveYes: 'Remove the moment',
       presetConfirmTitle: 'Replace your settings?',
       presetConfirm: (kind: string) =>
         `Your choices for “Maybe”, the number of people, children and companions’ first names will be replaced by those of ${kind}.`,
@@ -3657,6 +3666,8 @@ export const en: UiText = {
         `${label}: ${yes}${maybe === null ? '' : ` (+ ${maybe} maybe)`}`,
       catererMoments: 'By moment',
       printMoments: 'Moments',
+      momentNoneLine: (people: string) => `No moment: ${people}`,
+      formMomentsHint: 'at least one, for those who come',
       tileNoReply: 'No reply yet',
       tileNoReplyDetail: (households: string, places: number) => `${households} · ${places} places`,
       household: { one: 'household', other: 'households' },

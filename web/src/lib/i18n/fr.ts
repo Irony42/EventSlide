@@ -4201,6 +4201,7 @@ export const fr = {
       momentsLabel: 'À quels moments serez-vous là\u00a0?',
       momentsHint: 'au moins un',
       recapMoments: (moments: string) => `Moments\u00a0: ${moments}`,
+      momentsGone: 'Le moment que vous aviez choisi n’existe plus\u00a0: choisissez-en un.',
       trap: 'Ne pas remplir ce champ',
       tooLarge: 'Votre réponse est trop longue pour être envoyée. Raccourcissez vos textes.',
     },
@@ -4295,6 +4296,14 @@ export const fr = {
       momentPlaceholder: 'Ex. Brunch du dimanche',
       momentRemove: (label: string) => `Retirer le moment «\u00a0${label}\u00a0»`,
       momentsFull: 'Quatre moments au plus.',
+      momentRemoveTitle: (label: string) => `Retirer le moment «\u00a0${label}\u00a0»\u00a0?`,
+      momentRemoveBody: (count: number) =>
+        count === 0
+          ? 'Aucune réponse n’a choisi ce moment. Pour corriger un nom, renommez le moment plutôt que de le retirer.'
+          : `${count} ${count === 1 ? 'réponse a' : 'réponses ont'} choisi ce moment et perdront ce choix. Pour corriger un nom, renommez le moment plutôt que de le retirer.`,
+      momentRemoveUnknown:
+        'Les réponses déjà données pour ce moment perdront ce choix. Pour corriger un nom, renommez le moment plutôt que de le retirer.',
+      momentRemoveYes: 'Retirer le moment',
       presetConfirmTitle: 'Remplacer vos réglages\u00a0?',
       presetConfirm: (kind: string) =>
         `Vos choix de «\u00a0Peut-être\u00a0», de nombre de personnes, d’enfants et de prénoms des accompagnants seront remplacés par ceux d’${kind}.`,
@@ -4432,6 +4441,8 @@ export const fr = {
         `${label}\u00a0: ${yes}${maybe === null ? '' : ` (+ ${maybe} avec les «\u00a0peut-être\u00a0»)`}`,
       catererMoments: 'Par moment',
       printMoments: 'Moments',
+      momentNoneLine: (people: string) => `Sans moment\u00a0: ${people}`,
+      formMomentsHint: 'au moins un, pour ceux qui viennent',
       tileNoReply: 'Sans réponse',
       tileNoReplyDetail: (households: string, places: number) => `${households} · ${places} places`,
       household: { one: 'foyer', other: 'foyers' },

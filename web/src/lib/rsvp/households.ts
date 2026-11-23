@@ -108,9 +108,22 @@ export const formForReply = <
     reply === null || reply.householdId === null
       ? undefined
       : households.find((candidate) => candidate.id === reply.householdId)
-  if (household === undefined || household.moments === null) return form
-  const invited = household.moments
-  return { ...form, moments: form.moments.filter((moment) => invited.includes(moment.id)) }
+  if (household === undefined) return form
+  const invited = invitedAmong(household.moments, form.moments)
+  return invited.length === form.moments.length ? form : { ...form, moments: invited }
+}
+
+/**
+ * The form's moments a household is invited to: all of them for the default (`null`), and also when
+ * none of the ids it holds survives (the server's rule: a household is never left with nothing).
+ */
+export const invitedAmong = <M extends { readonly id: string }>(
+  held: readonly string[] | null,
+  moments: readonly M[],
+): readonly M[] => {
+  if (held === null) return moments
+  const surviving = moments.filter((moment) => held.includes(moment.id))
+  return surviving.length === 0 ? moments : surviving
 }
 
 /**
@@ -122,10 +135,9 @@ export const invitedMomentsLabel = (
   moments: readonly { readonly id: string; readonly label: string }[],
   all: string,
 ): string =>
-  household.moments === null
+  household.moments === null || invitedAmong(household.moments, moments).length === moments.length
     ? all
-    : moments
-        .filter((moment) => household.moments?.includes(moment.id) === true)
+    : invitedAmong(household.moments, moments)
         .map((moment) => moment.label)
         .join(', ')
 

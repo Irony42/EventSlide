@@ -109,7 +109,12 @@ export const makeHostUpdateRsvp =
     // The waiting list is the server's to give, and the host's to keep: `waitlist` sent back for a
     // reply that is on it is judged as a `yes` (the form's rules) and put back as it was.
     const keepsWaitlist = held.answer === 'waitlist' && raw.answer === 'waitlist'
-    const judged = parseRsvpInput(form, keepsWaitlist ? { ...raw, answer: 'yes' } : raw)
+    // A reply that comes to no moment that exists any more (before they were asked, or all removed)
+    // may be corrected without forcing one: the host is not the guest.
+    const momentsOptional = !form.moments.some((moment) => held.details.moments.includes(moment.id))
+    const judged = parseRsvpInput(form, keepsWaitlist ? { ...raw, answer: 'yes' } : raw, {
+      momentsOptional,
+    })
     if (!judged.ok) return judged
     const reply = keepingWhatIsNotAsked(form, held, judged.value)
 

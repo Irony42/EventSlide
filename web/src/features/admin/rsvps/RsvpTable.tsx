@@ -97,9 +97,13 @@ export function RsvpTable({ rows, form, onOpen }: RsvpTableProps) {
               ) : null}
               {form.moments.map((moment) => (
                 <td key={moment.id} role="cell" data-label={moment.label}>
-                  {reply.answer !== 'no' && reply.details.moments.includes(moment.id)
-                    ? text.detailYes
-                    : text.none}
+                  {!reply.details.moments.includes(moment.id)
+                    ? text.none
+                    : reply.answer === 'yes'
+                      ? text.detailYes
+                      : reply.answer === 'maybe'
+                        ? text.answerMaybe
+                        : text.none}
                 </td>
               ))}
               {form.companionNames ? (

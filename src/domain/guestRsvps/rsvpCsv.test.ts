@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mealsSummary, rsvpCsv, type RsvpCsvLabels } from './rsvpCsv'
+import { aHousehold } from './testing/householdFixtures'
 import { aRsvp } from './testing/rsvpFixtures'
 
 const LABELS: RsvpCsvLabels = {
@@ -396,5 +397,28 @@ describe('rsvpCsv: the moments', () => {
 
   it('writes no moment column when the form has none', () => {
     expect(linesOf(rsvpCsv(replies, 'caterer', LABELS, [], asked))[0]).toBe('Nom;Adultes;Enfants')
+  })
+})
+
+describe('rsvpCsv: a household reply and its moments', () => {
+  const BRUNCH = { id: 'aaaaaaaa', label: 'Brunch' }
+  const DINNER = { id: 'bbbbbbbb', label: 'Dîner' }
+  const filed = aRsvp({
+    name: 'Famille Roux',
+    householdId: 'h-1',
+    adults: 3,
+    details: { moments: [BRUNCH.id, DINNER.id] },
+  })
+  const households = [aHousehold({ id: 'h-1', moments: [DINNER.id] })]
+  const asked = { meals: false, diet: false }
+
+  it('writes it only at the moments its household is invited to, in both files', () => {
+    const all = linesOf(rsvpCsv([filed], 'all', LABELS, [], asked, [BRUNCH, DINNER], households))
+    const caterer = linesOf(
+      rsvpCsv([filed], 'caterer', LABELS, [], asked, [BRUNCH, DINNER], households),
+    )
+
+    expect(all[1]).toMatch(/^Famille Roux;Oui;3;0;;;;;1;/)
+    expect(caterer).toContain('Famille Roux;3;0;;3')
   })
 })

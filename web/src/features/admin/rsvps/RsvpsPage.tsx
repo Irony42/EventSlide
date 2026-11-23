@@ -450,6 +450,13 @@ function Replies({
                       )}
                     </li>
                   ))}
+                  {stats.noMoment.responses === 0 ? null : (
+                    <li>
+                      {text.momentNoneLine(
+                        `${stats.noMoment.people} ${plural(stats.noMoment.people, text.person)}`,
+                      )}
+                    </li>
+                  )}
                 </ul>
               </div>
             )}

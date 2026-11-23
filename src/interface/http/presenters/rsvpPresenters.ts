@@ -118,6 +118,7 @@ const toStatsDto = (stats: RsvpStats): RsvpStatsDto => ({
     yes: { ...yes },
     maybe: { ...maybe },
   })),
+  noMoment: { ...stats.noMoment },
 })
 
 export const toRsvpListResponseDto = (view: RsvpList): RsvpListResponseDto => ({

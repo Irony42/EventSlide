@@ -1,5 +1,7 @@
 import type { GuestRsvp, RsvpAnswer, RsvpSource } from './rsvp'
+import type { GuestHousehold } from './household'
 import type { RsvpMoment } from './rsvpForm'
+import { narrowMoments } from './rsvpFormMoments'
 
 /**
  * The replies as a spreadsheet (spec 30, section 4.5), for the host and the caterer.
@@ -128,7 +130,10 @@ export const rsvpCsv = (
   questions: readonly RsvpCsvQuestion[] = [],
   asked: RsvpCsvAsked = { meals: true, diet: true },
   moments: readonly RsvpMoment[] = [],
+  households: readonly GuestHousehold[] = [],
 ): string => {
+  // A reply is only written at a moment that exists today and that its household is invited to.
+  rsvps = moments.length === 0 ? rsvps : narrowMoments(rsvps, moments, households)
   if (view === 'caterer') {
     const coming = rsvps.filter((rsvp) => rsvp.answer === 'yes')
     // Only the columns the form asks: a menu or a diet the host no longer asks is not told to the

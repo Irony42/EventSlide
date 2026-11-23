@@ -14,6 +14,7 @@ describe('statsOf', () => {
       meals: [],
       noReply: { households: 0, places: 0 },
       moments: [],
+      noMoment: { responses: 0, people: 0 },
     })
   })
 
@@ -206,5 +207,47 @@ describe('statsOf: the moments', () => {
     const total = stats().moments.reduce((sum, moment) => sum + moment.yes.people, 0)
 
     expect(total).toBe(3 + 4)
+  })
+})
+
+describe('statsOf: moments that no longer mean anything', () => {
+  const BRUNCH = { id: 'aaaaaaaa', label: 'Brunch' }
+  const DINNER = { id: 'bbbbbbbb', label: 'Dîner' }
+
+  it('never counts a household reply at a moment its household is not invited to', () => {
+    const stats = statsOf(
+      [
+        aRsvp({
+          id: 'a',
+          householdId: 'h-1',
+          adults: 3,
+          details: { moments: [BRUNCH.id, DINNER.id] },
+        }),
+      ],
+      [aHousehold({ id: 'h-1', moments: [DINNER.id] })],
+      [BRUNCH, DINNER],
+    )
+
+    expect(stats.moments.map((moment) => moment.yes.people)).toEqual([0, 3])
+  })
+
+  it('counts apart the yes replies that come to no moment of today', () => {
+    const stats = statsOf(
+      [
+        aRsvp({ id: 'a', adults: 2, details: { moments: [] } }),
+        aRsvp({ id: 'b', adults: 1, details: { moments: ['removed0'] } }),
+        aRsvp({ id: 'c', adults: 4, details: { moments: [BRUNCH.id] } }),
+        aRsvp({ id: 'd', answer: 'maybe', adults: 5, details: { moments: [] } }),
+        aRsvp({ id: 'e', answer: 'waitlist', adults: 6, details: { moments: [] } }),
+      ],
+      [],
+      [BRUNCH],
+    )
+
+    expect(stats.noMoment).toEqual({ responses: 2, people: 3 })
+    expect(statsOf([aRsvp({ details: { moments: [] } })]).noMoment).toEqual({
+      responses: 0,
+      people: 0,
+    })
   })
 })

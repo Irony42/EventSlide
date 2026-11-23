@@ -2194,6 +2194,8 @@ export interface RsvpStatsDto {
     readonly yes: { readonly responses: number; readonly people: number }
     readonly maybe: { readonly responses: number; readonly people: number }
   }[]
+  /** The yes replies that come to no moment that exists today (told apart so they can be asked again). */
+  readonly noMoment: { readonly responses: number; readonly people: number }
 }
 
 /** `GET /events/:slug/rsvps`: the replies page, with the settings beside it. */

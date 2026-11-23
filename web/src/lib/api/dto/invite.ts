@@ -215,6 +215,8 @@ export interface RsvpStatsDto {
     readonly yes: { readonly responses: number; readonly people: number }
     readonly maybe: { readonly responses: number; readonly people: number }
   }[]
+  /** The yes replies that come to no moment that exists today (told apart so they can be asked again). */
+  readonly noMoment: { readonly responses: number; readonly people: number }
 }
 
 /** One household of the host's guest list (spec 30, lot 3), with the secret of its personal link. */

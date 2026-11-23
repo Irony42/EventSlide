@@ -3555,6 +3555,7 @@ export const de: UiText = {
       momentsLabel: 'Bei welchen Programmpunkten bist du dabei?',
       momentsHint: 'mindestens einer',
       recapMoments: (moments: string) => `Programmpunkte: ${moments}`,
+      momentsGone: 'Der gewählte Programmpunkt existiert nicht mehr: bitte wähle einen.',
       trap: 'Dieses Feld leer lassen',
       tooLarge: 'Ihre Antwort ist zu lang zum Senden. Bitte kürzen Sie Ihre Texte.',
     },
@@ -3648,6 +3649,14 @@ export const de: UiText = {
       momentPlaceholder: 'Z. B. Sonntagsbrunch',
       momentRemove: (label: string) => `Programmpunkt „${label}“ entfernen`,
       momentsFull: 'Höchstens vier Programmpunkte.',
+      momentRemoveTitle: (label: string) => `Programmpunkt „${label}“ entfernen?`,
+      momentRemoveBody: (count: number) =>
+        count === 0
+          ? 'Keine Antwort hat diesen Programmpunkt gewählt. Um einen Namen zu korrigieren, benenne den Programmpunkt um, statt ihn zu entfernen.'
+          : `${count} ${count === 1 ? 'Antwort hat' : 'Antworten haben'} diesen Programmpunkt gewählt und verlieren diese Auswahl. Um einen Namen zu korrigieren, benenne den Programmpunkt um, statt ihn zu entfernen.`,
+      momentRemoveUnknown:
+        'Bereits gegebene Antworten verlieren die Auswahl dieses Programmpunkts. Um einen Namen zu korrigieren, benenne den Programmpunkt um, statt ihn zu entfernen.',
+      momentRemoveYes: 'Programmpunkt entfernen',
       presetConfirmTitle: 'Einstellungen ersetzen?',
       presetConfirm: (kind: string) =>
         `Ihre Auswahl bei „Vielleicht“, Personenzahl, Kindern und Vornamen der Begleitung wird durch die ${kind} ersetzt.`,
@@ -3783,6 +3792,8 @@ export const de: UiText = {
         `${label}: ${yes}${maybe === null ? '' : ` (+ ${maybe} mit „Vielleicht“)`}`,
       catererMoments: 'Pro Programmpunkt',
       printMoments: 'Programmpunkte',
+      momentNoneLine: (people: string) => `Ohne Programmpunkt: ${people}`,
+      formMomentsHint: 'mindestens einer, für alle, die kommen',
       tileNoReply: 'Ohne Antwort',
       tileNoReplyDetail: (households: string, places: number) => `${households} · ${places} Plätze`,
       household: { one: 'Haushalt', other: 'Haushalte' },

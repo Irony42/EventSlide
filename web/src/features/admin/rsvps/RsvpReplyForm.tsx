@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Button } from '../../../design-system/components/Button'
 import { ChoiceChips } from '../../../design-system/components/ChoiceChips'
 import { Dialog } from '../../../design-system/components/Dialog'
@@ -53,6 +53,8 @@ export function RsvpReplyForm({
 }: RsvpReplyFormProps) {
   const t = useTranslations()
   const form = formForReply(hostForm, reply, households)
+  const momentsHintId = useId()
+  const problemId = useId()
   const text = t.rsvp.list
   const [draft, setDraft] = useState<RsvpDraft>(
     reply === null ? EMPTY_DRAFT : draftOfHostReply(reply, form),
@@ -167,12 +169,17 @@ export function RsvpReplyForm({
           </div>
         ) : null}
         {coming && form.moments.length > 0 ? (
-          <fieldset className={styles['moments']}>
+          <fieldset
+            className={styles['moments']}
+            aria-describedby={`${momentsHintId}${problem === null ? '' : ` ${problemId}`}`}
+          >
             <legend>{text.formMoments}</legend>
+            <small id={momentsHintId}>{text.formMomentsHint}</small>
             {form.moments.map((moment) => (
               <label key={moment.id}>
                 <input
                   type="checkbox"
+                  aria-invalid={problem !== null && draft.moments.length === 0 ? true : undefined}
                   checked={draft.moments.includes(moment.id)}
                   onChange={() => setDraft((current) => toggleMoment(current, moment.id))}
                 />{' '}
@@ -268,7 +275,7 @@ export function RsvpReplyForm({
           )}
         </Field>
         {problem === null ? null : (
-          <Notice tone="danger" variant="boxed" role="alert">
+          <Notice tone="danger" variant="boxed" role="alert" id={problemId}>
             {problem}
           </Notice>
         )}

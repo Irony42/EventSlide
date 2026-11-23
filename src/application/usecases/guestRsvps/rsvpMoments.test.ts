@@ -402,3 +402,135 @@ describe('moments (spec 30, lot 4)', () => {
     })
   })
 })
+
+describe('moments that no longer mean anything (spec 30, lot 4)', () => {
+  let scene: RsvpScene
+  let token: string
+
+  beforeEach(async () => {
+    scene = await rsvpScene()
+    await scene.enable({ eventId: WEDDING, actorId: OWNER })
+    await scene.saveForm({ eventId: WEDDING, actorId: OWNER, enabled: true })
+    token = await scene.token()
+  })
+
+  const askTwo = async () => {
+    const saved = await scene.saveForm({
+      eventId: WEDDING,
+      actorId: OWNER,
+      form: { moments: [{ label: 'Brunch' }, { label: 'Dîner' }] },
+    })
+    if (!saved.ok) throw new Error(saved.error.code)
+    const [brunch, dinner] = saved.value.settings.form.moments
+    return { brunch: brunch?.id ?? '', dinner: dinner?.id ?? '' }
+  }
+
+  it('asks a household whose moments were all removed every moment, and counts it', async () => {
+    const { brunch } = await askTwo()
+    scene.households.seed(
+      aHousehold({ id: 'h-1', eventId: WEDDING, token: LINK, places: 4, moments: ['removed0'] }),
+    )
+
+    const viewed = await scene.viewHousehold({ token, householdToken: LINK })
+    const sent = await scene.submit({
+      token,
+      householdToken: LINK,
+      name: 'Famille Martin',
+      answer: 'yes',
+      adults: 2,
+      moments: [brunch],
+    })
+
+    expect(viewed.ok && viewed.value.moments).toHaveLength(2)
+    expect(sent.ok && sent.value.rsvp.details.moments).toEqual([brunch])
+  })
+
+  it('shows and counts a household reply only at the moments its household is invited to', async () => {
+    const { brunch, dinner } = await askTwo()
+    scene.households.seed(
+      aHousehold({
+        id: 'h-1',
+        eventId: WEDDING,
+        token: LINK,
+        places: 4,
+        moments: [brunch, dinner],
+      }),
+    )
+    await scene.submit({
+      token,
+      householdToken: LINK,
+      name: 'Famille Martin',
+      answer: 'yes',
+      adults: 2,
+      moments: [brunch, dinner],
+    })
+    await scene.saveHousehold({
+      eventId: WEDDING,
+      actorId: OWNER,
+      householdId: asGuestHouseholdId('h-1'),
+      name: 'Famille Martin',
+      places: 4,
+      moments: [dinner],
+    })
+
+    const listed = await scene.list({ eventId: WEDDING, actorId: OWNER })
+    const exported = await scene.exportCsv({ eventId: WEDDING, actorId: OWNER, view: 'caterer' })
+
+    expect(listed.ok && listed.value.stats.moments.map((moment) => moment.yes.people)).toEqual([
+      0, 2,
+    ])
+    expect(listed.ok && listed.value.rsvps[0]?.details.moments).toEqual([dinner])
+    expect(exported.ok && exported.value.csv).toContain('Famille Martin;2;0;;2')
+  })
+
+  it('counts apart the yes replies with no moment, and lets the host save one without forcing a moment', async () => {
+    const sent = await scene.submit({ token, name: 'Léa', answer: 'yes', adults: 2 })
+    if (!sent.ok) throw new Error('sent')
+    await askTwo()
+
+    const listed = await scene.list({ eventId: WEDDING, actorId: OWNER })
+    expect(listed.ok && listed.value.stats.noMoment).toEqual({ responses: 1, people: 2 })
+
+    const corrected = await scene.hostUpdate({
+      eventId: WEDDING,
+      actorId: OWNER,
+      rsvpId: sent.value.rsvp.id,
+      name: 'Léa Martin',
+      answer: 'yes',
+      adults: 2,
+    })
+    expect(corrected.ok).toBe(true)
+    // The guest herself is still asked for one.
+    const guest = await scene.updateOwn({
+      token,
+      editToken: sent.value.editToken,
+      name: 'Léa',
+      answer: 'yes',
+      adults: 2,
+    })
+    expect(code(guest)).toBe('rsvp.momentsRequired')
+  })
+
+  it('still forces a moment on a host correction when the reply has one that exists', async () => {
+    const { brunch } = await askTwo()
+    const sent = await scene.submit({
+      token,
+      name: 'Léa',
+      answer: 'yes',
+      adults: 1,
+      moments: [brunch],
+    })
+    if (!sent.ok) throw new Error('sent')
+
+    const corrected = await scene.hostUpdate({
+      eventId: WEDDING,
+      actorId: OWNER,
+      rsvpId: sent.value.rsvp.id,
+      name: 'Léa',
+      answer: 'yes',
+      adults: 1,
+    })
+
+    expect(code(corrected)).toBe('rsvp.momentsRequired')
+  })
+})
