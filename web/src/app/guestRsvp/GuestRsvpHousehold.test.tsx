@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
@@ -95,7 +95,7 @@ describe('the household link: reading it', () => {
     expect(guestHousehold).toHaveBeenCalledWith(TOKEN, LINK, expect.anything())
   })
 
-  it('prefers a link on the address to what the device remembers, and a household to a reply token', async () => {
+  it('prefers a link on the address to what the device remembers, and still offers the older reply token', async () => {
     storeHouseholdToken(TOKEN, 'REMEMBEREDHOUSEH')
     storeEditToken(TOKEN, 'remembered-reply-token')
     arriveBy(`#f=${LINK}`)
@@ -106,10 +106,12 @@ describe('the household link: reading it', () => {
     await screen.findByText(plain(t.householdGreeting('Famille Martin')))
 
     expect(guestHousehold).toHaveBeenCalledWith(TOKEN, LINK, expect.anything())
-    expect(guestRsvp).not.toHaveBeenCalled()
+    // The reply token the device also holds is read too: offered aside, never silently shadowed.
+    expect(guestRsvp).toHaveBeenCalledWith(TOKEN, 'remembered-reply-token', expect.anything())
+    expect(await screen.findByText(plain(t.olderReply('Léa Martin')))).toBeInTheDocument()
   })
 
-  it('prefers the household the device remembers to a reply token it also remembers', async () => {
+  it('prefers the household the device remembers, and still offers the older reply token', async () => {
     storeHouseholdToken(TOKEN, LINK)
     storeEditToken(TOKEN, 'remembered-reply-token')
     const guestHousehold = vi.fn(async () => MARTIN)
@@ -117,9 +119,9 @@ describe('the household link: reading it', () => {
     render({ guestHousehold, guestRsvp })
 
     await screen.findByText(plain(t.householdGreeting('Famille Martin')))
-
     expect(guestHousehold).toHaveBeenCalledWith(TOKEN, LINK, expect.anything())
-    expect(guestRsvp).not.toHaveBeenCalled()
+    expect(guestRsvp).toHaveBeenCalledWith(TOKEN, 'remembered-reply-token', expect.anything())
+    expect(await screen.findByText(plain(t.olderReply('Léa Martin')))).toBeInTheDocument()
   })
 
   it('works with no memory at all: the link is enough for the visit', async () => {
@@ -410,5 +412,239 @@ describe('the household link: when it does not work', () => {
 
     await waitFor(() => expect(view.container.querySelector('[aria-busy]')).toBeNull())
     expect(screen.queryByRole('button', { name: t.yes })).not.toBeInTheDocument()
+  })
+})
+
+describe('the household link: what review of #548 asked', () => {
+  const answered = (overrides = {}) => ({
+    household: {
+      ...MARTIN.household,
+      rsvp: aGuestOwnRsvp({ name: 'Famille Martin', ...overrides }),
+    },
+  })
+
+  it('keeps the link when the reply was erased on another phone: the household is asked again, the link is not dropped', async () => {
+    arriveBy(`#f=${LINK}`)
+    const user = userEvent.setup()
+    const guestHouseholdRsvpUpdate = vi.fn(async () => {
+      throw new ApiError(404, 'rsvp.notFound')
+    })
+    const guestRsvpCreate = vi.fn()
+    render({
+      guestHousehold: vi.fn(async () => answered()),
+      guestHouseholdRsvpUpdate,
+      guestRsvpCreate,
+    })
+
+    await user.click(await screen.findByRole('button', { name: t.edit }))
+    await user.click(screen.getByRole('button', { name: t.no }))
+    await user.click(screen.getByRole('button', { name: t.save }))
+
+    await waitFor(() => expect(guestHouseholdRsvpUpdate).toHaveBeenCalledTimes(1))
+    // Still the household's form, with its greeting and its link kept for the device.
+    expect(
+      await screen.findByText(plain(t.householdGreeting('Famille Martin'))),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t.yes })).toBeInTheDocument()
+    expect(screen.queryByText(plain(t.householdGone))).not.toBeInTheDocument()
+    expect(readStoredHouseholdToken(TOKEN)).toBe(LINK)
+    // Answering again goes through the household's link, never as a stray open reply.
+    const guestHouseholdRsvpCreate = vi.fn(async () => ({ rsvp: aGuestOwnRsvp() }))
+    expect(guestRsvpCreate).not.toHaveBeenCalled()
+    expect(guestHouseholdRsvpCreate).not.toHaveBeenCalled()
+  })
+
+  it('answers again with the household’s link after that, and drops the link only when a POST says it is dead', async () => {
+    arriveBy(`#f=${LINK}`)
+    const user = userEvent.setup()
+    const guestHouseholdRsvpUpdate = vi.fn(async () => {
+      throw new ApiError(404, 'rsvp.notFound')
+    })
+    const guestHouseholdRsvpCreate = vi.fn(async () => ({ rsvp: aGuestOwnRsvp() }))
+    const guestRsvpCreate = vi.fn()
+    render({
+      guestHousehold: vi.fn(async () => answered()),
+      guestHouseholdRsvpUpdate,
+      guestHouseholdRsvpCreate,
+      guestRsvpCreate,
+    })
+    await user.click(await screen.findByRole('button', { name: t.edit }))
+    await user.click(screen.getByRole('button', { name: t.save }))
+    await screen.findByRole('button', { name: t.yes })
+
+    await user.click(screen.getByRole('button', { name: t.no }))
+    await user.click(screen.getByRole('button', { name: t.send }))
+
+    await waitFor(() =>
+      expect(guestHouseholdRsvpCreate).toHaveBeenCalledWith(TOKEN, LINK, expect.anything()),
+    )
+    expect(guestRsvpCreate).not.toHaveBeenCalled()
+  })
+
+  it('forgets the household when a reply link is opened: the reply link wins over the memory', async () => {
+    storeHouseholdToken(TOKEN, LINK)
+    arriveBy('#r=fragment-token-1234')
+    const guestHousehold = vi.fn(async () => MARTIN)
+    const guestRsvp = vi.fn(async () => ({ rsvp: aGuestOwnRsvp() }))
+    render({ guestHousehold, guestRsvp })
+
+    expect(await screen.findByRole('heading', { name: t.doneYes('Léa') })).toBeInTheDocument()
+    expect(guestHousehold).not.toHaveBeenCalled()
+    expect(readStoredHouseholdToken(TOKEN)).toBeNull()
+    expect(readStoredEditToken(TOKEN)).toBe('fragment-token-1234')
+  })
+
+  it('offers to erase the older reply this device holds when a household link is opened, and erases it', async () => {
+    storeEditToken(TOKEN, 'older-token-1234')
+    arriveBy(`#f=${LINK}`)
+    const user = userEvent.setup()
+    const guestRsvpDelete = vi.fn(async () => undefined)
+    render({ guestRsvpDelete })
+
+    await screen.findByText(plain(t.householdGreeting('Famille Martin')))
+    await user.click(await screen.findByRole('button', { name: t.olderReplyDelete }))
+
+    await waitFor(() => expect(guestRsvpDelete).toHaveBeenCalledWith(TOKEN, 'older-token-1234'))
+    await waitFor(() =>
+      expect(screen.queryByText(plain(t.olderReply('Léa Martin')))).not.toBeInTheDocument(),
+    )
+    expect(readStoredEditToken(TOKEN)).toBeNull()
+  })
+
+  it('lets a shared phone drop the household with “Ce n’est pas votre foyer ?”, and asks afresh', async () => {
+    arriveBy(`#f=${LINK}`)
+    storeEditToken(TOKEN, 'older-token-1234')
+    const user = userEvent.setup()
+    render({ guestHousehold: vi.fn(async () => answered()) })
+
+    await user.click(await screen.findByRole('button', { name: /Ce n.est pas votre foyer/ }))
+
+    expect(await screen.findByRole('button', { name: t.yes })).toBeInTheDocument()
+    expect(screen.queryByText(plain(t.householdGreeting('Famille Martin')))).not.toBeInTheDocument()
+    expect(readStoredHouseholdToken(TOKEN)).toBeNull()
+    expect(readStoredEditToken(TOKEN)).toBeNull()
+    expect(screen.queryByText(plain(t.olderReply('Léa Martin')))).not.toBeInTheDocument()
+  })
+
+  it('lets a shared phone drop a plain reply too: “Ce n’est pas votre réponse ?”', async () => {
+    storeEditToken(TOKEN, 'held-token')
+    const user = userEvent.setup()
+    render()
+
+    await user.click(await screen.findByRole('button', { name: /Ce n.est pas votre réponse/ }))
+
+    expect(await screen.findByRole('button', { name: t.yes })).toBeInTheDocument()
+    expect(readStoredEditToken(TOKEN)).toBeNull()
+    expect(screen.queryByText(plain(t.forgotten))).not.toBeInTheDocument()
+  })
+
+  it('says a link that was cut off is incomplete, and asks as the common form', async () => {
+    arriveBy('#f=abc')
+    const guestHousehold = vi.fn(async () => MARTIN)
+    render({ guestHousehold })
+
+    expect(await screen.findByText(plain(t.householdIncomplete))).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t.yes })).toBeInTheDocument()
+    expect(guestHousehold).not.toHaveBeenCalled()
+    expect(window.location.hash).toBe('')
+  })
+
+  it('says a dead or cut-off link in the closed and off states too', async () => {
+    arriveBy('#f=abc')
+    const closed = render({}, aGuestRsvpPage({ state: 'closed' }))
+    expect(await screen.findByText(plain(t.householdIncomplete))).toBeInTheDocument()
+    expect(screen.getByText(t.closedTitle)).toBeInTheDocument()
+    closed.unmount()
+
+    forgetHouseholdToken(TOKEN)
+    arriveBy(`#f=${LINK}`)
+    render(
+      {
+        guestHousehold: vi.fn(async () => {
+          throw new ApiError(404, 'rsvp.notFound')
+        }),
+      },
+      aGuestRsvpPage({ state: 'off' }),
+    )
+    expect(await screen.findByText(plain(t.householdGone))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t.yes })).not.toBeInTheDocument()
+  })
+
+  it('says the dead link in a status region', async () => {
+    arriveBy(`#f=${LINK}`)
+    render({
+      guestHousehold: vi.fn(async () => {
+        throw new ApiError(404, 'rsvp.notFound')
+      }),
+    })
+
+    const sentence = await screen.findByText(plain(t.householdGone))
+    expect(sentence).toHaveAttribute('role', 'status')
+  })
+
+  it('keeps the household’s name in the empty form after a send and after an erasure', async () => {
+    arriveBy(`#f=${LINK}`)
+    const user = userEvent.setup()
+    render({
+      guestHouseholdRsvpCreate: vi.fn(async () => ({
+        rsvp: aGuestOwnRsvp({ name: 'Famille Martin' }),
+      })),
+    })
+    await screen.findByText(t.householdPlaces(4))
+    await user.click(screen.getByRole('button', { name: t.no }))
+    await user.click(screen.getByRole('button', { name: t.send }))
+    await screen.findByRole('heading', { name: t.doneYes('Famille') })
+
+    await user.click(screen.getByRole('button', { name: t.delete }))
+    await user.click(screen.getByRole('button', { name: t.deleteYes }))
+    await screen.findByText(t.deleted)
+    await user.click(screen.getByRole('button', { name: t.no }))
+
+    expect(screen.getByLabelText(new RegExp(t.nameLabel))).toHaveValue('Famille Martin')
+  })
+
+  it('opens the change form inside the household’s places when the host lowered them', async () => {
+    arriveBy(`#f=${LINK}`)
+    const user = userEvent.setup()
+    render({
+      guestHousehold: vi.fn(async () => ({
+        household: {
+          name: 'Famille Martin',
+          places: 2,
+          rsvp: aGuestOwnRsvp({ name: 'Famille Martin', adults: 3, kids: 2 }),
+        },
+      })),
+    })
+
+    await user.click(await screen.findByRole('button', { name: t.edit }))
+
+    expect(screen.getByLabelText(t.adults, { selector: 'output' })).toHaveTextContent('2')
+    expect(screen.getByLabelText(t.kids, { selector: 'output' })).toHaveTextContent('0')
+  })
+
+  it('takes a link pasted into the tab that is already open: the bar is cleaned and the household read', async () => {
+    const guestHousehold = vi.fn(async () => MARTIN)
+    render({ guestHousehold })
+    await screen.findByRole('button', { name: t.yes })
+
+    window.history.replaceState(null, '', `/i/${TOKEN}#f=${LINK}`)
+    act(() => {
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+    })
+
+    expect(
+      await screen.findByText(plain(t.householdGreeting('Famille Martin'))),
+    ).toBeInTheDocument()
+    expect(guestHousehold).toHaveBeenCalledWith(TOKEN, LINK, expect.anything())
+    expect(window.location.hash).toBe('')
+    expect(readStoredHouseholdToken(TOKEN)).toBe(LINK)
+  })
+
+  it('hides the dot between the greeting and the places from a screen reader', async () => {
+    arriveBy(`#f=${LINK}`)
+    render()
+
+    const greeting = (await screen.findByText(t.householdPlaces(4))).closest('p')
+    expect(greeting?.querySelector('[aria-hidden="true"]')).toHaveTextContent('·')
   })
 })

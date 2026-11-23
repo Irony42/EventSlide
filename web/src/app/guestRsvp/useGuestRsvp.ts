@@ -6,6 +6,7 @@ import {
   discardEditTokenFragment,
   forgetEditToken,
   forgetHouseholdToken,
+  householdFragmentWasIncomplete,
   readStoredEditToken,
   readStoredHouseholdToken,
   storeEditToken,
@@ -19,12 +20,18 @@ import { useApi } from '../../lib/useApi'
  * what a reply may hold, which refusal means what, are the server's; this keeps the token the
  * device holds, reads the reply with it, and sends what the form built.
  *
- * On first mount: a token in the link's fragment is taken and removed from the address bar, and kept.
- * `#r=` is a reply's own token; `#f=` is a **household's personal link** (lot 3), which opens the
- * household's name, places and **one** reply and is shared by every device of the household. A
- * fragment on the link wins over what the device remembers, and a household over a reply token. A
- * token the box refuses (`404 rsvp.notFound`: the reply was deleted, the link changed) is forgotten,
- * so the guest is asked again and nothing stale is ever shown. The page works without any memory.
+ * On first mount (and when the guest pastes another link into the same tab): a token in the link's
+ * fragment is taken and removed from the address bar, and kept. `#r=` is a reply's own token; `#f=`
+ * is a **household's personal link** (lot 3), which opens the household's name, places and **one**
+ * reply and is shared by every device of the household. A fragment on the link wins over what the
+ * device remembers: a `#r=` link makes the device forget its household, and a household link keeps
+ * offering the older reply token the device also holds (to read it, and to erase it). A token the
+ * box refuses (`404 rsvp.notFound`: the reply was deleted, the link changed) is forgotten, so the
+ * guest is asked again and nothing stale is ever shown. The page works without any memory.
+ *
+ * A household's reply that is gone (erased on another phone) is **not** a dead link: the link still
+ * opens the household, which is asked again. Only the read of the household itself, or an answer
+ * with its link, being refused makes the device forget the link.
  */
 
 export type RsvpPhase = 'reading' | 'ready'
@@ -48,13 +55,23 @@ export interface GuestRsvpState {
   readonly phase: RsvpPhase
   /** The reply this device (or the link it was opened with) holds, once read. */
   readonly own: OwnReply | null
+  /**
+   * A reply of this device's own that is **older than the household link** just opened: kept visible
+   * so it can be read and erased, never silently shadowed.
+   */
+  readonly older: OwnReply | null
   /** The household the link opened, once read: the form is then the household's. */
   readonly household: HouseholdView | null
   /** The household's link could not be read (a network failure, not a refusal): ask again. */
   readonly householdUnread: boolean
   /** The household's link was refused and dropped: the page may say so once. */
   readonly householdGone: boolean
+  /** The link was cut off (a `#f=` with no token in it): it opens nothing. */
+  readonly householdIncomplete: boolean
   readonly retryHousehold: () => void
+  /** "Ce n'est pas votre foyer ?": the device forgets the household and the reply token, and asks afresh. */
+  readonly forgetDevice: () => void
+  readonly removeOlder: () => Promise<boolean>
   /** A send is in flight: the buttons wait, and a second tap sends nothing. */
   readonly sending: boolean
   /** The last write's refusal, as the server's code, or `network` / `busy`; `null` when none. */
@@ -75,44 +92,65 @@ const failureOf = (cause: unknown): string => {
 const isNotFound = (cause: unknown): boolean =>
   cause instanceof ApiError && cause.code === 'rsvp.notFound'
 
-/** The tokens the device holds, decided once; see {@link useGuestRsvp}. */
+/** The tokens the device holds, decided at the start and again when another link is pasted in. */
 interface Held {
   readonly household: string | null
   readonly edit: string | null
+  readonly incomplete: boolean
 }
+
+const NOTHING: Held = { household: null, edit: null, incomplete: false }
 
 export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpState => {
   const api = useApi()
-  // Decided once and lazily, so the first render already knows whether there is something to wait for
-  // and no effect has to set state to say so. Both fragments are taken (and removed from the bar)
-  // before any is chosen: a fragment on the link is the way in and beats the memory.
-  const [initial] = useState<Held>(() => {
-    if (!interactive) {
-      discardEditTokenFragment()
-      return { household: null, edit: null }
-    }
+  // Both fragments are taken (and removed from the bar) before any is chosen: a fragment on the link
+  // is the way in and beats the memory.
+  const decide = useCallback((): Held => {
     const fromHouseholdLink = takeHouseholdTokenFromFragment(token)
     const fromReplyLink = takeEditTokenFromFragment(token)
-    if (fromHouseholdLink !== null) return { household: fromHouseholdLink, edit: null }
-    if (fromReplyLink !== null) return { household: null, edit: fromReplyLink }
-    const remembered = readStoredHouseholdToken(token)
-    if (remembered !== null) return { household: remembered, edit: null }
-    return { household: null, edit: readStoredEditToken(token) }
+    const incomplete = householdFragmentWasIncomplete(token)
+    if (fromHouseholdLink !== null) {
+      return { household: fromHouseholdLink, edit: readStoredEditToken(token), incomplete: false }
+    }
+    if (fromReplyLink !== null) {
+      // The link in hand is a reply's: the device is not the household's any more.
+      forgetHouseholdToken(token)
+      return { household: null, edit: fromReplyLink, incomplete: false }
+    }
+    return {
+      household: readStoredHouseholdToken(token),
+      edit: readStoredEditToken(token),
+      incomplete,
+    }
+  }, [token])
+
+  // Decided once and lazily, so the first render already knows whether there is something to wait for
+  // and no effect has to set state to say so.
+  const [initial, setInitial] = useState<Held>(() => {
+    if (!interactive) {
+      discardEditTokenFragment()
+      return NOTHING
+    }
+    return decide()
   })
-  const held = initial.edit
   const [householdToken, setHouseholdToken] = useState<string | null>(initial.household)
   const [phase, setPhase] = useState<RsvpPhase>(
-    held === null && initial.household === null ? 'ready' : 'reading',
+    initial.household === null && initial.edit === null ? 'ready' : 'reading',
   )
   const [own, setOwn] = useState<OwnReply | null>(null)
+  const [older, setOlder] = useState<OwnReply | null>(null)
   const [household, setHousehold] = useState<HouseholdView | null>(null)
   const [householdUnread, setHouseholdUnread] = useState(false)
   const [householdGone, setHouseholdGone] = useState(false)
+  const [incomplete, setIncomplete] = useState(initial.incomplete)
   const [attempt, setAttempt] = useState(0)
   const [sending, setSending] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [forgotten, setForgotten] = useState(false)
   const busy = useRef(false)
+
+  const held = initial.edit
+  const withHouseholdLink = initial.household !== null
 
   useEffect(() => {
     if (held === null) return
@@ -120,8 +158,13 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
     api.guestRsvp(token, held, stop.signal).then(
       ({ rsvp }) => {
         if (stop.signal.aborted) return
-        setOwn({ reply: rsvp, editToken: held })
-        setPhase('ready')
+        const found = { reply: rsvp, editToken: held }
+        // With a household link in hand the device's own reply is the older one: shown aside.
+        if (withHouseholdLink) setOlder(found)
+        else {
+          setOwn(found)
+          setPhase('ready')
+        }
       },
       (cause: unknown) => {
         if (stop.signal.aborted) return
@@ -129,13 +172,13 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
         // leaves the memory alone, and the page asks again as if nothing were known.
         if (isNotFound(cause)) {
           forgetEditToken(token)
-          setForgotten(true)
+          if (!withHouseholdLink) setForgotten(true)
         }
-        setPhase('ready')
+        if (!withHouseholdLink) setPhase('ready')
       },
     )
     return () => stop.abort()
-  }, [api, token, held])
+  }, [api, token, held, withHouseholdLink, attempt])
 
   // The household's link: its name and places, and its reply if it gave one.
   useEffect(() => {
@@ -165,15 +208,58 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
     return () => stop.abort()
   }, [api, token, householdToken, attempt])
 
+  // A link pasted into the tab that is already open changes only its hash: nothing would remount, so
+  // it is taken (and removed from the bar) here with the same rules as at the start.
+  useEffect(() => {
+    if (!interactive) return
+    const onHashChange = () => {
+      if (!/^#[rf]=/.test(window.location.hash)) return
+      const next = decide()
+      setInitial(next)
+      setHouseholdToken(next.household)
+      setIncomplete(next.incomplete)
+      setOwn(null)
+      setOlder(null)
+      setHousehold(null)
+      setHouseholdGone(false)
+      setHouseholdUnread(false)
+      setForgotten(false)
+      setPhase(next.household === null && next.edit === null ? 'ready' : 'reading')
+      setAttempt((count) => count + 1)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [interactive, decide])
+
   const retryHousehold = useCallback(() => {
     setHouseholdUnread(false)
     setPhase('reading')
     setAttempt((count) => count + 1)
   }, [])
 
-  /** One write at a time, and its refusal kept for the form to say. */
+  const forgetDevice = useCallback(() => {
+    forgetHouseholdToken(token)
+    forgetEditToken(token)
+    setInitial(NOTHING)
+    setHouseholdToken(null)
+    setOwn(null)
+    setOlder(null)
+    setHousehold(null)
+    setHouseholdGone(false)
+    setHouseholdUnread(false)
+    setIncomplete(false)
+    setForgotten(false)
+    setFailure(null)
+    setPhase('ready')
+  }, [token])
+
+  /**
+   * One write at a time, and its refusal kept for the form to say. `ofReply` says the write is about
+   * a household's **reply** (a change), whose absence is not the link's: the reply was erased on
+   * another phone, and the household is asked again with its link kept.
+   */
   const write = useCallback(
-    async (run: () => Promise<void>): Promise<boolean> => {
+    async (run: () => Promise<void>, ofReply = false): Promise<boolean> => {
       if (busy.current) return false
       busy.current = true
       setSending(true)
@@ -182,9 +268,10 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
         await run()
         return true
       } catch (cause) {
-        // A reply that is gone, or a token refused, is not a stale form to retry: forget it.
         if (isNotFound(cause)) {
           setOwn(null)
+          if (householdToken !== null && ofReply) return false
+          // A reply that is gone, or a token refused, is not a stale form to retry: forget it.
           if (householdToken !== null) {
             forgetHouseholdToken(token)
             setHouseholdToken(null)
@@ -235,7 +322,7 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
         }
         const changed = await api.guestRsvpUpdate(token, current.editToken, input)
         setOwn({ reply: changed.rsvp, editToken: current.editToken })
-      }),
+      }, current.editToken === null),
     [api, token, write, householdToken],
   )
 
@@ -251,8 +338,24 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
         await api.guestRsvpDelete(token, current.editToken)
         forgetEditToken(token)
         setOwn(null)
-      }),
+      }, current.editToken === null),
     [api, token, write, householdToken],
+  )
+
+  const removeOlder = useCallback(
+    () =>
+      write(async () => {
+        if (older === null || older.editToken === null) return
+        try {
+          await api.guestRsvpDelete(token, older.editToken)
+        } catch (cause) {
+          // Already gone: the wish to erase it is done.
+          if (!isNotFound(cause)) throw cause
+        }
+        forgetEditToken(token)
+        setOlder(null)
+      }),
+    [api, token, write, older],
   )
 
   const clearFailure = useCallback(() => setFailure(null), [])
@@ -260,10 +363,14 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
   return {
     phase,
     own,
+    older,
     household,
     householdUnread,
     householdGone,
+    householdIncomplete: incomplete,
     retryHousehold,
+    forgetDevice,
+    removeOlder,
     sending,
     failure,
     forgotten,
