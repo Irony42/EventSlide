@@ -30,6 +30,13 @@ import { makeSaveGuestInvite } from '../application/usecases/guestInvites/saveGu
 import { makeEnableGuestInvite } from '../application/usecases/guestInvites/enableGuestInvite'
 import { makeDisableGuestInvite } from '../application/usecases/guestInvites/disableGuestInvite'
 import { makeRotateGuestInviteToken } from '../application/usecases/guestInvites/rotateGuestInviteToken'
+import { makeSubmitRsvp } from '../application/usecases/guestRsvps/submitRsvp'
+import {
+  makeDeleteOwnRsvp,
+  makeGetOwnRsvp,
+  makeUpdateOwnRsvp,
+  type OwnRsvpDeps,
+} from '../application/usecases/guestRsvps/ownRsvp'
 import { makePurgeExpiredRsvps } from '../application/usecases/guestRsvps/purgeExpiredRsvps'
 import { makeGetRsvpForm } from '../application/usecases/guestRsvps/getRsvpForm'
 import { makeSaveRsvpForm } from '../application/usecases/guestRsvps/saveRsvpForm'
@@ -45,6 +52,16 @@ import { makeCountUnseenRsvps } from '../application/usecases/guestRsvps/countUn
 import { archiveStateOf } from '../domain/exports/albumExport'
 import type { Adapters, UseCasePolicy } from './usecases'
 import type { SharedHooks } from './usecases.shared'
+
+/** The three use cases of a guest's own reply read the same things. */
+const ownRsvpDeps = (adapters: Adapters): OwnRsvpDeps => ({
+  events: adapters.events,
+  invites: adapters.guestInvites,
+  rsvps: adapters.guestRsvps,
+  secrets: adapters.secretTokens,
+  bus: adapters.bus,
+  clock: adapters.clock,
+})
 
 /** The events slice of the use-case bag: composition only, built by `buildUseCases`. */
 export const eventsUseCases = (
@@ -114,7 +131,25 @@ export const eventsUseCases = (
   }),
   // The guest invitation, the owner's side (spec 29): audited acts, no content in the log.
   // The guests' side (spec 29): public, one refusal, the event read by id after the invitation.
-  viewGuestInvite: makeViewGuestInvite({ events: adapters.events, invites: adapters.guestInvites }),
+  viewGuestInvite: makeViewGuestInvite({
+    events: adapters.events,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    clock: adapters.clock,
+  }),
+  // The guests' replies, the guests' side (spec 30): public, one refusal, the token bound to the event.
+  submitRsvp: makeSubmitRsvp({
+    events: adapters.events,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    secrets: adapters.secretTokens,
+    ids: adapters.ids,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  getOwnRsvp: makeGetOwnRsvp(ownRsvpDeps(adapters)),
+  updateOwnRsvp: makeUpdateOwnRsvp(ownRsvpDeps(adapters)),
+  deleteOwnRsvp: makeDeleteOwnRsvp(ownRsvpDeps(adapters)),
   getGuestInviteLogoMedia: makeGetGuestInviteLogoMedia({
     events: adapters.events,
     invites: adapters.guestInvites,

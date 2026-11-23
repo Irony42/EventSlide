@@ -1283,6 +1283,14 @@ export const toGuestInviteDto = (
  * relative, so a page reached on any address leads to the same address.
  */
 export const toGuestInvitePageDto = (view: GuestInviteView, token: string): GuestInvitePageDto => ({
+  rsvp: {
+    state: view.rsvp.state,
+    deadline: view.rsvp.deadline,
+    form: view.rsvp.form,
+    ...(view.rsvp.proof === null
+      ? {}
+      : { proof: { count: view.rsvp.proof.count, names: [...view.rsvp.proof.names] } }),
+  },
   state: view.state,
   title: view.title,
   when: {

@@ -562,6 +562,37 @@ export const galleryMediaLimiter = (perMinute: number): RateLimitRequestHandler 
 export const guestInviteLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'rate.limited', clientKey)
 
+/**
+ * What one invitation may take in writes to its replies per minute, **from every address together**.
+ * A constant, like the guestbook's per-guest figure: the per-address budget is the setting
+ * (`GUEST_RSVP_RATE_LIMIT_PER_MINUTE`), and this one only bounds a flood spread over many
+ * addresses against one party: three hundred guests answering within the minute the message goes
+ * out is the legitimate peak, one reply each.
+ */
+export const GUEST_RSVP_WRITES_PER_INVITE_PER_MINUTE = 300
+
+/**
+ * The invitation a request is for, as a key: its token **digested** (the limiter's own memory must
+ * never hold a link), and one shared bucket for anything that is not token-shaped, so a sprayer of
+ * invented links spends one allowance, not one each.
+ */
+const inviteKey = (req: Request): string => {
+  const token = req.params['token']
+  if (typeof token !== 'string' || !/^[A-Za-z0-9]{8,64}$/.test(token)) return `invite:${NO_EVENT}`
+  return `invite:${createHash('sha256').update(token).digest('hex')}`
+}
+
+/**
+ * The write limit of the guests' replies (spec 30, CLAUDE.md section 8): **per address and per
+ * invitation**, two buckets that both have to have room. Build it **once** (`server.ts`): the POST,
+ * PUT and DELETE of a guest are one guest and one allowance, and `express-rate-limit` mints a store
+ * per call. Reads stay under {@link guestInviteLimiter}.
+ */
+export const guestRsvpWriteLimiters = (perAddressPerMinute: number): readonly RequestHandler[] => [
+  limiter(perAddressPerMinute, 'rate.limited', clientKey),
+  limiter(GUEST_RSVP_WRITES_PER_INVITE_PER_MINUTE, 'rate.limited', inviteKey),
+]
+
 /** A quarter of an hour: long enough to stop a guesser, short enough to forgive a typo. */
 const UNLOCK_WINDOW_MS = 15 * 60_000
 

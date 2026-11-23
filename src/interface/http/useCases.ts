@@ -132,6 +132,12 @@ import type { DisableGuestInvite } from '../../application/usecases/guestInvites
 import type { RotateGuestInviteToken } from '../../application/usecases/guestInvites/rotateGuestInviteToken'
 import type { GetRsvpForm } from '../../application/usecases/guestRsvps/getRsvpForm'
 import type { SaveRsvpForm } from '../../application/usecases/guestRsvps/saveRsvpForm'
+import type { SubmitRsvp } from '../../application/usecases/guestRsvps/submitRsvp'
+import type {
+  DeleteOwnRsvp,
+  GetOwnRsvp,
+  UpdateOwnRsvp,
+} from '../../application/usecases/guestRsvps/ownRsvp'
 import type { CloseRsvps } from '../../application/usecases/guestRsvps/closeRsvps'
 import type { ListRsvps } from '../../application/usecases/guestRsvps/listRsvps'
 import type { HostAddRsvp } from '../../application/usecases/guestRsvps/hostAddRsvp'
@@ -353,6 +359,10 @@ export interface HttpUseCases {
   readonly enableGuestInvite: EnableGuestInvite
   readonly disableGuestInvite: DisableGuestInvite
   readonly rotateGuestInviteToken: RotateGuestInviteToken
+  readonly submitRsvp: SubmitRsvp
+  readonly getOwnRsvp: GetOwnRsvp
+  readonly updateOwnRsvp: UpdateOwnRsvp
+  readonly deleteOwnRsvp: DeleteOwnRsvp
   readonly getRsvpForm: GetRsvpForm
   readonly saveRsvpForm: SaveRsvpForm
   readonly closeRsvps: CloseRsvps

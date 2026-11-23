@@ -8,6 +8,14 @@ import { makeHostUpdateRsvp } from '../usecases/guestRsvps/hostUpdateRsvp'
 import { makeListRsvps } from '../usecases/guestRsvps/listRsvps'
 import { makeMarkRsvpsSeen } from '../usecases/guestRsvps/markRsvpsSeen'
 import { makePurgeExpiredRsvps } from '../usecases/guestRsvps/purgeExpiredRsvps'
+import { makeViewGuestInvite } from '../usecases/guestInvites/viewGuestInvite'
+import {
+  makeDeleteOwnRsvp,
+  makeGetOwnRsvp,
+  makeUpdateOwnRsvp,
+} from '../usecases/guestRsvps/ownRsvp'
+import { makeSubmitRsvp } from '../usecases/guestRsvps/submitRsvp'
+import { FakeSecretTokens } from './fakeSecretTokens'
 import { makeSaveRsvpForm } from '../usecases/guestRsvps/saveRsvpForm'
 import { FakeGuestRsvpRepository } from './fakeGuestRsvpRepository'
 import { guestInviteScene, OWNER, PARTY, WEDDING, type GuestInviteScene } from './guestInviteScene'
@@ -49,6 +57,13 @@ export interface RsvpScene extends GuestInviteScene {
   readonly markSeen: ReturnType<typeof makeMarkRsvpsSeen>
   readonly countUnseen: ReturnType<typeof makeCountUnseenRsvps>
   readonly purge: ReturnType<typeof makePurgeExpiredRsvps>
+  readonly secrets: FakeSecretTokens
+  readonly submit: ReturnType<typeof makeSubmitRsvp>
+  readonly getOwn: ReturnType<typeof makeGetOwnRsvp>
+  readonly updateOwn: ReturnType<typeof makeUpdateOwnRsvp>
+  readonly deleteOwn: ReturnType<typeof makeDeleteOwnRsvp>
+  /** The wedding's invitation link, as a guest has it. */
+  readonly token: () => Promise<string>
 }
 
 /** The scene, and the wedding's invitation saved with a date (replies hang on it). */
@@ -59,6 +74,8 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
   const ids = new SequentialIdGenerator()
   const { events, memberships, invites, audit, clock } = base
   const access = { events, memberships, invites }
+  const publicAccess = { events, invites }
+  const secrets = new FakeSecretTokens()
 
   // Every event of the scene holds its owner as a member of the replies badge too.
   rsvps.addMember(WEDDING, OWNER)
@@ -84,5 +101,12 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
     markSeen: makeMarkRsvpsSeen({ ...access, rsvps, clock }),
     countUnseen: makeCountUnseenRsvps({ rsvps }),
     purge: makePurgeExpiredRsvps({ rsvps, clock }),
+    secrets,
+    submit: makeSubmitRsvp({ ...publicAccess, rsvps, secrets, ids, bus, clock }),
+    getOwn: makeGetOwnRsvp({ ...publicAccess, rsvps, secrets, bus, clock }),
+    updateOwn: makeUpdateOwnRsvp({ ...publicAccess, rsvps, secrets, bus, clock }),
+    deleteOwn: makeDeleteOwnRsvp({ ...publicAccess, rsvps, secrets, bus, clock }),
+    view: makeViewGuestInvite({ events, invites, rsvps, clock }),
+    token: async () => (await invites.findByEvent(WEDDING))?.token.value ?? 'absent',
   }
 }

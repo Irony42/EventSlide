@@ -4,6 +4,8 @@ import { makeGetGuestInviteLogoMedia } from '../../../application/usecases/guest
 import { makeViewGuestInvite } from '../../../application/usecases/guestInvites/viewGuestInvite'
 import { AT, aGuestInvite, anEvent } from '../../../application/testing/builders'
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
+import { FakeClock } from '../../../application/testing/fakeClock'
+import { FakeGuestRsvpRepository } from '../../../application/testing/fakeGuestRsvpRepository'
 import { FakeGuestInviteRepository } from '../../../application/testing/fakeGuestInviteRepository'
 import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 import { Event } from '../../../domain/events/event'
@@ -112,7 +114,12 @@ const buildWorld = async (perMinute = 200): Promise<World> => {
       },
     },
     usecases: {
-      viewGuestInvite: makeViewGuestInvite({ events, invites }),
+      viewGuestInvite: makeViewGuestInvite({
+        events,
+        invites,
+        rsvps: new FakeGuestRsvpRepository(),
+        clock: new FakeClock(AT),
+      }),
       getGuestInviteLogoMedia: makeGetGuestInviteLogoMedia({ events, invites, media }),
     },
   })

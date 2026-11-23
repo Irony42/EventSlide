@@ -140,6 +140,18 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'get /api/i/:token/logo':
     'the logo of that page, behind the same token and the same neutral 404: it is served only ' +
     'while the page is, and an operator holding no token is a stranger to it',
+  'post /api/i/:token/rsvp':
+    'a guest answers the invitation (spec 30): the link’s token **is** the credential, and the use ' +
+    'case decides everything with it. One neutral 404 for a link that cannot be served, the same ' +
+    'answer for everybody who holds a live one: an operator holding no token is a stranger to it',
+  'get /api/i/:token/rsvp':
+    'a guest reads their own reply: the invitation’s token **and** the reply’s own token, in a ' +
+    'header, bound to the event. An operator holding neither learns nothing',
+  'put /api/i/:token/rsvp':
+    'a guest changes their own reply, behind the same two tokens and the same neutral refusals',
+  'delete /api/i/:token/rsvp':
+    'a guest deletes their own reply, behind the same two tokens: an operator holding neither ' +
+    'is a stranger to it',
   'get /api/invitations/:token':
     'an invitation link (roadmap §10.3): the token **is** the credential, and what it shows ' +
     'is the same neutral answer to everyone — the purpose, the target’s name and the end of ' +
@@ -454,6 +466,8 @@ const BODIES: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   'post /api/events': { name: 'Soirée' },
   'post /api/join': { joinCode: 'H7K2QM' },
   'post /api/gallery/:token/unlock': { password: 'x' },
+  'post /api/i/:token/rsvp': { name: 'Léa', answer: 'yes' },
+  'put /api/i/:token/rsvp': { name: 'Léa', answer: 'yes' },
   'post /api/auth/login': { email: 'nobody@example.test', password: 'x' },
   'post /api/auth/login/2fa': { code: '123456' },
   'post /api/auth/2fa/enroll': { password: 'x' },

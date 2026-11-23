@@ -10,6 +10,8 @@ import { attachUser, enforceSessionAge, requirePasswordCurrent } from './middlew
 import {
   GUESTBOOK_WRITES_PER_GUEST_PER_MINUTE,
   eventCreationLimiter,
+  guestInviteLimiter,
+  guestRsvpWriteLimiters,
   guestWriteLimiter,
   guestbookGuestLimiter,
   hostExportLimiter,
@@ -35,6 +37,7 @@ import { guestbookRoutes } from './routes/guestbookRoutes'
 import { guestbookVoiceRoutes } from './routes/guestbookVoiceRoutes'
 import { announcementRoutes } from './routes/announcementRoutes'
 import { guestInviteRoutes } from './routes/guestInviteRoutes'
+import { guestRsvpPublicRoutes } from './routes/guestRsvpPublicRoutes'
 import { rsvpHostRoutes } from './routes/rsvpHostRoutes'
 import { guestInvitePublicRoutes } from './routes/guestInvitePublicRoutes'
 import { channelRoutes } from './routes/channelRoutes'
@@ -159,6 +162,10 @@ export const buildServer = ({
   // The guest invitation's public page: the token is in the path, so the same headers on every
   // answer, a refusal by the body parser or the CSRF gate included.
   app.use('/api/i', galleryHeaders)
+  // The guests' replies (spec 30) are the one public write here nobody is signed in for: **4 KB**, not
+  // the global 64 KB. Mounted ahead of the global parser, which does not read a body already read, so
+  // this limit is the one that applies (`413` beyond it).
+  app.use('/api/i', express.json({ limit: '4kb' }))
 
   // Bounded well below any legitimate payload: the only JSON bodies here are a login,
   // a caption and a list of at most 200 photo ids. Uploads go through multer.
@@ -269,7 +276,12 @@ export const buildServer = ({
 
   app.use('/api', publicRoutes(routeDeps))
   // The page a guest opens from an invitation (spec 29): public, one neutral refusal.
-  app.use('/api', guestInvitePublicRoutes(routeDeps))
+  // One read budget for the page, its logo and a guest's own reply (one guesser, one allowance), and
+  // one write budget for the three writes, per address and per invitation: each built once.
+  const inviteReadLimiter = guestInviteLimiter(config.rateLimits.guestInvitePerMinute)
+  const rsvpWriteLimiters = guestRsvpWriteLimiters(config.rateLimits.guestRsvpWritePerMinute)
+  app.use('/api', guestInvitePublicRoutes({ ...routeDeps, inviteReadLimiter }))
+  app.use('/api', guestRsvpPublicRoutes({ ...routeDeps, inviteReadLimiter, rsvpWriteLimiters }))
   app.use('/api', authRoutes(routeDeps))
   // The invitee's side of an invitation link: what it offers, and accepting it. Public, and
   // after the auth routes because accepting with a password starts a session the same way a

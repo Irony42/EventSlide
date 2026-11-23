@@ -3,8 +3,14 @@ import { GuestInviteToken } from '../../../domain/guestInvites/guestInviteToken'
 import { servedInviteOf, type ServedInvite } from '../../../domain/guestInvites/inviteStateOf'
 import { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
+import { DEFAULT_RSVP_SETTINGS } from '../../../domain/guestRsvps/rsvpSettings'
+import { proofOf, type RsvpProof } from '../../../domain/guestRsvps/rsvpStats'
+import type { RsvpState } from '../../../domain/guestRsvps/rsvpWindow'
+import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestInviteRepository } from '../../ports/guestInviteRepository'
+import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
+import { stateOfOpened } from '../guestRsvps/publicRsvpAccess'
 
 /**
  * What the public invitation page is told (spec 29): the guest opens `/i/<token>`.
@@ -24,7 +30,28 @@ import type { GuestInviteRepository } from '../../ports/guestInviteRepository'
  *   may be kept for years, and its address has no business staying readable behind a link.
  */
 
+/**
+ * What the page tells a guest about answering (spec 30): where the window stands, until which day,
+ * the questions the host asks (**only what the guest must see**: not the closing instant, not the
+ * stored form's lots to come), and, when the host chose to show who comes, the proof.
+ */
+export interface GuestRsvpPageView {
+  readonly state: RsvpState
+  /** A local day, read in the invitation's zone, or `null`. */
+  readonly deadline: string | null
+  readonly form: {
+    readonly maybe: boolean
+    readonly partySize: { readonly enabled: boolean; readonly max: number }
+    readonly kidsSeparate: boolean
+    readonly diet: boolean
+  }
+  /** `null` unless the host asked to show it **and** replies are still part of the story. */
+  readonly proof: RsvpProof | null
+}
+
 export interface GuestInviteView {
+  /** Every served page carries it; with `state: 'off'` the page shows no block. */
+  readonly rsvp: GuestRsvpPageView
   readonly state: ServedInvite['state']
   /** The invitation's title, or the event's name when the host wrote none. */
   readonly title: string
@@ -49,6 +76,8 @@ export interface GuestInviteView {
 export interface ViewGuestInviteDeps {
   readonly events: EventRepository
   readonly invites: GuestInviteRepository
+  readonly rsvps: Pick<GuestRsvpRepository, 'listByEvent'>
+  readonly clock: Clock
 }
 
 export type ViewGuestInvite = (input: {
@@ -58,7 +87,7 @@ export type ViewGuestInvite = (input: {
 const notAvailable = (): DomainError => DomainError.notFound('guestInvite.notAvailable')
 
 export const makeViewGuestInvite =
-  ({ events, invites }: ViewGuestInviteDeps): ViewGuestInvite =>
+  ({ events, invites, rsvps, clock }: ViewGuestInviteDeps): ViewGuestInvite =>
   async ({ token: raw }) => {
     const token = GuestInviteToken.create(raw)
     if (!token.ok) return err(notAvailable())
@@ -71,8 +100,29 @@ export const makeViewGuestInvite =
     const served = servedInviteOf(event, invite)
     if (served === null) return err(notAvailable())
 
+    const settings = (await invites.findRsvpSettings(event.id)) ?? DEFAULT_RSVP_SETTINGS
+    const { form } = settings
+    const state = await stateOfOpened({ event, invite, served, settings }, rsvps, clock.now())
+    // The proof reads the replies only when the host asked for it, and never once nothing is asked.
+    const proof =
+      state === 'off' || form.visibility === 'off'
+        ? null
+        : proofOf(await rsvps.listByEvent(event.id), form.visibility)
+    const rsvp: GuestRsvpPageView = {
+      state,
+      deadline: settings.deadline,
+      form: {
+        maybe: form.maybe,
+        partySize: { enabled: form.partySize.enabled, max: form.partySize.max },
+        kidsSeparate: form.kidsSeparate,
+        diet: form.diet,
+      },
+      proof,
+    }
+
     const { content } = invite
     const base = {
+      rsvp,
       state: served.state,
       title: content.title ?? event.name.value,
       schedule: served.schedule,

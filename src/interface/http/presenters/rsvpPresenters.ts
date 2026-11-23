@@ -5,6 +5,7 @@ import type { RsvpForm } from '../../../domain/guestRsvps/rsvpForm'
 import type { RsvpFormView } from '../../../application/usecases/guestRsvps/getRsvpForm'
 import type { RsvpList } from '../../../application/usecases/guestRsvps/listRsvps'
 import type {
+  GuestOwnRsvpDto,
   RsvpDto,
   RsvpFormDto,
   RsvpFormResponseDto,
@@ -104,4 +105,15 @@ export const toRsvpListResponseDto = (view: RsvpList): RsvpListResponseDto => ({
   rsvps: view.rsvps.map(toRsvpDto),
   stats: toStatsDto(view.stats),
   unseen: view.unseen,
+})
+
+/** What a guest reads of their own reply: nothing they could not already have typed. */
+export const toGuestOwnRsvpDto = (rsvp: GuestRsvp): GuestOwnRsvpDto => ({
+  name: rsvp.name,
+  answer: rsvp.answer,
+  adults: rsvp.adults,
+  kids: rsvp.kids,
+  diet: rsvp.diet,
+  message: rsvp.message,
+  updatedAt: rsvp.updatedAt.toISOString(),
 })

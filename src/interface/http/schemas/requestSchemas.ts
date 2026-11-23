@@ -1061,3 +1061,23 @@ export const rsvpActBody = z.strictObject({})
 export const rsvpExportQuery = z.strictObject({
   view: z.enum(['all', 'caterer']).default('all'),
 })
+
+/**
+ * `PUT /api/i/:token/rsvp`: what a guest changes. The same fields the host's reply takes, every
+ * value judged by the domain; nothing else is accepted (no source, no household, no token).
+ */
+export const guestRsvpBody = z.strictObject({
+  name: z.unknown().optional(),
+  answer: z.unknown().optional(),
+  adults: z.unknown().optional(),
+  kids: z.unknown().optional(),
+  diet: z.unknown().optional(),
+  message: z.unknown().optional(),
+})
+
+/**
+ * `POST /api/i/:token/rsvp`: the same, plus the **honeypot**, a hidden field of the form that a
+ * person leaves empty and a script fills (`website`). Anything may be in it: the use case only asks
+ * whether it holds text.
+ */
+export const guestRsvpCreateBody = guestRsvpBody.extend({ website: z.unknown().optional() })
