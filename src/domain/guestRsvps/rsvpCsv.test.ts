@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rsvpCsv, type RsvpCsvLabels } from './rsvpCsv'
+import { mealsSummary, rsvpCsv, type RsvpCsvLabels } from './rsvpCsv'
 import { aRsvp } from './testing/rsvpFixtures'
 
 const LABELS: RsvpCsvLabels = {
@@ -10,6 +10,7 @@ const LABELS: RsvpCsvLabels = {
   diet: 'Régime',
   companions: 'Accompagnants',
   meals: 'Menus',
+  total: 'Total',
   message: 'Message',
   source: 'Origine',
   updatedAt: 'Modifiée le',
@@ -117,7 +118,12 @@ describe('rsvpCsv, for the caterer', () => {
       LABELS,
     )
 
-    expect(linesOf(csv)).toEqual(['Nom;Adultes;Enfants;Menus;Régime', 'Léa;2;1;;sans gluten', ''])
+    expect(linesOf(csv)).toEqual([
+      'Nom;Adultes;Enfants;Menus;Régime',
+      'Léa;2;1;;sans gluten',
+      'Total;2;1;;',
+      '',
+    ])
     expect(csv).not.toContain('secret')
   })
 
@@ -190,7 +196,12 @@ describe('rsvpCsv, the lot 2 columns', () => {
   it('gives the caterer the menus of those who come', () => {
     const csv = rsvpCsv([answered], 'caterer', LABELS, questions)
 
-    expect(linesOf(csv)).toEqual(['Nom;Adultes;Enfants;Menus;Régime', 'Léa;2;0;Poisson, Végé;', ''])
+    expect(linesOf(csv)).toEqual([
+      'Nom;Adultes;Enfants;Menus;Régime',
+      'Léa;2;0;Poisson, Végé;',
+      'Total;2;0;Poisson, Végé;',
+      '',
+    ])
   })
 })
 
@@ -243,5 +254,61 @@ describe('rsvpCsv, a removed question', () => {
     )
 
     expect(linesOf(csv)[1]).toContain(';Inès;Végé;')
+  })
+})
+
+describe('mealsSummary', () => {
+  it('names each menu once, with how many when more than one, in the order they are met', () => {
+    expect(mealsSummary(['Poisson', 'Végé', 'Poisson', 'Poisson'])).toBe('Poisson ×3, Végé')
+    expect(mealsSummary(['Végé', 'Poisson'])).toBe('Végé, Poisson')
+  })
+
+  it('counts a blank entry for nobody, and says nothing when nobody chose', () => {
+    expect(mealsSummary(['', 'Végé', ''])).toBe('Végé')
+    expect(mealsSummary(['', ''])).toBeNull()
+    expect(mealsSummary([])).toBeNull()
+  })
+})
+
+describe('rsvpCsv, the caterer’s file', () => {
+  const two = [
+    aRsvp({
+      id: 'a',
+      name: 'Léa',
+      adults: 2,
+      kids: 1,
+      details: { meals: ['Poisson', 'Végé', ''] },
+    }),
+    aRsvp({
+      id: 'b',
+      name: 'Hugo',
+      adults: 1,
+      kids: 0,
+      diet: 'noix',
+      details: { meals: ['Poisson'] },
+    }),
+    aRsvp({ id: 'c', name: 'Tom', answer: 'maybe', adults: 4, details: { meals: ['Viande'] } }),
+    aRsvp({ id: 'd', name: 'Ana', answer: 'no', message: 'secret' }),
+  ]
+
+  it('groups each reply’s menus, and ends with a line that adds up those who come', () => {
+    const csv = rsvpCsv(two, 'caterer', LABELS)
+
+    expect(linesOf(csv)).toEqual([
+      'Nom;Adultes;Enfants;Menus;Régime',
+      'Léa;2;1;Poisson, Végé;',
+      'Hugo;1;0;Poisson;noix',
+      'Total;3;1;Poisson ×2, Végé;',
+      '',
+    ])
+    expect(csv).not.toContain('Viande')
+    expect(csv).not.toContain('secret')
+  })
+
+  it('has no total line when nobody comes, only the header', () => {
+    expect(linesOf(rsvpCsv([two[3] as (typeof two)[number]], 'caterer', LABELS))).toEqual([
+      'Nom;Adultes;Enfants;Menus;Régime',
+      '',
+    ])
   })
 })

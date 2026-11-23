@@ -22,6 +22,8 @@ export interface RsvpCsvLabels {
   readonly diet: string
   readonly companions: string
   readonly meals: string
+  /** The caterer's last line: the sum of what is above it. */
+  readonly total: string
   readonly message: string
   readonly source: string
   readonly updatedAt: string
@@ -87,6 +89,20 @@ const listOf = (items: readonly string[]): string | null => {
   return written.length === 0 ? null : written.join(LIST_SEPARATOR)
 }
 
+/**
+ * The menus of one reply, or of all of them, as a caterer reads them: each menu once, with how many
+ * when more than one (\"Poisson ×2, Végé\"), in the order they are first met. Blank entries (a person
+ * who chose none) count for nobody.
+ */
+export const mealsSummary = (meals: readonly string[]): string | null => {
+  const counts = new Map<string, number>()
+  for (const meal of meals) if (meal !== '') counts.set(meal, (counts.get(meal) ?? 0) + 1)
+  if (counts.size === 0) return null
+  return [...counts]
+    .map(([meal, count]) => (count === 1 ? meal : `${meal} ×${count}`))
+    .join(LIST_SEPARATOR)
+}
+
 export const rsvpCsv = (
   rsvps: readonly GuestRsvp[],
   view: RsvpCsvView,
@@ -94,15 +110,23 @@ export const rsvpCsv = (
   questions: readonly RsvpCsvQuestion[] = [],
 ): string => {
   if (view === 'caterer') {
-    const rows = rsvps
-      .filter((rsvp) => rsvp.answer === 'yes')
-      .map((rsvp) =>
-        line([rsvp.name, rsvp.adults, rsvp.kids, listOf(rsvp.details.meals), rsvp.diet]),
-      )
+    const coming = rsvps.filter((rsvp) => rsvp.answer === 'yes')
+    const rows = coming.map((rsvp) =>
+      line([rsvp.name, rsvp.adults, rsvp.kids, mealsSummary(rsvp.details.meals), rsvp.diet]),
+    )
+    // The last line adds it up, so the caterer reads the order without a formula.
+    const total = line([
+      labels.total,
+      coming.reduce((sum, rsvp) => sum + rsvp.adults, 0),
+      coming.reduce((sum, rsvp) => sum + rsvp.kids, 0),
+      mealsSummary(coming.flatMap((rsvp) => rsvp.details.meals)),
+      null,
+    ])
     return (
       BOM +
       line([labels.name, labels.adults, labels.kids, labels.meals, labels.diet]) +
-      rows.join('')
+      rows.join('') +
+      (coming.length === 0 ? '' : total)
     )
   }
   const columns = questionColumns(rsvps, questions)
