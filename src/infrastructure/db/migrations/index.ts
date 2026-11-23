@@ -34,6 +34,7 @@ import { migration032 } from './032_guestbook_voices'
 import { migration033 } from './033_channels'
 import { migration034 } from './034_album_books_v2'
 import { migration035 } from './035_guest_invites'
+import { migration036 } from './036_guest_rsvps'
 
 /**
  * The ordering contract, written out rather than globbed.
@@ -78,4 +79,5 @@ export const migrations: readonly Migration[] = [
   migration033,
   migration034,
   migration035,
+  migration036,
 ]
