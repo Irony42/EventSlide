@@ -10,8 +10,9 @@ import { FakeGuestRsvpRepository } from '../../../application/testing/fakeGuestR
 import { FakeMembershipRepository } from '../../../application/testing/fakeMembershipRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
+import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
-import { createSequentialIdGenerator } from '../../../infrastructure/crypto/sequentialIdGenerator'
+import { asGuestRsvpId, type GuestRsvpId } from '../../../domain/shared/ids'
 import { makeEnableGuestInvite } from '../../../application/usecases/guestInvites/enableGuestInvite'
 import { makeSaveGuestInvite } from '../../../application/usecases/guestInvites/saveGuestInvite'
 import {
@@ -76,8 +77,16 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
     asUserId(MODERATOR),
     asUserId(GALA_OWNER),
   )
-  // Real-shaped ids: the routes take a reply id from a path, and only a uuid is one.
-  const ids = createSequentialIdGenerator()
+  // The fake's ids are not uuids, and the routes take a reply id from a path: only a uuid is one.
+  const ids = new (class extends SequentialIdGenerator {
+    private rsvpCount = 0
+    override guestRsvpId(): GuestRsvpId {
+      this.rsvpCount += 1
+      return asGuestRsvpId(
+        `d1000000-0000-4000-8000-${this.rsvpCount.toString(16).padStart(12, '0')}`,
+      )
+    }
+  })()
   const limiter = hostExportLimiter(exportSlots)
 
   const harness = buildHarness({
