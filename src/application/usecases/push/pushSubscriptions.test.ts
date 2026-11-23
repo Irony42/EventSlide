@@ -53,9 +53,9 @@ describe('the host’s browser notifications (spec 30, lot 4)', () => {
   const held = async () => subscriptions.listByEvent(WEDDING)
 
   describe('the public key', () => {
-    it('is told when the box has keys, and is 404 push.disabled when it has none', () => {
-      expect(makeGetPushKey(PUSH)()).toEqual({ ok: true, value: 'PUBLIC' })
-      expect(code(makeGetPushKey(null)())).toBe('push.disabled')
+    it('is told when the box has keys, and is 404 push.disabled when it has none', async () => {
+      expect(await makeGetPushKey(PUSH)()).toEqual({ ok: true, value: 'PUBLIC' })
+      expect(code(await makeGetPushKey(null)())).toBe('push.disabled')
     })
   })
 

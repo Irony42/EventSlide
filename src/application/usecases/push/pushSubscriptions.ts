@@ -38,11 +38,11 @@ export interface PushConfig {
 
 const disabled = (): DomainError => DomainError.notFound('push.disabled')
 
-export type GetPushKey = () => Result<string, DomainError>
+export type GetPushKey = () => Promise<Result<string, DomainError>>
 
 export const makeGetPushKey =
   (push: PushConfig | null): GetPushKey =>
-  () =>
+  async () =>
     push === null ? err(disabled()) : ok(push.publicKey)
 
 export interface SubscribePushInput {

@@ -120,6 +120,8 @@ const bootstrap = async (): Promise<void> => {
   container.albumBookWorker?.start()
   // Same first pass, same reason: an archive left `running` by a crash goes back to the queue.
   container.albumExportWorker?.start()
+  // Only with VAPID keys: the host's browsers are told when replies come in. One signal, no polling.
+  container.pushNotifier?.start()
   // Its first pass is immediate too, and for the same reason: whatever killed the last
   // process may have left a reservation charging an event for bytes that never arrived.
   container.reservationReaper.start()

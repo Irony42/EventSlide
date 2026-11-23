@@ -20,6 +20,7 @@ import { SqliteGuestbookRepository } from '../infrastructure/db/sqliteGuestbookR
 import { SqliteGuestbookVoiceRepository } from '../infrastructure/db/sqliteGuestbookVoiceRepository'
 import { SqliteAnnouncementRepository } from '../infrastructure/db/sqliteAnnouncementRepository'
 import { SqliteGuestInviteRepository } from '../infrastructure/db/sqliteGuestInviteRepository'
+import { SqlitePushSubscriptionRepository } from '../infrastructure/db/sqlitePushSubscriptionRepository'
 import { SqliteGuestHouseholdRepository } from '../infrastructure/db/sqliteGuestHouseholdRepository'
 import { SqliteGuestRsvpRepository } from '../infrastructure/db/sqliteGuestRsvpRepository'
 import { SqliteChallengeRepository } from '../infrastructure/db/sqliteChallengeRepository'
@@ -113,6 +114,8 @@ import {
 } from './mediaSweeper'
 import { createReservationReaper, type ReservationReaper } from './reservationReaper'
 import { makeWarnAuditRetentionDefault } from '../application/usecases/audit/warnAuditRetentionDefault'
+import { createHttpPushSender } from '../infrastructure/push/httpPushSender'
+import { createPushNotifier, type PushNotifier } from './pushNotifier'
 import { createRetentionSweeper, type RetentionSweeper } from './retentionSweeper'
 import { createScheduleSweeper, type ScheduleSweeper } from './scheduleSweeper'
 import { appVersion } from './version'
@@ -182,6 +185,11 @@ export interface Container {
   readonly albumBookWorker: AlbumBookWorker | null
   /** The verified archive's writer (spec 22); `null` when `EXPORT_ENABLED` is off. */
   readonly albumExportWorker: AlbumExportWorker | null
+  /**
+   * Browser notifications for the host (spec 30, lot 4, Web Push): tells the owners' subscribed browsers that replies came in,
+   * started by `index.ts`. `null` on a box with no `VAPID_*` keys, which then makes no request to any push service.
+   */
+  readonly pushNotifier: PushNotifier | null
   /**
    * The reservation reaper, built here and started by `index.ts` like the rest.
    *
@@ -546,6 +554,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     guestInvites: new SqliteGuestInviteRepository(db),
     guestRsvps: new SqliteGuestRsvpRepository(db),
     guestHouseholds: new SqliteGuestHouseholdRepository(db),
+    pushSubscriptions: new SqlitePushSubscriptionRepository(db),
     guestbook: new SqliteGuestbookRepository(db),
     voices: new SqliteGuestbookVoiceRepository(db),
     users: new SqliteUserRepository(db),
@@ -588,6 +597,10 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   const usecases = buildUseCases(adapters, {
     publicUrl: config.publicUrl,
+    push:
+      config.push === null
+        ? null
+        : { publicKey: config.push.publicKey, allowedHosts: config.push.allowedHosts },
     operatorResetLinks: config.operatorResetLinks,
     defaultEventQuotaBytes: config.uploads.defaultEventQuotaBytes,
     maxEventQuotaBytes: config.uploads.maxEventQuotaBytes,
@@ -773,6 +786,32 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       detail: 'an event opens and closes only when a host presses the button',
     })
   }
+
+  // ------------------------------------------------------- browser notifications --
+
+  // Only with the three VAPID variables (spec 30, lot 4): without them there is no sender, no listener and
+  // no connection to any push service.
+  const pushNotifier =
+    config.push === null
+      ? null
+      : createPushNotifier({
+          bus: adapters.bus,
+          events: adapters.events,
+          memberships: adapters.memberships,
+          subscriptions: adapters.pushSubscriptions,
+          sender: createHttpPushSender({
+            keys: {
+              publicKey: config.push.publicKey,
+              privateKey: config.push.privateKey,
+              subject: config.push.subject,
+            },
+            allowedHosts: config.push.allowedHosts,
+            now: () => adapters.clock.now(),
+            logger,
+          }),
+          clock: adapters.clock,
+          logger,
+        })
 
   // ------------------------------------------------------------ transcoding --
 
@@ -1082,6 +1121,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     voiceAvailable: audioTranscoder.available(),
     albumBookWorker,
     albumExportWorker,
+    pushNotifier,
     readiness,
     streamHub,
     dispose: async () => {
@@ -1097,6 +1137,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       telegram?.stop()
       albumBookWorker?.stop()
       albumExportWorker?.stop()
+      pushNotifier?.stop()
       // **Then the encoder itself.** `stop()` above abandons the drain, which leaves the
       // ffmpeg process it started running: a container stop orphans a child rather than
       // stopping it, so a new container would start the same job while the old encoder

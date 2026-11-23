@@ -20,6 +20,8 @@ import type { ImageProcessor } from '../application/ports/imageProcessor'
 import type { ClipJobRepository } from '../application/ports/clipJobRepository'
 import type { AnnouncementRepository } from '../application/ports/announcementRepository'
 import type { GuestInviteRepository } from '../application/ports/guestInviteRepository'
+import type { PushSubscriptionRepository } from '../application/ports/pushSubscriptionRepository'
+import type { PushConfig } from '../application/usecases/push/pushSubscriptions'
 import type { GuestHouseholdRepository } from '../application/ports/guestHouseholdRepository'
 import type { GuestRsvpRepository } from '../application/ports/guestRsvpRepository'
 import type { ChallengeRepository } from '../application/ports/challengeRepository'
@@ -116,6 +118,7 @@ export interface Adapters {
   readonly guestRsvps: GuestRsvpRepository
   /** The households of the guest list (spec 30, lot 3). */
   readonly guestHouseholds: GuestHouseholdRepository
+  readonly pushSubscriptions: PushSubscriptionRepository
   readonly guestbook: GuestbookRepository
   /** The recordings behind the guestbook's voice messages, and their queue (spec 25). */
   readonly voices: GuestbookVoiceRepository
@@ -173,6 +176,11 @@ export interface UseCasePolicy {
   readonly operatorResetLinks: OperatorResetLinks
   /** `PUBLIC_URL`, without a trailing slash: the origin a mailed link points at. */
   readonly publicUrl: string
+  /**
+   * Browser notifications for the host (spec 30, lot 4): the public key a browser subscribes with and the push
+   * services the box may call, or `null` while `VAPID_*` are not set (the feature is off). **Never the private key.**
+   */
+  readonly push: PushConfig | null
   readonly defaultEventQuotaBytes: number
   /** `uploads.maxEventQuotaBytes`: the box-wide ceiling (G3-02), `null` meaning none. */
   readonly maxEventQuotaBytes: number | null

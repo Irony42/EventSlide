@@ -60,6 +60,11 @@ import { makeExportRsvps } from '../application/usecases/guestRsvps/exportRsvps'
 import { makeMarkRsvpsSeen } from '../application/usecases/guestRsvps/markRsvpsSeen'
 import { makeCountUnseenRsvps } from '../application/usecases/guestRsvps/countUnseenRsvps'
 import { archiveStateOf } from '../domain/exports/albumExport'
+import {
+  makeGetPushKey,
+  makeSubscribePush,
+  makeUnsubscribePush,
+} from '../application/usecases/push/pushSubscriptions'
 import type { Adapters, UseCasePolicy } from './usecases'
 import type { SharedHooks } from './usecases.shared'
 
@@ -274,6 +279,20 @@ export const eventsUseCases = (
     audit: adapters.audit,
     bus: adapters.bus,
     clock: adapters.clock,
+  }),
+  // Browser notifications for the host (spec 30, lot 4). Off while the box has no VAPID keys.
+  getPushKey: makeGetPushKey(policy.push),
+  subscribePush: makeSubscribePush({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    subscriptions: adapters.pushSubscriptions,
+    ids: adapters.ids,
+    clock: adapters.clock,
+    push: policy.push,
+  }),
+  unsubscribePush: makeUnsubscribePush({
+    subscriptions: adapters.pushSubscriptions,
+    push: policy.push,
   }),
   exportRsvps: makeExportRsvps({
     events: adapters.events,

@@ -1116,3 +1116,20 @@ export const guestRsvpBody = z.strictObject({
  * whether it holds text.
  */
 export const guestRsvpCreateBody = guestRsvpBody.extend({ website: z.unknown().optional() })
+
+// ------------------------------------------------------- browser notifications (30) --
+
+/**
+ * `POST /events/:slug/push-subscription` (spec 30, lot 4): what a browser's `PushSubscription.toJSON()` holds.
+ * Only the **shape** is checked here (no stray key, the sizes bounded); the domain judges every value, one
+ * code each: the endpoint against the push-service allowlist, the keys by length.
+ */
+export const pushSubscribeBody = z.strictObject({
+  endpoint: z.unknown(),
+  keys: z.unknown(),
+  // `expirationTime` is part of `toJSON()`: accepted and ignored, never stored.
+  expirationTime: z.unknown().optional(),
+})
+
+/** `DELETE /events/:slug/push-subscription`: which browser to forget. */
+export const pushUnsubscribeBody = z.strictObject({ endpoint: z.unknown() })
