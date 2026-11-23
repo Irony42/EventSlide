@@ -953,6 +953,39 @@ const ENDPOINTS: readonly EndpointCase[] = [
       client.guestRsvpCreate('7QX0M4TZ2KD9WB3H', { name: 'Léa Martin', answer: 'yes', adults: 2 }),
   },
   {
+    name: 'guestHousehold',
+    verb: 'get',
+    path: '/api/i/7QX0M4TZ2KD9WB3H/household',
+    invoke: (client) => client.guestHousehold('7QX0M4TZ2KD9WB3H', 'AAAAAAAAAAAAAAAA'),
+  },
+  {
+    name: 'guestHouseholdRsvpCreate',
+    verb: 'post',
+    path: '/api/i/7QX0M4TZ2KD9WB3H/rsvp',
+    invoke: (client) =>
+      client.guestHouseholdRsvpCreate('7QX0M4TZ2KD9WB3H', 'AAAAAAAAAAAAAAAA', {
+        name: 'Famille Martin',
+        answer: 'yes',
+        adults: 2,
+      }),
+  },
+  {
+    name: 'guestHouseholdRsvpUpdate',
+    verb: 'put',
+    path: '/api/i/7QX0M4TZ2KD9WB3H/rsvp',
+    invoke: (client) =>
+      client.guestHouseholdRsvpUpdate('7QX0M4TZ2KD9WB3H', 'AAAAAAAAAAAAAAAA', {
+        name: 'Famille Martin',
+        answer: 'no',
+      }),
+  },
+  {
+    name: 'guestHouseholdRsvpDelete',
+    verb: 'del',
+    path: '/api/i/7QX0M4TZ2KD9WB3H/rsvp',
+    invoke: (client) => client.guestHouseholdRsvpDelete('7QX0M4TZ2KD9WB3H', 'AAAAAAAAAAAAAAAA'),
+  },
+  {
     name: 'guestRsvp',
     verb: 'get',
     path: '/api/i/7QX0M4TZ2KD9WB3H/rsvp',
