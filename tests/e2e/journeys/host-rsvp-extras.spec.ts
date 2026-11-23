@@ -44,11 +44,11 @@ test('the host asks for companions, menus and a question; a guest answers them; 
   await panel.getByLabel(asked.mealsOptionsLabel).fill('Poisson\nVégé')
   await panel.getByLabel(asked.mealsOptionsLabel).blur()
   await panel.getByRole('button', { name: asked.questionAdd }).click()
-  await panel.getByLabel(asked.questionLabelLabel).fill('Un chant ?')
+  await panel.getByLabel(asked.questionLabelLabel, { exact: true }).fill('Un chant ?')
   await panel.getByRole('button', { name: asked.questionConfirm }).click()
   await expect(panel.getByText(asked.saved)).toBeVisible()
   // The question has its id from the server: its field is editable again.
-  await expect(panel.getByLabel(asked.questionLabelLabel)).toBeEnabled()
+  await expect(panel.getByLabel(asked.questionLabelLabel, { exact: true })).toBeEnabled()
 
   const stored = (await (
     await host.request.get(app.url(`/api/events/${event.slug}/rsvp-form`))
