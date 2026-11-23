@@ -413,6 +413,19 @@ describe('a suspended client, through the real composition root', () => {
     { method: 'post', path: '/api/events/:eventSlug/guest-invite/enable', body: {} },
     { method: 'post', path: '/api/events/:eventSlug/guest-invite/disable', body: {} },
     { method: 'post', path: '/api/events/:eventSlug/guest-invite/rotate', body: {} },
+    // The guests' replies (spec 30): a frozen event's owner reads them and cannot change them.
+    { method: 'put', path: '/api/events/:eventSlug/rsvp-form', body: { enabled: true } },
+    { method: 'post', path: '/api/events/:eventSlug/rsvp-form/close', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/rsvp-form/reopen', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/rsvps', body: { name: 'Léa', answer: 'yes' } },
+    {
+      method: 'put',
+      path: '/api/events/:eventSlug/rsvps/:rsvpId',
+      body: { name: 'Léa', answer: 'yes' },
+    },
+    { method: 'delete', path: '/api/events/:eventSlug/rsvps/:rsvpId', body: {} },
+    // The badge's note is a write of the member's own, and a frozen client's host reads nothing.
+    { method: 'post', path: '/api/events/:eventSlug/rsvps/seen', body: {} },
     // A messaging channel (spec 27): a frozen event keeps its groups until the client is back.
     { method: 'delete', path: '/api/events/:eventSlug/channels/:bindingId', body: {} },
     {
@@ -490,6 +503,21 @@ describe('a suspended client, through the real composition root', () => {
         [write.method.toUpperCase(), write.path, refused.status, refused.body.error?.code],
         `${write.method.toUpperCase()} ${write.path}`,
       ).toEqual([write.method.toUpperCase(), write.path, 403, 'client.suspended'])
+    }
+  })
+
+  it('shows a frozen client’s owner neither the replies nor the spreadsheet: a read is refused too', async () => {
+    const s = await scene()
+    await suspend(s)
+
+    for (const url of ['rsvp-form', 'rsvps', 'rsvps/export']) {
+      const refused = await s.operator.get(`/api/events/${SLUG}/${url}`)
+
+      expect([url, refused.status, refused.body.error?.code]).toEqual([
+        url,
+        403,
+        'client.suspended',
+      ])
     }
   })
 

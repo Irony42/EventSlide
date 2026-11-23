@@ -178,7 +178,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   hostDeleteRsvp: notWired('hostDeleteRsvp'),
   exportRsvps: notWired('exportRsvps'),
   markRsvpsSeen: notWired('markRsvpsSeen'),
-  countUnseenRsvps: notWired('countUnseenRsvps'),
+  // Read by every owner's event answer, so it answers instead of throwing: the badge is zero.
+  countUnseenRsvps: async () => 0,
   listAnnouncements: notWired('listAnnouncements'),
   createAnnouncement: notWired('createAnnouncement'),
   updateAnnouncement: notWired('updateAnnouncement'),

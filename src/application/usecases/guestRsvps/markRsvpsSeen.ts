@@ -7,8 +7,8 @@ import { openRsvps, type RsvpAccessDeps } from './rsvpAccess'
 
 /**
  * The host has looked at the replies (spec 30, section 8): the badge counts from now on. Kept per
- * member, on the server, so it follows them from one device to another. A read in every respect
- * but this one note, so a suspended client's host may still make it; nothing is audited or announced.
+ * member, on the server, so it follows them from one device to another. Asked like any read (a suspended
+ * client's host reads nothing, `403 client.suspended`); nothing is audited or announced.
  */
 
 export interface MarkRsvpsSeenInput {

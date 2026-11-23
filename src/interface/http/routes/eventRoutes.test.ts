@@ -15,6 +15,9 @@ import {
 import { makeGetEventBySlug } from '../../../application/usecases/events/getEventBySlug'
 import { makeGetEventLimits } from '../../../application/usecases/events/getEventLimits'
 import { makeGetEventView } from '../../../application/usecases/events/getEventView'
+import { FakeGuestRsvpRepository } from '../../../application/testing/fakeGuestRsvpRepository'
+import { makeCountUnseenRsvps } from '../../../application/usecases/guestRsvps/countUnseenRsvps'
+import { aRsvp } from '../../../domain/guestRsvps/testing/rsvpFixtures'
 import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
 import { makeListEventsForHost } from '../../../application/usecases/events/listEventsForHost'
 import { makeListModerators } from '../../../application/usecases/events/listModerators'
@@ -172,6 +175,7 @@ interface World {
   readonly mailer: FakeMailer
   readonly media: InMemoryMediaStore
   readonly audit: FakeAuditLog
+  readonly rsvps: FakeGuestRsvpRepository
 }
 
 interface BuildWorldOptions {
@@ -203,6 +207,7 @@ const buildWorld = ({
   const media = new InMemoryMediaStore().forbidEnumeration('the host event routes')
   const audit = new FakeAuditLog().withAccounts(asUserId(OWNER), asUserId(MODERATOR))
   const ids = new SequentialIdGenerator()
+  const rsvps = new FakeGuestRsvpRepository()
   // The foreign keys the real table has: an invitation names an author and an event that exist.
   const tokens = new FakeAccountTokenRepository()
     .withAccounts(asUserId(OWNER), asUserId(GALA_OWNER))
@@ -398,7 +403,7 @@ const buildWorld = ({
         hostDeleteRsvp: absent('hostDeleteRsvp'),
         exportRsvps: absent('exportRsvps'),
         markRsvpsSeen: absent('markRsvpsSeen'),
-        countUnseenRsvps: absent('countUnseenRsvps'),
+        countUnseenRsvps: makeCountUnseenRsvps({ rsvps }),
         listAnnouncements: absent('listAnnouncements'),
         createAnnouncement: absent('createAnnouncement'),
         updateAnnouncement: absent('updateAnnouncement'),
@@ -576,6 +581,7 @@ const buildWorld = ({
     mailer,
     media,
     audit,
+    rsvps,
   }
 }
 
@@ -1227,6 +1233,40 @@ describe('the host event routes', () => {
 
       const reread = await agent.get(`/api/events/${String(created.body.slug)}`)
       expect(reread.body.settings.moderation).toBe('auto')
+    })
+  })
+
+  describe('GET /api/events/:slug: the badge of the guests replies (spec 30)', () => {
+    it('tells the owner how many replies they have not seen, counted for their own account', async () => {
+      world.rsvps.addMember(WEDDING, asUserId(OWNER)).addMember(WEDDING, asUserId(MODERATOR))
+      world.rsvps.seed(
+        aRsvp({ id: 'r-1', eventId: WEDDING }),
+        aRsvp({ id: 'r-2', eventId: WEDDING }),
+      )
+
+      const response = await (await signedIn(world, 'owner')).get(`/api/events/${SLUG}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.unseenRsvps).toBe(2)
+    })
+
+    it('leaves the field out of a moderator’s answer: they cannot read the replies', async () => {
+      world.rsvps.addMember(WEDDING, asUserId(MODERATOR))
+      world.rsvps.seed(aRsvp({ id: 'r-1', eventId: WEDDING }))
+
+      const response = await (await signedIn(world, 'moderator')).get(`/api/events/${SLUG}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body).not.toHaveProperty('unseenRsvps')
+    })
+
+    it('counts nothing for a reply of another event', async () => {
+      world.rsvps.addMember(WEDDING, asUserId(OWNER))
+      world.rsvps.seed(aRsvp({ id: 'r-1', eventId: GALA }))
+
+      const response = await (await signedIn(world, 'owner')).get(`/api/events/${SLUG}`)
+
+      expect(response.body.unseenRsvps).toBe(0)
     })
   })
 

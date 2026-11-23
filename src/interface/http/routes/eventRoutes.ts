@@ -3,6 +3,7 @@ import multer from 'multer'
 import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import { DomainError } from '../../../domain/shared/errors'
+import type { UserId } from '../../../domain/shared/ids'
 import { asClientId, asGuestId, asUserId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
 import { asyncHandler } from '../middleware/asyncHandler'
@@ -86,7 +87,7 @@ export const eventRoutes = ({
   const sendEvent = async (
     res: Response,
     result: Result<Event, DomainError>,
-    actor: { readonly role: EventRole },
+    actor: { readonly role: EventRole; readonly userId: UserId },
     status = 200,
   ): Promise<void> => {
     if (!result.ok) {
@@ -96,9 +97,26 @@ export const eventRoutes = ({
     const { event, counts, limits, purge, now, readyCount } = await usecases.getEventView({
       event: result.value,
     })
+    // The badge of the replies page: the owner's own, read per account; nobody else is told.
+    const unseenRsvps =
+      actor.role === 'owner'
+        ? await usecases.countUnseenRsvps({ eventId: event.id, actorId: actor.userId })
+        : undefined
     sendJson(
       res,
-      toEventDto({ event, role: actor.role, counts, limits, purge, now, readyCount }, presenter),
+      toEventDto(
+        {
+          event,
+          role: actor.role,
+          counts,
+          limits,
+          purge,
+          now,
+          readyCount,
+          ...(unseenRsvps === undefined ? {} : { unseenRsvps }),
+        },
+        presenter,
+      ),
       status,
     )
   }
@@ -162,7 +180,7 @@ export const eventRoutes = ({
       // The creator is the owner: `createEvent` grants that membership as part of
       // creating the event — the `owner_id` column alone would not do, since every
       // authorization decision reads `roleFor` — so there is no role to look up.
-      await sendEvent(res, result, { role: 'owner' }, 201)
+      await sendEvent(res, result, { role: 'owner', userId: user.userId }, 201)
     }),
   )
 
@@ -177,7 +195,7 @@ export const eventRoutes = ({
 
       const result = await usecases.getEventBySlug({ slug: params.eventSlug })
 
-      await sendEvent(res, result, { role: scope.role })
+      await sendEvent(res, result, { role: scope.role, userId: scope.user.userId })
     }),
   )
 
@@ -194,7 +212,7 @@ export const eventRoutes = ({
         name: body.name,
       })
 
-      await sendEvent(res, result, { role: scope.role })
+      await sendEvent(res, result, { role: scope.role, userId: scope.user.userId })
     }),
   )
 
@@ -334,7 +352,7 @@ export const eventRoutes = ({
         },
       })
 
-      await sendEvent(res, result, { role: scope.role })
+      await sendEvent(res, result, { role: scope.role, userId: scope.user.userId })
     }),
   )
 
@@ -361,7 +379,7 @@ export const eventRoutes = ({
         actorId: scope.user.userId,
       })
 
-      await sendEvent(res, result, { role: scope.role })
+      await sendEvent(res, result, { role: scope.role, userId: scope.user.userId })
     }),
   )
 
@@ -380,7 +398,7 @@ export const eventRoutes = ({
         status: body.status,
       })
 
-      await sendEvent(res, result, { role: scope.role })
+      await sendEvent(res, result, { role: scope.role, userId: scope.user.userId })
     }),
   )
 
@@ -402,7 +420,7 @@ export const eventRoutes = ({
         scheduledCloseAt: body.scheduledCloseAt === null ? null : new Date(body.scheduledCloseAt),
       })
 
-      await sendEvent(res, result, { role: scope.role })
+      await sendEvent(res, result, { role: scope.role, userId: scope.user.userId })
     }),
   )
 
@@ -420,7 +438,7 @@ export const eventRoutes = ({
         actorId: scope.user.userId,
       })
 
-      await sendEvent(res, result, { role: scope.role })
+      await sendEvent(res, result, { role: scope.role, userId: scope.user.userId })
     }),
   )
 
@@ -483,7 +501,7 @@ export const eventRoutes = ({
         bytes: req.file.buffer,
       })
 
-      await sendEvent(res, result, { role: scope.role })
+      await sendEvent(res, result, { role: scope.role, userId: scope.user.userId })
     }),
   )
 
@@ -499,7 +517,7 @@ export const eventRoutes = ({
         actorId: scope.user.userId,
       })
 
-      await sendEvent(res, result, { role: scope.role })
+      await sendEvent(res, result, { role: scope.role, userId: scope.user.userId })
     }),
   )
 
@@ -546,7 +564,7 @@ export const eventRoutes = ({
         bytes: req.file.buffer,
       })
 
-      await sendEvent(res, result, { role: scope.role })
+      await sendEvent(res, result, { role: scope.role, userId: scope.user.userId })
     }),
   )
 
@@ -562,7 +580,7 @@ export const eventRoutes = ({
         actorId: scope.user.userId,
       })
 
-      await sendEvent(res, result, { role: scope.role })
+      await sendEvent(res, result, { role: scope.role, userId: scope.user.userId })
     }),
   )
 
