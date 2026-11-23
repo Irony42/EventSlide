@@ -63,7 +63,7 @@ interface World {
   readonly invites: FakeGuestInviteRepository
 }
 
-const buildWorld = async (): Promise<World> => {
+const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): Promise<World> => {
   const users = new FakeUserRepository()
   const photos = new FakePhotoRepository()
   const memberships = new FakeMembershipRepository({ users })
@@ -78,7 +78,7 @@ const buildWorld = async (): Promise<World> => {
   )
   // Real-shaped ids: the routes take a reply id from a path, and only a uuid is one.
   const ids = createSequentialIdGenerator()
-  const limiter = hostExportLimiter()
+  const limiter = hostExportLimiter(exportSlots)
 
   const harness = buildHarness({
     routes: (app, harnessDeps) => {
@@ -652,6 +652,18 @@ describe('GET /api/events/:eventSlug/rsvps/export', () => {
 
     expect(response.status).toBeLessThan(300)
     expect(actionsOf(world)).toEqual([])
+  })
+
+  it('goes through the bound the ZIP exports share: an account with no slot is refused, nothing is exported', async () => {
+    const full = await buildWorld({ perAccount: 0 })
+    const agent = await signedIn(full, 'owner')
+
+    const get = await agent.get(`${RSVPS}/export`)
+    const head = await agent.head(`${RSVPS}/export`)
+
+    expect([get.status, head.status]).toEqual([429, 429])
+    expect(get.body.error.code).toBe('rate.limited')
+    expect(actionsOf(full)).toEqual([])
   })
 
   it('answers 401 without a session', async () => {
