@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Button } from '../../../design-system/components/Button'
 import { Dialog } from '../../../design-system/components/Dialog'
 import { Field } from '../../../design-system/components/Field'
@@ -6,6 +6,7 @@ import { Notice } from '../../../design-system/components/Notice'
 import { TextInput } from '../../../design-system/components/TextInput'
 import type { HouseholdDto } from '../../../lib/api/dto'
 import type { HouseholdInput } from '../../../lib/api/client/invite'
+import { invitedAmong } from '../../../lib/rsvp/households'
 import { messageForError } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './HouseholdsPage.module.css'
@@ -28,13 +29,13 @@ export interface HouseholdFormProps {
 export function HouseholdForm({ household, moments, onSubmit, onClose }: HouseholdFormProps) {
   const t = useTranslations()
   const text = t.rsvp.households
+  const momentsHintId = useId()
+  const problemId = useId()
   const [name, setName] = useState(household?.name ?? '')
   const [places, setPlaces] = useState(String(household?.places ?? 2))
   /** The moments ticked: every one of the form's by default, and for a household invited to all. */
   const [invited, setInvited] = useState<readonly string[]>(() =>
-    moments
-      .filter((moment) => household?.moments == null || household.moments.includes(moment.id))
-      .map((moment) => moment.id),
+    invitedAmong(household?.moments ?? null, moments).map((moment) => moment.id),
   )
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -109,8 +110,12 @@ export function HouseholdForm({ household, moments, onSubmit, onClose }: Househo
           )}
         </Field>
         {moments.length > 0 ? (
-          <fieldset className={styles['momentsField']}>
+          <fieldset
+            className={styles['momentsField']}
+            aria-describedby={[momentsHintId, ...(problem === null ? [] : [problemId])].join(' ')}
+          >
             <legend>{text.formMoments}</legend>
+            <small id={momentsHintId}>{text.formMomentsHint}</small>
             {moments.map((moment) => (
               <label key={moment.id}>
                 <input
@@ -127,11 +132,10 @@ export function HouseholdForm({ household, moments, onSubmit, onClose }: Househo
                 {moment.label}
               </label>
             ))}
-            <small>{text.formMomentsHint}</small>
           </fieldset>
         ) : null}
         {problem === null ? null : (
-          <Notice tone="danger" variant="boxed" role="alert">
+          <Notice tone="danger" variant="boxed" role="alert" id={problemId}>
             {problem}
           </Notice>
         )}

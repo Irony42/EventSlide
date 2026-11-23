@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { aHousehold } from './testing/householdFixtures'
+import { aRsvp } from './testing/rsvpFixtures'
 import { DEFAULT_RSVP_FORM, applyFormPatch, type RsvpForm } from './rsvpForm'
 import {
   MOMENTS_MAX,
   applyMomentsPatch,
   momentsOfHousehold,
+  narrowMoments,
   parseHouseholdMoments,
   restoreHouseholdMoments,
   restoreMoments,
@@ -158,5 +161,36 @@ describe('restoreHouseholdMoments', () => {
   it('keeps at most four ids', () => {
     const ids = ['11111111', '22222222', '33333333', '44444444', '55555555']
     expect(restoreHouseholdMoments(ids)).toEqual(ids.slice(0, 4))
+  })
+})
+
+describe('a household whose moments are all gone, and the narrowing of what is read', () => {
+  it('is invited to all when none of its moments survives', () => {
+    expect(momentsOfHousehold([BRUNCH, DINNER], ['removed0'])).toEqual([BRUNCH, DINNER])
+    expect(momentsOfHousehold([BRUNCH, DINNER], [DINNER.id, 'removed0'])).toEqual([DINNER])
+    expect(momentsOfHousehold([], ['removed0'])).toEqual([])
+  })
+
+  it('narrows a reply to the moments of today, and a household reply to its own', () => {
+    const replies = [
+      aRsvp({ id: 'open', details: { moments: [DINNER.id, 'removed0', BRUNCH.id] } }),
+      aRsvp({ id: 'filed', householdId: 'h-1', details: { moments: [BRUNCH.id, DINNER.id] } }),
+      aRsvp({ id: 'stranger', householdId: 'ghost', details: { moments: [BRUNCH.id] } }),
+    ]
+    const household = aHousehold({ id: 'h-1', moments: [DINNER.id] })
+
+    const narrowed = narrowMoments(replies, [BRUNCH, DINNER], [household])
+
+    expect(narrowed.map((reply) => reply.details.moments)).toEqual([
+      [BRUNCH.id, DINNER.id],
+      [DINNER.id],
+      [BRUNCH.id],
+    ])
+  })
+
+  it('hands back the very reply when nothing is narrowed', () => {
+    const reply = aRsvp({ details: { moments: [BRUNCH.id] } })
+
+    expect(narrowMoments([reply], [BRUNCH], [])[0]).toBe(reply)
   })
 })

@@ -3487,6 +3487,7 @@ export const it: UiText = {
       momentsLabel: 'A quali momenti ci sarai?',
       momentsHint: 'almeno uno',
       recapMoments: (moments: string) => `Momenti: ${moments}`,
+      momentsGone: 'Il momento che avevi scelto non esiste più: scegline uno.',
       trap: 'Lascia vuoto questo campo',
       tooLarge: 'La tua risposta è troppo lunga per essere inviata. Accorcia i testi.',
     },
@@ -3580,6 +3581,14 @@ export const it: UiText = {
       momentPlaceholder: 'Es. Brunch della domenica',
       momentRemove: (label: string) => `Togli il momento «${label}»`,
       momentsFull: 'Al massimo quattro momenti.',
+      momentRemoveTitle: (label: string) => `Togliere il momento «${label}»?`,
+      momentRemoveBody: (count: number) =>
+        count === 0
+          ? 'Nessuna risposta ha scelto questo momento. Per correggere un nome, rinomina il momento invece di toglierlo.'
+          : `${count} ${count === 1 ? 'risposta ha scelto' : 'risposte hanno scelto'} questo momento e perderanno quella scelta. Per correggere un nome, rinomina il momento invece di toglierlo.`,
+      momentRemoveUnknown:
+        'Le risposte già date perderanno la scelta di questo momento. Per correggere un nome, rinomina il momento invece di toglierlo.',
+      momentRemoveYes: 'Togli il momento',
       presetConfirmTitle: 'Sostituire le impostazioni?',
       presetConfirm: (kind: string) =>
         `Le tue scelte su «Forse», numero di persone, bambini e nomi degli accompagnatori saranno sostituite da quelle di ${kind}.`,
@@ -3712,6 +3721,8 @@ export const it: UiText = {
         `${label}: ${yes}${maybe === null ? '' : ` (+ ${maybe} con «forse»)`}`,
       catererMoments: 'Per momento',
       printMoments: 'Momenti',
+      momentNoneLine: (people: string) => `Senza momento: ${people}`,
+      formMomentsHint: 'almeno uno, per chi viene',
       tileNoReply: 'Senza risposta',
       tileNoReplyDetail: (households: string, places: number) => `${households} · ${places} posti`,
       household: { one: 'nucleo', other: 'nuclei' },

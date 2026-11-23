@@ -1,6 +1,7 @@
 import type { GuestHousehold } from './household'
 import type { GuestRsvp } from './rsvp'
 import type { RsvpMoment, RsvpVisibility } from './rsvpForm'
+import { narrowMoments } from './rsvpFormMoments'
 
 /**
  * The figures of the replies (spec 30, section 4.4): **one function** for the table, the phone,
@@ -37,6 +38,12 @@ export interface RsvpStats {
     readonly yes: { readonly responses: number; readonly people: number }
     readonly maybe: { readonly responses: number; readonly people: number }
   }[]
+  /**
+   * The `yes` replies that come to **no moment that exists today** (given before the moments were
+   * asked, or whose moments were all removed): how many replies and people. Zero while the form has
+   * no moments.
+   */
+  readonly noMoment: { readonly responses: number; readonly people: number }
 }
 
 export const statsOf = (
@@ -54,6 +61,8 @@ export const statsOf = (
   let waitPeople = 0
   const diets: { name: string; diet: string }[] = []
   const meals = new Map<string, number>()
+  // What a reply may be counted at: the moments of today, and a household reply only its own.
+  const narrowed = moments.length === 0 ? rsvps : narrowMoments(rsvps, moments, households)
 
   for (const rsvp of rsvps) {
     switch (rsvp.answer) {
@@ -96,11 +105,22 @@ export const statsOf = (
     waitlist: { responses: waitResponses, people: waitPeople },
     diets,
     noReply: noReplyOf(households, rsvps),
-    moments: moments.map((moment) => ({ ...moment, ...momentFigures(rsvps, moment.id) })),
+    moments: moments.map((moment) => ({ ...moment, ...momentFigures(narrowed, moment.id) })),
+    noMoment: noMomentOf(narrowed, moments),
     meals: [...meals]
       .map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
   }
+}
+
+/** The yes replies that come to no moment of the form: told apart so the host can ask them again. */
+const noMomentOf = (
+  rsvps: readonly GuestRsvp[],
+  moments: readonly RsvpMoment[],
+): RsvpStats['noMoment'] => {
+  if (moments.length === 0) return { responses: 0, people: 0 }
+  const lost = rsvps.filter((rsvp) => rsvp.answer === 'yes' && rsvp.details.moments.length === 0)
+  return { responses: lost.length, people: lost.reduce((sum, rsvp) => sum + rsvp.people, 0) }
 }
 
 /** Who of the `yes` and the `maybe` comes to one moment. */

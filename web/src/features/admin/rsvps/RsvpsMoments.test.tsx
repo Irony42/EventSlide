@@ -297,3 +297,141 @@ describe('the guest list, with moments', () => {
     )
   })
 })
+
+describe('the replies page: maybe, waiting list and replies with no moment', () => {
+  const maybe = anRsvp({
+    id: 'r-maybe',
+    name: 'Tom Maybe',
+    answer: 'maybe',
+    details: { companions: [], meals: [], answers: [], moments: [BRUNCH.id], showName: false },
+  })
+  const waiting = anRsvp({
+    id: 'r-wait',
+    name: 'Zoé Attente',
+    answer: 'waitlist',
+    details: { companions: [], meals: [], answers: [], moments: [BRUNCH.id], showName: false },
+  })
+
+  it('says "peut-être" for a maybe and nothing for a waiting-list entry', async () => {
+    render({
+      rsvps: vi.fn(async () => ({ ...list(), rsvps: [maybe, waiting] })),
+    })
+
+    const table = await screen.findByRole('table')
+    const cells = (name: RegExp) =>
+      within(within(table).getByRole('row', { name })).getAllByRole('cell', { name: /./ })
+    expect(
+      within(within(table).getByRole('row', { name: /Tom Maybe/ })).getAllByText(text.answerMaybe),
+    ).toHaveLength(2)
+    expect(cells(/Zoé Attente/)).toBeDefined()
+    expect(
+      within(within(table).getByRole('row', { name: /Zoé Attente/ })).queryByText(text.detailYes),
+    ).not.toBeInTheDocument()
+  })
+
+  it('tells how many yes people come to no moment', async () => {
+    render({
+      rsvps: vi.fn(async () => ({
+        ...list(),
+        stats: { ...stats, noMoment: { responses: 2, people: 5 } },
+      })),
+    })
+
+    const flat = (words: string): string => words.replaceAll(String.fromCharCode(160), ' ')
+    expect(
+      await screen.findByText(
+        (content) => flat(content) === flat(text.momentNoneLine('5 personnes')),
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('says nothing of it when every yes comes to a moment', async () => {
+    render()
+
+    await screen.findByRole('heading', { level: 2, name: text.momentsTitle })
+    expect(screen.queryByText(/Sans moment/)).not.toBeInTheDocument()
+  })
+})
+
+describe('the guest list: a household whose moments were all removed', () => {
+  const roux = aHousehold({ id: 'h-2', name: 'Famille Roux', places: 2, moments: ['removed0'] })
+  const api = (extra: Partial<Api> = {}): Api =>
+    fakeApi({
+      households: vi.fn(async () => ({ households: [roux] })),
+      guestInvite: vi.fn(async () => ({
+        guestInvite: aGuestInviteHost({ url: 'https://photos.example.test/i/7QX0M4TZ2KD9WB3H' }),
+      })),
+      rsvpForm: vi.fn(async () => ({ rsvpForm: settings })),
+      ...extra,
+    })
+
+  it('is shown as invited to all, opens with every moment ticked, and can be saved', async () => {
+    const updateHousehold = vi.fn(async () => ({ household: roux }))
+    const user = userEvent.setup()
+    renderWithProviders(<HouseholdsPage />, {
+      api: api({ updateHousehold }),
+      route: '/admin/events/camille-et-sacha/rsvps/guests',
+      path: '/admin/events/:slug/rsvps/guests',
+    })
+
+    const table = await screen.findByRole('table')
+    expect(
+      within(within(table).getByRole('row', { name: /Famille Roux/ })).getByText(
+        households.momentsAll,
+      ),
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: `${households.edit} · Famille Roux` }))
+    expect(screen.getByRole('checkbox', { name: BRUNCH.label })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: DINNER.label })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: households.formSave }))
+
+    await waitFor(() =>
+      expect(updateHousehold).toHaveBeenCalledWith('camille-et-sacha', 'h-2', {
+        name: 'Famille Roux',
+        places: 2,
+        moments: null,
+      }),
+    )
+  })
+
+  it('links the hint to the moments of its dialog', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<HouseholdsPage />, {
+      api: api(),
+      route: '/admin/events/camille-et-sacha/rsvps/guests',
+      path: '/admin/events/:slug/rsvps/guests',
+    })
+
+    await user.click(
+      await screen.findByRole('button', { name: `${households.edit} · Famille Roux` }),
+    )
+
+    const group = screen.getByRole('group', { name: households.formMoments })
+    expect(group).toHaveAccessibleDescription(households.formMomentsHint)
+  })
+})
+
+describe('the host’s reply form and its moments', () => {
+  it('links the hint to the moments, and the refusal once there is one', async () => {
+    const user = userEvent.setup()
+    const { ApiError } = await import('../../../lib/http')
+    const addRsvp = vi.fn(async () => {
+      throw new ApiError(400, 'rsvp.momentsRequired')
+    })
+    render({ addRsvp })
+
+    await user.click(await screen.findByRole('button', { name: text.add }))
+    const form = await screen.findByRole('dialog', { name: text.formAddTitle })
+    await user.type(within(form).getByLabelText(new RegExp('^' + text.formName)), 'Paul Petit')
+    await user.click(within(form).getByLabelText(text.answerYes))
+    const group = within(form).getByRole('group', { name: text.formMoments })
+    expect(group).toHaveAccessibleDescription(text.formMomentsHint)
+    await user.click(within(form).getByRole('button', { name: text.formSave }))
+
+    await within(form).findByRole('alert')
+    expect(group).toHaveAccessibleDescription(
+      new RegExp(text.formMomentsHint + '.*' + fr.errors['rsvp.momentsRequired']),
+    )
+    expect(within(form).getByRole('checkbox', { name: BRUNCH.label })).toBeInvalid()
+  })
+})

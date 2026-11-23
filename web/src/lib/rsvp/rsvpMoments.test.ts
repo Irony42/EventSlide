@@ -7,7 +7,7 @@ import {
   aRsvpSettings,
 } from '../../testing/renderWithProviders'
 import { fr } from '../i18n/fr'
-import { formForReply, invitedMomentsLabel } from './households'
+import { formForReply, invitedAmong, invitedMomentsLabel } from './households'
 import {
   EMPTY_DRAFT,
   draftOf,
@@ -165,5 +165,17 @@ describe('a household and its moments', () => {
     expect(
       invitedMomentsLabel(aHousehold({ moments: [DINNER.id, 'removed0'] }), FORM.moments, 'Tous'),
     ).toBe('Dîner')
+  })
+})
+
+describe('a household none of whose moments survives', () => {
+  it('is invited to all of them, in the form, the guest list and the host’s reply form', () => {
+    const gone = aHousehold({ id: 'h-1', moments: ['removed0'] })
+
+    expect(invitedAmong(['removed0'], FORM.moments)).toEqual(FORM.moments)
+    expect(invitedAmong([DINNER.id, 'removed0'], FORM.moments)).toEqual([DINNER])
+    expect(invitedAmong(null, FORM.moments)).toEqual(FORM.moments)
+    expect(invitedMomentsLabel(gone, FORM.moments, 'Tous')).toBe('Tous')
+    expect(formForReply(FORM, anRsvp({ householdId: 'h-1' }), [gone])).toBe(FORM)
   })
 })

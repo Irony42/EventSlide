@@ -2,6 +2,8 @@ import { DomainError } from '../shared/errors'
 import { isPlainObject } from '../shared/plainObject'
 import { err, ok, type Result } from '../shared/result'
 import { label, lower } from './rsvpFormExtras'
+import type { GuestHousehold } from './household'
+import type { GuestRsvp } from './rsvp'
 import type { RsvpMoment } from './rsvpForm'
 
 /**
@@ -87,13 +89,44 @@ export const restoreMoments = (raw: unknown): readonly RsvpMoment[] => {
 /**
  * The moments a household is invited to, **among those the form has today**, in the form's order:
  * `null` (the default) is all of them. A moment the host removed from the form is no longer asked of
- * anyone, so a household's list naming it simply loses it.
+ * anyone, so a household's list naming it simply loses it. **A list none of whose ids survives is
+ * invited to all**: a household must never be left with nothing to answer, nor go uncounted.
  */
 export const momentsOfHousehold = (
   formMoments: readonly RsvpMoment[],
   invited: readonly string[] | null,
-): readonly RsvpMoment[] =>
-  invited === null ? formMoments : formMoments.filter((moment) => invited.includes(moment.id))
+): readonly RsvpMoment[] => {
+  if (invited === null) return formMoments
+  const surviving = formMoments.filter((moment) => invited.includes(moment.id))
+  return surviving.length === 0 ? formMoments : surviving
+}
+
+/**
+ * The replies with their moments **narrowed to the ones that mean something today**: the form's own
+ * moments, and for a reply filed under a household only those that household is invited to (a reply
+ * is never counted at a moment its household is not invited to, whatever it once ticked). Read
+ * paths only (figures, spreadsheets, the table): nothing stored changes.
+ */
+export const narrowMoments = (
+  rsvps: readonly GuestRsvp[],
+  formMoments: readonly RsvpMoment[],
+  households: readonly GuestHousehold[],
+): readonly GuestRsvp[] => {
+  const byId = new Map(households.map((household) => [household.id as string, household]))
+  return rsvps.map((rsvp) => {
+    const household = rsvp.householdId === null ? undefined : byId.get(rsvp.householdId)
+    const allowed = (
+      household === undefined ? formMoments : momentsOfHousehold(formMoments, household.moments)
+    ).map((moment) => moment.id)
+    const kept = formMoments
+      .filter((moment) => allowed.includes(moment.id) && rsvp.details.moments.includes(moment.id))
+      .map((moment) => moment.id)
+    return kept.length === rsvp.details.moments.length &&
+      kept.every((id, at) => id === rsvp.details.moments[at])
+      ? rsvp
+      : rsvp.withMoments(kept)
+  })
+}
 
 /**
  * The moments a household is invited to, as the host typed them: `null` for all, else 1 to 4 distinct

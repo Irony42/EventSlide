@@ -135,7 +135,7 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
     hostAdd: makeHostAddRsvp({ ...access, rsvps, audit, bus, ids, clock }),
     hostUpdate: makeHostUpdateRsvp({ ...access, rsvps, households, audit, bus, clock }),
     hostDelete: makeHostDeleteRsvp({ ...access, rsvps, audit, bus, clock }),
-    exportCsv: makeExportRsvps({ ...access, rsvps, audit, clock }),
+    exportCsv: makeExportRsvps({ ...access, rsvps, households, audit, clock }),
     markSeen: makeMarkRsvpsSeen({ ...access, rsvps, clock }),
     countUnseen: makeCountUnseenRsvps({ rsvps }),
     purge: makePurgeExpiredRsvps({ rsvps, households, clock }),

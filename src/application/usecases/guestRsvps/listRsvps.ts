@@ -1,6 +1,7 @@
 import type { Event } from '../../../domain/events/event'
 import type { GuestInvite } from '../../../domain/guestInvites/guestInvite'
 import type { GuestRsvp } from '../../../domain/guestRsvps/rsvp'
+import { narrowMoments } from '../../../domain/guestRsvps/rsvpFormMoments'
 import type { RsvpSettings } from '../../../domain/guestRsvps/rsvpSettings'
 import type { RsvpStats } from '../../../domain/guestRsvps/rsvpStats'
 import type { DomainError } from '../../../domain/shared/errors'
@@ -47,6 +48,8 @@ export const makeListRsvps =
     const rsvps = await deps.rsvps.listByEvent(eventId)
     // The households the figures call "sans réponse" (the list holds 500 at most).
     const households = await deps.households.listByEvent(eventId)
+    // What the table, the print and the detail say of a reply's moments: today's, and its household's.
+    const shown = narrowMoments(rsvps, opened.value.settings.form.moments, households)
     const { stats, situation } = statsAndSituation(
       opened.value,
       rsvps,
@@ -56,7 +59,7 @@ export const makeListRsvps =
     return ok({
       ...opened.value,
       ...situation,
-      rsvps,
+      rsvps: shown,
       stats,
       unseen: await deps.rsvps.unseenCount(eventId, actorId),
     })

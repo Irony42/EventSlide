@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../../design-system/components/Button'
+import { ConfirmDialog } from '../../../design-system/components/ConfirmDialog'
 import { CheckboxField } from '../../../design-system/components/CheckboxField'
 import { Field } from '../../../design-system/components/Field'
 import { Notice } from '../../../design-system/components/Notice'
@@ -36,6 +37,8 @@ export interface RsvpExtrasProps {
   /** Where the save stands and the sentence of its last refusal: a refused text stays beside its field. */
   readonly saveState: RsvpSaveState
   readonly problem: string | null
+  /** How many replies hold a moment, for the confirmation of its removal (`null`: unknown). */
+  readonly momentReplies: (momentId: string) => Promise<number | null>
 }
 
 /**
@@ -131,7 +134,14 @@ function CommitField({
   )
 }
 
-export function RsvpExtras({ form, locked, change, saveState, problem }: RsvpExtrasProps) {
+export function RsvpExtras({
+  form,
+  locked,
+  change,
+  saveState,
+  problem,
+  momentReplies,
+}: RsvpExtrasProps) {
   const all = useTranslations()
   const text = all.rsvp.host
   /** The menus are being written: the switch is on screen before it can be sent (it needs 2 menus). */
@@ -139,6 +149,11 @@ export function RsvpExtras({ form, locked, change, saveState, problem }: RsvpExt
   const [draft, setDraft] = useState<QuestionDraft | null>(null)
   /** The label of a moment being added: it is sent with the button, not while it is typed. */
   const [momentDraft, setMomentDraft] = useState<string | null>(null)
+  /** The moment the host asked to remove, and how many replies hold it once known. */
+  const [removing, setRemoving] = useState<{
+    readonly index: number
+    readonly count: number | null | 'reading'
+  } | null>(null)
   const mealsOn = form.meals.enabled || mealsOpen
   /** A question the server has not named yet: nothing about the questions changes until it has, or a
    * second request would give the same question a second id. */
@@ -341,7 +356,12 @@ export function RsvpExtras({ form, locked, change, saveState, problem }: RsvpExt
               size="sm"
               disabled={locked || momentNaming}
               aria-label={text.momentRemove(moment.label)}
-              onClick={() => saveMoments(form.moments.filter((_, at) => at !== index))}
+              onClick={() => {
+                setRemoving({ index, count: 'reading' })
+                void momentReplies(moment.id).then((count) =>
+                  setRemoving((current) => (current?.index === index ? { index, count } : current)),
+                )
+              }}
             >
               {text.momentRemove(moment.label)}
             </Button>
@@ -389,6 +409,26 @@ export function RsvpExtras({ form, locked, change, saveState, problem }: RsvpExt
           <p className={styles['note']}>{text.momentsFull}</p>
         )}
       </div>
+      <ConfirmDialog
+        open={removing !== null}
+        title={text.momentRemoveTitle(form.moments[removing?.index ?? 0]?.label ?? '')}
+        description={
+          removing === null || removing.count === 'reading'
+            ? ''
+            : removing.count === null
+              ? text.momentRemoveUnknown
+              : text.momentRemoveBody(removing.count)
+        }
+        confirmLabel={text.momentRemoveYes}
+        busy={removing?.count === 'reading'}
+        onConfirm={() => {
+          if (removing !== null) {
+            saveMoments(form.moments.filter((_, at) => at !== removing.index))
+          }
+          setRemoving(null)
+        }}
+        onCancel={() => setRemoving(null)}
+      />
     </>
   )
 }

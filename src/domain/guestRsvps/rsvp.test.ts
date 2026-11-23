@@ -835,3 +835,21 @@ describe('retainExtras: the moments', () => {
     expect(retainExtras(DEFAULT_RSVP_FORM, held, none, 'yes').moments).toEqual([])
   })
 })
+
+describe('parseRsvpInput: moments the host does not force', () => {
+  const form: RsvpForm = { ...DEFAULT_RSVP_FORM, moments: [{ id: 'aaaaaaaa', label: 'Brunch' }] }
+  const raw = { name: 'Léa', answer: 'yes', adults: 1, kids: 0 }
+
+  it('lets a correction of a reply with no surviving moment go through with none', () => {
+    const result = parseRsvpInput(form, raw, { momentsOptional: true })
+
+    expect(result.ok && result.value.extras.moments).toEqual([])
+  })
+
+  it('still keeps the moments that are sent, and still refuses a guest', () => {
+    const sent = parseRsvpInput(form, { ...raw, moments: ['aaaaaaaa'] }, { momentsOptional: true })
+
+    expect(sent.ok && sent.value.extras.moments).toEqual(['aaaaaaaa'])
+    expect(parseRsvpInput(form, raw).ok).toBe(false)
+  })
+})

@@ -3515,6 +3515,7 @@ export const es: UiText = {
       momentsLabel: '¿A qué momentos vendrás?',
       momentsHint: 'al menos uno',
       recapMoments: (moments: string) => `Momentos: ${moments}`,
+      momentsGone: 'El momento que elegiste ya no existe: elige uno.',
       trap: 'Deja este campo vacío',
       tooLarge: 'Tu respuesta es demasiado larga para enviarla. Acorta tus textos.',
     },
@@ -3607,6 +3608,14 @@ export const es: UiText = {
       momentPlaceholder: 'Ej. Brunch del domingo',
       momentRemove: (label: string) => `Quitar el momento «${label}»`,
       momentsFull: 'Cuatro momentos como máximo.',
+      momentRemoveTitle: (label: string) => `¿Quitar el momento «${label}»?`,
+      momentRemoveBody: (count: number) =>
+        count === 0
+          ? 'Ninguna respuesta ha elegido este momento. Para corregir un nombre, renombra el momento en lugar de quitarlo.'
+          : `${count} ${count === 1 ? 'respuesta ha elegido' : 'respuestas han elegido'} este momento y perderán esa elección. Para corregir un nombre, renombra el momento en lugar de quitarlo.`,
+      momentRemoveUnknown:
+        'Las respuestas ya dadas perderán la elección de este momento. Para corregir un nombre, renombra el momento en lugar de quitarlo.',
+      momentRemoveYes: 'Quitar el momento',
       presetConfirmTitle: '¿Sustituir tus ajustes?',
       presetConfirm: (kind: string) =>
         `Tus opciones de «Quizás», número de personas, niños y nombres de acompañantes serán sustituidas por las de ${kind}.`,
@@ -3740,6 +3749,8 @@ export const es: UiText = {
         `${label}: ${yes}${maybe === null ? '' : ` (+ ${maybe} con «quizás»)`}`,
       catererMoments: 'Por momento',
       printMoments: 'Momentos',
+      momentNoneLine: (people: string) => `Sin momento: ${people}`,
+      formMomentsHint: 'al menos uno, para quienes vienen',
       tileNoReply: 'Sin respuesta',
       tileNoReplyDetail: (households: string, places: number) => `${households} · ${places} plazas`,
       household: { one: 'hogar', other: 'hogares' },

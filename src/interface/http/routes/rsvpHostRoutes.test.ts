@@ -158,7 +158,7 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
             hostAddRsvp: makeHostAddRsvp({ ...access, rsvps, audit, bus, ids, clock }),
             hostUpdateRsvp: makeHostUpdateRsvp({ ...access, rsvps, households, audit, bus, clock }),
             hostDeleteRsvp: makeHostDeleteRsvp({ ...access, rsvps, audit, bus, clock }),
-            exportRsvps: makeExportRsvps({ ...access, rsvps, audit, clock }),
+            exportRsvps: makeExportRsvps({ ...access, rsvps, households, audit, clock }),
             markRsvpsSeen: makeMarkRsvpsSeen({ ...access, rsvps, clock }),
             listHouseholds: makeListHouseholds({ ...access, rsvps, households }),
             saveHousehold: makeSaveHousehold({ ...access, rsvps, households, bus, ids, clock }),

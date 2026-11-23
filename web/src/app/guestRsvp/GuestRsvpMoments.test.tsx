@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
-import { forgetEditToken } from '../../lib/rsvp/rsvpDevice'
+import { forgetEditToken, forgetHouseholdToken } from '../../lib/rsvp/rsvpDevice'
 import type { Api } from '../../lib/api/client'
 import type { GuestRsvpCreateInput } from '../../lib/api/client/invite'
 import {
@@ -35,6 +36,7 @@ beforeEach(() => {
   window.localStorage.clear()
   window.history.replaceState(null, '', '/')
   forgetEditToken(TOKEN)
+  forgetHouseholdToken(TOKEN)
 })
 
 afterEach(() => {
@@ -87,7 +89,6 @@ describe('the moments of the party, on the guest’s phone', () => {
 
   it('shows the refusal in the page when no moment was ticked, and keeps what was typed', async () => {
     const user = userEvent.setup()
-    const { ApiError } = await import('../../lib/http')
     const guestRsvpCreate = vi.fn(async () => {
       throw new ApiError(400, 'rsvp.momentsRequired')
     })
@@ -133,5 +134,104 @@ describe('a household’s moments', () => {
 
     expect(screen.getByRole('checkbox', { name: DINNER.label })).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: BRUNCH.label })).not.toBeInTheDocument()
+  })
+})
+
+describe('a page left open while the moments changed', () => {
+  const LINK = '7QX0M4TZ2KD9WB3H'
+  const refused = (): never =>
+    vi.fn(async () => {
+      throw new ApiError(400, 'rsvp.momentsRequired')
+    }) as never
+
+  it('does not re-read anything for the plain case of nothing ticked', async () => {
+    const user = userEvent.setup()
+    const onStale = vi.fn()
+    renderWithProviders(
+      <GuestRsvpBlock rsvp={page} token={TOKEN} locale="fr" onStale={onStale} />,
+      {
+        api: fakeApi({ guestRsvpCreate: refused() }),
+      },
+    )
+
+    await user.click(screen.getByRole('button', { name: t.yes }))
+    await user.type(screen.getByLabelText(new RegExp(t.nameLabel)), 'Léa Martin')
+    await user.click(screen.getByRole('button', { name: t.send }))
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(onStale).not.toHaveBeenCalled()
+  })
+
+  it('links the hint and the refusal to the moments, and marks them invalid when none is ticked', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<GuestRsvpBlock rsvp={page} token={TOKEN} locale="fr" />, {
+      api: fakeApi({ guestRsvpCreate: refused() }),
+    })
+
+    await user.click(screen.getByRole('button', { name: t.yes }))
+    const group = screen.getByRole('group', { name: t.momentsLabel })
+    expect(group).toHaveAccessibleDescription(t.momentsHint)
+    await user.type(screen.getByLabelText(new RegExp(t.nameLabel)), 'Léa Martin')
+    await user.click(screen.getByRole('button', { name: t.send }))
+
+    await screen.findByRole('alert')
+    expect(group).toHaveAccessibleDescription(
+      new RegExp(t.momentsHint + '.*' + fr.errors['rsvp.momentsRequired']),
+    )
+    expect(screen.getByRole('checkbox', { name: BRUNCH.label })).toBeInvalid()
+  })
+
+  it('explains, when a change opens on a reply whose moments are gone, that one must be chosen again', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(`eventslide.rsvp.${TOKEN}`, JSON.stringify({ editToken: 'tok' }))
+    renderWithProviders(<GuestRsvpBlock rsvp={page} token={TOKEN} locale="fr" />, {
+      api: fakeApi({
+        guestRsvp: vi.fn(async () => ({ rsvp: aGuestOwnRsvp({ moments: ['removed0'] }) })),
+      }),
+    })
+
+    await user.click(await screen.findByRole('button', { name: t.edit }))
+
+    const flat = (words: string): string => words.replaceAll(String.fromCharCode(160), ' ')
+    expect(screen.getByText((content) => flat(content) === flat(t.momentsGone))).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: t.momentsLabel })).toHaveAccessibleDescription(
+      new RegExp(flat(t.momentsGone).slice(0, 20)),
+    )
+  })
+
+  it('does not explain it when the reply still holds a moment', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(`eventslide.rsvp.${TOKEN}`, JSON.stringify({ editToken: 'tok' }))
+    renderWithProviders(<GuestRsvpBlock rsvp={page} token={TOKEN} locale="fr" />, {
+      api: fakeApi({
+        guestRsvp: vi.fn(async () => ({ rsvp: aGuestOwnRsvp({ moments: [BRUNCH.id] }) })),
+      }),
+    })
+
+    await user.click(await screen.findByRole('button', { name: t.edit }))
+
+    expect(screen.queryByText(t.momentsGone)).not.toBeInTheDocument()
+  })
+
+  it('re-reads the page and the household when something was ticked and none survives', async () => {
+    window.history.replaceState(null, '', `/#f=${LINK}`)
+    const user = userEvent.setup()
+    const onStale = vi.fn()
+    const guestHousehold = vi.fn(async () => ({
+      household: { name: 'Famille Martin', places: 4, moments: [DINNER] },
+    }))
+    renderWithProviders(
+      <GuestRsvpBlock rsvp={page} token={TOKEN} locale="fr" onStale={onStale} />,
+      {
+        api: fakeApi({ guestHousehold, guestHouseholdRsvpCreate: refused() }),
+      },
+    )
+
+    await user.click(await screen.findByRole('button', { name: t.yes }))
+    await user.click(screen.getByRole('checkbox', { name: DINNER.label }))
+    await user.click(screen.getByRole('button', { name: t.send }))
+
+    await waitFor(() => expect(onStale).toHaveBeenCalled())
+    await waitFor(() => expect(guestHousehold.mock.calls.length).toBeGreaterThan(1))
   })
 })

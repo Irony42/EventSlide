@@ -246,6 +246,7 @@ export const anRsvpStats = (overrides: Partial<RsvpStatsDto> = {}): RsvpStatsDto
   meals: [],
   noReply: { households: 0, places: 0 },
   moments: [],
+  noMoment: { responses: 0, people: 0 },
   ...overrides,
 })
 
