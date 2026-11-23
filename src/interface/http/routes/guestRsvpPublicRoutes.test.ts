@@ -304,7 +304,7 @@ describe('POST /api/i/:token/rsvp', () => {
   })
 
   it('answers the same 201 to a script that fills the honeypot, and stores nothing', async () => {
-    const { post } = await guest(world)
+    const { post, get } = await guest(world)
 
     const trapped = await post({ ...ANSWER, website: 'https://spam.example' })
 
