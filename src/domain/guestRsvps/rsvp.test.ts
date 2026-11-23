@@ -412,6 +412,7 @@ describe('parseRsvpInput: the lot 2 extras', () => {
       companions: [],
       meals: [],
       answers: [],
+      showName: false,
     })
   })
 
@@ -436,6 +437,7 @@ describe('parseRsvpInput: the lot 2 extras', () => {
       companions: [],
       meals: [],
       answers: [],
+      showName: false,
     })
   })
 
@@ -518,7 +520,8 @@ describe('parseRsvpInput: the lot 2 extras', () => {
       RSVP_AT,
     )
     expect(changed.details.companions).toEqual([])
-    expect(changed.details.showName).toBe(true)
+    // The reply says nothing about showing the name: the change is judged as sent.
+    expect(changed.details.showName).toBe(false)
   })
 })
 
@@ -546,8 +549,10 @@ describe('retainExtras', () => {
         companions: ['New'],
         meals: ['Végé'],
         answers: [{ questionId: 'q1', label: 'Un chant ?', value: 'Ah' }],
+        showName: false,
       }),
     ).toEqual({
+      showName: false,
       companions: ['New'],
       meals: ['Végé'],
       answers: [
@@ -558,12 +563,49 @@ describe('retainExtras', () => {
   })
 
   it('keeps what was given when the form no longer asks for it', () => {
-    const none = { companions: [], meals: [], answers: [] }
+    const none = { companions: [], meals: [], answers: [], showName: false }
 
-    expect(retainExtras(DEFAULT_RSVP_FORM, held, none)).toEqual({
+    expect(retainExtras(DEFAULT_RSVP_FORM, { ...held, showName: true }, none)).toEqual({
+      showName: true,
       companions: ['Hugo'],
       meals: ['Poisson'],
       answers: held.answers,
     })
+  })
+})
+
+describe('parseRsvpInput: show my first name', () => {
+  const naming = { ...DEFAULT_RSVP_FORM, visibility: 'names' as const }
+  const party = { name: 'Léa', answer: 'yes', adults: 1 }
+  const shown = (raw: RawRsvpInput, form: RsvpForm = naming): boolean | string => {
+    const result = parseRsvpInput(form, { ...party, ...raw })
+    return result.ok ? result.value.extras.showName : result.error.code
+  }
+
+  it('is off unless the guest ticks it, and only when the host shows first names', () => {
+    expect(shown({})).toBe(false)
+    expect(shown({ showName: false })).toBe(false)
+    expect(shown({ showName: true })).toBe(true)
+    expect(shown({ showName: true }, DEFAULT_RSVP_FORM)).toBe(false)
+    expect(shown({ showName: true }, { ...DEFAULT_RSVP_FORM, visibility: 'count' })).toBe(false)
+  })
+
+  it('names only a yes', () => {
+    expect(shown({ answer: 'maybe', showName: true })).toBe(false)
+    expect(shown({ answer: 'no', showName: true })).toBe(false)
+  })
+
+  it('refuses a value that is not a boolean, when it is asked', () => {
+    expect(shown({ showName: 'yes' })).toBe('rsvp.showNameInvalid')
+    expect(shown({ showName: null })).toBe(false)
+    expect(shown({ showName: 'yes' }, DEFAULT_RSVP_FORM)).toBe(false)
+  })
+
+  it('keeps a guest’s opt-in while the display is off, and takes the new one while it is on', () => {
+    const held = { ...EMPTY_RSVP_DETAILS, showName: true }
+    const none = { companions: [], meals: [], answers: [], showName: false }
+
+    expect(retainExtras(DEFAULT_RSVP_FORM, held, none).showName).toBe(true)
+    expect(retainExtras(naming, held, none).showName).toBe(false)
   })
 })

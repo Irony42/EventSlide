@@ -2211,6 +2211,8 @@ export interface GuestRsvpPageDto {
       readonly kind: 'text' | 'choice'
       readonly options?: readonly string[]
     }[]
+    /** Whether the page shows who comes, and the "show my first name" box needs `names`. */
+    readonly visibility: 'off' | 'count' | 'names'
   }
   /** Only when the host chose to show who comes: the people coming, and the first names allowed. */
   readonly proof?: { readonly count: number; readonly names: readonly string[] }
@@ -2231,6 +2233,7 @@ export interface GuestOwnRsvpDto {
     readonly label: string
     readonly value: string
   }[]
+  readonly showName: boolean
   readonly updatedAt: string
 }
 

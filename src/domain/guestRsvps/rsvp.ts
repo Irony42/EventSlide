@@ -107,12 +107,19 @@ export interface RawRsvpInput {
   readonly meals?: unknown
   /** `{ questionId, value }[]`, one per question the host asks (lot 2). */
   readonly answers?: unknown
+  /** "Show my first name to the other guests" (spec 30, section 4.4), a `yes` only. */
+  readonly showName?: unknown
 }
 
 /** What the form's lot 2 questions add to a reply. */
-export type RsvpExtras = Pick<RsvpDetails, 'companions' | 'meals' | 'answers'>
+export type RsvpExtras = Pick<RsvpDetails, 'companions' | 'meals' | 'answers' | 'showName'>
 
-export const NO_RSVP_EXTRAS: RsvpExtras = { companions: [], meals: [], answers: [] }
+export const NO_RSVP_EXTRAS: RsvpExtras = {
+  companions: [],
+  meals: [],
+  answers: [],
+  showName: false,
+}
 
 /** A reply that passed {@link parseRsvpInput}. */
 export interface RsvpInput {
@@ -316,6 +323,17 @@ export const parseRsvpInput = (
   if (!meals.ok) return meals
   const answers = parseAnswers(raw.answers, form.questions)
   if (!answers.ok) return answers
+  // Asked only when the host shows first names, and only a yes is ever named.
+  if (
+    answer === 'yes' &&
+    form.visibility === 'names' &&
+    raw.showName !== undefined &&
+    raw.showName !== null &&
+    typeof raw.showName !== 'boolean'
+  ) {
+    return err(DomainError.invalid('rsvp.showNameInvalid'))
+  }
+  const showName = answer === 'yes' && form.visibility === 'names' && raw.showName === true
   return ok({
     name: name.value,
     answer,
@@ -323,7 +341,12 @@ export const parseRsvpInput = (
     kids,
     diet: diet.value,
     message: message.value,
-    extras: { companions: companions.value, meals: meals.value, answers: answers.value },
+    extras: {
+      companions: companions.value,
+      meals: meals.value,
+      answers: answers.value,
+      showName,
+    },
   })
 }
 
@@ -486,6 +509,9 @@ export const retainExtras = (
 ): RsvpExtras => ({
   companions: form.companionNames ? extras.companions : held.companions,
   meals: form.meals.enabled ? extras.meals : held.meals,
+  // The opt-in is the guest's: switching the display off keeps it, so switching it on again does not
+  // name a guest who never said so, nor forget one who did.
+  showName: form.visibility === 'names' ? extras.showName : held.showName,
   answers: [
     ...extras.answers,
     ...held.answers.filter(

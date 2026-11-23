@@ -41,6 +41,7 @@ export interface GuestRsvpInput {
   readonly companions?: readonly string[]
   readonly meals?: readonly string[]
   readonly answers?: readonly { readonly questionId: string; readonly value: string }[]
+  readonly showName?: boolean
 }
 
 /** The creation adds the honeypot: a hidden field a person leaves empty and a script fills. */
@@ -62,6 +63,7 @@ export interface RsvpFormInput {
     readonly diet?: boolean
     readonly companionNames?: boolean
     readonly meals?: { readonly enabled?: boolean; readonly options?: readonly string[] }
+    readonly visibility?: 'off' | 'count' | 'names'
     readonly questions?: readonly {
       readonly id?: string
       readonly label: string
@@ -82,6 +84,7 @@ export interface RsvpReplyInput {
   readonly companions?: readonly string[]
   readonly meals?: readonly string[]
   readonly answers?: readonly { readonly questionId: string; readonly value: string }[]
+  readonly showName?: boolean
 }
 
 /** The guest's token travels in this header, never in a path or a query (those reach access logs). */

@@ -1054,6 +1054,7 @@ export const rsvpReplyBody = z.strictObject({
   companions: z.unknown().optional(),
   meals: z.unknown().optional(),
   answers: z.unknown().optional(),
+  showName: z.unknown().optional(),
 })
 
 export const rsvpParams = z.strictObject({ eventSlug: slug, rsvpId: uuid })
@@ -1079,6 +1080,7 @@ export const guestRsvpBody = z.strictObject({
   companions: z.unknown().optional(),
   meals: z.unknown().optional(),
   answers: z.unknown().optional(),
+  showName: z.unknown().optional(),
 })
 
 /**
