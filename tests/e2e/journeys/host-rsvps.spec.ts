@@ -121,6 +121,9 @@ test('a guest’s reply shows on the host’s open page, the badge counts what i
   const wide = host.viewportSize()
   await host.setViewportSize({ width: 320, height: 800 })
   await expect(table.getByRole('button', { name: 'Ana Lopez' })).toBeVisible()
+  // The cards keep the table's semantics for a screen reader: a header row and one row per reply.
+  await expect(table.getByRole('row')).toHaveCount(4)
+  await expect(table.getByRole('rowheader')).toHaveCount(3)
   expect(
     await host.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

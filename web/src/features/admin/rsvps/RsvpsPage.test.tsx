@@ -908,3 +908,67 @@ describe('the replies page: what it owes the host', () => {
     expect(rsvps).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('the replies page: a read that left before the act', () => {
+  it('ends on the closed state when an older read lands after the act’s answer', async () => {
+    const user = userEvent.setup()
+    const open = aRsvpSettings({ enabled: true, state: 'open' })
+    const closed = aRsvpSettings({
+      enabled: true,
+      state: 'closed',
+      closedAt: '2026-11-23T10:00:00.000Z',
+      closesAt: '2099-01-01T00:00:00.000Z',
+    })
+    let held = open
+    let release: () => void = () => undefined
+    const slow = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const rsvps = vi
+      .fn()
+      .mockImplementationOnce(async () => list({ rsvpForm: open }))
+      .mockImplementationOnce(async () => {
+        const answer = list({ rsvpForm: open })
+        await slow
+        return answer
+      })
+      .mockImplementation(async () => list({ rsvpForm: held }))
+    const closeRsvps = vi.fn(async () => ({ rsvpForm: (held = closed) }))
+    render(fakeApi({ rsvps, closeRsvps }))
+    await screen.findByRole('table')
+    signal('rsvp.changed')
+    await waitFor(() => expect(rsvps).toHaveBeenCalledTimes(2))
+
+    await user.click(screen.getByRole('button', { name: host.closeAction }))
+    await waitFor(() => expect(closeRsvps).toHaveBeenCalled())
+    release()
+
+    expect(await screen.findByText(/réponses fermées/)).toBeInTheDocument()
+    await waitFor(() => expect(rsvps.mock.calls.length).toBeGreaterThanOrEqual(3))
+    expect(screen.getByText(/réponses fermées/)).toBeInTheDocument()
+  })
+})
+
+describe('the replies page: a newer read wins over the act’s answer', () => {
+  it('shows the replies open again when another tab reopened them after this one closed them', async () => {
+    const user = userEvent.setup()
+    const open = aRsvpSettings({ enabled: true, state: 'open' })
+    const closed = aRsvpSettings({
+      enabled: true,
+      state: 'closed',
+      closedAt: '2026-11-23T10:00:00.000Z',
+      closesAt: '2099-01-01T00:00:00.000Z',
+    })
+    let held = open
+    const rsvps = vi.fn(async () => list({ rsvpForm: held }))
+    const closeRsvps = vi.fn(async () => ({ rsvpForm: (held = closed) }))
+    render(fakeApi({ rsvps, closeRsvps }))
+    await user.click(await screen.findByRole('button', { name: host.closeAction }))
+    expect(await screen.findByText(/réponses fermées/)).toBeInTheDocument()
+
+    held = open
+    signal('rsvp.changed')
+
+    await waitFor(() => expect(screen.queryByText(/réponses fermées/)).not.toBeInTheDocument())
+  })
+})
