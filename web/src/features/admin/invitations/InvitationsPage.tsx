@@ -149,7 +149,7 @@ function Workspace({
   })
   const look = useInviteLook(slug)
   // The replies' settings hang on the invitation: read again once it exists.
-  const rsvp = useRsvpSettings(slug, invite.configured)
+  const rsvp = useRsvpSettings(slug, `${invite.configured}|${invite.startsAt}|${invite.timeZone}`)
   const [output, setOutput] = useState<OutputName>('print')
   const activateRef = useRef<HTMLButtonElement>(null)
   const ids = useId()
@@ -317,7 +317,7 @@ function Workspace({
               <AppearancePanel event={event} invite={shown} look={look} />
             )}
           </section>
-          <RsvpPanel rsvp={rsvp} archived={archived} />
+          <RsvpPanel rsvp={rsvp} archived={archived} timeZone={invite.timeZone} />
         </div>
 
         {shown === null ? (

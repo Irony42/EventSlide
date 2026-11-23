@@ -4131,18 +4131,19 @@ export const fr = {
       stateOpen: 'Demandées',
       stateClosed: 'Fermées',
       needsInvite:
-        'Enregistrez d’abord l’invitation (titre et date) : les réponses se demandent sur sa page.',
+        'Enregistrez d’abord l’invitation (titre et date)\u00a0: les réponses se demandent sur sa page.',
       askLabel: 'Demander une réponse',
       askHint: 'Le bloc «\u00a0Serez-vous là\u00a0?\u00a0» apparaît sur la page de l’invitation.',
       deadlineLabel: 'Date limite',
       deadlineHint:
-        'Affichée aux invités. Le lendemain, les réponses se ferment (vous pouvez les rouvrir).',
+        'Affichée aux invités. Les réponses restent ouvertes jusqu’à la fin de ce jour, puis se ferment\u00a0: changez la date pour les rouvrir.',
       deadlineClear: 'Retirer la date limite',
       closeAction: 'Fermer les réponses',
       reopenAction: 'Rouvrir les réponses',
       closedNote:
         'Fermées\u00a0: la page de l’invitation dit «\u00a0Les réponses sont closes\u00a0».',
-      closesOn: (date: string) => `Les réponses se ferment le ${date}.`,
+      closesOn: (date: string) =>
+        `Sans date limite, les réponses se ferment au début de la fête, le ${date}.`,
       erasedOn: (date: string) => `Les réponses seront effacées le ${date}.`,
       asksTitle: 'Ce que vous demandez',
       presetLabel: 'Type de fête',
@@ -4164,7 +4165,6 @@ export const fr = {
         'Texte libre facultatif. Donnée de santé\u00a0: vue par vous seul, effacée avec les réponses.',
       saving: 'Enregistrement…',
       saved: 'Enregistré',
-      saveFailed: 'Ce réglage n’a pas été enregistré.',
       retry: 'Réessayer',
       loadFailed: 'Les réglages des réponses n’ont pas pu être chargés.',
       fewTitle: 'Pourquoi si peu d’obligatoire',
@@ -4175,10 +4175,18 @@ export const fr = {
       erasedTitle: 'Effacées après la fête',
       erased:
         'Les réponses disparaissent 30 jours après que la soirée est fermée, ou 60 jours après son début. Exportez-les avant.',
-      previewTitle: 'Aperçu du formulaire',
-      previewHint: 'Ce que voit l’invité après «\u00a0Je viens\u00a0».',
       previewName: 'Camille',
       archived: 'L’évènement est archivé\u00a0: les réglages ne peuvent plus changer.',
+      openUntil: (day: string) => `Réponses ouvertes jusqu’au ${day} inclus.`,
+      closedByDate: 'Fermées par la date limite\u00a0: changez-la pour rouvrir les réponses.',
+      reopenNeedsDate: 'La date limite est passée\u00a0: changez-la pour pouvoir rouvrir.',
+      stateFull: 'Complet',
+      presetConfirmTitle: 'Remplacer vos réglages\u00a0?',
+      presetConfirm: (kind: string) =>
+        `Vos choix de «\u00a0Peut-être\u00a0», de nombre de personnes et d’enfants seront remplacés par ceux d’${kind}.`,
+      presetConfirmYes: 'Remplacer',
+      presetKindParty: 'une fête',
+      presetKindWedding: 'un mariage',
     },
   },
 

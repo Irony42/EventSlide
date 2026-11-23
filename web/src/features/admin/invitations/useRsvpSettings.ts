@@ -14,7 +14,13 @@ import { useLoader } from '../../../lib/useLoader'
  * (an absent field is left as it was on the server, so only what changed is sent); one request at a
  * time, and what is chosen while one is on its way goes next. A refusal puts the screen back to
  * what the server holds, with the sentence of its code; what is still waiting when the page closes
- * is sent, not lost. "Fermer" and "Rouvrir" are acts, sent at once.
+ * is sent, not lost.
+ *
+ * **"Fermer" and "Rouvrir" are acts and come after everything chosen**: they wait for the queue to
+ * drain (the request on its way included, and what was chosen while it flew), do nothing and keep
+ * the refusal's sentence if a choice was refused, and only then send. Every answer is stamped by
+ * the order its request was **sent**; an older answer landing after a newer one is dropped, so a
+ * save that left before the closing cannot put the pre-closing state back on screen.
  *
  * **No rule lives here**: the state of the window, the date it closes and the date the replies
  * are erased are the server's, read back with every answer.
@@ -47,7 +53,8 @@ const NONE: Choices = { sent: {}, queued: {} }
 
 /**
  * @param reloadWhen changes when the answer may differ without the host having typed anything: the
- *   invitation was saved, so "enregistrez d'abord l'invitation" is no longer true.
+ *   invitation was saved, so "enregistrez d'abord l'invitation" is no longer true, or its start or
+ *   its zone moved, so the date the window closes did.
  */
 export const useRsvpSettings = (slug: string, reloadWhen: unknown): RsvpSettingsState => {
   const api = useApi()
@@ -65,10 +72,12 @@ export const useRsvpSettings = (slug: string, reloadWhen: unknown): RsvpSettings
   const [choices, setChoices] = useState<Choices>(NONE)
   /** The same, for the code that must read it now and not at the next render. */
   const latest = useRef<Choices>(NONE)
-  const inflight = useRef(false)
-  /** The next flush, for the one that follows a request: a callback cannot name itself. */
-  const next = useRef<() => void>(() => undefined)
+  /** The drain in progress: everyone who wants the queue empty waits for this one. */
+  const draining = useRef<Promise<boolean> | null>(null)
   const timer = useRef<number | undefined>(undefined)
+  /** Requests are numbered as they are sent; the newest answer applied wins. */
+  const issued = useRef(0)
+  const applied = useRef(0)
   const [saveState, setSaveState] = useState<RsvpSaveState>('idle')
   const [problem, setProblem] = useState<string | null>(null)
   const [acting, setActing] = useState(false)
@@ -81,34 +90,49 @@ export const useRsvpSettings = (slug: string, reloadWhen: unknown): RsvpSettings
     setChoices(next)
   }, [])
 
-  const flush = useCallback(async (): Promise<void> => {
-    window.clearTimeout(timer.current)
-    if (inflight.current) return
-    const input = latest.current.queued
-    if (Object.keys(input).length === 0) return
-    set({ sent: input, queued: {} })
-    inflight.current = true
-    setSaveState('saving')
-    let failed = false
-    try {
-      const answer = await api.saveRsvpForm(slug, input)
-      replace({ rsvpForm: answer.rsvpForm })
-    } catch (cause) {
-      failed = true
-      setProblem(messageForError(cause, words.current))
-      setSaveState('failed')
-    } finally {
-      inflight.current = false
-      // Answered or refused, the request is over: the screen is the server's word plus what waits.
-      set({ sent: {}, queued: latest.current.queued })
-    }
-    if (Object.keys(latest.current.queued).length > 0) next.current()
-    else if (!failed) setSaveState('saved')
-  }, [api, slug, replace, set])
+  const adopt = useCallback(
+    (seq: number, rsvpForm: RsvpSettingsDto) => {
+      if (seq <= applied.current) return
+      applied.current = seq
+      replace({ rsvpForm })
+    },
+    [replace],
+  )
 
-  useEffect(() => {
-    next.current = () => void flush()
-  }, [flush])
+  /** Sends what is queued, and what is queued meanwhile, until nothing waits; `false` if one was refused. */
+  const drain = useCallback((): Promise<boolean> => {
+    window.clearTimeout(timer.current)
+    if (draining.current !== null) return draining.current
+    const run = async (): Promise<boolean> => {
+      let ok = true
+      while (Object.keys(latest.current.queued).length > 0) {
+        const input = latest.current.queued
+        set({ sent: input, queued: {} })
+        issued.current += 1
+        const seq = issued.current
+        setSaveState('saving')
+        try {
+          adopt(seq, (await api.saveRsvpForm(slug, input)).rsvpForm)
+          setProblem(null)
+        } catch (cause) {
+          ok = false
+          setProblem(messageForError(cause, words.current))
+          setSaveState('failed')
+        } finally {
+          // Answered or refused, the request is over: the screen is the server's word plus what waits.
+          set({ sent: {}, queued: latest.current.queued })
+        }
+        if (!ok) break
+      }
+      if (ok) setSaveState('saved')
+      return ok
+    }
+    const started = run().finally(() => {
+      draining.current = null
+    })
+    draining.current = started
+    return started
+  }, [api, slug, adopt, set])
 
   const change = useCallback(
     (input: RsvpFormInput) => {
@@ -116,35 +140,37 @@ export const useRsvpSettings = (slug: string, reloadWhen: unknown): RsvpSettings
       setProblem(null)
       setSaveState('pending')
       window.clearTimeout(timer.current)
-      timer.current = window.setTimeout(() => void flush(), SAVE_DEBOUNCE_MS)
+      timer.current = window.setTimeout(() => void drain(), SAVE_DEBOUNCE_MS)
     },
-    [flush, set],
+    [drain, set],
   )
 
   // Leaving the page must not eat what was chosen a moment before.
   useEffect(
     () => () => {
       window.clearTimeout(timer.current)
-      if (Object.keys(latest.current.queued).length > 0) void flush()
+      if (Object.keys(latest.current.queued).length > 0) void drain()
     },
-    [flush],
+    [drain],
   )
 
   const act = useCallback(
     async (run: () => Promise<{ readonly rsvpForm: RsvpSettingsDto }>): Promise<void> => {
-      // What was chosen goes first, so the act answers a settings page that is up to date.
-      await flush()
+      // Everything chosen goes first; a choice that was refused stops the act and keeps its sentence.
+      if (!(await drain())) return
       setActing(true)
       setProblem(null)
+      issued.current += 1
+      const seq = issued.current
       try {
-        replace(await run().then((answer) => ({ rsvpForm: answer.rsvpForm })))
+        adopt(seq, (await run()).rsvpForm)
       } catch (cause) {
         setProblem(messageForError(cause, words.current))
       } finally {
         setActing(false)
       }
     },
-    [flush, replace],
+    [drain, adopt],
   )
 
   const settings =

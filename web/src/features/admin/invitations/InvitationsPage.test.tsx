@@ -769,13 +769,31 @@ describe('InvitationsPage', () => {
         }),
       )
 
-      expect(await screen.findByText(asked.needsInvite)).toBeVisible()
+      expect(
+        await screen.findByText(asked.needsInvite.replaceAll(String.fromCharCode(160), ' ')),
+      ).toBeVisible()
     })
 
     it('reads the settings again once the invitation is saved', async () => {
       const rsvpForm = vi.fn(async () => ({ rsvpForm: aRsvpSettings() }))
       const save = vi.fn(async () => ({ guestInvite: aGuestInviteHost() }))
       render(answering(BLANK, { rsvpForm, saveGuestInvite: save }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+
+      await touch(form)
+
+      await waitFor(() => expect(rsvpForm.mock.calls.length).toBeGreaterThanOrEqual(2))
+    })
+
+    it('reads the settings again when the party moves, as the day they close on moves with it', async () => {
+      const rsvpForm = vi.fn(async () => ({ rsvpForm: aRsvpSettings() }))
+      const moved = aGuestInviteHost({ enabled: true, startsAt: '2027-08-01T18:00:00.000Z' })
+      const guestInvite = vi
+        .fn()
+        .mockResolvedValueOnce({ guestInvite: ON })
+        .mockResolvedValue({ guestInvite: moved })
+      const save = vi.fn(async () => ({ guestInvite: moved }))
+      render(fakeApi({ guestInvite, rsvpForm, saveGuestInvite: save }))
       const form = await screen.findByRole('form', { name: text.formTitle })
 
       await touch(form)

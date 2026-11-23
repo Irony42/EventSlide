@@ -68,6 +68,17 @@ test('the host switches replies on, chooses the form and a deadline, closes and 
   await expect(again.getByLabel(new RegExp(asked.presetLabel))).toHaveValue('wedding')
   await expect(again.getByText(asked.stateOpen, { exact: true })).toBeVisible()
 
+  // --- On the narrowest phone, the panel does not push the page sideways.
+  const wide = host.viewportSize()
+  await host.setViewportSize({ width: 320, height: 800 })
+  await expect(again.getByRole('checkbox', { name: asked.askLabel })).toBeVisible()
+  expect(
+    await host.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    ),
+  ).toBeLessThanOrEqual(0)
+  if (wide !== null) await host.setViewportSize(wide)
+
   // --- A guest opens the link: the block, the deadline, two answers, no "peut-être".
   const context = await browser.newContext({ locale: 'fr-FR' })
   const phone = await context.newPage()
