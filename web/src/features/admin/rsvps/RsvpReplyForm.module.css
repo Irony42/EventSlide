@@ -1,0 +1,14 @@
+/* The host's form for a reply (spec 30): the guest's own fields, in a dialog. Tokens only. */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--space-3);
+}

@@ -21,6 +21,7 @@ export type EventActionGlyph =
   | 'home'
   | 'access'
   | 'invitations'
+  | 'rsvps'
   | 'announcements'
   | 'reveal'
   | 'telegram'
@@ -91,6 +92,8 @@ const SHAPES: Record<EventActionGlyph, string> = {
     'M2.5 2.5h4v4h-4zM9.5 2.5h4v4h-4zM2.5 9.5h4v4h-4zM9.5 9.5h1.5v1.5H9.5zM12 12h1.5v1.5H12zM9.5 12.8h1M12.8 9.5v1',
   // An envelope
   invitations: 'M2.5 4h11v8.5h-11zM2.5 4.2 8 8.6l5.5-4.4',
+  // A list with a tick on its first line: who answered
+  rsvps: 'M2.5 2.5h11v11h-11zM5 6l1.2 1.2L8.3 5M10 6h1.5M5 10l1.2 1.2L8.3 9M10 10h1.5',
   // A loud-hailer
   announcements:
     'M2.5 6.5h2.5l5.5-3v9l-5.5-3H2.5zM5 9.5l.9 3.5h1.6l-.7-3M12.5 6.3a2.2 2.2 0 0 1 0 3.4',

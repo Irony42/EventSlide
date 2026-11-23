@@ -1,0 +1,246 @@
+/* The host's replies page (spec 30, lot 1). Tokens only; a phone is one column. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.sub {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.settings {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-min);
+  color: var(--accent-strong);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+@media (min-width: 64rem) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 18rem;
+    align-items: start;
+  }
+}
+
+.main,
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+}
+
+/* One tile per answer; its colour is a stripe, the word and the figure carry the meaning. */
+.tile {
+  --kind: var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-block-size: var(--touch-min);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-inline-start: 4px solid var(--kind);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tile[data-kind='yes'] {
+  --kind: var(--success);
+}
+
+.tile[data-kind='maybe'] {
+  --kind: var(--warning);
+}
+
+.tile[data-kind='no'] {
+  --kind: var(--danger);
+}
+
+.tileKey {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.tileValue {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.tileDetail {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.track {
+  display: flex;
+  overflow: hidden;
+  block-size: 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--border-subtle);
+}
+
+.track > span {
+  display: block;
+  block-size: 100%;
+}
+
+.track > [data-kind='yes'] {
+  background: var(--success);
+}
+
+.track > [data-kind='maybe'] {
+  background: var(--warning);
+}
+
+.track > [data-kind='no'] {
+  background: var(--danger);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.tabs button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+  font-weight: 650;
+}
+
+.tabs i {
+  color: var(--text-secondary);
+  font-style: normal;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.toolbar input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.spacer {
+  flex: 1 1 0;
+}
+
+.export {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--button-radius);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.note {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.panel h2 {
+  font-size: var(--text-base);
+}
+
+.feed,
+.notify {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.notify li {
+  display: flex;
+  flex-direction: column;
+}
+
+.notify span {
+  color: var(--text-secondary);
+}

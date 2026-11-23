@@ -140,6 +140,7 @@ const only = (): RecordedCall => {
 const subject = (): Api => createApi(recorder)
 
 const SLUG = 'camille-et-sacha'
+const RSVP_ID = 'd1000000-0000-4000-8000-000000000001'
 const PHOTO = 'photo-1'
 
 beforeEach(() => {
@@ -819,6 +820,36 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.reopenRsvps(SLUG),
   },
   {
+    name: 'rsvps',
+    verb: 'get',
+    path: `/api/events/${SLUG}/rsvps`,
+    invoke: (client) => client.rsvps(SLUG),
+  },
+  {
+    name: 'addRsvp',
+    verb: 'post',
+    path: `/api/events/${SLUG}/rsvps`,
+    invoke: (client) => client.addRsvp(SLUG, { name: 'Léa Martin', answer: 'yes', adults: 2 }),
+  },
+  {
+    name: 'updateRsvp',
+    verb: 'put',
+    path: `/api/events/${SLUG}/rsvps/${RSVP_ID}`,
+    invoke: (client) => client.updateRsvp(SLUG, RSVP_ID, { name: 'Léa', answer: 'no' }),
+  },
+  {
+    name: 'deleteRsvp',
+    verb: 'del',
+    path: `/api/events/${SLUG}/rsvps/${RSVP_ID}`,
+    invoke: (client) => client.deleteRsvp(SLUG, RSVP_ID),
+  },
+  {
+    name: 'markRsvpsSeen',
+    verb: 'post',
+    path: `/api/events/${SLUG}/rsvps/seen`,
+    invoke: (client) => client.markRsvpsSeen(SLUG),
+  },
+  {
     name: 'guestRsvpCreate',
     verb: 'post',
     path: '/api/i/7QX0M4TZ2KD9WB3H/rsvp',
@@ -1088,6 +1119,7 @@ describe('every endpoint addresses the documented method and path', () => {
       'guestbookVoiceUrl',
       'moderationStreamUrl',
       'reelUrl',
+      'rsvpExportUrl',
       'streamUrl',
     ])
   })
@@ -1600,6 +1632,10 @@ describe('links the app builds rather than requests', () => {
     expect(subject().albumExportUrl(SLUG)).not.toBe(subject().albumUrl(SLUG))
   })
 
+  it('points the spreadsheet of the replies at the documented export endpoint', () => {
+    expect(subject().rsvpExportUrl(SLUG)).toBe(`/api/events/${SLUG}/rsvps/export`)
+  })
+
   it('points the montage player at the documented MP4 endpoint', () => {
     expect(subject().reelUrl(SLUG)).toBe(`/api/events/${SLUG}/highlights/reel.mp4`)
   })
@@ -1635,6 +1671,7 @@ describe('links the app builds rather than requests', () => {
     'albumExportUrl',
     'bestOfUrl',
     'reelUrl',
+    'rsvpExportUrl',
     'streamUrl',
     'moderationStreamUrl',
   ] as const)('escapes a slug in %s too', (method) => {

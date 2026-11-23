@@ -8,6 +8,8 @@ import { Notice } from '../../../design-system/components/Notice'
 import { SelectField } from '../../../design-system/components/SelectField'
 import { Spinner } from '../../../design-system/components/Spinner'
 import { TextInput } from '../../../design-system/components/TextInput'
+import { dateOf, dayOf } from '../../../lib/rsvp/rsvpDates'
+import { windowAction } from '../../../lib/rsvp/rsvpList'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import {
   PARTY_SIZES,
@@ -26,24 +28,6 @@ export interface RsvpPanelProps {
   /** The invitation's own zone: the days it shows are the party's, not the host's browser's. */
   readonly timeZone?: string | null
 }
-
-/** An ISO instant as a date a host reads, in the language they read and **the party's zone**. */
-const dateOf = (iso: string, locale: string, timeZone: string | null): string =>
-  new Intl.DateTimeFormat(locale, {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    ...(timeZone === null ? {} : { timeZone }),
-  }).format(new Date(iso))
-
-/** A calendar day (`2026-12-12`) as a date: it has no zone, so it is read as it is written. */
-const dayOf = (day: string, locale: string): string =>
-  new Intl.DateTimeFormat(locale, {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(`${day}T12:00:00Z`))
 
 /**
  * "Réponses des invités": what the host asks the guests on the invitation's page (spec 30, lot 1),
@@ -88,9 +72,9 @@ export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
   const locked = archived || !settings.invited
   const { form } = settings
   const kind = kindOf(settings)
-  const closedByDate = settings.state === 'closed' && settings.closedAt === null
-  const deadlinePassed = settings.closesAt !== null && Date.parse(settings.closesAt) <= readAt
-  const reopenNeedsDate = settings.closedAt !== null && deadlinePassed
+  const action = windowAction(settings, readAt)
+  const closedByDate = action === 'closedByDate'
+  const reopenNeedsDate = action === 'moveDate'
   const stateBadge =
     settings.state === 'closed' ? (
       <Badge tone="warning">{text.stateClosed}</Badge>
@@ -178,15 +162,15 @@ export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
             <p>{text.closesOn(dateOf(settings.closesAt, locale, timeZone))}</p>
           )}
           {reopenNeedsDate ? <p>{text.reopenNeedsDate}</p> : null}
-          {closedByDate || reopenNeedsDate ? null : settings.closedAt === null ? (
+          {action === 'close' ? (
             <Button size="sm" disabled={archived || rsvp.acting} onClick={rsvp.close}>
               {text.closeAction}
             </Button>
-          ) : (
+          ) : action === 'reopen' ? (
             <Button size="sm" disabled={archived || rsvp.acting} onClick={rsvp.reopen}>
               {text.reopenAction}
             </Button>
-          )}
+          ) : null}
         </div>
       ) : null}
       {settings.erasedAt === null ? null : (

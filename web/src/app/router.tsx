@@ -104,6 +104,10 @@ const InvitationsPage = lazy(async () => ({
   default: (await import('../features/admin/invitations/InvitationsPage')).InvitationsPage,
 }))
 
+const RsvpsPage = lazy(async () => ({
+  default: (await import('../features/admin/rsvps/RsvpsPage')).RsvpsPage,
+}))
+
 const PrintKitPage = lazy(async () => ({
   default: (await import('../features/admin/PrintKitPage')).PrintKitPage,
 }))
@@ -617,6 +621,8 @@ export function AppRoutes() {
                   path="/admin/events/:slug/invitations"
                   element={titled('guestInviteHost', <InvitationsPage />)}
                 />
+                {/* The replies to it: who comes, and how many (spec 30). */}
+                <Route path="/admin/events/:slug/rsvps" element={titled('rsvps', <RsvpsPage />)} />
               </Route>
               {siteAdmin ? (
                 <Route path="/admin/client" element={titled('clientSpace', <ClientSpacePage />)} />

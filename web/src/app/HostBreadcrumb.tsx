@@ -22,6 +22,7 @@ export type HostEventPage =
   | 'stats'
   | 'print'
   | 'invitations'
+  | 'rsvps'
 
 export interface HostBreadcrumbProps {
   readonly slug: string
@@ -161,6 +162,7 @@ function Trail({
     stats: t.admin.stats.tile,
     print: t.admin.printKitCrumb,
     invitations: t.guestInvite.host.crumb,
+    rsvps: t.rsvp.list.crumb,
   }
 
   return (

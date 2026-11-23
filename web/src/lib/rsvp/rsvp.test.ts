@@ -281,8 +281,8 @@ describe('the words of a reply', () => {
   })
 })
 
-describe('the French of the guest’s and the host’s blocks', () => {
-  /** Every sentence of `rsvp.guest`, `rsvp.host` and of the `rsvp.*` error codes, functions called with samples. */
+describe('the French of the guest’s and the host’s blocks (settings and replies page)', () => {
+  /** Every sentence of `rsvp.guest`, `rsvp.host`, `rsvp.list` and of the `rsvp.*` error codes, functions called with samples. */
   const sentences = (): string[] => {
     const out: string[] = []
     const walk = (node: unknown): void => {
@@ -293,6 +293,7 @@ describe('the French of the guest’s and the host’s blocks', () => {
     }
     walk(fr.rsvp.guest)
     walk(fr.rsvp.host)
+    walk(fr.rsvp.list)
     for (const [code, sentence] of Object.entries(fr.errors))
       if (code.startsWith('rsvp.')) out.push(sentence)
     return out

@@ -1,0 +1,40 @@
+/* One reply in full (spec 30). Tokens only. */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.list dt {
+  color: var(--text-secondary);
+}
+
+.list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 30rem) {
+  .list {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .list dd {
+    margin-block-end: var(--space-2);
+  }
+}
