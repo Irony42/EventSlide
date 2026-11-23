@@ -158,6 +158,7 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
           byId.get(rsvp.eventId, rsvp.id) ??
           (rsvp.householdId === null ? undefined : byHousehold.get(rsvp.eventId, rsvp.householdId))
         const existing = found === undefined ? undefined : toRsvp(found)
+        if (existing === undefined && limits.changeOnly === true) return { kind: 'gone' }
 
         const refusal = rsvpRefusalFor({
           isNew: existing === undefined,

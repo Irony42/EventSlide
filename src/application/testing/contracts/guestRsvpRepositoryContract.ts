@@ -239,6 +239,44 @@ export const guestRsvpRepositoryContract = (
       })
     })
 
+    describe('admit: a change only', () => {
+      it('changes a reply that is there, like any change', async () => {
+        await add({ id: 'rsvp-1', name: 'Avant' })
+
+        const outcome = await repo.admit(
+          aRsvp({ eventId: 'evt-wedding', id: 'rsvp-1', name: 'Après' }),
+          { capacity: null, changeOnly: true },
+        )
+
+        expect(outcome.kind).toBe('updated')
+        expect((await repo.findById(WEDDING, asGuestRsvpId('rsvp-1')))?.name).toBe('Après')
+      })
+
+      it('does not store again a reply that was deleted meanwhile', async () => {
+        await add({ id: 'rsvp-1', editTokenHash: 'digest-1' })
+        await repo.delete(WEDDING, asGuestRsvpId('rsvp-1'))
+
+        const outcome = await repo.admit(
+          aRsvp({ eventId: 'evt-wedding', id: 'rsvp-1', editTokenHash: 'digest-1' }),
+          { capacity: null, changeOnly: true },
+        )
+
+        expect(outcome).toEqual({ kind: 'gone' })
+        expect(await repo.listByEvent(WEDDING)).toEqual([])
+      })
+
+      it('does not take the reply of another event for its own', async () => {
+        await repo.admit(aRsvp({ eventId: 'evt-gala', id: 'rsvp-1' }), NONE)
+
+        const outcome = await repo.admit(aRsvp({ eventId: 'evt-wedding', id: 'rsvp-1' }), {
+          capacity: null,
+          changeOnly: true,
+        })
+
+        expect(outcome.kind).toBe('gone')
+      })
+    })
+
     describe('admit: the ceilings', () => {
       const fill = async (count: number): Promise<void> => {
         for (let i = 0; i < count; i += 1) {

@@ -21,11 +21,19 @@ export type GuestRsvpAdmission =
   | { readonly kind: 'updated'; readonly rsvp: GuestRsvp }
   /** A ceiling is reached; nothing was written. */
   | { readonly kind: 'refused'; readonly refusal: RsvpRefusal }
+  /** `changeOnly` was asked and the reply is not there (deleted meanwhile): nothing was written. */
+  | { readonly kind: 'gone' }
 
 /** What `admit` judges against, besides the thousand-reply ceiling it always applies. */
 export interface GuestRsvpAdmitLimits {
   /** Places in people, or `null` for none (lot 4). */
   readonly capacity: number | null
+  /**
+   * The call is a **change** to a reply the caller read: if it is no longer there (a delete came
+   * in between), nothing is added, the answer is `gone`. Without it a change whose reply vanished
+   * would store it again, a guest's own deletion undone by their other tab.
+   */
+  readonly changeOnly?: boolean
 }
 
 export interface GuestRsvpRepository {

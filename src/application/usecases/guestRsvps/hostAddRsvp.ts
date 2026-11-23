@@ -79,5 +79,5 @@ export const makeHostAddRsvp =
     }
     await keepOwnWriteSeen(deps.rsvps, eventId, actorId, unseenBefore, now)
     announceRsvpsChanged(deps.bus, eventId)
-    return ok(admission.rsvp)
+    return ok(rsvp)
   }

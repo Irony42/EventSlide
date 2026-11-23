@@ -81,6 +81,8 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
         ? undefined
         : held.find((row) => row.householdId === rsvp.householdId))
 
+    if (existing === undefined && limits.changeOnly === true) return { kind: 'gone' }
+
     const refusal = rsvpRefusalFor({
       isNew: existing === undefined,
       heldInEvent: held.length,
