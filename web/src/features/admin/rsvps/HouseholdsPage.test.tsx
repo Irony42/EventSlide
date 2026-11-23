@@ -501,3 +501,196 @@ describe('the guest list: the guided reminder', () => {
     }
   })
 })
+
+describe('the guest list: what review of #547 asked', () => {
+  const sequence = (...answers: readonly (readonly HouseholdDto[])[]) => {
+    let next = 0
+    return vi.fn(async () => ({
+      households: answers[Math.min(next++, answers.length - 1)] as readonly HouseholdDto[],
+    }))
+  }
+  const refresh = async (households: ReturnType<typeof sequence>) => {
+    const reads = households.mock.calls.length
+    act(() => FakeEventSource.latest('the page').emitSignal('rsvp.changed'))
+    await waitFor(() => expect(households.mock.calls.length).toBeGreaterThan(reads))
+  }
+
+  it('says the refusal of a deletion in front of the host, the confirmation shut', async () => {
+    const deleteHousehold = vi.fn(async () => {
+      throw new ApiError(403, 'client.suspended')
+    })
+    const user = userEvent.setup()
+    render(listing([martin], { deleteHousehold }))
+
+    await user.click(await screen.findByRole('button', { name: `${text.remove} · Famille Martin` }))
+    await user.click(screen.getByRole('button', { name: text.deleteYes }))
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.queryByText(text.deleteBody)).not.toBeInTheDocument()
+  })
+
+  it('says the refusal of a new link in front of the host too', async () => {
+    const rotateHousehold = vi.fn(async () => {
+      throw new ApiError(403, 'client.suspended')
+    })
+    const user = userEvent.setup()
+    render(listing([martin], { rotateHousehold }))
+
+    await user.click(await screen.findByRole('button', { name: `${text.rotate} · Famille Martin` }))
+    await user.click(screen.getByRole('button', { name: text.rotateYes }))
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.queryByText(text.rotateBody)).not.toBeInTheDocument()
+  })
+
+  it('takes a household that is gone for a link changed: the dialog closes and the list is read again', async () => {
+    const rotateHousehold = vi.fn(async () => {
+      throw new ApiError(404, 'household.notFound')
+    })
+    const households = sequence([martin], [])
+    const user = userEvent.setup()
+    render(listing([], { households, rotateHousehold }))
+
+    await user.click(await screen.findByRole('button', { name: `${text.rotate} · Famille Martin` }))
+    await user.click(screen.getByRole('button', { name: text.rotateYes }))
+
+    await waitFor(() => expect(screen.queryByText(text.rotateBody)).not.toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(await screen.findByText(text.emptyTitle)).toBeInTheDocument()
+  })
+
+  it('gives a household whose link was changed a fresh message, never the edit that holds the revoked link', async () => {
+    const changed = { ...martin, token: 'ZZZZZZZZZZZZZZZZ' }
+    const households = sequence([martin], [changed])
+    const user = userEvent.setup()
+    render(listing([], { households }))
+    const panel = await screen.findByRole('region', { name: text.reminderTitle })
+    const box = within(panel).getByRole('textbox')
+    await user.clear(box)
+    await user.type(box, `Mon mot ${INVITE}#f=AAAAAAAAAAAAAAAA`)
+
+    await refresh(households)
+
+    await waitFor(() =>
+      expect((within(panel).getByRole('textbox') as HTMLTextAreaElement).value).toContain(
+        `${INVITE}#f=ZZZZZZZZZZZZZZZZ`,
+      ),
+    )
+    expect((within(panel).getByRole('textbox') as HTMLTextAreaElement).value).not.toContain('AAAA')
+  })
+
+  it('offers no reminder on an archived event and never notes one', async () => {
+    const remindHousehold = vi.fn(async () => ({ household: martin }))
+    render(
+      listing([martin], {
+        remindHousehold,
+        getEvent: vi.fn(async () => anEventDto({ status: 'archived' })),
+      }),
+    )
+
+    const panel = await screen.findByRole('region', { name: text.reminderTitle })
+    expect(within(panel).getByText(plain(text.reminderArchived))).toBeInTheDocument()
+    expect(within(panel).queryByRole('link', { name: text.reminderSms })).not.toBeInTheDocument()
+    expect(within(panel).queryByRole('textbox')).not.toBeInTheDocument()
+    expect(remindHousehold).not.toHaveBeenCalled()
+  })
+
+  it('follows the household on screen when an earlier one answers, and the nearest one when it answers itself', async () => {
+    const a = aHousehold({ id: 'h-a', name: 'Alpha', token: 'AAAAAAAAAAAAAAAA' })
+    const b = aHousehold({ id: 'h-b', name: 'Bravo', token: 'BBBBBBBBBBBBBBBB' })
+    const c = aHousehold({ id: 'h-c', name: 'Charlie', token: 'CCCCCCCCCCCCCCCC' })
+    const answered = (household: HouseholdDto): HouseholdDto => ({
+      ...household,
+      reply: { id: `r-${household.id}`, answer: 'yes', people: 1 },
+    })
+    const households = sequence([a, b, c], [answered(a), b, c], [answered(a), answered(b), c])
+    const user = userEvent.setup()
+    render(listing([], { households }))
+    const panel = await screen.findByRole('region', { name: text.reminderTitle })
+    await user.click(within(panel).getByRole('button', { name: text.reminderNext }))
+    expect(within(panel).getByText('Bravo', { exact: true })).toBeInTheDocument()
+
+    await refresh(households)
+    // Alpha answered: Bravo is still the one on screen, now first of two.
+    await waitFor(() =>
+      expect(within(panel).getByText(text.reminderProgress(1, 2))).toBeInTheDocument(),
+    )
+    expect(within(panel).getByText('Bravo', { exact: true })).toBeInTheDocument()
+
+    await refresh(households)
+    // Bravo answered itself: the panel stays where it was and shows Charlie.
+    await waitFor(() =>
+      expect(within(panel).getByText('Charlie', { exact: true })).toBeInTheDocument(),
+    )
+    expect(within(panel).getByText(text.reminderProgress(1, 1))).toBeInTheDocument()
+  })
+
+  it('notes "relancé" for a copy that worked and for no other', async () => {
+    const user = userEvent.setup()
+    const remindHousehold = vi.fn(async () => ({ household: martin }))
+    const writeText = vi
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockRejectedValueOnce(new Error('refused'))
+      .mockResolvedValue(undefined)
+    render(listing([martin], { remindHousehold }))
+    const panel = await screen.findByRole('region', { name: text.reminderTitle })
+
+    await user.click(within(panel).getByRole('button', { name: text.reminderCopy }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    await screen.findByText(new RegExp(text.copyFailed('').slice(0, 20)))
+    expect(remindHousehold).not.toHaveBeenCalled()
+
+    await user.click(within(panel).getByRole('button', { name: text.reminderCopy }))
+    await waitFor(() => expect(remindHousehold).toHaveBeenCalledTimes(1))
+  })
+
+  it('says that the note is made as soon as a channel is clicked', async () => {
+    render(listing([martin]))
+
+    const panel = await screen.findByRole('region', { name: text.reminderTitle })
+    expect(within(panel).getByText(new RegExp(plain(text.reminderNoteMarked)))).toBeInTheDocument()
+  })
+
+  it('tells reading the invitation, failing to read it and having none apart', async () => {
+    const never = vi.fn(() => new Promise<never>(() => undefined))
+    const view = render(listing([martin], { guestInvite: never }))
+    expect(
+      await within(await screen.findByRole('region', { name: text.reminderTitle })).findByText(
+        text.reminderLoading,
+      ),
+    ).toBeInTheDocument()
+    view.unmount()
+
+    const retry = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError(500, 'server.error'))
+      .mockResolvedValue({ guestInvite: aGuestInviteHost({ url: INVITE }) })
+    const user = userEvent.setup()
+    render(listing([martin], { guestInvite: retry }))
+    const failed = await screen.findByRole('region', { name: text.reminderTitle })
+    expect(await within(failed).findByText(text.reminderInviteFailed)).toBeInTheDocument()
+    expect(within(failed).queryByText(plain(text.reminderNoLink))).not.toBeInTheDocument()
+    await user.click(within(failed).getByRole('button', { name: text.retry }))
+    expect(await within(failed).findByRole('link', { name: text.reminderSms })).toBeInTheDocument()
+  })
+
+  it('names each filter with its count, apart', async () => {
+    render(listing([martin, elodie, durand]))
+
+    expect(
+      await screen.findByRole('button', { name: `${text.filterPending}, 2` }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: `${text.filterAll}, 3` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: `${text.filterAnswered}, 1` })).toBeInTheDocument()
+  })
+
+  it('leads from a household with a reply to that reply on the replies page', async () => {
+    render(listing([elodie]))
+
+    const row = within(await screen.findByRole('table')).getByRole('row', { name: /Élodie Roux/ })
+    expect(within(row).getByRole('link', { name: text.viewReply })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha/rsvps?reply=r-2',
+    )
+  })
+})

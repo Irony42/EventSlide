@@ -3761,6 +3761,10 @@ export const it: UiText = {
       reminderNext: 'Successivo',
       reminderNote:
         'WhatsApp, SMS ed e-mail si aprono con il messaggio pronto: scegli il contatto nella tua app. EventSlide non conosce né numeri né indirizzi.',
+      reminderArchived: 'L’evento è archiviato: non è più possibile sollecitare.',
+      reminderLoading: 'Caricamento dell’invito…',
+      reminderInviteFailed: 'Non è stato possibile leggere l’invito.',
+      reminderNoteMarked: 'La nota «sollecitato» viene salvata appena clicchi su un canale.',
       reminderAllDone: 'Tutti hanno risposto.',
       reminderNoLink: 'Salva prima l’invito: senza link non c’è nulla da inviare.',
       reminderNoteFailed: 'La nota «sollecitato» non è stata salvata.',

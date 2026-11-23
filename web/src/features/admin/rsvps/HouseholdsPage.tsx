@@ -33,7 +33,7 @@ import { useLoader } from '../../../lib/useLoader'
 import { useEvent } from '../hooks/useEventData'
 import { HouseholdForm } from './HouseholdForm'
 import { HouseholdImport } from './HouseholdImport'
-import { HouseholdReminder } from './HouseholdReminder'
+import { HouseholdReminder, type ReminderInvite } from './HouseholdReminder'
 import { useHouseholds } from './useHouseholds'
 import styles from './HouseholdsPage.module.css'
 
@@ -113,7 +113,8 @@ function OwnerHouseholds({
     (signal: AbortSignal) => api.guestInvite(slug, signal),
     [api, slug],
   )
-  const invite = useLoader(loadInvite).data?.guestInvite ?? null
+  const inviteState = useLoader(loadInvite)
+  const invite = inviteState.data?.guestInvite ?? null
   const loadSettings = useCallback((signal: AbortSignal) => api.rsvpForm(slug, signal), [api, slug])
   const settings = useLoader(loadSettings).data?.rsvpForm ?? null
 
@@ -122,7 +123,7 @@ function OwnerHouseholds({
   const [dialog, setDialog] = useState<Dialogs>({ kind: 'none' })
   const [problem, setProblem] = useState<string | null>(null)
   const [acting, setActing] = useState(false)
-  const [at, setAt] = useState(0)
+  const [startSignal, setStartSignal] = useState(0)
   const reminderRef = useRef<HTMLDivElement>(null)
 
   if (data === null && loading) return <Pending label={t.admin.eventLoading} />
@@ -145,7 +146,15 @@ function OwnerHouseholds({
     settings === null || settings.deadline === null
       ? null
       : deadlineLabel(settings.deadline, locale)
-  const title = invite?.title ?? invite?.defaultTitle ?? ''
+  // Three different things hide behind "no address": still loading, failed to read, nothing saved.
+  const reminderInvite: ReminderInvite =
+    inviteUrl !== null
+      ? { kind: 'ready', url: inviteUrl, title: invite?.title ?? invite?.defaultTitle ?? '' }
+      : invite === null && inviteState.loading
+        ? { kind: 'loading' }
+        : invite === null
+          ? { kind: 'error', retry: inviteState.reload }
+          : { kind: 'none' }
   const filterNames = {
     all: text.filterAll,
     pending: text.filterPending,
@@ -174,23 +183,32 @@ function OwnerHouseholds({
     }
     reload()
   }
-  const remove = (household: HouseholdDto) =>
-    act(async () => {
+  // A dialog that asks is closed before the act runs: a refusal is then said by the page's own notice,
+  // in front of the host, not behind a modal that is still open.
+  const remove = (household: HouseholdDto) => {
+    setDialog({ kind: 'none' })
+    return act(async () => {
       try {
         await api.deleteHousehold(slug, household.id)
       } catch (cause) {
         // Already gone (another tab): a deletion done, not a failure.
         if (!(cause instanceof ApiError && cause.code === 'household.notFound')) throw cause
       }
-      setDialog({ kind: 'none' })
       reload()
     })
-  const rotate = (household: HouseholdDto) =>
-    act(async () => {
-      await api.rotateHousehold(slug, household.id)
-      setDialog({ kind: 'none' })
+  }
+  const rotate = (household: HouseholdDto) => {
+    setDialog({ kind: 'none' })
+    return act(async () => {
+      try {
+        await api.rotateHousehold(slug, household.id)
+      } catch (cause) {
+        // Already gone (another tab): there is no link left to change, the list learns it.
+        if (!(cause instanceof ApiError && cause.code === 'household.notFound')) throw cause
+      }
       reload()
     })
+  }
   const copy = async (household: HouseholdDto) => {
     const link = householdLink(inviteUrl, household)
     if (link === null) return
@@ -208,7 +226,7 @@ function OwnerHouseholds({
     }
   }
   const startReminders = () => {
-    setAt(0)
+    setStartSignal((signal) => signal + 1)
     reminderRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
   }
 
@@ -299,10 +317,11 @@ function OwnerHouseholds({
                   key={name}
                   type="button"
                   aria-pressed={filter === name}
+                  aria-label={`${filterNames[name]}, ${counts[name]}`}
                   onClick={() => setFilter(name)}
                 >
                   {filterNames[name]}
-                  <i>{counts[name]}</i>
+                  <i aria-hidden="true">{counts[name]}</i>
                 </button>
               ))}
             </div>
@@ -346,7 +365,9 @@ function OwnerHouseholds({
                           {household.reply === null ? null : (
                             <>
                               {' '}
-                              <Link to={`/admin/events/${slug}/rsvps`}>{text.viewReply}</Link>
+                              <Link to={`/admin/events/${slug}/rsvps?reply=${household.reply.id}`}>
+                                {text.viewReply}
+                              </Link>
                             </>
                           )}
                         </td>
@@ -400,12 +421,11 @@ function OwnerHouseholds({
           <aside className={styles['side']} ref={reminderRef}>
             <HouseholdReminder
               pending={pending}
-              index={at}
-              onIndex={setAt}
-              inviteUrl={inviteUrl}
-              title={title}
+              invite={reminderInvite}
               deadline={deadline}
               onReminded={reminded}
+              archived={archived}
+              startSignal={startSignal}
             />
           </aside>
         </div>

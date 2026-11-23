@@ -4479,6 +4479,11 @@ export const fr = {
       reminderNext: 'Suivant',
       reminderNote:
         'WhatsApp, SMS et e-mail s’ouvrent avec le message prêt\u00a0: vous choisissez le contact dans votre appli. EventSlide ne connaît ni numéro ni adresse.',
+      reminderArchived: 'L’évènement est archivé\u00a0: plus aucune relance n’est possible.',
+      reminderLoading: 'Chargement de l’invitation…',
+      reminderInviteFailed: 'L’invitation n’a pas pu être lue.',
+      reminderNoteMarked:
+        'Le marquage «\u00a0relancé\u00a0» est noté dès que vous cliquez sur un canal.',
       reminderAllDone: 'Tout le monde a répondu.',
       reminderNoLink: 'Enregistrez d’abord l’invitation\u00a0: sans lien, il n’y a rien à envoyer.',
       reminderNoteFailed: 'Le marquage «\u00a0relancé\u00a0» n’a pas pu être enregistré.',

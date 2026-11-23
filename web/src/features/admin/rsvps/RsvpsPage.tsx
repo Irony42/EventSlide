@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useOutletContext, useParams } from 'react-router-dom'
+import { Link, useOutletContext, useParams, useSearchParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../../app/HostEventsLink'
 import { Button } from '../../../design-system/components/Button'
@@ -171,6 +171,17 @@ function Replies({
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [dialog, setDialog] = useState<Dialogs>({ kind: 'none' })
+  // "Voir la réponse" of the guest list leads here with `?reply=<id>`: that reply's drawer opens, once.
+  const [search, setSearch] = useSearchParams()
+  const wanted = search.get('reply')
+  const [opened, setOpened] = useState<string | null>(null)
+  if (wanted !== null && wanted !== opened && rsvps.some((reply) => reply.id === wanted)) {
+    setOpened(wanted)
+    setDialog({ kind: 'detail', id: wanted })
+  }
+  useEffect(() => {
+    if (wanted !== null) setSearch({}, { replace: true })
+  }, [wanted, setSearch])
   const [problem, setProblem] = useState<string | null>(null)
   const printing = usePrintList()
   const [acting, setActing] = useState(false)

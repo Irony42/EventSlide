@@ -3706,6 +3706,10 @@ export const en: UiText = {
       reminderNext: 'Next',
       reminderNote:
         'WhatsApp, SMS and e-mail open with the message ready: you pick the contact in your app. EventSlide knows no number and no address.',
+      reminderArchived: 'The event is archived: no more reminders are possible.',
+      reminderLoading: 'Loading the invitation…',
+      reminderInviteFailed: 'The invitation could not be read.',
+      reminderNoteMarked: 'The “reminded” note is saved as soon as you click a channel.',
       reminderAllDone: 'Everyone has replied.',
       reminderNoLink: 'Save the invitation first: without a link there is nothing to send.',
       reminderNoteFailed: 'The “reminded” note could not be saved.',

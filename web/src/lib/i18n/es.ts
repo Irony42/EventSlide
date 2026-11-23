@@ -3789,6 +3789,10 @@ export const es: UiText = {
       reminderNext: 'Siguiente',
       reminderNote:
         'WhatsApp, SMS y correo se abren con el mensaje listo: usted elige el contacto en su aplicación. EventSlide no conoce ningún número ni dirección.',
+      reminderArchived: 'El evento está archivado: ya no se pueden enviar recordatorios.',
+      reminderLoading: 'Cargando la invitación…',
+      reminderInviteFailed: 'No se pudo leer la invitación.',
+      reminderNoteMarked: 'La nota «recordado» se guarda en cuanto hace clic en un canal.',
       reminderAllDone: 'Todos han respondido.',
       reminderNoLink: 'Guarde primero la invitación: sin enlace no hay nada que enviar.',
       reminderNoteFailed: 'No se pudo guardar la nota «recordado».',

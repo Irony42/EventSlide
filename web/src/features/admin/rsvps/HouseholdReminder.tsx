@@ -16,43 +16,63 @@ import {
 } from '../../../lib/rsvp/households'
 import styles from './HouseholdsPage.module.css'
 
+/** What the page knows of the invitation, which the reminder's links depend on. */
+export type ReminderInvite =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'error'; readonly retry: () => void }
+  /** No invitation saved yet, or none with an address. */
+  | { readonly kind: 'none' }
+  | { readonly kind: 'ready'; readonly url: string; readonly title: string }
+
 export interface HouseholdReminderProps {
   /** The households with no reply, in the list's order. */
   readonly pending: readonly HouseholdDto[]
-  /** Where the host stands in `pending` (clamped: the list shrinks as households answer). */
-  readonly index: number
-  readonly onIndex: (index: number) => void
-  /** The invitation's address, or `null` while it has none. */
-  readonly inviteUrl: string | null
-  readonly title: string
+  readonly invite: ReminderInvite
   /** The deadline as a date in the host's language, or `null`. */
   readonly deadline: string | null
   /** Notes "relancé" for a household; a refusal is the page's to say. */
   readonly onReminded: (household: HouseholdDto) => Promise<void>
+  /** An archived event is read-only: the note cannot be written, so nothing is offered. */
+  readonly archived: boolean
+  /** Changes each time the host asks to remind them all: the panel starts again from the first. */
+  readonly startSignal: number
 }
 
 /**
  * "Relance guidée" (spec 30, lot 3): one household without a reply at a time, a message the host may
  * edit, and four ways to send it **from the host's own applications**: WhatsApp, SMS and e-mail open
  * with the message ready and **no recipient** (EventSlide knows no number and no address), or the
- * message is copied. Using one notes "relancé" for that household, and the host moves on to the next.
+ * message is copied. Using one notes "relancé" for that household (as soon as a channel is clicked, or
+ * once the copy succeeded), and the host moves on to the next.
  *
- * Nothing is sent by EventSlide, so nothing here can fail but the host's own note.
+ * The panel **follows a household, not a position**: when the list is read again and the household
+ * on screen has answered, the panel moves to the one now at its place. An edit is kept per household
+ * **and per link, title and deadline**, so a household whose link was changed gets a fresh message
+ * and never one that carries the revoked link.
  */
 export function HouseholdReminder({
   pending,
-  index,
-  onIndex,
-  inviteUrl,
-  title,
+  invite,
   deadline,
   onReminded,
+  archived,
+  startSignal,
 }: HouseholdReminderProps) {
   const t = useTranslations()
   const text = t.rsvp.households
   const toast = useToast()
-  // What the host edited, per household: moving on and back keeps it.
   const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({})
+  // The household on screen and where it stands: if it answers meanwhile, the panel stays at that place.
+  const [cursor, setCursor] = useState<{ readonly id: string | null; readonly at: number }>({
+    id: null,
+    at: 0,
+  })
+  const [seenSignal, setSeenSignal] = useState(startSignal)
+
+  if (seenSignal !== startSignal) {
+    setSeenSignal(startSignal)
+    setCursor({ id: null, at: 0 })
+  }
 
   const panel = (body: ReactNode) => (
     <section className={styles['reminder']} aria-label={text.reminderTitle}>
@@ -61,20 +81,39 @@ export function HouseholdReminder({
     </section>
   )
   if (pending.length === 0) return panel(<p className={styles['note']}>{text.reminderAllDone}</p>)
-
-  const at = Math.min(Math.max(index, 0), pending.length - 1)
-  const household = pending[at] as HouseholdDto
-  const link = householdLink(inviteUrl, household)
-  if (link === null) {
+  if (archived) return panel(<p className={styles['note']}>{text.reminderArchived}</p>)
+  if (invite.kind === 'loading')
+    return panel(<p className={styles['note']}>{text.reminderLoading}</p>)
+  if (invite.kind === 'error') {
+    return panel(
+      <>
+        <Notice tone="warning" variant="inline">
+          {text.reminderInviteFailed}
+        </Notice>
+        <Button size="sm" onClick={invite.retry}>
+          {text.retry}
+        </Button>
+      </>,
+    )
+  }
+  if (invite.kind === 'none') {
     return panel(
       <Notice tone="warning" variant="inline">
         {text.reminderNoLink}
       </Notice>,
     )
   }
-  const message =
-    drafts[household.id] ?? reminderMessage(household, { title, deadline, link }, text)
+
+  const found = pending.findIndex((household) => household.id === cursor.id)
+  const at = found >= 0 ? found : Math.min(cursor.at, pending.length - 1)
+  const household = pending[at] as HouseholdDto
+  if (cursor.id !== household.id || cursor.at !== at) setCursor({ id: household.id, at })
+  const link = householdLink(invite.url, household) as string
+  const context = { title: invite.title, deadline, link }
+  const draftKey = `${household.id}|${household.token}|${invite.title}|${deadline ?? ''}`
+  const message = drafts[draftKey] ?? reminderMessage(household, context, text)
   const used = () => void onReminded(household)
+  const go = (next: number) => setCursor({ id: (pending[next] as HouseholdDto).id, at: next })
 
   return panel(
     <>
@@ -86,7 +125,7 @@ export function HouseholdReminder({
             {...control}
             rows={6}
             value={message}
-            onChange={(event) => setDrafts({ ...drafts, [household.id]: event.target.value })}
+            onChange={(event) => setDrafts({ ...drafts, [draftKey]: event.target.value })}
           />
         )}
       </Field>
@@ -106,7 +145,7 @@ export function HouseholdReminder({
         </a>
         <a
           className={styles['channel']}
-          href={mailtoUrl(text.reminderSubject(title), message)}
+          href={mailtoUrl(text.reminderSubject(invite.title), message)}
           onClick={used}
         >
           {text.reminderEmail}
@@ -114,26 +153,29 @@ export function HouseholdReminder({
         <Button
           size="sm"
           onClick={() => {
-            void copyToClipboard(message).then((copied) =>
+            void copyToClipboard(message).then((copied) => {
               toast.show(copied ? text.reminderCopied : text.copyFailed(message), {
                 tone: copied ? 'success' : 'warning',
-              }),
-            )
-            used()
+              })
+              // Only a copy that worked is a reminder that can be sent.
+              if (copied) used()
+            })
           }}
         >
           {text.reminderCopy}
         </Button>
       </div>
       <div className={styles['steps']}>
-        <Button variant="ghost" size="sm" disabled={at === 0} onClick={() => onIndex(at - 1)}>
+        <Button variant="ghost" size="sm" disabled={at === 0} onClick={() => go(at - 1)}>
           {text.reminderPrevious}
         </Button>
-        <Button size="sm" disabled={at >= pending.length - 1} onClick={() => onIndex(at + 1)}>
+        <Button size="sm" disabled={at >= pending.length - 1} onClick={() => go(at + 1)}>
           {text.reminderNext}
         </Button>
       </div>
-      <p className={styles['note']}>{text.reminderNote}</p>
+      <p className={styles['note']}>
+        {text.reminderNote} {text.reminderNoteMarked}
+      </p>
     </>,
   )
 }
