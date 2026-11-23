@@ -1049,3 +1049,102 @@ describe('the guest list: /api/events/:eventSlug/households', () => {
     expect(await world.households.count(GALA)).toBe(1)
   })
 })
+
+describe('the moments of the party: the form and the households (lot 4)', () => {
+  let world: World
+
+  beforeEach(async () => {
+    world = await buildWorld()
+  })
+
+  it('saves up to four moments, mints their ids, and keeps an id when the label is rewritten', async () => {
+    const agent = await signedIn(world, 'owner')
+
+    const saved = await agent
+      .put(FORM)
+      .send({ enabled: true, form: { moments: [{ label: 'Brunch' }, { label: 'Dîner' }] } })
+    const [brunch, dinner] = saved.body.rsvpForm.form.moments
+    const renamed = await agent.put(FORM).send({
+      form: {
+        moments: [
+          { id: dinner.id, label: 'Grand dîner' },
+          { id: brunch.id, label: 'Brunch' },
+        ],
+      },
+    })
+
+    expect(saved.status).toBe(200)
+    expect(brunch.id).toMatch(/^[0-9a-f]{8}$/)
+    expect(renamed.body.rsvpForm.form.moments).toEqual([
+      { id: dinner.id, label: 'Grand dîner' },
+      brunch,
+    ])
+  })
+
+  it('refuses five moments and an unknown key in one', async () => {
+    const agent = await signedIn(world, 'owner')
+
+    const five = await agent
+      .put(FORM)
+      .send({ form: { moments: ['a', 'b', 'c', 'd', 'e'].map((label) => ({ label })) } })
+    const stray = await agent.put(FORM).send({ form: { moments: [{ label: 'A', colour: 'red' }] } })
+
+    expect(five.status).toBe(400)
+    expect(five.body.error.code).toBe('rsvp.momentsInvalid')
+    expect(stray.body.error.code).toBe('rsvp.momentsInvalid')
+  })
+
+  it('stores the moments a household is invited to, shows them in its row, and judges them against the form', async () => {
+    const agent = await signedIn(world, 'owner')
+    const form = await agent.put(FORM).send({
+      enabled: true,
+      form: { moments: [{ label: 'Brunch' }, { label: 'Dîner' }] },
+    })
+    const [brunch] = form.body.rsvpForm.form.moments
+
+    const created = await agent
+      .post(HOUSEHOLDS)
+      .send({ name: 'Famille Martin', places: 4, moments: [brunch.id] })
+    const refused = await agent
+      .post(HOUSEHOLDS)
+      .send({ name: 'Les Durand', places: 2, moments: ['dddddddd'] })
+    const listed = await agent.get(HOUSEHOLDS)
+
+    expect(created.status).toBe(201)
+    expect(created.body.household.moments).toEqual([brunch.id])
+    expect(refused.body.error.code).toBe('household.momentsInvalid')
+    expect(listed.body.households[0].moments).toEqual([brunch.id])
+  })
+
+  it('counts, per moment, who comes, in the figures of the replies', async () => {
+    const agent = await signedIn(world, 'owner')
+    const form = await agent
+      .put(FORM)
+      .send({ enabled: true, form: { moments: [{ label: 'Brunch' }, { label: 'Dîner' }] } })
+    const [brunch, dinner] = form.body.rsvpForm.form.moments
+
+    await agent
+      .post(RSVPS)
+      .send({ name: 'Léa', answer: 'yes', adults: 2, moments: [brunch.id, dinner.id] })
+      .expect(201)
+    await agent
+      .post(RSVPS)
+      .send({ name: 'Hugo', answer: 'maybe', adults: 1, moments: [dinner.id] })
+      .expect(201)
+
+    const listed = await agent.get(RSVPS)
+
+    expect(listed.body.stats.moments).toEqual([
+      {
+        ...brunch,
+        yes: { responses: 1, people: 2 },
+        maybe: { responses: 0, people: 0 },
+      },
+      {
+        ...dinner,
+        yes: { responses: 1, people: 2 },
+        maybe: { responses: 1, people: 1 },
+      },
+    ])
+  })
+})

@@ -72,7 +72,6 @@ export interface GuestRsvpPageDto {
       readonly options?: readonly string[]
     }[]
     readonly visibility: 'off' | 'count' | 'names'
-    /** The moments of the party the guest chooses among; empty when the host has none. */
     readonly moments: readonly { readonly id: string; readonly label: string }[]
   }
   /** Only when the host chose to show who comes: the people coming, and the first names allowed. */

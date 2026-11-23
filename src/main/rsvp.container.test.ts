@@ -410,7 +410,7 @@ describe('the guest list, through the real container (spec 30, lot 3)', () => {
     const opened = await guest
       .get(`/api/i/${invite}/household`)
       .set('X-Household-Token', martin?.token ?? '')
-    expect(opened.body).toEqual({ household: { name: 'Famille Martin', places: 4 } })
+    expect(opened.body).toEqual({ household: { name: 'Famille Martin', places: 4, moments: [] } })
     const answered = await guest
       .post(reply)
       .set(CSRF_HEADER, cookie)
