@@ -573,10 +573,12 @@ export interface EventDtoInput {
   /** The server's clock at this answer, and what the reveal gate holds back (spec 23). */
   readonly now: Date
   readonly readyCount: number | null
+  /** The owner's badge of unseen replies (spec 30); left out for anyone else. */
+  readonly unseenRsvps?: number
 }
 
 export const toEventDto = (
-  { event, role, counts, limits, purge, now, readyCount }: EventDtoInput,
+  { event, role, counts, limits, purge, now, readyCount, unseenRsvps }: EventDtoInput,
   context: PresenterContext,
 ): EventDto => ({
   id: event.id,
@@ -601,6 +603,7 @@ export const toEventDto = (
   scheduleDiscardedAt: isoOrNull(event.scheduleDiscardedAt),
   // The host's console counts the reveal down against this clock, never its own (spec 23).
   reveal: { ...revealView(event, now), readyCount },
+  ...(unseenRsvps === undefined ? {} : { unseenRsvps }),
   role,
 })
 

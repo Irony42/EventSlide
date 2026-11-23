@@ -130,6 +130,16 @@ import type { SaveGuestInvite } from '../../application/usecases/guestInvites/sa
 import type { EnableGuestInvite } from '../../application/usecases/guestInvites/enableGuestInvite'
 import type { DisableGuestInvite } from '../../application/usecases/guestInvites/disableGuestInvite'
 import type { RotateGuestInviteToken } from '../../application/usecases/guestInvites/rotateGuestInviteToken'
+import type { GetRsvpForm } from '../../application/usecases/guestRsvps/getRsvpForm'
+import type { SaveRsvpForm } from '../../application/usecases/guestRsvps/saveRsvpForm'
+import type { CloseRsvps } from '../../application/usecases/guestRsvps/closeRsvps'
+import type { ListRsvps } from '../../application/usecases/guestRsvps/listRsvps'
+import type { HostAddRsvp } from '../../application/usecases/guestRsvps/hostAddRsvp'
+import type { HostUpdateRsvp } from '../../application/usecases/guestRsvps/hostUpdateRsvp'
+import type { HostDeleteRsvp } from '../../application/usecases/guestRsvps/hostDeleteRsvp'
+import type { ExportRsvps } from '../../application/usecases/guestRsvps/exportRsvps'
+import type { MarkRsvpsSeen } from '../../application/usecases/guestRsvps/markRsvpsSeen'
+import type { CountUnseenRsvps } from '../../application/usecases/guestRsvps/countUnseenRsvps'
 import type { CreateAnnouncement } from '../../application/usecases/announcements/createAnnouncement'
 import type { DeleteAnnouncement } from '../../application/usecases/announcements/deleteAnnouncement'
 import type { LaunchAnnouncement } from '../../application/usecases/announcements/launchAnnouncement'
@@ -343,6 +353,17 @@ export interface HttpUseCases {
   readonly enableGuestInvite: EnableGuestInvite
   readonly disableGuestInvite: DisableGuestInvite
   readonly rotateGuestInviteToken: RotateGuestInviteToken
+  readonly getRsvpForm: GetRsvpForm
+  readonly saveRsvpForm: SaveRsvpForm
+  readonly closeRsvps: CloseRsvps
+  readonly reopenRsvps: CloseRsvps
+  readonly listRsvps: ListRsvps
+  readonly hostAddRsvp: HostAddRsvp
+  readonly hostUpdateRsvp: HostUpdateRsvp
+  readonly hostDeleteRsvp: HostDeleteRsvp
+  readonly exportRsvps: ExportRsvps
+  readonly markRsvpsSeen: MarkRsvpsSeen
+  readonly countUnseenRsvps: CountUnseenRsvps
   // scheduled wall announcements (spec 21)
   readonly listAnnouncements: ListAnnouncements
   readonly createAnnouncement: CreateAnnouncement

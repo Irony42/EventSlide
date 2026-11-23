@@ -507,6 +507,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   announcementId: A_PHOTO,
   bindingId: A_PHOTO,
   entryId: A_PHOTO,
+  rsvpId: A_PHOTO,
   variant: 'display',
   hash: '0'.repeat(64),
   kind: 'love',

@@ -75,6 +75,9 @@ export const defaultRsvpForm = (template: EventTemplateKey | null): RsvpForm => 
 
 export const DEFAULT_RSVP_FORM: RsvpForm = defaultRsvpForm(null)
 
+/** The only keys lot 1 accepts in a form patch: a later lot adds its own to this list. */
+const PATCHABLE: readonly string[] = ['maybe', 'partySize', 'kidsSeparate', 'diet']
+
 /** The fields a host may change in lot 1. An absent field is left as it was. */
 export interface RsvpFormPatch {
   readonly maybe?: unknown
@@ -97,8 +100,13 @@ const invalidForm = (): DomainError => DomainError.invalid('rsvp.formInvalid')
 /** `current` with `patch` applied, every changed field judged. */
 export const applyFormPatch = (
   current: RsvpForm,
-  patch: RsvpFormPatch,
+  rawPatch: unknown,
 ): Result<RsvpForm, DomainError> => {
+  // Not an object, or a key this lot does not know: `rsvp.formInvalid`, never a silent ignore.
+  if (!isPlainObject(rawPatch) || Object.keys(rawPatch).some((key) => !PATCHABLE.includes(key))) {
+    return err(invalidForm())
+  }
+  const patch: RsvpFormPatch = rawPatch
   const maybe = flag(patch.maybe, current.maybe)
   if (!maybe.ok) return maybe
   const kidsSeparate = flag(patch.kidsSeparate, current.kidsSeparate)

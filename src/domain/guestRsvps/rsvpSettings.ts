@@ -2,7 +2,7 @@ import type { InviteSchedule } from '../guestInvites/inviteStateOf'
 import { DomainError } from '../shared/errors'
 import { isCalendarDay, localDayOf } from '../shared/localDay'
 import { err, ok, type Result } from '../shared/result'
-import { applyFormPatch, DEFAULT_RSVP_FORM, type RsvpForm, type RsvpFormPatch } from './rsvpForm'
+import { applyFormPatch, DEFAULT_RSVP_FORM, type RsvpForm } from './rsvpForm'
 
 /**
  * What the host decided about replies on an invitation (spec 30): whether they are asked, until
@@ -26,7 +26,7 @@ export const DEFAULT_RSVP_SETTINGS: RsvpSettings = {
 export interface RsvpSettingsPatch {
   readonly enabled?: unknown
   readonly deadline?: unknown
-  readonly form?: RsvpFormPatch
+  readonly form?: unknown
 }
 
 /**

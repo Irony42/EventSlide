@@ -5,6 +5,7 @@ import type {
   EventId,
   GuestId,
   GuestbookEntryId,
+  GuestRsvpId,
   MissionId,
   AnnouncementId,
   ChannelBindingId,
@@ -57,6 +58,8 @@ export interface IdGenerator {
   channelBindingId(): ChannelBindingId
   /** One queued media of a messaging channel (spec 27). */
   channelMediaJobId(): ChannelMediaJobId
+  /** One guest's reply to the invitation (spec 30). The token a guest keeps is another thing. */
+  guestRsvpId(): GuestRsvpId
 
   /**
    * A shared gallery link (roadmap §4.1). The row's name, which signed media URLs carry;

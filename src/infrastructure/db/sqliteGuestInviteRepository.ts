@@ -4,10 +4,12 @@ import {
   type GuestInviteContent,
 } from '../../domain/guestInvites/guestInviteContent'
 import { GuestInviteToken } from '../../domain/guestInvites/guestInviteToken'
+import { restoreRsvpForm } from '../../domain/guestRsvps/rsvpForm'
+import type { RsvpSettings } from '../../domain/guestRsvps/rsvpSettings'
 import { asEventId, type EventId } from '../../domain/shared/ids'
 import type { GuestInviteRepository } from '../../application/ports/guestInviteRepository'
 import type { Db } from './connection'
-import { fromIsoText, toIsoText, toSqliteBoolean } from './rowMapping'
+import { fromIsoText, fromNullableIsoText, toIsoText, toSqliteBoolean } from './rowMapping'
 
 /**
  * `guest_invites` (spec 29): one row per event, found by event (the primary key) or by token
@@ -126,6 +128,53 @@ export class SqliteGuestInviteRepository implements GuestInviteRepository {
         `UPDATE guest_invites SET enabled = ?, updated_at = ? WHERE event_id = ?`,
       )
       .run(toSqliteBoolean(enabled), toIsoText(at), eventId)
+  }
+
+  async findRsvpSettings(eventId: EventId): Promise<RsvpSettings | null> {
+    const row = this.db
+      .prepare<
+        [string],
+        {
+          readonly rsvp_enabled: number
+          readonly rsvp_deadline: string | null
+          readonly rsvp_closed_at: string | null
+          readonly rsvp_form: string | null
+        }
+      >(
+        `SELECT rsvp_enabled, rsvp_deadline, rsvp_closed_at, rsvp_form
+           FROM guest_invites WHERE event_id = ?`,
+      )
+      .get(eventId)
+    if (row === undefined) return null
+    return {
+      enabled: row.rsvp_enabled === 1,
+      deadline: row.rsvp_deadline,
+      closedAt: fromNullableIsoText(row.rsvp_closed_at),
+      // The column carries `CHECK (json_valid(rsvp_form))`; the restore is lenient on its shape.
+      form: restoreRsvpForm(row.rsvp_form === null ? null : (JSON.parse(row.rsvp_form) as unknown)),
+    }
+  }
+
+  /** The switch, the deadline and the form: the statement names neither the closing nor the text. */
+  async saveRsvpSettings(eventId: EventId, settings: RsvpSettings): Promise<void> {
+    this.db
+      .prepare<[number, string | null, string, string]>(
+        `UPDATE guest_invites SET rsvp_enabled = ?, rsvp_deadline = ?, rsvp_form = ? WHERE event_id = ?`,
+      )
+      .run(
+        toSqliteBoolean(settings.enabled),
+        settings.deadline,
+        JSON.stringify(settings.form),
+        eventId,
+      )
+  }
+
+  async setRsvpClosedAt(eventId: EventId, closedAt: Date | null): Promise<void> {
+    this.db
+      .prepare<[string | null, string]>(
+        `UPDATE guest_invites SET rsvp_closed_at = ? WHERE event_id = ?`,
+      )
+      .run(closedAt === null ? null : toIsoText(closedAt), eventId)
   }
 
   async rotateToken(eventId: EventId, token: GuestInviteToken, at: Date): Promise<void> {

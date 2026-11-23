@@ -82,6 +82,7 @@ const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
     pruneAuditLog: async () => nothingPruned,
     finalizeOffboardedClients: async () => nothingFinalized,
     sweepPurgeNotices: async () => nobodyWarned,
+    purgeExpiredRsvps: async () => ({ deleted: 0 }),
     logger,
     clock,
     intervalMs: INTERVAL_MS,
@@ -724,6 +725,10 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
     // A finalisation writes audit lines, and the prune that follows should read them.
     const order: string[] = []
     const followUp = makeRetentionFollowUp({
+      purgeExpiredRsvps: async () => {
+        order.push('rsvps')
+        return { deleted: 0 }
+      },
       finalizeOffboardedClients: async () => {
         order.push('finalize')
         return nothingFinalized
@@ -741,13 +746,14 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
 
     await followUp()
 
-    expect(order).toEqual(['warn', 'finalize', 'prune'])
+    expect(order).toEqual(['rsvps', 'warn', 'finalize', 'prune'])
   })
 
   it('still prunes when finalising throws, and never rejects', async () => {
     const logger = new CapturingLogger()
     let pruned = false
     const followUp = makeRetentionFollowUp({
+      purgeExpiredRsvps: async () => ({ deleted: 0 }),
       finalizeOffboardedClients: async () => {
         throw new Error('database is locked')
       },
@@ -765,6 +771,96 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
     expect(at(logger.lines, 'error').map((line) => line.message)).toEqual([
       'offboarded clients could not be finalised',
     ])
+  })
+})
+
+describe('the guest replies ride the follow-up (spec 30)', () => {
+  it('erases the expired replies and says how many went', async () => {
+    const { sweeper, lines } = build({ purgeExpiredRsvps: async () => ({ deleted: 4 }) })
+
+    await sweeper.runOnce()
+
+    const line = lines.find(
+      (entry) => entry.message === 'retention sweep erased expired guest replies',
+    )
+    expect(line?.level).toBe('info')
+    expect(line?.context).toMatchObject({ deleted: 4 })
+  })
+
+  it('stays silent when no reply was due', async () => {
+    const { sweeper, lines } = build()
+
+    await sweeper.runOnce()
+
+    expect(lines.map((entry) => entry.message)).not.toContain(
+      'retention sweep erased expired guest replies',
+    )
+  })
+
+  it('logs an error, and still warns, finalises and prunes, when erasing throws', async () => {
+    const order: string[] = []
+    const { sweeper, lines } = build({
+      purgeExpiredRsvps: async () => {
+        throw new Error('database is locked')
+      },
+      sweepPurgeNotices: async () => {
+        order.push('warn')
+        return nobodyWarned
+      },
+      finalizeOffboardedClients: async () => {
+        order.push('finalize')
+        return nothingFinalized
+      },
+      pruneAuditLog: async () => {
+        order.push('prune')
+        return nothingPruned
+      },
+    })
+
+    await expect(sweeper.runOnce()).resolves.toBeDefined()
+
+    expect(order).toEqual(['warn', 'finalize', 'prune'])
+    const failure = lines.find(
+      (entry) => entry.message === 'expired guest replies could not be erased',
+    )
+    expect(failure?.level).toBe('error')
+    expect(failure?.context).toMatchObject({ error: 'database is locked' })
+  })
+
+  it('erases the replies and says so even when the events purge threw: its failure stops nothing after it', async () => {
+    const order: string[] = []
+    const { sweeper, lines } = build({
+      purge: () => Promise.reject(new Error('SQLITE_BUSY')),
+      purgeExpiredRsvps: async () => {
+        order.push('rsvps')
+        return { deleted: 2 }
+      },
+      sweepPurgeNotices: async () => {
+        order.push('warn')
+        return nobodyWarned
+      },
+    })
+
+    const outcome = await sweeper.runOnce()
+
+    expect(outcome).toMatchObject({ status: 'failed' })
+    expect(order).toEqual(['rsvps', 'warn'])
+    expect(
+      lines.find((entry) => entry.message === 'retention sweep erased expired guest replies')
+        ?.context,
+    ).toMatchObject({ deleted: 2 })
+  })
+
+  it('erases a reply that is not an Error with its text', async () => {
+    const { sweeper, lines } = build({
+      purgeExpiredRsvps: async () => Promise.reject('disk full'),
+    })
+
+    await sweeper.runOnce()
+
+    expect(
+      lines.find((entry) => entry.message === 'expired guest replies could not be erased')?.context,
+    ).toMatchObject({ error: 'disk full' })
   })
 })
 

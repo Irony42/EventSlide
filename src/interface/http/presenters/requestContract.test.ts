@@ -687,6 +687,14 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // its entry leaves this list the day `web/src` calls it.
   requestExportBody:
     'POST /api/events/:eventSlug/export: the host page that sends it is not built yet',
+  // The host's side of the guests' replies (spec 30, PR 2): routes written and held at ring 4
+  // (`rsvpHostRoutes.test.ts`); the panel and the replies page that send these are PR 4 and 5 of the
+  // same spec, and each entry leaves this list the day `web/src` calls it.
+  rsvpFormBody: 'PUT /api/events/:eventSlug/rsvp-form: the host panel is not built yet',
+  rsvpActBody:
+    'POST /api/events/:eventSlug/rsvp-form/close|reopen and /rsvps/seen: the host panel is not built yet',
+  rsvpReplyBody: 'POST and PUT /api/events/:eventSlug/rsvps: the replies page is not built yet',
+  rsvpExportQuery: 'GET /api/events/:eventSlug/rsvps/export: the replies page is not built yet',
   // `PATCH /api/events/:slug` (rename) and `PATCH /api/events/:slug/photos/:photoId/caption`: both
   // routes are written and held at ring 4, and no screen sends either. The client methods were
   // deleted for having no caller (`web/src/lib/api/apiCallers.guard.test.ts` keeps it that way); a

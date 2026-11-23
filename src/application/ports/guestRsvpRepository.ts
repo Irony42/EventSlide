@@ -1,6 +1,6 @@
 import type { GuestRsvp } from '../../domain/guestRsvps/rsvp'
 import type { RsvpRefusal } from '../../domain/guestRsvps/rsvpLimits'
-import type { EventId, GuestRsvpId } from '../../domain/shared/ids'
+import type { EventId, GuestRsvpId, UserId } from '../../domain/shared/ids'
 
 /**
  * The replies guests give to an invitation (spec 30).
@@ -55,9 +55,20 @@ export interface GuestRsvpRepository {
 
   /**
    * Replaces everything about a reply that a host may change: the content, the household and
-   * `updatedAt`. Not subject to any ceiling (the host decides). No such reply is a no-op.
+   * `updatedAt`. Not subject to any ceiling (the host decides). Says whether such a reply existed
+   * and was changed: `false` for one that is gone or another event's, nothing written.
    */
-  update(rsvp: GuestRsvp): Promise<void>
+  update(rsvp: GuestRsvp): Promise<boolean>
+
+  /**
+   * How many replies were written or changed after this member's last visit to the replies page
+   * (`event_memberships.rsvp_seen_at`): the badge. A member who never visited, or who has no
+   * membership of the event, has seen none.
+   */
+  unseenCount(eventId: EventId, userId: UserId): Promise<number>
+
+  /** Notes that this member has seen the replies up to `at`. No membership is a no-op. */
+  markSeen(eventId: EventId, userId: UserId, at: Date): Promise<void>
 
   /** Whether a reply was deleted. */
   delete(eventId: EventId, id: GuestRsvpId): Promise<boolean>

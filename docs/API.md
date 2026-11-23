@@ -4661,6 +4661,79 @@ Before anything is written, `GET` answers `configured: false`, `enabled: false`,
 
 Writes are refused on an archived event (`409 guestInvite.eventArchived`) and for a suspended client (`403 client.suspended`, which also refuses the `GET`); a closed event, and an event whose purge is held, may still be edited. One audit line per act, `event.guestInviteSaved`, `event.guestInviteEnabled`, `event.guestInviteDisabled`, `event.guestInviteRotated`: the event, the account, **never a word of content**; a second tap that changes nothing writes none. **Errors** — `401`, `403 auth.forbidden`, `403 client.suspended`, `404 event.notFound`, `409 guestInvite.eventArchived`, `400 request.invalid` (a key the body does not know).
 
+### The guests' replies, host side (spec 30): `GET`, `PUT /api/events/:slug/rsvp-form`, `POST …/rsvp-form/close`, `…/reopen`, `GET`, `POST /api/events/:slug/rsvps`, `PUT`, `DELETE …/rsvps/:rsvpId`, `POST …/rsvps/seen`, `GET …/rsvps/export`
+
+**`owner`** (the invitation's right: a moderator of the event is `403 auth.forbidden`, a stranger `404 event.notFound`): the replies hold names and diets. Guests answer on the invitation's page (the public routes come with a later pull request of the spec); this is the host reading, correcting and exporting them. Every write is the CSRF-gated, `no-store` host route of the rest of this section, with a **strict** body: a key the route does not know is `400 request.invalid`, and every value is judged by the domain, one code each.
+
+**The settings** (`rsvp-form`) live on the invitation's row. `GET` and every write answer `200 { "rsvpForm": { … } }`:
+
+```json
+{
+  "rsvpForm": {
+    "invited": true,
+    "enabled": true,
+    "deadline": "2026-12-01",
+    "closedAt": null,
+    "form": {
+      "maybe": true,
+      "partySize": { "enabled": true, "max": 4 },
+      "kidsSeparate": true,
+      "diet": true,
+      "companionNames": false,
+      "meals": { "enabled": false, "options": [] },
+      "questions": [],
+      "visibility": "off",
+      "capacity": null,
+      "moments": [],
+      "absentNote": true
+    },
+    "state": "open",
+    "closesAt": "2026-12-13T18:00:00.000Z",
+    "erasedAt": "2027-01-12T18:00:00.000Z"
+  }
+}
+```
+
+`state` is where the window stands **now** on the server's clock: `off` (not asked, or the invitation is switched off), `open`, `closed` (the deadline or the start has passed, or the host closed it) or `full`; `null` with `invited: false`. `closesAt` is when replies stop on their own (`null` without an invitation); `erasedAt` is when the replies will be erased (`null` while there is no reply). `deadline` is a local day, read in the invitation's zone. Before the host first saves, `GET` answers the defaults and **writes nothing**.
+
+`PUT …/rsvp-form` takes `{ enabled?, deadline?, form?: { maybe?, partySize?: { enabled?, max? }, kidsSeparate?, diet? } }`. The top level is strict (`400 request.invalid` for a stray key); **`form` is judged whole by the domain**: lot 1 accepts **only those four keys**, and anything else (a key it does not know, a value that is not an object, `null`) is `400 rsvp.formInvalid`. **An absent field is left as it was; `null` clears the deadline.** The manual closing has its own door and a save never touches it. A save that changes nothing writes, audits and announces nothing. `400`: `rsvp.enabledInvalid`, `rsvp.deadlineInvalid` (not a calendar day), `rsvp.deadlineNeedsDate` (the invitation has no start), `rsvp.deadlineAfterStart`, `rsvp.formInvalid`, `rsvp.partyMaxInvalid` (1 to 10, with `min` and `max` in `details`). `POST …/rsvp-form/close` ("Fermer les réponses") keeps the **first** closing instant; `POST …/rsvp-form/reopen` clears it; both take an empty strict body and answer the settings, and doing what is already done writes nothing. **A write needs the invitation**: `409 rsvp.inviteRequired` while the event has none.
+
+**The replies.** `GET …/rsvps` (`no-store`) answers `200 { "rsvpForm", "rsvps": [ … ], "stats", "unseen" }`: every reply, the figures (one function for the table, the badge and the export: `yes`, `maybe`, `no`, `waitlist` with their responses and people, the diets of those who come or may come, the menus), and `unseen`, how many were written or changed since **this account** last looked. A read marks nothing as seen. A reply is:
+
+```json
+{
+  "id": "…",
+  "name": "Léa Martin",
+  "answer": "yes",
+  "adults": 2,
+  "kids": 1,
+  "diet": "sans gluten",
+  "message": null,
+  "source": "host",
+  "details": {
+    "companions": [],
+    "meals": [],
+    "answers": [],
+    "moments": [],
+    "showName": false
+  },
+  "createdAt": "2026-11-22T10:00:00.000Z",
+  "updatedAt": "2026-11-22T10:00:00.000Z"
+}
+```
+
+`source` is `open`, `household` or `host`. The guest's edit token (stored only as its SHA-256) is never in an answer.
+
+`POST …/rsvps` ("Ajouter une réponse", `201 { "rsvp" }`) and `PUT …/rsvps/:rsvpId` (the whole reply is sent again, `200 { "rsvp" }`, the id, source and creation instant stay) take `{ name, answer, adults?, kids?, diet?, message? }` and are judged by the **same form a guest's reply is**. **A reply typed by the host is not held to the places** (the host decides); only a ceiling of 1 000 replies per event applies (`409 rsvp.tooMany`). `400`: `rsvp.nameInvalid`, `rsvp.nameEmpty`, `rsvp.nameTooLong`, `rsvp.countInvalid` and the other `rsvp.*` codes of the form (the reply's own answers, bounds and lengths). `PUT` **keeps what the form no longer asks**: a host who switched off "allergies", "how many" or the separate children question after guests answered does not wipe what they gave by correcting a name (the stored diet, adults and children stay). A reply **on the waiting list** stays there when `answer: "waitlist"` is sent back unchanged (only a reply already there may be sent so); `yes` is the promotion, and a host cannot move any other reply onto the list. `DELETE …/rsvps/:rsvpId` answers `204`, needs **no invitation** (replies outlive one that was switched off) and **is allowed on an archived event**, so names stay removable: it is the one write that is. `404 rsvp.notFound` for a reply that is not this event's or is already gone. `:rsvpId` is a UUID (`400 request.invalid` otherwise).
+
+`POST …/rsvps/seen` (empty strict body, `204`) says the host looked: the badge counts from now on. It is kept per member on the server, so it follows them from one device to another.
+
+`GET …/rsvps/export?view=all|caterer` (default `all`) sends the replies as a spreadsheet: `Content-Type: text/csv; charset=utf-8` with a byte-order mark, `Content-Disposition: attachment; filename="<slug>-reponses.csv"` (`<slug>-traiteur.csv` for `caterer`, the people who come and no word), `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`. The headers are in the invitation's language. It goes through the concurrency bound the ZIP exports share (two at a time per account, `429 rate.limited` beyond, and four on the box, `503 service.notReady` beyond), and a `HEAD` is answered without a slot or an export. Any other query key is `400 request.invalid`.
+
+**A host's own add or edit is not news to them**: if they had nothing unseen before it, `unseen` stays at 0; unread replies from guests are never hidden by it. Reads and writes are refused for a suspended client (`403 client.suspended`); every write but `DELETE …/rsvps/:rsvpId` is refused on an archived event (`409 guestInvite.eventArchived`); a closed event may still be read, corrected and exported. A reply that disappears between the read and the write (a concurrent delete) is `404 rsvp.notFound` with no audit line and no signal. **Audit**: one line per act, `event.rsvpFormSaved`, `event.rsvpsClosed`, `event.rsvpsReopened`, `event.rsvpHostAdded`, `event.rsvpHostEdited`, `event.rsvpHostDeleted`, `event.rsvpsExported`: the event and the account, **never a name, a diet or a word**. Each change also publishes a content-free `{ "type": "rsvp.changed" }` signal on the **moderation** stream only (never the wall's). The retention sweep erases replies 30 days after the event closed or 60 days after the invitation's start, whichever comes first, **whatever the purge hold says** (they are names and diets, not an album). **Errors** — `401`, `403 auth.forbidden`, `403 client.suspended`, `404 event.notFound`, `404 rsvp.notFound`, `409 rsvp.inviteRequired`, `409 rsvp.tooMany`, `400 request.invalid`, and the `400 rsvp.*` codes above.
+
+`GET /api/events/:slug` carries `unseenRsvps` (an integer) **in the owner's answer only**: the badge of the replies entry, counted for the caller's own account. It is absent for a moderator.
+
 ### Messaging channels (spec 27): `GET /api/events/:slug/channels`, `DELETE /api/events/:slug/channels/:bindingId`
 
 The host's "Groupe Telegram" panel. **There is no public route for the channel**: messages come in by an outbound long poll,

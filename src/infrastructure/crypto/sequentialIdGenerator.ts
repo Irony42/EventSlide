@@ -4,6 +4,7 @@ import {
   asAnnouncementId,
   asChannelBindingId,
   asChannelMediaJobId,
+  asGuestRsvpId,
   asChallengeId,
   asClientId,
   asClipJobId,
@@ -19,6 +20,7 @@ import {
   type AnnouncementId,
   type ChannelBindingId,
   type ChannelMediaJobId,
+  type GuestRsvpId,
   type ChallengeId,
   type ClientId,
   type ClipJobId,
@@ -91,6 +93,7 @@ type Kind =
   | 'announcement'
   | 'channelBinding'
   | 'channelMediaJob'
+  | 'guestRsvp'
 
 const PREFIX: Record<Kind, string> = {
   event: 'e0000000',
@@ -108,6 +111,7 @@ const PREFIX: Record<Kind, string> = {
   announcement: 'b0000000',
   channelBinding: 'c0000000',
   channelMediaJob: 'd0000000',
+  guestRsvp: 'd1000000',
 }
 
 export const createSequentialIdGenerator = (): IdGenerator => {
@@ -142,6 +146,7 @@ export const createSequentialIdGenerator = (): IdGenerator => {
     announcementId: (): AnnouncementId => asAnnouncementId(next('announcement')),
     channelBindingId: (): ChannelBindingId => asChannelBindingId(next('channelBinding')),
     channelMediaJobId: (): ChannelMediaJobId => asChannelMediaJobId(next('channelMediaJob')),
+    guestRsvpId: (): GuestRsvpId => asGuestRsvpId(next('guestRsvp')),
 
     bytes: (count: number): Uint8Array => {
       if (!Number.isInteger(count) || count < 1) {

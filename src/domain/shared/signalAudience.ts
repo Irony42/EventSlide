@@ -21,6 +21,8 @@ export const MODERATION_ONLY_SIGNALS: readonly string[] = [
   // worker. Neither is anything the room should read its playlist for.
   'channel.mediaQueued',
   'channel.bindingChanged',
+  // The guests' replies to the invitation (spec 30): the host's list re-reads. Nothing for a screen.
+  'rsvp.changed',
 ]
 
 export const canReceiveSignal = (type: string, audience: SignalAudience): boolean =>

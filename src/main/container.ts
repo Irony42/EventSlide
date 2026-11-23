@@ -20,6 +20,7 @@ import { SqliteGuestbookRepository } from '../infrastructure/db/sqliteGuestbookR
 import { SqliteGuestbookVoiceRepository } from '../infrastructure/db/sqliteGuestbookVoiceRepository'
 import { SqliteAnnouncementRepository } from '../infrastructure/db/sqliteAnnouncementRepository'
 import { SqliteGuestInviteRepository } from '../infrastructure/db/sqliteGuestInviteRepository'
+import { SqliteGuestRsvpRepository } from '../infrastructure/db/sqliteGuestRsvpRepository'
 import { SqliteChallengeRepository } from '../infrastructure/db/sqliteChallengeRepository'
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
 import { SqliteShareLinkRepository } from '../infrastructure/db/sqliteShareLinkRepository'
@@ -542,6 +543,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     challenges: new SqliteChallengeRepository(db),
     announcements: new SqliteAnnouncementRepository(db),
     guestInvites: new SqliteGuestInviteRepository(db),
+    guestRsvps: new SqliteGuestRsvpRepository(db),
     guestbook: new SqliteGuestbookRepository(db),
     voices: new SqliteGuestbookVoiceRepository(db),
     users: new SqliteUserRepository(db),
@@ -658,6 +660,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
           pruneAuditLog: usecases.pruneAuditLog,
           finalizeOffboardedClients: usecases.finalizeOffboardedClients,
           sweepPurgeNotices: usecases.sweepPurgeNotices,
+          purgeExpiredRsvps: usecases.purgeExpiredRsvps,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,

@@ -43,6 +43,19 @@ describe('defaultRsvpForm', () => {
 })
 
 describe('applyFormPatch', () => {
+  it.each([
+    ['a number', 4],
+    ['null', null],
+    ['a list', ['maybe']],
+    ['a string', 'maybe'],
+    ['a key lot 1 does not know', { capacity: 3 }],
+    ['a key that is not even one of the form', { maybe: true, nope: 1 }],
+  ])('refuses %s as rsvp.formInvalid, and never ignores it', (_name, patch) => {
+    const result = patched(patch)
+
+    expect(!result.ok && result.error.code).toBe('rsvp.formInvalid')
+  })
+
   it('leaves an absent field as it was', () => {
     const result = patched({})
 

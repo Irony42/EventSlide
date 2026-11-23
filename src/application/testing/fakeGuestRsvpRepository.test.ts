@@ -6,7 +6,11 @@ import { FakeGuestRsvpRepository } from './fakeGuestRsvpRepository'
 
 guestRsvpRepositoryContract('fake', async () => {
   const repo = new FakeGuestRsvpRepository()
-  return { repo, setEventDates: async (eventId, dates) => void repo.setEventDates(eventId, dates) }
+  return {
+    repo,
+    addMember: async (eventId, userId) => void repo.addMember(eventId, userId),
+    setEventDates: async (eventId, dates) => void repo.setEventDates(eventId, dates),
+  }
 })
 
 describe('FakeGuestRsvpRepository seeding', () => {

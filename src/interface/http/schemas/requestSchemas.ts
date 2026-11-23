@@ -1024,3 +1024,40 @@ export const previewBookQuery = z.strictObject({
   includeGuestbook: queryFlag,
   timeZone: z.string().min(1).max(64).optional(),
 })
+
+// ------------------------------------------------------- guests' replies (30) --
+
+/**
+ * `PUT /events/:slug/rsvp-form`. Only the top-level **shape** is checked here (no stray key); every value is
+ * judged by the domain, one code each (`rsvp.enabledInvalid`, `rsvp.deadlineInvalid`,
+ * `rsvp.formInvalid`, `rsvp.partyMaxInvalid`), so a wrong type is the same refusal as a wrong day.
+ * An absent field is left as it was.
+ */
+export const rsvpFormBody = z.strictObject({
+  enabled: z.unknown().optional(),
+  deadline: z.unknown().optional(),
+  // Judged whole by the domain (`rsvp.formInvalid`): a wrong type, a key lot 1 does not know.
+  form: z.unknown().optional(),
+})
+
+/**
+ * `POST` and `PUT /events/:slug/rsvps`: a reply typed by the host. The same fields a guest sends,
+ * judged by the same domain function against the form of the moment.
+ */
+export const rsvpReplyBody = z.strictObject({
+  name: z.unknown().optional(),
+  answer: z.unknown().optional(),
+  adults: z.unknown().optional(),
+  kids: z.unknown().optional(),
+  diet: z.unknown().optional(),
+  message: z.unknown().optional(),
+})
+
+export const rsvpParams = z.strictObject({ eventSlug: slug, rsvpId: uuid })
+
+/** `POST /rsvp-form/close|reopen` and `POST /rsvps/seen`: the act is the path, the body is empty. */
+export const rsvpActBody = z.strictObject({})
+
+export const rsvpExportQuery = z.strictObject({
+  view: z.enum(['all', 'caterer']).default('all'),
+})

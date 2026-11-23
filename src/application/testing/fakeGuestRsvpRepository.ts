@@ -1,7 +1,7 @@
 import type { GuestRsvp } from '../../domain/guestRsvps/rsvp'
 import { isRsvpExpired } from '../../domain/guestRsvps/rsvpExpiry'
 import { rsvpRefusalFor } from '../../domain/guestRsvps/rsvpLimits'
-import type { EventId, GuestRsvpId } from '../../domain/shared/ids'
+import type { EventId, GuestRsvpId, UserId } from '../../domain/shared/ids'
 import type {
   GuestRsvpAdmission,
   GuestRsvpAdmitLimits,
@@ -32,6 +32,8 @@ const newestFirst = (a: GuestRsvp, b: GuestRsvp): number =>
 export class FakeGuestRsvpRepository implements GuestRsvpRepository {
   private readonly rows = new Map<string, GuestRsvp>()
   private readonly dates = new Map<string, EventDates>()
+  /** `event:user` of every member, with the instant they last saw the replies (or `null`). */
+  private readonly members = new Map<string, Date | null>()
 
   /** Puts rows in without any check, for a test that needs a state the rules would refuse. */
   seed(...rsvps: readonly GuestRsvp[]): this {
@@ -42,6 +44,12 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
   /** What `events.closed_at` and the invitation's start say, for {@link deleteExpired}. */
   setEventDates(eventId: EventId, dates: EventDates): this {
     this.dates.set(eventId, dates)
+    return this
+  }
+
+  /** The membership row that `event_memberships` holds in SQLite: only a member has a "seen" instant. */
+  addMember(eventId: EventId, userId: UserId): this {
+    this.members.set(`${eventId}:${userId}`, null)
     return this
   }
 
@@ -101,9 +109,9 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
     return { kind: 'added', rsvp }
   }
 
-  async update(rsvp: GuestRsvp): Promise<void> {
+  async update(rsvp: GuestRsvp): Promise<boolean> {
     const stored = this.rows.get(key(rsvp.eventId, rsvp.id))
-    if (stored === undefined) return
+    if (stored === undefined) return false
     if (
       rsvp.householdId !== null &&
       this.inEvent(rsvp.eventId).some(
@@ -117,6 +125,20 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
       key(rsvp.eventId, rsvp.id),
       stored.withContentOf(rsvp).withHousehold(rsvp.householdId),
     )
+    return true
+  }
+
+  async unseenCount(eventId: EventId, userId: UserId): Promise<number> {
+    const seen = this.members.get(`${eventId}:${userId}`)
+    if (seen === undefined) return 0
+    return this.inEvent(eventId).filter(
+      (row) => seen === null || row.updatedAt.getTime() > seen.getTime(),
+    ).length
+  }
+
+  async markSeen(eventId: EventId, userId: UserId, at: Date): Promise<void> {
+    const memberKey = `${eventId}:${userId}`
+    if (this.members.has(memberKey)) this.members.set(memberKey, at)
   }
 
   async delete(eventId: EventId, id: GuestRsvpId): Promise<boolean> {

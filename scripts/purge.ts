@@ -61,6 +61,8 @@ import { createSmtpMailer } from '../src/infrastructure/mail/smtpMailer'
 import { createFsMediaStore } from '../src/infrastructure/media/fsMediaStore'
 import { systemClock } from '../src/infrastructure/time/systemClock'
 import { isTooDangerousToSweep, MEDIA_SWEEP_MIN_AGE_MS } from '../src/main/mediaSweeper'
+import { makePurgeExpiredRsvps } from '../src/application/usecases/guestRsvps/purgeExpiredRsvps'
+import { SqliteGuestRsvpRepository } from '../src/infrastructure/db/sqliteGuestRsvpRepository'
 import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
 
 /** The sweep wants a `Logger`; on a terminal that is the console. */
@@ -169,6 +171,10 @@ const execute = async (
           logger: followUpLogger,
           capNoticeDays,
           publicUrl: config.publicUrl,
+        }),
+        purgeExpiredRsvps: makePurgeExpiredRsvps({
+          rsvps: new SqliteGuestRsvpRepository(db),
+          clock: systemClock,
         }),
         pruneAuditLog: makePruneAuditLog({
           audit: new SqliteAuditLog(db),

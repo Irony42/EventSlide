@@ -850,6 +850,12 @@ export interface EventDto extends EventSummaryDto {
    * mode off). The pending ones are `pendingCount`, which stay hidden after the reveal.
    */
   readonly reveal: WallRevealDto
+  /**
+   * How many guests' replies were written or changed since the caller last looked (spec 30), for the
+   * badge of the event menu. **The owner's answer only**: absent for a moderator, who cannot read the
+   * replies, and never on a guest's or the wall's answer.
+   */
+  readonly unseenRsvps?: number
 }
 
 export interface GuestDto {
@@ -2089,4 +2095,99 @@ export interface BookPreviewDto {
     readonly names: readonly { readonly name: string; readonly photoCount: number }[]
   }
   readonly closingNotes: readonly string[]
+}
+
+// ---------------------------------------------------------- guests' replies --
+
+/** The form a host built (spec 30): what the invitation page asks guests. */
+export interface RsvpFormDto {
+  readonly maybe: boolean
+  readonly partySize: { readonly enabled: boolean; readonly max: number }
+  readonly kidsSeparate: boolean
+  readonly diet: boolean
+  readonly companionNames: boolean
+  readonly meals: { readonly enabled: boolean; readonly options: readonly string[] }
+  readonly questions: readonly {
+    readonly id: string
+    readonly label: string
+    readonly kind: 'text' | 'choice'
+    readonly options?: readonly string[]
+  }[]
+  readonly visibility: 'off' | 'count' | 'names'
+  readonly capacity: number | null
+  readonly moments: readonly { readonly id: string; readonly label: string }[]
+  readonly absentNote: boolean
+}
+
+/**
+ * What every host route of the replies' settings answers (spec 30): the switch, the deadline, the
+ * manual closing, the form, and where the window stands **now** on the server's clock. `state` and
+ * `closesAt` are `null` while the event has no invitation (`invited: false`); `erasedAt` is `null`
+ * while there is no reply to erase. All dates are ISO-8601 instants except `deadline`, a local day.
+ */
+export interface RsvpSettingsDto {
+  readonly invited: boolean
+  readonly enabled: boolean
+  readonly deadline: string | null
+  readonly closedAt: string | null
+  readonly form: RsvpFormDto
+  readonly state: 'off' | 'open' | 'closed' | 'full' | null
+  readonly closesAt: string | null
+  readonly erasedAt: string | null
+}
+
+export interface RsvpFormResponseDto {
+  readonly rsvpForm: RsvpSettingsDto
+}
+
+/** One reply as the host reads it. The guest's edit token is never part of it. */
+export interface RsvpDto {
+  readonly id: string
+  readonly name: string
+  readonly answer: 'yes' | 'maybe' | 'no' | 'waitlist'
+  readonly adults: number
+  readonly kids: number
+  readonly diet: string | null
+  readonly message: string | null
+  readonly source: 'open' | 'household' | 'host'
+  readonly details: {
+    readonly companions: readonly string[]
+    readonly meals: readonly string[]
+    readonly answers: readonly {
+      readonly questionId: string
+      readonly label: string
+      readonly value: string
+    }[]
+    readonly moments: readonly string[]
+    readonly showName: boolean
+  }
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
+export interface RsvpResponseDto {
+  readonly rsvp: RsvpDto
+}
+
+export interface RsvpStatsDto {
+  readonly yes: {
+    readonly responses: number
+    readonly people: number
+    readonly adults: number
+    readonly kids: number
+  }
+  readonly maybe: { readonly responses: number; readonly people: number }
+  readonly no: { readonly responses: number }
+  readonly waitlist: { readonly responses: number; readonly people: number }
+  readonly diets: readonly { readonly name: string; readonly diet: string }[]
+  readonly meals: readonly { readonly label: string; readonly count: number }[]
+}
+
+/** `GET /events/:slug/rsvps`: the replies page, with the settings beside it. */
+export interface RsvpListResponseDto {
+  readonly rsvpForm: RsvpSettingsDto
+  readonly rsvps: readonly RsvpDto[]
+  readonly stats: RsvpStatsDto
+  /** How many replies were written or changed since the caller last looked. */
+  readonly unseen: number
 }

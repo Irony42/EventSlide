@@ -30,6 +30,18 @@ import { makeSaveGuestInvite } from '../application/usecases/guestInvites/saveGu
 import { makeEnableGuestInvite } from '../application/usecases/guestInvites/enableGuestInvite'
 import { makeDisableGuestInvite } from '../application/usecases/guestInvites/disableGuestInvite'
 import { makeRotateGuestInviteToken } from '../application/usecases/guestInvites/rotateGuestInviteToken'
+import { makePurgeExpiredRsvps } from '../application/usecases/guestRsvps/purgeExpiredRsvps'
+import { makeGetRsvpForm } from '../application/usecases/guestRsvps/getRsvpForm'
+import { makeSaveRsvpForm } from '../application/usecases/guestRsvps/saveRsvpForm'
+import { makeCloseRsvps } from '../application/usecases/guestRsvps/closeRsvps'
+import { makeReopenRsvps } from '../application/usecases/guestRsvps/closeRsvps'
+import { makeListRsvps } from '../application/usecases/guestRsvps/listRsvps'
+import { makeHostAddRsvp } from '../application/usecases/guestRsvps/hostAddRsvp'
+import { makeHostUpdateRsvp } from '../application/usecases/guestRsvps/hostUpdateRsvp'
+import { makeHostDeleteRsvp } from '../application/usecases/guestRsvps/hostDeleteRsvp'
+import { makeExportRsvps } from '../application/usecases/guestRsvps/exportRsvps'
+import { makeMarkRsvpsSeen } from '../application/usecases/guestRsvps/markRsvpsSeen'
+import { makeCountUnseenRsvps } from '../application/usecases/guestRsvps/countUnseenRsvps'
 import { archiveStateOf } from '../domain/exports/albumExport'
 import type { Adapters, UseCasePolicy } from './usecases'
 import type { SharedHooks } from './usecases.shared'
@@ -143,6 +155,94 @@ export const eventsUseCases = (
     ids: adapters.ids,
     clock: adapters.clock,
   }),
+  // The guests' replies, the owner's side (spec 30): audited acts, no content in the log.
+  getRsvpForm: makeGetRsvpForm({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    clock: adapters.clock,
+  }),
+  saveRsvpForm: makeSaveRsvpForm({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  closeRsvps: makeCloseRsvps({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  reopenRsvps: makeReopenRsvps({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  listRsvps: makeListRsvps({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    clock: adapters.clock,
+  }),
+  hostAddRsvp: makeHostAddRsvp({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    ids: adapters.ids,
+    clock: adapters.clock,
+  }),
+  hostUpdateRsvp: makeHostUpdateRsvp({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  hostDeleteRsvp: makeHostDeleteRsvp({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    audit: adapters.audit,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  exportRsvps: makeExportRsvps({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    audit: adapters.audit,
+    clock: adapters.clock,
+  }),
+  markRsvpsSeen: makeMarkRsvpsSeen({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    clock: adapters.clock,
+  }),
+  countUnseenRsvps: makeCountUnseenRsvps({ rsvps: adapters.guestRsvps }),
+  // The replies whose time has come (spec 30): from the retention sweeper only, no route.
+  purgeExpiredRsvps: makePurgeExpiredRsvps({ rsvps: adapters.guestRsvps, clock: adapters.clock }),
   rotateJoinCode: makeRotateJoinCode({
     events: adapters.events,
     memberships: adapters.memberships,

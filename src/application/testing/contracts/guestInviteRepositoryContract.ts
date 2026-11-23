@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { DEFAULT_RSVP_FORM } from '../../../domain/guestRsvps/rsvpForm'
+import { DEFAULT_RSVP_SETTINGS } from '../../../domain/guestRsvps/rsvpSettings'
 import { GuestInviteToken } from '../../../domain/guestInvites/guestInviteToken'
 import { asEventId } from '../../../domain/shared/ids'
 import type { GuestInviteRepository } from '../../ports/guestInviteRepository'
@@ -179,6 +181,85 @@ export const guestInviteRepositoryContract = (
       expect(read?.enabled).toBe(true)
       expect(read?.token.value).toBe(tokenOf(2).value)
       expect(read?.updatedAt.toISOString()).toBe(LATER.toISOString())
+    })
+
+    describe('the replies settings (spec 30)', () => {
+      const SETTINGS = {
+        enabled: true,
+        deadline: '2026-12-05',
+        closedAt: null,
+        form: { ...DEFAULT_RSVP_FORM, maybe: false, partySize: { enabled: true, max: 7 } },
+      } as const
+
+      it('has none for an event with no invitation, and the defaults for one that saved none', async () => {
+        expect(await repo.findRsvpSettings(WEDDING)).toBeNull()
+
+        await repo.create(aGuestInvite({ eventId: 'evt-wedding' }))
+
+        expect(await repo.findRsvpSettings(WEDDING)).toEqual(DEFAULT_RSVP_SETTINGS)
+      })
+
+      it('keeps the switch, the deadline and the form to the letter', async () => {
+        await repo.create(aGuestInvite({ eventId: 'evt-wedding' }))
+
+        await repo.saveRsvpSettings(WEDDING, SETTINGS)
+
+        expect(await repo.findRsvpSettings(WEDDING)).toEqual(SETTINGS)
+      })
+
+      it('closes and reopens without touching the rest, and a save does not lift the closing', async () => {
+        await repo.create(aGuestInvite({ eventId: 'evt-wedding' }))
+        await repo.saveRsvpSettings(WEDDING, SETTINGS)
+
+        await repo.setRsvpClosedAt(WEDDING, LATER)
+        await repo.saveRsvpSettings(WEDDING, {
+          ...SETTINGS,
+          deadline: '2026-12-06',
+          closedAt: null,
+        })
+
+        const closed = await repo.findRsvpSettings(WEDDING)
+        expect(closed?.closedAt?.toISOString()).toBe(LATER.toISOString())
+        expect(closed?.deadline).toBe('2026-12-06')
+        expect(closed?.form).toEqual(SETTINGS.form)
+
+        await repo.setRsvpClosedAt(WEDDING, null)
+        expect(await repo.findRsvpSettings(WEDDING)).toEqual({
+          ...SETTINGS,
+          deadline: '2026-12-06',
+        })
+      })
+
+      it('touches neither the text, nor the token, nor the invitation switch, nor its date', async () => {
+        await repo.create(aGuestInvite({ eventId: 'evt-wedding', tokenByte: 1, title: 'Avant' }))
+        const before = await repo.findByEvent(WEDDING)
+
+        await repo.saveRsvpSettings(WEDDING, SETTINGS)
+        await repo.setRsvpClosedAt(WEDDING, LATER)
+
+        const after = await repo.findByEvent(WEDDING)
+        expect(after?.content).toEqual(before?.content)
+        expect(after?.enabled).toBe(false)
+        expect(after?.token.value).toBe(before?.token.value)
+        expect(after?.updatedAt.toISOString()).toBe(before?.updatedAt.toISOString())
+      })
+
+      it('keeps the settings of each event apart', async () => {
+        await repo.create(aGuestInvite({ eventId: 'evt-wedding', tokenByte: 1 }))
+        await repo.create(aGuestInvite({ eventId: 'evt-gala', tokenByte: 2 }))
+
+        await repo.saveRsvpSettings(WEDDING, SETTINGS)
+        await repo.setRsvpClosedAt(WEDDING, LATER)
+
+        expect(await repo.findRsvpSettings(GALA)).toEqual(DEFAULT_RSVP_SETTINGS)
+      })
+
+      it('writes nothing for an event that has no invitation', async () => {
+        await repo.saveRsvpSettings(WEDDING, SETTINGS)
+        await repo.setRsvpClosedAt(WEDDING, LATER)
+
+        expect(await repo.findRsvpSettings(WEDDING)).toBeNull()
+      })
     })
 
     it('does nothing for an event that has no invitation, whichever write it is', async () => {
