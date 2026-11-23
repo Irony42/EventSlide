@@ -3,6 +3,7 @@ import {
   asAnnouncementId,
   asChannelBindingId,
   asChannelMediaJobId,
+  asGuestHouseholdId,
   asGuestRsvpId,
   asChallengeId,
   asClientId,
@@ -19,6 +20,7 @@ import {
   type AnnouncementId,
   type ChannelBindingId,
   type ChannelMediaJobId,
+  type GuestHouseholdId,
   type GuestRsvpId,
   type ChallengeId,
   type ClientId,
@@ -72,6 +74,7 @@ export class SequentialIdGenerator implements IdGenerator {
 
   private channelMediaJobs = 0
   private guestRsvps = 0
+  private guestHouseholds = 0
 
   /**
    * How far the byte sequence has run. It advances across calls so two events created
@@ -150,6 +153,11 @@ export class SequentialIdGenerator implements IdGenerator {
     return asGuestRsvpId(`rsvp-${this.guestRsvps}`)
   }
 
+  guestHouseholdId(): GuestHouseholdId {
+    this.guestHouseholds += 1
+    return asGuestHouseholdId(`household-${this.guestHouseholds}`)
+  }
+
   channelMediaJobId(): ChannelMediaJobId {
     this.channelMediaJobs += 1
     return asChannelMediaJobId(`channel-job-${this.channelMediaJobs}`)
@@ -198,6 +206,7 @@ export class SequentialIdGenerator implements IdGenerator {
     this.channelBindings = 0
     this.channelMediaJobs = 0
     this.guestRsvps = 0
+    this.guestHouseholds = 0
     this.byteOffset = 0
     return this
   }

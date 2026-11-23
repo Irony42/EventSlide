@@ -5,6 +5,7 @@ import {
   asAnnouncementId,
   asChannelBindingId,
   asChannelMediaJobId,
+  asGuestHouseholdId,
   asGuestRsvpId,
   asChallengeId,
   asClientId,
@@ -21,6 +22,7 @@ import {
   type AnnouncementId,
   type ChannelBindingId,
   type ChannelMediaJobId,
+  type GuestHouseholdId,
   type GuestRsvpId,
   type ChallengeId,
   type ClientId,
@@ -65,6 +67,7 @@ export const randomIdGenerator: IdGenerator = {
   channelBindingId: (): ChannelBindingId => asChannelBindingId(randomUUID()),
   channelMediaJobId: (): ChannelMediaJobId => asChannelMediaJobId(randomUUID()),
   guestRsvpId: (): GuestRsvpId => asGuestRsvpId(randomUUID()),
+  guestHouseholdId: (): GuestHouseholdId => asGuestHouseholdId(randomUUID()),
 
   bytes: (count: number): Uint8Array => {
     if (!Number.isInteger(count) || count < 1) {

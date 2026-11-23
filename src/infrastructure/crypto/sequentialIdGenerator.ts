@@ -4,6 +4,7 @@ import {
   asAnnouncementId,
   asChannelBindingId,
   asChannelMediaJobId,
+  asGuestHouseholdId,
   asGuestRsvpId,
   asChallengeId,
   asClientId,
@@ -20,6 +21,7 @@ import {
   type AnnouncementId,
   type ChannelBindingId,
   type ChannelMediaJobId,
+  type GuestHouseholdId,
   type GuestRsvpId,
   type ChallengeId,
   type ClientId,
@@ -147,6 +149,7 @@ export const createSequentialIdGenerator = (): IdGenerator => {
     channelBindingId: (): ChannelBindingId => asChannelBindingId(next('channelBinding')),
     channelMediaJobId: (): ChannelMediaJobId => asChannelMediaJobId(next('channelMediaJob')),
     guestRsvpId: (): GuestRsvpId => asGuestRsvpId(next('guestRsvp')),
+    guestHouseholdId: (): GuestHouseholdId => asGuestHouseholdId(next('guestHousehold')),
 
     bytes: (count: number): Uint8Array => {
       if (!Number.isInteger(count) || count < 1) {

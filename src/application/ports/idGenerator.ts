@@ -5,6 +5,7 @@ import type {
   EventId,
   GuestId,
   GuestbookEntryId,
+  GuestHouseholdId,
   GuestRsvpId,
   MissionId,
   AnnouncementId,
@@ -60,6 +61,8 @@ export interface IdGenerator {
   channelMediaJobId(): ChannelMediaJobId
   /** One guest's reply to the invitation (spec 30). The token a guest keeps is another thing. */
   guestRsvpId(): GuestRsvpId
+  /** One household of the guest list (spec 30, lot 3). The link's token comes from `bytes`. */
+  guestHouseholdId(): GuestHouseholdId
 
   /**
    * A shared gallery link (roadmap §4.1). The row's name, which signed media URLs carry;
