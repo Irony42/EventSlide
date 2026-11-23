@@ -1,13 +1,16 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Button } from '../../../../design-system/components/Button'
 import { Field } from '../../../../design-system/components/Field'
 import { Notice } from '../../../../design-system/components/Notice'
 import { Textarea } from '../../../../design-system/components/Textarea'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
+import { householdLink } from '../../../../lib/rsvp/households'
+import { useApi } from '../../../../lib/useApi'
+import { useLoader } from '../../../../lib/useLoader'
 import { SHORT_MESSAGE_MAX, graphemeCount, graphemesOf } from '../../../../lib/invite/cardTexts'
 import { inkLoadOf, invitationQrShareOf } from '../../../../lib/print/printDesigns'
 import { PrintSheet } from '../../print/PrintSheet'
-import { isQrTooSmall } from '../../print/printKit'
+import { PRINT_FORMAT_SPECS, isQrTooSmall } from '../../print/printKit'
 import { usePrintPageRule } from '../../print/usePrintPageRule'
 import { INVITE_FORMATS } from './invitePreferences'
 import { inviteCardOf } from './inviteCard'
@@ -36,6 +39,15 @@ export function PrintTab({
   const text = t.guestInvite.host
   const [totalModules, setTotalModules] = useState<number | null>(null)
   usePrintPageRule()
+
+  // The guest list (spec 30, lot 3): when the host listed households, a card can be printed for each one.
+  const api = useApi()
+  const loadHouseholds = useCallback(
+    (signal: AbortSignal) => api.households(event.slug, signal),
+    [api, event.slug],
+  )
+  const households = useLoader(loadHouseholds).data?.households ?? []
+  const [perHousehold, setPerHousehold] = useState(false)
 
   const view = inviteCardOf(event, invite, preferences, { showAddress: true })
   const { lang, format, design, focusX, focusY, eventColour, chosen, hue, auto, isAuto, shown } =
@@ -78,6 +90,34 @@ export function PrintTab({
         ))}
         <p className={styles['help']}>{text.printA5Help}</p>
       </fieldset>
+
+      {households.length === 0 ? null : (
+        <div className={styles['group']}>
+          <label className={styles['radio']}>
+            <input
+              type="checkbox"
+              name="invite-per-household"
+              checked={perHousehold}
+              onChange={(e) => setPerHousehold(e.target.checked)}
+            />
+            {text.printPerHousehold}
+          </label>
+          {perHousehold ? (
+            <>
+              <p className={styles['help']}>
+                {text.printPerHouseholdHint(
+                  households.length,
+                  Math.ceil(households.length / PRINT_FORMAT_SPECS[format].perSheet),
+                )}
+              </p>
+              <Notice tone="warning" role="status" variant="boxed">
+                {text.printPerHouseholdPrivacy}
+              </Notice>
+              <p className={styles['help']}>{text.printPerHouseholdPreview}</p>
+            </>
+          ) : null}
+        </div>
+      )}
 
       <Field label={text.shortLabel} hint={text.shortHint}>
         {(control) => (
@@ -138,6 +178,15 @@ export function PrintTab({
           focusX={focusX}
           focusY={focusY}
           invitation={invitation}
+          households={
+            perHousehold && households.length > 0
+              ? households.map((household) => ({
+                  id: household.id,
+                  name: household.name,
+                  url: householdLink(invite.url, household) ?? invite.url,
+                }))
+              : undefined
+          }
         />
       </PreviewBox>
     </div>

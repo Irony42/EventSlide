@@ -3253,6 +3253,12 @@ export const it: UiText = {
         'La foto non è stata salvata su questo dispositivo: sparirà quando lasci la pagina.',
       printButton: 'Stampa',
       previewLabel: 'Anteprima della cartolina',
+      printPerHousehold: 'Un biglietto per nucleo',
+      printPerHouseholdHint: (households: number, sheets: number) =>
+        `${households} ${households === 1 ? 'biglietto' : 'biglietti'} da stampare, su ${sheets} ${sheets === 1 ? 'foglio' : 'fogli'}. Il nome del nucleo è sul biglietto.`,
+      printPerHouseholdPrivacy:
+        'Il QR di ogni biglietto apre il link personale del suo nucleo: consegnate il biglietto solo a quel nucleo. Il link segreto non è scritto in chiaro da nessuna parte.',
+      printPerHouseholdPreview: 'L’anteprima mostra il primo foglio; la stampa li comprende tutti.',
       printHelp:
         'Nella finestra di stampa, scelga una scala del 100 % e nessun margine. L’indirizzo è stampato sulla cartolina: la consegni solo agli invitati che ha scelto.',
       commonBadge: 'comune a tutti i formati',

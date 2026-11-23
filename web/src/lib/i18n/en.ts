@@ -3202,6 +3202,12 @@ export const en: UiText = {
         'The photo could not be kept on this device: it will be gone when you leave the page.',
       printButton: 'Print',
       previewLabel: 'Card preview',
+      printPerHousehold: 'One card per household',
+      printPerHouseholdHint: (households: number, sheets: number) =>
+        `${households} ${households === 1 ? 'card' : 'cards'} to print, on ${sheets} ${sheets === 1 ? 'sheet' : 'sheets'}. The household’s name is on the card.`,
+      printPerHouseholdPrivacy:
+        'Each card’s QR opens its household’s personal link: hand the card to that household only. The secret link is not written anywhere in clear text.',
+      printPerHouseholdPreview: 'The preview shows the first sheet; printing includes them all.',
       printHelp:
         'In the print window, choose a scale of 100% and no margins. The address is printed on the card: hand it only to the guests you chose.',
       commonBadge: 'shared by every format',

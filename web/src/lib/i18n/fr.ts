@@ -3957,6 +3957,13 @@ export const fr = {
         'La photo n’a pas pu être gardée sur cet appareil\u00a0: elle disparaîtra quand vous quitterez la page.',
       printButton: 'Imprimer',
       previewLabel: 'Aperçu de la carte',
+      printPerHousehold: 'Une carte par foyer',
+      printPerHouseholdHint: (households: number, sheets: number) =>
+        `${households} ${households === 1 ? 'carte' : 'cartes'} à imprimer, sur ${sheets} ${sheets === 1 ? 'feuille' : 'feuilles'}. Le nom du foyer est sur la carte.`,
+      printPerHouseholdPrivacy:
+        'Le QR de chaque carte ouvre le lien personnel de son foyer\u00a0: remettez la carte à ce foyer seulement. Le lien secret n’est écrit nulle part en clair.',
+      printPerHouseholdPreview:
+        'L’aperçu montre la première feuille\u00a0; l’impression les contient toutes.',
       printHelp:
         'Dans la fenêtre d’impression, choisissez une échelle de 100\u00a0% et aucune marge. L’adresse est imprimée sur la carte\u00a0: ne la donnez qu’aux invités que vous avez choisis.',
       commonBadge: 'commun à tous les formats',

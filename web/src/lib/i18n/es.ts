@@ -3280,6 +3280,12 @@ export const es: UiText = {
         'No se pudo guardar la foto en este dispositivo: desaparecerá al salir de la página.',
       printButton: 'Imprimir',
       previewLabel: 'Vista previa de la tarjeta',
+      printPerHousehold: 'Una tarjeta por hogar',
+      printPerHouseholdHint: (households: number, sheets: number) =>
+        `${households} ${households === 1 ? 'tarjeta' : 'tarjetas'} por imprimir, en ${sheets} ${sheets === 1 ? 'hoja' : 'hojas'}. El nombre del hogar está en la tarjeta.`,
+      printPerHouseholdPrivacy:
+        'El QR de cada tarjeta abre el enlace personal de su hogar: entregue la tarjeta solo a ese hogar. El enlace secreto no está escrito en claro en ninguna parte.',
+      printPerHouseholdPreview: 'La vista previa muestra la primera hoja; al imprimir salen todas.',
       printHelp:
         'En la ventana de impresión, elija una escala del 100 % y sin márgenes. La dirección va impresa en la tarjeta: entréguela solo a los invitados que haya elegido.',
       commonBadge: 'común a todos los formatos',

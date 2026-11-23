@@ -7,10 +7,12 @@ import { en } from '../../../../lib/i18n/en'
 import { qrPatternOf } from '../../../../testing/qrPattern'
 import {
   aGuestInviteHost,
+  aHousehold,
   anEventDto,
+  fakeApi,
   renderWithProviders,
 } from '../../../../testing/renderWithProviders'
-import type { GuestInviteDto } from '../../../../lib/api/dto'
+import type { GuestInviteDto, HouseholdDto } from '../../../../lib/api/dto'
 import { SHORT_MESSAGE_MAX } from '../../../../lib/invite/cardTexts'
 import type * as PrintPhoto from '../../print/printPhoto'
 import { PrintTab } from './PrintTab'
@@ -409,5 +411,108 @@ describe('PrintTab', () => {
     await user.click(screen.getByRole('radio', { name: 'Souvenir' }))
 
     expect(screen.getByText(fr.admin.printKitInkHeavy)).toBeInTheDocument()
+  })
+})
+
+describe('PrintTab: one card per household (spec 30, lot 3)', () => {
+  const martin = aHousehold({ id: 'h-1', name: 'Famille Martin', token: 'AAAAAAAAAAAAAAAA' })
+  const durand = aHousehold({ id: 'h-2', name: 'Les Durand', token: 'BBBBBBBBBBBBBBBB' })
+  const roux = aHousehold({ id: 'h-3', name: 'Roux', token: 'CCCCCCCCCCCCCCCC' })
+
+  const renderWith = (households: readonly HouseholdDto[]) =>
+    renderWithProviders(
+      <OutputHarness
+        Output={PrintTab}
+        event={anEventDto({ slug: 'camille-et-sacha', name: 'Camille & Sacha' })}
+        invite={readyInvite()}
+      />,
+      { api: fakeApi({ households: vi.fn(async () => ({ households })) }) },
+    )
+
+  const qrOf = (value: string): string => {
+    const { container, unmount } = render(<QRCodeSVG value={value} level="M" marginSize={4} />)
+    const pattern = qrPatternOf(container)
+    unmount()
+    return pattern
+  }
+
+  it('offers nothing while the host listed no household, and keeps four identical cards', async () => {
+    renderWith([])
+
+    expect(within(sheet()).getAllByRole('img', { name: /QR/ })).toHaveLength(4)
+    expect(screen.queryByLabelText(text.printPerHousehold)).not.toBeInTheDocument()
+  })
+
+  it('prints a card for each household with its name and its own link in the QR, the secret only in the code', async () => {
+    const user = userEvent.setup()
+    renderWith([martin, durand, roux])
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    const sheets = document.querySelectorAll<HTMLElement>('[data-household-sheet]')
+    expect(sheets).toHaveLength(1)
+    const codes = within(sheets[0] as HTMLElement).getAllByRole('img', { name: /QR/ })
+    expect(codes).toHaveLength(3)
+    expect(qrPatternOf(codes[0] as HTMLElement)).toBe(qrOf(`${URL_OF_INVITE}#f=AAAAAAAAAAAAAAAA`))
+    expect(qrPatternOf(codes[1] as HTMLElement)).toBe(qrOf(`${URL_OF_INVITE}#f=BBBBBBBBBBBBBBBB`))
+    expect(qrPatternOf(codes[2] as HTMLElement)).toBe(qrOf(`${URL_OF_INVITE}#f=CCCCCCCCCCCCCCCC`))
+    for (const name of ['Famille Martin', 'Les Durand', 'Roux']) {
+      expect(within(sheets[0] as HTMLElement).getByText(name)).toBeInTheDocument()
+    }
+    // The secret is not printed as text anywhere on the sheet.
+    expect(sheets[0]?.textContent).not.toContain('AAAAAAAAAAAAAAAA')
+    expect(sheets[0]?.textContent).not.toContain('#f=')
+  })
+
+  it('lays the cards on as many sheets as it takes, four to a sheet, and says so', async () => {
+    const user = userEvent.setup()
+    const many = Array.from({ length: 9 }, (_, i) =>
+      aHousehold({ id: `h-${i}`, name: `Foyer ${i}`, token: `T${String(i).padStart(15, '0')}` }),
+    )
+    renderWith(many)
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    const sheets = document.querySelectorAll<HTMLElement>('[data-household-sheet]')
+    expect(
+      Array.from(sheets).map(
+        (page) => within(page).getAllByRole('img', { name: /QR/, hidden: true }).length,
+      ),
+    ).toEqual([4, 4, 1])
+    expect(screen.getByText(text.printPerHouseholdHint(9, 3))).toBeInTheDocument()
+    await user.click(screen.getByRole('radio', { name: text.printFormatA5 }))
+    expect(document.querySelectorAll('[data-household-sheet]')).toHaveLength(5)
+    expect(screen.getByText(text.printPerHouseholdHint(9, 5))).toBeInTheDocument()
+  })
+
+  it('warns that each card holds a link to give to that household only, and says the preview shows the first sheet', async () => {
+    const user = userEvent.setup()
+    renderWith([martin])
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    expect(screen.getByText(plain(text.printPerHouseholdPrivacy))).toBeInTheDocument()
+    expect(screen.getByText(plain(text.printPerHouseholdPreview))).toBeInTheDocument()
+  })
+
+  it('goes back to the same card repeated when the option is unticked', async () => {
+    const user = userEvent.setup()
+    renderWith([martin, durand])
+    const box = await screen.findByLabelText(text.printPerHousehold)
+    await user.click(box)
+    expect(document.querySelectorAll('[data-household-sheet]')).toHaveLength(1)
+
+    await user.click(box)
+
+    expect(document.querySelectorAll('[data-household-sheet]')).toHaveLength(0)
+    expect(within(sheet()).getAllByRole('img', { name: /QR/ })).toHaveLength(4)
+  })
+
+  it('cuts a very long household name for the card, never squeezing it', async () => {
+    const user = userEvent.setup()
+    renderWith([
+      aHousehold({ id: 'h-long', name: 'Famille '.repeat(12).trim(), token: 'DDDDDDDDDDDDDDDD' }),
+    ])
+    await user.click(await screen.findByLabelText(text.printPerHousehold))
+
+    const card = document.querySelector<HTMLElement>('[data-household-sheet]') as HTMLElement
+    expect(card.textContent).toContain('…')
   })
 })

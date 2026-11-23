@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { fr } from '../i18n/fr'
 import { aHousehold, anRsvp } from '../../testing/renderWithProviders'
 import {
+  cardNameOf,
   fileableHouseholds,
   householdCounts,
   householdLink,
@@ -122,5 +123,19 @@ describe('fileableHouseholds', () => {
 
   it('offers nothing for a reply that is already filed (it is detached first)', () => {
     expect(fileableHouseholds(LIST, anRsvp({ householdId: 'h-2' }))).toEqual([])
+  })
+})
+
+describe('cardNameOf', () => {
+  it('keeps a name that fits, on one line', () => {
+    expect(cardNameOf('  Famille   Martin ')).toBe('Famille Martin')
+  })
+
+  it('cuts a long name at 36 characters with an ellipsis, never inside a pair', () => {
+    const cut = cardNameOf('x'.repeat(50))
+    expect([...cut]).toHaveLength(36)
+    expect(cut.endsWith('…')).toBe(true)
+    expect(cardNameOf('😀'.repeat(40))).toBe(`${'😀'.repeat(35)}…`)
+    expect(cardNameOf('y'.repeat(36))).toBe('y'.repeat(36))
   })
 })
