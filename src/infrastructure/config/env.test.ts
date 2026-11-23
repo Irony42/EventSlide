@@ -1,5 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { DEFAULT_PUSH_HOSTS } from '../../domain/push/pushEndpoint'
+import { generateVapidKeys } from '../push/webPushCrypto'
 import { describe, expect, it } from 'vitest'
 import { ConfigError, loadConfig, loadMaintenanceConfig, resolveSourceUrl } from './env'
 import { ClientCeilings } from '../../domain/clients/clientCeilings'
@@ -243,6 +245,7 @@ describe('loadConfig', () => {
         },
         // No token: no Telegram, so nothing leaves the box.
         channels: { telegram: null, maxQueuedPerEvent: 200 },
+        push: null,
         // Nobody has set a key, and nobody is required to hold a second factor.
         mfa: { encryptionKey: null, requireOperatorSecondFactor: false },
       })
@@ -3773,4 +3776,89 @@ describe('the Telegram settings (spec 27)', () => {
       expect(issues.some((issue) => issue.startsWith('TELEGRAM_API_BASE_URL: '))).toBe(true)
     },
   )
+})
+
+describe('Web Push configuration (spec 30, lot 4)', () => {
+  const pair = generateVapidKeys()
+  const SUBJECT = 'mailto:ops@example.org'
+  const ON = {
+    ...DEV,
+    VAPID_PUBLIC_KEY: pair.publicKey,
+    VAPID_PRIVATE_KEY: pair.privateKey,
+    VAPID_SUBJECT: SUBJECT,
+  }
+
+  it('is off with none of the three variables, and nothing is read for the list of hosts', () => {
+    expect(loadConfig(DEV).push).toBeNull()
+    expect(loadConfig({ ...DEV, PUSH_ALLOWED_HOSTS: 'push.example.org' }).push).toBeNull()
+    expect(
+      loadConfig({ ...DEV, VAPID_PUBLIC_KEY: '', VAPID_PRIVATE_KEY: '', VAPID_SUBJECT: '' }).push,
+    ).toBeNull()
+  })
+
+  it('is on with all three, with the four browsers’ push services allowed by default', () => {
+    expect(loadConfig(ON).push).toEqual({
+      publicKey: pair.publicKey,
+      privateKey: pair.privateKey,
+      subject: SUBJECT,
+      allowedHosts: DEFAULT_PUSH_HOSTS,
+    })
+  })
+
+  it('replaces the list of hosts with the operator’s, host names only', () => {
+    expect(
+      loadConfig({ ...ON, PUSH_ALLOWED_HOSTS: ' Push.Example.org, *.push.example.net' }).push
+        ?.allowedHosts,
+    ).toEqual(['push.example.org', '*.push.example.net'])
+    for (const bad of ['10.0.0.1', 'localhost', 'a b', ',', 'https://x.test']) {
+      expect(
+        refusalIssues({ ...ON, PUSH_ALLOWED_HOSTS: bad }).some((issue) =>
+          issue.startsWith('PUSH_ALLOWED_HOSTS: '),
+        ),
+      ).toBe(true)
+    }
+  })
+
+  it('accepts an https subject and refuses one that is neither a mailto nor an https address', () => {
+    expect(loadConfig({ ...ON, VAPID_SUBJECT: 'https://example.org/contact' }).push?.subject).toBe(
+      'https://example.org/contact',
+    )
+    for (const bad of ['ops@example.org', 'http://example.org', 'mailto:nobody', 'mailto:']) {
+      expect(
+        refusalIssues({ ...ON, VAPID_SUBJECT: bad }).some((issue) =>
+          issue.startsWith('VAPID_SUBJECT: '),
+        ),
+      ).toBe(true)
+    }
+  })
+
+  it.each([['VAPID_PUBLIC_KEY'], ['VAPID_PRIVATE_KEY'], ['VAPID_SUBJECT']])(
+    'names the missing %s when the other two are set',
+    (missing) => {
+      const half: Record<string, string> = { ...ON }
+      delete half[missing]
+
+      const issues = refusalIssues(half)
+
+      expect(issues.some((issue) => issue.startsWith(`${missing}: `))).toBe(true)
+    },
+  )
+
+  it('refuses keys of the wrong shape without ever repeating them', () => {
+    const wrong = 'not-a-key-9f8e7d6c5b4a'
+    const issues = refusalIssues({ ...ON, VAPID_PRIVATE_KEY: wrong, VAPID_PUBLIC_KEY: wrong })
+
+    expect(issues.some((issue) => issue.startsWith('VAPID_PRIVATE_KEY: '))).toBe(true)
+    expect(issues.some((issue) => issue.startsWith('VAPID_PUBLIC_KEY: '))).toBe(true)
+    expect(issues.join(' | ')).not.toContain(wrong)
+  })
+
+  it('refuses a public key that is not the private key’s, without repeating either', () => {
+    const other = generateVapidKeys()
+    const issues = refusalIssues({ ...ON, VAPID_PUBLIC_KEY: other.publicKey })
+
+    expect(issues.some((issue) => issue.startsWith('VAPID_PUBLIC_KEY: '))).toBe(true)
+    expect(issues.join(' | ')).not.toContain(other.publicKey)
+    expect(issues.join(' | ')).not.toContain(pair.privateKey)
+  })
 })

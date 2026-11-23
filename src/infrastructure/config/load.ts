@@ -399,6 +399,18 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       maxQueuedPerEvent: raw.MAX_QUEUED_CHANNEL_MEDIA_PER_EVENT,
     },
 
+    push:
+      raw.VAPID_PUBLIC_KEY === undefined ||
+      raw.VAPID_PRIVATE_KEY === undefined ||
+      raw.VAPID_SUBJECT === undefined
+        ? null
+        : {
+            publicKey: raw.VAPID_PUBLIC_KEY,
+            privateKey: raw.VAPID_PRIVATE_KEY,
+            subject: raw.VAPID_SUBJECT,
+            allowedHosts: raw.PUSH_ALLOWED_HOSTS,
+          },
+
     warnings: computeWarnings({
       isProduction,
       source,
