@@ -80,4 +80,9 @@ export class PushSubscription {
   get createdAt(): Date {
     return this.props.createdAt
   }
+
+  /** The same subscription with the keys the browser gave this time (it renewed them). */
+  withKeys(p256dh: string, auth: string): PushSubscription {
+    return new PushSubscription({ ...this.props, p256dh, auth })
+  }
 }
