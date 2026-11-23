@@ -233,6 +233,8 @@ describe('limited places (spec 30, lot 4)', () => {
       })
 
       expect(added.ok && added.value.answer).toBe('yes')
+      const stored = await scene.rsvps.listByEvent(WEDDING)
+      expect(stored.find((reply) => reply.name === 'Zoé')?.answer).toBe('yes')
     })
 
     it('lowering the capacity under the people already coming evicts nobody', async () => {

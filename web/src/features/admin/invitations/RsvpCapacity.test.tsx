@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { fr } from '../../../lib/i18n/fr'
+import { SAVE_DEBOUNCE_MS } from '../../../lib/useSettingsAutosave'
 import type { Api } from '../../../lib/api/client'
 import { aRsvpSettings, fakeApi, renderWithProviders } from '../../../testing/renderWithProviders'
 import { RsvpPanel } from './RsvpPanel'
@@ -73,6 +74,8 @@ describe('limited places', () => {
     await user.tab()
     await user.clear(field)
     await user.tab()
+    // The save is debounced: wait past it before saying nothing was sent.
+    await new Promise((resolve) => setTimeout(resolve, SAVE_DEBOUNCE_MS + 200))
 
     expect(saveRsvpForm).not.toHaveBeenCalled()
   })

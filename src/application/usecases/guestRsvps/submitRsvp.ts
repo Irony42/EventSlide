@@ -154,9 +154,9 @@ export const makeSubmitRsvp =
     }
 
     const admission = await deps.rsvps.admit(rsvp, { capacity: settings.form.capacity })
-    if (admission.kind === 'refused') return err(refused(admission.refusal))
-    // `gone` is only answered to a change that asked for it: never here.
-    if (admission.kind === 'gone') return err(DomainError.notFound('rsvp.notFound'))
+    // `gone` is only answered to a change that asked for it (`changeOnly`): never here, so it shares
+    // the refusal rather than a branch nothing can reach.
+    if (admission.kind === 'refused' || admission.kind === 'gone') return err(refused('tooMany'))
     announceRsvpsChanged(deps.bus, event.id)
     // What was stored: a yes the places could not hold is a waiting-list entry.
     return ok({ rsvp: admission.rsvp, editToken, created: admission.kind === 'added' })
