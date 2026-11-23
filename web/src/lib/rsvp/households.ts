@@ -79,8 +79,11 @@ export const whatsappUrl = (message: string): string =>
 export const smsUrl = (message: string): string => `sms:?&body=${encodeURIComponent(message)}`
 
 /** The mail application, subject and message ready, no recipient. */
-export const mailtoUrl = (subject: string, message: string): string =>
-  `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`
+export const mailtoUrl = (subject: string, message: string): string => {
+  // Mail applications read a line break in a link as CRLF (RFC 6068): a bare line feed is lost by some.
+  const body = message.replace(/\r?\n/g, '\r\n')
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+}
 
 /** The households a reply may be filed under: those with no reply yet (one reply per household). */
 export const fileableHouseholds = (

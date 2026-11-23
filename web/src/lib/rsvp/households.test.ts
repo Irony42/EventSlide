@@ -93,13 +93,23 @@ describe('the guided reminder', () => {
 
     expect(whatsappUrl(message)).toBe(`https://wa.me/?text=${encoded}`)
     expect(smsUrl(message)).toBe(`sms:?&body=${encoded}`)
+    // A mail link carries line breaks as CRLF (RFC 6068); the other two keep the message as it is.
     expect(mailtoUrl('Petit rappel', message)).toBe(
-      `mailto:?subject=${encodeURIComponent('Petit rappel')}&body=${encoded}`,
+      `mailto:?subject=${encodeURIComponent('Petit rappel')}&body=${encodeURIComponent(message.replace('\n', '\r\n'))}`,
     )
     for (const url of [whatsappUrl(message), smsUrl(message), mailtoUrl('s', message)]) {
       // No number or address anywhere before the message: the host picks the contact.
       expect(url).toMatch(/^(https:\/\/wa\.me\/\?text=|sms:\?&body=|mailto:\?subject=)/)
     }
+  })
+})
+
+describe('mailtoUrl line breaks', () => {
+  it('writes every line break as CRLF, once: a CRLF is not doubled', () => {
+    const url = mailtoUrl('s', 'a\nb\r\nc')
+
+    expect(url.endsWith(`&body=${encodeURIComponent('a\r\nb\r\nc')}`)).toBe(true)
+    expect(url).not.toMatch(/%0D%0D/)
   })
 })
 

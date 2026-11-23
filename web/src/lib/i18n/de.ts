@@ -3834,6 +3834,11 @@ export const de: UiText = {
       reminderNext: 'Weiter',
       reminderNote:
         'WhatsApp, SMS und E-Mail öffnen sich mit der fertigen Nachricht: Sie wählen den Kontakt in Ihrer App. EventSlide kennt weder Nummer noch Adresse.',
+      reminderArchived: 'Die Veranstaltung ist archiviert: Erinnerungen sind nicht mehr möglich.',
+      reminderLoading: 'Die Einladung wird geladen…',
+      reminderInviteFailed: 'Die Einladung konnte nicht gelesen werden.',
+      reminderNoteMarked:
+        'Die Notiz „erinnert“ wird gespeichert, sobald Sie auf einen Kanal klicken.',
       reminderAllDone: 'Alle haben geantwortet.',
       reminderNoLink: 'Speichern Sie zuerst die Einladung: Ohne Link gibt es nichts zu senden.',
       reminderNoteFailed: 'Die Notiz „erinnert“ konnte nicht gespeichert werden.',

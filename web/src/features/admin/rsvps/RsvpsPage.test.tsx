@@ -1077,3 +1077,34 @@ describe('the replies page: the guest list (lot 3)', () => {
     )
   })
 })
+
+describe('the replies page: coming from the guest list', () => {
+  it('opens the drawer of the reply the guest list leads to, once', async () => {
+    renderWithProviders(<RsvpsPage />, {
+      api: answering(list()),
+      route: '/admin/events/camille-et-sacha/rsvps?reply=r-lea',
+      path: '/admin/events/:slug/rsvps',
+    })
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: 'Léa Martin' })).toBeInTheDocument()
+    // Opened once: closed by the host, it stays closed when the replies are read again.
+    const user = userEvent.setup()
+    await user.click(
+      within(dialog).getByRole('button', { name: new RegExp(`^${text.closeDetail}$`) }),
+    )
+    signal('rsvp.changed')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('opens nothing for a reply that is not there', async () => {
+    renderWithProviders(<RsvpsPage />, {
+      api: answering(list()),
+      route: '/admin/events/camille-et-sacha/rsvps?reply=r-nobody',
+      path: '/admin/events/:slug/rsvps',
+    })
+
+    await screen.findByRole('table')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
