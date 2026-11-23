@@ -104,6 +104,19 @@ describe('the household link: reading it', () => {
     expect(guestRsvp).not.toHaveBeenCalled()
   })
 
+  it('prefers the household the device remembers to a reply token it also remembers', async () => {
+    storeHouseholdToken(TOKEN, LINK)
+    storeEditToken(TOKEN, 'remembered-reply-token')
+    const guestHousehold = vi.fn(async () => MARTIN)
+    const guestRsvp = vi.fn(async () => ({ rsvp: aGuestOwnRsvp() }))
+    render({ guestHousehold, guestRsvp })
+
+    await screen.findByText(plain(t.householdGreeting('Famille Martin')))
+
+    expect(guestHousehold).toHaveBeenCalledWith(TOKEN, LINK, expect.anything())
+    expect(guestRsvp).not.toHaveBeenCalled()
+  })
+
   it('works with no memory at all: the link is enough for the visit', async () => {
     arriveBy(`#f=${LINK}`)
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
