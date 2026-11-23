@@ -41,6 +41,8 @@ import type {
   GuestOwnRsvpResponseDto,
   GuestRsvpCreatedDto,
   GuestRsvpPageDto,
+  RsvpFormResponseDto,
+  RsvpSettingsDto,
   GuestPhotoDto,
   GuestMissionDto,
   JoinResponse,
@@ -166,6 +168,31 @@ export const aGuestInvitePage = (
   accentHue: 305,
   // Replies are not asked until a test says so: the page of spec 29 as it was.
   rsvp: aGuestRsvpPage({ state: 'off' }),
+  ...overrides,
+})
+
+/** The host's reading of the replies' settings (spec 30): switched off, the defaults of a plain party. */
+export const aRsvpSettings = (overrides: Partial<RsvpSettingsDto> = {}): RsvpSettingsDto => ({
+  invited: true,
+  enabled: false,
+  deadline: null,
+  closedAt: null,
+  form: {
+    maybe: true,
+    partySize: { enabled: true, max: 4 },
+    kidsSeparate: true,
+    diet: true,
+    companionNames: false,
+    meals: { enabled: false, options: [] },
+    questions: [],
+    visibility: 'off',
+    capacity: null,
+    moments: [],
+    absentNote: true,
+  },
+  state: 'off',
+  closesAt: '2026-12-12T18:00:00.000Z',
+  erasedAt: null,
   ...overrides,
 })
 
@@ -1075,6 +1102,12 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   guestRsvp: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({ rsvp: aGuestOwnRsvp() })),
   guestRsvpUpdate: vi.fn(async (): Promise<GuestOwnRsvpResponseDto> => ({ rsvp: aGuestOwnRsvp() })),
   guestRsvpDelete: vi.fn(async (): Promise<void> => undefined),
+  rsvpForm: vi.fn(async (): Promise<RsvpFormResponseDto> => ({ rsvpForm: aRsvpSettings() })),
+  saveRsvpForm: vi.fn(async (): Promise<RsvpFormResponseDto> => ({ rsvpForm: aRsvpSettings() })),
+  closeRsvps: vi.fn(async (): Promise<RsvpFormResponseDto> => ({
+    rsvpForm: aRsvpSettings({ state: 'closed' }),
+  })),
+  reopenRsvps: vi.fn(async (): Promise<RsvpFormResponseDto> => ({ rsvpForm: aRsvpSettings() })),
   guestInvite: vi.fn(async () => ({ guestInvite: aGuestInviteHost() })),
   saveGuestInvite: vi.fn(async () => ({ guestInvite: aGuestInviteHost() })),
   enableGuestInvite: vi.fn(async () => ({ guestInvite: aGuestInviteHost({ enabled: true }) })),

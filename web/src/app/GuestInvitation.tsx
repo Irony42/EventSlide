@@ -87,9 +87,17 @@ export interface GuestInvitationProps {
    * draws it and does nothing more.
    */
   readonly interactive?: boolean
+  /** A name to fill the form with in the host's preview, which shows it open on a "yes" (spec 30). */
+  readonly previewName?: string
 }
 
-export function GuestInvitation({ page, token, readAt, interactive = true }: GuestInvitationProps) {
+export function GuestInvitation({
+  page,
+  token,
+  readAt,
+  interactive = true,
+  previewName,
+}: GuestInvitationProps) {
   const t = useTranslations().guestInvite.page
   const lang = parseLocale(page.language) ?? DEFAULT_LOCALE
   const parts = useMemo(() => whenParts(page.when, lang, viewerTimeZone()), [page.when, lang])
@@ -179,7 +187,13 @@ export function GuestInvitation({ page, token, readAt, interactive = true }: Gue
       {(page.message ?? null) === null ? null : <p className={styles['message']}>{page.message}</p>}
 
       {/* Serez-vous là ? Asked while the host asks it, and kept reachable (the reply, its deletion) after. */}
-      <GuestRsvpBlock rsvp={page.rsvp} token={token} locale={lang} interactive={interactive} />
+      <GuestRsvpBlock
+        rsvp={page.rsvp}
+        token={token}
+        locale={lang}
+        interactive={interactive}
+        {...(previewName === undefined ? {} : { previewName })}
+      />
 
       {page.state === 'upcoming' ? (
         <>

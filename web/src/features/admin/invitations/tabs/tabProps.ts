@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { EventDto, GuestInviteDto } from '../../../../lib/api/dto'
+import type { EventDto, GuestInviteDto, GuestRsvpPageDto } from '../../../../lib/api/dto'
 import type { InvitePreferences } from './invitePreferences'
 
 /**
@@ -25,6 +25,8 @@ export interface OutputProps extends InvitationTabProps {
   readonly preferences: InvitePreferences
   readonly onPreferences: (next: InvitePreferences) => void
   readonly photoUrl: string | null
+  /** What the guest's page would say of the replies' settings being chosen (spec 30), for the preview. */
+  readonly rsvp?: GuestRsvpPageDto
   /** A format owns its state and hands the page its two halves. */
   readonly children: (slots: OutputSlots) => ReactNode
 }

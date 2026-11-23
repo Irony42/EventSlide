@@ -87,3 +87,45 @@ export interface GuestOwnRsvpResponseDto {
 export interface GuestRsvpCreatedDto extends GuestOwnRsvpResponseDto {
   readonly editToken: string
 }
+
+// The host's side of the guests' replies (spec 30).
+
+/** The form a host built: what the invitation page asks guests. */
+export interface RsvpFormDto {
+  readonly maybe: boolean
+  readonly partySize: { readonly enabled: boolean; readonly max: number }
+  readonly kidsSeparate: boolean
+  readonly diet: boolean
+  readonly companionNames: boolean
+  readonly meals: { readonly enabled: boolean; readonly options: readonly string[] }
+  readonly questions: readonly {
+    readonly id: string
+    readonly label: string
+    readonly kind: 'text' | 'choice'
+    readonly options?: readonly string[]
+  }[]
+  readonly visibility: 'off' | 'count' | 'names'
+  readonly capacity: number | null
+  readonly moments: readonly { readonly id: string; readonly label: string }[]
+  readonly absentNote: boolean
+}
+
+/**
+ * The replies' settings, and where the window stands **now** on the server's clock. `state` and
+ * `closesAt` are `null` while the event has no invitation (`invited: false`); `erasedAt` is `null`
+ * while there is no reply. `deadline` is a local day, the others are ISO-8601 instants.
+ */
+export interface RsvpSettingsDto {
+  readonly invited: boolean
+  readonly enabled: boolean
+  readonly deadline: string | null
+  readonly closedAt: string | null
+  readonly form: RsvpFormDto
+  readonly state: 'off' | 'open' | 'closed' | 'full' | null
+  readonly closesAt: string | null
+  readonly erasedAt: string | null
+}
+
+export interface RsvpFormResponseDto {
+  readonly rsvpForm: RsvpSettingsDto
+}

@@ -31,7 +31,7 @@ const PHONE_HEIGHT = Math.round((PHONE_WIDTH * PHONE_RATIO[1]) / PHONE_RATIO[0])
  * Surface: the host's laptop. The frame is out of reach of the keyboard and the pointer: nothing in
  * it can be pressed, and nothing is sent anywhere.
  */
-export function GuestTab({ event, invite, children }: OutputProps) {
+export function GuestTab({ event, invite, rsvp, children }: OutputProps) {
   const t = useTranslations()
   const text = t.guestInvite.host
   const toast = useToast()
@@ -55,7 +55,7 @@ export function GuestTab({ event, invite, children }: OutputProps) {
     language: invite.language,
     accentHue: event.settings.theme.accentHue,
     // The host's own preview shows no answering block until the panel of the replies exists.
-    rsvp: { ...NO_RSVP_PAGE },
+    rsvp: rsvp ?? NO_RSVP_PAGE,
     ...(moment === 'joinable' ? { joinUrl: `/join/${event.joinCode}` } : {}),
   }
 
@@ -124,7 +124,13 @@ export function GuestTab({ event, invite, children }: OutputProps) {
           >
             <div inert>
               <LocaleOverride locale={language}>
-                <GuestInvitation page={page} token="preview" readAt={readAt} interactive={false} />
+                <GuestInvitation
+                  page={page}
+                  token="preview"
+                  readAt={readAt}
+                  interactive={false}
+                  previewName={t.rsvp.host.previewName}
+                />
               </LocaleOverride>
             </div>
           </div>

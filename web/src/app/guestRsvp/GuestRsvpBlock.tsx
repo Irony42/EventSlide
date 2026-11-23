@@ -46,6 +46,8 @@ export interface GuestRsvpBlockProps {
   /** The invitation's language tag, for the deadline's date. */
   readonly locale: string
   readonly interactive?: boolean
+  /** The host's preview shows the form open on a "yes", this name typed in. */
+  readonly previewName?: string
 }
 
 const CHOICES: readonly RsvpAnswer[] = ['yes', 'maybe', 'no']
@@ -86,11 +88,19 @@ function Stepper({
   )
 }
 
-export function GuestRsvpBlock({ rsvp, token, locale, interactive = true }: GuestRsvpBlockProps) {
+export function GuestRsvpBlock({
+  rsvp,
+  token,
+  locale,
+  interactive = true,
+  previewName,
+}: GuestRsvpBlockProps) {
   const all = useTranslations()
   const t = all.rsvp.guest
   const state = useGuestRsvp(token, interactive)
-  const [draft, setDraft] = useState<RsvpDraft>(EMPTY_DRAFT)
+  const [draft, setDraft] = useState<RsvpDraft>(
+    interactive ? EMPTY_DRAFT : { ...EMPTY_DRAFT, answer: 'yes', name: previewName ?? '' },
+  )
   const [website, setWebsite] = useState('')
   const [editingRequested, setEditing] = useState(false)
   const [asking, setAsking] = useState(false)

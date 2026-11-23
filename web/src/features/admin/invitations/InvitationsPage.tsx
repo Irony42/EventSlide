@@ -16,6 +16,7 @@ import { Notice } from '../../../design-system/components/Notice'
 import type { EventDto, GuestInviteDto } from '../../../lib/api/dto'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { canManageEvent } from '../../../lib/eventLifecycle'
+import { previewPage } from '../../../lib/rsvp/rsvpSettings'
 import { useApi } from '../../../lib/useApi'
 import { useLoader } from '../../../lib/useLoader'
 import { useLeaveWarning } from '../hooks/useLeaveWarning'
@@ -24,12 +25,14 @@ import { AppearancePanel } from './AppearancePanel'
 import { draftInvite } from './invitationDraft'
 import { InvitationLink } from './InvitationLink'
 import { InvitationText } from './InvitationText'
+import { RsvpPanel } from './RsvpPanel'
 import { EmailTab } from './tabs/EmailTab'
 import { GuestTab } from './tabs/GuestTab'
 import { ImageTab } from './tabs/ImageTab'
 import { PrintTab } from './tabs/PrintTab'
 import type { OutputProps, OutputSlots } from './tabs/tabProps'
 import { useInvitationAutosave } from './useInvitationAutosave'
+import { useRsvpSettings } from './useRsvpSettings'
 import { useInviteLook } from './useInvitePreferences'
 import styles from './InvitationsPage.module.css'
 
@@ -145,6 +148,8 @@ function Workspace({
     onSaved: onChanged,
   })
   const look = useInviteLook(slug)
+  // The replies' settings hang on the invitation: read again once it exists.
+  const rsvp = useRsvpSettings(slug, invite.configured)
   const [output, setOutput] = useState<OutputName>('print')
   const activateRef = useRef<HTMLButtonElement>(null)
   const ids = useId()
@@ -312,6 +317,7 @@ function Workspace({
               <AppearancePanel event={event} invite={shown} look={look} />
             )}
           </section>
+          <RsvpPanel rsvp={rsvp} archived={archived} />
         </div>
 
         {shown === null ? (
@@ -336,6 +342,7 @@ function Workspace({
             preferences={look.preferences}
             onPreferences={look.update}
             photoUrl={look.photoUrl}
+            {...(rsvp.settings === null ? {} : { rsvp: previewPage(rsvp.settings) })}
           >
             {arrange}
           </Output>
