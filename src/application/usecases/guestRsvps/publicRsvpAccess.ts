@@ -55,14 +55,12 @@ export const openPublicRsvp = async (
 /** Where the window stands now. The people already coming are read only when places are limited. */
 export const stateOfOpened = async (
   opened: OpenedPublicRsvp,
-  rsvps: Pick<GuestRsvpRepository, 'listByEvent'>,
+  rsvps: Pick<GuestRsvpRepository, 'yesPeople'>,
   now: Date,
 ): Promise<RsvpState> => {
   const { event, invite, settings } = opened
-  const held = settings.form.capacity === null ? [] : await rsvps.listByEvent(event.id)
-  const yesPeople = held
-    .filter((rsvp) => rsvp.answer === 'yes')
-    .reduce((sum, rsvp) => sum + rsvp.people, 0)
+  // One sum, and only when places are limited: never every reply's diet and word.
+  const yesPeople = settings.form.capacity === null ? 0 : await rsvps.yesPeople(event.id)
   return rsvpStateOf(settings, invite, event, now, { yesPeople })
 }
 

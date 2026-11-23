@@ -4,7 +4,7 @@ import { servedInviteOf, type ServedInvite } from '../../../domain/guestInvites/
 import { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import { DEFAULT_RSVP_SETTINGS } from '../../../domain/guestRsvps/rsvpSettings'
-import { proofOf, type RsvpProof } from '../../../domain/guestRsvps/rsvpStats'
+import { PROOF_MAX_NAMES, proofFrom, type RsvpProof } from '../../../domain/guestRsvps/rsvpStats'
 import type { RsvpState } from '../../../domain/guestRsvps/rsvpWindow'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
@@ -76,7 +76,7 @@ export interface GuestInviteView {
 export interface ViewGuestInviteDeps {
   readonly events: EventRepository
   readonly invites: GuestInviteRepository
-  readonly rsvps: Pick<GuestRsvpRepository, 'listByEvent'>
+  readonly rsvps: Pick<GuestRsvpRepository, 'yesPeople' | 'showNames'>
   readonly clock: Clock
 }
 
@@ -107,7 +107,14 @@ export const makeViewGuestInvite =
     const proof =
       state === 'off' || form.visibility === 'off'
         ? null
-        : proofOf(await rsvps.listByEvent(event.id), form.visibility)
+        : proofFrom(
+            {
+              yesPeople: await rsvps.yesPeople(event.id),
+              names:
+                form.visibility === 'names' ? await rsvps.showNames(event.id, PROOF_MAX_NAMES) : [],
+            },
+            form.visibility,
+          )
     const rsvp: GuestRsvpPageView = {
       state,
       deadline: settings.deadline,

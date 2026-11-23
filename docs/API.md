@@ -1663,16 +1663,16 @@ is minted by the box (256 random bits), handed back **once**, and only its SHA-2
   `rsvp.messageTooLong`, `rsvp.messageTooManyLines`). Only while the window is open: `409 rsvp.closed` once it stopped, `409 rsvp.off` while replies are not asked.
   `409 rsvp.tooMany` at **1 000 replies per event** (decided inside the write, so it holds when requests overlap).
 - **`GET`** (header `X-Rsvp-Token`) answers `200 { "rsvp" }`; **`PUT`** (the whole reply again, no `website`) answers `200 { "rsvp" }`, **only while the window is open**
-  (`409 rsvp.closed|off`); **`DELETE`** answers `204`. `GET` and `DELETE` work **for as long as the invitation page is served** (closed window, party over included): the
+  (`409 rsvp.closed|off`); **`DELETE`** answers `204`, **idempotent**: a reply already gone (a double tap, the other tab, the host) and a token that opens nothing answer the same `204`, so the answer says nothing about what exists. `GET` and `DELETE` work **for as long as the invitation page is served** (closed window, party over included): the
   right to erase one's own reply does not end with either. A `PUT` whose reply was deleted a moment earlier (another tab, the host) answers `404 rsvp.notFound`
   and **does not store it again**.
 - **Refusals**: `404 guestInvite.notAvailable` (the one neutral answer of the page, a malformed token included) first, then `404 rsvp.notFound` (no token, an empty,
-  oversized or unknown one, another event's, one a host-typed reply cannot have), then `409`, then `400`.
+  oversized or unknown one, another event's, one a host-typed reply cannot have; `GET` and `PUT` only: `DELETE` answers `204`), then `409`, then `400`.
 - **Body**: JSON of **4 KB at most** (`413 request.tooLarge`: `/api/i` has its own parser, mounted ahead of the 64 KB one), **strict**: a key other than the six above
   is `400 request.invalid` (no `source`, `householdId`, id or token field is a guest's to send). **CSRF** like every write of the instance (`403 request.csrfMissing|csrfMismatch`):
   the page's own client already echoes the cookie, which identifies nobody.
-- **The honeypot**: `website` is a field of the form a person never sees. When it holds text, the request is judged like any other (so the refusals do not give it away) and
-  answers the same `201` with a token that opens nothing; **nothing is stored or announced**.
+- **The honeypot**: `website` is a field of the form a person never sees. When it holds text, the request gets **every refusal a real one would**, in the same order (`409 rsvp.closed|off`, the `400` of the form, `409 rsvp.tooMany`, `409 rsvp.full`: the ceilings are judged read-only from two counts, by the same function), so no status code gives it away;
+  when nothing refuses it, the same `201` with a token that opens nothing, and **nothing is stored or announced**.
 - **Limits**: `POST`, `PUT` and `DELETE` share **one bucket per client address** (`GUEST_RSVP_RATE_LIMIT_PER_MINUTE`, 30 by default) **and one per invitation**
   (300 a minute from every address together, a constant); both answer `429 rate.limited`. The reads share the page's own bucket.
 - A change publishes the content-free `rsvp.changed` signal on the moderation stream, and **a guest's reply is not audited** (volume, and no value as proof). Replies

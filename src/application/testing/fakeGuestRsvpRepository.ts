@@ -1,6 +1,7 @@
 import type { GuestRsvp } from '../../domain/guestRsvps/rsvp'
 import { isRsvpExpired } from '../../domain/guestRsvps/rsvpExpiry'
 import { rsvpRefusalFor } from '../../domain/guestRsvps/rsvpLimits'
+import { namesToShow } from '../../domain/guestRsvps/rsvpStats'
 import type { EventId, GuestRsvpId, UserId } from '../../domain/shared/ids'
 import type {
   GuestRsvpAdmission,
@@ -128,6 +129,20 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
       stored.withContentOf(rsvp).withHousehold(rsvp.householdId),
     )
     return true
+  }
+
+  async count(eventId: EventId): Promise<number> {
+    return this.inEvent(eventId).length
+  }
+
+  async yesPeople(eventId: EventId): Promise<number> {
+    return this.inEvent(eventId)
+      .filter((row) => row.answer === 'yes')
+      .reduce((sum, row) => sum + row.people, 0)
+  }
+
+  async showNames(eventId: EventId, limit: number): Promise<readonly string[]> {
+    return namesToShow(this.inEvent(eventId)).slice(0, limit)
   }
 
   async unseenCount(eventId: EventId, userId: UserId): Promise<number> {

@@ -31,7 +31,7 @@ import { announceRsvpsChanged } from './rsvpAccess'
 export interface OwnRsvpDeps extends PublicRsvpDeps {
   readonly rsvps: Pick<
     GuestRsvpRepository,
-    'findByEditTokenHash' | 'admit' | 'delete' | 'listByEvent'
+    'findByEditTokenHash' | 'admit' | 'delete' | 'yesPeople'
   >
   readonly secrets: SecretTokens
   readonly bus: EventBus
@@ -91,11 +91,9 @@ export const makeDeleteOwnRsvp =
     if (!opened.ok) return opened
     const { event } = opened.value
     const own = await findOwnRsvp(deps, event, editToken)
-    if (!own.ok) return own
-    // Gone between the read and here (a double tap, the host): the guest's wish is already done.
-    if (!(await deps.rsvps.delete(event.id, own.value.id))) {
-      return err(DomainError.notFound('rsvp.notFound'))
-    }
-    announceRsvpsChanged(deps.bus, event.id)
+    // **Idempotent**: a reply that is already gone (a double tap, the other tab, the host) or a token
+    // that opens nothing is the guest's wish already done, `204`, and the answer cannot tell which.
+    if (!own.ok) return ok(undefined)
+    if (await deps.rsvps.delete(event.id, own.value.id)) announceRsvpsChanged(deps.bus, event.id)
     return ok(undefined)
   }

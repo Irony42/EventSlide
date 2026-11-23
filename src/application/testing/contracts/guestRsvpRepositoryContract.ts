@@ -514,6 +514,57 @@ export const guestRsvpRepositoryContract = (
       })
     })
 
+    describe('the narrow reads of the hot paths', () => {
+      it('counts the replies of an event, and only its own', async () => {
+        await add({ id: 'rsvp-1' })
+        await add({ id: 'rsvp-2', answer: 'no' })
+        await repo.admit(aRsvp({ id: 'rsvp-3', eventId: 'evt-gala' }), NONE)
+
+        expect(await repo.count(WEDDING)).toBe(2)
+        expect(await repo.count(GALA)).toBe(1)
+        expect(await repo.count(asEventId('evt-nobody'))).toBe(0)
+      })
+
+      it('sums the people of the yes replies only: not a maybe, a no or a waiting list, not another event', async () => {
+        await add({ id: 'rsvp-1', answer: 'yes', adults: 2, kids: 1 })
+        await add({ id: 'rsvp-2', answer: 'yes', adults: 1 })
+        await add({ id: 'rsvp-3', answer: 'maybe', adults: 5 })
+        await add({ id: 'rsvp-4', answer: 'no' })
+        await add({ id: 'rsvp-5', answer: 'waitlist', adults: 4 })
+        await repo.admit(aRsvp({ id: 'rsvp-6', eventId: 'evt-gala', adults: 9 }), NONE)
+
+        expect(await repo.yesPeople(WEDDING)).toBe(4)
+        expect(await repo.yesPeople(asEventId('evt-nobody'))).toBe(0)
+      })
+
+      it('names, oldest first, the yes replies whose guest agreed to be shown, up to the limit', async () => {
+        await add({ id: 'rsvp-c', name: 'Inès Lab', createdAt: T2, details: { showName: true } })
+        await add({ id: 'rsvp-a', name: 'Léa Martin', createdAt: T0, details: { showName: true } })
+        await add({ id: 'rsvp-b', name: 'Hugo Roux', createdAt: T1, details: { showName: false } })
+        await add({
+          id: 'rsvp-d',
+          name: 'Tom Maybe',
+          answer: 'maybe',
+          createdAt: T0,
+          details: { showName: true },
+        })
+        await add({ id: 'rsvp-e', name: 'Eve Egal', createdAt: T0, details: { showName: true } })
+        await repo.admit(
+          aRsvp({
+            id: 'rsvp-f',
+            eventId: 'evt-gala',
+            name: 'Gala Gal',
+            details: { showName: true },
+          }),
+          NONE,
+        )
+
+        expect(await repo.showNames(WEDDING, 10)).toEqual(['Léa Martin', 'Eve Egal', 'Inès Lab'])
+        expect(await repo.showNames(WEDDING, 2)).toEqual(['Léa Martin', 'Eve Egal'])
+        expect(await repo.showNames(WEDDING, 0)).toEqual([])
+      })
+    })
+
     describe('what the host has not seen yet', () => {
       const HOST = asUserId('user-host')
 

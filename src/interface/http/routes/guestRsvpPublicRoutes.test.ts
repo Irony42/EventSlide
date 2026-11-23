@@ -15,6 +15,7 @@ import {
 } from '../../../application/usecases/guestRsvps/ownRsvp'
 import { makeSubmitRsvp } from '../../../application/usecases/guestRsvps/submitRsvp'
 import { DEFAULT_RSVP_FORM } from '../../../domain/guestRsvps/rsvpForm'
+import { GuestInviteToken } from '../../../domain/guestInvites/guestInviteToken'
 import { asEventId } from '../../../domain/shared/ids'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import { CSRF_HEADER } from '../middleware/csrf'
@@ -35,6 +36,12 @@ const LIVE = asEventId('evt-live')
 const OTHER = asEventId('evt-other')
 const LIVE_TOKEN = '1111111111111111'
 const OTHER_TOKEN = '2222222222222222'
+/** What a minted token looks like: Crockford letters and digits. */
+const LETTERS_TOKEN = (() => {
+  const made = GuestInviteToken.fromBytes(new Uint8Array(16).fill(200))
+  if (!made.ok) throw new Error('token')
+  return made.value.value
+})()
 const URL = `/api/i/${LIVE_TOKEN}/rsvp`
 
 const PARTY = {
@@ -65,10 +72,12 @@ const buildWorld = async (
   events.seed(
     anEvent({ id: LIVE, slug: 'vive', joinCode: 'H7K2QM', status: 'live' }),
     anEvent({ id: OTHER, slug: 'autre', joinCode: 'B4N9PT', status: 'live' }),
+    anEvent({ id: asEventId('evt-letters'), slug: 'lettres', joinCode: 'C5M8QR', status: 'live' }),
   )
   invites.seed(
     aGuestInvite({ eventId: LIVE, tokenByte: 1, enabled: true, ...PARTY }),
     aGuestInvite({ eventId: OTHER, tokenByte: 2, enabled: true, ...PARTY }),
+    aGuestInvite({ eventId: asEventId('evt-letters'), tokenByte: 200, enabled: true, ...PARTY }),
   )
   for (const eventId of [LIVE, OTHER]) {
     await invites.saveRsvpSettings(eventId, {
@@ -400,14 +409,14 @@ describe('GET, PUT, DELETE /api/i/:token/rsvp: a guest’s own reply', () => {
     expect(await world.rsvps.listByEvent(LIVE)).toEqual([])
   })
 
-  it('deletes with a 204, and the second delete is 404', async () => {
+  it('deletes with a 204, and the second delete is the same 204: the wish is already done', async () => {
     const { del, get } = await created()
 
     const first = await del(editToken)
     const second = await del(editToken)
 
     expect(first.status).toBe(204)
-    expect([second.status, second.body.error.code]).toEqual([404, 'rsvp.notFound'])
+    expect(second.status).toBe(204)
     expect((await get(editToken)).status).toBe(404)
   })
 
@@ -468,9 +477,12 @@ describe('the limiters of the replies', () => {
     const flooded = await del('nope')
     const other = await del('nope', `/api/i/${OTHER_TOKEN}/rsvp`)
 
-    expect([...statuses]).toEqual([404])
+    expect([...statuses]).toEqual([204])
     expect([flooded.status, flooded.body.error.code]).toEqual([429, 'rate.limited'])
-    expect(other.status).toBe(404)
+    expect(other.status).toBe(204)
+    // A real token, with letters in it: a bucket of its own, not the one invented links share.
+    const real = await del('nope', `/api/i/${LETTERS_TOKEN}/rsvp`)
+    expect(real.status).toBe(204)
   }, 60_000)
 
   it('shares one read budget between the page, the logo and a guest’s own reply', async () => {

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fr } from '../i18n/fr'
 import { aGuestOwnRsvp, aGuestRsvpPage } from '../../testing/renderWithProviders'
 import {
+  discardEditTokenFragment,
   forgetEditToken,
   ownReplyLink,
   readStoredEditToken,
@@ -18,6 +19,7 @@ const text = fr.rsvp.guest
 describe('what the device remembers of a reply', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    forgetEditToken(TOKEN)
   })
 
   afterEach(() => {
@@ -72,25 +74,60 @@ describe('what the device remembers of a reply', () => {
     expect(() => forgetEditToken(TOKEN)).not.toThrow()
   })
 
-  it('reads the token of a link’s fragment once, and removes the fragment from the address bar', () => {
+  it('reads the token of a link’s fragment once, keeps it, and removes the fragment from the address bar', () => {
     window.history.replaceState(null, '', `/i/${TOKEN}?x=1#r=abcdefgh12345678`)
 
-    const taken = takeEditTokenFromFragment()
+    const taken = takeEditTokenFromFragment(TOKEN)
 
     expect(taken).toBe('abcdefgh12345678')
     expect(window.location.hash).toBe('')
     expect(window.location.pathname + window.location.search).toBe(`/i/${TOKEN}?x=1`)
-    expect(takeEditTokenFromFragment()).toBeNull()
+    expect(readStoredEditToken(TOKEN)).toBe('abcdefgh12345678')
+  })
+
+  it('answers the same token when asked a second time, once the bar is clean: StrictMode runs an initializer twice', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    window.history.replaceState(null, '', `/i/${TOKEN}#r=abcdefgh12345678`)
+
+    const first = takeEditTokenFromFragment(TOKEN)
+    const second = takeEditTokenFromFragment(TOKEN)
+
+    expect([first, second]).toEqual(['abcdefgh12345678', 'abcdefgh12345678'])
+    expect(takeEditTokenFromFragment('OTHERINVITE0000')).toBeNull()
+  })
+
+  it('stops answering it once the token is forgotten', () => {
+    window.history.replaceState(null, '', `/i/${TOKEN}#r=abcdefgh12345678`)
+    takeEditTokenFromFragment(TOKEN)
+
+    forgetEditToken(TOKEN)
+    forgetEditToken('OTHERINVITE0000')
+
+    expect(takeEditTokenFromFragment(TOKEN)).toBeNull()
   })
 
   it('removes a fragment that holds no token too, and leaves another tool’s fragment alone', () => {
     window.history.replaceState(null, '', `/i/${TOKEN}#r=<script>`)
-    expect(takeEditTokenFromFragment()).toBeNull()
+    expect(takeEditTokenFromFragment(TOKEN)).toBeNull()
     expect(window.location.hash).toBe('')
 
     window.history.replaceState(null, '', `/i/${TOKEN}#section`)
-    expect(takeEditTokenFromFragment()).toBeNull()
+    expect(takeEditTokenFromFragment(TOKEN)).toBeNull()
     expect(window.location.hash).toBe('#section')
+  })
+
+  it('takes the fragment out of the bar without using it, for the host’s preview', () => {
+    window.history.replaceState(null, '', `/i/${TOKEN}#r=abcdefgh12345678`)
+
+    discardEditTokenFragment()
+
+    expect(window.location.hash).toBe('')
+    expect(readStoredEditToken(TOKEN)).toBeNull()
   })
 
   it('builds the private link with the token in the fragment, never in the path or the query', () => {
@@ -241,5 +278,37 @@ describe('the words of a reply', () => {
       'Votre mot : <b>À samedi</b>',
     ])
     expect(recapLines(aGuestOwnRsvp(), FORM, text)).toHaveLength(1)
+  })
+})
+
+describe('the French of the guest’s block', () => {
+  /** Every sentence of `rsvp.guest` and of the `rsvp.*` error codes, functions called with samples. */
+  const sentences = (): string[] => {
+    const out: string[] = []
+    const walk = (node: unknown): void => {
+      if (typeof node === 'string') out.push(node)
+      else if (typeof node === 'function')
+        out.push(String((node as (...a: unknown[]) => unknown)('Léa', 2, 'x')))
+      else if (typeof node === 'object' && node !== null) Object.values(node).forEach(walk)
+    }
+    walk(fr.rsvp.guest)
+    for (const [code, sentence] of Object.entries(fr.errors))
+      if (code.startsWith('rsvp.')) out.push(sentence)
+    return out
+  }
+
+  it('puts a no-break space before : ; ! ? and inside « », never a plain one', () => {
+    const misses = sentences().filter(
+      (sentence) =>
+        /[ ][:;!?]/.test(sentence) ||
+        /[^\s\u00a0\u202f][:;!?](?!\/)/.test(sentence) ||
+        /«[ ]|[ ]»/.test(sentence),
+    )
+
+    expect(misses).toEqual([])
+  })
+
+  it('has sentences to check', () => {
+    expect(sentences().length).toBeGreaterThan(60)
   })
 })

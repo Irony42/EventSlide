@@ -165,6 +165,11 @@ export const buildServer = ({
   // The guests' replies (spec 30) are the one public write here nobody is signed in for: **4 KB**, not
   // the global 64 KB. Mounted ahead of the global parser, which does not read a body already read, so
   // this limit is the one that applies (`413` beyond it).
+  //
+  // **A body this parser refuses (`400` malformed, `413` too large) is not counted by the write limiter**,
+  // which sits on the routes behind it. That is acceptable: such a request costs a read of at most 4 KB
+  // and a parse, never a write, a lookup or a hash; the connection-level limits of the reverse proxy are
+  // what bound a flood of them, and an attacker who can only send refusals stores nothing.
   app.use('/api/i', express.json({ limit: '4kb' }))
 
   // Bounded well below any legitimate payload: the only JSON bodies here are a login,

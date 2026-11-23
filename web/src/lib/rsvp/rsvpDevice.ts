@@ -36,6 +36,7 @@ export const storeEditToken = (inviteToken: string, editToken: string): void => 
 }
 
 export const forgetEditToken = (inviteToken: string): void => {
+  if (taken?.invite === inviteToken) taken = null
   try {
     window.localStorage.removeItem(KEY(inviteToken))
   } catch {
@@ -47,20 +48,45 @@ export const forgetEditToken = (inviteToken: string): void => {
 const FRAGMENT_TOKEN = /^[A-Za-z0-9_-]{8,128}$/
 
 /**
- * The token a link carries in its fragment (`#r=<token>`), taken **and removed** from the address
- * bar. `null` when the fragment is not one of ours (it is then left alone: another tool may own it).
+ * What the last fragment held, **per invitation**: taking the fragment removes it from the bar, so a
+ * second look finds nothing. React may run an initializer twice (StrictMode in development) and a
+ * device with no usable storage cannot hand the token back from there, so the one value taken is
+ * kept here for the next ask, until the token is forgotten.
  */
-export const takeEditTokenFromFragment = (): string | null => {
+let taken: { readonly invite: string; readonly token: string } | null = null
+
+/** Removes a `#r=` fragment from the address bar, whatever it holds, and says what it held. */
+const stripFragment = (): string | null => {
   const hash = window.location.hash
   if (!hash.startsWith('#r=')) return null
-  const token = hash.slice(3)
-  // Removed whatever it holds: an `#r=` that is not a token is not meant to stay in the bar either.
   window.history.replaceState(
     window.history.state,
     '',
     `${window.location.pathname}${window.location.search}`,
   )
-  return FRAGMENT_TOKEN.test(token) ? token : null
+  return hash.slice(3)
+}
+
+/**
+ * The token a link carries in its fragment (`#r=<token>`), taken **and removed** from the address
+ * bar, and kept for the device. `null` when there is none (a fragment that is not one of ours is
+ * left alone: another tool may own it). Asked twice for the same invitation, the same answer.
+ */
+export const takeEditTokenFromFragment = (inviteToken: string): string | null => {
+  const raw = stripFragment()
+  if (raw === null) return taken?.invite === inviteToken ? taken.token : null
+  if (!FRAGMENT_TOKEN.test(raw)) return null
+  taken = { invite: inviteToken, token: raw }
+  storeEditToken(inviteToken, raw)
+  return raw
+}
+
+/**
+ * The host's preview shows the page without using the token: the fragment still must not stay in
+ * the address bar of the person who opened a link on the wrong screen.
+ */
+export const discardEditTokenFragment = (): void => {
+  stripFragment()
 }
 
 /**

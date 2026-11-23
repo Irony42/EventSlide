@@ -1,9 +1,10 @@
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
-import { readStoredEditToken, storeEditToken } from '../../lib/rsvp/rsvpDevice'
+import { forgetEditToken, readStoredEditToken, storeEditToken } from '../../lib/rsvp/rsvpDevice'
 import type { Api } from '../../lib/api/client'
 import {
   aGuestOwnRsvp,
@@ -30,6 +31,7 @@ const render = (
 
 beforeEach(() => {
   window.localStorage.clear()
+  forgetEditToken(TOKEN)
 })
 
 afterEach(() => {
@@ -442,6 +444,41 @@ describe('the device holds a reply', () => {
     expect(screen.getByRole('heading', { name: t.title })).toBeInTheDocument()
   })
 
+  it('treats a reply already gone as deleted: the box answers 204, the guest sees it deleted', async () => {
+    held()
+    const user = userEvent.setup()
+    render({ guestRsvpDelete: vi.fn(async () => undefined) })
+    await user.click(await screen.findByRole('button', { name: t.delete }))
+
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: t.deleteYes }),
+    )
+
+    expect(await screen.findByText(t.deleted)).toBeInTheDocument()
+    expect(screen.queryByText(plain(t.forgotten))).not.toBeInTheDocument()
+  })
+
+  it('does not lose the token of the fragment when the hook is initialised twice and the storage throws', async () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    window.history.replaceState(null, '', `/i/${TOKEN}#r=fragment-token-1234`)
+    const guestRsvp = vi.fn(async () => ({ rsvp: aGuestOwnRsvp() }))
+
+    renderWithProviders(
+      <StrictMode>
+        <GuestRsvpBlock rsvp={aGuestRsvpPage()} token={TOKEN} locale="fr" />
+      </StrictMode>,
+      { api: fakeApi({ guestRsvp }) },
+    )
+
+    await screen.findByRole('heading', { name: t.doneYes('Léa') })
+    expect(guestRsvp).toHaveBeenCalledWith(TOKEN, 'fragment-token-1234', expect.anything())
+  })
+
   it('lets the guest back out of a deletion without sending anything', async () => {
     held()
     const user = userEvent.setup()
@@ -558,5 +595,13 @@ describe('in the host’s preview', () => {
 
     expect(screen.getByRole('heading', { name: t.title })).toBeInTheDocument()
     expect(guestRsvp).not.toHaveBeenCalled()
+  })
+
+  it('does not leave the fragment in the address bar either, and does not use it', () => {
+    window.history.replaceState(null, '', `/i/${TOKEN}#r=fragment-token-1234`)
+    render({}, aGuestRsvpPage(), { interactive: false })
+
+    expect(window.location.hash).toBe('')
+    expect(readStoredEditToken(TOKEN)).toBeNull()
   })
 })

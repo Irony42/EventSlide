@@ -137,6 +137,56 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       expect(code(await submit())).toBe('rsvp.full')
     })
 
+    it.each([
+      [
+        'a window that is closed',
+        async () => scene.close({ eventId: WEDDING, actorId: OWNER }),
+        'rsvp.closed',
+      ],
+      [
+        'replies that are not asked',
+        async () => scene.saveForm({ eventId: WEDDING, actorId: OWNER, enabled: false }),
+        'rsvp.off',
+      ],
+    ])(
+      'gives the honeypot the refusal of %s, like a real reply',
+      async (_name, arrange, expected) => {
+        await arrange()
+
+        const real = await submit()
+        const trapped = await submit({ website: 'https://spam.example' })
+
+        expect([code(real), code(trapped)]).toEqual([expected, expected])
+        expect(await scene.rsvps.listByEvent(WEDDING)).toEqual([])
+      },
+    )
+
+    it('gives the honeypot the thousand-reply refusal too, and counts without writing', async () => {
+      for (let i = 0; i < MAX_RSVPS_PER_EVENT; i += 1) {
+        scene.rsvps.seed(aRsvp({ id: `seed-${i}`, eventId: WEDDING, answer: 'no' }))
+      }
+
+      const trapped = await submit({ website: 'x' })
+
+      expect(code(trapped)).toBe('rsvp.tooMany')
+      expect(await scene.rsvps.count(WEDDING)).toBe(MAX_RSVPS_PER_EVENT)
+    })
+
+    it('gives the honeypot the places refusal too, from the people already coming', async () => {
+      const settings = await scene.invites.findRsvpSettings(WEDDING)
+      await scene.invites.saveRsvpSettings(WEDDING, {
+        ...(settings ?? { enabled: true, deadline: null, closedAt: null, form: DEFAULT_RSVP_FORM }),
+        form: { ...DEFAULT_RSVP_FORM, capacity: 3 },
+      })
+      scene.rsvps.seed(aRsvp({ id: 'a', eventId: WEDDING, adults: 3 }))
+      // The window itself is "full", which still takes a reply to the repository.
+
+      const real = await submit({ adults: 1, kids: 0 })
+      const trapped = await submit({ adults: 1, kids: 0, website: 'x' })
+
+      expect([code(real), code(trapped)]).toEqual(['rsvp.full', 'rsvp.full'])
+    })
+
     it('hands a script that fills the honeypot the same 201 and a token that opens nothing', async () => {
       const trapped = await submit({ website: 'https://spam.example' })
 
@@ -260,7 +310,7 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
 
       expect(closed.ok).toBe(true)
       expect(over.ok).toBe(true)
-      expect(code(afterOver)).toBe('rsvp.notFound')
+      expect(afterOver.ok).toBe(true)
       expect(code(disabled)).toBe('guestInvite.notAvailable')
     })
   })
@@ -352,7 +402,7 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
   })
 
   describe('deleteOwnRsvp', () => {
-    it('deletes the reply, announces it, and a second delete finds nothing', async () => {
+    it('deletes the reply, announces it, and a second delete is the same wish already done', async () => {
       const sent = await submit()
       const editToken = sent.ok ? sent.value.editToken : ''
 
@@ -360,7 +410,7 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       const second = await scene.deleteOwn({ token, editToken })
 
       expect(first.ok).toBe(true)
-      expect(code(second)).toBe('rsvp.notFound')
+      expect(second.ok).toBe(true)
       expect(await scene.rsvps.listByEvent(WEDDING)).toEqual([])
       expect(signals()).toHaveLength(2)
     })
@@ -373,18 +423,18 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       expect((await scene.deleteOwn({ token, editToken })).ok).toBe(true)
     })
 
-    it('refuses a wrong token and the neutral 404 of a link that cannot be served', async () => {
+    it('answers a wrong token as it answers a reply already gone, and the neutral 404 for a link that cannot be served', async () => {
       const sent = await submit()
       const editToken = sent.ok ? sent.value.editToken : ''
 
       const wrong = await scene.deleteOwn({ token, editToken: 'nope' })
       const unknown = await scene.deleteOwn({ token: 'ZZZZZZZZZZZZZZZZ', editToken })
 
-      expect([code(wrong), code(unknown)]).toEqual(['rsvp.notFound', 'guestInvite.notAvailable'])
+      expect([wrong.ok, code(unknown)]).toEqual([true, 'guestInvite.notAvailable'])
       expect(await scene.rsvps.listByEvent(WEDDING)).toHaveLength(1)
     })
 
-    it('says nothing when the reply went between the read and the delete: 404, no signal', async () => {
+    it('says nothing more when the reply went between the read and the delete: still done, no signal', async () => {
       const sent = await submit()
       const editToken = sent.ok ? sent.value.editToken : ''
       scene.rsvps.delete = async () => false
@@ -392,8 +442,32 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
 
       const refused = await scene.deleteOwn({ token, editToken })
 
-      expect(code(refused)).toBe('rsvp.notFound')
+      expect(refused.ok).toBe(true)
       expect(signals()).toHaveLength(before)
+    })
+  })
+
+  describe('the hot paths read figures, never every reply', () => {
+    it('shows the page with who comes, and takes a reply under limited places, without reading a single reply', async () => {
+      const settings = await scene.invites.findRsvpSettings(WEDDING)
+      await scene.invites.saveRsvpSettings(WEDDING, {
+        ...(settings ?? { enabled: true, deadline: null, closedAt: null, form: DEFAULT_RSVP_FORM }),
+        form: { ...DEFAULT_RSVP_FORM, visibility: 'names', capacity: 50 },
+      })
+      scene.rsvps.seed(
+        aRsvp({ id: 'a', eventId: WEDDING, name: 'Léa Martin', details: { showName: true } }),
+      )
+      scene.rsvps.listByEvent = async () => {
+        throw new Error('every reply was read: its diet and its word with it')
+      }
+
+      const page = await scene.view({ token })
+      const sent = await submit()
+      const own = await scene.getOwn({ token, editToken: sent.ok ? sent.value.editToken : '' })
+
+      expect(page.ok && page.value.rsvp.proof).toEqual({ count: 1, names: ['Léa'] })
+      expect(sent.ok).toBe(true)
+      expect(own.ok).toBe(true)
     })
   })
 

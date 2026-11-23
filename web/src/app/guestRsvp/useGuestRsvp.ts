@@ -6,6 +6,7 @@ import {
   forgetEditToken,
   readStoredEditToken,
   storeEditToken,
+  discardEditTokenFragment,
   takeEditTokenFromFragment,
 } from '../../lib/rsvp/rsvpDevice'
 import { useApi } from '../../lib/useApi'
@@ -56,10 +57,11 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
   // the way in, read once and gone from the bar), else the memory. Lazy, so the first render already
   // knows whether there is a reply to wait for and no effect has to set state to say so.
   const [held] = useState<string | null>(() => {
-    if (!interactive) return null
-    const fromLink = takeEditTokenFromFragment()
-    if (fromLink !== null) storeEditToken(token, fromLink)
-    return fromLink ?? readStoredEditToken(token)
+    if (!interactive) {
+      discardEditTokenFragment()
+      return null
+    }
+    return takeEditTokenFromFragment(token) ?? readStoredEditToken(token)
   })
   const [phase, setPhase] = useState<RsvpPhase>(held === null ? 'ready' : 'reading')
   const [own, setOwn] = useState<OwnReply | null>(null)

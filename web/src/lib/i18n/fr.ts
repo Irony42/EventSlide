@@ -2800,7 +2800,7 @@ export const fr = {
     'rsvp.nameInvalid': 'Ce nom n’est pas valide.',
     'rsvp.nameTooLong': 'Ce nom est trop long\u00a0: 60 caractères au plus.',
     'rsvp.answerInvalid': 'Choisissez une réponse.',
-    'rsvp.maybeNotOffered': '« Peut-être » n’est pas proposé pour cette fête.',
+    'rsvp.maybeNotOffered': '« Peut-être » n’est pas proposé pour cette fête.',
     'rsvp.adultsRequired': 'Il faut au moins un adulte.',
     'rsvp.partyTooBig': 'Vous êtes trop nombreux pour ce formulaire.',
     'rsvp.countInvalid': 'Ce nombre de personnes n’est pas valide.',
