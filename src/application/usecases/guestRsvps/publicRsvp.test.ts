@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_RSVP_FORM } from '../../../domain/guestRsvps/rsvpForm'
 import { MAX_RSVPS_PER_EVENT } from '../../../domain/guestRsvps/rsvpLimits'
 import { aRsvp } from '../../../domain/guestRsvps/testing/rsvpFixtures'
@@ -197,6 +197,15 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
       await submit()
 
       expect(code(await scene.getOwn({ token, editToken }))).toBe('rsvp.notFound')
+    })
+
+    it('does not even hash a token that is too long to be one', async () => {
+      await submit()
+      const digest = vi.spyOn(scene.secrets, 'digestOf')
+
+      await scene.getOwn({ token, editToken: 'a'.repeat(500) })
+
+      expect(digest).not.toHaveBeenCalled()
     })
 
     it('does not open another event’s reply with its token: the token is bound to the event', async () => {
