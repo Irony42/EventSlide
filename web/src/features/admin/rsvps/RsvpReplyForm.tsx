@@ -171,7 +171,7 @@ export function RsvpReplyForm({
         {coming && form.moments.length > 0 ? (
           <fieldset
             className={styles['moments']}
-            aria-describedby={[momentsHintId, ...(problem === null ? [] : [problemId])].join(' ')}
+            aria-describedby={`${momentsHintId}${problem === null ? '' : ` ${problemId}`}`}
           >
             <legend>{text.formMoments}</legend>
             <small id={momentsHintId}>{text.formMomentsHint}</small>

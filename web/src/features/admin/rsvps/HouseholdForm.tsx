@@ -112,7 +112,7 @@ export function HouseholdForm({ household, moments, onSubmit, onClose }: Househo
         {moments.length > 0 ? (
           <fieldset
             className={styles['momentsField']}
-            aria-describedby={[momentsHintId, ...(problem === null ? [] : [problemId])].join(' ')}
+            aria-describedby={`${momentsHintId}${problem === null ? '' : ` ${problemId}`}`}
           >
             <legend>{text.formMoments}</legend>
             <small id={momentsHintId}>{text.formMomentsHint}</small>

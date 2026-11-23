@@ -361,11 +361,7 @@ export function GuestRsvpBlock({
         {draft.answer !== 'no' && form.moments.length > 0 ? (
           <fieldset
             className={styles['field']}
-            aria-describedby={[
-              momentsHintId,
-              ...(momentsGone ? [momentsGoneId] : []),
-              ...(momentsMissing ? [momentsErrorId] : []),
-            ].join(' ')}
+            aria-describedby={`${momentsHintId}${momentsGone ? ` ${momentsGoneId}` : ''}${momentsMissing ? ` ${momentsErrorId}` : ''}`}
           >
             <legend>{t.momentsLabel}</legend>
             <small id={momentsHintId}>{t.momentsHint}</small>
