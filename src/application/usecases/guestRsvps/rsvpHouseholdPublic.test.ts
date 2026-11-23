@@ -267,20 +267,24 @@ describe('a household’s own link, on the guest’s side (spec 30, lot 3)', () 
     })
 
     it('changes it by the household’s form, keeping its filing and its source', async () => {
+      // Six places against the form's maximum of 4: only the household's own ceiling lets 5 through.
+      await scene.households.update(
+        aHousehold({ id: 'h-1', eventId: WEDDING, token: LINK, places: 6 }),
+      )
       await submit()
       scene.clock.advance(1_000)
 
-      const changed = await scene.updateOwn({ ...own(), ...ANSWER, adults: 4, kids: 0 })
-      const tooMany = await scene.updateOwn({ ...own(), ...ANSWER, adults: 4, kids: 1 })
+      const changed = await scene.updateOwn({ ...own(), ...ANSWER, adults: 5, kids: 0 })
+      const tooMany = await scene.updateOwn({ ...own(), ...ANSWER, adults: 5, kids: 2 })
 
       expect(changed.ok && changed.value.toProps()).toMatchObject({
         householdId: 'h-1',
         source: 'household',
-        adults: 4,
+        adults: 5,
         updatedAt: scene.clock.now(),
       })
       expect(code(tooMany)).toBe('rsvp.partyTooBig')
-      expect((await scene.rsvps.listByEvent(WEDDING))[0]?.adults).toBe(4)
+      expect((await scene.rsvps.listByEvent(WEDDING))[0]?.adults).toBe(5)
     })
 
     it('does not make a reply from a change: with none yet it is rsvp.notFound, and with one deleted meanwhile too', async () => {

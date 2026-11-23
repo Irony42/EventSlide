@@ -2,13 +2,15 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { MAX_HOUSEHOLDS_PER_EVENT } from '../../../domain/guestRsvps/household'
 import { aHousehold } from '../../../domain/guestRsvps/testing/householdFixtures'
 import { aRsvp } from '../../../domain/guestRsvps/testing/rsvpFixtures'
-import { asGuestHouseholdId, asGuestRsvpId } from '../../../domain/shared/ids'
+import { asEventId, asGuestHouseholdId, asGuestRsvpId } from '../../../domain/shared/ids'
+import { aGuestInvite, anEvent } from '../../testing/builders'
 import {
   ARCHIVED,
   FROZEN,
   GALA,
   MODERATOR,
   OWNER,
+  PARTY,
   STRANGER,
   WEDDING,
   rsvpScene,
@@ -401,7 +403,9 @@ describe('the guest list, on the host’s side (spec 30, lot 3)', () => {
       expect(rotated.ok && rotated.value.reply?.id).toBe('r-1')
       expect(oldToken && (await scene.households.findByToken(WEDDING, oldToken))).toBeNull()
       const stored = (await list())[0]
-      expect(rotated.ok && stored?.household.token.value).toBe(rotated.value.household.token.value)
+      expect(stored?.household.token.value).toBe(
+        rotated.ok ? rotated.value.household.token.value : '',
+      )
       expect(stored?.household.name).toBe('Famille Martin')
       expect(await act()).toEqual(['event.householdTokenRotated'])
     })
@@ -606,5 +610,68 @@ describe('the guest list, on the host’s side (spec 30, lot 3)', () => {
       expect(await scene.households.listByEvent(WEDDING)).toEqual([])
       expect(await scene.rsvps.listByEvent(WEDDING)).toEqual([])
     })
+  })
+})
+
+describe('the guest list passes a refusal of the audit log back, before it changes anything', () => {
+  const UNAUDITABLE = asEventId('evt not auditable')
+
+  const unauditable = async () => {
+    const scene = await rsvpScene({ invited: false })
+    scene.events.seed(
+      anEvent({ id: UNAUDITABLE, ownerId: OWNER, slug: 'sans-audit', joinCode: 'K9M2NP' }),
+    )
+    await scene.memberships.grant({
+      eventId: UNAUDITABLE,
+      userId: OWNER,
+      role: 'owner',
+      grantedAt: scene.clock.now(),
+    })
+    // An invitation exists, but the log refuses every line about this event.
+    scene.invites.seed(aGuestInvite({ eventId: UNAUDITABLE, tokenByte: 7, ...PARTY }))
+    scene.households.seed(aHousehold({ id: 'household-1', eventId: UNAUDITABLE, token: LINK }))
+    return scene
+  }
+  const LINK = '7QX0M4TZ2KD9WB3H'
+
+  it('importHouseholds, deleteHousehold, rotateHouseholdToken', async () => {
+    const scene = await unauditable()
+    const act = { eventId: UNAUDITABLE, actorId: OWNER }
+
+    const imported = await scene.importHouseholds({ ...act, text: 'Nouveau ; 2' })
+    const deleted = await scene.deleteHousehold({ ...act, householdId: H1 })
+    const rotated = await scene.rotateHouseholdToken({ ...act, householdId: H1 })
+
+    expect([imported.ok, deleted.ok, rotated.ok]).toEqual([false, false, false])
+    const kept = await scene.households.listByEvent(UNAUDITABLE)
+    expect(kept.map((household) => [household.name, household.token.value])).toEqual([
+      ['Famille Martin', LINK],
+    ])
+    expect(scene.bus.published).toEqual([])
+  })
+})
+
+describe('an entropy source that hands back the wrong number of bytes makes no household', () => {
+  it('saveHousehold, importHouseholds, rotateHouseholdToken', async () => {
+    const scene = await rsvpScene()
+    scene.households.seed(aHousehold({ id: 'household-1', eventId: WEDDING }))
+    Object.assign(scene.ids, { bytes: () => new Uint8Array(3) })
+    const act = { eventId: WEDDING, actorId: OWNER }
+
+    const saved = await scene.saveHousehold({ ...act, name: 'A', places: 2 })
+    const imported = await scene.importHouseholds({ ...act, text: 'B ; 2' })
+    const rotated = await scene.rotateHouseholdToken({ ...act, householdId: H1 })
+
+    expect([code(saved), code(imported), code(rotated)]).toEqual([
+      'household.tokenInvalid',
+      'household.tokenInvalid',
+      'household.tokenInvalid',
+    ])
+    const stored = await scene.households.listByEvent(WEDDING)
+    expect(stored).toHaveLength(1)
+    expect(stored[0]?.token.value).toBe('7QX0M4TZ2KD9WB3H')
+    expect(
+      await scene.audit.list({ limit: 50 }).then((l) => l.items.map((i) => i.action)),
+    ).not.toContain('event.householdTokenRotated')
   })
 })
