@@ -4,6 +4,9 @@ import type {
   GuestInviteResponse,
   GuestOwnRsvpResponseDto,
   GuestRsvpCreatedDto,
+  HouseholdImportResponseDto,
+  HouseholdListResponseDto,
+  HouseholdResponseDto,
   RsvpFormResponseDto,
   RsvpListResponseDto,
   RsvpResponseDto,
@@ -86,6 +89,12 @@ export interface RsvpReplyInput {
   readonly answers?: readonly { readonly questionId: string; readonly value: string }[]
 }
 
+/** What the host types of a household (spec 30, lot 3). */
+export interface HouseholdInput {
+  readonly name: string
+  readonly places: number
+}
+
 /** The guest's token travels in this header, never in a path or a query (those reach access logs). */
 const rsvpToken = (editToken: string): Readonly<Record<string, string>> => ({
   'X-Rsvp-Token': editToken,
@@ -148,6 +157,47 @@ export const guestInviteApi = (transport: Transport) => ({
   /** The host looked: the badge counts from now on. */
   markRsvpsSeen: (slug: string): Promise<void> =>
     transport.post(`/api/events/${encode(slug)}/rsvps/seen`, {}),
+
+  /** The guest list: every household, in the order it was listed, with its link and its reply. */
+  households: (slug: string, signal?: AbortSignal): Promise<HouseholdListResponseDto> =>
+    transport.get(`/api/events/${encode(slug)}/households`, undefined, signal),
+
+  /** A household with a link of its own; `409 rsvp.inviteRequired`, `409 household.tooMany`. */
+  addHousehold: (slug: string, input: HouseholdInput): Promise<HouseholdResponseDto> =>
+    transport.post(`/api/events/${encode(slug)}/households`, input),
+
+  updateHousehold: (
+    slug: string,
+    id: string,
+    input: HouseholdInput,
+  ): Promise<HouseholdResponseDto> =>
+    transport.put(`/api/events/${encode(slug)}/households/${encode(id)}`, input),
+
+  /** The household leaves the list; its reply is kept, filed under nobody. */
+  deleteHousehold: (slug: string, id: string): Promise<void> =>
+    transport.del(`/api/events/${encode(slug)}/households/${encode(id)}`),
+
+  /** "Coller une liste": one household per line, `Nom ; places`. Says what it left out. */
+  importHouseholds: (slug: string, text: string): Promise<HouseholdImportResponseDto> =>
+    transport.post(`/api/events/${encode(slug)}/households/import`, { text }),
+
+  /** "Changer le lien": the old link stops at once. */
+  rotateHousehold: (slug: string, id: string): Promise<HouseholdResponseDto> =>
+    transport.post(`/api/events/${encode(slug)}/households/${encode(id)}/rotate`, {}),
+
+  /** The host's own note "relancé": EventSlide sends nothing. */
+  remindHousehold: (slug: string, id: string): Promise<HouseholdResponseDto> =>
+    transport.post(`/api/events/${encode(slug)}/households/${encode(id)}/reminded`, {}),
+
+  /** "Associer à un foyer": `null` detaches the reply. `409 household.alreadyAnswered`. */
+  fileRsvpUnderHousehold: (
+    slug: string,
+    rsvpId: string,
+    householdId: string | null,
+  ): Promise<RsvpResponseDto> =>
+    transport.post(`/api/events/${encode(slug)}/rsvps/${encode(rsvpId)}/household`, {
+      householdId,
+    }),
 
   /** The replies as a spreadsheet, for the browser to download. */
   rsvpExportUrl: (slug: string, view: 'all' | 'caterer' = 'all'): string =>

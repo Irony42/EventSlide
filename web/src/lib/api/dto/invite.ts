@@ -195,6 +195,41 @@ export interface RsvpStatsDto {
   readonly noReply: { readonly households: number; readonly places: number }
 }
 
+/** One household of the host's guest list (spec 30, lot 3), with the secret of its personal link. */
+export interface HouseholdDto {
+  readonly id: string
+  readonly name: string
+  readonly places: number
+  /** The link's secret: the page is `/i/<invitation token>#f=<this>`. */
+  readonly token: string
+  readonly remindedAt: string | null
+  readonly createdAt: string
+  readonly updatedAt: string
+  /** The reply filed under this household, or `null` while it has none. */
+  readonly reply: {
+    readonly id: string
+    readonly answer: 'yes' | 'maybe' | 'no' | 'waitlist'
+    readonly people: number
+  } | null
+}
+
+export interface HouseholdResponseDto {
+  readonly household: HouseholdDto
+}
+
+export interface HouseholdListResponseDto {
+  readonly households: readonly HouseholdDto[]
+}
+
+/** What a pasted list stored, and the lines left out with the reason. */
+export interface HouseholdImportResponseDto {
+  readonly households: readonly HouseholdDto[]
+  readonly skipped: readonly {
+    readonly line: number
+    readonly reason: 'name' | 'places' | 'duplicate'
+  }[]
+}
+
 /** `GET /events/:slug/rsvps`: the replies page, with the settings beside it. */
 export interface RsvpListResponseDto {
   readonly rsvpForm: RsvpSettingsDto

@@ -9,6 +9,7 @@ import type { RsvpDto, RsvpListResponseDto } from '../../../lib/api/dto'
 import { FakeEventSource } from '../../../testing/fakeEventSource'
 import {
   aGuestInviteHost,
+  aHousehold,
   anEventDto,
   anRsvp,
   anRsvpStats,
@@ -970,5 +971,140 @@ describe('the replies page: a newer read wins over the act’s answer', () => {
     signal('rsvp.changed')
 
     await waitFor(() => expect(screen.queryByText(/réponses fermées/)).not.toBeInTheDocument())
+  })
+})
+
+describe('the replies page: the guest list (lot 3)', () => {
+  const martin = aHousehold({ id: 'h-1', name: 'Famille Martin', places: 4 })
+  const roux = aHousehold({
+    id: 'h-2',
+    name: 'Famille Roux',
+    places: 2,
+    reply: { id: 'r-x', answer: 'yes', people: 2 },
+  })
+
+  it('leads to the guest list, and counts the households without a reply in a tile of their own', async () => {
+    render(
+      answering(list({ stats: anRsvpStats({ noReply: { households: 2, places: 7 } }) }), {
+        households: vi.fn(async () => ({ households: [martin] })),
+      }),
+    )
+
+    expect(await screen.findByRole('link', { name: text.guests })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha/rsvps/guests',
+    )
+    const tile = screen.getByRole('link', { name: new RegExp(text.tileNoReply) })
+    expect(tile).toHaveAttribute('href', '/admin/events/camille-et-sacha/rsvps/guests')
+    expect(tile).toHaveTextContent('2')
+    expect(tile).toHaveTextContent(plain(text.tileNoReplyDetail('2 foyers', 7)))
+  })
+
+  it('has no such tile when nobody is waited for', async () => {
+    render(answering(list()))
+
+    await screen.findByRole('group', { name: text.tilesLabel })
+    expect(
+      screen.queryByRole('link', { name: new RegExp(text.tileNoReply) }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('files a reply under a household without a reply, and detaches it', async () => {
+    const user = userEvent.setup()
+    const fileRsvpUnderHousehold = vi.fn(async () => ({ rsvp: lea }))
+    const rsvps = vi
+      .fn()
+      .mockResolvedValueOnce(list())
+      .mockResolvedValue(list({ rsvps: [{ ...lea, householdId: 'h-1' }, tom, ana] }))
+    render(
+      fakeApi({
+        rsvps,
+        fileRsvpUnderHousehold,
+        households: vi.fn(async () => ({ households: [martin, roux] })),
+      }),
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Léa Martin' }))
+    const dialog = await screen.findByRole('dialog')
+    const choice = within(dialog).getByRole('combobox', { name: text.detailHousehold })
+    expect(within(choice).queryByRole('option', { name: 'Famille Roux' })).not.toBeInTheDocument()
+    await user.selectOptions(choice, 'Famille Martin')
+    await user.click(within(dialog).getByRole('button', { name: text.detailHouseholdFile }))
+
+    await waitFor(() =>
+      expect(fileRsvpUnderHousehold).toHaveBeenCalledWith('camille-et-sacha', 'r-lea', 'h-1'),
+    )
+    expect(await within(dialog).findByText('Famille Martin')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: text.detailHouseholdUnfile }))
+    await waitFor(() =>
+      expect(fileRsvpUnderHousehold).toHaveBeenLastCalledWith('camille-et-sacha', 'r-lea', null),
+    )
+  })
+
+  it('offers nothing to file under while there is no list', async () => {
+    const user = userEvent.setup()
+    render(answering(list()))
+
+    await user.click(await screen.findByRole('button', { name: 'Léa Martin' }))
+
+    expect(
+      within(await screen.findByRole('dialog')).queryByRole('combobox', {
+        name: text.detailHousehold,
+      }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('says why a filing was refused', async () => {
+    const user = userEvent.setup()
+    const refusing = vi.fn(async () => {
+      throw new ApiError(409, 'household.alreadyAnswered')
+    })
+    render(
+      fakeApi({
+        rsvps: vi.fn(async () => list()),
+        fileRsvpUnderHousehold: refusing,
+        households: vi.fn(async () => ({ households: [martin] })),
+      }),
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Léa Martin' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.selectOptions(within(dialog).getByRole('combobox'), 'Famille Martin')
+    await user.click(within(dialog).getByRole('button', { name: text.detailHouseholdFile }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      plain(fr.errors['household.alreadyAnswered']),
+    )
+  })
+})
+
+describe('the replies page: coming from the guest list', () => {
+  it('opens the drawer of the reply the guest list leads to, once', async () => {
+    renderWithProviders(<RsvpsPage />, {
+      api: answering(list()),
+      route: '/admin/events/camille-et-sacha/rsvps?reply=r-lea',
+      path: '/admin/events/:slug/rsvps',
+    })
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: 'Léa Martin' })).toBeInTheDocument()
+    // Opened once: closed by the host, it stays closed when the replies are read again.
+    const user = userEvent.setup()
+    await user.click(
+      within(dialog).getByRole('button', { name: new RegExp(`^${text.closeDetail}$`) }),
+    )
+    signal('rsvp.changed')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('opens nothing for a reply that is not there', async () => {
+    renderWithProviders(<RsvpsPage />, {
+      api: answering(list()),
+      route: '/admin/events/camille-et-sacha/rsvps?reply=r-nobody',
+      path: '/admin/events/:slug/rsvps',
+    })
+
+    await screen.findByRole('table')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

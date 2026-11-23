@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react'
-import { Link, useOutletContext, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useOutletContext, useParams, useSearchParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../../app/HostEventsLink'
 import { Button } from '../../../design-system/components/Button'
@@ -171,6 +171,17 @@ function Replies({
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [dialog, setDialog] = useState<Dialogs>({ kind: 'none' })
+  // "Voir la réponse" of the guest list leads here with `?reply=<id>`: that reply's drawer opens, once.
+  const [search, setSearch] = useSearchParams()
+  const wanted = search.get('reply')
+  const [opened, setOpened] = useState<string | null>(null)
+  if (wanted !== null && wanted !== opened && rsvps.some((reply) => reply.id === wanted)) {
+    setOpened(wanted)
+    setDialog({ kind: 'detail', id: wanted })
+  }
+  useEffect(() => {
+    if (wanted !== null) setSearch({}, { replace: true })
+  }, [wanted, setSearch])
   const [problem, setProblem] = useState<string | null>(null)
   const printing = usePrintList()
   const [acting, setActing] = useState(false)
@@ -183,6 +194,17 @@ function Replies({
     [api, slug],
   )
   const zone = useLoader(loadInvite).data?.guestInvite.timeZone ?? null
+  // The guest list (lot 3), read again each time the replies are: a reply may be filed under a household.
+  const loadHouseholds = useCallback(
+    (signal: AbortSignal) => api.households(slug, signal),
+    [api, slug],
+  )
+  const householdsState = useLoader(loadHouseholds)
+  const reloadHouseholds = householdsState.reload
+  useEffect(() => {
+    reloadHouseholds()
+  }, [rsvps, reloadHouseholds])
+  const households = householdsState.data?.households ?? []
 
   // A tab that stops existing (the "peut-être" is no longer offered) is "Toutes".
   const tabs = tabsOf(form.maybe)
@@ -289,6 +311,17 @@ function Replies({
       detail: repliesLabel(stats.no.responses, text),
     },
   ]
+  const noReply = stats.noReply
+  /** Files a reply under a household of the list, or detaches it: the list and the replies read again. */
+  const fileUnder = async (reply: RsvpDto, householdId: string | null) => {
+    setDialogProblem(null)
+    try {
+      await api.fileRsvpUnderHousehold(slug, reply.id, householdId)
+      state.reload()
+    } catch (cause) {
+      setDialogProblem(messageForError(cause, t))
+    }
+  }
 
   return (
     <>
@@ -305,6 +338,9 @@ function Replies({
               {action === 'close' ? host.closeAction : host.reopenAction}
             </Button>
           ) : null}
+          <Link className={styles['settings']} to={`/admin/events/${slug}/rsvps/guests`}>
+            {text.guests}
+          </Link>
           <Link className={styles['settings']} to={`/admin/events/${slug}/invitations`}>
             {text.settings}
           </Link>
@@ -357,6 +393,22 @@ function Replies({
                   <span className={styles['tileDetail']}>{tile.detail}</span>
                 </button>
               ))}
+              {noReply.households === 0 ? null : (
+                <Link
+                  className={styles['tile']}
+                  data-kind="pending"
+                  to={`/admin/events/${slug}/rsvps/guests`}
+                >
+                  <span className={styles['tileKey']}>{text.tileNoReply}</span>
+                  <span className={styles['tileValue']}>{noReply.households}</span>
+                  <span className={styles['tileDetail']}>
+                    {text.tileNoReplyDetail(
+                      `${noReply.households} ${plural(noReply.households, { one: text.household.one, other: text.household.other })}`,
+                      noReply.places,
+                    )}
+                  </span>
+                </Link>
+              )}
             </div>
 
             <div className={styles['bar']}>
@@ -501,6 +553,8 @@ function Replies({
         form={form}
         locked={locked}
         problem={dialogProblem}
+        households={households}
+        onFile={(reply, householdId) => void fileUnder(reply, householdId)}
         onEdit={(reply) => setDialog({ kind: 'form', reply })}
         onDelete={(reply) => setDialog({ kind: 'delete', reply })}
         onClose={() => setDialog({ kind: 'none' })}
