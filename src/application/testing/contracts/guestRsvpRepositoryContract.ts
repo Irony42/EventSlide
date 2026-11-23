@@ -565,6 +565,37 @@ export const guestRsvpRepositoryContract = (
       })
     })
 
+    describe('withdrawing the ticks', () => {
+      it('clears every tick of the event in one write, leaving the rest and the other events alone', async () => {
+        await add({
+          id: 'rsvp-a',
+          name: 'Léa Martin',
+          updatedAt: T1,
+          details: { showName: true, companions: ['Hugo'] },
+        })
+        await add({ id: 'rsvp-b', name: 'Hugo Roux', details: { showName: false } })
+        await add({ id: 'rsvp-c', name: 'Tom Maybe', answer: 'maybe', details: { showName: true } })
+        await repo.admit(
+          aRsvp({
+            id: 'rsvp-g',
+            eventId: 'evt-gala',
+            name: 'Gala Gal',
+            details: { showName: true },
+          }),
+          NONE,
+        )
+
+        expect(await repo.clearShownNames(WEDDING)).toBe(2)
+
+        expect(await repo.showNames(WEDDING, 10)).toEqual([])
+        const kept = await repo.findById(WEDDING, asGuestRsvpId('rsvp-a'))
+        expect(kept?.details).toMatchObject({ showName: false, companions: ['Hugo'] })
+        expect(kept?.updatedAt).toEqual(T1)
+        expect(await repo.showNames(asEventId('evt-gala'), 10)).toEqual(['Gala Gal'])
+        expect(await repo.clearShownNames(WEDDING)).toBe(0)
+      })
+    })
+
     describe('what the host has not seen yet', () => {
       const HOST = asUserId('user-host')
 

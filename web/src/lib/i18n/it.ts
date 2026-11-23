@@ -3391,7 +3391,10 @@ export const it: UiText = {
         'La tua risposta la vede solo chi organizza. Viene cancellata al più tardi due mesi dopo la festa. Puoi modificarla o eliminarla con il tuo link.',
       showNameLabel: 'Mostra il mio nome agli altri invitati',
       noticeNames:
-        'La tua risposta la vede solo chi organizza. Solo il tuo nome può essere mostrato agli altri invitati, se spunti la casella qui sopra. Viene cancellata al più tardi due mesi dopo la festa. Puoi modificarla o eliminarla con il tuo link.',
+        'La tua risposta la vede chi organizza. Solo il tuo nome (la prima parola del tuo nome) può essere mostrato a chiunque abbia il link dell’invito, se spunti la casella. Viene cancellata al più tardi due mesi dopo la festa. Puoi modificarla o eliminarla con il tuo link.',
+      noticeCount:
+        'La tua risposta la vede chi organizza. Il numero di persone che vengono è mostrato a chiunque abbia il link dell’invito. Viene cancellata al più tardi due mesi dopo la festa. Puoi modificarla o eliminarla con il tuo link.',
+      showNameShown: (first: string) => `Verrà mostrato: «${first}» (la prima parola del tuo nome)`,
       recapShowName: 'Il tuo nome è mostrato agli altri invitati',
       doneYes: (first: string) => `Segnato, ${first}`,
       doneMaybe: 'Segnato: forse',
@@ -3505,7 +3508,7 @@ export const it: UiText = {
         'I nomi si chiedono per ogni persona oltre all’invitato: attiva anche il numero di persone.',
       visibilityLabel: 'Chi viene',
       visibilityHint:
-        'Ciò che la pagina dell’invito dice delle risposte. Mai i «no», i «forse», i messaggi né le diete.',
+        'Ciò che la pagina dell’invito dice delle risposte, a chiunque abbia il link. Mai i «no», i «forse», i messaggi né le diete. In una festa piccola, il numero può rivelare la risposta di una sola persona. Uscire da «nomi» toglie le caselle spuntate: gli invitati dovranno spuntare di nuovo.',
       visibilityOff: 'Niente',
       visibilityCount: 'Il numero di persone che vengono',
       visibilityNames: 'Il numero e i nomi di chi accetta',

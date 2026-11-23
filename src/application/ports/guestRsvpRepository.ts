@@ -50,6 +50,13 @@ export interface GuestRsvpRepository {
   /** Full names of the `yes` replies whose guest ticked "show my first name", oldest first (`namesToShow`). */
   showNames(eventId: EventId, limit: number): Promise<readonly string[]>
 
+  /**
+   * Withdraws every tick of "show my first name" in the event, in **one write**: the host stopped
+   * showing first names, and a tick a guest could no longer withdraw must not come back with the
+   * display. Changes no reply's `updatedAt`. Answers how many ticks were withdrawn.
+   */
+  clearShownNames(eventId: EventId): Promise<number>
+
   findById(eventId: EventId, id: GuestRsvpId): Promise<GuestRsvp | null>
 
   /** The reply of the event whose token digest this is. A digest valid elsewhere finds nothing. */

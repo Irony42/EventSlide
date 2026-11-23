@@ -125,6 +125,16 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
       .map((row) => row.name)
   }
 
+  async clearShownNames(eventId: EventId): Promise<number> {
+    // One statement: a reply is never half-cleared, and `updated_at` stays what it was.
+    return this.db
+      .prepare<[string]>(
+        `UPDATE guest_rsvps SET details = json_set(details, '$.showName', json('false'))
+          WHERE event_id = ? AND json_extract(details, '$.showName') = 1`,
+      )
+      .run(eventId).changes
+  }
+
   async findById(eventId: EventId, id: GuestRsvpId): Promise<GuestRsvp | null> {
     const row = this.db
       .prepare<[string, string], RsvpRow>(

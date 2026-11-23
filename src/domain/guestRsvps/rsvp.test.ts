@@ -573,7 +573,7 @@ describe('retainExtras', () => {
     const none = { companions: [], meals: [], answers: [], showName: false }
 
     expect(retainExtras(DEFAULT_RSVP_FORM, { ...held, showName: true }, none, 'yes')).toEqual({
-      showName: true,
+      showName: false,
       companions: ['Hugo'],
       meals: ['Poisson'],
       answers: held.answers,
@@ -743,11 +743,15 @@ describe('parseRsvpInput: show my first name', () => {
     expect(shown({ showName: 'yes' }, DEFAULT_RSVP_FORM)).toBe(false)
   })
 
-  it('keeps a guest’s opt-in while the display is off, and takes the new one while it is on', () => {
+  it('stores a tick only while first names are shown: outside `names` nothing is kept', () => {
     const held = { ...EMPTY_RSVP_DETAILS, showName: true }
     const none = { companions: [], meals: [], answers: [], showName: false }
 
-    expect(retainExtras(DEFAULT_RSVP_FORM, held, none, 'yes').showName).toBe(true)
+    expect(retainExtras(DEFAULT_RSVP_FORM, held, none, 'yes').showName).toBe(false)
+    expect(
+      retainExtras({ ...DEFAULT_RSVP_FORM, visibility: 'count' }, held, none, 'yes').showName,
+    ).toBe(false)
     expect(retainExtras(naming, held, none, 'yes').showName).toBe(false)
+    expect(retainExtras(naming, held, { ...none, showName: true }, 'yes').showName).toBe(true)
   })
 })

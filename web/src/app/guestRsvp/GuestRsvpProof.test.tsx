@@ -86,9 +86,33 @@ describe('the box "Montrer mon prénom"', () => {
       const view = render(withVisibility(visibility))
       await user.click(screen.getByRole('button', { name: t.yes }))
       expect(screen.queryByRole('checkbox', { name: t.showNameLabel })).not.toBeInTheDocument()
-      expect(screen.getByText(t.notice)).toBeInTheDocument()
+      expect(
+        screen.getByText(visibility === 'count' ? t.noticeCount : t.notice),
+      ).toBeInTheDocument()
       view.unmount()
     }
+  })
+
+  it('shows, live, exactly the first word of the name that would be published', async () => {
+    const user = userEvent.setup()
+    render()
+    await user.click(screen.getByRole('button', { name: t.yes }))
+    expect(screen.queryByText(/Sera montré/)).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText(new RegExp(t.nameLabel)), 'Léa Martin')
+
+    expect(screen.getByText(plain(t.showNameShown('Léa')))).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: t.showNameLabel })).toBeInTheDocument()
+  })
+
+  it('says in the notice that the first name or the count is seen by anyone with the link', async () => {
+    const user = userEvent.setup()
+    render()
+    await user.click(screen.getByRole('button', { name: t.yes }))
+
+    expect(screen.getByText(t.noticeNames)).toHaveTextContent(/toute personne qui a le lien/)
+    expect(t.noticeCount).toMatch(/toute personne qui a le lien/)
+    expect(t.noticeNames).not.toMatch(/que par l’organisateur/)
   })
 
   it('sends the tick, and nothing at all when the host does not show names', async () => {

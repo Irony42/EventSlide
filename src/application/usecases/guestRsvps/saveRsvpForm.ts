@@ -43,7 +43,7 @@ export interface SaveRsvpFormDeps extends RsvpAccessDeps {
     GuestInviteRepository,
     'findByEvent' | 'findRsvpSettings' | 'saveRsvpSettings'
   >
-  readonly rsvps: Pick<GuestRsvpRepository, 'listByEvent'>
+  readonly rsvps: Pick<GuestRsvpRepository, 'listByEvent' | 'clearShownNames'>
   readonly audit: AuditRecorder
   readonly bus: EventBus
   readonly clock: Clock
@@ -76,6 +76,11 @@ export const makeSaveRsvpForm =
       const recorded = await recordRsvpAct(deps.audit, event, actorId, 'event.rsvpFormSaved', now)
       if (!recorded.ok) return recorded
       await deps.invites.saveRsvpSettings(eventId, saved.value)
+      // Showing first names stops: every tick is withdrawn with it, so no guest finds themselves
+      // named when it comes back by a choice they could not take back meanwhile.
+      if (settings.form.visibility === 'names' && saved.value.form.visibility !== 'names') {
+        await deps.rsvps.clearShownNames(eventId)
+      }
       announceRsvpsChanged(deps.bus, eventId)
     }
     return ok(await rsvpFormViewOf({ ...needed.value, settings: saved.value }, deps.rsvps, now))
