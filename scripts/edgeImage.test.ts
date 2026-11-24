@@ -88,8 +88,11 @@ describe('the edge image workflow', () => {
     ).toHaveLength(1)
   })
 
-  it('keeps one build at a time and drops the older one when main moves', () => {
-    expect(mapAt(edge, 'concurrency')['cancel-in-progress']).toBe('true')
+  it('keeps one build per ref at a time and never cancels one between its push and its signature', () => {
+    // A cancel after the push leaves `main` unsigned; a group shared with other refs would let
+    // a manual run from a branch, skipped by the job's `if`, cancel a build of main.
+    expect(mapAt(edge, 'concurrency')['cancel-in-progress']).toBe('false')
+    expect(mapAt(edge, 'concurrency')['group']).toBe('edge-image-${{ github.ref }}')
   })
 
   it('signs the digest it pushed, never a tag', () => {

@@ -35,10 +35,12 @@ on:
 
 permissions: {}
 
-# Two merges in a row: only the newest commit is worth an image.
+# One build per ref at a time. Not cancelled half way: a cancel between the push and the
+# signature would leave `main` unsigned, and a staging box refuses an unsigned image. Two
+# merges in a row still cost one wait, since GitHub keeps only the newest pending run.
 concurrency:
-  group: edge-image
-  cancel-in-progress: true
+  group: edge-image-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   EDGE_IMAGE: ghcr.io/irony42/eventslide-edge
