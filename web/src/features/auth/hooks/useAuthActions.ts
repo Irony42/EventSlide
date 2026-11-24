@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { browserEnv, forgetPushOnSignOut } from '../../../lib/push/browserPush'
 import { useForgetSession } from '../../../lib/useSession'
 import { useApi } from '../../../lib/useApi'
 import type { SecondFactorProof } from '../../../lib/api/dto'
@@ -223,14 +224,27 @@ export const useSignOut = (): SignOutState => {
     [t],
   )
 
-  const signOut = useCallback(() => run(() => api.logout()), [api, run])
+  // A shared computer must not go on receiving the account's notifications: this browser is forgotten
+  // for every event while the session still exists, whatever that takes (it never holds the sign-out back).
+  const leave = useCallback(async () => {
+    await forgetPushOnSignOut(api, browserEnv())
+  }, [api])
+  const signOut = useCallback(
+    () =>
+      run(async () => {
+        await leave()
+        await api.logout()
+      }),
+    [api, leave, run],
+  )
   const signOutEverywhere = useCallback(
     () =>
       run(async () => {
+        await leave()
         await api.revokeOtherSessions()
         await api.logout()
       }),
-    [api, run],
+    [api, leave, run],
   )
 
   return { signOut, signOutEverywhere, busy }

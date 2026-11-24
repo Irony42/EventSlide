@@ -3683,6 +3683,24 @@ export const de: UiText = {
       presetKindWedding: 'einer Hochzeit',
     },
     /** The host's replies page (spec 30, lot 1). */
+    push: {
+      // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
+      // same words, and a test holds the two together).
+      noticeOne: 'Eine neue Antwort',
+      noticeMany: (count: number) => `${count} neue Antworten`,
+      noticeSome: 'Neue Antworten',
+      label: 'Browser-Benachrichtigung',
+      hint: 'Dieser Browser meldet Ihnen, wenn Antworten eingehen, ohne zu sagen, wer geantwortet hat oder was.',
+      unsupported: 'Dieser Browser kann keine Benachrichtigungen anzeigen.',
+      addToHomeScreen:
+        'Fügen Sie EventSlide auf dem iPhone zuerst zum Home-Bildschirm hinzu und öffnen Sie es über sein Symbol: Benachrichtigungen gibt es nur in der installierten App.',
+      denied:
+        'Benachrichtigungen sind für diese Seite blockiert: Erlauben Sie sie in den Browsereinstellungen und kommen Sie dann zurück.',
+      failed:
+        'Die Benachrichtigung konnte nicht aktiviert werden. Versuchen Sie es gleich noch einmal.',
+      offFailed:
+        'Die Benachrichtigung konnte nicht deaktiviert werden. Versuchen Sie es gleich noch einmal.',
+    },
     list: {
       crumb: 'Antworten',
       title: 'Antworten',

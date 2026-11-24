@@ -1,7 +1,22 @@
 import { drainOutbox } from '../src/lib/offline/drainOutbox'
 import { fetchOutboxSender } from '../src/lib/offline/fetchSender'
 import { IndexedDbOutbox } from '../src/lib/offline/indexedDbOutbox'
-import { CSRF_COOKIE, KILL_MESSAGE, OUTBOX_SYNC_TAG } from '../src/lib/offline/names'
+import {
+  CSRF_COOKIE,
+  KILL_MESSAGE,
+  OUTBOX_SYNC_TAG,
+  PUSH_ONLY_MESSAGE,
+  QUEUE_ON_MESSAGE,
+} from '../src/lib/offline/names'
+import { readPushOnly, writePushOnly } from '../src/lib/push/pushOnlyMode'
+import {
+  noticeText,
+  notificationTag,
+  openRepliesPage,
+  parseRsvpNotice,
+  repliesPath,
+  type OpenWindow,
+} from '../src/lib/push/pushNotice'
 import {
   cacheNameFor,
   isShellRequest,
@@ -55,6 +70,16 @@ interface SyncEvent extends ExtendableEvent {
  * bundle is loaded as something other than a service worker.
  */
 const worker = self as unknown as ServiceWorkerGlobalScope
+
+/**
+ * Whether this worker is in push-only mode: the offline queue is switched off while a browser
+ * notification is still subscribed, so the registration stays (the subscription lives on it) but the
+ * worker serves neither the shell nor the outbox. **Kept in the Cache Storage** (`pushOnlyMode.ts`) and
+ * read again whenever the browser starts this worker; a promise, so that every handler waits for the
+ * stored answer before deciding. The page says it again whenever it changes (`PUSH_ONLY_MESSAGE`,
+ * `QUEUE_ON_MESSAGE`).
+ */
+let pushOnly: Promise<boolean> = readPushOnly(caches)
 
 /**
  * The live CSRF token.
@@ -128,10 +153,15 @@ worker.addEventListener('install', (event) => {
   // Straight to active once the shell is in. Waiting would leave a guest on the previous
   // worker until every tab closed, which at an event means until they go home.
   event.waitUntil(
-    precache()
-      // A precache that failed leaves a worker that still drains the outbox, which is
-      // the job that must not be lost. Offline loading is the part that degrades.
-      .catch(() => undefined)
+    // Push-only: there is no shell to keep, and none is fetched.
+    pushOnly
+      .then((only) =>
+        only
+          ? undefined
+          : // A precache that failed leaves a worker that still drains the outbox, which is
+            // the job that must not be lost. Offline loading is the part that degrades.
+            precache().catch(() => undefined),
+      )
       .then(() => worker.skipWaiting()),
   )
 })
@@ -147,10 +177,15 @@ worker.addEventListener('fetch', (event) => {
   if (!isShellRequest(event.request, worker.location.origin)) return
 
   event.respondWith(
-    respondFromShell(event.request, {
-      fetch: (...args) => fetch(...args),
-      match: async (request) => caches.match(request, { cacheName: CACHE_NAME }),
-    }),
+    pushOnly.then((only) =>
+      only
+        ? // Push-only: the network answers, as with no worker.
+          fetch(event.request)
+        : respondFromShell(event.request, {
+            fetch: (...args) => fetch(...args),
+            match: async (request) => caches.match(request, { cacheName: CACHE_NAME }),
+          }),
+    ),
   )
 })
 
@@ -159,12 +194,33 @@ worker.addEventListener('sync', (event) => {
   if (sync.tag !== OUTBOX_SYNC_TAG) return
   // `waitUntil` keeps the worker alive through the upload and tells the browser to
   // retry the tag if this rejects — which `drainEverything` does on purpose.
-  sync.waitUntil(drainEverything())
+  // In push-only mode the queue is off: nothing is drained here, and the page drains what it holds.
+  sync.waitUntil(pushOnly.then((only) => (only ? undefined : drainEverything())))
 })
 
 worker.addEventListener('message', (event) => {
   const data: unknown = event.data
   if (typeof data !== 'object' || data === null) return
+  if (Reflect.get(data, 'type') === PUSH_ONLY_MESSAGE) {
+    pushOnly = Promise.resolve(true)
+    event.waitUntil(
+      writePushOnly(caches, true)
+        .then(() => caches.keys())
+        .then((names) => Promise.all(ownCacheNames(names).map((name) => caches.delete(name))))
+        .then(() => undefined),
+    )
+    return
+  }
+  if (Reflect.get(data, 'type') === QUEUE_ON_MESSAGE) {
+    // The offline queue is on again: serve as before, with a shell to serve it from.
+    pushOnly = Promise.resolve(false)
+    event.waitUntil(
+      writePushOnly(caches, false)
+        .then(() => precache())
+        .catch(() => undefined),
+    )
+    return
+  }
   if (Reflect.get(data, 'type') !== KILL_MESSAGE) return
   // The kill switch, from the page. Unregistering from inside the worker is what makes
   // "off" reach a worker that is already installed and misbehaving — and the caches go
@@ -175,5 +231,56 @@ worker.addEventListener('message', (event) => {
       .then((names) => Promise.all(ownCacheNames(names).map((name) => caches.delete(name))))
       .then(() => worker.registration.unregister())
       .then(() => undefined),
+  )
+})
+
+/**
+ * A reply came in (spec 30, lot 4, Web Push). Every push has to end in a visible notification, so a
+ * message that cannot be read still says that something came in. The text is worded here, in the
+ * browser's language: the message carries a count and an event's address, nothing a guest wrote.
+ */
+/** The message of a push, or `null` when it cannot be read as the box writes it. */
+const readNotice = (data: PushMessageData | null): ReturnType<typeof parseRsvpNotice> => {
+  try {
+    return parseRsvpNotice(data?.json())
+  } catch {
+    return null
+  }
+}
+
+worker.addEventListener('push', (event) => {
+  const notice = readNotice(event.data)
+  const words = noticeText(notice?.count ?? null, worker.navigator.language)
+  event.waitUntil(
+    worker.registration.showNotification(words.title, {
+      // A second message for the same event buzzes again instead of silently replacing the first
+      // (`renotify` is in the specification and not yet in TypeScript's `NotificationOptions`).
+      ...({ renotify: true } as NotificationOptions),
+      body: words.body,
+      icon: '/icons/icon-192.png',
+      tag: notice === null ? 'eventslide-rsvp' : notificationTag(notice.slug),
+      data: { path: notice === null ? '/admin' : repliesPath(notice.slug) },
+    }),
+  )
+})
+
+worker.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const data: unknown = event.notification.data
+  const path = typeof data === 'object' && data !== null ? Reflect.get(data, 'path') : undefined
+  if (typeof path !== 'string' || !path.startsWith('/admin')) return
+  event.waitUntil(
+    worker.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) =>
+      openRepliesPage(
+        windows.map<OpenWindow>((client) => ({
+          url: client.url,
+          focus: () => client.focus(),
+          navigate: (url) => client.navigate(url),
+        })),
+        worker.location.origin,
+        path,
+        (url) => worker.clients.openWindow(url),
+      ),
+    ),
   )
 })

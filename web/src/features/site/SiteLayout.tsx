@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { browserEnv, forgetPushOnSignOut } from '../../lib/push/browserPush'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useApi } from '../../lib/useApi'
 import { useSession } from '../../lib/useSession'
@@ -45,13 +46,15 @@ function SecondFactorGate({ children }: { readonly children: ReactNode }) {
               variant="primary"
               onClick={() => {
                 setFailure(null)
-                api.logout().then(
-                  // Back to this very page once the code has been asked: the sign-in returns
-                  // the person to `from`, query included.
-                  () =>
-                    navigate('/login', { replace: true, state: { from: hereAsFrom(location) } }),
-                  (cause: unknown) => setFailure(messageForError(cause, t)),
-                )
+                forgetPushOnSignOut(api, browserEnv())
+                  .then(() => api.logout())
+                  .then(
+                    // Back to this very page once the code has been asked: the sign-in returns
+                    // the person to `from`, query included.
+                    () =>
+                      navigate('/login', { replace: true, state: { from: hereAsFrom(location) } }),
+                    (cause: unknown) => setFailure(messageForError(cause, t)),
+                  )
               }}
             >
               {t.site.factorSignOut}

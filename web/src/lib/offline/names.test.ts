@@ -5,6 +5,8 @@ import {
   KILL_MESSAGE,
   OUTBOX_DB_NAME,
   OUTBOX_SYNC_TAG,
+  PUSH_ONLY_MESSAGE,
+  QUEUE_ON_MESSAGE,
   VOICE_DB_NAME,
 } from './names'
 
@@ -26,6 +28,8 @@ describe('the wire values', () => {
     expect({
       OUTBOX_SYNC_TAG,
       KILL_MESSAGE,
+      PUSH_ONLY_MESSAGE,
+      QUEUE_ON_MESSAGE,
       CSRF_COOKIE,
       CSRF_HEADER,
       OUTBOX_DB_NAME,
@@ -33,6 +37,8 @@ describe('the wire values', () => {
     }).toEqual({
       OUTBOX_SYNC_TAG: 'eventslide-outbox',
       KILL_MESSAGE: 'eventslide:kill',
+      PUSH_ONLY_MESSAGE: 'eventslide:push-only',
+      QUEUE_ON_MESSAGE: 'eventslide:queue-on',
       CSRF_COOKIE: 'es_csrf',
       CSRF_HEADER: 'x-csrf-token',
       OUTBOX_DB_NAME: 'eventslide-outbox',
@@ -71,6 +77,8 @@ describe('every other module takes the names from names.ts', () => {
   it.each([
     ['the sync tag', OUTBOX_SYNC_TAG],
     ['the kill message', KILL_MESSAGE],
+    ['the push-only message', PUSH_ONLY_MESSAGE],
+    ['the queue-on message', QUEUE_ON_MESSAGE],
     ['the CSRF cookie', CSRF_COOKIE],
     ['the CSRF header', CSRF_HEADER],
   ])('spells %s nowhere else as a string literal', (_label, value) => {
@@ -87,6 +95,9 @@ describe('every other module takes the names from names.ts', () => {
     )
     expect(worker).toMatch(
       /import \{[^}]*\bKILL_MESSAGE\b[^}]*\} from '..\/src\/lib\/offline\/names'/,
+    )
+    expect(worker).toMatch(
+      /import \{[^}]*\bPUSH_ONLY_MESSAGE\b[^}]*\} from '..\/src\/lib\/offline\/names'/,
     )
     expect(worker).toMatch(
       /import \{[^}]*\bCSRF_COOKIE\b[^}]*\} from '..\/src\/lib\/offline\/names'/,

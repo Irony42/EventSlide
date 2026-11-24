@@ -2314,3 +2314,8 @@ export interface GuestHouseholdResponseDto {
     readonly rsvp?: GuestOwnRsvpDto
   }
 }
+
+/** `GET /push/key`: the box's public VAPID key (spec 30, lot 4), what a browser subscribes with. */
+export interface PushKeyResponseDto {
+  readonly publicKey: string
+}

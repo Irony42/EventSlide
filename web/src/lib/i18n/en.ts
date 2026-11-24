@@ -3559,6 +3559,22 @@ export const en: UiText = {
       presetKindWedding: 'a wedding',
     },
     /** The host's replies page (spec 30, lot 1). */
+    push: {
+      // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
+      // same words, and a test holds the two together).
+      noticeOne: 'One new reply',
+      noticeMany: (count: number) => `${count} new replies`,
+      noticeSome: 'New replies',
+      label: 'Browser notification',
+      hint: 'This browser tells you when replies come in, without saying who replied or what.',
+      unsupported: 'This browser cannot show notifications.',
+      addToHomeScreen:
+        'On iPhone, first add EventSlide to your home screen, then open it from its icon: notifications only exist in the installed app.',
+      denied:
+        'Notifications are blocked for this site: allow them in the browser settings, then come back here.',
+      failed: 'The notification could not be turned on. Try again in a moment.',
+      offFailed: 'The notification could not be turned off. Try again in a moment.',
+    },
     list: {
       crumb: 'Replies',
       title: 'Replies',

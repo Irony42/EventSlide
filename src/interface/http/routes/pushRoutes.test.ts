@@ -1,4 +1,5 @@
 import type { Express } from 'express'
+import { PushSubscription } from '../../../domain/push/pushSubscription'
 import type { Agent } from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { AT, anEvent, aUser } from '../../../application/testing/builders'
@@ -12,6 +13,7 @@ import {
   makeGetPushKey,
   makeSubscribePush,
   makeUnsubscribePush,
+  makeUnsubscribePushEverywhere,
   type PushConfig,
 } from '../../../application/usecases/push/pushSubscriptions'
 import { DEFAULT_PUSH_HOSTS } from '../../../domain/push/pushEndpoint'
@@ -82,6 +84,7 @@ const buildWorld = (
               push,
             }),
             unsubscribePush: makeUnsubscribePush({ subscriptions, push }),
+            unsubscribePushEverywhere: makeUnsubscribePushEverywhere({ subscriptions, push }),
           },
         }),
       )
@@ -242,6 +245,52 @@ describe('DELETE /api/events/:eventSlug/push-subscription', () => {
       await signedIn(world, 'owner')
     )
       .delete(URL)
+      .send({ endpoint: ENDPOINT, keys: {} })
+    expect(stray.body.error.code).toBe('request.invalid')
+  })
+})
+
+describe('DELETE /api/push-subscriptions', () => {
+  const ALL = '/api/push-subscriptions'
+
+  it('forgets this browser for every event of the account at once, 204, and nobody else’s', async () => {
+    const world = buildWorld()
+    const owner = await signedIn(world, 'owner')
+    await owner.post(URL).send(SUBSCRIPTION).expect(204)
+    const stranger = await signedIn(world, 'stranger')
+    await world.subscriptions.upsert(
+      PushSubscription.create({
+        id: 'theirs',
+        userId: asUserId(STRANGER),
+        eventId: WEDDING,
+        endpoint: ENDPOINT,
+        p256dh: SUBSCRIPTION.keys.p256dh,
+        auth: SUBSCRIPTION.keys.auth,
+        createdAt: new Date(),
+      }),
+      10,
+    )
+
+    const response = await owner.delete(ALL).send({ endpoint: ENDPOINT })
+
+    expect(response.status).toBe(204)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(await world.subscriptions.listByEvent(WEDDING)).toHaveLength(1)
+    expect((await stranger.delete(ALL).send({ endpoint: ENDPOINT })).status).toBe(204)
+    expect(await world.subscriptions.listByEvent(WEDDING)).toHaveLength(0)
+  })
+
+  it('is 204 when nothing is held, 401 without a session, and refuses a stray key', async () => {
+    const world = buildWorld()
+
+    expect(
+      (await (await signedIn(world, 'owner')).delete(ALL).send({ endpoint: ENDPOINT })).status,
+    ).toBe(204)
+    expect((await request(world.app).delete(ALL).send({ endpoint: ENDPOINT })).status).toBe(401)
+    const stray = await (
+      await signedIn(world, 'owner')
+    )
+      .delete(ALL)
       .send({ endpoint: ENDPOINT, keys: {} })
     expect(stray.body.error.code).toBe('request.invalid')
   })

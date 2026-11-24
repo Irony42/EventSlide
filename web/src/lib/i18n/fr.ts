@@ -4331,6 +4331,22 @@ export const fr = {
       presetKindWedding: 'un mariage',
     },
     /** The host's replies page (spec 30, lot 1). */
+    push: {
+      // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
+      // same words, and a test holds the two together).
+      noticeOne: 'Une nouvelle réponse',
+      noticeMany: (count: number) => `${count}\u00a0nouvelles réponses`,
+      noticeSome: 'De nouvelles réponses',
+      label: 'Notification du navigateur',
+      hint: 'Ce navigateur vous prévient quand des réponses arrivent, sans dire qui a répondu ni quoi.',
+      unsupported: 'Ce navigateur ne sait pas afficher de notifications.',
+      addToHomeScreen:
+        'Sur iPhone, ajoutez d’abord EventSlide à l’écran d’accueil, puis ouvrez-le depuis son icône : les notifications n’existent que dans l’application installée.',
+      denied:
+        'Les notifications sont bloquées pour ce site : autorisez-les dans les réglages du navigateur, puis revenez ici.',
+      failed: 'La notification n’a pas pu être activée. Réessayez dans un instant.',
+      offFailed: 'La notification n’a pas pu être désactivée. Réessayez dans un instant.',
+    },
     list: {
       crumb: 'Réponses',
       title: 'Réponses',

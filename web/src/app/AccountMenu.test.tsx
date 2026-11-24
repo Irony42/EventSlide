@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
@@ -651,5 +651,74 @@ describe('AccountMenu: a link to the page you are on (H14)', () => {
     expect(screen.getByTestId('arrival')).toHaveTextContent(
       JSON.stringify({ from: '/admin/events/mariage' }),
     )
+  })
+})
+
+describe('AccountMenu: a browser notification does not outlive the sign-out (spec 30, lot 4)', () => {
+  const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/abc'
+
+  const withASubscription = () => {
+    const unsubscribe = vi.fn(async () => true)
+    const registration = {
+      pushManager: { getSubscription: vi.fn(async () => ({ endpoint: ENDPOINT, unsubscribe })) },
+    }
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: { getRegistration: vi.fn(async () => registration) },
+      configurable: true,
+      writable: true,
+    })
+    window.localStorage.setItem('eventslide.push.fete', ENDPOINT)
+    return unsubscribe
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'serviceWorker')
+  })
+
+  it('forgets this browser for every event before the session ends, for both ways out', async () => {
+    for (const label of [fr.auth.logout, fr.auth.logoutEverywhere]) {
+      const unsubscribe = withASubscription()
+      const order: string[] = []
+      const api = signedIn({
+        unsubscribePushEverywhere: vi.fn(async () => void order.push('forget')),
+        revokeOtherSessions: vi.fn(async () => void order.push('revoke')),
+        logout: vi.fn(async () => void order.push('logout')),
+      })
+      const view = renderMenu(api)
+      await open()
+
+      await userEvent.click(screen.getByRole('button', { name: label }))
+      const confirm = screen.queryByRole('dialog')
+      if (confirm !== null) {
+        await userEvent.click(
+          within(confirm).getByRole('button', { name: fr.auth.logoutEverywhere }),
+        )
+      }
+
+      await waitFor(() => expect(api.logout).toHaveBeenCalled())
+      expect(api.unsubscribePushEverywhere).toHaveBeenCalledWith(ENDPOINT)
+      expect(unsubscribe).toHaveBeenCalledTimes(1)
+      expect(window.localStorage.getItem('eventslide.push.fete')).toBeNull()
+      expect(order[0]).toBe('forget')
+      expect(order.at(-1)).toBe('logout')
+      view.unmount()
+      window.localStorage.clear()
+    }
+  })
+
+  it('signs out all the same when the server cannot be told', async () => {
+    withASubscription()
+    const api = signedIn({
+      unsubscribePushEverywhere: vi.fn(async () => {
+        throw new ApiError(500, 'server.error')
+      }),
+      logout: vi.fn(async () => undefined),
+    })
+    renderMenu(api)
+    await open()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.auth.logout }))
+
+    await waitFor(() => expect(api.logout).toHaveBeenCalled())
   })
 })

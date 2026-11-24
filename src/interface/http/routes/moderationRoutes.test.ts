@@ -229,6 +229,7 @@ const usecasesFor = (
     getPushKey: notWired,
     subscribePush: notWired,
     unsubscribePush: notWired,
+    unsubscribePushEverywhere: notWired,
     markRsvpsSeen: notWired,
     listHouseholds: notWired,
     saveHousehold: notWired,

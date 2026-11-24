@@ -618,7 +618,13 @@ export interface Transport {
     headers?: Readonly<Record<string, string>>,
   ): Promise<T>
   patch<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>
-  del<T>(path: string, signal?: AbortSignal, headers?: Readonly<Record<string, string>>): Promise<T>
+  del<T>(
+    path: string,
+    signal?: AbortSignal,
+    headers?: Readonly<Record<string, string>>,
+    /** Rare: a DELETE that says which one (spec 30, a browser notification). */
+    body?: unknown,
+  ): Promise<T>
   upload<T>(
     path: string,
     form: FormData,
@@ -652,8 +658,9 @@ export const http: Transport = {
       ...(body !== undefined ? { body } : {}),
       ...(signal ? { signal } : {}),
     }),
-  del: (path, signal, headers) =>
+  del: (path, signal, headers, body) =>
     request('DELETE', path, {
+      ...(body !== undefined ? { body } : {}),
       ...(signal ? { signal } : {}),
       ...(headers ? { headers } : {}),
     }),

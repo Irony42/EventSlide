@@ -41,6 +41,13 @@ export class FakePushSubscriptionRepository implements PushSubscriptionRepositor
     return true
   }
 
+  async removeAllForUser(userId: UserId, endpoint: string): Promise<number> {
+    const kept = this.rows.filter((row) => !(row.userId === userId && row.endpoint === endpoint))
+    const removed = this.rows.length - kept.length
+    this.rows.splice(0, this.rows.length, ...kept)
+    return removed
+  }
+
   async removeById(eventId: EventId, id: string): Promise<boolean> {
     const at = this.rows.findIndex((row) => row.eventId === eventId && row.id === id)
     if (at < 0) return false

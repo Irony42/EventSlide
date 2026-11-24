@@ -19,6 +19,15 @@ export const OUTBOX_SYNC_TAG = 'eventslide-outbox'
 /** What the page posts to an installed worker to make it unregister itself. */
 export const KILL_MESSAGE = 'eventslide:kill'
 
+/**
+ * What the page posts to a worker that must stay for a push subscription (spec 30, lot 4): drop the
+ * shell caches and stop answering fetches and syncs, but keep the registration the subscription lives on.
+ */
+export const PUSH_ONLY_MESSAGE = 'eventslide:push-only'
+
+/** What the page posts when the offline queue is on again: the worker leaves push-only mode and serves as before. */
+export const QUEUE_ON_MESSAGE = 'eventslide:queue-on'
+
 /** The readable cookie holding the double-submit CSRF token. */
 export const CSRF_COOKIE = 'es_csrf'
 

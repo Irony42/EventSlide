@@ -1192,6 +1192,13 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   updateRsvp: vi.fn(async (): Promise<RsvpResponseDto> => ({ rsvp: anRsvp() })),
   deleteRsvp: vi.fn(async (): Promise<void> => undefined),
   markRsvpsSeen: vi.fn(async (): Promise<void> => undefined),
+  // Browser notifications off, as on a box with no VAPID keys: the checkbox is not offered.
+  pushKey: vi.fn(async () => {
+    throw new ApiError(404, 'push.disabled')
+  }),
+  subscribePush: vi.fn(async (): Promise<void> => undefined),
+  unsubscribePush: vi.fn(async (): Promise<void> => undefined),
+  unsubscribePushEverywhere: vi.fn(async (): Promise<void> => undefined),
   households: vi.fn(async (): Promise<HouseholdListResponseDto> => ({ households: [] })),
   addHousehold: vi.fn(async (): Promise<HouseholdResponseDto> => ({ household: aHousehold() })),
   updateHousehold: vi.fn(async (): Promise<HouseholdResponseDto> => ({ household: aHousehold() })),

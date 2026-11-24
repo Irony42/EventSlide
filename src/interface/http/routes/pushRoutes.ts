@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireRole, requireUser } from '../middleware/authz'
-import { hostScopeOf } from '../middleware/scope'
+import { hostScopeOf, userOf } from '../middleware/scope'
+import type { PushKeyResponseDto } from '../presenters/dto'
 import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import { eventSlugParams, pushSubscribeBody, pushUnsubscribeBody } from '../schemas/requestSchemas'
 import type { HttpUseCases, RouteDeps } from '../useCases'
@@ -20,7 +21,10 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  */
 
 export interface PushRouteDeps extends Omit<RouteDeps, 'usecases'> {
-  readonly usecases: Pick<HttpUseCases, 'getPushKey' | 'subscribePush' | 'unsubscribePush'>
+  readonly usecases: Pick<
+    HttpUseCases,
+    'getPushKey' | 'subscribePush' | 'unsubscribePush' | 'unsubscribePushEverywhere'
+  >
 }
 
 export const pushRoutes = ({ deps, usecases }: PushRouteDeps): Router => {
@@ -32,7 +36,9 @@ export const pushRoutes = ({ deps, usecases }: PushRouteDeps): Router => {
     asyncHandler(async (_req, res) => {
       res.setHeader('Cache-Control', 'no-store')
       const result = await usecases.getPushKey()
-      sendResult(res, result, (response, publicKey) => sendJson(response, { publicKey }))
+      sendResult(res, result, (response, publicKey) =>
+        sendJson<PushKeyResponseDto>(response, { publicKey }),
+      )
     }),
   )
 
@@ -70,6 +76,22 @@ export const pushRoutes = ({ deps, usecases }: PushRouteDeps): Router => {
         endpoint: body.endpoint,
       })
 
+      res.setHeader('Cache-Control', 'no-store')
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  // A sign-out on a shared computer: this browser's subscriptions of the account, for every event.
+  router.delete(
+    '/push-subscriptions',
+    requireUser(deps),
+    asyncHandler(async (req, res) => {
+      const user = userOf(req)
+      const body = pushUnsubscribeBody.parse(req.body)
+      const result = await usecases.unsubscribePushEverywhere({
+        actorId: user.userId,
+        endpoint: body.endpoint,
+      })
       res.setHeader('Cache-Control', 'no-store')
       sendResultNoContent(res, result)
     }),

@@ -35,6 +35,7 @@ import { useApi } from '../../../lib/useApi'
 import { useLoader } from '../../../lib/useLoader'
 import { useEvent } from '../hooks/useEventData'
 import type { EventPageContext } from '../eventLayout/useEventPage'
+import { BrowserNotifications } from './BrowserNotifications'
 import { RsvpCaterer } from './RsvpCaterer'
 import { RsvpDetail } from './RsvpDetail'
 import { RsvpPrintList } from './RsvpPrintList'
@@ -408,6 +409,8 @@ function Replies({
           {problem}
         </Notice>
       )}
+
+      <BrowserNotifications slug={slug} />
 
       {empty && !settings.enabled ? (
         <EmptyState

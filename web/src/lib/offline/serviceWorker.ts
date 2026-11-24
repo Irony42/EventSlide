@@ -1,6 +1,7 @@
 import { deleteOutboxDb, outboxHoldsPhotos } from './indexedDbOutbox'
 import { ownCacheNames } from '../pwa/appShell'
-import { KILL_MESSAGE, OUTBOX_SYNC_TAG } from './names'
+import { resolveOfflineQueue } from './killSwitch'
+import { KILL_MESSAGE, OUTBOX_SYNC_TAG, PUSH_ONLY_MESSAGE, QUEUE_ON_MESSAGE } from './names'
 
 /**
  * Registering — and, just as importantly, un-registering — the upload worker.
@@ -16,7 +17,7 @@ import { KILL_MESSAGE, OUTBOX_SYNC_TAG } from './names'
  * something worse than that.
  */
 
-export { KILL_MESSAGE, OUTBOX_SYNC_TAG }
+export { KILL_MESSAGE, OUTBOX_SYNC_TAG, PUSH_ONLY_MESSAGE, QUEUE_ON_MESSAGE }
 
 /**
  * `ServiceWorkerRegistration.sync` is a living-standard addition TypeScript's DOM
@@ -40,7 +41,9 @@ const supported = (): boolean => typeof navigator !== 'undefined' && 'serviceWor
 export const registerUploadWorker = async (url = '/sw.js'): Promise<boolean> => {
   if (!supported()) return false
   try {
-    await navigator.serviceWorker.register(url, { scope: '/' })
+    const registration = await navigator.serviceWorker.register(url, { scope: '/' })
+    // A worker that was put in push-only mode serves again now that the queue is on.
+    postWhenActive(registration, { type: QUEUE_ON_MESSAGE })
     return true
   } catch (cause) {
     // Warned rather than swallowed: a registration failing in production is worth
@@ -51,7 +54,61 @@ export const registerUploadWorker = async (url = '/sw.js'): Promise<boolean> => 
 }
 
 /**
- * Removes every worker this origin has and the cached shell, and the outbox database once it is empty.
+ * Posts a message to the registration's worker **once it is active**: a worker still installing or
+ * waiting has no `active` yet, and a message posted to nothing is lost. Never throws.
+ */
+export const postWhenActive = (
+  registration: ServiceWorkerRegistration,
+  message: { readonly type: string },
+): void => {
+  if (registration.active !== null) {
+    registration.active.postMessage(message)
+    return
+  }
+  const pending = registration.installing ?? registration.waiting
+  if (pending === null) return
+  const send = (): void => {
+    if (pending.state !== 'activated') return
+    pending.removeEventListener('statechange', send)
+    registration.active?.postMessage(message)
+  }
+  pending.addEventListener('statechange', send)
+}
+
+/** Whether a browser notification is subscribed on this registration. Never rejects. */
+const holdsPushSubscription = async (registration: ServiceWorkerRegistration): Promise<boolean> => {
+  try {
+    return (await registration.pushManager.getSubscription()) !== null
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Registers the worker for a host who asked for browser notifications (spec 30, lot 4), whether or not
+ * the offline queue is on: the push handlers live in the same worker, and a page that turned the queue
+ * off registered none. Resolves to the ready registration, or `null` when the browser cannot (an
+ * insecure origin, no worker bundle in a development build). Never rejects.
+ */
+export const ensurePushWorker = async (
+  url = '/sw.js',
+  queueOn: boolean = resolveOfflineQueue(window.location.search),
+): Promise<ServiceWorkerRegistration | null> => {
+  if (!supported()) return null
+  try {
+    const registration = await navigator.serviceWorker.register(url, { scope: '/' })
+    // The queue is off: the worker is here for the notification only, and is told so (once it is active,
+    // and again at every load: a worker that has been stopped and started keeps it, in its own storage).
+    if (!queueOn) postWhenActive(registration, { type: PUSH_ONLY_MESSAGE })
+    return await navigator.serviceWorker.ready
+  } catch (cause) {
+    console.warn('the notification worker could not be registered', cause)
+    return null
+  }
+}
+
+/**
+ * Removes every worker this origin has (but one a browser notification is subscribed on, which only stops serving the shell and the outbox) and the cached shell, and the outbox database once it is empty.
  *
  * Unregistering the worker is what stops it re-creating a database on the next sync. The database
  * itself is deleted only when no photo is waiting in it (SEC-06): the switch arrives by URL, a join
@@ -66,6 +123,12 @@ export const removeUploadWorker = async (): Promise<void> => {
     try {
       const registrations = await navigator.serviceWorker.getRegistrations()
       for (const registration of registrations) {
+        // A browser notification (spec 30, lot 4) lives on the registration: unregistering it would
+        // silently end a host's notifications. The worker is told to stop doing the rest instead.
+        if (await holdsPushSubscription(registration)) {
+          postWhenActive(registration, { type: PUSH_ONLY_MESSAGE })
+          continue
+        }
         registration.active?.postMessage({ type: KILL_MESSAGE })
         await registration.unregister()
       }
