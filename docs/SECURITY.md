@@ -4092,7 +4092,7 @@ The endpoint is judged **twice** (when it is stored and when it is called) and t
    `PUSH_ALLOWED_HOSTS` **replaces** the list (host names and `*.suffix` patterns, never an IP); a wildcard needs a label in front of
    the suffix; `fcm.googleapis.com.evil.test` and `evilfcm.googleapis.com` are not `fcm.googleapis.com`.
 3. **The connection goes only to a public address**: the name is resolved by the box (`dns.lookup` with `all`), **every** address must be
-   public (not loopback, private, shared, link-local such as the cloud metadata address, unique-local, multicast, reserved, documentation,
+   public (not loopback, private, shared, link-local such as the cloud metadata address, unique-local, multicast, reserved, documentation, the 6to4 and Teredo tunnels,
    or an IPv4 written as IPv6), and the connection uses the addresses that were checked (no second resolution to rebind). A name that
    resolves inside the network is refused at the connection.
 4. **No redirect is followed** (a `3xx` is a failure), the certificate must verify, the whole exchange has a **10 second** deadline, and
