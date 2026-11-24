@@ -251,6 +251,12 @@ Each release is published under these tags, for `linux/amd64` and `linux/arm64`:
 | `3`          | the newest minor and patch of 3, **never the next major**  | the same, wider                                |
 | `3.1.0-rc.1` | that release candidate, and no other tag ever points at it | to try a release before it is one              |
 
+Every commit merged on `main` is also built into a **separate package**,
+`ghcr.io/irony42/eventslide-edge`, tagged `main` (the newest) and `main-<commit>`, for
+`linux/amd64` only (`.github/workflows/edge.yml`). It is for a staging box that wants what has
+been merged and not yet released. **Never run it in production**: it carries migrations no
+release has announced, and a migration runs in one direction only.
+
 There is no `latest`, on purpose: it would cross a major, and a major is the release that may
 break something, so it is one you choose. A floating tag (`3.0`, `3`) moves under you the next
 time you `docker compose pull`, **and the migrations of the release it moved to run at the next
