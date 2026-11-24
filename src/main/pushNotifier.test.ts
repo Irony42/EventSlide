@@ -16,6 +16,11 @@ import {
 } from '../application/testing/guestInviteScene'
 import { RecordingPushSender } from '../application/testing/recordingPushSender'
 import { asGuestId, type EventId } from '../domain/shared/ids'
+import type { MembershipRepository } from '../application/ports/userRepository'
+import { FakeMembershipRepository } from '../application/testing/fakeMembershipRepository'
+import { FakeUserRepository } from '../application/testing/fakeUserRepository'
+import { aUser } from '../application/testing/builders'
+import { MAX_PUSH_FAILURES } from '../domain/push/pushSubscription'
 import { createPushNotifier } from './pushNotifier'
 
 /**
@@ -46,8 +51,10 @@ describe('the push notifier', () => {
     timers = { pending: [], now: scene.clock.now().getTime() }
     listeners = []
     started = false
+    memberships = null
   })
 
+  let memberships: Pick<MembershipRepository, 'roleFor' | 'membershipFor'> | null = null
   const notifier = () => {
     const bus: Pick<EventBus, 'subscribeAll'> = {
       subscribeAll: (listener) => {
@@ -58,7 +65,7 @@ describe('the push notifier', () => {
     return createPushNotifier({
       bus,
       events: scene.events,
-      memberships: scene.memberships,
+      memberships: memberships ?? scene.memberships,
       subscriptions,
       sender,
       clock: scene.clock,
@@ -197,7 +204,7 @@ describe('the push notifier', () => {
     expect(sender.sent).toHaveLength(0)
   })
 
-  it('tells only those who are still owners, read now: a moderator’s or a stranger’s subscription is skipped and kept', async () => {
+  it('tells only those who are still owners, read now: a moderator’s or a stranger’s subscription is not sent to, and is removed', async () => {
     await subscribe('s-owner')
     await subscribe('s-mod', WEDDING, MODERATOR)
     begin()
@@ -206,10 +213,124 @@ describe('the push notifier', () => {
     await advance(T())
 
     expect(sender.sent.map((entry) => entry.subscription.id)).toEqual(['s-owner'])
+    expect((await subscriptions.listByEvent(WEDDING)).map((row) => row.id)).toEqual(['s-owner'])
+  })
+
+  it('removes the subscriptions of an account that has no membership any more', async () => {
+    await subscribe('s-owner')
+    await subscribe('s-left', WEDDING, STRANGER)
+    begin()
+
+    reply()
+    await advance(T())
+
+    expect(sender.sent.map((entry) => entry.subscription.id)).toEqual(['s-owner'])
+    expect((await subscriptions.listByEvent(WEDDING)).map((row) => row.id)).toEqual(['s-owner'])
+  })
+
+  it('skips and keeps the subscription of an owner whose account is switched off', async () => {
+    await subscribe('s-owner')
+    const users = new FakeUserRepository().seed(aUser({ id: OWNER }).disable(scene.clock.now()))
+    memberships = new FakeMembershipRepository({ users }).seed({
+      eventId: WEDDING,
+      userId: OWNER,
+      role: 'owner',
+      grantedAt: scene.clock.now(),
+    })
+    begin()
+
+    reply()
+    await advance(T())
+
+    expect(sender.sent).toHaveLength(0)
+    expect(await subscriptions.listByEvent(WEDDING)).toHaveLength(1)
+  })
+
+  it('prunes a subscription that failed five times in a row, and a delivery starts the count again', async () => {
+    await subscribe('s-dead')
+    await subscribe('s-flaky')
+    sender.outcomes.set('s-dead', 'failed')
+    sender.outcomes.set('s-flaky', 'failed')
+    begin()
+    let at = T()
+    const send = async () => {
+      reply()
+      await advance(at)
+      at += PUSH_MIN_INTERVAL_MS
+    }
+
+    for (let i = 0; i < MAX_PUSH_FAILURES - 1; i += 1) await send()
     expect((await subscriptions.listByEvent(WEDDING)).map((row) => row.id)).toEqual([
-      's-owner',
-      's-mod',
+      's-dead',
+      's-flaky',
     ])
+    sender.outcomes.delete('s-flaky')
+    await send()
+    sender.outcomes.set('s-flaky', 'failed')
+    for (let i = 0; i < MAX_PUSH_FAILURES - 1; i += 1) await send()
+
+    expect((await subscriptions.listByEvent(WEDDING)).map((row) => row.id)).toEqual(['s-flaky'])
+    expect(
+      logger.lines.filter((line) => line.message === 'browser notifications sent').at(-1)?.context,
+    ).toMatchObject({ pruned: 0 })
+  })
+
+  it('shares the fifty sends out between the owners, newest browser first for each', async () => {
+    await scene.memberships.grant({
+      eventId: WEDDING,
+      userId: STRANGER,
+      role: 'owner',
+      grantedAt: scene.clock.now(),
+    })
+    const make = async (id: string, user: typeof OWNER, at: number) =>
+      void (await subscriptions.upsert(
+        PushSubscription.create({
+          id,
+          userId: user,
+          eventId: WEDDING,
+          endpoint: `https://fcm.googleapis.com/${id}`,
+          p256dh: 'B' + 'A'.repeat(86),
+          auth: 'A'.repeat(22),
+          createdAt: new Date(at),
+        }),
+        100,
+      ))
+    for (let i = 0; i < 10; i += 1) await make(`a-${i}`, OWNER, 1000 + i)
+    for (let i = 0; i < 45; i += 1) await make(`b-${i}`, STRANGER, 5000 + i)
+    begin()
+
+    reply()
+    await advance(T())
+
+    const ids = sender.sent.map((entry) => entry.subscription.id)
+    expect(ids).toHaveLength(50)
+    // All ten of the first owner are told, though the other has more than the cap on its own.
+    expect(ids.filter((id) => id.startsWith('a-'))).toHaveLength(10)
+    expect(ids).toContain('b-44')
+    expect(ids).not.toContain('b-0')
+  })
+
+  it('never runs two deliveries of one event at once: a reply during a slow one goes in the next', async () => {
+    await subscribe('s-1')
+    let release: () => void = () => undefined
+    sender.hold = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const start = T()
+    begin()
+
+    reply()
+    await advance(start)
+    expect(sender.sent).toHaveLength(1)
+    reply()
+    await advance(start + PUSH_MIN_INTERVAL_MS)
+    expect(sender.sent).toHaveLength(1)
+    sender.hold = null
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await advance(start + 2 * PUSH_MIN_INTERVAL_MS)
+
+    expect(payloads().map((message) => message.count)).toEqual([1, 1])
   })
 
   it('removes a subscription the push service calls gone, and keeps one that merely failed', async () => {

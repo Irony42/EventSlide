@@ -1,5 +1,5 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns'
-import { request as httpsRequest } from 'node:https'
+import { Agent, request as httpsRequest } from 'node:https'
 import type { LookupFunction } from 'node:net'
 import type { Logger } from '../../application/ports/logger'
 import type { PushOutcome, PushSender } from '../../application/ports/pushSender'
@@ -83,47 +83,59 @@ export const guardedLookup =
     })
   }
 
+/**
+ * The agent every push request uses: its own, with no keep-alive, so that no connection is pooled or
+ * reused across hosts and nothing of the global agent (or of a proxy set in the environment for it) is
+ * involved. Every request makes its own connection through {@link guardedLookup}.
+ */
+export const pushAgent = new Agent({ keepAlive: false })
+
 /** The network, for real: an HTTPS POST that goes only to public addresses and follows nothing. */
-export const httpsPushTransport: PushTransport = (request) =>
-  new Promise((resolve, reject) => {
-    const clientRequest = httpsRequest(
-      {
-        host: request.host,
-        port: 443,
-        path: request.path,
-        method: 'POST',
-        headers: { ...request.headers, 'Content-Length': String(request.body.length) },
-        lookup: guardedLookup() as unknown as LookupFunction,
-        // A certificate that does not verify is never accepted: the default, said out loud.
-        rejectUnauthorized: true,
-      },
-      (response) => {
-        let read = 0
-        let truncated = false
-        response.on('data', (chunk: Buffer) => {
-          read += chunk.length
-          if (read > request.maxResponseBytes && !truncated) {
-            truncated = true
-            response.destroy()
-          }
-        })
-        const done = (): void => resolve({ status: response.statusCode ?? 0, truncated })
-        response.on('end', done)
-        response.on('close', done)
-        response.on('error', done)
-      },
-    )
-    // One deadline for the whole exchange, so a service that drips bytes cannot hold the box.
-    const deadline = setBackgroundTimeout(() => {
-      clientRequest.destroy(new Error('push deadline'))
-    }, request.timeoutMs)
-    clientRequest.on('error', (error) => {
-      clearTimeout(deadline)
-      reject(error)
+export const createHttpsPushTransport =
+  (doRequest: typeof httpsRequest = httpsRequest): PushTransport =>
+  (request) =>
+    new Promise((resolve, reject) => {
+      const clientRequest = doRequest(
+        {
+          agent: pushAgent,
+          host: request.host,
+          port: 443,
+          path: request.path,
+          method: 'POST',
+          headers: { ...request.headers, 'Content-Length': String(request.body.length) },
+          lookup: guardedLookup() as unknown as LookupFunction,
+          // A certificate that does not verify is never accepted: the default, said out loud.
+          rejectUnauthorized: true,
+        },
+        (response) => {
+          let read = 0
+          let truncated = false
+          response.on('data', (chunk: Buffer) => {
+            read += chunk.length
+            if (read > request.maxResponseBytes && !truncated) {
+              truncated = true
+              response.destroy()
+            }
+          })
+          const done = (): void => resolve({ status: response.statusCode ?? 0, truncated })
+          response.on('end', done)
+          response.on('close', done)
+          response.on('error', done)
+        },
+      )
+      // One deadline for the whole exchange, so a service that drips bytes cannot hold the box.
+      const deadline = setBackgroundTimeout(() => {
+        clientRequest.destroy(new Error('push deadline'))
+      }, request.timeoutMs)
+      clientRequest.on('error', (error) => {
+        clearTimeout(deadline)
+        reject(error)
+      })
+      clientRequest.on('close', () => clearTimeout(deadline))
+      clientRequest.end(request.body)
     })
-    clientRequest.on('close', () => clearTimeout(deadline))
-    clientRequest.end(request.body)
-  })
+
+export const httpsPushTransport: PushTransport = createHttpsPushTransport()
 
 /** What a status says: 2xx delivered, 404 and 410 gone for good, the rest (3xx included) a failure. */
 export const outcomeOfStatus = (status: number): PushOutcome =>

@@ -25,6 +25,18 @@ export interface PushSubscriptionRepository {
   /** Removes one subscription by its id, within the event (the push service said it is gone). */
   removeById(eventId: EventId, id: string): Promise<boolean>
 
+  /**
+   * Counts one more send the push service did not take, and removes the subscription when that makes
+   * `limit` in a row. `'pruned'` when it was removed, `'kept'` otherwise (also for an id that is gone).
+   */
+  recordFailure(eventId: EventId, id: string, limit: number): Promise<'kept' | 'pruned'>
+
+  /** A send was taken: the count of failures in a row starts again. */
+  resetFailures(eventId: EventId, id: string): Promise<void>
+
+  /** Removes every subscription of this account for the event (it is no longer an owner of it). */
+  removeForMember(eventId: EventId, userId: UserId): Promise<number>
+
   /** Every subscription of the event, oldest first. */
   listByEvent(eventId: EventId): Promise<readonly PushSubscription[]>
 }

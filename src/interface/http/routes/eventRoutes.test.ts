@@ -1,4 +1,5 @@
 import { FakePurgeNoticeLedger } from '../../../application/testing/fakePurgeNoticeLedger'
+import { FakePushSubscriptionRepository } from '../../../application/testing/fakePushSubscriptionRepository'
 import type { Express } from 'express'
 import request from '../testing/request'
 import type { Agent, Test } from 'supertest'
@@ -346,7 +347,11 @@ const buildWorld = ({
         removeEventLogo: absent('removeEventLogo'),
         getEventLogoMedia: absent('getEventLogoMedia'),
         listModerators: makeListModerators({ memberships }),
-        revokeModerator: makeRevokeModerator({ events, memberships }),
+        revokeModerator: makeRevokeModerator({
+          events,
+          memberships,
+          pushSubscriptions: new FakePushSubscriptionRepository(),
+        }),
 
         joinEvent: absent('joinEvent'),
         renameGuest: absent('renameGuest'),

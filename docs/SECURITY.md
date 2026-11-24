@@ -4092,13 +4092,14 @@ The endpoint is judged **twice** (when it is stored and when it is called) and t
    `PUSH_ALLOWED_HOSTS` **replaces** the list (host names and `*.suffix` patterns, never an IP); a wildcard needs a label in front of
    the suffix; `fcm.googleapis.com.evil.test` and `evilfcm.googleapis.com` are not `fcm.googleapis.com`.
 3. **The connection goes only to a public address**: the name is resolved by the box (`dns.lookup` with `all`), **every** address must be
-   public (not loopback, private, shared, link-local such as the cloud metadata address, unique-local, multicast, reserved, documentation, the 6to4 and Teredo tunnels,
+   public (not loopback, private, shared, link-local such as the cloud metadata address, unique-local, multicast, reserved, documentation, the 6to4 tunnel, the special-purpose IPv6 blocks of 2001::/23 (Teredo, benchmarking, ORCHID...),
    or an IPv4 written as IPv6), and the connection uses the addresses that were checked (no second resolution to rebind). A name that
    resolves inside the network is refused at the connection.
 4. **No redirect is followed** (a `3xx` is a failure), the certificate must verify, the whole exchange has a **10 second** deadline, and
    **at most 4 KB of the answer is read**.
 5. **A subscription that can never work is removed**: the push service says `404` or `410`, the browser's key is not a point of the curve, or
-   the endpoint no longer passes the allowlist. One that merely failed (a timeout, a 5xx, a refused signature) is kept.
+   the endpoint no longer passes the allowlist. One that merely failed (a timeout, a 5xx, a refused signature) is kept until it has failed **five times in a row** (a delivery starts the count again), then pruned. The browsers of an account that is no longer a member or an owner of the event are removed at the next message, and with the membership when an owner revokes it.
+6. **Bounded and never overlapping**: the connection uses an agent of its own (no keep-alive, no global agent), at most 50 browsers are told per message (shared round-robin between the owners, newest first), and two deliveries of one event never run at once.
 
 ### Keys and logs
 

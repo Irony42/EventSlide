@@ -11,6 +11,8 @@ import type { Migration } from '../migrator'
  *   endpoint is a capability URL (whoever holds it can ask the push service to wake that browser, so
  *   it is never logged or sent anywhere but to its own push service), and the two keys are what the
  *   payload is encrypted to. Nothing else about the browser is kept.
+ * - **`failures`** counts the consecutive sends the push service did not take (a non-2xx, a timeout): a
+ *   subscription that reaches the limit is pruned, and a delivery resets it.
  * - Both foreign keys are `ON DELETE CASCADE` and each has its own index (the migrator's test asks
  *   for one starting with every foreign key column): a purged event or a deleted account takes its
  *   subscriptions with it.
@@ -29,8 +31,10 @@ export const migration038: Migration = {
         p256dh     TEXT NOT NULL,
         auth       TEXT NOT NULL,
         created_at TEXT NOT NULL,
+        failures   INTEGER NOT NULL DEFAULT 0,
 
         CHECK (length(endpoint) BETWEEN 1 AND 2048),
+        CHECK (failures >= 0),
         UNIQUE (endpoint, event_id, user_id)
       );
       CREATE INDEX IF NOT EXISTS push_subscriptions_user ON push_subscriptions (user_id);

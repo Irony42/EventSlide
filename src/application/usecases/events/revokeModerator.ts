@@ -2,6 +2,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { PushSubscriptionRepository } from '../../ports/pushSubscriptionRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
 
@@ -29,12 +30,14 @@ export interface RevokeModeratorInput {
 export interface RevokeModeratorDeps {
   readonly events: EventRepository
   readonly memberships: MembershipRepository
+  /** The browsers the member asked to be told on (spec 30, lot 4): they go with the membership. */
+  readonly pushSubscriptions: Pick<PushSubscriptionRepository, 'removeForMember'>
 }
 
 export type RevokeModerator = (input: RevokeModeratorInput) => Promise<Result<void, DomainError>>
 
 export const makeRevokeModerator =
-  ({ events, memberships }: RevokeModeratorDeps): RevokeModerator =>
+  ({ events, memberships, pushSubscriptions }: RevokeModeratorDeps): RevokeModerator =>
   async ({ eventId, actorId, userId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -60,6 +63,8 @@ export const makeRevokeModerator =
     }
 
     await memberships.revoke(eventId, userId)
+    // Whoever leaves the event stops being told about its replies: no stale row waits for the next message.
+    await pushSubscriptions.removeForMember(eventId, userId)
 
     return ok(undefined)
   }
