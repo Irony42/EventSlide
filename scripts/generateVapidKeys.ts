@@ -26,7 +26,11 @@ export const run = (write: (line: string) => void = console.log): number => {
   return 0
 }
 
-/** Run as a program, and not when a test imports `run` (see `backup.ts`). */
+/**
+ * Run as a program, and not when a test imports `run` (see `backup.ts`). Left out of the coverage count:
+ * the scripts ratchet is a number of uncovered lines that only goes down, and a test cannot be the main module.
+ */
+/* v8 ignore next 3 -- @preserve */
 if (require.main === module) {
   process.exitCode = run()
 }
