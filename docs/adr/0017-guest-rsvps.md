@@ -129,3 +129,10 @@ Three decisions follow from that and a later reader would otherwise reopen them.
 - [ADR 0016 — Guest invitations](0016-guest-invitations.md)
 - `docs/SECURITY.md` §15 (the shared gallery link, the other token kept as a digest)
 - Spec 30 (`eventslide-suivi/specs/30-reponses-invites.md`)
+
+### Web Push, the page and the worker (lot 4, PR 16)
+
+- The worker (`web/sw/serviceWorker.ts`) gains `push` and `notificationclick` handlers; their logic (reading the message, wording it in the browser's language among the five, picking the window to focus) is in `web/src/lib/push/pushNotice.ts`, tested like any module. A push always ends in a notification, and the click only follows a path of the host's console.
+- The checkbox of the Réponses page asks the permission **from the click only**; a denial is said and never asked again; the box is absent while the server has no key. One browser holds one push subscription for the whole site, so unticking an event tells the server to forget that event for this browser and leaves the browser's subscription.
+- The worker is registered when the box is ticked even if the offline queue is off. `removeUploadWorker` (the kill switch) keeps a registration a push subscription lives on and tells its worker to stop serving the shell and the outbox (`eventslide:push-only`).
+- iPhone: Web Push exists only for an app added to the home screen (iOS 16.4+); the page says so instead of offering a box that cannot work. The manifest (`display: standalone`, icons, `start_url: /join`) already qualifies the app as installable.

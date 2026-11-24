@@ -3614,6 +3614,17 @@ export const it: UiText = {
       presetKindWedding: 'un matrimonio',
     },
     /** The host's replies page (spec 30, lot 1). */
+    push: {
+      label: 'Notifica del browser',
+      hint: 'Questo browser La avvisa quando arrivano risposte, senza dire chi ha risposto né cosa.',
+      unsupported: 'Questo browser non può mostrare notifiche.',
+      addToHomeScreen:
+        'Su iPhone, aggiunga prima EventSlide alla schermata Home e lo apra dalla sua icona: le notifiche esistono solo nell’app installata.',
+      denied:
+        'Le notifiche sono bloccate per questo sito: le consenta nelle impostazioni del browser, poi torni qui.',
+      failed: 'Non è stato possibile attivare la notifica. Riprovi tra un momento.',
+      offFailed: 'Non è stato possibile disattivare la notifica. Riprovi tra un momento.',
+    },
     list: {
       crumb: 'Risposte',
       title: 'Risposte',

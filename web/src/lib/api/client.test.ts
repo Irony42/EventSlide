@@ -91,10 +91,12 @@ const recorder: Transport = {
     path: string,
     signal?: AbortSignal,
     headers?: Readonly<Record<string, string>>,
+    body?: unknown,
   ): Promise<T> => {
     calls.push({
       verb: 'del',
       path,
+      ...(body !== undefined ? { body } : {}),
       ...(signal ? { signal } : {}),
       ...(headers ? { headers } : {}),
     })
@@ -938,6 +940,28 @@ const ENDPOINTS: readonly EndpointCase[] = [
     verb: 'post',
     path: `/api/events/${SLUG}/rsvps/${RSVP_ID}/household`,
     invoke: (client) => client.fileRsvpUnderHousehold(SLUG, RSVP_ID, null),
+  },
+  {
+    name: 'pushKey',
+    verb: 'get',
+    path: '/api/push/key',
+    invoke: (client) => client.pushKey(),
+  },
+  {
+    name: 'subscribePush',
+    verb: 'post',
+    path: `/api/events/${SLUG}/push-subscription`,
+    invoke: (client) =>
+      client.subscribePush(SLUG, {
+        endpoint: 'https://fcm.googleapis.com/x',
+        keys: { p256dh: 'a', auth: 'b' },
+      }),
+  },
+  {
+    name: 'unsubscribePush',
+    verb: 'del',
+    path: `/api/events/${SLUG}/push-subscription`,
+    invoke: (client) => client.unsubscribePush(SLUG, 'https://fcm.googleapis.com/x'),
   },
   {
     name: 'markRsvpsSeen',
@@ -1855,5 +1879,23 @@ describe('the instance the app uses', () => {
     await api.session()
 
     expect(urls).toEqual(['/api/auth/me'])
+  })
+})
+
+describe('the browser notification calls (spec 30, lot 4)', () => {
+  it('sends the subscription as the body, and the endpoint alone as the body of the removal', async () => {
+    const input = { endpoint: 'https://fcm.googleapis.com/x', keys: { p256dh: 'a', auth: 'b' } }
+
+    await subject().subscribePush(SLUG, input)
+    expect(only().body).toEqual(input)
+  })
+
+  it('names the endpoint in the removal', async () => {
+    await subject().unsubscribePush(SLUG, 'https://fcm.googleapis.com/x')
+
+    expect(only()).toMatchObject({
+      verb: 'del',
+      body: { endpoint: 'https://fcm.googleapis.com/x' },
+    })
   })
 })

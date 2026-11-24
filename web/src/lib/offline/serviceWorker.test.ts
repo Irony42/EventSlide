@@ -4,6 +4,8 @@ import type * as IndexedDbOutboxModule from './indexedDbOutbox'
 import {
   KILL_MESSAGE,
   OUTBOX_SYNC_TAG,
+  PUSH_ONLY_MESSAGE,
+  ensurePushWorker,
   registerUploadWorker,
   removeUploadWorker,
   requestBackgroundSync,
@@ -30,6 +32,7 @@ interface FakeRegistration {
   active: { postMessage: ReturnType<typeof vi.fn> } | null
   unregister: ReturnType<typeof vi.fn>
   sync?: { register: ReturnType<typeof vi.fn> }
+  pushManager?: { getSubscription: ReturnType<typeof vi.fn> }
 }
 
 const install = (container: Partial<ServiceWorkerContainer>): void => {
@@ -201,5 +204,59 @@ describe('supportsBackgroundSync', () => {
 
   it('says no in a browser with no service workers at all', async () => {
     expect(await supportsBackgroundSync()).toBe(false)
+  })
+})
+
+describe('a browser notification on the worker (spec 30, lot 4)', () => {
+  it('keeps a registration a push subscription lives on, and tells its worker to stop serving the shell', async () => {
+    const subscribed = aRegistration({
+      pushManager: { getSubscription: vi.fn(async () => ({ endpoint: 'https://x.example/e' })) },
+    })
+    const plain = aRegistration({ pushManager: { getSubscription: vi.fn(async () => null) } })
+    install({
+      getRegistrations: vi.fn(async () => [subscribed, plain]) as never,
+    })
+
+    await removeUploadWorker()
+
+    expect(subscribed.unregister).not.toHaveBeenCalled()
+    expect(subscribed.active?.postMessage).toHaveBeenCalledWith({ type: PUSH_ONLY_MESSAGE })
+    expect(subscribed.active?.postMessage).not.toHaveBeenCalledWith({ type: KILL_MESSAGE })
+    expect(plain.unregister).toHaveBeenCalledTimes(1)
+    expect(plain.active?.postMessage).toHaveBeenCalledWith({ type: KILL_MESSAGE })
+  })
+
+  it('removes a registration whose subscription cannot be read', async () => {
+    const broken = aRegistration({
+      pushManager: {
+        getSubscription: vi.fn(async () => {
+          throw new Error('denied')
+        }),
+      },
+    })
+    install({ getRegistrations: vi.fn(async () => [broken]) as never })
+
+    await removeUploadWorker()
+
+    expect(broken.unregister).toHaveBeenCalledTimes(1)
+  })
+
+  it('registers the worker for a host who asked for notifications, and says when it cannot', async () => {
+    const ready = aRegistration()
+    const register = vi.fn(async () => ready)
+    install({ register: register as never, ready: Promise.resolve(ready) as never })
+
+    expect(await ensurePushWorker('/sw.js')).toBe(ready)
+    expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' })
+
+    install({
+      register: vi.fn(async () => {
+        throw new Error('insecure')
+      }) as never,
+    })
+    expect(await ensurePushWorker()).toBeNull()
+
+    uninstall()
+    expect(await ensurePushWorker()).toBeNull()
   })
 })

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireRole, requireUser } from '../middleware/authz'
 import { hostScopeOf } from '../middleware/scope'
+import type { PushKeyResponseDto } from '../presenters/dto'
 import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import { eventSlugParams, pushSubscribeBody, pushUnsubscribeBody } from '../schemas/requestSchemas'
 import type { HttpUseCases, RouteDeps } from '../useCases'
@@ -32,7 +33,9 @@ export const pushRoutes = ({ deps, usecases }: PushRouteDeps): Router => {
     asyncHandler(async (_req, res) => {
       res.setHeader('Cache-Control', 'no-store')
       const result = await usecases.getPushKey()
-      sendResult(res, result, (response, publicKey) => sendJson(response, { publicKey }))
+      sendResult(res, result, (response, publicKey) =>
+        sendJson<PushKeyResponseDto>(response, { publicKey }),
+      )
     }),
   )
 

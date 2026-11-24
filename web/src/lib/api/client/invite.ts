@@ -275,12 +275,9 @@ export const guestInviteApi = (transport: Transport) => ({
 
   /** Forgets this browser for the event: idempotent, any member. */
   unsubscribePush: (slug: string, endpoint: string): Promise<void> =>
-    transport.del(
-      `/api/events/${encode(slug)}/push-subscription`,
-      undefined,
-      undefined,
-      { endpoint },
-    ),
+    transport.del(`/api/events/${encode(slug)}/push-subscription`, undefined, undefined, {
+      endpoint,
+    }),
 
   /** The replies as a spreadsheet, for the browser to download. */
   rsvpExportUrl: (slug: string, view: 'all' | 'caterer' = 'all'): string =>

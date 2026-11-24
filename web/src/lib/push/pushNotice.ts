@@ -31,7 +31,8 @@ export const parseRsvpNotice = (data: unknown): RsvpNotice | null => {
 }
 
 /** Where a click goes: the host's Réponses page of the event. */
-export const repliesPath = (slug: string): string => `/admin/events/${encodeURIComponent(slug)}/rsvps`
+export const repliesPath = (slug: string): string =>
+  `/admin/events/${encodeURIComponent(slug)}/rsvps`
 
 /** One notification per event: a second message replaces the first instead of stacking. */
 export const notificationTag = (slug: string): string => `eventslide-rsvp-${slug}`

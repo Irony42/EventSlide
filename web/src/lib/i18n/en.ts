@@ -3559,6 +3559,17 @@ export const en: UiText = {
       presetKindWedding: 'a wedding',
     },
     /** The host's replies page (spec 30, lot 1). */
+    push: {
+      label: 'Browser notification',
+      hint: 'This browser tells you when replies come in, without saying who replied or what.',
+      unsupported: 'This browser cannot show notifications.',
+      addToHomeScreen:
+        'On iPhone, first add EventSlide to your home screen, then open it from its icon: notifications only exist in the installed app.',
+      denied:
+        'Notifications are blocked for this site: allow them in the browser settings, then come back here.',
+      failed: 'The notification could not be turned on. Try again in a moment.',
+      offFailed: 'The notification could not be turned off. Try again in a moment.',
+    },
     list: {
       crumb: 'Replies',
       title: 'Replies',

@@ -617,6 +617,22 @@ describe('what goes on the wire', () => {
   })
 })
 
+describe('a DELETE that says which one (spec 30, a browser notification)', () => {
+  it('carries its body as JSON, and none when it has none', async () => {
+    answerWith(() => jsonBody(200, {}))
+
+    await http.del('/api/events/gala/push-subscription', undefined, undefined, {
+      endpoint: 'https://x.example/e',
+    })
+    expect(lastRequest().init.method).toBe('DELETE')
+    expect(lastRequest().init.body).toBe('{"endpoint":"https://x.example/e"}')
+    expect(headersOf(lastRequest())['content-type']).toBe('application/json')
+
+    await http.del('/api/events/gala/photos/p1')
+    expect(lastRequest().init.body).toBeUndefined()
+  })
+})
+
 describe('a header of the caller’s own (the token of a guest’s reply, spec 30)', () => {
   const HEADER = { 'X-Rsvp-Token': 'secret-token' }
 

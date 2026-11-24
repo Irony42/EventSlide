@@ -213,13 +213,17 @@ worker.addEventListener('message', (event) => {
  * message that cannot be read still says that something came in. The text is worded here, in the
  * browser's language: the message carries a count and an event's address, nothing a guest wrote.
  */
-worker.addEventListener('push', (event) => {
-  let notice = null
+/** The message of a push, or `null` when it cannot be read as the box writes it. */
+const readNotice = (data: PushMessageData | null): ReturnType<typeof parseRsvpNotice> => {
   try {
-    notice = parseRsvpNotice(event.data?.json())
+    return parseRsvpNotice(data?.json())
   } catch {
-    notice = null
+    return null
   }
+}
+
+worker.addEventListener('push', (event) => {
+  const notice = readNotice(event.data)
   const words = noticeText(notice?.count ?? null, worker.navigator.language)
   event.waitUntil(
     worker.registration.showNotification(words.title, {
@@ -237,19 +241,17 @@ worker.addEventListener('notificationclick', (event) => {
   const path = typeof data === 'object' && data !== null ? Reflect.get(data, 'path') : undefined
   if (typeof path !== 'string' || !path.startsWith('/admin')) return
   event.waitUntil(
-    worker.clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((windows) =>
-        openRepliesPage(
-          windows.map<OpenWindow>((client) => ({
-            url: client.url,
-            focus: () => client.focus(),
-            navigate: (url) => client.navigate(url),
-          })),
-          worker.location.origin,
-          path,
-          (url) => worker.clients.openWindow(url),
-        ),
+    worker.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) =>
+      openRepliesPage(
+        windows.map<OpenWindow>((client) => ({
+          url: client.url,
+          focus: () => client.focus(),
+          navigate: (url) => client.navigate(url),
+        })),
+        worker.location.origin,
+        path,
+        (url) => worker.clients.openWindow(url),
       ),
+    ),
   )
 })

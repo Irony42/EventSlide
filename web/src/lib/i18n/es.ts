@@ -3641,6 +3641,17 @@ export const es: UiText = {
       presetKindWedding: 'una boda',
     },
     /** The host's replies page (spec 30, lot 1). */
+    push: {
+      label: 'Notificación del navegador',
+      hint: 'Este navegador le avisa cuando llegan respuestas, sin decir quién ha respondido ni qué.',
+      unsupported: 'Este navegador no puede mostrar notificaciones.',
+      addToHomeScreen:
+        'En iPhone, añada primero EventSlide a la pantalla de inicio y ábralo desde su icono: las notificaciones solo existen en la aplicación instalada.',
+      denied:
+        'Las notificaciones están bloqueadas para este sitio: permítalas en los ajustes del navegador y vuelva aquí.',
+      failed: 'No se ha podido activar la notificación. Inténtelo de nuevo en un momento.',
+      offFailed: 'No se ha podido desactivar la notificación. Inténtelo de nuevo en un momento.',
+    },
     list: {
       crumb: 'Respuestas',
       title: 'Respuestas',
