@@ -64,6 +64,7 @@ import {
   makeGetPushKey,
   makeSubscribePush,
   makeUnsubscribePush,
+  makeUnsubscribePushEverywhere,
 } from '../application/usecases/push/pushSubscriptions'
 import type { Adapters, UseCasePolicy } from './usecases'
 import type { SharedHooks } from './usecases.shared'
@@ -288,6 +289,10 @@ export const eventsUseCases = (
     subscriptions: adapters.pushSubscriptions,
     ids: adapters.ids,
     clock: adapters.clock,
+    push: policy.push,
+  }),
+  unsubscribePushEverywhere: makeUnsubscribePushEverywhere({
+    subscriptions: adapters.pushSubscriptions,
     push: policy.push,
   }),
   unsubscribePush: makeUnsubscribePush({

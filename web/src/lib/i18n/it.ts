@@ -3615,6 +3615,11 @@ export const it: UiText = {
     },
     /** The host's replies page (spec 30, lot 1). */
     push: {
+      // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
+      // same words, and a test holds the two together).
+      noticeOne: 'Una nuova risposta',
+      noticeMany: (count: number) => `${count} nuove risposte`,
+      noticeSome: 'Nuove risposte',
       label: 'Notifica del browser',
       hint: 'Questo browser La avvisa quando arrivano risposte, senza dire chi ha risposto né cosa.',
       unsupported: 'Questo browser non può mostrare notifiche.',

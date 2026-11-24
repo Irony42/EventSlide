@@ -40,9 +40,30 @@ describe('the service worker’s push handlers', () => {
     expect(worker).toMatch(/path\.startsWith\('\/admin'\)/)
   })
 
-  it('stops serving the shell and the outbox when told only push is wanted', () => {
-    expect(worker).toMatch(/if \(pushOnly \|\| !isShellRequest/)
-    expect(worker).toMatch(/if \(pushOnly \|\| sync\.tag !== OUTBOX_SYNC_TAG\) return/)
-    expect(worker).toMatch(/pushOnly = true/)
+  it('reads the push-only mode from its storage, not from a variable that a restart forgets', () => {
+    expect(worker).toMatch(/let pushOnly: Promise<boolean> = readPushOnly\(caches\)/)
+    expect(worker).toMatch(/writePushOnly\(caches, true\)/)
+    expect(worker).toMatch(/writePushOnly\(caches, false\)/)
+  })
+
+  it('waits for that answer before it fetches the shell, drains the outbox or precaches', () => {
+    // Install: no shell is fetched in push-only mode.
+    expect(worker).toMatch(/pushOnly\s*\.then\(\(only\) =>\s*only\s*\?\s*undefined/)
+    // Fetch: the network answers in push-only mode.
+    expect(worker).toMatch(/pushOnly\.then\(\(only\) =>\s*only\s*\?[^]*?fetch\(event\.request\)/)
+    // Sync: nothing is drained in push-only mode.
+    expect(worker).toMatch(
+      /sync\.waitUntil\(pushOnly\.then\(\(only\) => \(only \? undefined : drainEverything\(\)\)\)\)/,
+    )
+  })
+
+  it('leaves push-only mode when the page says the queue is on again', () => {
+    expect(worker).toMatch(/QUEUE_ON_MESSAGE/)
+    expect(worker).toMatch(/pushOnly = Promise\.resolve\(false\)/)
+    expect(worker).toMatch(/pushOnly = Promise\.resolve\(true\)/)
+  })
+
+  it('buzzes again for a second message of the same event', () => {
+    expect(worker).toMatch(/renotify: true/)
   })
 })

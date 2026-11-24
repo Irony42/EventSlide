@@ -22,6 +22,9 @@ export interface PushSubscriptionRepository {
   /** Removes this account's subscription of this browser for the event. Says whether one existed. */
   remove(eventId: EventId, userId: UserId, endpoint: string): Promise<boolean>
 
+  /** Removes this account's subscriptions of this browser, **for every event** (a sign-out). Says how many. */
+  removeAllForUser(userId: UserId, endpoint: string): Promise<number>
+
   /** Removes one subscription by its id, within the event (the push service said it is gone). */
   removeById(eventId: EventId, id: string): Promise<boolean>
 

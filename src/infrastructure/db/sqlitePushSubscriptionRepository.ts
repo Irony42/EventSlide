@@ -88,6 +88,14 @@ export class SqlitePushSubscriptionRepository implements PushSubscriptionReposit
     )
   }
 
+  async removeAllForUser(userId: UserId, endpoint: string): Promise<number> {
+    return this.db
+      .prepare<[string, string]>(
+        `DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?`,
+      )
+      .run(userId, endpoint).changes
+  }
+
   async removeById(eventId: EventId, id: string): Promise<boolean> {
     return (
       this.db

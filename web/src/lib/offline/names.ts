@@ -25,6 +25,9 @@ export const KILL_MESSAGE = 'eventslide:kill'
  */
 export const PUSH_ONLY_MESSAGE = 'eventslide:push-only'
 
+/** What the page posts when the offline queue is on again: the worker leaves push-only mode and serves as before. */
+export const QUEUE_ON_MESSAGE = 'eventslide:queue-on'
+
 /** The readable cookie holding the double-submit CSRF token. */
 export const CSRF_COOKIE = 'es_csrf'
 

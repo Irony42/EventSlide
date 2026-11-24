@@ -964,6 +964,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.unsubscribePush(SLUG, 'https://fcm.googleapis.com/x'),
   },
   {
+    name: 'unsubscribePushEverywhere',
+    verb: 'del',
+    path: '/api/push-subscriptions',
+    invoke: (client) => client.unsubscribePushEverywhere('https://fcm.googleapis.com/x'),
+  },
+  {
     name: 'markRsvpsSeen',
     verb: 'post',
     path: `/api/events/${SLUG}/rsvps/seen`,

@@ -165,6 +165,19 @@ export const pushSubscriptionRepositoryContract = (
       await repo.resetFailures(GALA, 'nope')
     })
 
+    it('removes an account’s browser for every event at once, and nobody else’s', async () => {
+      await repo.upsert(sub({ id: 's-1' }), 10)
+      await repo.upsert(sub({ id: 's-2', event: GALA }), 10)
+      await repo.upsert(sub({ id: 's-3', endpoint: 'https://a.example/other' }), 10)
+      await repo.upsert(sub({ id: 's-4', user: TWO }), 10)
+
+      expect(await repo.removeAllForUser(ONE, ENDPOINT)).toBe(2)
+      expect(await repo.removeAllForUser(ONE, ENDPOINT)).toBe(0)
+
+      expect((await repo.listByEvent(WEDDING)).map((row) => row.id).sort()).toEqual(['s-3', 's-4'])
+      expect(await repo.listByEvent(GALA)).toHaveLength(0)
+    })
+
     it('removes every subscription of an account for one event, and no other', async () => {
       await repo.upsert(sub({ id: 's-1' }), 10)
       await repo.upsert(sub({ id: 's-2', endpoint: 'https://a.example/2' }), 10)

@@ -184,6 +184,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
   getPushKey: notWired('getPushKey'),
   subscribePush: notWired('subscribePush'),
   unsubscribePush: notWired('unsubscribePush'),
+  unsubscribePushEverywhere: notWired('unsubscribePushEverywhere'),
   markRsvpsSeen: notWired('markRsvpsSeen'),
   listHouseholds: notWired('listHouseholds'),
   saveHousehold: notWired('saveHousehold'),

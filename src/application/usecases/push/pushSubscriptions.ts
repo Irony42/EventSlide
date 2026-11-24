@@ -88,6 +88,37 @@ export const makeSubscribePush =
     return stored === 'tooMany' ? err(DomainError.conflict('push.tooMany')) : ok(undefined)
   }
 
+/**
+ * A sign-out on a shared computer: this account's subscriptions of **this browser** are removed for
+ * every event at once. Idempotent and always allowed, like the one-event removal, and it says nothing of
+ * what existed. Only the caller's own rows can be reached: the account is the session's, never a value
+ * a request names.
+ */
+export interface UnsubscribePushEverywhereInput {
+  readonly actorId: UserId
+  readonly endpoint: unknown
+}
+
+export interface UnsubscribePushEverywhereDeps {
+  readonly subscriptions: Pick<PushSubscriptionRepository, 'removeAllForUser'>
+  readonly push: PushConfig | null
+}
+
+export type UnsubscribePushEverywhere = (
+  input: UnsubscribePushEverywhereInput,
+) => Promise<Result<void, DomainError>>
+
+export const makeUnsubscribePushEverywhere =
+  (deps: UnsubscribePushEverywhereDeps): UnsubscribePushEverywhere =>
+  async ({ actorId, endpoint }) => {
+    if (typeof endpoint !== 'string' || endpoint.length === 0 || endpoint.length > 2048) {
+      return ok(undefined)
+    }
+    const normalised = parsePushEndpoint(endpoint, deps.push?.allowedHosts ?? [])
+    await deps.subscriptions.removeAllForUser(actorId, normalised.ok ? normalised.value : endpoint)
+    return ok(undefined)
+  }
+
 export interface UnsubscribePushInput {
   readonly eventId: EventId
   readonly actorId: UserId

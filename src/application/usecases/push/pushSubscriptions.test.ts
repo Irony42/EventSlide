@@ -16,6 +16,7 @@ import {
   makeGetPushKey,
   makeSubscribePush,
   makeUnsubscribePush,
+  makeUnsubscribePushEverywhere,
   type PushConfig,
 } from './pushSubscriptions'
 
@@ -186,6 +187,43 @@ describe('the host’s browser notifications (spec 30, lot 4)', () => {
       expect((await unsubscribe({ endpoint: 'x'.repeat(3000) })).ok).toBe(true)
       expect(await held()).toHaveLength(1)
       expect((await unsubscribe({}, null)).ok).toBe(true)
+      expect(await held()).toHaveLength(0)
+    })
+  })
+
+  describe('unsubscribing everywhere (a sign-out)', () => {
+    const everywhere = (overrides: Record<string, unknown> = {}, push: PushConfig | null = PUSH) =>
+      makeUnsubscribePushEverywhere({ subscriptions, push })({
+        actorId: OWNER,
+        endpoint: ENDPOINT,
+        ...overrides,
+      } as never)
+
+    it('removes this browser for every event of the account, and no other account’s', async () => {
+      await subscribe()
+      await subscribe({ eventId: ARCHIVED })
+      await subscribe({ actorId: STRANGER, eventId: GALA })
+
+      const first = await everywhere()
+      const again = await everywhere()
+
+      expect([first.ok, again.ok]).toEqual([true, true])
+      expect(await held()).toHaveLength(0)
+      expect(await subscriptions.listByEvent(ARCHIVED)).toHaveLength(0)
+      expect((await subscriptions.listByEvent(GALA)).map((row) => row.userId)).toEqual([STRANGER])
+    })
+
+    it('takes the endpoint as it was subscribed, works with the feature off or the address no longer allowed, and says nothing for rubbish', async () => {
+      await subscribe()
+
+      expect((await everywhere({ endpoint: 4 })).ok).toBe(true)
+      expect((await everywhere({ endpoint: '' })).ok).toBe(true)
+      expect((await everywhere({ endpoint: 'x'.repeat(3000) })).ok).toBe(true)
+      expect(await held()).toHaveLength(1)
+      await everywhere({ endpoint: 'https://FCM.googleapis.com/fcm/send/abc' })
+      expect(await held()).toHaveLength(0)
+      await subscribe()
+      expect((await everywhere({}, null)).ok).toBe(true)
       expect(await held()).toHaveLength(0)
     })
   })

@@ -279,6 +279,10 @@ export const guestInviteApi = (transport: Transport) => ({
       endpoint,
     }),
 
+  /** A sign-out: this browser, forgotten for every event of the account. Idempotent. */
+  unsubscribePushEverywhere: (endpoint: string): Promise<void> =>
+    transport.del('/api/push-subscriptions', undefined, undefined, { endpoint }),
+
   /** The replies as a spreadsheet, for the browser to download. */
   rsvpExportUrl: (slug: string, view: 'all' | 'caterer' = 'all'): string =>
     `/api/events/${encode(slug)}/rsvps/export?view=${view}`,

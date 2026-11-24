@@ -39,10 +39,15 @@ export function BrowserNotifications({
   const [working, setWorking] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
 
-  const read = useCallback(() => readPushState(slug, env).then(setState), [slug, env])
-  // The box's key, read once: an answer (not `push.disabled`, not a failure) is what offers the checkbox.
+  // The box's key, read once: an answer (not `push.disabled`, not a failure) is what offers the checkbox,
+  // and what a subscription made earlier is compared with (the operator may have rotated the pair).
   const loadKey = useCallback((signal: AbortSignal) => api.pushKey(signal), [api])
-  const offered = useLoader(loadKey).data !== null
+  const publicKey = useLoader(loadKey).data?.publicKey
+  const offered = publicKey !== undefined
+  const read = useCallback(
+    () => readPushState(slug, env, publicKey).then(setState),
+    [slug, env, publicKey],
+  )
   useEffect(() => {
     if (offered) void read()
   }, [offered, read])
@@ -66,7 +71,9 @@ export function BrowserNotifications({
   }
 
   const denied = state.permission === 'denied'
-  const blocked = state.support !== 'supported' || denied
+  // A permission revoked after ticking: the box stays ticked and can be unticked (that forgets the server's
+  // row); it is only when nothing is ticked that a denial blocks it.
+  const blocked = state.support !== 'supported' || (denied && !state.subscribed)
   const hint =
     state.support === 'addToHomeScreen'
       ? t.addToHomeScreen

@@ -103,9 +103,24 @@ export interface OpenWindow {
   navigate?(url: string): Promise<unknown>
 }
 
+/** The path of a window of this app, or `null` for any other origin (or an address that is not one). */
+const pathIn = (window: OpenWindow, origin: string): string | null => {
+  try {
+    const url = new URL(window.url)
+    return url.origin === origin ? url.pathname : null
+  } catch {
+    return null
+  }
+}
+
+const underAdmin = (path: string | null): boolean =>
+  path !== null && (path === '/admin' || path.startsWith('/admin/'))
+
 /**
- * A click on the notification: the window already showing that page is focused; another window of
- * the app is taken there; with none, one is opened. Never opens a second copy of a page that is open.
+ * A click on the notification: the window already showing that page is focused; otherwise a window of
+ * the **host's console** is taken there (the one already on this event first, then any), and with none
+ * (or one that refuses to move: an uncontrolled client rejects `navigate`) a new one is opened. A window
+ * on the wall or a guest's screen is never taken over, and a second copy of an open page is never made.
  */
 export const openRepliesPage = async (
   windows: readonly OpenWindow[],
@@ -114,16 +129,25 @@ export const openRepliesPage = async (
   open: (url: string) => Promise<unknown>,
 ): Promise<void> => {
   const target = `${origin}${path}`
-  const here = windows.find((window) => window.url.split(/[?#]/u)[0] === target)
+  const here = windows.find((window) => pathIn(window, origin) === path)
   if (here !== undefined) {
     await here.focus()
     return
   }
-  const other = windows.find((window) => window.url.startsWith(`${origin}/`))
-  if (other?.navigate !== undefined) {
-    await other.navigate(target)
-    await other.focus()
-    return
+  const event = path.replace(/\/rsvps$/u, '')
+  const onEvent = windows.find((window) => {
+    const at = pathIn(window, origin)
+    return at !== null && underAdmin(at) && (at === event || at.startsWith(`${event}/`))
+  })
+  const movable = onEvent ?? windows.find((window) => underAdmin(pathIn(window, origin)))
+  if (movable?.navigate !== undefined) {
+    try {
+      await movable.navigate(target)
+      await movable.focus()
+      return
+    } catch {
+      // A window that cannot be moved: the page is opened in a new one.
+    }
   }
   await open(target)
 }

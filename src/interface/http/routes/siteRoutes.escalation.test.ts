@@ -100,6 +100,7 @@ const ACCOUNT_LEVEL: ReadonlySet<string> = new Set([
   'get /api/events',
   'post /api/events',
   'get /api/push/key',
+  'delete /api/push-subscriptions',
 ])
 
 /**

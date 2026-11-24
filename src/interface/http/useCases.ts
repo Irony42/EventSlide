@@ -148,6 +148,7 @@ import type {
   GetPushKey,
   SubscribePush,
   UnsubscribePush,
+  UnsubscribePushEverywhere,
 } from '../../application/usecases/push/pushSubscriptions'
 import type { MarkRsvpsSeen } from '../../application/usecases/guestRsvps/markRsvpsSeen'
 import type { ListHouseholds } from '../../application/usecases/guestRsvps/listHouseholds'
@@ -390,6 +391,7 @@ export interface HttpUseCases {
   readonly getPushKey: GetPushKey
   readonly subscribePush: SubscribePush
   readonly unsubscribePush: UnsubscribePush
+  readonly unsubscribePushEverywhere: UnsubscribePushEverywhere
   readonly markRsvpsSeen: MarkRsvpsSeen
   readonly countUnseenRsvps: CountUnseenRsvps
   readonly listHouseholds: ListHouseholds

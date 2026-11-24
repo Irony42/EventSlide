@@ -414,6 +414,7 @@ const buildWorld = ({
         getPushKey: absent('getPushKey'),
         subscribePush: absent('subscribePush'),
         unsubscribePush: absent('unsubscribePush'),
+        unsubscribePushEverywhere: absent('unsubscribePushEverywhere'),
         markRsvpsSeen: absent('markRsvpsSeen'),
         listHouseholds: absent('listHouseholds'),
         saveHousehold: absent('saveHousehold'),

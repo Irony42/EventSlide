@@ -1198,6 +1198,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   }),
   subscribePush: vi.fn(async (): Promise<void> => undefined),
   unsubscribePush: vi.fn(async (): Promise<void> => undefined),
+  unsubscribePushEverywhere: vi.fn(async (): Promise<void> => undefined),
   households: vi.fn(async (): Promise<HouseholdListResponseDto> => ({ households: [] })),
   addHousehold: vi.fn(async (): Promise<HouseholdResponseDto> => ({ household: aHousehold() })),
   updateHousehold: vi.fn(async (): Promise<HouseholdResponseDto> => ({ household: aHousehold() })),

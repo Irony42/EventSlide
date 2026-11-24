@@ -13,7 +13,10 @@ import { makeApproveInvitation } from '../../../application/usecases/clients/app
 import { makeApprovePasswordReset } from '../../../application/usecases/clients/approvePasswordReset'
 import { makeCreateClient } from '../../../application/usecases/clients/createClient'
 import { makeGetClientLimits } from '../../../application/usecases/clients/getClientLimits'
-import { makeGetPushKey } from '../../../application/usecases/push/pushSubscriptions'
+import {
+  makeGetPushKey,
+  makeUnsubscribePushEverywhere,
+} from '../../../application/usecases/push/pushSubscriptions'
 import { makeListClientAudit } from '../../../application/usecases/clients/listClientAudit'
 import { makeListPendingInvitations } from '../../../application/usecases/clients/listPendingInvitations'
 import { makeInviteToClientAsOperator } from '../../../application/usecases/clients/inviteToClientAsOperator'
@@ -47,6 +50,7 @@ import { AT } from '../../../application/testing/builders'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
 import { FakeClock } from '../../../application/testing/fakeClock'
 import { FakeMailer } from '../../../application/testing/fakeMailer'
+import { FakePushSubscriptionRepository } from '../../../application/testing/fakePushSubscriptionRepository'
 import { FakePasswordHasher } from '../../../application/testing/fakePasswordHasher'
 import type { SiteWorld } from '../../../application/testing/fakeSiteOverview'
 import { createSequentialIdGenerator } from '../../../infrastructure/crypto/sequentialIdGenerator'
@@ -308,6 +312,10 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       getClientLimits: makeGetClientLimits({ clients, photos }),
       // Web Push off (no VAPID keys): the key is `404 push.disabled` for every signed-in caller alike.
       getPushKey: makeGetPushKey(null),
+      unsubscribePushEverywhere: makeUnsubscribePushEverywhere({
+        subscriptions: new FakePushSubscriptionRepository(),
+        push: null,
+      }),
       listClientAudit: makeListClientAudit({ clients, audit }),
       listPendingInvitations: makeListPendingInvitations({ clients, tokens, clock }),
       approvePasswordReset: makeApprovePasswordReset({ users, clients, tokens, audit, clock }),

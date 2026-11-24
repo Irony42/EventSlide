@@ -29,7 +29,7 @@ const aSubscription = () => ({
 
 const anEnv = (overrides: Partial<PushEnv> = {}) => {
   let held: ReturnType<typeof aSubscription> | null = null
-  const memory = new Set<string>()
+  const memory = new Map<string, string>()
   const registration = {
     pushManager: {
       getSubscription: vi.fn(async () => held),
@@ -45,8 +45,10 @@ const anEnv = (overrides: Partial<PushEnv> = {}) => {
     requestPermission: vi.fn(async (): Promise<NotificationPermission> => (permission = 'granted')),
     worker: async () => registration,
     existingWorker: async () => registration,
-    remembered: (slug) => memory.has(slug),
-    remember: (slug, on) => void (on ? memory.add(slug) : memory.delete(slug)),
+    remembered: (slug) => memory.get(slug) ?? null,
+    remember: (slug, endpoint) =>
+      void (endpoint === null ? memory.delete(slug) : memory.set(slug, endpoint)),
+    rememberedSlugs: () => [...memory.keys()],
     ...overrides,
   }
   return env
@@ -175,5 +177,37 @@ describe('the notification checkbox', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(t.offFailed)
     expect(screen.getByRole('checkbox')).toBeChecked()
+  })
+  it('shows a permission revoked after ticking as ticked, says it, and lets the host untick it', async () => {
+    const user = userEvent.setup()
+    const env = anEnv({ permission: () => 'denied' })
+    env.remember('fete', ENDPOINT)
+    const api = render(env)
+
+    const box = await screen.findByRole('checkbox', { name: t.label })
+
+    expect(box).toBeChecked()
+    expect(box).toBeEnabled()
+    expect(screen.getByText(saying(t.denied))).toBeInTheDocument()
+    await user.click(box)
+    await waitFor(() => expect(screen.getByRole('checkbox')).not.toBeChecked())
+    expect(api.unsubscribePush).toHaveBeenCalledWith('fete', ENDPOINT)
+    expect(screen.getByRole('checkbox')).toBeDisabled()
+  })
+
+  it('reads a subscription made with another key than the box’s as off', async () => {
+    const env = anEnv({ permission: () => 'granted' })
+    env.remember('fete', ENDPOINT)
+    const held = {
+      endpoint: ENDPOINT,
+      options: { applicationServerKey: new Uint8Array([1, 2, 3]).buffer },
+    }
+    env.existingWorker = async () =>
+      ({
+        pushManager: { getSubscription: async () => held },
+      }) as unknown as ServiceWorkerRegistration
+    render(env)
+
+    expect(await screen.findByRole('checkbox', { name: t.label })).not.toBeChecked()
   })
 })

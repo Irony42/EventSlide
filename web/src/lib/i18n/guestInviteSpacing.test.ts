@@ -17,6 +17,8 @@ const sentencesOf = (value: unknown, path: string): readonly [string, string][] 
 
 const SPEC_29: readonly [string, string][] = [
   ...sentencesOf(fr.guestInvite, 'guestInvite'),
+  // Lot 4 (the browser notification), held to the same rule.
+  ...sentencesOf(fr.rsvp.push, 'rsvp.push'),
   ...Object.entries(fr.errors)
     .filter(([code]) => code.startsWith('guestInvite.'))
     .map(([code, sentence]): [string, string] => [`errors.${code}`, sentence]),
