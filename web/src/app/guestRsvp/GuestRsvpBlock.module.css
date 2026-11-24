@@ -289,3 +289,16 @@ fieldset.field legend {
   border-radius: var(--radius-sm);
   resize: vertical;
 }
+
+.absentLabel input {
+  font: inherit;
+  font-weight: 400;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.absentHint {
+  font-weight: 400;
+  color: var(--text-muted);
+}

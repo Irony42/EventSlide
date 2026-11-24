@@ -846,6 +846,23 @@ export const guestRsvpRepositoryContract = (
       const day = (from: Date, days: number, extraMs = 0): Date =>
         new Date(from.getTime() + days * 86_400_000 + extraMs)
 
+      it('names the events whose expired replies hold a note, before they are erased, and no other', async () => {
+        await add({ id: 'rsvp-note', answer: 'no' })
+        await add({ id: 'rsvp-gala', answer: 'no', eventId: 'evt-gala' })
+        await add({ id: 'rsvp-plain', answer: 'no' })
+        await repo.claimAbsentNote(WEDDING, asGuestRsvpId('rsvp-note'), 'guest-note')
+        await subject.setEventDates(WEDDING, { closedAt: CLOSED, startsAt: null })
+        await subject.setEventDates(GALA, { closedAt: CLOSED, startsAt: null })
+
+        // Not yet expired: nobody.
+        expect(await repo.eventsWithExpiredNotes(day(CLOSED, 30, -1))).toEqual([])
+        // Expired: the event holding a note, once, and not the one with none.
+        expect(await repo.eventsWithExpiredNotes(day(CLOSED, 30))).toEqual([WEDDING])
+        // A note whose event has not expired is not named.
+        await subject.setEventDates(WEDDING, { closedAt: null, startsAt: null })
+        expect(await repo.eventsWithExpiredNotes(day(CLOSED, 30))).toEqual([])
+      })
+
       it('keeps replies on day 29 after the close and erases them on day 30', async () => {
         await add({ id: 'rsvp-1' })
         await subject.setEventDates(WEDDING, { closedAt: CLOSED, startsAt: null })

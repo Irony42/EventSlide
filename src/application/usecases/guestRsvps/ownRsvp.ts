@@ -22,6 +22,9 @@ import {
   stateOfOpened,
   type PublicRsvpDeps,
 } from './publicRsvpAccess'
+import type { InvalidateBook } from '../book/invalidateAlbumBook'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
+import { afterNotesErased, beforeNotesErased } from './absentNoteErasure'
 import { announceRsvpsChanged } from './rsvpAccess'
 
 /**
@@ -53,6 +56,9 @@ export interface OwnRsvpDeps extends PublicRsvpDeps {
   readonly secrets: SecretTokens
   readonly bus: EventBus
   readonly clock: Clock
+  /** What prints the guestbook, retired when an erased reply takes its note with it (lot 4). */
+  readonly invalidateBook?: InvalidateBook
+  readonly invalidateExport?: InvalidateExport
 }
 
 export interface OwnRsvpInput {
@@ -162,7 +168,12 @@ export const makeDeleteOwnRsvp =
     // **Idempotent**: a reply that is already gone (a double tap, the other tab, the host) or a token
     // that opens nothing is the guest's wish already done, `204`, and the answer cannot tell which.
     if (!own.ok) return ok(undefined)
-    if (await deps.rsvps.delete(event.id, own.value.rsvp.id))
+    // A reply that holds a note takes a guestbook message with it: what prints the guestbook hears of it.
+    const holdsNote = own.value.rsvp.absentNoteGuestId !== null
+    if (holdsNote) await beforeNotesErased(deps, event.id)
+    if (await deps.rsvps.delete(event.id, own.value.rsvp.id)) {
       announceRsvpsChanged(deps.bus, event.id)
+      if (holdsNote) await afterNotesErased(deps, event.id)
+    }
     return ok(undefined)
   }

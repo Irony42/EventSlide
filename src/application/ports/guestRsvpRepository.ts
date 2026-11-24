@@ -130,4 +130,11 @@ export interface GuestRsvpRepository {
    * keep them.
    */
   deleteExpired(now: Date): Promise<number>
+
+  /**
+   * The events with an expired reply that holds a note to the guestbook (lot 4): read **before**
+   * {@link GuestRsvpRepository.deleteExpired}, which erases those notes with the replies, so that the
+   * photo book and the archive that print the guestbook are retired first.
+   */
+  eventsWithExpiredNotes(now: Date): Promise<readonly EventId[]>
 }

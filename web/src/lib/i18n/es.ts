@@ -3649,6 +3649,10 @@ export const es: UiText = {
       title: 'Un mensaje en el libro de visitas',
       hint: 'Su mensaje lleva su nombre de pila y pasa por la moderación del evento antes de ser leído.',
       label: 'Su mensaje',
+      signatureLabel: 'Firma',
+      signatureHint:
+        'Su nombre de pila, que puede cambiar. Vacíe el campo para firmar «Un invitado que no pudo venir».',
+      anonymous: 'Un invitado que no pudo venir',
       send: 'Enviar mi mensaje',
       sent: 'Gracias, su mensaje está enviado.',
       sentSub: 'El organizador lo leerá.',

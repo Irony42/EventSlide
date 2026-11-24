@@ -668,7 +668,8 @@ export function GuestRsvpBlock({
             sending={state.sending}
             failure={state.failure}
             onClearFailure={state.clearFailure}
-            onSend={(text, website) => state.leaveNote(own, text, website)}
+            defaultSignature={firstNameOf(reply.name)}
+            onSend={(note) => state.leaveNote(own, note)}
           />
         ) : null}
         {deleteControl}

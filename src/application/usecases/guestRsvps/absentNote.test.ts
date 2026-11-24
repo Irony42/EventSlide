@@ -6,6 +6,7 @@ import { err } from '../../../domain/shared/result'
 import { DomainError } from '../../../domain/shared/errors'
 import { AT, anEvent } from '../../testing/builders'
 import { OWNER, WEDDING, rsvpScene, type RsvpScene } from '../../testing/rsvpScene'
+import { makeCreateGuestbookEntry } from '../guestbook/createGuestbookEntry'
 import { makePostAbsentNote } from './postAbsentNote'
 
 /**
@@ -58,7 +59,8 @@ describe('a note left by a guest who cannot come (spec 30, lot 4)', () => {
     expect(posted.ok).toBe(true)
     const [entry] = await entries()
     expect(entry?.text?.value).toBe('Dommage, on pense à vous')
-    expect(entry?.status).toBe('published')
+    // Always held for the host, even on an event that publishes on arrival.
+    expect(entry?.status).toBe('pending')
     const author = await scene.guests.findById(WEDDING, entry?.guestId as never)
     expect(author?.displayName?.value).toBe('Léa')
     expect(author?.viaRsvp).toBe(true)
@@ -75,13 +77,61 @@ describe('a note left by a guest who cannot come (spec 30, lot 4)', () => {
     ])
   })
 
-  it('meets the event’s moderation: held on a moderated event, with nobody to approve it but the host', async () => {
-    guestbookOn({ moderation: 'manual' })
+  it('is held for the host whatever the event’s moderation mode, automatic included', async () => {
+    for (const moderation of ['auto', 'manual']) {
+      guestbookOn({ moderation })
+      await scene.deleteOwn({ token, editToken })
+      const sent = await scene.submit({ token, name: 'Léa Martin', answer: 'no' })
+      const fresh = sent.ok ? (sent.value.editToken ?? '') : ''
 
-    await write()
+      await scene.postAbsentNote({ token, editToken: fresh, text: `Mot ${moderation}` })
+    }
 
-    const [entry] = await entries()
-    expect(entry?.status).toBe('pending')
+    expect((await entries()).map((entry) => entry.status)).toEqual(['pending', 'pending'])
+  })
+
+  it('does not hold the guests’ own messages: the flag is the note’s alone', async () => {
+    guestbookOn({ moderation: 'auto' })
+    const created = await makeCreateGuestbookEntry({
+      events: scene.events,
+      guestbook: scene.guestbook,
+      ids: scene.ids,
+      bus: scene.bus,
+      clock: scene.clock,
+    })({ eventId: WEDDING, guestId: 'someone' as never, text: 'Bravo' })
+
+    expect(created.ok && created.value.entry.status).toBe('published')
+  })
+
+  describe('the signature', () => {
+    it('is the guest’s own, as they edited it, and judged like a name', async () => {
+      await write({ signature: 'Léa & Hugo' })
+
+      const [entry] = await entries()
+      const author = await scene.guests.findById(WEDDING, entry?.guestId as never)
+      expect(author?.displayName?.value).toBe('Léa & Hugo')
+    })
+
+    it('stays anonymous when emptied, and is the first word when not given at all', async () => {
+      await write({ signature: '   ' })
+      const [anonymous] = await entries()
+      expect(
+        (await scene.guests.findById(WEDDING, anonymous?.guestId as never))?.displayName,
+      ).toBeNull()
+    })
+
+    it.each([
+      ['too long', 'A'.repeat(41), 'displayName.tooLong'],
+      ['not text', 4, 'displayName.invalid'],
+    ])(
+      'refuses a signature that is %s before anything is made',
+      async (_name, signature, expected) => {
+        expect(code(await write({ signature }))).toBe(expected)
+
+        expect(await entries()).toEqual([])
+        expect((await reply())?.absentNoteGuestId).toBeNull()
+      },
+    )
   })
 
   it('cuts the first word at forty characters, and signs nobody when there is no name to give', async () => {
@@ -267,6 +317,179 @@ describe('a note left by a guest who cannot come (spec 30, lot 4)', () => {
       )
 
       expect(code(await write({ editToken: 'secret-other' }))).toBe('rsvp.notFound')
+    })
+  })
+
+  describe('a store that fails half way', () => {
+    const failing = (
+      made: string[],
+      overrides: Partial<Parameters<typeof makePostAbsentNote>[0]>,
+    ) =>
+      makePostAbsentNote({
+        events: scene.events,
+        invites: scene.invites,
+        rsvps: scene.rsvps,
+        households: scene.households,
+        secrets: scene.secrets,
+        guests: scene.guests,
+        createEntry: makeCreateGuestbookEntry({
+          events: scene.events,
+          guestbook: scene.guestbook,
+          ids: scene.ids,
+          bus: scene.bus,
+          clock: scene.clock,
+        }),
+        ids: {
+          guestId: () => {
+            const id = scene.ids.guestId()
+            made.push(id)
+            return id
+          },
+        },
+        clock: scene.clock,
+        ...overrides,
+      })
+
+    it('gives the claim back and removes the author when the guestbook throws, and tells the failure', async () => {
+      const made: string[] = []
+      const post = failing(made, {
+        createEntry: async () => {
+          throw new Error('disk full')
+        },
+      })
+
+      await expect(post({ token, editToken, text: 'Merci' })).rejects.toThrow('disk full')
+
+      expect((await reply())?.absentNoteGuestId).toBeNull()
+      expect(await scene.guests.findById(WEDDING, made[0] as never)).toBeNull()
+      expect((await write()).ok).toBe(true)
+    })
+
+    it('gives the claim back and removes the author when the claim itself throws', async () => {
+      const made: string[] = []
+      const post = failing(made, {
+        rsvps: {
+          findByEditTokenHash: (...args) => scene.rsvps.findByEditTokenHash(...args),
+          findByHousehold: (...args) => scene.rsvps.findByHousehold(...args),
+          claimAbsentNote: async () => {
+            throw new Error('locked')
+          },
+          releaseAbsentNote: (...args) => scene.rsvps.releaseAbsentNote(...args),
+        },
+      })
+
+      await expect(post({ token, editToken, text: 'Merci' })).rejects.toThrow('locked')
+
+      expect(await scene.guests.findById(WEDDING, made[0] as never)).toBeNull()
+    })
+
+    it('removes what was made, and tells the failure, when saving the author throws', async () => {
+      const made: string[] = []
+      const post = failing(made, {
+        guests: {
+          save: async () => {
+            throw new Error('readonly')
+          },
+          delete: (...args) => scene.guests.delete(...args),
+        },
+      })
+
+      await expect(post({ token, editToken, text: 'Merci' })).rejects.toThrow('readonly')
+
+      expect((await reply())?.absentNoteGuestId).toBeNull()
+    })
+
+    it('tells the original failure even when taking back fails too', async () => {
+      const made: string[] = []
+      const post = failing(made, {
+        createEntry: async () => {
+          throw new Error('first')
+        },
+        guests: {
+          save: (...args) => scene.guests.save(...args),
+          delete: async () => {
+            throw new Error('second')
+          },
+        },
+      })
+
+      await expect(post({ token, editToken, text: 'Merci' })).rejects.toThrow('first')
+    })
+  })
+
+  describe('erasing the reply tells what prints the guestbook', () => {
+    const erased = (eventId = WEDDING) => [
+      `export:${eventId}:guestbookChanged`,
+      `book:${eventId}:messageRemoved`,
+    ]
+
+    it('retires the archive and the book before, the book again and the signal after, for the guest’s own deletion', async () => {
+      await write()
+      scene.retired.length = 0
+      const before = scene.bus.published.length
+
+      await scene.deleteOwn({ token, editToken })
+
+      expect(scene.retired).toEqual([...erased(), `book:${WEDDING}:messageRemoved`])
+      expect(scene.bus.published.slice(before).map((event) => event.type)).toEqual([
+        'rsvp.changed',
+        'guestbook.changed',
+      ])
+    })
+
+    it('does the same for the host’s deletion', async () => {
+      await write()
+      const held = await reply()
+      scene.retired.length = 0
+      const before = scene.bus.published.length
+
+      await scene.hostDelete({ eventId: WEDDING, actorId: OWNER, rsvpId: held?.id as never })
+
+      expect(scene.retired).toEqual([...erased(), `book:${WEDDING}:messageRemoved`])
+      expect(scene.bus.published.slice(before).map((event) => event.type)).toEqual([
+        'rsvp.changed',
+        'guestbook.changed',
+      ])
+    })
+
+    it('does the same, once for each event, for the retention sweep, and only for an event that held a note', async () => {
+      await write()
+      scene.rsvps.setEventDates(WEDDING, {
+        closedAt: new Date(AT.getTime() - 60 * 86_400_000),
+        startsAt: null,
+      })
+      scene.retired.length = 0
+      const before = scene.bus.published.length
+
+      const report = await scene.purge()
+
+      expect(report.deleted).toBeGreaterThan(0)
+      expect(scene.retired).toEqual([...erased(), `book:${WEDDING}:messageRemoved`])
+      expect(scene.bus.published.slice(before).map((event) => event.type)).toEqual([
+        'guestbook.changed',
+      ])
+    })
+
+    it('says nothing of the guestbook for a reply that held no note', async () => {
+      scene.retired.length = 0
+      const before = scene.bus.published.length
+
+      await scene.deleteOwn({ token, editToken })
+
+      expect(scene.retired).toEqual([])
+      expect(scene.bus.published.slice(before).map((event) => event.type)).toEqual(['rsvp.changed'])
+    })
+
+    it('sweeps nothing and tells nothing when no expired reply holds a note', async () => {
+      scene.rsvps.setEventDates(WEDDING, {
+        closedAt: new Date(AT.getTime() - 60 * 86_400_000),
+        startsAt: null,
+      })
+      scene.retired.length = 0
+
+      await scene.purge()
+
+      expect(scene.retired).toEqual([])
     })
   })
 

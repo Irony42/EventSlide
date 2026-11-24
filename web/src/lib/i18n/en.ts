@@ -3567,6 +3567,10 @@ export const en: UiText = {
       title: 'A note in the guestbook',
       hint: 'Your note is signed with your first name and goes through the event’s moderation before it is read.',
       label: 'Your note',
+      signatureLabel: 'Signed',
+      signatureHint:
+        'Your first name, which you can change. Empty the field to sign “A guest who could not come”.',
+      anonymous: 'A guest who could not come',
       send: 'Send my note',
       sent: 'Thank you, your note is sent.',
       sentSub: 'The organiser will read it.',

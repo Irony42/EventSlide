@@ -672,6 +672,42 @@ describe('the replies use cases pass a refusal of the audit log back, before the
     expect(scene.bus.published).toEqual([])
   })
 
+  it('hostDeleteRsvp puts a reply that held a note back without it, and tells what prints the guestbook before and after', async () => {
+    const scene = await unauditable()
+    scene.rsvps.seed(
+      aRsvp({ id: 'r-1', eventId: UNAUDITABLE, name: 'Avant', answer: 'no' }).withAbsentNoteGuest(
+        'note-author',
+      ),
+    )
+    scene.retired.length = 0
+
+    const deleted = await makeHostDeleteRsvp({
+      events: scene.events,
+      memberships: scene.memberships,
+      invites: scene.invites,
+      rsvps: scene.rsvps,
+      audit: scene.audit,
+      bus: scene.bus,
+      clock: scene.clock,
+      invalidateBook: async (eventId, reason) =>
+        void scene.retired.push(`book:${eventId}:${reason}`),
+      invalidateExport: async (eventId, reason) =>
+        void scene.retired.push(`export:${eventId}:${reason}`),
+    })({ eventId: UNAUDITABLE, actorId: OWNER, rsvpId: asGuestRsvpId('r-1') })
+
+    expect(deleted.ok).toBe(false)
+    const [back] = await scene.rsvps.listByEvent(UNAUDITABLE)
+    expect(back?.name).toBe('Avant')
+    // Its note went with it (the guest row is gone), so the reply no longer points at one.
+    expect(back?.absentNoteGuestId).toBeNull()
+    expect(scene.retired).toEqual([
+      `export:${UNAUDITABLE}:guestbookChanged`,
+      `book:${UNAUDITABLE}:messageRemoved`,
+      `book:${UNAUDITABLE}:messageRemoved`,
+    ])
+    expect(scene.bus.published.map((event) => event.type)).toEqual(['guestbook.changed'])
+  })
+
   it('exportRsvps hands out no file without its line', async () => {
     const scene = await unauditable()
 

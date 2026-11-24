@@ -3622,6 +3622,10 @@ export const it: UiText = {
       title: 'Un messaggio nel libro degli ospiti',
       hint: 'Il Suo messaggio è firmato con il Suo nome e passa dalla moderazione dell’evento prima di essere letto.',
       label: 'Il Suo messaggio',
+      signatureLabel: 'Firma',
+      signatureHint:
+        'Il Suo nome, che può cambiare. Svuoti il campo per firmare «Un ospite che non ha potuto venire».',
+      anonymous: 'Un ospite che non ha potuto venire',
       send: 'Invia il mio messaggio',
       sent: 'Grazie, il Suo messaggio è stato inviato.',
       sentSub: 'L’organizzatore lo leggerà.',

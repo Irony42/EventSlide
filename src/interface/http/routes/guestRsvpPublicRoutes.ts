@@ -186,7 +186,7 @@ export const guestRsvpPublicRoutes = ({
 
   /**
    * The word of a guest who answered "no" (lot 4): the reply's own token (or a household's link), the write
-   * limiter, a 4 KB body, the guestbook's text rules and ceilings, and the honeypot. `201 { absentNoteSent }`.
+   * limiter, the 8 KB parser of `/api/i` (one for every body of the namespace), the guestbook's text rules and ceilings, and the honeypot. `201 { absentNoteSent }`.
    */
   router.post(
     '/i/:token/absent-note',

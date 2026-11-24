@@ -4339,6 +4339,10 @@ export const fr = {
       title: 'Un mot au livre d’or',
       hint: 'Votre mot est signé de votre prénom et passe par la modération de l’évènement avant d’être lu.',
       label: 'Votre mot',
+      signatureLabel: 'Signé',
+      signatureHint:
+        'Votre prénom, que vous pouvez changer. Videz le champ pour signer «\u00a0Un invité absent\u00a0».',
+      anonymous: 'Un invité absent',
       send: 'Envoyer mon mot',
       sent: 'Merci, votre mot est envoyé.',
       sentSub: 'Il sera lu par l’organisateur.',

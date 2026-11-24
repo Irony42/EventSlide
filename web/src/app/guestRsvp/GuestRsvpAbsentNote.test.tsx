@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
+import { ABSENT_NOTE_MAX_CHARS, ABSENT_NOTE_SIGNATURE_MAX_CHARS } from '../../lib/rsvp/absentNote'
 import {
   forgetEditToken,
   forgetHouseholdToken,
@@ -94,7 +95,7 @@ describe('the word of those who cannot come', () => {
       expect(guestAbsentNote).toHaveBeenCalledWith(
         TOKEN,
         { editToken: 'tok' },
-        { text: 'Dommage, on pense à vous', website: '' },
+        { text: 'Dommage, on pense à vous', signature: 'Léa', website: '' },
       ),
     )
     expect(await screen.findByText(t.sent)).toBeInTheDocument()
@@ -137,9 +138,85 @@ describe('the word of those who cannot come', () => {
       expect(guestAbsentNote).toHaveBeenCalledWith(
         TOKEN,
         { household: 'AAAAAAAAAAAAAAAA' },
-        { text: 'Mon mot', website: '' },
+        { text: 'Mon mot', signature: 'Léa', website: '' },
       ),
     )
+  })
+
+  describe('the signature, shown before sending', () => {
+    const send = async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.type(screen.getByLabelText(t.label), 'Mon mot')
+      await user.click(screen.getByRole('button', { name: t.send }))
+    }
+
+    it('starts as the first word of the reply’s name, and says what emptying it does', async () => {
+      const user = userEvent.setup()
+      render()
+      await user.click(await screen.findByRole('button', { name: t.offer }))
+
+      expect(screen.getByLabelText(t.signatureLabel, { exact: false })).toHaveValue('Léa')
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName === 'SMALL' && element.textContent === t.signatureHint,
+        ),
+      ).toBeInTheDocument()
+    })
+
+    it('is sent as the guest edited it', async () => {
+      const user = userEvent.setup()
+      const guestAbsentNote = vi.fn(async () => ({ absentNoteSent: true as const }))
+      render({ guestAbsentNote })
+      await user.click(await screen.findByRole('button', { name: t.offer }))
+      await user.clear(screen.getByLabelText(t.signatureLabel, { exact: false }))
+      await user.type(screen.getByLabelText(t.signatureLabel, { exact: false }), 'Léa et Hugo')
+
+      await send(user)
+
+      await waitFor(() =>
+        expect(guestAbsentNote).toHaveBeenCalledWith(
+          TOKEN,
+          { editToken: 'tok' },
+          { text: 'Mon mot', signature: 'Léa et Hugo', website: '' },
+        ),
+      )
+    })
+
+    it('is “Un invité absent”, in the guest’s language, when it is emptied', async () => {
+      const user = userEvent.setup()
+      const guestAbsentNote = vi.fn(async () => ({ absentNoteSent: true as const }))
+      render({ guestAbsentNote })
+      await user.click(await screen.findByRole('button', { name: t.offer }))
+      await user.clear(screen.getByLabelText(t.signatureLabel, { exact: false }))
+      expect(screen.getByPlaceholderText(t.anonymous)).toBeInTheDocument()
+
+      await send(user)
+
+      await waitFor(() =>
+        expect(guestAbsentNote).toHaveBeenCalledWith(
+          TOKEN,
+          { editToken: 'tok' },
+          { text: 'Mon mot', signature: t.anonymous, website: '' },
+        ),
+      )
+    })
+
+    it('is held to forty characters and the word to the guestbook’s, counted by code point like the server', async () => {
+      const user = userEvent.setup()
+      render()
+      await user.click(await screen.findByRole('button', { name: t.offer }))
+
+      const signature = screen.getByLabelText(t.signatureLabel, { exact: false })
+      await user.clear(signature)
+      fireEvent.change(signature, { target: { value: '😀'.repeat(55) } })
+      const word = screen.getByLabelText(t.label)
+      fireEvent.change(word, { target: { value: '😀'.repeat(520) } })
+
+      expect([...(signature as HTMLInputElement).value]).toHaveLength(
+        ABSENT_NOTE_SIGNATURE_MAX_CHARS,
+      )
+      expect([...(word as HTMLTextAreaElement).value]).toHaveLength(ABSENT_NOTE_MAX_CHARS)
+    })
   })
 
   it('sends nothing for an empty word, and lets the guest go back', async () => {
@@ -209,7 +286,7 @@ describe('the word of those who cannot come', () => {
       expect(guestAbsentNote).toHaveBeenCalledWith(
         TOKEN,
         { editToken: 'tok' },
-        { text: 'Mon mot', website: 'http://spam.example' },
+        { text: 'Mon mot', signature: 'Léa', website: 'http://spam.example' },
       ),
     )
   })

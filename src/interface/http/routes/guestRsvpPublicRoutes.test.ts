@@ -908,6 +908,20 @@ describe('POST /api/i/:token/absent-note: the word of a guest who cannot come (l
     expect(await world.guests.list(LIVE)).toEqual([])
   })
 
+  it('signs with the signature the guest edited, judges it like a name, and holds the note whatever the mode', async () => {
+    const { note } = await answeredNo()
+
+    const refused = await note({ text: 'Merci', signature: 'A'.repeat(41) })
+    expect([refused.status, refused.body.error.code]).toEqual([400, 'displayName.tooLong'])
+    expect((await note({ text: 'Merci', signature: 'Léa et Hugo' })).status).toBe(201)
+
+    const [entry] = await world.guestbook.listByStatuses(LIVE, ['published', 'pending'], 10)
+    expect(entry?.status).toBe('pending')
+    expect((await world.guests.findById(LIVE, entry?.guestId as never))?.displayName?.value).toBe(
+      'Léa et Hugo',
+    )
+  })
+
   it('reads the reply’s own token in a header only: none, a wrong one or a link in the path opens nothing', async () => {
     const { note, g, editToken } = await answeredNo()
 

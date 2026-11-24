@@ -61,6 +61,8 @@ export interface PushSubscriptionInput {
 /** The word of a guest who cannot come (lot 4): the guestbook's own text, and the honeypot a person leaves empty. */
 export interface AbsentNoteInput {
   readonly text: string
+  /** Who signs it, as the guest edited it (40 characters at most); absent: the first word of the reply's name. */
+  readonly signature?: string
   readonly website?: string
 }
 

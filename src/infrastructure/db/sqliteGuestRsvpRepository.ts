@@ -351,6 +351,23 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
       .run(eventId, id, guestId)
   }
 
+  async eventsWithExpiredNotes(now: Date): Promise<readonly EventId[]> {
+    const { closedBy, startedBy } = rsvpCutoffs(now)
+    return this.db
+      .prepare<[string, string], { readonly event_id: string }>(
+        `SELECT DISTINCT event_id FROM guest_rsvps
+          WHERE absent_note_guest_id IS NOT NULL
+            AND event_id IN (
+              SELECT e.id FROM events e
+                LEFT JOIN guest_invites g ON g.event_id = e.id
+               WHERE (e.closed_at IS NOT NULL AND e.closed_at <= ?)
+                  OR (g.starts_at IS NOT NULL AND g.starts_at <= ?))
+          ORDER BY event_id`,
+      )
+      .all(toIsoText(closedBy), toIsoText(startedBy))
+      .map((row) => asEventId(row.event_id))
+  }
+
   async deleteExpired(now: Date): Promise<number> {
     // The two cutoffs come from the domain rule (`rsvpExpiry.ts`), so SQL cannot disagree with it.
     // `closed_at` and `starts_at` are ISO `toISOString()` text, fixed-width UTC, so comparing them

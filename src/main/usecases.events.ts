@@ -72,7 +72,12 @@ import type { Adapters, UseCasePolicy } from './usecases'
 import type { SharedHooks } from './usecases.shared'
 
 /** The three use cases of a guest's own reply read the same things. */
-const ownRsvpDeps = (adapters: Adapters): OwnRsvpDeps => ({
+type NoteHooks = Pick<SharedHooks, 'invalidateBook' | 'invalidateExport'>
+
+const ownRsvpDeps = (adapters: Adapters, hooks: NoteHooks): OwnRsvpDeps => ({
+  // What prints the guestbook hears of an erased reply that held a note (lot 4).
+  invalidateBook: hooks.invalidateBook,
+  invalidateExport: hooks.invalidateExport,
   events: adapters.events,
   invites: adapters.guestInvites,
   rsvps: adapters.guestRsvps,
@@ -86,7 +91,7 @@ const ownRsvpDeps = (adapters: Adapters): OwnRsvpDeps => ({
 export const eventsUseCases = (
   adapters: Adapters,
   policy: UseCasePolicy,
-  { invalidateExport }: SharedHooks,
+  { invalidateBook, invalidateExport }: SharedHooks,
 ) => ({
   // events
   createEvent: makeCreateEvent({
@@ -167,9 +172,9 @@ export const eventsUseCases = (
     bus: adapters.bus,
     clock: adapters.clock,
   }),
-  getOwnRsvp: makeGetOwnRsvp(ownRsvpDeps(adapters)),
-  updateOwnRsvp: makeUpdateOwnRsvp(ownRsvpDeps(adapters)),
-  deleteOwnRsvp: makeDeleteOwnRsvp(ownRsvpDeps(adapters)),
+  getOwnRsvp: makeGetOwnRsvp(ownRsvpDeps(adapters, { invalidateBook, invalidateExport })),
+  updateOwnRsvp: makeUpdateOwnRsvp(ownRsvpDeps(adapters, { invalidateBook, invalidateExport })),
+  deleteOwnRsvp: makeDeleteOwnRsvp(ownRsvpDeps(adapters, { invalidateBook, invalidateExport })),
   // The word of a guest who cannot come: the guestbook's own door, with an author made for it.
   postAbsentNote: makePostAbsentNote({
     events: adapters.events,
@@ -300,6 +305,8 @@ export const eventsUseCases = (
     audit: adapters.audit,
     bus: adapters.bus,
     clock: adapters.clock,
+    invalidateBook,
+    invalidateExport,
   }),
   // Browser notifications for the host (spec 30, lot 4). Off while the box has no VAPID keys.
   getPushKey: makeGetPushKey(policy.push),
@@ -341,6 +348,9 @@ export const eventsUseCases = (
     rsvps: adapters.guestRsvps,
     households: adapters.guestHouseholds,
     clock: adapters.clock,
+    bus: adapters.bus,
+    invalidateBook,
+    invalidateExport,
   }),
   // The guest list (spec 30, lot 3): the owner's, and the household's own link on the public side.
   listHouseholds: makeListHouseholds({

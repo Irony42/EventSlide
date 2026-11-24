@@ -1122,7 +1122,12 @@ export const guestRsvpCreateBody = guestRsvpBody.extend({ website: z.unknown().o
  * guestbook's own and is judged by its rules in the use case (one code each); the honeypot is the
  * creation's. A strict body: no author, no status, no reply id.
  */
-export const absentNoteBody = z.strictObject({ text: z.unknown(), website: z.unknown().optional() })
+export const absentNoteBody = z.strictObject({
+  text: z.unknown(),
+  // Who signs it: judged like a guest's name by the domain (absent: the first word of the reply's name).
+  signature: z.unknown().optional(),
+  website: z.unknown().optional(),
+})
 
 // ------------------------------------------------------- browser notifications (30) --
 

@@ -79,6 +79,8 @@ export interface RsvpScene extends GuestInviteScene {
   readonly guests: FakeGuestRepository
   readonly guestbook: FakeGuestbookRepository
   readonly bus: RecordingEventBus
+  /** What the photo book and the archive were told, in order (lot 4: an erased note leaves them stale). */
+  readonly retired: string[]
   readonly ids: SequentialIdGenerator
   readonly getForm: ReturnType<typeof makeGetRsvpForm>
   readonly saveForm: ReturnType<typeof makeSaveRsvpForm>
@@ -123,6 +125,12 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
   const access = { events, memberships, invites }
   const publicAccess = { events, invites }
   const secrets = new FakeSecretTokens()
+  const retired: string[] = []
+  const invalidateBook = async (eventId: string, reason: string): Promise<void> =>
+    void retired.push(`book:${eventId}:${reason}`)
+  const invalidateExport = async (eventId: string, reason: string): Promise<void> =>
+    void retired.push(`export:${eventId}:${reason}`)
+  const hooks = { invalidateBook, invalidateExport }
 
   // Every event of the scene holds its owner as a member of the replies badge too.
   rsvps.addMember(WEDDING, OWNER)
@@ -138,6 +146,7 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
     guests,
     guestbook,
     bus,
+    retired,
     ids,
     getForm: makeGetRsvpForm({ ...access, rsvps, clock }),
     saveForm: makeSaveRsvpForm({ ...access, rsvps, audit, bus, clock, ids }),
@@ -146,11 +155,11 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
     list: makeListRsvps({ ...access, rsvps, households, clock }),
     hostAdd: makeHostAddRsvp({ ...access, rsvps, audit, bus, ids, clock }),
     hostUpdate: makeHostUpdateRsvp({ ...access, rsvps, households, audit, bus, clock }),
-    hostDelete: makeHostDeleteRsvp({ ...access, rsvps, audit, bus, clock }),
+    hostDelete: makeHostDeleteRsvp({ ...access, rsvps, audit, bus, clock, ...hooks }),
     exportCsv: makeExportRsvps({ ...access, rsvps, households, audit, clock }),
     markSeen: makeMarkRsvpsSeen({ ...access, rsvps, clock }),
     countUnseen: makeCountUnseenRsvps({ rsvps }),
-    purge: makePurgeExpiredRsvps({ rsvps, households, clock }),
+    purge: makePurgeExpiredRsvps({ rsvps, households, clock, bus, ...hooks }),
     listHouseholds: makeListHouseholds({ ...access, rsvps, households }),
     saveHousehold: makeSaveHousehold({ ...access, rsvps, households, bus, ids, clock }),
     importHouseholds: makeImportHouseholds({ ...access, households, audit, bus, ids, clock }),
@@ -179,7 +188,15 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
     submit: makeSubmitRsvp({ ...publicAccess, rsvps, households, secrets, ids, bus, clock }),
     getOwn: makeGetOwnRsvp({ ...publicAccess, rsvps, households, secrets, bus, clock }),
     updateOwn: makeUpdateOwnRsvp({ ...publicAccess, rsvps, households, secrets, bus, clock }),
-    deleteOwn: makeDeleteOwnRsvp({ ...publicAccess, rsvps, households, secrets, bus, clock }),
+    deleteOwn: makeDeleteOwnRsvp({
+      ...publicAccess,
+      rsvps,
+      households,
+      secrets,
+      bus,
+      clock,
+      ...hooks,
+    }),
     postAbsentNote: makePostAbsentNote({
       ...publicAccess,
       rsvps,

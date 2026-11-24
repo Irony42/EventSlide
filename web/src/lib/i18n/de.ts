@@ -3691,6 +3691,10 @@ export const de: UiText = {
       title: 'Eine Nachricht im Gästebuch',
       hint: 'Ihre Nachricht wird mit Ihrem Vornamen unterschrieben und läuft über die Moderation der Veranstaltung, bevor sie gelesen wird.',
       label: 'Ihre Nachricht',
+      signatureLabel: 'Unterschrift',
+      signatureHint:
+        'Ihr Vorname, den Sie ändern können. Leeren Sie das Feld, um mit „Ein verhinderter Gast“ zu unterschreiben.',
+      anonymous: 'Ein verhinderter Gast',
       send: 'Nachricht senden',
       sent: 'Danke, Ihre Nachricht ist gesendet.',
       sentSub: 'Der Gastgeber wird sie lesen.',
