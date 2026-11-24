@@ -41,7 +41,7 @@ export class SqlitePushSubscriptionRepository implements PushSubscriptionReposit
     maxPerUserEvent: number,
   ): Promise<'added' | 'updated' | 'tooMany'> {
     const refresh = this.db.prepare(
-      `UPDATE push_subscriptions SET p256dh = ?, auth = ?
+      `UPDATE push_subscriptions SET p256dh = ?, auth = ?, failures = 0
         WHERE endpoint = ? AND event_id = ? AND user_id = ?`,
     )
     const countMine = this.db.prepare<[string, string], { readonly n: number }>(
@@ -94,6 +94,37 @@ export class SqlitePushSubscriptionRepository implements PushSubscriptionReposit
         .prepare<[string, string]>(`DELETE FROM push_subscriptions WHERE event_id = ? AND id = ?`)
         .run(eventId, id).changes > 0
     )
+  }
+
+  async recordFailure(eventId: EventId, id: string, limit: number): Promise<'kept' | 'pruned'> {
+    const count = this.db.prepare<[string, string]>(
+      `UPDATE push_subscriptions SET failures = failures + 1 WHERE event_id = ? AND id = ?`,
+    )
+    const prune = this.db.prepare<[string, string, number]>(
+      `DELETE FROM push_subscriptions WHERE event_id = ? AND id = ? AND failures >= ?`,
+    )
+    return this.db
+      .transaction((): 'kept' | 'pruned' => {
+        count.run(eventId, id)
+        return prune.run(eventId, id, limit).changes > 0 ? 'pruned' : 'kept'
+      })
+      .immediate()
+  }
+
+  async resetFailures(eventId: EventId, id: string): Promise<void> {
+    this.db
+      .prepare<[string, string]>(
+        `UPDATE push_subscriptions SET failures = 0 WHERE event_id = ? AND id = ? AND failures > 0`,
+      )
+      .run(eventId, id)
+  }
+
+  async removeForMember(eventId: EventId, userId: UserId): Promise<number> {
+    return this.db
+      .prepare<[string, string]>(
+        `DELETE FROM push_subscriptions WHERE event_id = ? AND user_id = ?`,
+      )
+      .run(eventId, userId).changes
   }
 
   async listByEvent(eventId: EventId): Promise<readonly PushSubscription[]> {

@@ -147,14 +147,30 @@ export interface VapidKeyPair {
   readonly privateKey: string
 }
 
-/** A new pair, for the operator's one-time `generateVapidKeys` script. */
-export const generateVapidKeys = (): VapidKeyPair => {
-  const ecdh = createECDH('prime256v1')
+/** The part of an ECDH key pair this needs: injected by the test of a short scalar. */
+export interface KeyMaker {
+  generateKeys(): unknown
+  getPublicKey(): Buffer
+  getPrivateKey(): Buffer
+}
+
+/**
+ * A new pair, for the operator's one-time `generateVapidKeys` script. `getPrivateKey()` drops leading zero
+ * bytes (about one key in 256 is 31 bytes long), so the scalar is left-padded to its 32 bytes: a short
+ * key would be refused at boot by the length check, and would not be a key a push service can verify.
+ */
+export const generateVapidKeys = (
+  make: () => KeyMaker = () => createECDH('prime256v1'),
+): VapidKeyPair => {
+  const ecdh = make()
   ecdh.generateKeys()
-  return {
-    publicKey: base64url(ecdh.getPublicKey()),
-    privateKey: base64url(ecdh.getPrivateKey()),
+  const scalar = ecdh.getPrivateKey()
+  const publicKey = ecdh.getPublicKey()
+  if (scalar.length > PRIVATE_KEY_BYTES || publicKey.length !== PUBLIC_KEY_BYTES) {
+    throw new Error('the key pair is not a P-256 pair')
   }
+  const padded = Buffer.concat([Buffer.alloc(PRIVATE_KEY_BYTES - scalar.length), scalar])
+  return { publicKey: base64url(publicKey), privateKey: base64url(padded) }
 }
 
 /** Whether the public key is the one that goes with the private key (a pair pasted half from another). */

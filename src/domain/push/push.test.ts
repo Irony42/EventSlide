@@ -14,7 +14,13 @@ import {
   pushBatchWait,
   rsvpNotice,
 } from './pushNotice'
-import { PushSubscription, parsePushKeys } from './pushSubscription'
+import {
+  MAX_PUSH_FAILURES,
+  MAX_PUSH_SENDS_PER_MESSAGE,
+  PushSubscription,
+  parsePushKeys,
+  selectForDelivery,
+} from './pushSubscription'
 
 const code = (result: { ok: boolean; error?: { code: string } }): string | undefined =>
   result.ok ? undefined : result.error?.code
@@ -153,6 +159,46 @@ describe('the keys of a subscription', () => {
       subscription.auth,
       subscription.createdAt,
     ]).toEqual(['s-1', 'u-1', 'e-1', 'https://fcm.googleapis.com/x', p256dh, auth, at])
+  })
+})
+
+describe('which browsers a message goes to', () => {
+  const make = (id: string, user: string, at: number) =>
+    PushSubscription.create({
+      id,
+      userId: asUserId(user),
+      eventId: asEventId('e-1'),
+      endpoint: `https://fcm.googleapis.com/${id}`,
+      p256dh: 'B' + 'A'.repeat(86),
+      auth: 'A'.repeat(22),
+      createdAt: new Date(at),
+    })
+  const ids = (list: readonly PushSubscription[]) => list.map((s) => s.id)
+
+  it('keeps its bounds: five failures in a row, fifty browsers a message', () => {
+    expect([MAX_PUSH_FAILURES, MAX_PUSH_SENDS_PER_MESSAGE]).toEqual([5, 50])
+  })
+
+  it('takes everything under the cap, one account after the other, newest browser first', () => {
+    const all = [make('a1', 'a', 1), make('a2', 'a', 2), make('b1', 'b', 3)]
+
+    expect(ids(selectForDelivery(all, 10))).toEqual(['a2', 'b1', 'a1'])
+  })
+
+  it('goes round the accounts and stops at the cap, even in the middle of a round', () => {
+    const all = [
+      make('a1', 'a', 1),
+      make('a2', 'a', 2),
+      make('a3', 'a', 3),
+      make('b1', 'b', 4),
+      make('b2', 'b', 5),
+      make('c1', 'c', 6),
+    ]
+
+    expect(ids(selectForDelivery(all, 4))).toEqual(['a3', 'b2', 'c1', 'a2'])
+    expect(ids(selectForDelivery(all, 2))).toEqual(['a3', 'b2'])
+    expect(selectForDelivery(all, 0)).toEqual([])
+    expect(selectForDelivery([], 5)).toEqual([])
   })
 })
 

@@ -424,6 +424,7 @@ export const eventsUseCases = (
   revokeModerator: makeRevokeModerator({
     events: adapters.events,
     memberships: adapters.memberships,
+    pushSubscriptions: adapters.pushSubscriptions,
   }),
   purgeExpiredEvents: makePurgeExpiredEvents({
     events: adapters.events,

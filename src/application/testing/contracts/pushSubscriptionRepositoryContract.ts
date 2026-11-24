@@ -141,6 +141,43 @@ export const pushSubscriptionRepositoryContract = (
       expect(await repo.listByEvent(WEDDING)).toHaveLength(0)
     })
 
+    it('prunes a subscription after the limit of failures in a row, and a delivery starts the count again', async () => {
+      await repo.upsert(sub({ id: 's-1' }), 10)
+
+      expect(await repo.recordFailure(WEDDING, 's-1', 3)).toBe('kept')
+      expect(await repo.recordFailure(WEDDING, 's-1', 3)).toBe('kept')
+      await repo.resetFailures(WEDDING, 's-1')
+      expect(await repo.recordFailure(WEDDING, 's-1', 3)).toBe('kept')
+      expect(await repo.recordFailure(WEDDING, 's-1', 3)).toBe('kept')
+      expect(await repo.recordFailure(WEDDING, 's-1', 3)).toBe('pruned')
+      expect(await repo.listByEvent(WEDDING)).toHaveLength(0)
+    })
+
+    it('counts failures within the event, forgets them when the browser subscribes again, and ignores an id that is gone', async () => {
+      await repo.upsert(sub({ id: 's-1' }), 10)
+
+      expect(await repo.recordFailure(GALA, 's-1', 1)).toBe('kept')
+      expect(await repo.recordFailure(WEDDING, 'nope', 1)).toBe('kept')
+      expect(await repo.recordFailure(WEDDING, 's-1', 2)).toBe('kept')
+      await repo.upsert(sub({ id: 's-9', p256dh: 'key-2' }), 10)
+      expect(await repo.recordFailure(WEDDING, 's-1', 2)).toBe('kept')
+      expect(await repo.listByEvent(WEDDING)).toHaveLength(1)
+      await repo.resetFailures(GALA, 'nope')
+    })
+
+    it('removes every subscription of an account for one event, and no other', async () => {
+      await repo.upsert(sub({ id: 's-1' }), 10)
+      await repo.upsert(sub({ id: 's-2', endpoint: 'https://a.example/2' }), 10)
+      await repo.upsert(sub({ id: 's-3', user: TWO, endpoint: 'https://a.example/3' }), 10)
+      await repo.upsert(sub({ id: 's-4', event: GALA, endpoint: 'https://a.example/4' }), 10)
+
+      expect(await repo.removeForMember(WEDDING, ONE)).toBe(2)
+      expect(await repo.removeForMember(WEDDING, ONE)).toBe(0)
+
+      expect((await repo.listByEvent(WEDDING)).map((row) => row.id)).toEqual(['s-3'])
+      expect(await repo.listByEvent(GALA)).toHaveLength(1)
+    })
+
     it('lists the oldest first, and nothing of another event', async () => {
       await repo.upsert(
         sub({ id: 's-late', createdAt: T1, endpoint: 'https://a.example/late' }),

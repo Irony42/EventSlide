@@ -209,6 +209,26 @@ describe('VAPID, RFC 8292', () => {
     expect(() => vapidToken({ ...input, publicKey: 'AAAA' })).toThrow(/wrong length/)
   })
 
+  it('left-pads a private key that lost its leading zero byte, and refuses what is not a P-256 pair', () => {
+    const short = Buffer.alloc(31, 9)
+    const point = Buffer.alloc(65, 4)
+    const stub = (scalar: Buffer, publicKey: Buffer) => () => ({
+      generateKeys: () => undefined,
+      getPrivateKey: () => scalar,
+      getPublicKey: () => publicKey,
+    })
+
+    const pair = generateVapidKeys(stub(short, point))
+
+    expect(pair.privateKey).toHaveLength(43)
+    expect(Buffer.from(pair.privateKey, 'base64url')).toEqual(
+      Buffer.concat([Buffer.alloc(1), short]),
+    )
+    expect(pair.publicKey).toHaveLength(87)
+    expect(() => generateVapidKeys(stub(Buffer.alloc(33), point))).toThrow()
+    expect(() => generateVapidKeys(stub(short, Buffer.alloc(33)))).toThrow()
+  })
+
   it('generates a pair that matches, and says when the two halves come from different pairs', () => {
     const other = generateVapidKeys()
 

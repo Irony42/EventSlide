@@ -7,7 +7,7 @@ import { isIP } from 'node:net'
  * resolver, a mistaken record) is refused at the connection and never reaches an internal service.
  *
  * Refused: loopback, private (RFC 1918), shared (100.64/10), link-local (169.254/16, fe80::/10, which
- * is where cloud metadata services live), unique-local (fc00::/7), multicast, the 6to4 and Teredo tunnels, reserved, the
+ * is where cloud metadata services live), unique-local (fc00::/7), multicast, the 6to4 tunnel, the IANA special-purpose IPv6 blocks (2001::/23), reserved, the
  * documentation and benchmarking ranges, the unspecified address, and an IPv4 address written as
  * IPv6 (`::ffff:a.b.c.d`, NAT64) when the embedded IPv4 is itself refused. Anything that is not an IP
  * address at all is refused.
@@ -30,6 +30,7 @@ const publicV4 = (address: string): boolean => {
   if (a === 172 && b >= 16 && b <= 31) return false
   if (a === 192 && b === 0 && (c === 0 || c === 2)) return false
   if (a === 192 && b === 168) return false
+  if (a === 192 && b === 88 && c === 99) return false // 6to4 relay anycast, deprecated
   if (a === 198 && (b === 18 || b === 19)) return false
   if (a === 198 && b === 51 && c === 100) return false
   if (a === 203 && b === 0 && c === 113) return false
@@ -88,9 +89,12 @@ const publicV6 = (address: string): boolean => {
   if (b0 === 0xfe && (b1 & 0xc0) === 0xc0) return false // fec0::/10 site-local (deprecated)
   if (b0 === 0xff) return false // multicast
   if (b0 === 0x20 && b1 === 0x01 && bytes[2] === 0x0d && bytes[3] === 0xb8) return false // documentation
-  // 6to4 (2002::/16) and Teredo (2001::/32) tunnel an IPv4 address that is not judged here.
+  // 6to4 (2002::/16) tunnels an IPv4 address that is not judged here.
   if (b0 === 0x20 && b1 === 0x02) return false
-  if (b0 === 0x20 && b1 === 0x01 && bytes[2] === 0 && bytes[3] === 0) return false
+  // 2001::/23, the IETF protocol assignments of the IANA special-purpose registry: Teredo (2001::/32),
+  // PCP and TURN anycast (2001:1::/32), benchmarking (2001:2::/48), AMT, AS112, ORCHID (2001:10::/28),
+  // ORCHIDv2 (2001:20::/28), drone IDs: none is a push service, and most are not globally reachable.
+  if (b0 === 0x20 && b1 === 0x01 && (bytes[2] as number) < 0x02) return false
   if (b0 === 0x3f && (b1 & 0xf0) === 0xf0) return false // 3fff::/20 documentation
   // Only global unicast, 2000::/3, is a public address.
   return (b0 & 0xe0) === 0x20

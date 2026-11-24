@@ -421,7 +421,7 @@ export const vapidPrivateKey = z.preprocess(
     .string()
     .regex(/^[A-Za-z0-9_-]{43}$/u, {
       message:
-        'VAPID_PRIVATE_KEY must be the 43-character base64url key printed by npm run push:keys',
+        'VAPID_PRIVATE_KEY must be exactly 43 base64url characters (32 bytes) as printed by npm run push:keys; a key one character short lost its leading zero byte, so generate a new pair',
     })
     .optional(),
 )

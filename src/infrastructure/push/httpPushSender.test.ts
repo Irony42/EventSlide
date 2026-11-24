@@ -8,13 +8,17 @@ import {
   PUSH_TIMEOUT_MS,
   PUSH_TTL_SECONDS,
   createHttpPushSender,
+  createHttpsPushTransport,
   guardedLookup,
+  pushAgent,
   outcomeOfStatus,
   type PushRequest,
   type PushResponse,
 } from './httpPushSender'
 import { generateVapidKeys } from './webPushCrypto'
 import { createECDH } from 'node:crypto'
+import { EventEmitter } from 'node:events'
+import type { request as httpsRequest } from 'node:https'
 
 const vapid = generateVapidKeys()
 const browser = createECDH('prime256v1')
@@ -265,5 +269,51 @@ describe('the connection’s own guard: guardedLookup', () => {
     const { error } = await lookup(failing as never)
 
     expect(error?.code).toBe('ENOTFOUND')
+  })
+})
+
+describe('the connection', () => {
+  /** A request that never touches the network: records its options and answers 201 at once. */
+  const capture = () => {
+    const seen: Record<string, unknown>[] = []
+    const doRequest = ((
+      options: Record<string, unknown>,
+      onResponse: (response: EventEmitter & { statusCode: number }) => void,
+    ) => {
+      seen.push(options)
+      const request = Object.assign(new EventEmitter(), {
+        destroy: () => undefined,
+        end: () => {
+          const response = Object.assign(new EventEmitter(), {
+            statusCode: 201,
+            destroy: () => undefined,
+          })
+          onResponse(response)
+          response.emit('end')
+        },
+      })
+      return request
+    }) as unknown as typeof httpsRequest
+    return { seen, transport: createHttpsPushTransport(doRequest) }
+  }
+  const call = {
+    host: 'fcm.googleapis.com',
+    path: '/x',
+    headers: {},
+    body: Buffer.from('x'),
+    timeoutMs: 1000,
+    maxResponseBytes: 10,
+  }
+
+  it('uses an agent of its own with no keep-alive, never the global one', async () => {
+    const { seen, transport } = capture()
+
+    expect((await transport(call)).status).toBe(201)
+
+    expect(seen[0]?.['agent']).toBe(pushAgent)
+    expect(pushAgent.options.keepAlive).toBe(false)
+    expect(seen[0]?.['lookup']).toBeTypeOf('function')
+    expect(seen[0]?.['rejectUnauthorized']).toBe(true)
+    expect(seen[0]).toMatchObject({ host: 'fcm.googleapis.com', port: 443, method: 'POST' })
   })
 })

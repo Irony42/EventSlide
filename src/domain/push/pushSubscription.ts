@@ -10,6 +10,12 @@ import { err, ok, type Result } from '../shared/result'
 /** A host's browsers hold at most this many subscriptions per event (a laptop, a phone, a tablet...). */
 export const MAX_PUSH_SUBSCRIPTIONS_PER_USER_EVENT = 10
 
+/** A subscription whose last this many sends all failed is a dead one, and is pruned (a delivery resets the count). */
+export const MAX_PUSH_FAILURES = 5
+
+/** Browsers told per message at most: bounded, and shared out fairly between the owners. */
+export const MAX_PUSH_SENDS_PER_MESSAGE = 50
+
 /** The browser's key to encrypt to: an uncompressed P-256 point, 65 bytes, base64url. */
 const P256DH_BYTES = 65
 /** The browser's authentication secret: 16 bytes, base64url. */
@@ -85,4 +91,35 @@ export class PushSubscription {
   withKeys(p256dh: string, auth: string): PushSubscription {
     return new PushSubscription({ ...this.props, p256dh, auth })
   }
+}
+
+/**
+ * Which subscriptions a message goes to when there are more than `cap`: shared out **round-robin
+ * between the accounts** (the one who subscribed first goes first in each round), the **newest browser
+ * first** within an account, so that one account holding ten browsers cannot starve the others, and
+ * a later subscription is not left out for ever behind earlier ones.
+ */
+export const selectForDelivery = (
+  subscriptions: readonly PushSubscription[],
+  cap: number,
+): readonly PushSubscription[] => {
+  const queues = new Map<UserId, PushSubscription[]>()
+  for (const subscription of subscriptions) {
+    const queue = queues.get(subscription.userId) ?? []
+    queue.push(subscription)
+    queues.set(subscription.userId, queue)
+  }
+  const lines = [...queues.values()].map((queue) =>
+    [...queue].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
+  )
+  const picked: PushSubscription[] = []
+  for (let round = 0; picked.length < cap; round += 1) {
+    const before = picked.length
+    for (const line of lines) {
+      const next = line[round]
+      if (next !== undefined && picked.length < cap) picked.push(next)
+    }
+    if (picked.length === before) break
+  }
+  return picked
 }
