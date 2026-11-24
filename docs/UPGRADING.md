@@ -1199,7 +1199,7 @@ applies **no migration** (the last is still 035) and adds no setting. Take the s
 
 ## Upgrading to 3.18
 
-3.18.0 is a minor release, **not published yet**: it breaks nothing the policy above promises to keep. It applies **one migration** (036 `guest_rsvps`: a new table, one new column set on `guest_invites` for the replies' settings and one column on `event_memberships`; nothing existing is rewritten) and adds one optional setting. Back up before upgrading, as for any release: the migrations only go forward.
+3.18.0 is a minor release, **not published yet**: it breaks nothing the policy above promises to keep. It applies **three migrations** (036 `guest_rsvps`: a new table, one new column set on `guest_invites` for the replies' settings and one column on `event_memberships`; 037 `guest_households`: a new table; 038 `push_subscriptions`: a new table; nothing existing is rewritten) and adds optional settings. Back up before upgrading, as for any release: the migrations only go forward.
 
 ### Guests' replies (spec 30)
 
@@ -1207,3 +1207,10 @@ applies **no migration** (the last is still 035) and adds no setting. Take the s
 - **The only public write nobody is signed in for**: a reply is reached by a private token the guest keeps (stored only as its SHA-256), the JSON body is capped at 4 KB, and the writes are limited per IP and per invitation.
 - **One optional setting**: `GUEST_RSVP_RATE_LIMIT_PER_MINUTE` (default 30, 1 to 6000), what one address may write to the replies per minute. A second bucket of 300 a minute per invitation is not configurable. Raise it only if many guests answer from one address (a venue's Wi-Fi) and are refused with `429`.
 - No compose or reverse-proxy change: the variable is read like the others (`env_file`), and the logs never carry a name, a diet, a word or a token.
+
+### Browser notifications for the host (Web Push, spec 30)
+
+- **Off unless you set three variables**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` or an https address). Make the pair once with `npm run push:keys` (in the image: `node dist/ops/scripts/generateVapidKeys.js`) and put the three lines in `.env` or a secrets manager. **The private key is a credential** (it signs the token every push service sees): never in `compose.yaml`, never in the repository, never in a log. Setting only some of the three is refused at boot, naming the missing ones; a public key that is not the private key's is refused too. Changing the pair later switches every browser's notification off until the host turns it on again.
+- **It is the one outbound connection this feature makes**, to the push service of the host's own browser (Firefox, Google, Microsoft or Apple), and only when a host turned the notification on. The box calls only the hosts of the allowlist (`*.push.services.mozilla.com`, `fcm.googleapis.com`, `*.notify.windows.com`, `web.push.apple.com`; `PUSH_ALLOWED_HOSTS` replaces the list), over https, to public addresses only, with no redirect followed and a 10 second limit. Nothing is sent but "3 new replies" and the event's address, encrypted: never a name, a diet or a word.
+- **A firewall that blocks outbound traffic** must let the box reach those hosts on port 443, or the notifications simply do not arrive (the rest of EventSlide is unaffected, and a failed send is logged without the address).
+- Migration 038 adds the `push_subscriptions` table (one row per browser, event and account); it goes with its event and with its account.

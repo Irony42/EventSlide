@@ -10,6 +10,7 @@ import {
 } from '../../domain/clients/operatorGuard'
 import { JoinCode } from '../../domain/shared/joinCode'
 import { Password } from '../../domain/users/password'
+import { DEFAULT_PUSH_HOSTS, parsePushHosts } from '../../domain/push/pushEndpoint'
 import { parseMailbox, parseSmtpUrl } from '../mail/smtpEndpoint'
 import {
   PLACEHOLDER_SECRETS,
@@ -390,4 +391,74 @@ export const telegramApiBaseUrl = z.preprocess(
     })
     .transform((value) => value.replace(/\/+$/u, ''))
     .default('https://api.telegram.org'),
+)
+
+/**
+ * `VAPID_PUBLIC_KEY`: the box's Web Push public key (spec 30, lot 4), the 65-byte uncompressed P-256 point
+ * in unpadded base64url (87 characters), as `npm run push:keys` prints it. Optional: **all three of
+ * `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` or none**; with none, browser notifications are off.
+ * The schema never repeats a value it refused.
+ */
+export const vapidPublicKey = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{87}$/u, {
+      message:
+        'VAPID_PUBLIC_KEY must be the 87-character base64url key printed by npm run push:keys',
+    })
+    .optional(),
+)
+
+/**
+ * `VAPID_PRIVATE_KEY`: **a secret**, the 32-byte private key in unpadded base64url (43 characters). It signs
+ * the token every push service sees, so it lives in the environment (`.env` or a secrets manager), never in a
+ * file of the repository, and nothing logs it.
+ */
+export const vapidPrivateKey = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{43}$/u, {
+      message:
+        'VAPID_PRIVATE_KEY must be exactly 43 base64url characters (32 bytes) as printed by npm run push:keys; a key one character short lost its leading zero byte, so generate a new pair',
+    })
+    .optional(),
+)
+
+/**
+ * `VAPID_SUBJECT`: how a push service may reach the operator (RFC 8292), a `mailto:` address or an https
+ * address.
+ */
+export const vapidSubject = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .max(200)
+    .regex(/^(mailto:[^\s@]+@[^\s@]+\.[^\s@]+|https:\/\/[^\s/]+(\/\S*)?)$/u, {
+      message: 'VAPID_SUBJECT must be a mailto: address or an https address',
+    })
+    .optional(),
+)
+
+/**
+ * `PUSH_ALLOWED_HOSTS`: the push services this box may call, comma-separated host names or `*.suffix`
+ * patterns. **Replaces** the default list (Firefox, Chrome and Edge's FCM, Windows, Safari); an IP address
+ * is refused. Absent or blank means the default list.
+ */
+export const pushAllowedHosts = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .transform((value, ctx) => {
+      const hosts = parsePushHosts(value)
+      if (hosts === null) {
+        return refuse(
+          ctx,
+          'PUSH_ALLOWED_HOSTS must be a comma-separated list of host names such as push.example.org or *.push.example.org, never an IP address',
+        )
+      }
+      return hosts
+    })
+    .default(() => DEFAULT_PUSH_HOSTS),
 )

@@ -31,5 +31,11 @@
 
      `files`, not `include`: a name that no longer exists is `error TS6053` rather than
      silence (CLAUDE.md §9 trap 9). */
-  "files": ["scripts/backup.ts", "scripts/restore.ts", "scripts/purge.ts", "scripts/export.ts"]
+  "files": [
+    "scripts/backup.ts",
+    "scripts/restore.ts",
+    "scripts/purge.ts",
+    "scripts/export.ts",
+    "scripts/generateVapidKeys.ts"
+  ]
 }

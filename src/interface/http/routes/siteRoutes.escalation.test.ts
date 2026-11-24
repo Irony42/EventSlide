@@ -92,8 +92,15 @@ const NOT_ABOUT_EVENTS: readonly string[] = [
   '/api/me',
   '/api/invitations',
 ]
-/** The caller's own dashboard, and creating an event of one's own: about who is asking. */
-const ACCOUNT_LEVEL: ReadonlySet<string> = new Set(['get /api/events', 'post /api/events'])
+/**
+ * The caller's own dashboard, creating an event of one's own, and the box's public push key (only
+ * asked by a signed-in account, and told to all alike): about who is asking.
+ */
+const ACCOUNT_LEVEL: ReadonlySet<string> = new Set([
+  'get /api/events',
+  'post /api/events',
+  'get /api/push/key',
+])
 
 /**
  * The one route that is public **and never ends**: the wall's channel, which a projector opens

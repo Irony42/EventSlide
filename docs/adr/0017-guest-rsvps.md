@@ -71,6 +71,19 @@ Three decisions follow from that and a later reader would otherwise reopen them.
    replies**, on the same dates and whatever the purge hold says (decision 4): they are names the host typed, and nothing
    about them outlives the party by more than two months.
 
+8. **Browser notifications for the host (Web Push, lot 4) without a dependency.** The host's page can ask their browser to say "3 nouvelles
+   réponses" when replies come in: a second way to be told that adds no e-mail address, no phone number and nothing sent _to guests_.
+   It is built on `node:crypto` alone (RFC 8291 message encryption, `aes128gcm`, one record; RFC 8292 VAPID, ES256 in the raw 64-byte form; the
+   worked example of RFC 8291 appendix A is a test, byte for byte), because the one library that does it would be the largest dependency for forty
+   lines of arithmetic and one more thing to keep in step. **The keys come only from the environment** (`VAPID_PUBLIC_KEY`,
+   `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, all three or none; CLAUDE.md §3 rule 10: this box has no secret store), and the feature is **off while they
+   are missing**. The message holds the event's address and a count, **never a guest's name, diet or word**, and at most one is sent per event
+   and per five minutes. It is the **first outbound request to an address a user supplied**, so it is bounded as docs/SECURITY.md §29 says: `https`
+   only, an allowlist of the browsers' push services (replaceable by the operator, never an IP address), the connection only to public addresses
+   and to the addresses it checked, no redirect, a 10 second deadline, 4 KB of answer, and the endpoint, the keys and the message never logged. A
+   subscription is the owner's browser for one event (`UNIQUE (endpoint, event_id, user_id)`, ten per account and event); a push service that says
+   `404` or `410` removes it.
+
 ## Consequences
 
 ### Positive
@@ -80,6 +93,7 @@ Three decisions follow from that and a later reader would otherwise reopen them.
 - Names and diets do not outlive the party by more than two months, whatever the host does or forgets.
 - The ceilings and the capacity are decided in one transaction, so overlapping requests cannot pass them.
 - A household answers once for everyone on any of its devices with a link the host can show again and cut.
+- A host can be told in their browser that replies came in, with no dependency and nothing about a guest in the message.
 
 ### Negative
 

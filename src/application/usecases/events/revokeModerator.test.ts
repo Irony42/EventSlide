@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { PushSubscription } from '../../../domain/push/pushSubscription'
+import { FakePushSubscriptionRepository } from '../../testing/fakePushSubscriptionRepository'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { AT, anEvent, aUser } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -16,6 +18,7 @@ const STRANGER = asUserId('user-stranger')
 describe('revokeModerator', () => {
   let events: FakeEventRepository
   let memberships: FakeMembershipRepository
+  let pushSubscriptions: FakePushSubscriptionRepository
   let revokeModerator: RevokeModerator
 
   beforeEach(() => {
@@ -24,7 +27,8 @@ describe('revokeModerator', () => {
       anEvent({ id: GALA, slug: 'gala-acme', joinCode: 'B4N9PT' }),
     )
     memberships = new FakeMembershipRepository()
-    revokeModerator = makeRevokeModerator({ events, memberships })
+    pushSubscriptions = new FakePushSubscriptionRepository()
+    revokeModerator = makeRevokeModerator({ events, memberships, pushSubscriptions })
 
     memberships.seed(
       { eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT },
@@ -53,12 +57,38 @@ describe('revokeModerator', () => {
       { eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT },
       { eventId: WEDDING, userId: MODERATOR, role: 'moderator', grantedAt: AT },
     )
-    revokeModerator = makeRevokeModerator({ events, memberships })
+    revokeModerator = makeRevokeModerator({
+      events,
+      memberships,
+      pushSubscriptions: new FakePushSubscriptionRepository(),
+    })
 
     const result = await revokeModerator({ eventId: WEDDING, actorId: OWNER, userId: MODERATOR })
 
     expect(result.ok).toBe(true)
     expect(await memberships.membershipFor(WEDDING, MODERATOR)).toBeNull()
+  })
+
+  it('forgets the browsers the member asked to be told on, for this event only', async () => {
+    const mine = (id: string, eventId: typeof WEDDING) =>
+      PushSubscription.create({
+        id,
+        userId: OWNER,
+        eventId,
+        endpoint: `https://fcm.googleapis.com/${id}`,
+        p256dh: 'B' + 'A'.repeat(86),
+        auth: 'A'.repeat(22),
+        createdAt: AT,
+      })
+    await pushSubscriptions.upsert(mine('s-1', WEDDING), 10)
+    await pushSubscriptions.upsert(mine('s-2', GALA), 10)
+    memberships.seed({ eventId: WEDDING, userId: STRANGER, role: 'owner', grantedAt: AT })
+
+    expect(await pushSubscriptions.listByEvent(WEDDING)).toHaveLength(1)
+    await revokeModerator({ eventId: WEDDING, actorId: OWNER, userId: OWNER })
+
+    expect(await pushSubscriptions.listByEvent(WEDDING)).toHaveLength(0)
+    expect(await pushSubscriptions.listByEvent(GALA)).toHaveLength(1)
   })
 
   it('leaves the account alone elsewhere: only this event loses the membership', async () => {

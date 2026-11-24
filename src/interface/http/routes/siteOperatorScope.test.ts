@@ -209,6 +209,9 @@ const NOT_EVENT_SCOPED: Readonly<Record<string, string>> = {
     'ending the caller’s own other sessions — an account-wide act that no event owns',
   'post /api/auth/tours/:tour':
     'remembering that the caller’s own console showed a guided tour — it names no event',
+  'get /api/push/key':
+    'the box’s public VAPID key (spec 30, lot 4), told to any signed-in account or `404 push.disabled`: ' +
+    'a property of the box that names no event, so the site role changes nothing about it',
   'get /api/events':
     'the caller’s **own** dashboard: the membership table answers it, so an ' +
     'operator with no membership is shown nothing, which `tenant-isolation.spec.ts` asserts',

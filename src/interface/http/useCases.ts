@@ -144,6 +144,11 @@ import type { HostAddRsvp } from '../../application/usecases/guestRsvps/hostAddR
 import type { HostUpdateRsvp } from '../../application/usecases/guestRsvps/hostUpdateRsvp'
 import type { HostDeleteRsvp } from '../../application/usecases/guestRsvps/hostDeleteRsvp'
 import type { ExportRsvps } from '../../application/usecases/guestRsvps/exportRsvps'
+import type {
+  GetPushKey,
+  SubscribePush,
+  UnsubscribePush,
+} from '../../application/usecases/push/pushSubscriptions'
 import type { MarkRsvpsSeen } from '../../application/usecases/guestRsvps/markRsvpsSeen'
 import type { ListHouseholds } from '../../application/usecases/guestRsvps/listHouseholds'
 import type { SaveHousehold } from '../../application/usecases/guestRsvps/saveHousehold'
@@ -382,6 +387,9 @@ export interface HttpUseCases {
   readonly hostUpdateRsvp: HostUpdateRsvp
   readonly hostDeleteRsvp: HostDeleteRsvp
   readonly exportRsvps: ExportRsvps
+  readonly getPushKey: GetPushKey
+  readonly subscribePush: SubscribePush
+  readonly unsubscribePush: UnsubscribePush
   readonly markRsvpsSeen: MarkRsvpsSeen
   readonly countUnseenRsvps: CountUnseenRsvps
   readonly listHouseholds: ListHouseholds

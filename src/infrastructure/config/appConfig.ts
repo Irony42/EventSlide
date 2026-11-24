@@ -371,6 +371,19 @@ export interface AppConfig {
   }
 
   /**
+   * Browser notifications for the host (spec 30, lot 4, Web Push). `null` unless **all three** of `VAPID_PUBLIC_KEY`,
+   * `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` are set, which keeps the feature off and the box free of any request to a
+   * push service. Carries the private key: nothing logs this object.
+   */
+  readonly push: {
+    readonly publicKey: string
+    readonly privateKey: string
+    readonly subject: string
+    /** The push services this box may call (`PUSH_ALLOWED_HOSTS`, or the four browsers' own). */
+    readonly allowedHosts: readonly string[]
+  } | null
+
+  /**
    * Problems worth telling an operator about that are not worth refusing the boot
    * over — see `computeWarnings` (`load.ts`). The production-only ones are absent outside
    * production (a deprecated setting is warned about everywhere), and the list is usually

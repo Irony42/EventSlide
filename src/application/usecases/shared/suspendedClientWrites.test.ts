@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { FakePushSubscriptionRepository } from '../../testing/fakePushSubscriptionRepository'
 import { Event } from '../../../domain/events/event'
 import type { DomainError } from '../../../domain/shared/errors'
 import {
@@ -322,7 +323,11 @@ const CASES: readonly Case[] = [
     name: 'revokeModerator',
     member: 'owner',
     ask: ({ events, memberships }, actorId) =>
-      makeRevokeModerator({ events, memberships })({
+      makeRevokeModerator({
+        events,
+        memberships,
+        pushSubscriptions: new FakePushSubscriptionRepository(),
+      })({
         eventId: EVENT,
         actorId,
         userId: MODERATOR,

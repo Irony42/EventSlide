@@ -38,6 +38,7 @@ import { guestbookVoiceRoutes } from './routes/guestbookVoiceRoutes'
 import { announcementRoutes } from './routes/announcementRoutes'
 import { guestInviteRoutes } from './routes/guestInviteRoutes'
 import { guestRsvpPublicRoutes } from './routes/guestRsvpPublicRoutes'
+import { pushRoutes } from './routes/pushRoutes'
 import { rsvpHostRoutes } from './routes/rsvpHostRoutes'
 import { guestInvitePublicRoutes } from './routes/guestInvitePublicRoutes'
 import { channelRoutes } from './routes/channelRoutes'
@@ -419,6 +420,7 @@ export const buildServer = ({
   app.use('/api', guestInviteRoutes(routeDeps))
   // The guests' replies to it (spec 30), host side: the owner reads, corrects and exports them.
   app.use('/api', rsvpHostRoutes({ ...routeDeps, hostExportLimiter: sharedHostExportLimiter }))
+  app.use('/api', pushRoutes(routeDeps))
   // The groups that send photographs to an event (spec 27): a moderator reads them, the owner unlinks one.
   app.use('/api', channelRoutes(routeDeps))
   app.use(

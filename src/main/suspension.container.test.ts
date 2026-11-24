@@ -5,6 +5,7 @@ import sharp from 'sharp'
 import request from '../interface/http/testing/request'
 import { afterEach, describe, expect, it } from 'vitest'
 import { loadConfig } from '../infrastructure/config/env'
+import { generateVapidKeys } from '../infrastructure/push/webPushCrypto'
 import { asUserId } from '../domain/shared/ids'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
 import { mountedRoutes } from '../interface/http/testing/routeTable'
@@ -42,6 +43,8 @@ afterEach(async () => {
   workDir = null
 })
 
+const VAPID = generateVapidKeys()
+
 const boot = async (): Promise<Container> => {
   workDir = await mkdtemp(join(tmpdir(), 'eventslide-suspension-'))
   container = await createContainer(
@@ -55,6 +58,10 @@ const boot = async (): Promise<Container> => {
       SITE_ADMIN: 'on',
       BOOTSTRAP_OWNER_EMAIL: OPERATOR,
       BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
+      // Web Push on, or its routes answer 404 push.disabled before the client's freeze is ever asked.
+      VAPID_PUBLIC_KEY: VAPID.publicKey,
+      VAPID_PRIVATE_KEY: VAPID.privateKey,
+      VAPID_SUBJECT: 'mailto:ops@example.org',
     }),
   )
   return container
@@ -450,6 +457,12 @@ describe('a suspended client, through the real composition root', () => {
       path: '/api/events/:eventSlug/rsvps/:rsvpId/household',
       body: { householdId: null },
     },
+    // The host's browser notifications (spec 30, lot 4): a frozen client's owner cannot subscribe a browser to its event.
+    {
+      method: 'post',
+      path: '/api/events/:eventSlug/push-subscription',
+      body: { endpoint: 'https://fcm.googleapis.com/fcm/send/x', keys: { p256dh: 'a', auth: 'b' } },
+    },
     // A messaging channel (spec 27): a frozen event keeps its groups until the client is back.
     { method: 'delete', path: '/api/events/:eventSlug/channels/:bindingId', body: {} },
     {
@@ -514,6 +527,13 @@ describe('a suspended client, through the real composition root', () => {
     'DELETE /api/events/:eventSlug/guestbook/:entryId',
   ]
 
+  /**
+   * The one write a frozen client's member may still make: switching **their own** browser's
+   * notifications off (spec 30, lot 4). It only removes a row of theirs, says nothing of whether there
+   * was one, and leaving it refused would keep a frozen client's host receiving pushes they asked to stop.
+   */
+  const OWN_REMOVALS: readonly string[] = ['DELETE /api/events/:eventSlug/push-subscription']
+
   it('refuses every write of a host on a frozen event with 403 client.suspended', async () => {
     const s = await scene()
     await suspend(s)
@@ -528,6 +548,17 @@ describe('a suspended client, through the real composition root', () => {
         `${write.method.toUpperCase()} ${write.path}`,
       ).toEqual([write.method.toUpperCase(), write.path, 403, 'client.suspended'])
     }
+  })
+
+  it('still lets a frozen client’s member switch their own browser’s notifications off', async () => {
+    const s = await scene()
+    await suspend(s)
+
+    const removed = await s.operator.delete(`/api/events/${SLUG}/push-subscription`, {
+      endpoint: 'https://fcm.googleapis.com/fcm/send/x',
+    })
+
+    expect(removed.status).toBe(204)
   })
 
   it('shows a frozen client’s owner neither the replies nor the spreadsheet: a read is refused too', async () => {
@@ -629,6 +660,7 @@ describe('a suspended client, through the real composition root', () => {
       ...HOST_WRITES.map((write) => `${write.method.toUpperCase()} ${write.path}`),
       ...GUEST_WRITES,
       ...HOST_FILE_WRITES,
+      ...OWN_REMOVALS,
     ])
 
     expect(mounted.filter((route) => !named.has(route))).toEqual([])

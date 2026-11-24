@@ -150,6 +150,14 @@ services:
       # TELEGRAM_BOT_TOKEN (the token BotFather gave: **a credential**, in `.env` or a secrets manager, never in this file)
       # in `.env`; one token is one instance. It is never logged. See .env.example and docs/SECURITY.md §28.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      # Browser notifications for the host (Web Push, spec 30), optional: **all three or none**. Empty — what `:-` renders
+      # when you set nothing — means off, and no request to any push service. Make the pair with `npm run push:keys`.
+      # VAPID_PRIVATE_KEY is **a credential**: put it in `.env` or a secrets manager, never in this file. Never logged.
+      # PUSH_ALLOWED_HOSTS replaces the list of push services the box may call (see .env.example).
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      PUSH_ALLOWED_HOSTS: ${PUSH_ALLOWED_HOSTS:-}
       # The operator's identity and the pages they owe a visitor, **empty unless you set them**:
       # an instance that sets none of the seven changes nothing for anyone. Links are https URLs
       # or paths on your own site; the name is also said in the guests' privacy notice. See

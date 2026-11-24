@@ -4064,3 +4064,56 @@ other medium; the plan switch (`channelsAllowed`) and the host's switch (`allowT
 Named tests: `telegramBotApi` and `telegramChannel` (the token absent from every error and log), `telegramUpdates` (text
 dropped), `channelPoller`, `channelWorker`, `channels.container.test.ts` (no connection without a token; no token in any
 table), `channelRoutes.test.ts` (another event's binding is a 404; the owner unlinks).
+
+## 29. Browser notifications: Web Push (spec 30, lot 4, ADR 0017)
+
+The host's Réponses page can ask their browser to say "3 nouvelles réponses". It is **off unless the operator sets `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`**; without them there is no sender, no listener, and the box makes no request to any push service.
+It is also the **first request this box makes to an address a user supplied** (the browser's push endpoint, which reaches the box through the
+host's session), which is why it is bounded on every side.
+
+### What leaves the box
+
+- **A count and an address, never a guest.** The message is `{ "v": 1, "type": "rsvp.new", "slug", "count" }` (the event's address, how many
+  replies changed): no name, no diet, no word, no answer. It is **encrypted** to the browser (RFC 8291, `aes128gcm`, ECDH on P-256 with a
+  key made for the message, HKDF-SHA-256, AES-128-GCM, one record of at most 4096 bytes), so the push service sees ciphertext, the box's
+  public key and the event's origin only.
+- **At most one message per event and per five minutes** (the count of what came in meanwhile is told together). Only **the owners'**
+  browsers are told, with the role read on each send: a demoted or disabled account is skipped, and an event the operator took down is not told.
+- **A host's own browser, only**: a subscription is the owner's, per event, at most ten browsers per account and event, and an account
+  removes only its own (`DELETE` names the account).
+
+### The SSRF guard
+
+The endpoint is judged **twice** (when it is stored and when it is called) and the connection itself is guarded:
+
+1. **`https` only**, no credentials, no port, no fragment, at most 2048 characters, an ASCII host name, **never an IP address literal**.
+2. **The host name must be on the allowlist**: `*.push.services.mozilla.com`, `fcm.googleapis.com`, `*.notify.windows.com`, `web.push.apple.com`.
+   `PUSH_ALLOWED_HOSTS` **replaces** the list (host names and `*.suffix` patterns, never an IP); a wildcard needs a label in front of
+   the suffix; `fcm.googleapis.com.evil.test` and `evilfcm.googleapis.com` are not `fcm.googleapis.com`.
+3. **The connection goes only to a public address**: the name is resolved by the box (`dns.lookup` with `all`), **every** address must be
+   public (not loopback, private, shared, link-local such as the cloud metadata address, unique-local, multicast, reserved, documentation, the 6to4 tunnel, the special-purpose IPv6 blocks of 2001::/23 (Teredo, benchmarking, ORCHID...),
+   or an IPv4 written as IPv6), and the connection uses the addresses that were checked (no second resolution to rebind). A name that
+   resolves inside the network is refused at the connection.
+4. **No redirect is followed** (a `3xx` is a failure), the certificate must verify, the whole exchange has a **10 second** deadline, and
+   **at most 4 KB of the answer is read**.
+5. **A subscription that can never work is removed**: the push service says `404` or `410`, the browser's key is not a point of the curve, or
+   the endpoint no longer passes the allowlist. One that merely failed (a timeout, a 5xx, a refused signature) is kept until it has failed **five times in a row** (a delivery starts the count again), then pruned. The browsers of an account that is no longer a member or an owner of the event are removed at the next message, and with the membership when an owner revokes it.
+6. **Bounded and never overlapping**: the connection uses an agent of its own (no keep-alive, no global agent), at most 50 browsers are told per message (shared round-robin between the owners, newest first), and two deliveries of one event never run at once.
+
+### Keys and logs
+
+- The VAPID keys come **only from the environment** (`schema.ts`, `load.ts`, `.env.example`; CLAUDE.md §3 rule 10), all three or none, the public key must
+  be the private key's, and the schema never repeats a value it refused. `npm run push:keys` makes a pair and prints it once.
+- **The endpoint, the keys and the message are never logged**: a line says how many browsers were told, found gone or failed, and a failure says its HTTP
+  status or its error code. The log canary sweep reaches the new routes with its canary values, and `pushRoutes`, `httpPushSender` and
+  `pushNotifier` tests search every captured line for the endpoint and the keys.
+- A database dump holds the endpoints and keys of subscriptions: an endpoint is a capability to wake that browser (not to read anything), and goes
+  with its event (`ON DELETE CASCADE`) and its account.
+
+### What the cipher is held to
+
+`webPushCrypto.test.ts` reproduces **the worked example of RFC 8291, appendix A, byte for byte** (the header, the ciphertext and the whole body), checks
+the receiver's side recovers the text, and holds the VAPID token (ES256, the raw 64-byte signature, an audience that is the push service's origin, an
+expiry within 24 hours). Named tests: `publicAddress`, `pushEndpoint` (domain), `httpPushSender` (what is refused before any request, what an answer
+means, the lookup guard), `pushNotifier`, `pushRoutes`, `push.container.test.ts` (off without keys, no stored row for an internal address).

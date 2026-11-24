@@ -6,6 +6,7 @@ import {
   MIN_RETENTION_DAYS as CLIENT_MIN_RETENTION_DAYS,
 } from '../../domain/clients/clientCeilings'
 import { DEFAULT_OPERATOR_RESET_LINKS } from '../../domain/clients/operatorGuard'
+import { vapidKeysMatch } from '../push/webPushCrypto'
 import {
   blankAsAbsent,
   boolish,
@@ -47,6 +48,10 @@ import {
   newClientChannelsAllowed,
   telegramApiBaseUrl,
   telegramBotToken,
+  pushAllowedHosts,
+  vapidPrivateKey,
+  vapidPublicKey,
+  vapidSubject,
   operatorResetLinks,
   requireOperator2fa,
   siteAdmin,
@@ -669,6 +674,15 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       /** Media waiting in the channel queue for one event before more are dropped (the sender is told). */
       MAX_QUEUED_CHANNEL_MEDIA_PER_EVENT: positiveInt(200, 5_000),
 
+      /** See {@link vapidPublicKey}. All three of the VAPID variables or none: none means no browser notifications. */
+      VAPID_PUBLIC_KEY: vapidPublicKey,
+      /** See {@link vapidPrivateKey}. A secret. */
+      VAPID_PRIVATE_KEY: vapidPrivateKey,
+      /** See {@link vapidSubject}. */
+      VAPID_SUBJECT: vapidSubject,
+      /** See {@link pushAllowedHosts}. */
+      PUSH_ALLOWED_HOSTS: pushAllowedHosts,
+
       /** See {@link smtpUrl}. Absent means no mail: the composition root wires `NullMailer`. */
       SMTP_URL: smtpUrl,
       /** See {@link mailFrom}. Required whenever `SMTP_URL` is set. */
@@ -714,6 +728,38 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
           path: [missing],
           message: `${missing} is required alongside the other half of the first-owner bootstrap: an email with no password, or a password with no email, creates no account at all`,
         })
+      }
+
+      // Browser notifications are a triple, and half of one is a feature that silently does not work: the
+      // ones that are missing are named at boot, and a public key that is not the private key's is refused
+      // (every push service would reject the token). Values are never repeated.
+      const vapid = [
+        ['VAPID_PUBLIC_KEY', raw.VAPID_PUBLIC_KEY],
+        ['VAPID_PRIVATE_KEY', raw.VAPID_PRIVATE_KEY],
+        ['VAPID_SUBJECT', raw.VAPID_SUBJECT],
+      ] as const
+      if (vapid.some(([, value]) => value !== undefined)) {
+        for (const [name, value] of vapid) {
+          if (value === undefined) {
+            ctx.addIssue({
+              code: 'custom',
+              path: [name],
+              message: `${name} is required alongside the other VAPID variables: browser notifications need the public key, the private key and the subject, or none of them`,
+            })
+          }
+        }
+        if (
+          raw.VAPID_PUBLIC_KEY !== undefined &&
+          raw.VAPID_PRIVATE_KEY !== undefined &&
+          !vapidKeysMatch(raw.VAPID_PUBLIC_KEY, raw.VAPID_PRIVATE_KEY)
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['VAPID_PUBLIC_KEY'],
+            message:
+              'VAPID_PUBLIC_KEY is not the public half of VAPID_PRIVATE_KEY: generate a pair with npm run push:keys and set both',
+          })
+        }
       }
 
       // Not production-gated either: a relay with no sender is wrong everywhere. A relay
