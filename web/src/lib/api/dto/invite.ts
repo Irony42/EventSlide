@@ -265,3 +265,8 @@ export interface RsvpListResponseDto {
   /** How many replies were written or changed since the caller last looked. */
   readonly unseen: number
 }
+
+/** `GET /push/key`: the box's public VAPID key (spec 30, lot 4), what a browser subscribes with. */
+export interface PushKeyResponseDto {
+  readonly publicKey: string
+}

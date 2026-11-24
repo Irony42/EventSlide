@@ -1,7 +1,20 @@
 import { drainOutbox } from '../src/lib/offline/drainOutbox'
 import { fetchOutboxSender } from '../src/lib/offline/fetchSender'
 import { IndexedDbOutbox } from '../src/lib/offline/indexedDbOutbox'
-import { CSRF_COOKIE, KILL_MESSAGE, OUTBOX_SYNC_TAG } from '../src/lib/offline/names'
+import {
+  CSRF_COOKIE,
+  KILL_MESSAGE,
+  OUTBOX_SYNC_TAG,
+  PUSH_ONLY_MESSAGE,
+} from '../src/lib/offline/names'
+import {
+  noticeText,
+  notificationTag,
+  openRepliesPage,
+  parseRsvpNotice,
+  repliesPath,
+  type OpenWindow,
+} from '../src/lib/push/pushNotice'
 import {
   cacheNameFor,
   isShellRequest,
@@ -55,6 +68,13 @@ interface SyncEvent extends ExtendableEvent {
  * bundle is loaded as something other than a service worker.
  */
 const worker = self as unknown as ServiceWorkerGlobalScope
+
+/**
+ * Set by the page when the offline queue is switched off while a browser notification is still
+ * subscribed (spec 30, lot 4): the registration stays, because the push subscription lives on it, but
+ * the worker stops answering the shell and the outbox. Held in memory; the next load that asks says it again.
+ */
+let pushOnly = false
 
 /**
  * The live CSRF token.
@@ -144,7 +164,7 @@ worker.addEventListener('fetch', (event) => {
   // Returning without `respondWith` is not the same as answering from the network: it
   // hands the request back to the browser untouched, which is what keeps this worker off
   // the critical path of every upload and every SSE frame.
-  if (!isShellRequest(event.request, worker.location.origin)) return
+  if (pushOnly || !isShellRequest(event.request, worker.location.origin)) return
 
   event.respondWith(
     respondFromShell(event.request, {
@@ -156,7 +176,7 @@ worker.addEventListener('fetch', (event) => {
 
 worker.addEventListener('sync', (event) => {
   const sync = event as SyncEvent
-  if (sync.tag !== OUTBOX_SYNC_TAG) return
+  if (pushOnly || sync.tag !== OUTBOX_SYNC_TAG) return
   // `waitUntil` keeps the worker alive through the upload and tells the browser to
   // retry the tag if this rejects — which `drainEverything` does on purpose.
   sync.waitUntil(drainEverything())
@@ -165,6 +185,16 @@ worker.addEventListener('sync', (event) => {
 worker.addEventListener('message', (event) => {
   const data: unknown = event.data
   if (typeof data !== 'object' || data === null) return
+  if (Reflect.get(data, 'type') === PUSH_ONLY_MESSAGE) {
+    pushOnly = true
+    event.waitUntil(
+      caches
+        .keys()
+        .then((names) => Promise.all(ownCacheNames(names).map((name) => caches.delete(name))))
+        .then(() => undefined),
+    )
+    return
+  }
   if (Reflect.get(data, 'type') !== KILL_MESSAGE) return
   // The kill switch, from the page. Unregistering from inside the worker is what makes
   // "off" reach a worker that is already installed and misbehaving — and the caches go
@@ -175,5 +205,51 @@ worker.addEventListener('message', (event) => {
       .then((names) => Promise.all(ownCacheNames(names).map((name) => caches.delete(name))))
       .then(() => worker.registration.unregister())
       .then(() => undefined),
+  )
+})
+
+/**
+ * A reply came in (spec 30, lot 4, Web Push). Every push has to end in a visible notification, so a
+ * message that cannot be read still says that something came in. The text is worded here, in the
+ * browser's language: the message carries a count and an event's address, nothing a guest wrote.
+ */
+worker.addEventListener('push', (event) => {
+  let notice = null
+  try {
+    notice = parseRsvpNotice(event.data?.json())
+  } catch {
+    notice = null
+  }
+  const words = noticeText(notice?.count ?? null, worker.navigator.language)
+  event.waitUntil(
+    worker.registration.showNotification(words.title, {
+      body: words.body,
+      icon: '/icons/icon-192.png',
+      tag: notice === null ? 'eventslide-rsvp' : notificationTag(notice.slug),
+      data: { path: notice === null ? '/admin' : repliesPath(notice.slug) },
+    }),
+  )
+})
+
+worker.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const data: unknown = event.notification.data
+  const path = typeof data === 'object' && data !== null ? Reflect.get(data, 'path') : undefined
+  if (typeof path !== 'string' || !path.startsWith('/admin')) return
+  event.waitUntil(
+    worker.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((windows) =>
+        openRepliesPage(
+          windows.map<OpenWindow>((client) => ({
+            url: client.url,
+            focus: () => client.focus(),
+            navigate: (url) => client.navigate(url),
+          })),
+          worker.location.origin,
+          path,
+          (url) => worker.clients.openWindow(url),
+        ),
+      ),
   )
 })

@@ -1,6 +1,6 @@
 import { deleteOutboxDb, outboxHoldsPhotos } from './indexedDbOutbox'
 import { ownCacheNames } from '../pwa/appShell'
-import { KILL_MESSAGE, OUTBOX_SYNC_TAG } from './names'
+import { KILL_MESSAGE, OUTBOX_SYNC_TAG, PUSH_ONLY_MESSAGE } from './names'
 
 /**
  * Registering — and, just as importantly, un-registering — the upload worker.
@@ -16,7 +16,7 @@ import { KILL_MESSAGE, OUTBOX_SYNC_TAG } from './names'
  * something worse than that.
  */
 
-export { KILL_MESSAGE, OUTBOX_SYNC_TAG }
+export { KILL_MESSAGE, OUTBOX_SYNC_TAG, PUSH_ONLY_MESSAGE }
 
 /**
  * `ServiceWorkerRegistration.sync` is a living-standard addition TypeScript's DOM
@@ -50,8 +50,36 @@ export const registerUploadWorker = async (url = '/sw.js'): Promise<boolean> => 
   }
 }
 
+/** Whether a browser notification is subscribed on this registration. Never rejects. */
+const holdsPushSubscription = async (registration: ServiceWorkerRegistration): Promise<boolean> => {
+  try {
+    return (await registration.pushManager.getSubscription()) !== null
+  } catch {
+    return false
+  }
+}
+
 /**
- * Removes every worker this origin has and the cached shell, and the outbox database once it is empty.
+ * Registers the worker for a host who asked for browser notifications (spec 30, lot 4), whether or not
+ * the offline queue is on: the push handlers live in the same worker, and a page that turned the queue
+ * off registered none. Resolves to the ready registration, or `null` when the browser cannot (an
+ * insecure origin, no worker bundle in a development build). Never rejects.
+ */
+export const ensurePushWorker = async (
+  url = '/sw.js',
+): Promise<ServiceWorkerRegistration | null> => {
+  if (!supported()) return null
+  try {
+    await navigator.serviceWorker.register(url, { scope: '/' })
+    return await navigator.serviceWorker.ready
+  } catch (cause) {
+    console.warn('the notification worker could not be registered', cause)
+    return null
+  }
+}
+
+/**
+ * Removes every worker this origin has (but one a browser notification is subscribed on, which only stops serving the shell and the outbox) and the cached shell, and the outbox database once it is empty.
  *
  * Unregistering the worker is what stops it re-creating a database on the next sync. The database
  * itself is deleted only when no photo is waiting in it (SEC-06): the switch arrives by URL, a join
@@ -66,6 +94,12 @@ export const removeUploadWorker = async (): Promise<void> => {
     try {
       const registrations = await navigator.serviceWorker.getRegistrations()
       for (const registration of registrations) {
+        // A browser notification (spec 30, lot 4) lives on the registration: unregistering it would
+        // silently end a host's notifications. The worker is told to stop doing the rest instead.
+        if (await holdsPushSubscription(registration)) {
+          registration.active?.postMessage({ type: PUSH_ONLY_MESSAGE })
+          continue
+        }
         registration.active?.postMessage({ type: KILL_MESSAGE })
         await registration.unregister()
       }

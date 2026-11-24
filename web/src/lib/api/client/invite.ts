@@ -8,6 +8,7 @@ import type {
   HouseholdImportResponseDto,
   HouseholdListResponseDto,
   HouseholdResponseDto,
+  PushKeyResponseDto,
   RsvpFormResponseDto,
   RsvpListResponseDto,
   RsvpResponseDto,
@@ -48,6 +49,12 @@ export interface GuestRsvpInput {
   /** Ids of the moments the guest comes to (lot 4). */
   readonly moments?: readonly string[]
   readonly showName?: boolean
+}
+
+/** What a browser's `PushSubscription.toJSON()` holds, less its expiry: the address and the two keys. */
+export interface PushSubscriptionInput {
+  readonly endpoint: string
+  readonly keys: { readonly p256dh: string; readonly auth: string }
 }
 
 /** The creation adds the honeypot: a hidden field a person leaves empty and a script fills. */
@@ -257,6 +264,23 @@ export const guestInviteApi = (transport: Transport) => ({
     transport.post(`/api/events/${encode(slug)}/rsvps/${encode(rsvpId)}/household`, {
       householdId,
     }),
+
+  /** The box's public push key, or `404 push.disabled` while it has none (the checkbox is then not offered). */
+  pushKey: (signal?: AbortSignal): Promise<PushKeyResponseDto> =>
+    transport.get('/api/push/key', undefined, signal),
+
+  /** Subscribes this browser to the event's replies (the owner's); `204`, nothing comes back. */
+  subscribePush: (slug: string, input: PushSubscriptionInput): Promise<void> =>
+    transport.post(`/api/events/${encode(slug)}/push-subscription`, input),
+
+  /** Forgets this browser for the event: idempotent, any member. */
+  unsubscribePush: (slug: string, endpoint: string): Promise<void> =>
+    transport.del(
+      `/api/events/${encode(slug)}/push-subscription`,
+      undefined,
+      undefined,
+      { endpoint },
+    ),
 
   /** The replies as a spreadsheet, for the browser to download. */
   rsvpExportUrl: (slug: string, view: 'all' | 'caterer' = 'all'): string =>
