@@ -695,6 +695,13 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // `view`: the page links to it (`rsvpExportUrl`, the caterer's view included); no client request
   // sends its query.
   rsvpExportQuery: 'GET /api/events/:eventSlug/rsvps/export: the replies page is not built yet',
+  // The host's browser notifications (spec 30, lot 4): the two routes are written and held at ring 4
+  // (`pushRoutes.test.ts`); the service worker and the checkbox that send them are the next pull request's
+  // (lot 4, PR 16), and both entries leave this list the day `web/src` calls them.
+  pushSubscribeBody:
+    'POST /api/events/:eventSlug/push-subscription: the replies page checkbox is not built yet',
+  pushUnsubscribeBody:
+    'DELETE /api/events/:eventSlug/push-subscription: the replies page checkbox is not built yet',
   // `PATCH /api/events/:slug` (rename) and `PATCH /api/events/:slug/photos/:photoId/caption`: both
   // routes are written and held at ring 4, and no screen sends either. The client methods were
   // deleted for having no caller (`web/src/lib/api/apiCallers.guard.test.ts` keeps it that way); a
