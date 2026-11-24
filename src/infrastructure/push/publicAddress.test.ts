@@ -54,6 +54,8 @@ describe('isPublicAddress: where the box may connect', () => {
     ['mapped private in hex', '::ffff:a00:1'],
     ['mapped metadata', '::ffff:169.254.169.254'],
     ['NAT64 of a private address', '64:ff9b::a00:1'],
+    ['6to4 carrying a loopback', '2002:7f00:1::1'],
+    ['Teredo', '2001:0:4136:e378:8000:63bf:3fff:fdd2'],
     ['documentation 3fff::/20', '3fff:ffff::1'],
     ['not global unicast', '4000::1'],
     ['a name', 'localhost'],

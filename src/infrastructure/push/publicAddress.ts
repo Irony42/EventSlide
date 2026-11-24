@@ -7,7 +7,7 @@ import { isIP } from 'node:net'
  * resolver, a mistaken record) is refused at the connection and never reaches an internal service.
  *
  * Refused: loopback, private (RFC 1918), shared (100.64/10), link-local (169.254/16, fe80::/10, which
- * is where cloud metadata services live), unique-local (fc00::/7), multicast, reserved, the
+ * is where cloud metadata services live), unique-local (fc00::/7), multicast, the 6to4 and Teredo tunnels, reserved, the
  * documentation and benchmarking ranges, the unspecified address, and an IPv4 address written as
  * IPv6 (`::ffff:a.b.c.d`, NAT64) when the embedded IPv4 is itself refused. Anything that is not an IP
  * address at all is refused.
@@ -88,6 +88,9 @@ const publicV6 = (address: string): boolean => {
   if (b0 === 0xfe && (b1 & 0xc0) === 0xc0) return false // fec0::/10 site-local (deprecated)
   if (b0 === 0xff) return false // multicast
   if (b0 === 0x20 && b1 === 0x01 && bytes[2] === 0x0d && bytes[3] === 0xb8) return false // documentation
+  // 6to4 (2002::/16) and Teredo (2001::/32) tunnel an IPv4 address that is not judged here.
+  if (b0 === 0x20 && b1 === 0x02) return false
+  if (b0 === 0x20 && b1 === 0x01 && bytes[2] === 0 && bytes[3] === 0) return false
   if (b0 === 0x3f && (b1 & 0xf0) === 0xf0) return false // 3fff::/20 documentation
   // Only global unicast, 2000::/3, is a public address.
   return (b0 & 0xe0) === 0x20

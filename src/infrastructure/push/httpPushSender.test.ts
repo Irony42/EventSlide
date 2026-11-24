@@ -131,6 +131,20 @@ describe('what an answer means', () => {
     }
   })
 
+  it('bounds the exchange: ten seconds, four kilobytes of answer read', () => {
+    expect(PUSH_TIMEOUT_MS).toBe(10_000)
+    expect(PUSH_MAX_RESPONSE_BYTES).toBe(4096)
+  })
+
+  it('logs a refusal by its status only, never the endpoint', async () => {
+    const { sender, logger } = harness({ status: 403, truncated: false })
+
+    await sender.send(subscription(ENDPOINT), '{"v":1}')
+
+    expect(JSON.stringify(logger.lines)).toContain('403')
+    expect(JSON.stringify(logger.lines)).not.toMatch(/fcm|abc123|https/)
+  })
+
   it('takes an answer longer than the cap as a failure, whatever its status', async () => {
     const { sender } = harness({ status: 201, truncated: true })
 

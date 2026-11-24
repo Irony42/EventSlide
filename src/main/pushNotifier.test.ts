@@ -15,7 +15,7 @@ import {
   type GuestInviteScene,
 } from '../application/testing/guestInviteScene'
 import { RecordingPushSender } from '../application/testing/recordingPushSender'
-import type { EventId } from '../domain/shared/ids'
+import { asGuestId, type EventId } from '../domain/shared/ids'
 import { createPushNotifier } from './pushNotifier'
 
 /**
@@ -285,6 +285,58 @@ describe('the push notifier', () => {
     expect(listeners).toHaveLength(0)
     expect(sender.sent).toHaveLength(0)
     expect(started).toBe(true)
+  })
+
+  it('ignores every signal but a reply: a photograph does not tell the host', async () => {
+    await subscribe('s-1')
+    begin()
+
+    listeners.forEach((listener) =>
+      listener(
+        { type: 'guest.joined', eventId: WEDDING, guestId: asGuestId('g-1') },
+        { sequence: 1 },
+      ),
+    )
+    await advance(T() + PUSH_MIN_INTERVAL_MS)
+
+    expect(timers.pending).toHaveLength(0)
+    expect(sender.sent).toHaveLength(0)
+  })
+
+  it('holds one timer for a burst, so that stop leaves none behind', async () => {
+    await subscribe('s-1')
+    const made = begin()
+
+    reply()
+    reply()
+    reply()
+    expect(timers.pending.filter((timer) => !timer.cancelled)).toHaveLength(1)
+    made.stop()
+
+    expect(timers.pending.filter((timer) => !timer.cancelled)).toHaveLength(0)
+  })
+
+  it('tells at most fifty browsers per message, however many the owners hold', async () => {
+    for (let i = 0; i < 60; i += 1) {
+      await subscriptions.upsert(
+        PushSubscription.create({
+          id: `bulk-${i}`,
+          userId: OWNER,
+          eventId: WEDDING,
+          endpoint: `https://fcm.googleapis.com/bulk-${i}`,
+          p256dh: 'B' + 'A'.repeat(86),
+          auth: 'A'.repeat(22),
+          createdAt: scene.clock.now(),
+        }),
+        100,
+      )
+    }
+    begin()
+
+    reply()
+    await advance(T())
+
+    expect(sender.sent).toHaveLength(50)
   })
 
   it('does not listen twice when started twice', () => {
