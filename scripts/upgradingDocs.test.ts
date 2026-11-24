@@ -157,7 +157,16 @@ describe('the commands docs/UPGRADING.md tells a host to type', () => {
     for (const file of workflows) {
       const text = read('.github', 'workflows', file)
       if (file === 'release.yml') expect(text, `${file} publishes the image`).toMatch(pushes)
-      else expect(text, `${file} pushes an image`).not.toMatch(pushes)
+      else if (file === 'edge.yml') {
+        // The one exception: it pushes, but to another package, which the page names as
+        // never for production. scripts/edgeImage.test.ts holds what it may push.
+        const code = text
+          .split('\n')
+          .filter((line) => !line.trimStart().startsWith('#'))
+          .join('\n')
+        expect(code).not.toMatch(/ghcr\.io\/irony42\/eventslide(?!-edge)/)
+        expect(page).toContain('ghcr.io/irony42/eventslide-edge')
+      } else expect(text, `${file} pushes an image`).not.toMatch(pushes)
     }
   })
 

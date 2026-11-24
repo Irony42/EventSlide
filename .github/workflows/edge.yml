@@ -1,0 +1,110 @@
+name: Edge image
+
+# Builds the image of every commit that lands on `main` and pushes it to a SEPARATE package,
+# `ghcr.io/irony42/eventslide-edge`, so that a staging box can run what has been merged but
+# not released yet. It is not a release and never touches `ghcr.io/irony42/eventslide`: the
+# product image is still published only by release.yml, from a tag, after the maintainer's
+# approval (scripts/releasePipeline.test.ts holds that, scripts/edgeImage.test.ts holds this).
+#
+# What is published for a commit on main:
+#
+#   * `eventslide-edge:main`, which always names the newest one;
+#   * `eventslide-edge:main-<full commit sha>`, which names that one forever.
+#
+# Faster than a release on purpose: linux/amd64 only (no arm64 under emulation), one build
+# pushed directly, the BuildKit cache of the previous run, and no test run here, since the
+# pull request that was merged already went through ci.yml. The image still carries the
+# commit it was built from (`SOURCE_REF`, so `GET /api/about` offers the exact source, AGPL
+# section 13) and is signed keyless, so a staging box can check where it came from:
+#
+#   cosign verify \
+#     --certificate-identity-regexp '^https://github\.com/Irony42/EventSlide/\.github/workflows/edge\.yml@refs/heads/main$' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+#     ghcr.io/irony42/eventslide-edge@sha256:<digest>
+#
+# One-time setting: the first push creates the package private. Make it public in its
+# settings on GitHub, or a staging box cannot pull it without a login.
+#
+# Never run this image in production: it carries migrations no release has announced yet, and
+# a migration runs in one direction only (docs/UPGRADING.md, "Going back").
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# One build per ref at a time. Not cancelled half way: a cancel between the push and the
+# signature would leave `main` unsigned, and a staging box refuses an unsigned image. Two
+# merges in a row still cost one wait, since GitHub keeps only the newest pending run.
+concurrency:
+  group: edge-image-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  EDGE_IMAGE: ghcr.io/irony42/eventslide-edge
+
+jobs:
+  edge:
+    name: Build, push and sign the edge image
+    # A manual run from another branch would publish that branch as `main`.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build for amd64 and push
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.EDGE_IMAGE }}:main
+            ${{ env.EDGE_IMAGE }}:main-${{ github.sha }}
+          build-args: |
+            SOURCE_REF=${{ github.sha }}
+          # Not org.opencontainers.image.licenses: the Dockerfile sets it (see release.yml).
+          labels: |
+            org.opencontainers.image.title=EventSlide (edge)
+            org.opencontainers.image.source=https://github.com/Irony42/EventSlide
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=edge
+          cache-to: type=gha,scope=edge,mode=max
+          provenance: false
+          sbom: false
+
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+
+      - name: Sign the digest
+        env:
+          IMAGE_REF: ${{ env.EDGE_IMAGE }}@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE_REF"
+
+      - name: Say what was published
+        env:
+          IMAGE_REF: ${{ env.EDGE_IMAGE }}@${{ steps.build.outputs.digest }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          {
+            echo "### Edge image"
+            echo ""
+            echo "\`$IMAGE_REF\`, commit \`$COMMIT\`, tags \`main\` and \`main-$COMMIT\`."
+          } >> "$GITHUB_STEP_SUMMARY"
