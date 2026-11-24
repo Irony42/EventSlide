@@ -6,6 +6,7 @@ import type { PushOutcome, PushSender } from '../../application/ports/pushSender
 import { parsePushEndpoint } from '../../domain/push/pushEndpoint'
 import { PUSH_PAYLOAD_MAX_BYTES } from '../../domain/push/pushNotice'
 import type { PushSubscription } from '../../domain/push/pushSubscription'
+import { setBackgroundTimeout } from '../time/backgroundTimers'
 import { isPublicAddress } from './publicAddress'
 import { encryptAes128gcm, vapidAuthorization } from './webPushCrypto'
 
@@ -113,7 +114,7 @@ export const httpsPushTransport: PushTransport = (request) =>
       },
     )
     // One deadline for the whole exchange, so a service that drips bytes cannot hold the box.
-    const deadline = setTimeout(() => {
+    const deadline = setBackgroundTimeout(() => {
       clientRequest.destroy(new Error('push deadline'))
     }, request.timeoutMs)
     clientRequest.on('error', (error) => {
