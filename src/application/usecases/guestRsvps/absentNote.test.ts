@@ -184,6 +184,14 @@ describe('a note left by a guest who cannot come (spec 30, lot 4)', () => {
     })
 
     it('makes no second author when the note was claimed in between, and says it was sent', async () => {
+      const made: string[] = []
+      const ids = {
+        guestId: () => {
+          const id = scene.ids.guestId()
+          made.push(id)
+          return id
+        },
+      }
       const losing = makePostAbsentNote({
         events: scene.events,
         invites: scene.invites,
@@ -197,18 +205,27 @@ describe('a note left by a guest who cannot come (spec 30, lot 4)', () => {
         secrets: scene.secrets,
         guests: scene.guests,
         createEntry: async () => err(DomainError.conflict('never')),
-        ids: scene.ids,
+        ids,
         clock: scene.clock,
       })
 
       const posted = await losing({ token, editToken, text: 'Merci' })
 
       expect(code(posted)).toBe('rsvp.absentNoteSent')
-      expect(await scene.guests.findById(WEDDING, 'guest-1' as never)).toBeNull()
+      expect(made).toHaveLength(1)
+      expect(await scene.guests.findById(WEDDING, made[0] as never)).toBeNull()
       expect(await entries()).toEqual([])
     })
 
     it('takes everything back when the guestbook refuses, and lets the guest try again', async () => {
+      const made: string[] = []
+      const ids = {
+        guestId: () => {
+          const id = scene.ids.guestId()
+          made.push(id)
+          return id
+        },
+      }
       const refused = makePostAbsentNote({
         events: scene.events,
         invites: scene.invites,
@@ -217,7 +234,7 @@ describe('a note left by a guest who cannot come (spec 30, lot 4)', () => {
         secrets: scene.secrets,
         guests: scene.guests,
         createEntry: async () => err(DomainError.conflict('guestbook.eventFull', { max: 500 })),
-        ids: scene.ids,
+        ids,
         clock: scene.clock,
       })
 
@@ -225,7 +242,8 @@ describe('a note left by a guest who cannot come (spec 30, lot 4)', () => {
 
       expect(code(posted)).toBe('guestbook.eventFull')
       expect((await reply())?.absentNoteGuestId).toBeNull()
-      expect(await scene.guests.list(WEDDING)).toEqual([])
+      expect(made).toHaveLength(1)
+      expect(await scene.guests.findById(WEDDING, made[0] as never)).toBeNull()
       expect((await write()).ok).toBe(true)
     })
 
@@ -297,6 +315,32 @@ describe('a note left by a guest who cannot come (spec 30, lot 4)', () => {
       expect(await page()).toBe(false)
       guestbookOn()
       await scene.saveForm({ eventId: WEDDING, actorId: OWNER, form: { absentNote: false } })
+      expect(await page()).toBe(false)
+      await scene.saveForm({ eventId: WEDDING, actorId: OWNER, form: { absentNote: true } })
+      expect(await page()).toBe(true)
+    })
+
+    it('stops offering it once the guestbook no longer takes entries: a week after the event closed', async () => {
+      const closed = (days: number) =>
+        scene.events.seed(
+          anEvent({
+            id: WEDDING,
+            ownerId: OWNER,
+            slug: 'camille-et-sacha',
+            joinCode: 'H7K2QM',
+            status: 'closed',
+            closedAt: AT,
+            settings: { allowGuestbook: true },
+          }),
+        ) && scene.clock.set(new Date(AT.getTime() + days * 24 * 3600_000))
+      const page = async () => {
+        const viewed = await scene.view({ token })
+        return viewed.ok && viewed.value.rsvp.absentNoteAvailable
+      }
+
+      closed(3)
+      expect(await page()).toBe(true)
+      closed(8)
       expect(await page()).toBe(false)
     })
   })

@@ -240,6 +240,13 @@ export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
           disabled={locked}
           onChange={(diet) => rsvp.change({ form: { diet } })}
         />
+        <CheckboxField
+          label={text.absentNote}
+          hint={text.absentNoteHint}
+          checked={form.absentNote}
+          disabled={locked}
+          onChange={(absentNote) => rsvp.change({ form: { absentNote } })}
+        />
         <SelectField
           label={text.visibilityLabel}
           hint={text.visibilityHint}

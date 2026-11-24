@@ -263,3 +263,29 @@ fieldset.field legend {
 .full p {
   margin: 0;
 }
+
+/* The word of a guest who cannot come (lot 4): a card under the recap. */
+.absent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.absentLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-weight: 600;
+}
+
+.absentLabel textarea {
+  font: inherit;
+  font-weight: 400;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}

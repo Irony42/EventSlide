@@ -82,14 +82,22 @@ export const makePostAbsentNote =
     // A script's note is answered as a real one is, and goes nowhere.
     if (typeof website === 'string' && website.length > 0) return ok(undefined)
 
-    const author = Guest.create(
-      { eventId: event.id, displayName: absentNoteAuthorName(rsvp.name), viaRsvp: true },
-      deps.ids.guestId(),
-      now,
+    // A row made for the note: no device token, in no count of guests (`viaRsvp`).
+    const guestId = deps.ids.guestId()
+    await deps.guests.save(
+      Guest.restore({
+        id: guestId,
+        eventId: event.id,
+        displayName: absentNoteAuthorName(rsvp.name),
+        joinedAt: now,
+        lastSeenAt: now,
+        revokedAt: null,
+        photoCount: 0,
+        noticeAcknowledgement: null,
+        channelIdentity: null,
+        viaRsvp: true,
+      }),
     )
-    if (!author.ok) return author
-    const guestId = author.value.id
-    await deps.guests.save(author.value)
 
     // One note per reply, decided in the write: a double tap or two tabs make one author, not two.
     if (!(await deps.rsvps.claimAbsentNote(event.id, rsvp.id, guestId))) {

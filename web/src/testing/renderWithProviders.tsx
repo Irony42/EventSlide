@@ -266,6 +266,7 @@ export const aGuestRsvpPage = (overrides: Partial<GuestRsvpPageDto> = {}): Guest
     moments: [],
     limited: false,
   },
+  absentNoteAvailable: false,
   ...overrides,
 })
 
@@ -282,6 +283,7 @@ export const aGuestOwnRsvp = (overrides: Partial<GuestOwnRsvpDto> = {}): GuestOw
   answers: [],
   moments: [],
   showName: false,
+  absentNoteSent: false,
   updatedAt: '2026-11-20T10:00:00.000Z',
   ...overrides,
 })
@@ -1193,6 +1195,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   deleteRsvp: vi.fn(async (): Promise<void> => undefined),
   markRsvpsSeen: vi.fn(async (): Promise<void> => undefined),
   // Browser notifications off, as on a box with no VAPID keys: the checkbox is not offered.
+  guestAbsentNote: vi.fn(async () => ({ absentNoteSent: true as const })),
   pushKey: vi.fn(async () => {
     throw new ApiError(404, 'push.disabled')
   }),

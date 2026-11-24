@@ -4220,6 +4220,9 @@ export const fr = {
       tooLarge: 'Votre réponse est trop longue pour être envoyée. Raccourcissez vos textes.',
     },
     host: {
+      absentNote: 'Laisser les absents écrire un mot au livre d’or',
+      absentNoteHint:
+        'Un invité qui répond non peut laisser un mot, qui passe par la modération du livre d’or. Le livre d’or doit être ouvert.',
       title: 'Réponses des invités',
       stateOff: 'Non demandées',
       stateOpen: 'Demandées',
@@ -4331,6 +4334,17 @@ export const fr = {
       presetKindWedding: 'un mariage',
     },
     /** The host's replies page (spec 30, lot 1). */
+    absent: {
+      offer: 'Laisser un mot au livre d’or',
+      title: 'Un mot au livre d’or',
+      hint: 'Votre mot est signé de votre prénom et passe par la modération de l’évènement avant d’être lu.',
+      label: 'Votre mot',
+      send: 'Envoyer mon mot',
+      sent: 'Merci, votre mot est envoyé.',
+      sentSub: 'Il sera lu par l’organisateur.',
+      unavailable: 'Le livre d’or n’accepte plus de mot pour le moment.',
+      already: 'Vous avez déjà laissé un mot.',
+    },
     push: {
       // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
       // same words, and a test holds the two together).

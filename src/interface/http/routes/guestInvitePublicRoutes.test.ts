@@ -160,6 +160,7 @@ describe('GET /api/i/:token', () => {
           moments: [],
           limited: false,
         },
+        absentNoteAvailable: true,
       },
       state: 'joinable',
       title: 'Léa fête ses 40 ans',

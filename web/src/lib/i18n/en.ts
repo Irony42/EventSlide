@@ -3451,6 +3451,9 @@ export const en: UiText = {
       tooLarge: 'Your reply is too long to be sent. Please shorten your texts.',
     },
     host: {
+      absentNote: 'Let guests who cannot come write a note in the guestbook',
+      absentNoteHint:
+        'A guest who answers no may leave a note, which goes through the guestbook’s moderation. The guestbook must be open.',
       title: 'Guests’ replies',
       stateOff: 'Not asked',
       stateOpen: 'Asked',
@@ -3559,6 +3562,17 @@ export const en: UiText = {
       presetKindWedding: 'a wedding',
     },
     /** The host's replies page (spec 30, lot 1). */
+    absent: {
+      offer: 'Leave a note in the guestbook',
+      title: 'A note in the guestbook',
+      hint: 'Your note is signed with your first name and goes through the event’s moderation before it is read.',
+      label: 'Your note',
+      send: 'Send my note',
+      sent: 'Thank you, your note is sent.',
+      sentSub: 'The organiser will read it.',
+      unavailable: 'The guestbook is not taking notes at the moment.',
+      already: 'You have already left a note.',
+    },
     push: {
       // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
       // same words, and a test holds the two together).

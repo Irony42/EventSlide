@@ -1,5 +1,6 @@
 import type { Transport } from '../../http'
 import type {
+  GuestAbsentNoteResponseDto,
   GuestInvitePageDto,
   GuestInviteResponse,
   GuestOwnRsvpResponseDto,
@@ -57,6 +58,12 @@ export interface PushSubscriptionInput {
   readonly keys: { readonly p256dh: string; readonly auth: string }
 }
 
+/** The word of a guest who cannot come (lot 4): the guestbook's own text, and the honeypot a person leaves empty. */
+export interface AbsentNoteInput {
+  readonly text: string
+  readonly website?: string
+}
+
 /** The creation adds the honeypot: a hidden field a person leaves empty and a script fills. */
 export interface GuestRsvpCreateInput extends GuestRsvpInput {
   readonly website?: string
@@ -74,6 +81,8 @@ export interface RsvpFormInput {
     readonly partySize?: { readonly enabled?: boolean; readonly max?: number }
     readonly kidsSeparate?: boolean
     readonly diet?: boolean
+    /** The word of those who cannot come, in the guestbook (lot 4). */
+    readonly absentNote?: boolean
     readonly companionNames?: boolean
     readonly meals?: { readonly enabled?: boolean; readonly options?: readonly string[] }
     readonly visibility?: 'off' | 'count' | 'names'
@@ -204,6 +213,24 @@ export const guestInviteApi = (transport: Transport) => ({
   /** Always, while the page is served: the right to erase does not end with the window. */
   guestRsvpDelete: (token: string, editToken: string, signal?: AbortSignal): Promise<void> =>
     transport.del(`/api/i/${encode(token)}/rsvp`, signal, rsvpToken(editToken)),
+
+  /**
+   * The word of a guest who answered "no", left in the guestbook (lot 4): the reply's own token, or a
+   * household's link, in its header. `409 rsvp.absentNoteUnavailable | rsvp.absentNoteSent`, the guestbook's
+   * own codes for the text. `website` is the honeypot.
+   */
+  guestAbsentNote: (
+    token: string,
+    key: { readonly editToken: string } | { readonly household: string },
+    input: AbsentNoteInput,
+    signal?: AbortSignal,
+  ): Promise<GuestAbsentNoteResponseDto> =>
+    transport.post(
+      `/api/i/${encode(token)}/absent-note`,
+      input,
+      signal,
+      'editToken' in key ? rsvpToken(key.editToken) : householdToken(key.household),
+    ),
 
   /** The replies page: every reply, the figures, how many the caller has not seen. */
   rsvps: (slug: string, signal?: AbortSignal): Promise<RsvpListResponseDto> =>

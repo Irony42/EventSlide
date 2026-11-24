@@ -82,7 +82,7 @@ const offeredAnswer = (questionId: string, value: string, form: AskedForm): stri
  * send would be refused. One adult at least, then the children that still fit.
  */
 const clampedParty = (
-  reply: GuestOwnRsvpDto,
+  reply: Pick<GuestOwnRsvpDto, 'adults' | 'kids'>,
   form: AskedForm,
 ): { readonly adults: number; readonly kids: number } => {
   if (!form.partySize.enabled) return { adults: 1, kids: 0 }
@@ -93,7 +93,8 @@ const clampedParty = (
 
 /** The form of a guest who is changing their reply: what they sent, in the shape they typed it. */
 export const draftOf = (
-  reply: GuestOwnRsvpDto,
+  // What the form needs of a reply: not whether a word was left in the guestbook.
+  reply: Omit<GuestOwnRsvpDto, 'absentNoteSent'>,
   form: AskedForm,
   options: { readonly clamp?: boolean } = {},
 ): RsvpDraft => ({
@@ -213,6 +214,7 @@ export const NO_RSVP_PAGE: GuestRsvpPageDto = {
     moments: [],
     limited: false,
   },
+  absentNoteAvailable: false,
 }
 
 /**

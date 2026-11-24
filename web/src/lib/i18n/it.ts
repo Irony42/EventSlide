@@ -3504,6 +3504,9 @@ export const it: UiText = {
       tooLarge: 'La tua risposta è troppo lunga per essere inviata. Accorcia i testi.',
     },
     host: {
+      absentNote: 'Lascia che chi non può venire scriva un messaggio nel libro degli ospiti',
+      absentNoteHint:
+        'Un invitato che risponde di no può lasciare un messaggio, che passa dalla moderazione del libro degli ospiti. Il libro degli ospiti deve essere aperto.',
       title: 'Risposte degli invitati',
       stateOff: 'Non richieste',
       stateOpen: 'Richieste',
@@ -3614,6 +3617,17 @@ export const it: UiText = {
       presetKindWedding: 'un matrimonio',
     },
     /** The host's replies page (spec 30, lot 1). */
+    absent: {
+      offer: 'Lasciare un messaggio nel libro degli ospiti',
+      title: 'Un messaggio nel libro degli ospiti',
+      hint: 'Il Suo messaggio è firmato con il Suo nome e passa dalla moderazione dell’evento prima di essere letto.',
+      label: 'Il Suo messaggio',
+      send: 'Invia il mio messaggio',
+      sent: 'Grazie, il Suo messaggio è stato inviato.',
+      sentSub: 'L’organizzatore lo leggerà.',
+      unavailable: 'Il libro degli ospiti non accetta messaggi al momento.',
+      already: 'Ha già lasciato un messaggio.',
+    },
     push: {
       // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
       // same words, and a test holds the two together).

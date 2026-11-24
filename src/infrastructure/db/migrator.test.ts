@@ -4667,6 +4667,23 @@ describe('migration 038: push subscriptions (spec 30, lot 4)', () => {
 
 describe('migration 039: the word of those who cannot come (spec 30, lot 4)', () => {
   const AT = '2026-11-24T10:00:00.000Z'
+  const migrated = (): Db => {
+    const db = freshDb()
+    migrate(db, migrations)
+    return db
+  }
+  const migratedAt = (id: number): Db => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= id),
+    )
+    return db
+  }
+  const columnsOf = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(
+      (column) => column.name,
+    )
   const guest = (db: Db, id: string, viaRsvp?: number): void => {
     db.prepare(
       `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at${viaRsvp === undefined ? '' : ', via_rsvp'})
