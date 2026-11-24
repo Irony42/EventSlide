@@ -48,12 +48,20 @@ describe('applyFormPatch', () => {
     ['null', null],
     ['a list', ['maybe']],
     ['a string', 'maybe'],
-    ['a key the form does not know', { absentNote: false }],
+    ['a key the form does not know', { surprise: false }],
     ['a key that is not even one of the form', { maybe: true, nope: 1 }],
   ])('refuses %s as rsvp.formInvalid, and never ignores it', (_name, patch) => {
     const result = patched(patch)
 
     expect(!result.ok && result.error.code).toBe('rsvp.formInvalid')
+  })
+
+  it('switches the absent’s word off and on, and refuses what is not a boolean', () => {
+    const off = patched({ absentNote: false })
+    expect(off.ok && off.value.absentNote).toBe(false)
+    const on = patched({ absentNote: true })
+    expect(on.ok && on.value.absentNote).toBe(true)
+    expect(!patched({ absentNote: 'no' }).ok).toBe(true)
   })
 
   it('leaves an absent field as it was', () => {
@@ -134,10 +142,18 @@ describe('restoreRsvpForm', () => {
     expect(restoreRsvpForm({ partySize: 'x' })).toEqual(DEFAULT_RSVP_FORM)
   })
 
-  it('ignores an unknown field, and keeps the absent’s word at its default until its own pull request', () => {
-    const form = restoreRsvpForm({ surprise: true, absentNote: false, moments: 'x' })
+  it('ignores an unknown field', () => {
+    const form = restoreRsvpForm({ surprise: true, moments: 'x' })
 
     expect(form).toEqual(DEFAULT_RSVP_FORM)
+  })
+
+  it('reads the absent’s word as a switch, on unless it says false', () => {
+    expect(restoreRsvpForm({ absentNote: false }).absentNote).toBe(false)
+    expect(restoreRsvpForm({ absentNote: true }).absentNote).toBe(true)
+    for (const bad of [0, 'no', null]) {
+      expect(restoreRsvpForm({ absentNote: bad }).absentNote).toBe(true)
+    }
   })
 
   it('reads the capacity that holds and brings any other back to "no limit"', () => {

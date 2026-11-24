@@ -161,6 +161,32 @@ export const guestRepositoryContract = (
       expect(stored?.revokedAt?.toISOString()).toBe(atPlus(3_000).toISOString())
     })
 
+    it('keeps the guest made for an absent guest’s note out of every list and count, and still names it', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, lastSeenAt: atPlus(1_000) }))
+      await repo.save(
+        aGuest({
+          id: 'guest-absent',
+          eventId: WEDDING,
+          displayName: 'Hugo',
+          lastSeenAt: atPlus(2_000),
+          viaRsvp: true,
+        }),
+      )
+
+      const stored = await repo.findById(WEDDING, asGuestId('guest-absent'))
+
+      expect(stored?.viaRsvp).toBe(true)
+      expect((await repo.findById(WEDDING, LEA))?.viaRsvp).toBe(false)
+      expect((await repo.list(WEDDING)).map((guest) => guest.id)).toEqual(['guest-lea'])
+      expect(await repo.countActive(WEDDING, atPlus(0))).toBe(1)
+      // The guestbook credits the note with that name.
+      expect(
+        (await repo.findNamesByIds(WEDDING, [asGuestId('guest-absent')])).get(
+          asGuestId('guest-absent'),
+        ),
+      ).toBe('Hugo')
+    })
+
     it('round-trips a guest who stayed anonymous', async () => {
       await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: null }))
 

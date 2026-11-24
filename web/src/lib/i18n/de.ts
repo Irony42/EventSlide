@@ -3573,6 +3573,9 @@ export const de: UiText = {
       tooLarge: 'Ihre Antwort ist zu lang zum Senden. Bitte kürzen Sie Ihre Texte.',
     },
     host: {
+      absentNote: 'Absagende dürfen eine Nachricht im Gästebuch hinterlassen',
+      absentNoteHint:
+        'Wer absagt, kann eine Nachricht hinterlassen, die über die Moderation des Gästebuchs läuft. Das Gästebuch muss geöffnet sein.',
       title: 'Antworten der Gäste',
       stateOff: 'Nicht erfragt',
       stateOpen: 'Erfragt',
@@ -3683,6 +3686,21 @@ export const de: UiText = {
       presetKindWedding: 'einer Hochzeit',
     },
     /** The host's replies page (spec 30, lot 1). */
+    absent: {
+      offer: 'Eine Nachricht im Gästebuch hinterlassen',
+      title: 'Eine Nachricht im Gästebuch',
+      hint: 'Ihre Nachricht wird mit Ihrem Vornamen unterschrieben und läuft über die Moderation der Veranstaltung, bevor sie gelesen wird.',
+      label: 'Ihre Nachricht',
+      signatureLabel: 'Unterschrift',
+      signatureHint:
+        'Ihr Vorname, den Sie ändern können. Leeren Sie das Feld, um mit „Ein verhinderter Gast“ zu unterschreiben.',
+      anonymous: 'Ein verhinderter Gast',
+      send: 'Nachricht senden',
+      sent: 'Danke, Ihre Nachricht ist gesendet.',
+      sentSub: 'Der Gastgeber wird sie lesen.',
+      unavailable: 'Das Gästebuch nimmt im Moment keine Nachrichten an.',
+      already: 'Sie haben bereits eine Nachricht hinterlassen.',
+    },
     push: {
       // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
       // same words, and a test holds the two together).

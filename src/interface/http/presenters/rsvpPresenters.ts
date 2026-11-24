@@ -145,6 +145,7 @@ export const toGuestOwnRsvpDto = (rsvp: GuestRsvp): GuestOwnRsvpDto => ({
   })),
   moments: [...rsvp.details.moments],
   showName: rsvp.details.showName,
+  absentNoteSent: rsvp.absentNoteGuestId !== null,
   updatedAt: rsvp.updatedAt.toISOString(),
 })
 
@@ -204,6 +205,7 @@ export const toGuestHouseholdResponseDto = (
 export const toGuestRsvpPageDto = (view: GuestRsvpPageView): GuestRsvpPageDto => ({
   state: view.state,
   deadline: view.deadline,
+  absentNoteAvailable: view.absentNoteAvailable,
   form: {
     ...view.form,
     meals: { enabled: view.form.meals.enabled, options: [...view.form.meals.options] },

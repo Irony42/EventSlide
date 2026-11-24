@@ -95,6 +95,7 @@ const PATCHABLE: readonly string[] = [
   'visibility',
   'moments',
   'capacity',
+  'absentNote',
 ]
 
 /** The fields a host may change. An absent field is left as it was. */
@@ -109,6 +110,7 @@ export interface RsvpFormPatch {
   readonly visibility?: unknown
   readonly moments?: unknown
   readonly capacity?: unknown
+  readonly absentNote?: unknown
 }
 
 const isMax = (value: unknown): value is number =>
@@ -151,6 +153,9 @@ export const applyFormPatch = (
   if (!kidsSeparate.ok) return kidsSeparate
   const diet = flag(patch.diet, current.diet)
   if (!diet.ok) return diet
+  // The word of those who cannot come (lot 4): on by default, the host may switch it off.
+  const absentNote = flag(patch.absentNote, current.absentNote)
+  if (!absentNote.ok) return absentNote
   const companionNames = flag(patch.companionNames, current.companionNames)
   if (!companionNames.ok) return companionNames
   const meals =
@@ -210,14 +215,14 @@ export const applyFormPatch = (
     visibility: visibility.value,
     moments: moments.value,
     capacity: capacity.value,
+    absentNote: absentNote.value,
   })
 }
 
 /**
  * A stored form read back, **never failing**: an unknown field is ignored and a value out of
  * bounds is brought back to the default, so a rule tightened later cannot make a printed
- * invitation's page vanish. The absent's word (lot 4) stays at its default until its own pull request teaches
- * this function to read it.
+ * invitation's page vanish. The absent's word (lot 4) is read like the other switches.
  */
 export const restoreRsvpForm = (raw: unknown): RsvpForm => {
   if (!isPlainObject(raw)) return DEFAULT_RSVP_FORM
@@ -239,5 +244,6 @@ export const restoreRsvpForm = (raw: unknown): RsvpForm => {
     visibility: isVisibility(raw['visibility']) ? raw['visibility'] : DEFAULT_RSVP_FORM.visibility,
     moments: restoreMoments(raw['moments']),
     capacity: isCapacity(raw['capacity']) ? raw['capacity'] : DEFAULT_RSVP_FORM.capacity,
+    absentNote: bool(raw['absentNote'], DEFAULT_RSVP_FORM.absentNote),
   }
 }

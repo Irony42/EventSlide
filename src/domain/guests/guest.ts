@@ -38,6 +38,11 @@ export interface GuestProps {
   readonly noticeAcknowledgement: NoticeAcknowledgement | null
   /** `null` for a guest of the web: only a guest of a messaging channel has one. */
   readonly channelIdentity: ChannelIdentity | null
+  /**
+   * Made for the note of a guest who cannot come (spec 30, lot 4), not by someone joining the wall: it
+   * holds no device token and is **never counted as a guest** of the party. Absent means `false`.
+   */
+  readonly viaRsvp?: boolean
 }
 
 export interface NewGuest {
@@ -45,6 +50,8 @@ export interface NewGuest {
   readonly displayName: DisplayName | null
   /** Set by the messaging channels only (spec 27). */
   readonly channelIdentity?: ChannelIdentity
+  /** Set by the absent guests' note only (spec 30, lot 4). */
+  readonly viaRsvp?: boolean
 }
 
 /**
@@ -82,6 +89,7 @@ export class Guest {
         // than at the door, so a guest who only came to look is never stopped by it.
         noticeAcknowledgement: null,
         channelIdentity: input.channelIdentity ?? null,
+        viaRsvp: input.viaRsvp === true,
       }),
     )
   }
@@ -121,6 +129,11 @@ export class Guest {
 
   get channelIdentity(): ChannelIdentity | null {
     return this.props.channelIdentity
+  }
+
+  /** A row made for the note of a guest who cannot come: not a guest of the party, in any count. */
+  get viaRsvp(): boolean {
+    return this.props.viaRsvp === true
   }
 
   get noticeAcknowledgement(): NoticeAcknowledgement | null {

@@ -38,6 +38,11 @@ export interface CreateGuestbookEntryInput {
   readonly guestId: GuestId
   /** Untrusted: parsed here. */
   readonly text: unknown
+  /**
+   * The message is held for the host whatever the event's moderation mode (a note of a guest who cannot come, spec 30
+   * lot 4: a word from outside the room). Never set by the guest's own writes.
+   */
+  readonly held?: boolean
 }
 
 export interface CreatedGuestbookEntry {
@@ -60,7 +65,7 @@ export type CreateGuestbookEntry = (
 
 export const makeCreateGuestbookEntry =
   ({ events, guestbook, ids, bus, clock }: CreateGuestbookEntryDeps): CreateGuestbookEntry =>
-  async ({ eventId, guestId, text }) => {
+  async ({ eventId, guestId, text, held }) => {
     const event = await events.findById(eventId)
     if (event === null || !event.isReachable()) {
       return err(DomainError.notFound('event.notFound'))
@@ -79,7 +84,7 @@ export const makeCreateGuestbookEntry =
       { eventId, guestId, text: parsed.value },
       ids.guestbookEntryId(),
       now,
-      event.settings.moderation,
+      held === true ? 'manual' : event.settings.moderation,
     )
 
     const admission = await guestbook.admit(entry)

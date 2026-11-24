@@ -93,6 +93,8 @@ describe('what the guest’s page would say', () => {
         moments: [],
         limited: false,
       },
+      // The preview shows the form to answer, not what an answer would let a guest do after.
+      absentNoteAvailable: false,
     })
     expect(previewPage(aRsvpSettings({ enabled: false })).state).toBe('off')
   })

@@ -55,6 +55,11 @@ import { SqliteMembershipRepository } from '../src/infrastructure/db/sqliteMembe
 import { SqlitePhotoRepository } from '../src/infrastructure/db/sqlitePhotoRepository'
 import { SqlitePurgeNoticeLedger } from '../src/infrastructure/db/sqlitePurgeNoticeLedger'
 import { SqliteUserRepository } from '../src/infrastructure/db/sqliteUserRepository'
+import { SqliteAlbumBookRepository } from '../src/infrastructure/db/sqliteAlbumBookRepository'
+import { makeInvalidateAlbumBook } from '../src/application/usecases/book/invalidateAlbumBook'
+import { makeInvalidateAlbumExport } from '../src/application/usecases/exports/invalidateAlbumExport'
+import { createFsExportFileStore } from '../src/infrastructure/media/fsExportFileStore'
+import { createInMemoryEventBus } from '../src/infrastructure/realtime/inMemoryEventBus'
 import { createFsBookFileStore } from '../src/infrastructure/media/fsBookFileStore'
 import { nullMailer } from '../src/infrastructure/mail/nullMailer'
 import { createSmtpMailer } from '../src/infrastructure/mail/smtpMailer'
@@ -140,6 +145,7 @@ const execute = async (
      * code so a cron job hears about it. Not run on a dry run: that answers the listing only.
      */
     let followUpErrors = 0
+    const noBus = createInMemoryEventBus({ logger: consoleLogger })
     const followUpLogger: Logger = {
       ...consoleLogger,
       error: (message: string, context?: LogContext) => {
@@ -177,6 +183,23 @@ const execute = async (
           rsvps: new SqliteGuestRsvpRepository(db),
           households: new SqliteGuestHouseholdRepository(db),
           clock: systemClock,
+          // A one-shot process has no console to tell, but the book and the archive that print the guestbook
+          // are retired as the timer's sweep does, before a note is erased with its reply.
+          bus: noBus,
+          invalidateBook: makeInvalidateAlbumBook({
+            books: new SqliteAlbumBookRepository(db),
+            bookFiles: createFsBookFileStore(mediaRoot),
+            bus: noBus,
+            clock: systemClock,
+            logger: followUpLogger,
+          }),
+          invalidateExport: makeInvalidateAlbumExport({
+            exports: new SqliteAlbumExportRepository(db),
+            exportFiles: createFsExportFileStore(mediaRoot),
+            bus: noBus,
+            clock: systemClock,
+            logger: followUpLogger,
+          }),
         }),
         pruneAuditLog: makePruneAuditLog({
           audit: new SqliteAuditLog(db),

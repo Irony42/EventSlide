@@ -4371,6 +4371,8 @@ describe('migration 036: guest replies (RSVP)', () => {
       'source',
       'created_at',
       'updated_at',
+      // Migration 039 (the note of a guest who cannot come).
+      'absent_note_guest_id',
     ])
     closeDatabase(db)
   })
@@ -4659,6 +4661,73 @@ describe('migration 038: push subscriptions (spec 30, lot 4)', () => {
     db.prepare(`DELETE FROM events WHERE owner_id = 'u-two'`).run()
     db.prepare(`DELETE FROM users WHERE id = 'u-two'`).run()
     expect(db.prepare(`SELECT COUNT(*) AS n FROM push_subscriptions`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+})
+
+describe('migration 039: the word of those who cannot come (spec 30, lot 4)', () => {
+  const AT = '2026-11-24T10:00:00.000Z'
+  const migrated = (): Db => {
+    const db = freshDb()
+    migrate(db, migrations)
+    return db
+  }
+  const migratedAt = (id: number): Db => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= id),
+    )
+    return db
+  }
+  const columnsOf = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(
+      (column) => column.name,
+    )
+  const guest = (db: Db, id: string, viaRsvp?: number): void => {
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at${viaRsvp === undefined ? '' : ', via_rsvp'})
+            VALUES (?, 'e-one', 'Léa', ?, ?${viaRsvp === undefined ? '' : ', ?'})`,
+    ).run(...[id, AT, AT, ...(viaRsvp === undefined ? [] : [viaRsvp])])
+  }
+  const seed = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ('u-one', 'one@example.test', 'h', ?)`,
+    ).run(AT)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+            VALUES ('e-one', 'u-one', 'Fête', 'fete', 'AAAAAA', 'live', '{}', 1000, ?)`,
+    ).run(AT)
+  }
+
+  it('adds the two columns, and leaves the guests and replies a 038 database held as they were', () => {
+    const db = migratedAt(38)
+    seed(db)
+    guest(db, 'g-old')
+    db.prepare(
+      `INSERT INTO guest_rsvps (id, event_id, name, answer, adults, kids, source, created_at, updated_at)
+            VALUES ('r-old', 'e-one', 'Léa', 'no', 0, 0, 'open', ?, ?)`,
+    ).run(AT, AT)
+
+    migrate(db, migrations)
+
+    expect(columnsOf(db, 'guests')).toContain('via_rsvp')
+    expect(db.prepare(`SELECT via_rsvp FROM guests WHERE id = 'g-old'`).get()).toEqual({
+      via_rsvp: 0,
+    })
+    expect(db.prepare(`SELECT absent_note_guest_id AS note FROM guest_rsvps`).get()).toEqual({
+      note: null,
+    })
+    closeDatabase(db)
+  })
+
+  it('holds 0 or 1 in via_rsvp and nothing else', () => {
+    const db = migrated()
+    seed(db)
+
+    guest(db, 'g-1', 1)
+    guest(db, 'g-0', 0)
+    expect(() => guest(db, 'g-2', 2)).toThrow(/CHECK/)
     closeDatabase(db)
   })
 })

@@ -136,3 +136,45 @@ describe('the use cases that can take a guest-book message out of the evening', 
     expect(stale).toEqual([])
   })
 })
+
+/**
+ * A reply that holds a note to the guestbook (spec 30, lot 4) takes a guestbook message with it when it is
+ * erased, in the repository's one write: so every use case that erases replies must tell what prints the
+ * guestbook (`beforeNotesErased` and `afterNotesErased`, which retire the book and the archive and publish
+ * `guestbook.changed`). A fourth way to erase replies, added tomorrow, fails here until it does.
+ */
+describe('the use cases that erase replies, and the notes they take with them', () => {
+  const ERASES_REPLIES = /\brsvps\.delete\(|\brsvps\.deleteExpired\(/
+  /** Erases only a reply it has just made, which holds no note. */
+  const NEVER_HOLDS_A_NOTE: Readonly<Record<string, string>> = {
+    'guestRsvps/hostAddRsvp.ts':
+      'takes back the reply it has just added when the audit log refuses: nothing could have left a note on it',
+  }
+  const erasing = sourcesUnder(USE_CASES).filter(
+    (path) =>
+      ERASES_REPLIES.test(readFileSync(path, 'utf8')) &&
+      NEVER_HOLDS_A_NOTE[posix(path)] === undefined,
+  )
+
+  it('names the exemption, and it still erases a reply', () => {
+    for (const name of Object.keys(NEVER_HOLDS_A_NOTE)) {
+      expect(ERASES_REPLIES.test(readFileSync(join(USE_CASES, name), 'utf8')), name).toBe(true)
+    }
+  })
+
+  it('found the three paths that erase replies', () => {
+    expect(erasing.map(posix).sort()).toEqual([
+      'guestRsvps/hostDeleteRsvp.ts',
+      'guestRsvps/ownRsvp.ts',
+      'guestRsvps/purgeExpiredRsvps.ts',
+    ])
+  })
+
+  it('each tells what prints the guestbook, before and after', () => {
+    for (const path of erasing) {
+      const source = readFileSync(path, 'utf8')
+      expect(source, posix(path)).toContain('beforeNotesErased(')
+      expect(source, posix(path)).toContain('afterNotesErased(')
+    }
+  })
+})

@@ -942,6 +942,13 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.fileRsvpUnderHousehold(SLUG, RSVP_ID, null),
   },
   {
+    name: 'guestAbsentNote',
+    verb: 'post',
+    path: '/api/i/7QX0M4TZ2KD9WB3H/absent-note',
+    invoke: (client) =>
+      client.guestAbsentNote('7QX0M4TZ2KD9WB3H', { editToken: 'tok' }, { text: 'Merci' }),
+  },
+  {
     name: 'pushKey',
     verb: 'get',
     path: '/api/push/key',
@@ -1903,5 +1910,29 @@ describe('the browser notification calls (spec 30, lot 4)', () => {
       verb: 'del',
       body: { endpoint: 'https://fcm.googleapis.com/x' },
     })
+  })
+})
+
+describe('the word of a guest who cannot come (spec 30, lot 4)', () => {
+  it('sends the text and the honeypot as the body, and the reply’s own token in its header only', async () => {
+    await subject().guestAbsentNote(
+      '7QX0M4TZ2KD9WB3H',
+      { editToken: 'tok' },
+      { text: 'Merci', website: '' },
+    )
+
+    expect(only()).toMatchObject({
+      verb: 'post',
+      path: '/api/i/7QX0M4TZ2KD9WB3H/absent-note',
+      body: { text: 'Merci', website: '' },
+      headers: { 'X-Rsvp-Token': 'tok' },
+    })
+    expect(only().path).not.toContain('tok')
+  })
+
+  it('uses a household’s link, in its own header, when that is the key', async () => {
+    await subject().guestAbsentNote('7QX0M4TZ2KD9WB3H', { household: 'LINK' }, { text: 'Merci' })
+
+    expect(only().headers).toEqual({ 'X-Household-Token': 'LINK' })
   })
 })

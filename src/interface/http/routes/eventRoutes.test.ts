@@ -402,6 +402,7 @@ const buildWorld = ({
         getOwnRsvp: absent('getOwnRsvp'),
         updateOwnRsvp: absent('updateOwnRsvp'),
         deleteOwnRsvp: absent('deleteOwnRsvp'),
+        postAbsentNote: absent('postAbsentNote'),
         getRsvpForm: absent('getRsvpForm'),
         saveRsvpForm: absent('saveRsvpForm'),
         closeRsvps: absent('closeRsvps'),

@@ -35,6 +35,8 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
   private readonly dates = new Map<string, EventDates>()
   /** `event:user` of every member, with the instant they last saw the replies (or `null`). */
   private readonly members = new Map<string, Date | null>()
+  /** The `guests` rows the adapter deletes with a reply's note, for a use-case test to read. */
+  readonly deletedNoteGuests: string[] = []
 
   /** Puts rows in without any check, for a test that needs a state the rules would refuse. */
   seed(...rsvps: readonly GuestRsvp[]): this {
@@ -195,7 +197,31 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
   }
 
   async delete(eventId: EventId, id: GuestRsvpId): Promise<boolean> {
+    const held = this.rows.get(key(eventId, id))
+    if (held?.absentNoteGuestId != null) this.deletedNoteGuests.push(held.absentNoteGuestId)
     return this.rows.delete(key(eventId, id))
+  }
+
+  async claimAbsentNote(eventId: EventId, id: GuestRsvpId, guestId: string): Promise<boolean> {
+    const held = this.rows.get(key(eventId, id))
+    if (held === undefined || held.answer !== 'no' || held.absentNoteGuestId !== null) return false
+    this.rows.set(key(eventId, id), held.withAbsentNoteGuest(guestId))
+    return true
+  }
+
+  async releaseAbsentNote(eventId: EventId, id: GuestRsvpId, guestId: string): Promise<void> {
+    const held = this.rows.get(key(eventId, id))
+    if (held?.absentNoteGuestId === guestId)
+      this.rows.set(key(eventId, id), held.withAbsentNoteGuest(null))
+  }
+
+  async eventsWithExpiredNotes(now: Date): Promise<readonly EventId[]> {
+    const events = new Set<EventId>()
+    for (const row of this.rows.values()) {
+      const dates = this.dates.get(row.eventId) ?? { closedAt: null, startsAt: null }
+      if (row.absentNoteGuestId !== null && isRsvpExpired(dates, now)) events.add(row.eventId)
+    }
+    return [...events].sort()
   }
 
   async deleteExpired(now: Date): Promise<number> {
@@ -203,6 +229,7 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
     for (const [rowKey, row] of this.rows) {
       const dates = this.dates.get(row.eventId) ?? { closedAt: null, startsAt: null }
       if (isRsvpExpired(dates, now)) {
+        if (row.absentNoteGuestId !== null) this.deletedNoteGuests.push(row.absentNoteGuestId)
         this.rows.delete(rowKey)
         deleted += 1
       }

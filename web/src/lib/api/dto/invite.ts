@@ -77,6 +77,8 @@ export interface GuestRsvpPageDto {
   }
   /** Only when the host chose to show who comes: the people coming, and the first names allowed. */
   readonly proof?: { readonly count: number; readonly names: readonly string[] }
+  /** A guest who answered "no" may leave a word in the guestbook (lot 4): allowed, and the guestbook takes entries now. */
+  readonly absentNoteAvailable: boolean
 }
 
 /** A guest's own reply, as they read it back. No id, no source: nothing they could not know. */
@@ -97,7 +99,14 @@ export interface GuestOwnRsvpDto {
   /** Ids of the moments chosen (some may no longer be in the form: the page ignores those). */
   readonly moments: readonly string[]
   readonly showName: boolean
+  /** A word was already left in the guestbook with this reply (lot 4): one per reply. */
+  readonly absentNoteSent: boolean
   readonly updatedAt: string
+}
+
+/** `201` of `POST /api/i/:token/absent-note`. */
+export interface GuestAbsentNoteResponseDto {
+  readonly absentNoteSent: true
 }
 
 export interface GuestOwnRsvpResponseDto {

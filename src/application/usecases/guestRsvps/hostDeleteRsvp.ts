@@ -5,6 +5,9 @@ import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
+import type { InvalidateBook } from '../book/invalidateAlbumBook'
+import type { InvalidateExport } from '../exports/invalidateAlbumExport'
+import { afterNotesErased, beforeNotesErased } from './absentNoteErasure'
 import { announceRsvpsChanged, openRsvps, recordRsvpAct, type RsvpAccessDeps } from './rsvpAccess'
 
 /**
@@ -25,6 +28,9 @@ export interface HostDeleteRsvpDeps extends RsvpAccessDeps {
   readonly audit: AuditRecorder
   readonly bus: EventBus
   readonly clock: Clock
+  /** What prints the guestbook, retired when an erased reply takes its note with it (lot 4). */
+  readonly invalidateBook?: InvalidateBook
+  readonly invalidateExport?: InvalidateExport
 }
 
 export type HostDeleteRsvp = (input: HostDeleteRsvpInput) => Promise<Result<void, DomainError>>
@@ -36,6 +42,9 @@ export const makeHostDeleteRsvp =
     if (!opened.ok) return opened
     const held = await deps.rsvps.findById(eventId, rsvpId)
     if (held === null) return err(DomainError.notFound('rsvp.notFound'))
+    // A reply that holds a note takes a guestbook message with it: what prints the guestbook hears of it.
+    const holdsNote = held.absentNoteGuestId !== null
+    if (holdsNote) await beforeNotesErased(deps, eventId)
     // A reply deleted by someone else between the read and here: nothing was done, nothing is said.
     if (!(await deps.rsvps.delete(eventId, rsvpId))) {
       return err(DomainError.notFound('rsvp.notFound'))
@@ -49,10 +58,12 @@ export const makeHostDeleteRsvp =
       deps.clock.now(),
     )
     if (!recorded.ok) {
-      // A log that refuses the line means no act: the reply is put back as it was.
-      await deps.rsvps.admit(held, { capacity: null })
+      // A log that refuses the line means no act: the reply is put back as it was (its note went with it).
+      await deps.rsvps.admit(held.withAbsentNoteGuest(null), { capacity: null })
+      if (holdsNote) await afterNotesErased(deps, eventId)
       return recorded
     }
     announceRsvpsChanged(deps.bus, eventId)
+    if (holdsNote) await afterNotesErased(deps, eventId)
     return ok(undefined)
   }

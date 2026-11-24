@@ -1117,6 +1117,18 @@ export const guestRsvpBody = z.strictObject({
  */
 export const guestRsvpCreateBody = guestRsvpBody.extend({ website: z.unknown().optional() })
 
+/**
+ * `POST /i/:token/absent-note` (spec 30, lot 4): the word of a guest who cannot come. The text is the
+ * guestbook's own and is judged by its rules in the use case (one code each); the honeypot is the
+ * creation's. A strict body: no author, no status, no reply id.
+ */
+export const absentNoteBody = z.strictObject({
+  text: z.unknown(),
+  // Who signs it: judged like a guest's name by the domain (absent: the first word of the reply's name).
+  signature: z.unknown().optional(),
+  website: z.unknown().optional(),
+})
+
 // ------------------------------------------------------- browser notifications (30) --
 
 /**

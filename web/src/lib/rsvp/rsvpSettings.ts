@@ -23,6 +23,7 @@ export const applyInput = (settings: RsvpSettingsDto, input: RsvpFormInput): Rsv
             maybe: form.maybe ?? settings.form.maybe,
             kidsSeparate: form.kidsSeparate ?? settings.form.kidsSeparate,
             diet: form.diet ?? settings.form.diet,
+            absentNote: form.absentNote ?? settings.form.absentNote,
             companionNames: form.companionNames ?? settings.form.companionNames,
             visibility: form.visibility ?? settings.form.visibility,
             capacity: form.capacity === undefined ? settings.form.capacity : form.capacity,
@@ -92,6 +93,8 @@ export const previewPage = (settings: RsvpSettingsDto): GuestRsvpPageDto => ({
     moments: settings.form.moments,
     limited: settings.form.capacity !== null,
   },
+  // The host's preview shows the form to answer, not what an answer would let a guest do after.
+  absentNoteAvailable: false,
 })
 
 /**

@@ -586,6 +586,8 @@ describe('the guests replies, on the guest’s side (spec 30)', () => {
           moments: [],
           limited: false,
         },
+        // The scene's wedding has its guestbook on, and the host's word for the absent is on by default.
+        absentNoteAvailable: true,
         proof: null,
       })
     })

@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
+import { AbsentNote } from './AbsentNote'
 import { Button } from '../../design-system/components/Button'
 import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
@@ -660,6 +661,17 @@ export function GuestRsvpBlock({
             {t.replyNotYours}
           </Button>
         )}
+        {/* The word of a guest who cannot come: the guestbook's door, offered on the guest's own no. */}
+        {reply.answer === 'no' && rsvp.absentNoteAvailable && interactive ? (
+          <AbsentNote
+            sent={reply.absentNoteSent}
+            sending={state.sending}
+            failure={state.failure}
+            onClearFailure={state.clearFailure}
+            defaultSignature={firstNameOf(reply.name)}
+            onSend={(note) => state.leaveNote(own, note)}
+          />
+        ) : null}
         {deleteControl}
         {proof}
       </section>

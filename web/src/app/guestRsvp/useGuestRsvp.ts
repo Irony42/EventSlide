@@ -85,6 +85,11 @@ export interface GuestRsvpState {
   readonly submit: (input: GuestRsvpInput, website: string) => Promise<boolean>
   readonly update: (own: OwnReply, input: GuestRsvpInput) => Promise<boolean>
   readonly remove: (own: OwnReply) => Promise<boolean>
+  /** The word of a guest who said no, left in the guestbook (lot 4). */
+  readonly leaveNote: (
+    own: OwnReply,
+    note: { readonly text: string; readonly signature: string; readonly website: string },
+  ) => Promise<boolean>
   readonly clearFailure: () => void
 }
 
@@ -348,6 +353,23 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
     [api, token, write, householdToken],
   )
 
+  const leaveNote = useCallback(
+    (
+      current: OwnReply,
+      note: { readonly text: string; readonly signature: string; readonly website: string },
+    ) =>
+      write(async () => {
+        const key =
+          current.editToken === null
+            ? { household: householdToken ?? '' }
+            : { editToken: current.editToken }
+        await api.guestAbsentNote(token, key, note)
+        // One word per reply: the page stops offering it, without asking the server again.
+        setOwn({ reply: { ...current.reply, absentNoteSent: true }, editToken: current.editToken })
+      }, current.editToken === null),
+    [api, token, write, householdToken],
+  )
+
   const removeOlder = useCallback(
     () =>
       write(async () => {
@@ -384,6 +406,7 @@ export const useGuestRsvp = (token: string, interactive: boolean): GuestRsvpStat
     submit,
     update,
     remove,
+    leaveNote,
     clearFailure,
   }
 }

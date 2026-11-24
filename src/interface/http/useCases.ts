@@ -150,6 +150,7 @@ import type {
   UnsubscribePush,
   UnsubscribePushEverywhere,
 } from '../../application/usecases/push/pushSubscriptions'
+import type { PostAbsentNote } from '../../application/usecases/guestRsvps/postAbsentNote'
 import type { MarkRsvpsSeen } from '../../application/usecases/guestRsvps/markRsvpsSeen'
 import type { ListHouseholds } from '../../application/usecases/guestRsvps/listHouseholds'
 import type { SaveHousehold } from '../../application/usecases/guestRsvps/saveHousehold'
@@ -388,6 +389,7 @@ export interface HttpUseCases {
   readonly hostUpdateRsvp: HostUpdateRsvp
   readonly hostDeleteRsvp: HostDeleteRsvp
   readonly exportRsvps: ExportRsvps
+  readonly postAbsentNote: PostAbsentNote
   readonly getPushKey: GetPushKey
   readonly subscribePush: SubscribePush
   readonly unsubscribePush: UnsubscribePush

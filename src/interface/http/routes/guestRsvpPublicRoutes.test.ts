@@ -8,6 +8,10 @@ import { FakeGuestHouseholdRepository } from '../../../application/testing/fakeG
 import { FakeGuestRsvpRepository } from '../../../application/testing/fakeGuestRsvpRepository'
 import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
+import { FakeGuestRepository } from '../../../application/testing/fakeGuestRepository'
+import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
+import { makeCreateGuestbookEntry } from '../../../application/usecases/guestbook/createGuestbookEntry'
+import { makePostAbsentNote } from '../../../application/usecases/guestRsvps/postAbsentNote'
 import { makeViewGuestInvite } from '../../../application/usecases/guestInvites/viewGuestInvite'
 import {
   makeDeleteOwnRsvp,
@@ -61,6 +65,8 @@ interface World {
   readonly households: FakeGuestHouseholdRepository
   readonly bus: RecordingEventBus
   readonly invites: FakeGuestInviteRepository
+  readonly guests: FakeGuestRepository
+  readonly guestbook: FakeGuestbookRepository
 }
 
 const buildWorld = async (
@@ -71,6 +77,8 @@ const buildWorld = async (
   const rsvps = new FakeGuestRsvpRepository()
   const households = new FakeGuestHouseholdRepository()
   const bus = new RecordingEventBus()
+  const guests = new FakeGuestRepository()
+  const guestbook = new FakeGuestbookRepository()
   const secrets = new FakeSecretTokens()
   const clock = new FakeClock(AT)
   const ids = new SequentialIdGenerator()
@@ -131,9 +139,19 @@ const buildWorld = async (
       updateOwnRsvp: makeUpdateOwnRsvp(own),
       deleteOwnRsvp: makeDeleteOwnRsvp(own),
       viewHousehold: makeViewHousehold(own),
+      postAbsentNote: makePostAbsentNote({
+        ...access,
+        rsvps,
+        households,
+        secrets,
+        guests,
+        createEntry: makeCreateGuestbookEntry({ events, guestbook, ids, bus, clock }),
+        ids,
+        clock,
+      }),
     },
   })
-  return { app: harness.app, rsvps, households, bus, invites }
+  return { app: harness.app, rsvps, households, bus, invites, guests, guestbook }
 }
 
 /** A guest's browser: it opens the page (which issues the CSRF cookie) and then writes. */
@@ -191,6 +209,7 @@ describe('GET /api/i/:token: the rsvp block', () => {
         moments: [],
         limited: false,
       },
+      absentNoteAvailable: true,
     })
   })
 
@@ -252,6 +271,7 @@ describe('POST /api/i/:token/rsvp', () => {
         moments: [],
         answers: [],
         showName: false,
+        absentNoteSent: false,
         updatedAt: AT.toISOString(),
       },
       editToken: 'secret-1',
@@ -852,5 +872,132 @@ describe('limited places (lot 4)', () => {
 
     expect(page.body.rsvp.form.limited).toBe(true)
     expect(JSON.stringify(page.body.rsvp)).not.toMatch(/capacity/)
+  })
+})
+
+describe('POST /api/i/:token/absent-note: the word of a guest who cannot come (lot 4)', () => {
+  const NOTE_URL = `/api/i/${LIVE_TOKEN}/absent-note`
+  let world: World
+
+  beforeEach(async () => {
+    world = await buildWorld()
+  })
+
+  /** A guest who answered no, with the token to keep. */
+  const answeredNo = async () => {
+    const g = await guest(world)
+    const created = await g.post({ name: 'Léa Martin', answer: 'no' })
+    const editToken = created.body.editToken as string
+    const note = (body: unknown, token: string | null = editToken) => {
+      const sent = g.agent.post(NOTE_URL).set(CSRF_HEADER, g.csrf)
+      return (token === null ? sent : sent.set('X-Rsvp-Token', token)).send(body as object)
+    }
+    return { g, editToken, note }
+  }
+
+  it('is 201 with nothing but its own word, and the entry is the guestbook’s: signed with the first name, nothing in the answer', async () => {
+    const { note } = await answeredNo()
+
+    const posted = await note({ text: 'Dommage, on pense à vous' })
+
+    expect(posted.status).toBe(201)
+    expect(posted.body).toEqual({ absentNoteSent: true })
+    expect(posted.headers['cache-control']).toBe('no-store')
+    const [entry] = await world.guestbook.listByStatuses(LIVE, ['published', 'pending'], 10)
+    expect(entry?.text?.value).toBe('Dommage, on pense à vous')
+    expect(await world.guests.list(LIVE)).toEqual([])
+  })
+
+  it('signs with the signature the guest edited, judges it like a name, and holds the note whatever the mode', async () => {
+    const { note } = await answeredNo()
+
+    const refused = await note({ text: 'Merci', signature: 'A'.repeat(41) })
+    expect([refused.status, refused.body.error.code]).toEqual([400, 'displayName.tooLong'])
+    expect((await note({ text: 'Merci', signature: 'Léa et Hugo' })).status).toBe(201)
+
+    const [entry] = await world.guestbook.listByStatuses(LIVE, ['published', 'pending'], 10)
+    expect(entry?.status).toBe('pending')
+    expect((await world.guests.findById(LIVE, entry?.guestId as never))?.displayName?.value).toBe(
+      'Léa et Hugo',
+    )
+  })
+
+  it('reads the reply’s own token in a header only: none, a wrong one or a link in the path opens nothing', async () => {
+    const { note, g, editToken } = await answeredNo()
+
+    expect((await note({ text: 'Merci' }, null)).body.error.code).toBe('rsvp.notFound')
+    expect((await note({ text: 'Merci' }, 'wrong')).body.error.code).toBe('rsvp.notFound')
+    const inPath = await g.agent
+      .post(`${NOTE_URL}?token=${editToken}`)
+      .set(CSRF_HEADER, g.csrf)
+      .send({ text: 'Merci' })
+    expect(inPath.body.error.code).toBe('rsvp.notFound')
+    expect(await world.guestbook.listByStatuses(LIVE, ['published', 'pending'], 10)).toEqual([])
+  })
+
+  it('is the one neutral 404 for a link that cannot be served', async () => {
+    const { g, editToken } = await answeredNo()
+
+    for (const token of ['nope', '9999999999999999', OTHER_TOKEN]) {
+      const refused = await g.agent
+        .post(`/api/i/${token}/absent-note`)
+        .set(CSRF_HEADER, g.csrf)
+        .set('X-Rsvp-Token', editToken)
+        .send({ text: 'Merci' })
+      expect(refused.status).toBe(404)
+    }
+  })
+
+  it('refuses a write without the CSRF token, a stray field, and a guest who did not say no', async () => {
+    const { g, editToken, note } = await answeredNo()
+
+    const noCsrf = await g.agent
+      .post(NOTE_URL)
+      .set('X-Rsvp-Token', editToken)
+      .send({ text: 'Merci' })
+    expect(noCsrf.status).toBe(403)
+    const stray = await note({ text: 'Merci', guestId: 'someone' })
+    expect([stray.status, stray.body.error.code]).toEqual([400, 'request.invalid'])
+    await g.put(editToken, { name: 'Léa Martin', answer: 'yes', adults: 1 })
+    expect((await note({ text: 'Merci' })).body.error.code).toBe('rsvp.absentNoteUnavailable')
+  })
+
+  it('judges the text by the guestbook’s rules, and allows one word per reply', async () => {
+    const { note } = await answeredNo()
+
+    expect((await note({ text: '  ' })).body.error.code).toBe('guestbook.empty')
+    expect((await note({ text: 'x'.repeat(600) })).body.error.code).toBe('guestbook.tooLong')
+    expect((await note({ text: 'Merci' })).status).toBe(201)
+    const again = await note({ text: 'Encore' })
+    expect([again.status, again.body.error.code]).toEqual([409, 'rsvp.absentNoteSent'])
+  })
+
+  it('answers a script as a person and writes nothing, and says what a guest typed nowhere in an error', async () => {
+    const { note } = await answeredNo()
+
+    const bot = await note({ text: 'http://spam.example', website: 'x' })
+
+    expect(bot.status).toBe(201)
+    expect(await world.guestbook.listByStatuses(LIVE, ['published', 'pending'], 10)).toEqual([])
+    const refused = await note({ text: '   ' })
+    expect(JSON.stringify(refused.body)).not.toContain('Léa')
+  })
+
+  it('tells the page that a word was left with the reply, and offers it while the guestbook is on', async () => {
+    const { g, editToken, note } = await answeredNo()
+
+    expect((await g.get(editToken)).body.rsvp.absentNoteSent).toBe(false)
+    expect((await g.page).body.rsvp.absentNoteAvailable).toBe(true)
+    await note({ text: 'Merci' })
+    expect((await g.get(editToken)).body.rsvp.absentNoteSent).toBe(true)
+  })
+
+  it('shares the write limiter with the replies', async () => {
+    world = await buildWorld({ write: 2 })
+    const { note } = await answeredNo()
+
+    const statuses = [(await note({ text: 'Un' })).status, (await note({ text: 'Deux' })).status]
+
+    expect(statuses).toContain(429)
   })
 })

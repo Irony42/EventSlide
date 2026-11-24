@@ -780,10 +780,88 @@ export const guestRsvpRepositoryContract = (
       })
     })
 
+    describe('the note of a guest who cannot come (lot 4)', () => {
+      const claim = (id = 'rsvp-no', guest = 'guest-note', event = WEDDING) =>
+        repo.claimAbsentNote(event, asGuestRsvpId(id), guest)
+
+      it('is claimed once, by a reply that says no, and read back', async () => {
+        await add({ id: 'rsvp-no', answer: 'no' })
+
+        expect(await claim()).toBe(true)
+        expect(await claim('rsvp-no', 'guest-other')).toBe(false)
+
+        const stored = await repo.findById(WEDDING, asGuestRsvpId('rsvp-no'))
+        expect(stored?.absentNoteGuestId).toBe('guest-note')
+        expect((await repo.listByEvent(WEDDING))[0]?.absentNoteGuestId).toBe('guest-note')
+      })
+
+      it('is refused to a reply that does not say no, to one that is not there, and to another event', async () => {
+        await add({ id: 'rsvp-yes', answer: 'yes' })
+        await add({ id: 'rsvp-no', answer: 'no' })
+
+        expect(await claim('rsvp-yes')).toBe(false)
+        expect(await claim('rsvp-absent')).toBe(false)
+        expect(await claim('rsvp-no', 'guest-note', GALA)).toBe(false)
+        expect(
+          (await repo.findById(WEDDING, asGuestRsvpId('rsvp-no')))?.absentNoteGuestId,
+        ).toBeNull()
+      })
+
+      it('is given back only by the one who claimed it, and can then be claimed again', async () => {
+        await add({ id: 'rsvp-no', answer: 'no' })
+        await claim()
+
+        await repo.releaseAbsentNote(WEDDING, asGuestRsvpId('rsvp-no'), 'guest-other')
+        expect((await repo.findById(WEDDING, asGuestRsvpId('rsvp-no')))?.absentNoteGuestId).toBe(
+          'guest-note',
+        )
+        await repo.releaseAbsentNote(GALA, asGuestRsvpId('rsvp-no'), 'guest-note')
+        expect((await repo.findById(WEDDING, asGuestRsvpId('rsvp-no')))?.absentNoteGuestId).toBe(
+          'guest-note',
+        )
+        await repo.releaseAbsentNote(WEDDING, asGuestRsvpId('rsvp-no'), 'guest-note')
+
+        expect(
+          (await repo.findById(WEDDING, asGuestRsvpId('rsvp-no')))?.absentNoteGuestId,
+        ).toBeNull()
+        expect(await claim('rsvp-no', 'guest-again')).toBe(true)
+      })
+
+      it('survives a change of the reply, which never rewrites it', async () => {
+        const stored = await add({ id: 'rsvp-no', answer: 'no' })
+        await claim()
+
+        const changed = await repo.admit(
+          aRsvp({ eventId: 'evt-wedding', id: 'rsvp-no', answer: 'no', message: 'Bises' }),
+          NONE,
+        )
+
+        expect(changed.kind).toBe('updated')
+        expect((await repo.findById(WEDDING, stored.id))?.absentNoteGuestId).toBe('guest-note')
+      })
+    })
+
     describe('deleteExpired', () => {
       const CLOSED = new Date('2026-12-14T10:00:00.000Z')
       const day = (from: Date, days: number, extraMs = 0): Date =>
         new Date(from.getTime() + days * 86_400_000 + extraMs)
+
+      it('names the events whose expired replies hold a note, before they are erased, and no other', async () => {
+        await add({ id: 'rsvp-note', answer: 'no' })
+        await add({ id: 'rsvp-gala', answer: 'no', eventId: 'evt-gala' })
+        await add({ id: 'rsvp-plain', answer: 'no' })
+        await repo.claimAbsentNote(WEDDING, asGuestRsvpId('rsvp-note'), 'guest-note')
+        await subject.setEventDates(WEDDING, { closedAt: CLOSED, startsAt: null })
+        await subject.setEventDates(GALA, { closedAt: CLOSED, startsAt: null })
+
+        // Not yet expired: nobody.
+        expect(await repo.eventsWithExpiredNotes(day(CLOSED, 30, -1))).toEqual([])
+        // Expired: the event holding a note, once, and not the one with none.
+        expect(await repo.eventsWithExpiredNotes(day(CLOSED, 30))).toEqual([WEDDING])
+        // A note whose event has not expired is not named.
+        await subject.setEventDates(WEDDING, { closedAt: null, startsAt: null })
+        expect(await repo.eventsWithExpiredNotes(day(CLOSED, 30))).toEqual([])
+      })
 
       it('keeps replies on day 29 after the close and erases them on day 30', async () => {
         await add({ id: 'rsvp-1' })

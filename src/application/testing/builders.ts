@@ -713,6 +713,8 @@ export interface GuestInput {
   readonly noticeAcknowledgement?: NoticeAcknowledgement | null
   /** The messaging identity of a guest who came through a channel (spec 27). Omitted: a guest of the web. */
   readonly channelIdentity?: ChannelIdentity | null
+  /** Made for the note of a guest who cannot come (spec 30, lot 4): in no count of guests. */
+  readonly viaRsvp?: boolean
 }
 
 export const aGuest = (input: GuestInput = {}): Guest => {
@@ -739,6 +741,7 @@ export const aGuest = (input: GuestInput = {}): Guest => {
     photoCount: pick(input.photoCount, 0),
     noticeAcknowledgement: pick(input.noticeAcknowledgement, null),
     channelIdentity: pick(input.channelIdentity, null),
+    viaRsvp: pick(input.viaRsvp, false),
   })
 }
 
