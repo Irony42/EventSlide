@@ -5,6 +5,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import { DEFAULT_RSVP_SETTINGS } from '../../../domain/guestRsvps/rsvpSettings'
 import type { RsvpForm } from '../../../domain/guestRsvps/rsvpForm'
+import { acceptsGuestbookEntries } from '../../../domain/guestbook/guestbookWindow'
 import { PROOF_MAX_NAMES, proofFrom, type RsvpProof } from '../../../domain/guestRsvps/rsvpStats'
 import type { RsvpState } from '../../../domain/guestRsvps/rsvpWindow'
 import type { Clock } from '../../ports/clock'
@@ -56,6 +57,12 @@ export interface GuestRsvpPageView {
   }
   /** `null` unless the host asked to show it **and** replies are still part of the story. */
   readonly proof: RsvpProof | null
+  /**
+   * A guest who answered "no" may leave a word in the guestbook (lot 4): the host allows it, the guestbook is
+   * switched on and takes entries now (live, or closed for less than seven days). The page shows the button
+   * only with this **and** the guest's own "no".
+   */
+  readonly absentNoteAvailable: boolean
 }
 
 export interface GuestInviteView {
@@ -141,6 +148,10 @@ export const makeViewGuestInvite =
         limited: form.capacity !== null,
       },
       proof,
+      absentNoteAvailable:
+        form.absentNote &&
+        event.settings.allowGuestbook &&
+        acceptsGuestbookEntries(event, clock.now()),
     }
 
     const { content } = invite

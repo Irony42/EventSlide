@@ -116,10 +116,13 @@ export class FakeGuestRepository implements GuestRepository {
   }
 
   async list(eventId: EventId): Promise<readonly Guest[]> {
-    return [...this.rows.values()]
-      .filter((guest) => guest.eventId === eventId)
-      .sort(mostRecentlySeenFirst)
-      .map((guest) => this.read(guest))
+    return (
+      [...this.rows.values()]
+        // A note's author (spec 30, lot 4) is not a guest of the party: in no list and no count.
+        .filter((guest) => guest.eventId === eventId && !guest.viaRsvp)
+        .sort(mostRecentlySeenFirst)
+        .map((guest) => this.read(guest))
+    )
   }
 
   /**
@@ -133,6 +136,7 @@ export class FakeGuestRepository implements GuestRepository {
     return [...this.rows.values()].filter(
       (guest) =>
         guest.eventId === eventId &&
+        !guest.viaRsvp &&
         guest.isActive() &&
         guest.lastSeenAt.getTime() >= since.getTime(),
     ).length

@@ -172,6 +172,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
   getOwnRsvp: notWired('getOwnRsvp'),
   updateOwnRsvp: notWired('updateOwnRsvp'),
   deleteOwnRsvp: notWired('deleteOwnRsvp'),
+  postAbsentNote: notWired('postAbsentNote'),
   getRsvpForm: notWired('getRsvpForm'),
   saveRsvpForm: notWired('saveRsvpForm'),
   closeRsvps: notWired('closeRsvps'),

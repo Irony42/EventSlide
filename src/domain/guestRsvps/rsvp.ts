@@ -434,6 +434,8 @@ export interface GuestRsvpProps {
   readonly source: RsvpSource
   readonly createdAt: Date
   readonly updatedAt: Date
+  /** The `guests` row made for this reply's note to the guestbook (lot 4); `null` until one is left. Absent means `null`. */
+  readonly absentNoteGuestId?: string | null
 }
 
 /** A reply as it is stored: the answer may be `waitlist`, which no guest's input asks for. */
@@ -515,6 +517,10 @@ export class GuestRsvp {
   get updatedAt(): Date {
     return this.props.updatedAt
   }
+  /** The author of this reply's note to the guestbook, once one was left: one note per reply. */
+  get absentNoteGuestId(): string | null {
+    return this.props.absentNoteGuestId ?? null
+  }
 
   /** People this reply stands for (a `no` is none by construction). */
   get people(): number {
@@ -522,7 +528,8 @@ export class GuestRsvp {
   }
 
   toProps(): GuestRsvpProps {
-    return this.props
+    // `absentNoteGuestId` is always said (`null` for none), so two stores compare equal.
+    return { ...this.props, absentNoteGuestId: this.absentNoteGuestId }
   }
 
   /**
@@ -557,6 +564,11 @@ export class GuestRsvp {
   /** This reply with its first name no longer shown to the other guests: the tick is withdrawn. */
   withShownNameCleared(): GuestRsvp {
     return new GuestRsvp({ ...this.props, details: { ...this.props.details, showName: false } })
+  }
+
+  /** This reply with the author of its note to the guestbook (lot 4), or none. */
+  withAbsentNoteGuest(guestId: string | null): GuestRsvp {
+    return new GuestRsvp({ ...this.props, absentNoteGuestId: guestId })
   }
 
   /** This reply attached to a household, or detached with `null` (lot 3). */

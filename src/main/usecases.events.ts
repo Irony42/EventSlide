@@ -57,6 +57,8 @@ import { makeHostAddRsvp } from '../application/usecases/guestRsvps/hostAddRsvp'
 import { makeHostUpdateRsvp } from '../application/usecases/guestRsvps/hostUpdateRsvp'
 import { makeHostDeleteRsvp } from '../application/usecases/guestRsvps/hostDeleteRsvp'
 import { makeExportRsvps } from '../application/usecases/guestRsvps/exportRsvps'
+import { makePostAbsentNote } from '../application/usecases/guestRsvps/postAbsentNote'
+import { makeCreateGuestbookEntry } from '../application/usecases/guestbook/createGuestbookEntry'
 import { makeMarkRsvpsSeen } from '../application/usecases/guestRsvps/markRsvpsSeen'
 import { makeCountUnseenRsvps } from '../application/usecases/guestRsvps/countUnseenRsvps'
 import { archiveStateOf } from '../domain/exports/albumExport'
@@ -168,6 +170,24 @@ export const eventsUseCases = (
   getOwnRsvp: makeGetOwnRsvp(ownRsvpDeps(adapters)),
   updateOwnRsvp: makeUpdateOwnRsvp(ownRsvpDeps(adapters)),
   deleteOwnRsvp: makeDeleteOwnRsvp(ownRsvpDeps(adapters)),
+  // The word of a guest who cannot come: the guestbook's own door, with an author made for it.
+  postAbsentNote: makePostAbsentNote({
+    events: adapters.events,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
+    secrets: adapters.secretTokens,
+    guests: adapters.guests,
+    createEntry: makeCreateGuestbookEntry({
+      events: adapters.events,
+      guestbook: adapters.guestbook,
+      ids: adapters.ids,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    ids: adapters.ids,
+    clock: adapters.clock,
+  }),
   getGuestInviteLogoMedia: makeGetGuestInviteLogoMedia({
     events: adapters.events,
     invites: adapters.guestInvites,

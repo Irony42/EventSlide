@@ -28,8 +28,10 @@ import { fromIsoText, toIsoText } from './rowMapping'
  * rule refuses becomes empty rather than making the host's list vanish.
  */
 
+/** What a reply reads back. The insert names its own list: `absent_note_guest_id` is never written by an admission. */
 const COLUMNS = `id, event_id, household_id, edit_token_hash, name, answer, adults, kids, details,
                  diet, message, source, created_at, updated_at`
+const READ_COLUMNS = `${COLUMNS}, absent_note_guest_id`
 
 interface RsvpRow {
   readonly id: string
@@ -46,6 +48,7 @@ interface RsvpRow {
   readonly source: string
   readonly created_at: string
   readonly updated_at: string
+  readonly absent_note_guest_id: string | null
 }
 
 /** The column carries `CHECK (json_valid(details))`, so a stored text always parses. */
@@ -69,6 +72,7 @@ const toRsvp = (row: RsvpRow): GuestRsvp =>
     source: row.source as RsvpSource,
     createdAt: fromIsoText(row.created_at),
     updatedAt: fromIsoText(row.updated_at),
+    absentNoteGuestId: row.absent_note_guest_id,
   })
 
 const contentParams = (rsvp: GuestRsvp) => ({
@@ -88,7 +92,7 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
   async listByEvent(eventId: EventId): Promise<readonly GuestRsvp[]> {
     return this.db
       .prepare<[string], RsvpRow>(
-        `SELECT ${COLUMNS} FROM guest_rsvps WHERE event_id = ? ORDER BY updated_at DESC, id DESC`,
+        `SELECT ${READ_COLUMNS} FROM guest_rsvps WHERE event_id = ? ORDER BY updated_at DESC, id DESC`,
       )
       .all(eventId)
       .map(toRsvp)
@@ -138,7 +142,7 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
   async findById(eventId: EventId, id: GuestRsvpId): Promise<GuestRsvp | null> {
     const row = this.db
       .prepare<[string, string], RsvpRow>(
-        `SELECT ${COLUMNS} FROM guest_rsvps WHERE event_id = ? AND id = ?`,
+        `SELECT ${READ_COLUMNS} FROM guest_rsvps WHERE event_id = ? AND id = ?`,
       )
       .get(eventId, id)
     return row === undefined ? null : toRsvp(row)
@@ -147,7 +151,7 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
   async findByEditTokenHash(eventId: EventId, hash: string): Promise<GuestRsvp | null> {
     const row = this.db
       .prepare<[string, string], RsvpRow>(
-        `SELECT ${COLUMNS} FROM guest_rsvps WHERE event_id = ? AND edit_token_hash = ?`,
+        `SELECT ${READ_COLUMNS} FROM guest_rsvps WHERE event_id = ? AND edit_token_hash = ?`,
       )
       .get(eventId, hash)
     return row === undefined ? null : toRsvp(row)
@@ -156,7 +160,7 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
   async findByHousehold(eventId: EventId, householdId: string): Promise<GuestRsvp | null> {
     const row = this.db
       .prepare<[string, string], RsvpRow>(
-        `SELECT ${COLUMNS} FROM guest_rsvps WHERE event_id = ? AND household_id = ?
+        `SELECT ${READ_COLUMNS} FROM guest_rsvps WHERE event_id = ? AND household_id = ?
           ORDER BY updated_at DESC, id DESC LIMIT 1`,
       )
       .get(eventId, householdId)
@@ -165,10 +169,10 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
 
   async admit(rsvp: GuestRsvp, limits: GuestRsvpAdmitLimits): Promise<GuestRsvpAdmission> {
     const byId = this.db.prepare<[string, string], RsvpRow>(
-      `SELECT ${COLUMNS} FROM guest_rsvps WHERE event_id = ? AND id = ?`,
+      `SELECT ${READ_COLUMNS} FROM guest_rsvps WHERE event_id = ? AND id = ?`,
     )
     const byHousehold = this.db.prepare<[string, string], RsvpRow>(
-      `SELECT ${COLUMNS} FROM guest_rsvps WHERE event_id = ? AND household_id = ?
+      `SELECT ${READ_COLUMNS} FROM guest_rsvps WHERE event_id = ? AND household_id = ?
         ORDER BY updated_at DESC, id DESC LIMIT 1`,
     )
     const countAll = this.db.prepare<[string], { readonly n: number }>(
@@ -307,10 +311,44 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
   }
 
   async delete(eventId: EventId, id: GuestRsvpId): Promise<boolean> {
-    const result = this.db
-      .prepare<[string, string]>(`DELETE FROM guest_rsvps WHERE event_id = ? AND id = ?`)
-      .run(eventId, id)
-    return result.changes > 0
+    // The reply and the `guests` row made for its note go in one transaction (the entry goes with that
+    // row, `ON DELETE CASCADE`): erasing a reply erases what the guest left with it.
+    const note = this.db.prepare<[string, string], { readonly guest: string | null }>(
+      `SELECT absent_note_guest_id AS guest FROM guest_rsvps WHERE event_id = ? AND id = ?`,
+    )
+    const dropNote = this.db.prepare<[string, string]>(
+      `DELETE FROM guests WHERE event_id = ? AND id = ? AND via_rsvp = 1`,
+    )
+    const dropReply = this.db.prepare<[string, string]>(
+      `DELETE FROM guest_rsvps WHERE event_id = ? AND id = ?`,
+    )
+    return this.db
+      .transaction((): boolean => {
+        const guest = note.get(eventId, id)?.guest ?? null
+        if (guest !== null) dropNote.run(eventId, guest)
+        return dropReply.run(eventId, id).changes > 0
+      })
+      .immediate()
+  }
+
+  async claimAbsentNote(eventId: EventId, id: GuestRsvpId, guestId: string): Promise<boolean> {
+    return (
+      this.db
+        .prepare<[string, string, string]>(
+          `UPDATE guest_rsvps SET absent_note_guest_id = ?
+            WHERE event_id = ? AND id = ? AND answer = 'no' AND absent_note_guest_id IS NULL`,
+        )
+        .run(guestId, eventId, id).changes > 0
+    )
+  }
+
+  async releaseAbsentNote(eventId: EventId, id: GuestRsvpId, guestId: string): Promise<void> {
+    this.db
+      .prepare<[string, string, string]>(
+        `UPDATE guest_rsvps SET absent_note_guest_id = NULL
+          WHERE event_id = ? AND id = ? AND absent_note_guest_id = ?`,
+      )
+      .run(eventId, id, guestId)
   }
 
   async deleteExpired(now: Date): Promise<number> {
@@ -318,15 +356,26 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
     // `closed_at` and `starts_at` are ISO `toISOString()` text, fixed-width UTC, so comparing them
     // as TEXT orders them as instants. Do not store another format in either column.
     const { closedBy, startedBy } = rsvpCutoffs(now)
-    return this.db
-      .prepare<[string, string]>(
-        `DELETE FROM guest_rsvps
-          WHERE event_id IN (
+    const expired = `event_id IN (
             SELECT e.id FROM events e
               LEFT JOIN guest_invites g ON g.event_id = e.id
              WHERE (e.closed_at IS NOT NULL AND e.closed_at <= ?)
-                OR (g.starts_at IS NOT NULL AND g.starts_at <= ?))`,
-      )
-      .run(toIsoText(closedBy), toIsoText(startedBy)).changes
+                OR (g.starts_at IS NOT NULL AND g.starts_at <= ?))`
+    // The notes of the expired replies go first (their `guests` rows, and the entries with them), in the
+    // same transaction as the replies: the sweep erases what the guests left with their replies too.
+    const dropNotes = this.db.prepare<[string, string]>(
+      `DELETE FROM guests WHERE via_rsvp = 1 AND id IN (
+         SELECT absent_note_guest_id FROM guest_rsvps
+          WHERE absent_note_guest_id IS NOT NULL AND ${expired})`,
+    )
+    const dropReplies = this.db.prepare<[string, string]>(
+      `DELETE FROM guest_rsvps WHERE ${expired}`,
+    )
+    return this.db
+      .transaction((): number => {
+        dropNotes.run(toIsoText(closedBy), toIsoText(startedBy))
+        return dropReplies.run(toIsoText(closedBy), toIsoText(startedBy)).changes
+      })
+      .immediate()
   }
 }

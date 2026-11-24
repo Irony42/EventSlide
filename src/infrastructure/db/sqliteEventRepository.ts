@@ -587,7 +587,8 @@ const COUNT_COLUMNS = `(SELECT COUNT(*) FROM photos p
               (SELECT COUNT(*) FROM photos p
                 WHERE p.event_id = e.id AND p.status = 'pending'
                   AND p.taken_down_at IS NULL)                         AS pending_count,
-              (SELECT COUNT(*) FROM guests g WHERE g.event_id = e.id)  AS guest_count,
+              (SELECT COUNT(*) FROM guests g
+                WHERE g.event_id = e.id AND g.via_rsvp = 0)            AS guest_count,
               ${eventHoldingBytesSum('e.id')}                           AS used_bytes`
 
 /**

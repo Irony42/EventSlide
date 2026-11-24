@@ -24,6 +24,10 @@ import {
   makeGetOwnRsvp,
   makeUpdateOwnRsvp,
 } from '../usecases/guestRsvps/ownRsvp'
+import { makePostAbsentNote } from '../usecases/guestRsvps/postAbsentNote'
+import { makeCreateGuestbookEntry } from '../usecases/guestbook/createGuestbookEntry'
+import { FakeGuestRepository } from './fakeGuestRepository'
+import { FakeGuestbookRepository } from './fakeGuestbookRepository'
 import { makeSubmitRsvp } from '../usecases/guestRsvps/submitRsvp'
 import { FakeSecretTokens } from './fakeSecretTokens'
 import { makeSaveRsvpForm } from '../usecases/guestRsvps/saveRsvpForm'
@@ -71,6 +75,9 @@ class SceneIds extends SequentialIdGenerator {
 export interface RsvpScene extends GuestInviteScene {
   readonly rsvps: FakeGuestRsvpRepository
   readonly households: FakeGuestHouseholdRepository
+  /** The guests of the party and the guestbook the word of an absent guest goes through (lot 4). */
+  readonly guests: FakeGuestRepository
+  readonly guestbook: FakeGuestbookRepository
   readonly bus: RecordingEventBus
   readonly ids: SequentialIdGenerator
   readonly getForm: ReturnType<typeof makeGetRsvpForm>
@@ -98,6 +105,7 @@ export interface RsvpScene extends GuestInviteScene {
   readonly getOwn: ReturnType<typeof makeGetOwnRsvp>
   readonly updateOwn: ReturnType<typeof makeUpdateOwnRsvp>
   readonly deleteOwn: ReturnType<typeof makeDeleteOwnRsvp>
+  readonly postAbsentNote: ReturnType<typeof makePostAbsentNote>
   /** The wedding's invitation link, as a guest has it. */
   readonly token: () => Promise<string>
 }
@@ -107,6 +115,8 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
   const base = await guestInviteScene()
   const rsvps = new FakeGuestRsvpRepository()
   const households = new FakeGuestHouseholdRepository(rsvps)
+  const guests = new FakeGuestRepository()
+  const guestbook = new FakeGuestbookRepository()
   const bus = new RecordingEventBus()
   const ids = new SceneIds()
   const { events, memberships, invites, audit, clock } = base
@@ -125,6 +135,8 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
     ...base,
     rsvps,
     households,
+    guests,
+    guestbook,
     bus,
     ids,
     getForm: makeGetRsvpForm({ ...access, rsvps, clock }),
@@ -168,6 +180,16 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
     getOwn: makeGetOwnRsvp({ ...publicAccess, rsvps, households, secrets, bus, clock }),
     updateOwn: makeUpdateOwnRsvp({ ...publicAccess, rsvps, households, secrets, bus, clock }),
     deleteOwn: makeDeleteOwnRsvp({ ...publicAccess, rsvps, households, secrets, bus, clock }),
+    postAbsentNote: makePostAbsentNote({
+      ...publicAccess,
+      rsvps,
+      households,
+      secrets,
+      guests,
+      createEntry: makeCreateGuestbookEntry({ events, guestbook, ids, bus, clock }),
+      ids,
+      clock,
+    }),
     view: makeViewGuestInvite({ events, invites, rsvps, clock }),
     token: async () => (await invites.findByEvent(WEDDING))?.token.value ?? 'absent',
   }

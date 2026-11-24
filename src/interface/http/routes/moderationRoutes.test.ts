@@ -217,6 +217,7 @@ const usecasesFor = (
     getOwnRsvp: notWired,
     updateOwnRsvp: notWired,
     deleteOwnRsvp: notWired,
+    postAbsentNote: notWired,
     getRsvpForm: notWired,
     saveRsvpForm: notWired,
     closeRsvps: notWired,

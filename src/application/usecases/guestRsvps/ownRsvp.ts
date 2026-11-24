@@ -69,13 +69,20 @@ export type UpdateOwnRsvp = (
 export type DeleteOwnRsvp = (input: OwnRsvpInput) => Promise<Result<void, DomainError>>
 
 /** The reply the caller holds the key to, and the household when the key is one's link. */
-interface OwnReply {
+export interface OwnReply {
   readonly rsvp: GuestRsvp
   readonly household: GuestHousehold | null
 }
 
-const findOwnReply = async (
-  deps: OwnRsvpDeps,
+/** What finding the reply a caller holds the key to reads: the two keys' stores and the digest. */
+export interface OwnReplyDeps {
+  readonly rsvps: Pick<GuestRsvpRepository, 'findByEditTokenHash' | 'findByHousehold'>
+  readonly households: Pick<GuestHouseholdRepository, 'findByToken' | 'findById'>
+  readonly secrets: SecretTokens
+}
+
+export const findOwnReply = async (
+  deps: OwnReplyDeps,
   event: Event,
   { editToken, householdToken }: Omit<OwnRsvpInput, 'token'>,
 ): Promise<Result<OwnReply, DomainError>> => {

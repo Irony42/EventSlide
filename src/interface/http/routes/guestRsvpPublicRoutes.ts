@@ -11,7 +11,9 @@ import {
   guestInviteTokenParams,
   guestRsvpBody,
   guestRsvpCreateBody,
+  absentNoteBody,
 } from '../schemas/requestSchemas'
+import type { GuestAbsentNoteResponseDto } from '../presenters/dto'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
 /**
@@ -45,7 +47,12 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
 export interface GuestRsvpPublicRouteDeps extends Omit<RouteDeps, 'usecases'> {
   readonly usecases: Pick<
     HttpUseCases,
-    'submitRsvp' | 'getOwnRsvp' | 'updateOwnRsvp' | 'deleteOwnRsvp' | 'viewHousehold'
+    | 'submitRsvp'
+    | 'getOwnRsvp'
+    | 'updateOwnRsvp'
+    | 'deleteOwnRsvp'
+    | 'viewHousehold'
+    | 'postAbsentNote'
   >
   /** One instance for the three writes: built once by `server.ts`. */
   readonly rsvpWriteLimiters: readonly RequestHandler[]
@@ -174,6 +181,31 @@ export const guestRsvpPublicRoutes = ({
       })
 
       sendResultNoContent(res, result)
+    }),
+  )
+
+  /**
+   * The word of a guest who answered "no" (lot 4): the reply's own token (or a household's link), the write
+   * limiter, a 4 KB body, the guestbook's text rules and ceilings, and the honeypot. `201 { absentNoteSent }`.
+   */
+  router.post(
+    '/i/:token/absent-note',
+    ...rsvpWriteLimiters,
+    asyncHandler(async (req, res) => {
+      const token = tokenOf(req)
+      if (token === null) return sendError(res, notAvailable())
+      const body = absentNoteBody.parse(req.body)
+
+      const result = await usecases.postAbsentNote({
+        token,
+        editToken: editTokenOf(req),
+        householdToken: householdTokenOf(req),
+        ...body,
+      })
+
+      sendResult(res, result, (response) =>
+        sendJson<GuestAbsentNoteResponseDto>(response, { absentNoteSent: true }, 201),
+      )
     }),
   )
 

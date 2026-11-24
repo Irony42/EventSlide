@@ -27,6 +27,8 @@ interface GuestRow {
   /** Migration 033. Both or neither — the schema checks it. */
   readonly channel: string | null
   readonly channel_sender_key: string | null
+  /** Migration 039: made for the note of a guest who cannot come, never counted as a guest. */
+  readonly via_rsvp: number
   /** Not a column — see {@link SELECT_GUEST}. */
   readonly photo_count: number
 }
@@ -105,6 +107,7 @@ const SELECT_GUEST = `
          g.notice_acknowledged_at,
          g.channel,
          g.channel_sender_key,
+         g.via_rsvp,
          (SELECT COUNT(*)
             FROM photos p
            WHERE p.event_id        = g.event_id
@@ -137,8 +140,8 @@ const SELECT_GUEST = `
  */
 const UPSERT_GUEST = `
   INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at, revoked_at,
-                      notice_revision, notice_acknowledged_at, channel, channel_sender_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      notice_revision, notice_acknowledged_at, channel, channel_sender_key, via_rsvp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT (id) DO UPDATE SET display_name           = excluded.display_name,
                                  joined_at              = excluded.joined_at,
                                  last_seen_at           = excluded.last_seen_at,
@@ -173,6 +176,7 @@ const COUNT_ACTIVE = `
    WHERE event_id     = ?
      AND last_seen_at >= ?
      AND revoked_at IS NULL
+     AND via_rsvp       = 0
 `
 
 /**
@@ -227,6 +231,7 @@ const toGuest = (row: GuestRow): Guest =>
     photoCount: row.photo_count,
     noticeAcknowledgement: toNoticeAcknowledgement(row),
     channelIdentity: toChannelIdentity(row),
+    viaRsvp: row.via_rsvp === 1,
   })
 
 /**
@@ -326,7 +331,7 @@ export class SqliteGuestRepository implements GuestRepository {
     // is the defect class behind 1.0's per-browser slideshow index.
     const rows = this.db
       .prepare<[string], GuestRow>(
-        `${SELECT_GUEST} WHERE g.event_id = ? ORDER BY g.last_seen_at DESC, g.id`,
+        `${SELECT_GUEST} WHERE g.event_id = ? AND g.via_rsvp = 0 ORDER BY g.last_seen_at DESC, g.id`,
       )
       .all(eventId)
 
@@ -355,6 +360,7 @@ export class SqliteGuestRepository implements GuestRepository {
           string | null,
           string | null,
           string | null,
+          number,
         ]
       >(UPSERT_GUEST)
       .run(
@@ -368,6 +374,7 @@ export class SqliteGuestRepository implements GuestRepository {
         props.noticeAcknowledgement === null ? null : toIsoText(props.noticeAcknowledgement.at),
         props.channelIdentity?.channel ?? null,
         props.channelIdentity?.senderKey ?? null,
+        props.viaRsvp === true ? 1 : 0,
       )
 
     // The `WHERE` above skipped the update, so this id is held by a guest at another

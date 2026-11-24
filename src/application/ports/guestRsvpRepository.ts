@@ -109,8 +109,20 @@ export interface GuestRsvpRepository {
   /** Notes that this member has seen the replies up to `at`. No membership is a no-op. */
   markSeen(eventId: EventId, userId: UserId, at: Date): Promise<void>
 
-  /** Whether a reply was deleted. */
+  /**
+   * Whether a reply was deleted. **The `guests` row made for its note to the guestbook goes with it**, in
+   * the same write (and the entry with that row): erasing a reply erases the note.
+   */
   delete(eventId: EventId, id: GuestRsvpId): Promise<boolean>
+
+  /**
+   * Claims the one note of a reply for `guestId`: true when the reply is there, answers "no" and had no
+   * note yet, false otherwise (a second note, a reply changed or gone meanwhile). Decided in the write.
+   */
+  claimAbsentNote(eventId: EventId, id: GuestRsvpId, guestId: string): Promise<boolean>
+
+  /** Gives the claim back (the note could not be written): only if it is still `guestId`'s. */
+  releaseAbsentNote(eventId: EventId, id: GuestRsvpId, guestId: string): Promise<void>
 
   /**
    * Deletes the replies whose event has expired (`isRsvpExpired`: 30 days after it closed, or 60

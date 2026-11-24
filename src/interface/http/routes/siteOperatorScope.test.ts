@@ -155,6 +155,9 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'delete /api/i/:token/rsvp':
     'a guest deletes their own reply, behind the same two tokens: an operator holding neither ' +
     'is a stranger to it',
+  'post /api/i/:token/absent-note':
+    'the word of a guest who answered no (spec 30, lot 4): the invitation’s token **and** the reply’s own token, in a header, ' +
+    'bound to the event, the same neutral refusals as the reply itself; an operator holding neither is a stranger to it',
   'get /api/invitations/:token':
     'an invitation link (roadmap §10.3): the token **is** the credential, and what it shows ' +
     'is the same neutral answer to everyone — the purpose, the target’s name and the end of ' +
@@ -478,6 +481,7 @@ const BODIES: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   'post /api/gallery/:token/unlock': { password: 'x' },
   'post /api/i/:token/rsvp': { name: 'Léa', answer: 'yes' },
   'put /api/i/:token/rsvp': { name: 'Léa', answer: 'yes' },
+  'post /api/i/:token/absent-note': { text: 'Merci pour tout' },
   'post /api/auth/login': { email: 'nobody@example.test', password: 'x' },
   'post /api/auth/login/2fa': { code: '123456' },
   'post /api/auth/2fa/enroll': { password: 'x' },

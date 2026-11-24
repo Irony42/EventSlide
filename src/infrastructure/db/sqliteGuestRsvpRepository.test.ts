@@ -4,7 +4,9 @@ import {
   guestRsvpRepositoryContract,
 } from '../../application/testing/contracts/guestRsvpRepositoryContract'
 import { aRsvp, RSVP_AT } from '../../domain/guestRsvps/testing/rsvpFixtures'
-import { asEventId } from '../../domain/shared/ids'
+import { asEventId, asGuestRsvpId } from '../../domain/shared/ids'
+import { SqliteEventRepository } from './sqliteEventRepository'
+import { SqliteEventStatsRepository } from './sqliteEventStatsRepository'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrate } from './migrator'
 import { migrations } from './migrations'
@@ -124,6 +126,122 @@ describe('SqliteGuestRsvpRepository storage', () => {
     await expect(
       repo.admit(aRsvp({ eventId: 'evt-gala', id: 'r-2', editTokenHash: 'same' }), NONE),
     ).rejects.toThrow(/UNIQUE/)
+    closeDatabase(db)
+  })
+})
+
+describe('SqliteGuestRsvpRepository: the note of a guest who cannot come (spec 30, lot 4)', () => {
+  const WEDDING = asEventId('evt-wedding')
+
+  /** A reply that said no, with the guest and the guestbook entry its note made. */
+  const withANote = async (db: Db, id = 'rsvp-no') => {
+    const repo = new SqliteGuestRsvpRepository(db)
+    await repo.admit(aRsvp({ eventId: 'evt-wedding', id, answer: 'no' }), NONE)
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at, via_rsvp)
+            VALUES (?, 'evt-wedding', 'Léa', ?, ?, 1)`,
+    ).run(`guest-${id}`, ISO_AT, ISO_AT)
+    db.prepare(
+      `INSERT INTO guestbook_entries (id, event_id, guest_id, body, status, created_at)
+            VALUES (?, 'evt-wedding', ?, 'Dommage', 'published', ?)`,
+    ).run(`entry-${id}`, `guest-${id}`, ISO_AT)
+    expect(await repo.claimAbsentNote(WEDDING, asGuestRsvpId(id), `guest-${id}`)).toBe(true)
+    return repo
+  }
+  const count = (db: Db, table: string): number =>
+    (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n
+
+  it('goes with the reply: its author and the entry are erased in the same write', async () => {
+    const db = migratedDatabase()
+    const repo = await withANote(db)
+
+    expect(await repo.delete(WEDDING, asGuestRsvpId('rsvp-no'))).toBe(true)
+
+    expect([count(db, 'guest_rsvps'), count(db, 'guests'), count(db, 'guestbook_entries')]).toEqual(
+      [0, 0, 0],
+    )
+    closeDatabase(db)
+  })
+
+  it('leaves a reply that has no note, and a guest of the party, alone', async () => {
+    const db = migratedDatabase()
+    const repo = await withANote(db)
+    await repo.admit(aRsvp({ eventId: 'evt-wedding', id: 'rsvp-plain', answer: 'no' }), NONE)
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at)
+            VALUES ('guest-party', 'evt-wedding', 'Hugo', ?, ?)`,
+    ).run(ISO_AT, ISO_AT)
+
+    await repo.delete(WEDDING, asGuestRsvpId('rsvp-plain'))
+
+    expect(count(db, 'guests')).toBe(2)
+    expect(count(db, 'guestbook_entries')).toBe(1)
+    closeDatabase(db)
+  })
+
+  it('never deletes a guest of the party that a stray id points at', async () => {
+    const db = migratedDatabase()
+    const repo = new SqliteGuestRsvpRepository(db)
+    await repo.admit(aRsvp({ eventId: 'evt-wedding', id: 'rsvp-no', answer: 'no' }), NONE)
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at)
+            VALUES ('guest-party', 'evt-wedding', 'Hugo', ?, ?)`,
+    ).run(ISO_AT, ISO_AT)
+    db.prepare(`UPDATE guest_rsvps SET absent_note_guest_id = 'guest-party'`).run()
+
+    await repo.delete(WEDDING, asGuestRsvpId('rsvp-no'))
+
+    expect(count(db, 'guests')).toBe(1)
+    closeDatabase(db)
+  })
+
+  it('goes with the retention sweep: the expired reply’s author and entry too, the others stay', async () => {
+    const db = migratedDatabase()
+    const repo = await withANote(db)
+    // The second event's reply is not expired and keeps its note.
+    await repo.admit(aRsvp({ eventId: 'evt-gala', id: 'rsvp-gala', answer: 'no' }), NONE)
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at, via_rsvp)
+            VALUES ('guest-gala', 'evt-gala', 'Zoé', ?, ?, 1)`,
+    ).run(ISO_AT, ISO_AT)
+    await repo.claimAbsentNote(asEventId('evt-gala'), asGuestRsvpId('rsvp-gala'), 'guest-gala')
+    db.prepare(
+      `UPDATE events SET closed_at = '2020-01-01T00:00:00.000Z' WHERE id = 'evt-wedding'`,
+    ).run()
+
+    expect(await repo.deleteExpired(new Date('2026-11-23T00:00:00.000Z'))).toBe(1)
+
+    expect(db.prepare(`SELECT id FROM guests`).all()).toEqual([{ id: 'guest-gala' }])
+    expect(count(db, 'guestbook_entries')).toBe(0)
+    expect(count(db, 'guest_rsvps')).toBe(1)
+    closeDatabase(db)
+  })
+
+  it('goes with the event: the purge takes the replies, the authors and the entries', async () => {
+    const db = migratedDatabase()
+    await withANote(db)
+
+    db.prepare(`DELETE FROM events WHERE id = 'evt-wedding'`).run()
+
+    expect([count(db, 'guest_rsvps'), count(db, 'guests'), count(db, 'guestbook_entries')]).toEqual(
+      [0, 0, 0],
+    )
+    closeDatabase(db)
+  })
+
+  it('counts no author as a guest of the party: not on the dashboard, not in the statistics', async () => {
+    const db = migratedDatabase()
+    await withANote(db)
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at)
+            VALUES ('guest-party', 'evt-wedding', 'Hugo', ?, ?)`,
+    ).run(ISO_AT, ISO_AT)
+
+    const events = new SqliteEventRepository(db)
+    const stats = new SqliteEventStatsRepository(db)
+
+    expect((await events.countsOf(WEDDING)).guestCount).toBe(1)
+    expect((await stats.readDerived(WEDDING)).guests.joined).toBe(1)
     closeDatabase(db)
   })
 })

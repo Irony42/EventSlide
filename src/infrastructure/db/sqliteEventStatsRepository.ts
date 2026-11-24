@@ -40,7 +40,7 @@ export const STATS_SQL = {
                WHERE event_id = ? AND taken_down_at IS NULL
                GROUP BY start
                ORDER BY start`,
-  guests: `SELECT COUNT(*) AS joined, COUNT(revoked_at) AS revoked FROM guests WHERE event_id = ?`,
+  guests: `SELECT COUNT(*) AS joined, COUNT(revoked_at) AS revoked FROM guests WHERE event_id = ? AND via_rsvp = 0`,
   senders: `SELECT COUNT(DISTINCT author_guest_id) AS total FROM photos
              WHERE event_id = ? AND taken_down_at IS NULL AND author_guest_id IS NOT NULL`,
   reactions: `SELECT r.kind AS kind, COUNT(*) AS total
