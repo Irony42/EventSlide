@@ -166,8 +166,45 @@ export function RsvpExtras({
   const saveMoments = (moments: readonly MomentDraft[]) =>
     change({ form: { moments: momentsInput(moments) } })
 
+  /** The limit is being written: the switch is on screen before it can be sent. */
+  const [capacityOpen, setCapacityOpen] = useState(false)
+  const capacityOn = form.capacity !== null || capacityOpen
+
   return (
     <>
+      <CheckboxField
+        label={text.capacityLabel}
+        hint={text.capacityHint}
+        checked={capacityOn}
+        disabled={locked}
+        onChange={(on) => {
+          if (on) {
+            setCapacityOpen(true)
+          } else {
+            setCapacityOpen(false)
+            if (form.capacity !== null) change({ form: { capacity: null } })
+          }
+        }}
+      />
+      {capacityOn ? (
+        <div className={styles['sub']}>
+          <CommitField
+            label={text.capacityField}
+            hint={text.capacityFieldHint}
+            value={form.capacity === null ? '' : String(form.capacity)}
+            disabled={locked}
+            saveState={saveState}
+            problem={problem}
+            onCommit={(raw) => {
+              if (raw.trim() === '') return
+              // A text that is not a number is sent as 0, which the server refuses with its sentence
+              // (`NaN` would be sent as `null` and lift the limit).
+              const people = Number(raw)
+              change({ form: { capacity: Number.isFinite(people) ? people : 0 } })
+            }}
+          />
+        </div>
+      ) : null}
       <CheckboxField
         label={text.companionsLabel}
         hint={text.companionsHint}

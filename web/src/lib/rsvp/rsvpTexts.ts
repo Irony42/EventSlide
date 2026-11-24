@@ -32,11 +32,16 @@ export const plural = (
 /** One line of what the guest sent, for the confirmation and for the banner of a closed page. */
 export const recapLine = (
   reply: GuestOwnRsvpDto,
-  form: GuestRsvpPageDto['form'],
+  form: Omit<GuestRsvpPageDto['form'], 'limited'>,
   text: UiText['rsvp']['guest'],
 ): string => {
   if (reply.answer === 'no') return text.recapNo
-  const head = reply.answer === 'maybe' ? text.recapMaybe : text.recapYes
+  const head =
+    reply.answer === 'maybe'
+      ? text.recapMaybe
+      : reply.answer === 'waitlist'
+        ? text.recapWaitlist
+        : text.recapYes
   if (!form.partySize.enabled) return head
   const people = reply.adults + reply.kids
   const kids =
@@ -74,7 +79,7 @@ export const momentLabels = (
 /** The whole confirmation: the line, then what else was sent. Plain text, never a link. */
 export const recapLines = (
   reply: GuestOwnRsvpDto,
-  form: GuestRsvpPageDto['form'],
+  form: Omit<GuestRsvpPageDto['form'], 'limited'>,
   text: UiText['rsvp']['guest'],
 ): readonly string[] => [
   recapLine(reply, form, text),

@@ -2795,7 +2795,6 @@ export const fr = {
     'rsvp.closed': 'Les réponses sont closes.',
     'rsvp.off': 'L’organisateur ne demande pas de réponse pour l’instant.',
     'rsvp.tooMany': 'Cette invitation a atteint son nombre maximal de réponses.',
-    'rsvp.full': 'C’est complet.',
     'rsvp.inviteRequired': 'Enregistrez d’abord l’invitation.',
     'rsvp.nameEmpty': 'Indiquez votre prénom et nom.',
     'rsvp.nameInvalid': 'Ce nom n’est pas valide.',
@@ -2833,6 +2832,9 @@ export const fr = {
       'Ces moments ne sont pas valides\u00a0: quatre au plus, tous différents.',
     'rsvp.momentsRequired': 'Choisissez au moins un moment.',
     'household.momentsInvalid': 'Ces moments ne sont pas valides pour ce foyer.',
+    'rsvp.capacityInvalid': 'Le nombre de places va de 1 à 2000.',
+    'rsvp.full':
+      'Il ne reste pas assez de places pour ce nombre\u00a0: réduisez-le ou prévenez l’organisateur.',
     'household.nameEmpty': 'Indiquez un nom de foyer.',
     'household.nameInvalid': 'Ce nom de foyer n’est pas valide.',
     'household.nameTooLong': 'Ce nom est trop long\u00a0: 80 caractères au plus.',
@@ -4202,6 +4204,18 @@ export const fr = {
       momentsHint: 'au moins un',
       recapMoments: (moments: string) => `Moments\u00a0: ${moments}`,
       momentsGone: 'Le moment que vous aviez choisi n’existe plus\u00a0: choisissez-en un.',
+      fullTitle: 'C’est complet',
+      fullSub:
+        'Il n’y a plus de place. Vous pouvez vous inscrire sur la liste d’attente\u00a0: l’organisateur vous prévient si une place se libère.',
+      waitlistJoin: 'M’inscrire sur la liste d’attente',
+      doneWaitlist: 'Vous êtes sur la liste d’attente',
+      waitlistSub:
+        'L’organisateur vous prévient si une place se libère. Vous pouvez changer d’avis tant que les réponses sont ouvertes.',
+      recapWaitlist: 'Sur la liste d’attente',
+      limitedPlaces: 'Places limitées.',
+      stayWaitlist:
+        'Vous restez sur la liste d’attente tant que l’organisateur ne vous a pas fait passer.',
+      stayWaitlistChoice: 'Rester sur la liste d’attente',
       trap: 'Ne pas remplir ce champ',
       tooLarge: 'Votre réponse est trop longue pour être envoyée. Raccourcissez vos textes.',
     },
@@ -4304,6 +4318,11 @@ export const fr = {
       momentRemoveUnknown:
         'Les réponses déjà données pour ce moment perdront ce choix. Pour corriger un nom, renommez le moment plutôt que de le retirer.',
       momentRemoveYes: 'Retirer le moment',
+      capacityLabel: 'Places limitées',
+      capacityHint:
+        'Au-delà du nombre de personnes fixé, un «\u00a0oui\u00a0» va sur la liste d’attente et vous la promouvez à la main. Vos propres ajouts ne sont pas limités.',
+      capacityField: 'Personnes au plus',
+      capacityFieldHint: 'de 1 à 2000, enfants compris',
       presetConfirmTitle: 'Remplacer vos réglages\u00a0?',
       presetConfirm: (kind: string) =>
         `Vos choix de «\u00a0Peut-être\u00a0», de nombre de personnes, d’enfants et de prénoms des accompagnants seront remplacés par ceux d’${kind}.`,
@@ -4443,6 +4462,15 @@ export const fr = {
       printMoments: 'Moments',
       momentNoneLine: (people: string) => `Sans moment\u00a0: ${people}`,
       formMomentsHint: 'au moins un, pour ceux qui viennent',
+      tabWaitlist: 'Liste d’attente',
+      tileWaitlist: 'Liste d’attente',
+      promote: 'Promouvoir',
+      detailWaitlistHint:
+        'Sur la liste d’attente\u00a0: cette réponse ne compte pas dans les places.',
+      promoteOver: (capacity: number) => `Cette promotion dépasse la capacité de ${capacity}.`,
+      promoteAnyway: 'Promouvoir quand même',
+      overCapacity: (capacity: number) => `au-delà de la capacité de ${capacity}`,
+      waitlistOrderHint: 'Du plus ancien au plus récent\u00a0: promouvez dans cet ordre.',
       tileNoReply: 'Sans réponse',
       tileNoReplyDetail: (households: string, places: number) => `${households} · ${places} places`,
       household: { one: 'foyer', other: 'foyers' },

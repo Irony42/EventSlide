@@ -544,6 +544,11 @@ export class GuestRsvp {
     })
   }
 
+  /** This reply with another answer and the rest as it is: a `yes` the places could not hold becomes a waiting-list entry. */
+  withAnswer(answer: RsvpAnswer): GuestRsvp {
+    return new GuestRsvp({ ...this.props, answer })
+  }
+
   /** This reply with other moments and the rest as it is (a read path narrowing what is shown). */
   withMoments(moments: readonly string[]): GuestRsvp {
     return new GuestRsvp({ ...this.props, details: { ...this.props.details, moments } })

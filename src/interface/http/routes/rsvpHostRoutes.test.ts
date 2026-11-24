@@ -405,7 +405,7 @@ describe('PUT /api/events/:eventSlug/rsvp-form', () => {
   })
 
   it.each([
-    ['a key lot 1 does not know', { capacity: 3 }],
+    ['a key the form does not know', { absentNote: false }],
     ['a form that is not an object', 4],
     ['a null form', null],
   ])('answers rsvp.formInvalid for %s, from the domain', async (_name, form) => {

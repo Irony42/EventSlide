@@ -91,6 +91,7 @@ describe('what the guest’s page would say', () => {
         questions: [],
         visibility: 'off',
         moments: [],
+        limited: false,
       },
     })
     expect(previewPage(aRsvpSettings({ enabled: false })).state).toBe('off')

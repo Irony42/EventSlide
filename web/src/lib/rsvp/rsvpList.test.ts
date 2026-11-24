@@ -36,9 +36,21 @@ describe('the tabs and what each holds', () => {
     expect(tabsOf(false)).toEqual(['all', 'yes', 'no'])
   })
 
-  it('counts each answer, a reply on the waiting list belonging to "all" alone', () => {
-    expect(countsOf([lea, tom, ana, waiting])).toEqual({ all: 4, yes: 1, maybe: 1, no: 1 })
-    expect(countsOf([])).toEqual({ all: 0, yes: 0, maybe: 0, no: 0 })
+  it('offers the waiting list only while somebody is on it', () => {
+    expect(tabsOf(true, true)).toEqual(['all', 'yes', 'maybe', 'waitlist', 'no'])
+    expect(tabsOf(false, true)).toEqual(['all', 'yes', 'waitlist', 'no'])
+    expect(tabsOf(true, false)).toEqual(['all', 'yes', 'maybe', 'no'])
+  })
+
+  it('counts each answer, the waiting list apart', () => {
+    expect(countsOf([lea, tom, ana, waiting])).toEqual({
+      all: 4,
+      yes: 1,
+      maybe: 1,
+      waitlist: 1,
+      no: 1,
+    })
+    expect(countsOf([])).toEqual({ all: 0, yes: 0, maybe: 0, waitlist: 0, no: 0 })
   })
 
   it('keeps the replies of a tab, in the order given', () => {

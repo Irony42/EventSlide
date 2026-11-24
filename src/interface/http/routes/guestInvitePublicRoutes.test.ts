@@ -158,6 +158,7 @@ describe('GET /api/i/:token', () => {
           questions: [],
           visibility: 'off',
           moments: [],
+          limited: false,
         },
       },
       state: 'joinable',

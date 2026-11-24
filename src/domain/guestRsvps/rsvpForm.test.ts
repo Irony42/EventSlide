@@ -48,7 +48,7 @@ describe('applyFormPatch', () => {
     ['null', null],
     ['a list', ['maybe']],
     ['a string', 'maybe'],
-    ['a key lot 1 does not know', { capacity: 3 }],
+    ['a key the form does not know', { absentNote: false }],
     ['a key that is not even one of the form', { maybe: true, nope: 1 }],
   ])('refuses %s as rsvp.formInvalid, and never ignores it', (_name, patch) => {
     const result = patched(patch)
@@ -134,10 +134,18 @@ describe('restoreRsvpForm', () => {
     expect(restoreRsvpForm({ partySize: 'x' })).toEqual(DEFAULT_RSVP_FORM)
   })
 
-  it('ignores an unknown field, and keeps capacity at its default until its own pull request', () => {
-    const form = restoreRsvpForm({ surprise: true, capacity: 5, moments: 'x' })
+  it('ignores an unknown field, and keeps the absent’s word at its default until its own pull request', () => {
+    const form = restoreRsvpForm({ surprise: true, absentNote: false, moments: 'x' })
 
     expect(form).toEqual(DEFAULT_RSVP_FORM)
+  })
+
+  it('reads the capacity that holds and brings any other back to "no limit"', () => {
+    expect(restoreRsvpForm({ capacity: 40 }).capacity).toBe(40)
+    expect(restoreRsvpForm({ capacity: 2000 }).capacity).toBe(2000)
+    for (const bad of [0, 2001, 1.5, '40', null, Number.NaN]) {
+      expect(restoreRsvpForm({ capacity: bad }).capacity).toBeNull()
+    }
   })
 
   it('reads the moments that hold and drops the rest', () => {
@@ -166,5 +174,38 @@ describe('restoreRsvpForm', () => {
       const result = patched({ visibility })
       expect(!result.ok && result.error.code).toBe('rsvp.visibilityInvalid')
     }
+  })
+})
+
+describe('the capacity in a patch', () => {
+  it('takes a whole number of people from 1 to 2000, and null lifts the limit', () => {
+    const set = patched({ capacity: 40 })
+    expect(set.ok && set.value.capacity).toBe(40)
+    expect(patched({ capacity: 1 }).ok && patched({ capacity: 2000 }).ok).toBe(true)
+    if (!set.ok) throw new Error('set')
+    const lifted = patched({ capacity: null }, set.value)
+    expect(lifted.ok && lifted.value.capacity).toBeNull()
+  })
+
+  it('leaves it as it was when the patch does not name it', () => {
+    const set = patched({ capacity: 40 })
+    if (!set.ok) throw new Error('set')
+
+    const other = patched({ maybe: false }, set.value)
+
+    expect(other.ok && other.value.capacity).toBe(40)
+  })
+
+  it.each([
+    ['zero', 0],
+    ['2001', 2001],
+    ['a fraction', 1.5],
+    ['text', '40'],
+    ['NaN', Number.NaN],
+    ['a negative', -3],
+  ])('refuses %s as rsvp.capacityInvalid', (_name, capacity) => {
+    const result = patched({ capacity })
+
+    expect(!result.ok && result.error.code).toBe('rsvp.capacityInvalid')
   })
 })

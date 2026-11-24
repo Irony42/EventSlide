@@ -70,6 +70,8 @@ export interface RsvpFormInput {
     readonly companionNames?: boolean
     readonly meals?: { readonly enabled?: boolean; readonly options?: readonly string[] }
     readonly visibility?: 'off' | 'count' | 'names'
+    /** People at most; `null` lifts the limit (lot 4). */
+    readonly capacity?: number | null
     /** The moments sent whole, in order: one with an `id` is an existing one (lot 4). */
     readonly moments?: readonly { readonly id?: string; readonly label: string }[]
     readonly questions?: readonly {
@@ -84,7 +86,8 @@ export interface RsvpFormInput {
 /** What the host types of a reply (spec 30): the guest's fields, judged by the same form. */
 export interface RsvpReplyInput {
   readonly name: string
-  readonly answer: 'yes' | 'maybe' | 'no'
+  /** `waitlist` only keeps a reply that is already on the waiting list; `yes` then promotes it. */
+  readonly answer: 'yes' | 'maybe' | 'no' | 'waitlist'
   readonly adults?: number
   readonly kids?: number
   readonly diet?: string | null

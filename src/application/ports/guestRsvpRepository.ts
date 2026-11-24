@@ -19,7 +19,7 @@ export type GuestRsvpAdmission =
   | { readonly kind: 'added'; readonly rsvp: GuestRsvp }
   /** A change to a reply that existed: this is the row as it now stands. */
   | { readonly kind: 'updated'; readonly rsvp: GuestRsvp }
-  /** A ceiling is reached; nothing was written. */
+  /** The thousand-reply ceiling is reached; nothing was written. */
   | { readonly kind: 'refused'; readonly refusal: RsvpRefusal }
   /** `changeOnly` was asked and the reply is not there (deleted meanwhile): nothing was written. */
   | { readonly kind: 'gone' }
@@ -67,14 +67,16 @@ export interface GuestRsvpRepository {
 
   /**
    * Stores a reply, or changes one, or says why not, deciding **inside one write transaction**
-   * (`rsvpRefusalFor`, the same function the fake runs):
+   * (`rsvpAdmissionFor`, the same function the fake runs):
    *
    * - a reply whose id the event already holds, or whose household already has one, is a **change**:
    *   the content (name, answer, counts, details, diet, message) and `updatedAt` are replaced, and
    *   the id, token digest, source, household and creation instant stay as stored;
    * - otherwise it is added, unless the event already holds 1 000 replies (`tooMany`);
-   * - a `yes` is refused (`full`) when the people of the other `yes` replies plus its own pass
-   *   `limits.capacity`: the old value of the reply being changed does not count against it.
+   * - a `yes` that the places cannot hold (the people of the other `yes` replies plus its own pass
+   *   `limits.capacity`: the old value of the reply being changed does not count) is **stored as
+   *   `waitlist`**, which takes no place, and the answer's `rsvp` says so; a reply already on the
+   *   waiting list whose guest says `yes` again stays there (the host promotes by hand).
    */
   admit(rsvp: GuestRsvp, limits: GuestRsvpAdmitLimits): Promise<GuestRsvpAdmission>
 

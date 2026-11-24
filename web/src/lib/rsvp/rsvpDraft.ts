@@ -9,6 +9,9 @@ import { firstNameOf } from './rsvpTexts'
  * being the wrong shape, so a guest is not told "no" for a stepper that went too far.
  */
 
+/** What a form asks: the page's form, or the host's own (which has no "limited" flag of its own). */
+export type AskedForm = Omit<GuestRsvpPageDto['form'], 'limited'>
+
 export type RsvpAnswer = 'yes' | 'maybe' | 'no'
 
 export interface RsvpDraft {
@@ -48,17 +51,14 @@ export const EMPTY_DRAFT: RsvpDraft = {
  * A menu the form still offers, or blank: a choice the host renamed or removed since is not one the
  * screen can show, so it is not one the draft holds (screen and payload agree).
  */
-const offeredMeal = (meal: string, form: GuestRsvpPageDto['form']): string =>
+const offeredMeal = (meal: string, form: AskedForm): string =>
   form.meals.enabled && form.meals.options.includes(meal) ? meal : ''
 
 /**
  * The moments the form still offers: an id the host removed (or a household is not invited to) is not
  * one the screen can show, so it is not one the draft holds (screen and payload agree).
  */
-const offeredMoments = (
-  ids: readonly string[],
-  form: GuestRsvpPageDto['form'],
-): readonly string[] =>
+const offeredMoments = (ids: readonly string[], form: AskedForm): readonly string[] =>
   form.moments.filter((moment) => ids.includes(moment.id)).map((moment) => moment.id)
 
 /** The draft with a moment ticked or unticked. */
@@ -70,11 +70,7 @@ export const toggleMoment = (draft: RsvpDraft, id: string): RsvpDraft => ({
 })
 
 /** An answer the form still takes: a text as it is, a choice only while it is one of the options. */
-const offeredAnswer = (
-  questionId: string,
-  value: string,
-  form: GuestRsvpPageDto['form'],
-): string => {
+const offeredAnswer = (questionId: string, value: string, form: AskedForm): string => {
   const question = form.questions.find((asked) => asked.id === questionId)
   if (question?.kind !== 'choice') return value
   return question.options?.includes(value) ? value : ''
@@ -87,7 +83,7 @@ const offeredAnswer = (
  */
 const clampedParty = (
   reply: GuestOwnRsvpDto,
-  form: GuestRsvpPageDto['form'],
+  form: AskedForm,
 ): { readonly adults: number; readonly kids: number } => {
   if (!form.partySize.enabled) return { adults: 1, kids: 0 }
   const adults = Math.min(Math.max(reply.adults, 1), form.partySize.max)
@@ -98,7 +94,7 @@ const clampedParty = (
 /** The form of a guest who is changing their reply: what they sent, in the shape they typed it. */
 export const draftOf = (
   reply: GuestOwnRsvpDto,
-  form: GuestRsvpPageDto['form'],
+  form: AskedForm,
   options: { readonly clamp?: boolean } = {},
 ): RsvpDraft => ({
   answer: reply.answer === 'waitlist' ? 'yes' : reply.answer,
@@ -118,7 +114,7 @@ export const draftOf = (
 })
 
 /** The form of a host who is correcting a reply: the same shape, read from the host's DTO. */
-export const draftOfHostReply = (reply: RsvpDto, form: GuestRsvpPageDto['form']): RsvpDraft =>
+export const draftOfHostReply = (reply: RsvpDto, form: AskedForm): RsvpDraft =>
   draftOf(
     {
       ...reply,
@@ -132,13 +128,13 @@ export const draftOfHostReply = (reply: RsvpDto, form: GuestRsvpPageDto['form'])
   )
 
 /** How many people the form lets one reply bring: the host's limit, or exactly one adult. */
-export const maxPeople = (form: GuestRsvpPageDto['form']): number =>
+export const maxPeople = (form: AskedForm): number =>
   form.partySize.enabled ? form.partySize.max : 1
 
 /** A stepper's move, kept inside what the host's form allows: at least one adult, and `max` in all. */
 export const bump = (
   draft: RsvpDraft,
-  form: GuestRsvpPageDto['form'],
+  form: AskedForm,
   who: 'adults' | 'kids',
   by: 1 | -1,
 ): RsvpDraft => {
@@ -158,7 +154,7 @@ export const bump = (
  */
 export const inputOf = (
   draft: RsvpDraft & { readonly answer: RsvpAnswer },
-  form: GuestRsvpPageDto['form'],
+  form: AskedForm,
 ): GuestRsvpInput => {
   const message = draft.message.trim() === '' ? null : draft.message
   if (draft.answer === 'no') return { name: draft.name, answer: 'no', message }
@@ -194,7 +190,7 @@ export const personName = (draft: RsvpDraft, index: number, fallback: string): s
   (index === 0 ? firstNameOf(draft.name) : draft.companions[index - 1]?.trim()) || fallback
 
 /** How many people the draft brings now (a `no` brings nobody). */
-export const peopleOfDraft = (draft: RsvpDraft, form: GuestRsvpPageDto['form']): number =>
+export const peopleOfDraft = (draft: RsvpDraft, form: AskedForm): number =>
   draft.answer === 'no'
     ? 0
     : form.partySize.enabled
@@ -215,6 +211,7 @@ export const NO_RSVP_PAGE: GuestRsvpPageDto = {
     questions: [],
     visibility: 'off',
     moments: [],
+    limited: false,
   },
 }
 
@@ -225,12 +222,12 @@ export const NO_RSVP_PAGE: GuestRsvpPageDto = {
  * invited to**. Mirrors what the server judges with.
  */
 export const householdForm = (
-  form: GuestRsvpPageDto['form'],
+  form: AskedForm,
   household: {
     readonly places: number
     readonly moments: readonly { readonly id: string }[]
   },
-): GuestRsvpPageDto['form'] => ({
+): AskedForm => ({
   ...form,
   partySize: { enabled: true, max: household.places },
   // Only the moments the page's form still has: the household's own list may be a step behind.

@@ -25,6 +25,7 @@ export const applyInput = (settings: RsvpSettingsDto, input: RsvpFormInput): Rsv
             diet: form.diet ?? settings.form.diet,
             companionNames: form.companionNames ?? settings.form.companionNames,
             visibility: form.visibility ?? settings.form.visibility,
+            capacity: form.capacity === undefined ? settings.form.capacity : form.capacity,
             // A moment the host just added has no id until the server answers.
             moments:
               form.moments?.map((moment) => ({ id: moment.id ?? '', label: moment.label })) ??
@@ -89,6 +90,7 @@ export const previewPage = (settings: RsvpSettingsDto): GuestRsvpPageDto => ({
     questions: settings.form.questions,
     visibility: settings.form.visibility,
     moments: settings.form.moments,
+    limited: settings.form.capacity !== null,
   },
 })
 

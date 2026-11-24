@@ -141,7 +141,8 @@ export const makeUpdateOwnRsvp =
       return err(DomainError.conflict(admission.refusal === 'full' ? 'rsvp.full' : 'rsvp.tooMany'))
     }
     announceRsvpsChanged(deps.bus, event.id)
-    return ok(changed)
+    // What was stored: a yes the places could not hold is a waiting-list entry.
+    return ok(admission.rsvp)
   }
 
 export const makeDeleteOwnRsvp =

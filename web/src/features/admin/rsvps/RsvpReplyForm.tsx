@@ -59,6 +59,8 @@ export function RsvpReplyForm({
   const [draft, setDraft] = useState<RsvpDraft>(
     reply === null ? EMPTY_DRAFT : draftOfHostReply(reply, form),
   )
+  /** A reply on the waiting list stays there unless the host picks another answer (a yes promotes it). */
+  const [waiting, setWaiting] = useState(reply?.answer === 'waitlist')
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
 
@@ -73,7 +75,7 @@ export function RsvpReplyForm({
     try {
       // Showing a first name is the guest's own choice: the host's form never carries it.
       const { showName: _theirs, ...input } = inputOf({ ...draft, answer: draft.answer }, form)
-      await onSubmit(input)
+      await onSubmit(waiting ? { ...input, answer: 'waitlist' } : input)
       onClose()
     } catch (cause) {
       setProblem(messageForError(cause, t))
@@ -81,10 +83,13 @@ export function RsvpReplyForm({
     }
   }
 
-  const answers: readonly { readonly value: RsvpAnswer; readonly label: string }[] = [
+  const answers: readonly { readonly value: RsvpAnswer | 'waitlist'; readonly label: string }[] = [
     { value: 'yes', label: text.answerYes },
     ...(form.maybe ? [{ value: 'maybe' as const, label: text.answerMaybe }] : []),
     { value: 'no', label: text.answerNo },
+    ...(reply?.answer === 'waitlist'
+      ? [{ value: 'waitlist' as const, label: text.answerWaitlist }]
+      : []),
   ]
   const coming = draft.answer !== null && draft.answer !== 'no'
   const people = peopleOfDraft(draft, form)
@@ -133,8 +138,11 @@ export function RsvpReplyForm({
         <ChoiceChips
           legend={text.formAnswer}
           options={answers}
-          value={draft.answer ?? ''}
-          onChange={(answer) => change({ answer: answer as RsvpAnswer })}
+          value={waiting ? 'waitlist' : (draft.answer ?? '')}
+          onChange={(answer) => {
+            setWaiting(answer === 'waitlist')
+            if (answer !== 'waitlist') change({ answer: answer as RsvpAnswer })
+          }}
         />
         {coming && form.partySize.enabled ? (
           <div className={styles['row']}>

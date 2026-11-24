@@ -291,6 +291,10 @@ export function GuestRsvpBlock({
     rsvp.proof === undefined ? null : <p className={styles['proof']}>{proofLine(rsvp.proof, t)}</p>
 
   // --- the form, to answer or to change ------------------------------------------------------
+  /** Places are all taken and this guest has none: a yes is an entry on the waiting list. */
+  const full = rsvp.state === 'full' && own?.reply.answer !== 'yes'
+  /** A reply on the waiting list stays there when its guest says yes: "Oui" is no way out of it. */
+  const waiting = editing && own?.reply.answer === 'waitlist'
   const choices = (
     <div className={styles['choices']} role="group" aria-label={t.title}>
       {CHOICES.filter((answer) => answer !== 'maybe' || form.maybe).map((answer) => (
@@ -301,7 +305,13 @@ export function GuestRsvpBlock({
           aria-pressed={draft.answer === answer}
           onClick={() => choose(answer)}
         >
-          {t[answer]}
+          {answer === 'yes'
+            ? waiting
+              ? t.stayWaitlistChoice
+              : full
+                ? t.waitlistJoin
+                : t.yes
+            : t[answer]}
         </button>
       ))}
     </div>
@@ -537,7 +547,7 @@ export function GuestRsvpBlock({
           </Notice>
         )}
         <Button type="submit" variant="primary" size="lg" block loading={state.sending}>
-          {editing ? t.save : t.send}
+          {editing ? t.save : draft.answer === 'yes' && full ? t.waitlistJoin : t.send}
         </Button>
         {editing ? (
           <Button variant="ghost" size="lg" block onClick={() => setEditing(false)}>
@@ -590,8 +600,17 @@ export function GuestRsvpBlock({
         ? t.doneNo(first)
         : reply.answer === 'maybe'
           ? t.doneMaybe
-          : t.doneYes(first)
-    const sub = reply.answer === 'no' ? t.noSub : reply.answer === 'maybe' ? t.maybeSub : null
+          : reply.answer === 'waitlist'
+            ? t.doneWaitlist
+            : t.doneYes(first)
+    const sub =
+      reply.answer === 'no'
+        ? t.noSub
+        : reply.answer === 'maybe'
+          ? t.maybeSub
+          : reply.answer === 'waitlist'
+            ? t.waitlistSub
+            : null
     // Not asked any more (the party is on, or over) or closed: the line is a banner, not a form.
     if (!open && rsvp.state !== 'closed') {
       return (
@@ -653,6 +672,11 @@ export function GuestRsvpBlock({
       <section className={styles['block']}>
         {greeting}
         <h2>{t.title}</h2>
+        {waiting ? (
+          <p className={styles['full']} role="status">
+            {t.stayWaitlist}
+          </p>
+        ) : null}
         {choices}
         {formFields}
         {deleteControl}
@@ -689,6 +713,15 @@ export function GuestRsvpBlock({
       {greeting}
       <h2>{t.title}</h2>
       {deadline}
+      {rsvp.form.limited && rsvp.state === 'open' ? (
+        <p className={styles['deadline']}>{t.limitedPlaces}</p>
+      ) : null}
+      {full ? (
+        <div className={styles['full']} role="status">
+          <strong>{t.fullTitle}</strong>
+          <p>{t.fullSub}</p>
+        </div>
+      ) : null}
       {choices}
       {formFields}
       {draft.answer === null ? proof : null}

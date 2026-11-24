@@ -41,6 +41,8 @@ import { RsvpPrintList } from './RsvpPrintList'
 import { usePrintList } from './usePrintList'
 import { RsvpReplyForm } from './RsvpReplyForm'
 import { RsvpTable } from './RsvpTable'
+import { formForReply } from '../../../lib/rsvp/households'
+import { draftOfHostReply, inputOf } from '../../../lib/rsvp/rsvpDraft'
 import { useNow } from './useNow'
 import { useRsvps } from './useRsvps'
 import styles from './RsvpsPage.module.css'
@@ -207,7 +209,7 @@ function Replies({
   const households = householdsState.data?.households ?? []
 
   // A tab that stops existing (the "peut-être" is no longer offered) is "Toutes".
-  const tabs = tabsOf(form.maybe)
+  const tabs = tabsOf(form.maybe, stats.waitlist.responses > 0)
   const current = tabs.includes(tab) ? tab : 'all'
   const counts = countsOf(rsvps)
   const matching = visibleRsvps(rsvps, current, query)
@@ -223,6 +225,7 @@ function Replies({
   const answerNames = {
     yes: text.tabYes,
     maybe: text.tabMaybe,
+    waitlist: text.tabWaitlist,
     no: text.tabNo,
     all: text.tabAll,
   } as const
@@ -280,7 +283,7 @@ function Replies({
 
   const empty = rsvps.length === 0
   const tiles: readonly {
-    readonly kind: 'yes' | 'maybe' | 'no'
+    readonly kind: 'yes' | 'maybe' | 'waitlist' | 'no'
     readonly label: string
     readonly value: number
     readonly detail: string
@@ -289,7 +292,11 @@ function Replies({
       kind: 'yes',
       label: text.tileYes,
       value: stats.yes.people,
-      detail: yesDetail(stats, form.partySize.enabled && form.kidsSeparate, text),
+      detail:
+        yesDetail(stats, form.partySize.enabled && form.kidsSeparate, text) +
+        (form.capacity !== null && stats.yes.people > form.capacity
+          ? ` · ${text.overCapacity(form.capacity)}`
+          : ''),
     },
     ...(form.maybe
       ? [
@@ -304,6 +311,19 @@ function Replies({
           },
         ]
       : []),
+    ...(stats.waitlist.responses === 0
+      ? []
+      : [
+          {
+            kind: 'waitlist' as const,
+            label: text.tileWaitlist,
+            value: stats.waitlist.people,
+            detail: text.tileMaybeDetail(
+              repliesLabel(stats.waitlist.responses, text),
+              `${stats.waitlist.people} ${plural(stats.waitlist.people, text.person)}`,
+            ),
+          },
+        ]),
     {
       kind: 'no',
       label: text.tileNo,
@@ -312,6 +332,25 @@ function Replies({
     },
   ]
   const noReply = stats.noReply
+  /**
+   * "Promouvoir": the waiting-list reply, sent again as a yes by the host (not held to the places).
+   * Its other fields go back as the server holds them, through the form the reply is judged by.
+   */
+  const promote = async (reply: RsvpDto) => {
+    setDialogProblem(null)
+    const asked = formForReply(form, reply, households)
+    const { showName: _theirs, ...input } = inputOf(
+      { ...draftOfHostReply(reply, asked), answer: 'yes' },
+      asked,
+    )
+    try {
+      await api.updateRsvp(slug, reply.id, input)
+      state.reload()
+    } catch (cause) {
+      if (isGone(cause)) state.reload()
+      setDialogProblem(messageForError(cause, t))
+    }
+  }
   /** Files a reply under a household of the list, or detaches it: the list and the replies read again. */
   const fileUnder = async (reply: RsvpDto, householdId: string | null) => {
     setDialogProblem(null)
@@ -478,6 +517,9 @@ function Replies({
                     </button>
                   ))}
                 </div>
+                {current === 'waitlist' ? (
+                  <p className={styles['note']}>{text.waitlistOrderHint}</p>
+                ) : null}
                 <div className={styles['toolbar']}>
                   <TextInput
                     type="search"
@@ -581,6 +623,9 @@ function Replies({
         problem={dialogProblem}
         households={households}
         onFile={(reply, householdId) => void fileUnder(reply, householdId)}
+        onPromote={(reply) => void promote(reply)}
+        capacity={form.capacity}
+        yesPeople={stats.yes.people}
         onEdit={(reply) => setDialog({ kind: 'form', reply })}
         onDelete={(reply) => setDialog({ kind: 'delete', reply })}
         onClose={() => setDialog({ kind: 'none' })}
