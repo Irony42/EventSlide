@@ -2,7 +2,7 @@ import { csrfHeaders, expect, test } from '../fixtures/app'
 import type { Locator, Page } from '@playwright/test'
 import { jpegWithLocation } from '../fixtures/media'
 import { decodeQr } from '../fixtures/qrDecode'
-import { backToCard, openShare } from '../fixtures/invitationPanels'
+import { backToCard, openShare, chooseDesign } from '../fixtures/invitationPanels'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
@@ -133,7 +133,7 @@ test('every design of the first lot reads back the invitation link, prints its a
   const card = sheet.locator('[data-print-card]').first()
 
   // A photograph, chosen once on a design that prints one, is on the card and survives a reload.
-  await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+  await chooseDesign(host, 'Billet')
   await host.getByTestId('print-photo-input').setInputFiles(await jpegWithLocation('photo'))
   await expect(card.locator('img[src^="data:image/jpeg"]')).toBeVisible()
   await host.reload()
@@ -151,7 +151,7 @@ test('every design of the first lot reads back the invitation link, prints its a
   ]) {
     await host.emulateMedia({ media: 'screen' })
     await backToCard(host)
-    await host.getByRole('radio', { name: design.name }).check({ force: true })
+    await chooseDesign(host, design.name)
     // The card's own screen shows one large card; the sheet is what sharing prints.
     await expect(card).toHaveAttribute('data-print-card', design.id)
     await expect(card).toContainText('12 quai de la Loire')
@@ -230,7 +230,7 @@ for (const language of ['fr', 'en'] as const) {
         { name: 'Carte d’embarquement', id: 'embarquement' },
         { name: 'Guirlande', id: 'guirlande' },
       ]) {
-        await host.getByRole('radio', { name: design.name }).check({ force: true })
+        await chooseDesign(host, design.name)
         await expect(card).toHaveAttribute('data-print-card', design.id)
         await host.evaluate(() => document.fonts.ready)
 
