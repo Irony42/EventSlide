@@ -1205,13 +1205,16 @@ applies **no migration** (the last is still 035) and adds no setting. Take the s
 
 ## Upgrading to 3.18
 
-3.18.0 is a minor release, **not published yet**: it breaks nothing the policy above promises to keep. It applies **three migrations** (036 `guest_rsvps`: a new table, one new column set on `guest_invites` for the replies' settings and one column on `event_memberships`; 037 `guest_households`: a new table; 038 `push_subscriptions`: a new table; nothing existing is rewritten) and adds optional settings. Back up before upgrading, as for any release: the migrations only go forward.
+3.18.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no `BREAKING` section. It applies **four migrations** (036 `guest_rsvps`: a new table, a set of columns on `guest_invites` for the replies' settings and one column on `event_memberships`; 037 `guest_households`: a new table; 038 `push_subscriptions`: a new table; 039 `rsvp_absent_notes`: one column on `guests` and one on `guest_rsvps`; nothing existing is rewritten) and adds five optional settings. Back up before upgrading, as for any release: the migrations only go forward. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [without](#without-docker), with `vX.Y.Z` as `v3.18.0`; the image is `ghcr.io/irony42/eventslide:3.18.0`.
 
 ### Guests' replies (spec 30)
 
 - **Guests answer on the invitation's page** (`POST`, `GET`, `PUT`, `DELETE /api/i/<token>/rsvp`) and the host reads, corrects and exports the replies (owner routes under `/api/events/<slug>/rsvps` and `…/rsvp-form`). A reply holds a name, a number of people and, if the host asks, an allergy or diet (health data, seen only by the host): the retention sweep erases replies **30 days after the event closed or 60 days after the invitation's start, whichever comes first**, whatever the purge hold says.
-- **The only public write nobody is signed in for**: a reply is reached by a private token the guest keeps (stored only as its SHA-256), the JSON body is capped at 4 KB, and the writes are limited per IP and per invitation.
+- **The only public write nobody is signed in for**: a reply is reached by a private token the guest keeps (stored only as its SHA-256), the JSON body is capped at 8 KB, and the writes are limited per IP and per invitation.
 - **One optional setting**: `GUEST_RSVP_RATE_LIMIT_PER_MINUTE` (default 30, 1 to 6000), what one address may write to the replies per minute. A second bucket of 300 a minute per invitation is not configurable. Raise it only if many guests answer from one address (a venue's Wi-Fi) and are refused with `429`.
+- **Replies are off until a host switches them on**, event by event, and each host's page says when they will be erased.
+- **Household links** (`/i/<invitation>#f=<token>`) carry their secret after the `#`, which a browser never sends: it is in no request and no access log. The routes under `/api/events/<slug>/households` are the owner's.
+- **A guest who cannot come may leave a word** in the guestbook (`POST /api/i/<token>/absent-note`, the same limits as a reply). It always waits for the host's approval and goes with the reply when it is erased; migration 039 adds the column that ties them, and the guests made for these words are left out of every count of guests.
 - No compose or reverse-proxy change: the variable is read like the others (`env_file`), and the logs never carry a name, a diet, a word or a token.
 
 ### Browser notifications for the host (Web Push, spec 30)
@@ -1220,3 +1223,7 @@ applies **no migration** (the last is still 035) and adds no setting. Take the s
 - **It is the one outbound connection this feature makes**, to the push service of the host's own browser (Firefox, Google, Microsoft or Apple), and only when a host turned the notification on. The box calls only the hosts of the allowlist (`*.push.services.mozilla.com`, `fcm.googleapis.com`, `*.notify.windows.com`, `web.push.apple.com`; `PUSH_ALLOWED_HOSTS` replaces the list), over https, to public addresses only, with no redirect followed and a 10 second limit. Nothing is sent but "3 new replies" and the event's address, encrypted: never a name, a diet or a word.
 - **A firewall that blocks outbound traffic** must let the box reach those hosts on port 443, or the notifications simply do not arrive (the rest of EventSlide is unaffected, and a failed send is logged without the address).
 - Migration 038 adds the `push_subscriptions` table (one row per browser, event and account); it goes with its event and with its account.
+
+### The edge image
+
+- **Nothing to do for production.** Every push to `main` now also builds `ghcr.io/irony42/eventslide-edge` (tags `main` and `main-<commit>`, signed), a separate package for a test box. The product image is still published only by a release; keep `ghcr.io/irony42/eventslide:3.18.0` in `compose.yaml`.
