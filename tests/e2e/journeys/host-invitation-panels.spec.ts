@@ -190,6 +190,7 @@ test('on a phone the preview stays pinned while the panel scrolls, and the foote
   test.skip(testInfo.project.name === 'chromium-desktop', 'the phone layout')
   const { host } = surfaces
   const { event } = await invitedHost(host, app, 'panneaux-telephone')
+  await host.setViewportSize({ width: 390, height: 780 })
   await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
   const preview = host.getByTestId('invite-preview')
 
