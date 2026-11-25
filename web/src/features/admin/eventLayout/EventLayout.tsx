@@ -25,11 +25,7 @@ const WORKSHOPS = [SECTION_PATH.print, SECTION_PATH.invitations, SECTION_PATH.bo
  * The pages that widen while the menu keeps its names: the appearance's sticky preview beside its
  * settings, and the replies' table and guest list, whose columns a wide screen should all show.
  */
-const WIDE = [
-  SECTION_PATH.appearance,
-  SECTION_PATH.rsvps,
-  `${SECTION_PATH.rsvps}/guests`,
-] as const
+const WIDE = [SECTION_PATH.appearance, SECTION_PATH.rsvps, `${SECTION_PATH.rsvps}/guests`] as const
 
 /**
  * Every page of one event, around its menu (surface: the host and the moderator; laptop, tablet
