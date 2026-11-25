@@ -260,6 +260,13 @@ describe('EventPage', () => {
     expect(within(now).queryByRole('link', { name: fr.admin.nowDraftLogo })).toBeNull()
   })
 
+  it('asks for the logo before the evening only: a live event is not sent to Apparence mid-party', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'live' })) }))
+
+    await screen.findByRole('heading', { name: fr.admin.nowLiveTitle })
+    expect(screen.queryByRole('link', { name: fr.admin.nowDraftLogo })).toBeNull()
+  })
+
   it('does not ask a moderator for the logo', async () => {
     renderPage(
       fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft', role: 'moderator' })) }),
