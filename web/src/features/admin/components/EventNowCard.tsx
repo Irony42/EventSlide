@@ -5,7 +5,7 @@ import type { EventDto, EventStatus } from '../../../lib/api/dto'
 import { canManageEvent } from '../../../lib/eventLifecycle'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { UiText } from '../../../lib/i18n/translations'
-import { nowTiles } from '../eventOverview'
+import { asksForLogo, nowTiles } from '../eventOverview'
 import { EventDestinationTile, type PanelDestination } from './EventDestinationTile'
 import { TileGroup } from './EventTiles'
 import styles from './EventNowCard.module.css'
@@ -124,6 +124,11 @@ function DraftSteps({
       {owner ? (
         <li className={styles['step']}>
           <Link to={`${base}/settings`}>{t.admin.nowDraftSettings}</Link>
+        </li>
+      ) : null}
+      {asksForLogo({ role: event.role, logoUrl: event.settings.brand?.logoUrl }) ? (
+        <li className={styles['step']}>
+          <Link to={`${base}/appearance`}>{t.admin.nowDraftLogo}</Link>
         </li>
       ) : null}
       <li className={styles['step']}>

@@ -1790,6 +1790,7 @@ export const en: UiText = {
     nowDraftPrint: 'Print the table cards',
     nowDraftWall: 'Test the screen on the projector',
     nowDraftModerators: 'Invite someone to moderate with you',
+    nowDraftLogo: 'Add your logo',
     nowLiveEyebrow: 'Live',
     nowLiveTitle: 'The evening is on',
     nowClosedEyebrow: 'Evening over',

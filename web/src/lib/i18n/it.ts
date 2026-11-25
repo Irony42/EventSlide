@@ -1837,6 +1837,7 @@ export const it: UiText = {
     nowDraftPrint: 'Stampare i segnaposto',
     nowDraftWall: 'Provare lo schermo sul proiettore',
     nowDraftModerators: 'Invitare qualcuno a moderare con lei',
+    nowDraftLogo: 'Aggiungere il suo logo',
     nowLiveEyebrow: 'In diretta',
     nowLiveTitle: 'La serata è in corso',
     nowClosedEyebrow: 'Serata conclusa',

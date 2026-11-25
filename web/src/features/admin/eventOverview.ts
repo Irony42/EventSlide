@@ -1,4 +1,5 @@
 import type { EventRole, EventStatus } from '../../lib/api/dto'
+import { isEventLogoUrl } from '../../lib/brand'
 import { allowsModeration, canManageEvent, linksToWall } from '../../lib/eventLifecycle'
 
 /**
@@ -77,3 +78,17 @@ export const nowTiles = (facts: EventPageFacts): readonly EventDestination[] => 
   const offered = available(facts)
   return wanted[facts.status].filter((destination) => offered.includes(destination))
 }
+
+/**
+ * Whether the « Maintenant » card of a draft asks for the logo (surface: the owner, before the
+ * evening). Only the owner, who is the one who can send it; only while the event has none, so the
+ * step leaves the list the moment it is done; and the logo is what the server holds, validated the
+ * way every path this client is handed is.
+ */
+export const asksForLogo = ({
+  role,
+  logoUrl,
+}: {
+  readonly role: EventRole
+  readonly logoUrl: string | null | undefined
+}): boolean => canManageEvent(role) && !isEventLogoUrl(logoUrl)

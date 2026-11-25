@@ -1879,6 +1879,7 @@ export const de: UiText = {
     nowDraftPrint: 'Tischkarten drucken',
     nowDraftWall: 'Die Leinwand am Beamer testen',
     nowDraftModerators: 'Jemanden zum Mitmoderieren einladen',
+    nowDraftLogo: 'Ihr Logo hinzufügen',
     nowLiveEyebrow: 'Live',
     nowLiveTitle: 'Der Abend läuft',
     nowClosedEyebrow: 'Abend beendet',

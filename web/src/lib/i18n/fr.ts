@@ -1903,6 +1903,7 @@ export const fr = {
     nowDraftPrint: 'Imprimer les cartes de table',
     nowDraftWall: 'Tester l’écran sur le vidéoprojecteur',
     nowDraftModerators: 'Inviter quelqu’un à modérer avec vous',
+    nowDraftLogo: 'Ajouter votre logo',
     nowLiveEyebrow: 'En direct',
     nowLiveTitle: 'La soirée est en cours',
     nowClosedEyebrow: 'Soirée terminée',

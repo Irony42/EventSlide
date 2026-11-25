@@ -1857,6 +1857,7 @@ export const es: UiText = {
     nowDraftPrint: 'Imprimir las tarjetas de mesa',
     nowDraftWall: 'Probar la pantalla en el proyector',
     nowDraftModerators: 'Invitar a alguien a moderar con usted',
+    nowDraftLogo: 'Añadir su logotipo',
     nowLiveEyebrow: 'En directo',
     nowLiveTitle: 'La fiesta está en marcha',
     nowClosedEyebrow: 'Fiesta terminada',
