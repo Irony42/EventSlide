@@ -99,7 +99,11 @@ export function AmbianceCards({
         <span className={cx(styles['card'], styles['custom'], styles['inert'])}>
           <CustomPicture current={isCustom} />
           <span className={styles['text']}>
-            <b className={styles['name']}>{names['custom']}</b>
+            <b className={styles['name']}>
+              {names['custom']}
+              {/* The tick says it to the eye; this says it to a screen reader, on a page read-only. */}
+              {isCustom ? <span className="visually-hidden"> {copy.currentAmbiance}</span> : null}
+            </b>
             <span>{copy.sentences['custom']}</span>
           </span>
         </span>

@@ -1528,6 +1528,7 @@ export const es: UiText = {
       },
       audience: (audience: string) => `Para: ${audience}`,
       customCardAction: 'Abrir el editor',
+      currentAmbiance: '(ambiente actual)',
       colourTitle: 'Color',
       colourHelp:
         'El de los botones y de la tarjeta QR. Los cuatro siguen siendo legibles a diez metros.',

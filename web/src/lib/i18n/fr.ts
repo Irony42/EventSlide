@@ -1500,6 +1500,7 @@ export const fr = {
       } satisfies Record<Exclude<ThemeAmbiance, 'custom'>, string>,
       audience: (audience: string) => `Pour\u00a0: ${audience}`,
       customCardAction: 'Ouvrir l’éditeur',
+      currentAmbiance: '(ambiance actuelle)',
       colourTitle: 'Couleur',
       colourHelp: 'Celle des boutons et de la carte QR. Les quatre restent lisibles à dix mètres.',
       /** The first swatch: no hue of the host's, the ambiance's own accent. */

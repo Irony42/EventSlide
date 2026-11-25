@@ -1543,6 +1543,7 @@ export const de: UiText = {
       },
       audience: (audience: string) => `Für: ${audience}`,
       customCardAction: 'Editor öffnen',
+      currentAmbiance: '(aktuelles Ambiente)',
       colourTitle: 'Farbe',
       colourHelp:
         'Die Farbe der Schaltflächen und der QR-Karte. Alle vier bleiben auf zehn Meter lesbar.',

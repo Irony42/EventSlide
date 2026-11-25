@@ -609,6 +609,21 @@ describe('AppearancePage', () => {
       for (const control of everyControl()) expect(control).toBeDisabled()
     })
 
+    it('tells a screen reader that « Sur mesure » is the current ambiance, where no link can say it', async () => {
+      const custom = { ground: 'light' as const, groundHue: 40, faces: 'noces' as const }
+      renderPage(apiFor(eventWith({ ambiance: 'custom', custom }, { status: 'archived' })))
+      await page()
+
+      expect(screen.getByText(fr.admin.appearance.currentAmbiance)).toBeInTheDocument()
+    })
+
+    it('says nothing of the kind while another ambiance is the current one', async () => {
+      renderPage(apiFor(eventWith({ ambiance: 'champs' }, { status: 'archived' })))
+      await page()
+
+      expect(screen.queryByText(fr.admin.appearance.currentAmbiance)).toBeNull()
+    })
+
     it('still shows the preview, which is a reading and not a change', async () => {
       renderPage(apiFor(eventWith({ ambiance: 'noces' }, { role: 'moderator' })))
       await page()

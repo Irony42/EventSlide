@@ -1464,6 +1464,7 @@ export const en: UiText = {
       },
       audience: (audience: string) => `For: ${audience}`,
       customCardAction: 'Open the editor',
+      currentAmbiance: '(current ambiance)',
       colourTitle: 'Colour',
       colourHelp: 'The one on the buttons and the QR card. All four stay readable at ten metres.',
       /** The first swatch: no hue of the host's, the ambiance's own accent. */
