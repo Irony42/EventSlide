@@ -51,9 +51,11 @@
   text-decoration: underline;
 }
 
+/* `break-word`, not `anywhere`: a column never narrows below its longest word ("Cind / y" was the
+   result), the frame scrolls instead; only a word longer than the cell itself breaks. */
 .free {
   max-inline-size: 18rem;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   color: var(--text-secondary);
 }
 

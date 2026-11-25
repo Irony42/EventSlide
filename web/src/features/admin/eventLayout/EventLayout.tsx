@@ -21,8 +21,11 @@ import styles from './EventLayout.module.css'
 /** The pages with a preview of their own and a bar of tools: the menu folds beside them. */
 const WORKSHOPS = [SECTION_PATH.print, SECTION_PATH.invitations, SECTION_PATH.book] as const
 
-/** The pages with a sticky preview beside their settings: the menu keeps its names, the page widens. */
-const WIDE = [SECTION_PATH.appearance] as const
+/**
+ * The pages that widen while the menu keeps its names: the appearance's sticky preview beside its
+ * settings, and the replies' table and guest list, whose columns a wide screen should all show.
+ */
+const WIDE = [SECTION_PATH.appearance, SECTION_PATH.rsvps, `${SECTION_PATH.rsvps}/guests`] as const
 
 /**
  * Every page of one event, around its menu (surface: the host and the moderator; laptop, tablet

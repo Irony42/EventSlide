@@ -60,6 +60,7 @@ export function EventRoutes({ extra }: { readonly extra?: ReactNode }) {
       <Route element={<EventLayout />}>
         <Route path="/admin/events/:slug" element={<EventHomePage />} />
         <Route path="/admin/events/:slug/:page" element={<AnyEventPage />} />
+        <Route path="/admin/events/:slug/rsvps/guests" element={<p>guest list page</p>} />
       </Route>
     </Routes>
   )

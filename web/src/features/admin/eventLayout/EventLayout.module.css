@@ -36,7 +36,8 @@
   }
 }
 
-/* The appearance page's preview wants room beside the settings: the host container widens, the menu stays. */
+/* The appearance page's preview wants room beside its settings, the replies' table room for its
+   columns: the host container widens, the menu stays. */
 @media screen {
   :global(main):has(.layout.wide) {
     max-inline-size: var(--container-workshop);
