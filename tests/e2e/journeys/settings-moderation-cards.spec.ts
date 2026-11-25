@@ -5,7 +5,8 @@ import { fr } from '../../../web/src/lib/i18n/fr'
  * The moderation choice is two cards, and the whole card is the radio's label.
  *
  * jsdom draws no overlay, so only a browser knows that a click on the sentence under the name
- * reaches the radio (and so asks before « automatique »), while the radio stays clickable itself.
+ * reaches the radio (and so asks before « automatique »). The radio itself stays clickable above the overlay: the
+ * privacy-notice journey clicks it directly.
  */
 test('a click on the sentence of a moderation card chooses that card, and still asks first', async ({
   app,
