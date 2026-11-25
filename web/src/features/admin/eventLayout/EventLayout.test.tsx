@@ -3,6 +3,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, Route } from 'react-router-dom'
 import styles from './EventHomePage.module.css'
+import layoutStyles from './EventLayout.module.css'
 import { EventRoutes } from '../testing/eventRoutes'
 import { ApiError } from '../../../lib/http'
 import { formatBytes, formatDateTime } from '../../../lib/format'
@@ -1546,5 +1547,32 @@ describe('the reveal band, at the hour and at the closing (spec 23)', () => {
 
     expect(setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'closed')
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+describe('the width of the page', () => {
+  /** The layout that holds the menu and the page: it says how wide `main` may grow. */
+  const layout = async (): Promise<Element> =>
+    waitFor(() => {
+      const found = document.getElementsByClassName(cls(layoutStyles, 'layout'))[0]
+      if (found === undefined) throw new Error('no event layout on screen')
+      return found
+    })
+
+  it.each(['/rsvps', '/rsvps/guests', '/appearance'])(
+    'widens %s past the host width, the menu keeping its names',
+    async (page) => {
+      renderPage(fakeApi(), page)
+
+      const classes = classesOf(await layout())
+      expect(classes).toContain(cls(layoutStyles, 'wide'))
+      expect(classes).not.toContain(cls(layoutStyles, 'workshop'))
+    },
+  )
+
+  it.each(['', '/guests', '/settings'])('keeps the host width on "%s"', async (page) => {
+    renderPage(fakeApi(), page)
+
+    expect(classesOf(await layout())).not.toContain(cls(layoutStyles, 'wide'))
   })
 })
