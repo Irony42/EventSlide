@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { act, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { WelcomePage } from './WelcomePage'
 import buttonStyles from '../../design-system/components/Button.module.css'
 import { fr } from '../../lib/i18n/fr'
 import { classesOf, cls } from '../../testing/classesOf'
+import { deferred } from '../../testing/deferred'
+import { flushPromises } from '../../testing/flushPromises'
 import {
   anEventDto,
   eventSettings,
@@ -119,10 +121,8 @@ describe('WelcomePage', () => {
   )
 
   it('holds the way out while the logo is on its way, so the host cannot leave mid-upload', async () => {
-    let finish: (event: EventDto) => void = () => undefined
-    const api = apiFor(aDraft(), {
-      putEventLogo: vi.fn(() => new Promise<EventDto>((resolve) => (finish = resolve))),
-    })
+    const upload = deferred<EventDto>()
+    const api = apiFor(aDraft(), { putEventLogo: vi.fn(() => upload.promise) })
     renderPage(api)
 
     await userEvent.upload(
@@ -130,9 +130,14 @@ describe('WelcomePage', () => {
       new File(['pixels'], 'logo.png', { type: 'image/png' }),
     )
 
+    // The page is told the upload began by an effect too: let it run before reading the button.
+    await flushPromises()
     expect(await screen.findByRole('button', { name: fr.admin.welcome.later })).toBeDisabled()
 
-    act(() => finish(withLogo()))
+    // Settled to its end, effects included: the page learns the upload is over from an effect of
+    // the logo field, one commit after « Continuer » is drawn, and `findBy*` resolves on the first.
+    upload.resolve(withLogo())
+    await flushPromises()
 
     expect(await screen.findByRole('button', { name: fr.admin.welcome.continue })).toBeEnabled()
   })
