@@ -19,6 +19,7 @@ import { ScreenDetails } from './components/ScreenDetails'
 import { VenuePhotoField } from './components/VenuePhotoField'
 import { WelcomeMessageField } from './components/WelcomeMessageField'
 import { useEvent } from './hooks/useEventData'
+import { useRevalidateWhenVisible } from './hooks/useRevalidateWhenVisible'
 import { useMediaQuery } from './print/useMediaQuery'
 import { saveStatusLabel } from './settingsLabels'
 import { settingsChanges } from './settingsPayload'
@@ -47,6 +48,10 @@ export function AppearancePage() {
   const { data: event, loading, error, reload, replace: replaceOwn } = useEvent(slug)
   // What a save returns reaches the menu and the ambiance around the page too (eventLayout/).
   const replace = useSharedReplace(replaceOwn)
+
+  // Another tab, or a moderator's, may have changed the event while this one was hidden: the page
+  // reads it again when it comes back into view, as the settings page does.
+  useRevalidateWhenVisible(reload)
 
   if (event === null) {
     if (loading) return <Pending label={t.admin.eventLoading} />
@@ -80,6 +85,9 @@ function AppearanceSections({ event, error, replace }: AppearanceSectionsProps) 
   const autosave = useSettingsAutosave(slug, event, replace)
   const narrow = useMediaQuery(NARROW)
   const [large, setLarge] = useState(false)
+  // Widened past the phone's layout the dialog has nothing to show: it is forgotten, not reopened the
+  // next time the window narrows.
+  if (!narrow && large) setLarge(false)
 
   const settings = autosave.settings
   // Two reasons nothing can be changed, and the person is told which (as on the settings page):

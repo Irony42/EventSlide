@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppearancePage } from './AppearancePage'
 import { DEFAULT_EVENT_THEME } from '../../design-system/eventTheme'
@@ -348,6 +348,79 @@ describe('AppearancePage', () => {
 
       expect(await screen.findByRole('alert')).toHaveTextContent(fr.admin.settingsPage.saveFailed)
       expect(field).toHaveValue('Bienvenue à toutes et à tous')
+    })
+  })
+
+  describe('the stored images and the settings saved around them', () => {
+    it('never sends the photograph’s URL with the theme, which the server would refuse', async () => {
+      const api = neverAnswers(eventWith({ groundUrl: VENUE }))
+      renderPage(api)
+      await page()
+
+      await userEvent.click(radio(fr.admin.themeAccentNames.rose))
+
+      const sent = await firstSave(api)
+      expect(sent?.theme).toEqual({
+        accentHue: 345,
+        fonts: 'sans',
+        frame: 'soft',
+        ambiance: 'eventslide',
+      })
+    })
+
+    it('shows the photograph that is stored, and the new one as soon as the upload is answered, with no second read', async () => {
+      const uploaded = eventWith({ groundUrl: VENUE })
+      const getEvent = vi.fn(async () => eventWith())
+      renderPage(fakeApi({ getEvent, putVenuePhoto: vi.fn(async () => uploaded) }))
+      await page()
+      const reads = getEvent.mock.calls.length
+      expect(screen.queryByRole('img', { name: fr.admin.venuePhotoPreviewAlt })).toBeNull()
+
+      await userEvent.upload(
+        screen.getByTestId('venue-photo-input'),
+        new File(['x'], 'lieu.jpg', { type: 'image/jpeg' }),
+      )
+
+      expect(
+        await screen.findByRole('img', { name: fr.admin.venuePhotoPreviewAlt }),
+      ).toHaveAttribute('src', VENUE)
+      expect(wallFrame()).toHaveAttribute('data-venue-ground')
+      expect(getEvent.mock.calls.length).toBe(reads)
+    })
+
+    it('does not throw away a choice still on its way when a photograph arrives', async () => {
+      const api = apiFor(eventWith(), {
+        updateSettings: vi.fn(() => new Promise<EventDto>(() => {})),
+        putVenuePhoto: vi.fn(async () => eventWith({ groundUrl: VENUE })),
+      })
+      renderPage(api)
+      await page()
+      await userEvent.click(radio(fr.admin.themeAmbianceNames.bivouac))
+
+      await userEvent.upload(
+        screen.getByTestId('venue-photo-input'),
+        new File(['x'], 'lieu.jpg', { type: 'image/jpeg' }),
+      )
+      await screen.findByRole('img', { name: fr.admin.venuePhotoPreviewAlt })
+
+      expect(radio(fr.admin.themeAmbianceNames.bivouac)).toBeChecked()
+    })
+
+    it('replaces the draft when only the welcome message moved on the server (WEB-HOST-07)', async () => {
+      // Another tab changed the message while this one was hidden: when it comes back into view
+      // the page reads the event again, and the field must show what the server now holds.
+      const withMessage = (welcomeMessage: string | null) =>
+        anEventDto({ settings: eventSettings({ brand: { welcomeMessage, logoUrl: null } }) })
+      const getEvent = vi.fn(async () => withMessage(null))
+      renderPage(fakeApi({ getEvent }))
+      await page()
+      const field = () => screen.getByRole('textbox', { name: new RegExp(fr.admin.welcomeMessage) })
+      expect(field()).toHaveValue('')
+      getEvent.mockResolvedValueOnce(withMessage('Bienvenue chez nous'))
+
+      fireEvent(window, new Event('focus'))
+
+      await waitFor(() => expect(field()).toHaveValue('Bienvenue chez nous'))
     })
   })
 

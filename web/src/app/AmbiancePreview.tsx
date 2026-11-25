@@ -108,8 +108,14 @@ const GUEST_PHOTOS: readonly GuestPhotoDto[] = [
 type StageStyle = CSSProperties & { readonly '--preview-scale'?: string }
 type PhoneStyle = CSSProperties & { readonly '--phone-scale'?: string }
 
-/** The factor that fits the stage's own width into the frame's. `null` until it is known. */
-const useFitScale = () => {
+/**
+ * The factor that fits the stage's own width into the frame's. `null` until it is known.
+ *
+ * `layout` is what the frames are laid out as: changing it mounts the frames again (the strip, the
+ * column and the row put them in different places), so the measure is taken again on the new elements
+ * and not left watching the ones that are gone.
+ */
+const useFitScale = (layout: string) => {
   const frame = useRef<HTMLDivElement | null>(null)
   const stage = useRef<HTMLDivElement | null>(null)
   const [scale, setScale] = useState<number | null>(null)
@@ -126,7 +132,7 @@ const useFitScale = () => {
     const observer = new ResizeObserver(measure)
     observer.observe(outer)
     return () => observer.disconnect()
-  }, [])
+  }, [layout])
 
   return { frame, stage, scale }
 }
@@ -167,8 +173,8 @@ export function AmbiancePreview({
 }: AmbiancePreviewProps) {
   const t = useTranslations()
   const [wallView, setWallView] = useState<'photos' | 'waiting'>('photos')
-  const { frame, stage, scale } = useFitScale()
-  const { frame: phoneFrameRef, stage: phoneStageRef, scale: phoneScale } = useFitScale()
+  const { frame, stage, scale } = useFitScale(layout)
+  const { frame: phoneFrameRef, stage: phoneStageRef, scale: phoneScale } = useFitScale(layout)
 
   const guest = themeSurfaceProps(theme, 'guest', { preview: true })
   const wall = themeSurfaceProps(theme, 'wall', { preview: true })

@@ -113,4 +113,11 @@ test('on a phone the preview is a small bar, and « Voir en grand » opens the w
   await expect(dialog.locator('[data-template-preview="guest"]')).toBeVisible()
   await dialog.getByRole('button', { name: 'Fermer', exact: true }).last().click()
   await expect(dialog).toBeHidden()
+
+  // Turned to a laptop's width without a reload: the frames are laid out again and measured again, so
+  // the phone is drawn at the size of its column and not left at the size of its first layout.
+  await host.setViewportSize({ width: 1440, height: 900 })
+  const phone = host.locator('[data-template-preview="guest"]')
+  await expect(phone).toBeVisible()
+  await expect.poll(async () => (await phone.boundingBox())?.width ?? Infinity).toBeLessThan(230)
 })
