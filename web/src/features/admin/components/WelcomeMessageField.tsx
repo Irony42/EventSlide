@@ -41,7 +41,10 @@ export function WelcomeMessageField({
   const counterId = useId()
   const [text, setText] = useState(value ?? '')
   const [syncedFrom, setSyncedFrom] = useState(value)
-  if (value !== syncedFrom) {
+  // While the host is typing, a server value (the echo of their previous save, or a re-read when the
+  // tab comes back) must not replace the text under their cursor: it waits until they leave the field.
+  const [focused, setFocused] = useState(false)
+  if (value !== syncedFrom && !focused) {
     setSyncedFrom(value)
     setText(value ?? '')
   }
@@ -65,7 +68,12 @@ export function WelcomeMessageField({
             dir="auto"
             aria-describedby={`${control['aria-describedby'] ?? ''} ${counterId}`.trim()}
             onChange={(changed) => setText(changed.target.value)}
+            onFocus={() => setFocused(true)}
             onBlur={() => {
+              setFocused(false)
+              // What the host typed wins over the value that arrived while they typed: it is sent, and
+              // the server's answer to it is what replaces the text next.
+              setSyncedFrom(value)
               if (text !== (value ?? '')) onChange(text)
             }}
           />

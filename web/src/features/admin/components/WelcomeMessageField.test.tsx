@@ -68,8 +68,31 @@ describe('WelcomeMessageField', () => {
     rerender(<WelcomeMessageField value="Salut" onChange={() => {}} disabled={false} />)
     expect(field).toHaveValue('Salut à tous')
 
+    // Once the host has left the field, a new value from the server replaces it.
+    await userEvent.tab()
     rerender(<WelcomeMessageField value="Bonsoir" onChange={() => {}} disabled={false} />)
     expect(field).toHaveValue('Bonsoir')
+  })
+
+  it('never replaces the text under the cursor with a value that arrives while the host types', async () => {
+    const onChange = vi.fn()
+    const { rerender } = renderWithProviders(
+      <WelcomeMessageField value={null} onChange={onChange} disabled={false} />,
+    )
+    const field = screen.getByLabelText(new RegExp(fr.admin.welcomeMessage))
+    await userEvent.type(field, 'A')
+    await userEvent.tab()
+    expect(onChange).toHaveBeenLastCalledWith('A')
+
+    // Back in the field before the save is answered; the answer (or a re-read) arrives mid-typing.
+    await userEvent.type(field, 'B')
+    rerender(<WelcomeMessageField value="A" onChange={onChange} disabled={false} />)
+    expect(field).toHaveValue('AB')
+
+    // Leaving the field sends what the host typed, not the value that came in meanwhile.
+    await userEvent.tab()
+    expect(onChange).toHaveBeenLastCalledWith('AB')
+    expect(field).toHaveValue('AB')
   })
 
   it('offers no clear button when there is nothing to clear', () => {
