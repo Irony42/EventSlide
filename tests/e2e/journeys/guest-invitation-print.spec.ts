@@ -284,7 +284,23 @@ for (const language of ['fr', 'en'] as const) {
                 text.scrollHeight > text.clientHeight + 2 &&
                 text.dataset['clamped'] === undefined
               )
-                out.push('overflowing: ' + text.textContent?.slice(0, 30) + ' DIAG ' + JSON.stringify({ sh: text.scrollHeight, ch: text.clientHeight, mh: getComputedStyle(text).maxHeight, fs: getComputedStyle(text).fontSize, ff: getComputedStyle(text).fontFamily, lh: getComputedStyle(text).lineHeight, cardW: width, inline: text.style.fontSize, fonts: [...document.fonts].map((f) => f.family + ':' + f.status).join(','), ws: getComputedStyle(text).whiteSpace }))
+                out.push(
+                  'overflowing: ' +
+                    text.textContent?.slice(0, 30) +
+                    ' DIAG ' +
+                    JSON.stringify({
+                      sh: text.scrollHeight,
+                      ch: text.clientHeight,
+                      mh: getComputedStyle(text).maxHeight,
+                      fs: getComputedStyle(text).fontSize,
+                      ff: getComputedStyle(text).fontFamily,
+                      lh: getComputedStyle(text).lineHeight,
+                      cardW: width,
+                      inline: text.style.fontSize,
+                      fonts: [...document.fonts].map((f) => f.family + ':' + f.status).join(','),
+                      ws: getComputedStyle(text).whiteSpace,
+                    }),
+                )
             }
             // The line saying the rest is on the page is the size of the link line, on a thumbnail as well.
             const more = root.querySelector('[class*="esMore"]')
