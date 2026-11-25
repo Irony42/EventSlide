@@ -1467,6 +1467,14 @@ export const fr = {
       custom: 'Sur mesure',
     } satisfies Record<ThemeAmbiance, string>,
 
+    /* ---- The screen that follows the creation of an event: the logo is asked for early. ---- */
+    welcome: {
+      title: (name: string) => `«\u00a0${name}\u00a0» est créé`,
+      lead: 'Une dernière chose, si vous l’avez sous la main\u00a0: votre logo. Il apparaîtra sur la page de vos invités, l’écran de la salle, l’invitation et le QR imprimé.',
+      later: 'Plus tard',
+      continue: 'Continuer',
+      findLater: 'Vous le retrouverez dans Apparence.',
+    },
     /* ---- The Apparence page (/appearance): what guests and the room see, with a preview. ---- */
     appearance: {
       title: 'Apparence',
@@ -4814,6 +4822,7 @@ export const fr = {
   },
 
   titles: {
+    welcome: 'Évènement créé',
     appearance: 'Apparence de l’évènement',
     print: 'Cartes de table et affiche',
     eventBook: 'Livre photo',

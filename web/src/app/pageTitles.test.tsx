@@ -80,6 +80,7 @@ const HOST_WITHOUT_SESSION: readonly (readonly [string, Key])[] = [
 const HOST_SIGNED_IN: readonly (readonly [string, Key])[] = [
   ['/admin', 'dashboard'],
   ['/admin/events/new', 'newEvent'],
+  ['/admin/events/mariage/welcome', 'welcome'],
   ['/admin/events/mariage', 'event'],
   ['/admin/events/mariage/before', 'eventBefore'],
   ['/admin/events/mariage/during', 'eventDuring'],

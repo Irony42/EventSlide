@@ -1510,6 +1510,14 @@ export const de: UiText = {
       custom: 'Maßgeschneidert',
     },
 
+    /* ---- The screen that follows the creation of an event: the logo is asked for early. ---- */
+    welcome: {
+      title: (name: string) => `„${name}“ ist angelegt`,
+      lead: 'Noch eine Sache, falls Sie es zur Hand haben: Ihr Logo. Es erscheint auf der Seite Ihrer Gäste, auf dem Bildschirm im Saal, auf der Einladung und auf dem gedruckten QR-Code.',
+      later: 'Später',
+      continue: 'Weiter',
+      findLater: 'Sie finden es später unter „Erscheinungsbild“.',
+    },
     /* ---- The Apparence page (/appearance): what guests and the room see, with a preview. ---- */
     appearance: {
       title: 'Erscheinungsbild',
@@ -4171,6 +4179,7 @@ export const de: UiText = {
   },
 
   titles: {
+    welcome: 'Veranstaltung angelegt',
     appearance: 'Erscheinungsbild der Veranstaltung',
     print: 'Tischkarten und Plakat',
     eventBook: 'Fotobuch',

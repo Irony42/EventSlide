@@ -78,7 +78,8 @@ export function NewEventPage() {
           return
         }
         toast.show(t.admin.eventCreated(result.value.name), { tone: 'success' })
-        navigate(`/admin/events/${result.value.slug}`, { replace: true })
+        // Not the event's page: the logo is asked for first, once, while it is still easy to say.
+        navigate(`/admin/events/${result.value.slug}/welcome`, { replace: true })
       })
   }
 

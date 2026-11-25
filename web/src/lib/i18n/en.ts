@@ -1431,6 +1431,14 @@ export const en: UiText = {
       custom: 'Custom',
     },
 
+    /* ---- The screen that follows the creation of an event: the logo is asked for early. ---- */
+    welcome: {
+      title: (name: string) => `“${name}” is created`,
+      lead: 'One last thing, if you have it to hand: your logo. It will appear on your guests’ page, the room’s screen, the invitation and the printed QR code.',
+      later: 'Later',
+      continue: 'Continue',
+      findLater: 'You will find it again under Appearance.',
+    },
     /* ---- The Apparence page (/appearance): what guests and the room see, with a preview. ---- */
     appearance: {
       title: 'Appearance',
@@ -4034,6 +4042,7 @@ export const en: UiText = {
   },
 
   titles: {
+    welcome: 'Event created',
     appearance: 'Event appearance',
     print: 'Table cards and poster',
     eventBook: 'Photo book',
