@@ -222,6 +222,7 @@ jobs:
             '/e/' + slug + '/upload',
             '/g/zap-baseline',
             '/invite/zap-baseline',
+            '/i/zap-baseline',
             '/api/health',
             '/api/ready',
             '/api/about',
@@ -298,7 +299,10 @@ jobs:
             ['/api/join/:code', 1],
             ['/api/events/:eventSlug/photos/:photoId/:variant', 2],
             ['/g|/g/*splat', 1],
-            ['/invite|/invite/*splat|/password/reset|/password/reset/*splat', 1],
+            // The pages a token opens share one route, TOKEN_PAGES in src/interface/http/server.ts, whose
+            // pattern is what the access log prints: a page added to that list changes this name (the guest's
+            // invitation, `/i`, did on 21/11 and turned this job red), so it is written from that list.
+            ['/invite|/invite/*splat|/password/reset|/password/reset/*splat|/i|/i/*splat', 2],
             ['/api/events', 1],
           ]
           let missing = 0
