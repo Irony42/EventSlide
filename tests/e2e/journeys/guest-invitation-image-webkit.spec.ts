@@ -12,7 +12,7 @@ import {
   orangePhoto,
 } from '../fixtures/invitationImage'
 import { decodeQrInImage } from '../fixtures/qrDecode'
-import { backToCard, openShare } from '../fixtures/invitationPanels'
+import { backToCard, openShare, chooseDesign } from '../fixtures/invitationPanels'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import type { Page } from '@playwright/test'
 
@@ -90,7 +90,7 @@ test('on a phone, the share sheet is handed the PNG and the words, and the words
   await installPhone(host, true)
   await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
   // A design with a face of its own, chosen on the card: its font has to be in the picture.
-  await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+  await chooseDesign(host, 'Billet')
   await openShare(host)
   await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
 
@@ -118,7 +118,7 @@ test('on a phone that cannot share files, the image is offered as a download tha
   const { event, url } = await invitedHost(host, app, 'image-sans-partage')
   await installPhone(host, false)
   await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
-  await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+  await chooseDesign(host, 'Billet')
   await openShare(host)
   await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
 
@@ -148,7 +148,7 @@ test('on a phone engine too, the card’s own typeface is in the picture, not a 
   await installPhone(host, false)
   const open = async () => {
     await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
-    await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+    await chooseDesign(host, 'Billet')
   }
   const imageTab = async () => {
     await openShare(host)
@@ -169,7 +169,7 @@ test('on a phone engine too, every design is drawn in the picture as it is in th
   const { event } = await invitedHost(host, app, 'image-fidelite-telephone')
   await installPhone(host, false)
   await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
-  await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+  await chooseDesign(host, 'Billet')
   await host
     .getByTestId('print-photo-input')
     .setInputFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: await orangePhoto() })
