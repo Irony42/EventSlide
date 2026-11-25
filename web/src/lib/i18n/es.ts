@@ -3566,6 +3566,7 @@ export const es: UiText = {
       sizeHint: 'El invitado dice cuántos vienen, él incluido.',
       sizeMax: 'Como máximo',
       sizeUnit: 'por respuesta',
+      sizeRange: (min: number, max: number) => `Entre ${min} y ${max}`,
       kidsLabel: 'Contar los niños aparte',
       kidsHint: 'Útil para el catering y los menús infantiles.',
       dietLabel: 'Alergias y dietas',

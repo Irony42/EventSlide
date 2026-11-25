@@ -129,6 +129,3 @@ export const kindOf = (settings: RsvpSettingsDto): PartyKind | null => {
   }
   return match('party') ? 'party' : match('wedding') ? 'wedding' : null
 }
-
-/** The sizes a reply may bring that the panel offers: 1 to 10 is the server's bound. */
-export const PARTY_SIZES: readonly number[] = [2, 3, 4, 5, 6, 8, 10]
