@@ -20,6 +20,7 @@ export type EventActionGlyph =
   | 'expand'
   | 'home'
   | 'access'
+  | 'appearance'
   | 'invitations'
   | 'rsvps'
   | 'announcements'
@@ -90,6 +91,9 @@ const SHAPES: Record<EventActionGlyph, string> = {
   // The three finder squares of a QR code and a few modules
   access:
     'M2.5 2.5h4v4h-4zM9.5 2.5h4v4h-4zM2.5 9.5h4v4h-4zM9.5 9.5h1.5v1.5H9.5zM12 12h1.5v1.5H12zM9.5 12.8h1M12.8 9.5v1',
+  // A painter's palette: how the event looks
+  appearance:
+    'M8 14a6 6 0 1 1 6-6c0 1.5-1.2 2-2.4 2H9.8a1.3 1.3 0 0 0-.9 2.2A1.4 1.4 0 0 1 8 14zM5 7.6h.01M7 5.2h.01M10.2 5.6h.01',
   // An envelope
   invitations: 'M2.5 4h11v8.5h-11zM2.5 4.2 8 8.6l5.5-4.4',
   // A list with a tick on its first line: who answered

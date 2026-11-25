@@ -19,6 +19,7 @@ export type HostEventPage =
   | 'mobileModeration'
   | 'settings'
   | 'ambiance'
+  | 'appearance'
   | 'stats'
   | 'print'
   | 'invitations'
@@ -159,6 +160,7 @@ function Trail({
     mobileModeration: t.mobileModeration.title,
     settings: t.admin.settings,
     ambiance: t.admin.customAmbianceCrumb,
+    appearance: t.admin.appearance.title,
     stats: t.admin.stats.tile,
     print: t.admin.printKitCrumb,
     invitations: t.guestInvite.host.crumb,

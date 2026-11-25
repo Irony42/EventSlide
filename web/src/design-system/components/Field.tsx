@@ -26,6 +26,8 @@ export interface FieldProps {
   /** Marks the field as skippable. A guest's display name genuinely is. */
   readonly optional?: boolean
   readonly className?: string | undefined
+  /** The label stays the control's name for assistive technology but is not drawn: a heading above says it. */
+  readonly hideLabel?: boolean
   readonly children: (control: FieldControlProps) => ReactNode
 }
 
@@ -35,7 +37,15 @@ export interface FieldProps {
  * A placeholder is never a label: it disappears on the first keystroke, is invisible
  * to a screen reader as a name, and fails contrast on every phone in sunlight.
  */
-export function Field({ label, hint, error, optional = false, className, children }: FieldProps) {
+export function Field({
+  label,
+  hint,
+  error,
+  optional = false,
+  className,
+  hideLabel = false,
+  children,
+}: FieldProps) {
   const t = useTranslations()
   const generated = useId()
   const hintId = `${generated}-hint`
@@ -56,7 +66,7 @@ export function Field({ label, hint, error, optional = false, className, childre
 
   return (
     <div className={classes}>
-      <label className={styles['label']} htmlFor={generated}>
+      <label className={hideLabel ? 'visually-hidden' : styles['label']} htmlFor={generated}>
         {label}
         {optional ? <span className={styles['optional']}>{t.ui.optional}</span> : null}
       </label>

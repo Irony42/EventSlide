@@ -22,13 +22,26 @@
   color: var(--text-secondary);
 }
 
-/* A phone: about 360 by 640 CSS pixels, in rem. */
-.phone {
+/* A phone: about 360 by 640 CSS pixels, in rem, drawn at that size and shrunk to the room it is
+   given with a measured factor, as the wall is. */
+.phoneFrame {
   position: relative;
   overflow: hidden;
   inline-size: 22.5rem;
   max-inline-size: 100%;
+  aspect-ratio: 9 / 16;
+}
+
+.phone {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  inline-size: 22.5rem;
   block-size: 40rem;
+  transform: scale(var(--phone-scale, 1));
+  transform-origin: top left;
   padding: var(--space-4);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -94,4 +107,79 @@
   font-family: var(--font-sans);
   /* What WallPage reserves for the join card, so a caption lays out beside it. */
   --wall-chrome-inline-end: calc(var(--wall-join-card) + var(--space-6));
+}
+
+/* Row: the phone first, as the custom ambiance page has always drawn them. */
+.phoneFigure {
+  order: 0;
+}
+
+.wallFigure {
+  order: 1;
+}
+
+/*
+ * Stack: the appearance page's column. The wall takes the column's width and the phone sits under
+ * it, narrower, so the two stay inside the height of a laptop under the sticky bar.
+ */
+.stack {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+.stack .wallFigure {
+  order: 0;
+}
+
+.stack .phoneFigure {
+  order: 1;
+  align-items: center;
+}
+
+.stack .wallFrame {
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+.stack .phoneFrame {
+  inline-size: min(100%, 13rem);
+}
+
+/* Strip: the wall's frame alone, in the bar above a phone's page, short enough to leave the page room. */
+.strip {
+  display: flex;
+  justify-content: center;
+}
+
+.strip .wallFrame {
+  inline-size: 100%;
+  max-inline-size: 15rem;
+}
+
+/* Which of the wall's two moments is drawn: with photographs, or waiting for the first. */
+.views {
+  display: inline-flex;
+  align-self: flex-start;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+.view {
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-3);
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.view[aria-pressed='true'] {
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  font-weight: 650;
 }

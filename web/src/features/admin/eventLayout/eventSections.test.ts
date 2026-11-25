@@ -51,6 +51,7 @@ describe('eventMenu', () => {
       'wall',
     ])
     expect(sectionsOf(menu)).toEqual([
+      'appearance',
       'access',
       'print',
       'invitations',
@@ -73,10 +74,28 @@ describe('eventMenu', () => {
     ])
   })
 
+  it('puts « Apparence » first among the things to prepare, right under the home page, for the owner', () => {
+    const before = eventMenu(facts({ status: 'draft' })).find((group) => group.moment === 'before')
+
+    expect(before?.sections[0]).toBe('appearance')
+    expect(before?.sections[1]).toBe('access')
+  })
+
+  it('keeps « Apparence » for an archived event, to read', () => {
+    expect(sectionsOf(eventMenu(facts({ status: 'archived' })))).toContain('appearance')
+  })
+
   it('keeps what is the owner’s out of a moderator’s menu', () => {
     const sections = sectionsOf(eventMenu(facts({ role: 'moderator' })))
 
-    for (const ownerOnly of ['invitations', 'rsvps', 'missions', 'moderators', 'share'] as const) {
+    for (const ownerOnly of [
+      'appearance',
+      'invitations',
+      'rsvps',
+      'missions',
+      'moderators',
+      'share',
+    ] as const) {
       expect(sections).not.toContain(ownerOnly)
     }
     expect(sections).toContain('moderation')
@@ -133,6 +152,7 @@ describe('addresses', () => {
     expect(sectionHref('camille', 'bestOf')).toBe('/admin/events/camille/best-of')
     expect(sectionHref('camille', 'moderation')).toBe('/admin/events/camille/moderation')
     expect(sectionHref('camille', 'wall')).toBe('/e/camille/display')
+    expect(sectionHref('camille', 'appearance')).toBe('/admin/events/camille/appearance')
   })
 
   it('gives every section its own address', () => {

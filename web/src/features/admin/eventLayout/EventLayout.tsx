@@ -21,6 +21,9 @@ import styles from './EventLayout.module.css'
 /** The pages with a preview of their own and a bar of tools: the menu folds beside them. */
 const WORKSHOPS = [SECTION_PATH.print, SECTION_PATH.invitations, SECTION_PATH.book] as const
 
+/** The pages with a sticky preview beside their settings: the menu keeps its names, the page widens. */
+const WIDE = [SECTION_PATH.appearance] as const
+
 /**
  * Every page of one event, around its menu (surface: the host and the moderator; laptop, tablet
  * and phone). Pierre's choice of 22/11, maquette A of `apercus-2026-11-22/evenement.html`.
@@ -104,6 +107,8 @@ export function EventLayout() {
   const home = pathname === base || pathname === `${base}/`
   // The pages where the host composes something to print or send, each with its own preview.
   const workshop = WORKSHOPS.some((page) => pathname.startsWith(`${base}/${page}`))
+  // The appearance page's own address only: its custom ambiance editor lives under the settings.
+  const wide = WIDE.some((page) => pathname === `${base}/${page}`)
 
   return (
     <EventChromeContext.Provider value={chrome}>
@@ -112,7 +117,7 @@ export function EventLayout() {
         custom={event.settings.theme.custom}
         groundUrl={event.settings.theme.groundUrl}
       />
-      <div className={cx(styles['layout'], workshop && styles['workshop'])}>
+      <div className={cx(styles['layout'], workshop && styles['workshop'], wide && styles['wide'])}>
         <EventNav event={event} folded={workshop} />
         <div className={styles['content']}>
           {/* The phone has no menu on the side: the way back and the event's name sit above the

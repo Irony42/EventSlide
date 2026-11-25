@@ -17,6 +17,8 @@ export interface WelcomeMessageFieldProps {
    */
   readonly onChange: (value: string | null) => void
   readonly disabled: boolean
+  /** A heading above already names the field: its label stays for assistive technology only. */
+  readonly hideLabel?: boolean
 }
 
 /**
@@ -29,7 +31,12 @@ export interface WelcomeMessageFieldProps {
  * The field keeps its own copy while the host types. A new `value` from the server replaces it; a
  * refused save leaves `value` where it was, so what the host typed stays in front of them to fix.
  */
-export function WelcomeMessageField({ value, onChange, disabled }: WelcomeMessageFieldProps) {
+export function WelcomeMessageField({
+  value,
+  onChange,
+  disabled,
+  hideLabel = false,
+}: WelcomeMessageFieldProps) {
   const t = useTranslations()
   const counterId = useId()
   const [text, setText] = useState(value ?? '')
@@ -42,7 +49,12 @@ export function WelcomeMessageField({ value, onChange, disabled }: WelcomeMessag
 
   return (
     <div className={styles['field']}>
-      <Field label={t.admin.welcomeMessage} hint={t.admin.welcomeMessageHint} optional>
+      <Field
+        label={t.admin.welcomeMessage}
+        hint={t.admin.welcomeMessageHint}
+        optional={!hideLabel}
+        hideLabel={hideLabel}
+      >
         {(control) => (
           <Textarea
             {...control}

@@ -1,4 +1,17 @@
+import type { SettingsSaveState } from '../../lib/useSettingsAutosave'
 import type { UiText } from '../../lib/i18n/translations'
+
+/** What the line under a settings page's title says about the last change. */
+export const saveStatusLabel = (state: SettingsSaveState, text: UiText): string => {
+  switch (state.kind) {
+    case 'saving':
+      return text.admin.settingsPage.saving
+    case 'saved':
+      return text.admin.settingsPage.saved
+    default:
+      return text.admin.settingsPage.autosave
+  }
+}
 
 /**
  * How a settings value is worded for a host, in one place.

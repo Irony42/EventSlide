@@ -1439,6 +1439,64 @@ export const en: UiText = {
       custom: 'Custom',
     },
 
+    /* ---- The Apparence page (/appearance): what guests and the room see, with a preview. ---- */
+    appearance: {
+      title: 'Appearance',
+      lead: 'What your guests see on their phones and on the room’s screen.',
+      imagesTitle: 'Your images',
+      imagesHelp:
+        'They dress everything your guests see. The preview shows them in the ambiance you choose.',
+      ambianceTitle: 'Ambiance',
+      ambianceHelp:
+        'The setting of the evening: background photo, name typeface, colours. Click and the preview changes right away.',
+      /** One sentence per ambiance, under its picture: what it looks like. */
+      sentences: {
+        eventslide: 'Deep violet and soft light, the house look.',
+        guinguette: 'Wood, cream and strings of bulbs: a garden party.',
+        riviera: 'Navy blue and white sails, an evening by the sea.',
+        champs: 'Tall grass and honey in golden light.',
+        bivouac: 'Blue night and embers, a campfire under the stars.',
+        cabaret: 'Ebony and champagne gold, a velvet curtain.',
+        noces: 'White and ivory, red roses: the only light ambiance.',
+        custom: 'Your own background, light or dark, tinted to your taste.',
+      },
+      /** Who it is for, after the label: `Pour : …`. « Sur mesure » has none. */
+      audiences: {
+        eventslide: 'Goes with anything',
+        guinguette: 'Birthday, village fête',
+        riviera: 'Summer party, terrace',
+        champs: 'Country wedding',
+        bivouac: 'Evening with friends',
+        cabaret: 'Gala, dressy evening',
+        noces: 'Wedding',
+      },
+      audience: (audience: string) => `For: ${audience}`,
+      customCardAction: 'Open the editor',
+      colourTitle: 'Colour',
+      colourHelp: 'The one on the buttons and the QR card. All four stay readable at ten metres.',
+      /** The first swatch: no hue of the host's, the ambiance's own accent. */
+      colourFromAmbiance: 'From the ambiance',
+      messageTitle: 'Welcome message',
+      detailsTitle: 'Details of the room’s screen',
+      fontsLegend: 'Typeface of the name on screen',
+      fontsAmbiance: 'The ambiance’s own',
+      fontsClassic: 'Classic',
+      fontsAmbianceSummary: 'ambiance typeface',
+      fontsClassicSummary: 'classic typeface',
+      previewTitle: 'Preview',
+      previewWallPhotos: 'With photos',
+      previewWallWaiting: 'Before the first photos',
+      previewNote:
+        'Sample photos. What you change here is saved and immediately visible to your guests.',
+      previewBig: 'View larger',
+      previewClose: 'Close',
+      /** The summary row the settings page keeps in place of the controls. */
+      rowEdit: 'Edit',
+      rowEditLabel: 'Edit the appearance',
+      rowWithLogo: 'with logo',
+      rowWithoutLogo: 'no logo',
+    },
+
     template: 'Type of event',
     templateHint:
       'A starting point, suited to the kind of evening. All these settings can still be changed at any time, before the event and during it.',
@@ -2012,7 +2070,7 @@ export const en: UiText = {
     welcomeMessageCount: (count, max) => `${count} / ${max}`,
     logo: 'Event logo',
     logoHint:
-      'A logo or monogram, preferably a PNG with a transparent background (PNG, JPEG or WebP). It appears on your guests’ page and on the screen, never on the photos.',
+      'A PNG with a transparent background works best (PNG, JPEG or WebP). It appears on your guests’ page, on the room’s screen, on the invitation and in the centre of the printed QR code, never on the photos.',
     logoPreviewAlt: 'Preview of the event logo',
     logoNone: 'No logo yet.',
     logoChoose: 'Choose a logo',
@@ -3870,6 +3928,7 @@ export const en: UiText = {
       after: 'What you keep from the party.',
     },
     sections: {
+      appearance: 'Appearance',
       access: 'QR code and link',
       print: 'Cards and poster',
       invitations: 'Invitations',
@@ -3893,6 +3952,7 @@ export const en: UiText = {
     },
     /** One line under each entry, on the lists of the moments' pages. */
     hints: {
+      appearance: 'Ambiance, colour and logo',
       access: 'The code, the link and the QR code to get in',
       print: 'The QR code for the tables',
       invitations: 'The invitation and its link',
@@ -3953,6 +4013,7 @@ export const en: UiText = {
   },
 
   titles: {
+    appearance: 'Event appearance',
     print: 'Table cards and poster',
     eventBook: 'Photo book',
     join: 'Join the event',
