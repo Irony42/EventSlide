@@ -3564,7 +3564,7 @@ export const es: UiText = {
         `Sin fecha límite, las respuestas se cierran al empezar la fiesta, el ${date}.`,
       erasedOn: (date: string) => `Las respuestas se borrarán el ${date}.`,
       offNote: 'Los invitados ven la tarjeta sin formulario de respuesta.',
-      presetPartyNote: 'quizá, nº de personas',
+      presetPartyNote: 'quizá, número de personas',
       presetWeddingNote: 'menús, nombres',
       presetCustomNote: 'tus ajustes',
       essentialsTitle: 'Lo esencial',

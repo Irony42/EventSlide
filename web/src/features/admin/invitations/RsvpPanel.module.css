@@ -122,11 +122,6 @@
   font-weight: 400;
 }
 
-.preset:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
 .preset:disabled {
   cursor: default;
 }

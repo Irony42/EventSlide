@@ -25,11 +25,6 @@
   font-size: var(--text-lg);
 }
 
-.title:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
 .body {
   display: flex;
   flex: 1;

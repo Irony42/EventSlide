@@ -25,7 +25,7 @@ import { AppearancePanel } from './AppearancePanel'
 import { draftInvite } from './invitationDraft'
 import { InvitationLink } from './InvitationLink'
 import { InvitationSaveStatus, InvitationText } from './InvitationText'
-import { OpenGroupsProvider, useOpenGroups } from './Disclosure'
+import { OpenGroupsProvider, useOpenGroups } from './openGroups'
 import { optionCount, shortDay } from './panelSummaries'
 import { PanelEntry } from './PanelEntry'
 import { RSVP_PANEL_ID, RsvpPanel } from './RsvpPanel'
@@ -178,9 +178,9 @@ function Workspace({
     panel === 'reponses' ? 'guest' : panel === 'partage' ? output : 'print'
 
   /** The panel was opened by the host in this visit: its title takes the focus. */
-  const openedHere = useRef(false)
+  const [openedHere, setOpenedHere] = useState(false)
   const openPanel = (name: PanelName) => {
-    openedHere.current = true
+    setOpenedHere(true)
     setParams((current) => {
       const next = new URLSearchParams(current)
       next.set('panel', name)
@@ -335,24 +335,24 @@ function Workspace({
             <AppearancePanel event={event} invite={shown} look={look} />
           )}
         </section>
-        <div className={styles['entries']}>
-          <PanelEntry
-            id={`${ids}-entry-reponses`}
-            controls={RSVP_PANEL_ID}
-            icon="mail"
-            title={all.rsvp.host.title}
-            summary={repliesSummary}
-            onOpen={() => openPanel('reponses')}
-          />
-          <PanelEntry
-            id={`${ids}-entry-partage`}
-            controls={SHARE_PANEL_ID}
-            icon="printer"
-            title={text.sharePanelTitle}
-            summary={text.entryShareSummary}
-            onOpen={() => openPanel('partage')}
-          />
-        </div>
+      </div>
+      <div className={styles['entries']}>
+        <PanelEntry
+          id={`${ids}-entry-reponses`}
+          controls={RSVP_PANEL_ID}
+          icon="mail"
+          title={all.rsvp.host.title}
+          summary={repliesSummary}
+          onOpen={() => openPanel('reponses')}
+        />
+        <PanelEntry
+          id={`${ids}-entry-partage`}
+          controls={SHARE_PANEL_ID}
+          icon="printer"
+          title={text.sharePanelTitle}
+          summary={text.entryShareSummary}
+          onOpen={() => openPanel('partage')}
+        />
       </div>
       <div className={styles['cardFooter']}>{saveStatus}</div>
     </div>
@@ -396,7 +396,7 @@ function Workspace({
           archived={archived}
           timeZone={invite.timeZone}
           onClose={closePanel}
-          focusOnMount={openedHere.current}
+          focusOnMount={openedHere}
         />
       )
     }
@@ -405,7 +405,7 @@ function Workspace({
         id={SHARE_PANEL_ID}
         title={text.sharePanelTitle}
         onClose={closePanel}
-        focusOnMount={openedHere.current}
+        focusOnMount={openedHere}
         footer={
           <>
             {actions}

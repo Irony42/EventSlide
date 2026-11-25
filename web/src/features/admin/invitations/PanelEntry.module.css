@@ -15,11 +15,6 @@
   cursor: pointer;
 }
 
-.entry:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
 .icon {
   display: grid;
   place-items: center;

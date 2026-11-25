@@ -19,7 +19,6 @@ import { fr } from '../../../web/src/lib/i18n/fr'
 const asked = fr.rsvp.host
 const guest = fr.rsvp.guest
 const list = fr.rsvp.list
-const page = fr.guestInvite.host
 
 // Playwright insists on a destructured first argument.
 // eslint-disable-next-line no-empty-pattern

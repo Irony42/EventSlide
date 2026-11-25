@@ -22,11 +22,6 @@
   display: none;
 }
 
-.summary:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
 .title {
   font-size: var(--text-sm);
   font-weight: 650;
