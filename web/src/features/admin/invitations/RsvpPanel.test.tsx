@@ -22,7 +22,7 @@ function Harness({
   timeZone?: string | null
 }) {
   const rsvp = useRsvpSettings('mariage', when)
-  return <RsvpPanel rsvp={rsvp} archived={archived} timeZone={timeZone} />
+  return <RsvpPanel rsvp={rsvp} archived={archived} timeZone={timeZone} onClose={() => undefined} />
 }
 
 const render = (
