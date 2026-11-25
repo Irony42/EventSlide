@@ -83,6 +83,9 @@
   block-size: 100%;
   margin: 0;
   opacity: 0;
+  /* Above the picture drawn after it: WebKit hands a click to the topmost box, and a click on the
+     card must reach the radio itself (Playwright's `check()` and a real tap alike). */
+  z-index: 1;
   cursor: pointer;
 }
 
