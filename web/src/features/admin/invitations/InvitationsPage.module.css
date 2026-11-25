@@ -12,7 +12,7 @@
  *    panel's body) scrolling on its own, the preview never, the page not at all.
  *  - 36rem to 56rem: the column on the left, the preview pinned on the right; the page scrolls.
  *  - under 36rem (a phone): the preview pinned and reduced (a tap makes it big), then the column;
- *    a panel is the whole screen, with its header and footer pinned.
+ *    a panel fills the screen under it, its footer pinned to the bottom.
  */
 
 .page {
@@ -388,15 +388,12 @@
   font-weight: 650;
 }
 
-/* ---- Under 36rem (a phone): a panel is the whole screen, the preview stays on the card's screen */
+/* ---- Under 36rem the preview is pinned at the top: a control the keyboard or a scroll brings into view
+   must not end up under it (rule 9 of the UX research: focus is never hidden by a sticky header). */
 
 @container invite (max-width: 35.99rem) {
-  .workspace:not([data-panel='card']) .stage {
-    display: none;
-  }
-
-  .workspace:not([data-panel='card']) .side {
-    min-block-size: calc(100dvh - var(--space-6));
+  .side :is(input, select, textarea, button, summary, h2) {
+    scroll-margin-block-start: 13rem;
   }
 }
 

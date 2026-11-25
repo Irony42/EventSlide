@@ -56,9 +56,9 @@ test('the printed card carries the invitation link as a QR, the address, and not
   expect(enabled.status()).toBe(200)
   const { guestInvite } = (await enabled.json()) as { guestInvite: { url: string } }
 
-  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations?panel=partage`))
   const sheet = host.locator('[data-format]')
-  const form = host.getByRole('form', { name: text.formTitle })
+  const panel = host.getByRole('region', { name: text.sharePanelTitle })
   const tablist = host.getByRole('tablist')
   const word = host.getByRole('textbox', { name: text.shortLabel })
   const printButton = host.getByRole('button', { name: text.printButton })
@@ -72,14 +72,14 @@ test('the printed card carries the invitation link as a QR, the address, and not
     await expect(sheet).toHaveAttribute('data-format', format.value)
     await expect(sheet.getByRole('img', { name: /QR/ })).toHaveCount(format.copies)
     // All of this is on the screen first, so that "hidden on paper" below cannot pass on nothing.
-    for (const onScreen of [form, tablist, word, printButton]) await expect(onScreen).toBeVisible()
+    for (const onScreen of [panel, tablist, word, printButton]) await expect(onScreen).toBeVisible()
 
     await host.emulateMedia({ media: 'print' })
-    // The console's header, footer, form, tabs and controls do not print; the card does.
+    // The console's header, footer, panel, tabs and controls do not print; the card does.
     await expect(host.locator('header')).toBeHidden()
     await expect(host.locator('footer')).toBeHidden()
     await expect(host.getByRole('button', { name: 'Compte' })).toBeHidden()
-    for (const offPaper of [printButton, tablist, form, word]) await expect(offPaper).toBeHidden()
+    for (const offPaper of [printButton, tablist, panel, word]) await expect(offPaper).toBeHidden()
     await expect(sheet).toBeVisible()
 
     // The card says the hours of the zone of the party (Tokyo), not the browser's and not Paris's.
@@ -318,13 +318,13 @@ test('on another tab, or while locked, Ctrl+P prints the page as it is, not a he
 }) => {
   const { host } = surfaces
   const event = await app.seedEvent({ slug: 'carte-verrouillee', name: 'Léa fête ses 40 ans' })
-  const form = host.getByRole('form', { name: text.formTitle })
+  const panel = host.getByRole('region', { name: text.sharePanelTitle })
 
   // Locked: nothing is saved, so the formats are empty and say why.
-  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations?panel=partage`))
   await expect(host.getByText(text.locked)).toBeVisible()
   await host.emulateMedia({ media: 'print' })
-  await expect(form).toBeVisible()
+  await expect(panel).toBeVisible()
   await expect(host.getByRole('tablist')).toBeVisible()
   await expect(host.getByText(text.locked)).toBeVisible()
 
@@ -341,11 +341,11 @@ test('on another tab, or while locked, Ctrl+P prints the page as it is, not a he
     { headers, data: {} },
   )
   expect(enabled.status()).toBe(200)
-  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations?panel=partage`))
   await host.getByRole('tab', { name: text.tabImage }).click()
   await expect(host.locator('[data-format]')).toHaveCount(0)
   await host.emulateMedia({ media: 'print' })
-  await expect(form).toBeVisible()
+  await expect(panel).toBeVisible()
   await expect(host.getByRole('tablist')).toBeVisible()
 })
 

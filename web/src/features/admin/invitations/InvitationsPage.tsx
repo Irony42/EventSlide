@@ -365,7 +365,12 @@ function Workspace({
         <div className={styles['side']}>{side(slots)}</div>
         <div className={styles['stage']}>
           {/* The panel is what is locked, not the tabs: a host can look at each, and is told why it is empty. */}
-          <div className={styles['previewPane']} data-big={big} data-locked={shown === null}>
+          <div
+            className={styles['previewPane']}
+            data-testid="invite-preview"
+            data-big={big}
+            data-locked={shown === null}
+          >
             {slots.preview}
             {shown === null ? null : (
               <button

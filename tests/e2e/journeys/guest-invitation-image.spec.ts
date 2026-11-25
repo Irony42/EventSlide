@@ -11,6 +11,7 @@ import {
   orangePhoto,
 } from '../fixtures/invitationImage'
 import { decodeQrInImage } from '../fixtures/qrDecode'
+import { backToCard, openShare } from '../fixtures/invitationPanels'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import type { Page } from '@playwright/test'
 
@@ -52,7 +53,7 @@ test('the host downloads a square image, then a story: the right size, drawn, wi
 }) => {
   const { host } = surfaces
   const { event, url } = await invitedHost(host, app, 'image-invitation')
-  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations?panel=partage`))
   await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
 
   const square = await downloadedImage(host)
@@ -77,7 +78,7 @@ test('the words that go with the image say the moment and the link, and the addr
 }) => {
   const { host } = surfaces
   const { event, url } = await invitedHost(host, app, 'image-texte')
-  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations?panel=partage`))
   await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
   const words = host.getByRole('textbox', { name: new RegExp(text.textLabel) })
 
@@ -102,7 +103,10 @@ test('the card’s own typeface is in the picture: refuse its font files and the
     await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
     await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
   }
-  const imageTab = () => host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
+  const imageTab = async () => {
+    await openShare(host)
+    await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
+  }
   await open()
   await imageTab()
   const withFonts = await downloadedImage(host)
@@ -125,8 +129,9 @@ test('every design is drawn in the picture as it is in the preview, square and s
 
   for (const shape of [fr.guestInvite.image.formatSquare, fr.guestInvite.image.formatStory]) {
     for (const name of DESIGN_NAMES) {
-      await host.getByRole('tab', { name: fr.guestInvite.host.tabPrint }).click()
+      await backToCard(host)
       await host.getByRole('radio', { name }).check({ force: true })
+      await openShare(host)
       await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
       await host.getByRole('radio', { name: shape }).check()
       const png = await downloadedImage(host)
@@ -156,7 +161,7 @@ test('the words field shows all of the text, the link included, without a scroll
 }) => {
   const { host } = surfaces
   const { event } = await invitedHost(host, app, 'image-champ')
-  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations?panel=partage`))
   await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
   await host.getByRole('checkbox', { name: text.addressLabel }).check()
 

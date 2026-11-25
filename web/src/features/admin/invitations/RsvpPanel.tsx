@@ -181,7 +181,8 @@ export function RsvpPanel({
         onChange={(enabled) => rsvp.change({ enabled })}
       />
 
-      {settings.enabled ? (
+      {settings.enabled ? null : <p className={styles['note']}>{text.offNote}</p>}
+      {
         <>
           <div className={styles['deadline']}>
             <Field label={text.deadlineLabel} hint={text.deadlineHint} optional>
@@ -222,7 +223,7 @@ export function RsvpPanel({
             )}
           </div>
 
-          {settings.invited ? (
+          {settings.invited && settings.enabled ? (
             <div className={styles['window']}>
               {closedByDate ? (
                 <p>{text.closedByDate}</p>
@@ -246,16 +247,14 @@ export function RsvpPanel({
             </div>
           ) : null}
         </>
-      ) : (
-        <p className={styles['note']}>{text.offNote}</p>
-      )}
+      }
       {settings.erasedAt === null ? null : (
         <p className={styles['note']}>
           {text.erasedOn(dateOf(settings.erasedAt, locale, timeZone))}
         </p>
       )}
 
-      {settings.enabled ? (
+      {
         <fieldset className={styles['asks']} disabled={locked}>
           <legend className={styles['legend']}>{text.presetLabel}</legend>
           <div className={styles['presets']}>
@@ -419,7 +418,7 @@ export function RsvpPanel({
             </div>
           </Disclosure>
         </fieldset>
-      ) : null}
+      }
 
       <ConfirmDialog
         open={preset !== null}

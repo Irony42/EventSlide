@@ -42,10 +42,10 @@ const BLANK: GuestInviteDto = aGuestInviteHost({
 })
 const ON = aGuestInviteHost({ enabled: true })
 
-const render = (api: Api, locale: 'fr' | 'en' = 'fr') =>
+const render = (api: Api, locale: 'fr' | 'en' = 'fr', search = '') =>
   renderWithProviders(<InvitationsPage />, {
     api,
-    route: '/admin/events/camille-et-sacha/invitations',
+    route: `/admin/events/camille-et-sacha/invitations${search}`,
     path: '/admin/events/:slug/invitations',
     locale,
   })
@@ -62,6 +62,9 @@ const answering = (invite: GuestInviteDto, extra: Partial<Api> = {}): Api =>
 /** A change in the form: the text is saved as it is typed, there is no button to press. */
 const touch = (form: HTMLElement) =>
   userEvent.type(within(form).getByLabelText(new RegExp(`^${text.titleLabel}`)), '!')
+
+/** Opens the folded group of the address, the word and the language. */
+const openMore = () => userEvent.click(screen.getByText(text.moreTitle))
 
 const statusBar = () => screen.getByRole('region', { name: text.statusBarLabel })
 const activateNow = () => within(statusBar()).getByRole('button', { name: text.activate })
@@ -125,6 +128,7 @@ describe('InvitationsPage', () => {
       expect(
         within(form).getByText(startingWith(text.zoneLine(zoneName('Europe/Paris', 'fr')))),
       ).toBeVisible()
+      await openMore()
       expect(within(form).getByText(text.addressWarning)).toBeVisible()
     })
 
@@ -138,11 +142,11 @@ describe('InvitationsPage', () => {
     })
 
     it('locks the panel with the two steps and the action of the first, and leaves the four tabs to look at', async () => {
-      render(answering(BLANK))
+      render(answering(BLANK), 'fr', '?panel=partage')
 
       expect(await screen.findByText(text.locked)).toBeVisible()
-      const panel = screen.getByRole('tabpanel')
-      expect(panel).toHaveTextContent(text.locked)
+      expect(screen.getByRole('tabpanel')).toHaveTextContent(text.shareLocked)
+      const panel = screen.getByText(text.locked).closest('[role="status"]') as HTMLElement
       expect(within(panel).getByText(text.lockedStepDate)).toBeVisible()
       expect(within(panel).getByText(text.lockedStepActivate)).toBeVisible()
       expect(within(panel).getByRole('button', { name: text.lockedDateFocus })).toBeVisible()
@@ -266,11 +270,11 @@ describe('InvitationsPage', () => {
       expect(within(form).queryByRole('button', { name: /^Enregistrer$/ })).toBeNull()
 
       await touch(form)
-      expect(within(form).getByText(text.saving)).toBeVisible()
-      expect(await within(form).findByText(text.savedAuto)).toBeVisible()
+      expect(screen.getByText(text.saving)).toBeVisible()
+      expect(await screen.findByText(text.savedAuto)).toBeVisible()
 
       await touch(form)
-      expect(within(form).queryByText(text.savedAuto)).toBeNull()
+      expect(screen.queryByText(text.savedAuto)).toBeNull()
     })
 
     it('puts what is typed on the preview at once, before anything is saved', async () => {
@@ -285,8 +289,8 @@ describe('InvitationsPage', () => {
     it('shows the guest page from what is typed, in a frame the keyboard and the pointer cannot press', async () => {
       render(answering(ON, { saveGuestInvite: vi.fn(() => new Promise<never>(() => undefined)) }))
       const form = await screen.findByRole('form', { name: text.formTitle })
-      await userEvent.click(await screen.findByRole('tab', { name: text.tabGuest }))
       await userEvent.type(within(form).getByLabelText(new RegExp(`^${text.titleLabel}`)), ' Bis')
+      await userEvent.click(screen.getByRole('button', { name: new RegExp(fr.rsvp.host.title) }))
 
       const frame = screen.getByRole('group', { name: text.guestPreviewLabel })
       expect(frame).toHaveTextContent('Léa fête ses 40 ans Bis')
@@ -324,8 +328,8 @@ describe('InvitationsPage', () => {
       await touch(form)
       finish()
 
-      await waitFor(() => expect(within(form).getByText(text.saving)).toBeVisible())
-      expect(within(form).queryByText(text.savedAuto)).toBeNull()
+      await waitFor(() => expect(screen.getByText(text.saving)).toBeVisible())
+      expect(screen.queryByText(text.savedAuto)).toBeNull()
     })
 
     it('says the last change was not saved, and tries again on request', async () => {
@@ -337,14 +341,16 @@ describe('InvitationsPage', () => {
       const form = await screen.findByRole('form', { name: text.formTitle })
       await touch(form)
 
-      await userEvent.click(await within(form).findByRole('button', { name: text.saveRetry }))
+      await userEvent.click(await screen.findByRole('button', { name: text.saveRetry }))
 
-      expect(await within(form).findByText(text.savedAuto)).toBeVisible()
+      expect(await screen.findByText(text.savedAuto)).toBeVisible()
       expect(save).toHaveBeenCalledTimes(2)
     })
 
     it('counts the host’s word against the 500', async () => {
       render(answering(aGuestInviteHost({ message: 'Apéro' })))
+      await screen.findByRole('form', { name: text.formTitle })
+      await openMore()
 
       expect(
         await screen.findByText(plain(`${text.messageCount(5, 500)} · ${text.lineCount(1, 8)}`)),
@@ -400,7 +406,7 @@ describe('InvitationsPage', () => {
 
       await touch(form)
 
-      expect(await within(form).findByRole('alert')).toHaveTextContent(
+      expect(await screen.findByRole('alert')).toHaveTextContent(
         fr.errors['guestInvite.badTimeZone'],
       )
       expect(form.querySelector('[aria-invalid="true"]')).toBeNull()
@@ -468,6 +474,7 @@ describe('InvitationsPage', () => {
     it('has an address of two rows and a word of eight, and counts the lines', async () => {
       render(answering(aGuestInviteHost({ address: 'a\nb', message: 'x\ny\nz' })))
       const form = await screen.findByRole('form', { name: text.formTitle })
+      await openMore()
 
       expect(within(form).getByLabelText(/^Adresse/)).toHaveAttribute('rows', '2')
       expect(within(form).getByLabelText(/^Votre mot/)).toHaveAttribute('rows', '8')
@@ -514,11 +521,11 @@ describe('InvitationsPage', () => {
       expect(await screen.findByLabelText(text.linkLabel)).toHaveValue(ON.url)
       expect(screen.getByText(text.statusOn)).toBeVisible()
       expect(screen.queryByText(text.locked)).toBeNull()
-      expect(screen.getByRole('tabpanel')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: new RegExp(text.sharePanelTitle) })).toBeVisible()
     })
 
     it('tells, on the guest page format, that opening the evening opens the way to the wall', async () => {
-      render(answering(ON))
+      render(answering(ON), 'fr', '?panel=partage')
 
       await userEvent.click(await screen.findByRole('tab', { name: text.tabGuest }))
 
@@ -567,7 +574,7 @@ describe('InvitationsPage', () => {
 
     it('opens the page as a guest sees it in a tab of its own, with no opener and no referrer', async () => {
       const open = vi.spyOn(window, 'open').mockReturnValue(null)
-      render(answering(ON))
+      render(answering(ON), 'fr', '?panel=partage')
 
       await userEvent.click(await screen.findByRole('tab', { name: text.tabGuest }))
       await userEvent.click(screen.getByRole('button', { name: text.guestOpen }))
@@ -639,9 +646,144 @@ describe('InvitationsPage', () => {
     })
   })
 
+  describe('the card first: two doors, two panels', () => {
+    const asked = fr.rsvp.host
+    const door = (name: string) => screen.findByRole('button', { name: new RegExp(`^${name}`) })
+
+    it('shows the card’s column with the text, the look and two doors that say what they hold', async () => {
+      render(answering(ON, { rsvpForm: vi.fn(async () => ({ rsvpForm: aRsvpSettings() })) }))
+
+      expect(await screen.findByRole('form', { name: text.formTitle })).toBeVisible()
+      expect(screen.getByRole('heading', { level: 2, name: text.lookTitle })).toBeVisible()
+      expect(await door(asked.title)).toHaveAccessibleDescription('')
+      expect(screen.getByRole('button', { name: new RegExp(asked.title) })).toHaveTextContent(
+        asked.stateOff,
+      )
+      expect(
+        screen.getByRole('button', { name: new RegExp(text.sharePanelTitle) }),
+      ).toHaveTextContent(text.entryShareSummary)
+      // The card is on the preview, and no panel is in the page.
+      expect(document.querySelector('[data-format]')).not.toBeNull()
+      expect(screen.queryByRole('button', { name: fr.app.close })).toBeNull()
+    })
+
+    it('says in the replies’ door when they close and how many options are on', async () => {
+      render(
+        answering(ON, {
+          rsvpForm: vi.fn(async () => ({
+            rsvpForm: aRsvpSettings({ enabled: true, state: 'open', deadline: '2027-12-06' }),
+          })),
+        }),
+      )
+
+      const entry = await door(asked.title)
+      await waitFor(() => expect(entry).toHaveTextContent('6'))
+      expect(entry).toHaveTextContent(/options/)
+      expect(entry).toHaveAttribute('aria-controls', 'invite-panel-rsvp')
+    })
+
+    it('opens a panel in place of the column, then Fermer brings the column back with the focus on its door', async () => {
+      render(answering(ON))
+      await userEvent.click(await door(fr.guestInvite.host.sharePanelTitle))
+
+      expect(
+        await screen.findByRole('heading', { level: 2, name: text.sharePanelTitle }),
+      ).toBeVisible()
+      expect(screen.queryByRole('form', { name: text.formTitle })).toBeNull()
+      expect(screen.getByRole('tab', { name: text.tabPrint })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+
+      await userEvent.click(screen.getByRole('button', { name: fr.app.close }))
+
+      expect(await screen.findByRole('form', { name: text.formTitle })).toBeVisible()
+      expect(screen.getByRole('button', { name: new RegExp(text.sharePanelTitle) })).toHaveFocus()
+    })
+
+    it('closes the panel with Escape, and gives the focus back to its door', async () => {
+      render(answering(ON), 'fr', '?panel=reponses')
+      await screen.findByRole('heading', { level: 2, name: asked.title })
+
+      await userEvent.keyboard('{Escape}')
+
+      expect(await screen.findByRole('form', { name: text.formTitle })).toBeVisible()
+      expect(screen.getByRole('button', { name: new RegExp(asked.title) })).toHaveFocus()
+    })
+
+    it('puts the focus on the panel’s title when the host opens it', async () => {
+      render(answering(ON))
+      await userEvent.click(await door(asked.title))
+
+      expect(await screen.findByRole('heading', { level: 2, name: asked.title })).toHaveFocus()
+    })
+
+    it('makes the preview follow the panel: the card, the guest’s page for the replies, the chosen format for sharing', async () => {
+      render(answering(ON))
+      await screen.findByRole('form', { name: text.formTitle })
+      expect(document.querySelector('[data-format]')).not.toBeNull()
+      expect(screen.queryByRole('group', { name: text.guestPreviewLabel })).toBeNull()
+
+      await userEvent.click(await door(asked.title))
+      expect(await screen.findByRole('group', { name: text.guestPreviewLabel })).toBeVisible()
+      expect(document.querySelector('[data-format]')).toBeNull()
+
+      await userEvent.click(screen.getByRole('button', { name: fr.app.close }))
+      await userEvent.click(await door(text.sharePanelTitle))
+      await userEvent.click(await screen.findByRole('tab', { name: text.tabGuest }))
+      expect(await screen.findByRole('group', { name: text.guestPreviewLabel })).toBeVisible()
+    })
+
+    it('reads the panel and the format from the address, so a reload or Back returns to the same screen', async () => {
+      render(answering(ON), 'fr', '?panel=partage&format=email')
+
+      expect(await screen.findByRole('tab', { name: text.tabEmail })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+      expect(screen.queryByRole('form', { name: text.formTitle })).toBeNull()
+    })
+
+    it('ignores a panel or a format the page does not know', async () => {
+      render(answering(ON), 'fr', '?panel=autre&format=autre')
+
+      expect(await screen.findByRole('form', { name: text.formTitle })).toBeVisible()
+    })
+
+    it('says what the folded group of the address, the word and the language holds', async () => {
+      render(answering(aGuestInviteHost({ address: 'a\nb', message: 'Apéro' })))
+
+      const summary = (await screen.findByText(text.moreTitle)).closest('summary') as HTMLElement
+      expect(summary).toHaveTextContent(`${text.moreAddress}, ${text.moreMessage}, Français`)
+    })
+
+    it('opens the folded group of the text when the server refuses something inside it', async () => {
+      const save = vi.fn(async () => {
+        throw new ApiError(400, 'guestInvite.addressTooLong')
+      })
+      render(answering(aGuestInviteHost(), { saveGuestInvite: save }))
+      const form = await screen.findByRole('form', { name: text.formTitle })
+
+      await touch(form)
+
+      const details = (await screen.findByText(text.moreTitle)).closest('details') as HTMLElement
+      await waitFor(() => expect(details).toHaveAttribute('open'))
+    })
+
+    it('keeps a folded group open when the host comes back from a panel', async () => {
+      render(answering(ON))
+      await userEvent.click(await screen.findByText(text.moreTitle))
+      await userEvent.click(await door(asked.title))
+      await userEvent.click(await screen.findByRole('button', { name: fr.app.close }))
+
+      const details = (await screen.findByText(text.moreTitle)).closest('details') as HTMLElement
+      expect(details).toHaveAttribute('open')
+    })
+  })
+
   describe('the formats', () => {
     it('moves between the four tabs with the arrow keys, and lands on the one it names', async () => {
-      render(answering(ON))
+      render(answering(ON), 'fr', '?panel=partage')
       const print = await screen.findByRole('tab', { name: text.tabPrint })
       expect(print).toHaveAttribute('aria-selected', 'true')
 
@@ -666,7 +808,7 @@ describe('InvitationsPage', () => {
     })
 
     it('names its panel after the tab that is open', async () => {
-      render(answering(ON))
+      render(answering(ON), 'fr', '?panel=partage')
 
       await userEvent.click(await screen.findByRole('tab', { name: text.tabEmail }))
 
@@ -674,7 +816,7 @@ describe('InvitationsPage', () => {
     })
 
     it('lets a host look at each tab while locked, and the panel says why it is empty on each', async () => {
-      render(answering(aGuestInviteHost()))
+      render(answering(aGuestInviteHost()), 'fr', '?panel=partage')
       await screen.findByRole('tab', { name: text.tabPrint })
 
       await userEvent.click(screen.getByRole('tab', { name: text.tabEmail }))
@@ -683,11 +825,11 @@ describe('InvitationsPage', () => {
         'aria-selected',
         'true',
       )
-      expect(screen.getByRole('tabpanel')).toHaveTextContent(text.locked)
+      expect(screen.getByRole('tabpanel')).toHaveTextContent(text.shareLocked)
     })
 
     it('goes to the first and the last tab with Home and End', async () => {
-      render(answering(ON))
+      render(answering(ON), 'fr', '?panel=partage')
       const print = await screen.findByRole('tab', { name: text.tabPrint })
       print.focus()
 
@@ -705,7 +847,7 @@ describe('InvitationsPage', () => {
     })
 
     it('says a tab controls a panel only for the tab whose panel is in the page', async () => {
-      render(answering(ON))
+      render(answering(ON), 'fr', '?panel=partage')
       await screen.findByRole('tabpanel')
 
       const controlling = screen
@@ -730,10 +872,9 @@ describe('InvitationsPage', () => {
     const guest = fr.rsvp.guest
 
     it('shows the panel under the look, and no answering block in the preview while replies are not asked', async () => {
-      render(answering(ON))
+      render(answering(ON), 'fr', '?panel=reponses')
 
       expect(await screen.findByRole('heading', { name: new RegExp(asked.title) })).toBeVisible()
-      await userEvent.click(screen.getByRole('tab', { name: text.tabGuest }))
 
       expect(screen.getByRole('group', { name: text.guestPreviewLabel })).not.toHaveTextContent(
         guest.title,
@@ -742,9 +883,8 @@ describe('InvitationsPage', () => {
 
     it('puts the answering block in the preview, open on a "yes", as the host switches replies on and chooses what to ask', async () => {
       const saveRsvpForm = vi.fn(async () => ({ rsvpForm: aRsvpSettings({ enabled: true }) }))
-      render(answering(ON, { saveRsvpForm }))
-      await userEvent.click(await screen.findByRole('tab', { name: text.tabGuest }))
-      const frame = screen.getByRole('group', { name: text.guestPreviewLabel })
+      render(answering(ON, { saveRsvpForm }), 'fr', '?panel=reponses')
+      const frame = await screen.findByRole('group', { name: text.guestPreviewLabel })
 
       await userEvent.click(await screen.findByRole('checkbox', { name: asked.askLabel }))
 
@@ -767,6 +907,8 @@ describe('InvitationsPage', () => {
             rsvpForm: aRsvpSettings({ invited: false, state: null, closesAt: null }),
           })),
         }),
+        'fr',
+        '?panel=reponses',
       )
 
       expect(
