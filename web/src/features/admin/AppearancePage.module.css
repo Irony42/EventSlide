@@ -151,7 +151,10 @@
     max-block-size: none;
     overflow-y: visible;
     margin-block-end: var(--space-4);
-    padding-block: var(--space-2);
+    /* Edge to edge over the host shell's inline padding (`AppShell.module.css`, `.host`), or the
+       settings scrolling under the strip show in the two gutters beside it. */
+    margin-inline: calc(-1 * var(--space-5));
+    padding: var(--space-2) var(--space-5);
     background: var(--surface-base);
     border-block-end: 1px solid var(--border-subtle);
   }
