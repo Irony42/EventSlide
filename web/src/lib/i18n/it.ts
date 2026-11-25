@@ -3551,8 +3551,7 @@ export const it: UiText = {
       summaryNone: 'no',
       summaryOneMoment: 'uno solo',
       summaryNoLimit: 'senza limite',
-      summaryPlaces: (count: number) =>
-        `${count} ${count === 1 ? 'posto' : 'posti'}`,
+      summaryPlaces: (count: number) => `${count} ${count === 1 ? 'posto' : 'posti'}`,
       summaryNothingShown: 'niente di visibile',
       summaryCountShown: 'numero visibile',
       summaryNamesShown: 'nomi visibili',

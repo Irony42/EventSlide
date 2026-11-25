@@ -4268,8 +4268,7 @@ export const fr = {
       summaryNone: 'non',
       summaryOneMoment: 'un seul',
       summaryNoLimit: 'sans limite',
-      summaryPlaces: (count: number) =>
-        `${count} ${count === 1 ? 'place' : 'places'}`,
+      summaryPlaces: (count: number) => `${count} ${count === 1 ? 'place' : 'places'}`,
       summaryNothingShown: 'rien de visible',
       summaryCountShown: 'nombre visible',
       summaryNamesShown: 'prénoms visibles',

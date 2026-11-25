@@ -782,11 +782,13 @@ describe('the replies settings panel: the folded lines', () => {
       capacity,
     })
     const one = render(answering({ form: form(1) }))
-    expect(await screen.findByText(/^1 place(?!s)/)).toBeInTheDocument()
+    expect(await screen.findByText((line) => line.startsWith('1 place '))).toBeInTheDocument()
     one.unmount()
 
     render(answering({ form: form(40) }))
-    expect(await screen.findByText(/^40 places/)).toBeInTheDocument()
+    expect(
+      await screen.findByText((line: string) => line.startsWith('40 places ')),
+    ).toBeInTheDocument()
   })
 
   it('keeps a no-break space around the dot between the limit and what is shown', async () => {
