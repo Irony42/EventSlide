@@ -1439,18 +1439,12 @@ export const fr = {
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,
             because a single choice with four options does not deserve four strings. ---- */
     theme: 'Apparence',
-    themeHint:
-      'Visible par vos invités et sur l’écran de la salle. Les couleurs proposées restent lisibles à dix mètres.',
-    themeAccent: 'Couleur',
     themeAccentNames: {
       violet: 'Couleur de l’ambiance (par défaut)',
       rose: 'Rose',
       azure: 'Bleu',
       teal: 'Turquoise',
     } satisfies Record<CuratedAccent, string>,
-    themeFonts: 'Typographie',
-    /** The honest scope, said once: a guest's phone downloads nothing for this. */
-    themeFontsHint: 'Appliquée à l’écran de la salle uniquement.',
     themeFontsNames: {
       sans: 'Éditoriale',
       serif: 'Classique',
@@ -1462,8 +1456,6 @@ export const fr = {
       round: 'Coins très arrondis',
     } satisfies Record<ThemeFrame, string>,
     themeAmbiance: 'Ambiance',
-    themeAmbianceHint:
-      'L’univers que portent l’écran de vos invités, celui de la salle et les pages de cet évènement dans votre espace.',
     themeAmbianceNames: {
       eventslide: 'EventSlide',
       guinguette: 'Guinguette',
@@ -1474,6 +1466,65 @@ export const fr = {
       noces: 'Noces',
       custom: 'Sur mesure',
     } satisfies Record<ThemeAmbiance, string>,
+
+    /* ---- The Apparence page (/appearance): what guests and the room see, with a preview. ---- */
+    appearance: {
+      title: 'Apparence',
+      lead: 'Ce que voient vos invités sur leur téléphone et sur l’écran de la salle.',
+      imagesTitle: 'Vos images',
+      imagesHelp:
+        'Elles habillent tout ce que voient vos invités. L’aperçu les montre dans l’ambiance choisie.',
+      ambianceTitle: 'Ambiance',
+      ambianceHelp:
+        'Le décor de la soirée : photo de fond, police du nom, couleurs. Cliquez : l’aperçu change tout de suite.',
+      /** One sentence per ambiance, under its picture: what it looks like. */
+      sentences: {
+        eventslide: 'Violet profond et lumière douce, la tenue de la maison.',
+        guinguette: 'Bois, crème et guirlandes d’ampoules : une fête au jardin.',
+        riviera: 'Bleu marine et voile blanche, un soir de bord de mer.',
+        champs: 'Herbes hautes et miel dans la lumière dorée.',
+        bivouac: 'Nuit bleue et braises, un feu de camp sous les étoiles.',
+        cabaret: 'Ébène et or champagne, un rideau de velours.',
+        noces: 'Blanc et ivoire, roses rouges : la seule ambiance claire.',
+        custom: 'Votre fond, clair ou foncé, teinté à votre goût.',
+      } satisfies Record<ThemeAmbiance, string>,
+      /** Who it is for, after the label: `Pour : …`. « Sur mesure » has none. */
+      audiences: {
+        eventslide: 'Va avec tout',
+        guinguette: 'Anniversaire, fête de village',
+        riviera: 'Fête d’été, terrasse',
+        champs: 'Mariage champêtre',
+        bivouac: 'Soirée entre amis',
+        cabaret: 'Gala, soirée habillée',
+        noces: 'Mariage',
+      } satisfies Record<Exclude<ThemeAmbiance, 'custom'>, string>,
+      audience: (audience: string) => `Pour\u00a0: ${audience}`,
+      customCardAction: 'Ouvrir l’éditeur',
+      currentAmbiance: '(ambiance actuelle)',
+      colourTitle: 'Couleur',
+      colourHelp: 'Celle des boutons et de la carte QR. Les quatre restent lisibles à dix mètres.',
+      /** The first swatch: no hue of the host's, the ambiance's own accent. */
+      colourFromAmbiance: 'De l’ambiance',
+      messageTitle: 'Message d’accueil',
+      detailsTitle: 'Détails de l’écran de la salle',
+      fontsLegend: 'Police du nom sur l’écran',
+      fontsAmbiance: 'Celle de l’ambiance',
+      fontsClassic: 'Classique',
+      fontsAmbianceSummary: 'police de l’ambiance',
+      fontsClassicSummary: 'police classique',
+      previewTitle: 'Aperçu',
+      previewWallPhotos: 'Avec des photos',
+      previewWallWaiting: 'Avant les premières photos',
+      previewNote:
+        'Photos d’exemple. Ce que vous changez ici est enregistré et visible tout de suite par vos invités.',
+      previewBig: 'Voir en grand',
+      previewClose: 'Fermer',
+      /** The summary row the settings page keeps in place of the controls. */
+      rowEdit: 'Modifier',
+      rowEditLabel: 'Modifier l’apparence',
+      rowWithLogo: 'avec logo',
+      rowWithoutLogo: 'sans logo',
+    },
 
     /* ---- Event templates (roadmap 3.5). The names of the four evenings, plus the two
             sentences that carry the whole feature: a template is a starting point, and
@@ -1710,8 +1761,6 @@ export const fr = {
       qrOn: 'QR affiché',
       qrOff: 'sans QR',
       sound: 'son à chaque photo',
-      logo: 'avec logo',
-      venuePhoto: 'photo du lieu',
       opensAt: 'Ouverture programmée',
       opensByHand: 'Ouverture à la main',
       closesAt: 'fin programmée',
@@ -2147,7 +2196,7 @@ export const fr = {
     welcomeMessageCount: (count: number, max: number): string => `${count} / ${max}`,
     logo: 'Logo de l’évènement',
     logoHint:
-      'Un logo ou un monogramme, de préférence en PNG sur fond transparent (PNG, JPEG ou WebP). Il apparaît sur la page de vos invités et sur l’écran, jamais sur les photos.',
+      'PNG sur fond transparent de préférence (PNG, JPEG ou WebP). Il apparaît sur la page de vos invités, sur l’écran de la salle, sur l’invitation et au centre du QR code imprimé, jamais sur les photos.',
     logoPreviewAlt: 'Aperçu du logo de l’évènement',
     logoNone: 'Aucun logo pour le moment.',
     logoChoose: 'Choisir un logo',
@@ -2158,8 +2207,6 @@ export const fr = {
     logoRemoved: 'Le logo est retiré.',
     customAmbianceCreate: 'Créer mon ambiance (Sur mesure)',
     customAmbianceEdit: 'Modifier mon ambiance',
-    customAmbianceEntryHint:
-      'Votre propre fond, clair ou foncé, teinté à votre goût : vous le voyez sur de vrais écrans avant d’enregistrer.',
     customAmbianceTitle: 'Votre ambiance Sur mesure',
     customAmbianceCrumb: 'Sur mesure',
     customAmbianceIntro:
@@ -4682,6 +4729,7 @@ export const fr = {
       after: 'Ce que vous gardez de la soirée.',
     },
     sections: {
+      appearance: 'Apparence',
       access: 'QR code et lien',
       print: 'Cartes et affiche',
       invitations: 'Invitations',
@@ -4705,6 +4753,7 @@ export const fr = {
     },
     /** One line under each entry, on the lists of the moments' pages. */
     hints: {
+      appearance: 'L’ambiance, la couleur, le logo',
       access: 'Le code, le lien et le QR code pour entrer',
       print: 'Le QR code à poser sur les tables',
       invitations: 'Le faire-part et son lien',
@@ -4765,6 +4814,7 @@ export const fr = {
   },
 
   titles: {
+    appearance: 'Apparence de l’évènement',
     print: 'Cartes de table et affiche',
     eventBook: 'Livre photo',
     join: 'Rejoindre la soirée',

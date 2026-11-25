@@ -100,6 +100,9 @@ const EventSettingsPage = lazy(async () => ({
   default: (await import('../features/admin/EventSettingsPage')).EventSettingsPage,
 }))
 
+const AppearancePage = lazy(async () => ({
+  default: (await import('../features/admin/AppearancePage')).AppearancePage,
+}))
 const InvitationsPage = lazy(async () => ({
   default: (await import('../features/admin/invitations/InvitationsPage')).InvitationsPage,
 }))
@@ -606,6 +609,10 @@ export function AppRoutes() {
                 <Route
                   path="/admin/events/:slug/stats"
                   element={titled('stats', <EventStatsPage />)}
+                />
+                <Route
+                  path="/admin/events/:slug/appearance"
+                  element={titled('appearance', <AppearancePage />)}
                 />
                 <Route
                   path="/admin/events/:slug/settings"

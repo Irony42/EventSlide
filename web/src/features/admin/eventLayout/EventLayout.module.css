@@ -36,6 +36,13 @@
   }
 }
 
+/* The appearance page's preview wants room beside the settings: the host container widens, the menu stays. */
+@media screen {
+  :global(main):has(.layout.wide) {
+    max-inline-size: var(--container-workshop);
+  }
+}
+
 @media (max-width: 64rem) {
   .layout {
     grid-template-columns: var(--event-nav-rail) minmax(0, 1fr);

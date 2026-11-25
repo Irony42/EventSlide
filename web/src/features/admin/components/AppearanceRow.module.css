@@ -1,0 +1,58 @@
+/* The settings page's one line about the look: as tall as a closed section, and a link out. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  scroll-margin-block-start: var(--space-4);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: 650;
+  line-height: var(--leading-snug);
+}
+
+.summary {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-normal);
+}
+
+.edit {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-2);
+  font-weight: 650;
+}
+
+/* The same chevron as a section's, pointing on. */
+.chevron {
+  inline-size: var(--space-2);
+  block-size: var(--space-2);
+  border-block-end: 2px solid currentColor;
+  border-inline-end: 2px solid currentColor;
+  transform: rotate(-45deg);
+}
+
+@media (max-width: 30rem) {
+  .row {
+    padding: var(--space-4);
+  }
+}

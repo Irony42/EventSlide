@@ -10,7 +10,12 @@ import {
   wallUrl,
 } from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
-import { openSettingsSection, saved } from '../fixtures/settingsPage'
+import {
+  chooseAmbianceCard,
+  openAppearance,
+  openScreenDetails,
+  saved,
+} from '../fixtures/settingsPage'
 import { aBrightPhoto, aPhoto } from '../fixtures/media'
 
 /**
@@ -182,20 +187,18 @@ test.describe('the projected wall @visual', () => {
     slug: string,
     theme: { ambiance?: string; colour?: string; fonts?: string; frame?: string },
   ) => {
-    await host.goto(app.url(`/admin/events/${slug}/settings`))
-    await openSettingsSection(host, 'Apparence')
+    await openAppearance(host, app.url(`/admin/events/${slug}/appearance`))
+    if (theme.fonts !== undefined || theme.frame !== undefined) await openScreenDetails(host)
     await saved(host, async () => {
       if (theme.ambiance !== undefined) {
-        // `exact`: the field's hint also says "ambiance", and a substring match would be two
-        // controls.
-        await host.getByLabel('Ambiance', { exact: true }).selectOption({ label: theme.ambiance })
+        await chooseAmbianceCard(host, theme.ambiance)
       }
       if (theme.colour !== undefined) await host.getByRole('radio', { name: theme.colour }).check()
       if (theme.fonts !== undefined) {
-        await host.getByLabel('Typographie').selectOption({ label: theme.fonts })
+        await host.getByRole('radio', { name: theme.fonts, exact: true }).check()
       }
       if (theme.frame !== undefined) {
-        await host.getByLabel('Cadre des photos').selectOption({ label: theme.frame })
+        await host.getByRole('radio', { name: theme.frame, exact: true }).check()
       }
     })
   }

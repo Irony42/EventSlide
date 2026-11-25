@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { cx } from '../design-system/classNames'
 import { Button } from '../design-system/components/Button'
+import { HostGreeting } from '../design-system/components/HostGreeting'
+import { HostLogo } from '../design-system/components/HostLogo'
 import { themeSurfaceProps } from '../design-system/eventTheme'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { MyPhotos } from '../features/guest-upload/components/MyPhotos'
 import { PhotoPicker } from '../features/guest-upload/components/PhotoPicker'
+import { WallEmptyState } from '../features/wall/components/WallEmptyState'
 import { WallLayouts } from '../features/wall/components/WallLayouts'
 import { WallOverlay } from '../features/wall/components/WallOverlay'
 import type { Slideshow } from '../features/wall/hooks/useSlideshow'
@@ -102,9 +106,16 @@ const GUEST_PHOTOS: readonly GuestPhotoDto[] = [
 ]
 
 type StageStyle = CSSProperties & { readonly '--preview-scale'?: string }
+type PhoneStyle = CSSProperties & { readonly '--phone-scale'?: string }
 
-/** The factor that fits the stage's own width into the frame's. `null` until it is known. */
-const useFitScale = () => {
+/**
+ * The factor that fits the stage's own width into the frame's. `null` until it is known.
+ *
+ * `layout` is what the frames are laid out as: changing it mounts the frames again (the strip, the
+ * column and the row put them in different places), so the measure is taken again on the new elements
+ * and not left watching the ones that are gone.
+ */
+const useFitScale = (layout: string) => {
   const frame = useRef<HTMLDivElement | null>(null)
   const stage = useRef<HTMLDivElement | null>(null)
   const [scale, setScale] = useState<number | null>(null)
@@ -121,9 +132,15 @@ const useFitScale = () => {
     const observer = new ResizeObserver(measure)
     observer.observe(outer)
     return () => observer.disconnect()
-  }, [])
+  }, [layout])
 
   return { frame, stage, scale }
+}
+
+/** What the host says and shows of themselves, as the guest's page and the empty wall carry it. */
+export interface AmbiancePreviewBrand {
+  readonly logoUrl?: string | null | undefined
+  readonly welcomeMessage?: string | null | undefined
 }
 
 export interface AmbiancePreviewProps {
@@ -132,11 +149,32 @@ export interface AmbiancePreviewProps {
   readonly eventName: string
   /** The event's real code and link, so the QR is the one the room would show. */
   readonly join: { readonly code: string; readonly url: string }
+  /**
+   * The event's logo and welcome message, drawn where the real screens draw them: under the intro
+   * on the guest's page, and on the wall while it waits for its first photographs. Left out, the
+   * preview shows neither, as the custom ambiance page always has; given (even empty), the wall
+   * can be switched to that waiting screen, since a logo never shows over the photographs.
+   */
+  readonly brand?: AmbiancePreviewBrand
+  /**
+   * How the frames sit: side by side as they fit (`row`, the custom ambiance page's), one above
+   * the other in a column (`stack`, the appearance page's), or the wall's frame alone with no
+   * caption (`strip`, the small bar above a phone's page).
+   */
+  readonly layout?: 'row' | 'stack' | 'strip'
 }
 
-export function AmbiancePreview({ theme, eventName, join }: AmbiancePreviewProps) {
+export function AmbiancePreview({
+  theme,
+  eventName,
+  join,
+  brand,
+  layout = 'row',
+}: AmbiancePreviewProps) {
   const t = useTranslations()
-  const { frame, stage, scale } = useFitScale()
+  const [wallView, setWallView] = useState<'photos' | 'waiting'>('photos')
+  const { frame, stage, scale } = useFitScale(layout)
+  const { frame: phoneFrameRef, stage: phoneStageRef, scale: phoneScale } = useFitScale(layout)
 
   const guest = themeSurfaceProps(theme, 'guest', { preview: true })
   const wall = themeSurfaceProps(theme, 'wall', { preview: true })
@@ -144,60 +182,36 @@ export function AmbiancePreview({ theme, eventName, join }: AmbiancePreviewProps
     ...wall.style,
     ...(scale === null ? {} : { '--preview-scale': String(scale) }),
   }
+  const phoneStyle: PhoneStyle = phoneScale === null ? {} : { '--phone-scale': String(phoneScale) }
+  const stripped = layout === 'strip'
   const slide: WallItemDto = {
     ...WALL_ITEM,
     caption: t.admin.customPreviewCaption,
     authorName: t.admin.customPreviewAuthor,
   }
 
-  return (
-    <div className={styles['previews']}>
-      <figure className={styles['figure']}>
-        <figcaption className={styles['label']}>{t.admin.customPreviewPhone}</figcaption>
-        {/* `inert` keeps every control in the frame out of the tab order and the pointer's
-            reach: it is a picture of the screen, not the screen. */}
-        <div
-          {...guest}
-          data-template-preview="guest"
-          className={styles['phone']}
-          aria-hidden="true"
-          inert
-        >
-          <div className={styles['guestPage']}>
-            <header className={styles['guestHeader']}>
-              <p className={styles['guestTitle']}>{eventName}</p>
-              <p className={styles['guestIntro']}>{t.upload.intro}</p>
-              <p className={styles['guestSignature']}>
-                {t.upload.signedAs(t.admin.customPreviewAuthor)}
-              </p>
-            </header>
-            <MyPhotos
-              photos={GUEST_PHOTOS}
-              loading={false}
-              error={null}
-              onRetry={noop}
-              onDelete={() => Promise.resolve()}
-            />
-            <div className={styles['composer']}>
-              <PhotoPicker onPick={noop} />
-              <Button variant="primary" size="lg" block>
-                {t.upload.send}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </figure>
+  const waiting = brand !== undefined && wallView === 'waiting'
 
-      <figure className={styles['figure']}>
-        <figcaption className={styles['label']}>{t.admin.customPreviewWall}</figcaption>
-        <div ref={frame} className={styles['wallFrame']} aria-hidden="true" inert>
-          <div
-            {...wall}
-            ref={stage}
-            data-template-preview="wall"
-            className={styles['wallStage']}
-            style={stageStyle}
-          >
+  const wallFrame = (
+    <div ref={frame} className={styles['wallFrame']} aria-hidden="true" inert>
+      <div
+        {...wall}
+        ref={stage}
+        data-template-preview="wall"
+        className={styles['wallStage']}
+        style={stageStyle}
+      >
+        {waiting ? (
+          // The wall before its first photograph: the one place the logo and the welcome message
+          // are drawn on it.
+          <WallEmptyState
+            eventName={eventName}
+            join={join}
+            logoUrl={brand.logoUrl ?? null}
+            welcomeMessage={brand.welcomeMessage ?? null}
+          />
+        ) : (
+          <>
             <WallLayouts
               layout="spotlight"
               items={[slide]}
@@ -206,6 +220,85 @@ export function AmbiancePreview({ theme, eventName, join }: AmbiancePreviewProps
               transitionMs={0}
             />
             <WallOverlay join={join} onDismiss={noop} />
+          </>
+        )}
+      </div>
+    </div>
+  )
+
+  if (stripped) return <div className={styles['strip']}>{wallFrame}</div>
+
+  return (
+    <div className={cx(styles['previews'], layout === 'stack' && styles['stack'])}>
+      <figure className={cx(styles['figure'], styles['wallFigure'])}>
+        <figcaption className={styles['label']}>{t.admin.customPreviewWall}</figcaption>
+        {brand === undefined ? null : (
+          // Outside the frame, which is inert: these two are the only controls of the preview.
+          <div
+            className={styles['views']}
+            role="group"
+            aria-label={t.admin.appearance.previewTitle}
+          >
+            {(['photos', 'waiting'] as const).map((view) => (
+              <button
+                key={view}
+                type="button"
+                className={styles['view']}
+                aria-pressed={wallView === view}
+                onClick={() => setWallView(view)}
+              >
+                {view === 'photos'
+                  ? t.admin.appearance.previewWallPhotos
+                  : t.admin.appearance.previewWallWaiting}
+              </button>
+            ))}
+          </div>
+        )}
+        {wallFrame}
+      </figure>
+
+      <figure className={cx(styles['figure'], styles['phoneFigure'])}>
+        <figcaption className={styles['label']}>{t.admin.customPreviewPhone}</figcaption>
+        <div ref={phoneFrameRef} className={styles['phoneFrame']}>
+          {/* `inert` keeps every control in the frame out of the tab order and the pointer's
+              reach: it is a picture of the screen, not the screen. */}
+          <div
+            {...guest}
+            ref={phoneStageRef}
+            data-template-preview="guest"
+            className={styles['phone']}
+            style={{ ...guest.style, ...phoneStyle }}
+            aria-hidden="true"
+            inert
+          >
+            <div className={styles['guestPage']}>
+              <header className={styles['guestHeader']}>
+                <p className={styles['guestTitle']}>{eventName}</p>
+                <p className={styles['guestIntro']}>{t.upload.intro}</p>
+                {brand === undefined ? null : (
+                  <>
+                    <HostLogo url={brand.logoUrl} eventName={eventName} variant="compact" />
+                    <HostGreeting message={brand.welcomeMessage} variant="compact" />
+                  </>
+                )}
+                <p className={styles['guestSignature']}>
+                  {t.upload.signedAs(t.admin.customPreviewAuthor)}
+                </p>
+              </header>
+              <MyPhotos
+                photos={GUEST_PHOTOS}
+                loading={false}
+                error={null}
+                onRetry={noop}
+                onDelete={() => Promise.resolve()}
+              />
+              <div className={styles['composer']}>
+                <PhotoPicker onPick={noop} />
+                <Button variant="primary" size="lg" block>
+                  {t.upload.send}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </figure>

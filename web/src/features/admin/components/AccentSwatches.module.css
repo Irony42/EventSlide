@@ -1,0 +1,86 @@
+/*
+ * A row of round swatches. The dot carries the event's ambiance and the swatch's own hue (see
+ * `AccentSwatches.tsx`), so `var(--accent)` inside it is the colour the guest's buttons will wear.
+ * The ring and the name are the console's own: they use the page's tokens, never the dot's.
+ */
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.swatch {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: calc(var(--space-10) + var(--space-5));
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  /* Above the picture drawn after it: WebKit hands a click to the topmost box, and a click on the
+     card must reach the radio itself (Playwright's `check()` and a real tap alike). */
+  z-index: 1;
+  cursor: pointer;
+}
+
+.ring {
+  display: grid;
+  place-items: center;
+  padding: var(--space-1);
+  border-radius: var(--radius-full);
+}
+
+.dot {
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+/* The check, in the ink the swatch's own accent asks for; only on the chosen one. */
+.check {
+  display: none;
+  color: var(--accent-contrast);
+}
+
+.swatch:has(.input:checked) .ring {
+  box-shadow: 0 0 0 2px var(--text-primary);
+}
+
+.swatch:has(.input:checked) .check {
+  display: block;
+}
+
+.swatch:has(.input:checked) .name {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.swatch:has(.input:focus-visible) .ring {
+  outline: 2px solid var(--accent);
+  outline-offset: var(--space-2);
+}
+
+.swatch:has(.input:disabled) {
+  cursor: default;
+  opacity: 0.6;
+}

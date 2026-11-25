@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Route, Routes } from 'react-router-dom'
 import { CustomAmbiancePage } from './CustomAmbiancePage'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
@@ -104,7 +105,7 @@ describe('CustomAmbiancePage', () => {
     expect(dressing).toEqual([])
   })
 
-  it('saves ambiance custom with its object and the accent, then returns to settings', async () => {
+  it('saves ambiance custom with its object and the accent', async () => {
     const updateSettings = vi.fn(async (_slug: string, _settings: unknown) =>
       eventWith(CUSTOM_THEME),
     )
@@ -194,5 +195,52 @@ describe('CustomAmbiancePage', () => {
 
     expect(screen.getByText(fr.admin.settingsOwnerOnly)).toBeVisible()
     expect(screen.getByRole('button', { name: fr.app.save })).toBeDisabled()
+  })
+
+  describe('the way back goes to the appearance page, where « Sur mesure » is a card', () => {
+    const renderBetween = (api: Api) =>
+      renderWithProviders(
+        <Routes>
+          <Route path="/admin/events/:slug/settings/ambiance" element={<CustomAmbiancePage />} />
+          <Route path="/admin/events/:slug/appearance" element={<p>the appearance page</p>} />
+          <Route path="/admin/events/:slug/settings" element={<p>the settings page</p>} />
+        </Routes>,
+        { api, route: '/admin/events/camille-et-sacha/settings/ambiance' },
+      )
+
+    it('returns there once the ambiance is saved', async () => {
+      const api = fakeApi({
+        getEvent: vi.fn(async () => eventWith(CUSTOM_THEME)),
+        updateSettings: vi.fn(async () => eventWith(CUSTOM_THEME)),
+      })
+      renderBetween(api)
+      await screen.findByRole('heading', { name: fr.admin.customAmbianceTitle })
+
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      expect(await screen.findByText('the appearance page')).toBeVisible()
+    })
+
+    it('returns there when the host cancels, and saves nothing', async () => {
+      const api = fakeApi({ getEvent: vi.fn(async () => eventWith(CUSTOM_THEME)) })
+      renderBetween(api)
+      await screen.findByRole('heading', { name: fr.admin.customAmbianceTitle })
+
+      await userEvent.click(screen.getByRole('button', { name: fr.app.cancel }))
+
+      expect(await screen.findByText('the appearance page')).toBeVisible()
+      expect(api.updateSettings).not.toHaveBeenCalled()
+    })
+  })
+
+  it('keeps its previews as they were: no logo, no message and no switch between the wall’s two moments', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => eventWith(CUSTOM_THEME)) }))
+    await screen.findByRole('heading', { name: fr.admin.customAmbianceTitle })
+
+    expect(
+      screen.queryByRole('button', { name: fr.admin.appearance.previewWallWaiting }),
+    ).toBeNull()
+    expect(within(phoneFrame() as HTMLElement).queryByTestId('host-logo')).toBeNull()
+    expect(within(phoneFrame() as HTMLElement).queryByTestId('host-greeting')).toBeNull()
   })
 })

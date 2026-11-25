@@ -17,6 +17,8 @@ export interface WelcomeMessageFieldProps {
    */
   readonly onChange: (value: string | null) => void
   readonly disabled: boolean
+  /** A heading above already names the field: its label stays for assistive technology only. */
+  readonly hideLabel?: boolean
 }
 
 /**
@@ -29,12 +31,20 @@ export interface WelcomeMessageFieldProps {
  * The field keeps its own copy while the host types. A new `value` from the server replaces it; a
  * refused save leaves `value` where it was, so what the host typed stays in front of them to fix.
  */
-export function WelcomeMessageField({ value, onChange, disabled }: WelcomeMessageFieldProps) {
+export function WelcomeMessageField({
+  value,
+  onChange,
+  disabled,
+  hideLabel = false,
+}: WelcomeMessageFieldProps) {
   const t = useTranslations()
   const counterId = useId()
   const [text, setText] = useState(value ?? '')
   const [syncedFrom, setSyncedFrom] = useState(value)
-  if (value !== syncedFrom) {
+  // While the host is typing, a server value (the echo of their previous save, or a re-read when the
+  // tab comes back) must not replace the text under their cursor: it waits until they leave the field.
+  const [focused, setFocused] = useState(false)
+  if (value !== syncedFrom && !focused) {
     setSyncedFrom(value)
     setText(value ?? '')
   }
@@ -42,7 +52,12 @@ export function WelcomeMessageField({ value, onChange, disabled }: WelcomeMessag
 
   return (
     <div className={styles['field']}>
-      <Field label={t.admin.welcomeMessage} hint={t.admin.welcomeMessageHint} optional>
+      <Field
+        label={t.admin.welcomeMessage}
+        hint={t.admin.welcomeMessageHint}
+        optional={!hideLabel}
+        hideLabel={hideLabel}
+      >
         {(control) => (
           <Textarea
             {...control}
@@ -53,7 +68,12 @@ export function WelcomeMessageField({ value, onChange, disabled }: WelcomeMessag
             dir="auto"
             aria-describedby={`${control['aria-describedby'] ?? ''} ${counterId}`.trim()}
             onChange={(changed) => setText(changed.target.value)}
+            onFocus={() => setFocused(true)}
             onBlur={() => {
+              setFocused(false)
+              // What the host typed wins over the value that arrived while they typed: it is sent, and
+              // the server's answer to it is what replaces the text next.
+              setSyncedFrom(value)
               if (text !== (value ?? '')) onChange(text)
             }}
           />

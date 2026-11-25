@@ -1449,17 +1449,12 @@ export const it: UiText = {
       testHint: 'Riproduce il suono scelto su questo computer, a questo volume.',
     },
     theme: 'Aspetto',
-    themeHint:
-      'Visibile ai suoi invitati e sullo schermo in sala. I colori proposti restano leggibili a dieci metri.',
-    themeAccent: 'Colore',
     themeAccentNames: {
       violet: 'Colore dell’atmosfera (predefinito)',
       rose: 'Rosa',
       azure: 'Blu',
       teal: 'Turchese',
     },
-    themeFonts: 'Tipografia',
-    themeFontsHint: 'Applicata solo allo schermo in sala.',
     themeFontsNames: {
       sans: 'Editoriale',
       serif: 'Classica',
@@ -1471,8 +1466,6 @@ export const it: UiText = {
       round: 'Angoli molto arrotondati',
     },
     themeAmbiance: 'Atmosfera',
-    themeAmbianceHint:
-      'Il mondo che indossano i telefoni dei vostri ospiti, lo schermo della sala e le pagine di questo evento nel vostro spazio.',
     themeAmbianceNames: {
       eventslide: 'EventSlide',
       guinguette: 'Guinguette',
@@ -1482,6 +1475,66 @@ export const it: UiText = {
       cabaret: 'Cabaret',
       noces: 'Nozze',
       custom: 'Su misura',
+    },
+
+    /* ---- The Apparence page (/appearance): what guests and the room see, with a preview. ---- */
+    appearance: {
+      title: 'Aspetto',
+      lead: 'Ciò che vedono i vostri invitati sul telefono e sullo schermo in sala.',
+      imagesTitle: 'Le vostre immagini',
+      imagesHelp:
+        'Vestono tutto ciò che vedono i vostri invitati. L’anteprima le mostra nell’atmosfera scelta.',
+      ambianceTitle: 'Atmosfera',
+      ambianceHelp:
+        'Lo scenario della serata: foto di sfondo, carattere del nome, colori. Cliccate: l’anteprima cambia subito.',
+      /** One sentence per ambiance, under its picture: what it looks like. */
+      sentences: {
+        eventslide: 'Viola profondo e luce soffusa, lo stile della casa.',
+        guinguette: 'Legno, crema e ghirlande di lampadine: una festa in giardino.',
+        riviera: 'Blu navy e vele bianche, una sera in riva al mare.',
+        champs: 'Erba alta e miele nella luce dorata.',
+        bivouac: 'Notte blu e braci, un falò sotto le stelle.',
+        cabaret: 'Ebano e oro champagne, un sipario di velluto.',
+        noces: 'Bianco e avorio, rose rosse: l’unica atmosfera chiara.',
+        custom: 'Il vostro sfondo, chiaro o scuro, sfumato a vostro gusto.',
+      },
+      /** Who it is for, after the label: `Pour : …`. « Sur mesure » has none. */
+      audiences: {
+        eventslide: 'Va con tutto',
+        guinguette: 'Compleanno, festa di paese',
+        riviera: 'Festa d’estate, terrazza',
+        champs: 'Matrimonio in campagna',
+        bivouac: 'Serata tra amici',
+        cabaret: 'Gala, serata elegante',
+        noces: 'Matrimonio',
+      },
+      audience: (audience: string) => `Per: ${audience}`,
+      customCardAction: 'Apri l’editor',
+      currentAmbiance: '(ambiente attuale)',
+      colourTitle: 'Colore',
+      colourHelp:
+        'Quello dei pulsanti e della carta QR. Tutti e quattro restano leggibili a dieci metri.',
+      /** The first swatch: no hue of the host's, the ambiance's own accent. */
+      colourFromAmbiance: 'Dell’atmosfera',
+      messageTitle: 'Messaggio di benvenuto',
+      detailsTitle: 'Dettagli dello schermo in sala',
+      fontsLegend: 'Carattere del nome sullo schermo',
+      fontsAmbiance: 'Quello dell’atmosfera',
+      fontsClassic: 'Classico',
+      fontsAmbianceSummary: 'carattere dell’atmosfera',
+      fontsClassicSummary: 'carattere classico',
+      previewTitle: 'Anteprima',
+      previewWallPhotos: 'Con foto',
+      previewWallWaiting: 'Prima delle prime foto',
+      previewNote:
+        'Foto di esempio. Ciò che cambiate qui viene salvato ed è subito visibile ai vostri invitati.',
+      previewBig: 'Ingrandisci',
+      previewClose: 'Chiudi',
+      /** The summary row the settings page keeps in place of the controls. */
+      rowEdit: 'Modifica',
+      rowEditLabel: 'Modifica l’aspetto',
+      rowWithLogo: 'con logo',
+      rowWithoutLogo: 'senza logo',
     },
     template: 'Tipo di evento',
     templateHint:
@@ -1671,8 +1724,6 @@ export const it: UiText = {
       qrOn: 'QR visibile',
       qrOff: 'senza QR',
       sound: 'suono a ogni foto',
-      logo: 'con logo',
-      venuePhoto: 'foto del luogo',
       opensAt: 'Apertura programmata',
       opensByHand: 'Apertura a mano',
       closesAt: 'chiusura programmata',
@@ -2061,7 +2112,7 @@ export const it: UiText = {
     welcomeMessageCount: (count, max) => `${count} / ${max}`,
     logo: 'Logo dell’evento',
     logoHint:
-      'Un logo o monogramma, preferibilmente un PNG con sfondo trasparente (PNG, JPEG o WebP). Compare sulla pagina dei vostri invitati e sullo schermo, mai sulle foto.',
+      'Meglio un PNG con sfondo trasparente (PNG, JPEG o WebP). Compare sulla pagina dei vostri invitati, sullo schermo in sala, sull’invito e al centro del codice QR stampato, mai sulle foto.',
     logoPreviewAlt: 'Anteprima del logo dell’evento',
     logoNone: 'Ancora nessun logo.',
     logoChoose: 'Scegli un logo',
@@ -2072,8 +2123,6 @@ export const it: UiText = {
     logoRemoved: 'Il logo è stato rimosso.',
     customAmbianceCreate: 'Crea la mia atmosfera (Su misura)',
     customAmbianceEdit: 'Modifica la mia atmosfera',
-    customAmbianceEntryHint:
-      'Il tuo sfondo, chiaro o scuro, con la tinta che preferisci: lo vedi su schermi reali prima di salvare.',
     customAmbianceTitle: 'La tua atmosfera su misura',
     customAmbianceCrumb: 'Su misura',
     customAmbianceIntro:
@@ -3957,6 +4006,7 @@ export const it: UiText = {
       after: 'Ciò che conservi della festa.',
     },
     sections: {
+      appearance: 'Aspetto',
       access: 'QR code e link',
       print: 'Biglietti e locandina',
       invitations: 'Inviti',
@@ -3980,6 +4030,7 @@ export const it: UiText = {
     },
     /** One line under each entry, on the lists of the moments' pages. */
     hints: {
+      appearance: 'Atmosfera, colore e logo',
       access: 'Il codice, il link e il QR per entrare',
       print: 'Il QR code per i tavoli',
       invitations: 'L’invito e il suo link',
@@ -4040,6 +4091,7 @@ export const it: UiText = {
   },
 
   titles: {
+    appearance: 'Aspetto dell’evento',
     print: 'Segnaposto e locandina',
     eventBook: 'Fotolibro',
     join: 'Entri nella serata',

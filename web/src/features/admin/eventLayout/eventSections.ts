@@ -20,6 +20,7 @@ import { allowsModeration, canManageEvent, linksToWall } from '../../../lib/even
 export type EventMoment = 'before' | 'during' | 'after'
 
 export type EventSection =
+  | 'appearance'
   | 'access'
   | 'print'
   | 'invitations'
@@ -58,6 +59,7 @@ export interface EventSectionFacts {
 export type SectionKind = 'page' | 'console' | 'wall'
 
 export const SECTION_KIND: Readonly<Record<EventSection, SectionKind>> = {
+  appearance: 'page',
   access: 'page',
   print: 'page',
   invitations: 'page',
@@ -82,6 +84,7 @@ export const SECTION_KIND: Readonly<Record<EventSection, SectionKind>> = {
 
 /** The last segment of each section's address. Addresses are English, like the rest of the router. */
 export const SECTION_PATH: Readonly<Record<Exclude<EventSection, 'wall'>, string>> = {
+  appearance: 'appearance',
   access: 'access',
   print: 'print',
   invitations: 'invitations',
@@ -123,6 +126,7 @@ export const momentOf = (status: EventStatus): EventMoment =>
 
 /** The moment each section belongs to; the settings belong to none and sit apart. */
 export const SECTION_MOMENT: Readonly<Record<Exclude<EventSection, 'settings'>, EventMoment>> = {
+  appearance: 'before',
   access: 'before',
   print: 'before',
   invitations: 'before',
@@ -151,7 +155,9 @@ const catalogue = (
   const owner = canManageEvent(facts.role)
   const inUse = facts.status !== 'archived'
   return [
-    // Getting ready: the way in for the guests, then what is printed and sent, then the helpers.
+    // Getting ready: how the event looks (the owner's), the way in for the guests, then what is
+    // printed and sent, then the helpers.
+    ['appearance', owner],
     ['access', true],
     ['print', inUse],
     ['invitations', owner && inUse],

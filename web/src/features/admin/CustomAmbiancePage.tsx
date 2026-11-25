@@ -84,7 +84,8 @@ export function CustomAmbiancePage() {
   const archived = !isMutable(event.status)
   const ownerOnly = event.role !== 'owner'
   const readOnly = archived || ownerOnly
-  const settingsPath = `/admin/events/${encodeURIComponent(slug)}/settings`
+  // Back to the page that offers it: the appearance page, where « Sur mesure » is a card.
+  const appearancePath = `/admin/events/${encodeURIComponent(slug)}/appearance`
   const theme = draftTheme(event.settings.theme, draft.custom, draft.accentHue)
 
   // A refusal is about the draft it was given; once the host moves anything it is stale.
@@ -105,7 +106,7 @@ export function CustomAmbiancePage() {
       }
       replace(result.value)
       toast.show(t.admin.customSaved, { tone: 'success' })
-      navigate(settingsPath)
+      navigate(appearancePath)
     })
   }
 
@@ -240,7 +241,7 @@ export function CustomAmbiancePage() {
             <Button type="submit" variant="primary" loading={save.busy} disabled={readOnly}>
               {t.app.save}
             </Button>
-            <Button variant="ghost" onClick={() => navigate(settingsPath)}>
+            <Button variant="ghost" onClick={() => navigate(appearancePath)}>
               {t.app.cancel}
             </Button>
           </div>

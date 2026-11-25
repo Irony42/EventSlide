@@ -3,6 +3,7 @@ import type { EventMoment, EventSection } from './eventSections'
 
 /** Each section's glyph, drawn once in `EventActionIcon`. */
 export const SECTION_GLYPH: Readonly<Record<EventSection, EventActionGlyph>> = {
+  appearance: 'appearance',
   access: 'access',
   print: 'print',
   invitations: 'invitations',

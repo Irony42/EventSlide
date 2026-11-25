@@ -1,0 +1,176 @@
+/*
+ * The appearance page: the settings on the left, a sticky preview on the right (a laptop), and on a
+ * phone the preview is a small bar stuck to the top of the screen. The groups are told apart by
+ * whitespace and a hairline, with no card round each: only what is chosen has a frame of its own.
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.status {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.status[data-state='saved'] {
+  color: var(--success);
+}
+
+.lead {
+  margin: 0 0 var(--space-4);
+  max-inline-size: 62ch;
+  color: var(--text-secondary);
+  line-height: var(--leading-normal);
+}
+
+.notice {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.work {
+  display: grid;
+  grid-template-columns: minmax(0, 44rem) minmax(20rem, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.settings {
+  min-inline-size: 0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-5);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.group:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.groupTitle {
+  font-size: var(--text-lg);
+}
+
+.help {
+  margin: 0 0 var(--space-3);
+  max-inline-size: 62ch;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-normal);
+}
+
+/* The logo and the photograph of the venue side by side; the photograph's frame is the wider. */
+.images {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.preview {
+  position: sticky;
+  inset-block-start: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  /* Taller than the window (a short laptop): the column scrolls by itself instead of being cut. */
+  max-block-size: calc(100dvh - var(--space-6));
+  overflow-y: auto;
+}
+
+.previewHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.previewTitle {
+  font-size: var(--text-base);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: var(--leading-normal);
+}
+
+/* A small laptop: the preview narrows to what it needs. */
+@media (max-width: 80rem) {
+  .work {
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+    gap: var(--space-6);
+  }
+}
+
+/* A phone: one column, and the preview becomes a bar that stays under the thumb's eye while the
+   settings scroll past it. The same value as `NARROW` in `AppearancePage.tsx`. */
+@media (max-width: 56rem) {
+  /* A column of flex, not a grid: a sticky item sticks within its parent, and a grid item's parent is
+     only its own row. */
+  .work {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings {
+    order: 2;
+  }
+
+  .preview {
+    order: 1;
+    z-index: var(--z-nav);
+    inset-block-start: 0;
+    max-block-size: none;
+    overflow-y: visible;
+    margin-block-end: var(--space-4);
+    /* Edge to edge over the host shell's inline padding (`AppShell.module.css`, `.host`), or the
+       settings scrolling under the strip show in the two gutters beside it. */
+    margin-inline: calc(-1 * var(--space-5));
+    padding: var(--space-2) var(--space-5);
+    background: var(--surface-base);
+    border-block-end: 1px solid var(--border-subtle);
+  }
+
+  .help,
+  .lead {
+    font-size: var(--text-base);
+  }
+
+  .images {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The whole preview in a dialog is taller than a phone: the dialog scrolls, the page behind it does not. */
+.dialog {
+  max-block-size: calc(100dvh - var(--space-5));
+  overflow-y: auto;
+}
