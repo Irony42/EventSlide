@@ -230,6 +230,11 @@ export interface InvitationSaveStatusProps {
   readonly state: InvitationSaveState
   readonly problem: InvitationProblem | null
   readonly onRetry: () => void
+  /**
+   * In a panel, where the form is out of sight: a refusal that belongs to a field says which one
+   * (« Adresse : … ») and can be tried again from here.
+   */
+  readonly named?: boolean
 }
 
 /**
@@ -237,8 +242,21 @@ export interface InvitationSaveStatusProps {
  * is open: "Enregistrement…" then "Enregistré" (a polite live region), the refusal of the whole
  * when it is about no field, and a way to try again.
  */
-export function InvitationSaveStatus({ state, problem, onRetry }: InvitationSaveStatusProps) {
+export function InvitationSaveStatus({
+  state,
+  problem,
+  onRetry,
+  named = false,
+}: InvitationSaveStatusProps) {
   const text = useTranslations().guestInvite.host
+  const fieldNames: Readonly<Record<FormField, string>> = {
+    title: text.titleLabel,
+    start: text.startLabel,
+    end: text.endLabel,
+    venueName: text.venueLabel,
+    address: text.addressLabel,
+    message: text.messageLabel,
+  }
   return (
     <div className={styles['saveBlock']}>
       <div className={styles['saveLine']} role="status" aria-live="polite" data-state={state}>
@@ -250,12 +268,14 @@ export function InvitationSaveStatus({ state, problem, onRetry }: InvitationSave
               ? text.saveFailed
               : null}
       </div>
-      {problem === null || problem.field !== null ? null : (
+      {problem === null || (problem.field !== null && !named) ? null : (
         <Notice tone="danger" variant="boxed" role="alert">
-          {problem.message}
+          {problem.field === null
+            ? problem.message
+            : text.fieldProblem(fieldNames[problem.field], problem.message)}
         </Notice>
       )}
-      {state === 'failed' ? (
+      {state === 'failed' || (named && state === 'invalid') ? (
         <Button size="sm" onClick={onRetry}>
           {text.saveRetry}
         </Button>

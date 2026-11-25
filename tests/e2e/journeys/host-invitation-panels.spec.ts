@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures/app'
 import { invitedHost } from '../fixtures/invitation'
-import { repliesPanel, sharePanel } from '../fixtures/invitationPanels'
+import { closePanel, openReplies, repliesPanel, sharePanel } from '../fixtures/invitationPanels'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
@@ -14,11 +14,10 @@ import { fr } from '../../../web/src/lib/i18n/fr'
 const text = fr.guestInvite.host
 const asked = fr.rsvp.host
 
-// Playwright insists on a destructured first argument.
-// eslint-disable-next-line no-empty-pattern
-test.beforeEach(({}, testInfo) => {
-  test.skip(testInfo.project.name !== 'chromium-desktop', 'the desktop run')
-})
+/** The layouts that only a laptop has (a fixed-height workspace) are not asked of a phone. */
+const laptopOnly = (projectName: string) => {
+  test.skip(projectName !== 'chromium-desktop', 'the laptop layout')
+}
 
 test('a door opens its panel in place of the column, the address says so, and the preview follows', async ({
   app,
@@ -85,7 +84,8 @@ test('a door opens its panel in place of the column, the address says so, and th
 test('the preview stays in view while the column or a panel scrolls, and the page does not scroll', async ({
   app,
   surfaces,
-}) => {
+}, testInfo) => {
+  laptopOnly(testInfo.project.name)
   const { host } = surfaces
   const { event } = await invitedHost(host, app, 'panneaux-defilement')
   await host.setViewportSize({ width: 1440, height: 760 })
@@ -164,4 +164,91 @@ test('the colour is one row of six and a "+6": the rest, and a free colour, are 
   await expect(row.getByRole('radio', { checked: true })).toHaveAccessibleName(
     fr.admin.printSwatchNames.charcoal,
   )
+})
+
+test('closing a panel the host opened is one step back: Back does not reopen it', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const { event } = await invitedHost(host, app, 'panneaux-retour')
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+
+  await openReplies(host)
+  await closePanel(host)
+  await expect(host).not.toHaveURL(/panel=/)
+  await host.goBack()
+
+  await expect(host).not.toHaveURL(/panel=/)
+  await expect(repliesPanel(host)).toHaveCount(0)
+})
+
+test('on a phone the preview stays pinned while the panel scrolls, and the footer stays in reach', async ({
+  app,
+  surfaces,
+}, testInfo) => {
+  test.skip(testInfo.project.name === 'chromium-desktop', 'the phone layout')
+  const { host } = surfaces
+  const { event } = await invitedHost(host, app, 'panneaux-telephone')
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+  const preview = host.getByTestId('invite-preview')
+
+  // The card's own screen: the pane is pinned while the column scrolls.
+  await host.evaluate(() => window.scrollBy(0, 700))
+  await expect(preview).toBeInViewport()
+  await host.evaluate(() => window.scrollTo(0, 0))
+
+  // A panel: the same, and its footer is under the thumb.
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations?panel=reponses`))
+  await host.getByRole('checkbox', { name: asked.askLabel }).check()
+  await host.locator('summary', { hasText: asked.groupMeals }).click()
+  await host.evaluate(() => window.scrollBy(0, 900))
+  await expect(preview).toBeInViewport()
+  await expect(repliesPanel(host).locator('[data-panel-footer]')).toBeInViewport()
+  const overflow = await host.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
+  expect(overflow).toBeLessThanOrEqual(0)
+})
+
+test('the colour popover is brought into view in the scrolling column of a 1280×720 laptop', async ({
+  app,
+  surfaces,
+}, testInfo) => {
+  laptopOnly(testInfo.project.name)
+  const { host } = surfaces
+  const { event } = await invitedHost(host, app, 'panneaux-popover')
+  await host.setViewportSize({ width: 1280, height: 720 })
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+
+  await host.getByRole('button', { name: text.colourMore }).click()
+
+  await expect(host.locator('[data-popover]')).toBeInViewport({ ratio: 1 })
+  // Tab past it: it closes.
+  await host.keyboard.press('Tab')
+  await host.keyboard.press('Tab')
+  await host.keyboard.press('Tab')
+  await host.keyboard.press('Tab')
+  await expect(host.locator('[data-popover]')).toHaveCount(0)
+})
+
+test('the workspace is sized from the real head: the preview is in the window with an inactive invitation too', async ({
+  app,
+  surfaces,
+}, testInfo) => {
+  laptopOnly(testInfo.project.name)
+  const { host } = surfaces
+  // A plain event: no invitation yet, so the link's bar has its longest sentence.
+  const event = await app.seedEvent({ slug: 'panneaux-inactive', name: 'Léa fête ses 40 ans' })
+  const inWindow = async (width: number, height: number) => {
+    await host.setViewportSize({ width, height })
+    await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
+    const box = await host.getByTestId('invite-preview').boundingBox()
+    expect(box, `${width}×${height}`).not.toBeNull()
+    expect((box?.y ?? 0) + (box?.height ?? 0), `${width}×${height}`).toBeLessThanOrEqual(height)
+  }
+
+  await inWindow(1280, 720)
+  await inWindow(1000, 700)
+  await inWindow(1440, 900)
 })

@@ -3309,7 +3309,9 @@ export const es: UiText = {
       entryShareSummary: 'Tarjeta, imagen, correo, página del invitado',
       shareLocked: 'Añade la fecha y activa la invitación para poder compartir e imprimir.',
       repliesSummary: (until: string | null, options: number) =>
-        `${until === null ? 'Pedidas' : `Pedidas hasta el ${until}`} · ${options} ${options === 1 ? 'opción' : 'opciones'}`,
+        `${until === null ? 'Pedidas' : `Pedidas hasta el ${until}`}\u00a0·\u00a0${options} ${options === 1 ? 'opción' : 'opciones'}`,
+      fieldProblem: (field: string, message: string) => `${field}: ${message}`,
+      repliesUnavailable: 'Ajustes no cargados',
       statusOn: 'Invitación activa',
       statusOff: 'Invitación desactivada',
       statusBarLabel: 'Enlace de la invitación',
@@ -3578,7 +3580,8 @@ export const es: UiText = {
       summaryNone: 'no',
       summaryOneMoment: 'solo uno',
       summaryNoLimit: 'sin límite',
-      summaryPlaces: (count: number) => `${count} plazas`,
+      summaryPlaces: (count: number) =>
+        `${count} ${count === 1 ? 'plaza' : 'plazas'}`,
       summaryNothingShown: 'nada visible',
       summaryCountShown: 'número visible',
       summaryNamesShown: 'nombres visibles',

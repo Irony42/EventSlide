@@ -10,6 +10,8 @@ export interface SidePanelProps {
   readonly onClose: () => void
   /** The panel was opened by the host (not by a reload on its address): the focus goes to its title. */
   readonly focusOnMount?: boolean
+  /** Called once the title has the focus: the caller stops asking, so a redraw does not steal it again. */
+  readonly onFocused?: () => void
   readonly children: ReactNode
   /** The save indicator, and the primary action when there is one: it stays in reach while the body scrolls. */
   readonly footer?: ReactNode
@@ -26,17 +28,20 @@ export function SidePanel({
   title,
   onClose,
   focusOnMount = false,
+  onFocused,
   children,
   footer,
 }: SidePanelProps) {
   const t = useTranslations()
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
-    if (focusOnMount) heading.current?.focus()
-  }, [focusOnMount])
+    if (!focusOnMount) return
+    heading.current?.focus()
+    onFocused?.()
+  }, [focusOnMount, onFocused])
 
   // Escape closes the panel wherever the focus is on the page (a reload on its address leaves it on
-  // the body), unless a dialog or an open popup is the one that is listening.
+  // the body), unless a dialog is the one that is listening.
   const close = useRef(onClose)
   useEffect(() => {
     close.current = onClose
@@ -45,7 +50,7 @@ export function SidePanel({
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return
       const target = event.target instanceof Element ? event.target : null
-      if (target?.closest('dialog, [role="dialog"], [aria-expanded="true"]') != null) return
+      if (target?.closest('dialog, [role="dialog"]') != null) return
       if (document.querySelector('dialog[open]') !== null) return
       close.current()
     }

@@ -35,6 +35,7 @@ export function PrintTab({
   preferences,
   onPreferences,
   photoUrl,
+  cardOnly = false,
   children,
 }: OutputProps) {
   const t = useTranslations()
@@ -213,8 +214,19 @@ export function PrintTab({
   )
 
   const preview = (
-    <div className={styles['sheet']} data-invite-sheet>
-      <PreviewBox ratio={format === 'a5' ? [297, 210] : [210, 297]} label={text.previewLabel}>
+    <div className={styles['sheet']} {...(cardOnly ? {} : { 'data-invite-sheet': '' })}>
+      <PreviewBox
+        ratio={
+          cardOnly
+            ? format === 'a5'
+              ? [148, 210]
+              : [105, 148]
+            : format === 'a5'
+              ? [297, 210]
+              : [210, 297]
+        }
+        label={text.previewLabel}
+      >
         <PrintSheet
           eventName={event.name}
           joinUrl={invite.url}
@@ -232,7 +244,8 @@ export function PrintTab({
           focusX={focusX}
           focusY={focusY}
           invitation={invitation}
-          households={perHousehold && cards.length > 0 ? cards : undefined}
+          single={cardOnly}
+          households={!cardOnly && perHousehold && cards.length > 0 ? cards : undefined}
         />
       </PreviewBox>
     </div>

@@ -3,8 +3,6 @@ import styles from './PanelEntry.module.css'
 
 export interface PanelEntryProps {
   readonly id: string
-  /** The panel this opens, for `aria-controls`. */
-  readonly controls: string
   readonly icon: IconName
   readonly title: string
   /** One line: what the panel holds now. */
@@ -14,20 +12,12 @@ export interface PanelEntryProps {
 
 /**
  * A door to a panel, on the card's screen: an icon, the panel's name and **one line of what it
- * holds** ("Demandées jusqu'au 6 déc. · 4 options"). The panel is not in the page while it is
- * closed, so `aria-expanded` is always false here: it is the panel that, once open, replaces the
- * column this button is in.
+ * holds** ("Demandées jusqu'au 6 déc. · 4 options"), cut with an ellipsis when it is long. It is
+ * a navigation button, not a disclosure: the panel replaces the column this button is in.
  */
-export function PanelEntry({ id, controls, icon, title, summary, onOpen }: PanelEntryProps) {
+export function PanelEntry({ id, icon, title, summary, onOpen }: PanelEntryProps) {
   return (
-    <button
-      id={id}
-      type="button"
-      className={styles['entry']}
-      aria-expanded="false"
-      aria-controls={controls}
-      onClick={onOpen}
-    >
+    <button id={id} type="button" className={styles['entry']} onClick={onOpen}>
       <span className={styles['icon']}>
         <Icon name={icon} />
       </span>

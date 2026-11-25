@@ -3990,7 +3990,9 @@ export const fr = {
       entryShareSummary: 'Carte, image, e-mail, page de l’invité',
       shareLocked: 'Ajoutez la date et activez l’invitation pour pouvoir partager et imprimer.',
       repliesSummary: (until: string | null, options: number) =>
-        `${until === null ? 'Demandées' : `Demandées jusqu’au ${until}`} · ${options} ${options === 1 ? 'option' : 'options'}`,
+        `${until === null ? 'Demandées' : `Demandées jusqu’au ${until}`}\u00a0·\u00a0${options} ${options === 1 ? 'option' : 'options'}`,
+      fieldProblem: (field: string, message: string) => `${field}\u00a0: ${message}`,
+      repliesUnavailable: 'Réglages non chargés',
       statusOn: 'Invitation active',
       statusOff: 'Invitation désactivée',
       statusBarLabel: 'Lien de l’invitation',
@@ -4266,7 +4268,8 @@ export const fr = {
       summaryNone: 'non',
       summaryOneMoment: 'un seul',
       summaryNoLimit: 'sans limite',
-      summaryPlaces: (count: number) => `${count} places`,
+      summaryPlaces: (count: number) =>
+        `${count} ${count === 1 ? 'place' : 'places'}`,
       summaryNothingShown: 'rien de visible',
       summaryCountShown: 'nombre visible',
       summaryNamesShown: 'prénoms visibles',

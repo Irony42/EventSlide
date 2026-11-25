@@ -3282,7 +3282,9 @@ export const it: UiText = {
       entryShareSummary: 'Biglietto, immagine, e-mail, pagina dell’invitato',
       shareLocked: 'Aggiungi la data e attiva l’invito per poter condividere e stampare.',
       repliesSummary: (until: string | null, options: number) =>
-        `${until === null ? 'Richieste' : `Richieste fino al ${until}`} · ${options} ${options === 1 ? 'opzione' : 'opzioni'}`,
+        `${until === null ? 'Richieste' : `Richieste fino al ${until}`}\u00a0·\u00a0${options} ${options === 1 ? 'opzione' : 'opzioni'}`,
+      fieldProblem: (field: string, message: string) => `${field}: ${message}`,
+      repliesUnavailable: 'Impostazioni non caricate',
       statusOn: 'Invito attivo',
       statusOff: 'Invito disattivato',
       statusBarLabel: 'Link dell’invito',
@@ -3549,7 +3551,8 @@ export const it: UiText = {
       summaryNone: 'no',
       summaryOneMoment: 'uno solo',
       summaryNoLimit: 'senza limite',
-      summaryPlaces: (count: number) => `${count} posti`,
+      summaryPlaces: (count: number) =>
+        `${count} ${count === 1 ? 'posto' : 'posti'}`,
       summaryNothingShown: 'niente di visibile',
       summaryCountShown: 'numero visibile',
       summaryNamesShown: 'nomi visibili',

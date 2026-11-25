@@ -81,6 +81,10 @@ export function CardColourPicker({ chosen, eventColour, onColour }: CardColourPi
   useEffect(() => {
     if (!open) return
     root.current?.querySelector<HTMLElement>('[data-grid] [role="radio"][tabindex="0"]')?.focus()
+    // The column scrolls: the popover is brought into view, not left under its edge.
+    root.current
+      ?.querySelector<HTMLElement>('[data-popover]')
+      ?.scrollIntoView?.({ block: 'nearest' })
   }, [open])
 
   /** Arrows choose the neighbour (wrapping) and keep the focus on it. */
@@ -92,9 +96,14 @@ export function CardColourPicker({ chosen, eventColour, onColour }: CardColourPi
         : key === 'ArrowLeft' || key === 'ArrowUp'
           ? -1
           : 0
-    if (step === 0) return
+    if (step === 0 && key !== 'Home' && key !== 'End') return
     event.preventDefault()
-    const target = list[(from + step + list.length) % list.length]
+    const target =
+      key === 'Home'
+        ? list[0]
+        : key === 'End'
+          ? list[list.length - 1]
+          : list[(from + step + list.length) % list.length]
     if (target === undefined) return
     onColour(target.value)
     const group = event.currentTarget.closest('[role="radiogroup"]')
@@ -137,6 +146,11 @@ export function CardColourPicker({ chosen, eventColour, onColour }: CardColourPi
     <div
       ref={root}
       className={styles['root']}
+      onBlur={(event) => {
+        // The focus went elsewhere on the page (Tab past the popover): it closes, the focus stays there.
+        const next = event.relatedTarget
+        if (open && next instanceof Node && !event.currentTarget.contains(next)) setOpen(false)
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && open) {
           event.stopPropagation()
@@ -157,7 +171,6 @@ export function CardColourPicker({ chosen, eventColour, onColour }: CardColourPi
           type="button"
           className={styles['more']}
           aria-expanded={open}
-          aria-haspopup="true"
           aria-controls={`${ids}-all`}
           aria-label={text.colourMore}
           onClick={() => setOpen((now) => !now)}
@@ -166,12 +179,7 @@ export function CardColourPicker({ chosen, eventColour, onColour }: CardColourPi
         </button>
       </div>
       {open ? (
-        <div
-          id={`${ids}-all`}
-          role="group"
-          aria-label={text.colourAll}
-          className={styles['popover']}
-        >
+        <div id={`${ids}-all`} className={styles['popover']} data-popover>
           <div role="radiogroup" aria-label={text.colourAll} className={styles['grid']} data-grid>
             {entries.map((entry, at) => swatch(entry, entries, at, true))}
           </div>

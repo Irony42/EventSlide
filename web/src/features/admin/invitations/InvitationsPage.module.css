@@ -16,11 +16,8 @@
  */
 
 .page {
-  /* What the shell and this page's head take above the workspace, and the shell's padding under it
-     (measured at 1366 × 768: 9.6rem above, 1.25rem under): on a laptop the workspace is the rest of
-     the window. The site's footer stays under the fold, as the event menu beside it already puts it
-     there on a laptop. */
-  --invite-chrome: 11rem;
+  /* `--invite-top`, set by the page from its own head, is where the workspace begins in the window:
+     on a laptop the workspace is the rest of it, whatever the head takes. */
   container: invite / inline-size;
   inline-size: 100%;
   display: flex;
@@ -127,8 +124,12 @@
 }
 
 .stage {
+  /* A phone: the preview pane is the grid's own item, so that it can stay pinned while the page scrolls. */
+  display: contents;
+}
+
+.previewPane {
   grid-area: stage;
-  min-width: 0;
 }
 
 .side {
@@ -421,12 +422,15 @@
   }
 
   .stage {
+    grid-area: stage;
+    min-width: 0;
     position: sticky;
     inset-block-start: var(--space-3);
     z-index: 2;
     display: flex;
     flex-direction: column;
-    block-size: min(40rem, calc(100dvh - var(--space-8)));
+    /* In the window from where the head ends, whatever the head takes (the page scrolls under it). */
+    block-size: max(20rem, min(40rem, calc(100dvh - var(--invite-top, 10rem) - var(--space-5))));
     min-width: 0;
     background: var(--surface-base);
   }
@@ -434,6 +438,7 @@
   .previewPane,
   .previewPane[data-big='true'],
   .previewPane[data-locked='true'] {
+    grid-area: auto;
     position: relative;
     inset-block-start: auto;
     flex: 1;
@@ -453,7 +458,10 @@
     grid-template-columns: minmax(19rem, 26rem) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
     align-items: stretch;
-    block-size: max(26rem, calc(100dvh - var(--invite-chrome)));
+    block-size: max(
+      26rem,
+      calc(100dvh - var(--invite-top, 10rem) - var(--space-4) - var(--space-5))
+    );
     overflow: hidden;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);

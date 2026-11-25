@@ -20,6 +20,7 @@ import {
   type MomentDraft,
   type QuestionDraft,
 } from '../../../lib/rsvp/rsvpExtras'
+import { useKept } from './openGroups'
 import styles from './RsvpPanel.module.css'
 
 /**
@@ -151,10 +152,10 @@ export function RsvpExtras({
   const all = useTranslations()
   const text = all.rsvp.host
   /** The menus are being written: the switch is on screen before it can be sent (it needs 2 menus). */
-  const [mealsOpen, setMealsOpen] = useState(false)
-  const [draft, setDraft] = useState<QuestionDraft | null>(null)
+  const [mealsOpen, setMealsOpen] = useKept('rsvp-meals-open', false)
+  const [draft, setDraft] = useKept<QuestionDraft | null>('rsvp-question-draft', null)
   /** The label of a moment being added: it is sent with the button, not while it is typed. */
-  const [momentDraft, setMomentDraft] = useState<string | null>(null)
+  const [momentDraft, setMomentDraft] = useKept<string | null>('rsvp-moment-draft', null)
   /** The moment the host asked to remove, and how many replies hold it once known. */
   const [removing, setRemoving] = useState<{
     readonly index: number
@@ -173,7 +174,7 @@ export function RsvpExtras({
     change({ form: { moments: momentsInput(moments) } })
 
   /** The limit is being written: the switch is on screen before it can be sent. */
-  const [capacityOpen, setCapacityOpen] = useState(false)
+  const [capacityOpen, setCapacityOpen] = useKept('rsvp-capacity-open', false)
   const capacityOn = form.capacity !== null || capacityOpen
 
   return (

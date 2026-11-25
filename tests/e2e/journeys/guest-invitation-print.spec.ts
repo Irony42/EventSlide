@@ -2,6 +2,7 @@ import { csrfHeaders, expect, test } from '../fixtures/app'
 import type { Page } from '@playwright/test'
 import { jpegWithLocation } from '../fixtures/media'
 import { decodeQr } from '../fixtures/qrDecode'
+import { backToCard, openShare } from '../fixtures/invitationPanels'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
@@ -149,11 +150,16 @@ test('every design of the first lot reads back the invitation link, prints its a
     { name: 'Guirlande', id: 'guirlande' },
   ]) {
     await host.emulateMedia({ media: 'screen' })
+    await backToCard(host)
     await host.getByRole('radio', { name: design.name }).check({ force: true })
+    // The card's own screen shows one large card; the sheet is what sharing prints.
     await expect(card).toHaveAttribute('data-print-card', design.id)
     await expect(card).toContainText('12 quai de la Loire')
     await expect(card).toContainText('19 h')
+    await expect(sheet).toHaveAttribute('data-single', '')
 
+    await openShare(host)
+    await expect(sheet).not.toHaveAttribute('data-single', '')
     await host.emulateMedia({ media: 'print' })
     await expect(sheet).toBeVisible()
     expect(await pagesOf(host), design.id).toHaveLength(1)

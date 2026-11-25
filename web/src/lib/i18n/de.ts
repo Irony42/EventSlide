@@ -3349,7 +3349,9 @@ export const de: UiText = {
       shareLocked:
         'Fügen Sie das Datum hinzu und aktivieren Sie die Einladung, um zu teilen und zu drucken.',
       repliesSummary: (until: string | null, options: number) =>
-        `${until === null ? 'Abgefragt' : `Abgefragt bis ${until}`} · ${options} ${options === 1 ? 'Option' : 'Optionen'}`,
+        `${until === null ? 'Abgefragt' : `Abgefragt bis ${until}`}\u00a0·\u00a0${options} ${options === 1 ? 'Option' : 'Optionen'}`,
+      fieldProblem: (field: string, message: string) => `${field}: ${message}`,
+      repliesUnavailable: 'Einstellungen nicht geladen',
       statusOn: 'Einladung aktiv',
       statusOff: 'Einladung deaktiviert',
       statusBarLabel: 'Link der Einladung',
@@ -3620,7 +3622,7 @@ export const de: UiText = {
       summaryNone: 'nein',
       summaryOneMoment: 'nur einer',
       summaryNoLimit: 'unbegrenzt',
-      summaryPlaces: (count: number) => `${count} Plätze`,
+      summaryPlaces: (count: number) => `${count} ${count === 1 ? 'Platz' : 'Plätze'}`,
       summaryNothingShown: 'nichts sichtbar',
       summaryCountShown: 'Anzahl sichtbar',
       summaryNamesShown: 'Vornamen sichtbar',

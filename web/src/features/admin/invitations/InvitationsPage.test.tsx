@@ -25,6 +25,7 @@ const startingWith =
   (content: string): boolean =>
     plain(content).startsWith(plain(sentence))
 
+const NBSP = String.fromCodePoint(0x00a0)
 const plain = (sentence: string): string => sentence.replaceAll(String.fromCodePoint(0x00a0), ' ')
 
 const BLANK: GuestInviteDto = aGuestInviteHost({
@@ -679,7 +680,6 @@ describe('InvitationsPage', () => {
       const entry = await door(asked.title)
       await waitFor(() => expect(entry).toHaveTextContent('6'))
       expect(entry).toHaveTextContent(/options/)
-      expect(entry).toHaveAttribute('aria-controls', 'invite-panel-rsvp')
     })
 
     it('opens a panel in place of the column, then Fermer brings the column back with the focus on its door', async () => {
@@ -778,6 +778,123 @@ describe('InvitationsPage', () => {
 
       const details = (await screen.findByText(text.moreTitle)).closest('details') as HTMLElement
       expect(details).toHaveAttribute('open')
+    })
+  })
+
+  describe('the card first: what the review asked for', () => {
+    const asked = fr.rsvp.host
+    const door = (name: string) => screen.findByRole('button', { name: new RegExp(`^${name}`) })
+    const withReplies = (form = {}) =>
+      answering(ON, {
+        rsvpForm: vi.fn(async () => ({ rsvpForm: aRsvpSettings(form) })),
+      })
+
+    it('shows one large card on the card’s screen, and the sheet of four only while sharing', async () => {
+      render(withReplies())
+
+      await screen.findByRole('form', { name: text.formTitle })
+      const card = document.querySelector('[data-format][data-single]')
+      expect(card).not.toBeNull()
+      expect(within(card as HTMLElement).getAllByRole('img', { name: /QR/ })).toHaveLength(1)
+
+      await userEvent.click(await door(text.sharePanelTitle))
+      await screen.findByRole('tab', { name: text.tabPrint })
+      expect(document.querySelector('[data-format][data-single]')).toBeNull()
+      expect(
+        within(document.querySelector('[data-format]') as HTMLElement).getAllByRole('img', {
+          name: /QR/,
+        }),
+      ).toHaveLength(4)
+    })
+
+    it('does not make the doors disclosures: they navigate', async () => {
+      render(withReplies())
+
+      const entry = await door(asked.title)
+
+      expect(entry).not.toHaveAttribute('aria-expanded')
+      expect(entry).not.toHaveAttribute('aria-controls')
+    })
+
+    it('puts no-break spaces around the dot of the replies’ door', async () => {
+      render(withReplies({ enabled: true, state: 'open', deadline: '2027-12-06' }))
+
+      const entry = await door(asked.title)
+
+      await waitFor(() => expect(entry.textContent).toContain(`${NBSP}·${NBSP}`))
+    })
+
+    it('says in the replies’ door that the settings could not be read, not nothing', async () => {
+      render(
+        answering(ON, {
+          rsvpForm: vi.fn(async () => {
+            throw ApiError.network()
+          }),
+        }),
+      )
+
+      const entry = await door(asked.title)
+      await waitFor(() => expect(entry).toHaveTextContent(text.repliesUnavailable))
+    })
+
+    it('shows the invitation’s save status, with the field named, in the replies’ panel and in the share panel', async () => {
+      const save = vi.fn(async () => {
+        throw new ApiError(400, 'guestInvite.addressTooLong')
+      })
+      render(
+        answering(ON, {
+          saveGuestInvite: save,
+          rsvpForm: vi.fn(async () => ({ rsvpForm: aRsvpSettings() })),
+        }),
+      )
+      const form = await screen.findByRole('form', { name: text.formTitle })
+      await touch(form)
+      await waitFor(() => expect(save).toHaveBeenCalled())
+
+      await userEvent.click(await door(asked.title))
+      const named = await screen.findByRole('alert')
+      expect(named).toHaveTextContent(text.addressLabel)
+      expect(named).toHaveTextContent(plain(fr.errors['guestInvite.addressTooLong']).slice(0, 12))
+      expect(screen.getByRole('button', { name: text.saveRetry })).toBeVisible()
+
+      await userEvent.click(screen.getByRole('button', { name: fr.app.close }))
+      await userEvent.click(await door(text.sharePanelTitle))
+      expect(await screen.findByRole('alert')).toHaveTextContent(text.addressLabel)
+    })
+
+    it('keeps a question being written when the panel is closed and opened again', async () => {
+      render(withReplies())
+      await userEvent.click(await door(asked.title))
+      await userEvent.click(await screen.findByText(asked.questionsTitle))
+      await userEvent.click(screen.getByRole('button', { name: asked.questionAdd }))
+      await userEvent.type(screen.getByLabelText(asked.questionLabelLabel), 'Un chant ?')
+
+      await userEvent.click(screen.getByRole('button', { name: fr.app.close }))
+      await userEvent.click(await door(asked.title))
+
+      expect(await screen.findByLabelText(asked.questionLabelLabel)).toHaveValue('Un chant ?')
+    })
+
+    it('gives the focus to the title once: a redraw of the panel does not take it again', async () => {
+      render(withReplies())
+      await userEvent.click(await door(text.sharePanelTitle))
+      const title = await screen.findByRole('heading', { level: 2, name: text.sharePanelTitle })
+      expect(title).toHaveFocus()
+
+      await userEvent.click(screen.getByRole('tab', { name: text.tabImage }))
+
+      expect(screen.getByRole('tab', { name: text.tabImage })).toHaveFocus()
+      expect(
+        screen.getByRole('heading', { level: 2, name: text.sharePanelTitle }),
+      ).not.toHaveFocus()
+    })
+
+    it('gives the workspace the rest of the window from where its head ends', async () => {
+      render(withReplies())
+
+      const head = (await screen.findByRole('heading', { level: 1, name: text.title }))
+        .parentElement as HTMLElement
+      expect(head.parentElement?.style.getPropertyValue('--invite-top')).toBe('0px')
     })
   })
 

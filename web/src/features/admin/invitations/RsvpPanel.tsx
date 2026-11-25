@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { ConfirmDialog } from '../../../design-system/components/ConfirmDialog'
@@ -33,6 +33,10 @@ export interface RsvpPanelProps {
   readonly onClose: () => void
   /** The panel was opened by the host, not by a reload on its address. */
   readonly focusOnMount?: boolean
+  /** Told once the focus has been given to the title, so that a later redraw does not take it again. */
+  readonly onFocused?: () => void
+  /** The invitation's own save status: its text is out of sight while this panel is open. */
+  readonly invitationStatus?: ReactNode
 }
 
 /** The id the page's entry row points at with `aria-controls`. */
@@ -57,6 +61,8 @@ export function RsvpPanel({
   timeZone = null,
   onClose,
   focusOnMount = false,
+  onFocused,
+  invitationStatus,
 }: RsvpPanelProps) {
   const t = useTranslations()
   const text = t.rsvp.host
@@ -68,7 +74,13 @@ export function RsvpPanel({
   const [preset, setPreset] = useState<PartyKind | null>(null)
   /** The time the page was read: a deadline gone by is judged against it, not re-read at every render. */
   const readAt = useNow(60_000)
-  const panel = { id: RSVP_PANEL_ID, title: text.title, onClose, focusOnMount }
+  const panel = {
+    id: RSVP_PANEL_ID,
+    title: text.title,
+    onClose,
+    focusOnMount,
+    ...(onFocused === undefined ? {} : { onFocused }),
+  }
 
   if (settings === null) {
     return (
@@ -135,7 +147,7 @@ export function RsvpPanel({
       : form.visibility === 'count'
         ? text.summaryCountShown
         : text.summaryNamesShown,
-  ].join(' · ')
+  ].join('\u00a0·\u00a0')
 
   const footer = (
     <>
@@ -156,6 +168,7 @@ export function RsvpPanel({
           {rsvp.problem}
         </Notice>
       )}
+      {invitationStatus}
     </>
   )
 

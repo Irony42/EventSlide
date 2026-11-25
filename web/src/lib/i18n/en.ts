@@ -3231,7 +3231,9 @@ export const en: UiText = {
       entryShareSummary: 'Card, image, e-mail, guest page',
       shareLocked: 'Add the date and switch the invitation on to share and print.',
       repliesSummary: (until: string | null, options: number) =>
-        `${until === null ? 'Asked' : `Asked until ${until}`} · ${options} ${options === 1 ? 'option' : 'options'}`,
+        `${until === null ? 'Asked' : `Asked until ${until}`}\u00a0·\u00a0${options} ${options === 1 ? 'option' : 'options'}`,
+      fieldProblem: (field: string, message: string) => `${field}: ${message}`,
+      repliesUnavailable: 'Settings not loaded',
       statusOn: 'Invitation on',
       statusOff: 'Invitation off',
       statusBarLabel: 'Invitation link',
@@ -3495,7 +3497,8 @@ export const en: UiText = {
       summaryNone: 'no',
       summaryOneMoment: 'just one',
       summaryNoLimit: 'no limit',
-      summaryPlaces: (count: number) => `${count} places`,
+      summaryPlaces: (count: number) =>
+        `${count} ${count === 1 ? 'place' : 'places'}`,
       summaryNothingShown: 'nothing shown',
       summaryCountShown: 'count shown',
       summaryNamesShown: 'first names shown',

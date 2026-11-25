@@ -1,7 +1,7 @@
 import { csrfHeaders, expect, test } from '../fixtures/app'
 import { invitedHost } from '../fixtures/invitation'
 import { decodeQr } from '../fixtures/qrDecode'
-import { backToCard } from '../fixtures/invitationPanels'
+import { backToCard, openShare } from '../fixtures/invitationPanels'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import type { Locator, Page } from '@playwright/test'
 
@@ -114,8 +114,6 @@ test('a long title is fitted on the sheets after the first like on the first, an
   }
   await host.goto(app.url(`/admin/events/${event.slug}/invitations?panel=partage`))
   await host.getByLabel(text.printPerHousehold).check()
-  // The designs are on the card's screen; the choice of a card per household stays with the print preview.
-  await backToCard(host)
   await host.emulateMedia({ media: 'print' })
   const sheets = host.locator('[data-household-sheet]')
   await expect(sheets).toHaveCount(2)
@@ -143,7 +141,10 @@ test('a long title is fitted on the sheets after the first like on the first, an
     'Guirlande',
   ]) {
     await host.emulateMedia({ media: 'screen' })
+    // The designs are on the card's screen; the cards of the households are what sharing prints.
+    await backToCard(host)
     await host.getByRole('radio', { name: design }).check({ force: true })
+    await openShare(host)
     await host.emulateMedia({ media: 'print' })
     const label = sheets.first().locator('[data-household-name]').first()
     await expect(label).toContainText('Famille Montmorency', { timeout: 5000 })

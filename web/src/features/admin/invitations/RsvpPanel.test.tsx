@@ -775,6 +775,30 @@ describe('the replies settings panel: the party’s days', () => {
   })
 })
 
+describe('the replies settings panel: the folded lines', () => {
+  it('says "1 place" for a limit of one and "40 places" for forty, with the visibility beside it', async () => {
+    const form = (capacity: number | null) => ({
+      ...aRsvpSettings().form,
+      capacity,
+    })
+    const one = render(answering({ form: form(1) }))
+    expect(await screen.findByText(new RegExp(t.summaryPlaces(1)))).toBeInTheDocument()
+    one.unmount()
+
+    render(answering({ form: form(40) }))
+    expect(await screen.findByText(new RegExp(t.summaryPlaces(40)))).toBeInTheDocument()
+  })
+
+  it('keeps a no-break space around the dot between the limit and what is shown', async () => {
+    render(answering())
+
+    const line = await screen.findByText(new RegExp(t.summaryNoLimit))
+    expect(line.textContent).toContain(
+      String.fromCodePoint(0x00a0) + '·' + String.fromCodePoint(0x00a0),
+    )
+  })
+})
+
 describe('the replies settings panel: the preset', () => {
   it('applies a preset at once while the choices still are one', async () => {
     const user = userEvent.setup()

@@ -3,8 +3,8 @@ import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
  * The host's Invitations page is the card first: the replies and the formats live in two panels
- * that take the place of the card's column. These open one by its door, whatever is on screen,
- * and say where the panel is.
+ * that take the place of the card's column. These open one by its door **from the card's screen**
+ * (and say so if it is not on it), and close the one that is open.
  */
 const text = fr.guestInvite.host
 
@@ -13,28 +13,36 @@ export const sharePanel = (page: Page): Locator =>
 export const repliesPanel = (page: Page): Locator =>
   page.getByRole('region', { name: fr.rsvp.host.title })
 
-const closeButton = (page: Page): Locator =>
-  page.getByRole('button', { name: fr.app.close, exact: true })
+/** The panel that is open, whichever it is. */
+const openPanel = (page: Page): Locator => page.locator('section[id^="invite-panel-"]')
 
-const open = async (page: Page, door: RegExp, panel: Locator): Promise<Locator> => {
-  if (!(await panel.isVisible())) {
-    if (await closeButton(page).isVisible()) await closeButton(page).click()
-    await page.getByRole('button', { name: door }).click()
-  }
+const door = (page: Page, name: string): Locator =>
+  page.getByRole('button', { name: new RegExp(`^${name}`) })
+
+const open = async (page: Page, name: string, panel: Locator): Promise<Locator> => {
+  await door(page, name).click()
   await expect(panel).toBeVisible()
+  // The host opened it: its title has the focus.
+  await expect(panel.getByRole('heading', { level: 2 })).toBeFocused()
   return panel
 }
 
-/** Opens « Partager et imprimer » (and the card's column goes away). */
+/** Opens « Partager et imprimer » from the card's screen (the card's column goes away). */
 export const openShare = (page: Page): Promise<Locator> =>
-  open(page, new RegExp(`^${text.sharePanelTitle}`), sharePanel(page))
+  open(page, text.sharePanelTitle, sharePanel(page))
 
-/** Opens « Réponses des invités ». */
+/** Opens « Réponses des invités » from the card's screen. */
 export const openReplies = (page: Page): Promise<Locator> =>
-  open(page, new RegExp(`^${fr.rsvp.host.title}`), repliesPanel(page))
+  open(page, fr.rsvp.host.title, repliesPanel(page))
 
-/** Back to the card's column. */
+/** Closes the open panel with its own « Fermer » and waits for the card's column. */
+export const closePanel = async (page: Page): Promise<void> => {
+  await openPanel(page).getByRole('button', { name: fr.app.close, exact: true }).click()
+  await expect(page.getByRole('form', { name: text.formTitle })).toBeVisible()
+}
+
+/** Back to the card's column; nothing to do when it is already there. */
 export const backToCard = async (page: Page): Promise<void> => {
-  if (await closeButton(page).isVisible()) await closeButton(page).click()
+  if (await openPanel(page).isVisible()) await closePanel(page)
   await expect(page.getByRole('form', { name: text.formTitle })).toBeVisible()
 }

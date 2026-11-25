@@ -5,9 +5,10 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type RefObject,
   type ReactNode,
 } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../../app/HostEventsLink'
 import { Button } from '../../../design-system/components/Button'
@@ -25,10 +26,10 @@ import { AppearancePanel } from './AppearancePanel'
 import { draftInvite } from './invitationDraft'
 import { InvitationLink } from './InvitationLink'
 import { InvitationSaveStatus, InvitationText } from './InvitationText'
-import { OpenGroupsProvider, useOpenGroups } from './openGroups'
+import { KeptStateProvider, OpenGroupsProvider, useKeptStore, useOpenGroups } from './openGroups'
 import { optionCount, shortDay } from './panelSummaries'
 import { PanelEntry } from './PanelEntry'
-import { RSVP_PANEL_ID, RsvpPanel } from './RsvpPanel'
+import { RsvpPanel } from './RsvpPanel'
 import { SidePanel } from './SidePanel'
 import { EmailTab } from './tabs/EmailTab'
 import { GuestTab } from './tabs/GuestTab'
@@ -133,6 +134,33 @@ function OwnerPage({ event }: { readonly event: EventDto }) {
   return <Workspace event={event} invite={data.guestInvite} onChanged={adopt} />
 }
 
+/**
+ * Gives the workspace the rest of the window: its top is measured (the link's bar may wrap on a
+ * narrow page, the event's name may take two lines) instead of guessed, and the page's CSS takes it
+ * from `--invite-top`.
+ */
+function useWorkspaceTop(head: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const bar = head.current
+    const page = bar?.parentElement
+    if (bar == null || page == null) return
+    const measure = () => {
+      const bottom = bar.getBoundingClientRect().bottom + window.scrollY
+      page.style.setProperty('--invite-top', `${Math.round(bottom)}px`)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(bar)
+    observer?.observe(document.body)
+    return () => {
+      window.removeEventListener('resize', measure)
+      observer?.disconnect()
+      page.style.removeProperty('--invite-top')
+    }
+  }, [head])
+}
+
 function Workspace({
   event,
   invite,
@@ -164,6 +192,10 @@ function Workspace({
   const ids = useId()
   const [big, setBig] = useState(false)
   const openGroups = useOpenGroups()
+  const kept = useKeptStore()
+  const head = useRef<HTMLDivElement>(null)
+  useWorkspaceTop(head)
+  const navigate = useNavigate()
 
   // Which panel is open, and which format the share panel shows, live in the address: a reload
   // or Back returns to the same screen.
@@ -177,23 +209,40 @@ function Workspace({
   const previewOf: OutputName =
     panel === 'reponses' ? 'guest' : panel === 'partage' ? output : 'print'
 
-  /** The panel was opened by the host in this visit: its title takes the focus. */
+  /** The panel was opened by the host in this visit: its title takes the focus, once. */
   const [openedHere, setOpenedHere] = useState(false)
+  const stopFocusing = useCallback(() => setOpenedHere(false), [])
+  /** The panel's address was pushed by a door in this visit, so closing it is one step back. */
+  const pushed = useRef(false)
   const openPanel = (name: PanelName) => {
     setOpenedHere(true)
+    pushed.current = true
     setParams((current) => {
       const next = new URLSearchParams(current)
       next.set('panel', name)
       return next
     })
   }
-  const closePanel = () =>
-    setParams((current) => {
-      const next = new URLSearchParams(current)
-      next.delete('panel')
-      next.delete('format')
-      return next
-    })
+  const closePanel = () => {
+    // A panel the host opened is closed by going back, so Back does not reopen it; one that a
+    // reload or a link brought is replaced. (A save waiting holds Back and would ask: replace then.)
+    const waiting = autosave.state === 'pending' || autosave.state === 'saving'
+    if (pushed.current && !waiting) {
+      pushed.current = false
+      void navigate(-1)
+      return
+    }
+    pushed.current = false
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        next.delete('panel')
+        next.delete('format')
+        return next
+      },
+      { replace: true },
+    )
+  }
 
   // The format's own component draws the switcher too, so changing format remounts it: the focus
   // is given back to the tab that was chosen once the new one is in the page.
@@ -204,6 +253,8 @@ function Workspace({
     refocus.current = null
   }, [output, ids])
   const choose = (name: OutputName) => {
+    // The tab that is already chosen: nothing is drawn again, so nothing is to be focused afterwards.
+    if (name === output) return
     refocus.current = name
     setParams(
       (current) => {
@@ -294,11 +345,12 @@ function Workspace({
     </div>
   )
 
-  const saveStatus = (
+  const saveStatus = (named: boolean) => (
     <InvitationSaveStatus
       state={autosave.state}
       problem={autosave.problem}
       onRetry={autosave.saveNow}
+      named={named}
     />
   )
 
@@ -306,7 +358,9 @@ function Workspace({
   const settings = rsvp.settings
   const repliesSummary =
     settings === null
-      ? ''
+      ? rsvp.loadFailure === null
+        ? '…'
+        : text.repliesUnavailable
       : !settings.enabled
         ? all.rsvp.host.stateOff
         : text.repliesSummary(
@@ -339,7 +393,6 @@ function Workspace({
       <div className={styles['entries']}>
         <PanelEntry
           id={`${ids}-entry-reponses`}
-          controls={RSVP_PANEL_ID}
           icon="mail"
           title={all.rsvp.host.title}
           summary={repliesSummary}
@@ -347,14 +400,13 @@ function Workspace({
         />
         <PanelEntry
           id={`${ids}-entry-partage`}
-          controls={SHARE_PANEL_ID}
           icon="printer"
           title={text.sharePanelTitle}
           summary={text.entryShareSummary}
           onOpen={() => openPanel('partage')}
         />
       </div>
-      <div className={styles['cardFooter']}>{saveStatus}</div>
+      <div className={styles['cardFooter']}>{saveStatus(false)}</div>
     </div>
   )
 
@@ -397,6 +449,8 @@ function Workspace({
           timeZone={invite.timeZone}
           onClose={closePanel}
           focusOnMount={openedHere}
+          onFocused={stopFocusing}
+          invitationStatus={saveStatus(true)}
         />
       )
     }
@@ -406,10 +460,11 @@ function Workspace({
         title={text.sharePanelTitle}
         onClose={closePanel}
         focusOnMount={openedHere}
+        onFocused={stopFocusing}
         footer={
           <>
             {actions}
-            {saveStatus}
+            {saveStatus(true)}
           </>
         }
       >
@@ -432,44 +487,47 @@ function Workspace({
 
   return (
     <OpenGroupsProvider value={openGroups}>
-      <div className={styles['head']}>
-        <h1 className={styles['title']}>{text.title}</h1>
-        <InvitationLink
-          slug={slug}
-          invite={invite}
-          disabled={archived}
-          onChanged={onChanged}
-          activateRef={activateRef}
-        />
-      </div>
+      <KeptStateProvider value={kept}>
+        <div ref={head} className={styles['head']}>
+          <h1 className={styles['title']}>{text.title}</h1>
+          <InvitationLink
+            slug={slug}
+            invite={invite}
+            disabled={archived}
+            onChanged={onChanged}
+            activateRef={activateRef}
+          />
+        </div>
 
-      {shown === null ? (
-        layout({
-          preview: (
-            <LockedState
-              dated={dated}
-              typedStart={autosave.form.start !== ''}
-              disabled={archived}
-              onFocusStart={focusStart}
-              onSaveStart={autosave.saveNow}
-              onActivate={() => activateRef.current?.click()}
-            />
-          ),
-          options: null,
-          actions: null,
-        })
-      ) : (
-        <Output
-          event={event}
-          invite={shown}
-          preferences={look.preferences}
-          onPreferences={look.update}
-          photoUrl={look.photoUrl}
-          {...(rsvp.settings === null ? {} : { rsvp: previewPage(rsvp.settings) })}
-        >
-          {layout}
-        </Output>
-      )}
+        {shown === null ? (
+          layout({
+            preview: (
+              <LockedState
+                dated={dated}
+                typedStart={autosave.form.start !== ''}
+                disabled={archived}
+                onFocusStart={focusStart}
+                onSaveStart={autosave.saveNow}
+                onActivate={() => activateRef.current?.click()}
+              />
+            ),
+            options: null,
+            actions: null,
+          })
+        ) : (
+          <Output
+            event={event}
+            invite={shown}
+            preferences={look.preferences}
+            onPreferences={look.update}
+            photoUrl={look.photoUrl}
+            cardOnly={panel === null}
+            {...(rsvp.settings === null ? {} : { rsvp: previewPage(rsvp.settings) })}
+          >
+            {layout}
+          </Output>
+        )}
+      </KeptStateProvider>
     </OpenGroupsProvider>
   )
 }

@@ -131,6 +131,60 @@ describe('the colour of the card', () => {
     )
   })
 
+  it('goes to the first and the last swatch with Home and End', async () => {
+    const onColour = vi.fn()
+    render({ onColour, start: PRINT_SWATCHES.coral })
+    within(row()).getByRole('radio', { checked: true }).focus()
+
+    await userEvent.keyboard('{End}')
+    expect(onColour).toHaveBeenLastCalledWith(
+      PRINT_SWATCHES[PRINT_SWATCH_IDS[ROW_SIZE - 2] ?? 'coral'],
+    )
+
+    await userEvent.keyboard('{Home}')
+    expect(onColour).toHaveBeenLastCalledWith(null)
+  })
+
+  it('closes when the focus leaves the popover for another control, and stays when it moves inside', async () => {
+    renderWithProviders(
+      <>
+        <Harness />
+        <button type="button">ailleurs</button>
+      </>,
+    )
+    await userEvent.click(more())
+    expect(screen.getByRole('radiogroup', { name: text.colourAll })).toBeVisible()
+
+    await userEvent.tab()
+    expect(screen.getByRole('radiogroup', { name: text.colourAll })).toBeVisible()
+    await userEvent.tab()
+    await userEvent.tab()
+
+    await waitFor(() =>
+      expect(screen.queryByRole('radiogroup', { name: text.colourAll })).toBeNull(),
+    )
+  })
+
+  it('brings the popover into view when it opens, the column being the one that scrolls', async () => {
+    const scrollIntoView = vi.fn()
+    Object.assign(HTMLElement.prototype, { scrollIntoView })
+    render()
+
+    await userEvent.click(more())
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+  })
+
+  it('has one name for the popover’s swatches, and says nothing of a dialog it is not', async () => {
+    render()
+    await userEvent.click(more())
+
+    expect(screen.getAllByRole('radiogroup', { name: text.colourAll })).toHaveLength(1)
+    expect(screen.queryByRole('group', { name: text.colourAll })).toBeNull()
+    expect(more()).not.toHaveAttribute('aria-haspopup')
+  })
+
   it('keeps the chosen colour on the row when it lives in the popover, in the last place', () => {
     render({ start: PRINT_SWATCHES.charcoal })
 

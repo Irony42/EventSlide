@@ -57,6 +57,36 @@ describe('a panel in place of the column', () => {
     dialog.remove()
   })
 
+  it('closes on Escape even from a control that says it is expanded (a fold, a menu button)', async () => {
+    const onClose = render()
+    const toggle = document.body.appendChild(document.createElement('button'))
+    toggle.setAttribute('aria-expanded', 'true')
+    toggle.focus()
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    toggle.remove()
+  })
+
+  it('says once that it gave the focus to its title, and not again on a redraw', () => {
+    const onFocused = vi.fn()
+    const view = renderWithProviders(
+      <SidePanel id="p" title="Réponses" onClose={vi.fn()} focusOnMount onFocused={onFocused}>
+        <span>a</span>
+      </SidePanel>,
+    )
+    expect(onFocused).toHaveBeenCalledTimes(1)
+
+    view.rerender(
+      <SidePanel id="p" title="Réponses" onClose={vi.fn()} focusOnMount onFocused={onFocused}>
+        <span>b</span>
+      </SidePanel>,
+    )
+
+    expect(onFocused).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores the other keys', async () => {
     const onClose = render()
 
