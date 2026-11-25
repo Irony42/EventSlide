@@ -217,6 +217,7 @@ npm run test:unit     # domain + application only — the fastest loop
 npm run test:coverage # with gates
 npm run test:e2e      # Playwright, real server, real browsers
 npm run verify        # lint + typecheck + test:coverage + build  <- run before committing
+npm run format:check  # Prettier: CI fails on it, verify does not run it  <- run before pushing
 npm run verify:full   # verify + test:e2e                         <- before opening a PR
 ```
 

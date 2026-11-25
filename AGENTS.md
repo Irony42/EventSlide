@@ -117,6 +117,7 @@ suppress the rule. If domain code seems to need I/O, add a **port** in
 npm install
 npm run dev        # API :4300 + web :5173
 npm run verify     # lint + typecheck + coverage + build — the gate
+npm run format:check  # Prettier: CI fails on it and verify does not run it, so run it before pushing
 npm run test:e2e   # Playwright journeys (needs `npx playwright install` once; or `npm run test:e2e:docker`, the CI container)
 ```
 
