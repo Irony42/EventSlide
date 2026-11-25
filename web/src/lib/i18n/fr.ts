@@ -1476,16 +1476,16 @@ export const fr = {
         'Elles habillent tout ce que voient vos invités. L’aperçu les montre dans l’ambiance choisie.',
       ambianceTitle: 'Ambiance',
       ambianceHelp:
-        'Le décor de la soirée : photo de fond, police du nom, couleurs. Cliquez : l’aperçu change tout de suite.',
+        'Le décor de la soirée : photo de fond, police du nom, couleurs. Cliquez : l’aperçu change tout de suite.',
       /** One sentence per ambiance, under its picture: what it looks like. */
       sentences: {
         eventslide: 'Violet profond et lumière douce, la tenue de la maison.',
-        guinguette: 'Bois, crème et guirlandes d’ampoules : une fête au jardin.',
+        guinguette: 'Bois, crème et guirlandes d’ampoules : une fête au jardin.',
         riviera: 'Bleu marine et voile blanche, un soir de bord de mer.',
         champs: 'Herbes hautes et miel dans la lumière dorée.',
         bivouac: 'Nuit bleue et braises, un feu de camp sous les étoiles.',
         cabaret: 'Ébène et or champagne, un rideau de velours.',
-        noces: 'Blanc et ivoire, roses rouges : la seule ambiance claire.',
+        noces: 'Blanc et ivoire, roses rouges : la seule ambiance claire.',
         custom: 'Votre fond, clair ou foncé, teinté à votre goût.',
       } satisfies Record<ThemeAmbiance, string>,
       /** Who it is for, after the label: `Pour : …`. « Sur mesure » has none. */
