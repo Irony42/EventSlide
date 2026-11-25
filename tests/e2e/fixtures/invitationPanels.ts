@@ -46,3 +46,18 @@ export const backToCard = async (page: Page): Promise<void> => {
   if (await openPanel(page).isVisible()) await closePanel(page)
   await expect(page.getByRole('form', { name: text.formTitle })).toBeVisible()
 }
+
+/**
+ * Chooses a card design by its tile, as a host does, and waits for the choice to hold.
+ *
+ * The radio inside the tile is a 1 px clipped box (it stays focusable and announced while the tile
+ * shows the state), so a forced `check()` clicks one pixel at the tile's corner, and on the card-first
+ * page that pixel is sometimes under a sticky element: the click lands elsewhere and nothing is
+ * chosen (`Clicking the checkbox did not change its state`, 1 run in 15 locally). Clicking the tile
+ * goes through Playwright's actionability checks, which retry until nothing covers the tile.
+ */
+export const chooseDesign = async (page: Page, name: string): Promise<void> => {
+  const radio = page.getByRole('radio', { name, exact: true })
+  await page.locator('label').filter({ has: radio }).click()
+  await expect(radio).toBeChecked()
+}
