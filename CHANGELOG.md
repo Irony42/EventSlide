@@ -20,6 +20,123 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.18.0] - 2026-11-25
+
+Everything merged to `main` after the tag `v3.17.0`: pull requests #501, #504, #528 and #537 to #562 (29 pull requests:
+the guests' replies as #537 to #554 and #556, the workshop's width as #544, the edge image as #555, the Invitations,
+Appearance and settings pages as #557 to #560, two test fixes as #561 and #562, and three dependency updates). This is a
+minor release with one theme and a tidy-up of the host's console: guests can answer an invitation (will they come, how
+many, what they eat), the host follows the replies on a page of their own, and the Invitations page, the new
+« Apparence » page and the settings page are redrawn around what the host is doing. Four migrations, 036 (`guest_rsvps`),
+037 (`guest_households`), 038 (`push_subscriptions`) and 039 (`rsvp_absent_notes`), applied at start-up. Five settings
+are new in `.env.example`, all optional.
+
+### Guests
+
+- **Answering an invitation** (#539). When the host asks for replies, the invitation page (`/i/…`) shows « Je viens », a
+  « Peut-être » if the host offers it, and « Je ne peux pas », then a name, the number of people (adults and children
+  apart when the host asks), an allergy or diet and a word. No account, nothing to install. The guest keeps a private
+  link to their own reply on the phone, can change it or erase it from the same page, and is told when the replies are
+  closed (the deadline, or by hand) or when the places are gone.
+- **More to answer, when the host asks** (#542, #543, #550, #551). Names of the people who come along, a choice of menus
+  (one per person), up to three questions of the host's own (free text or a choice), the moments of the party the guest
+  comes to (up to four), and a box « Montrer mon prénom aux autres invités » that is unticked by default. When the
+  places are limited and gone, a « yes » is kept on a waiting list and says so; it takes no place until the host
+  promotes it.
+- **A family answers once, from its own link** (#546, #548). A household invited by the host opens
+  `/i/<invitation>#f=<token>`: « Bonjour Famille Martin · 4 places prévues pour vous », the name already filled in, the
+  places as the ceiling of the counter, one reply for everyone, changed rather than added when sent again. The secret
+  sits after the `#`, so it is never in a request or a log, and the page removes it from the address bar.
+- **A word for those who cannot come** (#554). A guest who answered « Je ne peux pas » can « Laisser un mot au livre
+  d'or » when the host allows it. The word always waits for the host's approval, whatever the moderation mode, and goes
+  with the reply when it is erased.
+
+### Hosts and moderators
+
+- **A « Réponses des invités » panel and a « Réponses » page** (#540, #541). The host switches the replies on, sets a
+  deadline, closes and reopens by hand, and chooses what is asked, saved as it is chosen. The page shows who comes (adults
+  and children), the « peut-être », the refusals, the replies as a table that folds into cards on a phone, the latest
+  ones, « Ajouter une réponse » for a guest who answered by telephone, a correction and a deletion. It updates when a
+  reply arrives, and the menu entry carries the number of new replies. The date the replies will be erased is written on
+  the page. « Au plus par réponse » is now typed, between 1 and 10, instead of picked from a list (#556).
+- **For the caterer** (#545). A « Traiteur » panel (adults, children, menus with their counts, diets), a spreadsheet limited
+  to those who come with a last « Total » line, and « Imprimer la liste », a plain sheet for the kitchen. The diets are
+  health data: the page says so, and only the host sees them.
+- **A guest list with personal links and a guided reminder** (#546, #547, #549). « Liste d'invités » holds the households
+  (name and places; « Coller une liste » takes `Nom ; places` lines), each with a link to copy or change. « Relancer »
+  walks through the households without a reply, with a message ready in WhatsApp, SMS or e-mail, opened in the host's own
+  application with no recipient. « Une carte par foyer » prints one card per household, each QR being that household's
+  link.
+- **Who comes, moments, places** (#543, #550, #551). A « Qui vient » setting shows the guests a count or up to three first
+  names (only those who agreed, never a refusal, a diet or a word); up to four moments with their own figures and
+  households invited to some of them only; a number of places, the waiting list apart, and a hand-made promotion.
+- **« Notification du navigateur »** (#552, #553). On the « Réponses » page, a box asks the browser to say « 3 nouvelles
+  réponses » when guests answer, on the phone or the computer, even with the page closed. It exists only when the operator
+  has set the keys (see Operators); nothing but the count and the event's address travels. On an iPhone, EventSlide must
+  first be added to the home screen.
+- **The Invitations page, the card first** (#557). The screen is the card: « Le texte », then « L'apparence » with the
+  designs and a row of six colours (« +6 » opens all twelve), and two doors under them, « Réponses des invités » and
+  « Partager et imprimer ». Each opens a panel in place of the left column, never over the preview, which stays in view
+  on a laptop; the panel is in the address, so a reload or « Retour » comes back to it. The replies are grouped in the
+  panel.
+- **A new « Apparence » page** (#558). Under « Préparer », and for the owner only, it replaces the accordion of the
+  settings page: the logo and the venue photograph first, side by side; the ambiances as cards, each with its name in its
+  own face, a sentence and who it suits (« Sur mesure » leads to its editor); a row of four colours; the welcome message;
+  « Détails de l'écran de la salle » folded; and a preview that stays in view (a strip on top on a phone, « Voir en
+  grand »). The settings page keeps a line that leads to it.
+- **The logo is asked right after the event is created** (#559). « Créer l'évènement » now leads to a small screen with
+  the logo field, « Plus tard » and « Continuer »; and the « Maintenant » card of a draft event gets a step « Ajouter votre
+  logo » (owner only, while there is none).
+- **A wider settings page, moderation as two cards** (#560). The page no longer stops at the width of a phone; selects and
+  dates keep a sensible width. « Modération » shows its two choices as cards, each with its effect in a sentence: every
+  send waits for the host's approval, or arrives on the screen without it. The confirmation before the automatic mode is
+  unchanged.
+- **The invitations, the table cards and the photo book are wider** (#544), with the menu folded, so the preview is
+  larger on a laptop.
+
+### Operators
+
+- **Browser notifications for the host, off unless you set three variables** (#552, #553). `VAPID_PUBLIC_KEY`,
+  `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` or an https address). Make the pair once with `npm run push:keys`
+  (in the image: `node dist/ops/scripts/generateVapidKeys.js`) and put the three lines in `.env` or a secrets manager:
+  the private key is a credential. Setting only some of the three, or a public key that is not the private key's, is
+  refused at start-up. `PUSH_ALLOWED_HOSTS` replaces the list of push services the box may call; leave it unset.
+- **One new outbound connection**, only when a host turned the notification on: the push service of that host's own
+  browser (Mozilla, Google, Microsoft or Apple), over https on port 443, to public addresses only, no redirect followed,
+  10 seconds at most.
+- **An edge image of `main`, for a test box** (#555). Every push to `main` now builds `ghcr.io/irony42/eventslide-edge`,
+  tagged `main` and `main-<commit>`, signed, for `linux/amd64`. It is a separate package: the product image
+  `ghcr.io/irony42/eventslide` is still published only by a release, and the edge one is never for production.
+
+### Under the hood
+
+- Two end-to-end tests that failed from time to time on the new pages now wait for what they depend on: the design tile of
+  an invitation is clicked as a person would, not as a 1 px radio (#561), and the guest-reveal journey waits for the phone
+  to see its photographs veiled before the reveal (#562). No product change.
+
+### Dependencies and security
+
+- **Production group** (#528): `better-sqlite3` 13.0.3 to 13.2.0, `express-rate-limit` 8.7.3 to 8.7.4, `nodemailer` 10.4.0
+  to 10.6.0 and `react-router-dom` 7.18.5 to 7.18.6.
+- **`vite` 8.3.6 to 8.3.8** (#504, build only) and the **`node:24-bookworm-slim` base image** moved to a newer digest (#501).
+
+### Behaviour changes to check before upgrading
+
+- **Four migrations**, 036 (`guest_rsvps`), 037 (`guest_households`), 038 (`push_subscriptions`) and 039
+  (`rsvp_absent_notes`), applied at start-up. They add tables and columns and rewrite nothing that exists. Back up first:
+  the migrations only go forward.
+- **Five new settings, all optional**: `GUEST_RSVP_RATE_LIMIT_PER_MINUTE` (default 30), what one address may write to the
+  replies per minute; `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`, which switch the host's browser
+  notifications on only when all three are set (half of them is refused at start-up); and `PUSH_ALLOWED_HOSTS`, which
+  replaces the default list of push services.
+- **Replies are off until a host switches them on**, and an erasure is scheduled: replies are erased 30 days after the
+  event closed or 60 days after the invitation's start, whichever comes first, whatever the purge hold says.
+- **New public routes for guests**: `POST`, `GET`, `PUT`, `DELETE /api/i/<token>/rsvp` and `POST /api/i/<token>/absent-note`,
+  limited per address (the setting above) and per invitation (300 a minute, fixed), with a body of 8 KB at most.
+  They are the only public writes nobody is signed in for.
+- **Hosts will find the console changed**: a « Réponses » entry in the menu, a new « Apparence » page that takes the
+  ambiance and colour out of the settings page, the logo asked after creation, the Invitations page redrawn.
+
 ## [3.17.0] - 2026-11-22
 
 Everything merged to `main` after the tag `v3.16.0`: pull requests #531 to #534 (the printed cards' workshop as #531, the
