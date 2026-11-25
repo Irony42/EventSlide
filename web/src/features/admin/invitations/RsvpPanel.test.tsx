@@ -191,7 +191,7 @@ describe('the replies settings panel: choosing', () => {
       }),
     )
 
-    expect(await screen.findByLabelText(`${t.sizeMax} ${t.sizeUnit}`)).toHaveValue(7)
+    expect(await screen.findByLabelText(`${t.sizeMax} ${t.sizeUnit}`)).toHaveValue('7')
   })
 
   describe('"au plus par réponse", typed', () => {
@@ -203,15 +203,13 @@ describe('the replies settings panel: choosing', () => {
         await new Promise((resolve) => setTimeout(resolve, 1500))
       })
 
-    it('is a numeric field bound to the domain bounds', async () => {
+    it('is a text field with a numeric keypad: the wheel cannot change it', async () => {
       render({ ...answering(), saveRsvpForm: sizeSaved() })
       const field = await sizeField()
 
-      expect(field).toHaveAttribute('type', 'number')
+      expect(field).toHaveAttribute('type', 'text')
       expect(field).toHaveAttribute('inputmode', 'numeric')
-      expect(field).toHaveAttribute('min', '1')
-      expect(field).toHaveAttribute('max', '10')
-      expect(field).toHaveAttribute('step', '1')
+      expect(field).toHaveAttribute('pattern', '[0-9]*')
     })
 
     it('saves 7, a size the old list did not offer', async () => {
@@ -259,13 +257,14 @@ describe('the replies settings panel: choosing', () => {
 
         await user.clear(field)
         await user.type(field, typed)
-        expect(field).toHaveValue(Number(typed))
+        expect(field).toHaveValue(typed)
         await user.tab()
 
-        expect(field).toHaveValue(4)
-        const hint = screen.getByText(t.sizeRange(1, 10))
+        expect(field).toHaveValue('4')
+        const hint = screen.getByRole('alert', { name: '' })
+        expect(hint).toHaveTextContent(t.sizeRange(1, 10))
         expect(field).toHaveAttribute('aria-invalid', 'true')
-        expect(field.getAttribute('aria-describedby')).toBe(hint.closest('[id]')?.id)
+        expect(field.getAttribute('aria-describedby')).toBe(hint.id)
         await pastDebounce()
         expect(saveRsvpForm).not.toHaveBeenCalled()
       },
@@ -278,11 +277,11 @@ describe('the replies settings panel: choosing', () => {
       const field = await sizeField()
 
       await user.clear(field)
-      expect(field).toHaveValue(null)
+      expect(field).toHaveValue('')
       await user.tab()
 
-      expect(field).toHaveValue(4)
-      expect(screen.getByText(t.sizeRange(1, 10))).toBeInTheDocument()
+      expect(field).toHaveValue('4')
+      expect(screen.getByRole('alert')).toHaveTextContent(t.sizeRange(1, 10))
       await pastDebounce()
       expect(saveRsvpForm).not.toHaveBeenCalled()
     })
@@ -297,26 +296,64 @@ describe('the replies settings panel: choosing', () => {
       await user.type(field, 'abc')
       await user.tab()
 
-      expect(field).toHaveValue(4)
-      expect(screen.getByText(t.sizeRange(1, 10))).toBeInTheDocument()
+      expect(field).toHaveValue('4')
+      expect(screen.getByRole('alert')).toHaveTextContent(t.sizeRange(1, 10))
       await pastDebounce()
       expect(saveRsvpForm).not.toHaveBeenCalled()
     })
 
-    it('says nothing while the size is right, and the hint goes away once it is typed again', async () => {
+    it('describes the range as a hint, turns it into an error when the size is not one, and back once it is typed again', async () => {
       const user = userEvent.setup()
       render({ ...answering(), saveRsvpForm: sizeSaved() })
       const field = await sizeField()
-      expect(screen.queryByText(t.sizeRange(1, 10))).not.toBeInTheDocument()
+      expect(screen.getByText(t.sizeRange(1, 10))).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       expect(field).not.toHaveAttribute('aria-invalid')
+      expect(field.getAttribute('aria-describedby')).toBe(screen.getByText(t.sizeRange(1, 10)).id)
 
       await user.clear(field)
       await user.type(field, '12')
       await user.tab()
-      expect(screen.getByText(t.sizeRange(1, 10))).toBeInTheDocument()
+      expect(screen.getByRole('alert')).toHaveTextContent(t.sizeRange(1, 10))
       await user.type(field, '5')
 
-      expect(screen.queryByText(t.sizeRange(1, 10))).not.toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByText(t.sizeRange(1, 10))).toBeInTheDocument()
+    })
+
+    it.each(['1.5', '1,5', '1e1', '-3', '+4', 'e', ' 7'])(
+      'never sends %j, however it is typed',
+      async (typed) => {
+        const user = userEvent.setup()
+        const saveRsvpForm = sizeSaved()
+        render({ ...answering(), saveRsvpForm })
+        const field = await sizeField()
+
+        await user.clear(field)
+        await user.type(field, typed)
+        await user.tab()
+
+        expect(field).toHaveValue('4')
+        await pastDebounce()
+        expect(saveRsvpForm).not.toHaveBeenCalled()
+      },
+    )
+
+    it('sends what was typed when the panel is left, at once and once', async () => {
+      const user = userEvent.setup()
+      const saveRsvpForm = sizeSaved()
+      const { unmount } = render({ ...answering(), saveRsvpForm })
+      const field = await sizeField()
+
+      await user.clear(field)
+      await user.type(field, '9')
+      unmount()
+
+      // At once: not behind the pauses of the field and of the autosave.
+      expect(saveRsvpForm).toHaveBeenCalledTimes(1)
+      expect(saveRsvpForm).toHaveBeenCalledWith('mariage', { form: { partySize: { max: 9 } } })
+      await pastDebounce()
+      expect(saveRsvpForm).toHaveBeenCalledTimes(1)
     })
 
     it('puts the size back when the server refuses it', async () => {
@@ -329,7 +366,7 @@ describe('the replies settings panel: choosing', () => {
       await user.type(field, '7')
 
       await waitFor(() => expect(saveRsvpForm).toHaveBeenCalled())
-      await waitFor(() => expect(field).toHaveValue(4))
+      await waitFor(() => expect(field).toHaveValue('4'))
     })
 
     it('still applies a preset over a typed size', async () => {
@@ -343,7 +380,7 @@ describe('the replies settings panel: choosing', () => {
 
       await user.selectOptions(screen.getByLabelText(new RegExp(t.presetLabel)), 'wedding')
 
-      expect(field).toHaveValue(6)
+      expect(field).toHaveValue('6')
       await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(2))
       expect(saveRsvpForm).toHaveBeenLastCalledWith('mariage', {
         form: { maybe: false, partySize: { enabled: true, max: 6 }, companionNames: true },

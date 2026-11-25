@@ -218,7 +218,7 @@ export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
               rangeHint={text.sizeRange(PARTY_SIZE_MIN, PARTY_SIZE_MAX)}
               value={form.partySize.max}
               disabled={locked}
-              onChange={(max) => rsvp.change({ form: { partySize: { max } } })}
+              onChange={(max, now) => rsvp.change({ form: { partySize: { max } } }, now)}
             />
             <CheckboxField
               label={text.kidsLabel}

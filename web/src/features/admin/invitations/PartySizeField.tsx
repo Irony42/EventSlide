@@ -1,28 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
 import { Field } from '../../../design-system/components/Field'
 import { TextInput } from '../../../design-system/components/TextInput'
-import { PARTY_SIZE_MAX, PARTY_SIZE_MIN, usablePartySize } from '../../../lib/rsvp/partySize'
+import { usablePartySize } from '../../../lib/rsvp/partySize'
 
 /** The stillness after which a typed size is a choice: "1" on the way to "10" is not one. */
 const PARTY_SIZE_SETTLE_MS = 300
 
 export interface PartySizeFieldProps {
   readonly label: string
-  /** The short sentence shown when what was typed is not a size ("Entre 1 et 10"). */
+  /** The range, in a short sentence ("Entre 1 et 10"): the hint, and the error once what was typed is not a size. */
   readonly rangeHint: string
   /** The size the screen holds: the server's word with the host's unanswered choices over it. */
   readonly value: number
   readonly disabled: boolean
-  readonly onChange: (size: number) => void
+  /** `now`: the field is going away, so the size must be sent at once and not after the pause. */
+  readonly onChange: (size: number, now?: boolean) => void
 }
 
 /**
  * "Au plus par réponse", typed. **Only a whole number within the bounds is a choice**: it is handed
  * on once the host pauses (or leaves the field), and the panel's autosave debounces it again.
- * "", "0", "11" and "abc" pass through while the host types and are never sent, nor is the "1" of
- * a "11" (the pause is what tells a prefix from a choice). Leaving the field with something that
- * is not a size puts the saved size back and says the range. What was handed on stays on screen
- * only while the screen still holds it, so a refusal (the server's size back) or a preset replaces it.
+ * "", "0", "11", "abc", "1.5" and "1e1" pass through while the host types and are never sent, nor is
+ * the "1" of a "11" (the pause is what tells a prefix from a choice). It is a text field with a
+ * numeric keypad, not `type="number"`: the wheel and the arrow keys would change the size under
+ * the host's cursor, and the browser would hide what was typed behind an empty value. Leaving the
+ * field with something that is not a size puts the saved size back and turns the range from a hint
+ * into an error. What was handed on stays on screen only while the screen still holds it, so a
+ * refusal (the server's size back) or a preset replaces it; so does the error.
  */
 export function PartySizeField({
   label,
@@ -33,6 +37,7 @@ export function PartySizeField({
 }: PartySizeFieldProps) {
   const [typed, setTyped] = useState<{ text: string; handed: number | null } | null>(null)
   const [invalid, setInvalid] = useState(false)
+  const [seen, setSeen] = useState(value)
   const timer = useRef<number | undefined>(undefined)
   const latest = useRef({ onChange, value })
   useEffect(() => {
@@ -52,23 +57,29 @@ export function PartySizeField({
     () => () => {
       window.clearTimeout(timer.current)
       const size = waiting.current
-      if (size !== null && size !== latest.current.value) latest.current.onChange(size)
+      if (size !== null && size !== latest.current.value) latest.current.onChange(size, true)
     },
     [],
   )
 
-  const shown =
-    typed !== null && (typed.handed === null || typed.handed === value) ? typed.text : String(value)
+  // The screen's size moved (a preset, a refusal, a reload): what was typed, and what was said of
+  // it, is over. (State adjusted while rendering, the documented way to derive it from a prop.)
+  if (seen !== value) {
+    setSeen(value)
+    setInvalid(false)
+    if (typed !== null && typed.handed !== value) setTyped(null)
+  }
+
+  const shown = typed !== null ? typed.text : String(value)
   return (
-    <Field label={label} {...(invalid ? { error: rangeHint } : {})}>
+    <Field label={label} {...(invalid ? { error: rangeHint } : { hint: rangeHint })}>
       {(control) => (
         <TextInput
           {...control}
-          type="number"
+          type="text"
           inputMode="numeric"
-          min={PARTY_SIZE_MIN}
-          max={PARTY_SIZE_MAX}
-          step={1}
+          pattern="[0-9]*"
+          maxLength={3}
           value={shown}
           disabled={disabled}
           onBlur={() => {
