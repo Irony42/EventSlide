@@ -68,8 +68,16 @@ describe('useFitText', () => {
 
     const size = (parseFloat(title.style.fontSize) / 100) * 200
     expect(title.style.fontSize).toMatch(/cqw$/)
-    expect(size * 3).toBeLessThanOrEqual(60 + size * 0.14)
+    expect(size * 3).toBeLessThanOrEqual(60 + 1.5)
     expect(size).toBeGreaterThan(17)
+  })
+
+  it('tolerates no more than a pixel and a half of overflow, even where 14 % of the size is more', () => {
+    // 64 px of text in a 60 px box at 40 px: 14 % would let 5.6 px of the last line be cut.
+    laidOut(() => 1.6)
+    const { container } = render(<Card text="Une carte dessinée en grand" />)
+
+    expect((container.querySelector('h2') as HTMLElement).style.fontSize).toMatch(/cqw$/)
   })
 
   it('leaves a text that fits alone', () => {
