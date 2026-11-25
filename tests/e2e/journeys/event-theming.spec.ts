@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures/app'
-import { openSettingsSection, saved } from '../fixtures/settingsPage'
+import { openAppearance, saved } from '../fixtures/settingsPage'
 import type { Page } from '@playwright/test'
 
 /**
@@ -37,8 +37,7 @@ test('a host picks the event’s colour and the room wears it @smoke', async ({ 
   const before = await accentOn(projector, 'body')
   expect(before).not.toBe('')
 
-  await host.goto(app.url(`/admin/events/${event.slug}/settings`))
-  await openSettingsSection(host, 'Apparence')
+  await openAppearance(host, app.url(`/admin/events/${event.slug}/appearance`))
   await saved(host, () => host.getByRole('radio', { name: 'Rose' }).check())
 
   // **No reload.** The projector is a machine in the corner that nobody is going to

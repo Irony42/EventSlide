@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures/app'
 import { jpegWithLocation } from '../fixtures/media'
-import { openSettingsSection, saved } from '../fixtures/settingsPage'
+import { openAppearance, saved } from '../fixtures/settingsPage'
 
 /**
  * Spec 03, PR 1, end to end: the host writes a welcome message on a laptop, and the guest's
@@ -21,12 +21,13 @@ test('a host writes a welcome message and the guest and the empty wall show it',
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
   await expect(projector.getByTestId('wall-welcome')).toHaveCount(0)
 
-  await host.goto(app.url(`/admin/events/${event.slug}/settings`))
-  await openSettingsSection(host, 'Apparence')
+  await openAppearance(host, app.url(`/admin/events/${event.slug}/appearance`))
   // The welcome message is saved when the field loses focus, not per keystroke.
   await saved(host, async () => {
-    await host.getByLabel(/Message d’accueil/).fill('Bienvenue !\nUne photo du gâteau ?')
-    await host.getByLabel(/Message d’accueil/).press('Tab')
+    await host
+      .getByRole('textbox', { name: /Message d’accueil/ })
+      .fill('Bienvenue !\nUne photo du gâteau ?')
+    await host.getByRole('textbox', { name: /Message d’accueil/ }).press('Tab')
   })
 
   // No reload on the projector: the empty wall is where the host watches while they write.
@@ -57,8 +58,7 @@ test('a host sends a logo: the preview is the stored file, location-free, and re
   const { host } = surfaces
   const event = await app.seedEvent({ slug: 'logo-de-camille', name: 'Camille & Sacha' })
 
-  await host.goto(app.url(`/admin/events/${event.slug}/settings`))
-  await openSettingsSection(host, 'Apparence')
+  await openAppearance(host, app.url(`/admin/events/${event.slug}/appearance`))
   // A phone picture with a device name and a GPS block: what the served bytes must not carry.
   await host.getByTestId('logo-input').setInputFiles(await jpegWithLocation('logo'))
 
@@ -95,8 +95,7 @@ test('a host sends a logo and the join page and the empty wall show it, then los
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
   await expect(projector.getByTestId('host-logo')).toHaveCount(0)
 
-  await host.goto(app.url(`/admin/events/${event.slug}/settings`))
-  await openSettingsSection(host, 'Apparence')
+  await openAppearance(host, app.url(`/admin/events/${event.slug}/appearance`))
   await host.getByTestId('logo-input').setInputFiles(await jpegWithLocation('logo'))
   await expect(host.getByRole('img', { name: 'Aperçu du logo de l’évènement' })).toBeVisible()
 
