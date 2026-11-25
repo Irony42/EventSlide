@@ -1,21 +1,5 @@
 /* "Réponses des invités" in the invitations page's left column (spec 30). Tokens only. */
 
-.panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-}
-
-.title {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  font-size: var(--text-lg);
-}
-
 .deadline {
   display: flex;
   flex-direction: column;
@@ -93,8 +77,56 @@
   font-size: var(--text-sm);
 }
 
-.explain h3 {
+.explain h4 {
   margin-block-start: var(--space-2);
   color: var(--text-primary);
   font-size: var(--text-sm);
+}
+
+.state {
+  display: flex;
+}
+
+.subtitle {
+  margin-block-start: var(--space-2);
+  font-size: var(--text-base);
+}
+
+/* The kind of party: three buttons, the chosen one marked by its fill and its pressed state. */
+.presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.preset {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-block-size: var(--touch-min);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 650;
+  text-align: start;
+  cursor: pointer;
+}
+
+.preset small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.preset:disabled {
+  cursor: default;
+}
+
+.presetOn {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 16%, var(--surface-raised));
 }

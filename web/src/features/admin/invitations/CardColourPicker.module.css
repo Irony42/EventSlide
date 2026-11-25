@@ -1,0 +1,139 @@
+/* The colour of the card: a row of six, a "+6", a popover. Tokens only. */
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.label {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.name {
+  margin-inline-start: var(--space-2);
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  cursor: pointer;
+}
+
+.dot {
+  inline-size: 70%;
+  block-size: 70%;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-strong);
+}
+
+/* The chosen swatch: an outline and a check, so the state is not carried by the colour alone. */
+.on .dot {
+  outline: 3px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.check {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  display: grid;
+  place-items: center;
+  inline-size: var(--icon-size-sm);
+  block-size: var(--icon-size-sm);
+  border-radius: var(--radius-full);
+  background: var(--text-primary);
+  color: var(--surface-base);
+}
+
+.more {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.more[aria-expanded='true'] {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.popover {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-start: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  inline-size: min(100%, 22rem);
+  margin-block-start: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow-md);
+}
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-block-size: var(--touch-min);
+  font-size: var(--text-sm);
+}
+
+.custom input[type='color'] {
+  inline-size: var(--touch-min);
+  block-size: var(--space-6);
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
+/* A phone: the popover is the width of the screen. */
+@container invite (max-width: 35.99rem) {
+  .popover {
+    inline-size: 100%;
+  }
+}

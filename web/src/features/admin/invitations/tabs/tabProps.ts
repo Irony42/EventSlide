@@ -27,6 +27,11 @@ export interface OutputProps extends InvitationTabProps {
   readonly photoUrl: string | null
   /** What the guest's page would say of the replies' settings being chosen (spec 30), for the preview. */
   readonly rsvp?: GuestRsvpPageDto
+  /**
+   * The card's own screen (no panel open): the print format shows **one large card** instead of the
+   * sheet, and keeps all its state (the households, the word) for when the host shares.
+   */
+  readonly cardOnly?: boolean
   /** A format owns its state and hands the page its two halves. */
   readonly children: (slots: OutputSlots) => ReactNode
 }

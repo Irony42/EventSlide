@@ -5,16 +5,17 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type RefObject,
   type ReactNode,
 } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../../app/HostEventsLink'
 import { Button } from '../../../design-system/components/Button'
 import { LoadFailure, Pending } from '../../../design-system/components/Async'
 import { Notice } from '../../../design-system/components/Notice'
 import type { EventDto, GuestInviteDto } from '../../../lib/api/dto'
-import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import { canManageEvent } from '../../../lib/eventLifecycle'
 import { previewPage } from '../../../lib/rsvp/rsvpSettings'
 import { useApi } from '../../../lib/useApi'
@@ -24,8 +25,12 @@ import { useEvent } from '../hooks/useEventData'
 import { AppearancePanel } from './AppearancePanel'
 import { draftInvite } from './invitationDraft'
 import { InvitationLink } from './InvitationLink'
-import { InvitationText } from './InvitationText'
+import { InvitationSaveStatus, InvitationText } from './InvitationText'
+import { KeptStateProvider, OpenGroupsProvider, useKeptStore, useOpenGroups } from './openGroups'
+import { optionCount, shortDay } from './panelSummaries'
+import { PanelEntry } from './PanelEntry'
 import { RsvpPanel } from './RsvpPanel'
+import { SidePanel } from './SidePanel'
 import { EmailTab } from './tabs/EmailTab'
 import { GuestTab } from './tabs/GuestTab'
 import { ImageTab } from './tabs/ImageTab'
@@ -35,6 +40,10 @@ import { useInvitationAutosave } from './useInvitationAutosave'
 import { useRsvpSettings } from './useRsvpSettings'
 import { useInviteLook } from './useInvitePreferences'
 import styles from './InvitationsPage.module.css'
+
+/** The two panels that take the place of the card's column. */
+type PanelName = 'reponses' | 'partage'
+const SHARE_PANEL_ID = 'invite-panel-share'
 
 type OutputName = 'print' | 'image' | 'email' | 'guest'
 const OUTPUTS: readonly OutputName[] = ['print', 'image', 'email', 'guest']
@@ -125,6 +134,33 @@ function OwnerPage({ event }: { readonly event: EventDto }) {
   return <Workspace event={event} invite={data.guestInvite} onChanged={adopt} />
 }
 
+/**
+ * Gives the workspace the rest of the window: its top is measured (the link's bar may wrap on a
+ * narrow page, the event's name may take two lines) instead of guessed, and the page's CSS takes it
+ * from `--invite-top`.
+ */
+function useWorkspaceTop(head: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const bar = head.current
+    const page = bar?.parentElement
+    if (bar == null || page == null) return
+    const measure = () => {
+      const bottom = bar.getBoundingClientRect().bottom + window.scrollY
+      page.style.setProperty('--invite-top', `${Math.round(bottom)}px`)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(bar)
+    observer?.observe(document.body)
+    return () => {
+      window.removeEventListener('resize', measure)
+      observer?.disconnect()
+      page.style.removeProperty('--invite-top')
+    }
+  }, [head])
+}
+
 function Workspace({
   event,
   invite,
@@ -136,6 +172,8 @@ function Workspace({
   readonly onChanged: (invite: GuestInviteDto) => void
 }) {
   const text = useTranslations().guestInvite.host
+  const all = useTranslations()
+  const { locale } = useLocale()
   const slug = event.slug
   // An archived event is a record: the invitation cannot change any more.
   const archived = event.status === 'archived'
@@ -150,10 +188,62 @@ function Workspace({
   const look = useInviteLook(slug)
   // The replies' settings hang on the invitation: read again once it exists.
   const rsvp = useRsvpSettings(slug, `${invite.configured}|${invite.startsAt}|${invite.timeZone}`)
-  const [output, setOutput] = useState<OutputName>('print')
   const activateRef = useRef<HTMLButtonElement>(null)
   const ids = useId()
   const [big, setBig] = useState(false)
+  const openGroups = useOpenGroups()
+  const kept = useKeptStore()
+  const head = useRef<HTMLDivElement>(null)
+  useWorkspaceTop(head)
+  const navigate = useNavigate()
+
+  // Which panel is open, and which format the share panel shows, live in the address: a reload
+  // or Back returns to the same screen.
+  const [params, setParams] = useSearchParams()
+  const panelParam = params.get('panel')
+  const panel: PanelName | null =
+    panelParam === 'reponses' || panelParam === 'partage' ? panelParam : null
+  const formatParam = params.get('format')
+  const output: OutputName = OUTPUTS.find((name) => name === formatParam) ?? 'print'
+  /** What the preview shows: the card, the guest's page while the replies are set, the chosen format while sharing. */
+  const previewOf: OutputName =
+    panel === 'reponses' ? 'guest' : panel === 'partage' ? output : 'print'
+
+  /** The panel was opened by the host in this visit: its title takes the focus, once. */
+  const [openedHere, setOpenedHere] = useState(false)
+  const stopFocusing = useCallback(() => setOpenedHere(false), [])
+  /** The panel's address was pushed by a door in this visit, so closing it is one step back. */
+  const pushed = useRef(false)
+  const openPanel = (name: PanelName) => {
+    setOpenedHere(true)
+    pushed.current = true
+    setParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('panel', name)
+      return next
+    })
+  }
+  const closePanel = () => {
+    // A panel the host opened is closed by going back, so Back does not reopen it; one that a
+    // reload or a link brought is replaced. (A save waiting holds Back and would ask: replace then.)
+    const waiting = autosave.state === 'pending' || autosave.state === 'saving'
+    if (pushed.current && !waiting) {
+      pushed.current = false
+      void navigate(-1)
+      return
+    }
+    pushed.current = false
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        next.delete('panel')
+        next.delete('format')
+        return next
+      },
+      { replace: true },
+    )
+  }
+
   // The format's own component draws the switcher too, so changing format remounts it: the focus
   // is given back to the tab that was chosen once the new one is in the page.
   const refocus = useRef<OutputName | null>(null)
@@ -163,9 +253,28 @@ function Workspace({
     refocus.current = null
   }, [output, ids])
   const choose = (name: OutputName) => {
+    // The tab that is already chosen: nothing is drawn again, so nothing is to be focused afterwards.
+    if (name === output) return
     refocus.current = name
-    setOutput(name)
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        next.set('format', name)
+        return next
+      },
+      { replace: true },
+    )
   }
+
+  // A panel that closes gives the focus back to the entry that opened it.
+  const lastPanel = useRef<PanelName | null>(panel)
+  useEffect(() => {
+    const before = lastPanel.current
+    lastPanel.current = panel
+    if (before !== null && panel === null) {
+      document.getElementById(`${ids}-entry-${before}`)?.focus()
+    }
+  }, [panel, ids])
 
   // What was typed and is not on the server yet exists nowhere else.
   useLeaveWarning(
@@ -236,92 +345,162 @@ function Workspace({
     </div>
   )
 
-  const arrange = ({ preview, options, actions }: OutputSlots) => (
-    <>
-      <div className={styles['middle']}>
+  const saveStatus = (named: boolean) => (
+    <InvitationSaveStatus
+      state={autosave.state}
+      problem={autosave.problem}
+      onRetry={autosave.saveNow}
+      named={named}
+    />
+  )
+
+  // The two entries' one-line summaries: what they hold now, readable without opening them.
+  const settings = rsvp.settings
+  const repliesSummary =
+    settings === null
+      ? rsvp.loadFailure === null
+        ? '…'
+        : text.repliesUnavailable
+      : !settings.enabled
+        ? all.rsvp.host.stateOff
+        : text.repliesSummary(
+            settings.deadline === null ? null : shortDay(settings.deadline, locale),
+            optionCount(settings),
+          )
+
+  /** The left column on the card's own screen: the text, the look, and the two doors. */
+  const cardColumn = (
+    <div className={styles['cardColumn']}>
+      <div className={styles['cardScroll']}>
+        <InvitationText
+          eventName={event.name}
+          form={autosave.form}
+          onChange={autosave.change}
+          problem={autosave.problem}
+          disabled={archived}
+        />
+        <section className={styles['look']} aria-labelledby={`${ids}-look`}>
+          <h2 id={`${ids}-look`} className={styles['panelTitle']}>
+            {text.lookTitle}
+          </h2>
+          {shown === null ? (
+            <p className={styles['note']}>{text.lookLocked}</p>
+          ) : (
+            <AppearancePanel event={event} invite={shown} look={look} />
+          )}
+        </section>
+      </div>
+      <div className={styles['entries']}>
+        <PanelEntry
+          id={`${ids}-entry-reponses`}
+          icon="mail"
+          title={all.rsvp.host.title}
+          summary={repliesSummary}
+          onOpen={() => openPanel('reponses')}
+        />
+        <PanelEntry
+          id={`${ids}-entry-partage`}
+          icon="printer"
+          title={text.sharePanelTitle}
+          summary={text.entryShareSummary}
+          onOpen={() => openPanel('partage')}
+        />
+      </div>
+      <div className={styles['cardFooter']}>{saveStatus(false)}</div>
+    </div>
+  )
+
+  const arrange =
+    ({ side }: { readonly side: (slots: OutputSlots) => ReactNode }) =>
+    (slots: OutputSlots) => (
+      <div className={styles['workspace']} data-panel={panel ?? 'card'}>
+        <div className={styles['side']}>{side(slots)}</div>
+        <div className={styles['stage']}>
+          {/* The panel is what is locked, not the tabs: a host can look at each, and is told why it is empty. */}
+          <div
+            className={styles['previewPane']}
+            data-testid="invite-preview"
+            data-big={big}
+            data-locked={shown === null}
+          >
+            {slots.preview}
+            {shown === null ? null : (
+              <button
+                type="button"
+                className={styles['enlarge']}
+                onClick={() => setBig((open) => !open)}
+              >
+                {big ? text.previewClose : text.previewEnlarge}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+
+  /** What stands where the card's column does, for the panel that is open (or the column itself). */
+  const side = ({ options, actions }: OutputSlots): ReactNode => {
+    if (panel === null) return cardColumn
+    if (panel === 'reponses') {
+      return (
+        <RsvpPanel
+          rsvp={rsvp}
+          archived={archived}
+          timeZone={invite.timeZone}
+          onClose={closePanel}
+          focusOnMount={openedHere}
+          onFocused={stopFocusing}
+          invitationStatus={saveStatus(true)}
+        />
+      )
+    }
+    return (
+      <SidePanel
+        id={SHARE_PANEL_ID}
+        title={text.sharePanelTitle}
+        onClose={closePanel}
+        focusOnMount={openedHere}
+        onFocused={stopFocusing}
+        footer={
+          <>
+            {actions}
+            {saveStatus(true)}
+          </>
+        }
+      >
         {switcher}
         {/* The panel is what is locked, not the tabs: a host can look at each, and is told why it is empty. */}
         <div
           role="tabpanel"
           id={`${ids}-panel`}
           aria-labelledby={`${ids}-tab-${output}`}
-          className={styles['previewPane']}
-          data-big={big}
-          data-locked={shown === null}
+          className={styles['options']}
         >
-          {preview}
-          {shown === null ? null : (
-            <button
-              type="button"
-              className={styles['enlarge']}
-              onClick={() => setBig((open) => !open)}
-            >
-              {big ? text.previewClose : text.previewEnlarge}
-            </button>
-          )}
+          {options ?? <p className={styles['note']}>{text.shareLocked}</p>}
         </div>
-      </div>
-      <div className={styles['optionsCol']}>
-        <div className={styles['options']} role="group" aria-label={text.optionsLabel}>
-          {options}
-        </div>
-        {actions === null ? null : (
-          <div className={styles['actions']}>
-            {/* The previews keep the last text that could be saved: say so beside the buttons. */}
-            {autosave.state === 'failed' || autosave.state === 'invalid' ? (
-              <p className={styles['unsaved']} role="status">
-                {text.saveFailed}
-              </p>
-            ) : null}
-            {actions}
-          </div>
-        )}
-      </div>
-    </>
-  )
+      </SidePanel>
+    )
+  }
 
-  const Output = OUTPUT_TABS[output]
+  const Output = OUTPUT_TABS[previewOf]
+  const layout = arrange({ side })
 
   return (
-    <>
-      <div className={styles['head']}>
-        <h1 className={styles['title']}>{text.title}</h1>
-        <InvitationLink
-          slug={slug}
-          invite={invite}
-          disabled={archived}
-          onChanged={onChanged}
-          activateRef={activateRef}
-        />
-      </div>
-
-      <div className={styles['workspace']}>
-        <div className={styles['text']}>
-          <InvitationText
-            eventName={event.name}
-            form={autosave.form}
-            onChange={autosave.change}
-            state={autosave.state}
-            problem={autosave.problem}
-            onRetry={autosave.saveNow}
+    <OpenGroupsProvider value={openGroups}>
+      <KeptStateProvider value={kept}>
+        <div ref={head} className={styles['head']}>
+          <h1 className={styles['title']}>{text.title}</h1>
+          <InvitationLink
+            slug={slug}
+            invite={invite}
             disabled={archived}
+            onChanged={onChanged}
+            activateRef={activateRef}
           />
-          <section className={styles['look']} aria-labelledby={`${ids}-look`}>
-            <h2 id={`${ids}-look`} className={styles['panelTitle']}>
-              {text.lookTitle}
-              <span className={styles['common']}>{text.lookBadge}</span>
-            </h2>
-            {shown === null ? (
-              <p className={styles['note']}>{text.lookLocked}</p>
-            ) : (
-              <AppearancePanel event={event} invite={shown} look={look} />
-            )}
-          </section>
-          <RsvpPanel rsvp={rsvp} archived={archived} timeZone={invite.timeZone} />
         </div>
 
         {shown === null ? (
-          arrange({
+          layout({
             preview: (
               <LockedState
                 dated={dated}
@@ -342,13 +521,14 @@ function Workspace({
             preferences={look.preferences}
             onPreferences={look.update}
             photoUrl={look.photoUrl}
+            cardOnly={panel === null}
             {...(rsvp.settings === null ? {} : { rsvp: previewPage(rsvp.settings) })}
           >
-            {arrange}
+            {layout}
           </Output>
         )}
-      </div>
-    </>
+      </KeptStateProvider>
+    </OpenGroupsProvider>
   )
 }
 

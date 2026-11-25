@@ -19,7 +19,6 @@ import { fr } from '../../../web/src/lib/i18n/fr'
 const asked = fr.rsvp.host
 const guest = fr.rsvp.guest
 const list = fr.rsvp.list
-const page = fr.guestInvite.host
 
 // Playwright insists on a destructured first argument.
 // eslint-disable-next-line no-empty-pattern
@@ -35,10 +34,11 @@ test('the host asks for companions, menus and a question; a guest answers them; 
   const { host } = surfaces
   const { event, url } = await invitedHost(host, app, 'fete-extras')
 
-  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
-  await host.getByRole('tab', { name: page.tabGuest }).click()
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations?panel=reponses`))
   const panel = host.getByRole('region', { name: new RegExp(asked.title) })
   await panel.getByRole('checkbox', { name: asked.askLabel }).check()
+  await panel.locator('summary', { hasText: asked.groupMeals }).click()
+  await panel.locator('summary', { hasText: asked.questionsTitle }).click()
   await panel.getByRole('checkbox', { name: asked.companionsLabel }).check()
   await panel.getByRole('checkbox', { name: asked.mealsLabel }).check()
   await panel.getByLabel(asked.mealsOptionsLabel).fill('Poisson\nVégé')

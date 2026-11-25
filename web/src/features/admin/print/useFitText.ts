@@ -3,6 +3,8 @@ import { useLayoutEffect, type RefObject } from 'react'
 /** Shrink factor per step, and the most steps taken: 0.94^40 is a twelfth of the size. */
 const STEP = 0.94
 const MAX_STEPS = 40
+/** The most a text may spill out of its box, in pixels, whatever its size. */
+const MAX_TOLERANCE_PX = 1.5
 
 /**
  * Shrinks every `[data-fit]` text inside each printed card until it fits its box (spec 28).
@@ -14,7 +16,8 @@ const MAX_STEPS = 40
  *
  * A text written on one line (`white-space: nowrap`) that would fall under `data-fit-min` (in
  * `cqw`) is allowed to wrap instead, and fitted again: a masthead stays one line when it can.
- * Script faces draw past their line box, so an overflow of under 14 % of the size is tolerated.
+ * Script faces draw past their line box, so an overflow of under 14 % of the size is tolerated, up
+ * to a pixel and a half: a card drawn big must not cut a line of its text.
  *
  * Measured, so it does nothing where nothing is laid out (jsdom), and runs again when the fonts
  * arrive (a fallback face measures differently) and when the sheet is resized.
@@ -54,9 +57,10 @@ const fitAll = (root: HTMLElement): void => {
 const overflows = (text: HTMLElement, size: number): boolean => {
   const ceiling = parseFloat(getComputedStyle(text).maxHeight)
   const limit = Number.isFinite(ceiling) ? ceiling : text.clientHeight
-  return (
-    text.scrollHeight > limit + Math.max(1, size * 0.14) || text.scrollWidth > text.clientWidth + 1
-  )
+  // 14 % of the size, but never more than a pixel and a half: on a card drawn big (the invitation's
+  // own screen) 14 % is several pixels of a last line cut by the box, which is not ink but text.
+  const tolerance = Math.max(1, Math.min(size * 0.14, MAX_TOLERANCE_PX))
+  return text.scrollHeight > limit + tolerance || text.scrollWidth > text.clientWidth + 1
 }
 
 const shrink = (text: HTMLElement, cardWidth: number, floor: number): number => {

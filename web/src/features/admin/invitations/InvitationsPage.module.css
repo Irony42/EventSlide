@@ -2,26 +2,22 @@
  * Breakpoints are the page's own width (container queries), not the screen's: the host layout puts a
  * side menu beside it.
  *
- * The host's "Invitations" page (spec 29), three columns: the text and the look, the preview of the
- * chosen format, its options and action. The validated mock-up is proposal B of
- * `maquettes/apercus-2026-11-22/invitations.html`; this is the app's own design system, not the
- * mock-up's CSS.
+ * The host's "Invitations" page (spec 29), card first: the left column is the card's text and look
+ * and two doors; a door opens a panel that **replaces that column** (never the preview). The preview
+ * on the right is always in view: it follows the panel (the card, the guest's page while the replies
+ * are set, the chosen format while sharing).
  *
- * Four layouts, one DOM:
- *  - a container of 56rem and up (a laptop): three columns, each scrolling on its own, the page not at all.
- *  - 36rem to 56rem: the text on the left; on the right the preview, pinned, and the options under it.
- *  - under 36rem (a phone): one column in the order preview (pinned, reduced; a tap makes it big),
- *    format switcher, text, look, options; the format's action sticks to the bottom of the screen.
- * `.middle` and `.optionsCol` are `display: contents` on a phone so their children can be placed
- * one by one.
+ * Three layouts, one DOM:
+ *  - a container of 56rem and up (a laptop): two columns of a fixed height, the left one (or the
+ *    panel's body) scrolling on its own, the preview never, the page not at all.
+ *  - 36rem to 56rem: the column on the left, the preview pinned on the right; the page scrolls.
+ *  - under 36rem (a phone): the preview pinned and reduced (a tap makes it big), then the column;
+ *    a panel fills the screen under it, its footer pinned to the bottom.
  */
 
 .page {
-  /* What the shell and this page's head take above the workspace, and the shell's padding under it
-     (measured at 1366 × 768: 9.6rem above, 1.25rem under): on a laptop the workspace is the rest of
-     the window. The site's footer stays under the fold, as the event menu beside it already puts it
-     there on a laptop. */
-  --invite-chrome: 11rem;
+  /* `--invite-top`, set by the page from its own head, is where the workspace begins in the window:
+     on a laptop the workspace is the rest of it, whatever the head takes. */
   container: invite / inline-size;
   inline-size: 100%;
   display: flex;
@@ -115,7 +111,7 @@
   margin-inline-start: auto;
 }
 
-/* ---- The workspace */
+/* ---- The workspace: the card's column (or a panel) and the preview */
 
 .workspace {
   display: grid;
@@ -123,40 +119,64 @@
   min-width: 0;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    'preview'
-    'switcher'
-    'text'
-    'options'
-    'actions';
+    'stage'
+    'side';
 }
 
-.middle,
-.optionsCol {
+.stage {
+  /* A phone: the preview pane is the grid's own item, so that it can stay pinned while the page scrolls. */
   display: contents;
 }
 
-.text {
-  grid-area: text;
+.previewPane {
+  grid-area: stage;
+}
+
+.side {
+  grid-area: side;
   display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-block-size: 0;
+}
+
+.cardColumn {
+  display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--space-5);
   min-width: 0;
+  min-block-size: 0;
 }
 
-.switcher {
-  grid-area: switcher;
+.cardScroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  min-block-size: 0;
 }
 
-.previewPane {
-  grid-area: preview;
+.cardFooter {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 2;
+  padding: var(--space-2) var(--space-1);
+  padding-block-end: calc(var(--space-2) + env(safe-area-inset-bottom));
+  border-block-start: 1px solid var(--border-subtle);
+  background: var(--surface-base);
 }
 
-.options {
-  grid-area: options;
+.cardFooter:has([data-state='idle']) {
+  padding-block: 0;
+  border-block-start-color: transparent;
 }
 
-.actions {
-  grid-area: actions;
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .formPanel,
@@ -174,16 +194,6 @@
   align-items: center;
   gap: var(--space-2) var(--space-3);
   font-size: var(--text-lg);
-}
-
-/* "Common to every format": a label on the heading, not a control. */
-.common {
-  padding: 0 var(--space-2);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-full);
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  font-weight: 600;
 }
 
 .note {
@@ -223,17 +233,33 @@
   gap: var(--space-3);
 }
 
+.saveBlock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
 .saveLine {
   min-block-size: 1.25rem;
   color: var(--text-secondary);
   font-size: var(--text-sm);
 }
 
+.saveLine[data-state='idle'] {
+  min-block-size: 0;
+}
+
 .saveLine[data-state='saved'] {
   color: var(--success);
 }
 
-/* ---- The format switcher: a segmented control, arrows move between the four */
+.saveLine[data-state='failed'],
+.saveLine[data-state='invalid'] {
+  color: var(--warning);
+}
+
+/* ---- The format switcher, in the share panel: a segmented control, arrows move between the four */
 
 .switcher {
   display: grid;
@@ -264,7 +290,14 @@
   color: var(--accent-contrast);
 }
 
-/* ---- The preview's pane */
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* ---- The preview's pane: a phone pins it small at the top, a laptop gives it the room */
 
 .previewPane {
   position: sticky;
@@ -302,27 +335,6 @@
   font: inherit;
   font-size: var(--text-sm);
   cursor: pointer;
-}
-
-.options {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-}
-
-/* The format's action: on a phone it sticks to the bottom of the screen. */
-.actions {
-  position: sticky;
-  inset-block-end: 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-1);
-  padding-block-end: calc(var(--space-3) + env(safe-area-inset-bottom));
-  border-block-start: 1px solid var(--border-subtle);
-  background: var(--surface-base);
 }
 
 /* ---- The locked state: two steps and the action of the next */
@@ -387,44 +399,46 @@
   font-weight: 650;
 }
 
-/* ---- 36rem and up: the text left; the preview, pinned, with the options under it */
+/* ---- Under 36rem the preview is pinned at the top: a control the keyboard or a scroll brings into view
+   must not end up under it (rule 9 of the UX research: focus is never hidden by a sticky header). */
+
+@container invite (max-width: 35.99rem) {
+  .side :is(input, select, textarea, button, summary, h2) {
+    scroll-margin-block-start: 13rem;
+  }
+}
+
+/* ---- 36rem and up: the column left, the preview pinned right */
 
 @container invite (min-width: 36rem) {
   .switcher {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .workspace {
-    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
-    grid-template-areas:
-      'text middle'
-      'text options';
-    grid-template-rows: auto 1fr;
+    grid-template-columns: minmax(16rem, 26rem) minmax(0, 1fr);
+    grid-template-areas: 'side stage';
     align-items: start;
   }
 
-  .middle {
-    grid-area: middle;
+  .stage {
+    grid-area: stage;
+    min-width: 0;
     position: sticky;
     inset-block-start: var(--space-3);
     z-index: 2;
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
-    block-size: min(34rem, 64dvh);
+    /* In the window from where the head ends, whatever the head takes (the page scrolls under it). */
+    block-size: max(20rem, min(40rem, calc(100dvh - var(--invite-top, 10rem) - var(--space-5))));
     min-width: 0;
-    padding-block-end: var(--space-2);
     background: var(--surface-base);
-  }
-
-  .switcher,
-  .previewPane {
-    grid-area: auto;
   }
 
   .previewPane,
   .previewPane[data-big='true'],
   .previewPane[data-locked='true'] {
+    grid-area: auto;
     position: relative;
     inset-block-start: auto;
     flex: 1;
@@ -435,77 +449,59 @@
   .enlarge {
     display: none;
   }
-
-  .optionsCol {
-    grid-area: options;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-    min-width: 0;
-  }
-
-  .options,
-  .actions {
-    grid-area: auto;
-  }
-
-  .actions {
-    background: var(--surface-base);
-  }
 }
 
-/* ---- 56rem and up: three columns, each on its own, the page still */
+/* ---- 56rem and up: the workspace has a height of its own, the page does not scroll */
 
 @container invite (min-width: 56rem) {
   .workspace {
-    grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr) minmax(14rem, 17rem);
-    grid-template-areas: 'text middle options';
+    grid-template-columns: minmax(19rem, 26rem) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
     align-items: stretch;
-    block-size: max(26rem, calc(100dvh - var(--invite-chrome)));
+    block-size: max(
+      26rem,
+      calc(100dvh - var(--invite-top, 10rem) - var(--space-4) - var(--space-5))
+    );
     overflow: hidden;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
     background: var(--surface-raised);
   }
 
-  .text,
-  .optionsCol {
-    min-block-size: 0;
+  .side {
+    border-inline-end: 1px solid var(--border-subtle);
+    background: var(--surface-base);
+  }
+
+  .cardScroll {
+    overflow-y: auto;
     padding: var(--space-4);
   }
 
-  .text {
-    overflow-y: auto;
+  .cardColumn {
+    gap: 0;
   }
 
-  .middle {
+  /* The two doors stay in reach under the column, whatever its length. */
+  .entries {
+    padding: var(--space-3) var(--space-4);
+    border-block-start: 1px solid var(--border-subtle);
+  }
+
+  .cardFooter {
+    position: static;
+    padding-inline: var(--space-4);
+  }
+
+  .stage {
     position: static;
     block-size: auto;
     min-block-size: 0;
     padding: var(--space-3);
-    border-inline: 1px solid var(--border-subtle);
   }
 
   .previewPane {
     border: none;
-  }
-
-  .optionsCol {
-    gap: 0;
-    padding-block-end: 0;
-  }
-
-  .options {
-    flex: 1;
-    min-block-size: 0;
-    overflow-y: auto;
-  }
-
-  .actions {
-    position: static;
-    padding-inline: 0;
-    background: none;
   }
 }
 
@@ -522,12 +518,11 @@
     max-inline-size: none;
   }
 
-  .page:has([data-invite-sheet])
-    :is(.screenOnly, .head, .text, .switcher, .optionsCol, .enlarge, .options, .actions) {
+  .page:has([data-invite-sheet]) :is(.screenOnly, .head, .side, .enlarge) {
     display: none;
   }
 
-  .page:has([data-invite-sheet]) :is(.workspace, .middle, .previewPane) {
+  .page:has([data-invite-sheet]) :is(.workspace, .stage, .previewPane) {
     display: block;
     position: static;
     block-size: auto;
@@ -558,9 +553,4 @@
   :global(body):has([data-invite-sheet]) {
     background: var(--print-paper);
   }
-}
-
-.unsaved {
-  color: var(--warning);
-  font-size: var(--text-sm);
 }
