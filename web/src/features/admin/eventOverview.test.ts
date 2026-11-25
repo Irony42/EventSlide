@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nowTiles, type EventPageFacts } from './eventOverview'
+import { asksForLogo, nowTiles, type EventPageFacts } from './eventOverview'
 
 const facts = (overrides: Partial<EventPageFacts> = {}): EventPageFacts => ({
   status: 'live',
@@ -32,5 +32,26 @@ describe('the "Maintenant" card', () => {
   it('offers no queue and no screen on an archived event', () => {
     expect(nowTiles(facts({ status: 'archived' }))).not.toContain('moderate')
     expect(nowTiles(facts({ status: 'archived' }))).not.toContain('wall')
+  })
+})
+
+describe('the « Ajouter votre logo » step', () => {
+  const LOGO = `/api/events/camille-et-sacha/logo/${'ab'.repeat(32)}`
+
+  it('is asked of the owner while the event has no logo', () => {
+    expect(asksForLogo({ role: 'owner', logoUrl: null })).toBe(true)
+    expect(asksForLogo({ role: 'owner', logoUrl: undefined })).toBe(true)
+  })
+
+  it('leaves the list once the event has a logo', () => {
+    expect(asksForLogo({ role: 'owner', logoUrl: LOGO })).toBe(false)
+  })
+
+  it('is not asked of a moderator, who cannot send one', () => {
+    expect(asksForLogo({ role: 'moderator', logoUrl: null })).toBe(false)
+  })
+
+  it('does not count a path the client would not render as a logo', () => {
+    expect(asksForLogo({ role: 'owner', logoUrl: 'https://evil.example/logo.png' })).toBe(true)
   })
 })

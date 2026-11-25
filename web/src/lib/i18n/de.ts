@@ -1513,6 +1513,14 @@ export const de: UiText = {
       custom: 'Maßgeschneidert',
     },
 
+    /* ---- The screen that follows the creation of an event: the logo is asked for early. ---- */
+    welcome: {
+      title: (name: string) => `„${name}“ ist angelegt`,
+      lead: 'Noch eine Sache, falls Sie es zur Hand haben: Ihr Logo. Es erscheint auf der Seite Ihrer Gäste, auf dem Bildschirm im Saal, auf der Einladung und auf dem gedruckten QR-Code.',
+      later: 'Später',
+      continue: 'Weiter',
+      findLater: 'Sie finden es später unter „Erscheinungsbild“.',
+    },
     /* ---- The Apparence page (/appearance): what guests and the room see, with a preview. ---- */
     appearance: {
       title: 'Erscheinungsbild',
@@ -1623,8 +1631,6 @@ export const de: UiText = {
     slugHint: 'Optional. Leer lassen, dann wird sie aus dem Namen abgeleitet.',
     slugPreviewLabel: 'Adresse für Ihre Gäste',
     slugPreviewEmpty: 'Geben Sie einen Namen ein, um die Adresse zu sehen.',
-    eventCreated: (name: string) =>
-      `${name} ist bereit. Drucken Sie den QR-Code, wann immer Sie wollen.`,
     joinLink: 'Link für Ihre Gäste',
     printQr: 'QR-Code drucken',
     qrScanPrompt: 'Scannen Sie, um Ihre Fotos zu senden.',
@@ -1874,6 +1880,7 @@ export const de: UiText = {
     nowDraftPrint: 'Tischkarten drucken',
     nowDraftWall: 'Die Leinwand am Beamer testen',
     nowDraftModerators: 'Jemanden zum Mitmoderieren einladen',
+    nowDraftLogo: 'Ihr Logo hinzufügen',
     nowLiveEyebrow: 'Live',
     nowLiveTitle: 'Der Abend läuft',
     nowClosedEyebrow: 'Abend beendet',
@@ -4174,6 +4181,7 @@ export const de: UiText = {
   },
 
   titles: {
+    welcome: 'Veranstaltung angelegt',
     appearance: 'Erscheinungsbild der Veranstaltung',
     print: 'Tischkarten und Plakat',
     eventBook: 'Fotobuch',

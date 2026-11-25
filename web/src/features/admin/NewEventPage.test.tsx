@@ -9,19 +9,18 @@ import { fr } from '../../lib/i18n/fr'
 import {
   aClientLimits,
   anAbout,
-  anEventDto,
   fakeApi,
   renderWithProviders,
 } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
 
-const EVENT_PAGE = 'Page de l’évènement'
+const WELCOME_PAGE = 'Écran de bienvenue'
 
 const renderPage = (api: Api) =>
   renderWithProviders(
     <Routes>
       <Route path="/admin/events/new" element={<NewEventPage />} />
-      <Route path="/admin/events/:slug" element={<p>{EVENT_PAGE}</p>} />
+      <Route path="/admin/events/:slug/welcome" element={<p>{WELCOME_PAGE}</p>} />
     </Routes>,
     { api, route: '/admin/events/new' },
   )
@@ -79,7 +78,7 @@ describe('NewEventPage', () => {
     expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha', wallLanguage: 'fr' })
   })
 
-  it('creates the event from the name alone and opens it', async () => {
+  it('creates the event from the name alone and opens the screen that asks for the logo', async () => {
     const api = fakeApi()
 
     renderPage(api)
@@ -89,7 +88,7 @@ describe('NewEventPage', () => {
     // No slug key at all when the field is untouched: the server derives it, and an
     // empty string would be a validation failure instead of an omission.
     expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha', wallLanguage: 'fr' })
-    expect(await screen.findByText(EVENT_PAGE)).toBeVisible()
+    expect(await screen.findByText(WELCOME_PAGE)).toBeVisible()
   })
 
   it('sends the chosen address when the host wrote one', async () => {
@@ -107,18 +106,6 @@ describe('NewEventPage', () => {
     })
   })
 
-  it('confirms the creation by name, so the host knows which event opened', async () => {
-    const api = fakeApi({
-      createEvent: vi.fn(async () => anEventDto({ name: 'Gala annuel', slug: 'gala' })),
-    })
-
-    renderPage(api)
-    await userEvent.type(screen.getByLabelText(fr.admin.eventName), 'Gala annuel')
-    await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
-
-    expect(await screen.findByText(fr.admin.eventCreated('Gala annuel'))).toBeVisible()
-  })
-
   it('says an address is taken and keeps the form as it was', async () => {
     const api = fakeApi({
       createEvent: vi.fn(() => Promise.reject(new ApiError(409, 'event.slugUnavailable'))),
@@ -130,7 +117,7 @@ describe('NewEventPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['event.slugUnavailable'])
     expect(screen.getByLabelText(fr.admin.eventName)).toHaveValue('Camille & Sacha')
-    expect(screen.queryByText(EVENT_PAGE)).toBeNull()
+    expect(screen.queryByText(WELCOME_PAGE)).toBeNull()
   })
 
   it('says an address is reserved in words the host can act on', async () => {
