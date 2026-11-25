@@ -69,6 +69,11 @@ test('a guest uses a roll of two poses, sees veiled photographs, and finds them 
   await expect(guest.getByTestId('feed-reveal')).toContainText(fr.reveal.feedSoon)
   await expect(guest.locator('img[src*="/photos/"]')).toHaveCount(0)
   await guest.goBack()
+  // Back on its own page, the phone reads its photographs again, and only a photograph it has seen
+  // veiled can be announced as developed (useMyPhotos: a first sight is not a moment). Revealing
+  // before that read answers left nothing to announce: the test's race, not the guest's, and the
+  // one that made this journey fail on slow runners.
+  await expect(mine.getByText(fr.reveal.undeveloped)).toHaveCount(2)
 
   // No sideways scroll on a phone, with all of this on screen.
   const overflow = await guest.evaluate(
