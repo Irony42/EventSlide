@@ -5,21 +5,17 @@ import { ConfirmDialog } from '../../../design-system/components/ConfirmDialog'
 import { CheckboxField } from '../../../design-system/components/CheckboxField'
 import { Field } from '../../../design-system/components/Field'
 import { Notice } from '../../../design-system/components/Notice'
+import { PartySizeField } from './PartySizeField'
 import { SelectField } from '../../../design-system/components/SelectField'
 import { Spinner } from '../../../design-system/components/Spinner'
 import { TextInput } from '../../../design-system/components/TextInput'
 import { RsvpExtras } from './RsvpExtras'
 import { useNow } from '../rsvps/useNow'
 import { dateOf, dayOf } from '../../../lib/rsvp/rsvpDates'
+import { PARTY_SIZE_MAX, PARTY_SIZE_MIN } from '../../../lib/rsvp/partySize'
 import { windowAction } from '../../../lib/rsvp/rsvpList'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
-import {
-  PARTY_SIZES,
-  PRESETS,
-  kindOf,
-  usableDeadline,
-  type PartyKind,
-} from '../../../lib/rsvp/rsvpSettings'
+import { PRESETS, kindOf, usableDeadline, type PartyKind } from '../../../lib/rsvp/rsvpSettings'
 import type { RsvpSettingsState } from './useRsvpSettings'
 import styles from './RsvpPanel.module.css'
 
@@ -217,12 +213,12 @@ export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
         />
         {form.partySize.enabled ? (
           <div className={styles['sub']}>
-            <SelectField
+            <PartySizeField
               label={`${text.sizeMax} ${text.sizeUnit}`}
-              value={String(form.partySize.max)}
+              rangeHint={text.sizeRange(PARTY_SIZE_MIN, PARTY_SIZE_MAX)}
+              value={form.partySize.max}
               disabled={locked}
-              options={sizeOptions(form.partySize.max)}
-              onChange={(max) => rsvp.change({ form: { partySize: { max: Number(max) } } })}
+              onChange={(max, now) => rsvp.change({ form: { partySize: { max } } }, now)}
             />
             <CheckboxField
               label={text.kidsLabel}
@@ -317,9 +313,3 @@ export function RsvpPanel({ rsvp, archived, timeZone = null }: RsvpPanelProps) {
     </section>
   )
 }
-
-/** The sizes offered, and the one the server holds when it is not among them. */
-const sizeOptions = (current: number) =>
-  [...new Set([...PARTY_SIZES, current])]
-    .sort((a, b) => a - b)
-    .map((size) => ({ value: String(size), label: String(size) }))

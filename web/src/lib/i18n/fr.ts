@@ -4255,6 +4255,7 @@ export const fr = {
       sizeHint: 'L’invité dit combien il vient, lui compris.',
       sizeMax: 'Au plus',
       sizeUnit: 'par réponse',
+      sizeRange: (min: number, max: number) => `Entre ${min} et ${max}`,
       kidsLabel: 'Compter les enfants à part',
       kidsHint: 'Utile pour le traiteur et les menus enfants.',
       dietLabel: 'Allergies et régimes',

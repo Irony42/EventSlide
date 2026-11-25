@@ -117,7 +117,8 @@ describe('the replies settings panel: choosing', () => {
     await user.click(await screen.findByRole('checkbox', { name: /Peut-être/ }))
     await user.click(screen.getByRole('checkbox', { name: t.dietLabel }))
     await user.click(screen.getByRole('checkbox', { name: /Peut-être/ }))
-    await user.selectOptions(screen.getByLabelText(`${t.sizeMax} ${t.sizeUnit}`), '6')
+    await user.clear(screen.getByLabelText(`${t.sizeMax} ${t.sizeUnit}`))
+    await user.type(screen.getByLabelText(`${t.sizeMax} ${t.sizeUnit}`), '6')
     await user.click(screen.getByRole('checkbox', { name: t.kidsLabel }))
 
     await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(1))
@@ -168,7 +169,8 @@ describe('the replies settings panel: choosing', () => {
 
     await user.click(screen.getByRole('checkbox', { name: /Peut-être/ }))
     await user.click(screen.getByRole('checkbox', { name: t.dietLabel }))
-    await user.selectOptions(screen.getByLabelText(`${t.sizeMax} ${t.sizeUnit}`), '10')
+    await user.clear(screen.getByLabelText(`${t.sizeMax} ${t.sizeUnit}`))
+    await user.type(screen.getByLabelText(`${t.sizeMax} ${t.sizeUnit}`), '9')
 
     expect(preset).toHaveValue('custom')
   })
@@ -182,7 +184,7 @@ describe('the replies settings panel: choosing', () => {
     expect(screen.queryByLabelText(`${t.sizeMax} ${t.sizeUnit}`)).not.toBeInTheDocument()
   })
 
-  it('offers the size the server holds even when it is not one of the usual ones', async () => {
+  it('shows the size the server holds, whatever it is', async () => {
     render(
       answering({
         form: { ...aRsvpSettings().form, partySize: { enabled: true, max: 7 } },
@@ -190,6 +192,206 @@ describe('the replies settings panel: choosing', () => {
     )
 
     expect(await screen.findByLabelText(`${t.sizeMax} ${t.sizeUnit}`)).toHaveValue('7')
+  })
+
+  describe('"au plus par réponse", typed', () => {
+    const sizeField = () => screen.findByLabelText(`${t.sizeMax} ${t.sizeUnit}`)
+    const sizeSaved = () => vi.fn(async () => ({ rsvpForm: aRsvpSettings() }))
+    /** Longer than the autosave's debounce: a value that was going to be sent has been. */
+    const pastDebounce = () =>
+      act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+      })
+
+    it('is a text field with a numeric keypad: the wheel cannot change it', async () => {
+      render({ ...answering(), saveRsvpForm: sizeSaved() })
+      const field = await sizeField()
+
+      expect(field).toHaveAttribute('type', 'text')
+      expect(field).toHaveAttribute('inputmode', 'numeric')
+      expect(field).toHaveAttribute('pattern', '[0-9]*')
+    })
+
+    it('saves 7, a size the old list did not offer', async () => {
+      const user = userEvent.setup()
+      const saveRsvpForm = sizeSaved()
+      render({ ...answering(), saveRsvpForm })
+      const field = await sizeField()
+
+      await user.clear(field)
+      await user.type(field, '7')
+
+      await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(1))
+      expect(saveRsvpForm).toHaveBeenCalledWith('mariage', { form: { partySize: { max: 7 } } })
+    })
+
+    it('sends 10 and 1, the two ends', async () => {
+      const user = userEvent.setup()
+      const saveRsvpForm = sizeSaved()
+      render({ ...answering(), saveRsvpForm })
+      const field = await sizeField()
+
+      await user.clear(field)
+      await user.type(field, '10')
+      await waitFor(() =>
+        expect(saveRsvpForm).toHaveBeenLastCalledWith('mariage', {
+          form: { partySize: { max: 10 } },
+        }),
+      )
+      await user.clear(field)
+      await user.type(field, '1')
+      await waitFor(() =>
+        expect(saveRsvpForm).toHaveBeenLastCalledWith('mariage', {
+          form: { partySize: { max: 1 } },
+        }),
+      )
+    })
+
+    it.each(['0', '11', '25'])(
+      'does not send %s, and puts the saved size back with the range',
+      async (typed) => {
+        const user = userEvent.setup()
+        const saveRsvpForm = sizeSaved()
+        render({ ...answering(), saveRsvpForm })
+        const field = await sizeField()
+
+        await user.clear(field)
+        await user.type(field, typed)
+        expect(field).toHaveValue(typed)
+        await user.tab()
+
+        expect(field).toHaveValue('4')
+        const hint = screen.getByRole('alert', { name: '' })
+        expect(hint).toHaveTextContent(t.sizeRange(1, 10))
+        expect(field).toHaveAttribute('aria-invalid', 'true')
+        expect(field.getAttribute('aria-describedby')).toBe(hint.id)
+        await pastDebounce()
+        expect(saveRsvpForm).not.toHaveBeenCalled()
+      },
+    )
+
+    it('does not send an emptied field, and puts the saved size back with the range', async () => {
+      const user = userEvent.setup()
+      const saveRsvpForm = sizeSaved()
+      render({ ...answering(), saveRsvpForm })
+      const field = await sizeField()
+
+      await user.clear(field)
+      expect(field).toHaveValue('')
+      await user.tab()
+
+      expect(field).toHaveValue('4')
+      expect(screen.getByRole('alert')).toHaveTextContent(t.sizeRange(1, 10))
+      await pastDebounce()
+      expect(saveRsvpForm).not.toHaveBeenCalled()
+    })
+
+    it('does not send text that is not a number, and puts the saved size back with the range', async () => {
+      const user = userEvent.setup()
+      const saveRsvpForm = sizeSaved()
+      render({ ...answering(), saveRsvpForm })
+      const field = await sizeField()
+
+      await user.clear(field)
+      await user.type(field, 'abc')
+      await user.tab()
+
+      expect(field).toHaveValue('4')
+      expect(screen.getByRole('alert')).toHaveTextContent(t.sizeRange(1, 10))
+      await pastDebounce()
+      expect(saveRsvpForm).not.toHaveBeenCalled()
+    })
+
+    it('describes the range as a hint, turns it into an error when the size is not one, and back once it is typed again', async () => {
+      const user = userEvent.setup()
+      render({ ...answering(), saveRsvpForm: sizeSaved() })
+      const field = await sizeField()
+      expect(screen.getByText(t.sizeRange(1, 10))).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(field).not.toHaveAttribute('aria-invalid')
+      expect(field.getAttribute('aria-describedby')).toBe(screen.getByText(t.sizeRange(1, 10)).id)
+
+      await user.clear(field)
+      await user.type(field, '12')
+      await user.tab()
+      expect(screen.getByRole('alert')).toHaveTextContent(t.sizeRange(1, 10))
+      await user.type(field, '5')
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByText(t.sizeRange(1, 10))).toBeInTheDocument()
+    })
+
+    it.each(['1.5', '1,5', '1e1', '-3', '+4', 'e', ' 7'])(
+      'never sends %j, however it is typed',
+      async (typed) => {
+        const user = userEvent.setup()
+        const saveRsvpForm = sizeSaved()
+        render({ ...answering(), saveRsvpForm })
+        const field = await sizeField()
+
+        await user.clear(field)
+        await user.type(field, typed)
+        await user.tab()
+
+        expect(field).toHaveValue('4')
+        await pastDebounce()
+        expect(saveRsvpForm).not.toHaveBeenCalled()
+      },
+    )
+
+    it('sends what was typed when the panel is left, at once and once', async () => {
+      const user = userEvent.setup()
+      const saveRsvpForm = sizeSaved()
+      const { unmount } = render({ ...answering(), saveRsvpForm })
+      const field = await sizeField()
+
+      await user.clear(field)
+      await user.type(field, '9')
+      unmount()
+
+      // At once: not behind the pauses of the field and of the autosave.
+      expect(saveRsvpForm).toHaveBeenCalledTimes(1)
+      expect(saveRsvpForm).toHaveBeenCalledWith('mariage', { form: { partySize: { max: 9 } } })
+      await pastDebounce()
+      expect(saveRsvpForm).toHaveBeenCalledTimes(1)
+    })
+
+    it('puts the size back when the server refuses it', async () => {
+      const user = userEvent.setup()
+      const saveRsvpForm = vi.fn().mockRejectedValue(new ApiError(400, 'rsvp.partyMaxInvalid'))
+      render({ ...answering(), saveRsvpForm })
+      const field = await sizeField()
+
+      await user.clear(field)
+      await user.type(field, '7')
+
+      await waitFor(() => expect(saveRsvpForm).toHaveBeenCalled())
+      await waitFor(() => expect(field).toHaveValue('4'))
+    })
+
+    it('still applies a preset over a typed size', async () => {
+      const user = userEvent.setup()
+      const saveRsvpForm = sizeSaved()
+      render({ ...answering(), saveRsvpForm })
+      const field = await sizeField()
+      await user.clear(field)
+      await user.type(field, '7')
+      await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(1))
+
+      await user.selectOptions(screen.getByLabelText(new RegExp(t.presetLabel)), 'wedding')
+
+      expect(field).toHaveValue('6')
+      await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(2))
+      expect(saveRsvpForm).toHaveBeenLastCalledWith('mariage', {
+        form: { maybe: false, partySize: { enabled: true, max: 6 }, companionNames: true },
+      })
+    })
+
+    it('is read-only for an archived event', async () => {
+      render({ ...answering(), saveRsvpForm: sizeSaved() }, { archived: true })
+
+      expect(await sizeField()).toBeDisabled()
+    })
   })
 
   it('puts a refused choice back to what the server holds, with the sentence of its code', async () => {

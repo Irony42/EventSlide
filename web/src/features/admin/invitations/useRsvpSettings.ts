@@ -34,7 +34,8 @@ export interface RsvpSettingsState {
   readonly loadFailure: string | null
   readonly retryLoad: () => void
   /** Lays a choice over the screen and queues it. */
-  readonly change: (input: RsvpFormInput) => void
+  /** `now`: sent at once, not after the pause (a field being unmounted cannot wait for it). */
+  readonly change: (input: RsvpFormInput, now?: boolean) => void
   readonly saveState: RsvpSaveState
   /** The sentence of the last refusal, or `null`. */
   readonly problem: string | null
@@ -137,12 +138,13 @@ export const useRsvpSettings = (slug: string, reloadWhen: unknown): RsvpSettings
   }, [api, slug, adopt, set])
 
   const change = useCallback(
-    (input: RsvpFormInput) => {
+    (input: RsvpFormInput, now = false) => {
       set({ sent: latest.current.sent, queued: mergeInputs(latest.current.queued, input) })
       setProblem(null)
       setSaveState('pending')
       window.clearTimeout(timer.current)
-      timer.current = window.setTimeout(() => void drain(), SAVE_DEBOUNCE_MS)
+      if (now) void drain()
+      else timer.current = window.setTimeout(() => void drain(), SAVE_DEBOUNCE_MS)
     },
     [drain, set],
   )
