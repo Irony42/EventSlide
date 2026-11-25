@@ -1313,7 +1313,8 @@ export const en: UiText = {
     moderationMode: 'Moderation',
     moderationManual: 'Approve every photo',
     moderationAuto: 'Publish automatically',
-    moderationManualEffect: 'Every photo waits for your approval before it reaches the screen.',
+    moderationManualEffect:
+      'Every upload (photo, video, message) waits for your approval before it reaches the screen.',
     moderationAutoEffect: 'Uploads reach the screen without approval.',
     moderationAutoWarning:
       'Photos, videos and guestbook messages will appear on the screen with nobody having approved them. Keep this for events among people you know well.',

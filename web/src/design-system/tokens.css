@@ -256,6 +256,8 @@
   --container-settings: 48rem;
   /* The longest line of explanatory text: past it the eye loses its place. */
   --measure-prose: 65ch;
+  /* The widest a single-line control (a date, a select, a number) is drawn on a wide settings page. */
+  --control-max: 24rem;
   /* The event's menu (eventLayout/): its width beside the page, the glyph-only rail it folds to
      below 64rem, and the phone's tab bar under the thumb, which the page keeps clear of. */
   --event-nav-width: 15rem;

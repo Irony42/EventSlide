@@ -281,7 +281,11 @@ describe('EventSettingsPage', () => {
     expect(ruleOf('.page')).toContain('max-inline-size: var(--container-settings)')
     // The chosen card is told apart by its frame, not by the radio alone.
     expect(ruleOf('.card:has(input:checked)')).toContain('border-color: var(--accent)')
-    expect(ruleOf('.sectionHint')).toContain('max-inline-size: var(--measure-prose)')
+    expect(ruleOf('.sections p')).toContain('max-inline-size: var(--measure-prose)')
+    expect(PAGE_CSS).toContain('max-inline-size: var(--control-max)')
+    // A read-only card is dimmed and shows no pointer, as the ambiance cards do.
+    expect(ruleOf('.card:has(input:disabled)')).toContain('opacity: 0.6')
+    expect(ruleOf('.radio:disabled')).toContain('cursor: default')
   })
 
   it('asks before publishing without validation, and saves nothing until the host confirms', async () => {

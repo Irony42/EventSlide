@@ -1365,7 +1365,8 @@ export const es: UiText = {
     moderationMode: 'Moderación',
     moderationManual: 'Aprobar cada foto',
     moderationAuto: 'Publicar automáticamente',
-    moderationManualEffect: 'Cada foto espera su aprobación antes de llegar a la pantalla.',
+    moderationManualEffect:
+      'Cada envío (foto, vídeo, mensaje) espera su aprobación antes de llegar a la pantalla.',
     moderationAutoEffect: 'Los envíos llegan a la pantalla sin aprobación.',
     /**
      * «Las fotos y los vídeos», because both are true: a finished clip is published

@@ -24,7 +24,6 @@
 }
 
 .hint {
-  max-inline-size: var(--measure-prose);
   font-size: var(--text-sm);
   color: var(--text-muted);
 }

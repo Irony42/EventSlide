@@ -25,4 +25,8 @@ test('a click on the sentence of a moderation card chooses that card, and still 
   // Nothing is chosen until the host confirms: the manual card is still the checked one.
   await dialog.getByRole('button', { name: fr.app.cancel }).click()
   await expect(host.getByRole('radio', { name: fr.admin.moderationManual })).toBeChecked()
+
+  // And the radio itself, with no force: a plain click reaches it above the overlay in every engine.
+  await host.getByRole('radio', { name: fr.admin.moderationAuto }).click()
+  await expect(host.getByRole('dialog').getByText(fr.admin.moderationAutoWarning)).toBeVisible()
 })

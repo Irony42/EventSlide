@@ -32,7 +32,6 @@
 }
 
 .hint {
-  max-inline-size: var(--measure-prose);
   padding-inline-start: calc(var(--space-4) + var(--space-3));
   font-size: var(--text-sm);
   color: var(--text-muted);

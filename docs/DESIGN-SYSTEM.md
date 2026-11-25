@@ -170,6 +170,9 @@ token exactly.
   --container-guest: 30rem; /* single column, phone-first */
   --container-host: 78rem; /* moderation console, admin */
   --container-workshop: 120rem; /* the event's workshops: cards, invitations, book */
+  --container-settings: 48rem; /* the event's settings page: a laptop's width, fluid on a phone */
+  --measure-prose: 65ch; /* the longest line of explanatory text; used where a wide page holds hints */
+  --control-max: 24rem; /* the widest a date, select or number control is drawn on a wide settings page */
   --wall-safe: 4%; /* projector overscan inset */
   --wall-join-card: 36rem; /* the corner cartel (QR beside its title): declared, so layouts can reserve it */
   /* The most of the viewport a pane pinned to the bottom edge may take (the guest's upload
@@ -372,12 +375,13 @@ and tooltips on the guest surface (there is no hover on a phone).
 
 ## 6. Layout
 
-| Surface  | Container                                       | Padding                                         | Notes                                                                                                              |
-| -------- | ----------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Guest    | `max-width: var(--container-guest)`, centred    | `var(--space-4)` inline, `var(--space-6)` block | Single column, primary action in the bottom 40%. Use `100dvh`, not `100vh`, or the iOS toolbar eats it.            |
-| Host     | `max-width: var(--container-host)`, centred     | `var(--space-5)`                                | Sticky toolbar on `--surface-raised`; content scrolls under it.                                                    |
-| Workshop | `max-width: var(--container-workshop)`, centred | `var(--space-5)`                                | The cards, the invitations and the book: the event menu stays folded to its glyphs and the preview takes the rest. |
-| Room     | None. Full viewport on `--surface-base`.        | `var(--wall-safe)`                              | See below.                                                                                                         |
+| Surface  | Container                                                    | Padding                                         | Notes                                                                                                              |
+| -------- | ------------------------------------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Guest    | `max-width: var(--container-guest)`, centred                 | `var(--space-4)` inline, `var(--space-6)` block | Single column, primary action in the bottom 40%. Use `100dvh`, not `100vh`, or the iOS toolbar eats it.            |
+| Host     | `max-width: var(--container-host)`, centred                  | `var(--space-5)`                                | Sticky toolbar on `--surface-raised`; content scrolls under it.                                                    |
+| Workshop | `max-width: var(--container-workshop)`, centred              | `var(--space-5)`                                | The cards, the invitations and the book: the event menu stays folded to its glyphs and the preview takes the rest. |
+| Settings | `max-width: var(--container-settings)`, from the menu's edge | `var(--space-5)`                                | The event's settings: sections in an accordion, hints held to `var(--measure-prose)` so a line stays readable.     |
+| Room     | None. Full viewport on `--surface-base`.                     | `var(--wall-safe)`                              | See below.                                                                                                         |
 
 **Projector safe area.** Consumer projectors overscan. Every meaningful pixel —
 captions, event name, QR, progress — sits inside the 4% inset (`padding: var(--wall-safe)`

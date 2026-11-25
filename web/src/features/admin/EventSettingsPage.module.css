@@ -24,7 +24,6 @@
 }
 
 .sectionHint {
-  max-inline-size: var(--measure-prose);
   font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: var(--leading-normal);
@@ -61,6 +60,7 @@
 
 .card:has(input:disabled) {
   cursor: default;
+  opacity: 0.6;
 }
 
 /* The label holds the radio and the name only; its overlay lets a click anywhere on the card choose it. */
@@ -84,6 +84,10 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: var(--leading-normal);
+}
+
+.radio:disabled {
+  cursor: default;
 }
 
 .radio {
@@ -122,6 +126,18 @@
 
 .status[data-state='saved'] {
   color: var(--success);
+}
+
+/* Every line of explanation on this page (a field's hint, a section's lead) keeps a readable measure
+   whatever the width the page was given: the shared Field and CheckboxField are not capped, other pages
+   have their own widths. */
+.sections p {
+  max-inline-size: var(--measure-prose);
+}
+
+/* A date, a select or a number does not need 48rem: capped, they stay the size of what they hold. */
+.sections :where(input:not([type='radio'], [type='checkbox']), select, textarea) {
+  max-inline-size: var(--control-max);
 }
 
 .sections {
