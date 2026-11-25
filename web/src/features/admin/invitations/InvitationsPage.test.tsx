@@ -298,6 +298,16 @@ describe('InvitationsPage', () => {
       expect(frame.querySelector('[inert]')).not.toBeNull()
     })
 
+    it('holds the phone to its own width, so a big screen does not leave the page in a corner of it', async () => {
+      render(answering(ON))
+      await screen.findByRole('form', { name: text.formTitle })
+      await userEvent.click(screen.getByRole('button', { name: new RegExp(fr.rsvp.host.title) }))
+
+      const frame = screen.getByRole('group', { name: text.guestPreviewLabel })
+      const box = frame.closest<HTMLElement>('[style*="--ratio-w"]')
+      expect(box?.style.getPropertyValue('--max-w')).toBe('375px')
+    })
+
     it('sends what is still waiting when the page is left before the pause is over', async () => {
       const save = vi.fn(async () => ({ guestInvite: aGuestInviteHost() }))
       const view = render(answering(aGuestInviteHost(), { saveGuestInvite: save }))

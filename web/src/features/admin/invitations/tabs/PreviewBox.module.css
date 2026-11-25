@@ -14,7 +14,7 @@
 
 .fit {
   position: relative;
-  inline-size: min(100cqw, calc(100cqh * var(--ratio-w) / var(--ratio-h)));
+  inline-size: min(100cqw, calc(100cqh * var(--ratio-w) / var(--ratio-h)), var(--max-w, 100cqw));
   aspect-ratio: var(--ratio-w) / var(--ratio-h);
   max-block-size: 100cqh;
   min-width: 0;
