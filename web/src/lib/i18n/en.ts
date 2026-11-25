@@ -1431,6 +1431,14 @@ export const en: UiText = {
       custom: 'Custom',
     },
 
+    /* ---- The screen that follows the creation of an event: the logo is asked for early. ---- */
+    welcome: {
+      title: (name: string) => `“${name}” is created`,
+      lead: 'One last thing, if you have it to hand: your logo. It will appear on your guests’ page, the room’s screen, the invitation and the printed QR code.',
+      later: 'Later',
+      continue: 'Continue',
+      findLater: 'You will find it again under Appearance.',
+    },
     /* ---- The Apparence page (/appearance): what guests and the room see, with a preview. ---- */
     appearance: {
       title: 'Appearance',
@@ -1538,7 +1546,6 @@ export const en: UiText = {
     slugHint: 'Optional. Leave it empty to derive it from the name.',
     slugPreviewLabel: 'Address for your guests',
     slugPreviewEmpty: 'Type a name to see the address.',
-    eventCreated: (name: string) => `${name} is ready. Print the QR code whenever you like.`,
     joinLink: 'Link for your guests',
     printQr: 'Print the QR code',
     qrScanPrompt: 'Scan to send your photos.',
@@ -1782,6 +1789,7 @@ export const en: UiText = {
     nowDraftPrint: 'Print the table cards',
     nowDraftWall: 'Test the screen on the projector',
     nowDraftModerators: 'Invite someone to moderate with you',
+    nowDraftLogo: 'Add your logo',
     nowLiveEyebrow: 'Live',
     nowLiveTitle: 'The evening is on',
     nowClosedEyebrow: 'Evening over',
@@ -4034,6 +4042,7 @@ export const en: UiText = {
   },
 
   titles: {
+    welcome: 'Event created',
     appearance: 'Event appearance',
     print: 'Table cards and poster',
     eventBook: 'Photo book',

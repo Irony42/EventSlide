@@ -61,6 +61,11 @@ const EventCreatePage = lazy(async () => ({
   default: (await import('../features/admin/NewEventPage')).NewEventPage,
 }))
 
+/** The screen a new event opens on: it asks for the logo, once, and leads on to the event's page. */
+const WelcomePage = lazy(async () => ({
+  default: (await import('../features/admin/WelcomePage')).WelcomePage,
+}))
+
 /**
  * Every page of one event, around its menu (22/11): the layout, its home page, the panels that each
  * became a page, and the moments' lists the phone's tab bar opens. The console (moderation) keeps
@@ -527,6 +532,10 @@ export function AppRoutes() {
             <Route element={<MustChangePasswordGate />}>
               <Route path="/admin" element={titled('dashboard', <AdminDashboardPage />)} />
               <Route path="/admin/events/new" element={titled('newEvent', <EventCreatePage />)} />
+              <Route
+                path="/admin/events/:slug/welcome"
+                element={titled('welcome', <WelcomePage />)}
+              />
               {/* The console takes the whole screen: the queue is the one page of an event that is not
                   under its menu. */}
               <Route

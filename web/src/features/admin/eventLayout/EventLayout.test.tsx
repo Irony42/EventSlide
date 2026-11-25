@@ -222,6 +222,60 @@ describe('EventPage', () => {
     expect(screen.queryByRole('button', { name: fr.admin.goLive })).toBeNull()
   })
 
+  it('asks the owner of a draft for a logo while there is none, and leads to the Apparence page', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft' })) }))
+
+    const now = (await screen.findByRole('heading', { name: fr.admin.nowDraftTitle })).closest(
+      'section',
+    )
+    if (now === null) throw new Error('the "Maintenant" card is not a section')
+    expect(within(now).getByRole('link', { name: fr.admin.nowDraftLogo })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha/appearance',
+    )
+  })
+
+  it('stops asking for the logo once the event has one', async () => {
+    renderPage(
+      fakeApi({
+        getEvent: vi.fn(async () =>
+          anEventDto({
+            status: 'draft',
+            settings: eventSettings({
+              brand: {
+                welcomeMessage: null,
+                logoUrl: `/api/events/camille-et-sacha/logo/${'ab'.repeat(32)}`,
+              },
+            }),
+          }),
+        ),
+      }),
+    )
+
+    const now = (await screen.findByRole('heading', { name: fr.admin.nowDraftTitle })).closest(
+      'section',
+    )
+    if (now === null) throw new Error('the "Maintenant" card is not a section')
+    expect(within(now).getByRole('link', { name: fr.admin.nowDraftPrint })).toBeVisible()
+    expect(within(now).queryByRole('link', { name: fr.admin.nowDraftLogo })).toBeNull()
+  })
+
+  it('asks for the logo before the evening only: a live event is not sent to Apparence mid-party', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'live' })) }))
+
+    await screen.findByRole('heading', { name: fr.admin.nowLiveTitle })
+    expect(screen.queryByRole('link', { name: fr.admin.nowDraftLogo })).toBeNull()
+  })
+
+  it('does not ask a moderator for the logo', async () => {
+    renderPage(
+      fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft', role: 'moderator' })) }),
+    )
+
+    await screen.findByRole('heading', { name: fr.admin.nowDraftTitle })
+    expect(screen.queryByRole('link', { name: fr.admin.nowDraftLogo })).toBeNull()
+  })
+
   it('leads the owner of a draft to the invitations, from the "Maintenant" card and from the access card', async () => {
     renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft' })) }))
 

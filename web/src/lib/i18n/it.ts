@@ -1477,6 +1477,14 @@ export const it: UiText = {
       custom: 'Su misura',
     },
 
+    /* ---- The screen that follows the creation of an event: the logo is asked for early. ---- */
+    welcome: {
+      title: (name: string) => `«${name}» è stato creato`,
+      lead: 'Un’ultima cosa, se lo ha a portata di mano: il suo logo. Comparirà sulla pagina dei suoi ospiti, sullo schermo della sala, sull’invito e sul QR stampato.',
+      later: 'Più tardi',
+      continue: 'Continua',
+      findLater: 'Lo ritroverà in Aspetto.',
+    },
     /* ---- The Apparence page (/appearance): what guests and the room see, with a preview. ---- */
     appearance: {
       title: 'Aspetto',
@@ -1584,7 +1592,6 @@ export const it: UiText = {
     slugHint: 'Facoltativo. Lo lasci vuoto per ricavarlo dal nome.',
     slugPreviewLabel: 'Indirizzo per i suoi invitati',
     slugPreviewEmpty: 'Inserisca un nome per vedere l’indirizzo.',
-    eventCreated: (name: string) => `${name} è pronto. Stampi il codice QR quando vuole.`,
     joinLink: 'Link per i suoi invitati',
     printQr: 'Stampa il codice QR',
     qrScanPrompt: 'Scansioni per inviare le sue foto.',
@@ -1829,6 +1836,7 @@ export const it: UiText = {
     nowDraftPrint: 'Stampare i segnaposto',
     nowDraftWall: 'Provare lo schermo sul proiettore',
     nowDraftModerators: 'Invitare qualcuno a moderare con lei',
+    nowDraftLogo: 'Aggiungere il suo logo',
     nowLiveEyebrow: 'In diretta',
     nowLiveTitle: 'La serata è in corso',
     nowClosedEyebrow: 'Serata conclusa',
@@ -4091,6 +4099,7 @@ export const it: UiText = {
   },
 
   titles: {
+    welcome: 'Evento creato',
     appearance: 'Aspetto dell’evento',
     print: 'Segnaposto e locandina',
     eventBook: 'Fotolibro',
