@@ -1467,18 +1467,12 @@ export const es: UiText = {
     },
 
     theme: 'Apariencia',
-    themeHint:
-      'Visible para sus invitados y en la pantalla de la sala. Los colores propuestos siguen siendo legibles a diez metros.',
-    themeAccent: 'Color',
     themeAccentNames: {
       violet: 'Color del ambiente (predeterminado)',
       rose: 'Rosa',
       azure: 'Azul',
       teal: 'Turquesa',
     },
-    themeFonts: 'Tipografía',
-    /** The honest scope, said once: a guest phone downloads nothing for this. */
-    themeFontsHint: 'Se aplica solo a la pantalla de la sala.',
     themeFontsNames: {
       sans: 'Editorial',
       serif: 'Clásica',
@@ -1490,8 +1484,6 @@ export const es: UiText = {
       round: 'Esquinas muy redondeadas',
     },
     themeAmbiance: 'Ambiente',
-    themeAmbianceHint:
-      'El mundo que visten los móviles de sus invitados, la pantalla de la sala y las páginas de este evento en su espacio.',
     themeAmbianceNames: {
       eventslide: 'EventSlide',
       guinguette: 'Guinguette',
@@ -2150,8 +2142,6 @@ export const es: UiText = {
     logoRemoved: 'Se ha quitado el logotipo.',
     customAmbianceCreate: 'Crear mi ambiente (A medida)',
     customAmbianceEdit: 'Modificar mi ambiente',
-    customAmbianceEntryHint:
-      'Su propio fondo, claro u oscuro, con el matiz que prefiera: lo ve en pantallas reales antes de guardar.',
     customAmbianceTitle: 'Su ambiente a medida',
     customAmbianceCrumb: 'A medida',
     customAmbianceIntro:

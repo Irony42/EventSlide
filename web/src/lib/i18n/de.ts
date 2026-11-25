@@ -1482,17 +1482,12 @@ export const de: UiText = {
     },
 
     theme: 'Erscheinungsbild',
-    themeHint:
-      'Sichtbar für Ihre Gäste und auf der Leinwand im Saal. Die angebotenen Farben bleiben auf zehn Meter lesbar.',
-    themeAccent: 'Farbe',
     themeAccentNames: {
       violet: 'Ambiente-Farbe (Standard)',
       rose: 'Rosa',
       azure: 'Blau',
       teal: 'Türkis',
     },
-    themeFonts: 'Schrift',
-    themeFontsHint: 'Gilt nur für die Leinwand im Saal.',
     themeFontsNames: {
       sans: 'Redaktionell',
       serif: 'Klassisch',
@@ -1504,8 +1499,6 @@ export const de: UiText = {
       round: 'Stark abgerundete Ecken',
     },
     themeAmbiance: 'Ambiente',
-    themeAmbianceHint:
-      'Die Welt, die die Handys Ihrer Gäste, die Leinwand im Saal und die Seiten dieser Veranstaltung in Ihrem Bereich tragen.',
     themeAmbianceNames: {
       eventslide: 'EventSlide',
       guinguette: 'Guinguette',
@@ -2175,8 +2168,6 @@ export const de: UiText = {
     logoRemoved: 'Das Logo ist entfernt.',
     customAmbianceCreate: 'Meine eigene Stimmung erstellen',
     customAmbianceEdit: 'Meine Stimmung bearbeiten',
-    customAmbianceEntryHint:
-      'Ihr eigener Hintergrund, hell oder dunkel, nach Ihrem Geschmack getönt: Sie sehen ihn vor dem Speichern auf echten Bildschirmen.',
     customAmbianceTitle: 'Ihre eigene Stimmung',
     customAmbianceCrumb: 'Eigene Stimmung',
     customAmbianceIntro:

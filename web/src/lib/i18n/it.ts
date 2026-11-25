@@ -1449,17 +1449,12 @@ export const it: UiText = {
       testHint: 'Riproduce il suono scelto su questo computer, a questo volume.',
     },
     theme: 'Aspetto',
-    themeHint:
-      'Visibile ai suoi invitati e sullo schermo in sala. I colori proposti restano leggibili a dieci metri.',
-    themeAccent: 'Colore',
     themeAccentNames: {
       violet: 'Colore dell’atmosfera (predefinito)',
       rose: 'Rosa',
       azure: 'Blu',
       teal: 'Turchese',
     },
-    themeFonts: 'Tipografia',
-    themeFontsHint: 'Applicata solo allo schermo in sala.',
     themeFontsNames: {
       sans: 'Editoriale',
       serif: 'Classica',
@@ -1471,8 +1466,6 @@ export const it: UiText = {
       round: 'Angoli molto arrotondati',
     },
     themeAmbiance: 'Atmosfera',
-    themeAmbianceHint:
-      'Il mondo che indossano i telefoni dei vostri ospiti, lo schermo della sala e le pagine di questo evento nel vostro spazio.',
     themeAmbianceNames: {
       eventslide: 'EventSlide',
       guinguette: 'Guinguette',
@@ -2131,8 +2124,6 @@ export const it: UiText = {
     logoRemoved: 'Il logo è stato rimosso.',
     customAmbianceCreate: 'Crea la mia atmosfera (Su misura)',
     customAmbianceEdit: 'Modifica la mia atmosfera',
-    customAmbianceEntryHint:
-      'Il tuo sfondo, chiaro o scuro, con la tinta che preferisci: lo vedi su schermi reali prima di salvare.',
     customAmbianceTitle: 'La tua atmosfera su misura',
     customAmbianceCrumb: 'Su misura',
     customAmbianceIntro:

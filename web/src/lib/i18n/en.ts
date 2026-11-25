@@ -1403,18 +1403,12 @@ export const en: UiText = {
     },
 
     theme: 'Appearance',
-    themeHint:
-      'Visible to your guests and on the screen in the room. The colours offered stay readable at ten metres.',
-    themeAccent: 'Colour',
     themeAccentNames: {
       violet: 'Ambiance colour (default)',
       rose: 'Pink',
       azure: 'Blue',
       teal: 'Teal',
     },
-    themeFonts: 'Typeface',
-    /** The honest scope, said once: the phone of a guest downloads nothing for this. */
-    themeFontsHint: 'Applied to the screen in the room only.',
     themeFontsNames: {
       sans: 'Editorial',
       serif: 'Classic',
@@ -1426,8 +1420,6 @@ export const en: UiText = {
       round: 'Very rounded corners',
     },
     themeAmbiance: 'Ambiance',
-    themeAmbianceHint:
-      'The world your guests’ phones, the room’s screen and this event’s pages in your space wear.',
     themeAmbianceNames: {
       eventslide: 'EventSlide',
       guinguette: 'Guinguette',
@@ -2081,8 +2073,6 @@ export const en: UiText = {
     logoRemoved: 'The logo is removed.',
     customAmbianceCreate: 'Create my ambiance (Custom)',
     customAmbianceEdit: 'Edit my ambiance',
-    customAmbianceEntryHint:
-      'Your own ground, light or dark, tinted to your taste: you see it on real screens before saving.',
     customAmbianceTitle: 'Your custom ambiance',
     customAmbianceCrumb: 'Custom',
     customAmbianceIntro:

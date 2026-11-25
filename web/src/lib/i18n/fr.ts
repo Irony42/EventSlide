@@ -1439,18 +1439,12 @@ export const fr = {
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,
             because a single choice with four options does not deserve four strings. ---- */
     theme: 'Apparence',
-    themeHint:
-      'Visible par vos invités et sur l’écran de la salle. Les couleurs proposées restent lisibles à dix mètres.',
-    themeAccent: 'Couleur',
     themeAccentNames: {
       violet: 'Couleur de l’ambiance (par défaut)',
       rose: 'Rose',
       azure: 'Bleu',
       teal: 'Turquoise',
     } satisfies Record<CuratedAccent, string>,
-    themeFonts: 'Typographie',
-    /** The honest scope, said once: a guest's phone downloads nothing for this. */
-    themeFontsHint: 'Appliquée à l’écran de la salle uniquement.',
     themeFontsNames: {
       sans: 'Éditoriale',
       serif: 'Classique',
@@ -1462,8 +1456,6 @@ export const fr = {
       round: 'Coins très arrondis',
     } satisfies Record<ThemeFrame, string>,
     themeAmbiance: 'Ambiance',
-    themeAmbianceHint:
-      'L’univers que portent l’écran de vos invités, celui de la salle et les pages de cet évènement dans votre espace.',
     themeAmbianceNames: {
       eventslide: 'EventSlide',
       guinguette: 'Guinguette',
@@ -2216,8 +2208,6 @@ export const fr = {
     logoRemoved: 'Le logo est retiré.',
     customAmbianceCreate: 'Créer mon ambiance (Sur mesure)',
     customAmbianceEdit: 'Modifier mon ambiance',
-    customAmbianceEntryHint:
-      'Votre propre fond, clair ou foncé, teinté à votre goût : vous le voyez sur de vrais écrans avant d’enregistrer.',
     customAmbianceTitle: 'Votre ambiance Sur mesure',
     customAmbianceCrumb: 'Sur mesure',
     customAmbianceIntro:

@@ -16,7 +16,7 @@ import { CheckboxField } from '../../design-system/components/CheckboxField'
 import { WallSoundFields } from '../../design-system/components/WallSoundFields'
 import { DateTimeField } from '../../design-system/components/DateTimeField'
 import { SelectField, type SelectOption } from '../../design-system/components/SelectField'
-import { ThemeFieldset } from './components/ThemeFieldset'
+import { AppearanceRow } from './components/AppearanceRow'
 import { WallQrControls } from './components/WallQrControls'
 import {
   MIXED_SLIDESHOW_STEPS_SECONDS,
@@ -26,17 +26,14 @@ import {
   wallLayoutOptions,
   wallRhythmOptions,
 } from '../../lib/wallDisplayOptions'
-import { useSettingsAutosave, type SettingsSaveState } from '../../lib/useSettingsAutosave'
-import { VenuePhotoField } from './components/VenuePhotoField'
-import { LogoField } from './components/LogoField'
-import { WelcomeMessageField } from './components/WelcomeMessageField'
+import { useSettingsAutosave } from '../../lib/useSettingsAutosave'
 import { SettingsSection } from './components/SettingsSection'
 import { isMutable } from '../../lib/eventLifecycle'
 import { settingsChanges } from './settingsPayload'
 import { toInstant, toLocalInput } from './eventSchedule'
 // Shared with the create form's template card, so the two screens cannot word the same
 // window differently.
-import { graceLabel } from './settingsLabels'
+import { graceLabel, saveStatusLabel } from './settingsLabels'
 import { useChannels, useEvent } from './hooks/useEventData'
 import { useOpenGuestbookVoice, useSaveSchedule } from './hooks/useEventActions'
 import { useRevalidateWhenVisible } from './hooks/useRevalidateWhenVisible'
@@ -124,7 +121,7 @@ const scheduleSummary = (event: EventDto, text: UiText, locale: Locale): string 
 }
 
 /** The page's groups, in the order they are shown; each id is also the section's anchor. */
-const SECTIONS = ['guests', 'guestbook', 'messaging', 'reveal', 'wall', 'look', 'schedule'] as const
+const SECTIONS = ['guests', 'guestbook', 'messaging', 'reveal', 'wall', 'schedule'] as const
 type SectionId = (typeof SECTIONS)[number]
 
 const isSection = (value: string): value is SectionId =>
@@ -175,12 +172,6 @@ const sectionSummary = (
           ...(settings.wall.soundEnabled ? [s.sound] : []),
           LOCALE_NAMES[settings.wallLanguage],
         ]
-      case 'look':
-        return [
-          text.admin.themeAmbianceNames[settings.theme.ambiance],
-          ...(settings.theme.groundUrl ? [s.venuePhoto] : []),
-          ...(settings.brand?.logoUrl ? [s.logo] : []),
-        ]
       case 'schedule':
         return [
           event.scheduledOpenAt === null ? s.opensByHand : s.opensAt,
@@ -190,18 +181,6 @@ const sectionSummary = (
     }
   })()
   return parts.join(' · ')
-}
-
-/** What the line under the title says about the last change. */
-const saveStatus = (state: SettingsSaveState, text: UiText): string => {
-  switch (state.kind) {
-    case 'saving':
-      return text.admin.settingsPage.saving
-    case 'saved':
-      return text.admin.settingsPage.saved
-    default:
-      return text.admin.settingsPage.autosave
-  }
 }
 
 /** Surface: the host's laptop, before the event rather than during it. */
@@ -469,7 +448,7 @@ function SettingsSections({ event, error, reload, replace }: SettingsSectionsPro
         <h1 className={styles['title']}>{t.admin.settings}</h1>
         {readOnly ? null : (
           <p className={styles['status']} aria-live="polite" data-state={autosave.state.kind}>
-            {saveStatus(autosave.state, t)}
+            {saveStatusLabel(autosave.state, t)}
           </p>
         )}
       </div>
@@ -907,39 +886,14 @@ function SettingsSections({ event, error, reload, replace }: SettingsSectionsPro
         </SettingsSection>
 
         {/*
-          How the event looks (roadmap 2.2), and the host's own words and images (spec 03). The
-          venue photograph (ADR 0010, decision 8a) and the logo are their own requests, answered with
-          the event; the welcome message is saved when the host leaves the field.
+          How the event looks moved to its own page (`/appearance`), with a preview: what stays here
+          is the line that says what it wears and the way there. Its anchor, `#look`, is the old
+          section's, so a link written before the move still lands on it.
         */}
-        <SettingsSection {...section('look', t.admin.theme)}>
-          <ThemeFieldset
-            theme={settings.theme}
-            customAmbiancePath={`/admin/events/${encodeURIComponent(slug)}/settings/ambiance`}
-            disabled={readOnly}
-            onChange={(theme) => update({ theme })}
-          />
-          <VenuePhotoField
-            slug={slug}
-            groundUrl={event.settings.theme.groundUrl}
-            disabled={readOnly}
-            onChanged={replace}
-          />
-          <WelcomeMessageField
-            // The server's answer, not the pending overlay: a refused message must not be swapped
-            // back into the field over what the host typed.
-            value={event.settings.brand?.welcomeMessage ?? null}
-            disabled={readOnly}
-            onChange={(welcomeMessage) =>
-              update({ brand: { welcomeMessage, logoUrl: settings.brand?.logoUrl ?? null } })
-            }
-          />
-          <LogoField
-            slug={slug}
-            logoUrl={event.settings.brand?.logoUrl}
-            disabled={readOnly}
-            onChanged={replace}
-          />
-        </SettingsSection>
+        <AppearanceRow
+          settings={settings}
+          to={`/admin/events/${encodeURIComponent(slug)}/appearance`}
+        />
 
         {/*
           The one block that changes the event's status on its own: its own endpoint, saved when the
