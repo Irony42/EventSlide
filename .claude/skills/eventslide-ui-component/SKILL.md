@@ -250,6 +250,15 @@ no-preference)` (the right answer for anything that appears); declined in the co
 - Derive the Ken Burns duration from the slide interval. If the animation is longer
   than the slide, the image visibly snaps back — the 1.0 bug.
 
+## Two layout traps from the appearance page
+
+- `position: sticky` sticks within its parent's content box. A grid item's parent is only its own row, so a
+  sticky preview in a one-column grid never moves: lay the stacked (phone) arrangement out as a flex column, and
+  keep the grid for the two-column one.
+- A component that measures its frames in a mount-once effect (`useFitScale` in `AmbiancePreview`) goes blind
+  when a change of layout mounts those frames again somewhere else. Key the effect on the layout, and prove it in
+  a browser (`tests/e2e/journeys/appearance-page.spec.ts` resizes from a phone to a laptop): jsdom measures nothing.
+
 ## Tests
 
 ```tsx
