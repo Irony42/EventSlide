@@ -105,7 +105,7 @@ export function GuestTab({ event, invite, rsvp, children }: OutputProps) {
   )
 
   const preview = (
-    <PreviewBox ratio={PHONE_RATIO} label={text.guestPreviewLabel}>
+    <PreviewBox ratio={PHONE_RATIO} maxWidth={PHONE_WIDTH} label={text.guestPreviewLabel}>
       <div ref={frame} className={styles['phone']}>
         <div
           className={styles['scaled']}
