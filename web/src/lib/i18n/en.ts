@@ -1313,6 +1313,8 @@ export const en: UiText = {
     moderationMode: 'Moderation',
     moderationManual: 'Approve every photo',
     moderationAuto: 'Publish automatically',
+    moderationManualEffect: 'Every photo goes through you before the screen.',
+    moderationAutoEffect: 'Photos reach the screen without approval.',
     moderationAutoWarning:
       'Photos, videos and guestbook messages will appear on the screen with nobody having approved them. Keep this for events among people you know well.',
     allowCaptions: 'Allow captions',

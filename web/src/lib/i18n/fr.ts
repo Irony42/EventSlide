@@ -1307,6 +1307,8 @@ export const fr = {
     moderationMode: 'Modération',
     moderationManual: 'Valider chaque photo',
     moderationAuto: 'Publier automatiquement',
+    moderationManualEffect: 'Chaque photo passe par vous avant l’écran.',
+    moderationAutoEffect: 'Les photos arrivent à l’écran sans validation.',
     /**
      * "Les photos et les vidéos", because both are true.
      *

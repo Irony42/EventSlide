@@ -252,6 +252,10 @@
   --container-host: 78rem; /* moderation console, admin */
   /* The event's workshops (cards, invitations, book): their preview takes what a wide screen gives. */
   --container-workshop: 120rem;
+  /* The event's settings page: wide enough for a laptop, still fluid on a phone. */
+  --container-settings: 48rem;
+  /* The longest line of explanatory text: past it the eye loses its place. */
+  --measure-prose: 65ch;
   /* The event's menu (eventLayout/): its width beside the page, the glyph-only rail it folds to
      below 64rem, and the phone's tab bar under the thumb, which the page keeps clear of. */
   --event-nav-width: 15rem;

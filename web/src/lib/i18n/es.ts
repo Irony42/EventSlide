@@ -1365,6 +1365,8 @@ export const es: UiText = {
     moderationMode: 'Moderación',
     moderationManual: 'Aprobar cada foto',
     moderationAuto: 'Publicar automáticamente',
+    moderationManualEffect: 'Cada foto pasa por usted antes de llegar a la pantalla.',
+    moderationAutoEffect: 'Las fotos llegan a la pantalla sin aprobación.',
     /**
      * «Las fotos y los vídeos», because both are true: a finished clip is published
      * under `auto` exactly as a photo is, so a guest video reaches the projector with

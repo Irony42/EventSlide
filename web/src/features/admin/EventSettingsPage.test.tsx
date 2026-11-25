@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EventSettingsPage } from './EventSettingsPage'
+import PAGE_CSS from './EventSettingsPage.module.css?raw'
 import { toLocalInput } from './eventSchedule'
 import { DEFAULT_EVENT_THEME } from '../../design-system/eventTheme'
 import { ApiError } from '../../lib/http'
@@ -14,6 +15,12 @@ import {
 } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
 import type { EventDto } from '../../lib/api/dto'
+
+/** The body of the first rule that opens with this selector, so a test reads what the stylesheet says. */
+const ruleOf = (selector: string): string => {
+  const start = PAGE_CSS.indexOf(`${selector} {`)
+  return start < 0 ? '' : PAGE_CSS.slice(start, PAGE_CSS.indexOf('}', start))
+}
 
 /**
  * A read whose completion the test decides.
@@ -245,6 +252,36 @@ describe('EventSettingsPage', () => {
     expect(screen.getByLabelText(fr.admin.allowCaptions)).toBeChecked()
     expect(screen.getByLabelText(fr.admin.allowReactions)).not.toBeChecked()
     expect(screen.getByLabelText(fr.admin.retention)).toHaveValue('30')
+  })
+
+  it('offers the two moderation modes as cards that each say what happens in the room', async () => {
+    renderPage(fakeApi())
+
+    const manual = await screen.findByRole('radio', { name: fr.admin.moderationManual })
+    const auto = screen.getByRole('radio', { name: fr.admin.moderationAuto })
+    // The sentence describes the radio without joining its name, and both stay one radio group.
+    expect(manual).toHaveAccessibleDescription(fr.admin.moderationManualEffect)
+    expect(auto).toHaveAccessibleDescription(fr.admin.moderationAutoEffect)
+    expect(manual).toHaveAttribute('name', 'moderation')
+    expect(auto).toHaveAttribute('name', 'moderation')
+  })
+
+  it('moves between the moderation cards with the arrow keys, and still asks before « automatique »', async () => {
+    renderPage(fakeApi())
+
+    const manual = await screen.findByRole('radio', { name: fr.admin.moderationManual })
+    manual.focus()
+    await userEvent.keyboard('{ArrowDown}')
+
+    expect(await screen.findByRole('dialog')).toBeVisible()
+    expect(manual).toBeChecked()
+  })
+
+  it('is as wide as the settings token says, and caps its hint lines', () => {
+    expect(ruleOf('.page')).toContain('max-inline-size: var(--container-settings)')
+    // The chosen card is told apart by its frame, not by the radio alone.
+    expect(ruleOf('.card:has(input:checked)')).toContain('border-color: var(--accent)')
+    expect(ruleOf('.sectionHint')).toContain('max-inline-size: var(--measure-prose)')
   })
 
   it('asks before publishing without validation, and saves nothing until the host confirms', async () => {

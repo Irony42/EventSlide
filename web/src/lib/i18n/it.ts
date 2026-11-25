@@ -1358,6 +1358,8 @@ export const it: UiText = {
     moderationMode: 'Moderazione',
     moderationManual: 'Approva ogni foto',
     moderationAuto: 'Pubblica automaticamente',
+    moderationManualEffect: 'Ogni foto passa da lei prima di arrivare sullo schermo.',
+    moderationAutoEffect: 'Le foto arrivano sullo schermo senza approvazione.',
     moderationAutoWarning:
       'Le foto, i video e i messaggi del libro degli ospiti appariranno sullo schermo senza approvazione. Da riservare agli eventi tra amici e familiari.',
     allowCaptions: 'Consenti le didascalie',
