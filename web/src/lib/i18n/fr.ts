@@ -1307,6 +1307,9 @@ export const fr = {
     moderationMode: 'Modération',
     moderationManual: 'Valider chaque photo',
     moderationAuto: 'Publier automatiquement',
+    moderationManualEffect:
+      'Chaque envoi (photo, vidéo, message) attend votre accord avant d’arriver à l’écran.',
+    moderationAutoEffect: 'Les envois arrivent à l’écran sans validation.',
     /**
      * "Les photos et les vidéos", because both are true.
      *

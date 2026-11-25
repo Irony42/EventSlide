@@ -1390,6 +1390,9 @@ export const de: UiText = {
     moderationMode: 'Moderation',
     moderationManual: 'Jedes Foto freigeben',
     moderationAuto: 'Automatisch freigeben',
+    moderationManualEffect:
+      'Jede Einsendung (Foto, Video, Nachricht) muss erst von Ihnen freigegeben werden, bevor sie auf den Bildschirm kommt.',
+    moderationAutoEffect: 'Die Einsendungen erscheinen ohne Freigabe auf dem Bildschirm.',
     moderationAutoWarning:
       'Fotos, Videos und Gästebuch-Nachrichten erscheinen ohne Freigabe auf dem Bildschirm. Nur für Veranstaltungen im engen Kreis.',
     allowCaptions: 'Bildunterschriften erlauben',

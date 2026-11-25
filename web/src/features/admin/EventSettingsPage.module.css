@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  max-inline-size: var(--container-guest);
+  max-inline-size: var(--container-settings);
 }
 
 .title {
@@ -29,12 +29,65 @@
   line-height: var(--leading-normal);
 }
 
+/* The two moderation modes: a card each, the whole card is the radio's label. */
+.choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+
+.card:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--surface-overlay);
+}
+
+.card:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card:has(input:disabled) {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* The label holds the radio and the name only; its overlay lets a click anywhere on the card choose it. */
 .choice {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-height: var(--touch-min);
-  cursor: pointer;
+  cursor: inherit;
+  font-weight: 650;
+}
+
+.choice::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.effect {
+  padding-inline-start: calc(var(--space-4) + var(--space-3));
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-normal);
+}
+
+.radio:disabled {
+  cursor: default;
 }
 
 .radio {
@@ -43,6 +96,9 @@
   block-size: var(--space-4);
   flex: none;
   cursor: pointer;
+  /* Above the card's overlay, so a click on the radio itself reaches the radio. */
+  position: relative;
+  z-index: 1;
 }
 
 .notice {
@@ -70,6 +126,18 @@
 
 .status[data-state='saved'] {
   color: var(--success);
+}
+
+/* Every line of explanation on this page (a field's hint, a section's lead) keeps a readable measure
+   whatever the width the page was given: the shared Field and CheckboxField are not capped, other pages
+   have their own widths. */
+.sections p {
+  max-inline-size: var(--measure-prose);
+}
+
+/* A date, a select or a number does not need 48rem: capped, they stay the size of what they hold. */
+.sections :where(input:not([type='radio'], [type='checkbox']), select, textarea) {
+  max-inline-size: var(--control-max);
 }
 
 .sections {

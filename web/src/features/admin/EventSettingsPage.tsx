@@ -481,25 +481,40 @@ function SettingsSections({ event, error, reload, replace }: SettingsSectionsPro
         <SettingsSection {...section('guests', t.admin.settingsPage.guests)}>
           <fieldset className={styles['group']}>
             <legend className={styles['legend']}>{t.admin.moderationMode}</legend>
-            {(['manual', 'auto'] as const).map((mode) => (
-              <label key={mode} className={styles['choice']}>
-                <input
-                  type="radio"
-                  className={styles['radio']}
-                  name="moderation"
-                  value={mode}
-                  checked={settings.moderation === mode}
-                  disabled={readOnly}
-                  onChange={() =>
-                    // Publishing without validation is the one setting that can put something
-                    // unwanted on a screen in front of two hundred people, and it is saved the
-                    // moment it is chosen: the host reads why before it is.
-                    mode === 'auto' ? setConfirmingAuto(true) : update({ moderation: mode })
-                  }
-                />
-                {mode === 'manual' ? t.admin.moderationManual : t.admin.moderationAuto}
-              </label>
-            ))}
+            <div className={styles['choices']}>
+              {(['manual', 'auto'] as const).map((mode) => {
+                const effectId = `moderation-${mode}-effect`
+                return (
+                  <div key={mode} className={styles['card']}>
+                    <label className={styles['choice']}>
+                      <input
+                        type="radio"
+                        className={styles['radio']}
+                        name="moderation"
+                        value={mode}
+                        checked={settings.moderation === mode}
+                        disabled={readOnly}
+                        aria-describedby={effectId}
+                        onChange={() =>
+                          // Publishing without validation is the one setting that can put something
+                          // unwanted on a screen in front of two hundred people, and it is saved the
+                          // moment it is chosen: the host reads why before it is.
+                          mode === 'auto' ? setConfirmingAuto(true) : update({ moderation: mode })
+                        }
+                      />
+                      {mode === 'manual' ? t.admin.moderationManual : t.admin.moderationAuto}
+                    </label>
+                    {/* Beside the label, not in it: the radio's name stays the mode's name, and
+                        the sentence is its description. */}
+                    <p id={effectId} className={styles['effect']}>
+                      {mode === 'manual'
+                        ? t.admin.moderationManualEffect
+                        : t.admin.moderationAutoEffect}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
           </fieldset>
 
           {/* Mounted whatever the choice, so the warning is announced when it appears. */}
