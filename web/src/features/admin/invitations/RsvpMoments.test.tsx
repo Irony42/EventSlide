@@ -23,7 +23,7 @@ const DINNER = { id: 'bbbbbbbb', label: 'Dîner' }
 
 function Harness() {
   const rsvp = useRsvpSettings('mariage', 0)
-  return <RsvpPanel rsvp={rsvp} archived={false} />
+  return <RsvpPanel rsvp={rsvp} archived={false} onClose={() => undefined} />
 }
 
 const withMoments = (moments: readonly { id: string; label: string }[]) => {

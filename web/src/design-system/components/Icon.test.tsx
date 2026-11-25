@@ -22,6 +22,7 @@ const NAMES: readonly IconName[] = [
   'pin',
   'camera',
   'mail-off',
+  'mail',
   'text',
   'printer',
 ]

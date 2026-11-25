@@ -55,6 +55,7 @@ test('the host writes the invitation, switches it on, and a guest opens it at th
   await form.getByLabel(/^Début/).fill('2027-12-11T19:00')
   await form.getByLabel(/^Fin/).fill('2027-12-12T02:00')
   await form.getByLabel(/^Lieu/).fill('La Guinguette du Port')
+  await form.getByText(text.moreTitle).click()
   await form.getByLabel(/^Adresse/).fill('12 quai de la Loire\n44000 Nantes')
   await form.getByLabel(/^Votre mot/).fill('Apéro à 19 h, venez comme vous êtes.')
   // No Save button: the text is saved as it is typed, and the last field typed is the last saved.
@@ -76,7 +77,9 @@ test('the host writes the invitation, switches it on, and a guest opens it at th
   const link = host.getByLabel(text.linkLabel)
   await expect(link).toHaveValue(new RegExp(`^${app.baseUrl}/i/[0-9A-Z]{16}$`))
   await expect(bar.getByText(text.statusOn, { exact: true })).toBeVisible()
-  await expect(host.getByRole('tabpanel')).toBeAttached()
+  await expect(
+    host.getByRole('button', { name: new RegExp(`^${text.sharePanelTitle}`) }),
+  ).toBeVisible()
   await expect(host.getByText(text.locked)).toHaveCount(0)
   const url = await link.inputValue()
 
@@ -123,7 +126,7 @@ test('the host writes the invitation, switches it on, and a guest opens it at th
   }
 })
 
-test('the page is for the owner: the three columns stack on a 320 px phone without overflow', async ({
+test('the page is for the owner: the card column and the preview stack on a 320 px phone without overflow', async ({
   app,
   surfaces,
 }) => {
@@ -138,12 +141,14 @@ test('the page is for the owner: the three columns stack on a 320 px phone witho
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   )
   expect(overflow).toBeLessThanOrEqual(0)
-  const tab = await host.getByRole('tab', { name: text.tabPrint }).boundingBox()
-  expect(tab?.height ?? 0).toBeGreaterThanOrEqual(44)
+  const door = await host
+    .getByRole('button', { name: new RegExp(`^${text.sharePanelTitle}`) })
+    .boundingBox()
+  expect(door?.height ?? 0).toBeGreaterThanOrEqual(44)
   // The preview is pinned in view while the rest of the page scrolls under it.
   // A scroll of the page, not a wheel: mobile WebKit has no mouse wheel to turn.
   await host.evaluate(() => window.scrollBy(0, 600))
-  await expect(host.getByRole('tabpanel')).toBeInViewport()
+  await expect(host.getByTestId('invite-preview')).toBeInViewport()
 })
 
 test('the zone is taken from the browser on the first save: a host in Auckland types Auckland time', async ({

@@ -27,7 +27,7 @@ test.beforeEach(({}, testInfo) => {
 })
 
 const openEmailTab = async (page: Page, appUrl: string, slug: string) => {
-  await page.goto(`${appUrl}/admin/events/${slug}/invitations`)
+  await page.goto(`${appUrl}/admin/events/${slug}/invitations?panel=partage`)
   await page.getByRole('tab', { name: fr.guestInvite.host.tabEmail }).click()
 }
 

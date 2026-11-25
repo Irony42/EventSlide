@@ -38,8 +38,7 @@ test('the host switches replies on, chooses the form and a deadline, closes and 
     ((await (await host.request.get(settingsUrl)).json()) as { rsvpForm: Record<string, unknown> })
       .rsvpForm
 
-  await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
-  await host.getByRole('tab', { name: page.tabGuest }).click()
+  await host.goto(app.url(`/admin/events/${event.slug}/invitations?panel=reponses`))
   const panel = host.getByRole('region', { name: new RegExp(asked.title) })
   await expect(panel.getByRole('checkbox', { name: asked.askLabel })).not.toBeChecked()
   const frame = host.getByRole('group', { name: page.guestPreviewLabel })
@@ -49,7 +48,7 @@ test('the host switches replies on, chooses the form and a deadline, closes and 
   await panel.getByRole('checkbox', { name: asked.askLabel }).check()
   await expect(frame.getByRole('heading', { name: guest.title })).toBeVisible()
   await expect(frame.getByRole('button', { name: guest.maybe })).toBeVisible()
-  await panel.getByLabel(new RegExp(asked.presetLabel)).selectOption('wedding')
+  await panel.getByRole('button', { name: /^Mariage/ }).click()
   await expect(frame.getByRole('button', { name: guest.maybe })).toHaveCount(0)
   await panel.getByLabel(new RegExp(asked.deadlineLabel)).fill('2027-12-01')
   await expect(panel.getByText(asked.saved)).toBeVisible()
@@ -62,10 +61,12 @@ test('the host switches replies on, chooses the form and a deadline, closes and 
     state: 'open',
   })
   await host.reload()
-  await host.getByRole('tab', { name: page.tabGuest }).click()
   const again = host.getByRole('region', { name: new RegExp(asked.title) })
   await expect(again.getByRole('checkbox', { name: asked.askLabel })).toBeChecked()
-  await expect(again.getByLabel(new RegExp(asked.presetLabel))).toHaveValue('wedding')
+  await expect(again.getByRole('button', { name: /^Mariage/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
   await expect(again.getByText(asked.stateOpen, { exact: true })).toBeVisible()
 
   // --- On the narrowest phone, the panel does not push the page sideways.

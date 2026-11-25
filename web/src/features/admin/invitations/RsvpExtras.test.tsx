@@ -17,7 +17,7 @@ const t = fr.rsvp.host
 
 function Harness() {
   const rsvp = useRsvpSettings('mariage', 0)
-  return <RsvpPanel rsvp={rsvp} archived={false} />
+  return <RsvpPanel rsvp={rsvp} archived={false} onClose={() => undefined} />
 }
 
 const form = (patch: Partial<ReturnType<typeof aRsvpSettings>['form']> = {}) => ({

@@ -20,6 +20,7 @@ import {
   type MomentDraft,
   type QuestionDraft,
 } from '../../../lib/rsvp/rsvpExtras'
+import { useKept } from './openGroups'
 import styles from './RsvpPanel.module.css'
 
 /**
@@ -30,7 +31,12 @@ import styles from './RsvpPanel.module.css'
  * its label becomes; the server judges every value.
  */
 
+/** Which part of the extras to draw: the panel folds them in four groups; no part draws them all. */
+export type RsvpExtrasPart = 'capacity' | 'meals' | 'questions' | 'moments'
+
 export interface RsvpExtrasProps {
+  readonly part?: RsvpExtrasPart
+
   readonly form: RsvpFormDto
   readonly locked: boolean
   readonly change: (input: RsvpFormInput) => void
@@ -135,6 +141,7 @@ function CommitField({
 }
 
 export function RsvpExtras({
+  part,
   form,
   locked,
   change,
@@ -145,10 +152,10 @@ export function RsvpExtras({
   const all = useTranslations()
   const text = all.rsvp.host
   /** The menus are being written: the switch is on screen before it can be sent (it needs 2 menus). */
-  const [mealsOpen, setMealsOpen] = useState(false)
-  const [draft, setDraft] = useState<QuestionDraft | null>(null)
+  const [mealsOpen, setMealsOpen] = useKept('rsvp-meals-open', false)
+  const [draft, setDraft] = useKept<QuestionDraft | null>('rsvp-question-draft', null)
   /** The label of a moment being added: it is sent with the button, not while it is typed. */
-  const [momentDraft, setMomentDraft] = useState<string | null>(null)
+  const [momentDraft, setMomentDraft] = useKept<string | null>('rsvp-moment-draft', null)
   /** The moment the host asked to remove, and how many replies hold it once known. */
   const [removing, setRemoving] = useState<{
     readonly index: number
@@ -167,305 +174,328 @@ export function RsvpExtras({
     change({ form: { moments: momentsInput(moments) } })
 
   /** The limit is being written: the switch is on screen before it can be sent. */
-  const [capacityOpen, setCapacityOpen] = useState(false)
+  const [capacityOpen, setCapacityOpen] = useKept('rsvp-capacity-open', false)
   const capacityOn = form.capacity !== null || capacityOpen
 
   return (
     <>
-      <CheckboxField
-        label={text.capacityLabel}
-        hint={text.capacityHint}
-        checked={capacityOn}
-        disabled={locked}
-        onChange={(on) => {
-          if (on) {
-            setCapacityOpen(true)
-          } else {
-            setCapacityOpen(false)
-            if (form.capacity !== null) change({ form: { capacity: null } })
-          }
-        }}
-      />
-      {capacityOn ? (
-        <div className={styles['sub']}>
-          <CommitField
-            label={text.capacityField}
-            hint={text.capacityFieldHint}
-            value={form.capacity === null ? '' : String(form.capacity)}
+      {part === undefined || part === 'capacity' ? (
+        <>
+          <CheckboxField
+            label={text.capacityLabel}
+            hint={text.capacityHint}
+            checked={capacityOn}
             disabled={locked}
-            saveState={saveState}
-            problem={problem}
-            onCommit={(raw) => {
-              if (raw.trim() === '') return
-              // A text that is not a number is sent as 0, which the server refuses with its sentence
-              // (`NaN` would be sent as `null` and lift the limit).
-              const people = Number(raw)
-              change({ form: { capacity: Number.isFinite(people) ? people : 0 } })
-            }}
-          />
-        </div>
-      ) : null}
-      <CheckboxField
-        label={text.companionsLabel}
-        hint={text.companionsHint}
-        checked={form.companionNames}
-        disabled={locked}
-        onChange={(companionNames) => change({ form: { companionNames } })}
-      />
-      {form.companionNames && !form.partySize.enabled ? (
-        <p className={styles['note']}>{text.companionsNeedSize}</p>
-      ) : null}
-      <CheckboxField
-        label={text.mealsLabel}
-        hint={text.mealsHint}
-        checked={mealsOn}
-        disabled={locked}
-        onChange={(on) => {
-          if (!on) {
-            setMealsOpen(false)
-            if (form.meals.enabled) change({ form: { meals: { enabled: false } } })
-          } else if (form.meals.options.length >= 2) {
-            change({ form: { meals: { enabled: true } } })
-          } else {
-            setMealsOpen(true)
-          }
-        }}
-      />
-      {mealsOn ? (
-        <div className={styles['sub']}>
-          <CommitField
-            label={text.mealsOptionsLabel}
-            hint={text.mealsOptionsHint}
-            value={form.meals.options.join('\n')}
-            multiline
-            disabled={locked}
-            saveState={saveState}
-            problem={problem}
-            onCommit={(raw) => {
-              const options = linesOf(raw)
-              change({
-                form: { meals: { options, ...(options.length >= 2 ? { enabled: true } : {}) } },
-              })
-            }}
-          />
-        </div>
-      ) : null}
-
-      <div className={styles['questions']}>
-        <h3 className={styles['legend']}>{text.questionsTitle}</h3>
-        <p className={styles['note']}>{text.questionsHint}</p>
-        {form.questions.map((question, index) => (
-          <div key={question.id === '' ? `new-${index}` : question.id} className={styles['sub']}>
-            <CommitField
-              label={text.questionLabelLabel}
-              value={question.label}
-              saveState={saveState}
-              problem={problem}
-              disabled={locked || naming}
-              onCommit={(label) =>
-                save(
-                  form.questions.map((other, at) =>
-                    at === index ? { ...other, label: label.trim() } : other,
-                  ),
-                )
+            onChange={(on) => {
+              if (on) {
+                setCapacityOpen(true)
+              } else {
+                setCapacityOpen(false)
+                if (form.capacity !== null) change({ form: { capacity: null } })
               }
-            />
-            {question.kind === 'choice' ? (
+            }}
+          />
+          {capacityOn ? (
+            <div className={styles['sub']}>
               <CommitField
-                label={text.questionOptionsLabel}
-                hint={text.questionOptionsHint}
-                value={(question.options ?? []).join('\n')}
-                multiline
+                label={text.capacityField}
+                hint={text.capacityFieldHint}
+                value={form.capacity === null ? '' : String(form.capacity)}
+                disabled={locked}
                 saveState={saveState}
                 problem={problem}
-                disabled={locked || naming}
-                onCommit={(raw) =>
-                  save(
-                    form.questions.map((other, at) =>
-                      at === index ? { ...other, options: linesOf(raw) } : other,
-                    ),
-                  )
-                }
+                onCommit={(raw) => {
+                  if (raw.trim() === '') return
+                  // A text that is not a number is sent as 0, which the server refuses with its sentence
+                  // (`NaN` would be sent as `null` and lift the limit).
+                  const people = Number(raw)
+                  change({ form: { capacity: Number.isFinite(people) ? people : 0 } })
+                }}
               />
-            ) : null}
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={locked || naming}
-              aria-label={text.questionRemove(question.label)}
-              onClick={() => save(form.questions.filter((_, at) => at !== index))}
-            >
-              {text.questionRemove(question.label)}
-            </Button>
-          </div>
-        ))}
-        {draft !== null ? (
-          <div className={styles['sub']}>
-            <Field label={text.questionLabelLabel}>
-              {(control) => (
-                <TextInput
-                  {...control}
-                  value={draft.label}
-                  maxLength={80}
-                  onChange={(event) => setDraft({ ...draft, label: event.target.value })}
-                />
-              )}
-            </Field>
-            <SelectField
-              label={text.questionKindLabel}
-              value={draft.kind}
-              options={[
-                { value: 'text', label: text.questionKindText },
-                { value: 'choice', label: text.questionKindChoice },
-              ]}
-              onChange={(kind) =>
-                setDraft({ ...draft, kind: kind === 'choice' ? 'choice' : 'text' })
+            </div>
+          ) : null}
+        </>
+      ) : null}
+      {part === undefined || part === 'meals' ? (
+        <>
+          <CheckboxField
+            label={text.companionsLabel}
+            hint={text.companionsHint}
+            checked={form.companionNames}
+            disabled={locked}
+            onChange={(companionNames) => change({ form: { companionNames } })}
+          />
+          {form.companionNames && !form.partySize.enabled ? (
+            <p className={styles['note']}>{text.companionsNeedSize}</p>
+          ) : null}
+          <CheckboxField
+            label={text.mealsLabel}
+            hint={text.mealsHint}
+            checked={mealsOn}
+            disabled={locked}
+            onChange={(on) => {
+              if (!on) {
+                setMealsOpen(false)
+                if (form.meals.enabled) change({ form: { meals: { enabled: false } } })
+              } else if (form.meals.options.length >= 2) {
+                change({ form: { meals: { enabled: true } } })
+              } else {
+                setMealsOpen(true)
               }
-            />
-            {draft.kind === 'choice' ? (
-              <Field label={text.questionOptionsLabel} hint={text.questionOptionsHint}>
-                {(control) => (
-                  <Textarea
-                    {...control}
-                    rows={3}
-                    value={(draft.options ?? []).join('\n')}
-                    onChange={(event) =>
-                      setDraft({ ...draft, options: event.target.value.split('\n') })
+            }}
+          />
+          {mealsOn ? (
+            <div className={styles['sub']}>
+              <CommitField
+                label={text.mealsOptionsLabel}
+                hint={text.mealsOptionsHint}
+                value={form.meals.options.join('\n')}
+                multiline
+                disabled={locked}
+                saveState={saveState}
+                problem={problem}
+                onCommit={(raw) => {
+                  const options = linesOf(raw)
+                  change({
+                    form: { meals: { options, ...(options.length >= 2 ? { enabled: true } : {}) } },
+                  })
+                }}
+              />
+            </div>
+          ) : null}
+        </>
+      ) : null}
+      {part === undefined || part === 'questions' ? (
+        <>
+          <div className={styles['questions']}>
+            {part === undefined ? (
+              <h3 className={styles['legend']}>{text.questionsTitle}</h3>
+            ) : null}
+            <p className={styles['note']}>{text.questionsHint}</p>
+            {form.questions.map((question, index) => (
+              <div
+                key={question.id === '' ? `new-${index}` : question.id}
+                className={styles['sub']}
+              >
+                <CommitField
+                  label={text.questionLabelLabel}
+                  value={question.label}
+                  saveState={saveState}
+                  problem={problem}
+                  disabled={locked || naming}
+                  onCommit={(label) =>
+                    save(
+                      form.questions.map((other, at) =>
+                        at === index ? { ...other, label: label.trim() } : other,
+                      ),
+                    )
+                  }
+                />
+                {question.kind === 'choice' ? (
+                  <CommitField
+                    label={text.questionOptionsLabel}
+                    hint={text.questionOptionsHint}
+                    value={(question.options ?? []).join('\n')}
+                    multiline
+                    saveState={saveState}
+                    problem={problem}
+                    disabled={locked || naming}
+                    onCommit={(raw) =>
+                      save(
+                        form.questions.map((other, at) =>
+                          at === index ? { ...other, options: linesOf(raw) } : other,
+                        ),
+                      )
                     }
                   />
-                )}
-              </Field>
-            ) : null}
-            <div className={styles['row']}>
-              <Button
-                size="sm"
-                disabled={draft.label.trim() === ''}
-                onClick={() => {
-                  save([
-                    ...form.questions,
-                    { ...draft, options: linesOf((draft.options ?? []).join('\n')) },
-                  ])
-                  setDraft(null)
-                }}
-              >
-                {text.questionConfirm}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setDraft(null)}>
-                {all.app.cancel}
-              </Button>
-            </div>
-          </div>
-        ) : form.questions.length < QUESTIONS_MAX ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={locked || naming}
-            onClick={() => setDraft({ id: '', label: '', kind: 'text', options: [] })}
-          >
-            {text.questionAdd}
-          </Button>
-        ) : (
-          <p className={styles['note']}>{text.questionsFull}</p>
-        )}
-      </div>
-
-      <div className={styles['questions']}>
-        <h3 className={styles['legend']}>{text.momentsTitle}</h3>
-        <p className={styles['note']}>{text.momentsHint}</p>
-        {form.moments.map((moment, index) => (
-          <div key={moment.id === '' ? `new-${index}` : moment.id} className={styles['sub']}>
-            <CommitField
-              label={text.momentLabelLabel(index + 1)}
-              value={moment.label}
-              saveState={saveState}
-              problem={problem}
-              disabled={locked || momentNaming}
-              onCommit={(label) =>
-                saveMoments(
-                  form.moments.map((other, at) =>
-                    at === index ? { ...other, label: label.trim() } : other,
-                  ),
-                )
-              }
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={locked || momentNaming}
-              aria-label={text.momentRemove(moment.label)}
-              onClick={() => {
-                setRemoving({ index, count: 'reading' })
-                void momentReplies(moment.id).then((count) =>
-                  setRemoving((current) => (current?.index === index ? { index, count } : current)),
-                )
-              }}
-            >
-              {text.momentRemove(moment.label)}
-            </Button>
-          </div>
-        ))}
-        {momentDraft !== null ? (
-          <div className={styles['sub']}>
-            <Field label={text.momentLabelLabel(form.moments.length + 1)}>
-              {(control) => (
-                <TextInput
-                  {...control}
-                  value={momentDraft}
-                  maxLength={40}
-                  placeholder={text.momentPlaceholder}
-                  onChange={(event) => setMomentDraft(event.target.value)}
+                ) : null}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={locked || naming}
+                  aria-label={text.questionRemove(question.label)}
+                  onClick={() => save(form.questions.filter((_, at) => at !== index))}
+                >
+                  {text.questionRemove(question.label)}
+                </Button>
+              </div>
+            ))}
+            {draft !== null ? (
+              <div className={styles['sub']}>
+                <Field label={text.questionLabelLabel}>
+                  {(control) => (
+                    <TextInput
+                      {...control}
+                      value={draft.label}
+                      maxLength={80}
+                      onChange={(event) => setDraft({ ...draft, label: event.target.value })}
+                    />
+                  )}
+                </Field>
+                <SelectField
+                  label={text.questionKindLabel}
+                  value={draft.kind}
+                  options={[
+                    { value: 'text', label: text.questionKindText },
+                    { value: 'choice', label: text.questionKindChoice },
+                  ]}
+                  onChange={(kind) =>
+                    setDraft({ ...draft, kind: kind === 'choice' ? 'choice' : 'text' })
+                  }
                 />
-              )}
-            </Field>
-            <div className={styles['row']}>
+                {draft.kind === 'choice' ? (
+                  <Field label={text.questionOptionsLabel} hint={text.questionOptionsHint}>
+                    {(control) => (
+                      <Textarea
+                        {...control}
+                        rows={3}
+                        value={(draft.options ?? []).join('\n')}
+                        onChange={(event) =>
+                          setDraft({ ...draft, options: event.target.value.split('\n') })
+                        }
+                      />
+                    )}
+                  </Field>
+                ) : null}
+                <div className={styles['row']}>
+                  <Button
+                    size="sm"
+                    disabled={draft.label.trim() === ''}
+                    onClick={() => {
+                      save([
+                        ...form.questions,
+                        { ...draft, options: linesOf((draft.options ?? []).join('\n')) },
+                      ])
+                      setDraft(null)
+                    }}
+                  >
+                    {text.questionConfirm}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDraft(null)}>
+                    {all.app.cancel}
+                  </Button>
+                </div>
+              </div>
+            ) : form.questions.length < QUESTIONS_MAX ? (
               <Button
+                variant="secondary"
                 size="sm"
-                disabled={momentDraft.trim() === ''}
-                onClick={() => {
-                  saveMoments([...form.moments, { id: '', label: momentDraft.trim() }])
-                  setMomentDraft(null)
-                }}
+                disabled={locked || naming}
+                onClick={() => setDraft({ id: '', label: '', kind: 'text', options: [] })}
+              >
+                {text.questionAdd}
+              </Button>
+            ) : (
+              <p className={styles['note']}>{text.questionsFull}</p>
+            )}
+          </div>
+        </>
+      ) : null}
+      {part === undefined || part === 'moments' ? (
+        <>
+          <div className={styles['questions']}>
+            {part === undefined ? <h3 className={styles['legend']}>{text.momentsTitle}</h3> : null}
+            <p className={styles['note']}>{text.momentsHint}</p>
+            {form.moments.map((moment, index) => (
+              <div key={moment.id === '' ? `new-${index}` : moment.id} className={styles['sub']}>
+                <CommitField
+                  label={text.momentLabelLabel(index + 1)}
+                  value={moment.label}
+                  saveState={saveState}
+                  problem={problem}
+                  disabled={locked || momentNaming}
+                  onCommit={(label) =>
+                    saveMoments(
+                      form.moments.map((other, at) =>
+                        at === index ? { ...other, label: label.trim() } : other,
+                      ),
+                    )
+                  }
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={locked || momentNaming}
+                  aria-label={text.momentRemove(moment.label)}
+                  onClick={() => {
+                    setRemoving({ index, count: 'reading' })
+                    void momentReplies(moment.id).then((count) =>
+                      setRemoving((current) =>
+                        current?.index === index ? { index, count } : current,
+                      ),
+                    )
+                  }}
+                >
+                  {text.momentRemove(moment.label)}
+                </Button>
+              </div>
+            ))}
+            {momentDraft !== null ? (
+              <div className={styles['sub']}>
+                <Field label={text.momentLabelLabel(form.moments.length + 1)}>
+                  {(control) => (
+                    <TextInput
+                      {...control}
+                      value={momentDraft}
+                      maxLength={40}
+                      placeholder={text.momentPlaceholder}
+                      onChange={(event) => setMomentDraft(event.target.value)}
+                    />
+                  )}
+                </Field>
+                <div className={styles['row']}>
+                  <Button
+                    size="sm"
+                    disabled={momentDraft.trim() === ''}
+                    onClick={() => {
+                      saveMoments([...form.moments, { id: '', label: momentDraft.trim() }])
+                      setMomentDraft(null)
+                    }}
+                  >
+                    {text.momentAdd}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setMomentDraft(null)}>
+                    {all.app.cancel}
+                  </Button>
+                </div>
+              </div>
+            ) : form.moments.length < MOMENTS_MAX ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={locked || momentNaming}
+                onClick={() => setMomentDraft('')}
               >
                 {text.momentAdd}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setMomentDraft(null)}>
-                {all.app.cancel}
-              </Button>
-            </div>
+            ) : (
+              <p className={styles['note']}>{text.momentsFull}</p>
+            )}
           </div>
-        ) : form.moments.length < MOMENTS_MAX ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={locked || momentNaming}
-            onClick={() => setMomentDraft('')}
-          >
-            {text.momentAdd}
-          </Button>
-        ) : (
-          <p className={styles['note']}>{text.momentsFull}</p>
-        )}
-      </div>
-      <ConfirmDialog
-        open={removing !== null}
-        title={text.momentRemoveTitle(form.moments[removing?.index ?? 0]?.label ?? '')}
-        description={
-          removing === null || removing.count === 'reading'
-            ? ''
-            : removing.count === null
-              ? text.momentRemoveUnknown
-              : text.momentRemoveBody(removing.count)
-        }
-        confirmLabel={text.momentRemoveYes}
-        busy={removing?.count === 'reading'}
-        onConfirm={() => {
-          if (removing !== null) {
-            saveMoments(form.moments.filter((_, at) => at !== removing.index))
+        </>
+      ) : null}
+      {part === undefined || part === 'moments' ? (
+        <ConfirmDialog
+          open={removing !== null}
+          title={text.momentRemoveTitle(form.moments[removing?.index ?? 0]?.label ?? '')}
+          description={
+            removing === null || removing.count === 'reading'
+              ? ''
+              : removing.count === null
+                ? text.momentRemoveUnknown
+                : text.momentRemoveBody(removing.count)
           }
-          setRemoving(null)
-        }}
-        onCancel={() => setRemoving(null)}
-      />
+          confirmLabel={text.momentRemoveYes}
+          busy={removing?.count === 'reading'}
+          onConfirm={() => {
+            if (removing !== null) {
+              saveMoments(form.moments.filter((_, at) => at !== removing.index))
+            }
+            setRemoving(null)
+          }}
+          onCancel={() => setRemoving(null)}
+        />
+      ) : null}
     </>
   )
 }

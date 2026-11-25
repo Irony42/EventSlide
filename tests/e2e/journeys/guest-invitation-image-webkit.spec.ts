@@ -12,6 +12,7 @@ import {
   orangePhoto,
 } from '../fixtures/invitationImage'
 import { decodeQrInImage } from '../fixtures/qrDecode'
+import { backToCard, openShare } from '../fixtures/invitationPanels'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import type { Page } from '@playwright/test'
 
@@ -90,6 +91,7 @@ test('on a phone, the share sheet is handed the PNG and the words, and the words
   await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
   // A design with a face of its own, chosen on the card: its font has to be in the picture.
   await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+  await openShare(host)
   await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
 
   const share = host.getByRole('button', { name: text.share })
@@ -117,6 +119,7 @@ test('on a phone that cannot share files, the image is offered as a download tha
   await installPhone(host, false)
   await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
   await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
+  await openShare(host)
   await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
 
   const download = host.getByRole('button', { name: text.download })
@@ -147,7 +150,10 @@ test('on a phone engine too, the card’s own typeface is in the picture, not a 
     await host.goto(app.url(`/admin/events/${event.slug}/invitations`))
     await host.getByRole('radio', { name: 'Billet' }).check({ force: true })
   }
-  const imageTab = () => host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
+  const imageTab = async () => {
+    await openShare(host)
+    await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
+  }
   await open()
   await imageTab()
   const withFonts = await downloadedInvitationImage(host)
@@ -171,8 +177,10 @@ test('on a phone engine too, every design is drawn in the picture as it is in th
 
   for (const shape of [fr.guestInvite.image.formatSquare, fr.guestInvite.image.formatStory]) {
     for (const name of DESIGN_NAMES) {
-      await host.getByRole('tab', { name: fr.guestInvite.host.tabPrint }).click()
-      await host.getByRole('radio', { name }).check({ force: true })
+      await backToCard(host)
+      // The thumbnail is what a thumb taps (the radio itself is a hidden input under the pinned preview).
+      await host.getByRole('radio', { name }).locator('xpath=..').click()
+      await openShare(host)
       await host.getByRole('tab', { name: fr.guestInvite.host.tabImage }).click()
       await host.getByRole('radio', { name: shape }).check()
       const png = await downloadedInvitationImage(host)

@@ -22,7 +22,7 @@ function Harness({
   timeZone?: string | null
 }) {
   const rsvp = useRsvpSettings('mariage', when)
-  return <RsvpPanel rsvp={rsvp} archived={archived} timeZone={timeZone} />
+  return <RsvpPanel rsvp={rsvp} archived={archived} timeZone={timeZone} onClose={() => undefined} />
 }
 
 const render = (
@@ -152,7 +152,7 @@ describe('the replies settings panel: choosing', () => {
     const saveRsvpForm = vi.fn(async () => ({ rsvpForm: aRsvpSettings() }))
     render({ ...answering(), saveRsvpForm })
 
-    await user.selectOptions(await screen.findByLabelText(new RegExp(t.presetLabel)), 'wedding')
+    await user.click(await screen.findByRole('button', { name: /^Mariage/ }))
 
     expect(screen.getByRole('checkbox', { name: /Peut-être/ })).not.toBeChecked()
     await waitFor(() => expect(saveRsvpForm).toHaveBeenCalled())
@@ -164,15 +164,18 @@ describe('the replies settings panel: choosing', () => {
   it('names the kind of party the settings look like, and "sur mesure" once the host went their own way', async () => {
     const user = userEvent.setup()
     render({ ...answering(), saveRsvpForm: vi.fn(async () => ({ rsvpForm: aRsvpSettings() })) })
-    const preset = await screen.findByLabelText(new RegExp(t.presetLabel))
-    expect(preset).toHaveValue('party')
+    const party = await screen.findByRole('button', { name: /^Fête/ })
+    const custom = screen.getByRole('button', { name: /^Sur mesure/ })
+    expect(party).toHaveAttribute('aria-pressed', 'true')
+    expect(custom).toHaveAttribute('aria-pressed', 'false')
 
     await user.click(screen.getByRole('checkbox', { name: /Peut-être/ }))
     await user.click(screen.getByRole('checkbox', { name: t.dietLabel }))
     await user.clear(screen.getByLabelText(`${t.sizeMax} ${t.sizeUnit}`))
     await user.type(screen.getByLabelText(`${t.sizeMax} ${t.sizeUnit}`), '9')
 
-    expect(preset).toHaveValue('custom')
+    expect(custom).toHaveAttribute('aria-pressed', 'true')
+    expect(party).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('hides the size and the children when the number of people is not asked', async () => {
@@ -378,7 +381,7 @@ describe('the replies settings panel: choosing', () => {
       await user.type(field, '7')
       await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(1))
 
-      await user.selectOptions(screen.getByLabelText(new RegExp(t.presetLabel)), 'wedding')
+      await user.click(await screen.findByRole('button', { name: /^Mariage/ }))
 
       expect(field).toHaveValue('6')
       await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(2))
@@ -772,13 +775,39 @@ describe('the replies settings panel: the party’s days', () => {
   })
 })
 
+describe('the replies settings panel: the folded lines', () => {
+  it('says "1 place" for a limit of one and "40 places" for forty, with the visibility beside it', async () => {
+    const form = (capacity: number | null) => ({
+      ...aRsvpSettings().form,
+      capacity,
+    })
+    const one = render(answering({ form: form(1) }))
+    expect(await screen.findByText((line) => line.startsWith('1 place '))).toBeInTheDocument()
+    one.unmount()
+
+    render(answering({ form: form(40) }))
+    expect(
+      await screen.findByText((line: string) => line.startsWith('40 places ')),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps a no-break space around the dot between the limit and what is shown', async () => {
+    render(answering())
+
+    const line = await screen.findByText(new RegExp(t.summaryNoLimit))
+    expect(line.textContent).toContain(
+      String.fromCodePoint(0x00a0) + '·' + String.fromCodePoint(0x00a0),
+    )
+  })
+})
+
 describe('the replies settings panel: the preset', () => {
   it('applies a preset at once while the choices still are one', async () => {
     const user = userEvent.setup()
     const saveRsvpForm = vi.fn(async () => ({ rsvpForm: aRsvpSettings() }))
     render({ ...answering(), saveRsvpForm })
 
-    await user.selectOptions(await screen.findByLabelText(t.presetLabel), 'wedding')
+    await user.click(await screen.findByRole('button', { name: /^Mariage/ }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     await waitFor(() => expect(saveRsvpForm).toHaveBeenCalledTimes(1))
@@ -796,7 +825,7 @@ describe('the replies settings panel: the preset', () => {
       const saveRsvpForm = vi.fn(async () => ({ rsvpForm: aRsvpSettings() }))
       render({ ...custom(), saveRsvpForm })
 
-      await user.selectOptions(await screen.findByLabelText(t.presetLabel), 'party')
+      await user.click(await screen.findByRole('button', { name: /^Fête/ }))
       const dialog = await screen.findByRole('dialog')
       expect(dialog).toHaveTextContent(plain(t.presetConfirm(t.presetKindParty)))
       expect(saveRsvpForm).not.toHaveBeenCalled()
@@ -810,7 +839,7 @@ describe('the replies settings panel: the preset', () => {
       const saveRsvpForm = vi.fn(async () => ({ rsvpForm: aRsvpSettings() }))
       render({ ...custom(), saveRsvpForm })
 
-      await user.selectOptions(await screen.findByLabelText(t.presetLabel), 'wedding')
+      await user.click(await screen.findByRole('button', { name: /^Mariage/ }))
       await user.click(
         within(await screen.findByRole('dialog')).getByRole('button', { name: fr.app.cancel }),
       )
