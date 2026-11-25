@@ -1724,8 +1724,6 @@ export const it: UiText = {
       qrOn: 'QR visibile',
       qrOff: 'senza QR',
       sound: 'suono a ogni foto',
-      logo: 'con logo',
-      venuePhoto: 'foto del luogo',
       opensAt: 'Apertura programmata',
       opensByHand: 'Apertura a mano',
       closesAt: 'chiusura programmata',

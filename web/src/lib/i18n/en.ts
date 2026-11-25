@@ -1676,8 +1676,6 @@ export const en: UiText = {
       qrOn: 'QR shown',
       qrOff: 'no QR',
       sound: 'sound for each photo',
-      logo: 'with logo',
-      venuePhoto: 'venue photo',
       opensAt: 'Opening scheduled',
       opensByHand: 'Opened by hand',
       closesAt: 'end scheduled',

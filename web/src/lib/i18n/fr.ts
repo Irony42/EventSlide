@@ -1761,8 +1761,6 @@ export const fr = {
       qrOn: 'QR affiché',
       qrOff: 'sans QR',
       sound: 'son à chaque photo',
-      logo: 'avec logo',
-      venuePhoto: 'photo du lieu',
       opensAt: 'Ouverture programmée',
       opensByHand: 'Ouverture à la main',
       closesAt: 'fin programmée',

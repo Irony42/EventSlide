@@ -1763,8 +1763,6 @@ export const de: UiText = {
       qrOn: 'QR sichtbar',
       qrOff: 'ohne QR',
       sound: 'Ton bei jedem Foto',
-      logo: 'mit Logo',
-      venuePhoto: 'Foto des Ortes',
       opensAt: 'Öffnung geplant',
       opensByHand: 'Öffnung von Hand',
       closesAt: 'Ende geplant',
