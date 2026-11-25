@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { WelcomePage } from './WelcomePage'
@@ -26,8 +26,12 @@ import type { EventDto } from '../../lib/api/dto'
 const LOGO = `/api/events/camille-et-sacha/logo/${'ab'.repeat(32)}`
 const EVENT_PAGE = 'Page de l’évènement'
 
+/** What a host has just made: only a draft is shown the screen. */
+const aDraft = (overrides: Partial<EventDto> = {}): EventDto =>
+  anEventDto({ status: 'draft', ...overrides })
+
 const withLogo = (): EventDto =>
-  anEventDto({ settings: eventSettings({ brand: { welcomeMessage: null, logoUrl: LOGO } }) })
+  aDraft({ settings: eventSettings({ brand: { welcomeMessage: null, logoUrl: LOGO } }) })
 
 const renderPage = (api: Api) =>
   renderWithProviders(
@@ -47,7 +51,7 @@ const text = (value: string) => (content: string) => spaced(content) === spaced(
 
 describe('WelcomePage', () => {
   it('says which event was created, by its own name', async () => {
-    renderPage(apiFor(anEventDto({ name: 'Camille & Sacha' })))
+    renderPage(apiFor(aDraft({ name: 'Camille & Sacha' })))
 
     expect(
       await screen.findByRole('heading', {
@@ -60,7 +64,7 @@ describe('WelcomePage', () => {
   })
 
   it('offers « Plus tard » as a secondary button while there is no logo, and leaves for the event', async () => {
-    renderPage(apiFor(anEventDto()))
+    renderPage(apiFor(aDraft()))
 
     const later = await screen.findByRole('button', { name: fr.admin.welcome.later })
     // Secondary: the primary button is reserved for the step that moves the host forward.
@@ -75,7 +79,7 @@ describe('WelcomePage', () => {
 
   it('uploads the logo through the same control as the Apparence page, then offers « Continuer » as the primary button', async () => {
     const answered = withLogo()
-    const api = apiFor(anEventDto(), { putEventLogo: vi.fn(async () => answered) })
+    const api = apiFor(aDraft(), { putEventLogo: vi.fn(async () => answered) })
     renderPage(api)
     const file = new File(['pixels'], 'logo.png', { type: 'image/png' })
 
@@ -98,24 +102,46 @@ describe('WelcomePage', () => {
   })
 
   it('sends a moderator to the event’s page: the logo is the owner’s', async () => {
-    renderPage(apiFor(anEventDto({ role: 'moderator' })))
+    renderPage(apiFor(aDraft({ role: 'moderator' })))
 
     expect(await screen.findByText(EVENT_PAGE)).toBeVisible()
     expect(screen.queryByTestId('logo-input')).toBeNull()
   })
 
-  it('sends the host to the event’s page when the event is archived', async () => {
-    renderPage(apiFor(anEventDto({ status: 'archived' })))
+  it.each(['live', 'closed', 'archived'] as const)(
+    'sends the host to the event’s page when the event is %s: « est créé » is only true of a draft',
+    async (status) => {
+      renderPage(apiFor(anEventDto({ status })))
 
-    expect(await screen.findByText(EVENT_PAGE)).toBeVisible()
-    expect(screen.queryByTestId('logo-input')).toBeNull()
+      expect(await screen.findByText(EVENT_PAGE)).toBeVisible()
+      expect(screen.queryByTestId('logo-input')).toBeNull()
+    },
+  )
+
+  it('holds the way out while the logo is on its way, so the host cannot leave mid-upload', async () => {
+    let finish: (event: EventDto) => void = () => undefined
+    const api = apiFor(aDraft(), {
+      putEventLogo: vi.fn(() => new Promise<EventDto>((resolve) => (finish = resolve))),
+    })
+    renderPage(api)
+
+    await userEvent.upload(
+      await screen.findByTestId('logo-input'),
+      new File(['pixels'], 'logo.png', { type: 'image/png' }),
+    )
+
+    expect(await screen.findByRole('button', { name: fr.admin.welcome.later })).toBeDisabled()
+
+    act(() => finish(withLogo()))
+
+    expect(await screen.findByRole('button', { name: fr.admin.welcome.continue })).toBeEnabled()
   })
 
   it('says the event could not be read and lets the host retry', async () => {
     const getEvent = vi
       .fn<Api['getEvent']>()
       .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValue(anEventDto())
+      .mockResolvedValue(aDraft())
     renderPage(fakeApi({ getEvent }))
 
     await userEvent.click(await screen.findByRole('button', { name: fr.app.retry }))

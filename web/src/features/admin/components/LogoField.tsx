@@ -1,4 +1,4 @@
-import { useId, useState, type ChangeEvent } from 'react'
+import { useEffect, useId, useState, type ChangeEvent } from 'react'
 import { Button } from '../../../design-system/components/Button'
 import { Notice } from '../../../design-system/components/Notice'
 import { useToast } from '../../../design-system/components/useToast'
@@ -18,6 +18,8 @@ export interface LogoFieldProps {
   readonly disabled: boolean
   /** The event as the server answered, so the page replaces its copy and shows the new URL. */
   readonly onChanged: (event: EventDto) => void
+  /** Told whenever a request of the field starts or ends, for a page that must not be left mid-upload. */
+  readonly onBusyChange?: (busy: boolean) => void
 }
 
 /**
@@ -31,7 +33,7 @@ export interface LogoFieldProps {
  * language by code. The control is a real `<input type="file">` under its label, as the guest
  * picker is, so a keyboard reaches it.
  */
-export function LogoField({ slug, logoUrl, disabled, onChanged }: LogoFieldProps) {
+export function LogoField({ slug, logoUrl, disabled, onChanged, onBusyChange }: LogoFieldProps) {
   const t = useTranslations()
   const toast = useToast()
   const upload = useUploadEventLogo()
@@ -40,6 +42,9 @@ export function LogoField({ slug, logoUrl, disabled, onChanged }: LogoFieldProps
   const inputId = useId()
 
   const busy = upload.busy || remove.busy
+  useEffect(() => {
+    onBusyChange?.(busy)
+  }, [busy, onBusyChange])
   const closed = disabled
   // Validated before it is an `<img src>`, as every path this client is handed is.
   const present = isEventLogoUrl(logoUrl)

@@ -1628,7 +1628,6 @@ export const fr = {
     slugHint: 'Facultatif. Laissez vide pour la déduire du nom.',
     slugPreviewLabel: 'Adresse pour vos invités',
     slugPreviewEmpty: 'Saisissez un nom pour voir l’adresse.',
-    eventCreated: (name: string) => `${name} est prêt. Imprimez le QR code quand vous voulez.`,
     joinLink: 'Lien pour vos invités',
     printQr: 'Imprimer le QR code',
     qrScanPrompt: 'Scannez pour envoyer vos photos.',

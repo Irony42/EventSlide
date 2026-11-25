@@ -9,7 +9,6 @@ import { fr } from '../../lib/i18n/fr'
 import {
   aClientLimits,
   anAbout,
-  anEventDto,
   fakeApi,
   renderWithProviders,
 } from '../../testing/renderWithProviders'
@@ -105,18 +104,6 @@ describe('NewEventPage', () => {
       slug: 'noces-d-or',
       wallLanguage: 'fr',
     })
-  })
-
-  it('confirms the creation by name, so the host knows which event opened', async () => {
-    const api = fakeApi({
-      createEvent: vi.fn(async () => anEventDto({ name: 'Gala annuel', slug: 'gala' })),
-    })
-
-    renderPage(api)
-    await userEvent.type(screen.getByLabelText(fr.admin.eventName), 'Gala annuel')
-    await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
-
-    expect(await screen.findByText(fr.admin.eventCreated('Gala annuel'))).toBeVisible()
   })
 
   it('says an address is taken and keeps the form as it was', async () => {

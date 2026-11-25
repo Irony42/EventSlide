@@ -4,7 +4,6 @@ import { Button } from '../../design-system/components/Button'
 import { Field } from '../../design-system/components/Field'
 import { Notice } from '../../design-system/components/Notice'
 import { TextInput } from '../../design-system/components/TextInput'
-import { useToast } from '../../design-system/components/useToast'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { slugify } from '../../lib/slugify'
 import { eventCreationBlocked } from '../../lib/ceilingLevels'
@@ -27,7 +26,6 @@ export function NewEventPage() {
   // below the fold. Said here, before the press, and the button stays out of reach until it could work.
   const blocked = eventCreationBlocked(clients)
   const blockedReason = useId()
-  const toast = useToast()
   const navigate = useNavigate()
 
   const [name, setName] = useState('')
@@ -77,7 +75,6 @@ export function NewEventPage() {
           setFailure(result.message)
           return
         }
-        toast.show(t.admin.eventCreated(result.value.name), { tone: 'success' })
         // Not the event's page: the logo is asked for first, once, while it is still easy to say.
         navigate(`/admin/events/${result.value.slug}/welcome`, { replace: true })
       })

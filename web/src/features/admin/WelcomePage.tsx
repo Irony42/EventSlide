@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
 import { Button } from '../../design-system/components/Button'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { isEventLogoUrl } from '../../lib/brand'
-import { canManageEvent, isMutable } from '../../lib/eventLifecycle'
+import { canManageEvent } from '../../lib/eventLifecycle'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { LogoField } from './components/LogoField'
 import { useEvent } from './hooks/useEventData'
@@ -26,6 +27,7 @@ export function WelcomePage() {
   const { slug = '' } = useParams()
   const navigate = useNavigate()
   const { data: event, loading, error, reload, replace } = useEvent(slug)
+  const [uploading, setUploading] = useState(false)
   const home = `/admin/events/${encodeURIComponent(slug)}`
 
   if (event === null) {
@@ -43,8 +45,9 @@ export function WelcomePage() {
   }
 
   // A presentation of the rule, not the rule: the logo routes themselves are the owner's and
-  // refuse an archived event. The screen would only offer a control whose every press fails.
-  if (!canManageEvent(event.role) || !isMutable(event.status)) {
+  // refuse an archived event. The screen is for the moment right after the creation, so anything
+  // but a draft goes to the event page (« est créé » would be false later), and so does a moderator.
+  if (!canManageEvent(event.role) || event.status !== 'draft') {
     return <Navigate to={home} replace />
   }
 
@@ -61,12 +64,15 @@ export function WelcomePage() {
         logoUrl={event.settings.brand?.logoUrl}
         disabled={false}
         onChanged={replace}
+        onBusyChange={setUploading}
       />
 
       <div className={styles['actions']}>
         {/* « Plus tard » is the way out of a step the host may not want; « Continuer » is the
             primary action only once there is a logo to go on with. */}
+        {/* Held while the file is on its way: leaving now would land on an event page that still asks. */}
         <Button
+          disabled={uploading}
           variant={hasLogo ? 'primary' : 'secondary'}
           onClick={() => navigate(home, { replace: true })}
         >

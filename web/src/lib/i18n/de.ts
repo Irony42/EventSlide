@@ -1628,8 +1628,6 @@ export const de: UiText = {
     slugHint: 'Optional. Leer lassen, dann wird sie aus dem Namen abgeleitet.',
     slugPreviewLabel: 'Adresse für Ihre Gäste',
     slugPreviewEmpty: 'Geben Sie einen Namen ein, um die Adresse zu sehen.',
-    eventCreated: (name: string) =>
-      `${name} ist bereit. Drucken Sie den QR-Code, wann immer Sie wollen.`,
     joinLink: 'Link für Ihre Gäste',
     printQr: 'QR-Code drucken',
     qrScanPrompt: 'Scannen Sie, um Ihre Fotos zu senden.',

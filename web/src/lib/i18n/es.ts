@@ -1612,7 +1612,6 @@ export const es: UiText = {
     slugHint: 'Opcional. Déjelo en blanco para deducirla del nombre.',
     slugPreviewLabel: 'Dirección para sus invitados',
     slugPreviewEmpty: 'Escriba un nombre para ver la dirección.',
-    eventCreated: (name: string) => `${name} está listo. Imprima el código QR cuando quiera.`,
     joinLink: 'Enlace para sus invitados',
     printQr: 'Imprimir el código QR',
     qrScanPrompt: 'Escanee para enviar sus fotos.',
