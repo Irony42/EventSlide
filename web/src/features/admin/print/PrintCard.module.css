@@ -2382,6 +2382,10 @@
 /* Room for 140 characters at the legibility floor, so a whole word is not clipped. */
 .invBoxTi {
   max-block-size: 9.5cqw;
+  /* The ticket's word is set in a monospace face, whose line box is shorter than its glyphs: on a
+     card drawn big the last line's descenders hung 3 px under the box and the box (which clips)
+     cut them. A little room under the last line keeps the whole word. */
+  padding-block-end: 0.3em;
 }
 
 .invBoxRc {

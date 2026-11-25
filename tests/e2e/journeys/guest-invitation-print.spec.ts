@@ -1,5 +1,5 @@
 import { csrfHeaders, expect, test } from '../fixtures/app'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { jpegWithLocation } from '../fixtures/media'
 import { decodeQr } from '../fixtures/qrDecode'
 import { backToCard, openShare } from '../fixtures/invitationPanels'
@@ -234,85 +234,91 @@ for (const language of ['fr', 'en'] as const) {
         await expect(card).toHaveAttribute('data-print-card', design.id)
         await host.evaluate(() => document.fonts.ready)
 
-        const report = await card.evaluate(
-          (root, floors) => {
-            const width = root.getBoundingClientRect().width
-            const card = root.getBoundingClientRect()
-            const clipped = (element: Element): boolean => {
-              const box = element.getBoundingClientRect()
-              if (box.bottom > card.bottom + 0.5 || box.right > card.right + 0.5) return true
-              for (
-                let up = element.parentElement;
-                up !== null && up !== root;
-                up = up.parentElement
-              ) {
-                if (getComputedStyle(up).overflow === 'visible') continue
-                const outer = up.getBoundingClientRect()
-                if (box.bottom > outer.bottom + 1 || box.right > outer.right + 1) return true
+        const measure = (target: Locator) =>
+          target.evaluate(
+            (root, floors) => {
+              const width = root.getBoundingClientRect().width
+              const card = root.getBoundingClientRect()
+              const clipped = (element: Element): boolean => {
+                const box = element.getBoundingClientRect()
+                if (box.bottom > card.bottom + 0.5 || box.right > card.right + 0.5) return true
+                for (
+                  let up = element.parentElement;
+                  up !== null && up !== root;
+                  up = up.parentElement
+                ) {
+                  if (getComputedStyle(up).overflow === 'visible') continue
+                  const outer = up.getBoundingClientRect()
+                  if (box.bottom > outer.bottom + 1 || box.right > outer.right + 1) return true
+                }
+                return false
               }
-              return false
-            }
-            const out: string[] = []
-            for (const element of root.querySelectorAll<HTMLElement>('p[data-fit]')) {
-              const floor = floors.word // every shrinkable paragraph: none goes under 7 pt on A6, whatever its own attribute says
-              const size = parseFloat(getComputedStyle(element).fontSize)
-              if (size < (floor * width) / 100 - 0.05)
-                out.push(
-                  'font ' +
-                    ((size / width) * 100).toFixed(2) +
-                    'cqw < ' +
-                    floor +
-                    ' : ' +
-                    element.textContent?.slice(0, 30),
+              const out: string[] = []
+              for (const element of root.querySelectorAll<HTMLElement>('p[data-fit]')) {
+                const floor = floors.word // every shrinkable paragraph: none goes under 7 pt on A6, whatever its own attribute says
+                const size = parseFloat(getComputedStyle(element).fontSize)
+                if (size < (floor * width) / 100 - 0.05)
+                  out.push(
+                    'font ' +
+                      ((size / width) * 100).toFixed(2) +
+                      'cqw < ' +
+                      floor +
+                      ' : ' +
+                      element.textContent?.slice(0, 30),
+                  )
+              }
+              for (const link of root.querySelectorAll<HTMLElement>(
+                '[class*="invLink"], [class*="esLink"]',
+              )) {
+                const size = parseFloat(getComputedStyle(link).fontSize)
+                if (size < (floors.link * width) / 100 - 0.05)
+                  out.push('link font ' + ((size / width) * 100).toFixed(2) + 'cqw')
+                if (clipped(link)) out.push('link clipped')
+              }
+              for (const qr of root.querySelectorAll('svg[role="img"]'))
+                if (clipped(qr)) out.push('QR clipped')
+              for (const text of root.querySelectorAll<HTMLElement>('[data-fit]')) {
+                if (clipped(text)) out.push('clipped: ' + text.textContent?.slice(0, 30))
+                // Content that spills out of its box and is not marked as clipped by the fit is lost.
+                if (
+                  (text.tagName === 'P' || /svNote/.test(text.className)) &&
+                  text.scrollHeight > text.clientHeight + 2 &&
+                  text.dataset['clamped'] === undefined
                 )
-            }
-            for (const link of root.querySelectorAll<HTMLElement>(
-              '[class*="invLink"], [class*="esLink"]',
-            )) {
-              const size = parseFloat(getComputedStyle(link).fontSize)
-              if (size < (floors.link * width) / 100 - 0.05)
-                out.push('link font ' + ((size / width) * 100).toFixed(2) + 'cqw')
-              if (clipped(link)) out.push('link clipped')
-            }
-            for (const qr of root.querySelectorAll('svg[role="img"]'))
-              if (clipped(qr)) out.push('QR clipped')
-            for (const text of root.querySelectorAll<HTMLElement>('[data-fit]')) {
-              if (clipped(text)) out.push('clipped: ' + text.textContent?.slice(0, 30))
-              // Content that spills out of its box and is not marked as clipped by the fit is lost.
-              if (
-                (text.tagName === 'P' || /svNote/.test(text.className)) &&
-                text.scrollHeight > text.clientHeight + 2 &&
-                text.dataset['clamped'] === undefined
-              )
-                out.push('overflowing: ' + text.textContent?.slice(0, 30) + ' DIAG ' + JSON.stringify({ sh: text.scrollHeight, ch: text.clientHeight, mh: getComputedStyle(text).maxHeight, fs: getComputedStyle(text).fontSize, ff: getComputedStyle(text).fontFamily, lh: getComputedStyle(text).lineHeight, cardW: width, inline: text.style.fontSize, fonts: [...document.fonts].map((f) => f.family + ':' + f.status).join(','), ws: getComputedStyle(text).whiteSpace }))
-            }
-            // The line saying the rest is on the page is the size of the link line, on a thumbnail as well.
-            const more = root.querySelector('[class*="esMore"]')
-            if (more !== null) {
-              const ratio = (parseFloat(getComputedStyle(more).fontSize) / width) * 100
-              if (ratio < 2.2 || ratio > 3.5)
-                out.push('the rest-on-the-page line is ' + ratio.toFixed(2) + ' cqw')
-            }
-            // The garland's title starts under the polaroid, not on it.
-            const title = root.querySelector('h2')
-            const prints = [...root.querySelectorAll('rect[class*="glPrint"]')]
-            if (title !== null && prints.length > 0) {
-              const lowest = Math.max(
-                ...prints.map((print) => print.getBoundingClientRect().bottom),
-              )
-              if (title.getBoundingClientRect().top < lowest - 0.5)
-                out.push('the title overlaps the polaroid')
-            }
-            // The hours on a boarding pass are set in the sans face: a space is a space.
-            const code = root.querySelector('[class*="bpCodes"]')
-            if (code !== null && /mono|plex/i.test(getComputedStyle(code).fontFamily)) {
-              out.push('the hours are set in a monospace face')
-            }
-            return out
-          },
-          { link: FLOOR_LINK_CQW, word: FLOOR_WORD_CQW },
-        )
-        expect(report, design.id + ' ' + language).toEqual([])
+                  out.push('overflowing: ' + text.textContent?.slice(0, 30))
+              }
+              // The line saying the rest is on the page is the size of the link line, on a thumbnail as well.
+              const more = root.querySelector('[class*="esMore"]')
+              if (more !== null) {
+                const ratio = (parseFloat(getComputedStyle(more).fontSize) / width) * 100
+                if (ratio < 2.2 || ratio > 3.5)
+                  out.push('the rest-on-the-page line is ' + ratio.toFixed(2) + ' cqw')
+              }
+              // The garland's title starts under the polaroid, not on it.
+              const title = root.querySelector('h2')
+              const prints = [...root.querySelectorAll('rect[class*="glPrint"]')]
+              if (title !== null && prints.length > 0) {
+                const lowest = Math.max(
+                  ...prints.map((print) => print.getBoundingClientRect().bottom),
+                )
+                if (title.getBoundingClientRect().top < lowest - 0.5)
+                  out.push('the title overlaps the polaroid')
+              }
+              // The hours on a boarding pass are set in the sans face: a space is a space.
+              const code = root.querySelector('[class*="bpCodes"]')
+              if (code !== null && /mono|plex/i.test(getComputedStyle(code).fontFamily)) {
+                out.push('the hours are set in a monospace face')
+              }
+              return out
+            },
+            { link: FLOOR_LINK_CQW, word: FLOOR_WORD_CQW },
+          )
+        // The big card of the card's screen, then the card the paper carries (the sheet of Partager).
+        expect(await measure(card), design.id + ' ' + language).toEqual([])
+        await openShare(host)
+        const printed = host.locator('[data-format]:not([data-single]) [data-print-card]').first()
+        expect(await measure(printed), design.id + ' ' + language + ' (the sheet)').toEqual([])
+        await backToCard(host)
       }
     },
   )
