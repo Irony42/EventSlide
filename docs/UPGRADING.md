@@ -595,14 +595,14 @@ and the account self-erasure).
    yourself is kept. A box that left it unset and holds older rows logs one warning naming
    `AUDIT_RETENTION_DAYS` at boot, before the first sweep.
 7. **With `SITE_ADMIN=on`, an account can delete itself**: `POST /api/auth/account/delete` and an entry
-   "Supprimer mon compte" in the account menu, behind the password (and the authenticator's code when there
+   "Delete my account" in the account menu, behind the password (and the authenticator's code when there
    is one), with the same refusals as the operator's route (an account that still owns an event is refused).
 8. **Every guest is shown the privacy notice again** on their next visit, on every box. It now names the
-   guests' feed « Les photos de la soirée » among those who see a published photo, and says that a guest
+   guests' feed "Photos from the evening" among those who see a published photo, and says that a guest
    can erase everything they sent from their phone; its revision changed, so an earlier acknowledgement
    reads as `outdated`. Nothing to set; expect each guest to tap through the notice once.
 9. **A guest can erase their own contribution**: `DELETE /api/events/:slug/guests/me` and a button under
-   "Vos envois" remove every photo and clip the guest sent, their reactions and their name, at once and for
+   "Your uploads" remove every photo and clip the guest sent, their reactions and their name, at once and for
    good, also after the host revoked them. It is refused on an event the operator holds for purge, and it
    leaves alone a photo the operator took down: that one is kept, with the guest's record stripped of its name.
 10. **The panes' glass material is retired** (ADR 0012). An event's theme no longer carries `material`:
@@ -646,20 +646,16 @@ people on the night.
    guests with a photo waiting is about eleven reads a second.
    Watch the load at the first big event.
 5. **What the room sees changes.** A photo just published takes the next slide, three in a row at most;
-   a guest's first photo carries « Première photo de Julie » in the layouts that caption one photo; the
+   a guest's first photo carries "First photo from Julie" in the layouts that caption one photo; the
    wall asks the browser to keep the screen awake; and **Escape no longer hides the QR: `Q` does**. On a
-   closed evening the wall drops the join card, the code, the QR and the missions and says « Merci
-   d'être venus ! ». A wall that is not served yet is a calm screen that lights up by itself. Tell the
+   closed evening the wall drops the join card, the code, the QR and the missions and says "Thank you for coming!". A wall that is not served yet is a calm screen that lights up by itself. Tell the
    person at the projector about `Q`.
-6. **What the host sees changes.** « Archiver » and « Ouvrir aux invités » ask first, and « Archiver » is
-   no longer offered on a live event (end it first); the toasts are one per move; « Après la soirée »
+6. **What the host sees changes.** "Archive" and "Open to guests" ask first, and "Archive" is
+   no longer offered on a live event (end it first); the toasts are one per move; "After the event"
    leads the page once the evening is ended; Z undoes a publication on the desktop console and the
-   phone console gets a strip « Dernières photos à l'écran »; « Refuser (N) » on three photos or more
+   phone console gets a strip "Latest photos on the screen"; "Reject (N)" on three photos or more
    asks when one of them is not on the wall.
-7. **The words changed**, in the five languages: « la soirée » where the guest, the wall and the host
-   used to read « galerie », « Code de la soirée » for « Code d'accès », « Lien pour vos invités » for
-   « Lien d'invitation », « Terminer la soirée » for « Clore », « Rouvrir » for « Réouvrir », « Couleur de
-   l'ambiance » for « Kraft ». A printed guide or a screenshot that quotes the old words no longer matches.
+7. **The words changed**, in the five languages: "event" where the guest, the wall and the host used to read "gallery", "Event code" for "Access code", "Link for your guests" for "Invitation link", "End the event" for "Close the event", "Ambiance colour" for "Kraft". A printed guide or a screenshot that quotes the old words no longer matches.
    Nothing in the API, the `.env` file or a stored value changed with them.
 8. **Nothing else changes for a box with `SITE_ADMIN=off`**, and nothing here is specific to
    `SITE_ADMIN=on`: every item applies to every box.
@@ -750,8 +746,7 @@ folders and outside the backups: budget the disk for them.
 
 **Per-client switch for the photo book.** `NEW_CLIENT_BOOKS_ALLOWED` (`true`, `false`, `1` or `0`;
 absent means allowed) is the default a client created on a hosted box starts with, like
-`NEW_CLIENT_CLIPS_ALLOWED`; the operator console shows it per client (« Livres photo (PDF)
-autorisés »). Existing clients keep the function on. On top of it, one event gets at most
+`NEW_CLIENT_CLIPS_ALLOWED`; the operator console shows it per client ("Photo books (PDF) allowed"). Existing clients keep the function on. On top of it, one event gets at most
 `BOOK_MAX_PER_EVENT_PER_DAY` books in a rolling day.
 
 ## Upgrading to 3.6
@@ -771,7 +766,7 @@ part of the release changes.
   and defaults to today's behaviour: the layout chain and the eight-second slide, new photos first and tilt on,
   no send time, no souvenir counter, no new-photo signal, the invitation card visible at scale 1 in its usual
   corner, and no alternation of the wall and a large photograph. Nothing moves on an existing wall until the
-  owner changes a switch on the settings page ("Affichage du mur") or in the panel.
+  owner changes a switch on the settings page ("Wall display") or in the panel.
 - **The panel on the wall (`R`) is for the owner**, signed in on the projector machine. A moderator or an
   anonymous wall has no bar, no panel and no DOM.
 - **Additions to `GET /api/events/:slug/wall`** (optional for a client, none removed): `serverNowMs`,
@@ -801,12 +796,12 @@ part of the release changes.
 - **Nothing to set in `.env`.**
 - **Additions to existing responses** (optional for a client, none removed): `serverNowMs` and `challenge` in
   `GET /api/events/:slug/wall` and in `GET /api/events/:slug/missions/mine`.
-- **The wall**: while a challenge runs, a banner ("Défi photo · 1:42" and the mission's sentence) takes the top centre,
+- **The wall**: while a challenge runs, a banner ("Photo challenge · 1:42" and the mission's sentence) takes the top centre,
   the layouts that fill the screen lay out below it, and the join card is held on screen. It goes ten seconds after
   the end. A wall with no challenge is drawn exactly as before.
 - **The guests' phones**: while the host has set missions, the upload screen asks the server again every twenty seconds
   (about ten reads a second for 200 guests, jittered, only while the page is visible, and when the tab comes
-  back) to learn whether a challenge started. A band "Défi en cours" with a "Relever le défi" button appears above the
+  back) to learn whether a challenge started. A band "Challenge in progress" with a "Take up the challenge" button appears above the
   list and chooses the mission for the next photograph. No sound, no vibration, no notification; the screen of an event
   with no missions is unchanged and asks nothing more.
 
@@ -842,7 +837,7 @@ part of the release changes.
 ### The wall: icon bar, settings drawer, portrait photos and mosaic (spec 17 and two fixes)
 
 - **No migration, nothing to set in `.env`.** The owner's bar and the settings panel on the wall change their look
-  (icon buttons, a drawer with a row of sections); the keys (`R`, `Espace`, `F`) and the settings do not change.
+  (icon buttons, a drawer with a row of sections); the keys (`R`, `Space`, `F`) and the settings do not change.
 - **The mosaic layout changes**: six equal cells, and the 2x2 hero tile is gone. A photo keeps the whole picture
   when cropping it to the cell would hide more than 30 % of it. A full screen portrait photo is no longer cropped.
 
@@ -870,7 +865,7 @@ sections below say what each part of the release changes.
 
 ### The guest upload pane folds (spec 19)
 
-- **No migration, nothing to set in `.env`.** A "Réduire" button folds the pane into a bar of at most 14 % of the
+- **No migration, nothing to set in `.env`.** A "Fold" button folds the pane into a bar of at most 14 % of the
   screen; only that button folds it (scrolling never does). The selection is kept; a tap opens the pane again.
 
 ### The wall: arrows, challenge over the guestbook, switches, mixed phases
@@ -948,7 +943,7 @@ archive. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 
 - **No migration, nothing to set in `.env`.** A guest who picked photos under different missions and sent them in
   one go no longer sees them all filed under the last mission selected. `GET /api/events/:slug/photos/mine`
-  returns `missionPrompt` and `answeredChallenge`, and "Vos envois" labels each photo with it.
+  returns `missionPrompt` and `answeredChallenge`, and "Your uploads" labels each photo with it.
 - **A photo awaiting the host's approval shows in black and white**, slightly faded, instead of a colour negative;
   it takes its colours when published.
 
@@ -968,7 +963,7 @@ image is `ghcr.io/irony42/eventslide:3.12.0`.
 ### The wall's invitation and the host's event page
 
 - **Nothing to set.** The join QR takes a place of its own in each wall layout; the host's corner choice now
-  applies to the spotlight only. The host's event page is reorganised around a "Maintenant" card; what it prints
+  applies to the spotlight only. The host's event page is reorganised around a "Now" card; what it prints
   is unchanged.
 
 ## Upgrading to 3.13
@@ -981,7 +976,7 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 ### The guided tour of the event page
 
 - **Nothing to set.** Every account is shown a short tour on its next visit to an event's page, once, remembered
-  on the server. The « Visite guidée » button replays it.
+  on the server. The "Guided tour" button replays it.
 
 ### Bounds that were missing
 
@@ -1007,7 +1002,7 @@ setting. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [
 section. It applies **four migrations** (029 `event_announcements`, 030 `event_purge_notices`, 031 `event_exports` and
 `event_export_requests`, 032 `guestbook_voices`: new tables, nothing existing is rewritten) and adds eight optional settings
 (`GUESTBOOK_VOICE_ENABLED`, `MAX_VOICE_SECONDS`, `MAX_VOICE_BYTES`, `EXPORT_ENABLED`, `EXPORT_TTL_DAYS`, `EXPORT_MAX_BYTES`,
-`EXPORT_MAX_TOTAL_BYTES`, `EXPORT_MAX_PER_EVENT_PER_DAY`). The disposable camera (« Appareil jetable », spec 23) adds
+`EXPORT_MAX_TOTAL_BYTES`, `EXPORT_MAX_PER_EVENT_PER_DAY`). The disposable camera ("Disposable camera", spec 23) adds
 **no migration** (the last is still 032) and no setting: it is off on every existing event. Take the steps of [Upgrading with Docker](#upgrading-with-docker),
 or [without](#without-docker), with `vX.Y.Z` as `v3.14.0`; the image is `ghcr.io/irony42/eventslide:3.14.0`.
 
@@ -1022,7 +1017,7 @@ or [without](#without-docker), with `vX.Y.Z` as `v3.14.0`; the image is `ghcr.io
 - **Off on every existing event**: `guestbookVoice.enabled` reads off for an event created before this version,
   so an upgrade opens no microphone on a room whose host was never asked, and does not change the privacy notice
   its guests have read. The **Mariage** template turns it on for the events created from it, and the host switches
-  it from the settings page ("Messages vocaux"), where an address that is not https is flagged. Turning it on
+  it from the settings page ("Voice messages"), where an address that is not https is flagged. Turning it on
   makes each guest read the notice once more before their next send, so turn it on before the evening.
 - **Needs https and a microphone the browser grants.** A box served over plain `http://` on a local network offers
   no microphone: the button is absent and the guestbook stays as it was (`docs/INSTALL.md`). The response header
@@ -1036,7 +1031,7 @@ or [without](#without-docker), with `vX.Y.Z` as `v3.14.0`; the image is `ghcr.io
 - **No migration.** The setting lives in the event's settings (`allowGuestSave`).
 - **Off on existing events, on for new ones.** An event created before this version
   reads `allowGuestSave` as **off**, so an upgrade changes neither what a running event does nor the notice its
-  guests have already read; a new event is created with it **on**, except from the "Conférence" template. The host
+  guests have already read; a new event is created with it **on**, except from the "Conference" template. The host
   switches it on or off from the settings page. Switching it, either way, makes each guest read the privacy
   notice once more before their next photograph.
 - **A new guest route**, `GET /api/events/:slug/photos/:photoId/save`, and three additive fields (`guestSaveEnabled` on
@@ -1075,13 +1070,13 @@ or [without](#without-docker), with `vX.Y.Z` as `v3.14.0`; the image is `ghcr.io
 
 ### The disposable camera: the reveal gate, the screens and the template (spec 23)
 
-- **For a host**: a section « Appareil jetable » in the event's settings (on or off, « Révéler à une heure précise » or no
-  hour and the « Révéler maintenant » button, « Poses par invité », « Rendu pellicule »), a banner on the event page and
-  in the console, and an « Appareil jetable » template. The room's waiting wall, the guests' limited roll and the film
+- **For a host**: a section "Disposable camera" in the event's settings (on or off, "Reveal at a set time" or no
+  hour and the "Reveal now" button, "Shots per guest", "Film look"), a banner on the event page and
+  in the console, and a "Disposable camera" template. The room's waiting wall, the guests' limited roll and the film
   look follow the same switch. Nothing of it shows on an event that does not turn the mode on.
 - **No migration.** The mode lives in the event's settings JSON (`reveal`); an event written before it has no such key and
   is read as **off**, which is a read and not a rewrite. The mode is **off on every existing event**: nothing changes on
-  a wall, a phone or a gallery until a host switches it on (the "Appareil jetable" section of the event's settings, the
+  a wall, a phone or a gallery until a host switches it on (the "Disposable camera" section of the event's settings, the
   console banner and the template; the API takes it too, see `docs/API.md`).
 - **Nothing to set in `.env`.** No operator switch exists for it (`NEW_CLIENT_*` ceilings do not carry it) and
   `SITE_ADMIN` makes no difference.
@@ -1093,7 +1088,7 @@ or [without](#without-docker), with `vX.Y.Z` as `v3.14.0`; the image is `ghcr.io
   photographs wait), the podium, the reactions, the shared gallery (the link opens with an empty grid, no new error), the guest save route (`GET /photos/:id/save`,
   `404 photo.notFound` for everyone, the author included) and the bytes of somebody else's photograph. A host's ZIP, the moderation console, the best-of and the photo book are not
   public readers and are untouched.
-- **A sealed voice book opens at the reveal** (spec 25 section 7). On an evening whose `reveal.enabled` is on, `guestbookVoice.sealed` lifts when the evening is revealed, by the hour or by the button, as it does when the event is closed. It is derived (`isVoiceOpen`), so `revealEvent` writes nothing and no stored event changes; with the mode off nothing differs. The "Appareil jetable" template now also turns the voice book on and keeps it secret; an event already created is untouched. The console says "Gardé secret jusqu'à la révélation de la soirée" on such an evening, and "Ouvrir maintenant" disappears once it is revealed.
+- **A sealed voice book opens at the reveal** (spec 25 section 7). On an evening whose `reveal.enabled` is on, `guestbookVoice.sealed` lifts when the evening is revealed, by the hour or by the button, as it does when the event is closed. It is derived (`isVoiceOpen`), so `revealEvent` writes nothing and no stored event changes; with the mode off nothing differs. The "Disposable camera" template now also turns the voice book on and keeps it secret; an event already created is untouched. The console says "Kept secret until the evening is revealed" on such an evening, and "Open now" disappears once it is revealed.
 - **The privacy notice** gains three clauses, present only when the mode is on (that the photographs are held back, how many
   poses, the film look): an event without the mode keeps its notice, its revision and the acknowledgements of its guests. A disposable evening
   says "no removal one by one" and "others may save" together; the clause order of the revision is guestbook, guest save,
@@ -1159,7 +1154,7 @@ nothing the policy above promises to keep.
   `classique` style, every photograph, no guest book. A body that mixes the old and the new fields is `400 request.invalid`.
   `layout` is removed from the answer in 3.16; until then it is always `"one"`.
 - **A new Photo book panel** on the event page: three style cards (the form opens on the one the wall's ambiance suggests), every photograph or a selection of about 60, 120 or 200, first names, captions, the guest book when it has written messages, the printer version, and the three downloads. It remembers the last book's choices. **Nothing to set in `.env`** beyond the three settings above; five languages.
-- **The guest privacy notice gains a sentence** on an event with a guestbook (« L’organisateur peut mettre vos mots, avec votre prénom, dans le livre photo de la soirée, qu’il peut faire imprimer. »), and its revision gains `guestbookBook=print`: every guest of such an event reads the notice once more before their next photo or message. Events without a guestbook are unchanged.
+- **The guest privacy notice gains a sentence** on an event with a guestbook ("The organiser may put your words, with your first name, in the evening’s photo book, which they may have printed."), and its revision gains `guestbookBook=print`: every guest of such an event reads the notice once more before their next photo or message. Events without a guestbook are unchanged.
 - **Two new downloads**, `GET /api/events/:slug/book-print.pdf` and `book-cover.pdf`, for a book that has a printer version
   (see [API.md](API.md#the-photo-book-spec-04-spec-26)), and the `GET` answer gains the counts the form needs.
 - **Going back to 3.14 is a backup restore.** The migrator refuses a database newer than the binary ("downgrading is not
