@@ -3556,6 +3556,7 @@ export const it: UiText = {
       recapCompanions: (names: string) => `Con te: ${names}`,
       recapMeals: (meals: string) => `Menu: ${meals}`,
       recapAnswer: (label: string, value: string) => `${label}: ${value}`,
+      recapAsked: (question: string, value: string) => `${question} ${value}`,
       momentsLabel: 'A quali momenti ci sarai?',
       momentsHint: 'almeno uno',
       recapMoments: (moments: string) => `Momenti: ${moments}`,

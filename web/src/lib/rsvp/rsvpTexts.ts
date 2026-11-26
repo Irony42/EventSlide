@@ -97,6 +97,16 @@ export const recapLines = (
   ...(reply.diet === null ? [] : [text.recapDiet(reply.diet)]),
   ...reply.answers
     .filter((answer) => answer.value !== '')
-    .map((answer) => text.recapAnswer(answer.label, answer.value)),
+    .map((answer) =>
+      endsInPunctuation(answer.label)
+        ? text.recapAsked(answer.label, answer.value)
+        : text.recapAnswer(answer.label, answer.value),
+    ),
   ...(reply.message === null ? [] : [text.recapMessage(reply.message)]),
 ]
+
+/**
+ * A host's question that already ends in its own mark ("Une chanson pour la piste ?", "Allergies :")
+ * takes no colon after it: "? :" is two marks where one was written. The host's words stay as typed.
+ */
+export const endsInPunctuation = (label: string): boolean => /[?!:…？！：]\s*$/u.test(label)

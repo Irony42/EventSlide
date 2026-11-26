@@ -4269,6 +4269,7 @@ export const fr = {
       recapCompanions: (names: string) => `Avec vous\u00a0: ${names}`,
       recapMeals: (meals: string) => `Menus\u00a0: ${meals}`,
       recapAnswer: (label: string, value: string) => `${label}\u00a0: ${value}`,
+      recapAsked: (question: string, value: string) => `${question} ${value}`,
       momentsLabel: 'À quels moments serez-vous là\u00a0?',
       momentsHint: 'au moins un',
       recapMoments: (moments: string) => `Moments\u00a0: ${moments}`,

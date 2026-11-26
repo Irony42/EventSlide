@@ -141,10 +141,9 @@ describe('the lot 2 fields', () => {
 
     expect(await screen.findByText(plain(t.recapCompanions('Hugo')))).toBeInTheDocument()
     expect(screen.getByText(plain(t.recapMeals('Poisson, Végé')))).toBeInTheDocument()
-    expect(screen.getByText(plain(t.recapAnswer('Un chant ?', 'Oh')))).toBeInTheDocument()
-    expect(
-      screen.getByText(plain(t.recapAnswer('Une ancienne question ?', 'Oui'))),
-    ).toBeInTheDocument()
+    // A question that ends in "?" takes no colon after it ("Un chant ? : Oh" was the defect).
+    expect(screen.getByText('Un chant ? Oh')).toBeInTheDocument()
+    expect(screen.getByText('Une ancienne question ? Oui')).toBeInTheDocument()
     expect(screen.queryByText(/Venez-vous en voiture/)).not.toBeInTheDocument()
   })
 
