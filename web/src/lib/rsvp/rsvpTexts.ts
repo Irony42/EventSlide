@@ -9,6 +9,27 @@ import type { UiText } from '../i18n/translations'
 /** "Léa Martin" is `Léa`: the first word, which is how a host's reply greets a guest. */
 export const firstNameOf = (name: string): string => name.trim().split(/\s+/, 1).join('')
 
+/** A name as two are compared: composed, trimmed, its runs of spaces one space, without case. */
+const fold = (name: string): string =>
+  name.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase()
+
+/**
+ * Whether the reply is named as the household whose link opened the page ("Famille Martin", as the
+ * page fills it in). **Such a name names no person**: its first word is not a first name. The server
+ * holds to the same rule (`namesItsHousehold`, `src/domain/guestRsvps/household.ts`) for what it
+ * publishes; this one is what the page says.
+ */
+export const namesItsHousehold = (name: string, householdName: string | null): boolean =>
+  householdName !== null && fold(name) === fold(householdName)
+
+/** The first name of the reply, or none when it is named as its household. */
+export const personalFirstNameOf = (name: string, householdName: string | null): string =>
+  namesItsHousehold(name, householdName) ? '' : firstNameOf(name)
+
+/** How the page greets the reply: its first name, or the household's whole name ("Famille Martin"). */
+export const greetingNameOf = (name: string, householdName: string | null): string =>
+  namesItsHousehold(name, householdName) ? name.trim().replace(/\s+/gu, ' ') : firstNameOf(name)
+
 /**
  * A deadline day (`2026-12-01`, a local day) as a date in the invitation's language: written in UTC
  * from the day's own parts, so the reader's time zone cannot move it by one.

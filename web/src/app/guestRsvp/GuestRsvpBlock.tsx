@@ -24,7 +24,9 @@ import { ownReplyLink } from '../../lib/rsvp/rsvpDevice'
 import {
   deadlineLabel,
   firstNameOf,
+  greetingNameOf,
   momentLabels,
+  namesItsHousehold,
   proofLine,
   recapLine,
   recapLines,
@@ -422,7 +424,7 @@ export function GuestRsvpBlock({
           <fieldset className={styles['field']}>
             <legend>{t.mealsLabel}</legend>
             {Array.from({ length: people }, (_, index) => {
-              const who = personName(draft, index, t.personFallback(index + 1))
+              const who = personName(draft, index, t.personFallback(index + 1), householdName)
               return (
                 <select
                   key={index}
@@ -497,7 +499,11 @@ export function GuestRsvpBlock({
               </label>
             ))
           : null}
-        {draft.answer === 'yes' && form.visibility === 'names' ? (
+        {/* A reply named as its household has no first name to show: the box is not offered (and the
+            server would not publish it). */}
+        {draft.answer === 'yes' &&
+        form.visibility === 'names' &&
+        !namesItsHousehold(draft.name, householdName) ? (
           <div className={styles['shown']}>
             <label className={styles['check']}>
               <input
@@ -595,7 +601,8 @@ export function GuestRsvpBlock({
   // --- the reply the device knows ------------------------------------------------------------
   if (own !== null && !editing) {
     const { reply } = own
-    const first = firstNameOf(reply.name)
+    // "C'est noté, Léa", or the household's whole name: "Famille" is nobody's first name.
+    const first = greetingNameOf(reply.name, householdName)
     const heading =
       reply.answer === 'no'
         ? t.doneNo(first)
@@ -668,7 +675,7 @@ export function GuestRsvpBlock({
             sending={state.sending}
             failure={state.failure}
             onClearFailure={state.clearFailure}
-            defaultSignature={firstNameOf(reply.name)}
+            defaultSignature={greetingNameOf(reply.name, householdName)}
             onSend={(note) => state.leaveNote(own, note)}
           />
         ) : null}

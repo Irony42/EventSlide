@@ -143,6 +143,26 @@ describe('the word of those who cannot come', () => {
     )
   })
 
+  it('offers the household’s whole name as the signature of a reply named as the household', async () => {
+    const user = userEvent.setup()
+    forgetEditToken(TOKEN)
+    storeHouseholdToken(TOKEN, 'AAAAAAAAAAAAAAAA')
+    render({
+      guestHousehold: vi.fn(async () => ({
+        household: {
+          name: 'Famille Martin',
+          places: 4,
+          moments: [],
+          rsvp: { ...no, name: 'Famille Martin' },
+        },
+      })),
+    })
+
+    await user.click(await screen.findByRole('button', { name: t.offer }))
+
+    expect(screen.getByLabelText(t.signatureLabel, { exact: false })).toHaveValue('Famille Martin')
+  })
+
   describe('the signature, shown before sending', () => {
     const send = async (user: ReturnType<typeof userEvent.setup>) => {
       await user.type(screen.getByLabelText(t.label), 'Mon mot')

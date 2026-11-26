@@ -257,10 +257,39 @@ describe('the household link: the form', () => {
       ),
     )
     expect(guestRsvpCreate).not.toHaveBeenCalled()
-    expect(await screen.findByRole('heading', { name: t.doneYes('Famille') })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: t.doneYes('Famille Martin') }),
+    ).toBeInTheDocument()
     expect(screen.queryByText(t.linkTitle)).not.toBeInTheDocument()
     expect(readStoredEditToken(TOKEN)).toBeNull()
     expect(screen.getByRole('button', { name: t.edit })).toBeInTheDocument()
+  })
+
+  it('takes no first name from the household’s name: "Personne 1" for its menu, no box to show it; a person’s name brings both back', async () => {
+    arriveBy(`#f=${LINK}`)
+    const user = userEvent.setup()
+    const page = aGuestRsvpPage({
+      form: {
+        ...aGuestRsvpPage().form,
+        visibility: 'names',
+        meals: { enabled: true, options: ['Volaille', 'Végétarien'] },
+      },
+    })
+    render({}, page)
+    await screen.findByText(t.householdPlaces(4))
+    await user.click(screen.getByRole('button', { name: t.yes }))
+
+    expect(screen.getByLabelText(t.mealFor(t.personFallback(1)))).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Menu de Famille/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: t.showNameLabel })).not.toBeInTheDocument()
+
+    const name = screen.getByLabelText(new RegExp(t.nameLabel))
+    await user.clear(name)
+    await user.type(name, 'Paul Martin')
+
+    expect(screen.getByLabelText(t.mealFor('Paul'))).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: t.showNameLabel })).toBeInTheDocument()
+    expect(screen.getByText(plain(t.showNameShown('Paul')))).toBeInTheDocument()
   })
 })
 
@@ -295,7 +324,9 @@ describe('the household link: one reply for the household', () => {
       ),
     )
     expect(guestHouseholdRsvpCreate).not.toHaveBeenCalled()
-    expect(await screen.findByRole('heading', { name: t.doneNo('Famille') })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: t.doneNo('Famille Martin') }),
+    ).toBeInTheDocument()
   })
 
   it('deletes the household’s reply with its link, keeps the link, and lets the household answer again', async () => {
@@ -325,7 +356,9 @@ describe('the household link: one reply for the household', () => {
       })),
     })
 
-    expect(await screen.findByRole('heading', { name: t.doneYes('Famille') })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: t.doneYes('Famille Martin') }),
+    ).toBeInTheDocument()
   })
 
   it('shows the closed state with the reply the link holds, and keeps the right to erase', async () => {
@@ -599,7 +632,7 @@ describe('the household link: what review of #548 asked', () => {
     await screen.findByText(t.householdPlaces(4))
     await user.click(screen.getByRole('button', { name: t.no }))
     await user.click(screen.getByRole('button', { name: t.send }))
-    await screen.findByRole('heading', { name: t.doneYes('Famille') })
+    await screen.findByRole('heading', { name: t.doneYes('Famille Martin') })
 
     await user.click(screen.getByRole('button', { name: t.delete }))
     await user.click(screen.getByRole('button', { name: t.deleteYes }))
