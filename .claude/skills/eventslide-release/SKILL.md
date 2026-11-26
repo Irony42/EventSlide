@@ -164,9 +164,18 @@ migration, nothing to set." or "One migration, 028 (`user_tours`), applied at st
 - **Who it is for:** the people who run, host and use EventSlide, not the developers.
   Sections are by audience; each bullet is a bold sentence saying what changed for that
   person, then a few lines of why and how, ending with the pull request number in
-  parentheses (`(#440)`). French UI labels are quoted as the screen shows them ("Modérer").
-  The same text becomes the body of the GitHub release, and the first sentence of the
-  paragraph under the heading is what a reader sees first.
+  parentheses (`(#440)`). The same text becomes the body of the GitHub release, and the
+  first sentence of the paragraph under the heading is what a reader sees first.
+- **Name the interface in English.** The entry, the GitHub release and the Discussion are
+  written in English, so a page, menu entry, button, field or message is named by the string
+  the **English** interface shows: find the French label in `web/src/lib/i18n/fr.ts`, take the
+  same key in `en.ts`, copy it exactly (`en.ts` uses the typographic apostrophe: `I’m coming`)
+  and quote it in plain double quotes ("Moderate", "Appearance", "Replies", "I’m coming").
+  Never paste the French label, in « » or in plain quotes. French belongs only where the
+  change is about French itself (a French-only wording fix), and then say it is the French
+  copy. The same holds for `docs/UPGRADING.md`. Before pushing,
+  `git diff origin/main -- CHANGELOG.md docs/UPGRADING.md | grep -n '^+.*«'` must print
+  nothing; it only catches « », so also read the added lines for a French word in "…".
 - **Cite every pull request merged since the tag that a person could notice**, and name the
   rest under "Under the hood" or "Dependencies and security". List them with
   `git log --first-parent --format=%s <last tag>..origin/main | grep 'Merge pull request'`.
@@ -324,7 +333,8 @@ gh release view vX --repo Irony42/EventSlide --json tagName,isPrerelease,assets,
   the models). Body: a bold one-sentence summary, a bullet per change a user will notice,
   a "Before upgrading" line (migration number, settings; "Nothing to set" otherwise), the
   links to `CHANGELOG.md` and `docs/UPGRADING.md` at the tag, and the image and release
-  links. It is a public post: ask the maintainer first unless he has said to post it. The
+  links. Title and body name the interface in English, as in section 4 ("Appearance", not
+  "Apparence"). It is a public post: ask the maintainer first unless he has said to post it. The
   command (used for #465), with the body in a file:
 
   ```bash
