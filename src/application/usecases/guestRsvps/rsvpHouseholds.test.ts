@@ -141,6 +141,33 @@ describe('the guest list, on the host’s side (spec 30, lot 3)', () => {
       expect((await scene.rsvps.findById(WEDDING, asGuestRsvpId('r-1')))?.adults).toBe(1)
     })
 
+    it('withdraws the tick of the reply when the household is renamed to the reply’s own name, and of no other', async () => {
+      await add({ name: 'Les Martin' })
+      scene.rsvps.seed(
+        aRsvp({
+          id: 'r-1',
+          eventId: WEDDING,
+          householdId: 'household-1',
+          name: 'Famille Martin',
+          details: { showName: true },
+          updatedAt: new Date('2026-06-01T10:00:00Z'),
+        }),
+      )
+
+      const kept = await add({ householdId: H1, name: 'Les Martin', places: 3 })
+      expect((await scene.rsvps.findById(WEDDING, asGuestRsvpId('r-1')))?.details.showName).toBe(
+        true,
+      )
+      const renamed = await add({ householdId: H1, name: 'Famille Martin' })
+
+      expect(kept.ok).toBe(true)
+      expect(renamed.ok && renamed.value.reply?.id).toBe('r-1')
+      const stored = await scene.rsvps.findById(WEDDING, asGuestRsvpId('r-1'))
+      expect(stored?.details.showName).toBe(false)
+      expect(stored?.updatedAt).toEqual(new Date('2026-06-01T10:00:00Z'))
+      expect(await scene.rsvps.showNames(WEDDING, 3)).toEqual([])
+    })
+
     it('finds nothing for a household that is another event’s, or gone', async () => {
       scene.households.seed(aHousehold({ id: 'h-gala', eventId: GALA }))
 
@@ -510,6 +537,42 @@ describe('the guest list, on the host’s side (spec 30, lot 3)', () => {
       expect(attached.ok && attached.value.updatedAt).toEqual(new Date('2026-06-01T10:00:00Z'))
       expect((await list())[0]?.reply?.id).toBe('r-1')
       expect(signals().length).toBeGreaterThan(1)
+    })
+
+    it('withdraws the tick of a reply named as the household it is filed under, and keeps a person’s', async () => {
+      scene.rsvps.seed(
+        aRsvp({
+          id: 'r-fam',
+          eventId: WEDDING,
+          name: 'famille  martin',
+          details: { showName: true },
+        }),
+        aRsvp({ id: 'r-paul', eventId: WEDDING, name: 'Paul Martin', details: { showName: true } }),
+      )
+
+      const family = await attach({ rsvpId: asGuestRsvpId('r-fam') })
+      expect(family.ok && family.value.details.showName).toBe(false)
+      expect((await scene.rsvps.findById(WEDDING, asGuestRsvpId('r-fam')))?.details.showName).toBe(
+        false,
+      )
+
+      await attach({ rsvpId: asGuestRsvpId('r-fam'), householdId: null })
+      const person = await attach({ rsvpId: asGuestRsvpId('r-paul') })
+      expect(person.ok && person.value.details.showName).toBe(true)
+    })
+
+    it('is rsvp.notFound when the reply is deleted between the filing and the withdrawal of its tick', async () => {
+      scene.rsvps.seed(
+        aRsvp({
+          id: 'r-fam',
+          eventId: WEDDING,
+          name: 'Famille Martin',
+          details: { showName: true },
+        }),
+      )
+      scene.rsvps.update = async () => false
+
+      expect(code(await attach({ rsvpId: asGuestRsvpId('r-fam') }))).toBe('rsvp.notFound')
     })
 
     it('refuses a reply of more people than the household has places, and files nothing', async () => {

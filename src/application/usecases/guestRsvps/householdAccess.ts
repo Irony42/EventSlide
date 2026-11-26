@@ -1,4 +1,4 @@
-import type { GuestHousehold } from '../../../domain/guestRsvps/household'
+import { namesItsHousehold, type GuestHousehold } from '../../../domain/guestRsvps/household'
 import { HouseholdToken } from '../../../domain/guestRsvps/householdToken'
 import type { GuestRsvp, RsvpAnswer } from '../../../domain/guestRsvps/rsvp'
 import { DomainError } from '../../../domain/shared/errors'
@@ -28,6 +28,24 @@ export interface HostHousehold {
 
 export const householdReplyOf = (rsvp: GuestRsvp | null): HouseholdReply | null =>
   rsvp === null ? null : { id: rsvp.id, answer: rsvp.answer, people: rsvp.people }
+
+/**
+ * A household's reply named as the household is never shown among "who comes" (spec 30, lot 3): when a
+ * host's act makes a reply so (filing it under the household, renaming the household), its tick is
+ * withdrawn in a write of its own. Its `updatedAt` stays: it is the host's act, not the guest's word.
+ * Answers the reply as stored after.
+ */
+export const unshowHouseholdNamed = async (
+  rsvps: Pick<GuestRsvpRepository, 'update'>,
+  reply: GuestRsvp | null,
+  household: GuestHousehold,
+): Promise<GuestRsvp | null> => {
+  if (reply === null || !reply.details.showName || !namesItsHousehold(reply.name, household.name)) {
+    return reply
+  }
+  const cleared = reply.withShownNameCleared()
+  return (await rsvps.update(cleared)) ? cleared : null
+}
 
 /** One household with its reply, read for it alone. */
 export const hostHouseholdOf = async (

@@ -13,10 +13,11 @@ import type { GuestHouseholdRepository } from '../../ports/guestHouseholdReposit
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import {
-  hostHouseholdOf,
   householdNotFound,
+  householdReplyOf,
   householdsTooMany,
   mintHouseholdToken,
+  unshowHouseholdNamed,
   type HostHousehold,
 } from './householdAccess'
 import { announceRsvpsChanged, openRsvps, requireInvite, type RsvpAccessDeps } from './rsvpAccess'
@@ -47,7 +48,7 @@ export interface SaveHouseholdInput extends RawHouseholdInput {
 
 export interface SaveHouseholdDeps extends RsvpAccessDeps {
   readonly households: Pick<GuestHouseholdRepository, 'addAll' | 'findById' | 'update'>
-  readonly rsvps: Pick<GuestRsvpRepository, 'findByHousehold'>
+  readonly rsvps: Pick<GuestRsvpRepository, 'findByHousehold' | 'update'>
   readonly bus: EventBus
   readonly ids: IdGenerator
   readonly clock: Clock
@@ -95,5 +96,11 @@ export const makeSaveHousehold =
     // A household deleted between the read and here: nothing was changed, so nothing is said.
     if (!(await deps.households.update(changed))) return err(householdNotFound())
     announceRsvpsChanged(deps.bus, eventId)
-    return ok(await hostHouseholdOf(deps.rsvps, changed))
+    // Renamed to the name its reply bears ("Famille Martin"): that reply names no person, never shown.
+    const reply = await unshowHouseholdNamed(
+      deps.rsvps,
+      await deps.rsvps.findByHousehold(eventId, changed.id),
+      changed,
+    )
+    return ok({ household: changed, reply: householdReplyOf(reply) })
   }
