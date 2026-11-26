@@ -643,7 +643,7 @@ tests/e2e/
   so a stacked pull request is compared with its parent. One failure in five is the finding.
 - **The browsers run in the Playwright container.** The `e2e-shard`, `quarantine`, `repeat-changed-specs`
   and `visual` jobs run in `mcr.microsoft.com/playwright:v<version>-noble`, where `<version>` is the exact
-  `@playwright/test` of `package-lock.json` (1.65.0 today). The image holds the browsers, their system
+  `@playwright/test` of `package-lock.json` (1.65.1 today). The image holds the browsers, their system
   packages and the fonts, so no job runs `apt`, `playwright install-deps` or `playwright install` any more and the
   runner's mirror and fonts stop being variables. The job sets `HOME=/root` (GitHub otherwise points it at
   `/github/home`, where Firefox will not start as root) and `--ipc=host` (Chromium's shared memory). `git` is in

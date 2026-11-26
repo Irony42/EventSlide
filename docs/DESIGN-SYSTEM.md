@@ -859,7 +859,7 @@ accent, the heading face and the photo corners a template would give _before_ ch
 attributes sit on that element only — the console around it stays unthemed — and the panel in the
 miniature is painted `--surface-raised`, like every pane.
 
-\**The pairing costs zero bytes, and that is the decision rather than a happy accident.**
+**The pairing costs zero bytes, and that is the decision rather than a happy accident.**
 There is no CDN here (§11) and the CSP forbids one, so a downloaded face means a bundled
 one. §4 is the number: nothing is bundled today, a latin + latin-ext variable `woff2` runs
 about 100 KB, and a _pairing_ is two of them — roughly 200 KB against an initial JavaScript

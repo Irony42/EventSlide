@@ -144,7 +144,7 @@ jobs:
       run:
         shell: bash -e {0}
     container:
-      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
       options: --ipc=host
     env:
       HOME: /root
@@ -327,7 +327,7 @@ jobs:
       run:
         shell: bash -e {0}
     container:
-      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
       options: --ipc=host
     env:
       E2E_QUARANTINE: only
@@ -431,7 +431,7 @@ jobs:
       run:
         shell: bash -e {0}
     container:
-      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
       options: --ipc=host
     env:
       HOME: /root
@@ -551,7 +551,7 @@ jobs:
       run:
         shell: bash -e {0}
     container:
-      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
       options: --ipc=host
     env:
       HOME: /root
