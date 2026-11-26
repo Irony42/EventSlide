@@ -38,6 +38,7 @@ import { migration036 } from './036_guest_rsvps'
 import { migration037 } from './037_guest_households'
 import { migration038 } from './038_push_subscriptions'
 import { migration039 } from './039_rsvp_absent_notes'
+import { migration040 } from './040_household_named_replies_unshown'
 
 /**
  * The ordering contract, written out rather than globbed.
@@ -86,4 +87,5 @@ export const migrations: readonly Migration[] = [
   migration037,
   migration038,
   migration039,
+  migration040,
 ]
