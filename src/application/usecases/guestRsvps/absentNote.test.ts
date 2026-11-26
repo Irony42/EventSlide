@@ -171,7 +171,7 @@ describe('a note left by a guest who cannot come (spec 30, lot 4)', () => {
     const [entry] = await entries()
     expect(
       (await scene.guests.findById(WEDDING, entry?.guestId as never))?.displayName?.value,
-    ).toBe('Famille')
+    ).toBe('Famille Martin')
   })
 
   describe('what is refused', () => {

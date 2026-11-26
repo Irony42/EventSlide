@@ -1,5 +1,9 @@
 import type { Event } from '../../../domain/events/event'
-import { formForHousehold, type GuestHousehold } from '../../../domain/guestRsvps/household'
+import {
+  formForHousehold,
+  householdReply,
+  type GuestHousehold,
+} from '../../../domain/guestRsvps/household'
 import {
   parseRsvpInput,
   retainExtras,
@@ -139,11 +143,20 @@ export const makeUpdateOwnRsvp =
     const judged = parseRsvpInput(form, raw)
     if (!judged.ok) return judged
 
-    // What the form no longer asks stays (a removed question keeps its answers).
-    const reply = {
-      ...judged.value,
-      extras: retainExtras(form, own.value.rsvp.details, judged.value.extras, judged.value.answer),
-    }
+    // What the form no longer asks stays (a removed question keeps its answers). A household's reply
+    // named as the household is never shown among "who comes".
+    const reply = householdReply(
+      {
+        ...judged.value,
+        extras: retainExtras(
+          form,
+          own.value.rsvp.details,
+          judged.value.extras,
+          judged.value.answer,
+        ),
+      },
+      own.value.household,
+    )
     const changed = own.value.rsvp.withReply(reply, now)
     const admission = await deps.rsvps.admit(changed, {
       capacity: settings.form.capacity,

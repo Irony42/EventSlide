@@ -149,6 +149,20 @@ describe('a household’s own link, on the guest’s side (spec 30, lot 3)', () 
       expect(stored[0]?.createdAt).not.toEqual(stored[0]?.updatedAt)
     })
 
+    it('never shows a reply named as the household among who comes, first or again; a person’s name it shows', async () => {
+      await scene.saveForm({ eventId: WEDDING, actorId: OWNER, form: { visibility: 'names' } })
+
+      const first = await submit({ showName: true })
+      const again = await submit({ name: ' famille  MARTIN', showName: true })
+      expect(first.ok && first.value.rsvp.details.showName).toBe(false)
+      expect(again.ok && again.value.rsvp.details.showName).toBe(false)
+      expect(await scene.rsvps.showNames(WEDDING, 3)).toEqual([])
+
+      const person = await submit({ name: 'Paul Martin', showName: true })
+      expect(person.ok && person.value.rsvp.details.showName).toBe(true)
+      expect(await scene.rsvps.showNames(WEDDING, 3)).toEqual(['Paul Martin'])
+    })
+
     it('keeps the answers to a question the host removed when the household answers again', async () => {
       await scene.saveForm({
         eventId: WEDDING,
@@ -305,6 +319,26 @@ describe('a household’s own link, on the guest’s side (spec 30, lot 3)', () 
       expect(five.ok).toBe(true)
       expect(code(seven)).toBe('rsvp.partyTooBig')
       expect(code(dangling)).toBe('rsvp.partyTooBig')
+    })
+
+    it('never shows a household’s reply renamed as the household, changed by its link', async () => {
+      await scene.saveForm({ eventId: WEDDING, actorId: OWNER, form: { visibility: 'names' } })
+      await submit({ name: 'Paul Martin', showName: true })
+
+      const byLink = await scene.updateOwn({ ...own(), ...ANSWER, showName: true })
+      expect(byLink.ok && byLink.value.details.showName).toBe(false)
+      expect(await scene.rsvps.showNames(WEDDING, 3)).toEqual([])
+    })
+
+    it('never shows a reply filed under the household and renamed as it, changed with its own token', async () => {
+      await scene.saveForm({ eventId: WEDDING, actorId: OWNER, form: { visibility: 'names' } })
+      const open = await scene.submit({ token, ...ANSWER, name: 'Léa', showName: true })
+      const editToken = open.ok ? open.value.editToken : null
+      const filed = (await scene.rsvps.listByEvent(WEDDING)).find((reply) => reply.name === 'Léa')
+      await scene.rsvps.setHousehold(WEDDING, filed?.id as GuestRsvpId, 'h-1')
+      const byToken = await scene.updateOwn({ token, editToken, ...ANSWER, showName: true })
+      expect(byToken.ok && byToken.value.details.showName).toBe(false)
+      expect(await scene.rsvps.showNames(WEDDING, 3)).toEqual([])
     })
 
     it('does not make a reply from a change: with none yet it is rsvp.notFound, and with one deleted meanwhile too', async () => {
