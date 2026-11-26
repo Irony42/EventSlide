@@ -26,7 +26,7 @@ export interface AbsentNoteSend {
 export interface AbsentNoteProps {
   /** A word was already left with this reply. */
   readonly sent: boolean
-  /** The first word of the reply's name, the signature the field starts with. */
+  /** The signature the field starts with: the reply's first name, or its household's whole name. */
   readonly defaultSignature: string
   /** Sends it; resolves to whether it went. The refusal is `failure`. */
   readonly onSend: (note: AbsentNoteSend) => Promise<boolean>
