@@ -3787,6 +3787,7 @@ export const it: UiText = {
       answerWaitlist: 'Lista d’attesa',
       none: '—',
       peopleKids: (a: number, k: number) => `${a} + ${k} bambini`,
+      mealCount: (meal: string, count: number) => `${meal} × ${count}`,
       showMore: (n: number) => `Mostra le altre ${n}`,
       rowsOf: (s: number, t: number) => `${s} su ${t}.`,
       rowsAll: (n: number, w: string) =>

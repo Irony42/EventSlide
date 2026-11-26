@@ -4503,6 +4503,7 @@ export const fr = {
       answerWaitlist: 'Liste d’attente',
       none: '—',
       peopleKids: (a: number, k: number) => `${a} + ${k} enf.`,
+      mealCount: (meal: string, count: number) => `${meal}\u00a0×\u00a0${count}`,
       showMore: (n: number) => `Afficher les ${n} autres`,
       rowsOf: (s: number, t: number) => `${s} sur ${t}.`,
       rowsAll: (n: number, w: string) =>

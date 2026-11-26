@@ -31,7 +31,19 @@
   border-block-end: 0;
 }
 
+/* The name stays in view while the frame scrolls sideways: a row read at its far end still says whose
+   it is. It is opaque, or the cells scrolling under it would show through. */
+.name,
+.table thead th:first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  background: var(--surface-base);
+  box-shadow: inset -1px 0 var(--border-subtle);
+}
+
 .name {
+  min-inline-size: 9rem;
   font-weight: 650;
 }
 
@@ -52,11 +64,31 @@
 }
 
 /* `break-word`, not `anywhere`: a column never narrows below its longest word ("Cind / y" was the
-   result), the frame scrolls instead; only a word longer than the cell itself breaks. */
+   result), the frame scrolls instead; only a word longer than the cell itself breaks. And a floor
+   under the free columns: with many columns the table outgrows its frame and every column falls to
+   its longest word, a guest's message one word a line and the row a screen tall. The frame scrolls
+   sooner instead, and a row stays a few lines high. */
 .free {
+  min-inline-size: 8rem;
   max-inline-size: 18rem;
   overflow-wrap: break-word;
   color: var(--text-secondary);
+}
+
+/* A guest's word is the longest cell of the row: it gets the room of a short sentence. */
+.message {
+  min-inline-size: 14rem;
+}
+
+/* A host's question is a heading as long as the host wrote it: it wraps rather than widen its column. */
+.table thead th.asked {
+  min-inline-size: 8rem;
+  white-space: normal;
+}
+
+/* "2 + 1 enf." is one figure. */
+.people {
+  white-space: nowrap;
 }
 
 .when {
@@ -113,7 +145,21 @@
     font-size: var(--text-xs);
   }
 
-  .free {
+  /* A card does not scroll: the name is its heading, the floors of the laptop's columns do not apply. */
+  .name {
+    position: static;
+    background: none;
+    box-shadow: none;
+  }
+
+  .name,
+  .free,
+  .message {
+    min-inline-size: 0;
     max-inline-size: none;
+  }
+
+  .people {
+    white-space: normal;
   }
 }

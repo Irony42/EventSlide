@@ -3730,6 +3730,7 @@ export const en: UiText = {
       answerWaitlist: 'Waiting list',
       none: '—',
       peopleKids: (a: number, k: number) => `${a} + ${k} kids`,
+      mealCount: (meal: string, count: number) => `${meal} × ${count}`,
       showMore: (n: number) => `Show the ${n} others`,
       rowsOf: (s: number, t: number) => `${s} of ${t}.`,
       rowsAll: (n: number, w: string) =>

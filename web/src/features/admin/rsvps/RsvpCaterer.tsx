@@ -1,4 +1,5 @@
 import { Button } from '../../../design-system/components/Button'
+import { cx } from '../../../design-system/classNames'
 import type { RsvpFormDto, RsvpStatsDto } from '../../../lib/api/dto'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { plural } from '../../../lib/rsvp/rsvpTexts'
@@ -80,7 +81,7 @@ export function RsvpCaterer({ stats, form, exportHref, onPrint }: RsvpCatererPro
           {stats.diets.length === 0 ? (
             <p className={styles['hint']}>{text.none}</p>
           ) : (
-            <dl className={styles['list']}>
+            <dl className={cx(styles['list'], styles['diets'])}>
               {stats.diets.map((entry, index) => (
                 <div key={`${entry.name}-${index}`}>
                   <dt>{entry.name}</dt>
