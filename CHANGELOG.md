@@ -27,68 +27,64 @@ the guests' replies as #537 to #554 and #556, the workshop's width as #544, the 
 Appearance and settings pages as #557 to #560, two test fixes as #561 and #562, and three dependency updates). This is a
 minor release with one theme and a tidy-up of the host's console: guests can answer an invitation (will they come, how
 many, what they eat), the host follows the replies on a page of their own, and the Invitations page, the new
-« Apparence » page and the settings page are redrawn around what the host is doing. Four migrations, 036 (`guest_rsvps`),
+"Appearance" page and the settings page are redrawn around what the host is doing. Four migrations, 036 (`guest_rsvps`),
 037 (`guest_households`), 038 (`push_subscriptions`) and 039 (`rsvp_absent_notes`), applied at start-up. Five settings
 are new in `.env.example`, all optional.
 
 ### Guests
 
-- **Answering an invitation** (#539). When the host asks for replies, the invitation page (`/i/…`) shows « Je viens », a
-  « Peut-être » if the host offers it, and « Je ne peux pas », then a name, the number of people (adults and children
+- **Answering an invitation** (#539). When the host asks for replies, the invitation page (`/i/…`) shows "I’m coming", a
+  "Maybe" if the host offers it, and "I can’t make it", then a name, the number of people (adults and children
   apart when the host asks), an allergy or diet and a word. No account, nothing to install. The guest keeps a private
   link to their own reply on the phone, can change it or erase it from the same page, and is told when the replies are
   closed (the deadline, or by hand) or when the places are gone.
 - **More to answer, when the host asks** (#542, #543, #550, #551). Names of the people who come along, a choice of menus
   (one per person), up to three questions of the host's own (free text or a choice), the moments of the party the guest
-  comes to (up to four), and a box « Montrer mon prénom aux autres invités » that is unticked by default. When the
-  places are limited and gone, a « yes » is kept on a waiting list and says so; it takes no place until the host
+  comes to (up to four), and a box "Show my first name to the other guests" that is unticked by default. When the
+  places are limited and gone, a "yes" is kept on a waiting list and says so; it takes no place until the host
   promotes it.
 - **A family answers once, from its own link** (#546, #548). A household invited by the host opens
-  `/i/<invitation>#f=<token>`: « Bonjour Famille Martin · 4 places prévues pour vous », the name already filled in, the
+  `/i/<invitation>#f=<token>`: "Hello Martin family · 4 places kept for you", the name already filled in, the
   places as the ceiling of the counter, one reply for everyone, changed rather than added when sent again. The secret
   sits after the `#`, so it is never in a request or a log, and the page removes it from the address bar.
-- **A word for those who cannot come** (#554). A guest who answered « Je ne peux pas » can « Laisser un mot au livre
-  d'or » when the host allows it. The word always waits for the host's approval, whatever the moderation mode, and goes
+- **A word for those who cannot come** (#554). A guest who answered "I can’t make it" can "Leave a note in the guestbook" when the host allows it. The word always waits for the host's approval, whatever the moderation mode, and goes
   with the reply when it is erased.
 
 ### Hosts and moderators
 
-- **A « Réponses des invités » panel and a « Réponses » page** (#540, #541). The host switches the replies on, sets a
+- **A "Guests’ replies" panel and a "Replies" page** (#540, #541). The host switches the replies on, sets a
   deadline, closes and reopens by hand, and chooses what is asked, saved as it is chosen. The page shows who comes (adults
-  and children), the « peut-être », the refusals, the replies as a table that folds into cards on a phone, the latest
-  ones, « Ajouter une réponse » for a guest who answered by telephone, a correction and a deletion. It updates when a
+  and children), the "maybe", the refusals, the replies as a table that folds into cards on a phone, the latest
+  ones, "Add a reply" for a guest who answered by telephone, a correction and a deletion. It updates when a
   reply arrives, and the menu entry carries the number of new replies. The date the replies will be erased is written on
-  the page. « Au plus par réponse » is now typed, between 1 and 10, instead of picked from a list (#556).
-- **For the caterer** (#545). A « Traiteur » panel (adults, children, menus with their counts, diets), a spreadsheet limited
-  to those who come with a last « Total » line, and « Imprimer la liste », a plain sheet for the kitchen. The diets are
+  the page. "At most per reply" is now typed, between 1 and 10, instead of picked from a list (#556).
+- **For the caterer** (#545). A "Caterer" panel (adults, children, menus with their counts, diets), a spreadsheet limited
+  to those who come with a last "Total" line, and "Print the list", a plain sheet for the kitchen. The diets are
   health data: the page says so, and only the host sees them.
-- **A guest list with personal links and a guided reminder** (#546, #547, #549). « Liste d'invités » holds the households
-  (name and places; « Coller une liste » takes `Nom ; places` lines), each with a link to copy or change. « Relancer »
+- **A guest list with personal links and a guided reminder** (#546, #547, #549). "Guest list" holds the households
+  (name and places; "Paste a list" takes `Name ; places` lines), each with a link to copy or change. "Remind the N who have not replied"
   walks through the households without a reply, with a message ready in WhatsApp, SMS or e-mail, opened in the host's own
-  application with no recipient. « Une carte par foyer » prints one card per household, each QR being that household's
+  application with no recipient. "One card per household" prints one card per household, each QR being that household's
   link.
-- **Who comes, moments, places** (#543, #550, #551). A « Qui vient » setting shows the guests a count or up to three first
+- **Who comes, moments, places** (#543, #550, #551). A "Who is coming" setting shows the guests a count or up to three first
   names (only those who agreed, never a refusal, a diet or a word); up to four moments with their own figures and
   households invited to some of them only; a number of places, the waiting list apart, and a hand-made promotion.
-- **« Notification du navigateur »** (#552, #553). On the « Réponses » page, a box asks the browser to say « 3 nouvelles
-  réponses » when guests answer, on the phone or the computer, even with the page closed. It exists only when the operator
+- **"Browser notification"** (#552, #553). On the "Replies" page, a box asks the browser to say "3 new replies" when guests answer, on the phone or the computer, even with the page closed. It exists only when the operator
   has set the keys (see Operators); nothing but the count and the event's address travels. On an iPhone, EventSlide must
   first be added to the home screen.
-- **The Invitations page, the card first** (#557). The screen is the card: « Le texte », then « L'apparence » with the
-  designs and a row of six colours (« +6 » opens all twelve), and two doors under them, « Réponses des invités » and
-  « Partager et imprimer ». Each opens a panel in place of the left column, never over the preview, which stays in view
-  on a laptop; the panel is in the address, so a reload or « Retour » comes back to it. The replies are grouped in the
+- **The Invitations page, the card first** (#557). The screen is the card: "The text", then "The look" with the
+  designs and a row of six colours ("+6" opens all twelve), and two doors under them, "Guests’ replies" and
+  "Share and print". Each opens a panel in place of the left column, never over the preview, which stays in view
+  on a laptop; the panel is in the address, so a reload or "Back" comes back to it. The replies are grouped in the
   panel.
-- **A new « Apparence » page** (#558). Under « Préparer », and for the owner only, it replaces the accordion of the
+- **A new "Appearance" page** (#558). Under "Get ready", and for the owner only, it replaces the accordion of the
   settings page: the logo and the venue photograph first, side by side; the ambiances as cards, each with its name in its
-  own face, a sentence and who it suits (« Sur mesure » leads to its editor); a row of four colours; the welcome message;
-  « Détails de l'écran de la salle » folded; and a preview that stays in view (a strip on top on a phone, « Voir en
-  grand »). The settings page keeps a line that leads to it.
-- **The logo is asked right after the event is created** (#559). « Créer l'évènement » now leads to a small screen with
-  the logo field, « Plus tard » and « Continuer »; and the « Maintenant » card of a draft event gets a step « Ajouter votre
-  logo » (owner only, while there is none).
+  own face, a sentence and who it suits ("Custom" leads to its editor); a row of four colours; the welcome message;
+  "Details of the room’s screen" folded; and a preview that stays in view (a strip on top on a phone, "View larger"). The settings page keeps a line that leads to it.
+- **The logo is asked right after the event is created** (#559). "Create the event" now leads to a small screen with
+  the logo field, "Later" and "Continue"; and the "Now" card of a draft event gets a step "Add your logo" (owner only, while there is none).
 - **A wider settings page, moderation as two cards** (#560). The page no longer stops at the width of a phone; selects and
-  dates keep a sensible width. « Modération » shows its two choices as cards, each with its effect in a sentence: every
+  dates keep a sensible width. "Moderation" shows its two choices as cards, each with its effect in a sentence: every
   send waits for the host's approval, or arrives on the screen without it. The confirmation before the automatic mode is
   unchanged.
 - **The invitations, the table cards and the photo book are wider** (#544), with the menu folded, so the preview is
@@ -134,7 +130,7 @@ are new in `.env.example`, all optional.
 - **New public routes for guests**: `POST`, `GET`, `PUT`, `DELETE /api/i/<token>/rsvp` and `POST /api/i/<token>/absent-note`,
   limited per address (the setting above) and per invitation (300 a minute, fixed), with a body of 8 KB at most.
   They are the only public writes nobody is signed in for.
-- **Hosts will find the console changed**: a « Réponses » entry in the menu, a new « Apparence » page that takes the
+- **Hosts will find the console changed**: a "Replies" entry in the menu, a new "Appearance" page that takes the
   ambiance and colour out of the settings page, the logo asked after creation, the Invitations page redrawn.
 
 ## [3.17.0] - 2026-11-22
@@ -149,34 +145,29 @@ migration, nothing to set.
 ### Hosts and moderators
 
 - **The event's pages, around a menu** (#534). The event page was about seven screens long. It is now a home page that
-  holds what the moment asks for (the « Maintenant » card, the code and QR, the reveal and deletion bands, the storage
-  used) and a menu beside every page of the event, in three moments: « Préparer » (QR code et lien, Cartes et affiche,
-  Invitations, Missions, Modérateurs), « Pendant la soirée » (Modération, Écran de la salle, Annonces, Défi photo, Livre
-  d'or, Révélation, Telegram, Invités) and « Après la soirée » (Album, Best-of, Livre photo, Album partagé,
-  Statistiques), with « Réglages » apart. The moment the event is in is marked « maintenant » and never moves; the queue's
+  holds what the moment asks for (the "Now" card, the code and QR, the reveal and deletion bands, the storage
+  used) and a menu beside every page of the event, in three moments: "Get ready" (QR code and link, Cards and poster, Invitations, Missions, Moderators), "During the party" (Moderation, Room screen, Announcements, Photo challenge, Guestbook, Reveal, Telegram, Guests) and "After the party" (Album, Best-of, Photo book, Shared album, Statistics), with "Settings" apart. The moment the event is in is marked "now" and never moves; the queue's
   entry carries the photos waiting. Every former panel has its own page and address (`/admin/events/<slug>/guests`,
-  `/announcements`, `/best-of`…). Below 1024 px the menu folds to its icons; on a phone a tab bar at the bottom (Accueil,
-  Préparer, Soirée, Après) opens the list of each moment. The settings, statistics, print and invitations pages sit under
+  `/announcements`, `/best-of`…). Below 1024 px the menu folds to its icons; on a phone a tab bar at the bottom (Home,
+  Get ready, Party, After) opens the list of each moment. The settings, statistics, print and invitations pages sit under
   the same menu; the moderation console keeps the whole screen. A moderator's menu holds only what is theirs.
-- **« Supprimer l'évènement » moved to the album's page** (#534), under the download and the storage, where the archive
+- **"Delete the event" moved to the album's page** (#534), under the download and the storage, where the archive
   that gates it is.
-- **The table cards and poster in a workshop** (#531). A bar of five entries (Modèle, Textes, Photo, Couleurs,
-  Impression) opens one short panel at a time beside the card, which stays in view at every width; « Une carte / La
-  feuille » shows the card large or the whole sheet with its cut marks, and « Imprimer » is always in the toolbar. The
+- **The table cards and poster in a workshop** (#531). A bar of five entries (Design, Text, Photo, Colours, Print) opens one short panel at a time beside the card, which stays in view at every width; "One card / The sheet" shows the card large or the whole sheet with its cut marks, and "Print" is always in the toolbar. The
   card's colour, the QR's ink and the logo sit together, so the contrast is judged at once. The photograph can be dragged
   on the card to frame it (the sliders remain). On a phone the card is pinned on top and the five entries are a bar at the
   bottom. The printed sheet is unchanged.
 - **The invitations in three columns** (#532): the text common to every format on the left, the preview in the middle
-  (« Carte imprimée », « Image à partager », « E-mail » and a new « Page de l'invité », what a guest sees at the link),
+  ("Printed card", "Image to share", "E-mail" and a new "Guest page", what a guest sees at the link),
   and on the right only the options of the chosen format with its action. The text saves itself as it is typed
-  (« Enregistrement… », « Enregistré »; there is no « Enregistrer » button any more) and every preview follows it at once;
+  ("Saving…", "Saved"; there is no "Save" button any more) and every preview follows it at once;
   the model, colour and photograph moved to the left, shared by the card and the image. The link's state and its actions
   sit at the top of the page.
 - **The photo book on its own page, with the book open beside its settings** (#533). The double page, previous and next,
-  a strip of the pages, and « N pages · M photos · style X » change with each option a moment later: the title on the
+  a strip of the pages, and "N pages · M photos · X style" change with each option a moment later: the title on the
   cover, the names and captions under the photographs, the guest book's pages, the selection's length. The preview is
   planned by the same code as the PDF, from the published photographs, and says that the final layout is made at the
-  creation. On a phone one page at a time, with « Voir en grand ».
+  creation. On a phone one page at a time, with "View larger".
 
 ### Under the hood
 
@@ -207,18 +198,17 @@ start-up. One setting is new in `.env.example`, optional.
 
 - **An invitation page, `/i/…`, opened from the link or the QR of an invitation** (#522). Before the party it shows the
   title, when (in the venue's time zone, with the guest's own time on a second line when it differs), where with an
-  « Itinéraire » link to OpenStreetMap, the host's words, and « Ajouter à mon agenda », which saves a calendar file made in
-  the browser. Once the host opens the evening, the same page shows « Rejoindre le mur photo »; the wall's join code is
+  "Directions" link to OpenStreetMap, the host's words, and "Add to my calendar", which saves a calendar file made in
+  the browser. Once the host opens the evening, the same page shows "Join the photo wall"; the wall's join code is
   never given before. After the evening it keeps only the title and the date: the address and the words are no longer
-  served. A changed or switched-off link, an archived or taken-down event all answer one « Cette invitation n'est plus
-  disponible ». No account, no cookie, nothing asked. The page wears the event's colour and speaks the invitation's
-  language; « Signaler cette invitation » leads to the operator's contact.
+  served. A changed or switched-off link, an archived or taken-down event all answer one "This invitation is no longer available". No account, no cookie, nothing asked. The page wears the event's colour and speaks the invitation's
+  language; "Report this invitation" leads to the operator's contact.
 
 ### Hosts and moderators
 
-- **An « Invitations » page next to the printed cards** (#523). The host fills the invitation once: title, start and
+- **An "Invitations" page next to the printed cards** (#523). The host fills the invitation once: title, start and
   end, the time zone (taken from the browser on the first save, changed only on purpose), place, address and a word of up
-  to 500 characters, and its language. « Activer l'invitation » gives it a link and a QR; the link can be copied, viewed
+  to 500 characters, and its language. "Switch the invitation on" gives it a link and a QR; the link can be copied, viewed
   as a guest, changed (the old link and printed QR codes stop working, after a confirmation) or switched off. Only the
   owner opens and changes it; a moderator does not see the page.
 - **Printed invitations in six designs** (#524, #525, #529): Essentiel, Ticket de caisse, Souvenir, Billet, Carte
@@ -226,16 +216,14 @@ start-up. One setting is new in `.env.example`, optional.
   140 characters (the full word is on the page), the QR and the link in plain text. Colour and photograph as on the table
   cards; the photograph never leaves the browser.
 - **An image to share** (#526, #529): the same card on a square (1080 × 1080) or story (1080 × 1920) ground, made in the
-  browser. On a phone « Partager » opens WhatsApp, Messages, Instagram… with the image and the text, and copies the text
-  in case the app drops it; elsewhere « Télécharger l'image » and « Copier le texte ». The address is hidden on the image
+  browser. On a phone "Share" opens WhatsApp, Messages, Instagram… with the image and the text, and copies the text
+  in case the app drops it; elsewhere "Download the image" and "Copy the text". The address is hidden on the image
   unless the host ticks it.
 - **An e-mail sent from the host's own mailbox** (#527). EventSlide prepares the subject and the message, the host edits
-  them if they wish, and « Ouvrir dans ma messagerie » opens their mail program; EventSlide sends nothing and keeps no
-  address. A message too long for a mail link is cut with « suite sur la page de l'invitation », the link always kept.
+  them if they wish, and "Open in my mail app" opens their mail program; EventSlide sends nothing and keeps no
+  address. A message too long for a mail link is cut with "more on the invitation page", the link always kept.
   The mail carries the address (it goes to the guests the host chose); the image does not unless the host ticks it.
-- **Fifteen designs for the printed table cards and poster** (#520): Essentiel, Classique, Ticket de caisse, Bande
-  dessinée, Magazine, Souvenir, Carte postale, Billet, Carte d'embarquement, Appareil jetable, Affiche, Confettis,
-  Années 70, Nuit and Guirlande, shown as live thumbnails of the host's own card. The host sets the title, the headline,
+- **Fifteen designs for the printed table cards and poster** (#520): Essential, Classic, Till receipt, Comic strip, Magazine, Keepsake, Postcard, Ticket, Boarding pass, Disposable camera, Poster, Confetti, Seventies, Night and Garland, shown as live thumbnails of the host's own card. The host sets the title, the headline,
   a note, the date and place, a table number, a photograph and its framing, the colour (event, eleven swatches or any
   colour) and the three steps. The A5 now prints as two portraits on a landscape A4. Nine OFL font families (about
   570 kB) are bundled and loaded by this page only.
@@ -289,34 +277,32 @@ unless a bot token is set.
   (different at every event), the first name and the initial of the last name, the group's title and a counter of media
   received: no number, no `@handle`, no message text. [docs/TELEGRAM.md](docs/TELEGRAM.md) is the guide.
 - **The guest privacy notice says that a photo book may carry a guest's words** (#516, #517). On an event with a
-  guestbook it gains a sentence (« L’organisateur peut mettre vos mots, avec votre prénom, dans le livre photo de la
-  soirée, qu’il peut faire imprimer. »), and its revision changes, so each guest of such an event reads it once more
+  guestbook it gains a sentence ("The organiser may put your words, with your first name, in the evening’s photo book, which they may have printed."), and its revision changes, so each guest of such an event reads it once more
   before their next photograph or message. Events without a guestbook are unchanged. The notice also gains a clause about
   Telegram on the events that use it (#511).
 
 ### Hosts and moderators
 
 - **The settings page is in sections and saves as the host changes it** (#505). Six sections, one open at a time:
-  Invités, Livre d’or, Appareil jetable, Écran de la salle, Apparence, Horaires et conservation. A closed section is
+  Guests, Guestbook, Disposable camera, Room screen, Appearance, Schedule and retention. A closed section is
   summed up in one line, and the address `…/settings#wall` opens one. There is no Save button: a change is sent after
-  400 ms of stillness, a status line says « Enregistrement… » then « Modifications enregistrées », and a refusal puts the
+  400 ms of stillness, a status line says "Saving…" then "Changes saved", and a refusal puts the
   control back and says why. The welcome message and the date fields are saved when the host leaves the field. Two
-  choices ask for a confirmation because they change the room at once: « Publier automatiquement », and turning on the
+  choices ask for a confirmation because they change the room at once: "Publish automatically", and turning on the
   disposable camera on a live evening that already has photographs. An option that means nothing while another is off is
   hidden.
-- **A « Groupe Telegram » panel and a switch in the settings** (#514, #512). In Settings › « Messageries », « Recevoir les
-  photos d’un groupe Telegram » is off for every event, new or existing. The switch is absent when the box has no bot and
-  greyed (« Non inclus dans votre offre ») when the client's plan does not include it; a host whose plan was withdrawn can
+- **A "Telegram group" panel and a switch in the settings** (#514, #512). In Settings › "Messaging", "Receive photos from a Telegram group" is off for every event, new or existing. The switch is absent when the box has no bot and
+  greyed ("Not included in your plan") when the client's plan does not include it; a host whose plan was withdrawn can
   still switch it off. The event page then shows the panel: add the bot to the group, send the command it shows (in the
   language of the screen) from the group, and the bot answers once, in the language of the evening, saying whether photos
-  go through the host first. The owner can unlink the group (« Dissocier »); a group can only be linked while the event is
+  go through the host first. The owner can unlink the group ("Unlink"); a group can only be linked while the event is
   open, and one already linked to another live event is refused.
 - **Media from a group follow the event's moderation, and the console says where they came from** (#514, #515). Each
-  one carries a « via Telegram » badge in the moderation queue, on the phone's moderation card too.
+  one carries a "via Telegram" badge in the moderation queue, on the phone's moderation card too.
 - **The bot says when it cannot see the photographs** (#512, #514). If Telegram's privacy mode is on and the bot is not
   an administrator of the group, Telegram never delivers the photographs; the bot then asks to be named administrator
   (no particular right is needed), and the host's panel shows the same hint as a warning.
-- **A photo book in three styles** (#506, #507, #510, #513, #516, #517). A « Photo book » panel on the event page: three
+- **A photo book in three styles** (#506, #507, #510, #513, #516, #517). A "Photo book" panel on the event page: three
   style cards (Classique, Magazine, Souvenir; the form opens on the one the wall's ambiance suggests), every photograph
   or a selection of about 60, 120 or 200, first names, captions, the guest book when the event has written messages, a
   printer version, and the three downloads. It remembers the last book's choices. A book made on 3.14 reads as
@@ -393,8 +379,8 @@ unless a bot token is set.
 Everything merged to `main` after the tag `v3.13.0`: pull requests #466 to #496, #498 and #499 (33 pull requests; the
 disposable camera came in as #477, #479, #480, #482, #483 and #484 through the branch `feat/appareil-jetable`, then #498
 and #499). This is a minor release with five features: scheduled announcements on the wall, a verified album archive
-with a deletion date and warning e-mails before the purge, an « Enregistrer » button for guests on the photo feed, voice
-messages in the guestbook, and the disposable camera (« Appareil jetable »), where the photographs stay hidden until a
+with a deletion date and warning e-mails before the purge, a "Save to my phone" button for guests on the photo feed, voice
+messages in the guestbook, and the disposable camera ("Disposable camera"), where the photographs stay hidden until a
 reveal. Four migrations, 029 (`event_announcements`), 030 (`event_purge_notices`), 031 (`event_exports` and
 `event_export_requests`) and 032 (`guestbook_voices`), applied at start-up; the disposable camera adds none. Eight
 settings are new in `.env.example`, all optional.
@@ -402,9 +388,9 @@ settings are new in `.env.example`, all optional.
 ### The room
 
 - **A scheduled announcement on the wall** (#471, #472, #473, #474). The host writes a sentence and an hour, for
-  example "Gâteau à 22 h". A full-screen announcement shows a countdown band at the top of the wall, then a full-screen
+  example "Cake at 10 pm". A full-screen announcement shows a countdown band at the top of the wall, then a full-screen
   card at the hour, for 10 to 120 seconds; a discreet one is a small pill over the photos ("encore n min", then
-  "moins d'1 min") for 5 to 30 minutes while the slideshow goes on. The band gives way to the photo challenge's banner,
+  "under 1 min left") for 5 to 30 minutes while the slideshow goes on. The band gives way to the photo challenge's banner,
   and the pill never takes the place of the guestbook or the slideshow. A wall with no announcement shows what it showed
   before.
 - **Voice messages make no sound in the room** (#491, #492, #496): they are listened to in the console only, never
@@ -412,35 +398,35 @@ settings are new in `.env.example`, all optional.
   that the microphone is not theirs (`Permissions-Policy: microphone=()`).
 
 - **The disposable camera: a waiting wall, then the reveal** (#480, #477). On an evening where a host has turned
-  « Appareil jetable » on, the wall shows no photograph before the reveal. It says the hour (« Révélation à 22:00 »),
-  or « Les photos se développeront à la révélation » when the host reveals with the button, and how many photographs are
-  « en cours de développement ». At the hour, or when the host presses « Révéler maintenant », the wall switches to the
+  "Disposable camera" on, the wall shows no photograph before the reveal. It says the hour ("Reveal at 22:00"),
+  or "The photos will be developed at the reveal" when the host reveals with the button, and how many photographs are
+  "being developed". At the hour, or when the host presses "Reveal now", the wall switches to the
   slideshow, each screen a moment apart so that a room of projectors does not flash together. A wall of an event
   without the mode is unchanged.
-- **A film look on the screens** (#483). With « Rendu pellicule » on, the wall, the feed and the gallery show the
+- **A film look on the screens** (#483). With "Film look" on, the wall, the feed and the gallery show the
   photographs with a sepia, slightly contrasted look. It is a filter on the display only: originals, the ZIPs and every
   download are exactly what the guests sent, and the shared gallery says so. On a projector that cannot afford it, the
   wall gives up the slow zoom first; the look itself stays.
 
 ### Guests
 
-- **An « Enregistrer » button under the photos of the others, on the feed** (#485, #486, #487, #488). One tap puts the photo on
+- **A "Save to my phone" button under the photos of the others, on the feed** (#485, #486, #487, #488). One tap puts the photo on
   the phone: on an iPhone through the share sheet to Photos, elsewhere as a download. The host can switch it off. A
   photo that was taken down is not saveable, and the route answers the same way for a photo that does not exist and one
   that is not the guest's to take. The privacy notice gains a sentence, only where the switch is on.
-- **A voice message in the guestbook** (#489, #490, #491, #492, #493, #494, #496). Under "Laisser un mot", a guest
+- **A voice message in the guestbook** (#489, #490, #491, #492, #493, #494, #496). Under "Leave a note", a guest
   records up to 60 seconds in the browser, listens to it, adds a caption and sends it. It is stored as AAC mono, goes
   through the same moderation as a written message, is queued on the phone and sent again on a bad network, and
-  appears in "Mes messages" ("En traitement", "Réessayer"). A guest who takes it back or erases it loses the
+  appears in "My messages" ("Processing", "Try again"). A guest who takes it back or erases it loses the
   recording itself, not only the row. A browser with no microphone, or a box served over plain `http://`, sees no
   button and the guestbook is as it was. The privacy notice says what a voice message is before the guest records.
 - **A disposable camera: a limited roll, and nothing on screen before the reveal** (#482, #477, #484). A guest sees
-  « n poses restantes » (a pose is a photograph sent; 27 in the template, the host may choose another number or none),
-  « Pellicule neuve : n poses » at the start and « Pellicule terminée : votre appareil est vide » at the end. Their own
-  photographs wait in black and white, « Sera développée à la révélation », and the feed of the others says when the
+  "n shots left" (a pose is a photograph sent; 27 in the template, the host may choose another number or none),
+  "Fresh roll: n shots" at the start and "Roll finished: your camera is empty" at the end. Their own
+  photographs wait in black and white, "Will be developed at the reveal", and the feed of the others says when the
   photographs will be revealed and shows nothing, not even a count of someone else's. The line under the title says
-  « Prenez vos photos : elles seront développées à la révélation » (with the hour when there is one). At the reveal the
-  photographs appear and the guest is told « Votre photo vient d’être développée ». **Nothing can be saved from the feed
+  "Take your photos: they will be developed at the reveal" (with the hour when there is one). At the reveal the
+  photographs appear and the guest is told "Your photo has just been developed". **Nothing can be saved from the feed
   before the reveal, the author included** (#498): the guest-save route answers `404 photo.notFound` to everybody until
   then. The privacy notice says it plainly (photographs held until the reveal, the number of poses, the film look).
 - **Captions, names and challenge prompts no longer cut a composed emoji** (#470): lengths are counted in characters,
@@ -465,26 +451,24 @@ settings are new in `.env.example`, all optional.
   `403 client.suspended`.
 - **The host's `album.zip` gains a last file, `MANIFEST.sha256`** (#475), and a clip that is corrupt on disk now aborts
   the download instead of being delivered.
-- **A guest-save switch on the settings page** (#485). On for a new event, off for the "Conférence" template and for
+- **A guest-save switch on the settings page** (#485). On for a new event, off for the "Conference" template and for
   every event that already exists. The statistics page counts the photos guests saved from the feed (#488).
-- **Voice messages: settings, console and moderation** (#492, #495, #493). A "Messages vocaux" section in the event's
+- **Voice messages: settings, console and moderation** (#492, #495, #493). A "Voice messages" section in the event's
   settings (on or off, **sealed** until an hour chosen or the end of the evening), flagged when the address is not
-  https. The "Mariage" template turns it on; **every existing event has it off**. The messages tab of the console plays
-  a message, publishes or refuses it like a written one, offers "Garder les N messages en attente" (with a
-  confirmation) and, to the owner while the box is sealed, "Ouvrir maintenant". The archive carries the recordings,
+  https. The "Wedding" template turns it on; **every existing event has it off**. The messages tab of the console plays
+  a message, publishes or refuses it like a written one, offers "Keep the N waiting messages" (with a
+  confirmation) and, to the owner while the box is sealed, "Open now". The archive carries the recordings,
   and the deletion band counts the voice messages the purge would lose.
 - **The disposable camera, from the settings, the console and the template** (#479, #477, #484). A section
-  « Appareil jetable » in the event's settings: on or off, « Révéler à une heure précise » (or no hour, and the host
-  reveals with the button), « Poses par invité » and « Rendu pellicule ». The « Appareil jetable » template turns it on,
+  "Disposable camera" in the event's settings: on or off, "Reveal at a set time" (or no hour, and the host
+  reveals with the button), "Shots per guest" and "Film look". The "Disposable camera" template turns it on,
   with no hour, 27 poses, the film look, and **voice messages on and kept secret**. The event page and the console
-  carry a banner (« Révélation dans 1 h 20 », « Révélation au bouton », how many photographs wait) and a « Révéler
-  maintenant » button, with a confirmation; once revealed, the hour can no longer be moved. The host and the moderators
+  carry a banner ("Reveal in 1 h 20 min", "Reveal at the press of a button", how many photographs wait) and a "Reveal now" button, with a confirmation; once revealed, the hour can no longer be moved. The host and the moderators
   see every photograph as it arrives and can remove one before anybody else has seen it. A host who closes the evening
   before a revelation is warned that the photographs would stay hidden.
 - **On a reveal evening, the secret voice messages open at the reveal** (#499). If the mode is on and the voice
   messages are kept secret, they open at the reveal or at the end of the evening, whichever comes first, and
-  « Ouvrir maintenant » disappears once it has happened. The checkbox then reads « Garder les messages vocaux secrets
-  jusqu’à la révélation », and the console says « Gardé secret jusqu’à la révélation de la soirée ».
+  "Open now" disappears once it has happened. The checkbox then reads "Keep voice messages secret until the reveal", and the console says "Kept secret until the evening is revealed".
 - **A refused export link says why** (#470): `album.zip` and `best-of.zip` ask first, and a limit (`429`) or a box not
   ready (`503`) becomes a message in the host's language instead of a blank page. The browser's Back button is held on
   the share link as it already was on the recovery codes.
@@ -542,8 +526,8 @@ settings are new in `.env.example`, all optional.
 - **Disk**: a verified archive is a copy of the album kept for up to seven days on the same disk. Budget for it.
 - **Off on every existing event**: voice messages (`guestbookVoice.enabled`), guest saving (`allowGuestSave`) and the
   disposable camera (`reveal.enabled`) read off for an event created before this version, so the upgrade changes neither
-  what a running event does nor the notice its guests have read. A new event has saving on (not from the "Conférence" template) and voice on only from
-  "Mariage". Switching any of them on makes each guest read the privacy notice once more before the next send.
+  what a running event does nor the notice its guests have read. A new event has saving on (not from the "Conference" template) and voice on only from
+  "Wedding". Switching any of them on makes each guest read the privacy notice once more before the next send.
 - **No migration beyond 032 for the disposable camera**: the mode lives in the event's settings, read as off when the key is
   absent, and nothing is set in `.env`. A web page left open across the upgrade does not know the new `reveal` blocks:
   reload the screens, or upgrade before an evening where the mode is on.
@@ -589,8 +573,8 @@ one. One migration, 028 (`user_tours`), applied at start-up. Nothing to set.
 
 ### Hosts and moderators
 
-- **A guided tour on the first visit to an event's page** (#450): welcome, the "Maintenant" card, the access card,
-  the lifecycle button, "Modérer" and "Ouvrir l'écran", "Tout l'évènement", and the « Visite guidée » button that
+- **A guided tour on the first visit to an event's page** (#450): welcome, the "Now" card, the access card,
+  the lifecycle button, "Moderate" and "Open the screen", "The whole event", and the "Guided tour" button that
   replays it at any time. Offered once per account, remembered on the server, so not again after a reload or on
   another device; not offered by itself on a live event with photos waiting. A moderator gets a shorter one. In the
   five languages.
@@ -676,7 +660,7 @@ No migration, nothing to set.
 
 - **The join QR has a place of its own in each wall layout** (#440), instead of one card in a corner that hid half
   a mosaic tile, cut filmstrip frames and pushed the split off centre: a cartel on the spotlight's caption line, the
-  mosaic's last tile ("Votre photo ici"), the collage's last column, a fourth polaroid print, a tag at the end of the
+  mosaic's last tile ("Your photo here"), the collage's last column, a fourth polaroid print, a tag at the end of the
   clothesline, a ticket under the filmstrip, a medallion between the split's two panes. The QR itself is the same
   everywhere. The host's choice of corner (spec 14) now applies to the spotlight only, and the wall panel says so.
   On a screen with a pointer, the invitation's close button shows only under the pointer or the keyboard.
@@ -686,14 +670,14 @@ No migration, nothing to set.
 - **One address for the moderation queue** (#441). `/admin/events/:slug/moderation` opens the phone's screen on a
   phone (narrow, or a finger on a screen under 1024 px) and the laptop's console elsewhere. Each screen has a button
   to the other one, for a wrong guess, and that choice is remembered on the device. The event page has a single
-  "Modérer" tile; the "Modération sur téléphone" tile is gone. The old `/admin/events/:slug/moderation/mobile`
+  "Moderate" tile; the "Moderation on a phone" tile is gone. The old `/admin/events/:slug/moderation/mobile`
   address still works: it opens the phone's screen and remembers it. Signing in or accepting an invitation as the
   moderator of one event lands on the one address.
-- **The event page leads with what the moment asks for** (#442). A "Maintenant" card changes with the status:
-  before the evening, the steps to get ready and "Ouvrir aux invités"; during it, the queue (with what waits there)
-  and the screen, with "Terminer la soirée" always at the card's foot beside the automatic times; after it, the
-  album to download and to share. Beside it, a compact access card: the code, the link with "Copier le lien",
-  printing, and "Afficher le QR code en grand" for a guest at the laptop. Below, "Tout l'évènement" lists every
+- **The event page leads with what the moment asks for** (#442). A "Now" card changes with the status:
+  before the evening, the steps to get ready and "Open to guests"; during it, the queue (with what waits there)
+  and the screen, with "End the event" always at the card's foot beside the automatic times; after it, the
+  album to download and to share. Beside it, a compact access card: the code, the link with "Copy the link",
+  printing, and "Show the QR code full size" for a guest at the laptop. Below, "The whole event" lists every
   other destination as a tile. The printed page is unchanged: the access card alone, with a large QR.
 
 ### Under the hood
@@ -721,11 +705,11 @@ under the mission picked for it, and a video clip that can be filed under a miss
   amended.
 - **Each photo is filed under the mission selected when it was picked** (#435). A guest who picked several photos
   one after the other, then sent them in one go, had all of them filed under the last mission selected; each one
-  now keeps its own. "Vos envois" labels every photo with its mission ("Mission : …"), or "Défi" when it answers
+  now keeps its own. "Your uploads" labels every photo with its mission ("Mission: …"), or "Challenge" when it answers
   a challenge. `GET /api/events/:slug/photos/mine` returns `missionPrompt` and `answeredChallenge` on each item
   (see `docs/API.md`).
 - **A video clip can be filed under a mission, like a photo** (#436). It counts toward the mission's progress on
-  the wall once published, and shows the same label in "Vos envois". The mission is the one selected when the clip
+  the wall once published, and shows the same label in "Your uploads". The mission is the one selected when the clip
   was picked.
 
 ### Hosts
@@ -918,7 +902,7 @@ to change before upgrading.
   were swallowed, so the cursor, the bar and the sound icon hid while the mouse was moving. The anonymous wall
   is unchanged.
 - **The guest upload pane folds only from its chevron** (#373). The fold after a scroll gesture upwards, added
-  in 3.8.0, is removed; the "Réduire" button still folds the pane and the selection is still kept.
+  in 3.8.0, is removed; the "Fold" button still folds the pane and the selection is still kept.
 
 ### Guests
 
@@ -941,14 +925,14 @@ check before upgrading" and [Upgrading to 3.8](docs/UPGRADING.md#upgrading-to-38
 
 ### Guests
 
-- **"Je participe au défi"** (#363, #366). While a challenge runs and a photograph is chosen, a checkbox above
-  "Envoyer" says so, and it is checked by default (it is checked again for every batch), so a guest who does
+- **"I’m taking part in the challenge"** (#363, #366). While a challenge runs and a photograph is chosen, a checkbox above
+  "Send" says so, and it is checked by default (it is checked again for every batch), so a guest who does
   nothing special answers the challenge. Unchecked, the photograph is an ordinary one. The challenge band shows
-  even when the host set no mission, and the "Relever le défi" button is gone. A video does not answer a
+  even when the host set no mission, and the "Take up the challenge" button is gone. A video does not answer a
   challenge: the box is not shown while a clip is in hand.
-- **The upload pane folds** (#365). A "Réduire" button on the queue summary line folds the pane into a bar of
-  at most 14 % of the screen: a large "Envoyer une photo", or, once photographs are chosen, their thumbnails,
-  a count and "Envoyer N". The bar also keeps the offline notice; the « Je participe au défi » box stays in the pane, keeps its state through a fold, and a send from the bar takes part by default. A tap opens the pane
+- **The upload pane folds** (#365). A "Fold" button on the queue summary line folds the pane into a bar of
+  at most 14 % of the screen: a large "Send a photo", or, once photographs are chosen, their thumbnails,
+  a count and "Envoyer N". The bar also keeps the offline notice; the "I’m taking part in the challenge" box stays in the pane, keeps its state through a fold, and a send from the bar takes part by default. A tap opens the pane
   again with the selection intact. The pane also folds by itself after a guest scroll gesture upwards (48 px
   net), never while sending or typing a caption, and never opens by scrolling.
 
@@ -956,7 +940,7 @@ check before upgrading" and [Upgrading to 3.8](docs/UPGRADING.md#upgrading-to-38
 
 - **A challenge has its own text** (#363, #364). The console's photo challenge card and the wall panel's
   challenge section have a text box (60 characters, one line, with a counter), six ready-made ideas per
-  language, the event's last five challenge texts, and an optional "Une de mes missions" row that takes a
+  language, the event's last five challenge texts, and an optional "One of my missions" row that takes a
   mission's text. Launching stays disabled while the box is empty. A challenge no longer needs a mission, and
   the answers counted are the photographs that named the challenge, not those filed under its mission.
 - **Deleting a mission no longer stops a running challenge** (#363): the challenge keeps its own frozen text.
@@ -1039,8 +1023,8 @@ upgrade.
   flat cells and its 2x2 hero tile. A photo is cropped to its cell only when at least 70 % of it stays
   visible; otherwise it is shown whole over its own blurred thumbnail. The placement and the tilt of the photos
   are unchanged.
-- **Icon buttons on the owner's bar** (#346). Réglages, Pause (Reprendre) and Plein écran become icons with a
-  tooltip that names the key (`R`, `Espace`, `F`); the accessible names and the keys do not change, and an
+- **Icon buttons on the owner's bar** (#346). Settings, Pause (Resume) and Full screen become icons with a
+  tooltip that names the key (`R`, `Space`, `F`); the accessible names and the keys do not change, and an
   anonymous wall still has no bar.
 - **The wall's sound button is reachable on a touch screen** (#343). The muted-speaker icon used to hide with
   the idle cursor, which a touch screen never moves; it now stays visible until the screen is activated.
@@ -1052,7 +1036,7 @@ upgrade.
   (`?vue=messages`) with a badge on each side that stays visible, the message in full with its author or
   anonymous, its time and its status, and the decisions the server allows, with undo. Keys `J`, `K`, `P`, `R`,
   `H` and `Z` work on messages and never act on the photo selection. On the phone console a message sits in a
-  swipe card (right publishes, left refuses), with "Annuler la dernière" per tab and a strip of the last six
+  swipe card (right publishes, left refuses), with "Undo the last decision" per tab and a strip of the last six
   messages on screen, the way to take a message published automatically off the wall from a phone. The console
   uses one event stream for both tabs. An archived event is read-only, an event with the guestbook off has no
   tab, and with automatic moderation the badge counts the messages published since the last visit.
@@ -1115,20 +1099,20 @@ missions, so read "Behaviour changes to check before upgrading" and
 
 ### Guests
 
-- **A timed photo challenge on the phone** (#334). While a challenge runs, a band "Défi photo · 1:42" shows
-  above the missions with the mission's sentence and a large « Relever le défi » button that chooses the
+- **A timed photo challenge on the phone** (#334). While a challenge runs, a band "Photo challenge · 1:42" shows
+  above the missions with the mission's sentence and a large "Take up the challenge" button that chooses the
   mission for the next photograph. The countdown follows the server's clock, so a phone with the wrong time is
   not wrong about the time left. No sound, no vibration, no notification, and an event with no missions is
   unchanged.
 
 ### The wall
 
-- **A timed photo challenge banner** (#329). "Défi photo · 1:42" over the mission's sentence, top centre,
+- **A timed photo challenge banner** (#329). "Photo challenge · 1:42" over the mission's sentence, top centre,
   inside the overscan inset; the layouts that fill the screen lay out below it and the invitation card stays
   on screen. It goes ten seconds after the end.
-- **A souvenir counter** (#325). « n souvenirs partagés » top centre, the server's total of published photos and
+- **A souvenir counter** (#325). "n memories shared" top centre, the server's total of published photos and
   clips (not the length of the window the wall holds); hidden at zero. Off by default.
-- **A new-photo signal** (#328). A short « nouvelle photo » line under the counter when a published photograph
+- **A new-photo signal** (#328). A short "new photo" line under the counter when a published photograph
   arrives; silent at the first read, after a gap of more than two minutes and for a photograph that only came
   back into the window. Off by default.
 - **The invitation card, sized and placed by the host** (#319, #321). A scale from 0.8 to 1.5 (never wider than
@@ -1144,7 +1128,7 @@ missions, so read "Behaviour changes to check before upgrading" and
   while, then one large photograph (`spotlight`) for a while, on a clock shared with the server so two
   projectors change together, through a fade (a cut under reduced motion). A screen that names its own layout
   with `L` or `?layout=` leaves the alternation until it is reloaded.
-- **A settings panel on the wall** (#317, #318). A bar at the bottom centre (Réglages, Pause, Plein écran)
+- **A settings panel on the wall** (#317, #318). A bar at the bottom centre (Settings, Pause, Full screen)
   shows while the pointer moves, and `R` opens a panel that closes with Esc, its cross or after 60 seconds
   untouched. It is there only for the owner signed in on that machine; for anyone else there is no bar, no
   panel and no DOM, and `R` does nothing.
@@ -1152,17 +1136,15 @@ missions, so read "Behaviour changes to check before upgrading" and
 ### Hosts
 
 - **Wall settings, on the settings page and in the panel** (#315, #318, #320, #322, #323, #326, #327, #330,
-  #332, #336, #339, #340, #341). A block "Affichage du mur" on the settings page and the same controls in the
+  #332, #336, #339, #340, #341). A block "Wall display" on the settings page and the same controls in the
   panel, saved key by key: the layout of the event and the rhythm of the slides (#315, #318), new photos first
-  and tilt (#320), the send time (#322), the counter and the new-photo signal under « À l'écran » (#323,
+  and tilt (#320), the send time (#322), the counter and the new-photo signal under "On screen" (#323,
   #336), the invitation card's switch, slider (0.8 to 1.5, with the marks Petit, Moyen and Grand) and corner
   grid (#340), the alternation of wall and large photograph with its two durations (#326, #327, #339) and the
-  sound, with four tones (`chime`, `bell`, `drop`, `pop`), a volume and a « Tester » button (#330, #332,
-  #341). The panel says what this screen does when it has its own layout and offers « Revenir au réglage de
-  l'évènement ».
-- **Launch a timed photo challenge** (#316, #324, #338). From the missions of the console, or from the « Défi
-  photo » section of the wall panel: a mission, a duration of 1, 2, 5 or 10 minutes (the API accepts 15 seconds to 30 minutes), « Lancer » and
-  « Arrêter », and the number of answers (published photographs that name the mission inside the window,
+  sound, with four tones (`chime`, `bell`, `drop`, `pop`), a volume and a "Test" button (#330, #332,
+  #341). The panel says what this screen does when it has its own layout and offers "Back to the event setting".
+- **Launch a timed photo challenge** (#316, #324, #338). From the missions of the console, or from the "Photo challenge" section of the wall panel: a mission, a duration of 1, 2, 5 or 10 minutes (the API accepts 15 seconds to 30 minutes), "Start as a challenge" and
+  "Stop", and the number of answers (published photographs that name the mission inside the window,
   which runs until a minute after the end). Fifty challenges per event; any moderator can launch one from the
   console.
 
@@ -1226,10 +1208,9 @@ writes files outside the event folders, so read "Behaviour changes to check befo
 
 - **A written guestbook** (#295, #301). A guest leaves a short message (500 characters, 8 line breaks, three
   per guest, 500 per event) from a folded card on the upload screen, sees it in their messages with its
-  status in words, and can take it back with « Retirer ce message » while the server allows it. A message
+  status in words, and can take it back with "Remove this message" while the server allows it. A message
   is accepted while the evening is live and for seven days after it closed. The privacy notice names the
-  messages when the host has a guestbook, so every guest is shown it again, and « Supprimer tout ce que j'ai
-  envoyé » erases the messages too.
+  messages when the host has a guestbook, so every guest is shown it again, and "Delete everything I sent" erases the messages too.
 - **The host's welcome message and logo** (#296, #303, #305). A free message (280 characters, 4 lines) and
   the host's logo are shown on the join page and, compact, on the upload screen. The logo is PNG, JPEG or
   WebP (SVG is refused), re-encoded to WebP.
@@ -1267,7 +1248,7 @@ writes files outside the event folders, so read "Behaviour changes to check befo
 ### Operators
 
 - **A client can be switched off for photo books** (#299). `NEW_CLIENT_BOOKS_ALLOWED` is the default a new
-  client starts with and the console shows « Livres photo (PDF) autorisés » per client; the book routes
+  client starts with and the console shows "Photo books (PDF) allowed" per client; the book routes
   answer `403` when it is off.
 - **Take down one guestbook message** (#312), on the Retrait screen, with the photograph's contract: by
   identifier alone, a mandatory reason, step-up, one audit line written before the message moves. The
@@ -1346,24 +1327,23 @@ read "Behaviour changes to check before upgrading" and
 
 - **The phone tells the guest to look up** (#280). While at least one of their photos waits for the host,
   the upload screen re-reads the guest's list about every nine seconds. When a photo goes live it says
-  « Validée ! Elle passe à l'écran dans un instant : levez les yeux. », develops the photo and, where the
-  browser has one, vibrates briefly. Found on coming back to the tab, it reads « Passée à l'écran. » and
+  "Approved! It is about to appear on the screen: look up.", develops the photo and, where the
+  browser has one, vibrates briefly. Found on coming back to the tab, it reads "It has been on the screen." and
   does not buzz. This is a poll, not a push notification.
 - **Leaving the upload screen mid-send no longer loses photos** (#279). What is still owed, the Back button
   included, is handed to the offline queue with the batch's caption and mission instead of being dropped.
   While photos are sent, the link to the evening's photos stays focusable but inert and a status line says
-  how far the batch is (« Patientez, envoi en cours (3/8) »).
-- **Clearer states on the upload screen** (#279). The badge before sending is « Prête » (« attente » now only
-  means the host's validation); a stored photo says « Partira dès que le réseau revient »; the summary says
-  the photos are ready and nothing has left the phone until « Envoyer » is pressed. On a browser without
+  how far the batch is ("Please wait, sending (3/8)").
+- **Clearer states on the upload screen** (#279). The badge before sending is "Ready" ("waiting" now only
+  means the host's validation); a stored photo says "Will go as soon as the network is back"; the summary says
+  the photos are ready and nothing has left the phone until "Send" is pressed. On a browser without
   Background Sync (every iPhone) the offline notice asks to keep the page open instead of saying it can be
   closed.
-- **A closed evening is a calm card, not a warning** (#279): « C'est fini pour ce soir. Merci pour vos N
-  photos ! Les organisateurs partageront l'album. » (the count leaves out refused photos). An archived feed
+- **A closed evening is a calm card, not a warning** (#279): "That’s it for tonight. Thank you for your N photos! The organisers will share the album." (the count leaves out refused photos). An archived feed
   says to ask the organisers for the album link.
 - **The caption is emptied after a batch that left for good** (#279), and kept after any failure; what the
   guest typed for the next photos while the batch was on its way is kept too.
-- **No empty « Vos envois » card, and no « Supprimer tout ce que j'ai envoyé », before the first photo**
+- **No empty "Your uploads" card, and no "Delete everything I sent", before the first photo**
   (#279). The erasure stays reachable from the privacy notice.
 
 ### The wall
@@ -1374,63 +1354,55 @@ read "Behaviour changes to check before upgrading" and
   rotation resumes where it was and a short playlist no longer puts the same face on the wall twice. The
   host's arrows still step through the list. In the mosaic, polaroid, clothesline and collage a fresh photo
   goes into the next slot to turn and no other slot moves; the filmstrip draws the planned slides.
-- **« Première photo de Julie »** (#280) under the first photograph a named guest has on the wall (« d'Alice »
-  before a vowel in French), the first time that slide comes up. Spotlight, polaroid, clothesline and split
+- **"First photo from Julie"** (#280) under the first photograph a named guest has on the wall (in French, "de" becomes "d'" before a vowel), the first time that slide comes up. Spotlight, polaroid, clothesline and split
   only: the mosaic, filmstrip and collage caption no single photo. Never for a clip, an anonymous sender or
   the host, and not at all when the wall's read of published photos was cut short.
 - **The wall keeps the screen awake** (#281): it asks the browser's Screen Wake Lock at load and again when
   the tab comes back, and its help (`?`) says to turn off the computer's sleep when the browser refuses. The
   mouse arrow disappears after three seconds without movement.
 - **The wall before and after the evening** (#281). A wall not served yet (draft or unknown address) is a
-  calm screen, « Cet écran s'allumera tout seul dès l'ouverture de la soirée. », and lights up by itself. On
+  calm screen, "This screen will switch on by itself as soon as the event opens.", and lights up by itself. On
   a closed evening the corner card, the code, the QR and the host's missions are gone and the empty wall says
-  « Merci d'être venus ! ». Under the code, « ou tapez K7P2QX sur app.eventslide.fr » says where to type it.
+  "Thank you for coming!". Under the code, "or type K7P2QX at app.eventslide.fr" says where to type it.
 - **Escape no longer hides the QR; Q does** (#281). Escape closes the help only. `Q` hides the corner QR, as
   the card's own button does, for at most ten minutes; `Q` does nothing on the empty wall or on a closed
   evening.
 - **A lost stream is quiet at first** (#281): nothing for 60 seconds, then a small dot with no text, and
-  « Nouvelles photos en attente du réseau » after three minutes.
+  "New photos waiting for the network" after three minutes.
 
 ### Hosts
 
-- **Archiving and opening ask first** (#283). « Archiver » asks for a confirmation (the screen stops, the
+- **Archiving and opening ask first** (#283). "Archive" asks for a confirmation (the screen stops, the
   settings freeze, it is final, the album stays downloadable) and is offered from a draft or an ended
-  evening only, no longer beside « Terminer la soirée ». « Ouvrir aux invités » asks once, lightly. The event
+  evening only, no longer beside "End the event". "Open to guests" asks once, lightly. The event
   page and the dashboard share the behaviour.
 - **One toast per move** (#283): opened, ended, reopened, archived. A new code says that the printed QR codes
-  and the link already sent stop working, and offers « Imprimer le nouveau QR ».
-- **« Ouvrir l'écran » from the draft on** (#283), with the line that it lights up by itself once the evening
+  and the link already sent stop working, and offers "Print the new QR".
+- **"Open the screen" from the draft on** (#283), with the line that it lights up by itself once the evening
   is open, and a five-step checklist (create, print, plug the screen in, open, test from another phone).
-- **« Après la soirée »** (#283): once the evening is ended or archived, a card leads the page with the way to
+- **"After the event"** (#283): once the evening is ended or archived, a card leads the page with the way to
   the album link and the album download (moderators get the download only).
-- **The automatic opening and ending are shown beside the badge** (#283), « Ouverture automatique à 18:00 »,
-  « Fin automatique… », with a warning when a schedule was discarded.
+- **The automatic opening and ending are shown beside the badge** (#283), "Opens automatically at 18:00",
+  "Ends automatically…", with a warning when a schedule was discarded.
 
 ### Moderators
 
-- **Z undoes a publication** (#282), on the desktop console as on the phone: the notice reads « 1 photo
-  publiée · Retirer » and Z takes the photo off the wall. With nothing to undo, Z says « Rien à annuler. ».
-  After refusing from « En attente », the notice offers « Voir dans Refusées ».
-- **Take a photo off the wall from the phone** (#282): a strip « Dernières photos à l'écran » (the six latest
-  published) with one action, « Retirer de l'écran », which says the photo stays in the album.
+- **Z undoes a publication** (#282), on the desktop console as on the phone: the notice reads "1 photo published · Undo" and Z takes the photo off the wall. With nothing to undo, Z says "Nothing to undo.".
+  After refusing from "Waiting", the notice offers "See Rejected".
+- **Take a photo off the wall from the phone** (#282): a strip "Latest photos on the screen" (the six latest
+  published) with one action, "Take off the screen", which says the photo stays in the album.
 - **Buttons that cannot trap or lie** (#282). A photo shows exactly the decisions its status allows, as the
   server says it, so none ends in `409 photo.illegalTransition`; a key with nothing to do says why instead of
   a red toast. Decisions are ordered publish, hide, refuse. The publish button is worded for where the photo
-  comes from (« Remettre à l'écran », « Publier quand même »), and what each removal costs a guest is said
+  comes from ("Put back on the screen", "Publish anyway"), and what each removal costs a guest is said
   under the buttons.
-- **« Refuser (N) » on three photos or more asks first** (#282) when at least one is not on the wall, since
+- **"Reject (N)" on three photos or more asks first** (#282) when at least one is not on the wall, since
   nothing takes back the refusal of a waiting or hidden photo. A batch of published photos is undone by the
   notice, as before. A photo another moderator moved meanwhile is skipped.
 
 ### Wording
 
-- **One lexicon in the five languages** (#279, #281, #283, #284). The live event is « la soirée », never « la
-  galerie »; « album » is what is left after it. The host page says « Code de la soirée » (it said « Code
-  d'accès ») and « Lien pour vos invités » (it said « Lien d'invitation », which now only means opening an
-  account). The lifecycle pairs are Brouillon / Ouvrir aux invités, En cours / Terminer la soirée, Terminée /
-  Rouvrir, Archivée / Archiver (« Réouvrir » and « Clore » are gone), and the operator's console uses the
-  host's status words. « Kraft » is now « Couleur de l'ambiance ». « Console » means the operator's console
-  only. English, German, Spanish and Italian follow (event, Feier, fiesta, serata). A new test,
+- **One lexicon in the five languages** (#279, #281, #283, #284). The live event is "the event", never "the gallery" ("Join the event" where it said "Join the gallery"); "album" is what is left after it. The host page says "Event code" (it said "Access code") and "Link for your guests" (it said "Invitation link", which now only means opening an account). The lifecycle pairs are Draft / "Open to guests", Live / "End the event", Ended / "Reopen", Archived / "Archive" ("Close the event" is gone), and the operator's console uses the host's status words. "Kraft" is now "Ambiance colour". "Console" means the operator's console only. French, German, Spanish and Italian follow (soirée, Feier, fiesta, serata). A new test,
   `vocabulary.test.ts`, fails when a retired word comes back.
 
 ### Behaviour changes to check before upgrading
@@ -1458,9 +1430,7 @@ read "Behaviour changes to check before upgrading" and
   first. This is the console only; the API is unchanged.
 - **The wake lock needs a visible tab and a browser that grants it** (#281). Where it is refused, turn off
   the computer's sleep, as before.
-- **The words changed** (#279, #281, #283, #284): « soirée », « album », « Code de la soirée », « Terminer
-  la soirée », in five languages. A printed guide, a screenshot or a host's own instructions that quote
-  « Code d'accès », « Réouvrir » or « Clore » no longer match the screens.
+- **The words changed** (#279, #281, #283, #284): "event", "album", "Event code", "End the event", in five languages. A printed guide, a screenshot or a host's own instructions that quote "gallery", "Access code" or "Close the event" no longer match the screens.
 
 ### Documentation, tests and dependencies
 
@@ -1489,7 +1459,7 @@ the privacy notice again, so read "Behaviour changes to check before upgrading" 
   taken-down event answers as an unknown one, the host's own pages included. A held event is skipped by
   the retention sweep and refuses every deletion; the refusal is a generic failure, so the host is not
   told. Each act writes one audit line that stays out of the client's own trail.
-- **A "Retrait" page in the operator's console** (#277). The operator finds an event from its address,
+- **A "Takedown" page in the operator's console** (#277). The operator finds an event from its address,
   join code, slug or exact name, or a photo from its id, sees only ids, a status and badges, and acts on it
   with a reason and a confirmation that names the target. The lookup is limited to 10 a minute per account
   and 30 per address, and logs the length of what was searched, never the text.
@@ -1498,19 +1468,19 @@ the privacy notice again, so read "Behaviour changes to check before upgrading" 
 
 ### Guest
 
-- **A guest can erase everything they sent** (#274, roadmap §5.2): a button under "Vos envois", behind a
+- **A guest can erase everything they sent** (#274, roadmap §5.2): a button under "Your uploads", behind a
   confirmation, removes their photos and clips (files included), reactions and name from the wall, the feed
   and the host's pages at once. It works after the host revoked the guest, from a screen that says their
   access was withdrawn. The confirmation says it does not reach copies the host kept or downloaded from the
   shared gallery. A photo the operator took down is kept as evidence, and the guest's record stays
   without its name until it goes.
 - **The privacy notice names the guests' feed** (#273): the other guests see a published photo, with the
-  sender's first name, in « Les photos de la soirée ». It also says a guest can erase what they sent
+  sender's first name, in "Photos from the evening". It also says a guest can erase what they sent
   (#274).
 
 ### Accounts and terms
 
-- **An account can delete itself** (#276) on a box with `SITE_ADMIN=on`, from "Supprimer mon compte" in the
+- **An account can delete itself** (#276) on a box with `SITE_ADMIN=on`, from "Delete my account" in the
   account menu, behind the password and the authenticator's code when there is one, rate-limited like
   the second factor. The refusals are the operator's (an account that still owns an event, wrote media,
   reviewed photos or is a client's last owner) and say what to do next.
@@ -1521,7 +1491,7 @@ the privacy notice again, so read "Behaviour changes to check before upgrading" 
 ### Look
 
 - **The panes' glass material is retired** (#272, ADR 0012). It was invisible within the legibility rule.
-  The "Matière des panneaux" setting goes, panes paint the opaque tier they already showed, and the
+  The "Panel material" setting goes, panes paint the opaque tier they already showed, and the
   wall's render budget loses its glass rung.
 
 ### Behaviour changes to check before upgrading
@@ -1557,14 +1527,14 @@ reaction or join limit.
 
 ### Look
 
-- **The violet « EventSlide » is the product's own look again** (#269, ADR 0010 amended 29/10): the
+- **The violet "EventSlide" is the product's own look again** (#269, ADR 0010 amended 29/10): the
   3.0 palette (a slate ground, a lavender accent), now an ambiance of its own, `eventslide`, first in
   the list and the default. The Guinguette stays, as an ambiance a host picks like the others.
 - **The glass shows** (#269): the default look paints a static aurora (violet, indigo, plum) behind
   the page, and its panes are translucent over it: the tint is the lowest that keeps every text bar
   (0.80 over a photograph, 0.61 over the aurora, where 3.1 had 0.96 and 0.93), and the backdrop is
   dimmed before the blur (`--glass-brightness`, 0.32) so that a bright photograph behind a pane
-  cannot defeat it. The light ambiances (Noces, a light « Sur mesure ») do not dim. Réglages → Matière
+  cannot defeat it. The light ambiances (Noces, a light "Custom") do not dim. Settings → Panel material
   now shows a clear difference between glass and opaque, and reduced transparency or more contrast
   still make every pane opaque.
 - **A full-width button wraps its label and a badge is never wider than its row** (#269), so the
@@ -1577,8 +1547,8 @@ reaction or join limit.
   say what they hold, and a 320 px phone no longer scrolls sideways. A long word in a button or a
   label breaks instead of overflowing.
 - **A sent batch folds into one summary line** (#263): once every photo of a batch has arrived, the
-  queue shrinks to a line that says how many were sent, with « Voir mes envois », which scrolls to the
-  guest's list and flashes the new photos there, and « Détails », which brings the rows back. A batch
+  queue shrinks to a line that says how many were sent, with "See my uploads", which scrolls to the
+  guest's list and flashes the new photos there, and "Details", which brings the rows back. A batch
   folds only once every photo has arrived: while one is sending or has failed, every row stays.
 - **The pinned upload pane stands out from the list** (#266): a lit top edge, a shadow cast upward
   and the list fading under it, in light and dark ambiances, so it reads as above the page rather
@@ -1606,7 +1576,7 @@ reaction or join limit.
 - **Every screen goes back to the violet** (#269). An event whose theme names no ambiance (every event
   created before 3.1.0), or the prototype's `darkroom`, reads as `eventslide`. An event saved on
   3.1.0 names `guinguette` explicitly, even if its host never chose it, because the Guinguette was
-  3.1's default: it stays on the Guinguette until its host picks another ambiance in Réglages →
+  3.1's default: it stays on the Guinguette until its host picks another ambiance in Settings →
   Ambiance. The birthday and conference templates start on `eventslide` again.
 - **A host's venue photograph under the default look is heavily veiled** (#269): the coat over it is the
   lowest that keeps the inks legible over a white photograph, 90 % of the surface colour.
@@ -1646,16 +1616,16 @@ before upgrading". There is no migration, no new environment variable and nothin
     Guinguette.
   - The accent hue, font pairing and frame a host chose still apply on top, and a chosen accent wins
     over the ambiance's own. The status colours are the same in every ambiance.
-- **« Sur mesure », an ambiance the host makes** (#254, merged from #259, ADR 0011).
+- **"Custom", an ambiance the host makes** (#254, merged from #259, ADR 0011).
   `ambiance: "custom"` carries a `custom` object, `{ "ground": "light" | "dark", "groundHue": 0 to
 359, "faces": one of the six }`, which is required with `custom` and refused with any other
   ambiance (`400 eventTheme.customRequired`, `eventTheme.customNotAllowed`,
   `eventTheme.customInvalid`). The host chooses on a simulation page,
   `/admin/events/:slug/settings/ambiance`, which draws the real guest upload screen and the real wall
-  with the draft, and stores nothing until "Enregistrer". Every colour is derived from the two angles
+  with the draft, and stores nothing until "Save". Every colour is derived from the two angles
   at fixed lightness and chroma, and a test sweeps every ground hue at both polarities against the
   contrast bars, so a host cannot make a screen unreadable. Any accent hue may be chosen on a
-  « Sur mesure » event: it answers to the contrast bars and not to the distance from the status
+  "Custom" event: it answers to the contrast bars and not to the distance from the status
   colours, which every designed ambiance keeps.
 - **Bundled faces and photographs** (#254): five open-licence (SIL OFL) families as `woff2` files in
   the build, Bricolage Grotesque, Fraunces, Instrument Serif, Playfair Display and Poiret One, with
@@ -1684,28 +1654,27 @@ before upgrading". There is no migration, no new environment variable and nothin
   same `404 venuePhoto.notFound`. An account may upload ten an hour (`429 rate.limited`). It is not
   counted against the event's byte quota. `theme.groundUrl` says where it is.
 - **A way back to the events list from every host event page** (#247): a breadcrumb,
-  "Vos évènements" then the event then the page, on the event page, both moderation screens and the
-  settings page, and a "Vos évènements" entry first in the Compte menu. These pages, and the guest's
+  "Your events" then the event then the page, on the event page, both moderation screens and the
+  settings page, and a "Your events" entry first in the Compte menu. These pages, and the guest's
   welcome after a scan, wear the event's ambiance (#254); the console takes its surfaces and inks, not
   its accent, pairing or frame.
-- **The event page's actions are navigation tiles** (#246): "Ouvrir l'écran" and "Modérer" as two large
-  tiles, "Modération sur téléphone", "Réglages" and "Télécharger l'album" as three compact ones. Same
+- **The event page's actions are navigation tiles** (#246): "Open the screen" and "Moderate" as two large
+  tiles, "Moderation on a phone", "Settings" and "Download the album" as three compact ones. Same
   links, same names.
 - **Each event template previews its theme on the create form** (#245): a decorative miniature in the
   template's accent, typography and corner radius.
 - **A moderator is no longer offered what would be refused** (#251). Each row of `GET /api/events`
   carries the caller's `role` (`owner` or `moderator`), and the console leaves out the lifecycle
-  buttons (go live, close, archive) and the "Réglages" tile for a moderator.
+  buttons (go live, close, archive) and the "Settings" tile for a moderator.
 - **The console's pages lead to each other** (#251): the two moderation consoles link to one another, a
-  failed load offers the events list besides "Réessayer", a clipboard that refuses says so and selects
-  the address, and "Ouvrir l'écran" opens the wall in a tab of its own.
-- **Accounts and the operator console are reachable** (#252): "Sécurité du compte" in the Compte menu, a
-  warning before leaving the recovery codes or a once-only link, "Vos évènements" and "Espace client" in
+  failed load offers the events list besides "Try again", a clipboard that refuses says so and selects
+  the address, and "Open the screen" opens the wall in a tab of its own.
+- **Accounts and the operator console are reachable** (#252): "Account security" in the Compte menu, a
+  warning before leaving the recovery codes or a once-only link, "Your events" and "Client space" in
   the operator console's header, a landing that depends on the account (a moderator of one event opens
   its queue, an operator with nothing else opens `/admin/site`), `/login` while signed in sending the
   visitor on, and Back returning to the previous step of a sign-in.
-- **An expired session is said, not hidden** (#248): a `401 auth.required` raises a banner, "Votre
-  session a expiré", over the page, which stays where it was with its unsaved form.
+- **An expired session is said, not hidden** (#248): a `401 auth.required` raises a banner, "Your session has expired.", over the page, which stays where it was with its unsaved form.
 
 ### Guest
 
@@ -1714,7 +1683,7 @@ before upgrading". There is no migration, no new environment variable and nothin
   upload screen and the guest feed repaint with it: one repaint if it differs, and no extra request.
 - **The installed app reopens on the evening** (#250). The device remembers the last event it joined,
   and `/join` with no code resumes it in the installed app only; a browser tab still opens on an empty
-  code entry. "Ce n'est pas votre soirée ?" forgets it. What is stored is under "Behaviour changes".
+  code entry. "Not your event?" forgets it. What is stored is under "Behaviour changes".
 - **A guest is no longer left at a dead end** (#248, #250): a closed, archived or suspended gallery says
   so instead of offering to retry, an invalid join code says the evening may not be open yet or may be
   over, `/e/:slug` goes to the upload screen, the gallery viewer closes with the Back gesture, `/about`
@@ -1751,15 +1720,15 @@ before upgrading". There is no migration, no new environment variable and nothin
   until the host removes it.
 - **New answers on existing routes, all additive** (#251, #253, #254): `role` on each row of
   `GET /api/events`; `theme` on `GET /api/events/:slug/photos/mine`; `ambiance`, `groundUrl` and, for
-  « Sur mesure », `custom` in every theme the API answers; and `clothesline` among the wall's layouts.
+  "Custom", `custom` in every theme the API answers; and `clothesline` among the wall's layouts.
   A client that rejects unknown fields or values must accept them.
 - **The guest's phone keeps one new entry in `localStorage`** (#250): `eventslide.guest.last`, which
   holds what the session already holds in `sessionStorage` (the event's public settings, the display
   name the guest gave or `null`, the state of the privacy notice) and the time it was written. Never
-  the device token. The next join replaces it, "Ce n'est pas votre soirée ?" or a `401` on the guest's
+  the device token. The next join replaces it, "Not your event?" or a `401` on the guest's
   own read deletes it, and it expires after 36 hours, the guest cookie's life.
 - **Small changes to the web app's addresses and requests** (#247, #248, #251, #252): `/admin/events`
-  redirects to `/admin`, `/e/:slug` to `/e/:slug/upload`, "Ouvrir l'écran" opens a new tab, and the
+  redirects to `/admin`, `/e/:slug` to `/e/:slug/upload`, "Open the screen" opens a new tab, and the
   sign-in page reads `GET /api/auth/me` once, to send a visitor who is signed in on.
 
 ### Release pipeline
@@ -1776,7 +1745,7 @@ before upgrading". There is no migration, no new environment variable and nothin
 
 ### Fixed
 
-- **The guest's upload pane no longer covers "Vos envois"** (#258). The pane at the bottom of the upload
+- **The guest's upload pane no longer covers "Your uploads"** (#258). The pane at the bottom of the upload
   screen (queue, picker, caption, video, send) was `position: sticky` and grew with every photograph:
   on a 375 by 667 phone it was already as tall as the screen with one, so it covered every row and its
   own top could not be reached. It stays pinned only while it fits, and is in the flow when it is too
@@ -1789,11 +1758,10 @@ before upgrading". There is no migration, no new environment variable and nothin
 
 ### Documentation, tests and dependencies
 
-- ADR 0010 (event ambiances, and the Guinguette as the product's own look) and ADR 0011 (« Sur
-  mesure »); `docs/SECURITY.md` section 24 (the venue photograph as an upload surface); `docs/API.md`
+- ADR 0010 (event ambiances, and the Guinguette as the product's own look) and ADR 0011 ("Custom"); `docs/SECURITY.md` section 24 (the venue photograph as an upload surface); `docs/API.md`
   (the venue-photo routes, `theme`, `role`); `docs/DESIGN-SYSTEM.md` (the ambiances, the clothesline,
   the navigation tiles, the icon stroke token) (#245, #246, #254).
-- The ambiances are held to the root's contrast bars: a sweep of every « Sur mesure » ground hue at both
+- The ambiances are held to the root's contrast bars: a sweep of every "Custom" ground hue at both
   polarities in `tokens.contrast.test.ts`, and the text over each bundled photograph in
   `scripts/ambianceGround.test.ts`. The wall's twelve visual baselines were re-rendered together in
   #254. No dependency was added or changed.
@@ -2110,9 +2078,9 @@ Read these before you upgrade, and back up with the version you run now.
   buttons under each photo in "my photos", one tap to react, a second to take it back, and the heart
   reaches the wall live. Reacting to the rest of the room comes with the guest feed.
 - **A guest sees the photographs of the evening and reacts to other people's** (#195): a page,
-  "Les photos de la soirée", at `/e/:slug/photos`, linked from the upload screen. It reads the wall's
+  "Photos from the evening", at `/e/:slug/photos`, linked from the upload screen. It reads the wall's
   own public read (published photographs only, newest first, the wall's window of the newest 200),
-  shows twelve at a time with "Voir plus", and, when the host has reactions on, puts the five reaction
+  shows twelve at a time with "Show more photos", and, when the host has reactions on, puts the five reaction
   buttons under every photograph that is not the guest's own (see the refusal in `### Behaviour
 changes to check before upgrading`). Every reaction still floats a heart on the projector. The
   reaction bar left the upload screen, which a list that grows all evening would push off the phone.
