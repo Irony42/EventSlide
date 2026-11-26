@@ -12,6 +12,8 @@ import { linesOf, questionsInput } from './rsvpExtras'
 import { applyInput, mergeInputs, previewPage } from './rsvpSettings'
 import { recapLines } from './rsvpTexts'
 import { fr } from '../i18n/fr'
+import { SUPPORTED_LOCALES } from '../i18n/locale'
+import { TRANSLATIONS } from '../i18n/translations'
 
 const FORM = {
   ...aGuestRsvpPage().form,
@@ -164,8 +166,27 @@ describe('the confirmation, lot 2', () => {
 
     expect(lines).toContain(fr.rsvp.guest.recapCompanions('Hugo, Inès'))
     expect(lines).toContain(fr.rsvp.guest.recapMeals('Poisson'))
-    expect(lines).toContain(fr.rsvp.guest.recapAnswer('Un chant ?', 'Oh'))
+    expect(lines).toContain('Un chant ? Oh')
     expect(lines.join('')).not.toContain('Voiture')
+  })
+
+  it('puts a colon after a question that has no mark of its own, and none after one that has', () => {
+    const answers = [
+      { questionId: 'q1', label: 'Une chanson pour la piste ?', value: 'September' },
+      { questionId: 'q2', label: 'Allergies :', value: 'Aucune' },
+      { questionId: 'q3', label: 'Votre table', value: 'La 4' },
+      { questionId: 'q4', label: 'On danse !', value: 'Oui' },
+    ]
+    for (const locale of SUPPORTED_LOCALES) {
+      const lines = recapLines(aGuestOwnRsvp({ answers }), FORM, TRANSLATIONS[locale].rsvp.guest)
+      expect(lines).toContain('Une chanson pour la piste ? September')
+      expect(lines).toContain('Allergies : Aucune')
+      expect(lines).toContain('On danse ! Oui')
+      expect(lines).toContain(TRANSLATIONS[locale].rsvp.guest.recapAnswer('Votre table', 'La 4'))
+    }
+    expect(recapLines(aGuestOwnRsvp({ answers }), FORM, fr.rsvp.guest)).toContain(
+      'Votre table : La 4',
+    )
   })
 })
 

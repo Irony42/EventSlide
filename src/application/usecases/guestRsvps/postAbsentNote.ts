@@ -67,8 +67,9 @@ export type PostAbsentNote = (input: PostAbsentNoteInput) => Promise<Result<void
 const signedBy = (
   signature: unknown,
   replyName: string,
+  householdName: string | null,
 ): Result<DisplayName | null, DomainError> => {
-  if (signature === undefined) return ok(absentNoteAuthorName(replyName))
+  if (signature === undefined) return ok(absentNoteAuthorName(replyName, householdName))
   if (typeof signature !== 'string') return err(DomainError.invalid('displayName.invalid'))
   return DisplayName.createOptional(signature)
 }
@@ -96,7 +97,7 @@ export const makePostAbsentNote =
     if (!judged.ok) return judged
     // The signature is judged like a guest's name, before anything is made: the first word of the reply's
     // name unless the guest chose another, or none (an empty one stays anonymous).
-    const author = signedBy(signature, rsvp.name)
+    const author = signedBy(signature, rsvp.name, own.value.household?.name ?? null)
     if (!author.ok) return author
     if (rsvp.absentNoteGuestId !== null) return err(DomainError.conflict('rsvp.absentNoteSent'))
     // A script's note is answered as a real one is, and goes nowhere.

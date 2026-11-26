@@ -93,7 +93,7 @@ test('a household opens its link, answers once for everyone, and changes that on
     await phone.getByRole('button', { name: new RegExp(`${text.less}.*${text.adults}`) }).click()
     await phone.getByRole('button', { name: new RegExp(`${text.more}.*${text.kids}`) }).click()
     await phone.getByRole('button', { name: text.send }).click()
-    await expect(phone.getByRole('heading', { name: text.doneYes('Famille') })).toBeVisible()
+    await expect(phone.getByRole('heading', { name: text.doneYes('Famille Martin') })).toBeVisible()
 
     // --- The host sees one reply, from the household's link, filed under it, with no token in it.
     let replies = await hostReplies(host, app, event.slug)
@@ -109,22 +109,24 @@ test('a household opens its link, answers once for everyone, and changes that on
 
     // --- A reload finds it again, from the device's memory, with no fragment.
     await phone.reload()
-    await expect(phone.getByRole('heading', { name: text.doneYes('Famille') })).toBeVisible()
+    await expect(phone.getByRole('heading', { name: text.doneYes('Famille Martin') })).toBeVisible()
 
     // --- Another device opens the same link: it reads that answer and changes it, never adds one.
     await laptop.goto(`${url}#f=${martin.token}`)
-    await expect(laptop.getByRole('heading', { name: text.doneYes('Famille') })).toBeVisible()
+    await expect(
+      laptop.getByRole('heading', { name: text.doneYes('Famille Martin') }),
+    ).toBeVisible()
     await laptop.getByRole('button', { name: text.edit }).click()
     await laptop.getByRole('button', { name: text.no }).click()
     await laptop.getByRole('button', { name: text.save }).click()
-    await expect(laptop.getByRole('heading', { name: text.doneNo('Famille') })).toBeVisible()
+    await expect(laptop.getByRole('heading', { name: text.doneNo('Famille Martin') })).toBeVisible()
     replies = await hostReplies(host, app, event.slug)
     expect(replies).toHaveLength(1)
     expect(replies[0]).toMatchObject({ answer: 'no', source: 'household', householdId: martin.id })
 
     // --- Erasing it with the link frees the household to answer afresh.
     await phone.reload()
-    await expect(phone.getByRole('heading', { name: text.doneNo('Famille') })).toBeVisible()
+    await expect(phone.getByRole('heading', { name: text.doneNo('Famille Martin') })).toBeVisible()
     await phone.getByRole('button', { name: text.delete }).click()
     await phone.getByRole('button', { name: text.deleteYes }).click()
     await expect(phone.getByText(text.deleted)).toBeVisible()
@@ -190,10 +192,10 @@ test('on a phone a household opens its link, answers, and finds the answer again
     expect(new URL(guest.url()).hash).toBe('')
     await guest.getByRole('button', { name: text.no }).click()
     await guest.getByRole('button', { name: text.send }).click()
-    await expect(guest.getByRole('heading', { name: text.doneNo('Les') })).toBeVisible()
+    await expect(guest.getByRole('heading', { name: text.doneNo('Les Durand') })).toBeVisible()
 
     await guest.reload()
-    await expect(guest.getByRole('heading', { name: text.doneNo('Les') })).toBeVisible()
+    await expect(guest.getByRole('heading', { name: text.doneNo('Les Durand') })).toBeVisible()
     await expect(guest.getByRole('button', { name: text.edit })).toBeVisible()
 
     const replies = await hostReplies(host, app, event.slug)

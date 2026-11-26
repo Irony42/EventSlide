@@ -3,6 +3,7 @@ import type { EventId, GuestHouseholdId } from '../shared/ids'
 import { characterCount, toSingleLine } from '../shared/plainText'
 import { err, ok, type Result } from '../shared/result'
 import type { HouseholdToken } from './householdToken'
+import type { RsvpInput } from './rsvp'
 import type { RsvpForm } from './rsvpForm'
 import { momentsOfHousehold } from './rsvpFormMoments'
 
@@ -189,3 +190,27 @@ export const formForHousehold = (form: RsvpForm, household: GuestHousehold): Rsv
   partySize: { enabled: true, max: household.places },
   moments: momentsOfHousehold(form.moments, household.moments),
 })
+
+/** A name as two are compared: composed, trimmed, its runs of spaces one space, without case. */
+const fold = (name: string): string =>
+  name.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase()
+
+/**
+ * Whether a reply is named as its household is: "Famille Martin" on the Martins' link, as the page
+ * fills it in. **Such a name names no person**: its first word is "Famille", not a first name. So it
+ * is never a first name to greet with, to sign with or to publish (spec 30, lot 3). A guest who
+ * replaces it with their own ("Paul Martin") is a person again. `web/src/lib/rsvp/rsvpTexts.ts`
+ * says the same for the page; this is the one the server holds to.
+ */
+export const namesItsHousehold = (name: string, householdName: string): boolean =>
+  fold(name) === fold(householdName)
+
+/**
+ * A household's reply as it is stored: **one named as its household is never shown** among "who
+ * comes", whatever the page sent. The box promises a first name, and a household's name is a
+ * surname. Any other reply is unchanged.
+ */
+export const householdReply = (reply: RsvpInput, household: GuestHousehold | null): RsvpInput =>
+  household !== null && reply.extras.showName && namesItsHousehold(reply.name, household.name)
+    ? { ...reply, extras: { ...reply.extras, showName: false } }
+    : reply

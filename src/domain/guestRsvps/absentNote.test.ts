@@ -28,6 +28,14 @@ describe('absentNoteAuthorName', () => {
   })
 
   it('signs nobody when the word is longer than the display name allows', () => {
-    expect(absentNoteAuthorName('A'.repeat(55), 41)).toBeNull()
+    expect(absentNoteAuthorName('A'.repeat(55), null, 41)).toBeNull()
+  })
+
+  it('signs a reply named as its household with the whole name, a person’s name with its first word', () => {
+    expect(absentNoteAuthorName('Famille Martin', 'Famille Martin')?.value).toBe('Famille Martin')
+    expect(absentNoteAuthorName(' famille  martin ', 'Famille Martin')?.value).toBe(
+      'famille martin',
+    )
+    expect(absentNoteAuthorName('Paul Martin', 'Famille Martin')?.value).toBe('Paul')
   })
 })

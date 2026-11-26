@@ -16,8 +16,16 @@ import {
   readJoinNamePrefill,
   writeJoinNamePrefill,
 } from './rsvpDevice'
-import { EMPTY_DRAFT, bump, draftOf, inputOf, maxPeople } from './rsvpDraft'
-import { deadlineLabel, firstNameOf, proofLine, recapLine, recapLines } from './rsvpTexts'
+import { EMPTY_DRAFT, bump, draftOf, inputOf, maxPeople, personName } from './rsvpDraft'
+import {
+  deadlineLabel,
+  firstNameOf,
+  greetingNameOf,
+  namesItsHousehold,
+  proofLine,
+  recapLine,
+  recapLines,
+} from './rsvpTexts'
 
 const FORM = aGuestRsvpPage().form
 const TOKEN = '7QX0M4TZ2KD9WB3H'
@@ -241,6 +249,21 @@ describe('the words of a reply', () => {
   it('greets by the first word of the name', () => {
     expect(firstNameOf('  Léa   Martin ')).toBe('Léa')
     expect(firstNameOf('')).toBe('')
+  })
+
+  it('takes no first name from a reply named as its household: it greets by the whole name', () => {
+    expect(namesItsHousehold(' famille  MARTIN ', 'Famille Martin')).toBe(true)
+    expect(namesItsHousehold('Famille Martin', null)).toBe(false)
+    expect(namesItsHousehold('Paul Martin', 'Famille Martin')).toBe(false)
+    expect(greetingNameOf('Famille  Martin', 'Famille Martin')).toBe('Famille Martin')
+    expect(greetingNameOf('Paul Martin', 'Famille Martin')).toBe('Paul')
+    expect(greetingNameOf('Famille Martin', null)).toBe('Famille')
+    const household = { ...EMPTY_DRAFT, name: 'Famille Martin', companions: ['Zoé'] }
+    expect(personName(household, 0, 'Personne 1', 'Famille Martin')).toBe('Personne 1')
+    expect(personName(household, 1, 'Personne 2', 'Famille Martin')).toBe('Zoé')
+    expect(personName({ ...household, name: 'Paul Martin' }, 0, 'P1', 'Famille Martin')).toBe(
+      'Paul',
+    )
   })
 
   it('writes a deadline day in the invitation’s language, whatever zone the reader is in', () => {

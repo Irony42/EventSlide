@@ -4731,3 +4731,67 @@ describe('migration 039: the word of those who cannot come (spec 30, lot 4)', ()
     closeDatabase(db)
   })
 })
+
+describe('migration 040: a household-named reply is never shown (spec 30, lot 3)', () => {
+  const AT = '2026-11-25T10:00:00.000Z'
+  const LATER = '2026-11-25T12:00:00.000Z'
+
+  const seed = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ('u', 'u@example.test', 'x', ?)`,
+    ).run(AT)
+    for (const event of ['e-one', 'e-two']) {
+      db.prepare(
+        `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+         VALUES (?, 'u', ?, ?, ?, 'live', '{}', 1, ?)`,
+      ).run(event, event, event, event, AT)
+    }
+    const household = (id: string, event: string, token: string, name: string): void => {
+      db.prepare(
+        `INSERT INTO guest_households (id, event_id, token, name, places, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 4, ?, ?)`,
+      ).run(id, event, token, name, AT, AT)
+    }
+    household('h-martin', 'e-one', 'TOKEN000000000AA', 'Famille Martin')
+    household('h-durand', 'e-one', 'TOKEN000000000BB', 'Les Durand')
+    household('h-other', 'e-two', 'TOKEN000000000CC', 'Famille Petit')
+    const reply = (id: string, event: string, household: string | null, name: string): void => {
+      db.prepare(
+        `INSERT INTO guest_rsvps (id, event_id, household_id, name, answer, adults, kids, details,
+                                  source, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'yes', 2, 0, '{"showName":true,"companions":["Zoé"]}', 'household', ?, ?)`,
+      ).run(id, event, household, name, AT, LATER)
+    }
+    reply('r-martin', 'e-one', 'h-martin', ' famille martin ')
+    reply('r-durand', 'e-one', 'h-durand', 'Paul Durand')
+    reply('r-open', 'e-one', null, 'Famille Martin')
+    // Filed under another event's household: the event scope keeps it as it is.
+    reply('r-cross', 'e-one', 'h-other', 'Famille Petit')
+  }
+
+  it('withdraws the tick of a reply named as its household, and only of it', () => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 40),
+    )
+    seed(db)
+
+    migrate(db, migrations)
+
+    const rows = db
+      .prepare(
+        `SELECT id, json_extract(details, '$.showName') AS shown,
+                json_extract(details, '$.companions[0]') AS companion, updated_at
+           FROM guest_rsvps ORDER BY id`,
+      )
+      .all()
+    expect(rows).toEqual([
+      { id: 'r-cross', shown: 1, companion: 'Zoé', updated_at: LATER },
+      { id: 'r-durand', shown: 1, companion: 'Zoé', updated_at: LATER },
+      { id: 'r-martin', shown: 0, companion: 'Zoé', updated_at: LATER },
+      { id: 'r-open', shown: 1, companion: 'Zoé', updated_at: LATER },
+    ])
+    closeDatabase(db)
+  })
+})

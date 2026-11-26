@@ -1,7 +1,8 @@
 import { Badge } from '../../../design-system/components/Badge'
+import { cx } from '../../../design-system/classNames'
 import type { RsvpDto, RsvpFormDto } from '../../../lib/api/dto'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
-import { answerTone, peopleCell } from '../../../lib/rsvp/rsvpList'
+import { answerTone, mealsCell, peopleCell } from '../../../lib/rsvp/rsvpList'
 import { receivedAt } from './receivedAt'
 import styles from './RsvpTable.module.css'
 
@@ -67,7 +68,7 @@ export function RsvpTable({ rows, form, onOpen }: RsvpTableProps) {
               </th>
             ) : null}
             {form.questions.map((question) => (
-              <th key={question.id} scope="col" role="columnheader">
+              <th key={question.id} scope="col" role="columnheader" className={styles['asked']}>
                 {question.label}
               </th>
             ))}
@@ -91,7 +92,7 @@ export function RsvpTable({ rows, form, onOpen }: RsvpTableProps) {
                 <Badge tone={answerTone(reply.answer)}>{answerName[reply.answer]}</Badge>
               </td>
               {people ? (
-                <td role="cell" data-label={text.colPeople}>
+                <td role="cell" data-label={text.colPeople} className={styles['people']}>
                   {peopleCell(reply, text)}
                 </td>
               ) : null}
@@ -113,7 +114,7 @@ export function RsvpTable({ rows, form, onOpen }: RsvpTableProps) {
               ) : null}
               {form.meals.enabled ? (
                 <td role="cell" data-label={text.colMeals} className={styles['free']}>
-                  {reply.details.meals.filter((meal) => meal !== '').join(', ') || text.none}
+                  {mealsCell(reply.details.meals, text)}
                 </td>
               ) : null}
               {form.diet ? (
@@ -132,7 +133,11 @@ export function RsvpTable({ rows, form, onOpen }: RsvpTableProps) {
                     ?.value || text.none}
                 </td>
               ))}
-              <td role="cell" data-label={text.colMessage} className={styles['free']}>
+              <td
+                role="cell"
+                data-label={text.colMessage}
+                className={cx(styles['free'], styles['message'])}
+              >
                 {reply.message ?? text.none}
               </td>
               <td role="cell" data-label={text.colReceived} className={styles['when']}>

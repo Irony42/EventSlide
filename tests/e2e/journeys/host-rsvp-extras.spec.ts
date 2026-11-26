@@ -77,6 +77,8 @@ test('the host asks for companions, menus and a question; a guest answers them; 
     await expect(phone.getByRole('heading', { name: guest.doneYes('Léa') })).toBeVisible()
     await expect(phone.getByText(/Hugo/).first()).toBeVisible()
     await expect(phone.getByText(/Poisson, Végé/)).toBeVisible()
+    // The question ends in its own "?": no colon after it in the confirmation.
+    await expect(phone.getByText('Un chant ? Le Temps des cerises', { exact: true })).toBeVisible()
   } finally {
     await context.close()
   }

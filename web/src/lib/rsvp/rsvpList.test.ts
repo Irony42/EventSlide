@@ -9,6 +9,7 @@ import {
   countsOf,
   latestLine,
   latestOf,
+  mealsCell,
   peopleCell,
   peopleDetail,
   peopleOf,
@@ -84,6 +85,15 @@ describe('the people a reply brings', () => {
     expect(peopleCell(lea, text)).toBe('2 + 1 enf.')
     expect(peopleCell(tom, text)).toBe('1')
     expect(peopleCell(ana, text)).toBe(text.none)
+  })
+
+  it('says the menus column once per menu, with how many chose it, in the order they came', () => {
+    expect(plain(mealsCell(['Volaille', 'Végétarien', 'Volaille', '', 'Volaille'], text))).toBe(
+      'Volaille × 3, Végétarien',
+    )
+    expect(mealsCell(['Poisson'], text)).toBe('Poisson')
+    expect(mealsCell(['', ''], text)).toBe(text.none)
+    expect(mealsCell([], text)).toBe(text.none)
   })
 
   it('says the detail: adults and children in their plural', () => {

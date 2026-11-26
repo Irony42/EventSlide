@@ -3584,6 +3584,7 @@ export const es: UiText = {
       recapCompanions: (names: string) => `Contigo: ${names}`,
       recapMeals: (meals: string) => `Menús: ${meals}`,
       recapAnswer: (label: string, value: string) => `${label}: ${value}`,
+      recapAsked: (question: string, value: string) => `${question} ${value}`,
       momentsLabel: '¿A qué momentos vendrás?',
       momentsHint: 'al menos uno',
       recapMoments: (moments: string) => `Momentos: ${moments}`,
@@ -3814,6 +3815,7 @@ export const es: UiText = {
       answerWaitlist: 'Lista de espera',
       none: '—',
       peopleKids: (a: number, k: number) => `${a} + ${k} niños`,
+      mealCount: (meal: string, count: number) => `${meal} × ${count}`,
       showMore: (n: number) => `Mostrar las ${n} restantes`,
       rowsOf: (s: number, t: number) => `${s} de ${t}.`,
       rowsAll: (n: number, w: string) =>

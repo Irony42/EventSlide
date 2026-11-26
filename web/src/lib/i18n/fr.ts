@@ -4269,6 +4269,7 @@ export const fr = {
       recapCompanions: (names: string) => `Avec vous\u00a0: ${names}`,
       recapMeals: (meals: string) => `Menus\u00a0: ${meals}`,
       recapAnswer: (label: string, value: string) => `${label}\u00a0: ${value}`,
+      recapAsked: (question: string, value: string) => `${question} ${value}`,
       momentsLabel: 'À quels moments serez-vous là\u00a0?',
       momentsHint: 'au moins un',
       recapMoments: (moments: string) => `Moments\u00a0: ${moments}`,
@@ -4503,6 +4504,7 @@ export const fr = {
       answerWaitlist: 'Liste d’attente',
       none: '—',
       peopleKids: (a: number, k: number) => `${a} + ${k} enf.`,
+      mealCount: (meal: string, count: number) => `${meal}\u00a0×\u00a0${count}`,
       showMore: (n: number) => `Afficher les ${n} autres`,
       rowsOf: (s: number, t: number) => `${s} sur ${t}.`,
       rowsAll: (n: number, w: string) =>

@@ -4,9 +4,12 @@ import {
   formForHousehold,
   GuestHousehold,
   HOUSEHOLD_NAME_MAX_CHARS,
+  householdReply,
+  namesItsHousehold,
   parseHouseholdInput,
 } from './household'
 import { HouseholdToken } from './householdToken'
+import type { RsvpInput } from './rsvp'
 import { DEFAULT_RSVP_FORM } from './rsvpForm'
 
 const AT = new Date('2026-11-23T10:00:00.000Z')
@@ -144,5 +147,42 @@ describe('a household and its moments', () => {
 
     expect(invited.withInput({ name: 'B', places: 3 }, LATER).moments).toEqual([DINNER.id])
     expect(invited.withInput({ name: 'B', places: 3 }, LATER, null).moments).toBeNull()
+  })
+})
+
+describe('a reply named as its household', () => {
+  const shown = (name: string): RsvpInput => ({
+    name,
+    answer: 'yes',
+    adults: 2,
+    kids: 0,
+    diet: null,
+    message: null,
+    extras: { companions: [], meals: [], answers: [], showName: true, moments: [] },
+  })
+
+  it('names the household, not a person, whatever its case or spaces', () => {
+    expect(namesItsHousehold('Famille Martin', 'Famille Martin')).toBe(true)
+    expect(namesItsHousehold('  famille   MARTIN ', 'Famille Martin')).toBe(true)
+    expect(namesItsHousehold('Paul Martin', 'Famille Martin')).toBe(false)
+    expect(namesItsHousehold('Famille', 'Famille Martin')).toBe(false)
+  })
+
+  it('is never shown among who comes, even when the page asked for it', () => {
+    expect(householdReply(shown('Famille Martin'), aHousehold()).extras.showName).toBe(false)
+    expect(householdReply(shown('famille martin'), aHousehold()).extras.showName).toBe(false)
+  })
+
+  it('leaves a person’s name shown, on a household’s link or without one', () => {
+    expect(householdReply(shown('Paul Martin'), aHousehold()).extras.showName).toBe(true)
+    expect(householdReply(shown('Famille Martin'), null).extras.showName).toBe(true)
+  })
+
+  it('changes nothing else of the reply', () => {
+    const reply = { ...shown('Famille Martin'), diet: 'sans gluten', adults: 3 }
+    expect(householdReply(reply, aHousehold())).toEqual({
+      ...reply,
+      extras: { ...reply.extras, showName: false },
+    })
   })
 })

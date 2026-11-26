@@ -166,6 +166,19 @@ export const peopleCell = (reply: RsvpDto, text: ListText): string =>
       ? text.peopleKids(reply.adults, reply.kids)
       : String(reply.adults)
 
+/**
+ * The menus column: each menu once, with how many chose it ("Volaille × 3, Végétarien"), in the
+ * order they first appear. A household of four is one line, not four; who eats what is the detail's.
+ */
+export const mealsCell = (meals: readonly string[], text: ListText): string => {
+  const counts = new Map<string, number>()
+  for (const meal of meals) if (meal !== '') counts.set(meal, (counts.get(meal) ?? 0) + 1)
+  if (counts.size === 0) return text.none
+  return [...counts]
+    .map(([meal, count]) => (count === 1 ? meal : text.mealCount(meal, count)))
+    .join(', ')
+}
+
 /** The detail's people line: "2 adultes, 1 enfant". */
 export const peopleDetail = (reply: RsvpDto, text: ListText): string =>
   reply.kids > 0

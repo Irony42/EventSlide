@@ -1,3 +1,4 @@
+import type { GuestHousehold } from '../../../domain/guestRsvps/household'
 import type { GuestRsvp } from '../../../domain/guestRsvps/rsvp'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestHouseholdId, GuestRsvpId, UserId } from '../../../domain/shared/ids'
@@ -5,7 +6,7 @@ import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventBus } from '../../ports/eventBus'
 import type { GuestHouseholdRepository } from '../../ports/guestHouseholdRepository'
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
-import { householdNotFound } from './householdAccess'
+import { householdNotFound, unshowHouseholdNamed } from './householdAccess'
 import { announceRsvpsChanged, openRsvps, type RsvpAccessDeps } from './rsvpAccess'
 
 /**
@@ -35,7 +36,7 @@ export interface AttachRsvpInput {
 
 export interface AttachRsvpDeps extends RsvpAccessDeps {
   readonly households: Pick<GuestHouseholdRepository, 'findById'>
-  readonly rsvps: Pick<GuestRsvpRepository, 'setHousehold' | 'findById'>
+  readonly rsvps: Pick<GuestRsvpRepository, 'setHousehold' | 'findById' | 'update'>
   readonly bus: EventBus
 }
 
@@ -48,8 +49,9 @@ export const makeAttachRsvpToHousehold =
   async ({ eventId, actorId, rsvpId, householdId }) => {
     const opened = await openRsvps(deps, eventId, actorId, 'write')
     if (!opened.ok) return opened
+    let household: GuestHousehold | null = null
     if (householdId !== null) {
-      const household = await deps.households.findById(eventId, householdId)
+      household = await deps.households.findById(eventId, householdId)
       if (household === null) return err(householdNotFound())
       const reply = await deps.rsvps.findById(eventId, rsvpId)
       if (reply === null) return err(DomainError.notFound('rsvp.notFound'))
@@ -65,7 +67,10 @@ export const makeAttachRsvpToHousehold =
     const outcome = await deps.rsvps.setHousehold(eventId, rsvpId, householdId)
     if (outcome === 'gone') return err(DomainError.notFound('rsvp.notFound'))
     if (outcome === 'taken') return err(DomainError.conflict('household.alreadyAnswered'))
-    const rsvp = await deps.rsvps.findById(eventId, rsvpId)
+    const filed = await deps.rsvps.findById(eventId, rsvpId)
+    // Filed under a household whose name it bears ("Famille Martin"): it names no person, never shown.
+    const rsvp =
+      household === null ? filed : await unshowHouseholdNamed(deps.rsvps, filed, household)
     // Deleted between the write and the read: the filing is moot, the reply is gone.
     if (rsvp === null) return err(DomainError.notFound('rsvp.notFound'))
     announceRsvpsChanged(deps.bus, eventId)

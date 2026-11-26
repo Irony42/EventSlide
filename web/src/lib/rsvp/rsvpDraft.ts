@@ -1,6 +1,6 @@
 import type { GuestOwnRsvpDto, GuestRsvpPageDto, RsvpDto } from '../api/dto'
 import type { GuestRsvpInput } from '../api/client/invite'
-import { firstNameOf } from './rsvpTexts'
+import { personalFirstNameOf } from './rsvpTexts'
 
 /**
  * The guest's form as data (spec 30), with no React in it: what it starts from, how it is bounded
@@ -186,9 +186,19 @@ export const inputOf = (
   }
 }
 
-/** The name of person `index` (0 is the guest) for a menu's label: first name, or "Person n". */
-export const personName = (draft: RsvpDraft, index: number, fallback: string): string =>
-  (index === 0 ? firstNameOf(draft.name) : draft.companions[index - 1]?.trim()) || fallback
+/**
+ * The name of person `index` (0 is the guest) for a menu's label: first name, or "Person n". A reply
+ * named as its household (`householdName`) has no first name: its first person is "Person 1".
+ */
+export const personName = (
+  draft: RsvpDraft,
+  index: number,
+  fallback: string,
+  householdName: string | null = null,
+): string =>
+  (index === 0
+    ? personalFirstNameOf(draft.name, householdName)
+    : draft.companions[index - 1]?.trim()) || fallback
 
 /** How many people the draft brings now (a `no` brings nobody). */
 export const peopleOfDraft = (draft: RsvpDraft, form: AskedForm): number =>

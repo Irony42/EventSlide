@@ -3501,6 +3501,7 @@ export const en: UiText = {
       recapCompanions: (names: string) => `With you: ${names}`,
       recapMeals: (meals: string) => `Meals: ${meals}`,
       recapAnswer: (label: string, value: string) => `${label}: ${value}`,
+      recapAsked: (question: string, value: string) => `${question} ${value}`,
       momentsLabel: 'Which moments will you be there for?',
       momentsHint: 'at least one',
       recapMoments: (moments: string) => `Moments: ${moments}`,
@@ -3730,6 +3731,7 @@ export const en: UiText = {
       answerWaitlist: 'Waiting list',
       none: '—',
       peopleKids: (a: number, k: number) => `${a} + ${k} kids`,
+      mealCount: (meal: string, count: number) => `${meal} × ${count}`,
       showMore: (n: number) => `Show the ${n} others`,
       rowsOf: (s: number, t: number) => `${s} of ${t}.`,
       rowsAll: (n: number, w: string) =>

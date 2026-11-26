@@ -1,4 +1,4 @@
-import { formForHousehold } from '../../../domain/guestRsvps/household'
+import { formForHousehold, householdReply } from '../../../domain/guestRsvps/household'
 import {
   GuestRsvp,
   parseRsvpInput,
@@ -116,19 +116,23 @@ export const makeSubmitRsvp =
     // A household has one reply: when it already answered, this is a change of that reply, which
     // keeps what the form no longer asks (as a guest's own change does).
     const existing = kept === null ? null : await deps.rsvps.findByHousehold(event.id, kept.id)
+    // A reply named as its household names no person: it is never shown among "who comes".
     const rsvp =
       existing === null
-        ? build(judged.value)
+        ? build(householdReply(judged.value, kept))
         : existing.withReply(
-            {
-              ...judged.value,
-              extras: retainExtras(
-                form,
-                existing.details,
-                judged.value.extras,
-                judged.value.answer,
-              ),
-            },
+            householdReply(
+              {
+                ...judged.value,
+                extras: retainExtras(
+                  form,
+                  existing.details,
+                  judged.value.extras,
+                  judged.value.answer,
+                ),
+              },
+              kept,
+            ),
             now,
           )
 

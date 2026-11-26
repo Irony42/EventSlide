@@ -68,12 +68,31 @@
   font-weight: 650;
 }
 
+/* Two columns, each value wrapping inside its own: a long menu or diet never falls under the name,
+   where it read as a heading of the lines below. A figure keeps its width and sits at the end. */
 .list div {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-3);
-  overflow-wrap: anywhere;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-3);
+  overflow-wrap: break-word;
+}
+
+.list div > * {
+  min-inline-size: 0;
+}
+
+.list dd {
+  text-align: end;
+}
+
+/* A diet is a sentence, not a figure: it gets the wider share and reads from its start. */
+.diets div {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+}
+
+.diets dd {
+  text-align: start;
 }
 
 .actions {
