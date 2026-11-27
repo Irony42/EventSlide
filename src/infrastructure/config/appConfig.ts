@@ -1,5 +1,6 @@
 import type { OperatorResetLinks } from '../../domain/clients/operatorGuard'
 import type { TermsOfUse } from '../../domain/legal/termsOfUse'
+import type { SignupMode } from '../../domain/signups/signupMode'
 import type { SmtpSettings } from '../mail/smtpEndpoint'
 import type { RawConfig } from './schema'
 
@@ -351,6 +352,21 @@ export interface AppConfig {
    */
   readonly mail: {
     readonly smtp: SmtpSettings | null
+  }
+
+  /**
+   * Self-service signup (spec 31, ADR 0018). **Parsed and checked at boot, used by nothing yet**
+   * (the use cases and routes arrive in the next pull requests). `mode` is `off` on every box that
+   * never set `SIGNUP`.
+   */
+  readonly signup: {
+    readonly mode: SignupMode
+    /** `SIGNUP_MAX_PER_DAY`: confirmation mails the whole box sends in a day. */
+    readonly maxPerDay: number
+    /** `SIGNUP_RATE_LIMIT_PER_HOUR`: signup requests per IP per hour. */
+    readonly rateLimitPerHour: number
+    /** `SIGNUP_NOTIFY_EMAIL`: where the operator is told, or `null`. */
+    readonly notifyEmail: string | null
   }
 
   /**

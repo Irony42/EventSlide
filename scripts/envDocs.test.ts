@@ -97,3 +97,22 @@ describe('.env.example', () => {
     expect(activeAssignments.some((line) => line.startsWith('NODE_ENV='))).toBe(false)
   })
 })
+
+describe('.env.example, signup (spec 31)', () => {
+  const example = readFileSync(ENV_EXAMPLE_PATH, 'utf8')
+
+  it.each(['SIGNUP', 'SIGNUP_MAX_PER_DAY', 'SIGNUP_RATE_LIMIT_PER_HOUR', 'SIGNUP_NOTIFY_EMAIL'])(
+    'shows %s as a commented line, never active: a copied file must not switch the form on',
+    (name) => {
+      expect(example).toMatch(new RegExp(`^# ${name}=`, 'm'))
+      expect(example).not.toMatch(new RegExp(`^${name}=`, 'm'))
+    },
+  )
+
+  it('says the three words SIGNUP takes and what review and open need', () => {
+    for (const word of ['off', 'review', 'open']) {
+      expect(example).toMatch(new RegExp(`^# {3}${word} {2,}`, 'm'))
+    }
+    expect(example).toContain('SITE_ADMIN=on')
+  })
+})
