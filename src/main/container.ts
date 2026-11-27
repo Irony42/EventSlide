@@ -37,6 +37,7 @@ import { SqliteTourLedger } from '../infrastructure/db/sqliteTourLedger'
 import { createAesGcmMfaVault } from '../infrastructure/crypto/aesGcmMfaVault'
 import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
 import { SqliteInvitationAcceptance } from '../infrastructure/db/sqliteInvitationAcceptance'
+import { SqliteSignupRepository } from '../infrastructure/db/sqliteSignupRepository'
 import { SqliteAuditLog } from '../infrastructure/db/sqliteAuditLog'
 import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
@@ -590,6 +591,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // One counter for the box, so every request of a sign-in meets the same number.
     signInAttempts: createInMemorySignInAttempts({ clock: systemClock }),
     invitationAcceptance: new SqliteInvitationAcceptance(db),
+    signups: new SqliteSignupRepository(db),
     // HKDF-derived from the session secret under its own label — see the adapter for why
     // that parent, and why not a new variable a running installation would lack.
     gallerySigner: createHmacGallerySigner({ rootSecret: config.secrets.session }),
@@ -630,6 +632,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       freeDiskBytes,
     },
     operatorName: config.operator.name,
+    operatorContactEmail: config.operator.contactEmail,
     termsOfUse: config.termsOfUse,
     mfaIssuer: config.operator.name ?? 'EventSlide',
     voice: {

@@ -11,6 +11,7 @@ import {
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireOperator, requireSecondFactor, requireStepUp } from '../middleware/authz'
 import {
+  invitationIssueLimiter,
   SITE_LOOKUPS_PER_ACCOUNT_PER_MINUTE,
   SITE_LOOKUPS_PER_ADDRESS_PER_MINUTE,
   siteLookupAccountLimiter,
@@ -28,6 +29,7 @@ import {
   toSiteClientPageDto,
   toSiteEventPageDto,
 } from '../presenters/siteOverviewPresenter'
+import { toSiteSignupPageDto } from '../presenters/signupOperatorPresenter'
 import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   toSiteEventLookupDto,
@@ -37,6 +39,7 @@ import {
 } from '../presenters/takedownPresenter'
 import {
   accountIdParams,
+  approveSignupBody,
   type CeilingsBody,
   clientIdParams,
   eventIdParams,
@@ -47,6 +50,7 @@ import {
   guestbookEntryIdParams,
   photoIdParams,
   provisionClientBody,
+  refuseSignupBody,
   siteEventLookupQuery,
   renameClientBody,
   setCeilingsBody,
@@ -54,6 +58,8 @@ import {
   siteAuditQuery,
   siteClientEventsQuery,
   siteClientsQuery,
+  signupIdParams,
+  siteSignupsQuery,
 } from '../schemas/siteSchemas'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
@@ -134,6 +140,9 @@ export interface SiteRouteDeps extends Pick<RouteDeps, 'deps'> {
     | 'deleteAccount'
     | 'inviteToClientAsOperator'
     | 'issuePasswordResetForAccount'
+    | 'listSignupsForOperator'
+    | 'approveSignup'
+    | 'refuseSignup'
   >
 }
 
@@ -159,6 +168,7 @@ const ceilingsPatchOf = (body: CeilingsBody): ClientCeilingsInput => ({
 
 export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
   const router = Router()
+  const inviteLimiter = invitationIssueLimiter(deps.config.rateLimits.invitationsPerHour)
 
   // First, and for every method and every path under the mount point. Nothing may be
   // registered above this line.
@@ -249,6 +259,27 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
 
       res.setHeader('Cache-Control', 'no-store')
       sendResult(res, result, (response, page) => sendJson(response, toSiteAuditPageDto(page)))
+    }),
+  )
+
+  /**
+   * The signup requests, one state at a time (spec 31): the confirmed ones only, newest first, decided ones
+   * over the last 30 days, with `pendingCount` for the console's badge and an opaque `next` cursor.
+   */
+  router.get(
+    '/signups',
+    siteLookupAccountLimiter(SITE_LOOKUPS_PER_ACCOUNT_PER_MINUTE),
+    asyncHandler(async (req, res) => {
+      const query = siteSignupsQuery.parse(req.query)
+
+      const result = await usecases.listSignupsForOperator({
+        status: query.status,
+        ...(query.limit === undefined ? {} : { limit: query.limit }),
+        ...(query.before === undefined ? {} : { before: query.before }),
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, page) => sendJson(response, toSiteSignupPageDto(page)))
     }),
   )
 
@@ -758,6 +789,52 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
       const result = await usecases.deleteAccount({
         userId: asUserId(params.userId),
         actor: { kind: 'operator', userId: operator },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /**
+   * Approves a confirmed signup request (spec 31): opens the client and invites its owner, as `POST
+   * /api/site/clients` does, and answers the same body. `409 signup.notPending` when another decision
+   * got there first, `404 signup.notFound` for an id nobody holds.
+   */
+  router.post(
+    '/signups/:signupId/approve',
+    requireStepUp(deps),
+    inviteLimiter,
+    asyncHandler(async (req, res) => {
+      const operator = userOf(req).userId
+      const params = signupIdParams.parse(req.params)
+      const body = approveSignupBody.parse(req.body)
+
+      const result = await usecases.approveSignup({
+        id: params.signupId,
+        operator,
+        ...(body.ceilings === undefined ? {} : { ceilings: ceilingsPatchOf(body.ceilings) }),
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, provisioned) =>
+        sendJson(response, toProvisionedClientDto(provisioned), 201),
+      )
+    }),
+  )
+
+  /** Refuses a confirmed request, with no reason; `notify` sends the person a neutral mail. */
+  router.post(
+    '/signups/:signupId/refuse',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const operator = userOf(req).userId
+      const params = signupIdParams.parse(req.params)
+      const body = refuseSignupBody.parse(req.body)
+
+      const result = await usecases.refuseSignup({
+        id: params.signupId,
+        operator,
+        notify: body.notify,
       })
 
       sendResultNoContent(res, result)

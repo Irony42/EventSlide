@@ -302,6 +302,16 @@ const OPERATOR_ROUTES: Readonly<Record<string, string>> = {
   'post /api/site/clients':
     'opens a client and invites its owner (`provisionClientOwner`): writes the clients table, ' +
     'one account token and two audit lines, and reads no event',
+  'get /api/site/signups':
+    'the confirmed signup requests of one state, newest first (`listSignupsForOperator`, spec 31): what a stranger ' +
+    'typed in the form (an address, the space’s name, a note) and whether the address already has an account, never ' +
+    'an event, a photograph or a guest; an unconfirmed request is never listed',
+  'post /api/site/signups/:signupId/approve':
+    'opens the client a signup asked for and invites its owner (`approveSignup`, spec 31): the signup_requests ' +
+    'and clients tables, one account token and three audit lines, and reads no event',
+  'post /api/site/signups/:signupId/refuse':
+    'refuses a signup request without a reason (`refuseSignup`): one row of signup_requests, one audit line and ' +
+    'at most one neutral mail; it reads no event',
   'patch /api/site/clients/:clientId':
     'renames a client (`renameClient`): one column of the clients table and one audit line',
   'put /api/site/clients/:clientId/ceilings':
@@ -535,6 +545,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   announcementId: A_PHOTO,
   bindingId: A_PHOTO,
   entryId: A_PHOTO,
+  signupId: A_PHOTO,
   rsvpId: A_PHOTO,
   householdId: A_PHOTO,
   variant: 'display',

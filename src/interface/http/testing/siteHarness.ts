@@ -21,6 +21,9 @@ import { makeListClientAudit } from '../../../application/usecases/clients/listC
 import { makeListPendingInvitations } from '../../../application/usecases/clients/listPendingInvitations'
 import { makeInviteToClientAsOperator } from '../../../application/usecases/clients/inviteToClientAsOperator'
 import { makeProvisionClientOwner } from '../../../application/usecases/clients/provisionClientOwner'
+import { makeApproveSignup } from '../../../application/usecases/signups/approveSignup'
+import { makeListSignupsForOperator } from '../../../application/usecases/signups/listSignupsForOperator'
+import { makeRefuseSignup } from '../../../application/usecases/signups/refuseSignup'
 import { makeRenameClient } from '../../../application/usecases/clients/renameClient'
 import { makeResumeClient } from '../../../application/usecases/clients/resumeClient'
 import { makeDisableAccount } from '../../../application/usecases/auth/disableAccount'
@@ -65,6 +68,7 @@ import { SqliteMembershipRepository } from '../../../infrastructure/db/sqliteMem
 import { SqliteGuestbookRepository } from '../../../infrastructure/db/sqliteGuestbookRepository'
 import { SqlitePhotoRepository } from '../../../infrastructure/db/sqlitePhotoRepository'
 import { SqliteSecondFactorRepository } from '../../../infrastructure/db/sqliteSecondFactorRepository'
+import { SqliteSignupRepository } from '../../../infrastructure/db/sqliteSignupRepository'
 import { SqliteSiteOverview } from '../../../infrastructure/db/sqliteSiteOverview'
 import { SqliteUserRepository } from '../../../infrastructure/db/sqliteUserRepository'
 import {
@@ -105,6 +109,7 @@ import { signedInAs, signInByAddress, type Caller } from './signIn'
 
 export const PUBLIC_URL = 'http://localhost:4300'
 export const OPERATOR_ADDRESS = 'operateur@example.test'
+export const SELF_HOST_LINK = 'https://docs.example.test/self-host'
 export const OPERATOR_ID = '11111111-1111-4111-8111-111111111111'
 
 export interface SiteHarnessOptions {
@@ -165,6 +170,7 @@ export interface SiteHarness {
     readonly users: SqliteUserRepository
     readonly audit: SqliteAuditLog
     readonly guestbook: SqliteGuestbookRepository
+    readonly signups: SqliteSignupRepository
   }
   /** Seeds an account and makes it one the stub sign-in knows by its address. */
   addAccount(user: User): Promise<void>
@@ -198,6 +204,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
   const guestbook = new SqliteGuestbookRepository(db)
   const tokens = new SqliteAccountTokenRepository(db)
   const audit = new SqliteAuditLog(db)
+  const signups = new SqliteSignupRepository(db)
   const overview = new SqliteSiteOverview(db)
   const secondFactors = new SqliteSecondFactorRepository(db)
   const acceptance = new SqliteInvitationAcceptance(db)
@@ -217,6 +224,15 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
     clock,
     logger,
     publicUrl: PUBLIC_URL,
+  })
+  const provisionClientOwner = makeProvisionClientOwner({
+    createClient: makeCreateClient({ clients, ids, clock }),
+    issueInvitation,
+    clients,
+    tokens,
+    newClientDefaults: options.newClientDefaults ?? NO_DEFAULTS,
+    audit,
+    clock,
   })
   const readers = { tokens, secrets, events, clients, memberships, users }
   const accountDeleter = makeDeleteAccount({
@@ -249,14 +265,17 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       listSiteAccounts: makeListSiteAccounts({ overview }),
       listSiteAudit: makeListSiteAudit({ audit }),
 
-      provisionClientOwner: makeProvisionClientOwner({
-        createClient: makeCreateClient({ clients, ids, clock }),
-        issueInvitation,
-        clients,
-        tokens,
-        newClientDefaults: options.newClientDefaults ?? NO_DEFAULTS,
+      provisionClientOwner,
+      listSignupsForOperator: makeListSignupsForOperator({ signups, users, clock }),
+      approveSignup: makeApproveSignup({ signups, provisionClientOwner, audit, clock }),
+      refuseSignup: makeRefuseSignup({
+        signups,
+        mailer,
         audit,
         clock,
+        logger,
+        selfHostLink: SELF_HOST_LINK,
+        replyTo: null,
       }),
       renameClient: makeRenameClient({ clients, audit, clock }),
       setClientCeilings: makeSetClientCeilings({ clients, audit, clock }),
@@ -397,7 +416,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
     mailer: recorder,
     reveal: () => revealDatabase(db),
     sessions,
-    repos: { clients, events, memberships, tokens, users, audit, guestbook },
+    repos: { clients, events, memberships, tokens, users, audit, guestbook, signups },
     addAccount,
     recognise,
     signIn: (address) => signedInAs(harness.app, address),

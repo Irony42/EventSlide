@@ -282,6 +282,29 @@ export const AUDIT_ACTIONS = {
    * log as well as by the screen: a number, never a code.
    */
   'account.recoveryCodeUsed': { subject: 'account', details: { remaining: detail.integer } },
+  /**
+   * An operator approved a signup request (`approveSignup`, spec 31, ADR 0018): the client was opened and its
+   * owner's invitation is out. The subject is the request's opaque id (the reserved subject type
+   * `access_request`, so no table is rebuilt), the actor the operator; the client it produced is in
+   * `client.created`. **Never the address or the space's name**: they are what a stranger typed.
+   */
+  'signup.approved': { subject: 'access_request', details: {} },
+  /**
+   * An operator refused a signup request (`refuseSignup`). `notified` says whether the person was told
+   * by mail, because "did they hear from us?" is what a complaint asks. No reason is kept, and nothing
+   * of what the person typed.
+   */
+  'signup.refused': { subject: 'access_request', details: { notified: detail.boolean } },
+  /**
+   * A signup request waited the whole retention window with nobody deciding and was erased
+   * (`sweepSignups`, system actor). The subject is the request's id, which is all that is left of it.
+   */
+  'signup.expired': { subject: 'access_request', details: {} },
+  /**
+   * The box's daily ceiling of confirmation mails was reached (`requestSignup`, system actor): written at
+   * most once a day, so the operator can tell a wave from a quiet box. `limit` is the ceiling in force.
+   */
+  'signup.dailyCeilingReached': { subject: 'access_request', details: { limit: detail.integer } },
 } as const satisfies Record<string, AuditActionSpec>
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS

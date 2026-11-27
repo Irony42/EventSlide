@@ -2,6 +2,11 @@ import { z } from 'zod'
 import { CLIENT_LOCALES, DEFAULT_CLIENT_LOCALE } from '../../../domain/clients/clientLocale'
 import { CLIENT_ROLES } from '../../../domain/clients/clientRole'
 import { MAX_SITE_PAGE_SIZE } from '../../../application/usecases/site/sitePageLimit'
+import {
+  MAX_SIGNUP_PAGE_SIZE,
+  SIGNUP_LIST_STATUSES,
+} from '../../../application/usecases/signups/listSignupsForOperator'
+import { decodeSignupCursor } from '../signupCursor'
 
 /**
  * The operator's request shapes (`/api/site`, G2-14 / P3-13).
@@ -156,3 +161,36 @@ export const operatorPasswordResetBody = z.strictObject({
   locale: z.enum(CLIENT_LOCALES).default(DEFAULT_CLIENT_LOCALE),
   approvalId: z.guid().optional(),
 })
+
+// ------------------------------------------------------------------ signups (spec 31) --
+
+/** `/api/site/signups/:signupId/...`: a request named by its id. */
+export const signupIdParams = z.object({ signupId: z.guid() })
+
+/**
+ * `GET /api/site/signups`. `before` is the opaque `next` of the previous page: a value
+ * `encodeSignupCursor` did not write is a `400 request.invalid`, never a lookup. `unconfirmed` is not
+ * a status an operator may ask for, because an unproven address is never shown.
+ */
+export const siteSignupsQuery = z.strictObject({
+  status: z.enum(SIGNUP_LIST_STATUSES).default('pending'),
+  limit: z.coerce.number().int().min(1).max(MAX_SIGNUP_PAGE_SIZE).optional(),
+  before: z
+    .string()
+    .max(512)
+    .transform((raw, ctx) => {
+      const cursor = decodeSignupCursor(raw)
+      if (cursor === null) {
+        ctx.addIssue({ code: 'custom', message: 'not a cursor of this list' })
+        return z.NEVER
+      }
+      return cursor
+    })
+    .optional(),
+})
+
+/** `POST /api/site/signups/:signupId/approve`: the ceilings patch of `POST /api/site/clients`, or nothing. */
+export const approveSignupBody = z.strictObject({ ceilings: ceilingsBody.optional() })
+
+/** `POST /api/site/signups/:signupId/refuse`: whether the person is told. Required, no default. */
+export const refuseSignupBody = z.strictObject({ notify: z.boolean() })
