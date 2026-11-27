@@ -45,7 +45,8 @@ export interface SetPhotoTakedownDeps {
   readonly clock: Clock
   /**
    * Retires the highlight reel that holds a photograph being taken down (spec 08). No audit entry
-   * and no new signal: the montage simply stops being servable, and the host is told no reason.
+   * and no new signal: the montage simply stops being servable. The host is told of the takedown itself by e-mail, by default, and
+   * the operator unticks the box when the host may be the person concerned (runbook `retrait-sans-visualisation.md`).
    */
   readonly invalidateReel?: InvalidateReel
   /**

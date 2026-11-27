@@ -10,7 +10,8 @@ import type { OutgoingMail } from './outgoingMail'
  * - **The event's name only** (or the space's, for an act on a client): never a guest's name, never the content that was removed,
  *   never an address of the photograph. "A photograph of the event X", nothing more.
  * - **The operator's reason for the host**, typed in a field of its own (not the audit reason), when there is one.
- * - **No link** (nothing to click: the host is told, not led somewhere). How to contest it: answer this mail when the operator's
+ * - **No link** (nothing to click: the host is told, not led somewhere). That promise covers **what the code adds**: the reason for
+ *   the host is free text the operator typed, and a link or an address typed in it is carried as typed. How to contest it: answer this mail when the operator's
  *   contact address is configured (it is the `replyTo`), else write to the operator of the server.
  * - The day of the act is spelt in UTC, like the purge notices.
  * - Lifting a suspension is good news: it carries no "contest" sentence.
@@ -64,13 +65,13 @@ const WORDS: Readonly<Record<ClientLocale, Words>> = {
     guestbook: (name) =>
       `Un message du livre d’or de l’évènement «${NBSP}${name}${NBSP}» a été retiré par l’opérateur de ce serveur.`,
     event: (name) =>
-      `L’évènement «${NBSP}${name}${NBSP}» a été retiré par l’opérateur de ce serveur : il n’est plus accessible.`,
+      `L’évènement «${NBSP}${name}${NBSP}» a été retiré par l’opérateur de ce serveur${NBSP}: il n’est plus accessible.`,
     suspended: (name) =>
-      `L’espace «${NBSP}${name}${NBSP}» a été suspendu par l’opérateur de ce serveur : vos invités n’y accèdent plus et vous pouvez le lire sans le modifier.`,
+      `L’espace «${NBSP}${name}${NBSP}» a été suspendu par l’opérateur de ce serveur${NBSP}: vos invités n’y accèdent plus et vous pouvez le lire sans le modifier.`,
     resumed: (name) =>
-      `La suspension de l’espace «${NBSP}${name}${NBSP}» a été levée : tout fonctionne de nouveau.`,
+      `La suspension de l’espace «${NBSP}${name}${NBSP}» a été levée${NBSP}: tout fonctionne de nouveau.`,
     offboarded: (name) =>
-      `L’espace «${NBSP}${name}${NBSP}» est clos par l’opérateur de ce serveur : vos évènements en cours sont terminés.`,
+      `L’espace «${NBSP}${name}${NBSP}» est clos par l’opérateur de ce serveur${NBSP}: vos évènements en cours sont terminés.`,
     on: (date) => `Le ${date}.`,
     purgeOn: (date) =>
       `Vos albums seront supprimés le ${date}. Téléchargez ce que vous voulez garder avant cette date.`,

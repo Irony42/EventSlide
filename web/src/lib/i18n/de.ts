@@ -3041,6 +3041,8 @@ export const de: UiText = {
       notify: 'Gastgeber benachrichtigen',
       notifyHint:
         'Eine E-Mail geht an die Eigentümer, mit dem Grund unten. Nur abwählen, wenn der Gastgeber nicht informiert werden darf (siehe Verfahren der Instanz).',
+      dialogHint:
+        'Angehakt erhalten die Eigentümer sofort eine E-Mail, bevor sie reagieren können; jede Entfernung sendet eine eigene E-Mail. Abwählen, wenn der Gastgeber die betroffene Person sein kann.',
       reason: 'Grund für den Gastgeber',
       reasonHint:
         'Was der Gastgeber liest, höchstens 500 Zeichen. Getrennt vom Grund im Protokoll, den der Gastgeber nie liest.',

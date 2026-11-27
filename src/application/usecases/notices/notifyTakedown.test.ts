@@ -163,7 +163,7 @@ describe('notifyTakedown (A4)', () => {
     const texts = world.mailer.sent.map((mail) => mail.text).join('\n')
     expect(texts).toContain('Un message du livre d’or')
     expect(texts).toContain(
-      'a été retiré par l’opérateur de ce serveur : il n’est plus accessible.',
+      `a été retiré par l’opérateur de ce serveur${String.fromCharCode(160)}: il n’est plus accessible.`,
     )
   })
 
@@ -263,6 +263,44 @@ describe('notifyTakedown (A4)', () => {
     none.notify(eventAct())
     await none.idle()
     expect(world.mailer.sent).toHaveLength(2)
+  })
+
+  it('sends one mail per act: two photographs taken down in a row are two mails to each owner', async () => {
+    const world = await build()
+
+    world.hook.notify(eventAct())
+    world.hook.notify(eventAct())
+    await world.hook.idle()
+
+    expect(sentTo(world.mailer)).toEqual([
+      'cohote@example.test',
+      'cohote@example.test',
+      'hote@example.test',
+      'hote@example.test',
+    ])
+  })
+
+  it('counts only the mails that left: a refusal of the relay takes nothing from the day', async () => {
+    const world = await build()
+    world.mailer.failNextWith('rejected')
+
+    world.hook.notify(eventAct())
+    await world.hook.idle()
+
+    expect(world.mailer.sent).toHaveLength(1)
+    expect(await world.budget.used('2026-11-28')).toBe(1)
+  })
+
+  it('counts nothing when the relay refused every mail', async () => {
+    const world = await build()
+    world.mailer.failNextWith('rejected')
+    world.mailer.failNextWith('rejected')
+
+    world.hook.notify(eventAct())
+    await world.hook.idle()
+
+    expect(world.mailer.sent).toEqual([])
+    expect(await world.budget.used('2026-11-28')).toBe(0)
   })
 
   it('counts its mails in the day budget and is never refused by it', async () => {

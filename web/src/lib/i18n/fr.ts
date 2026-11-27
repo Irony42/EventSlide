@@ -3676,6 +3676,8 @@ export const fr = {
       notify: 'Prévenir l’hôte',
       notifyHint:
         'Un e-mail part aux propriétaires, avec le motif ci-dessous. Décochez seulement si l’hôte ne doit pas être prévenu (voir la procédure de l’instance).',
+      dialogHint:
+        'Coché, les propriétaires reçoivent un e-mail dès l’acte, avant d’avoir pu réagir ; chaque retrait envoie son propre e-mail. Décochez si l’hôte peut être la personne concernée.',
       reason: 'Motif pour l’hôte',
       reasonHint:
         'Ce que l’hôte lira, 500 caractères au plus. Distinct du motif du journal, que l’hôte ne lit jamais.',

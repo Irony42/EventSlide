@@ -82,11 +82,12 @@ export function OffboardCard({ client, onChanged }: OffboardCardProps) {
     if (days === null) return
     void offboard.run('offboard', client.id, days, hostNoticeArgs(hostNotice)).then((result) => {
       setDays(null)
-      setHostNotice(DEFAULT_HOST_NOTICE)
       if (!result.ok) {
+        // A refused act keeps what was typed: the operator asks again without writing the reason twice.
         setFailure(result.message)
         return
       }
+      setHostNotice(DEFAULT_HOST_NOTICE)
       toast.show(t.site.offboardedDone, { tone: 'success' })
       onChanged()
     })
@@ -128,7 +129,10 @@ export function OffboardCard({ client, onChanged }: OffboardCardProps) {
         confirmLabel={t.site.offboardAction}
         busy={offboard.busy}
         onConfirm={confirm}
-        onCancel={() => setDays(null)}
+        onCancel={() => {
+          setDays(null)
+          setHostNotice(DEFAULT_HOST_NOTICE)
+        }}
       >
         <HostNoticeFields value={hostNotice} onChange={setHostNotice} />
       </ConfirmDialog>

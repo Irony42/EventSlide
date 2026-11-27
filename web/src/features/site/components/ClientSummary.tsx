@@ -60,11 +60,12 @@ export function ClientSummary({ client, onChanged }: ClientSummaryProps) {
   const confirm = () => {
     void act.run('standing', client.id, hostNoticeArgs(hostNotice)).then((result) => {
       setConfirming(false)
-      setHostNotice(DEFAULT_HOST_NOTICE)
       if (!result.ok) {
+        // A refused act keeps what was typed: the operator asks again without writing the reason twice.
         if (result.message !== null) toast.show(result.message, { tone: 'danger' })
         return
       }
+      setHostNotice(DEFAULT_HOST_NOTICE)
       toast.show(freezing ? t.site.suspended : t.site.resumed, { tone: 'success' })
       onChanged()
     })

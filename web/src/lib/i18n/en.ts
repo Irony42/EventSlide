@@ -2930,6 +2930,8 @@ export const en: UiText = {
       notify: 'Tell the host',
       notifyHint:
         'An e-mail goes to the owners, with the reason below. Untick only when the host must not be told (see the instance’s procedure).',
+      dialogHint:
+        'Ticked, the owners get an e-mail as soon as it is done, before they could react; each removal sends its own e-mail. Untick when the host may be the person concerned.',
       reason: 'Reason for the host',
       reasonHint:
         'What the host will read, 500 characters at most. Separate from the log reason, which the host never reads.',

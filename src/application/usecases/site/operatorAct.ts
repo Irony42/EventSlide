@@ -21,9 +21,12 @@ import type { AuditRecorder } from '../../ports/auditLog'
  *   cannot happen without a line saying who did it, and an actor the log will not accept refuses
  *   the act.
  * - **Not in the client's trail.** The entry carries **no client id**. The client-readable view
- *   filters on it, so the host is not told, which is the runbook's rule for the case these levers
- *   exist for (`csam.md`: do not warn the host, who may be the person concerned). The operator's
- *   own view of the whole log shows the line.
+ *   filters on it, so the audit trail never shows the host this line. The operator's own view of the
+ *   whole log shows it.
+ * - **The host is told by e-mail, by default** (spec 32, A4: `notifyTakedown`): the owners get the event's name, the day and the
+ *   operator's reason for the host, **one e-mail per act**. The operator **unticks "Prévenir l'hôte"** when the host may be the
+ *   person concerned (runbook `retrait-sans-visualisation.md`, `csam.md`): that is their call, act by act, and an untouched box is
+ *   the answer "tell them".
  */
 
 /** What every one of the three takes besides its target. */

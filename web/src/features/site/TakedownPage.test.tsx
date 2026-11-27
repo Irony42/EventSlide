@@ -235,6 +235,20 @@ describe('acting on an event', () => {
     )
   })
 
+  it('says in the dialog itself that the owners are told at once, one e-mail per removal, and when to untick', async () => {
+    open(withEvent())
+    await findEvent()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.site.takedownEventDown }))
+    const confirmation = await dialog(fr.site.takedownOps.eventDown.title)
+
+    expect(confirmation).toHaveAccessibleDescription(/avant d’avoir pu réagir/)
+    expect(confirmation).toHaveAccessibleDescription(/chaque retrait envoie son propre e-mail/)
+    expect(confirmation).toHaveAccessibleDescription(
+      /Décochez si l’hôte peut être la personne concernée/,
+    )
+  })
+
   it('offers no notice for an act that writes to nobody: putting back, holding a purge', async () => {
     open(withEvent({}, anEvent({ takenDownAt: AT })))
     await findEvent()

@@ -399,7 +399,7 @@ export const it: UiText = {
     'siteLookup.queryInvalid':
       'Inserisca un identificativo, un codice, un indirizzo o il nome di un evento (300 caratteri al massimo).',
     'takedown.hostReasonInvalid':
-      'Il motivo per l’ospitante deve stare in al massimo 500 caratteri.',
+      'Il motivo per l’organizzatore deve stare in al massimo 500 caratteri.',
     'hostAnnouncement.subjectInvalid':
       'L’oggetto deve stare su una riga di al massimo 150 caratteri.',
     'hostAnnouncement.textInvalid': 'Il messaggio deve avere da 1 a 5000 caratteri.',
@@ -2981,12 +2981,14 @@ export const it: UiText = {
     takedownGuestbookDown: 'Rimuovi il messaggio',
     takedownGuestbookUp: 'Ripristina il messaggio',
     hostNotice: {
-      notify: 'Avvisare l’ospitante',
+      notify: 'Avvisare l’organizzatore',
       notifyHint:
-        'Una e-mail parte verso i proprietari, con il motivo qui sotto. Deselezioni solo se l’ospitante non deve essere avvisato (veda la procedura dell’istanza).',
-      reason: 'Motivo per l’ospitante',
+        'Una e-mail parte verso i proprietari, con il motivo qui sotto. Deselezioni solo se l’organizzatore non deve essere avvisato (veda la procedura dell’istanza).',
+      dialogHint:
+        'Selezionata, i proprietari ricevono una e-mail subito, prima di poter reagire; ogni rimozione invia la sua e-mail. Deselezioni se l’organizzatore può essere la persona interessata.',
+      reason: 'Motivo per l’organizzatore',
       reasonHint:
-        'Ciò che leggerà l’ospitante, al massimo 500 caratteri. Distinto dal motivo del registro, che l’ospitante non legge mai.',
+        'Ciò che leggerà l’organizzatore, al massimo 500 caratteri. Distinto dal motivo del registro, che l’organizzatore non legge mai.',
     },
     takedownReason: 'Motivo',
     takedownReasonHint:
