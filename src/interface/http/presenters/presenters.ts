@@ -11,6 +11,9 @@ import type { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
 import type { GuestbookVoice } from '../../../domain/guestbook/guestbookVoice'
 import { GUESTBOOK_TEXT_MAX_LENGTH } from '../../../domain/guestbook/guestbookText'
 import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
+import type { SignupConfirmed } from '../../../application/usecases/signups/confirmSignup'
+import type { SignupConfirmationPreview } from '../../../application/usecases/signups/previewSignupConfirmation'
+import type { SignupRequested } from '../../../application/usecases/signups/requestSignup'
 import type { Photo } from '../../../domain/photos/photo'
 import type { EventCounts } from '../../../application/ports/eventRepository'
 import type { HostEventSummary } from '../../../application/usecases/events/listEventsForHost'
@@ -77,6 +80,9 @@ import type {
   InvitationAcceptedDto,
   InvitationIssuedDto,
   InvitationPreviewDto,
+  SignupAnswerDto,
+  SignupConfirmedDto,
+  SignupPreviewDto,
   JoinTargetDto,
   MissionDto,
   ModerationPhotoDto,
@@ -1098,6 +1104,20 @@ export const toInvitationIssuedDto = (issued: IssuedInvitation): InvitationIssue
   status: 'invited',
   expiresAt: iso(issued.expiresAt),
   ...(issued.delivery === 'link' ? { link: issued.link } : {}),
+})
+
+/** Spec 31: the three words the signup routes answer with, from what their use cases return. */
+export const toSignupAnswerDto = (requested: SignupRequested): SignupAnswerDto => ({
+  status: requested.status,
+})
+
+export const toSignupPreviewDto = (preview: SignupConfirmationPreview): SignupPreviewDto => ({
+  state: preview.state,
+  maskedEmail: preview.maskedEmail,
+})
+
+export const toSignupConfirmedDto = (confirmed: SignupConfirmed): SignupConfirmedDto => ({
+  next: confirmed.next,
 })
 
 export const toInvitationPreviewDto = (preview: InvitationPreview): InvitationPreviewDto => ({

@@ -4,6 +4,11 @@ import { signupEnabled } from '../../../domain/signups/signupMode'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { answerUndecodablePath } from '../middleware/errorHandler'
 import { invitationLimiter, signupLimiter } from '../middleware/rateLimit'
+import {
+  toSignupAnswerDto,
+  toSignupConfirmedDto,
+  toSignupPreviewDto,
+} from '../presenters/presenters'
 import { sendError, sendJson, sendResult } from '../presenters/send'
 import { invitationTokenParams, signupRequestBody } from '../schemas/requestSchemas'
 import type { HttpDeps } from '../types'
@@ -84,7 +89,7 @@ export const signupRoutes = ({ deps, usecases }: SignupRouteDeps): Router => {
       }
       // The mail is behind `completion`, deliberately not awaited: how long a relay takes to say yes would
       // tell an address that is mailed from one that is not.
-      res.status(202).json({ status: result.value.status })
+      res.status(202).json(toSignupAnswerDto(result.value))
     }),
   )
 
@@ -105,7 +110,7 @@ export const signupRoutes = ({ deps, usecases }: SignupRouteDeps): Router => {
       }
       const result = await usecases.previewSignupConfirmation({ token: params.data.token })
       sendResult(res, result, (response, preview) =>
-        sendJson(response, { state: preview.state, maskedEmail: preview.maskedEmail }),
+        sendJson(response, toSignupPreviewDto(preview)),
       )
     }),
   )
@@ -125,7 +130,9 @@ export const signupRoutes = ({ deps, usecases }: SignupRouteDeps): Router => {
       }
       const result = await usecases.confirmSignup({ token: params.data.token })
       // `next` and nothing else: never a link, never the address.
-      sendResult(res, result, (response, confirmed) => sendJson(response, { next: confirmed.next }))
+      sendResult(res, result, (response, confirmed) =>
+        sendJson(response, toSignupConfirmedDto(confirmed)),
+      )
     }),
   )
 
