@@ -275,7 +275,7 @@ page are the notice.
 ## Self-service signup
 
 By default nobody can create an account: an operator invites each one from the console. With `SIGNUP` set, a visitor asks for
-one at `/signup` (the sign-in page links to it) and the box does the rest. It is what `app.eventslide.fr` runs, in mode `open`.
+one at `/signup` (the sign-in page links to it) and the box does the rest. The hosted instance chose mode `open` and switches it on after the 3.19 upgrade.
 The decision and its reasoning are in [ADR 0018](adr/0018-self-service-signup.md); the settings are in `.env.example` and
 [UPGRADING.md](UPGRADING.md#upgrading-to-319).
 
@@ -296,7 +296,13 @@ below also set `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL` and `SUPPORT_URL`. Your
 the same "check your inbox" answer, whether or not the address already has an account (the form is not a way to find out who is
 registered), and the mail is the same too. The link is valid 24 hours and **confirms only when its button is pressed**, so a mail
 scanner that opens it confirms nothing. Past `SIGNUP_MAX_PER_DAY` confirmation mails for the whole box (50 by default) the form
-says to come back tomorrow; `SIGNUP_RATE_LIMIT_PER_HOUR` (10) bounds one IP, and an address gets three mails a day at most.
+says to come back tomorrow. That daily ceiling is the box's own and has nothing to do with the per-client ceilings (events,
+photos, storage) the approval dialog sets. `SIGNUP_RATE_LIMIT_PER_HOUR` (10) bounds one IP, and an address gets three mails a day at most.
+
+**Asking twice.** The answer is always the same, but not every ask sends a mail. A person who asks again before confirming gets
+a new link only once the last one is an hour old (a resend; the older link stops working). An address already waiting for a
+decision, or refused less than 30 days ago, gets the usual answer and no mail at all: a refusal keeps the address quiet for 30
+days. An address that already has an account is answered and mailed like any other.
 
 **What the operator sees.** The console has an **Inscriptions (N)** entry, N being the requests waiting for a decision (in `open`,
 that is only the held ones, below). In `open` the page lists the accounts opened in the last 30 days; in `review` the
@@ -321,7 +327,7 @@ as soon as possible" and send you the usual signup notice:
   to `pending` by the sweep after an hour: do not approve it again from the Signups page if the client already exists, or you will
   open a second account for the same address.
 - **the free disk space is too low** (or cannot be read): the request waits in the Signups page, under "Demandes retenues", like
-  one in `review`; approve it when there is room. The box needs `MIN_FREE_DISK_BYTES` plus 5 GB for each client that still has an
+  one in `review`; the guard is not checked again when you approve, so you decide when there is room. The box needs `MIN_FREE_DISK_BYTES` plus 5 GB for each client that still has an
   event or was created in the last 30 days, plus 5 GB for the newcomer.
 
 ### Welcome mail

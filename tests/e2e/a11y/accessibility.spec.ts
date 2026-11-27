@@ -348,9 +348,10 @@ test.describe('the browser tab', () => {
 })
 
 test.describe('self-service signup (spec 31)', () => {
-  test('the form, the inbox page, the confirmation page and the operator’s list have no serious violation', async ({
+  test('the form, the inbox page, the confirmation page, the operator’s list and its two dialogs have no serious violation', async ({
     browser,
   }, testInfo) => {
+    test.setTimeout(150_000)
     test.skip(
       testInfo.project.name !== 'chromium-desktop',
       'One project is enough: the case boots a server and a mail relay of its own',
@@ -363,6 +364,15 @@ test.describe('self-service signup (spec 31)', () => {
     try {
       const page = await context.newPage()
       const audit = async (): Promise<void> => {
+        // A dialog fades in: a scan taken mid-fade reads washed-out text as a contrast failure.
+        await page.evaluate(() =>
+          Promise.allSettled(
+            document
+              .getAnimations()
+              .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+              .map((a) => a.finished),
+          ),
+        )
         const { violations } = await scan(page)
         expect(seriousOnly(violations)).toEqual([])
       }
@@ -407,6 +417,66 @@ test.describe('self-service signup (spec 31)', () => {
         page.getByRole('button', { name: fr.siteSignups.approve, exact: true }),
       ).toBeVisible()
       await audit()
+
+      // Both decisions open a dialog: each is a place a label can be missing.
+      await page.getByRole('button', { name: fr.siteSignups.approve, exact: true }).click()
+      const approval = page.getByRole('dialog', {
+        name: fr.siteSignups.approveTitle('Association Les Pieds Agiles'),
+      })
+      await expect(
+        approval.getByRole('button', { name: fr.siteSignups.approveConfirm }),
+      ).toBeVisible()
+      await audit()
+      await page.keyboard.press('Escape')
+      await expect(approval).toHaveCount(0)
+
+      await page.getByRole('button', { name: fr.siteSignups.refuse, exact: true }).click()
+      const refusal = page.getByRole('dialog', {
+        name: fr.siteSignups.refuseTitle('Association Les Pieds Agiles'),
+      })
+      await expect(refusal.getByLabel(fr.siteSignups.notify)).toBeVisible()
+      await audit()
+    } finally {
+      await context.close()
+      await box.close()
+    }
+  })
+
+  test('the page of a request the disk guard held has no serious violation', async ({
+    browser,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== 'chromium-desktop',
+      'One project is enough: the case boots a server and a mail relay of its own',
+    )
+    test.setTimeout(150_000)
+    const box = await startSignupBox(testInfo, {
+      mode: 'open',
+      env: { MIN_FREE_DISK_BYTES: '900000000000000' },
+    })
+    const { app, sink } = box
+    const context = await browser.newContext({ baseURL: app.baseUrl, locale: SUITE_LOCALE })
+
+    try {
+      const page = await context.newPage()
+      await page.goto(app.url('/signup'))
+      await page.getByLabel(fr.auth.email).fill('retenu@visiteur.example')
+      await page.getByLabel(fr.signup.clientName).fill('Fête au village')
+      await page.getByRole('button', { name: fr.signup.submit }).click()
+      await expect(page.getByRole('heading', { name: fr.signup.sentTitle })).toBeVisible()
+      await expect
+        .poll(() =>
+          linkIn(sink, 'retenu@visiteur.example', '', /https?:\/\/\S+\/signup\/confirm\/\S+/),
+        )
+        .not.toBeNull()
+      await page.goto(
+        linkIn(sink, 'retenu@visiteur.example', '', /https?:\/\/\S+\/signup\/confirm\/\S+/) ?? '',
+      )
+      await page.getByRole('button', { name: fr.signup.confirmSubmit }).click()
+      await expect(page.getByRole('heading', { name: fr.signup.pendingTitle })).toBeVisible()
+
+      const { violations } = await scan(page)
+      expect(seriousOnly(violations)).toEqual([])
     } finally {
       await context.close()
       await box.close()

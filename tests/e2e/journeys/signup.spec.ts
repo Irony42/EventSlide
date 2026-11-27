@@ -116,6 +116,7 @@ const confirmStepUp = async (page: Page, app: TestApp, code: string): Promise<vo
 test('mode open: the form, the confirmation, the invitation and the first console, then a welcome mail', async ({
   browser,
 }, testInfo) => {
+  test.setTimeout(150_000)
   const box = await startSignupBox(testInfo, { mode: 'open', terms: true })
   const { app, sink } = box
   const { page, close } = await visitor(browser, app)
@@ -143,6 +144,10 @@ test('mode open: the form, the confirmation, the invitation and the first consol
     await expect(page.getByRole('heading', { name: fr.signup.confirmTitle })).toBeVisible()
     await page.reload()
     await expect(page.getByRole('button', { name: fr.signup.confirmSubmit })).toBeVisible()
+    // The state the server holds, read without spending the link: still usable after two GETs.
+    const token = /\/signup\/confirm\/([A-Za-z0-9_-]+)/.exec(link)?.[1] ?? ''
+    const preview = await page.request.get(app.url(`/api/signup/confirm/${token}`))
+    expect(((await preview.json()) as { state: string }).state).toBe('usable')
     expect(mailsTo(sink, email)).toHaveLength(1)
 
     await page.getByRole('button', { name: fr.signup.confirmSubmit }).click()
@@ -162,6 +167,11 @@ test('mode open: the form, the confirmation, the invitation and the first consol
     )
     expect(welcome).toContain(CONTACT)
     expect(welcome).toContain(app.url('/legal/avant-evenement'))
+    // Exactly one welcome, and nothing else: confirmation, invitation, welcome.
+    await expect
+      .poll(() => mailsTo(sink, email).filter((mail) => mail.subject.includes('Bienvenue')).length)
+      .toBe(1)
+    expect(mailsTo(sink, email)).toHaveLength(3)
   } finally {
     await close()
     await box.close()
@@ -171,6 +181,7 @@ test('mode open: the form, the confirmation, the invitation and the first consol
 test('mode review: confirming waits for the operator, who approves one request and refuses another', async ({
   browser,
 }, testInfo) => {
+  test.setTimeout(150_000)
   const box = await startSignupBox(testInfo, { mode: 'review' })
   const { app, sink } = box
   const factor = await enrolOperator(app)
@@ -219,8 +230,9 @@ test('mode review: confirming waits for the operator, who approves one request a
     const refusal = page.getByRole('dialog', { name: fr.siteSignups.refuseTitle(second.space) })
     await expect(refusal.getByLabel(fr.siteSignups.notify)).toBeChecked()
     await refusal.getByRole('button', { name: fr.siteSignups.refuseConfirm }).click()
-    await expect(page.getByRole('dialog', { name: fr.site.stepUpTitle })).toHaveCount(0)
     await expect(page.getByText(fr.siteSignups.refusedDone)).toBeVisible()
+    // The write went through on the confirmation of a moment ago: no prompt opened for it.
+    await expect(page.getByRole('dialog', { name: fr.site.stepUpTitle })).toHaveCount(0)
 
     const refusedMail = await waitFor(
       'the refusal mail',
@@ -230,6 +242,7 @@ test('mode review: confirming waits for the operator, who approves one request a
         )?.text ?? null,
     )
     expect(refusedMail).not.toContain('/invite/')
+    expect(mailsTo(sink, second.email)).toHaveLength(2)
     expect(mailsTo(sink, second.email).some((mail) => INVITE_LINK.test(mail.text))).toBe(false)
   } finally {
     await Promise.all([guest.close(), refusedGuest.close(), operator.close()])
@@ -258,6 +271,10 @@ test('an address that already has an account gets the same answer and the same m
     expect(known).toEqual(unknown)
     expect(known.status).toBe(202)
 
+    // Both mails are polled: the answer is sent before the mail, and an oracle would be a mail that
+    // never comes for one of the two.
+    await expect.poll(() => mailsTo(sink, app.owner.email).length).toBe(1)
+    await expect.poll(() => mailsTo(sink, fresh).length).toBe(1)
     const [knownMail] = mailsTo(sink, app.owner.email)
     const [freshMail] = mailsTo(sink, fresh)
     expect(knownMail).toBeDefined()
@@ -296,6 +313,7 @@ test('past the day’s ceiling the form says to come back tomorrow, and sends no
 test('mode open with too little free disk: the address is confirmed, nothing opens, the operator decides', async ({
   browser,
 }, testInfo) => {
+  test.setTimeout(150_000)
   // No hook: a floor no disk can meet is the plain setting an operator would use to stop signups.
   const box = await startSignupBox(testInfo, {
     mode: 'open',
