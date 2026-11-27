@@ -20,6 +20,7 @@ const setup = (existing: readonly string[] = []) => {
     provisionClientOwner: scene.provisionClientOwner,
     audit: scene.audit,
     clock: scene.clock,
+    logger: new CapturingLogger(),
   })
   const refuse = makeRefuseSignup({
     signups: scene.signups,
@@ -157,5 +158,19 @@ describe('listSignupsForOperator', () => {
     const { list } = setup()
 
     expect((await list({ status: 'pending', limit: 100 })).ok).toBe(true)
+  })
+
+  it('leaves a pending request past its 30 days out of the list and out of the badge: nobody can decide it', async () => {
+    const { scene, list } = setup()
+    await scene.seed({ id: 'old', email: 'old@example.test' })
+    scene.clock.advance(20 * DAY)
+    await scene.seed({ id: 'fresh', email: 'fresh@example.test', at: scene.clock.now() })
+    scene.clock.advance(11 * DAY)
+
+    const result = await list({ status: 'pending' })
+
+    if (!result.ok) throw new Error('expected a page')
+    expect(idsOf(result.value)).toEqual(['fresh'])
+    expect(result.value.pendingCount).toBe(1)
   })
 })

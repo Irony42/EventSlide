@@ -437,7 +437,7 @@ with the rest of `/api/site` (`SITE_ADMIN=on`); a box with `SIGNUP=off` has no r
 **`GET /api/site/signups?status=pending|approved|refused&limit=50&before=<cursor>`**: the **confirmed**
 requests of one state, newest first (`status` defaults to `pending`; an address nobody proved is never listed
 and `unconfirmed` is not a status). `limit` is 1 to 100 (default 50). Approved and refused requests are the
-last 30 days; pending ones are not windowed. Limited like the other lookups of the namespace
+last 30 days; pending ones are not windowed by date, but one older than 30 days can no longer be decided and is neither listed nor counted. Limited like the other lookups of the namespace
 (`siteLookupAccountLimiter`, ten a minute per account). **200**, `Cache-Control: no-store`
 
 ```json
@@ -478,13 +478,13 @@ sends its owner the invitation, exactly as `POST /api/site/clients` does: **201*
 first** (`pending` to `approving`), so two approvals provision one client; if the provisioning fails (the
 address is over its hourly invitation cap, a ceiling is refused) the claim is given back, the request is
 `pending` again and the failure is the answer. Limited like an invitation (`INVITATION_RATE_LIMIT_PER_HOUR` per
-account). The line `signup.approved` (subject `access_request`, the request's id; never the address) is written
+account): **stricter than `POST /api/site/clients`**, which has no limiter, so an operator may approve at most 30 requests an hour (the default of that variable); a request refused for the cap stays pending. If the request was lost between the provisioning and the decision (the stale-claim sweep gave it back), the answer is **409** `signup.notPending` and a warning names the orphan client in the log. The line `signup.approved` (subject `access_request`, the request's id; never the address) is written
 beside `client.created` and `invitation.issued`.
 
 **`POST /api/site/signups/:signupId/refuse`**: `{ "notify": boolean }`, required. `pending` to `refused`, with no
 reason asked or kept. `notify: true` sends the person a neutral mail, with no reason, pointing to the
 self-hosting guide, in the language they chose; a mail that fails is logged without the address and does not undo
-the refusal. **204**. The line `signup.refused { notified }` is written.
+the refusal. **204**, and it stays 204 if the audit line cannot be written or the mail throws (both are logged, without the address): once committed, a refusal is not undone. The line `signup.refused { notified }` is written.
 
 **Errors of both writes.** **409** `signup.notPending` (decided, or being approved by another call, or past its
 retention window), **404** `signup.notFound` (an id nobody holds, or a request nobody confirmed: an operator is

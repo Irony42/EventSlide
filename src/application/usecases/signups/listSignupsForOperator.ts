@@ -61,23 +61,27 @@ export const makeListSignupsForOperator =
     }
 
     // One more than asked, to know whether a page follows without a second query.
+    const now = clock.now()
     const rows = await signups.listForOperator({
+      now,
       status,
       limit: size + 1,
-      ...(status === 'pending' ? {} : { since: addDays(clock.now(), -SIGNUP_DECIDED_WINDOW_DAYS) }),
+      ...(status === 'pending' ? {} : { since: addDays(now, -SIGNUP_DECIDED_WINDOW_DAYS) }),
       ...(before === undefined ? {} : { before }),
     })
     const page = rows.slice(0, size)
     const last = page[page.length - 1]
 
-    const items: OperatorSignup[] = []
-    for (const request of page) {
-      items.push({ request, existingAccount: (await users.findByEmail(request.email)) !== null })
-    }
+    const items: OperatorSignup[] = await Promise.all(
+      page.map(async (request) => ({
+        request,
+        existingAccount: (await users.findByEmail(request.email)) !== null,
+      })),
+    )
 
     return ok({
       items,
-      pendingCount: await signups.countPending(),
+      pendingCount: await signups.countPending(now),
       next:
         rows.length > size && last !== undefined ? { at: signupListedAt(last), id: last.id } : null,
     })

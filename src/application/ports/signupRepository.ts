@@ -86,6 +86,8 @@ export interface SignupListCursor {
 }
 
 export interface SignupListFilter {
+  /** Now: a `pending` request more than 30 days old is past decision (claim and refuse refuse it) and is left out. */
+  readonly now: Date
   /** One state. `unconfirmed` lists nothing: an unproven address is never shown to an operator. */
   readonly status: SignupStatus
   /** Only requests decided or made since this instant (`decided_at`, else `confirmed_at`, else `created_at`): the 30-day window. */
@@ -143,8 +145,8 @@ export interface SignupRepository {
   /** Confirmed requests of one state for the operator, newest first, a page at a time. Never an `unconfirmed` one. */
   listForOperator(filter: SignupListFilter): Promise<readonly SignupRequest[]>
 
-  /** Requests in `pending`: the badge. */
-  countPending(): Promise<number>
+  /** Requests in `pending` that can still be decided (under 30 days old at `now`): the badge. */
+  countPending(now: Date): Promise<number>
 
   /** Expires and erases what the retention rules say is due, and releases stale claims (`signupSweepAction`). */
   sweep(now: Date): Promise<SignupSweepResult>

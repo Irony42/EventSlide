@@ -283,6 +283,32 @@ describe('POST /api/site/signups/:id/approve', () => {
     expect(pending.body.items).toHaveLength(1)
   })
 
+  it('approves a request made with the operator’s own address exactly as POST /api/site/clients opens a client for it (ADR 0009, rule 1)', async () => {
+    const { site, post } = await operator()
+    await seedSignup(site, { email: ADDRESS.operator })
+
+    const viaSignup = await post(`/api/site/signups/${A_SIGNUP}/approve`, {})
+    const direct = await post('/api/site/clients', {
+      clientName: 'Espace direct',
+      ownerEmail: ADDRESS.operator,
+    })
+
+    expect(viaSignup.status).toBe(201)
+    expect(direct.status).toBe(201)
+    expect(viaSignup.body.invitation).toMatchObject({ delivery: 'mail', pendingApproval: false })
+    expect(Object.keys(viaSignup.body).sort()).toEqual(Object.keys(direct.body).sort())
+  })
+
+  it('answers 409 signup.notPending for a request left waiting more than 30 days', async () => {
+    const { site, post } = await operator()
+    await seedSignup(site, { at: new Date(site.clock.now().getTime() - 31 * 24 * 60 * 60 * 1000) })
+
+    const response = await post(`/api/site/signups/${A_SIGNUP}/approve`, {})
+
+    expect(response.status).toBe(409)
+    expect(response.body.error.code).toBe('signup.notPending')
+  })
+
   it('answers no token and no link where a mailer delivers', async () => {
     const { site, post } = await operator({ mail: 'delivers' })
     await seedSignup(site)

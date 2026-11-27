@@ -501,7 +501,7 @@ export const signupRepositoryContract = (
           status: 'approving',
           claimedAt: at(HOUR),
         })
-        expect(await repo.countPending()).toBe(0)
+        expect(await repo.countPending(T0)).toBe(0)
       })
 
       it('lets one confirmation through when the same link is pressed twice', async () => {
@@ -721,7 +721,9 @@ export const signupRepositoryContract = (
       it('never lists an unconfirmed request', async () => {
         await admit('unproven@example.test')
 
-        expect(await repo.listForOperator({ status: 'unconfirmed', limit: 10 })).toEqual([])
+        expect(await repo.listForOperator({ now: T0, status: 'unconfirmed', limit: 10 })).toEqual(
+          [],
+        )
       })
 
       it('lists one state, newest confirmation first, up to the limit', async () => {
@@ -730,14 +732,33 @@ export const signupRepositoryContract = (
         const third = await toPending('c@example.test', at(2 * HOUR))
         await repo.refuse(first, asUserId('user-1'), at(3 * HOUR))
 
-        const pending = await repo.listForOperator({ status: 'pending', limit: 10 })
-        const limited = await repo.listForOperator({ status: 'pending', limit: 1 })
-        const refused = await repo.listForOperator({ status: 'refused', limit: 10 })
+        const pending = await repo.listForOperator({ now: T0, status: 'pending', limit: 10 })
+        const limited = await repo.listForOperator({ now: T0, status: 'pending', limit: 1 })
+        const refused = await repo.listForOperator({ now: T0, status: 'refused', limit: 10 })
 
         expect(pending.map((row) => row.id)).toEqual([third, second])
         expect(limited.map((row) => row.id)).toEqual([third])
         expect(refused.map((row) => row.id)).toEqual([first])
-        expect(await repo.countPending()).toBe(2)
+        expect(await repo.countPending(T0)).toBe(2)
+      })
+
+      it('leaves a pending request past its 30 days out of the list and of the badge, as claim and refuse do', async () => {
+        const old = await toPending('old@example.test', at(0))
+        const fresh = await toPending('fresh@example.test', at(20 * DAY))
+        const day30 = at(30 * DAY)
+        const day31 = at(31 * DAY)
+
+        expect(
+          (await repo.listForOperator({ now: day30, status: 'pending', limit: 10 })).length,
+        ).toBe(1)
+        expect(await repo.countPending(day30)).toBe(1)
+        expect(
+          (await repo.listForOperator({ now: day31, status: 'pending', limit: 10 })).map(
+            (row) => row.id,
+          ),
+        ).toEqual([fresh])
+        expect(await repo.countPending(day31)).toBe(1)
+        expect(await repo.claim(old, day31)).toBe(false)
       })
 
       it('pages with a cursor: the next page starts strictly after the last row seen', async () => {
@@ -747,15 +768,17 @@ export const signupRepositoryContract = (
         }
         const newestFirst = [...ids].reverse()
 
-        const first = await repo.listForOperator({ status: 'pending', limit: 2 })
+        const first = await repo.listForOperator({ now: T0, status: 'pending', limit: 2 })
         const last = first[first.length - 1] as SignupRequest
         const second = await repo.listForOperator({
+          now: T0,
           status: 'pending',
           limit: 2,
           before: { at: signupListedAt(last), id: last.id },
         })
         const end = second[second.length - 1] as SignupRequest
         const third = await repo.listForOperator({
+          now: T0,
           status: 'pending',
           limit: 2,
           before: { at: signupListedAt(end), id: end.id },
@@ -784,9 +807,10 @@ export const signupRepositoryContract = (
           await repo.confirm({ tokenDigest: token.tokenDigest, now: at(HOUR), outcome: 'pending' })
         }
 
-        const first = await repo.listForOperator({ status: 'pending', limit: 1 })
+        const first = await repo.listForOperator({ now: T0, status: 'pending', limit: 1 })
         const head = first[0] as SignupRequest
         const second = await repo.listForOperator({
+          now: T0,
           status: 'pending',
           limit: 1,
           before: { at: signupListedAt(head), id: head.id },
@@ -801,6 +825,7 @@ export const signupRepositoryContract = (
         const recent = await toPending('new@example.test', at(10 * DAY))
 
         const listed = await repo.listForOperator({
+          now: T0,
           status: 'pending',
           since: at(5 * DAY),
           limit: 10,
@@ -822,17 +847,20 @@ export const signupRepositoryContract = (
         const cursor = { at: signupListedAt(rowC), id: c }
 
         const both = await repo.listForOperator({
+          now: T0,
           status: 'refused',
           since: at(DAY),
           before: cursor,
           limit: 10,
         })
         const sinceOnly = await repo.listForOperator({
+          now: T0,
           status: 'refused',
           since: at(DAY),
           limit: 10,
         })
         const beforeOnly = await repo.listForOperator({
+          now: T0,
           status: 'refused',
           before: cursor,
           limit: 10,
@@ -844,9 +872,9 @@ export const signupRepositoryContract = (
       })
 
       it('refuses a limit that is not a positive integer', async () => {
-        await expect(repo.listForOperator({ status: 'pending', limit: 0 })).rejects.toThrow(
-          RangeError,
-        )
+        await expect(
+          repo.listForOperator({ now: T0, status: 'pending', limit: 0 }),
+        ).rejects.toThrow(RangeError)
       })
     })
 
@@ -925,7 +953,7 @@ export const signupRepositoryContract = (
           erased: 0,
         })
         expect(await repo.findById(id)).toMatchObject({ status: 'pending', claimedAt: null })
-        expect(await repo.countPending()).toBe(1)
+        expect(await repo.countPending(T0)).toBe(1)
       })
 
       it('erases an approved request once its invitation was accepted, and not before', async () => {

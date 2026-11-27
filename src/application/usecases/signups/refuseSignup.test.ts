@@ -129,15 +129,50 @@ describe('refuseSignup', () => {
     expect(scene.audit.all()).toHaveLength(1)
   })
 
-  it('answers the log’s refusal when its line cannot be named, and sends no mail', async () => {
-    const { scene, refuse } = setup()
+  it('keeps the refusal, logs the missing line and still sends the mail when its line cannot be named', async () => {
+    const { scene, logger, refuse } = setup()
     const id = await scene.seed({ id: 'an id with spaces' })
 
     const result = await refuse({ id, operator: OPERATOR, notify: true })
 
-    if (result.ok) throw new Error('expected the log refusal')
-    expect(result.error.code).toBe('audit.subjectIdInvalid')
-    expect(scene.mailer.sent).toEqual([])
+    expect(result.ok).toBe(true)
+    expect((await scene.signups.findById(id))?.status).toBe('refused')
+    expect(scene.mailer.sent).toHaveLength(1)
+    const warning = logger.lines.find((line) => line.message.includes('no audit line'))
+    expect(warning?.context).toEqual({ signupId: id, reason: 'audit.subjectIdInvalid' })
+  })
+
+  it('keeps the refusal, logs it and still sends the mail when the log is down', async () => {
+    const { scene, logger, refuse } = setup()
+    const id = await scene.seed()
+    scene.audit.record = async () => {
+      throw new Error('log down')
+    }
+
+    const result = await refuse({ id, operator: OPERATOR, notify: true })
+
+    expect(result.ok).toBe(true)
+    expect(scene.mailer.sent).toHaveLength(1)
+    const warning = logger.lines.find((line) => line.message.includes('no audit line'))
+    expect(warning?.context).toEqual({ signupId: id, reason: 'audit.unavailable' })
+    expect(JSON.stringify(logger.lines)).not.toContain('camille')
+  })
+
+  it('keeps the refusal and answers ok when the mailer throws, logging it without the address', async () => {
+    const { scene, logger, refuse } = setup()
+    const id = await scene.seed()
+    scene.mailer.send = async () => {
+      throw new Error('socket exploded for camille@example.test')
+    }
+
+    const result = await refuse({ id, operator: OPERATOR, notify: true })
+
+    expect(result.ok).toBe(true)
+    expect((await scene.signups.findById(id))?.status).toBe('refused')
+    expect(logger.lines.some((line) => line.message.includes('refusal mail was not sent'))).toBe(
+      true,
+    )
+    expect(JSON.stringify(logger.lines)).not.toContain('camille')
   })
 
   it('answers 409 signup.notPending once the request is 30 days old: the retention window is closed', async () => {

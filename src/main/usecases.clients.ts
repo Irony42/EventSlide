@@ -132,6 +132,7 @@ export const clientsUseCases = (
       provisionClientOwner,
       audit: adapters.audit,
       clock: adapters.clock,
+      logger: adapters.logger,
     }),
     refuseSignup: makeRefuseSignup({
       signups: adapters.signups,

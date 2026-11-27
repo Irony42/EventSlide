@@ -37,8 +37,15 @@ export type RefuseSignup = (input: RefuseSignupInput) => Promise<Result<void, Do
  *
  * `404 signup.notFound` for an id nobody holds or a request nobody confirmed, `409 signup.notPending`
  * for one already decided or being approved. The audit line follows the transition and says only whether
- * the person was told. The mail is sent after, and **a mail that does not go does not undo the refusal**:
- * the operator decided, and the relay's failure is logged without the address.
+ * the person was told.
+ *
+ * **Once the refusal is committed, nothing after it undoes it or fails the call.** The audit line and the
+ * mail are both best effort from there: a line the log will not take (or cannot name) is logged as a
+ * warning and the mail still goes, because the operator decided and the person is owed the answer the
+ * operator asked for; a mail that does not go (an error, or a mailer that throws) is logged and the
+ * answer is still `204`. Neither log line holds the address. This is the opposite of `approveSignup`,
+ * where the line follows an act that has a client to point to; here the refusal leaves no other trace,
+ * so the warning is what says a decision has no line.
  */
 export const makeRefuseSignup =
   ({
@@ -60,29 +67,38 @@ export const makeRefuseSignup =
       return err(DomainError.conflict('signup.notPending'))
     }
 
-    const line = AuditEntry.create({
-      at,
-      actor: { kind: 'operator', userId: operator },
-      action: 'signup.refused',
-      subject: { type: 'access_request', id },
-      clientId: null,
-      details: { notified: notify },
-    })
-    if (!line.ok) return line
-    await audit.record(line.value)
+    try {
+      const line = AuditEntry.create({
+        at,
+        actor: { kind: 'operator', userId: operator },
+        action: 'signup.refused',
+        subject: { type: 'access_request', id },
+        clientId: null,
+        details: { notified: notify },
+      })
+      if (line.ok) await audit.record(line.value)
+      else
+        logger.warn('a signup refusal has no audit line', { signupId: id, reason: line.error.code })
+    } catch {
+      logger.warn('a signup refusal has no audit line', {
+        signupId: id,
+        reason: 'audit.unavailable',
+      })
+    }
 
     if (notify) {
       const mail = signupRefusedMail({
         to: request.email,
         locale: request.locale,
         selfHostLink,
-        // The template wants an address; with none configured the field is dropped just below.
-        replyTo: replyTo ?? request.email,
+        ...(replyTo === null ? {} : { replyTo }),
       })
-      const outgoing =
-        replyTo === null ? { to: mail.to, subject: mail.subject, text: mail.text } : mail
-      const sent = await mailer.send(outgoing)
-      if (!sent.ok) logger.warn('a signup refusal mail was not sent', { reason: sent.error.code })
+      try {
+        const sent = await mailer.send(mail)
+        if (!sent.ok) logger.warn('a signup refusal mail was not sent', { reason: sent.error.code })
+      } catch {
+        logger.warn('a signup refusal mail was not sent', { reason: 'mail.threw' })
+      }
     }
     return ok(undefined)
   }

@@ -126,8 +126,8 @@ export interface SignupRefusedMailInput {
   readonly locale: ClientLocale
   /** The self-hosting documentation. */
   readonly selfHostLink: string
-  /** Answers to this mail go here. */
-  readonly replyTo: EmailAddress
+  /** Answers to this mail go here; absent on a box that names no contact. */
+  readonly replyTo?: EmailAddress
 }
 
 interface RefusedTemplate {
@@ -183,7 +183,7 @@ export const signupRefusedMail = ({
     'EventSlide',
     '',
   ].join('\n')
-  return { to, subject: template.subject, text, replyTo }
+  return { to, subject: template.subject, text, ...(replyTo === undefined ? {} : { replyTo }) }
 }
 
 /* ------------------------------------------------------------------------------------------------ */

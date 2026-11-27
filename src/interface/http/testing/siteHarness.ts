@@ -267,7 +267,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
 
       provisionClientOwner,
       listSignupsForOperator: makeListSignupsForOperator({ signups, users, clock }),
-      approveSignup: makeApproveSignup({ signups, provisionClientOwner, audit, clock }),
+      approveSignup: makeApproveSignup({ signups, provisionClientOwner, audit, clock, logger }),
       refuseSignup: makeRefuseSignup({
         signups,
         mailer,

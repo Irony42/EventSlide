@@ -5,6 +5,7 @@ import type { UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
+import type { Logger } from '../../ports/logger'
 import type { SignupRepository } from '../../ports/signupRepository'
 import type { ProvisionClientOwner, ProvisionedClientOwner } from '../clients/provisionClientOwner'
 
@@ -22,6 +23,7 @@ export interface ApproveSignupDeps {
   /** Only the writing half of the log. */
   readonly audit: AuditRecorder
   readonly clock: Clock
+  readonly logger: Logger
 }
 
 export type ApproveSignup = (
@@ -50,7 +52,7 @@ export type ApproveSignup = (
  * the sign-in.
  */
 export const makeApproveSignup =
-  ({ signups, provisionClientOwner, audit, clock }: ApproveSignupDeps): ApproveSignup =>
+  ({ signups, provisionClientOwner, audit, clock, logger }: ApproveSignupDeps): ApproveSignup =>
   async ({ id, operator, ceilings }) => {
     const request = await signups.findById(id)
     if (request === null || request.status === 'unconfirmed') {
@@ -59,6 +61,18 @@ export const makeApproveSignup =
     const claimedAt = clock.now()
     if (!(await signups.claim(id, claimedAt))) {
       return err(DomainError.conflict('signup.notPending'))
+    }
+
+    // Giving the claim back must never replace the failure that made it necessary: its own failure
+    // (a throw, or a claim that is no longer ours) is logged and dropped.
+    const giveBack = async (): Promise<void> => {
+      try {
+        if (!(await signups.release(id, claimedAt))) {
+          logger.warn('a signup claim could not be given back', { signupId: id })
+        }
+      } catch {
+        logger.warn('a signup claim could not be given back', { signupId: id })
+      }
     }
 
     let provisioned: Result<ProvisionedClientOwner, DomainError>
@@ -71,22 +85,32 @@ export const makeApproveSignup =
         createdBy: operator,
       })
     } catch (error) {
-      await signups.release(id, claimedAt)
+      await giveBack()
       throw error
     }
     if (!provisioned.ok) {
-      await signups.release(id, claimedAt)
+      await giveBack()
       return provisioned
     }
 
     const at = clock.now()
-    await signups.finalize(id, {
+    const finalized = await signups.finalize(id, {
       decidedBy: operator,
       clientId: provisioned.value.clientId,
       invitationTokenId: provisioned.value.invitation.invitationId,
       claimedAt,
       now: at,
     })
+    if (!finalized) {
+      // The claim was no longer ours (the stale-claim sweep gave it back, or another call took it): the
+      // client and its invitation exist and belong to nobody's decision. Say so, name the client for
+      // whoever cleans it (never the address), and write no `signup.approved`.
+      logger.warn('a signup was provisioned but its claim was lost: orphan client', {
+        signupId: id,
+        clientId: provisioned.value.clientId,
+      })
+      return err(DomainError.conflict('signup.notPending'))
+    }
 
     const line = AuditEntry.create({
       at,
