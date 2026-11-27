@@ -145,7 +145,7 @@ export const anAbout = (overrides: Partial<About> = {}): About => ({
   license: 'AGPL-3.0-only',
   sourceUrl: 'https://git.example.org/me/eventslide/tree/v9.9.9-server',
   links: {},
-  features: { siteAdmin: false, forgotPassword: false },
+  features: { siteAdmin: false, forgotPassword: false, signup: 'off' },
   ...overrides,
 })
 
@@ -1010,6 +1010,10 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   // The same answer for every address, which is what the server gives.
   requestPasswordReset: vi.fn(async () => undefined),
   confirmPasswordReset: vi.fn(async () => undefined),
+  // The one answer a signup gets whatever the address; a test about the busy day overrides it.
+  requestSignup: vi.fn(async () => ({ status: 'sent' as const })),
+  signupPreview: vi.fn(async () => ({ state: 'usable' as const, maskedEmail: 'l•••@example.org' })),
+  confirmSignup: vi.fn(async () => ({ next: 'mail' as const })),
   revokeOtherSessions: vi.fn(async () => undefined),
   markTourSeen: vi.fn(async () => undefined),
   invitation: vi.fn(async () => anInvitationPreview()),

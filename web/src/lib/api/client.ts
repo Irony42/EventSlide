@@ -4,6 +4,7 @@ import { galleryApi } from './client/gallery'
 import { guestApi } from './client/guest'
 import { hostApi } from './client/host'
 import { guestInviteApi } from './client/invite'
+import { signupApi } from './client/signup'
 import { siteApi } from './client/site'
 
 /**
@@ -20,6 +21,7 @@ import { siteApi } from './client/site'
 export type { UploadInput, ClipUploadInput } from './client/guest'
 export type { InvitationAcceptance } from './client/account'
 export type { GuestInviteInput } from './client/invite'
+export type { SignupInput } from './client/signup'
 export type { SiteProvisionInput, SiteInvitationInput, SiteResetInput } from './client/site'
 export type {
   AlbumBookInput,
@@ -42,6 +44,7 @@ export const createApi = (transport: Transport) => ({
   ...hostApi(transport),
   ...galleryApi(transport),
   ...guestInviteApi(transport),
+  ...signupApi(transport),
 })
 
 export type Api = ReturnType<typeof createApi>

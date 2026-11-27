@@ -38,7 +38,9 @@ export const operatorSession = (overrides: Partial<CurrentUserDto> = {}): Sessio
 export const consoleApi = (overrides: Partial<Api> = {}): Api =>
   fakeApi({
     session: vi.fn(async () => operatorSession()),
-    about: vi.fn(async () => anAbout({ features: { siteAdmin: true, forgotPassword: false } })),
+    about: vi.fn(async () =>
+      anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+    ),
     ...overrides,
   })
 

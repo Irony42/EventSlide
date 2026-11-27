@@ -1,5 +1,5 @@
 import { BUILD_SOURCE_URL, BUILD_VERSION } from './about/buildInfo'
-import type { About, AboutLinks, AboutOperator } from './api/dto'
+import type { About, AboutLinks, AboutOperator, SignupMode } from './api/dto'
 
 /**
  * What this bundle knows without asking: the version it was built at and the upstream tag of
@@ -18,7 +18,7 @@ export const BUILD_ABOUT: About = {
   links: {},
   // Off until the server says otherwise: the strict reading, and the one that offers no
   // operator surface to a box that never asked for one.
-  features: { siteAdmin: false, forgotPassword: false },
+  features: { siteAdmin: false, forgotPassword: false, signup: 'off' },
 }
 
 /**
@@ -165,6 +165,10 @@ export const saidItsFeatures = (answer: unknown): boolean => {
   )
 }
 
+/** `off`, `review` or `open` exactly as the server wrote it; anything else is `off`. */
+const signupMode = (value: unknown): SignupMode =>
+  value === 'review' || value === 'open' ? value : 'off'
+
 export const laidOver = (answer: unknown): About => {
   if (typeof answer !== 'object' || answer === null) return BUILD_ABOUT
 
@@ -189,6 +193,8 @@ export const laidOver = (answer: unknown): About => {
     features: {
       siteAdmin: flag('siteAdmin') === true,
       forgotPassword: flag('forgotPassword') === true,
+      // Absent from a server that predates spec 31: that is `off`, like any unknown word.
+      signup: signupMode(flag('signup')),
     },
   }
 }
