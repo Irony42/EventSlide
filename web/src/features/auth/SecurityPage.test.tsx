@@ -34,6 +34,37 @@ describe('SecurityPage', () => {
     expect(screen.queryByRole('button', { name: fr.auth.setupStart })).toBeNull()
   })
 
+  describe('the e-mails section (spec 32)', () => {
+    const heading = () => screen.queryByRole('heading', { name: fr.auth.mailPreferences.title })
+
+    it('is on the page in each of its states: no key, no authenticator, an authenticator', async () => {
+      for (const status_ of [
+        status({ available: false }),
+        status(),
+        status({ enrolled: true, verified: true }),
+      ]) {
+        const { unmount } = render(fakeApi({ session: vi.fn(async () => signedIn(status_)) }))
+
+        expect(
+          await screen.findByRole('heading', { name: fr.auth.mailPreferences.title }),
+        ).toBeVisible()
+        unmount()
+      }
+    })
+
+    it('is not on the page of a box that writes to nobody', async () => {
+      const api = fakeApi({
+        session: vi.fn(async () => signedIn(status())),
+        mailPreferences: vi.fn(async () => ({ rsvp: true, event: true, available: false })),
+      })
+      render(api)
+
+      expect(await screen.findByRole('button', { name: fr.auth.setupStart })).toBeVisible()
+      await waitFor(() => expect(api.mailPreferences).toHaveBeenCalled())
+      expect(heading()).toBeNull()
+    })
+  })
+
   it('waits for the session instead of guessing which state the account is in', () => {
     render(fakeApi({ session: vi.fn(() => new Promise<SessionResponse>(() => {})) }))
 

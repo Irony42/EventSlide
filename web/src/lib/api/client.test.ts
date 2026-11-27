@@ -1009,6 +1009,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.setRsvpDigest(SLUG, true),
   },
   {
+    name: 'setMailPreferences',
+    verb: 'put',
+    path: '/api/me/mail-preferences',
+    invoke: (client) => client.setMailPreferences({ event: false }),
+  },
+  {
     name: 'mailPreferences',
     verb: 'get',
     path: '/api/me/mail-preferences',

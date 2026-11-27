@@ -2279,7 +2279,7 @@ export const en: UiText = {
         'The e-mails this server writes to you about your events. They carry figures and your own words only, never a guest’s name, diet or message.',
       rsvpLabel: 'Guests’ replies',
       rsvpHint:
-        'The reminder before the deadline, the summary once it has passed, and "every place is taken". The daily summary is ticked event by event, on the replies page.',
+        'The reminder before the deadline, the summary once it has passed, and the notice that every place is taken. The daily summary is ticked event by event, on the replies page.',
       eventLabel: 'The life of your events',
       eventHint:
         'An archive, a photo book or a film that is ready, the end of an event with its figures, the wall closing within a day, an invitation accepted.',

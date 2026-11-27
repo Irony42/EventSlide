@@ -1207,6 +1207,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   markRsvpsSeen: vi.fn(async (): Promise<void> => undefined),
   setRsvpDigest: vi.fn(async (): Promise<void> => undefined),
   mailPreferences: vi.fn(async () => ({ rsvp: true, event: true, available: true })),
+  setMailPreferences: vi.fn(async (): Promise<void> => undefined),
   // Browser notifications off, as on a box with no VAPID keys: the checkbox is not offered.
   guestAbsentNote: vi.fn(async () => ({ absentNoteSent: true as const })),
   pushKey: vi.fn(async () => {

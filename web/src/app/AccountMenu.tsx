@@ -34,8 +34,8 @@ import styles from './AccountMenu.module.css'
  *   deliberately.
  * - **Change password**: the page that already existed and had no link to it.
  *
- * **Security** (the second factor, H7) is offered when the box has a key to enrol with, or the
- * account has already enrolled: `secondFactor.available || enrolled`. Until then the page was
+ * **Security and e-mails** (the second factor, H7, and the e-mail switches of spec 32) is offered when the box has a key to enrol with, or the
+ * account has already enrolled (`secondFactor.available || enrolled`), or the box writes to its hosts (`features.hostMail`). Until then the page was
  * reachable only by typing its address, and for an operator the console's gate was the one link to it.
  *
  * **While the password must be changed** (`mustChangePassword`, H15) every address of the console
@@ -73,6 +73,8 @@ export function AccountMenu() {
   const mustChange = session?.authenticated === true && session.user.mustChangePassword
   const { clients } = useClientLimits(session?.authenticated === true && !mustChange)
   const consoleExists = useAbout().features.siteAdmin
+  // The page also holds the account's e-mail switches, which mean something only where the box writes to its hosts (spec 32).
+  const hostMail = useAbout().features.hostMail
 
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -205,7 +207,9 @@ export function AccountMenu() {
                   {t.clientSpace.spaceLink}
                 </Link>
               ) : null}
-              {session.user.secondFactor.available || session.user.secondFactor.enrolled ? (
+              {session.user.secondFactor.available ||
+              session.user.secondFactor.enrolled ||
+              hostMail ? (
                 <Link
                   className={styles['item']}
                   to="/admin/security"
@@ -213,7 +217,7 @@ export function AccountMenu() {
                   aria-current={location.pathname === '/admin/security' ? 'page' : undefined}
                   onClick={() => setOpen(false)}
                 >
-                  {t.auth.securityTitle}
+                  {t.auth.securityMenu}
                 </Link>
               ) : null}
               {consoleExists && !session.user.canOperateSite ? (

@@ -14,6 +14,7 @@ import { ApiError } from '../../lib/http'
 import { ADMIN_HOME, fromOf } from '../../lib/landing'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AuthForm } from './components/AuthForm'
+import { MailPreferencesSection } from './MailPreferencesSection'
 import { messageForPasswordError } from '../../lib/i18n/translations'
 import styles from './SecurityPage.module.css'
 import { copyToClipboard } from '../../lib/clipboard'
@@ -403,6 +404,7 @@ export function SecurityPage() {
           <h1 className={styles['heading']}>{t.auth.securityTitle}</h1>
           <p>{t.auth.securityUnavailable}</p>
         </section>
+        <MailPreferencesSection />
       </>
     )
   }
@@ -423,6 +425,7 @@ export function SecurityPage() {
           }}
         />
       )}
+      <MailPreferencesSection />
     </>
   )
 }
