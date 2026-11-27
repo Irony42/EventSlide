@@ -283,6 +283,12 @@ export const AUDIT_ACTIONS = {
    */
   'account.recoveryCodeUsed': { subject: 'account', details: { remaining: detail.integer } },
   /**
+   * An account changed which e-mails it receives about its events (`setMailPreferences`, spec 32). The
+   * subject is the account itself and nothing else is kept: not which switch, not the address. A
+   * security mail is never switchable, so there is nothing here an attacker would want to read.
+   */
+  'account.mailPreferencesChanged': { subject: 'account', details: {} },
+  /**
    * An operator approved a signup request (`approveSignup`, spec 31, ADR 0018): the client was opened and its
    * owner's invitation is out. The subject is the request's opaque id (the reserved subject type
    * `access_request`, so no table is rebuilt), the actor the operator; the client it produced is in

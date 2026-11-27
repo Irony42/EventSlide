@@ -3517,6 +3517,7 @@ export const fr = {
       'account.secondFactorDisabled': 'Vérification en deux étapes désactivée.',
       'account.recoveryCodesRegenerated': 'Codes de secours renouvelés.',
       'account.recoveryCodeUsed': 'Un code de secours a servi.',
+      'account.mailPreferencesChanged': 'Choix d’e-mails modifié.',
     },
     actionInvitationIssuedPending: 'Invitation émise ; elle attend l’accord d’un propriétaire.',
     actionOther: 'Une action a été enregistrée.',

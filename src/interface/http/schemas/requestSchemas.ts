@@ -1161,3 +1161,12 @@ export const pushSubscribeBody = z.strictObject({
 
 /** `DELETE /events/:slug/push-subscription`: which browser to forget. */
 export const pushUnsubscribeBody = z.strictObject({ endpoint: z.unknown() })
+
+/**
+ * `PUT /me/mail-preferences` (spec 32): the two switches of the account's "E-mails" section, each optional, both
+ * real booleans (a string or a number is a refusal, not a guess), no other key. The account is the session's.
+ */
+export const mailPreferencesBody = z.strictObject({
+  rsvp: z.boolean().optional(),
+  event: z.boolean().optional(),
+})

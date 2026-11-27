@@ -7,6 +7,7 @@ import type {
 import type { PruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import type { FinalizeOffboardedClients } from '../application/usecases/clients/finalizeOffboardedClients'
 import type { PurgeExpiredRsvps } from '../application/usecases/guestRsvps/purgeExpiredRsvps'
+import type { PruneMailBudget } from '../application/usecases/notices/pruneMailBudget'
 import type { SweepSignups } from '../application/usecases/signups/sweepSignups'
 import type { SweepPurgeNotices } from '../application/usecases/events/sweepPurgeNotices'
 import { leftWithArchive } from '../domain/clients/archiveState'
@@ -58,6 +59,8 @@ export interface RetentionSweeperDeps {
   readonly purgeExpiredRsvps: PurgeExpiredRsvps
   /** The signup requests whose time has come (spec 31). Required, like the others. */
   readonly sweepSignups: SweepSignups
+  /** The daily mail counts older than a week (spec 32). Required, like the others. */
+  readonly pruneMailBudget: PruneMailBudget
   readonly logger: Logger
   /** For the duration in the log line. Injected so that duration is assertable. */
   readonly clock: Clock
@@ -78,6 +81,7 @@ export interface RetentionSweeper {
 export interface RetentionFollowUpDeps {
   readonly purgeExpiredRsvps: PurgeExpiredRsvps
   readonly sweepSignups: SweepSignups
+  readonly pruneMailBudget: PruneMailBudget
   readonly finalizeOffboardedClients: FinalizeOffboardedClients
   readonly sweepPurgeNotices: SweepPurgeNotices
   readonly pruneAuditLog: PruneAuditLog
@@ -96,6 +100,7 @@ export interface RetentionFollowUpDeps {
 export const makeRetentionFollowUp = ({
   purgeExpiredRsvps,
   sweepSignups,
+  pruneMailBudget,
   finalizeOffboardedClients,
   sweepPurgeNotices,
   pruneAuditLog,
@@ -131,6 +136,23 @@ export const makeRetentionFollowUp = ({
       }
     } catch (error) {
       logger.error('signup requests could not be swept', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  /**
+   * The mail budget's housekeeping (spec 32): the daily counts older than a week are erased. The rows hold a
+   * day and a number and nothing else, so this is tidiness and not erasure of personal data; it still runs on
+   * every sweep and, for a box whose timer is off, from `npm run purge`. Never throws, for the reason
+   * `pruneAudit` gives.
+   */
+  const pruneMailCounts = async (): Promise<void> => {
+    try {
+      const { erased } = await pruneMailBudget()
+      if (erased > 0) logger.info('retention sweep erased old mail counts', { days: erased })
+    } catch (error) {
+      logger.error('mail counts could not be pruned', {
         error: error instanceof Error ? error.message : String(error),
       })
     }
@@ -223,6 +245,7 @@ export const makeRetentionFollowUp = ({
   return async () => {
     await purgeRsvps()
     await sweepSignupRequests()
+    await pruneMailCounts()
     await warnOwners()
     // The offboarded clients first, whose audit lines the prune should then see.
     await finalizeClients()
@@ -237,6 +260,7 @@ export const createRetentionSweeper = ({
   sweepPurgeNotices,
   purgeExpiredRsvps,
   sweepSignups,
+  pruneMailBudget,
   logger,
   clock,
   intervalMs,
@@ -247,6 +271,7 @@ export const createRetentionSweeper = ({
     pruneAuditLog,
     purgeExpiredRsvps,
     sweepSignups,
+    pruneMailBudget,
     logger,
   })
 
