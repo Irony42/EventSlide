@@ -31,6 +31,20 @@ describe('a line of the log, in words', () => {
     expect(sentence).toBe(fr.site.actions['client.ceilingsChanged'])
   })
 
+  it('says what each signup action means (spec 31)', () => {
+    for (const action of Object.keys(fr.siteSignups.actions)) {
+      const sentence = auditSentence(aSiteAuditEntry({ action }), fr)
+      expect(sentence).toBe(fr.siteSignups.actions[action as keyof typeof fr.siteSignups.actions])
+      expect(sentence).not.toBe(fr.site.actionOther)
+    }
+    expect(Object.keys(fr.siteSignups.actions)).toEqual([
+      'signup.approved',
+      'signup.refused',
+      'signup.expired',
+      'signup.dailyCeilingReached',
+    ])
+  })
+
   it('says an invitation is waiting for an owner when its details say so', () => {
     const entry = aSiteAuditEntry({
       action: 'invitation.issued',

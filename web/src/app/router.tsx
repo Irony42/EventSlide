@@ -179,6 +179,9 @@ const SiteClientPage = lazy(async () => ({
 const SiteAccountsPage = lazy(async () => ({
   default: (await import('../features/site/AccountsPage')).AccountsPage,
 }))
+const SiteSignupsPage = lazy(async () => ({
+  default: (await import('../features/site/signups/SignupsPage')).SignupsPage,
+}))
 const SiteAuditPage = lazy(async () => ({
   default: (await import('../features/site/AuditPage')).AuditPage,
 }))
@@ -468,6 +471,8 @@ export function AppRoutes() {
   // registered and a direct visit to its address is the not-found screen, as for any address
   // nobody wrote (G2-00 / P3-21).
   const siteAdmin = useAbout().features.siteAdmin
+  // The operator's page of signup requests exists only where signing up is on (spec 31).
+  const signupOn = useAbout().features.signup !== 'off'
   const aboutAnswered = useAboutAnswered()
   const { pathname } = useLocation()
   // The console's addresses exist only on a box that says so, and a box has not said so yet: a
@@ -690,6 +695,12 @@ export function AppRoutes() {
                       path="/admin/site/takedown"
                       element={titled('siteTakedown', <SiteTakedownPage />)}
                     />
+                    {signupOn ? (
+                      <Route
+                        path="/admin/site/signups"
+                        element={titled('siteSignups', <SiteSignupsPage />)}
+                      />
+                    ) : null}
                     <Route
                       path="/admin/site/audit"
                       element={titled('siteAudit', <SiteAuditPage />)}

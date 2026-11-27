@@ -43,7 +43,7 @@ describe('useAbout: features.forgotPassword', () => {
     ['no features at all', {}],
     ['a string', { features: { forgotPassword: 'true' } }],
     ['a number', { features: { forgotPassword: 1 } }],
-    ['null', { features: { forgotPassword: null } }],
+    ['null', { features: { forgotPassword: null, signup: 'off' } }],
     ['features that are not an object', { features: 'on' }],
   ])('stays off for %s', async (_name, answer) => {
     const { result } = aboutAnswering({ ...anAbout(), ...answer })

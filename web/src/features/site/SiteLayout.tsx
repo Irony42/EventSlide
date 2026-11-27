@@ -9,6 +9,10 @@ import { useTranslations } from '../../lib/i18n/useTranslations'
 import { messageForError } from '../../lib/i18n/translations'
 import { hereAsFrom } from '../../lib/landing'
 import { useClientLimits } from '../../lib/useClientLimits'
+import { useAbout } from '../../lib/useAbout'
+import { cx } from '../../design-system/classNames'
+import { PendingSignupsProvider } from './signups/PendingSignupsProvider'
+import { SignupsNavLink } from './signups/SignupsNavLink'
 import { StepUpProvider } from './StepUpProvider'
 import styles from './SiteLayout.module.css'
 
@@ -88,12 +92,21 @@ function SecondFactorGate({ children }: { readonly children: ReactNode }) {
  * back button and a copied link behave, and a client's page belongs to "Clients" without needing a
  * fourth entry.
  */
-export function SiteLayout() {
+function SiteConsole() {
   const t = useTranslations()
   const { pathname } = useLocation()
   // The operator may also belong to a client (their own events, a client space): the console is
   // one of three homes and says so. Asked of the account's own limits, as the menu does.
   const { clients: memberships } = useClientLimits()
+
+  // The entry exists only where signing up is on (spec 31), and counts only once the session has
+  // passed the second factor: until then every `/api/site` route refuses.
+  const signupOn = useAbout().features.signup !== 'off'
+  const { session } = useSession()
+  const passed =
+    session !== null &&
+    session.authenticated &&
+    (!session.user.secondFactor.required || session.user.secondFactor.verified)
 
   const clients = pathname === '/admin/site' || pathname.startsWith('/admin/site/clients/')
   const sections: readonly {
@@ -143,6 +156,13 @@ export function SiteLayout() {
                 {section.label}
               </Link>
             ))}
+            {signupOn ? (
+              <SignupsNavLink
+                className={cx(styles['navLink'])}
+                current={pathname === '/admin/site/signups'}
+                counted={passed}
+              />
+            ) : null}
           </nav>
         </header>
         <SecondFactorGate>
@@ -150,5 +170,14 @@ export function SiteLayout() {
         </SecondFactorGate>
       </div>
     </StepUpProvider>
+  )
+}
+
+/** The console, with the counter its signups badge and page share. */
+export function SiteLayout() {
+  return (
+    <PendingSignupsProvider>
+      <SiteConsole />
+    </PendingSignupsProvider>
   )
 }

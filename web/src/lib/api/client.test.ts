@@ -1256,6 +1256,24 @@ const ENDPOINTS: readonly EndpointCase[] = [
     path: `/api/site/accounts/${ACCOUNT}/password-reset`,
     invoke: (client) => client.siteResetPassword(ACCOUNT, { locale: 'fr' }),
   },
+  {
+    name: 'siteSignups',
+    verb: 'get',
+    path: '/api/site/signups',
+    invoke: (client) => client.siteSignups('pending'),
+  },
+  {
+    name: 'siteApproveSignup',
+    verb: 'post',
+    path: `/api/site/signups/${CLIENT}/approve`,
+    invoke: (client) => client.siteApproveSignup(CLIENT),
+  },
+  {
+    name: 'siteRefuseSignup',
+    verb: 'post',
+    path: `/api/site/signups/${CLIENT}/refuse`,
+    invoke: (client) => client.siteRefuseSignup(CLIENT, true),
+  },
 ]
 
 describe('the token of a guest’s own reply (spec 30)', () => {
@@ -1614,6 +1632,48 @@ describe('the operator’s console requests', () => {
     await subject().siteSuspendClient('a/b')
 
     expect(only().path).toBe('/api/site/clients/a%2Fb/suspend')
+  })
+})
+
+describe('the operator’s signup requests (spec 31)', () => {
+  it('asks for one status at a time, in the query', async () => {
+    await subject().siteSignups('refused')
+
+    expect(only()).toMatchObject({
+      verb: 'get',
+      path: '/api/site/signups',
+      query: { status: 'refused' },
+    })
+  })
+
+  it('sends the page size and the opaque cursor of the page it continues', async () => {
+    await subject().siteSignups('pending', { limit: 50, before: 'c3VpdGU' })
+
+    expect(only().query).toEqual({ status: 'pending', limit: 50, before: 'c3VpdGU' })
+  })
+
+  it('sends the ceilings the operator changed and nothing else on approval, a null lifting one', async () => {
+    await subject().siteApproveSignup(CLIENT, { ceilings: { maxEvents: 2, maxLiveDays: null } })
+
+    expect(JSON.stringify(only().body)).toBe('{"ceilings":{"maxEvents":2,"maxLiveDays":null}}')
+  })
+
+  it('sends an empty body on an approval that changes no ceiling', async () => {
+    await subject().siteApproveSignup(CLIENT)
+
+    expect(only().body).toEqual({})
+  })
+
+  it('sends whether the person is told, as a boolean, on a refusal', async () => {
+    await subject().siteRefuseSignup(CLIENT, false)
+
+    expect(only().body).toEqual({ notify: false })
+  })
+
+  it('puts an id with a slash in it into one path segment', async () => {
+    await subject().siteApproveSignup('a/b')
+
+    expect(only().path).toBe('/api/site/signups/a%2Fb/approve')
   })
 })
 

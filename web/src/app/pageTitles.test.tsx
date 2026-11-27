@@ -37,7 +37,7 @@ const asHost = (route: string, locale: 'fr' | 'de' = 'fr', operator = false) => 
       user: aSessionUser({ canOperateSite: operator }),
     })),
     about: vi.fn(async () =>
-      anAbout({ features: { siteAdmin: true, forgotPassword: true, signup: 'off' } }),
+      anAbout({ features: { siteAdmin: true, forgotPassword: true, signup: 'review' } }),
     ),
   })
   return renderWithProviders(<AppRoutes />, { api, route, locale })
@@ -125,6 +125,7 @@ const OPERATOR: readonly (readonly [string, Key])[] = [
   ['/admin/site/clients/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'siteClient'],
   ['/admin/site/accounts', 'siteAccounts'],
   ['/admin/site/audit', 'siteAudit'],
+  ['/admin/site/signups', 'siteSignups'],
   ['/admin/site/takedown', 'siteTakedown'],
 ]
 

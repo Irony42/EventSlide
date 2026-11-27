@@ -434,6 +434,9 @@ export const de: UiText = {
     'auth.secondFactorRequired':
       'Dieses Konto muss zuerst die Bestätigung in zwei Schritten bestehen.',
     'auth.stepUpRequired': 'Bestätigen Sie Ihre Identität, um fortzufahren.',
+    'signup.notPending': 'Diese Anfrage wurde bereits bearbeitet.',
+    'signup.notFound': 'Diese Anfrage existiert nicht mehr.',
+    'signup.held': 'Der Speicherplatz reicht weiterhin nicht, um dieses Konto zu eröffnen.',
     'auth.secondFactorAlreadyEnrolled':
       'Die Bestätigung in zwei Schritten ist für dieses Konto bereits aktiv.',
     'auth.noEnrolmentInProgress': 'Es läuft keine Einrichtung. Beginnen Sie neu.',
@@ -2600,6 +2603,61 @@ export const de: UiText = {
     liveWindowEnd: (date: string) => `Die Veranstaltung endet am ${date}.`,
   },
 
+  siteSignups: {
+    nav: 'Anmeldungen',
+    navPending: (count: number) => `Anmeldungen (${count})`,
+    title: 'Anmeldungen',
+    hintOpen:
+      'Konten werden von selbst eröffnet, sobald die Person ihre Adresse bestätigt hat. Hier stehen die der letzten 30 Tage.',
+    hintReview:
+      'Jede Person hat ihre Adresse bestätigt. Nichts wird vor Ihrer Freigabe eröffnet, und eine unbeantwortete Anfrage verschwindet nach 30 Tagen.',
+    tabsLabel: 'Anmeldeanfragen',
+    tabOpened: 'Eröffnete Konten',
+    tabPending: 'Freizugeben',
+    tabProcessed: 'Bearbeitet',
+    openedHeading: 'In den letzten 30 Tagen eröffnete Konten',
+    heldHeading: 'Zurückgehaltene Anfragen',
+    heldHint:
+      'Der Speicherplatz reichte nicht, um diese Konten selbstständig zu eröffnen: Sie geben sie frei oder lehnen sie ab.',
+    processedHint: 'Abgelehnte Anfragen, 30 Tage lang aufbewahrt.',
+    emptyOpened: 'In den letzten 30 Tagen wurde kein Konto eröffnet.',
+    emptyPending: 'Keine Anfrage freizugeben.',
+    emptyProcessed: 'Keine abgelehnte Anfrage.',
+    tableLabel: 'Anmeldeanfragen',
+    emailColumn: 'Adresse',
+    spaceColumn: 'Bereich',
+    occasionColumn: 'Anlass',
+    eventDateColumn: 'Datum der Veranstaltung',
+    languageColumn: 'Sprache',
+    confirmedColumn: 'Bestätigt am',
+    openedColumn: 'Eröffnet am',
+    decidedColumn: 'Abgelehnt am',
+    actionsColumn: 'Aktionen',
+    none: '—',
+    existingAccount: 'Bestehendes Konto',
+    clientLink: 'Kundenseite',
+    approve: 'Freigeben',
+    refuse: 'Ablehnen',
+    approveTitle: (name: string) => `Anmeldung von „${name}“ freigeben`,
+    approveIntro:
+      'Der Kunde wird mit den folgenden Grenzen eröffnet, vorausgefüllt mit denen der Instanz, und die Einladung geht an die Adresse der Person.',
+    existingAccountNotice: 'Bestehendes Konto: Die Person muss sich zum Annehmen anmelden',
+    approveConfirm: 'Freigeben und Einladung senden',
+    approvedDone: (name: string) => `Konto „${name}“ eröffnet, Einladung gesendet.`,
+    refuseTitle: (name: string) => `Anmeldung von „${name}“ ablehnen`,
+    refuseBody: 'Die Anfrage wird abgelehnt. Es wird kein Grund gespeichert.',
+    notify: 'Die Person benachrichtigen',
+    notifyHint: 'Eine neutrale E-Mail ohne Begründung.',
+    refuseConfirm: 'Anfrage ablehnen',
+    refusedDone: 'Anfrage abgelehnt.',
+    actions: {
+      'signup.approved': 'Anmeldung freigegeben, Konto eröffnet.',
+      'signup.refused': 'Anmeldung abgelehnt.',
+      'signup.expired': 'Anmeldeanfrage ohne Entscheidung abgelaufen.',
+      'signup.dailyCeilingReached': 'Tageslimit für Anmeldungen erreicht.',
+    },
+  },
+
   site: {
     menuLink: 'Betreiber-Konsole',
     consoleTitle: 'Betreiber-Konsole',
@@ -4281,5 +4339,6 @@ export const de: UiText = {
     siteAccounts: 'Konten der Instanz',
     siteAudit: 'Protokoll der Instanz',
     siteTakedown: 'Inhalt entfernen',
+    siteSignups: 'Anmeldungen',
   },
 }
