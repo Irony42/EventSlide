@@ -20,6 +20,65 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.19.0] - 2026-11-27
+
+Everything merged to `main` after the tag `v3.18.0`: pull requests #563, #565 to #567 and #569 to #583 (19 pull requests:
+self-service signup as #575 to #582, the groundwork of the mails to the host as #583, three fixes of the replies pages as
+#565, #566 and #572, two documentation and two test or CI changes, and three dependency updates). This is a minor
+release with one theme: anyone can create an account, if the operator allows it. Signup is off unless the operator sets
+`SIGNUP`, and a self-hosted box stays by invitation. Two migrations, 041 (`signup_requests`) and 042
+(`host_mail_notices`), applied at start-up. Six settings are new in `.env.example`, all optional.
+
+### Hosts and moderators
+
+- **"Create an account", when the operator opens it** (#575, #576, #578, #579, #581, #582). With `SIGNUP` set, the
+  sign-in page shows "No account yet? Create an account". The form asks for an address and the "Name of your space",
+  and optionally the occasion and the date. A link valid 24 hours waits in the inbox, and the address is confirmed only
+  when "Confirm my address" is pressed (a mail scanner that opens the link confirms nothing). The account then opens at
+  once (`open`) or after the operator's approval (`review`), and the invitation mail lets you choose your password. The
+  form answers the same whether or not the address already has an account. The first owner of a new space gets one
+  welcome mail, with the link to the guides and the operator's contact address.
+- **The replies pages, as seen on the 3.18 demo** (#565, #566, #572). The guest page preview keeps the phone at its own
+  size instead of stretching it; the "Replies" page widens on a large screen; and the table, the first name of a
+  household and the recap of a reply are fixed.
+
+### Operators
+
+- **Self-service signup, off by default** (#575, #577, #578, #580, #581). `SIGNUP` is `off`, `review` or `open`. In
+  `review` each confirmed request waits on the new "Signups" page of the site console, under "To approve", for an
+  "Approve" or a "Refuse" (with a neutral mail to the person, ticked by default). In `open` the account opens as soon as
+  the address is confirmed, unless the free disk space is short: the request is then held for you ("Held requests").
+  `SIGNUP_MAX_PER_DAY` (50) caps the requests a box takes in a day, `SIGNUP_RATE_LIMIT_PER_HOUR` (10) the requests per IP
+  address and per hour, and `SIGNUP_NOTIFY_EMAIL` gets at most one mail an hour, with neither address nor name, when accounts
+  were opened or requests wait. A request is erased within 60 days; the audit log records `signup.approved`,
+  `signup.refused`, `signup.expired` and `signup.dailyCeilingReached`, never the address. ADR 0018 gives the reasoning,
+  and [OPERATING.md](docs/OPERATING.md#self-service-signup) the details.
+- **The groundwork of the mails to the host** (#583). ADR 0019, two settings (`HOST_MAIL_NOTICES`,
+  `MAIL_FOLLOWUP_MAX_PER_DAY`), each account's two switches (`GET` and `PUT /api/me/mail-preferences`) and
+  `features.hostMail` in `/api/about`. **Nothing is sent by this version**: the mails themselves come in a later one.
+
+### Under the hood
+
+- The ZAP coverage check names the token pages' route the way the server logs it now (#567); a welcome page test no
+  longer depends on timing (#569); the release notes, the CHANGELOG and `docs/UPGRADING.md` name the interface in
+  English (#573, #574).
+
+### Dependencies and security
+
+- The development group (10 updates, #563), the production group (4 updates, #570) and `fontkit` 3.0.0 (#571).
+
+### Behaviour changes to check before upgrading
+
+- **Two migrations**, 041 (`signup_requests`) and 042 (`host_mail_notices`): new tables and four columns with defaults,
+  nothing existing is rewritten. Back up before upgrading, as for any release.
+- **Six new settings, all optional**: `SIGNUP`, `SIGNUP_MAX_PER_DAY`, `SIGNUP_RATE_LIMIT_PER_HOUR`,
+  `SIGNUP_NOTIFY_EMAIL`, `HOST_MAIL_NOTICES` and `MAIL_FOLLOWUP_MAX_PER_DAY`. Left unset, nothing changes. **A malformed
+  value of any of them refuses the boot**, even with `SIGNUP=off`; a blank value counts as absent.
+- **`SIGNUP=review` or `open` is refused at boot (exit 78)** without `SITE_ADMIN=on` and a mail relay (`SMTP_URL` and
+  `MAIL_FROM`).
+- **Your reverse proxy must not log `/signup/confirm/*` or `/api/signup/confirm/*`**, which carry a one-time token, as
+  for `/invite/*`. See [Upgrading to 3.19](docs/UPGRADING.md#upgrading-to-319).
+
 ## [3.18.0] - 2026-11-25
 
 Everything merged to `main` after the tag `v3.17.0`: pull requests #501, #504, #528 and #537 to #562 (29 pull requests:
