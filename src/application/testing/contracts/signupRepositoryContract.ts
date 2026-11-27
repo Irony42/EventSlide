@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { asAccountTokenId, asClientId, asUserId } from '../../../domain/shared/ids'
 import {
   createSignupRequest,
+  signupListedAt,
   type SignupRequest,
   type SignupStatus,
 } from '../../../domain/signups/signupRequest'
@@ -509,32 +510,82 @@ export const signupRepositoryContract = (
     })
 
     describe('listForOperator and countPending', () => {
-      it('never lists an unconfirmed request, whatever is asked', async () => {
+      it('never lists an unconfirmed request', async () => {
         await admit('unproven@example.test')
-        await toPending('proven@example.test')
 
-        const listed = await repo.listForOperator({
-          statuses: ['unconfirmed', 'pending'],
-          limit: 10,
-        })
-
-        expect(listed.map((row) => row.email.value)).toEqual(['proven@example.test'])
-        expect(await repo.listForOperator({ statuses: ['unconfirmed'], limit: 10 })).toEqual([])
-        expect(await repo.listForOperator({ statuses: [], limit: 10 })).toEqual([])
+        expect(await repo.listForOperator({ status: 'unconfirmed', limit: 10 })).toEqual([])
       })
 
-      it('lists the asked states, newest confirmation first, up to the limit', async () => {
+      it('lists one state, newest confirmation first, up to the limit', async () => {
         const first = await toPending('a@example.test', at(0))
         const second = await toPending('b@example.test', at(HOUR))
         const third = await toPending('c@example.test', at(2 * HOUR))
         await repo.refuse(first, asUserId('user-1'), at(3 * HOUR))
 
-        const pending = await repo.listForOperator({ statuses: ['pending'], limit: 10 })
-        const limited = await repo.listForOperator({ statuses: ['pending', 'refused'], limit: 2 })
+        const pending = await repo.listForOperator({ status: 'pending', limit: 10 })
+        const limited = await repo.listForOperator({ status: 'pending', limit: 1 })
+        const refused = await repo.listForOperator({ status: 'refused', limit: 10 })
 
         expect(pending.map((row) => row.id)).toEqual([third, second])
-        expect(limited.map((row) => row.id)).toEqual([third, second])
+        expect(limited.map((row) => row.id)).toEqual([third])
+        expect(refused.map((row) => row.id)).toEqual([first])
         expect(await repo.countPending()).toBe(2)
+      })
+
+      it('pages with a cursor: the next page starts strictly after the last row seen', async () => {
+        const ids: string[] = []
+        for (let index = 0; index < 5; index += 1) {
+          ids.push(await toPending(`p${index}@example.test`, at(index * HOUR)))
+        }
+        const newestFirst = [...ids].reverse()
+
+        const first = await repo.listForOperator({ status: 'pending', limit: 2 })
+        const last = first[first.length - 1] as SignupRequest
+        const second = await repo.listForOperator({
+          status: 'pending',
+          limit: 2,
+          before: { at: signupListedAt(last), id: last.id },
+        })
+        const end = second[second.length - 1] as SignupRequest
+        const third = await repo.listForOperator({
+          status: 'pending',
+          limit: 2,
+          before: { at: signupListedAt(end), id: end.id },
+        })
+
+        expect(first.map((row) => row.id)).toEqual(newestFirst.slice(0, 2))
+        expect(second.map((row) => row.id)).toEqual(newestFirst.slice(2, 4))
+        expect(third.map((row) => row.id)).toEqual(newestFirst.slice(4))
+      })
+
+      it('breaks a tie on the instant by id, so no row is skipped or repeated across pages', async () => {
+        // Two requests confirmed at the same instant: the cursor's id decides which comes next.
+        const n1 = nextId()
+        const n2 = nextId()
+        for (const [n, email] of [
+          [n1, 'tie1@example.test'],
+          [n2, 'tie2@example.test'],
+        ] as const) {
+          const token = confirmationToken(`tok-${n}`, email, T0)
+          await repo.admit({
+            request: request(`req-${n}`, email, T0),
+            token,
+            now: T0,
+            maxPerDay: BIG,
+          })
+          await repo.confirm({ tokenDigest: token.tokenDigest, now: at(HOUR), outcome: 'pending' })
+        }
+
+        const first = await repo.listForOperator({ status: 'pending', limit: 1 })
+        const head = first[0] as SignupRequest
+        const second = await repo.listForOperator({
+          status: 'pending',
+          limit: 1,
+          before: { at: signupListedAt(head), id: head.id },
+        })
+
+        expect(first.map((row) => row.id)).toEqual([`req-${n2}`])
+        expect(second.map((row) => row.id)).toEqual([`req-${n1}`])
       })
 
       it('keeps only what was decided or made since the given instant', async () => {
@@ -542,7 +593,7 @@ export const signupRepositoryContract = (
         const recent = await toPending('new@example.test', at(10 * DAY))
 
         const listed = await repo.listForOperator({
-          statuses: ['pending'],
+          status: 'pending',
           since: at(5 * DAY),
           limit: 10,
         })
@@ -552,7 +603,7 @@ export const signupRepositoryContract = (
       })
 
       it('refuses a limit that is not a positive integer', async () => {
-        await expect(repo.listForOperator({ statuses: ['pending'], limit: 0 })).rejects.toThrow(
+        await expect(repo.listForOperator({ status: 'pending', limit: 0 })).rejects.toThrow(
           RangeError,
         )
       })

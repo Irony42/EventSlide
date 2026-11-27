@@ -154,6 +154,13 @@ const move = (
     ? ok({ ...request, ...changes, status: to })
     : err(DomainError.conflict('signup.illegalTransition', { from: request.status, to }))
 
+/**
+ * Where a request sits in the operator's list: newest first by this instant (its confirmation, which the
+ * list only shows once there is one), then by id. The position a cursor holds.
+ */
+export const signupListedAt = (request: SignupRequest): Date =>
+  request.confirmedAt ?? request.createdAt
+
 /** Where a confirmed address goes: the claim itself, or the operator's queue. */
 export type ConfirmationOutcome = 'approving' | 'pending'
 

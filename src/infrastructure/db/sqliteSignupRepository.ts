@@ -344,19 +344,21 @@ export class SqliteSignupRepository implements SignupRepository {
     if (!Number.isSafeInteger(filter.limit) || filter.limit < 1) {
       throw new RangeError('limit must be a positive integer')
     }
-    const statuses = filter.statuses.filter((status) => status !== 'unconfirmed')
-    if (statuses.length === 0) return []
-    const marks = statuses.map(() => '?').join(', ')
+    if (filter.status === 'unconfirmed') return []
     const since = filter.since === undefined ? null : toIsoText(filter.since)
+    const beforeAt = filter.before === undefined ? null : toIsoText(filter.before.at)
+    const beforeId = filter.before?.id ?? null
     return this.db
       .prepare<(string | number | null)[], SignupRow>(
         `SELECT ${COLUMNS} FROM signup_requests
-          WHERE status IN (${marks})
+          WHERE status = ?
             AND (? IS NULL OR COALESCE(decided_at, confirmed_at, created_at) >= ?)
+            AND (? IS NULL OR COALESCE(confirmed_at, created_at) < ?
+                 OR (COALESCE(confirmed_at, created_at) = ? AND id < ?))
           ORDER BY COALESCE(confirmed_at, created_at) DESC, id DESC
           LIMIT ?`,
       )
-      .all(...statuses, since, since, filter.limit)
+      .all(filter.status, since, since, beforeAt, beforeAt, beforeAt, beforeId, filter.limit)
       .map(toRequest)
   }
 

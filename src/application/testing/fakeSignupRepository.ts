@@ -7,7 +7,7 @@ import {
 import {
   confirmSignupRequest,
   type SignupRequest,
-  type SignupStatus,
+  signupListedAt,
 } from '../../domain/signups/signupRequest'
 import { signupSweepAction } from '../../domain/signups/signupRetention'
 import type {
@@ -202,21 +202,24 @@ export class FakeSignupRepository implements SignupRepository {
     if (!Number.isSafeInteger(filter.limit) || filter.limit < 1) {
       throw new RangeError('limit must be a positive integer')
     }
-    const statuses: readonly SignupStatus[] = filter.statuses.filter(
-      (status) => status !== 'unconfirmed',
-    )
+    if (filter.status === 'unconfirmed') return []
     const since = filter.since?.getTime() ?? null
+    const before = filter.before
+    const newestFirst = (left: SignupRequest, right: SignupRequest): number =>
+      signupListedAt(right).getTime() - signupListedAt(left).getTime() ||
+      (left.id < right.id ? 1 : left.id > right.id ? -1 : 0)
     return [...this.rows.values()]
-      .filter((row) => statuses.includes(row.status))
+      .filter((row) => row.status === filter.status)
+      .filter(
+        (row) =>
+          since === null || (row.decidedAt ?? row.confirmedAt ?? row.createdAt).getTime() >= since,
+      )
       .filter((row) => {
-        if (since === null) return true
-        return (row.decidedAt ?? row.confirmedAt ?? row.createdAt).getTime() >= since
+        if (before === undefined) return true
+        const at = signupListedAt(row).getTime()
+        return at < before.at.getTime() || (at === before.at.getTime() && row.id < before.id)
       })
-      .sort((left, right) => {
-        const l = (left.confirmedAt ?? left.createdAt).getTime()
-        const r = (right.confirmedAt ?? right.createdAt).getTime()
-        return r - l || (left.id < right.id ? 1 : left.id > right.id ? -1 : 0)
-      })
+      .sort(newestFirst)
       .slice(0, filter.limit)
   }
 

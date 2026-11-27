@@ -308,6 +308,7 @@ describe('the real schema', () => {
       'schema_migrations',
       'sessions',
       'share_links',
+      'signup_requests',
       'sqlite_sequence',
       'user_recovery_codes',
       'user_totp',

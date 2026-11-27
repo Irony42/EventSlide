@@ -76,11 +76,20 @@ export interface SignupFinalization {
   readonly now: Date
 }
 
+/** A position in the list, as `signupListedAt` and the id give it: the next page starts strictly after it. */
+export interface SignupListCursor {
+  readonly at: Date
+  readonly id: string
+}
+
 export interface SignupListFilter {
-  /** Which states to list. `unconfirmed` is ignored: an unproven address is never shown to an operator. */
-  readonly statuses: readonly SignupStatus[]
-  /** Only requests decided or made since this instant (`decided_at`, else `confirmed_at`). */
+  /** One state. `unconfirmed` lists nothing: an unproven address is never shown to an operator. */
+  readonly status: SignupStatus
+  /** Only requests decided or made since this instant (`decided_at`, else `confirmed_at`, else `created_at`): the 30-day window. */
   readonly since?: Date
+  /** Only requests after this position in the newest-first order. */
+  readonly before?: SignupListCursor
+  /** At most this many; a caller that wants to know whether more follow asks for one more. */
   readonly limit: number
 }
 
@@ -122,7 +131,7 @@ export interface SignupRepository {
   /** `pending` to `refused`. */
   refuse(id: string, by: UserId, now: Date): Promise<boolean>
 
-  /** Confirmed requests for the operator, newest first. Never an `unconfirmed` one. */
+  /** Confirmed requests of one state for the operator, newest first, a page at a time. Never an `unconfirmed` one. */
   listForOperator(filter: SignupListFilter): Promise<readonly SignupRequest[]>
 
   /** Requests in `pending`: the badge. */
