@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { asAccountTokenId, asClientId, asUserId } from '../shared/ids'
+import { addDays } from '../shared/time'
 import { EmailAddress } from '../users/emailAddress'
 import {
   SIGNUP_CLIENT_NAME_MAX,
@@ -16,6 +17,7 @@ import {
   signupListedAt,
   refuseSignupRequest,
   releaseSignupRequest,
+  signupPendingExpiresAt,
   type SignupFormInput,
   type SignupRequest,
   type SignupStatus,
@@ -215,6 +217,26 @@ describe('transitions', () => {
     allowed(['pending'], (r) => claimSignupRequest(r, LATER))
     const claimed = claimSignupRequest(inStatus('pending'), LATER)
     expect(claimed.ok && claimed.value).toMatchObject({ status: 'approving', claimedAt: LATER })
+  })
+
+  it('claims and refuses a pending request up to its 30th day, and not from that instant on', () => {
+    const lastMoment = new Date(addDays(NOW, 30).getTime() - 1)
+    const expiry = addDays(NOW, 30)
+    expect(signupPendingExpiresAt(inStatus('pending'))).toEqual(expiry)
+
+    expect(claimSignupRequest(inStatus('pending'), lastMoment).ok).toBe(true)
+    expect(refuseSignupRequest(inStatus('pending'), lastMoment, asUserId('op-1')).ok).toBe(true)
+
+    const claim = claimSignupRequest(inStatus('pending'), expiry)
+    const refusal = refuseSignupRequest(inStatus('pending'), expiry, asUserId('op-1'))
+    expect(!claim.ok && claim.error.code).toBe('signup.illegalTransition')
+    expect(!claim.ok && claim.error.details).toEqual({ from: 'expired', to: 'approving' })
+    expect(!refusal.ok && refusal.error.details).toEqual({ from: 'expired', to: 'refused' })
+  })
+
+  it('counts the 30 days from the creation, not from the confirmation', () => {
+    const confirmed = { ...inStatus('pending'), confirmedAt: addDays(NOW, 20) }
+    expect(claimSignupRequest(confirmed, addDays(NOW, 31)).ok).toBe(false)
   })
 
   it('releases only a claim, back to pending', () => {

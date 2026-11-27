@@ -3,11 +3,14 @@ import type { SignupStatus } from './signupRequest'
 
 /**
  * How long a signup request is kept (spec 31 section 4.3). The longest any request lives is
- * **60 days** (a refusal on day 29, kept 30 more), which is what the form's notice tells the person.
+ * **60 days after the person last submitted the form** (a refusal on day 29, kept 30 more), which is
+ * what the form's notice tells the person.
  *
- * - `unconfirmed`: erased 48 hours after it was made (token 24 h, then 24 h).
- * - `pending`: expires **30 days after the request was made** (not after its confirmation, or the bound
- *   below would not hold), and the sweep audits it, then erases it.
+ * - `unconfirmed`: erased 24 hours after its **last** confirmation link expired (a link lives 24 h,
+ *   so 48 h after the last submission, and a resend moves the date).
+ * - `pending`: expires **30 days after the request was made** (a resend counts as making it again;
+ *   not after its confirmation, or the bound below would not hold). From then on it cannot be claimed
+ *   or refused, whether or not the sweep has run, and the sweep audits it, then erases it.
  * - `refused`: erased 30 days after the refusal; that row is what keeps the address quiet meanwhile.
  * - `approved`: erased when its invitation is accepted, or 24 hours after the invitation expired
  *   (7 days). The client and its audit line keep the trace.
@@ -15,7 +18,10 @@ import type { SignupStatus } from './signupRequest'
  * - `approving`: a claim in flight. One that is more than an hour old is given back to `pending`
  *   (a provisioning that never finished), where an operator sees it and the 30 days still run.
  */
-export const SIGNUP_UNCONFIRMED_KEPT_HOURS = 48
+// Kept this long after the last confirmation link expired.
+export const SIGNUP_UNCONFIRMED_GRACE_HOURS = 24
+// The confirmation link's own life (`ACCOUNT_TOKEN_LIFETIME_MS.emailVerification`), as hours.
+export const SIGNUP_CONFIRMATION_LIFETIME_HOURS = 24
 export const SIGNUP_PENDING_EXPIRES_AFTER_DAYS = 30
 export const SIGNUP_REFUSED_KEPT_DAYS = 30
 export const SIGNUP_APPROVED_GRACE_HOURS = 24
@@ -37,6 +43,11 @@ export interface SweepView {
   readonly createdAt: Date
   readonly claimedAt: Date | null
   readonly decidedAt: Date | null
+  /**
+   * When the latest confirmation link of the address stops working, for `unconfirmed`. `null` when
+   * none is held: the request then counts from its creation, as if its one link had been issued then.
+   */
+  readonly lastConfirmationExpiresAt: Date | null
   /** Whether the invitation of an `approved` request was accepted. */
   readonly invitationAccepted: boolean
 }
@@ -48,7 +59,13 @@ export interface SweepView {
 export const signupDueAt = (view: SweepView): Date | null => {
   switch (view.status) {
     case 'unconfirmed':
-      return new Date(view.createdAt.getTime() + SIGNUP_UNCONFIRMED_KEPT_HOURS * HOUR_MS)
+      return new Date(
+        (
+          view.lastConfirmationExpiresAt ??
+          new Date(view.createdAt.getTime() + SIGNUP_CONFIRMATION_LIFETIME_HOURS * HOUR_MS)
+        ).getTime() +
+          SIGNUP_UNCONFIRMED_GRACE_HOURS * HOUR_MS,
+      )
     case 'pending':
       return addDays(view.createdAt, SIGNUP_PENDING_EXPIRES_AFTER_DAYS)
     case 'refused':
