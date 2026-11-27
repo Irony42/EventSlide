@@ -2,6 +2,7 @@ import {
   makeGetMailPreferences,
   makeSetMailPreferences,
 } from '../application/usecases/notices/mailPreferences'
+import { makeSweepRsvpDigests } from '../application/usecases/notices/sweepRsvpDigests'
 import { makeSweepRsvpNotices } from '../application/usecases/notices/sweepRsvpNotices'
 import { makePruneMailBudget } from '../application/usecases/notices/pruneMailBudget'
 import type { Adapters, UseCasePolicy } from './usecases'
@@ -29,6 +30,22 @@ export const noticeUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     clock: adapters.clock,
     logger: adapters.logger,
     capNoticeDays: policy.retention.capNoticeDays,
+    publicUrl: policy.publicUrl,
+    hostMailNotices: policy.hostMailNotices,
+  }),
+  /** R2, the daily summary of the replies (no route: the retention sweep calls it). */
+  sweepRsvpDigests: makeSweepRsvpDigests({
+    rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
+    events: adapters.events,
+    clients: adapters.clients,
+    invites: adapters.guestInvites,
+    memberships: adapters.memberships,
+    preferences: adapters.mailPreferences,
+    budget: adapters.mailBudget,
+    mailer: adapters.mailer,
+    clock: adapters.clock,
+    logger: adapters.logger,
     publicUrl: policy.publicUrl,
     hostMailNotices: policy.hostMailNotices,
   }),

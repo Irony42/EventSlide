@@ -7,6 +7,7 @@ import type {
 import type { PruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import type { FinalizeOffboardedClients } from '../application/usecases/clients/finalizeOffboardedClients'
 import type { PurgeExpiredRsvps } from '../application/usecases/guestRsvps/purgeExpiredRsvps'
+import type { SweepRsvpDigests } from '../application/usecases/notices/sweepRsvpDigests'
 import type { SweepRsvpNotices } from '../application/usecases/notices/sweepRsvpNotices'
 import type { PruneMailBudget } from '../application/usecases/notices/pruneMailBudget'
 import type { SweepSignups } from '../application/usecases/signups/sweepSignups'
@@ -64,6 +65,8 @@ export interface RetentionSweeperDeps {
   readonly pruneMailBudget: PruneMailBudget
   /** The warning before the guests' replies are erased (spec 32, R1). Required, like the others. */
   readonly sweepRsvpNotices: SweepRsvpNotices
+  /** The daily summary of the replies (spec 32, R2). Required, like the others. */
+  readonly sweepRsvpDigests: SweepRsvpDigests
   readonly logger: Logger
   /** For the duration in the log line. Injected so that duration is assertable. */
   readonly clock: Clock
@@ -86,6 +89,7 @@ export interface RetentionFollowUpDeps {
   readonly sweepSignups: SweepSignups
   readonly pruneMailBudget: PruneMailBudget
   readonly sweepRsvpNotices: SweepRsvpNotices
+  readonly sweepRsvpDigests: SweepRsvpDigests
   readonly finalizeOffboardedClients: FinalizeOffboardedClients
   readonly sweepPurgeNotices: SweepPurgeNotices
   readonly pruneAuditLog: PruneAuditLog
@@ -106,6 +110,7 @@ export const makeRetentionFollowUp = ({
   sweepSignups,
   pruneMailBudget,
   sweepRsvpNotices,
+  sweepRsvpDigests,
   finalizeOffboardedClients,
   sweepPurgeNotices,
   pruneAuditLog,
@@ -228,6 +233,34 @@ export const makeRetentionFollowUp = ({
   }
 
   /**
+   * The daily summary of the replies (spec 32, R2): after the purge and its warnings, to the owners who ticked it. Never throws,
+   * for the reason `pruneAudit` gives; a message the relay refused is not an error.
+   */
+  const sendDigests = async (): Promise<void> => {
+    try {
+      const report = await sweepRsvpDigests()
+      if (report.claimed > 0 || report.skippedBudget > 0) {
+        logger.info('retention sweep wrote the daily summaries of the replies', {
+          claimed: report.claimed,
+          sent: report.sent,
+          unsent: report.unsent,
+          skippedBudget: report.skippedBudget,
+        })
+      }
+      if (report.failed.length > 0) {
+        logger.error('replies digests could not examine every candidate', {
+          failed: report.failed.length,
+          failedIds: report.failed.join(' '),
+        })
+      }
+    } catch (error) {
+      logger.error('replies digests failed', {
+        error: error instanceof Error ? error.name : 'unknown',
+      })
+    }
+  }
+
+  /**
    * The offboarded clients' half of a sweep. Never throws, for the reason `pruneAudit` gives, and
    * run before it: a finalisation writes audit lines, and those should be in the log the prune reads.
    * A client that could not be finished is an error, not a warning: its accounts and its client row
@@ -286,6 +319,7 @@ export const makeRetentionFollowUp = ({
     await sweepSignupRequests()
     await pruneMailCounts()
     await warnOwners()
+    await sendDigests()
     // The offboarded clients first, whose audit lines the prune should then see.
     await finalizeClients()
     await pruneAudit()
@@ -301,6 +335,7 @@ export const createRetentionSweeper = ({
   sweepSignups,
   pruneMailBudget,
   sweepRsvpNotices,
+  sweepRsvpDigests,
   logger,
   clock,
   intervalMs,
@@ -313,6 +348,7 @@ export const createRetentionSweeper = ({
     sweepSignups,
     pruneMailBudget,
     sweepRsvpNotices,
+    sweepRsvpDigests,
     logger,
   })
 

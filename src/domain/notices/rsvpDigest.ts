@@ -54,7 +54,8 @@ export const rsvpDigestDue = (input: RsvpDigestInput): boolean => {
   )
 }
 
-const latestOf = (a: Date | null, b: Date | null): Date | null => {
+/** The later of two instants that may be absent. */
+export const latestOf = (a: Date | null, b: Date | null): Date | null => {
   if (a === null) return b
   if (b === null) return a
   return a.getTime() >= b.getTime() ? a : b

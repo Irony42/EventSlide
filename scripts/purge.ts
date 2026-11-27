@@ -72,6 +72,8 @@ import { SqliteGuestRsvpRepository } from '../src/infrastructure/db/sqliteGuestR
 import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
 import { makeNotifySignupOperator } from '../src/application/usecases/signups/notifySignupOperator'
 import { makeSweepSignups } from '../src/application/usecases/signups/sweepSignups'
+import { makeSweepRsvpDigests } from '../src/application/usecases/notices/sweepRsvpDigests'
+import { SqliteMailPreferenceRepository } from '../src/infrastructure/db/sqliteMailPreferenceRepository'
 import { makeSweepRsvpNotices } from '../src/application/usecases/notices/sweepRsvpNotices'
 import { SqliteEventMailNoticeLedger } from '../src/infrastructure/db/sqliteEventMailNoticeLedger'
 import { SqliteGuestInviteRepository } from '../src/infrastructure/db/sqliteGuestInviteRepository'
@@ -244,6 +246,22 @@ const execute = async (
           clock: systemClock,
           logger: followUpLogger,
           capNoticeDays,
+          publicUrl: config.publicUrl,
+          hostMailNotices: config.hostMail.notices === 'on',
+        }),
+        // The daily summary of the replies (spec 32, R2): the timer's own use case, after the purge's warnings.
+        sweepRsvpDigests: makeSweepRsvpDigests({
+          rsvps: new SqliteGuestRsvpRepository(db),
+          households: new SqliteGuestHouseholdRepository(db),
+          events,
+          clients: new SqliteClientRepository(db),
+          invites: new SqliteGuestInviteRepository(db),
+          memberships: new SqliteMembershipRepository(db),
+          preferences: new SqliteMailPreferenceRepository(db),
+          budget: new SqliteMailBudget(db, config.hostMail.followUpMaxPerDay),
+          mailer: mailerForFollowUp,
+          clock: systemClock,
+          logger: followUpLogger,
           publicUrl: config.publicUrl,
           hostMailNotices: config.hostMail.notices === 'on',
         }),
