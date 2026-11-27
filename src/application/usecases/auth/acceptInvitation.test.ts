@@ -1060,14 +1060,25 @@ describe('acceptInvitation: the welcome mail', () => {
 
   it('sends nothing to the second owner of a client', async () => {
     const first = await world.invite({ to: 'client-owner' })
-    await buildWelcome()({ token: first.token, credentials })
+    const accepted = await buildWelcome()({ token: first.token, credentials })
     await settle()
+    expect(mailer.sent).toHaveLength(1)
     mailer.sent.length = 0
-    const second = await world.invite({ to: 'client-owner', email: EXISTING_EMAIL })
+    // An owner's own invitation stays honourable once the client is no longer empty.
+    if (accepted.ok) world.tokens.withAccounts(accepted.value.userId)
+    const second = await world.invite({
+      to: 'client-owner',
+      email: EXISTING_EMAIL,
+      createdBy: accepted.ok ? accepted.value.userId : null,
+    })
 
-    await buildWelcome()({ token: second.token, signedInUserId: asUserId(EXISTING_ID) })
+    const result = await buildWelcome()({
+      token: second.token,
+      signedInUserId: asUserId(EXISTING_ID),
+    })
     await settle()
 
+    expect(result.ok).toBe(true)
     expect(mailer.sent).toEqual([])
   })
 
