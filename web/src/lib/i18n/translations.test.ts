@@ -107,6 +107,7 @@ describe('the scope', () => {
         'rsvp',
         'shell',
         'site',
+        'siteSignups',
         'titles',
         'ui',
         'upload',
