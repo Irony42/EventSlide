@@ -70,6 +70,10 @@ import { makePurgeExpiredRsvps } from '../src/application/usecases/guestRsvps/pu
 import { SqliteGuestHouseholdRepository } from '../src/infrastructure/db/sqliteGuestHouseholdRepository'
 import { SqliteGuestRsvpRepository } from '../src/infrastructure/db/sqliteGuestRsvpRepository'
 import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
+import { makeNotifySignupOperator } from '../src/application/usecases/signups/notifySignupOperator'
+import { makeSweepSignups } from '../src/application/usecases/signups/sweepSignups'
+import { SqliteSignupRepository } from '../src/infrastructure/db/sqliteSignupRepository'
+import { EmailAddress } from '../src/domain/users/emailAddress'
 
 /** The sweep wants a `Logger`; on a terminal that is the console. */
 export const consoleLogger: Logger = {
@@ -154,6 +158,13 @@ const execute = async (
       },
       child: () => followUpLogger,
     }
+    const mailerForFollowUp =
+      config.mail.smtp === null
+        ? nullMailer
+        : createSmtpMailer({ settings: config.mail.smtp, logger: followUpLogger })
+    const notifyAddress =
+      config.signup.notifyEmail === null ? null : EmailAddress.create(config.signup.notifyEmail)
+    const notifyTo = notifyAddress !== null && notifyAddress.ok ? notifyAddress.value : null
     const followUp = async (): Promise<boolean> => {
       await makeRetentionFollowUp({
         finalizeOffboardedClients: makeFinalizeOffboardedClients({
@@ -170,10 +181,7 @@ const execute = async (
           clients: new SqliteClientRepository(db),
           memberships: new SqliteMembershipRepository(db),
           notices: new SqlitePurgeNoticeLedger(db),
-          mailer:
-            config.mail.smtp === null
-              ? nullMailer
-              : createSmtpMailer({ settings: config.mail.smtp, logger: followUpLogger }),
+          mailer: mailerForFollowUp,
           clock: systemClock,
           logger: followUpLogger,
           capNoticeDays,
@@ -200,6 +208,21 @@ const execute = async (
             clock: systemClock,
             logger: followUpLogger,
           }),
+        }),
+        // The signup requests whose time has come (spec 31): the same use case as the timer's, with the
+        // box's own mailer and notice address. A request that waited too long leaves its `signup.expired` line.
+        sweepSignups: makeSweepSignups({
+          signups: new SqliteSignupRepository(db),
+          audit: new SqliteAuditLog(db),
+          notify: makeNotifySignupOperator({
+            mailer: mailerForFollowUp,
+            to: notifyTo,
+            publicUrl: config.publicUrl,
+            clock: systemClock,
+            logger: followUpLogger,
+          }),
+          clock: systemClock,
+          logger: followUpLogger,
         }),
         pruneAuditLog: makePruneAuditLog({
           audit: new SqliteAuditLog(db),

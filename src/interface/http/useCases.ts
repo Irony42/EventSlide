@@ -10,6 +10,9 @@ import type { DisableSecondFactor } from '../../application/usecases/auth/disabl
 import type { EnrollTotp } from '../../application/usecases/auth/enrollTotp'
 import type { RegenerateRecoveryCodes } from '../../application/usecases/auth/regenerateRecoveryCodes'
 import type { RegisterModerator } from '../../application/usecases/auth/registerModerator'
+import type { ConfirmSignup } from '../../application/usecases/signups/confirmSignup'
+import type { PreviewSignupConfirmation } from '../../application/usecases/signups/previewSignupConfirmation'
+import type { RequestSignup } from '../../application/usecases/signups/requestSignup'
 import type { RequestPasswordReset } from '../../application/usecases/auth/requestPasswordReset'
 import type { ResetPassword } from '../../application/usecases/auth/resetPassword'
 import type { RevokeOtherSessions } from '../../application/usecases/auth/revokeOtherSessions'
@@ -430,6 +433,11 @@ export interface HttpUseCases {
   readonly withdrawReaction: WithdrawReaction
   readonly getPhotoReactions: GetPhotoReactions
   readonly getTopPhotos: GetTopPhotos
+
+  // self-service signup (spec 31): the visitor's three. The operator's arrive with the console.
+  readonly requestSignup: RequestSignup
+  readonly previewSignupConfirmation: PreviewSignupConfirmation
+  readonly confirmSignup: ConfirmSignup
 }
 
 /** What every route module receives. */

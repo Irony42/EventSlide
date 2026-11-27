@@ -73,6 +73,8 @@ const controllableSweep = (): {
 const nothingFinalized = { finalized: [], accountsDeleted: 0, failed: [], reasons: [] }
 const nobodyWarned: SweepPurgeNoticesReport = { noticed: [], sent: 0, unsent: 0, failed: [] }
 
+const nothingSignups = { expired: 0, released: 0, erased: 0 }
+
 const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
   const logger = new CapturingLogger()
   const { lines } = logger
@@ -83,6 +85,7 @@ const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
     finalizeOffboardedClients: async () => nothingFinalized,
     sweepPurgeNotices: async () => nobodyWarned,
     purgeExpiredRsvps: async () => ({ deleted: 0 }),
+    sweepSignups: async () => nothingSignups,
     logger,
     clock,
     intervalMs: INTERVAL_MS,
@@ -729,6 +732,10 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
         order.push('rsvps')
         return { deleted: 0 }
       },
+      sweepSignups: async () => {
+        order.push('signups')
+        return nothingSignups
+      },
       finalizeOffboardedClients: async () => {
         order.push('finalize')
         return nothingFinalized
@@ -746,7 +753,7 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
 
     await followUp()
 
-    expect(order).toEqual(['rsvps', 'warn', 'finalize', 'prune'])
+    expect(order).toEqual(['rsvps', 'signups', 'warn', 'finalize', 'prune'])
   })
 
   it('still prunes when finalising throws, and never rejects', async () => {
@@ -754,6 +761,7 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
     let pruned = false
     const followUp = makeRetentionFollowUp({
       purgeExpiredRsvps: async () => ({ deleted: 0 }),
+      sweepSignups: async () => nothingSignups,
       finalizeOffboardedClients: async () => {
         throw new Error('database is locked')
       },
@@ -771,6 +779,72 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
     expect(at(logger.lines, 'error').map((line) => line.message)).toEqual([
       'offboarded clients could not be finalised',
     ])
+  })
+})
+
+describe('the signup requests ride the follow-up (spec 31)', () => {
+  it('says how many were erased, expired and released', async () => {
+    const { sweeper, lines } = build({
+      sweepSignups: async () => ({ expired: 1, released: 2, erased: 3 }),
+    })
+
+    await sweeper.runOnce()
+
+    const line = lines.find((entry) => entry.message === 'retention sweep erased signup requests')
+    expect(line?.level).toBe('info')
+    expect(line?.context).toMatchObject({ erased: 3, expired: 1, released: 2 })
+  })
+
+  it('says something when only a claim was released', async () => {
+    const { sweeper, lines } = build({
+      sweepSignups: async () => ({ expired: 0, released: 1, erased: 0 }),
+    })
+    await sweeper.runOnce()
+    expect(lines.map((entry) => entry.message)).toContain('retention sweep erased signup requests')
+  })
+
+  it('stays silent when nothing was due', async () => {
+    const { sweeper, lines } = build()
+    await sweeper.runOnce()
+    expect(lines.map((entry) => entry.message)).not.toContain(
+      'retention sweep erased signup requests',
+    )
+  })
+
+  it('logs an error, and still warns, finalises and prunes, when the sweep throws', async () => {
+    const order: string[] = []
+    const { sweeper, lines } = build({
+      sweepSignups: async () => {
+        throw new Error('database is locked')
+      },
+      sweepPurgeNotices: async () => {
+        order.push('warn')
+        return nobodyWarned
+      },
+      pruneAuditLog: async () => {
+        order.push('prune')
+        return nothingPruned
+      },
+    })
+
+    await sweeper.runOnce()
+
+    expect(order).toEqual(['warn', 'prune'])
+    expect(at(lines, 'error').map((entry) => entry.message)).toContain(
+      'signup requests could not be swept',
+    )
+  })
+
+  it('logs a failure that is not an Error as text', async () => {
+    const { sweeper, lines } = build({
+      sweepSignups: async () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw 'plain'
+      },
+    })
+    await sweeper.runOnce()
+    expect(lines.find((entry) => entry.message === 'signup requests could not be swept')?.context)
+      .toEqual({ error: 'plain' })
   })
 })
 
