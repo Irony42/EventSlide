@@ -137,4 +137,13 @@ export interface GuestRsvpRepository {
    * photo book and the archive that print the guestbook are retired first.
    */
   eventsWithExpiredNotes(now: Date): Promise<readonly EventId[]>
+
+  /**
+   * The events that hold at least one reply and whose replies' own retention (`rsvpExpiryOf`) ends at or
+   * before `horizon`, whether or not that has already happened: the candidates of the warning before the
+   * erasure (spec 32, R1). One bounded read, in the cutoffs of the domain rule. An event whose **purge** comes
+   * sooner than this retention is not found here (its replies' date is later): the caller asks the events
+   * for those.
+   */
+  eventsWithRepliesExpiringBefore(horizon: Date): Promise<readonly EventId[]>
 }

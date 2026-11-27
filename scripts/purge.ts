@@ -72,6 +72,9 @@ import { SqliteGuestRsvpRepository } from '../src/infrastructure/db/sqliteGuestR
 import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
 import { makeNotifySignupOperator } from '../src/application/usecases/signups/notifySignupOperator'
 import { makeSweepSignups } from '../src/application/usecases/signups/sweepSignups'
+import { makeSweepRsvpNotices } from '../src/application/usecases/notices/sweepRsvpNotices'
+import { SqliteEventMailNoticeLedger } from '../src/infrastructure/db/sqliteEventMailNoticeLedger'
+import { SqliteGuestInviteRepository } from '../src/infrastructure/db/sqliteGuestInviteRepository'
 import { makePruneMailBudget } from '../src/application/usecases/notices/pruneMailBudget'
 import { SqliteMailBudget } from '../src/infrastructure/db/sqliteMailBudget'
 import { SqliteSignupRepository } from '../src/infrastructure/db/sqliteSignupRepository'
@@ -225,6 +228,22 @@ const execute = async (
           }),
           clock: systemClock,
           logger: followUpLogger,
+        }),
+        // The warning before the guests' replies are erased (spec 32, R1): the timer's own use case, run before the
+        // erasure (`purgeExpiredRsvps`) as it is there. Without `SMTP_URL` it sends and notes nothing.
+        sweepRsvpNotices: makeSweepRsvpNotices({
+          events,
+          clients: new SqliteClientRepository(db),
+          invites: new SqliteGuestInviteRepository(db),
+          rsvps: new SqliteGuestRsvpRepository(db),
+          memberships: new SqliteMembershipRepository(db),
+          notices: new SqliteEventMailNoticeLedger(db),
+          budget: new SqliteMailBudget(db, config.hostMail.followUpMaxPerDay),
+          mailer: mailerForFollowUp,
+          clock: systemClock,
+          logger: followUpLogger,
+          capNoticeDays,
+          publicUrl: config.publicUrl,
         }),
         // The daily mail counts older than a week (spec 32): the same use case as the timer's.
         pruneMailBudget: makePruneMailBudget({

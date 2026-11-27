@@ -2,6 +2,7 @@ import {
   makeGetMailPreferences,
   makeSetMailPreferences,
 } from '../application/usecases/notices/mailPreferences'
+import { makeSweepRsvpNotices } from '../application/usecases/notices/sweepRsvpNotices'
 import { makePruneMailBudget } from '../application/usecases/notices/pruneMailBudget'
 import type { Adapters, UseCasePolicy } from './usecases'
 
@@ -14,6 +15,21 @@ import type { Adapters, UseCasePolicy } from './usecases'
  * retention sweep calls it.
  */
 export const noticeUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
+  /** R1, the warning before the replies are erased (no route: the retention sweep calls it). */
+  sweepRsvpNotices: makeSweepRsvpNotices({
+    events: adapters.events,
+    clients: adapters.clients,
+    invites: adapters.guestInvites,
+    rsvps: adapters.guestRsvps,
+    memberships: adapters.memberships,
+    notices: adapters.eventMailNotices,
+    budget: adapters.mailBudget,
+    mailer: adapters.mailer,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    capNoticeDays: policy.retention.capNoticeDays,
+    publicUrl: policy.publicUrl,
+  }),
   getMailPreferences: makeGetMailPreferences({
     users: adapters.users,
     preferences: adapters.mailPreferences,
