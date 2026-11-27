@@ -37,10 +37,14 @@ export const migration041: Migration = {
                                               'approved', 'refused', 'expired')),
         created_at          TEXT NOT NULL,
         confirmed_at        TEXT,
+        -- When the request entered 'approving' (the claim); the sweep gives a claim older than an hour back.
+        claimed_at          TEXT,
         decided_at          TEXT,
         decided_by          TEXT REFERENCES users (id) ON DELETE SET NULL,
         client_id           TEXT REFERENCES clients (id) ON DELETE SET NULL,
-        invitation_token_id TEXT REFERENCES account_tokens (id) ON DELETE SET NULL
+        invitation_token_id TEXT REFERENCES account_tokens (id) ON DELETE SET NULL,
+
+        CHECK ((status = 'approving') = (claimed_at IS NOT NULL))
       );
 
       CREATE INDEX IF NOT EXISTS idx_signup_requests_email

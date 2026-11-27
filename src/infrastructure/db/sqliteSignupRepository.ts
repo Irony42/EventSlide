@@ -12,7 +12,10 @@ import type {
 import { ClientName } from '../../domain/clients/clientName'
 import { isClientLocale } from '../../domain/clients/clientLocale'
 import { asAccountTokenId, asClientId, asUserId, type UserId } from '../../domain/shared/ids'
-import { decideSignupAdmission, type AddressRequestView } from '../../domain/signups/signupAdmission'
+import {
+  decideSignupAdmission,
+  type AddressRequestView,
+} from '../../domain/signups/signupAdmission'
 import {
   confirmSignupRequest,
   isSignupStatus,
@@ -41,7 +44,7 @@ import { ACCOUNT_TOKEN_USABLE_SQL } from './sqliteAccountTokenRepository'
 const DAY_MS = 24 * 60 * 60 * 1000
 
 const COLUMNS = `id, email, client_name, note, event_date, locale, status, created_at, confirmed_at,
-                 decided_at, decided_by, client_id, invitation_token_id`
+                 claimed_at, decided_at, decided_by, client_id, invitation_token_id`
 
 const QUALIFIED_COLUMNS = COLUMNS.split(',')
   .map((column) => `s.${column.trim()}`)
@@ -57,6 +60,7 @@ interface SignupRow {
   readonly status: string
   readonly created_at: string
   readonly confirmed_at: string | null
+  readonly claimed_at: string | null
   readonly decided_at: string | null
   readonly decided_by: string | null
   readonly client_id: string | null
@@ -83,6 +87,7 @@ const toRequest = (row: SignupRow): SignupRequest => {
     status: row.status,
     createdAt: fromIsoText(row.created_at),
     confirmedAt: fromNullableIsoText(row.confirmed_at),
+    claimedAt: fromNullableIsoText(row.claimed_at),
     decidedAt: fromNullableIsoText(row.decided_at),
     decidedBy: row.decided_by === null ? null : asUserId(row.decided_by),
     clientId: row.client_id === null ? null : asClientId(row.client_id),
@@ -147,7 +152,7 @@ export class SqliteSignupRepository implements SignupRepository {
             .prepare(
               `INSERT INTO signup_requests (${COLUMNS})
                     VALUES (@id, @email, @client_name, @note, @event_date, @locale, @status,
-                            @created_at, NULL, NULL, NULL, NULL, NULL)`,
+                            @created_at, NULL, NULL, NULL, NULL, NULL, NULL)`,
             )
             .run({
               id: request.id,
@@ -197,7 +202,10 @@ export class SqliteSignupRepository implements SignupRepository {
             toIsoText(token.createdAt),
             toIsoText(token.expiresAt),
           )
-        return { outcome: decision === 'create' ? 'created' : 'resent', issuedToday: issuedToday + 1 }
+        return {
+          outcome: decision === 'create' ? 'created' : 'resent',
+          issuedToday: issuedToday + 1,
+        }
       })
       .immediate()
   }
@@ -268,32 +276,37 @@ export class SqliteSignupRepository implements SignupRepository {
           .run(at, token.id, at)
         if (spent.changes !== 1) return { kind: 'invalid' }
         const updated = this.db
-          .prepare<[string, string, string]>(
-            `UPDATE signup_requests SET status = ?, confirmed_at = ?
+
+          .prepare<[string, string, string | null, string]>(
+            `UPDATE signup_requests SET status = ?, confirmed_at = ?, claimed_at = ?
               WHERE id = ? AND status = 'unconfirmed'`,
           )
-          .run(input.outcome, at, row.id)
+          .run(input.outcome, at, input.outcome === 'approving' ? at : null, row.id)
         if (updated.changes !== 1) throw new Error('signup request moved under its own transaction')
         return { kind: 'confirmed', request: moved.value }
       })
       .immediate()
   }
 
-  async claim(id: string): Promise<boolean> {
-    return this.move(id, 'pending', 'approving')
+  async claim(id: string, now: Date): Promise<boolean> {
+    return (
+      this.db
+        .prepare<[string, string]>(
+          `UPDATE signup_requests SET status = 'approving', claimed_at = ?
+            WHERE id = ? AND status = 'pending'`,
+        )
+        .run(toIsoText(now), id).changes === 1
+    )
   }
 
   async release(id: string): Promise<boolean> {
-    return this.move(id, 'approving', 'pending')
-  }
-
-  private move(id: string, from: SignupStatus, to: SignupStatus): boolean {
     return (
       this.db
-        .prepare<[string, string, string]>(
-          `UPDATE signup_requests SET status = ? WHERE id = ? AND status = ?`,
+        .prepare<[string]>(
+          `UPDATE signup_requests SET status = 'pending', claimed_at = NULL
+            WHERE id = ? AND status = 'approving'`,
         )
-        .run(to, id, from).changes === 1
+        .run(id).changes === 1
     )
   }
 
@@ -302,7 +315,7 @@ export class SqliteSignupRepository implements SignupRepository {
       this.db
         .prepare(
           `UPDATE signup_requests
-              SET status = 'approved', decided_at = @decided_at, decided_by = @decided_by,
+              SET status = 'approved', claimed_at = NULL, decided_at = @decided_at, decided_by = @decided_by,
                   client_id = @client_id, invitation_token_id = @invitation_token_id
             WHERE id = @id AND status = 'approving'`,
         )
@@ -369,25 +382,35 @@ export class SqliteSignupRepository implements SignupRepository {
           )
           .all()
         const expiredIds: string[] = []
+        const releasedIds: string[] = []
         const erase: string[] = []
         for (const row of rows) {
           const action = signupSweepAction(
             {
               status: row.status as SignupStatus,
               createdAt: fromIsoText(row.created_at),
-              confirmedAt: fromNullableIsoText(row.confirmed_at),
+              claimedAt: fromNullableIsoText(row.claimed_at),
               decidedAt: fromNullableIsoText(row.decided_at),
               invitationAccepted: row.accepted === 1,
             },
             now,
           )
           if (action === 'keep') continue
+          if (action === 'release') {
+            releasedIds.push(row.id)
+            continue
+          }
           if (action === 'expire') expiredIds.push(row.id)
           erase.push(row.id)
         }
         const remove = this.db.prepare<[string]>(`DELETE FROM signup_requests WHERE id = ?`)
         for (const id of erase) remove.run(id)
-        return { expiredIds, erased: erase.length }
+        const release = this.db.prepare<[string]>(
+          `UPDATE signup_requests SET status = 'pending', claimed_at = NULL
+            WHERE id = ? AND status = 'approving'`,
+        )
+        for (const id of releasedIds) release.run(id)
+        return { expiredIds, releasedIds, erased: erase.length }
       })
       .immediate()
   }

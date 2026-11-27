@@ -1,7 +1,11 @@
 import type { AccountToken } from '../../domain/users/accountToken'
 import type { EmailAddress } from '../../domain/users/emailAddress'
 import type { AccountTokenId, ClientId, UserId } from '../../domain/shared/ids'
-import type { ConfirmationOutcome, SignupRequest, SignupStatus } from '../../domain/signups/signupRequest'
+import type {
+  ConfirmationOutcome,
+  SignupRequest,
+  SignupStatus,
+} from '../../domain/signups/signupRequest'
 
 /**
  * The signup requests of a box (spec 31, ADR 0018) and, in the same transactions, the
@@ -83,6 +87,8 @@ export interface SignupListFilter {
 export interface SignupSweepResult {
   /** The requests that expired in this pass (the caller audits them); they are erased in the same pass. */
   readonly expiredIds: readonly string[]
+  /** The claims older than an hour that went back to `pending` (the caller tells the operator). */
+  readonly releasedIds: readonly string[]
   /** Rows erased, expired ones included. */
   readonly erased: number
 }
@@ -104,8 +110,8 @@ export interface SignupRepository {
   /** Spends the token and moves the request out of `unconfirmed`, in one transaction. */
   confirm(input: SignupConfirmInput): Promise<SignupConfirmResult>
 
-  /** `pending` to `approving`. `false` when another caller took it, or it is not pending. */
-  claim(id: string): Promise<boolean>
+  /** `pending` to `approving`, stamped `now`. `false` when another caller took it, or it is not pending. */
+  claim(id: string, now: Date): Promise<boolean>
 
   /** `approving` to `pending`: provisioning failed. */
   release(id: string): Promise<boolean>
@@ -122,6 +128,6 @@ export interface SignupRepository {
   /** Requests in `pending`: the badge. */
   countPending(): Promise<number>
 
-  /** Expires and erases what the retention rules say is due (`signupSweepAction`). */
+  /** Expires and erases what the retention rules say is due, and releases stale claims (`signupSweepAction`). */
   sweep(now: Date): Promise<SignupSweepResult>
 }
