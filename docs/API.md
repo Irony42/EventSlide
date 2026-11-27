@@ -291,6 +291,8 @@ once before a session of writes. The reads ask for none. A state-changing reques
 | `GET /api/site/signups`                               | the confirmed signup requests of one state (spec 31)       |    —    | —                                                        |
 | `POST /api/site/signups/:signupId/approve`            | approve a request: open the client, invite its owner       |   yes   | `signup.approved`, `client.created`, `invitation.issued` |
 | `POST /api/site/signups/:signupId/refuse`             | refuse a request, with no reason                           |   yes   | `signup.refused`                                         |
+| `GET /api/site/announcements`                         | the announcements to the hosts and how far they went       |    —    | —                                                        |
+| `POST /api/site/announcements`                        | write an announcement to every host (spec 32, A8)          |   yes   | `account.hostAnnouncementSent` (a number)                |
 
 **The reads show shapes and sizes, never what a client or a guest made.** A client row is an id, a name,
 its ceilings, the instants it was created, suspended and set to be purged, and four counts and a byte sum;
@@ -564,6 +566,27 @@ and how to contest it (answer the mail when `OPERATOR_CONTACT_EMAIL` is set, whi
 name or the removed content, and no link.** It has no family and no switch, `HOST_MAIL_NOTICES` does not stop it, and the day's mail
 ceiling counts it and never refuses it. The audit `reason` is a separate field the host never reads, and the act's answer is unchanged
 (**204**).
+
+#### The operator's announcements to the hosts (spec 32, lot 2, A8)
+
+`GET /api/site/announcements` (operator, `no-store`) answers `{ "recipients": number, "items": [...] }`: how many accounts an
+announcement written now would be owed to (the **active** accounts that own **at least one client**, once each), and the past
+announcements, newest first, at most 50, each `{ id, subject, text, link, createdAt, finishedAt, delivered }` (`finishedAt` is
+`null` while it goes out, `delivered` a count of accounts: never who, never an address).
+
+`POST /api/site/announcements` (operator, second factor and step-up) takes `{ "subject": string, "text": string, "link"?: string }`,
+**the operator's own words, untranslated**, and answers **`201`** `{ "id": string, "recipients": number }`. The rules are the domain's: a
+subject of 1 to 150 characters on one line (`400 hostAnnouncement.subjectInvalid`), a text of 1 to 5000 characters, line breaks kept
+(`400 hostAnnouncement.textInvalid`), an optional `https://` link of at most 500 characters with no space or credentials
+(`400 hostAnnouncement.linkInvalid`); a body with another key or beyond what a request may carry is `400 request.invalid`.
+`409 hostAnnouncement.mailerRequired` on a box that cannot mail (an announcement nobody could receive would wait for ever),
+`409 hostAnnouncement.noRecipients` when nobody would receive it. It writes the announcement and **sends nothing itself**: one mail per
+account goes out **by batches** (100 per pass of the retention sweep, the first batch started at once), **within the day's mail ceiling**
+(`MAIL_FOLLOWUP_MAX_PER_DAY`: a day that is full holds the rest back to the next), to each active owner **once** (a restart resumes from
+the record of who was reached; a mail the relay refuses is logged by its code and not retried), `Reply-To` the operator's contact
+address when it is set. One audit line, `account.hostAnnouncementSent`, with the **number** of accounts: never the text, never an address.
+The record of who was reached is erased **30 days after the announcement finished**, the announcement itself (the operator's text,
+proof that hosts were told) **365 days after it was written**.
 
 #### The operator's "remove without viewing" routes (launch review S5, G8-03)
 
