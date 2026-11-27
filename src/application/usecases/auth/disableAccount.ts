@@ -4,6 +4,7 @@ import type { UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
+import type { AccountNoticeHook } from '../notices/accountNotice'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { UserRepository } from '../../ports/userRepository'
 import { accountActEntries } from './accountActAudit'
@@ -21,6 +22,11 @@ export interface DisableAccountDeps {
   /** Only the writing half of the log: this use case cannot prune it. */
   readonly audit: AuditRecorder
   readonly clock: Clock
+  /**
+   * Tells the holder by mail what was done (spec 32, A1), **after the write succeeded** and without waiting for it, only when the account was on.
+   * Optional: absent in a composition that sends none.
+   */
+  readonly notice?: AccountNoticeHook
 }
 
 export type DisableAccount = (input: DisableAccountInput) => Promise<Result<void, DomainError>>
@@ -53,7 +59,7 @@ export type DisableAccount = (input: DisableAccountInput) => Promise<Result<void
  * second entry, so the audit trail does not repeat itself and the first timestamp stays.
  */
 export const makeDisableAccount =
-  ({ users, clients, audit, clock }: DisableAccountDeps): DisableAccount =>
+  ({ users, clients, audit, clock, notice }: DisableAccountDeps): DisableAccount =>
   async ({ userId, actor }) => {
     const user = await users.findById(userId)
     if (user === null) return err(DomainError.notFound('user.notFound'))
@@ -71,5 +77,6 @@ export const makeDisableAccount =
 
     for (const entry of entries.value) await audit.record(entry)
     await users.save(user.disable(at))
+    notice?.notify(userId, 'accountDisabled')
     return ok(undefined)
   }

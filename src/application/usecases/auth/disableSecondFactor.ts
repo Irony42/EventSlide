@@ -4,6 +4,7 @@ import type { UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
+import type { AccountNoticeHook } from '../notices/accountNotice'
 import type { SecondFactorRepository } from '../../ports/secondFactorRepository'
 import type { UserRepository } from '../../ports/userRepository'
 
@@ -17,6 +18,11 @@ export interface DisableSecondFactorDeps {
   readonly factors: SecondFactorRepository
   readonly audit: AuditRecorder
   readonly clock: Clock
+  /**
+   * Tells the holder by mail what was done (spec 32, A1), **after the write succeeded** and without waiting for it, and only when a factor was removed.
+   * Optional: absent in a composition that sends none.
+   */
+  readonly notice?: AccountNoticeHook
 }
 
 export type DisableSecondFactor = (
@@ -40,7 +46,7 @@ export type DisableSecondFactor = (
  * Write-ahead, like `disableAccount`.
  */
 export const makeDisableSecondFactor =
-  ({ users, factors, audit, clock }: DisableSecondFactorDeps): DisableSecondFactor =>
+  ({ users, factors, audit, clock, notice }: DisableSecondFactorDeps): DisableSecondFactor =>
   async ({ userId }) => {
     const user = await users.findById(userId)
     // The id came from a session, so a miss means the account was deleted underneath it.
@@ -61,5 +67,6 @@ export const makeDisableSecondFactor =
     await audit.record(entry.value)
     await factors.remove(userId)
     await users.save(user.revokeSessionsBefore(at))
+    notice?.notify(userId, 'totpDisabled')
     return ok(undefined)
   }

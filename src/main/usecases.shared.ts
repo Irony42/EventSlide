@@ -1,4 +1,9 @@
 import { makeDeleteAccount } from '../application/usecases/site/deleteAccount'
+import {
+  makeAccountNotice,
+  type AccountNotice,
+} from '../application/usecases/notices/accountNotice'
+import { EmailAddress } from '../domain/users/emailAddress'
 import { makeIssueInvitation } from '../application/usecases/auth/issueInvitation'
 import { makeVerifySecondFactor } from '../application/usecases/auth/verifySecondFactor'
 import { makeRecordEngagement } from '../application/usecases/stats/recordEngagement'
@@ -60,8 +65,9 @@ export const invitationIssuer = (adapters: Adapters, policy: UseCasePolicy) =>
   })
 
 /** The one erasure of an account, shared by the operator's route and the person's own. */
-export const accountDeleter = (adapters: Adapters) =>
+export const accountDeleter = (adapters: Adapters, notice: AccountNotice) =>
   makeDeleteAccount({
+    notice,
     users: adapters.users,
     clients: adapters.clients,
     holdings: adapters.accountHoldings,
@@ -82,6 +88,8 @@ export interface SharedHooks {
   readonly invalidateBook: ReturnType<typeof makeInvalidateAlbumBook>
   readonly invalidateExport: ReturnType<typeof makeInvalidateAlbumExport>
   readonly engagement: ReturnType<typeof makeRecordEngagement>
+  /** The mails that tell a holder what was done to the account (spec 32, A1), one for the whole box. */
+  readonly accountNotice: AccountNotice
 }
 
 /**
@@ -108,6 +116,16 @@ export interface SharedHooks {
  */
 export const buildSharedHooks = (adapters: Adapters, policy: UseCasePolicy): SharedHooks => ({
   issueInvitation: invitationIssuer(adapters, policy),
+  accountNotice: makeAccountNotice({
+    users: adapters.users,
+    clients: adapters.clients,
+    mailer: adapters.mailer,
+    budget: adapters.mailBudget,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    publicUrl: policy.publicUrl,
+    operatorContact: contactAddress(policy.operatorContactEmail),
+  }),
   invalidateReel: makeInvalidateReel({
     reels: adapters.reels,
     media: adapters.media,
@@ -134,3 +152,10 @@ export const buildSharedHooks = (adapters: Adapters, policy: UseCasePolicy): Sha
     logger: adapters.logger,
   }),
 })
+
+/** The configured contact as an address, or `null` (configuration already refused a malformed one). */
+export const contactAddress = (value: string | null): EmailAddress | null => {
+  if (value === null) return null
+  const parsed = EmailAddress.create(value)
+  return parsed.ok ? parsed.value : null
+}

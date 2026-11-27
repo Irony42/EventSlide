@@ -3,6 +3,7 @@ import type { UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import { Password, passwordContextFor } from '../../../domain/users/password'
 import type { Clock } from '../../ports/clock'
+import type { AccountNoticeHook } from '../notices/accountNotice'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import type { UserRepository } from '../../ports/userRepository'
 
@@ -18,6 +19,11 @@ export interface ChangePasswordDeps {
   readonly hasher: PasswordHasher
   /** The instant of the credentials epoch this change raises. */
   readonly clock: Clock
+  /**
+   * Tells the holder by mail what was done (spec 32, A1), **after the write succeeded** and without waiting for it, and **not for the forced first change** (the password an invitation handed over, which is no security event).
+   * Optional: absent in a composition that sends none.
+   */
+  readonly notice?: AccountNoticeHook
 }
 
 export type ChangePassword = (input: ChangePasswordInput) => Promise<Result<void, DomainError>>
@@ -41,7 +47,7 @@ export type ChangePassword = (input: ChangePasswordInput) => Promise<Result<void
  * `issuedAt`, which is why this use case needs to say nothing about it.
  */
 export const makeChangePassword =
-  ({ users, hasher, clock }: ChangePasswordDeps): ChangePassword =>
+  ({ users, hasher, clock, notice }: ChangePasswordDeps): ChangePassword =>
   async ({ userId, currentPassword, newPassword }) => {
     const user = await users.findById(userId)
     // The id came from a session, so a miss means the account was deleted underneath it.
@@ -81,5 +87,6 @@ export const makeChangePassword =
     if (!(await users.replacePasswordHash(user.id, user.passwordHash, newHash, at))) {
       return err(DomainError.unauthenticated('auth.invalidCredentials'))
     }
+    if (!user.mustChangePassword) notice?.notify(user.id, 'passwordChanged')
     return ok(undefined)
   }

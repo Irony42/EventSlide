@@ -30,9 +30,8 @@ import { makeApproveSignup } from '../application/usecases/signups/approveSignup
 import { makeListSignupsForOperator } from '../application/usecases/signups/listSignupsForOperator'
 import { makeRefuseSignup } from '../application/usecases/signups/refuseSignup'
 import { UPSTREAM_REPOSITORY } from '../infrastructure/config/linkFields'
-import { EmailAddress } from '../domain/users/emailAddress'
 import type { Adapters, UseCasePolicy } from './usecases'
-import { clientCreator, type SharedHooks } from './usecases.shared'
+import { clientCreator, contactAddress, type SharedHooks } from './usecases.shared'
 
 /** The clients slice of the use-case bag: composition only, built by `buildUseCases`. */
 export const clientsUseCases = (
@@ -231,11 +230,4 @@ export const clientsUseCases = (
     listClients: makeListClients({ clients: adapters.clients }),
     deleteEmptyClient: makeDeleteEmptyClient({ clients: adapters.clients }),
   }
-}
-
-/** The configured contact as an address, or `null` (configuration already refused a malformed one). */
-const contactAddress = (value: string | null): EmailAddress | null => {
-  if (value === null) return null
-  const parsed = EmailAddress.create(value)
-  return parsed.ok ? parsed.value : null
 }

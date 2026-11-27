@@ -5,6 +5,7 @@ import { err, ok, type Result } from '../../../domain/shared/result'
 import { matchTotpStep, parseTotpCode } from '../../../domain/users/totp'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
+import type { AccountNoticeHook } from '../notices/accountNotice'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { Logger } from '../../ports/logger'
 import type { MfaVault } from '../../ports/mfaVault'
@@ -31,6 +32,8 @@ export interface ConfirmTotpEnrollmentDeps {
   readonly audit: AuditRecorder
   readonly clock: Clock
   readonly logger: Logger
+  /** Tells the holder by mail the second factor is on (spec 32, A1), after the write succeeded and without waiting. Optional. */
+  readonly notice?: AccountNoticeHook
 }
 
 export interface ConfirmedEnrolment {
@@ -71,6 +74,7 @@ export const makeConfirmTotpEnrollment =
     audit,
     clock,
     logger,
+    notice,
   }: ConfirmTotpEnrollmentDeps): ConfirmTotpEnrollment =>
   async ({ userId, code }) => {
     if (vault === null) return err(DomainError.notFound('feature.unavailable'))
@@ -123,5 +127,6 @@ export const makeConfirmTotpEnrollment =
     }
 
     await users.save(user.revokeSessionsBefore(at))
+    notice?.notify(userId, 'totpEnabled')
     return ok({ recoveryCodes: recovery.codes })
   }
