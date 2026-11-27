@@ -17,7 +17,8 @@ import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import type { EventMailNoticeLedger } from '../../ports/eventMailNoticeLedger'
 import { err } from '../../../domain/shared/result'
 import { mailFailure, type Mailer } from '../../ports/mailer'
-import { makeSweepRsvpNotices } from './sweepRsvpNotices'
+import { Event } from '../../../domain/events/event'
+import { makeSweepRsvpNotices, type SweepRsvpNoticesDeps } from './sweepRsvpNotices'
 
 /**
  * R1, the warning before the replies are erased (spec 32). Every case is stated in days from `NOW`: "the replies
@@ -78,7 +79,7 @@ const build = (
   const logger = new CapturingLogger()
   const clock = new FakeClock(options.now ?? NOW)
 
-  const sweep = makeSweepRsvpNotices({
+  const deps: SweepRsvpNoticesDeps = {
     events,
     clients,
     invites,
@@ -93,7 +94,8 @@ const build = (
     capNoticeDays: 30,
     publicUrl: 'https://photos.example.test',
     hostMailNotices: options.hostMailNotices ?? true,
-  })
+  }
+  const sweep = makeSweepRsvpNotices(deps)
 
   /** Makes the event exist with its replies, and tells the replies repository its dates as the tables would. */
   const arrange = async (event: ReturnType<typeof anEvent>, replyCount = options.replies ?? 3) => {
@@ -108,6 +110,7 @@ const build = (
 
   return {
     sweep,
+    deps,
     arrange,
     events,
     clients,
@@ -547,6 +550,26 @@ describe('sweepRsvpNotices', () => {
     closing.clients.seed(aClient({ id: 'client-1', purgeAfter: new Date(NOW.getTime() + 3 * DAY) }))
     await closing.arrange(closedGoingIn(7, { clientId: 'client-1' }))
     expect((await closing.sweep()).noticed).toEqual([])
+  })
+
+  it('reads the suspension from the client too: an event row that does not carry it is still left out', async () => {
+    const world = build()
+    world.clients.seed(aClient({ id: 'client-1', suspendedAt: AT }))
+    await world.arrange(closedGoingIn(7, { clientId: 'client-1' }))
+    const carrying = world.deps.events
+    const forgetful: SweepRsvpNoticesDeps['events'] = {
+      listDueForPurge: (...args) => carrying.listDueForPurge(...args),
+      findById: async (id) => {
+        const event = await carrying.findById(id)
+        return event === null
+          ? null
+          : Event.restore({ ...event.toProps(), clientSuspendedAt: null })
+      },
+    }
+
+    const report = await makeSweepRsvpNotices({ ...world.deps, events: forgetful })()
+
+    expect(report.noticed).toEqual([])
   })
 
   it('still covers an archived event: its clock runs, its replies go', async () => {

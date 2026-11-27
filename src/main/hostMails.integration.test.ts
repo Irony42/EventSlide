@@ -3,33 +3,24 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { FakeClock } from '../application/testing/fakeClock'
-import { makeSweepRsvpDigests } from '../application/usecases/notices/sweepRsvpDigests'
-import { makeSweepRsvpNotices } from '../application/usecases/notices/sweepRsvpNotices'
 import { asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
-import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
-import { SqliteEventMailNoticeLedger } from '../infrastructure/db/sqliteEventMailNoticeLedger'
-import { SqliteEventRepository } from '../infrastructure/db/sqliteEventRepository'
-import { SqliteGuestHouseholdRepository } from '../infrastructure/db/sqliteGuestHouseholdRepository'
-import { SqliteGuestInviteRepository } from '../infrastructure/db/sqliteGuestInviteRepository'
-import { SqliteGuestRsvpRepository } from '../infrastructure/db/sqliteGuestRsvpRepository'
-import { SqliteGuestbookRepository } from '../infrastructure/db/sqliteGuestbookRepository'
-import { SqliteMailBudget } from '../infrastructure/db/sqliteMailBudget'
-import { SqliteMailPreferenceRepository } from '../infrastructure/db/sqliteMailPreferenceRepository'
-import { SqliteMembershipRepository } from '../infrastructure/db/sqliteMembershipRepository'
 import { parseMessage, startSmtpSink, type SmtpSink } from '../infrastructure/mail/testing/smtpSink'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
 import request from '../interface/http/testing/request'
 import { createContainer, type Container } from './container'
 
 /**
- * **The host's mails of the replies, end to end through the real adapters** (spec 32, R1, R2): the real container, the real
- * SQLite adapters, a real SMTP relay in this process, and the two sweeps run by hand under a **clock the test sets**, which the
- * browser suite cannot do (the sweeps keep to 08:00 to 21:00 in the invitation's zone and to dates weeks away).
+ * **The host's mails of the replies, end to end through the real composition root** (spec 32, R1, R2): the real container with
+ * the clock **the test sets** (`createContainer`'s test seam), the real SQLite adapters, a real SMTP relay in this process, and the
+ * container's own `sweepRsvpNotices` and `sweepRsvpDigests`, the ones the retention timer calls. So the wiring the box actually
+ * has (the daily ceiling, `HOST_MAIL_NOTICES`, the retention cap) is what is under test, which hand-built sweeps would not say.
+ * The browser suite cannot do this: the sweeps keep to 08:00 to 21:00 in the invitation's zone and to dates weeks away.
  *
- * What it says: an owner who ticked the daily summary gets it, with figures and **no word a guest wrote**; an owner who switched
+ * What it says: an owner who ticked the daily summary gets it, with figures and **no word a guest wrote**; the same scenario with
  * the replies family off gets nothing of the follow-up, **and still the warning before the replies are erased**; that warning is
- * sent once per level and names the date.
+ * sent once per level and names the date; `HOST_MAIL_NOTICES=off` stops the summary and not the warning; a daily ceiling of one
+ * holds the summary back and never the warning.
  */
 
 const OWNER = 'hote@example.org'
@@ -49,6 +40,8 @@ const REPLY = {
   diet: 'sans gluten',
   message: 'Un secret de Léa',
 }
+/** What no mail may hold: nothing a guest wrote (the event's own name carries "Léa", so the surname and the rest). */
+const GUEST_WORDS = ['Martin', 'gluten', 'secret']
 
 let workDir: string | null = null
 let container: Container | null = null
@@ -72,7 +65,8 @@ const csrfOf = (headers: Record<string, unknown>): string | undefined => {
     : decodeURIComponent(found.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? '')
 }
 
-const boot = async () => {
+const boot = async (env: Record<string, string> = {}) => {
+  const clock = new FakeClock()
   relay = await startSmtpSink()
   workDir = await mkdtemp(join(tmpdir(), 'eventslide-host-mails-'))
   const booted = await createContainer(
@@ -88,7 +82,9 @@ const boot = async () => {
       PUBLIC_URL: 'https://photos.example.org',
       BOOTSTRAP_OWNER_EMAIL: OWNER,
       BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
+      ...env,
     }),
+    { clock },
   )
   container = booted
   booted.db.prepare('UPDATE users SET must_change_password = 0').run()
@@ -138,52 +134,7 @@ const boot = async () => {
     return sent.status
   }
 
-  return { booted, put, post, guestReplies, db: booted.db, eventId: created.value.id }
-}
-
-/** The two sweeps over the real adapters, run at the instant `clock` says. */
-const sweepsAt = (booted: Container, clock: FakeClock) => {
-  const db = booted.db
-  const events = new SqliteEventRepository(db)
-  const clients = new SqliteClientRepository(db)
-  const invites = new SqliteGuestInviteRepository(db)
-  const rsvps = new SqliteGuestRsvpRepository(db)
-  const households = new SqliteGuestHouseholdRepository(db)
-  const memberships = new SqliteMembershipRepository(db)
-  const budget = new SqliteMailBudget(db, null)
-  const common = {
-    mailer: booted.mailer,
-    clock,
-    logger: booted.logger,
-    publicUrl: 'https://photos.example.org',
-    hostMailNotices: true,
-  }
-  return {
-    digests: makeSweepRsvpDigests({
-      rsvps,
-      households,
-      guestbook: new SqliteGuestbookRepository(db),
-      events,
-      clients,
-      invites,
-      memberships,
-      preferences: new SqliteMailPreferenceRepository(db),
-      budget,
-      ...common,
-    }),
-    notices: makeSweepRsvpNotices({
-      events,
-      clients,
-      invites,
-      rsvps,
-      households,
-      memberships,
-      notices: new SqliteEventMailNoticeLedger(db),
-      budget,
-      capNoticeDays: 30,
-      ...common,
-    }),
-  }
+  return { booted, clock, put, guestReplies }
 }
 
 const received = () =>
@@ -193,88 +144,120 @@ const received = () =>
     text: parseMessage(message.raw).text ?? '',
   }))
 
-describe('the host mails of the replies, through the real adapters', () => {
+/** 10:00 in Paris on the day after the reply: after it, inside the hours a mail may leave. */
+const tomorrowMorning = (clock: FakeClock): Date => {
+  const tomorrow = new Date(clock.now().getTime() + 24 * 3_600_000)
+  return new Date(`${tomorrow.toISOString().slice(0, 10)}T09:00:00.000Z`)
+}
+
+/**
+ * The one scenario the summary tests share, so that what differs between them is the switch and nothing else: the owner ticked
+ * the summary, a guest replied, and it is the next morning in Paris.
+ */
+const summaryScenario = async (options: {
+  readonly repliesFamilyOff: boolean
+  env?: Record<string, string>
+}) => {
+  const world = await boot(options.env)
+  expect((await world.put(`${BASE}/rsvp-digest`, { on: true })).status).toBe(204)
+  if (options.repliesFamilyOff) {
+    expect((await world.put('/api/me/mail-preferences', { rsvp: false })).status).toBe(204)
+  }
+  expect(await world.guestReplies()).toBe(201)
+  world.clock.set(tomorrowMorning(world.clock))
+  const report = await world.booted.usecases.sweepRsvpDigests()
+  return { ...world, report }
+}
+
+describe('the host mails of the replies, through the real composition root', () => {
   it('writes the daily summary to the owner who ticked it, with figures and no word of a guest, once a day', async () => {
-    const { booted, put, guestReplies } = await boot()
-    expect((await put(`${BASE}/rsvp-digest`, { on: true })).status).toBe(204)
-    expect(await guestReplies()).toBe(201)
-    // 10:00 in Paris the next day: after the reply, inside the hours a mail may leave.
-    const clock = new FakeClock(new Date(Date.now() + 24 * 3_600_000))
-    clock.set(new Date(`${clock.now().toISOString().slice(0, 10)}T09:00:00.000Z`))
-    const sweeps = sweepsAt(booted, clock)
+    const world = await summaryScenario({ repliesFamilyOff: false })
 
-    const report = await sweeps.digests()
-
-    expect(report).toMatchObject({ claimed: 1, sent: 1, failed: [] })
+    expect(world.report).toMatchObject({ claimed: 1, sent: 1, failed: [] })
     const mails = received()
     expect(mails).toHaveLength(1)
     expect(mails[0]?.to).toEqual([OWNER])
     expect(mails[0]?.text).toContain('https://photos.example.org/admin/events/fete-de-lea/rsvps')
-    for (const word of ['Martin', 'Léa Martin', 'gluten', 'secret']) {
+    for (const word of GUEST_WORDS) {
       expect(mails[0]?.text, word).not.toContain(word)
       expect(mails[0]?.subject, word).not.toContain(word)
     }
 
-    clock.advance(3_600_000)
-    expect(await sweeps.digests()).toMatchObject({ claimed: 0, sent: 0 })
+    world.clock.advance(3_600_000)
+    expect(await world.booted.usecases.sweepRsvpDigests()).toMatchObject({ claimed: 0, sent: 0 })
     expect(received()).toHaveLength(1)
   })
 
-  it('writes nothing of the follow-up once the owner switched the replies family off, and the warning before the erasure all the same', async () => {
-    const { booted, put, guestReplies } = await boot()
-    expect((await put(`${BASE}/rsvp-digest`, { on: true })).status).toBe(204)
+  it('writes nothing of the follow-up when the same owner switched the replies family off: the switch is the only difference', async () => {
+    const world = await summaryScenario({ repliesFamilyOff: true })
+
+    expect(world.report).toMatchObject({ claimed: 0, sent: 0 })
+    expect(received()).toEqual([])
+  })
+
+  it('still sends the warning before the erasure with the family off, once per level, and with no word of a guest', async () => {
+    const { booted, clock, put, guestReplies } = await boot()
     expect((await put('/api/me/mail-preferences', { rsvp: false })).status).toBe(204)
     expect(await guestReplies()).toBe(201)
-    const tomorrow = new Date(Date.now() + 24 * 3_600_000)
-    const clock = new FakeClock(new Date(`${tomorrow.toISOString().slice(0, 10)}T09:00:00.000Z`))
-    const sweeps = sweepsAt(booted, clock)
-
-    expect(await sweeps.digests()).toMatchObject({ claimed: 0, sent: 0 })
-    expect(received()).toEqual([])
 
     // The replies end 60 days after the party starts (2099-12-13): seven days before, at 13:00 in Paris.
     clock.set(new Date('2100-02-05T12:00:00.000Z'))
-    const report = await sweeps.notices()
-
-    expect(report.noticed).toHaveLength(1)
+    expect((await booted.usecases.sweepRsvpNotices()).noticed).toHaveLength(1)
     const mails = received()
     expect(mails).toHaveLength(1)
     expect(mails[0]?.to).toEqual([OWNER])
-    expect(mails[0]?.text).toContain('2100')
+    expect(mails[0]?.text).toContain('11 février 2100')
     expect(mails[0]?.text).toContain('https://photos.example.org/admin/events/fete-de-lea/rsvps')
-    for (const word of ['Martin', 'Léa Martin', 'gluten', 'secret']) {
-      expect(mails[0]?.text, word).not.toContain(word)
-    }
-  })
+    for (const word of GUEST_WORDS) expect(mails[0]?.text, word).not.toContain(word)
 
-  it('sends the warning once per level: the same day again sends nothing, the last day sends the second', async () => {
-    const { booted, guestReplies } = await boot()
-    expect(await guestReplies()).toBe(201)
-    const clock = new FakeClock(new Date('2100-02-05T12:00:00.000Z'))
-    const sweeps = sweepsAt(booted, clock)
-
-    await sweeps.notices()
+    // The same day again: noted, nothing more. The day before the end (20:30 in Paris): the second level.
     clock.advance(3_600_000)
-    expect((await sweeps.notices()).noticed).toEqual([])
-    expect(received()).toHaveLength(1)
-
-    // 2100-02-11 18:00 UTC is the end: the day before, 19:00 UTC (20:00 in Paris).
+    expect((await booted.usecases.sweepRsvpNotices()).noticed).toEqual([])
     clock.set(new Date('2100-02-10T19:30:00.000Z'))
-    expect((await sweeps.notices()).noticed).toHaveLength(1)
+    expect((await booted.usecases.sweepRsvpNotices()).noticed).toHaveLength(1)
     expect(received()).toHaveLength(2)
   })
 
   it('sends nothing at night in the zone of the invitation, and notes nothing, so the next pass sends it', async () => {
-    const { booted, guestReplies } = await boot()
+    const { booted, clock, guestReplies } = await boot()
     expect(await guestReplies()).toBe(201)
     // 23:30 in Paris.
-    const clock = new FakeClock(new Date('2100-02-05T22:30:00.000Z'))
-    const sweeps = sweepsAt(booted, clock)
+    clock.set(new Date('2100-02-05T22:30:00.000Z'))
 
-    expect((await sweeps.notices()).noticed).toEqual([])
+    expect((await booted.usecases.sweepRsvpNotices()).noticed).toEqual([])
     expect(received()).toEqual([])
 
     clock.set(new Date('2100-02-06T08:00:00.000Z'))
-    expect((await sweeps.notices()).noticed).toHaveLength(1)
+    expect((await booted.usecases.sweepRsvpNotices()).noticed).toHaveLength(1)
+  })
+
+  it('with HOST_MAIL_NOTICES=off the summary is not sent, and the warning before the erasure still is', async () => {
+    const off = await summaryScenario({
+      repliesFamilyOff: false,
+      env: { HOST_MAIL_NOTICES: 'off' },
+    })
+    expect(off.report).toMatchObject({ claimed: 0, sent: 0 })
+    expect(received()).toEqual([])
+
+    off.clock.set(new Date('2100-02-05T12:00:00.000Z'))
+    expect((await off.booted.usecases.sweepRsvpNotices()).noticed).toHaveLength(1)
+    expect(received()).toHaveLength(1)
+  })
+
+  it('with a daily ceiling of one mail the warning is counted and never refused, and holds the summary back', async () => {
+    const world = await boot({ MAIL_FOLLOWUP_MAX_PER_DAY: '1' })
+    expect((await world.put(`${BASE}/rsvp-digest`, { on: true })).status).toBe(204)
+    expect(await world.guestReplies()).toBe(201)
+    world.clock.set(new Date('2100-02-05T12:00:00.000Z'))
+
+    expect((await world.booted.usecases.sweepRsvpNotices()).noticed).toHaveLength(1)
+    const held = await world.booted.usecases.sweepRsvpDigests()
+
+    expect(held).toMatchObject({ claimed: 0, sent: 0, skippedBudget: 1 })
+    expect(received()).toHaveLength(1)
+
+    // The next day the ceiling is new: the summary goes.
+    world.clock.set(new Date('2100-02-06T09:00:00.000Z'))
+    expect(await world.booted.usecases.sweepRsvpDigests()).toMatchObject({ claimed: 1, sent: 1 })
   })
 })

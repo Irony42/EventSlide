@@ -262,6 +262,9 @@ test.describe('the host surface', () => {
     const mailing = await startTestApp({
       worker: testInfo.workerIndex,
       env: { SMTP_URL: `smtp://127.0.0.1:${sink.port}`, MAIL_FROM: 'no-reply@eventslide.test' },
+    }).catch(async (error: unknown) => {
+      await sink.close()
+      throw error
     })
     const context = await browser.newContext({ baseURL: mailing.baseUrl, locale: SUITE_LOCALE })
     try {
@@ -277,9 +280,12 @@ test.describe('the host surface', () => {
       await tabTo(page, switchOne)
       await page.keyboard.press('Space')
       await expect(switchOne).not.toBeChecked()
-      await expect(
-        page.getByRole('region', { name: fr.auth.mailPreferences.title }),
-      ).toHaveAttribute('aria-busy', 'false')
+      await expect
+        .poll(
+          async () =>
+            (await (await page.request.get(mailing.url('/api/me/mail-preferences'))).json()).rsvp,
+        )
+        .toBe(false)
       const after = await scan(page)
       expect(seriousOnly(after.violations)).toEqual([])
     } finally {
