@@ -3291,9 +3291,9 @@ The page that opens the link, `/signup/confirm/<token>`, has the same headers.
 
 **202** `{ "status": "sent" }` **for every address**: a new one, one that already has an account, one with a request
 waiting, one refused in the last 30 days, one over its cap of 3 confirmations a day, and a filled honeypot (nothing
-is written then). The status, body and headers are the same and the answer does not wait for the mail, so the time
-is the same too. The one exception is **`{ "status": "busy" }`**, which says nothing about an address: the whole box
-has already sent `SIGNUP_MAX_PER_DAY` (50) confirmations in the last 24 hours. The first time it happens in a UTC day
+is written then). The status, body and headers are the same, and the admission and the mail happen after the response (see
+SECURITY section 30 for what a caller can and cannot measure). The one exception is **`{ "status": "busy" }`**, which says nothing about an address: the whole box
+has already issued `SIGNUP_MAX_PER_DAY` (50) confirmation links in the last 24 hours. The first time it happens in a UTC day
 the audit log gets one `signup.dailyCeilingReached` line.
 
 **Errors** — `400 request.invalid` (a stray or missing field), `400` with the domain's code for a value that is wrong
@@ -3317,7 +3317,7 @@ No body. Spends the link and confirms the address in one transaction.
 - `review`: `SIGNUP=review`; the request waits for an operator, who is told (at most one mail an hour, to `SIGNUP_NOTIFY_EMAIL`);
 - `mail`: `SIGNUP=open`; the account is open and the invitation is on its way;
 - `held`: `SIGNUP=open`, but the request waits for an operator: the free disk space is under
-  `MIN_FREE_DISK_BYTES` + 5 GB × (clients with an event not yet purged) + 5 GB, or cannot be read, or opening the
+  `MIN_FREE_DISK_BYTES` + 5 GB × (clients with an event not yet purged or created in the last 30 days) + 5 GB, or cannot be read, or opening the
   account failed, or the invitation mail could not leave.
 
 **404 `signup.confirmationNotFound`** for a link that is unknown, spent, revoked or expired (a second press of

@@ -479,8 +479,8 @@ const apiNotFound: RequestHandler = (_req, res) => {
 
 /**
  * The **pages** a mailed link opens, whose last segment is a one-time credential: an
- * invitation and a password reset. Two families, and two of the five `loggablePath` redacts
- * in a log line (`TOKEN_IN_PATH`, `middleware/errorHandler.ts`). The other three are not in
+ * invitation, a password reset, a guest's invitation and a signup confirmation. Four families, each one of the
+ * paths `loggablePath` redacts in a log line (`TOKEN_IN_PATH`, `middleware/errorHandler.ts`). The others are not in
  * this list on purpose: the shared gallery's page, `/g`, is mounted just above with the same
  * headers, and `/api/gallery/<token>/…` and `/api/invitations/<token>/…` are API routes, not
  * pages, so they have no shell to serve.

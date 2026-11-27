@@ -77,6 +77,20 @@ describe('sweepSignups', () => {
     expect(scene.mailer.sent.length).toBe(sentBefore + 1)
   })
 
+  it('flushes what the notifier held back, even when the sweep found nothing', async () => {
+    const scene = buildSignupScene({ mode: 'review' })
+    await scene.notify('waiting')
+    scene.clock.advance(30 * 60 * 1000)
+    await scene.notify('opened')
+    expect(scene.mailer.sent).toHaveLength(1)
+    scene.clock.advance(31 * 60 * 1000)
+
+    await sweeperOf(scene)()
+
+    expect(scene.mailer.sent).toHaveLength(2)
+    expect(scene.mailer.sent[1]?.subject).toContain('nouveau compte')
+  })
+
   it('goes on with the other expiries when the log refuses one, and says so', async () => {
     const scene = await pendingScene()
     const failing: AuditRecorder = {

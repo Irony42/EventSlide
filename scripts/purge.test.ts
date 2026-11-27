@@ -437,6 +437,34 @@ describe('npm run purge', () => {
       })
     })
 
+    it('sweeps the signup requests, as the timer does: a pending one nobody decided on expires with one audit line and no address', async () => {
+      await inDatabase((db) => {
+        db.prepare(
+          `INSERT INTO signup_requests (id, email, client_name, locale, status, created_at, confirmed_at)
+           VALUES ('old-request', 'someone@example.test', 'Mariage', 'fr', 'pending', ?, ?)`,
+        ).run(LONG_AGO.toISOString(), LONG_AGO.toISOString())
+        db.prepare(
+          `INSERT INTO signup_requests (id, email, client_name, locale, status, created_at, confirmed_at)
+           VALUES ('recent-request', 'recent@example.test', 'Fete', 'fr', 'pending', ?, ?)`,
+        ).run(FAR_AHEAD.toISOString(), FAR_AHEAD.toISOString())
+      })
+
+      const { code } = await capture(() => run([], env()))
+
+      expect(code).toBe(0)
+      await inDatabase((db) => {
+        expect(count(db, `signup_requests WHERE id = 'old-request'`)).toBe(0)
+        expect(count(db, `signup_requests WHERE id = 'recent-request'`)).toBe(1)
+        expect(
+          count(
+            db,
+            `audit_log WHERE action = 'signup.expired' AND subject_type = 'access_request' AND subject_id = 'old-request'`,
+          ),
+        ).toBe(1)
+        expect(count(db, `audit_log WHERE details LIKE '%example.test%'`)).toBe(0)
+      })
+    })
+
     it('runs the same follow-up when no event is due', async () => {
       await inDatabase((db) => db.prepare(`DELETE FROM events WHERE id = 'due-event'`).run())
       await inDatabase(async (db) => {

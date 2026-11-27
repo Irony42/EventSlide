@@ -3,6 +3,7 @@ import { aForm, buildSignupScene } from '../../../application/testing/signupScen
 import type { SignupMode } from '../../../domain/signups/signupMode'
 import { CSRF_HEADER } from '../middleware/csrf'
 import { anonymousCaller } from '../testing/signIn'
+import { testHttpConfig } from '../testing/middlewareHarness'
 import { buildServerHarness } from '../testing/serverHarness'
 import type { HttpConfig } from '../types'
 
@@ -21,7 +22,11 @@ const FORM = {
 
 const build = (
   mode: SignupMode = 'review',
-  options: { readonly rateLimitPerHour?: number; readonly maxPerDay?: number } = {},
+  options: {
+    readonly rateLimitPerHour?: number
+    readonly maxPerDay?: number
+    readonly loginPerMinute?: number
+  } = {},
 ) => {
   const scene = buildSignupScene({
     mode,
@@ -29,6 +34,11 @@ const build = (
   })
   const config: Partial<HttpConfig> = {
     signup: { mode, rateLimitPerHour: options.rateLimitPerHour ?? 100 },
+    ...(options.loginPerMinute === undefined
+      ? {}
+      : {
+          rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: options.loginPerMinute },
+        }),
   }
   const harness = buildServerHarness({
     config,
@@ -196,6 +206,40 @@ describe('POST /api/signup', () => {
       expect(response.body.error.code).toBe('feature.unavailable')
     }
     expect(scene.signups.all).toHaveLength(0)
+  })
+})
+
+describe('the body parser and the limiters of signup', () => {
+  it('reads 4 KB on /api/signup only: a 10 KB body elsewhere is not a 413', async () => {
+    const { app } = build()
+    const { post } = await visitor(app)
+
+    const signup = await post('/api/signup', { ...FORM, note: 'x'.repeat(5000) })
+    // The global parser still takes 64 KB: this body is refused as a shape (400), never as a size.
+    const elsewhere = await post('/api/auth/login', {
+      email: 'a@example.test',
+      password: 'x'.repeat(10_000),
+    })
+
+    expect(signup.status).toBe(413)
+    expect(elsewhere.status).not.toBe(413)
+  })
+
+  it('keeps one bucket for the form and one for each of the two link routes', async () => {
+    const world = build('review', { rateLimitPerHour: 1, loginPerMinute: 1 })
+    await world.scene.submit(aForm())
+    const token = world.scene.lastToken()
+    const { post, get } = await visitor(world.app)
+
+    // The form's allowance is spent...
+    expect((await post('/api/signup', FORM)).status).toBe(202)
+    expect((await post('/api/signup', FORM)).status).toBe(429)
+    // ...and the preview still has its own...
+    expect((await get(`/api/signup/confirm/${token}`)).status).toBe(200)
+    expect((await get(`/api/signup/confirm/${token}`)).status).toBe(429)
+    // ...and so does the confirmation.
+    expect((await post(`/api/signup/confirm/${token}`)).status).toBe(200)
+    expect((await post(`/api/signup/confirm/${token}`)).status).toBe(429)
   })
 })
 

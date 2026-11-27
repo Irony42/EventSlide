@@ -354,7 +354,7 @@ feature.unavailable`, `features.forgotPassword = false` on `/api/about`. The lin
   helmet sends `Referrer-Policy: no-referrer`. The responses are `Cache-Control: no-store`. **A
   reverse proxy in front of the box is the operator's own**: this repository configures none, so
   its access log must be told not to record `/password/reset/*` (the hosted instance's edge
-  rule, roadmap P7-02, does).
+  rule, roadmap P7-02, does), nor `/signup/confirm/*` and `/api/signup/confirm/*`, which carry a signup confirmation's token.
 - **Nothing secret is logged.** The address, the token, the link and the new password appear in
   no log line on any channel: `passwordResetLogCanary.test.ts` runs the whole journey against a
   real logger and a real, enabled access log, and reads every byte written.
@@ -458,7 +458,7 @@ was already on the box. What holds now, each rule with the test that holds it:
   credential. **A reverse proxy in front of the box is the operator's own**: its access log must be
   told not to record `/invite/*` **and `/api/invitations/*`** — the page carries the token in its path and
   so do the two routes it calls, which a password reset's single `POST` body does not — as for
-  `/password/reset/*` (the hosted instance's edge rule, free plan F-13 and G5-02). The database holds only the SHA-256 (`container.test.ts` searches every table for
+  `/password/reset/*` and, since spec 31, `/signup/confirm/*` and `/api/signup/confirm/*` (the hosted instance's edge rule, free plan F-13 and G5-02). The database holds only the SHA-256 (`container.test.ts` searches every table for
   the token and the chosen password). The mail is plain text with one link, neutral about who sent it.
   Nothing logs the address, the link or the name of the event.
 
@@ -4138,10 +4138,17 @@ a client**. The rules below are what holds it; each has a named test.
 
 - The answer to `POST /api/signup` is `202 {status: "sent"}` for a new address, a known one, one with a request waiting, one refused in the last 30 days,
   one over its three confirmations a day, and a filled honeypot (`website`, nothing written). The admission is **one write transaction** whose branches never
-  depend on whether an account exists (`decideSignupAdmission`), and the mail is sent behind a `completion` the response does not wait for, so the time
-  is the same too (`signupRoutes.test.ts`: the answer arrives while the completion never resolves).
-- **The one exception is `busy`** (the day's ceiling, `SIGNUP_MAX_PER_DAY`, counted in confirmation tokens over 24 hours), which is the same for everybody and says
-  nothing about an address. A malformed field is `400` with the domain's code: that depends on what the caller typed.
+  depend on whether an account exists (`decideSignupAdmission`).
+- **Everything that depends on the address runs after the response**: the admission, the token and the mail are in a `completion` the response does not
+  wait for (`requestSignup.test.ts`: the answer arrives while `admit` never resolves). **What is true about the time**: a caller can measure only what
+  is the same for everybody, the switch, one read of the box's count of confirmation tokens issued in the last 24 hours (taken first, before the
+  honeypot, so every request pays it) and the parsing of the fields. It is not a claim that the response takes no time.
+- **The one exception to `sent` is `busy`**: that count has reached `SIGNUP_MAX_PER_DAY`. It is the same for everybody and says nothing about an address.
+  The admission keeps the authoritative ceiling inside its transaction: a request that slips past the pre-check in a race is answered `sent`, finds the
+  box busy in the completion and sends nothing. A malformed field is `400` with the domain's code: that depends on what the caller typed.
+- **A resend revokes the previous link.** A second request for an address whose request is still unconfirmed, more than an hour after the first, issues a
+  new link and revokes the old one (a link in an old mail stops working). It is bounded by the three confirmations a day per address and the one-hour
+  silence, so a stranger cannot keep a person's link dead more than a little of the day, and cannot use it to learn anything: the answer is `sent` either way.
 - Nothing the person typed, no token and no link is ever logged: a relay's refusal logs its code (`requestSignup.test.ts`).
 
 ### What bounds an open door
@@ -4154,10 +4161,13 @@ a client**. The rules below are what holds it; each has a named test.
   `monitoring/` can alert on. The operator can also lower `SIGNUP` to `review` or `off` at once.
 - **Mode `open` opens an account for anybody with a mailbox.** What bounds it: the day's ceiling, the `NEW_CLIENT_*` ceilings of the new client, the operator's
   existing tools (suspend, offboard), and a **disk guard** (`signupDiskThreshold`): the account opens only if the free space is at least `MIN_FREE_DISK_BYTES`
-  - 5 GB × (clients that still have an event) + 5 GB; below that, or when the space cannot be read, the request waits for the operator (`held`, as `review`).
-    If opening the account fails, the claim (`approving`) is given back and the request waits too; an invitation mail the relay refused leaves the request
-    `approved` and is logged, never shown.
-- **The operator is told at most once an hour** (`SIGNUP_NOTIFY_EMAIL`, a count and a link to the console, no address and no name in the mail), and a pending request
+  plus 5 GB for each client reserving room, plus 5 GB for the newcomer. A client reserves room if it has an event not yet purged **or was created in the last 30 days**
+  (a fresh account is promised its 5 GB before its first photograph). Below that, or when the space cannot be read, the request waits for the operator (`held`, as `review`).
+  **The guard is not atomic** (two confirmations can read the same free space and both pass); the day's ceiling bounds the race.
+  If opening the account fails, the claim (`approving`) is given back and the request waits too. If the account is opened and then `finalize` fails or says no, or the
+  invitation mail never left, the visitor is answered `held`, the client id (never the address) is logged and the operator is told (`waiting`): they re-issue the
+  invitation from the client's page (docs/OPERATING.md). The link is never shown.
+- **The operator is told at most once an hour** (`SIGNUP_NOTIFY_EMAIL`; one mail carries every count held, both kinds, with a link to the console and no address or name; the notices run after the response, and the retention sweep flushes what the hour held back; the counts live in memory, so a restart drops what was held), and a pending request
   nobody decided on is erased after 30 days.
 
 ### Tokens stay out of logs and caches

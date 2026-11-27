@@ -25,8 +25,9 @@ export interface SignupPreviewDto {
  *
  * - `mail`: the account is open and the invitation is on its way (mode `open`).
  * - `review`: the request waits for the operator's decision (mode `review`).
- * - `held`: mode `open`, but the disk guard held the request back; the account opens as soon as
- *   there is room.
+ * - `held`: mode `open`, but the request waits for the operator (the disk guard held it back, or opening
+ *   the account failed, or the invitation mail could not leave). The operator decides: it does not
+ *   open by itself.
  */
 export interface SignupConfirmedDto {
   readonly next: 'review' | 'mail' | 'held'
