@@ -9,7 +9,13 @@ import type { PhotoRepository } from '../../ports/photoRepository'
 import type { InvalidateReel } from '../highlights/invalidateReel'
 import type { InvalidateBook } from '../book/invalidateAlbumBook'
 import type { InvalidateExport } from '../exports/invalidateAlbumExport'
-import { recordOperatorAct, type OperatorActInput } from './operatorAct'
+import type { TakedownHook } from '../notices/notifyTakedown'
+import {
+  parseHostNotice,
+  recordOperatorAct,
+  type HostNotice,
+  type OperatorActInput,
+} from './operatorAct'
 
 /**
  * Takes one photograph down, or puts it back, **by its id alone** (`POST /api/site/photos/:photoId/take-down`
@@ -26,7 +32,7 @@ import { recordOperatorAct, type OperatorActInput } from './operatorAct'
  * photograph: `locate` answers an event id and an instant, which is the whole of what it needs.
  */
 
-export interface SetPhotoTakedownInput extends OperatorActInput {
+export interface SetPhotoTakedownInput extends OperatorActInput, HostNotice {
   readonly photoId: PhotoId
   /** `true` takes it down, `false` puts it back. */
   readonly down: boolean
@@ -39,7 +45,8 @@ export interface SetPhotoTakedownDeps {
   readonly clock: Clock
   /**
    * Retires the highlight reel that holds a photograph being taken down (spec 08). No audit entry
-   * and no new signal: the montage simply stops being servable, and the host is told no reason.
+   * and no new signal: the montage simply stops being servable. The host is told of the takedown itself by e-mail, by default, and
+   * the operator unticks the box when the host may be the person concerned (runbook `retrait-sans-visualisation.md`).
    */
   readonly invalidateReel?: InvalidateReel
   /**
@@ -52,6 +59,8 @@ export interface SetPhotoTakedownDeps {
    * goes: an archive must never still hold what was removed.
    */
   readonly invalidateExport?: InvalidateExport
+  /** Tells the event's owners, when the operator asked to and the photograph was really taken down (spec 32, A4). */
+  readonly notice?: TakedownHook
 }
 
 export type SetPhotoTakedown = (input: SetPhotoTakedownInput) => Promise<Result<void, DomainError>>
@@ -65,10 +74,13 @@ export const makeSetPhotoTakedown =
     invalidateReel,
     invalidateBook,
     invalidateExport,
+    notice,
   }: SetPhotoTakedownDeps): SetPhotoTakedown =>
-  async ({ photoId, down, reason, actor }) => {
+  async ({ photoId, down, reason, actor, notifyHost, hostReason }) => {
     const why = parseAuditReason(reason)
     if (!why.ok) return why
+    const told = parseHostNotice({ notifyHost, hostReason })
+    if (!told.ok) return told
 
     const located = await photos.locate(photoId)
     if (located === null) return err(DomainError.notFound('photo.notFound'))
@@ -96,5 +108,8 @@ export const makeSetPhotoTakedown =
       eventId: located.eventId,
       photoId,
     })
+    if (down && told.value.tell) {
+      notice?.({ kind: 'photo', eventId: located.eventId, reason: told.value.reason, at })
+    }
     return ok(undefined)
   }

@@ -389,6 +389,8 @@ export const es: UiText = {
     'clientCeilings.liveAllowedInvalid': 'Este ajuste de apertura no se acepta.',
     'siteLookup.queryInvalid':
       'Introduzca un identificador, un código, una dirección o el nombre de un evento (300 caracteres como máximo).',
+    'takedown.hostReasonInvalid':
+      'El motivo para el organizador debe tener 500 caracteres como máximo.',
     'audit.reasonInvalid':
       'El motivo debe caber en una línea de 200 caracteres como máximo, sin dirección de correo.',
     'reset.mailerRequired':
@@ -2944,6 +2946,16 @@ export const es: UiText = {
     takedownGuestbookOf: (id: string) => `En el evento ${id}`,
     takedownGuestbookDown: 'Retirar el mensaje',
     takedownGuestbookUp: 'Restablecer el mensaje',
+    hostNotice: {
+      notify: 'Avisar al organizador',
+      notifyHint:
+        'Se envía un correo a los propietarios, con el motivo de abajo. Desmarque solo si no se debe avisar al organizador (vea el procedimiento de la instancia).',
+      dialogHint:
+        'Marcada, los propietarios reciben un correo en cuanto se hace, antes de poder reaccionar; cada retirada envía su propio correo. Desmarque si el organizador puede ser la persona afectada.',
+      reason: 'Motivo para el organizador',
+      reasonHint:
+        'Lo que leerá el organizador, 500 caracteres como máximo. Distinto del motivo del registro, que el organizador nunca lee.',
+    },
     takedownReason: 'Motivo',
     takedownReasonHint:
       'Una frase en una sola línea, de 200 caracteres como máximo, sin dirección de correo. Se escribe en el registro de la instancia.',
@@ -2953,17 +2965,17 @@ export const es: UiText = {
     takedownOps: {
       eventDown: {
         title: '¿Retirar este evento?',
-        body: 'El muro, el flujo de los invitados, el enlace del álbum y el espacio del anfitrión responden como si el evento no existiera, y las pantallas abiertas se cierran. No se borra nada. La conservación sigue: para guardar el contenido como prueba, congele también su purga.',
+        body: 'El muro, el flujo de los invitados, el enlace del álbum y el espacio del organizador responden como si el evento no existiera, y las pantallas abiertas se cierran. No se borra nada. La conservación sigue: para guardar el contenido como prueba, congele también su purga.',
         confirm: 'Retirar el evento',
       },
       eventUp: {
         title: '¿Volver a poner este evento en línea?',
-        body: 'El muro, los invitados, el álbum y el anfitrión lo recuperan tal como estaba.',
+        body: 'El muro, los invitados, el álbum y el organizador lo recuperan tal como estaba.',
         confirm: 'Volver a ponerlo en línea',
       },
       purgeHold: {
         title: '¿Congelar la purga de este evento?',
-        body: 'El barrido de retención lo ignora, y ni el anfitrión ni un invitado pueden ya borrar el evento ni una foto. No se oculta nada: el bloqueo no se ve en la sala. Las copias de seguridad no se congelan.',
+        body: 'El barrido de retención lo ignora, y ni el organizador ni un invitado pueden ya borrar el evento ni una foto. No se oculta nada: el bloqueo no se ve en la sala. Las copias de seguridad no se congelan.',
         confirm: 'Congelar la purga',
       },
       purgeRelease: {
@@ -2973,22 +2985,22 @@ export const es: UiText = {
       },
       photoDown: {
         title: '¿Retirar esta foto?',
-        body: 'Desaparece al instante del muro, del flujo de los invitados, del enlace del álbum y de las pantallas del anfitrión, y las pantallas abiertas la olvidan. El archivo se conserva. El anfitrión no puede devolverla.',
+        body: 'Desaparece al instante del muro, del flujo de los invitados, del enlace del álbum y de las pantallas del organizador, y las pantallas abiertas la olvidan. El archivo se conserva. El organizador no puede devolverla.',
         confirm: 'Retirar la foto',
       },
       photoUp: {
         title: '¿Restituir esta foto?',
-        body: 'Reaparece con el estado que le había dado el anfitrión.',
+        body: 'Reaparece con el estado que le había dado el organizador.',
         confirm: 'Restituir la foto',
       },
       guestbookDown: {
         title: '¿Retirar este mensaje?',
-        body: 'Desaparece al instante de la pantalla, de la cola del anfitrión y de la lista de su autor, y las pantallas abiertas lo olvidan. El texto se conserva. El anfitrión no puede restablecerlo, y su autor no recupera el sitio que ocupaba.',
+        body: 'Desaparece al instante de la pantalla, de la cola del organizador y de la lista de su autor, y las pantallas abiertas lo olvidan. El texto se conserva. El organizador no puede restablecerlo, y su autor no recupera el sitio que ocupaba.',
         confirm: 'Retirar el mensaje',
       },
       guestbookUp: {
         title: '¿Restablecer este mensaje?',
-        body: 'Reaparece con el estado que el anfitrión le había dado.',
+        body: 'Reaparece con el estado que el organizador le había dado.',
         confirm: 'Restablecer el mensaje',
       },
     },

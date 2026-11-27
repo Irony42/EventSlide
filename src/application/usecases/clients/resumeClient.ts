@@ -6,6 +6,8 @@ import { err, ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
+import type { TakedownHook } from '../notices/notifyTakedown'
+import { parseHostNotice, type HostNotice } from '../site/operatorAct'
 
 /**
  * Lifts a suspension (roadmap §10.7; free plan G2-14, paid plan P3-13): the other half of
@@ -18,7 +20,7 @@ import type { Clock } from '../../ports/clock'
  * is recorded before the client is saved.
  */
 
-export interface ResumeClientInput {
+export interface ResumeClientInput extends HostNotice {
   readonly clientId: ClientId
   readonly actor: AuditActorInput
 }
@@ -28,13 +30,17 @@ export interface ResumeClientDeps {
   /** Only the writing half of the log: this use case cannot prune it. */
   readonly audit: AuditRecorder
   readonly clock: Clock
+  /** Tells the client's owners and contact address, when the operator asked to (spec 32, A4). */
+  readonly notice?: TakedownHook
 }
 
 export type ResumeClient = (input: ResumeClientInput) => Promise<Result<void, DomainError>>
 
 export const makeResumeClient =
-  ({ clients, audit, clock }: ResumeClientDeps): ResumeClient =>
-  async ({ clientId, actor }) => {
+  ({ clients, audit, clock, notice }: ResumeClientDeps): ResumeClient =>
+  async ({ clientId, actor, notifyHost, hostReason }) => {
+    const told = parseHostNotice({ notifyHost, hostReason })
+    if (!told.ok) return told
     const client = await clients.findById(clientId)
     if (client === null) return err(DomainError.notFound('client.notFound'))
     // An engagement that has ended is not undone by lifting the freeze (G2-14 part 3): its albums are
@@ -42,8 +48,9 @@ export const makeResumeClient =
     if (client.isOffboarding()) return err(DomainError.conflict('client.offboarding'))
     if (!client.isSuspended()) return ok(undefined)
 
+    const at = clock.now()
     const entry = AuditEntry.create({
-      at: clock.now(),
+      at,
       actor,
       action: 'client.resumed',
       subject: { type: 'client', id: client.id },
@@ -54,5 +61,8 @@ export const makeResumeClient =
 
     await audit.record(entry.value)
     await clients.save(client.reinstate())
+    if (told.value.tell) {
+      notice?.({ kind: 'clientResumed', clientId: client.id, reason: told.value.reason, at })
+    }
     return ok(undefined)
   }

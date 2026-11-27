@@ -2562,6 +2562,7 @@ export const fr = {
     'clientCeilings.liveAllowedInvalid': 'Ce réglage d’ouverture n’est pas accepté.',
     'siteLookup.queryInvalid':
       'Saisissez un identifiant, un code, une adresse ou un nom d’évènement (300 caractères au plus).',
+    'takedown.hostReasonInvalid': 'Le motif pour l’hôte doit tenir en 500 caractères au plus.',
     'audit.reasonInvalid':
       'Le motif doit tenir sur une ligne de 200 caractères au plus, sans adresse e-mail.',
     'reset.mailerRequired':
@@ -3612,6 +3613,16 @@ export const fr = {
     takedownGuestbookOf: (id: string) => `Dans l’évènement ${id}`,
     takedownGuestbookDown: 'Retirer le message',
     takedownGuestbookUp: 'Remettre le message',
+    hostNotice: {
+      notify: 'Prévenir l’hôte',
+      notifyHint:
+        'Un e-mail part aux propriétaires, avec le motif ci-dessous. Décochez seulement si l’hôte ne doit pas être prévenu (voir la procédure de l’instance).',
+      dialogHint:
+        'Coché, les propriétaires reçoivent un e-mail dès l’acte, avant d’avoir pu réagir ; chaque retrait envoie son propre e-mail. Décochez si l’hôte peut être la personne concernée.',
+      reason: 'Motif pour l’hôte',
+      reasonHint:
+        'Ce que l’hôte lira, 500 caractères au plus. Distinct du motif du journal, que l’hôte ne lit jamais.',
+    },
     takedownReason: 'Motif',
     takedownReasonHint:
       'Une phrase sur une seule ligne, de 200 caractères au plus, sans adresse e-mail. Elle est écrite au journal de l’instance.',

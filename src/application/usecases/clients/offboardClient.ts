@@ -7,13 +7,15 @@ import { err, ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
+import type { TakedownHook } from '../notices/notifyTakedown'
+import { parseHostNotice, type HostNotice } from '../site/operatorAct'
 import type { EventRepository } from '../../ports/eventRepository'
 import { addDays } from '../../../domain/shared/time'
 
 /** Between a day and a year: a window to export in, and a client that is not kept for ever. */
 export const OFFBOARD_GRACE_DAYS = { min: 1, max: 365 } as const
 
-export interface OffboardClientInput {
+export interface OffboardClientInput extends HostNotice {
   readonly clientId: ClientId
   readonly actor: AuditActorInput
   /** How long the client keeps its albums, from now, to export them (docs/ROADMAP.md §4.4). */
@@ -25,6 +27,8 @@ export interface OffboardClientDeps {
   readonly events: Pick<EventRepository, 'listByClient' | 'save'>
   readonly audit: AuditRecorder
   readonly clock: Clock
+  /** Tells the client's owners and contact address, when the operator asked to (spec 32, A4). */
+  readonly notice?: TakedownHook
 }
 
 export type OffboardClient = (input: OffboardClientInput) => Promise<Result<void, DomainError>>
@@ -53,8 +57,10 @@ export type OffboardClient = (input: OffboardClientInput) => Promise<Result<void
  * anything is read.
  */
 export const makeOffboardClient =
-  ({ clients, events, audit, clock }: OffboardClientDeps): OffboardClient =>
-  async ({ clientId, actor, graceDays }) => {
+  ({ clients, events, audit, clock, notice }: OffboardClientDeps): OffboardClient =>
+  async ({ clientId, actor, graceDays, notifyHost, hostReason }) => {
+    const told = parseHostNotice({ notifyHost, hostReason })
+    if (!told.ok) return told
     if (
       !Number.isInteger(graceDays) ||
       graceDays < OFFBOARD_GRACE_DAYS.min ||
@@ -111,5 +117,8 @@ export const makeOffboardClient =
     await audit.record(entry.value)
     for (const event of moved) await events.save(event)
     await clients.save(client.offboard(at, addDays(at, graceDays)))
+    if (told.value.tell) {
+      notice?.({ kind: 'clientOffboarded', clientId: client.id, reason: told.value.reason, at })
+    }
     return ok(undefined)
   }

@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
 import { useTranslations } from '../../lib/i18n/useTranslations'
@@ -20,6 +20,8 @@ export interface ConfirmDialogProps {
   readonly busy?: boolean
   readonly onConfirm: () => void
   readonly onCancel: () => void
+  /** Fields the act asks for before it is confirmed (the operator's "Prévenir l'hôte"). */
+  readonly children?: ReactNode
 }
 
 /**
@@ -40,6 +42,7 @@ export function ConfirmDialog({
   busy = false,
   onConfirm,
   onCancel,
+  children,
 }: ConfirmDialogProps) {
   const t = useTranslations()
   const cancelRef = useRef<HTMLButtonElement>(null)
@@ -63,6 +66,8 @@ export function ConfirmDialog({
           </Button>
         </>
       }
-    />
+    >
+      {children}
+    </Dialog>
   )
 }

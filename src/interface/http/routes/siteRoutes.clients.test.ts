@@ -551,3 +551,64 @@ describe('PUT /api/site/clients/:clientId/ceilings', () => {
     expect((await logged()).map((line) => line.clientId)).toEqual([ID.clientK])
   })
 })
+
+describe('the notice to the host on /api/site/clients/:clientId/suspend, /resume and /offboard (spec 32, A4)', () => {
+  const opened = async () => {
+    const world = await operator()
+    const created = await world.write('post', '/api/site/clients', {
+      clientName: 'Atelier Lumière',
+      ownerEmail: NEWCOMER,
+    })
+    expect(created.status).toBe(201)
+    return { ...world, id: created.body.clientId as string }
+  }
+
+  it.each(['suspend', 'resume', 'offboard'] as const)(
+    'accepts %s with the optional notice, and with no notice at all',
+    async (verb) => {
+      const { write, id } = await opened()
+      const extra = verb === 'offboard' ? { graceDays: 30 } : {}
+
+      const plain = await write('post', `/api/site/clients/${id}/${verb}`, extra)
+      const told = await write('post', `/api/site/clients/${id}/${verb}`, {
+        ...extra,
+        notifyHost: false,
+        hostReason: 'Un mot pour l’hôte.',
+      })
+
+      // 204, or a conflict the act itself decides (a client that is not suspended cannot be resumed): never a 400.
+      expect(plain.status).not.toBe(400)
+      expect(told.status).not.toBe(400)
+    },
+  )
+
+  it.each([
+    ['a key the contract does not know', { notify: true }],
+    ['a notice flag that is not a boolean', { notifyHost: 'non' }],
+    ['a reason that is not text', { hostReason: 5 }],
+    ['a reason beyond what a request may carry', { hostReason: 'a'.repeat(4001) }],
+  ])('answers 400 request.invalid for %s, and changes nothing', async (_label, body) => {
+    const { write, id, logged } = await opened()
+    const before = (await logged()).length
+
+    const response = await write('post', `/api/site/clients/${id}/suspend`, body)
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+    expect((await logged()).length).toBe(before)
+  })
+
+  it('answers 400 takedown.hostReasonInvalid for a reason over 500 characters once folded, and suspends nothing', async () => {
+    const { write, id, clients, logged } = await opened()
+    const before = (await logged()).length
+
+    const response = await write('post', `/api/site/clients/${id}/suspend`, {
+      hostReason: 'a'.repeat(501),
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('takedown.hostReasonInvalid')
+    expect((await logged()).length).toBe(before)
+    expect((await clients()).find((row) => row.id === id)).toMatchObject({ suspendedAt: null })
+  })
+})

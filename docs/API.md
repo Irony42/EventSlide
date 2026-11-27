@@ -550,6 +550,21 @@ What a suspended client is told, per surface (docs/SECURITY.md §22):
 | an owner approving an operator's invitation or reset request                                                          | `403 client.suspended`; a stranger is still told `404`                                                                                         |
 | `GET /api/me/limits`                                                                                                  | `suspended: true`, so the screen can say so                                                                                                    |
 
+#### The notice to the host on an operator act (spec 32, A4)
+
+The three **take-down** routes (photograph, guestbook message, event) and the client routes `suspend`, `resume` and `offboard` take two
+more **optional** body fields: `notifyHost` (boolean; **absent means yes**) and `hostReason` (text, the reason **the host** is given,
+at most 500 characters once folded to lines: `400 takedown.hostReasonInvalid`, judged before anything is read or written, whether or not
+the host is to be told; a request may carry up to 4000 characters of it). `suspend` and `resume` otherwise take an empty body (an
+absent one is read as `{}`); `offboard` takes `{ graceDays, notifyHost?, hostReason? }`. `restore` and `purge-*` take no notice: lifting
+a take-down and holding a purge tell nobody. When the box can deliver mail, an act that really changed something (an act that changes
+nothing is a no-op: no line, no mail) and was not silenced writes **one mail per address** to the event's active owners (a removal) or to
+the client's active owners **and** its contact address (a client act): the event's name (the space's for a client act), the day, `hostReason`
+and how to contest it (answer the mail when `OPERATOR_CONTACT_EMAIL` is set, which is also its `Reply-To`). **It never carries a guest's
+name or the removed content, and no link.** It has no family and no switch, `HOST_MAIL_NOTICES` does not stop it, and the day's mail
+ceiling counts it and never refuses it. The audit `reason` is a separate field the host never reads, and the act's answer is unchanged
+(**204**).
+
 #### The operator's "remove without viewing" routes (launch review S5, G8-03)
 
 `POST /api/site/photos/:photoId/take-down` and `/restore`, `POST /api/site/events/:eventId/take-down` and `/restore`,

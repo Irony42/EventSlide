@@ -136,14 +136,19 @@ test.describe('the operator’s console', () => {
     page,
     request,
   }) => {
-    // Every request the browser makes is on the record from the start, and what counts is what
-    // follows the click that opens the console: the dashboard the sign-in lands on reads the
-    // operator's own events, and that is not the console. An index and not a moment, so a request
-    // the dashboard started late cannot be mistaken for the console's.
-    const paths: string[] = []
+    // What counts is what the console's own pages ask for. The dashboard the sign-in lands on reads
+    // the operator's own events and, one by one, their presentation, and that is not the console:
+    // those reads can still be in flight, or start, after the click that opens the menu. So a request
+    // is attributed by **the address of the page that issued it, at the instant it was issued**: only
+    // one made while the page is under `/admin/site` is the console's. (An index taken at a click
+    // mistook a late request of the dashboard for the console's: 1 run in 5.)
+    const fromTheConsole: string[] = []
     page.on('request', (made) => {
       const url = new URL(made.url())
-      if (url.pathname.startsWith('/api/')) paths.push(url.pathname)
+      if (!url.pathname.startsWith('/api/')) return
+      if (new URL(made.frame().url()).pathname.startsWith('/admin/site')) {
+        fromTheConsole.push(url.pathname)
+      }
     })
 
     await signIn(page)
@@ -151,7 +156,6 @@ test.describe('the operator’s console', () => {
     // ---- into the console, from the account menu -------------------------------------
 
     await page.getByRole('button', { name: fr.auth.accountMenu }).click()
-    const consoleStartsAt = paths.length
     await page.getByRole('link', { name: fr.site.menuLink }).click()
     await expect(page.getByRole('heading', { level: 1, name: fr.site.clientsTitle })).toBeVisible()
     await expect(page.getByText(fr.site.consoleIntro)).toBeVisible()
@@ -255,7 +259,7 @@ test.describe('the operator’s console', () => {
     await expect(
       photoDialog.getByRole('button', { name: fr.site.takedownOps.photoDown.confirm }),
     ).toBeDisabled()
-    await photoDialog.getByLabel(fr.site.takedownReason).fill('Signalement reçu')
+    await photoDialog.getByLabel(fr.site.takedownReason, { exact: true }).fill('Signalement reçu')
     await photoDialog.getByRole('button', { name: fr.site.takedownOps.photoDown.confirm }).click()
     await expect(page.getByRole('button', { name: fr.site.takedownPhotoUp })).toBeVisible()
     expect(await hostSees()).toBe(false)
@@ -272,7 +276,7 @@ test.describe('the operator’s console', () => {
     await noContentOnScreen(page)
     await page.getByRole('button', { name: fr.site.takedownEventDown }).click()
     const eventDialog = page.getByRole('dialog', { name: fr.site.takedownOps.eventDown.title })
-    await eventDialog.getByLabel(fr.site.takedownReason).fill('Signalement reçu')
+    await eventDialog.getByLabel(fr.site.takedownReason, { exact: true }).fill('Signalement reçu')
     await eventDialog.getByRole('button', { name: fr.site.takedownOps.eventDown.confirm }).click()
     await expect(eventRow.getByText(fr.site.takedownStateDown, { exact: true })).toBeVisible()
 
@@ -298,7 +302,6 @@ test.describe('the operator’s console', () => {
 
     // ---- and all of it without the console ever asking for what a client made -----------
 
-    const fromTheConsole = paths.slice(consoleStartsAt)
     expect(fromTheConsole.some((path) => path.startsWith('/api/site/'))).toBe(true)
     expect(fromTheConsole.filter((path) => /^\/api\/(events|gallery)/.test(path))).toEqual([])
   })

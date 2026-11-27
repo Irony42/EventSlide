@@ -398,6 +398,8 @@ export const it: UiText = {
     'clientCeilings.liveAllowedInvalid': 'Questa impostazione di apertura non è accettata.',
     'siteLookup.queryInvalid':
       'Inserisca un identificativo, un codice, un indirizzo o il nome di un evento (300 caratteri al massimo).',
+    'takedown.hostReasonInvalid':
+      'Il motivo per l’organizzatore deve stare in al massimo 500 caratteri.',
     'audit.reasonInvalid':
       'Il motivo deve stare su una riga di al massimo 200 caratteri, senza indirizzo e-mail.',
     'reset.mailerRequired':
@@ -2919,6 +2921,16 @@ export const it: UiText = {
     takedownGuestbookOf: (id: string) => `Nell’evento ${id}`,
     takedownGuestbookDown: 'Rimuovi il messaggio',
     takedownGuestbookUp: 'Ripristina il messaggio',
+    hostNotice: {
+      notify: 'Avvisare l’organizzatore',
+      notifyHint:
+        'Una e-mail parte verso i proprietari, con il motivo qui sotto. Deselezioni solo se l’organizzatore non deve essere avvisato (veda la procedura dell’istanza).',
+      dialogHint:
+        'Selezionata, i proprietari ricevono una e-mail subito, prima di poter reagire; ogni rimozione invia la sua e-mail. Deselezioni se l’organizzatore può essere la persona interessata.',
+      reason: 'Motivo per l’organizzatore',
+      reasonHint:
+        'Ciò che leggerà l’organizzatore, al massimo 500 caratteri. Distinto dal motivo del registro, che l’organizzatore non legge mai.',
+    },
     takedownReason: 'Motivo',
     takedownReasonHint:
       'Una frase su una sola riga, di 200 caratteri al massimo, senza indirizzo e-mail. Viene scritta nel registro dell’istanza.',

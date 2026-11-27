@@ -1,6 +1,7 @@
 import type { AuditAction } from '../../../domain/audit/auditAction'
 import type { AuditActorInput } from '../../../domain/audit/auditActor'
 import { AuditEntry } from '../../../domain/audit/auditEntry'
+import { parseHostReason } from '../../../domain/notices/hostReason'
 import type { DomainError } from '../../../domain/shared/errors'
 import { ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
@@ -20,9 +21,12 @@ import type { AuditRecorder } from '../../ports/auditLog'
  *   cannot happen without a line saying who did it, and an actor the log will not accept refuses
  *   the act.
  * - **Not in the client's trail.** The entry carries **no client id**. The client-readable view
- *   filters on it, so the host is not told, which is the runbook's rule for the case these levers
- *   exist for (`csam.md`: do not warn the host, who may be the person concerned). The operator's
- *   own view of the whole log shows the line.
+ *   filters on it, so the audit trail never shows the host this line. The operator's own view of the
+ *   whole log shows it.
+ * - **The host is told by e-mail, by default** (spec 32, A4: `notifyTakedown`): the owners get the event's name, the day and the
+ *   operator's reason for the host, **one e-mail per act**. The operator **unticks "Prévenir l'hôte"** when the host may be the
+ *   person concerned (runbook `retrait-sans-visualisation.md`, `csam.md`): that is their call, act by act, and an untouched box is
+ *   the answer "tell them".
  */
 
 /** What every one of the three takes besides its target. */
@@ -58,4 +62,27 @@ export const recordOperatorAct = async (
 
   await audit.record(entry.value)
   return ok(undefined)
+}
+
+/**
+ * What an operator act that may tell the host takes besides its target (spec 32, A4): whether to tell them (`notifyHost`,
+ * **ticked unless the operator says otherwise**: the console's "Prévenir l'hôte") and the **reason for the host**, a field of its own,
+ * distinct from the audit reason (`reason`) which the host never reads. Both optional.
+ */
+export interface HostNotice {
+  readonly notifyHost?: boolean | undefined
+  /** At most 500 characters once folded to lines (`parseHostReason`). */
+  readonly hostReason?: string | undefined
+}
+
+/**
+ * The notice's two fields, judged **before anything is read** (a reason that is too long is `400 takedown.hostReasonInvalid`
+ * whether or not the host is to be told). What was typed for a host who is not to be told is never used: nothing is sent.
+ */
+export const parseHostNotice = (
+  input: HostNotice,
+): Result<{ readonly tell: boolean; readonly reason: string | null }, DomainError> => {
+  const reason = parseHostReason(input.hostReason)
+  if (!reason.ok) return reason
+  return ok({ tell: input.notifyHost !== false, reason: reason.value })
 }

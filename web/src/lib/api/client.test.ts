@@ -1622,10 +1622,38 @@ describe('the operator’s console requests', () => {
     expect(only()).toMatchObject({ verb: 'del', path: `/api/site/accounts/${ACCOUNT}` })
   })
 
-  it('names the client in the path and nothing else for a suspension, which has no body', async () => {
+  it('sends an empty body for a suspension that tells the host everything it can', async () => {
     await subject().siteSuspendClient(CLIENT)
+    expect(only().body).toEqual({})
+  })
 
-    expect(only().body).toBeUndefined()
+  it('carries the notice to the host (spec 32, A4) in the body of every act that may write to them, and nothing when it is not given', async () => {
+    const notice = { notifyHost: false }
+    await subject().siteSuspendClient(CLIENT, notice)
+    expect(only().body).toEqual({ notifyHost: false })
+
+    for (const [call, body] of [
+      [
+        () => subject().siteResumeClient(CLIENT, { hostReason: 'Levée.' }),
+        { hostReason: 'Levée.' },
+      ],
+      [
+        () => subject().siteOffboardClient(CLIENT, 30, notice),
+        { graceDays: 30, notifyHost: false },
+      ],
+      [
+        () => subject().siteTakeDownPhoto(CLIENT, 'r', { hostReason: 'x' }),
+        { reason: 'r', hostReason: 'x' },
+      ],
+      [
+        () => subject().siteTakeDownGuestbookEntry(CLIENT, 'r', notice),
+        { reason: 'r', notifyHost: false },
+      ],
+      [() => subject().siteTakeDownEvent(CLIENT, 'r', notice), { reason: 'r', notifyHost: false }],
+    ] as const) {
+      await call()
+      expect(calls.at(-1)?.body).toEqual(body)
+    }
   })
 
   it('asks for the audit older than a line, for one client, in one page size', async () => {

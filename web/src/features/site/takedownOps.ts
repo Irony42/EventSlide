@@ -1,4 +1,5 @@
 import type { Api } from '../../lib/api/client'
+import type { HostNoticeArgs } from '../../lib/api/client/site'
 
 /**
  * The eight acts of the "remove without viewing" screen (launch review S5), and the one place that
@@ -15,15 +16,19 @@ export type TakedownOp =
   | 'guestbookDown'
   | 'guestbookUp'
 
+/** The acts that take something away from the host, and so may tell them (spec 32, A4). */
+export const TELLS_THE_HOST: readonly TakedownOp[] = ['eventDown', 'photoDown', 'guestbookDown']
+
 export const runTakedownOp = (
   api: Api,
   op: TakedownOp,
   id: string,
   reason: string,
+  notice: HostNoticeArgs = {},
 ): Promise<void> => {
   switch (op) {
     case 'eventDown':
-      return api.siteTakeDownEvent(id, reason)
+      return api.siteTakeDownEvent(id, reason, notice)
     case 'eventUp':
       return api.siteRestoreEvent(id, reason)
     case 'purgeHold':
@@ -31,11 +36,11 @@ export const runTakedownOp = (
     case 'purgeRelease':
       return api.siteReleaseEventPurge(id, reason)
     case 'photoDown':
-      return api.siteTakeDownPhoto(id, reason)
+      return api.siteTakeDownPhoto(id, reason, notice)
     case 'photoUp':
       return api.siteRestorePhoto(id, reason)
     case 'guestbookDown':
-      return api.siteTakeDownGuestbookEntry(id, reason)
+      return api.siteTakeDownGuestbookEntry(id, reason, notice)
     case 'guestbookUp':
       return api.siteRestoreGuestbookEntry(id, reason)
   }
