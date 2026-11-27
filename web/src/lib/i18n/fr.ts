@@ -2415,6 +2415,22 @@ export const fr = {
     recoveryCode: 'Code de secours',
     secondFactorRestart: 'Recommencer avec le mot de passe',
     securityTitle: 'Sécurité du compte',
+    /** The account menu's entry and the page's title: the page also holds the e-mail switches (spec 32). */
+    securityMenu: 'Sécurité et e-mails',
+    mailPreferences: {
+      title: 'E-mails',
+      intro:
+        'Les e-mails que ce serveur vous écrit au sujet de vos évènements. Ils ne portent que des chiffres et vos propres mots, jamais le nom, le régime ou le mot d’un invité.',
+      rsvpLabel: 'Les réponses des invités',
+      rsvpHint:
+        'Le rappel avant la date limite, le récapitulatif après la date limite et « tout est complet ». Le résumé quotidien se coche évènement par évènement, sur la page des réponses.',
+      eventLabel: 'La vie de vos évènements',
+      eventHint:
+        'Une archive, un livre photo ou un film prêt, la fin d’un évènement avec ses chiffres, la fermeture du mur dans la journée, une invitation acceptée.',
+      always:
+        'Quoi que vous cochiez ici, vous recevez toujours les e-mails de sécurité de votre compte (mot de passe, vérification en deux étapes, compte désactivé ou supprimé) et l’avertissement avant l’effacement des réponses.',
+      failed: 'Le choix n’a pas pu être enregistré. Réessayez dans un instant.',
+    },
     securityUnavailable:
       'Ce serveur n’a pas de clé de chiffrement pour la vérification en deux étapes. Demandez à son administrateur de la configurer.',
     setupIntro:
@@ -4961,7 +4977,7 @@ export const fr = {
     signupConfirm: 'Confirmer votre adresse',
     invitation: 'Invitation',
     changePassword: 'Changer de mot de passe',
-    security: 'Sécurité du compte',
+    security: 'Sécurité et e-mails',
     deleteAccount: 'Supprimer mon compte',
     dashboard: 'Vos évènements',
     newEvent: 'Nouvel évènement',

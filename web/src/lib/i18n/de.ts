@@ -2370,6 +2370,22 @@ export const de: UiText = {
     recoveryCode: 'Wiederherstellungscode',
     secondFactorRestart: 'Mit dem Passwort neu beginnen',
     securityTitle: 'Kontosicherheit',
+    /** The account menu's entry and the page's title: the page also holds the e-mail switches (spec 32). */
+    securityMenu: 'Sicherheit und E-Mails',
+    mailPreferences: {
+      title: 'E-Mails',
+      intro:
+        'Die E-Mails, die dieser Server Ihnen zu Ihren Veranstaltungen schreibt. Sie enthalten nur Zahlen und Ihre eigenen Worte, nie Namen, Ernährungshinweise oder Nachrichten von Gästen.',
+      rsvpLabel: 'Antworten der Gäste',
+      rsvpHint:
+        'Die Erinnerung vor der Frist, die Zusammenfassung nach der Frist und „alle Plätze sind vergeben“. Die tägliche Zusammenfassung wählen Sie pro Veranstaltung auf der Seite der Antworten.',
+      eventLabel: 'Das Leben Ihrer Veranstaltungen',
+      eventHint:
+        'Ein fertiges Archiv, Fotobuch oder ein fertiger Film, das Ende einer Veranstaltung mit ihren Zahlen, die Schließung der Wand innerhalb eines Tages, eine angenommene Einladung.',
+      always:
+        'Unabhängig von Ihrer Auswahl erhalten Sie immer die Sicherheits-E-Mails Ihres Kontos (Passwort, Zwei-Schritt-Bestätigung, Konto deaktiviert oder gelöscht) und die Warnung vor dem Löschen der Antworten.',
+      failed: 'Die Auswahl konnte nicht gespeichert werden. Versuchen Sie es gleich noch einmal.',
+    },
     securityUnavailable:
       'Auf diesem Server ist kein Schlüssel für die Bestätigung in zwei Schritten eingerichtet. Bitten Sie die Administration, ihn zu hinterlegen.',
     setupIntro:
@@ -4316,7 +4332,7 @@ export const de: UiText = {
     signupConfirm: 'Adresse bestätigen',
     invitation: 'Einladung',
     changePassword: 'Passwort ändern',
-    security: 'Kontosicherheit',
+    security: 'Sicherheit und E-Mails',
     deleteAccount: 'Mein Konto löschen',
     dashboard: 'Ihre Veranstaltungen',
     newEvent: 'Neue Veranstaltung',
