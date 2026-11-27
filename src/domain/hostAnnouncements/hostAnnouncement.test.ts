@@ -76,4 +76,27 @@ describe('parseHostAnnouncement (A8)', () => {
     expect(code({ ...ok, link: exactly })).toBeNull()
     expect(code({ ...ok, link: `${exactly}a` })).toBe('hostAnnouncement.linkInvalid')
   })
+
+  it('drops the bidirectional overrides and isolates and the control characters from the subject and the text', () => {
+    const bidi = [
+      0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069, 0x200e, 0x200f,
+      0x0007,
+    ]
+      .map((code) => String.fromCharCode(code))
+      .join('')
+
+    const result = parseHostAnnouncement({
+      subject: `Nouvelles ${bidi}conditions`,
+      text: `Elles ${bidi}changent.\nLe 1er ${bidi}janvier.`,
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        subject: 'Nouvelles conditions',
+        text: 'Elles changent.\nLe 1er janvier.',
+        link: null,
+      },
+    })
+  })
 })

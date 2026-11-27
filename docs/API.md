@@ -570,21 +570,27 @@ ceiling counts it and never refuses it. The audit `reason` is a separate field t
 #### The operator's announcements to the hosts (spec 32, lot 2, A8)
 
 `GET /api/site/announcements` (operator, `no-store`) answers `{ "recipients": number, "items": [...] }`: how many accounts an
-announcement written now would be owed to (the **active** accounts that own **at least one client**, once each), and the past
-announcements, newest first, at most 50, each `{ id, subject, text, link, createdAt, finishedAt, delivered }` (`finishedAt` is
-`null` while it goes out, `delivered` a count of accounts: never who, never an address).
+announcement written now would be owed to (the **active** accounts that own **at least one client**, **once per address**: two
+accounts whose addresses differ only by case are one), and the past announcements, newest first, at most 50, each
+`{ id, subject, text, link, createdAt, finishedAt, delivered, owed }` (`finishedAt` is `null` while it goes out; `delivered` and
+`owed` are counts of accounts, never who and never an address: `owed` is what the announcement is owed to in all while it goes
+out, so the page says "12 sur 40 envoyés", and equals `delivered` once it finished).
 
 `POST /api/site/announcements` (operator, second factor and step-up) takes `{ "subject": string, "text": string, "link"?: string }`,
-**the operator's own words, untranslated**, and answers **`201`** `{ "id": string, "recipients": number }`. The rules are the domain's: a
+**the operator's own words, untranslated**, and answers **`202`** `{ "id": string, "recipients": number }` (accepted: nothing is sent yet). The rules are the domain's: a
 subject of 1 to 150 characters on one line (`400 hostAnnouncement.subjectInvalid`), a text of 1 to 5000 characters, line breaks kept
 (`400 hostAnnouncement.textInvalid`), an optional `https://` link of at most 500 characters with no space or credentials
 (`400 hostAnnouncement.linkInvalid`); a body with another key or beyond what a request may carry is `400 request.invalid`.
 `409 hostAnnouncement.mailerRequired` on a box that cannot mail (an announcement nobody could receive would wait for ever),
-`409 hostAnnouncement.noRecipients` when nobody would receive it. It writes the announcement and **sends nothing itself**: one mail per
-account goes out **by batches** (100 per pass of the retention sweep, the first batch started at once), **within the day's mail ceiling**
+`409 hostAnnouncement.noRecipients` when nobody would receive it, and **`409 hostAnnouncement.duplicate`** when an announcement with exactly
+the same subject, text and link was written in the last ten minutes or is still going out (a double click, a retry after a timeout, a
+second tab: every host would be mailed twice). It writes the announcement and **sends nothing itself**: one mail per
+address goes out **by batches** (the retention sweep reads 100 at a time and **keeps going within one pass** until the day's ceiling refuses, nobody is
+left, or two minutes are over; the first pass is started at once, and an announcement written during a pass starts right after it),
+**within the day's mail ceiling**
 (`MAIL_FOLLOWUP_MAX_PER_DAY`: a day that is full holds the rest back to the next), to each active owner **once** (a restart resumes from
-the record of who was reached; a mail the relay refuses is logged by its code and not retried), `Reply-To` the operator's contact
-address when it is set. One audit line, `account.hostAnnouncementSent`, with the **number** of accounts: never the text, never an address.
+the record of who was reached; a mail the relay refuses, or that fails, is logged by its code or the error's name and not retried: one address never fails the announcement), `Reply-To` the operator's contact
+address when it is set. One audit line, `account.hostAnnouncementSent`, written once the announcement exists, with the **number** of accounts: never the text, never an address.
 The record of who was reached is erased **30 days after the announcement finished**, the announcement itself (the operator's text,
 proof that hosts were told) **365 days after it was written**.
 

@@ -25,6 +25,7 @@ const anAnnouncement = (overrides: Partial<SiteAnnouncementDto> = {}): SiteAnnou
   createdAt: '2026-11-27T08:00:00.000Z',
   finishedAt: null,
   delivered: 12,
+  owed: 40,
   ...overrides,
 })
 
@@ -95,6 +96,92 @@ describe('the announcements page', () => {
     expect(await screen.findByText(sentence(t.sent(3)))).toBeVisible()
     expect(screen.getByLabelText(t.subject)).toHaveValue('')
     expect(await screen.findByRole('table', { name: t.pastCaption })).toBeVisible()
+  })
+
+  it('previews the subject folded as the server keeps it: runs of spaces and invisible characters gone', async () => {
+    open(consoleApi())
+    const preview = await screen.findByRole('region', { name: t.preview })
+    await userEvent.type(await screen.findByLabelText(t.subject), 'Nouvelles   conditions\u202E')
+    await userEvent.type(screen.getByLabelText(t.text), 'Un texte.')
+
+    expect(within(preview).getByText('Nouvelles conditions')).toBeVisible()
+  })
+
+  it('reads the audience again as the confirmation opens, and names that size', async () => {
+    const siteAnnouncements = vi
+      .fn<Api['siteAnnouncements']>()
+      .mockResolvedValueOnce({ recipients: 3, items: [] })
+      .mockResolvedValue({ recipients: 5, items: [] })
+    open(consoleApi({ siteAnnouncements }))
+    await write()
+
+    await userEvent.click(screen.getByRole('button', { name: t.send }))
+    const confirmation = await screen.findByRole('dialog', { name: t.confirmTitle })
+
+    await waitFor(() => expect(siteAnnouncements).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(confirmation).toHaveTextContent(t.confirmBody(5).replaceAll(NBSP, ' ')),
+    )
+  })
+
+  it('does not offer the confirmation while the audience is being read again', async () => {
+    let answer: (value: { recipients: number; items: [] }) => void = () => {}
+    const siteAnnouncements = vi
+      .fn<Api['siteAnnouncements']>()
+      .mockResolvedValueOnce({ recipients: 3, items: [] })
+      .mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve
+          }),
+      )
+    open(consoleApi({ siteAnnouncements }))
+    await write()
+
+    await userEvent.click(screen.getByRole('button', { name: t.send }))
+    const confirmation = await screen.findByRole('dialog', { name: t.confirmTitle })
+
+    expect(within(confirmation).getByRole('button', { name: t.send })).toBeDisabled()
+    answer({ recipients: 4, items: [] })
+    await waitFor(() =>
+      expect(within(confirmation).getByRole('button', { name: t.send })).toBeEnabled(),
+    )
+  })
+
+  it('sends once when the confirmation is pressed twice: the button is out of reach while it posts', async () => {
+    let release: () => void = () => {}
+    const siteSendAnnouncement = vi.fn<Api['siteSendAnnouncement']>(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ id: 'a-1', recipients: 3 })
+        }),
+    )
+    open(consoleApi({ siteSendAnnouncement }))
+    await write()
+    await userEvent.click(screen.getByRole('button', { name: t.send }))
+    const confirmation = await screen.findByRole('dialog', { name: t.confirmTitle })
+    const confirm = within(confirmation).getByRole('button', { name: t.send })
+
+    await userEvent.dblClick(confirm)
+    release()
+
+    await waitFor(() => expect(siteSendAnnouncement).toHaveBeenCalledTimes(1))
+  })
+
+  it('says the same words were just sent, in the console’s language, when the server answers a duplicate', async () => {
+    const siteSendAnnouncement = vi
+      .fn<Api['siteSendAnnouncement']>()
+      .mockRejectedValue(new ApiError(409, 'hostAnnouncement.duplicate'))
+    open(consoleApi({ siteSendAnnouncement }))
+    await write()
+
+    await userEvent.click(screen.getByRole('button', { name: t.send }))
+    const confirmation = await screen.findByRole('dialog', { name: t.confirmTitle })
+    await userEvent.click(within(confirmation).getByRole('button', { name: t.send }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      fr.errors['hostAnnouncement.duplicate'].replaceAll(NBSP, ' '),
+    )
   })
 
   it('sends the link when there is one', async () => {
@@ -168,11 +255,12 @@ describe('the announcements page', () => {
         siteAnnouncements: vi.fn(async () => ({
           recipients: 3,
           items: [
-            anAnnouncement({ id: 'a-2', subject: 'En cours', delivered: 12 }),
+            anAnnouncement({ id: 'a-2', subject: 'En cours', delivered: 12, owed: 40 }),
             anAnnouncement({
               id: 'a-1',
               subject: 'Terminée',
               delivered: 40,
+              owed: 40,
               finishedAt: '2026-11-28T09:00:00.000Z',
             }),
           ],
@@ -184,7 +272,9 @@ describe('the announcements page', () => {
 
     const rows = within(table).getAllByRole('row').slice(1)
     expect(within(rows[0] as HTMLElement).getByText('En cours')).toBeVisible()
-    expect(within(rows[0] as HTMLElement).getByText(/^En cours\s*:\s*12 envoyés$/)).toBeVisible()
+    expect(
+      within(rows[0] as HTMLElement).getByText(/^En cours\s*:\s*12 sur 40 envoyés$/),
+    ).toBeVisible()
     expect(within(rows[1] as HTMLElement).getByText(/^Terminée le .*40 envoyés$/)).toBeVisible()
   })
 

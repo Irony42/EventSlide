@@ -2571,6 +2571,8 @@ export const fr = {
     'hostAnnouncement.mailerRequired':
       'Cette instance n’envoie pas de courrier : aucune annonce ne peut partir.',
     'hostAnnouncement.noRecipients': 'Aucun propriétaire actif à qui écrire.',
+    'hostAnnouncement.duplicate':
+      'Cette annonce vient d’être enregistrée\u00a0: les mêmes mots sont en cours d’envoi ou sont partis il y a moins de dix minutes.',
     'audit.reasonInvalid':
       'Le motif doit tenir sur une ligne de 200 caractères au plus, sans adresse e-mail.',
     'reset.mailerRequired':
@@ -3307,10 +3309,10 @@ export const fr = {
     colSubject: 'Objet',
     colWritten: 'Écrite le',
     colProgress: 'Avancement',
-    going: (n: number) =>
-      t.count(n, {
-        one: `En cours\u00a0: ${t.number(n)} envoyé`,
-        other: `En cours\u00a0: ${t.number(n)} envoyés`,
+    going: (sent: number, owed: number) =>
+      t.count(owed, {
+        one: `En cours\u00a0: ${t.number(sent)} sur ${t.number(owed)} envoyé`,
+        other: `En cours\u00a0: ${t.number(sent)} sur ${t.number(owed)} envoyés`,
       }),
     done: (n: number, date: string) =>
       t.count(n, {

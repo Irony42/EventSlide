@@ -383,6 +383,8 @@ export const en: UiText = {
     'hostAnnouncement.mailerRequired':
       'This instance does not send mail: no announcement can go out.',
     'hostAnnouncement.noRecipients': 'There is no active owner to write to.',
+    'hostAnnouncement.duplicate':
+      'This announcement was just saved: the same words are still going out or went out less than ten minutes ago.',
     'audit.reasonInvalid':
       'The reason must fit on one line of 200 characters at most, with no e-mail address.',
     'reset.mailerRequired': 'This instance does not send mail: no reset link can be issued.',
@@ -2564,10 +2566,10 @@ export const en: UiText = {
     colSubject: 'Subject',
     colWritten: 'Written on',
     colProgress: 'Progress',
-    going: (n: number) =>
-      t.count(n, {
-        one: `In progress: ${t.number(n)} sent`,
-        other: `In progress: ${t.number(n)} sent`,
+    going: (sent: number, owed: number) =>
+      t.count(owed, {
+        one: `In progress: ${t.number(sent)} of ${t.number(owed)} sent`,
+        other: `In progress: ${t.number(sent)} of ${t.number(owed)} sent`,
       }),
     done: (n: number, date: string) =>
       t.count(n, {

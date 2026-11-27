@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CSRF_HEADER } from '../middleware/csrf'
-import { aBox } from '../testing/siteBox'
+import { ID, aBox } from '../testing/siteBox'
 import type { SiteHarnessOptions } from '../testing/siteHarness'
 
 /**
@@ -31,7 +31,7 @@ describe('POST and GET /api/site/announcements', () => {
 
     const written = await write({ ...BODY, link: 'https://eventslide.fr/legal/cgu' })
 
-    expect(written.status).toBe(201)
+    expect(written.status).toBe(202)
     expect(written.body).toEqual({ id: expect.stringMatching(/^[0-9a-f-]{36}$/), recipients: 3 })
     const listed = await list()
     expect(listed.status).toBe(200)
@@ -46,6 +46,7 @@ describe('POST and GET /api/site/announcements', () => {
         createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
         finishedAt: null,
         delivered: 0,
+        owed: 3,
       },
     ])
   })
@@ -95,6 +96,33 @@ describe('POST and GET /api/site/announcements', () => {
 
     expect(response.status).toBe(400)
     expect(response.body.error.code).toBe('request.invalid')
+  })
+
+  it('answers 409 hostAnnouncement.duplicate to the same words sent twice, and writes one announcement and one audit line', async () => {
+    const { write, list, audit } = await operator()
+
+    const first = await write(BODY)
+    const second = await write(BODY)
+
+    expect(first.status).toBe(202)
+    expect(second.status).toBe(409)
+    expect(second.body.error.code).toBe('hostAnnouncement.duplicate')
+    expect((await list()).body.items).toHaveLength(1)
+    expect(
+      (await audit()).filter((line) => line.action === 'account.hostAnnouncementSent'),
+    ).toHaveLength(1)
+  })
+
+  it('asks for a fresh step-up before reading the body, while the listing still answers', async () => {
+    const { site, write, list } = await operator()
+    await site.stamp(ID.operator, { stepUpAt: 0 })
+
+    const response = await write({ nonsense: true })
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('auth.stepUpRequired')
+    expect((await list()).status).toBe(200)
+    expect((await list()).body.items).toEqual([])
   })
 
   it('answers 409 hostAnnouncement.mailerRequired on a box that cannot mail, and writes nothing', async () => {

@@ -88,6 +88,7 @@ const noAnnouncements = {
   sent: 0,
   unsent: 0,
   heldByBudget: false,
+  timedOut: false,
   finished: 0,
   failed: [] as string[],
 }
@@ -1095,6 +1096,7 @@ describe('the announcements to the hosts ride the follow-up (spec 32, A8)', () =
         sent: 40,
         unsent: 1,
         heldByBudget: true,
+        timedOut: false,
         finished: 0,
         failed: [],
       }),

@@ -899,7 +899,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
       })
 
       sendResult(res, result, (response, sent) =>
-        sendJson(response, toSiteAnnouncementSentDto(sent), 201),
+        sendJson(response, toSiteAnnouncementSentDto(sent), 202),
       )
     }),
   )

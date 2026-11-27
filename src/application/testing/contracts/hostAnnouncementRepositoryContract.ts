@@ -129,6 +129,91 @@ export const hostAnnouncementRepositoryContract = (
         expect(await world.repo.pendingRecipients('a-one', 10)).toEqual([])
       }))
 
+    it('reads one recipient per address, the lowest id when two accounts differ only by case, and none once the address was reached', () =>
+      withWorld(async (world) => {
+        await world.addOwner('u-b', 'Hote@Example.test')
+        await world.addOwner('u-a', 'hote@example.test')
+        await world.addOwner('u-c', 'autre@example.test')
+        await world.repo.create(announcement('a-one'))
+
+        expect(await world.repo.countRecipients()).toBe(2)
+        expect(await world.repo.pendingRecipients('a-one', 10)).toEqual([
+          { userId: 'u-a', email: 'hote@example.test' },
+          { userId: 'u-c', email: 'autre@example.test' },
+        ])
+
+        // A delivery under the other account of the same address reaches the address.
+        expect(await world.repo.recordDelivery('a-one', 'u-b', AT)).toBe(true)
+        expect(await world.repo.pendingRecipients('a-one', 10)).toEqual([
+          { userId: 'u-c', email: 'autre@example.test' },
+        ])
+      }))
+
+    it('takes a delivery back, so that the account is owed again and may be noted once more', () =>
+      withWorld(async (world) => {
+        await world.addOwner('u-a', 'a@example.test')
+        await world.repo.create(announcement('a-one'))
+        await world.repo.recordDelivery('a-one', 'u-a', AT)
+
+        await world.repo.forgetDelivery('a-one', 'u-a')
+        await world.repo.forgetDelivery('a-one', 'u-nobody')
+
+        expect((await world.repo.listRecent(1))[0]?.delivered).toBe(0)
+        expect(await world.repo.pendingRecipients('a-one', 10)).toHaveLength(1)
+        expect(await world.repo.recordDelivery('a-one', 'u-a', AT)).toBe(true)
+      }))
+
+    it('says how many accounts an announcement is owed to in all while it goes out, and how many it reached once it finished', () =>
+      withWorld(async (world) => {
+        await world.addOwner('u-a', 'a@example.test')
+        await world.addOwner('u-b', 'b@example.test')
+        await world.addOwner('u-c', 'c@example.test')
+        await world.repo.create(announcement('a-one'))
+        await world.repo.recordDelivery('a-one', 'u-a', AT)
+
+        expect((await world.repo.listRecent(1))[0]).toMatchObject({ delivered: 1, owed: 3 })
+
+        await world.repo.recordDelivery('a-one', 'u-b', AT)
+        await world.repo.recordDelivery('a-one', 'u-c', AT)
+        await world.repo.finish('a-one', day(1))
+        await world.addOwner('u-d', 'd@example.test')
+
+        expect((await world.repo.listRecent(1))[0]).toMatchObject({ delivered: 3, owed: 3 })
+      }))
+
+    it('knows an announcement of the same words written recently or still going out, and no other', () =>
+      withWorld(async ({ repo }) => {
+        const words = { subject: 'Sujet', text: 'Texte', link: null }
+        await repo.create(announcement('a-one', { ...words, createdAt: AT }))
+        const tenMinutesLater = new Date(AT.getTime() + 600_000)
+        const anHourLater = new Date(AT.getTime() + 3_600_000)
+
+        // Still going out: a duplicate whatever its age.
+        expect(await repo.existsDuplicate(words, anHourLater)).toBe(true)
+        await repo.finish('a-one', AT)
+        // Finished: only a recent one is.
+        expect(await repo.existsDuplicate(words, AT)).toBe(true)
+        expect(await repo.existsDuplicate(words, tenMinutesLater)).toBe(false)
+        // Other words are not.
+        expect(await repo.existsDuplicate({ ...words, subject: 'Autre' }, AT)).toBe(false)
+        expect(await repo.existsDuplicate({ ...words, text: 'Autre' }, AT)).toBe(false)
+        expect(await repo.existsDuplicate({ ...words, link: 'https://eventslide.fr/a' }, AT)).toBe(
+          false,
+        )
+      }))
+
+    it('tells an announcement with a link from the same words with another', () =>
+      withWorld(async ({ repo }) => {
+        const words = { subject: 'Sujet', text: 'Texte', link: 'https://eventslide.fr/a' }
+        await repo.create(announcement('a-one', words))
+
+        expect(await repo.existsDuplicate(words, AT)).toBe(true)
+        expect(await repo.existsDuplicate({ ...words, link: 'https://eventslide.fr/b' }, AT)).toBe(
+          false,
+        )
+        expect(await repo.existsDuplicate({ ...words, link: null }, AT)).toBe(false)
+      }))
+
     it('lists the unfinished announcements, oldest first, and keeps the first instant a finish was given', () =>
       withWorld(async ({ repo }) => {
         await repo.create(announcement('a-late', { createdAt: day(2) }))

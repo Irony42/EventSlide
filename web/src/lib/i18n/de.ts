@@ -402,6 +402,8 @@ export const de: UiText = {
       'Diese Instanz versendet keine E-Mails: Keine Ankündigung kann gesendet werden.',
     'hostAnnouncement.noRecipients':
       'Es gibt keinen aktiven Eigentümer, an den geschrieben werden kann.',
+    'hostAnnouncement.duplicate':
+      'Diese Ankündigung wurde gerade gespeichert: dieselben Worte gehen noch hinaus oder sind vor weniger als zehn Minuten hinausgegangen.',
     'audit.reasonInvalid':
       'Der Grund muss in eine Zeile mit höchstens 200 Zeichen passen, ohne E-Mail-Adresse.',
     'reset.mailerRequired':
@@ -2649,19 +2651,19 @@ export const de: UiText = {
     audience: (n: number) =>
       t.count(n, {
         one: `Diese Ankündigung geht an ${t.number(n)} Konto (aktive Eigentümer mindestens eines Bereichs).`,
-        other: `Diese Ankündigung geht an ${t.number(n)} Konton (aktive Eigentümer mindestens eines Bereichs).`,
+        other: `Diese Ankündigung geht an ${t.number(n)} Konten (aktive Eigentümer mindestens eines Bereichs).`,
       }),
     send: 'Ankündigung senden',
     confirmTitle: 'Diese Ankündigung senden?',
     confirmBody: (n: number) =>
       t.count(n, {
         one: `Sie geht an ${t.number(n)} Konto, in Paketen und im Rahmen des Tageslimits für E-Mails, und kann nicht zurückgerufen werden.`,
-        other: `Sie geht an ${t.number(n)} Konton, in Paketen und im Rahmen des Tageslimits für E-Mails, und kann nicht zurückgerufen werden.`,
+        other: `Sie geht an ${t.number(n)} Konten, in Paketen und im Rahmen des Tageslimits für E-Mails, und kann nicht zurückgerufen werden.`,
       }),
     sent: (n: number) =>
       t.count(n, {
         one: `Ankündigung gespeichert: Sie geht an ${t.number(n)} Konto.`,
-        other: `Ankündigung gespeichert: Sie geht an ${t.number(n)} Konton.`,
+        other: `Ankündigung gespeichert: Sie geht an ${t.number(n)} Konten.`,
       }),
     past: 'Gesendete Ankündigungen',
     pastCaption: 'Ankündigungen an Gastgeber und ihr Fortschritt',
@@ -2671,10 +2673,10 @@ export const de: UiText = {
     colSubject: 'Betreff',
     colWritten: 'Geschrieben am',
     colProgress: 'Fortschritt',
-    going: (n: number) =>
-      t.count(n, {
-        one: `Läuft: ${t.number(n)} gesendet`,
-        other: `Läuft: ${t.number(n)} gesendet`,
+    going: (sent: number, owed: number) =>
+      t.count(owed, {
+        one: `Läuft: ${t.number(sent)} von ${t.number(owed)} gesendet`,
+        other: `Läuft: ${t.number(sent)} von ${t.number(owed)} gesendet`,
       }),
     done: (n: number, date: string) =>
       t.count(n, {

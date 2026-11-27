@@ -24,9 +24,15 @@ import type { Mailer } from '../../ports/mailer'
  *
  * - **A box that cannot mail refuses** (`409 hostAnnouncement.mailerRequired`): an announcement nobody could receive would sit
  *   unfinished for ever. **Nobody to write to** is `409 hostAnnouncement.noRecipients`.
- * - **Write-ahead, one line, a number**: `account.hostAnnouncementSent` is recorded before the announcement exists, and says how
- *   many accounts, never the text and never an address.
+ * - **The same words twice are refused** (`409 hostAnnouncement.duplicate`): an announcement with the same subject, text and link
+ *   written in the last {@link DUPLICATE_WINDOW_MS} or still going out.
+ * - **One line, a number**: `account.hostAnnouncementSent` is recorded once the announcement is written (the entry is built and
+ *   judged first, so an actor the log would refuse writes nothing), and says how many accounts, never the text and never an
+ *   address.
  */
+
+/** How long the same words are taken for the same announcement: ten minutes. */
+export const DUPLICATE_WINDOW_MS = 10 * 60_000
 
 export interface SendHostAnnouncementInput {
   readonly subject: string
@@ -43,7 +49,10 @@ export interface SentHostAnnouncement {
 }
 
 export interface SendHostAnnouncementDeps {
-  readonly announcements: Pick<HostAnnouncementRepository, 'create' | 'countRecipients'>
+  readonly announcements: Pick<
+    HostAnnouncementRepository,
+    'create' | 'countRecipients' | 'existsDuplicate'
+  >
   readonly audit: AuditRecorder
   readonly ids: Pick<IdGenerator, 'hostAnnouncementId'>
   readonly clock: Clock
@@ -74,6 +83,13 @@ export const makeSendHostAnnouncement =
     if (recipients === 0) return err(DomainError.conflict('hostAnnouncement.noRecipients'))
 
     const at = clock.now()
+    // A double click, a retry after a timeout, a second tab: the same words, written a moment ago or still going out, are the
+    // same announcement, and every host would be mailed twice.
+    const since = new Date(at.getTime() - DUPLICATE_WINDOW_MS)
+    if (await announcements.existsDuplicate(draft.value, since)) {
+      return err(DomainError.conflict('hostAnnouncement.duplicate'))
+    }
+
     const entry = AuditEntry.create({
       at,
       actor: { kind: 'operator', userId: operatorId },
@@ -83,7 +99,6 @@ export const makeSendHostAnnouncement =
       details: { recipients },
     })
     if (!entry.ok) return entry
-    await audit.record(entry.value)
 
     const announcement: HostAnnouncement = {
       ...draft.value,
@@ -93,6 +108,8 @@ export const makeSendHostAnnouncement =
       finishedAt: null,
     }
     await announcements.create(announcement)
+    // After the announcement exists: a line for an announcement that was never written would say something that did not happen.
+    await audit.record(entry.value)
     try {
       kick?.()
     } catch {

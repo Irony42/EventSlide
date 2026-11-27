@@ -399,6 +399,8 @@ export const es: UiText = {
     'hostAnnouncement.mailerRequired':
       'Esta instancia no envía correo: ningún anuncio puede salir.',
     'hostAnnouncement.noRecipients': 'No hay ningún propietario activo al que escribir.',
+    'hostAnnouncement.duplicate':
+      'Este anuncio acaba de guardarse: las mismas palabras siguen saliendo o salieron hace menos de diez minutos.',
     'audit.reasonInvalid':
       'El motivo debe caber en una línea de 200 caracteres como máximo, sin dirección de correo.',
     'reset.mailerRequired':
@@ -2641,10 +2643,10 @@ export const es: UiText = {
     colSubject: 'Asunto',
     colWritten: 'Escrito el',
     colProgress: 'Avance',
-    going: (n: number) =>
-      t.count(n, {
-        one: `En curso: ${t.number(n)} enviado`,
-        other: `En curso: ${t.number(n)} enviados`,
+    going: (sent: number, owed: number) =>
+      t.count(owed, {
+        one: `En curso: ${t.number(sent)} de ${t.number(owed)} enviado`,
+        other: `En curso: ${t.number(sent)} de ${t.number(owed)} enviados`,
       }),
     done: (n: number, date: string) =>
       t.count(n, {

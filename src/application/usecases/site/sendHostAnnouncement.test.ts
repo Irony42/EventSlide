@@ -25,12 +25,12 @@ describe('sendHostAnnouncement', () => {
   let kicked: number
   let send: SendHostAnnouncement
 
-  const build = (options: { canDeliver?: boolean; kick?: () => void } = {}) =>
+  const build = (options: { canDeliver?: boolean; kick?: () => void; at?: Date } = {}) =>
     makeSendHostAnnouncement({
       announcements,
       audit,
       ids: new SequentialIdGenerator(),
-      clock: new FakeClock(NOW),
+      clock: new FakeClock(options.at ?? NOW),
       mailer: { canDeliver: options.canDeliver ?? true },
       kick:
         options.kick ??
@@ -65,7 +65,7 @@ describe('sendHostAnnouncement', () => {
     expect(kicked).toBe(1)
   })
 
-  it('writes one audit line before the announcement exists: the number of accounts, never the text nor an address', async () => {
+  it('writes one audit line once the announcement exists: the number of accounts, never the text nor an address', async () => {
     await send(BODY)
 
     expect(audit.all()).toEqual([
@@ -113,6 +113,45 @@ describe('sendHostAnnouncement', () => {
 
     expect(!result.ok && result.error.code).toBe('hostAnnouncement.noRecipients')
     expect(audit.all()).toEqual([])
+  })
+
+  it('refuses the same words twice: a double click, a retry or a second tab writes one announcement, and one audit line', async () => {
+    const first = await send(BODY)
+    const second = await send(BODY)
+
+    expect(first.ok).toBe(true)
+    expect(!second.ok && second.error.code).toBe('hostAnnouncement.duplicate')
+    expect(await announcements.listRecent(5)).toHaveLength(1)
+    expect(audit.all()).toHaveLength(1)
+    expect(kicked).toBe(1)
+  })
+
+  it('takes the same words for a new announcement once ten minutes have gone and the first one finished, and not before', async () => {
+    await send(BODY)
+    const [row] = await announcements.listRecent(1)
+    await announcements.finish(row?.announcement.id ?? '', NOW)
+
+    const nineMinutes = await build({ at: new Date(NOW.getTime() + 9 * 60_000) })(BODY)
+    const elevenMinutes = await build({ at: new Date(NOW.getTime() + 11 * 60_000) })(BODY)
+
+    expect(!nineMinutes.ok && nineMinutes.error.code).toBe('hostAnnouncement.duplicate')
+    expect(elevenMinutes.ok).toBe(true)
+  })
+
+  it('refuses the same words for as long as the first one is still going out, however old', async () => {
+    await send(BODY)
+
+    const later = await build({ at: new Date(NOW.getTime() + 3 * 86_400_000) })(BODY)
+
+    expect(!later.ok && later.error.code).toBe('hostAnnouncement.duplicate')
+  })
+
+  it('does not take other words for the same announcement', async () => {
+    await send(BODY)
+
+    expect((await send({ ...BODY, subject: 'Autre sujet' })).ok).toBe(true)
+    expect((await send({ ...BODY, text: 'Autre texte.' })).ok).toBe(true)
+    expect((await send({ ...BODY, link: 'https://eventslide.fr/legal/cgu' })).ok).toBe(true)
   })
 
   it('does not count an account that was switched off', async () => {

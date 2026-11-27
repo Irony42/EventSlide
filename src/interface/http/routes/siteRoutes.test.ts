@@ -143,7 +143,7 @@ const ROUTES: readonly SiteRoute[] = [
     method: 'post',
     path: '/api/site/announcements',
     body: { subject: 'Nouvelles conditions', text: 'Elles changent.' },
-    success: 201,
+    success: 202,
     write: true,
   },
   {

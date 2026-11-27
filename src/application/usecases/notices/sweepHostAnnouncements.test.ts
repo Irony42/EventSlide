@@ -40,7 +40,8 @@ const build = async (
     owners?: number
     budgetMax?: number | null
     mailer?: Mailer
-    batchPerPass?: number
+    batchSize?: number
+    passLimitMs?: number
     announcements?: readonly HostAnnouncement[]
     contact?: EmailAddress | null
   } = {},
@@ -63,7 +64,8 @@ const build = async (
     clock,
     logger,
     operatorContact: options.contact === undefined ? CONTACT : options.contact,
-    ...(options.batchPerPass === undefined ? {} : { batchPerPass: options.batchPerPass }),
+    ...(options.batchSize === undefined ? {} : { batchSize: options.batchSize }),
+    ...(options.passLimitMs === undefined ? {} : { passLimitMs: options.passLimitMs }),
   }
   return {
     sweep: makeSweepHostAnnouncements(deps),
@@ -82,7 +84,14 @@ describe('sweepHostAnnouncements (A8)', () => {
 
     const report = await world.sweep()
 
-    expect(report).toEqual({ sent: 3, unsent: 0, heldByBudget: false, finished: 1, failed: [] })
+    expect(report).toEqual({
+      sent: 3,
+      unsent: 0,
+      heldByBudget: false,
+      timedOut: false,
+      finished: 1,
+      failed: [],
+    })
     expect(world.mailer.sent.map((mail) => mail.to).sort()).toEqual([
       'hote1@example.test',
       'hote2@example.test',
@@ -113,12 +122,10 @@ describe('sweepHostAnnouncements (A8)', () => {
     expect(world.mailer.sent).toHaveLength(3)
   })
 
-  it('sends by batches: a pass sends at most the batch, the next one goes on where it stopped, and the last one finishes', async () => {
-    const world = await build({ owners: 5, batchPerPass: 2 })
+  it('keeps sending batches within one pass until nobody is left owed, and finishes', async () => {
+    const world = await build({ owners: 5, batchSize: 2 })
 
-    expect(await world.sweep()).toMatchObject({ sent: 2, finished: 0 })
-    expect(await world.sweep()).toMatchObject({ sent: 2, finished: 0 })
-    expect(await world.sweep()).toMatchObject({ sent: 1, finished: 1 })
+    expect(await world.sweep()).toMatchObject({ sent: 5, finished: 1, heldByBudget: false })
     expect(world.mailer.sent.map((mail) => mail.to).sort()).toEqual([
       'hote1@example.test',
       'hote2@example.test',
@@ -128,12 +135,56 @@ describe('sweepHostAnnouncements (A8)', () => {
     ])
   })
 
+  it('stops at the time limit between two batches, and the next pass goes on where it stopped', async () => {
+    const world = await build({ owners: 5, batchSize: 1, passLimitMs: 1000 })
+    const slow = {
+      canDeliver: true,
+      send: async (mail: Parameters<Mailer['send']>[0]) => {
+        world.clock.set(new Date(world.clock.now().getTime() + 600))
+        return world.mailer.send(mail)
+      },
+    }
+    const sweep = makeSweepHostAnnouncements({ ...world.deps, mailer: slow })
+
+    expect(await sweep()).toMatchObject({ sent: 2, timedOut: true, finished: 0 })
+    expect(await sweep()).toMatchObject({ sent: 2, timedOut: true, finished: 0 })
+    expect(await sweep()).toMatchObject({ sent: 1, timedOut: false, finished: 1 })
+    expect(new Set(world.mailer.sent.map((mail) => mail.to)).size).toBe(5)
+  })
+
+  it('does not start the next announcement once the time limit stopped the first', async () => {
+    const world = await build({
+      owners: 3,
+      batchSize: 1,
+      passLimitMs: 1000,
+      announcements: [
+        announcement('a-early', { createdAt: new Date('2026-11-27T09:00:00.000Z') }),
+        announcement('a-late', { createdAt: new Date('2026-11-27T12:00:00.000Z') }),
+      ],
+    })
+    const slow = {
+      canDeliver: true,
+      send: async (mail: Parameters<Mailer['send']>[0]) => {
+        world.clock.set(new Date(world.clock.now().getTime() + 600))
+        return world.mailer.send(mail)
+      },
+    }
+
+    const report = await makeSweepHostAnnouncements({ ...world.deps, mailer: slow })()
+
+    expect(report).toMatchObject({ sent: 2, timedOut: true, finished: 0 })
+    expect(world.announcements.reached('a-late')).toEqual([])
+  })
+
   it('is resumable after a restart: a fresh sweep over the same deliveries writes only to those not yet reached', async () => {
-    const world = await build({ owners: 4, batchPerPass: 2 })
+    const world = await build({ owners: 4, budgetMax: 2 })
     await world.sweep()
 
-    // A restart is a new sweep over the same stored deliveries.
-    const restarted = makeSweepHostAnnouncements({ ...world.deps, batchPerPass: 10 })
+    // A restart is a new sweep over the same stored deliveries, on a day with room.
+    const restarted = makeSweepHostAnnouncements({
+      ...world.deps,
+      budget: new FakeMailBudget(null),
+    })
     const report = await restarted()
 
     expect(report).toMatchObject({ sent: 2, finished: 1 })
@@ -148,6 +199,8 @@ describe('sweepHostAnnouncements (A8)', () => {
 
     expect(held).toMatchObject({ sent: 3, heldByBudget: true, finished: 0 })
     expect(await world.budget.used('2026-11-28')).toBe(3)
+    // The account the budget refused is still owed: its row was taken back.
+    expect(world.announcements.reached('a-one')).toHaveLength(3)
 
     world.clock.set(new Date('2026-11-29T03:00:00.000Z'))
     const next = await world.sweep()
@@ -194,10 +247,10 @@ describe('sweepHostAnnouncements (A8)', () => {
     ])
   })
 
-  it('stops at the batch when the first announcement fills it exactly: the next one waits for the next pass', async () => {
+  it('finishes the first announcement, then stops the whole pass when the day is full: the second is held back whole', async () => {
     const world = await build({
       owners: 2,
-      batchPerPass: 2,
+      budgetMax: 2,
       announcements: [
         announcement('a-early', { createdAt: new Date('2026-11-27T09:00:00.000Z') }),
         announcement('a-late', { createdAt: new Date('2026-11-27T12:00:00.000Z') }),
@@ -206,8 +259,92 @@ describe('sweepHostAnnouncements (A8)', () => {
 
     const report = await world.sweep()
 
-    expect(report).toMatchObject({ sent: 2, finished: 1 })
+    expect(report).toMatchObject({ sent: 2, finished: 1, heldByBudget: true })
     expect(world.mailer.sent).toHaveLength(2)
+    expect(world.announcements.reached('a-late')).toEqual([])
+  })
+
+  it('asks for one more pass when it is called during a pass, so an announcement written meanwhile starts at once', async () => {
+    const world = await build({ owners: 1 })
+    let joined: ReturnType<typeof world.sweep> | null = null
+    const watching = {
+      canDeliver: true,
+      send: async (mail: Parameters<Mailer['send']>[0]) => {
+        if (joined === null) {
+          await world.announcements.create(
+            announcement('a-two', {
+              subject: 'Seconde',
+              createdAt: new Date('2026-11-28T02:00:00.000Z'),
+            }),
+          )
+          joined = sweep()
+        }
+        return world.mailer.send(mail)
+      },
+    }
+    const sweep = makeSweepHostAnnouncements({ ...world.deps, mailer: watching })
+
+    const first = sweep()
+    await first
+
+    expect(joined).toBe(first)
+    expect(world.mailer.sent.map((mail) => mail.subject)).toEqual([
+      'Nouvelles conditions',
+      'Seconde',
+    ])
+  })
+
+  it('writes to one address once, whatever the case of the two accounts that hold it', async () => {
+    const world = await build({ owners: 0 })
+    world.announcements
+      .withOwner('user-a', 'Hote@Example.test')
+      .withOwner('user-b', 'hote@example.test')
+
+    const report = await world.sweep()
+
+    expect(report).toMatchObject({ sent: 1, finished: 1 })
+    expect(world.mailer.sent).toHaveLength(1)
+  })
+
+  it('goes on after a mail that throws: that address is unsent, the error is named, and the others are written to', async () => {
+    const world = await build()
+    let first = true
+    const throwing = {
+      canDeliver: true,
+      send: async (mail: Parameters<Mailer['send']>[0]) => {
+        if (first) {
+          first = false
+          throw new RangeError('secret hote1@example.test')
+        }
+        return world.mailer.send(mail)
+      },
+    }
+
+    const report = await makeSweepHostAnnouncements({ ...world.deps, mailer: throwing })()
+
+    expect(report).toMatchObject({ sent: 2, unsent: 1, finished: 1, failed: [] })
+    expect(
+      world.logger.lines.find((entry) => entry.message === 'a host announcement was not sent')
+        ?.context,
+    ).toEqual({ announcementId: 'a-one', error: 'RangeError' })
+    expect(JSON.stringify(world.logger.lines)).not.toContain('example.test')
+  })
+
+  it('names a mail that throws something that is not an Error unknown', async () => {
+    const world = await build({ owners: 1 })
+    const throwing = {
+      canDeliver: true,
+      send: async (): Promise<never> => {
+        throw 'plain'
+      },
+    }
+
+    await makeSweepHostAnnouncements({ ...world.deps, mailer: throwing })()
+
+    expect(
+      world.logger.lines.find((entry) => entry.message === 'a host announcement was not sent')
+        ?.context,
+    ).toEqual({ announcementId: 'a-one', error: 'unknown' })
   })
 
   it('writes nothing, and stamps nothing, without a relay: the announcement waits', async () => {
@@ -248,6 +385,8 @@ describe('sweepHostAnnouncements (A8)', () => {
     const report = await world.sweep()
 
     expect(report).toMatchObject({ sent: 1, unsent: 1, finished: 1 })
+    expect(await world.budget.used('2026-11-28')).toBe(1)
+    expect(world.announcements.reached('a-one')).toEqual(['user-001', 'user-002'])
   })
 
   it('skips an account another sweep already noted: the one that wrote the row sends', async () => {
@@ -259,15 +398,17 @@ describe('sweepHostAnnouncements (A8)', () => {
         world.announcements.pendingRecipients(id, limit),
       recordDelivery: async () => false,
       finish: (id: string, at: Date) => world.announcements.finish(id, at),
+      forgetDelivery: (id: string, user: string) => world.announcements.forgetDelivery(id, user),
     }
 
     const report = await makeSweepHostAnnouncements({ ...world.deps, announcements: racing })()
 
-    expect(report).toMatchObject({ sent: 0 })
+    expect(report).toMatchObject({ sent: 0, finished: 0 })
     expect(world.mailer.sent).toEqual([])
+    expect(await world.budget.used('2026-11-28')).toBe(0)
   })
 
-  it('runs one pass at a time: a second call while one is running is that same pass', async () => {
+  it('runs one pass at a time: a second call while one is running is that same pass, and sends nothing twice', async () => {
     const world = await build()
 
     const [first, second] = await Promise.all([world.sweep(), world.sweep()])
@@ -288,6 +429,7 @@ describe('sweepHostAnnouncements (A8)', () => {
         pendingRecipients: async () => [],
         recordDelivery: async () => false,
         finish: async () => {},
+        forgetDelivery: async () => {},
       },
     })
 
@@ -306,6 +448,7 @@ describe('sweepHostAnnouncements (A8)', () => {
         pendingRecipients: async () => [],
         recordDelivery: async () => false,
         finish: async () => {},
+        forgetDelivery: async () => {},
       },
     })
     await plain()
@@ -334,6 +477,7 @@ describe('sweepHostAnnouncements (A8)', () => {
       recordDelivery: (id: string, user: string, at: Date) =>
         world.announcements.recordDelivery(id, user, at),
       finish: (id: string, at: Date) => world.announcements.finish(id, at),
+      forgetDelivery: (id: string, user: string) => world.announcements.forgetDelivery(id, user),
     }
 
     const report = await makeSweepHostAnnouncements({ ...world.deps, announcements: flaky })()
@@ -357,6 +501,7 @@ describe('sweepHostAnnouncements (A8)', () => {
       },
       recordDelivery: async () => false,
       finish: async () => {},
+      forgetDelivery: async () => {},
     }
 
     await makeSweepHostAnnouncements({ ...world.deps, announcements: flaky })()

@@ -1,4 +1,7 @@
-import type { HostAnnouncement } from '../../domain/hostAnnouncements/hostAnnouncement'
+import type {
+  HostAnnouncement,
+  HostAnnouncementDraft,
+} from '../../domain/hostAnnouncements/hostAnnouncement'
 import type {
   HostAnnouncementProgress,
   HostAnnouncementRepository,
@@ -31,9 +34,24 @@ const toAnnouncement = (row: Row): HostAnnouncement => ({
  * `host_announcements` and `host_announcement_deliveries` (migration 043).
  *
  * The recipients are **read, never stored**: the accounts that are not switched off (`disabled_at IS NULL`) and own at least
- * one client (`client_members.role = 'owner'`), by id, minus those with a delivery row. A delivery is one `INSERT OR IGNORE`
- * whose `changes` says who won (noted before sent).
+ * one client (`client_members.role = 'owner'`), **one per address** (the lowest id when two accounts differ only by case), by
+ * id, minus the addresses a delivery row already reached. A delivery is one `INSERT OR IGNORE` whose `changes` says who won
+ * (noted before sent).
  */
+const OWNERS = `
+  owners AS (
+    SELECT u.id AS id, u.email AS email, lower(u.email) AS addr FROM users u
+     WHERE u.disabled_at IS NULL
+       AND EXISTS (SELECT 1 FROM client_members m WHERE m.user_id = u.id AND m.role = 'owner')),
+  firsts AS (SELECT MIN(id) AS id FROM owners GROUP BY addr)`
+
+/** What is still owed to an announcement: one account per address, minus the addresses already reached. */
+const PENDING = `
+  WITH ${OWNERS}
+  SELECT o.id AS id, o.email AS email FROM owners o JOIN firsts f ON f.id = o.id
+   WHERE NOT EXISTS (SELECT 1 FROM host_announcement_deliveries d JOIN users du ON du.id = d.user_id
+                      WHERE d.announcement_id = ? AND lower(du.email) = o.addr)`
+
 export class SqliteHostAnnouncementRepository implements HostAnnouncementRepository {
   constructor(private readonly db: Db) {}
 
@@ -54,6 +72,14 @@ export class SqliteHostAnnouncementRepository implements HostAnnouncementReposit
       )
   }
 
+  private countPending(announcementId: string): number {
+    return (
+      this.db
+        .prepare<[string], { readonly n: number }>(`SELECT COUNT(*) AS n FROM (${PENDING})`)
+        .get(announcementId)?.n ?? 0
+    )
+  }
+
   async listRecent(limit: number): Promise<readonly HostAnnouncementProgress[]> {
     return this.db
       .prepare<[number], Row & { readonly delivered: number }>(
@@ -64,7 +90,11 @@ export class SqliteHostAnnouncementRepository implements HostAnnouncementReposit
           LIMIT ?`,
       )
       .all(limit)
-      .map((row) => ({ announcement: toAnnouncement(row), delivered: row.delivered }))
+      .map((row) => ({
+        announcement: toAnnouncement(row),
+        delivered: row.delivered,
+        owed: row.finished_at === null ? row.delivered + this.countPending(row.id) : row.delivered,
+      }))
   }
 
   async unfinished(): Promise<readonly HostAnnouncement[]> {
@@ -82,11 +112,7 @@ export class SqliteHostAnnouncementRepository implements HostAnnouncementReposit
   async countRecipients(): Promise<number> {
     return (
       this.db
-        .prepare<[], { readonly n: number }>(
-          `SELECT COUNT(*) AS n FROM users u
-            WHERE u.disabled_at IS NULL
-              AND EXISTS (SELECT 1 FROM client_members m WHERE m.user_id = u.id AND m.role = 'owner')`,
-        )
+        .prepare<[], { readonly n: number }>(`WITH ${OWNERS} SELECT COUNT(*) AS n FROM firsts`)
         .get()?.n ?? 0
     )
   }
@@ -97,13 +123,7 @@ export class SqliteHostAnnouncementRepository implements HostAnnouncementReposit
   ): Promise<readonly PendingRecipient[]> {
     return this.db
       .prepare<[string, number], { readonly id: string; readonly email: string }>(
-        `SELECT u.id, u.email FROM users u
-          WHERE u.disabled_at IS NULL
-            AND EXISTS (SELECT 1 FROM client_members m WHERE m.user_id = u.id AND m.role = 'owner')
-            AND NOT EXISTS (SELECT 1 FROM host_announcement_deliveries d
-                             WHERE d.announcement_id = ? AND d.user_id = u.id)
-          ORDER BY u.id
-          LIMIT ?`,
+        `${PENDING} ORDER BY o.id LIMIT ?`,
       )
       .all(announcementId, limit)
       .map((row) => ({ userId: row.id, email: row.email }))
@@ -117,6 +137,25 @@ export class SqliteHostAnnouncementRepository implements HostAnnouncementReposit
            SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM host_announcements WHERE id = ?)`,
         )
         .run(announcementId, userId, toIsoText(at), announcementId).changes === 1
+    )
+  }
+
+  async forgetDelivery(announcementId: string, userId: string): Promise<void> {
+    this.db
+      .prepare(`DELETE FROM host_announcement_deliveries WHERE announcement_id = ? AND user_id = ?`)
+      .run(announcementId, userId)
+  }
+
+  async existsDuplicate(draft: HostAnnouncementDraft, since: Date): Promise<boolean> {
+    return (
+      this.db
+        .prepare(
+          `SELECT 1 FROM host_announcements
+            WHERE subject = ? AND text = ? AND link IS ?
+              AND (finished_at IS NULL OR created_at >= ?)
+            LIMIT 1`,
+        )
+        .get(draft.subject, draft.text, draft.link, toIsoText(since)) !== undefined
     )
   }
 

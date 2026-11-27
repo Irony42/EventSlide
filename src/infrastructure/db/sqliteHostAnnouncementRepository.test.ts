@@ -1,4 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { CapturingLogger } from '../../application/testing/capturingLogger'
+import { FakeClock } from '../../application/testing/fakeClock'
+import { FakeMailBudget } from '../../application/testing/fakeMailBudget'
+import { FakeMailer } from '../../application/testing/fakeMailer'
+import { makeSweepHostAnnouncements } from '../../application/usecases/notices/sweepHostAnnouncements'
 import { hostAnnouncementRepositoryContract } from '../../application/testing/contracts/hostAnnouncementRepositoryContract'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrations } from './migrations'
@@ -112,6 +117,84 @@ describe('SqliteHostAnnouncementRepository', () => {
     db.prepare(`DELETE FROM users WHERE id = 'u-a'`).run()
 
     expect((await repo.listRecent(1))[0]?.announcement.createdBy).toBeNull()
+    closeDatabase(db)
+  })
+
+  it('lets two sweepers on one database write to every address once, and take nothing from the day twice', async () => {
+    const db = migratedDatabase()
+    const rows = world(db)
+    for (let i = 1; i <= 25; i += 1) {
+      rows.user(`u-${String(i).padStart(2, '0')}`, `hote${i}@example.test`)
+      rows.member(rows.client(), `u-${String(i).padStart(2, '0')}`, 'owner')
+    }
+    const repo = new SqliteHostAnnouncementRepository(db)
+    await repo.create({
+      id: 'a-one',
+      subject: 'Sujet',
+      text: 'Texte',
+      link: null,
+      createdBy: null,
+      createdAt: new Date(AT),
+      finishedAt: null,
+    })
+    const mailer = new FakeMailer()
+    const budget = new FakeMailBudget(null)
+    const sweeper = () =>
+      makeSweepHostAnnouncements({
+        announcements: repo,
+        budget,
+        mailer,
+        clock: new FakeClock(new Date('2026-11-28T03:00:00.000Z')),
+        logger: new CapturingLogger(),
+        operatorContact: null,
+        batchSize: 4,
+      })
+
+    const [first, second] = await Promise.all([sweeper()(), sweeper()()])
+
+    expect(first.sent + second.sent).toBe(25)
+    expect(new Set(mailer.sent.map((mail) => mail.to)).size).toBe(25)
+    expect(mailer.sent).toHaveLength(25)
+    expect(await budget.used('2026-11-28')).toBe(25)
+    expect((await repo.unfinished()).map((row) => row.id)).toEqual([])
+    closeDatabase(db)
+  })
+
+  it('takes a delivery back when the budget refuses, so that the account is owed again tomorrow', async () => {
+    const db = migratedDatabase()
+    const rows = world(db)
+    for (const id of ['u-a', 'u-b', 'u-c']) {
+      rows.user(id, `${id}@example.test`)
+      rows.member(rows.client(), id, 'owner')
+    }
+    const repo = new SqliteHostAnnouncementRepository(db)
+    await repo.create({
+      id: 'a-one',
+      subject: 'Sujet',
+      text: 'Texte',
+      link: null,
+      createdBy: null,
+      createdAt: new Date(AT),
+      finishedAt: null,
+    })
+    const mailer = new FakeMailer()
+    const clock = new FakeClock(new Date('2026-11-28T03:00:00.000Z'))
+    const sweep = makeSweepHostAnnouncements({
+      announcements: repo,
+      budget: new FakeMailBudget(2),
+      mailer,
+      clock,
+      logger: new CapturingLogger(),
+      operatorContact: null,
+    })
+
+    expect(await sweep()).toMatchObject({ sent: 2, heldByBudget: true })
+    expect((await repo.listRecent(1))[0]).toMatchObject({ delivered: 2, owed: 3 })
+    expect(await repo.pendingRecipients('a-one', 10)).toHaveLength(1)
+
+    clock.set(new Date('2026-11-29T03:00:00.000Z'))
+    expect(await sweep()).toMatchObject({ sent: 1, finished: 1 })
+    expect(new Set(mailer.sent.map((mail) => mail.to)).size).toBe(3)
     closeDatabase(db)
   })
 })

@@ -552,6 +552,8 @@ const KEYS = new Set([
   'notified',
   // The size of the audience of an announcement (spec 32, A8): a number.
   'recipients',
+  // How far an announcement has gone, and how many accounts it is owed to in all: numbers.
+  'owed',
 ])
 
 const walk = (value: unknown, visit: (kind: 'key' | 'string', text: string) => void): void => {
@@ -660,7 +662,7 @@ describe.each(['delivers', 'none'] as const)(
           mail === 'none' &&
           (call.name.endsWith('/password-reset') || call.name === 'post /api/site/announcements')
         expect(
-          refusedForWantOfARelay ? [409] : [200, 201, 204],
+          refusedForWantOfARelay ? [409] : [200, 201, 202, 204],
           `${call.name} ${call.path}`,
         ).toContain(status)
       }

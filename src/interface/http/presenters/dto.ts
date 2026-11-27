@@ -2418,6 +2418,8 @@ export interface SiteAnnouncementDto {
   readonly finishedAt: string | null
   /** How many accounts it reached so far. */
   readonly delivered: number
+  /** How many accounts it is owed to in all: `delivered` plus those still owed while it goes out, `delivered` once finished. */
+  readonly owed: number
 }
 
 /** What the announcements page reads: the size of the audience now, and the past announcements. */

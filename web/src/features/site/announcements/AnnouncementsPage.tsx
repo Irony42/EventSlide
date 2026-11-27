@@ -22,6 +22,18 @@ const TEXT_MAX = 5000
 const LINK_MAX = 500
 
 /**
+ * The subject as the server will keep it (`parseHostAnnouncement` folds it to one line): line breaks become spaces, invisible and
+ * bidirectional control characters go, runs of spaces fold. Only the preview and "is there anything to send" read it: the server
+ * judges what is sent.
+ */
+const foldSubject = (raw: string): string =>
+  raw
+    .replace(/[\r\n\u2028\u2029\u0085]+/gu, ' ')
+    .replace(/[\p{Cc}\p{Cf}]/gu, '')
+    .replace(/\s{2,}/gu, ' ')
+    .trim()
+
+/**
  * The operator's page of announcements to the hosts (`/admin/site/announcements`, spec 32, A8): a change of terms, of a
  * sub-processor, the end of the service.
  *
@@ -50,13 +62,18 @@ export function AnnouncementsPage() {
     ),
   )
 
-  const written = subject.trim() !== '' && text.trim() !== ''
+  const folded = foldSubject(subject)
+  const written = folded !== '' && text.trim() !== ''
   const recipients = list.data?.recipients ?? null
 
   const ask = (event: FormEvent) => {
     event.preventDefault()
     setFailure(null)
-    if (written) setAsking(true)
+    if (written) {
+      // The audience is read again as the confirmation opens: the dialog names the size it will go to *now*.
+      list.reload()
+      setAsking(true)
+    }
   }
 
   const confirm = () => {
@@ -135,7 +152,7 @@ export function AnnouncementsPage() {
           </h2>
           {written ? (
             <>
-              <p className={styles['previewSubject']}>{subject.trim()}</p>
+              <p className={styles['previewSubject']}>{folded}</p>
               <p className={styles['previewText']}>{text.trim()}</p>
               {link.trim() === '' ? null : <p className={styles['previewLink']}>{link.trim()}</p>}
             </>
@@ -165,7 +182,7 @@ export function AnnouncementsPage() {
         description={t.siteAnnouncements.confirmBody(recipients ?? 0)}
         confirmLabel={t.siteAnnouncements.send}
         confirmVariant="primary"
-        busy={send.busy}
+        busy={send.busy || list.loading}
         onConfirm={confirm}
         onCancel={() => setAsking(false)}
       />
@@ -206,7 +223,9 @@ export function AnnouncementsPage() {
                   <td>{date(item.createdAt)}</td>
                   <td>
                     {item.finishedAt === null ? (
-                      <Badge tone="warning">{t.siteAnnouncements.going(item.delivered)}</Badge>
+                      <Badge tone="warning">
+                        {t.siteAnnouncements.going(item.delivered, item.owed)}
+                      </Badge>
                     ) : (
                       <Badge tone="success">
                         {t.siteAnnouncements.done(item.delivered, date(item.finishedAt))}

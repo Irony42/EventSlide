@@ -144,8 +144,10 @@ describe('createContainer: the announcements to the hosts (spec 32, A8)', () => 
     const { booted, clock, operatorId } = await boot({ MAIL_FOLLOWUP_MAX_PER_DAY: '2' })
     await booted.usecases.sendHostAnnouncement({ ...WORDS, operatorId })
 
+    // The first batch was kicked by the send itself: this call joins it, and the day is full after two mails.
     const first = await booted.usecases.sweepHostAnnouncements()
-    expect(first).toMatchObject({ sent: 2, heldByBudget: true, finished: 0 })
+    expect(first).toMatchObject({ heldByBudget: true, finished: 0 })
+    expect(received()).toHaveLength(2)
 
     clock.set(new Date('2026-11-29T03:00:00.000Z'))
     const second = await booted.usecases.sweepHostAnnouncements()

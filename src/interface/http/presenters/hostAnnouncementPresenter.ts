@@ -5,7 +5,7 @@ import type { SiteAnnouncementDto, SiteAnnouncementListDto, SiteAnnouncementSent
 /** The announcements page's answer: the operator's own words and numbers, no address and no host's text. */
 export const toSiteAnnouncementListDto = (list: HostAnnouncementList): SiteAnnouncementListDto => ({
   recipients: list.recipients,
-  items: list.items.map(({ announcement, delivered }): SiteAnnouncementDto => ({
+  items: list.items.map(({ announcement, delivered, owed }): SiteAnnouncementDto => ({
     id: announcement.id,
     subject: announcement.subject,
     text: announcement.text,
@@ -13,6 +13,7 @@ export const toSiteAnnouncementListDto = (list: HostAnnouncementList): SiteAnnou
     createdAt: announcement.createdAt.toISOString(),
     finishedAt: announcement.finishedAt === null ? null : announcement.finishedAt.toISOString(),
     delivered,
+    owed,
   })),
 })
 
