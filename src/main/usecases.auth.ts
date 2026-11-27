@@ -28,7 +28,7 @@ import {
 export const authUseCases = (
   adapters: Adapters,
   policy: UseCasePolicy,
-  { issueInvitation }: SharedHooks,
+  { issueInvitation, accountNotice }: SharedHooks,
 ) => ({
   // auth
   authenticateUser: makeAuthenticateUser({
@@ -41,6 +41,7 @@ export const authUseCases = (
     users: adapters.users,
     hasher: adapters.passwordHasher,
     clock: adapters.clock,
+    notice: accountNotice,
   }),
   revokeOtherSessions: makeRevokeOtherSessions({
     users: adapters.users,
@@ -66,6 +67,7 @@ export const authUseCases = (
     secrets: adapters.secretTokens,
     hasher: adapters.passwordHasher,
     clock: adapters.clock,
+    notice: accountNotice,
   }),
   verifySecondFactor: verifySecondFactorFrom(adapters),
   enrollTotp: makeEnrollTotp({
@@ -87,6 +89,7 @@ export const authUseCases = (
     audit: adapters.audit,
     clock: adapters.clock,
     logger: adapters.logger,
+    notice: accountNotice,
   }),
   stepUp: makeStepUp({
     users: adapters.users,
@@ -101,12 +104,14 @@ export const authUseCases = (
     ids: adapters.ids,
     audit: adapters.audit,
     clock: adapters.clock,
+    notice: accountNotice,
   }),
   disableSecondFactor: makeDisableSecondFactor({
     users: adapters.users,
     factors: adapters.secondFactors,
     audit: adapters.audit,
     clock: adapters.clock,
+    notice: accountNotice,
   }),
   /**
    * Built, and called by nothing yet: the operator API that puts its authorization in front
@@ -118,6 +123,7 @@ export const authUseCases = (
     clients: adapters.clients,
     audit: adapters.audit,
     clock: adapters.clock,
+    notice: accountNotice,
   }),
   /** The operator's account acts (G2-14 part 3): behind `/api/site`, a second factor and a step-up. */
   enableAccount: makeEnableAccount({
@@ -125,8 +131,9 @@ export const authUseCases = (
     clients: adapters.clients,
     audit: adapters.audit,
     clock: adapters.clock,
+    notice: accountNotice,
   }),
-  deleteAccount: accountDeleter(adapters),
+  deleteAccount: accountDeleter(adapters, accountNotice),
   /** A person erases their own account (`DELETE /api/auth/account`): the same erasure, behind their password. */
   deleteOwnAccount: makeDeleteOwnAccount({
     stepUp: makeStepUp({
@@ -135,7 +142,7 @@ export const authUseCases = (
       hasher: adapters.passwordHasher,
       verifySecondFactor: verifySecondFactorFrom(adapters),
     }),
-    deleteAccount: accountDeleter(adapters),
+    deleteAccount: accountDeleter(adapters, accountNotice),
   }),
   /**
    * Previewing and accepting an invitation (G2-09 / P3-10): the invitee's, a link in a mail

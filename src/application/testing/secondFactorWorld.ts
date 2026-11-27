@@ -4,6 +4,7 @@ import { totpStepAt } from '../../domain/users/totp'
 import type { SiteRole } from '../../domain/users/siteRole'
 import type { TotpEngine } from '../ports/totpEngine'
 import { makeAuthenticateUser } from '../usecases/auth/authenticateUser'
+import type { AccountNoticeHook } from '../usecases/notices/accountNotice'
 import { makeConfirmTotpEnrollment } from '../usecases/auth/confirmTotpEnrollment'
 import { makeDisableSecondFactor } from '../usecases/auth/disableSecondFactor'
 import { makeEnrollTotp } from '../usecases/auth/enrollTotp'
@@ -57,6 +58,8 @@ export interface SecondFactorWorldOptions {
   readonly vault?: MfaVault | null
   readonly engine?: TotpEngine
   readonly secrets?: SecretTokens
+  /** Where the account notices of spec 32 go; none by default. */
+  readonly notice?: AccountNoticeHook
 }
 
 /**
@@ -78,6 +81,7 @@ export const aSecondFactorWorld = ({
   vault = withVault ? new FakeMfaVault() : null,
   engine = new FakeTotpEngine(),
   secrets = new FakeSecretTokens(),
+  notice,
 }: SecondFactorWorldOptions = {}) => {
   const captured = new CapturingLogger()
   const wiredLogger: Logger = logger ?? captured
@@ -110,6 +114,7 @@ export const aSecondFactorWorld = ({
     audit,
     clock,
     logger: wiredLogger,
+    ...(notice === undefined ? {} : { notice }),
   })
   const attempts = new FakeSignInAttempts()
   const verifySecondFactor = makeVerifySecondFactor({
@@ -131,8 +136,15 @@ export const aSecondFactorWorld = ({
     ids,
     audit,
     clock,
+    ...(notice === undefined ? {} : { notice }),
   })
-  const disableSecondFactor = makeDisableSecondFactor({ users, factors, audit, clock })
+  const disableSecondFactor = makeDisableSecondFactor({
+    users,
+    factors,
+    audit,
+    clock,
+    ...(notice === undefined ? {} : { notice }),
+  })
 
   /** The code the person's app shows `stepsFromNow` steps from the clock's present. */
   const codeFor = (secret: Uint8Array, stepsFromNow = 0): string =>

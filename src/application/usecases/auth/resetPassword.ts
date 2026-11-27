@@ -3,6 +3,7 @@ import { ok, err, type Result } from '../../../domain/shared/result'
 import { Password, passwordContextFor } from '../../../domain/users/password'
 import type { AccountTokenRepository } from '../../ports/accountTokenRepository'
 import type { Clock } from '../../ports/clock'
+import type { AccountNoticeHook } from '../notices/accountNotice'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import type { SecretTokens } from '../../ports/secretTokens'
 import type { UserRepository } from '../../ports/userRepository'
@@ -19,6 +20,11 @@ export interface ResetPasswordDeps {
   readonly secrets: SecretTokens
   readonly hasher: PasswordHasher
   readonly clock: Clock
+  /**
+   * Tells the holder by mail what was done (spec 32, A1), **after the write succeeded** and without waiting for it.
+   * Optional: absent in a composition that sends none.
+   */
+  readonly notice?: AccountNoticeHook
 }
 
 export type ResetPassword = (input: ResetPasswordInput) => Promise<Result<void, DomainError>>
@@ -61,7 +67,7 @@ const invalidToken = (): DomainError => DomainError.invalid(INVALID_TOKEN_CODE)
  * signing in is one step away with the password they chose.
  */
 export const makeResetPassword =
-  ({ users, tokens, secrets, hasher, clock }: ResetPasswordDeps): ResetPassword =>
+  ({ users, tokens, secrets, hasher, clock, notice }: ResetPasswordDeps): ResetPassword =>
   async ({ token, newPassword }) => {
     const now = clock.now()
 
@@ -95,5 +101,6 @@ export const makeResetPassword =
       return err(invalidToken())
     }
     await tokens.revokeOutstanding(user.email, 'passwordReset', now)
+    notice?.notify(user.id, 'passwordReset')
     return ok(undefined)
   }

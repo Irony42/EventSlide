@@ -341,6 +341,8 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     ...clientsUseCases(adapters, policy, hooks),
     ...signupUseCases(adapters, policy, hooks),
     ...noticeUseCases(adapters, policy),
+    /** The account notices (spec 32, A1), for the composition's own tests to wait on: no route reaches it. */
+    accountNotice: hooks.accountNotice,
     //
     // **The only way a row ever leaves the audit log**, and so deliberately not reachable
     // from any route: `src/main/retentionSweeper.ts` is its one caller. No actor, because

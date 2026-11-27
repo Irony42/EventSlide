@@ -4,6 +4,7 @@ import type { UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
+import type { AccountNoticeHook } from '../notices/accountNotice'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { SecondFactorRepository } from '../../ports/secondFactorRepository'
 import type { SecretTokens } from '../../ports/secretTokens'
@@ -22,6 +23,11 @@ export interface RegenerateRecoveryCodesDeps {
   readonly ids: IdGenerator
   readonly audit: AuditRecorder
   readonly clock: Clock
+  /**
+   * Tells the holder by mail what was done (spec 32, A1), **after the write succeeded** and without waiting for it.
+   * Optional: absent in a composition that sends none.
+   */
+  readonly notice?: AccountNoticeHook
 }
 
 export type RegenerateRecoveryCodes = (
@@ -49,6 +55,7 @@ export const makeRegenerateRecoveryCodes =
     ids,
     audit,
     clock,
+    notice,
   }: RegenerateRecoveryCodesDeps): RegenerateRecoveryCodes =>
   async ({ userId }) => {
     const user = await users.findById(userId)
@@ -75,5 +82,6 @@ export const makeRegenerateRecoveryCodes =
     if (!(await factors.replaceRecoveryCodes(userId, recovery.digests))) {
       return err(DomainError.conflict('auth.secondFactorNotEnrolled'))
     }
+    notice?.notify(userId, 'recoveryCodesRegenerated')
     return ok({ recoveryCodes: recovery.codes })
   }

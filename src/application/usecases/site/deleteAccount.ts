@@ -6,6 +6,7 @@ import type { AccountHoldings } from '../../ports/accountHoldings'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
+import type { AccountNoticeHook } from '../notices/accountNotice'
 import type { UserRepository } from '../../ports/userRepository'
 import { accountActEntries } from '../auth/accountActAudit'
 
@@ -24,6 +25,12 @@ export interface DeleteAccountDeps {
   readonly holdings: AccountHoldings
   readonly audit: AuditRecorder
   readonly clock: Clock
+  /**
+   * Tells the holder the account is gone (spec 32, A1c): **one mail, here only**, where `deleteOwnAccount` also passes;
+   * `finalizeOffboardedClients` deletes accounts without this (the client's closure is its own notice). The address is read
+   * before the deletion. Optional: absent in a composition that sends none.
+   */
+  readonly notice?: AccountNoticeHook
 }
 
 export type DeleteAccount = (input: DeleteAccountInput) => Promise<Result<void, DomainError>>
@@ -61,7 +68,7 @@ export type DeleteAccount = (input: DeleteAccountInput) => Promise<Result<void, 
  * until the opportunistic expiry sweep removes them). A session whose account is gone grants nothing.
  */
 export const makeDeleteAccount =
-  ({ users, clients, holdings, audit, clock }: DeleteAccountDeps): DeleteAccount =>
+  ({ users, clients, holdings, audit, clock, notice }: DeleteAccountDeps): DeleteAccount =>
   async ({ userId, actor }) => {
     const user = await users.findById(userId)
     if (user === null) return err(DomainError.notFound('user.notFound'))
@@ -91,7 +98,10 @@ export const makeDeleteAccount =
     })
     if (!entries.ok) return entries
 
+    // Read now: once the account is gone there is nobody to ask.
+    const prepared = await notice?.prepare(userId, 'accountDeleted')
     for (const entry of entries.value) await audit.record(entry)
     await users.delete(userId)
+    prepared?.send()
     return ok(undefined)
   }
