@@ -172,6 +172,19 @@ describe('the operator acts that tell the host', () => {
     expect(told).toEqual([])
   })
 
+  it('tells nothing for a second suspension or a second resumption of the same space', async () => {
+    await suspendAct()
+    told = []
+
+    await suspendAct()
+    expect(told).toEqual([])
+
+    await resumeAct()
+    told = []
+    await resumeAct()
+    expect(told).toEqual([])
+  })
+
   it('refuses a reason for the host that is too long before anything is read or written, whether or not the host is to be told', async () => {
     const tooLong = { hostReason: 'a'.repeat(501) }
     for (const patch of [tooLong, { ...tooLong, notifyHost: false }]) {

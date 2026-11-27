@@ -307,6 +307,41 @@ describe('a client’s page: freezing it', () => {
     )
   })
 
+  it('forgets the host reason once the act went through: the next confirmation starts empty', async () => {
+    const siteClients = vi
+      .fn<Api['siteClients']>()
+      .mockResolvedValueOnce({ items: [aSiteClient()], next: null })
+      .mockResolvedValue({ items: [aSiteClient({ suspendedAt: SUSPENDED_AT })], next: null })
+    open(withClient(aSiteClient(), { siteClients }))
+    await heading()
+
+    const first = await press(fr.site.suspend)
+    await userEvent.type(within(first).getByLabelText(fr.site.hostNotice.reason), 'Impayé.')
+    await userEvent.click(within(first).getByRole('button', { name: fr.site.suspend }))
+    const next = await press(fr.site.resume)
+
+    expect(within(next).getByLabelText(fr.site.hostNotice.reason)).toHaveValue('')
+  })
+
+  it('keeps the host reason that was typed when the server refuses the act', async () => {
+    const siteSuspendClient = vi
+      .fn<Api['siteSuspendClient']>()
+      .mockRejectedValueOnce(new ApiError(409, 'client.notFound'))
+      .mockResolvedValue(undefined)
+    const api = withClient(aSiteClient(), { siteSuspendClient })
+    open(api)
+    await heading()
+
+    const first = await press(fr.site.suspend)
+    await userEvent.type(within(first).getByLabelText(fr.site.hostNotice.reason), 'Impayé.')
+    await userEvent.click(within(first).getByRole('button', { name: fr.site.suspend }))
+    await waitFor(() => expect(siteSuspendClient).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    const again = await press(fr.site.suspend)
+
+    expect(within(again).getByLabelText(fr.site.hostNotice.reason)).toHaveValue('Impayé.')
+  })
+
   it('sends nothing when the confirmation is declined', async () => {
     const api = withClient()
     open(api)
@@ -856,6 +891,20 @@ describe('a client’s page: ending its engagement', () => {
         hostReason: 'Fin du contrat.',
       }),
     )
+  })
+
+  it('forgets the host notice that was typed when the offboarding confirmation is declined', async () => {
+    const api = withClient()
+    await openOffboard(api)
+
+    await press()
+    const first = await dialog(fr.site.offboardConfirmTitle)
+    await userEvent.type(within(first).getByLabelText(fr.site.hostNotice.reason), 'Fin du contrat.')
+    await userEvent.click(within(first).getByRole('button', { name: fr.app.cancel }))
+    await press()
+    const again = await dialog(fr.site.offboardConfirmTitle)
+
+    expect(within(again).getByLabelText(fr.site.hostNotice.reason)).toHaveValue('')
   })
 
   it('says "1 day" in the singular and sends the days typed', async () => {

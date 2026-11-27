@@ -2,9 +2,10 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { aClient } from '../application/testing/builders'
+import { aClient, aUser } from '../application/testing/builders'
 import { asClientId, asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
+import { SqliteUserRepository } from '../infrastructure/db/sqliteUserRepository'
 import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
 import { parseMessage, startSmtpSink, type SmtpSink } from '../infrastructure/mail/testing/smtpSink'
 import { createContainer, type Container } from './container'
@@ -160,6 +161,34 @@ describe('createContainer: the notice of an operator act (spec 32, A4)', () => {
     await booted.usecases.takedownNotice.idle()
     expect(received()).toHaveLength(4)
     expect(received().at(-1)?.text).toContain('a été levée')
+  })
+
+  it("tells nobody of another space: a suspension reaches that client's owners and contact only", async () => {
+    const { booted, operator } = await boot()
+    const other = asClientId('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+    const stranger = aUser({ id: 'user-stranger', email: 'autre@example.test' })
+    await new SqliteUserRepository(booted.db).save(stranger)
+    const clients = new SqliteClientRepository(booted.db)
+    await clients.save(
+      aClient({ id: other, name: 'Autre atelier', contactEmail: 'autre-compta@example.test' }),
+    )
+    await clients.grantMember({
+      clientId: other,
+      userId: asUserId('user-stranger'),
+      role: 'owner',
+      grantedAt: new Date(),
+    })
+
+    await booted.usecases.suspendClient({ clientId: CLIENT, actor: operator })
+    await booted.usecases.takedownNotice.idle()
+
+    const addresses = received().flatMap((mail) => mail.to)
+    expect(addresses.sort()).toEqual(['compta@example.test', OWNER])
+    expect(
+      received()
+        .map((mail) => mail.text)
+        .join(' '),
+    ).not.toContain('Autre atelier')
   })
 
   it('tells that a space is closed and the day its albums go', async () => {

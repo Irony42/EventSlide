@@ -19,7 +19,7 @@ import type { MembershipRepository, UserRepository } from '../../ports/userRepos
  * ticked, and never waits for it: the mail is a completion that catches everything.
  *
  * - **No family, no switch, `HOST_MAIL_NOTICES` does not stop it**: an act the host did not do is the one the box must say. It is
- *   **counted** in the day's budget and **never refused** by it. Not held for quiet hours, not noted (the act is its own guard).
+ *   **counted** in the day's budget (the mails that left, after they left) and **never refused** by it. Not held for quiet hours, not noted (the act is its own guard).
  * - **Who**: for a removal, the event's active owners; for an act on a client, the client's active owners **and** its contact
  *   address. **One mail per address** (an owner who is also the contact is written to once).
  * - **What it says**: the event's name (or the space's), the day, the operator's reason for the host, how to contest. Never a
@@ -122,8 +122,7 @@ export const makeNotifyTakedown = (deps: NotifyTakedownDeps): NotifyTakedown => 
     }
     if (recipients.length === 0) return
 
-    // Counted, never refused: the budget only ever holds back the follow-up mails.
-    await budget.count(budgetDayOf(clock.now()), recipients.length)
+    let sent = 0
     for (const to of recipients) {
       const result = await mailer.send(
         takedownMail({
@@ -137,13 +136,18 @@ export const makeNotifyTakedown = (deps: NotifyTakedownDeps): NotifyTakedown => 
           purgeAt: audience.purgeAt,
         }),
       )
-      if (!result.ok) {
+      if (result.ok) {
+        sent += 1
+      } else {
         logger.warn('a takedown notice was not sent', {
           kind: act.kind satisfies TakedownKind,
           code: result.error.code,
         })
       }
     }
+    // Counted after the sends, and only what left: a mail the relay refused took nothing from the day. Never refused: the budget only
+    // ever holds back the follow-up mails.
+    if (sent > 0) await budget.count(budgetDayOf(clock.now()), sent)
   }
 
   return {

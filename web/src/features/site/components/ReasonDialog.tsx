@@ -61,7 +61,7 @@ export function ReasonDialog({
     <Dialog
       open={open}
       title={title}
-      description={description}
+      description={tellsHost ? `${description} ${t.site.hostNotice.dialogHint}` : description}
       onClose={onCancel}
       initialFocusRef={cancelRef}
       footer={
