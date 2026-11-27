@@ -1,3 +1,5 @@
+import { DomainError } from '../shared/errors'
+import { err, ok, type Result } from '../shared/result'
 import type { ClientLocale } from '../clients/clientLocale'
 import type { EmailAddress } from '../users/emailAddress'
 import type { OutgoingMail } from './outgoingMail'
@@ -19,6 +21,9 @@ import type { OutgoingMail } from './outgoingMail'
  *
  * Pure: a function of its arguments.
  */
+
+/** The no-break space French puts before : ; ! ? and inside « ». Built, so no editor shows it as a plain space. */
+const NBSP = String.fromCodePoint(0xa0)
 
 const HELLO: Readonly<Record<ClientLocale, string>> = {
   fr: 'Bonjour,',
@@ -51,34 +56,37 @@ const CONFIRMATION: Readonly<Record<ClientLocale, ConfirmationTemplate>> = {
     subject: 'Confirmez votre adresse pour créer votre compte EventSlide',
     intro: 'Quelqu’un a demandé la création d’un compte EventSlide avec cette adresse.',
     open: (hours) =>
-      `Pour confirmer que c’est bien vous, ouvrez ce lien dans les ${hours} heures qui viennent :`,
-    ignore: 'Vous n’avez rien demandé ? Ignorez ce message, rien ne sera créé.',
+      hours === 1
+        ? `Pour confirmer que c’est bien vous, ouvrez ce lien dans l’heure qui vient${NBSP}:`
+        : `Pour confirmer que c’est bien vous, ouvrez ce lien dans les ${hours} heures qui viennent${NBSP}:`,
+    ignore: `Vous n’avez rien demandé${NBSP}? Ignorez ce message, rien ne sera créé.`,
   },
   en: {
     subject: 'Confirm your address to create your EventSlide account',
     intro: 'Someone asked for an EventSlide account to be created with this address.',
-    open: (hours) => `To confirm it was you, open this link within the next ${hours} hours:`,
+    open: (hours) =>
+      `To confirm it was you, open this link within the next ${hours === 1 ? 'hour' : `${hours} hours`}:`,
     ignore: 'You did not ask for this? Ignore this message, nothing will be created.',
   },
   de: {
     subject: 'Bestätigen Sie Ihre Adresse, um Ihr EventSlide-Konto zu erstellen',
     intro: 'Jemand hat die Erstellung eines EventSlide-Kontos mit dieser Adresse beantragt.',
     open: (hours) =>
-      `Um zu bestätigen, dass Sie es waren, öffnen Sie diesen Link innerhalb der nächsten ${hours} Stunden:`,
+      `Um zu bestätigen, dass Sie es waren, öffnen Sie diesen Link innerhalb der nächsten ${hours === 1 ? 'Stunde' : `${hours} Stunden`}:`,
     ignore: 'Sie haben nichts beantragt? Ignorieren Sie diese Nachricht, es wird nichts erstellt.',
   },
   es: {
     subject: 'Confirme su dirección para crear su cuenta de EventSlide',
     intro: 'Alguien ha solicitado crear una cuenta de EventSlide con esta dirección.',
     open: (hours) =>
-      `Para confirmar que fue usted, abra este enlace en las próximas ${hours} horas:`,
+      `Para confirmar que fue usted, abra este enlace ${hours === 1 ? 'en la próxima hora' : `en las próximas ${hours} horas`}:`,
     ignore: '¿No ha pedido nada? Ignore este mensaje, no se creará nada.',
   },
   it: {
     subject: 'Confermi il suo indirizzo per creare il suo account EventSlide',
     intro: 'Qualcuno ha richiesto la creazione di un account EventSlide con questo indirizzo.',
     open: (hours) =>
-      `Per confermare che è stato lei, apra questo link entro le prossime ${hours} ore:`,
+      `Per confermare che è stato lei, apra questo link ${hours === 1 ? 'entro la prossima ora' : `entro le prossime ${hours} ore`}:`,
     ignore: 'Non ha chiesto nulla? Ignori questo messaggio, non verrà creato nulla.',
   },
 }
@@ -120,7 +128,7 @@ const REFUSED: Readonly<Record<ClientLocale, RefusedTemplate>> = {
   fr: {
     subject: 'Votre demande de compte EventSlide',
     body: 'Je ne peux pas ouvrir de compte pour le moment.',
-    selfHost: 'Vous pouvez héberger EventSlide vous-même, le guide est ici :',
+    selfHost: `Vous pouvez héberger EventSlide vous-même, le guide est ici${NBSP}:`,
   },
   en: {
     subject: 'Your EventSlide account request',
@@ -192,7 +200,7 @@ const NOTICE: Readonly<Record<ClientLocale, NoticeTemplate>> = {
       opened: (n) => (n === 1 ? '1 nouveau compte EventSlide' : `${n} nouveaux comptes EventSlide`),
       waiting: (n) => (n === 1 ? '1 inscription à valider' : `${n} inscriptions à valider`),
     },
-    open: 'Le détail est dans la console :',
+    open: `Le détail est dans la console${NBSP}:`,
   },
   en: {
     subjects: {
@@ -231,10 +239,14 @@ export const signupOperatorNoticeMail = ({
   kind,
   count,
   link,
-}: SignupOperatorNoticeMailInput): OutgoingMail => {
+}: SignupOperatorNoticeMailInput): Result<OutgoingMail, DomainError> => {
+  // A notice about nothing is a bug in the caller, not a mail to send.
+  if (!Number.isInteger(count) || count < 1) {
+    return err(DomainError.invalid('signup.notice.countInvalid'))
+  }
   const template = NOTICE[locale]
   const subject = template.subjects[kind](count)
-  return { to, subject, text: `${subject}\n\n${template.open}\n\n${link}\n` }
+  return ok({ to, subject, text: `${subject}\n\n${template.open}\n\n${link}\n` })
 }
 
 /** The operator's page of signups. */
@@ -262,14 +274,14 @@ interface WelcomeTemplate {
 const WELCOME: Readonly<Record<ClientLocale, WelcomeTemplate>> = {
   fr: {
     subject: 'Bienvenue sur EventSlide',
-    intro: 'Votre compte est prêt. Pour commencer :',
+    intro: `Votre compte est prêt. Pour commencer${NBSP}:`,
     steps: [
       '1. Créez votre événement.',
       '2. Imprimez le QR code pour vos invités.',
       '3. Testez le mur avec quelques photos.',
     ],
-    guides: 'Les guides pas à pas sont ici :',
-    question: (contact) => `Une question ? Écrivez à ${contact}.`,
+    guides: `Les guides pas à pas sont ici${NBSP}:`,
+    question: (contact) => `Une question${NBSP}? Écrivez à ${contact}.`,
   },
   en: {
     subject: 'Welcome to EventSlide',
