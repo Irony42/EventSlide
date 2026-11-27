@@ -60,7 +60,8 @@ const WORDS: Readonly<Record<ClientLocale, Words>> = {
     diets: (n) => `${n} ${n > 1 ? 'régimes signalés' : 'régime signalé'}`,
     menus: `Menus${NBSP}:`,
     overall: `En tout${NBSP}:`,
-    changed: (n) => `${n} ${n > 1 ? 'réponses nouvelles ou modifiées' : 'réponse nouvelle ou modifiée'}.`,
+    changed: (n) =>
+      `${n} ${n > 1 ? 'réponses nouvelles ou modifiées' : 'réponse nouvelle ou modifiée'}.`,
     digestSubject: (name, n) =>
       `${n} ${n > 1 ? 'réponses' : 'réponse'} de plus pour «${NBSP}${name}${NBSP}»`,
     deadlineSubject: (name) => `Réponses à «${NBSP}${name}${NBSP}»${NBSP}: la date limite approche`,
@@ -91,9 +92,11 @@ const WORDS: Readonly<Record<ClientLocale, Words>> = {
     changed: (n) => `${n} new or changed ${plural(n, 'reply', 'replies')}.`,
     digestSubject: (name, n) => `${n} more ${plural(n, 'reply', 'replies')} for "${name}"`,
     deadlineSubject: (name) => `Replies to "${name}": the deadline is close`,
-    deadlineBody: (name, unanswered, date) => `${unanswered} for "${name}"; the deadline is ${date}.`,
+    deadlineBody: (name, unanswered, date) =>
+      `${unanswered} for "${name}"; the deadline is ${date}.`,
     stoppedSubject: (name) => `Replies to "${name}" are closed`,
-    stoppedBody: (name) => `The deadline has passed and replies to "${name}" are closed. The summary:`,
+    stoppedBody: (name) =>
+      `The deadline has passed and replies to "${name}" are closed. The summary:`,
     fullSubject: (name) => `"${name}": full`,
     fullBody: (capacity) => `All ${capacity} places are taken; new replies go on the waiting list.`,
     open: 'The replies:',
@@ -112,10 +115,12 @@ const WORDS: Readonly<Record<ClientLocale, Words>> = {
     diets: (n) => `${n} ${plural(n, 'Ernährungshinweis', 'Ernährungshinweise')}`,
     menus: 'Menüs:',
     overall: 'Insgesamt:',
-    changed: (n) => `${n} ${plural(n, 'neue oder geänderte Antwort', 'neue oder geänderte Antworten')}.`,
+    changed: (n) =>
+      `${n} ${plural(n, 'neue oder geänderte Antwort', 'neue oder geänderte Antworten')}.`,
     digestSubject: (name, n) => `${n} ${plural(n, 'Antwort', 'Antworten')} mehr zu „${name}“`,
     deadlineSubject: (name) => `Antworten zu „${name}“: die Frist rückt näher`,
-    deadlineBody: (name, unanswered, date) => `${unanswered} zu „${name}“; die Frist ist der ${date}.`,
+    deadlineBody: (name, unanswered, date) =>
+      `${unanswered} zu „${name}“; die Frist ist der ${date}.`,
     stoppedSubject: (name) => `Die Antworten zu „${name}“ sind geschlossen`,
     stoppedBody: (name) =>
       `Die Frist ist abgelaufen, die Antworten zu „${name}“ sind geschlossen. Die Bilanz:`,
@@ -140,7 +145,8 @@ const WORDS: Readonly<Record<ClientLocale, Words>> = {
     overall: 'En total:',
     changed: (n) =>
       `${n} ${plural(n, 'respuesta nueva o modificada', 'respuestas nuevas o modificadas')}.`,
-    digestSubject: (name, n) => `${n} ${plural(n, 'respuesta más', 'respuestas más')} para «${name}»`,
+    digestSubject: (name, n) =>
+      `${n} ${plural(n, 'respuesta más', 'respuestas más')} para «${name}»`,
     deadlineSubject: (name) => `Respuestas a «${name}»: se acerca la fecha límite`,
     deadlineBody: (name, unanswered, date) =>
       `${unanswered} para «${name}»; la fecha límite es el ${date}.`,
@@ -166,12 +172,16 @@ const WORDS: Readonly<Record<ClientLocale, Words>> = {
     diets: (n) => `${n} ${plural(n, 'dieta segnalata', 'diete segnalate')}`,
     menus: 'Menu:',
     overall: 'In totale:',
-    changed: (n) => `${n} ${plural(n, 'risposta nuova o modificata', 'risposte nuove o modificate')}.`,
-    digestSubject: (name, n) => `${n} ${plural(n, 'risposta in più', 'risposte in più')} per «${name}»`,
+    changed: (n) =>
+      `${n} ${plural(n, 'risposta nuova o modificata', 'risposte nuove o modificate')}.`,
+    digestSubject: (name, n) =>
+      `${n} ${plural(n, 'risposta in più', 'risposte in più')} per «${name}»`,
     deadlineSubject: (name) => `Risposte a «${name}»: la scadenza si avvicina`,
-    deadlineBody: (name, unanswered, date) => `${unanswered} per «${name}»; la scadenza è il ${date}.`,
+    deadlineBody: (name, unanswered, date) =>
+      `${unanswered} per «${name}»; la scadenza è il ${date}.`,
     stoppedSubject: (name) => `Le risposte a «${name}» sono chiuse`,
-    stoppedBody: (name) => `La scadenza è passata e le risposte a «${name}» sono chiuse. Il riepilogo:`,
+    stoppedBody: (name) =>
+      `La scadenza è passata e le risposte a «${name}» sono chiuse. Il riepilogo:`,
     fullSubject: (name) => `«${name}»: al completo`,
     fullBody: (capacity) =>
       `Tutti i ${capacity} posti sono occupati; le nuove risposte vanno in lista d’attesa.`,
