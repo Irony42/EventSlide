@@ -79,6 +79,9 @@ export interface IdGenerator {
   /** The row of an account token. The secret in the link comes from `SecretTokens`, not here. */
   accountTokenId(): AccountTokenId
 
+  /** One signup request (spec 31). A plain string: the request is not a branded entity of its own. */
+  signupRequestId(): string
+
   /** Cryptographically strong bytes. Used for join codes and guest device tokens. */
   bytes(count: number): Uint8Array
 }

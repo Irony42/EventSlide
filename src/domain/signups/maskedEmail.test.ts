@@ -15,9 +15,7 @@ describe('maskEmailAddress', () => {
 
   it('shows the same three dots for a one-character and a long local part', () => {
     expect(maskEmailAddress(address('a@example.org'))).toBe('a•••@example.org')
-    expect(maskEmailAddress(address('a-very-long-local-part@example.org'))).toBe(
-      'a•••@example.org',
-    )
+    expect(maskEmailAddress(address('a-very-long-local-part@example.org'))).toBe('a•••@example.org')
   })
 
   it('never contains the hidden characters', () => {

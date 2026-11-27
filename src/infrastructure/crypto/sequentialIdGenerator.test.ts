@@ -54,6 +54,7 @@ describe('createSequentialIdGenerator', () => {
       ids.shareLinkId(),
       ids.clientId(),
       ids.accountTokenId(),
+      ids.signupRequestId(),
       ids.challengeId(),
       ids.announcementId(),
       ids.channelBindingId(),

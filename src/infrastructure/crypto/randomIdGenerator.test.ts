@@ -21,6 +21,7 @@ const MINTERS: ReadonlyArray<[string, (ids: IdGenerator) => string]> = [
   ['reactionId', (ids) => ids.reactionId()],
   ['clientId', (ids) => ids.clientId()],
   ['accountTokenId', (ids) => ids.accountTokenId()],
+  ['signupRequestId', (ids) => ids.signupRequestId()],
   ['challengeId', (ids) => ids.challengeId()],
   ['announcementId', (ids) => ids.announcementId()],
   ['channelBindingId', (ids) => ids.channelBindingId()],

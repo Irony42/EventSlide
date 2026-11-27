@@ -15,5 +15,4 @@ export const signupDiskThreshold = (input: {
   readonly minFreeDiskBytes: number
   /** Clients with at least one event that is not purged. */
   readonly clientsWithEvents: number
-}): number =>
-  input.minFreeDiskBytes + SIGNUP_DISK_PER_CLIENT_BYTES * (input.clientsWithEvents + 1)
+}): number => input.minFreeDiskBytes + SIGNUP_DISK_PER_CLIENT_BYTES * (input.clientsWithEvents + 1)

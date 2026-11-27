@@ -11,6 +11,6 @@ const MASK = '•••'
  */
 export const maskEmailAddress = (address: EmailAddress): string => {
   const at = address.value.lastIndexOf('@')
-  const first = [...address.value.slice(0, at)][0] ?? ''
+  const first = [...address.value.slice(0, at)].slice(0, 1).join('')
   return `${first}${MASK}${address.value.slice(at)}`
 }
