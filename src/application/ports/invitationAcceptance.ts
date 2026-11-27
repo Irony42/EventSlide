@@ -89,6 +89,20 @@ export interface AcceptInvitationRecord {
  */
 export type InvitationAcceptanceOutcome = 'accepted' | 'spent' | 'emailTaken'
 
+/**
+ * What {@link InvitationAcceptance.accept} answers.
+ *
+ * `firstOwnerOfFreshClient` is **computed inside the transaction, before the grant**, and is
+ * `true` only when this acceptance (`accepted`) granted `owner` in a client that had no member
+ * and no event: the person who just opened a space (spec 31, the welcome mail). Read after the
+ * transaction it could not tell "first" from "second a moment later", nor "no event yet" from "the
+ * first event was just made". It is `false` for every other outcome and for every event grant.
+ */
+export interface InvitationAcceptanceResult {
+  readonly outcome: InvitationAcceptanceOutcome
+  readonly firstOwnerOfFreshClient: boolean
+}
+
 export interface InvitationAcceptance {
   /**
    * Spends the link and, in the same transaction, creates the account if it is new, grants
@@ -107,5 +121,5 @@ export interface InvitationAcceptance {
    * whose id is taken (an existing account is never overwritten), and an account whose
    * address is not the one the link was written to.
    */
-  accept(record: AcceptInvitationRecord): Promise<InvitationAcceptanceOutcome>
+  accept(record: AcceptInvitationRecord): Promise<InvitationAcceptanceResult>
 }

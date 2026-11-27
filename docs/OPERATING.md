@@ -284,6 +284,10 @@ and both tell the visitor "your address is confirmed, the account opens as soon 
   if the client already exists, or you will open a second account for the same address.
 - **the free disk space is too low** (or cannot be read): the request waits in the Signups page like one in `review`; approve it when there is room.
 
+## Welcome mail
+
+With `SIGNUP=review` or `open`, the first owner of a space that has no member and no event yet receives one welcome mail after accepting their invitation, in the space's language. It names `OPERATOR_CONTACT_EMAIL` (which needs `OPERATOR_NAME`) as the contact and reply address and links `SUPPORT_URL`; if either is unset, or the box has no mail relay, nothing is sent and the boot logs a warning naming what is missing. A failed send never blocks the acceptance. With `SIGNUP=off` nothing changes.
+
 ## Backups
 
 Take one before the event and one the morning after. The server stays up while you do,

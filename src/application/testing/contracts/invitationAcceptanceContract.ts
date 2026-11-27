@@ -52,6 +52,8 @@ export interface AcceptanceSubject {
   readonly clients: ClientRepository
   /** Reads the log the acceptance writes its entry into, over the same storage. */
   readonly audit: AuditLog
+  /** Makes `event-1` an event of {@link ACCEPTANCE_CLIENT}, over the same storage. */
+  readonly giveClientAnEvent: () => Promise<void>
   readonly dispose?: () => Promise<void>
 }
 
@@ -118,7 +120,7 @@ export const invitationAcceptanceContract = (
       tokenId: AccountTokenId,
       account: AcceptInvitationRecord['account'],
       now: Date = atPlus(1_000),
-    ) => subject.acceptance.accept({ tokenId, now, account })
+    ) => subject.acceptance.accept({ tokenId, now, account }).then((result) => result.outcome)
 
     const clientRoleOf = (userId: string) =>
       subject.clients.memberRole(asClientId(ACCEPTANCE_CLIENT), asUserId(userId))
@@ -343,6 +345,113 @@ export const invitationAcceptanceContract = (
 
     const logged = async () => (await subject.audit.list({ limit: 50 })).items
 
+    describe('firstOwnerOfFreshClient (the welcome mail, spec 31)', () => {
+      const first = async (
+        id: string,
+        account: AcceptInvitationRecord['account'],
+        email = NEWCOMER,
+      ) =>
+        (
+          await subject.acceptance.accept({
+            tokenId: await issue(id, CLIENT_OWNER, { email }),
+            now: atPlus(1_000),
+            account,
+          })
+        ).firstOwnerOfFreshClient
+
+      it('is true for the new account an owner link makes the first member of a client with no event', async () => {
+        expect(await first('tok-1', { kind: 'new', user: newAccount() })).toBe(true)
+        expect(await clientRoleOf('user-new')).toBe('owner')
+      })
+
+      it('is true for an existing account given its first space by an owner link', async () => {
+        const id = await issueForExisting('tok-1', CLIENT_OWNER)
+
+        const result = await subject.acceptance.accept({
+          tokenId: id,
+          now: atPlus(1_000),
+          account: { kind: 'existing', userId: asUserId('user-existing'), emailVerifiedAt: null },
+        })
+
+        expect(result.firstOwnerOfFreshClient).toBe(true)
+      })
+
+      it('is false for a member link, even on an empty client: nobody owns the space yet', async () => {
+        const id = await issue('tok-1', CLIENT_MEMBER)
+
+        const result = await subject.acceptance.accept({
+          tokenId: id,
+          now: atPlus(1_000),
+          account: { kind: 'new', user: newAccount() },
+        })
+
+        expect(result).toEqual({ outcome: 'accepted', firstOwnerOfFreshClient: false })
+      })
+
+      it('is false for the second owner, so only the first one is welcomed', async () => {
+        await first('tok-1', { kind: 'new', user: newAccount() })
+
+        expect(
+          await first(
+            'tok-2',
+            { kind: 'new', user: newAccount('user-two', 'deux@example.test') },
+            'deux@example.test',
+          ),
+        ).toBe(false)
+      })
+
+      it('is false when the client already has an event, since it is no longer fresh', async () => {
+        await subject.giveClientAnEvent()
+
+        expect(await first('tok-1', { kind: 'new', user: newAccount() })).toBe(false)
+      })
+
+      it('is false for an event link', async () => {
+        const id = await issue('tok-1', EVENT_TARGET)
+
+        const result = await subject.acceptance.accept({
+          tokenId: id,
+          now: atPlus(1_000),
+          account: { kind: 'new', user: newAccount() },
+        })
+
+        expect(result.firstOwnerOfFreshClient).toBe(false)
+      })
+
+      it('is false when the link cannot be spent or the address is taken', async () => {
+        const id = await issue('tok-1', CLIENT_OWNER)
+        await accept(id, { kind: 'new', user: newAccount() })
+        const spent = await subject.acceptance.accept({
+          tokenId: id,
+          now: atPlus(1_000),
+          account: { kind: 'new', user: newAccount('user-other', 'autre@example.test') },
+        })
+        const taken = await subject.acceptance.accept({
+          tokenId: await issueForExisting('tok-2', CLIENT_OWNER),
+          now: atPlus(1_000),
+          account: { kind: 'new', user: newAccount('user-x', ACCEPTANCE_EXISTING_EMAIL) },
+        })
+
+        expect(spent).toEqual({ outcome: 'spent', firstOwnerOfFreshClient: false })
+        expect(taken).toEqual({ outcome: 'emailTaken', firstOwnerOfFreshClient: false })
+      })
+
+      it('lets exactly one of two simultaneous acceptances of one link through, and only that one is first', async () => {
+        const id = await issue('tok-1', CLIENT_OWNER)
+        const attempt = (userId: string) =>
+          subject.acceptance.accept({
+            tokenId: id,
+            now: atPlus(1_000),
+            account: { kind: 'new', user: newAccount(userId) },
+          })
+
+        const results = await Promise.all([attempt('user-a'), attempt('user-b')])
+
+        expect(results.map((result) => result.outcome).sort()).toEqual(['accepted', 'spent'])
+        expect(results.filter((result) => result.firstOwnerOfFreshClient)).toHaveLength(1)
+      })
+    })
+
     describe('with an audit entry (the acceptance of the terms, G2-20)', () => {
       it('writes nothing to the log when the caller gives no entry, which is every box that asks for no terms', async () => {
         const id = await issue('tok-1', CLIENT_OWNER)
@@ -355,7 +464,7 @@ export const invitationAcceptanceContract = (
       it('writes the entry the caller built, once, when a new account is accepted', async () => {
         const id = await issue('tok-1', CLIENT_OWNER)
 
-        const outcome = await subject.acceptance.accept({
+        const { outcome } = await subject.acceptance.accept({
           tokenId: id,
           now: atPlus(1_000),
           account: { kind: 'new', user: newAccount() },
@@ -377,7 +486,7 @@ export const invitationAcceptanceContract = (
       it('writes the entry with the acceptance of an existing account too', async () => {
         const id = await issueForExisting('tok-1')
 
-        const outcome = await subject.acceptance.accept({
+        const { outcome } = await subject.acceptance.accept({
           tokenId: id,
           now: atPlus(1_000),
           account: { kind: 'existing', userId: asUserId('user-existing'), emailVerifiedAt: null },
@@ -439,7 +548,7 @@ export const invitationAcceptanceContract = (
         const id = await issue('tok-1')
         await accept(id, { kind: 'new', user: newAccount() })
 
-        const outcome = await subject.acceptance.accept({
+        const { outcome } = await subject.acceptance.accept({
           tokenId: id,
           now: atPlus(1_000),
           account: { kind: 'new', user: newAccount('user-other', 'autre@example.test') },
@@ -453,7 +562,7 @@ export const invitationAcceptanceContract = (
       it('writes no entry for an address that is taken, and leaves the link usable', async () => {
         const id = await issueForExisting('tok-1')
 
-        const outcome = await subject.acceptance.accept({
+        const { outcome } = await subject.acceptance.accept({
           tokenId: id,
           now: atPlus(1_000),
           account: {

@@ -61,6 +61,8 @@ import type { ReelRenderer } from '../application/ports/reelRenderer'
 import type { ReelRepository } from '../application/ports/reelRepository'
 import type { NewClientDefaults } from '../domain/clients/newClientCeilings'
 import type { TermsOfUse } from '../domain/legal/termsOfUse'
+import type { SignupMode } from '../domain/signups/signupMode'
+import type { EmailAddress } from '../domain/users/emailAddress'
 import { makePruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import { authUseCases } from './usecases.auth'
 import { eventsUseCases } from './usecases.events'
@@ -251,6 +253,14 @@ export interface UseCasePolicy {
    * it does not fail open: the test that boots the real container holds it to the config.
    */
   readonly termsOfUse: TermsOfUse | null
+  /**
+   * Self-service signup (spec 31): `SIGNUP`, and what the welcome mail names (`null` when the
+   * operator's contact or support page is not set, which keeps the mail unsent).
+   */
+  readonly signup: {
+    readonly mode: SignupMode
+    readonly welcome: { readonly contact: EmailAddress; readonly guidesLink: string } | null
+  }
   /** `BOOK_ENABLED` and `BOOK_MAX_PER_EVENT_PER_DAY` (spec 04). */
   readonly book: {
     readonly enabled: boolean

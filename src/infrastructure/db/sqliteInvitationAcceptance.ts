@@ -1,7 +1,7 @@
 import type {
   AcceptInvitationRecord,
   InvitationAcceptance,
-  InvitationAcceptanceOutcome,
+  InvitationAcceptanceResult,
 } from '../../application/ports/invitationAcceptance'
 import type { Db } from './connection'
 import { ACCOUNT_TOKEN_USABLE_SQL } from './sqliteAccountTokenRepository'
@@ -41,6 +41,15 @@ import { INSERT_AUDIT_SQL, auditParams } from './sqliteAuditLog'
  *   whole acceptance back. It is the plain `INSERT` `SqliteAuditLog.record` uses.
  */
 
+const REFUSED_SPENT: InvitationAcceptanceResult = {
+  outcome: 'spent',
+  firstOwnerOfFreshClient: false,
+}
+const REFUSED_EMAIL_TAKEN: InvitationAcceptanceResult = {
+  outcome: 'emailTaken',
+  firstOwnerOfFreshClient: false,
+}
+
 interface InvitationRow {
   readonly purpose: string
   readonly email: string
@@ -61,6 +70,7 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
   private readonly grantClient
   private readonly insertAudit
   private readonly stampTerms
+  private readonly countClientHolds
 
   constructor(private readonly db: Db) {
     this.selectInvitation = db.prepare<[string, string], InvitationRow>(
@@ -90,6 +100,10 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
     this.stampTerms = db.prepare<[string, string, string]>(
       `UPDATE users SET terms_version = ?, terms_accepted_at = ? WHERE id = ?`,
     )
+    this.countClientHolds = db.prepare<[string, string], { readonly n: number }>(
+      `SELECT (SELECT COUNT(*) FROM client_members WHERE client_id = ?)
+            + (SELECT COUNT(*) FROM events WHERE client_id = ?) AS n`,
+    )
     this.grantClient = db.prepare<[string, string, string, string]>(
       `INSERT INTO client_members (client_id, user_id, role, granted_at)
             VALUES (?, ?, ?, ?)
@@ -99,13 +113,13 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
     )
   }
 
-  async accept(record: AcceptInvitationRecord): Promise<InvitationAcceptanceOutcome> {
+  async accept(record: AcceptInvitationRecord): Promise<InvitationAcceptanceResult> {
     return this.db
-      .transaction((): InvitationAcceptanceOutcome => {
+      .transaction((): InvitationAcceptanceResult => {
         const at = toIsoText(record.now)
 
         const invitation = this.selectInvitation.get(record.tokenId, at)
-        if (invitation === undefined || invitation.purpose !== 'invitation') return 'spent'
+        if (invitation === undefined || invitation.purpose !== 'invitation') return REFUSED_SPENT
 
         const { account } = record
         const userId = account.kind === 'new' ? account.user.id : account.userId
@@ -120,7 +134,7 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
           throw new Error('the invitation was written to another address')
         }
 
-        if (account.kind === 'new' && this.selectEmailTaken.get(address)) return 'emailTaken'
+        if (account.kind === 'new' && this.selectEmailTaken.get(address)) return REFUSED_EMAIL_TAKEN
 
         const spent = this.spend.run(at, record.tokenId, at)
         if (spent.changes !== 1) {
@@ -133,9 +147,14 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
           this.stampVerified.run(toIsoText(account.emailVerifiedAt), userId)
         }
 
+        let firstOwnerOfFreshClient = false
         if (invitation.event_id !== null && invitation.event_role !== null) {
           this.grantEvent.run(invitation.event_id, userId, invitation.event_role, at)
         } else if (invitation.client_id !== null && invitation.client_role !== null) {
+          // Before the grant, in this transaction: nobody can have joined or made an event between.
+          firstOwnerOfFreshClient =
+            invitation.client_role === 'owner' &&
+            this.countClientHolds.get(invitation.client_id, invitation.client_id)?.n === 0
           this.grantClient.run(invitation.client_id, userId, invitation.client_role, at)
         } else {
           throw new Error('the invitation names nothing to grant')
@@ -143,7 +162,7 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
         if (record.audit !== undefined) this.insertAudit.run(auditParams(record.audit))
         // The durable half of the same fact: the log's entry is pruned, the account's is not.
         if (record.termsVersion !== undefined) this.stampTerms.run(record.termsVersion, at, userId)
-        return 'accepted'
+        return { outcome: 'accepted', firstOwnerOfFreshClient }
       })
       .immediate()
   }

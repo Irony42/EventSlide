@@ -59,6 +59,12 @@ invitationAcceptanceContract('sqlite', async () => {
     memberships: new SqliteMembershipRepository(db),
     clients: new SqliteClientRepository(db),
     audit: new SqliteAuditLog(db),
+    giveClientAnEvent: async () => {
+      db.prepare(`UPDATE events SET client_id = ? WHERE id = ?`).run(
+        ACCEPTANCE_CLIENT,
+        ACCEPTANCE_EVENT,
+      )
+    },
     dispose: async () => {
       closeDatabase(db)
     },

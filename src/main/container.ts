@@ -73,6 +73,7 @@ import type { ChannelKind } from '../domain/channels/channelKind'
 import { createChannelPoller } from './channelPoller'
 import { createTelegramBringUp, type TelegramBringUp } from './telegramBringUp'
 import { createChannelWorker } from './channelWorker'
+import { welcomeLinks, welcomeMissing } from './welcomePolicy'
 import { channelWorkerUseCases } from './usecases.channels'
 import { sha256SecretTokens } from '../infrastructure/crypto/sha256SecretTokens'
 import { createHmacGallerySigner } from '../infrastructure/crypto/hmacGallerySigner'
@@ -598,6 +599,12 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     gallerySigner: createHmacGallerySigner({ rootSecret: config.secrets.session }),
   }
 
+  if (config.signup.mode !== 'off' && welcomeLinks(config) === null) {
+    logger.warn('signup is on but the welcome mail will not be sent: set the missing variables', {
+      missing: welcomeMissing(config).join(', ') || 'OPERATOR_CONTACT_EMAIL',
+    })
+  }
+
   const usecases = buildUseCases(adapters, {
     publicUrl: config.publicUrl,
     push:
@@ -635,6 +642,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     operatorName: config.operator.name,
     operatorContactEmail: config.operator.contactEmail,
     termsOfUse: config.termsOfUse,
+    signup: { mode: config.signup.mode, welcome: welcomeLinks(config) },
     mfaIssuer: config.operator.name ?? 'EventSlide',
     signup: {
       mode: config.signup.mode,
