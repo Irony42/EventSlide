@@ -15,6 +15,7 @@ import type { IdGenerator } from '../../ports/idGenerator'
 import type { InvitationAcceptance } from '../../ports/invitationAcceptance'
 import type { Logger } from '../../ports/logger'
 import type { Mailer } from '../../ports/mailer'
+import type { InvitationAcceptedHook } from '../notices/notifyInvitationAccepted'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import type { UserRepository } from '../../ports/userRepository'
 import {
@@ -93,6 +94,11 @@ export interface AcceptInvitationDeps extends ResolveInvitationDeps {
    */
   readonly welcome?: { readonly contact: EmailAddress; readonly guidesLink: string } | null
   readonly logger?: Pick<Logger, 'warn' | 'error'>
+  /**
+   * Told **after the transaction** that an invitation to an event was accepted (spec 32, A6): the host who wrote it may be mailed.
+   * Never awaited, never throws. Optional: absent in a composition that sends none.
+   */
+  readonly onAccepted?: InvitationAcceptedHook
   /** Tests only: receives the promise of a welcome that was started, so they can await it. */
   readonly onWelcome?: (settled: Promise<void>) => void
 }
@@ -177,7 +183,7 @@ export type AcceptInvitation = (
  * spent by it is spent either way.
  */
 export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitation => {
-  const { users, hasher, acceptance, ids, clock, clients } = deps
+  const { users, hasher, acceptance, ids, clock, clients, memberships } = deps
   const terms = deps.terms ?? null
   const { mailer, welcome, logger } = deps
   const signupOn = (deps.signupMode ?? 'off') !== 'off'
@@ -212,6 +218,24 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
     deps.onWelcome?.(run)
   }
   const resolve = makeResolveInvitation(deps)
+
+  /** Tells the inviter of an event invitation who accepted it. */
+  const announce = (
+    accepted: AcceptedInvitation,
+    createdBy: UserId | null,
+    who: string,
+    address: string,
+  ): void => {
+    if (accepted.target.kind !== 'event') return
+    deps.onAccepted?.({
+      eventId: accepted.target.eventId,
+      createdBy,
+      acceptedBy: accepted.userId,
+      role: accepted.target.role,
+      who,
+      address,
+    })
+  }
 
   return async (input) => {
     const now = clock.now()
@@ -254,6 +278,8 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
       const agreed = agreement(account.id)
       if (!agreed.ok) return agreed
 
+      const alreadyMember =
+        target.kind === 'event' && (await memberships.roleFor(target.eventId, account.id)) !== null
       const { outcome, firstOwnerOfFreshClient } = await acceptance.accept({
         tokenId: record.id,
         now,
@@ -264,7 +290,17 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
       if (firstOwnerOfFreshClient && target.kind === 'client') {
         sendWelcome(target.clientId, account.email)
       }
-      return ok({ userId: account.id, email: account.email.value, target, place })
+      const accepted = { userId: account.id, email: account.email.value, target, place }
+      // Only a place that was really added is news: an account that already held one keeps its role and tells nobody.
+      if (!alreadyMember) {
+        announce(
+          accepted,
+          record.createdBy,
+          account.displayName ?? record.email.value,
+          record.email.value,
+        )
+      }
+      return ok(accepted)
     }
 
     // Judged before the address is looked at, so a refusal is the same for every address:
@@ -323,6 +359,8 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
     if (firstOwnerOfFreshClient && target.kind === 'client') {
       sendWelcome(target.clientId, record.email)
     }
-    return ok({ userId: created.value.id, email: record.email.value, target, place })
+    const accepted = { userId: created.value.id, email: record.email.value, target, place }
+    announce(accepted, record.createdBy, name.value.value, record.email.value)
+    return ok(accepted)
   }
 }

@@ -1644,6 +1644,51 @@ export const eventRepositoryContract = (
       expect(await repo.listDueForSchedule(atPlus(DAY * 3_650))).toEqual([])
     })
 
+    // ----------------------------------------------- closed events in a window (A3) --
+
+    it('lists the closed events whose closing falls in the window, ends included, and no other', async () => {
+      await repo.save(
+        anEvent({ ...nthEventInput(1), id: 'evt-early', status: 'closed', closedAt: atPlus(DAY) }),
+      )
+      await repo.save(
+        anEvent({ ...nthEventInput(2), id: 'evt-in', status: 'closed', closedAt: atPlus(DAY * 2) }),
+      )
+      await repo.save(
+        anEvent({
+          ...nthEventInput(3),
+          id: 'evt-edge',
+          status: 'closed',
+          closedAt: atPlus(DAY * 3),
+        }),
+      )
+      await repo.save(
+        anEvent({
+          ...nthEventInput(4),
+          id: 'evt-late',
+          status: 'closed',
+          closedAt: atPlus(DAY * 4),
+        }),
+      )
+
+      const found = await repo.listClosedBetween(atPlus(DAY * 2), atPlus(DAY * 3))
+
+      expect(found.map((event) => event.id)).toEqual(['evt-edge', 'evt-in'])
+    })
+
+    it('leaves out a live or archived event, however its closing is stamped', async () => {
+      await repo.save(anEvent({ ...nthEventInput(1), id: 'evt-live', status: 'live' }))
+      await repo.save(
+        anEvent({
+          ...nthEventInput(2),
+          id: 'evt-archived',
+          status: 'archived',
+          closedAt: atPlus(DAY * 2),
+        }),
+      )
+
+      expect(await repo.listClosedBetween(atPlus(DAY), atPlus(DAY * 3))).toEqual([])
+    })
+
     // ------------------------------------------- live events of clients (the sweep) --
 
     /**

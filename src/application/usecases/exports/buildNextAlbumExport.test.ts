@@ -20,6 +20,7 @@ import {
   type ExportScenePolicy,
 } from '../../testing/exportScene'
 import { FakeArchiveWriter } from '../../testing/fakeArchiveWriter'
+import type { JobFinished, JobFinishedHook } from '../notices/notifyJobDone'
 import {
   makeBuildNextAlbumExport,
   type BuildNextAlbumExport,
@@ -41,6 +42,8 @@ const wire = (
     readonly archive?: ArchiveWriter
     readonly event?: ReturnType<typeof anEvent>
     readonly clients?: readonly Client[]
+    readonly onFinished?: JobFinishedHook
+    readonly exports?: ExportScene['exports']
   } = {},
 ): void => {
   const policy = options.policy ?? DEFAULT_EXPORT_POLICY
@@ -55,7 +58,7 @@ const wire = (
     media: scene.media,
     archive: options.archive ?? scene.archive,
     streamHasher: scene.streamHasher,
-    exports: scene.exports,
+    exports: options.exports ?? scene.exports,
     exportFiles: scene.exportFiles,
     clips: scene.clips,
     bus: scene.bus,
@@ -63,6 +66,7 @@ const wire = (
     logger: scene.logger,
     policy,
     freeDiskBytes: scene.freeDiskBytes,
+    ...(options.onFinished === undefined ? {} : { onFinished: options.onFinished }),
   })
 }
 
@@ -906,3 +910,68 @@ describe('buildNextAlbumExport', () => {
 
 const asPhotoId = (value: string) => value as Parameters<typeof scene.photos.delete>[1]
 const asGuestId = (value: string) => value as Parameters<typeof scene.clips.deleteForAuthor>[1]
+
+describe('the end of the job is told to the hook (spec 32, A2)', () => {
+  let told: JobFinished[]
+
+  beforeEach(async () => {
+    told = []
+    wire({ onFinished: (finished) => told.push(finished) })
+    await scene.photo({ id: 'p1', createdAt: atPlus(1_000) })
+    await ask()
+  })
+
+  it('tells that the archive is sealed, who asked, when it was asked and when it ended', async () => {
+    const asked = scene.clock.now()
+    scene.clock.advance(5 * 60_000)
+
+    await run()
+
+    expect(told).toEqual([
+      {
+        job: 'archive',
+        eventId: EXPORT_EVENT,
+        requestedAt: asked,
+        requestedBy: EXPORT_HOST,
+        outcome: 'done',
+        finishedAt: scene.clock.now(),
+      },
+    ])
+  })
+
+  it('tells that the archive failed, and why is not part of it', async () => {
+    const asked = scene.clock.now()
+    scene.freeDisk = null
+    scene.clock.advance(5 * 60_000)
+
+    await run()
+
+    expect(told).toEqual([
+      {
+        job: 'archive',
+        eventId: EXPORT_EVENT,
+        requestedAt: asked,
+        requestedBy: EXPORT_HOST,
+        outcome: 'failed',
+        finishedAt: scene.clock.now(),
+      },
+    ])
+  })
+
+  it('tells nothing of a build that was replaced while it ran, and builds the same without a hook', async () => {
+    scene.freeDisk = null
+    wire({
+      onFinished: (finished) => told.push(finished),
+      exports: Object.assign(Object.create(scene.exports) as ExportScene['exports'], {
+        finish: async () => 'superseded' as const,
+      }),
+    })
+
+    expect(await run()).toMatchObject({ kind: 'superseded' })
+    expect(told).toEqual([])
+
+    wire()
+    await ask()
+    expect(await run()).toMatchObject({ kind: 'sealed' })
+  })
+})

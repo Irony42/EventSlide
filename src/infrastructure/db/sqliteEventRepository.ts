@@ -975,6 +975,18 @@ export class SqliteEventRepository implements EventRepository {
     return this.selectLiveOfClients.all().map(toEvent)
   }
 
+  async listClosedBetween(from: Date, to: Date): Promise<readonly Event[]> {
+    return this.db
+      .prepare<[string, string], EventRow>(
+        `SELECT ${EVENT_COLUMNS}
+           FROM events
+          WHERE status = 'closed' AND closed_at BETWEEN ? AND ?
+          ORDER BY closed_at DESC, id`,
+      )
+      .all(toIsoText(from), toIsoText(to))
+      .map(toEvent)
+  }
+
   async listDueForSchedule(now: Date): Promise<readonly Event[]> {
     const at = toIsoText(now)
     return this.selectDueForSchedule.all(at, at).map(toEvent)

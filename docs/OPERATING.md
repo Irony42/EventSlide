@@ -277,6 +277,17 @@ when the stream reconnects, so a dropped connection costs a few seconds, not a r
 
 None of these mails carries the name of a guest, a diet, a word or a photograph: the number of replies, the host's own menu labels, the event's name and one link. The reminder, the summary after the deadline and the "full" notice follow the **account's** "replies" switch (and the daily summary needs both its tick and that switch); outside 08:00 to 21:00 in the invitation's zone (Europe/Paris without one) a notice waits for the next pass. `MAIL_FOLLOWUP_MAX_PER_DAY` bounds how many follow-up mails the box sends a day. The badge and the open page remain the notice for everything else.
 
+### Mail about the life of an event
+
+On a box with a working relay and unless `HOST_MAIL_NOTICES=off`, the **active owners** of an event are also told (spec 32, the account's "events" switch turns each off):
+
+- **a long job is over**: the archive, the photo book or the highlight film is ready or could not be made, **only if it took more than two minutes** (a host who watched it finish needs no mail). The archive goes to the owner who asked for it while they still own the event, else to every owner. It leaves at once and is noted under `<job>@<time asked>`, so a job put back in the queue at boot and finished twice sends one mail. **It is not retried**: a day whose `MAIL_FOLLOWUP_MAX_PER_DAY` is full, or a race lost to another process, drops it, and the log says `a job notice was not sent` with the job and the reason (`budget` or `lost`); the page still shows the result;
+- **after the party**: 12 hours after the event's closing (by the host, a schedule or the space's window; an event reopened before then counts from its new closing) and until 48 hours after, **once per event**, with the number of photographs, videos and guestbook messages **published** and the day the album will be deleted. An evening with nothing published is noted without a mail, and nothing is sent once the album's deletion date has passed;
+- **the wall closes within 24 hours**: the end of the space's opening time (`max_live_days`, only for an event of a client), unless a closing the host scheduled falls before it. The day is read in the invitation's zone (UTC without one);
+- **an invitation was accepted**: the account that wrote the invitation to moderate is told who accepted (the name they gave, else the address typed), at once and without a ledger (the acceptance is its own guard). One place in the day's budget: a day that is full drops it.
+
+The two sweep notices (after the party, the wall closes) follow the same order as every notice: no mail outside 08:00 to 21:00 in the invitation's zone, noted before sent, held back by `MAIL_FOLLOWUP_MAX_PER_DAY` and sent on the next pass while still worth sending. Without a relay nothing is sent and nothing is noted.
+
 ## Self-service signup
 
 By default nobody can create an account: an operator invites each one from the console. With `SIGNUP` set, a visitor asks for

@@ -706,6 +706,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
           pruneMailBudget: usecases.pruneMailBudget,
           sweepRsvpNotices: usecases.sweepRsvpNotices,
           sweepRsvpDigests: usecases.sweepRsvpDigests,
+          sweepEventNotices: usecases.sweepEventNotices,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,
@@ -923,6 +924,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
           capNoticeDays: config.retention.capNoticeDays,
         },
         diskHasRoom: async () => (await diskSpaceReport()).sufficient,
+        onFinished: usecases.jobNotice.notify,
       })
     : null
   const albumBookWorker: AlbumBookWorker | null =
@@ -954,6 +956,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
           minFreeDiskBytes: config.storage.minFreeDiskBytes,
         },
         freeDiskBytes,
+        onFinished: usecases.jobNotice.notify,
       })
     : null
   const albumExportWorker: AlbumExportWorker | null =

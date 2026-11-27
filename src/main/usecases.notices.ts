@@ -2,6 +2,7 @@ import {
   makeGetMailPreferences,
   makeSetMailPreferences,
 } from '../application/usecases/notices/mailPreferences'
+import { makeSweepEventNotices } from '../application/usecases/notices/sweepEventNotices'
 import { makeSweepRsvpDigests } from '../application/usecases/notices/sweepRsvpDigests'
 import { makeSweepRsvpNotices } from '../application/usecases/notices/sweepRsvpNotices'
 import { makePruneMailBudget } from '../application/usecases/notices/pruneMailBudget'
@@ -47,6 +48,23 @@ export const noticeUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     mailer: adapters.mailer,
     clock: adapters.clock,
     logger: adapters.logger,
+    publicUrl: policy.publicUrl,
+    hostMailNotices: policy.hostMailNotices,
+  }),
+  /** A3 and A5, the notices of the life of an event (no route: the retention sweep calls it). */
+  sweepEventNotices: makeSweepEventNotices({
+    events: adapters.events,
+    clients: adapters.clients,
+    invites: adapters.guestInvites,
+    photos: adapters.photos,
+    guestbook: adapters.guestbook,
+    memberships: adapters.memberships,
+    notices: adapters.eventMailNotices,
+    budget: adapters.mailBudget,
+    mailer: adapters.mailer,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    capNoticeDays: policy.retention.capNoticeDays,
     publicUrl: policy.publicUrl,
     hostMailNotices: policy.hostMailNotices,
   }),

@@ -19,6 +19,7 @@ import {
   atPlus,
   type PhotoInput,
 } from '../../testing/builders'
+import type { JobFinished } from '../notices/notifyJobDone'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { FakeAlbumBookRepository } from '../../testing/fakeAlbumBookRepository'
 import { FakeBookFileStore } from '../../testing/fakeBookFileStore'
@@ -1438,5 +1439,70 @@ describe('buildNextAlbumBook', () => {
       expect(world.renderer.books[0]?.printMarkers).toBeGreaterThan(0)
       expect(world.renderer.books[0]?.printMarkersSkipped).toBe(0)
     })
+  })
+})
+
+describe('the end of the job is told to the hook (spec 32, A2)', () => {
+  let told: JobFinished[]
+
+  beforeEach(() => {
+    told = []
+    world.build = makeBuildNextAlbumBook({
+      ...depsOf(world, POLICY),
+      onFinished: (finished) => told.push(finished),
+    })
+  })
+
+  it('tells that the book is done, when it was asked for and when it ended, with nobody who asked', async () => {
+    await seedPhoto({ id: 'p1' })
+    const book = await askForBook()
+    world.clock.advance(5 * 60_000)
+
+    await world.build()
+
+    expect(told).toEqual([
+      {
+        job: 'book',
+        eventId: EVENT,
+        requestedAt: book.requestedAt,
+        requestedBy: null,
+        outcome: 'done',
+        finishedAt: world.clock.now(),
+      },
+    ])
+  })
+
+  it('tells that the book failed', async () => {
+    const book = await askForBook()
+    world.clock.advance(5 * 60_000)
+
+    expect(await world.build()).toMatchObject({ kind: 'failed', code: 'empty' })
+
+    expect(told).toEqual([
+      {
+        job: 'book',
+        eventId: EVENT,
+        requestedAt: book.requestedAt,
+        requestedBy: null,
+        outcome: 'failed',
+        finishedAt: world.clock.now(),
+      },
+    ])
+  })
+
+  it('tells nothing of a book that was replaced while it ran', async () => {
+    await askForBook()
+    const replaced = Object.assign(Object.create(world.books) as FakeAlbumBookRepository, {
+      finish: async () => 'superseded' as const,
+    })
+    world.build = makeBuildNextAlbumBook({
+      ...depsOf(world, POLICY),
+      books: replaced,
+      onFinished: (finished) => told.push(finished),
+    })
+
+    await world.build()
+
+    expect(told).toEqual([])
   })
 })

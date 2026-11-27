@@ -150,6 +150,15 @@ export class FakeEventRepository implements EventRepository {
     return Event.restore({ ...event.toProps(), ...levers, clientSuspendedAt: suspendedAt })
   }
 
+  /**
+   * An event as a **listing** returns it: the operator's take-down is on the row (`taken_down_at`), and the client's suspension is
+   * not (only the lookups of one event read it).
+   */
+  private withTakeDown(event: Event): Event {
+    const takenDownAt = this.takenDown.get(event.id) ?? null
+    return takenDownAt === null ? event : Event.restore({ ...event.toProps(), takenDownAt })
+  }
+
   async setTakenDown(id: EventId, at: Date | null): Promise<void> {
     if (!this.rows.has(id)) return
     if (at === null) this.takenDown.delete(id)
@@ -383,6 +392,20 @@ export class FakeEventRepository implements EventRepository {
     return [...this.rows.values()]
       .filter((event) => event.status === 'live' && event.clientId !== null)
       .sort(newestFirst)
+      .map((event) => this.withTakeDown(event))
+  }
+
+  async listClosedBetween(from: Date, to: Date): Promise<readonly Event[]> {
+    return [...this.rows.values()]
+      .filter(
+        (event) =>
+          event.status === 'closed' &&
+          event.closedAt !== null &&
+          event.closedAt.getTime() >= from.getTime() &&
+          event.closedAt.getTime() <= to.getTime(),
+      )
+      .sort(newestFirst)
+      .map((event) => this.withTakeDown(event))
   }
 
   /**

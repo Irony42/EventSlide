@@ -3,6 +3,14 @@ import {
   makeAccountNotice,
   type AccountNotice,
 } from '../application/usecases/notices/accountNotice'
+import {
+  makeNotifyJobDone,
+  type NotifyJobDone,
+} from '../application/usecases/notices/notifyJobDone'
+import {
+  makeNotifyInvitationAccepted,
+  type NotifyInvitationAccepted,
+} from '../application/usecases/notices/notifyInvitationAccepted'
 import { EmailAddress } from '../domain/users/emailAddress'
 import { makeIssueInvitation } from '../application/usecases/auth/issueInvitation'
 import { makeVerifySecondFactor } from '../application/usecases/auth/verifySecondFactor'
@@ -90,6 +98,10 @@ export interface SharedHooks {
   readonly engagement: ReturnType<typeof makeRecordEngagement>
   /** The mails that tell a holder what was done to the account (spec 32, A1), one for the whole box. */
   readonly accountNotice: AccountNotice
+  /** The mail that tells a host a long job is over (spec 32, A2): the three builders are given its `notify`. */
+  readonly jobNotice: NotifyJobDone
+  /** The mail that tells a host an invitation was accepted (spec 32, A6). */
+  readonly invitationNotice: NotifyInvitationAccepted
 }
 
 /**
@@ -125,6 +137,29 @@ export const buildSharedHooks = (adapters: Adapters, policy: UseCasePolicy): Sha
     logger: adapters.logger,
     publicUrl: policy.publicUrl,
     operatorContact: contactAddress(policy.operatorContactEmail),
+  }),
+  jobNotice: makeNotifyJobDone({
+    events: adapters.events,
+    clients: adapters.clients,
+    memberships: adapters.memberships,
+    notices: adapters.eventMailNotices,
+    budget: adapters.mailBudget,
+    mailer: adapters.mailer,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    publicUrl: policy.publicUrl,
+    hostMailNotices: policy.hostMailNotices,
+  }),
+  invitationNotice: makeNotifyInvitationAccepted({
+    events: adapters.events,
+    clients: adapters.clients,
+    memberships: adapters.memberships,
+    budget: adapters.mailBudget,
+    mailer: adapters.mailer,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    publicUrl: policy.publicUrl,
+    hostMailNotices: policy.hostMailNotices,
   }),
   invalidateReel: makeInvalidateReel({
     reels: adapters.reels,
