@@ -136,6 +136,24 @@ describe('setMailPreferences', () => {
     expect(await world.preferences.forUser(refused)).toEqual({ rsvp: true, event: true })
   })
 
+  it('stores nothing when the log cannot be written: the entry comes first, so no change goes unrecorded', async () => {
+    const world = aWorld()
+    const failing = makeSetMailPreferences({
+      users: world.users,
+      preferences: world.preferences,
+      audit: {
+        record: async () => {
+          throw new Error('the disk is full')
+        },
+      },
+      clock: new FakeClock(AT),
+    })
+
+    await expect(failing({ userId: HOST, rsvp: false })).rejects.toThrow('the disk is full')
+
+    expect(await world.preferences.forUser(HOST)).toEqual({ rsvp: true, event: true })
+  })
+
   it('is a 404 for an account that is gone', async () => {
     const result = await aWorld().set({ userId: GHOST, rsvp: false })
 
