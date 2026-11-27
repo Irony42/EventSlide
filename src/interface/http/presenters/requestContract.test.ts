@@ -700,10 +700,6 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // `view`: the page links to it (`rsvpExportUrl`, the caterer's view included); no client request
   // sends its query.
   rsvpExportQuery: 'GET /api/events/:eventSlug/rsvps/export: the replies page is not built yet',
-  // `PUT /api/me/mail-preferences` (spec 32): the account page that sends it is a later pull request of the
-  // same spec (PR 6); its entry leaves this list the day `web/src` calls it. The route is held at ring 4.
-  mailPreferencesBody:
-    'PUT /api/me/mail-preferences: the account page that sends it is not built yet',
   // `DELETE /api/events/:slug/push-subscription` (spec 30, lot 4): the client does call it, but a DELETE
   // carries its body as the transport's fourth argument, which the pairing above does not read (it reads
   // post, put and patch). `client.test.ts` pins the body (`{ endpoint }`) and `pushRoutes.test.ts` the schema.

@@ -42,10 +42,20 @@ export type InvitationAcceptance =
       readonly acceptTerms?: boolean
     }
   | { readonly kind: 'signedInAccount'; readonly acceptTerms?: boolean }
+/** What `PUT /api/me/mail-preferences` takes: the families to change, a family left out stays as it was. */
+export interface MailPreferencesPatch {
+  readonly rsvp?: boolean
+  readonly event?: boolean
+}
+
 export const accountApi = (transport: Transport) => ({
   /** What the account chose to receive by mail (spec 32). */
   mailPreferences: (signal?: AbortSignal): Promise<MailPreferencesDto> =>
     transport.get('/api/me/mail-preferences', undefined, signal),
+
+  /** Turns one family of mail on or off, `204` (spec 32): a switch left out stays as it was. */
+  setMailPreferences: (patch: MailPreferencesPatch): Promise<void> =>
+    transport.put('/api/me/mail-preferences', patch),
 
   /** A session, or — for an account with an authenticator — the request for its second step. */
   login: (email: string, password: string): Promise<SessionUserDto | SecondFactorRequiredDto> =>

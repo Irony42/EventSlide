@@ -14,6 +14,7 @@ import { ApiError } from '../../lib/http'
 import { ADMIN_HOME, fromOf } from '../../lib/landing'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AuthForm } from './components/AuthForm'
+import { MailPreferencesSection } from './MailPreferencesSection'
 import { messageForPasswordError } from '../../lib/i18n/translations'
 import styles from './SecurityPage.module.css'
 import { copyToClipboard } from '../../lib/clipboard'
@@ -121,7 +122,7 @@ function Enrol({ onEnrolled }: { readonly onEnrolled: (codes: readonly string[])
   if (enrolment === null) {
     return (
       <AuthForm
-        title={t.auth.securityTitle}
+        title={t.auth.securityMenu}
         intro={t.auth.setupIntro}
         error={start.error}
         submitting={start.busy}
@@ -153,7 +154,7 @@ function Enrol({ onEnrolled }: { readonly onEnrolled: (codes: readonly string[])
 
   return (
     <AuthForm
-      title={t.auth.securityTitle}
+      title={t.auth.securityMenu}
       intro={t.auth.setupScan}
       error={confirm.error}
       submitting={confirm.busy}
@@ -228,7 +229,7 @@ function Manage({
   if (!confirmed) {
     return (
       <AuthForm
-        title={t.auth.securityTitle}
+        title={t.auth.securityMenu}
         intro={`${t.auth.securityEnabled} ${t.auth.securityManageIntro}`}
         error={stepUp.error ?? (lapsed ? t.errors['auth.stepUpRequired'] : null)}
         submitting={stepUp.busy}
@@ -290,7 +291,7 @@ function Manage({
   return (
     <section className={styles['section']} aria-labelledby={headingId}>
       <h1 id={headingId} className={styles['heading']}>
-        {t.auth.securityTitle}
+        {t.auth.securityMenu}
       </h1>
       {act.error === null ? null : <p role="alert">{act.error}</p>}
       <div className={styles['actions']}>
@@ -400,9 +401,12 @@ export function SecurityPage() {
       <>
         {back}
         <section className={styles['section']}>
-          <h1 className={styles['heading']}>{t.auth.securityTitle}</h1>
+          <h1 className={styles['heading']}>{t.auth.securityMenu}</h1>
+          {/* The second factor is one part of the page, and its absence is that part's news, not the page's. */}
+          <h2 className={styles['subheading']}>{t.auth.securityTitle}</h2>
           <p>{t.auth.securityUnavailable}</p>
         </section>
+        <MailPreferencesSection />
       </>
     )
   }
@@ -423,6 +427,7 @@ export function SecurityPage() {
           }}
         />
       )}
+      <MailPreferencesSection />
     </>
   )
 }

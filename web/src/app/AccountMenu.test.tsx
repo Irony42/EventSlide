@@ -520,7 +520,7 @@ describe('AccountMenu: security, the current page and a forced password change',
     renderAt(as({ secondFactor: FACTOR }), '/admin')
     await open()
 
-    expect(screen.getByRole('link', { name: fr.auth.securityTitle })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: fr.auth.securityMenu })).toHaveAttribute(
       'href',
       '/admin/security',
     )
@@ -530,21 +530,41 @@ describe('AccountMenu: security, the current page and a forced password change',
     renderAt(as({ secondFactor: { ...FACTOR, available: false, enrolled: true } }), '/admin')
     await open()
 
-    expect(screen.getByRole('link', { name: fr.auth.securityTitle })).toBeVisible()
+    expect(screen.getByRole('link', { name: fr.auth.securityMenu })).toBeVisible()
   })
 
   it('offers it to nobody on a box with no key and an account with no authenticator', async () => {
     renderAt(as({}), '/admin')
     await open()
 
-    expect(screen.queryByRole('link', { name: fr.auth.securityTitle })).toBeNull()
+    expect(screen.queryByRole('link', { name: fr.auth.securityMenu })).toBeNull()
+  })
+
+  it('offers it, as "Sécurité et e-mails", where the box writes to its hosts, even with no key and no authenticator', async () => {
+    const withMail = as(
+      {},
+      {
+        about: vi.fn(async () =>
+          anAbout({
+            features: { siteAdmin: false, forgotPassword: false, hostMail: true, signup: 'off' },
+          }),
+        ),
+      },
+    )
+    renderAt(withMail, '/admin')
+    await open()
+
+    expect(screen.getByRole('link', { name: 'Sécurité et e-mails' })).toHaveAttribute(
+      'href',
+      '/admin/security',
+    )
   })
 
   it('marks the entry of the page you are on, and only that one', async () => {
     renderAt(as({ secondFactor: FACTOR }), '/admin/security')
     await open()
 
-    expect(screen.getByRole('link', { name: fr.auth.securityTitle })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: fr.auth.securityMenu })).toHaveAttribute(
       'aria-current',
       'page',
     )
@@ -594,7 +614,7 @@ describe('AccountMenu: security, the current page and a forced password change',
       await open()
 
       expect(screen.queryByRole('link', { name: fr.admin.events })).toBeNull()
-      expect(screen.queryByRole('link', { name: fr.auth.securityTitle })).toBeNull()
+      expect(screen.queryByRole('link', { name: fr.auth.securityMenu })).toBeNull()
       expect(screen.queryByRole('link', { name: fr.auth.changePassword })).toBeNull()
     })
 

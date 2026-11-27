@@ -2271,6 +2271,26 @@ export const en: UiText = {
     recoveryCode: 'Recovery code',
     secondFactorRestart: 'Start again with your password',
     securityTitle: 'Account security',
+    /** The account menu's entry and the page's title: the page also holds the e-mail switches (spec 32). */
+    securityMenu: 'Security and e-mails',
+    mailPreferences: {
+      title: 'E-mails',
+      legend: 'E-mail me about',
+      intro:
+        'The e-mails this server writes to you about your events. They carry figures and your own words only, never a guest’s name, diet or message.',
+      rsvpLabel: 'Guests’ replies',
+      rsvpHint:
+        'The reminder before the deadline, the summary once replies are closed and the “full” notice when every place is taken. The daily summary is ticked event by event, on the replies page.',
+      eventLabel: 'Life of your events',
+      eventHint:
+        'An archive, a photo book or a film that is ready, the end of an event with its figures, the wall about to close within a day, an invitation accepted.',
+      always:
+        'Whatever you tick here, you always receive the security e-mails of your account (password, two-step verification, account switched off or deleted) and the warning before the replies are erased.',
+      saving: 'Saving…',
+      failed: 'The choice could not be saved. Try again in a moment.',
+      loadFailed: 'Your e-mail choices could not be read.',
+      retry: 'Try again',
+    },
     securityUnavailable:
       'This server has no encryption key for two-step verification. Ask its administrator to set one.',
     setupIntro:
@@ -4177,7 +4197,7 @@ export const en: UiText = {
     signupConfirm: 'Confirm your address',
     invitation: 'Invitation',
     changePassword: 'Change your password',
-    security: 'Account security',
+    security: 'Security and e-mails',
     deleteAccount: 'Delete my account',
     dashboard: 'Your events',
     newEvent: 'New event',
