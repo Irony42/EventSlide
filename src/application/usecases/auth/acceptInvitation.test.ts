@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { EmailAddress } from '../../../domain/users/emailAddress'
-import { aUser, anEvent, atPlus } from '../../testing/builders'
+import { welcomeMail } from '../../../domain/mail/signupMails'
+import { aClient, aUser, anEvent, atPlus } from '../../testing/builders'
+import { CapturingLogger } from '../../testing/capturingLogger'
+import { FakeMailer } from '../../testing/fakeMailer'
 import {
   EVENT_ID,
   EXISTING_EMAIL,
@@ -344,7 +347,9 @@ describe('acceptInvitation', () => {
 
     it('is told to sign in when it became taken after the link was judged, with the link still alive', async () => {
       const { token } = await world.invite()
-      const raced: InvitationAcceptance = { accept: async () => 'emailTaken' }
+      const raced: InvitationAcceptance = {
+        accept: async () => ({ outcome: 'emailTaken', firstOwnerOfFreshClient: false }),
+      }
 
       const result = await build(raced)({ token, credentials })
 
@@ -391,7 +396,9 @@ describe('acceptInvitation', () => {
 
     it('is answered like a dead link when the link was spent between judging it and spending it', async () => {
       const { token } = await world.invite({ email: EXISTING_EMAIL })
-      const raced: InvitationAcceptance = { accept: async () => 'spent' }
+      const raced: InvitationAcceptance = {
+        accept: async () => ({ outcome: 'spent', firstOwnerOfFreshClient: false }),
+      }
 
       const result = await build(raced)({ token, signedInUserId: asUserId(EXISTING_ID) })
 
@@ -952,5 +959,291 @@ describe('acceptInvitation: the terms of use', () => {
       expect(result.ok).toBe(true)
       expect(await logged()).toEqual([])
     })
+  })
+})
+
+/**
+ * Spec 31: the welcome mail. Sent to the first owner of a fresh client, only when self-service
+ * signup is on, never awaited, never able to undo an acceptance.
+ */
+describe('acceptInvitation: the welcome mail', () => {
+  const GUIDES = 'https://eventslide.example/guides'
+  const CONTACT = emailOf('contact@example.org')
+
+  let world: InvitationWorld
+  let mailer: FakeMailer
+  let logger: CapturingLogger
+
+  type Deps = Parameters<typeof makeAcceptInvitation>[0]
+
+  const buildWelcome = (over: Partial<Deps> = {}): AcceptInvitation =>
+    makeAcceptInvitation({
+      tokens: world.tokens,
+      secrets: world.secrets,
+      events: world.events,
+      clients: world.clients,
+      memberships: world.memberships,
+      users: world.users,
+      hasher: world.hasher,
+      acceptance: world.acceptance,
+      ids: world.ids,
+      clock: world.clock,
+      mailer,
+      logger,
+      signupMode: 'open',
+      welcome: { contact: CONTACT, guidesLink: GUIDES },
+      ...over,
+    })
+
+  /** The welcome is sent behind the answer: let the microtasks it needs run. */
+  const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+  beforeEach(() => {
+    world = makeInvitationWorld()
+    mailer = new FakeMailer()
+    logger = new CapturingLogger()
+  })
+
+  it.each(['open', 'review'] as const)(
+    'welcomes the new first owner of a fresh client when SIGNUP is %s, in the client locale, replying to the contact',
+    async (mode) => {
+      await world.clients.save(aClient({ id: CLIENT_ID, name: 'Camille et Sacha', locale: 'de' }))
+      const { token } = await world.invite({ to: 'client-owner' })
+
+      const result = await buildWelcome({ signupMode: mode })({ token, credentials })
+      await settle()
+
+      expect(result.ok).toBe(true)
+      expect(mailer.sent).toHaveLength(1)
+      const expected = welcomeMail({
+        to: emailOf(NEWCOMER),
+        locale: 'de',
+        guidesLink: GUIDES,
+        contact: CONTACT,
+      })
+      expect(mailer.sent[0]).toMatchObject({
+        to: NEWCOMER,
+        replyTo: 'contact@example.org',
+        subject: expected.subject,
+        text: expected.text,
+      })
+    },
+  )
+
+  it('welcomes an existing account that is given its first space', async () => {
+    const { token } = await world.invite({ to: 'client-owner', email: EXISTING_EMAIL })
+
+    await buildWelcome()({ token, signedInUserId: asUserId(EXISTING_ID) })
+    await settle()
+
+    expect(mailer.sent.map((mail) => mail.to)).toEqual([EXISTING_EMAIL])
+  })
+
+  it('sends nothing with SIGNUP=off, which is every self-hosted box', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+
+    const result = await buildWelcome({ signupMode: 'off' })({ token, credentials })
+    await settle()
+
+    expect(result.ok).toBe(true)
+    expect(mailer.sent).toEqual([])
+  })
+
+  it('sends nothing when the mode is not given at all', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+
+    await buildWelcome({ signupMode: undefined as never })({ token, credentials })
+    await settle()
+
+    expect(mailer.sent).toEqual([])
+  })
+
+  it('sends nothing to the second owner of a client', async () => {
+    const first = await world.invite({ to: 'client-owner' })
+    await buildWelcome()({ token: first.token, credentials })
+    await settle()
+    mailer.sent.length = 0
+    const second = await world.invite({ to: 'client-owner', email: EXISTING_EMAIL })
+
+    await buildWelcome()({ token: second.token, signedInUserId: asUserId(EXISTING_ID) })
+    await settle()
+
+    expect(mailer.sent).toEqual([])
+  })
+
+  it('sends nothing for a member link or an event link', async () => {
+    const member = await world.invite({ to: 'client-member' })
+    const event = await world.invite({ to: 'event', email: EXISTING_EMAIL })
+
+    await buildWelcome()({ token: member.token, credentials })
+    await buildWelcome()({ token: event.token, signedInUserId: asUserId(EXISTING_ID) })
+    await settle()
+
+    expect(mailer.sent).toEqual([])
+  })
+
+  it('sends nothing when the box cannot deliver mail', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+
+    await buildWelcome({ mailer: { canDeliver: false, send: (mail) => mailer.send(mail) } })({
+      token,
+      credentials,
+    })
+    await settle()
+
+    expect(mailer.sent).toEqual([])
+  })
+
+  it('sends nothing when no contact or guides page is named', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+
+    const result = await buildWelcome({ welcome: null })({ token, credentials })
+    await settle()
+
+    expect(result.ok).toBe(true)
+    expect(mailer.sent).toEqual([])
+  })
+
+  it('sends nothing, and asks nothing of it, without a mailer', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+
+    const result = await buildWelcome({ mailer: undefined as never })({ token, credentials })
+    await settle()
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('sends nothing for a link that cannot be spent', async () => {
+    const { token } = await world.invite({ to: 'client-owner', consumedAt: world.clock.now() })
+
+    const result = await buildWelcome()({ token, credentials })
+    await settle()
+
+    expect(result.ok).toBe(false)
+    expect(mailer.sent).toEqual([])
+  })
+
+  it('welcomes once when the same link is accepted twice at once: the spend lets one through', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+    const accept = buildWelcome()
+
+    const [a, b] = await Promise.all([
+      accept({ token, credentials }),
+      accept({ token, credentials: { ...credentials, displayName: 'Autre Nom' } }),
+    ])
+    await settle()
+
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1)
+    expect(mailer.sent).toHaveLength(1)
+  })
+
+  it('answers before the mail is sent: the acceptance does not wait for the relay', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+
+    const result = await buildWelcome({
+      mailer: {
+        canDeliver: true,
+        send: async (mail) => {
+          await gate
+          return mailer.send(mail)
+        },
+      },
+    })({ token, credentials })
+
+    expect(result.ok).toBe(true)
+    expect(mailer.sent).toEqual([])
+    release()
+    await settle()
+    expect(mailer.sent).toHaveLength(1)
+  })
+
+  it('sends only after the acceptance is written, never before the commit', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+    let accountWhenSent: unknown = 'not called'
+    const watching = {
+      canDeliver: true,
+      send: async (mail: Parameters<FakeMailer['send']>[0]) => {
+        accountWhenSent = await world.users.findByEmail(emailOf(NEWCOMER))
+        return mailer.send(mail)
+      },
+    }
+
+    await buildWelcome({ mailer: watching })({ token, credentials })
+    await settle()
+
+    expect(accountWhenSent).not.toBeNull()
+    expect(accountWhenSent).not.toBe('not called')
+  })
+
+  it('does not break the acceptance when the relay refuses, and says so in the log', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+    mailer.failNextWith('rejected')
+
+    const result = await buildWelcome()({ token, credentials })
+    await settle()
+
+    expect(result.ok).toBe(true)
+    expect(await world.users.findByEmail(emailOf(NEWCOMER))).not.toBeNull()
+    expect(logger.find('a welcome mail was not sent')).toBeDefined()
+  })
+
+  it('does not break the acceptance when the send throws, and leaks no rejection', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+
+    const result = await buildWelcome({
+      mailer: { canDeliver: true, send: () => Promise.reject(new Error('socket hang up')) },
+    })({ token, credentials })
+    await settle()
+
+    expect(result.ok).toBe(true)
+    expect(logger.find('a welcome mail failed')).toBeDefined()
+  })
+
+  it('does not break the acceptance when the send throws something that is not an Error', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+
+    const result = await buildWelcome({
+      mailer: { canDeliver: true, send: () => Promise.reject('plain string') },
+    })({ token, credentials })
+    await settle()
+
+    expect(result.ok).toBe(true)
+    expect(logger.find('a welcome mail failed')).toBeDefined()
+  })
+
+  it('works without a logger', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+    mailer.failNextWith('rejected')
+
+    const result = await buildWelcome({ logger: undefined as never })({ token, credentials })
+    await settle()
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('sends nothing when the client is gone by the time the mail is built', async () => {
+    const { token } = await world.invite({ to: 'client-owner' })
+    let reads = 0
+    const clients = new Proxy(world.clients, {
+      get: (target, key, receiver) => {
+        if (key !== 'findById') return Reflect.get(target, key, receiver) as unknown
+        // The invitation's own reads see the client; the welcome's read comes last and does not.
+        return async (id: Parameters<typeof target.findById>[0]) => {
+          reads += 1
+          return reads > 2 ? null : target.findById(id)
+        }
+      },
+    })
+
+    const result = await buildWelcome({ clients })({ token, credentials })
+    await settle()
+
+    expect(result.ok).toBe(true)
+    expect(reads).toBeGreaterThan(2)
+    expect(mailer.sent).toEqual([])
   })
 })
