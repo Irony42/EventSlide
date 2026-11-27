@@ -10,6 +10,8 @@ export interface BookWorkerWiring {
   readonly policy: BuildNextDeps['policy']
   readonly renderer: BuildNextDeps['renderer']
   readonly diskHasRoom: BuildNextDeps['diskHasRoom']
+  /** The mail that tells the host a photo book is ready (spec 32, A2). */
+  readonly onFinished?: BuildNextDeps['onFinished']
 }
 
 /**
@@ -36,6 +38,7 @@ export const bookWorkerUseCases = (adapters: Adapters, wiring: BookWorkerWiring)
     logger: adapters.logger,
     policy: wiring.policy,
     diskHasRoom: wiring.diskHasRoom,
+    ...(wiring.onFinished === undefined ? {} : { onFinished: wiring.onFinished }),
   }),
   recoverAlbumBooks: makeRecoverAlbumBooks({ books: adapters.books, logger: adapters.logger }),
   sweepAlbumBooks: makeSweepAlbumBooks({

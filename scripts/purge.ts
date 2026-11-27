@@ -73,6 +73,7 @@ import { SqliteGuestbookRepository } from '../src/infrastructure/db/sqliteGuestb
 import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
 import { makeNotifySignupOperator } from '../src/application/usecases/signups/notifySignupOperator'
 import { makeSweepSignups } from '../src/application/usecases/signups/sweepSignups'
+import { makeSweepEventNotices } from '../src/application/usecases/notices/sweepEventNotices'
 import { makeSweepRsvpDigests } from '../src/application/usecases/notices/sweepRsvpDigests'
 import { SqliteMailPreferenceRepository } from '../src/infrastructure/db/sqliteMailPreferenceRepository'
 import { makeSweepRsvpNotices } from '../src/application/usecases/notices/sweepRsvpNotices'
@@ -264,6 +265,23 @@ const execute = async (
           mailer: mailerForFollowUp,
           clock: systemClock,
           logger: followUpLogger,
+          publicUrl: config.publicUrl,
+          hostMailNotices: config.hostMail.notices === 'on',
+        }),
+        // The notices of the life of an event (spec 32, A3, A5): the timer's own use case, after the digests.
+        sweepEventNotices: makeSweepEventNotices({
+          events,
+          clients: new SqliteClientRepository(db),
+          invites: new SqliteGuestInviteRepository(db),
+          photos: new SqlitePhotoRepository(db),
+          guestbook: new SqliteGuestbookRepository(db),
+          memberships: new SqliteMembershipRepository(db),
+          notices: new SqliteEventMailNoticeLedger(db),
+          budget: new SqliteMailBudget(db, config.hostMail.followUpMaxPerDay),
+          mailer: mailerForFollowUp,
+          clock: systemClock,
+          logger: followUpLogger,
+          capNoticeDays,
           publicUrl: config.publicUrl,
           hostMailNotices: config.hostMail.notices === 'on',
         }),

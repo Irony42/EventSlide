@@ -28,7 +28,7 @@ import {
 export const authUseCases = (
   adapters: Adapters,
   policy: UseCasePolicy,
-  { issueInvitation, accountNotice }: SharedHooks,
+  { issueInvitation, accountNotice, invitationNotice }: SharedHooks,
 ) => ({
   // auth
   authenticateUser: makeAuthenticateUser({
@@ -167,6 +167,7 @@ export const authUseCases = (
     signupMode: policy.signup.mode,
     welcome: policy.signup.welcome,
     logger: adapters.logger,
+    onAccepted: invitationNotice.notify,
   }),
   registerModerator: makeRegisterModerator({
     events: adapters.events,

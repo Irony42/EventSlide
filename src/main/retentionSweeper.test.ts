@@ -82,6 +82,8 @@ const nobodyToldAboutReplies = {
   failed: [],
 }
 
+const noEventNotices = nobodyToldAboutReplies
+
 const noDigests = { claimed: 0, sent: 0, unsent: 0, skippedBudget: 0, failed: [] }
 
 const nothingSignups = { expired: 0, released: 0, erased: 0 }
@@ -100,6 +102,7 @@ const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
     pruneMailBudget: async () => ({ erased: 0 }),
     sweepRsvpNotices: async () => nobodyToldAboutReplies,
     sweepRsvpDigests: async () => noDigests,
+    sweepEventNotices: async () => noEventNotices,
     logger,
     clock,
     intervalMs: INTERVAL_MS,
@@ -762,6 +765,10 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
         order.push('digests')
         return noDigests
       },
+      sweepEventNotices: async () => {
+        order.push('eventNotices')
+        return noEventNotices
+      },
       finalizeOffboardedClients: async () => {
         order.push('finalize')
         return nothingFinalized
@@ -786,6 +793,7 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
       'mailCounts',
       'warn',
       'digests',
+      'eventNotices',
       'finalize',
       'prune',
     ])
@@ -800,6 +808,7 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
       pruneMailBudget: async () => ({ erased: 0 }),
       sweepRsvpNotices: async () => nobodyToldAboutReplies,
       sweepRsvpDigests: async () => noDigests,
+      sweepEventNotices: async () => noEventNotices,
       finalizeOffboardedClients: async () => {
         throw new Error('database is locked')
       },
@@ -980,6 +989,76 @@ describe('the daily summaries ride the follow-up (spec 32, R2)', () => {
       await sweeper.runOnce()
       expect(pruned).toBe(true)
       expect(lines.find((e) => e.message === 'replies digests failed')?.context).toEqual({
+        error: thrown instanceof Error ? 'Error' : 'unknown',
+      })
+    }
+  })
+})
+
+describe('the notices of the life of an event ride the follow-up (spec 32, A3, A5)', () => {
+  it('says which notices were written and how many mails left', async () => {
+    const { sweeper, lines } = build({
+      sweepEventNotices: async () => ({
+        noticed: [{ eventId: asEventId('evt-1'), kind: 'eventClosed' }],
+        sent: 2,
+        unsent: 1,
+        skippedBudget: 0,
+        stale: 0,
+        failed: [],
+      }),
+    })
+
+    await sweeper.runOnce()
+
+    const line = lines.find((entry) => entry.message === 'retention sweep wrote event notices')
+    expect(line?.context).toMatchObject({
+      events: 1,
+      kinds: 'evt-1:eventClosed',
+      sent: 2,
+      unsent: 1,
+    })
+  })
+
+  it('says something when only the budget held them back, and stays silent when nothing was due', async () => {
+    const held = build({
+      sweepEventNotices: async () => ({ ...noEventNotices, skippedBudget: 2 }),
+    })
+    await held.sweeper.runOnce()
+    expect(held.lines.map((entry) => entry.message)).toContain(
+      'retention sweep wrote event notices',
+    )
+
+    const quiet = build()
+    await quiet.sweeper.runOnce()
+    expect(quiet.lines.map((entry) => entry.message)).not.toContain(
+      'retention sweep wrote event notices',
+    )
+  })
+
+  it('lists the events it could not examine, and never stops the rest when it throws', async () => {
+    const failing = build({
+      sweepEventNotices: async () => ({ ...noEventNotices, failed: [asEventId('evt-9')] }),
+    })
+    await failing.sweeper.runOnce()
+    expect(
+      failing.lines.find((e) => e.message === 'event notices could not examine every event')
+        ?.context,
+    ).toMatchObject({ failed: 1, failedIds: 'evt-9' })
+
+    for (const thrown of [new Error('x'), 'plain']) {
+      let pruned = false
+      const { sweeper, lines } = build({
+        sweepEventNotices: async () => {
+          throw thrown
+        },
+        pruneAuditLog: async () => {
+          pruned = true
+          return nothingPruned
+        },
+      })
+      await sweeper.runOnce()
+      expect(pruned).toBe(true)
+      expect(lines.find((e) => e.message === 'event notices failed')?.context).toEqual({
         error: thrown instanceof Error ? 'Error' : 'unknown',
       })
     }

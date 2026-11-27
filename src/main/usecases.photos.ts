@@ -30,7 +30,7 @@ import { type SharedHooks } from './usecases.shared'
 export const photosUseCases = (
   adapters: Adapters,
   policy: UseCasePolicy,
-  { invalidateReel, invalidateBook, invalidateExport, engagement }: SharedHooks,
+  { invalidateReel, invalidateBook, invalidateExport, engagement, jobNotice }: SharedHooks,
 ) => ({
   // photos
   uploadPhotos: makeUploadPhotos({
@@ -210,6 +210,7 @@ export const photosUseCases = (
       secondsPerPhoto: policy.reel.secondsPerPhoto,
       maxOutputBytes: policy.reel.maxOutputBytes,
     },
+    onFinished: jobNotice.notify,
   }),
   recoverReels: makeRecoverReels({
     reels: adapters.reels,

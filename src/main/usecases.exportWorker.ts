@@ -9,6 +9,8 @@ type BuildNextDeps = Parameters<typeof makeBuildNextAlbumExport>[0]
 export interface ExportWorkerWiring {
   readonly policy: BuildNextDeps['policy']
   readonly freeDiskBytes: BuildNextDeps['freeDiskBytes']
+  /** The mail that tells the host an archive is ready (spec 32, A2). */
+  readonly onFinished?: BuildNextDeps['onFinished']
 }
 
 /**
@@ -35,6 +37,7 @@ export const exportWorkerUseCases = (adapters: Adapters, wiring: ExportWorkerWir
     logger: adapters.logger,
     policy: wiring.policy,
     freeDiskBytes: wiring.freeDiskBytes,
+    ...(wiring.onFinished === undefined ? {} : { onFinished: wiring.onFinished }),
   }),
   recoverAlbumExports: makeRecoverAlbumExports({
     exports: adapters.exports,
