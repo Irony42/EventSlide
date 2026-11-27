@@ -65,6 +65,7 @@ export class SequentialIdGenerator implements IdGenerator {
   private clients = 0
 
   private accountTokens = 0
+  private signupRequests = 0
 
   private challenges = 0
 
@@ -163,6 +164,11 @@ export class SequentialIdGenerator implements IdGenerator {
     return asChannelMediaJobId(`channel-job-${this.channelMediaJobs}`)
   }
 
+  signupRequestId(): string {
+    this.signupRequests += 1
+    return `signup-request-${this.signupRequests}`
+  }
+
   accountTokenId(): AccountTokenId {
     this.accountTokens += 1
     return asAccountTokenId(`account-token-${this.accountTokens}`)
@@ -201,6 +207,7 @@ export class SequentialIdGenerator implements IdGenerator {
     this.shareLinks = 0
     this.clients = 0
     this.accountTokens = 0
+    this.signupRequests = 0
     this.challenges = 0
     this.announcements = 0
     this.channelBindings = 0

@@ -130,6 +130,7 @@ describe('a path that is not valid percent-encoding', () => {
       'invalid',
     ],
     ['the password-reset page', `/password/reset/${TOKEN}${BROKEN}`, true, 'invalid'],
+    ['the signup confirmation page', `/signup/confirm/${TOKEN}${BROKEN}`, true, 'invalid'],
     ['the client fallback', `/${BROKEN}`, false, 'invalid'],
     ['a client route', `/e/mariage${BROKEN}/display`, false, 'invalid'],
   ]
@@ -248,6 +249,7 @@ describe('a path that is not valid percent-encoding', () => {
     ['the gallery page spelled with an escape', `/%67/${TOKEN}${BROKEN}`, '/g/:token'],
     ['the invitation page', `/invite/${TOKEN}${BROKEN}`, '/invite/:token'],
     ['the password-reset page', `/password/reset/${TOKEN}${BROKEN}`, '/password/reset/:token'],
+    ['the signup confirmation page', `/signup/confirm/${TOKEN}${BROKEN}`, '/signup/confirm/:token'],
   ])(
     'logs the path of %s with its token written as :token, broken escape and all',
     async (_label, path, logged) => {

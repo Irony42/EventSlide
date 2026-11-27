@@ -23,7 +23,7 @@ import { errorBody, sendError, statusForKind } from '../presenters/send'
  * one spelling.
  */
 const TOKEN_IN_PATH =
-  /^(\/api\/gallery|\/g|\/password\/reset|\/invite|\/api\/invitations|\/api\/join|\/i|\/api\/i)\/[^/]+/i
+  /^(\/api\/gallery|\/g|\/password\/reset|\/invite|\/api\/invitations|\/api\/join|\/i|\/api\/i|\/signup\/confirm|\/api\/signup\/confirm)\/[^/]+/i
 
 /** A letter, a digit or one of `-._~`: the characters RFC 3986 section 2.3 calls unreserved. */
 const UNRESERVED = /^[A-Za-z0-9\-._~]$/

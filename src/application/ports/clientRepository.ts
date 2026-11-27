@@ -110,6 +110,14 @@ export interface ClientRepository {
   countEvents(clientId: ClientId): Promise<number>
 
   /**
+   * How many distinct clients reserve room on the disk: those with at least one event (an event is deleted when
+   * it is purged, so "with an event not yet purged") **plus** those created at or after `freshSince` that have
+   * none yet, because a fresh account is promised its 5 GB before its first photograph. The signup disk guard of
+   * mode `open` multiplies it by 5 GB (spec 31, `docs/costs.md` 4.4). A count, never a list.
+   */
+  countClientsReservingRoom(freshSince: Date): Promise<number>
+
+  /**
    * How many accounts belong to this client, in any role and **whether or not they can sign in
    * today** (a row is a membership, and a switched-off account keeps its row). `0` for a client
    * with none and for one that does not exist.

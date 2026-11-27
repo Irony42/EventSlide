@@ -700,6 +700,8 @@ other limiters' bodies carry the header only.
 | `POST /api/auth/login` †                                                                                                   | 10            | client IP                           | `rate.limited`                      |
 | `POST /api/auth/password-reset/request` †                                                                                  | 10            | client IP, own bucket               | `rate.limited`                      |
 | `POST /api/auth/password-reset/confirm`                                                                                    | 10            | client IP, own bucket               | `rate.limited`                      |
+| `POST /api/signup`                                                                                                         | 10 / hour     | client IP                           | `rate.limited`                      |
+| `GET /api/signup/confirm/:token`, `POST …`                                                                                 | 10            | client IP, own bucket each          | `rate.limited`                      |
 | `GET /api/invitations/:token`, `POST …/accept`                                                                             | 10            | client IP, own bucket each          | `rate.limited`                      |
 | `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm`                                                         | 10            | client IP, own bucket each          | `rate.limited`                      |
 | `POST /api/auth/password`, `POST /api/auth/account/delete`                                                                 | 10            | client IP, own bucket each          | `rate.limited`                      |
@@ -919,7 +921,7 @@ when the session store is unusable.
   "license": "AGPL-3.0-only",
   "sourceUrl": "https://github.com/Irony42/EventSlide/tree/v3.18.0",
   "links": {},
-  "features": { "siteAdmin": false, "forgotPassword": false }
+  "features": { "siteAdmin": false, "forgotPassword": false, "signup": "off" }
 }
 ```
 
@@ -963,6 +965,7 @@ for example (the other fields are as above):
 | `links`              | Operator links, each **present only when the operator set it** — a box that set nothing answers `{}`, never a key with `null` or an empty string. `terms` (`LEGAL_TERMS_URL`), `privacy` (`LEGAL_PRIVACY_URL`), `legalNotice` (`LEGAL_NOTICE_URL`), `support` (`SUPPORT_URL`: help for a host) and `report` (`REPORT_URL`: where to report a content), each an **https** address or a **path on this site** (see below); and `donate` (`DONATION_URL`) and `budget` (`BUDGET_URL`), each an **https** address. |
 | `features.siteAdmin` | `true` when `SITE_ADMIN=on`, that is, when the operator's namespace `/api/site` is mounted (see above). Derived from the same setting as the mount, so it cannot disagree with it.                                                                                                                                                                                                                                                                                                                             |
 
+| `features.signup` | `SIGNUP` (spec 31): `off` (the default), `review` or `open`. The sign-in page offers "Create an account" unless it is `off`; while it is `off` the three signup routes answer `404 feature.unavailable`. Always present; a client that cannot read it treats it as `off`. |
 | `features.forgotPassword` | `true` when the box can mail (`SMTP_URL` is set), that is, when `POST /api/auth/password-reset/request` is not `404 feature.unavailable`. Derived from the mailer's own `canDeliver`, so it cannot disagree with the route. A client that cannot read it treats it as `false`. |
 
 `features` is **additive**: a client ignores a flag it does not know, and later items add
@@ -3257,6 +3260,68 @@ first choose a password (§1); and the CSRF codes. A path whose token cannot be 
 > account with a password the host chose, never marked verified (docs/SECURITY.md, "Invitations").
 
 ---
+
+### Self-service signup (spec 31, ADR 0018): `POST /api/signup`, `GET` and `POST /api/signup/confirm/:token`
+
+A stranger asks for an account, proves their address by mail, and the account is opened by the existing
+invitation (an invitation link in a second mail lets them choose a password). **A request, not an account**:
+nothing here writes a user, a client or a password. No authentication; the confirmation link is the
+credential. **While `SIGNUP=off` every one of the three answers `404 feature.unavailable`**, whatever the body.
+Every answer is `Cache-Control: no-store` and carries `Referrer-Policy: no-referrer` and
+`X-Robots-Tag: noindex, nofollow` (the body parser and CSRF refusals included); the token in the path of the two confirmation routes is replaced by `:token` in the access log, and the token in their path is replaced by `:token` in the access log.
+The page that opens the link, `/signup/confirm/<token>`, has the same headers.
+
+#### `POST /api/signup`
+
+```json
+{
+  "email": "lea@example.org",
+  "clientName": "Mariage de Léa et Hugo",
+  "note": "Mariage, 120 invités",
+  "eventDate": "2027-06-12",
+  "locale": "fr",
+  "website": ""
+}
+```
+
+`note` (300 characters at most) and `eventDate` (`YYYY-MM-DD`, from yesterday to two years ahead) are optional.
+`clientName` is the name of the space (80 characters at most, the same rules as a client's name). `locale`
+(`fr`, `en`, `de`, `es`, `it`; default `fr`) is the language of the mail. `website` is the honeypot: **required**, and
+`""` from a person (nobody sees the field). Unknown keys are refused. The body is read up to **4 KB** (`413` beyond).
+
+**202** `{ "status": "sent" }` **for every address**: a new one, one that already has an account, one with a request
+waiting, one refused in the last 30 days, one over its cap of 3 confirmations a day, and a filled honeypot (nothing
+is written then). The status, body and headers are the same, and the admission and the mail happen after the response (see
+SECURITY section 30 for what a caller can and cannot measure). The one exception is **`{ "status": "busy" }`**, which says nothing about an address: the whole box
+has already issued `SIGNUP_MAX_PER_DAY` (50) confirmation links in the last 24 hours. The first time it happens in a UTC day
+the audit log gets one `signup.dailyCeilingReached` line.
+
+**Errors** — `400 request.invalid` (a stray or missing field), `400` with the domain's code for a value that is wrong
+(`email.*`, `signup.clientName.*`, `signup.note.tooLong`, `signup.eventDate.invalid`, `signup.eventDate.outOfRange`),
+`404 feature.unavailable`, `413`, `429 rate.limited` (per hour, every request counts whatever the answer), and the
+CSRF codes like every write.
+
+#### `GET /api/signup/confirm/:token`
+
+What the mailed link is, **spending nothing** (a mail scanner opens links before the person does).
+
+**200** `{ "state": "usable" | "spent" | "expired", "maskedEmail": "l•••@gmail.com" }`. **404
+`signup.confirmationNotFound`** for a token no confirmation ever had, and for a path that is not a token at all.
+
+#### `POST /api/signup/confirm/:token`
+
+No body. Spends the link and confirms the address in one transaction.
+
+**200** `{ "next": "review" | "mail" | "held" }`, and **never a link** (the invitation exists only in the mail):
+
+- `review`: `SIGNUP=review`; the request waits for an operator, who is told (at most one mail an hour, to `SIGNUP_NOTIFY_EMAIL`);
+- `mail`: `SIGNUP=open`; the account is open and the invitation is on its way;
+- `held`: `SIGNUP=open`, but the request waits for an operator: the free disk space is under
+  `MIN_FREE_DISK_BYTES` + 5 GB × (clients with an event not yet purged or created in the last 30 days) + 5 GB, or cannot be read, or opening the
+  account failed, or the invitation mail could not leave.
+
+**404 `signup.confirmationNotFound`** for a link that is unknown, spent, revoked or expired (a second press of
+the button included), `404 feature.unavailable`, `429 rate.limited` (own bucket), and the CSRF codes.
 
 ### The second factor (roadmap §10.1, G2-13 / P3-15)
 

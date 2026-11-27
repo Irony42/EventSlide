@@ -32,6 +32,7 @@ import type {
 import type { ReactionKind } from '../../../domain/reactions/reactionKind'
 import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
 import type { WallLayout } from '../../../domain/slideshow/wallLayout'
+import type { SignupMode } from '../../../domain/signups/signupMode'
 
 /**
  * What a guest may know about an event, before and after joining.
@@ -1453,6 +1454,12 @@ export interface AboutFeaturesDto {
    * than guessing from absence.
    */
   readonly forgotPassword: boolean
+  /**
+   * Self-service signup (spec 31): `off` (the default; the routes answer `404`), `review` (the
+   * operator validates each account) or `open` (the account opens when the address is confirmed). The
+   * sign-in page offers "Create an account" unless it is `off`. Always present.
+   */
+  readonly signup: SignupMode
 }
 
 /**
@@ -2327,4 +2334,30 @@ export interface GuestHouseholdResponseDto {
 /** `GET /push/key`: the box's public VAPID key (spec 30, lot 4), what a browser subscribes with. */
 export interface PushKeyResponseDto {
   readonly publicKey: string
+}
+
+/**
+ * `POST /api/signup`'s answer (`202`; spec 31). `sent` is the same word for a new address, a known one, one with
+ * a request waiting and one over its caps: the form is never an oracle. `busy` is the one exception, and says
+ * nothing about an address: the whole box has reached its confirmations for the day.
+ */
+export interface SignupAnswerDto {
+  readonly status: 'sent' | 'busy'
+}
+
+/**
+ * What a confirmation link is, read without spending it (`GET /api/signup/confirm/:token`). `maskedEmail` is the
+ * address with most of its local part hidden (`l•••@gmail.com`).
+ */
+export interface SignupPreviewDto {
+  readonly state: 'usable' | 'spent' | 'expired'
+  readonly maskedEmail: string
+}
+
+/**
+ * What pressing "Confirm" came to (`POST /api/signup/confirm/:token`). Never a link: the invitation that lets the
+ * person choose a password exists only in the mail.
+ */
+export interface SignupConfirmedDto {
+  readonly next: 'review' | 'mail' | 'held'
 }

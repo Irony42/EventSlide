@@ -272,6 +272,18 @@ when the stream reconnects, so a dropped connection costs a few seconds, not a r
 **No e-mail.** The hosted instance sends none, so nobody is told by message that a reply arrived: the badge and the open
 page are the notice.
 
+## Signups: when an account opens and the invitation does not arrive
+
+With `SIGNUP=open` a confirmed address opens an account by itself and the invitation follows by mail. Two cases leave a visitor without a usable account,
+and both tell the visitor "your address is confirmed, the account opens as soon as possible" (`held`) and send you the usual signup notice
+(`SIGNUP_NOTIFY_EMAIL`, at most one mail an hour, no name or address in it):
+
+- **the relay refused the invitation mail**, or **the request could not be marked as done** after the account was opened. The box logs the **client id** (never the
+  address). Open the client from the operator console (Clients) and issue the owner's invitation again from the client's page; the visitor then gets the usual
+  invitation mail. A request that stays `approving` is given back to `pending` by the sweep after an hour: do not approve it again from the Signups page
+  if the client already exists, or you will open a second account for the same address.
+- **the free disk space is too low** (or cannot be read): the request waits in the Signups page like one in `review`; approve it when there is room.
+
 ## Backups
 
 Take one before the event and one the morning after. The server stays up while you do,

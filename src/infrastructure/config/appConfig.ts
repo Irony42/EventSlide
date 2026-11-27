@@ -355,8 +355,8 @@ export interface AppConfig {
   }
 
   /**
-   * Self-service signup (spec 31, ADR 0018). **Parsed and checked at boot, used by nothing yet**
-   * (the use cases and routes arrive in the next pull requests). `mode` is `off` on every box that
+   * Self-service signup (spec 31, ADR 0018): parsed and checked at boot, read by the signup use cases, the
+   * public routes (`404 feature.unavailable` while `off`) and `/api/about`. `mode` is `off` on every box that
    * never set `SIGNUP`.
    */
   readonly signup: {

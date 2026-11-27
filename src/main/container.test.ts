@@ -591,7 +591,11 @@ describe('createContainer: the source offer reaches /api/about', () => {
     const response = await request(app).get('/api/about')
 
     // No relay on this box, so no self-service reset: the flag the sign-in page reads is off.
-    expect(response.body.features).toEqual({ siteAdmin: flag, forgotPassword: false })
+    expect(response.body.features).toEqual({
+      siteAdmin: flag,
+      forgotPassword: false,
+      signup: 'off',
+    })
   })
 })
 

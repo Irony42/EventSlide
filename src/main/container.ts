@@ -86,6 +86,7 @@ import { nullMailer } from '../infrastructure/mail/nullMailer'
 import { createSmtpMailer } from '../infrastructure/mail/smtpMailer'
 import { systemClock } from '../infrastructure/time/systemClock'
 import { fsStagedUploadStore } from '../infrastructure/system/fsStagedUploadStore'
+import { SqliteSignupRepository } from '../infrastructure/db/sqliteSignupRepository'
 import { statfsDiskSpaceChecker } from '../infrastructure/system/statfsDiskSpaceChecker'
 import { voiceOutputCeilingBytes } from '../domain/guestbook/guestbookVoiceLimits'
 import { evaluateDiskSpace, type DiskSpaceStatus } from '../domain/shared/diskSpaceGuard'
@@ -590,6 +591,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // One counter for the box, so every request of a sign-in meets the same number.
     signInAttempts: createInMemorySignInAttempts({ clock: systemClock }),
     invitationAcceptance: new SqliteInvitationAcceptance(db),
+    signups: new SqliteSignupRepository(db),
+    diskSpace: statfsDiskSpaceChecker,
     // HKDF-derived from the session secret under its own label — see the adapter for why
     // that parent, and why not a new variable a running installation would lack.
     gallerySigner: createHmacGallerySigner({ rootSecret: config.secrets.session }),
@@ -632,6 +635,13 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     operatorName: config.operator.name,
     termsOfUse: config.termsOfUse,
     mfaIssuer: config.operator.name ?? 'EventSlide',
+    signup: {
+      mode: config.signup.mode,
+      maxPerDay: config.signup.maxPerDay,
+      notifyEmail: config.signup.notifyEmail,
+      minFreeDiskBytes: config.storage.minFreeDiskBytes,
+      diskPaths: diskSpacePaths,
+    },
     voice: {
       maxDurationMs: config.voice.maxDurationMs,
       maxOutputBytes: voiceOutputCeilingBytes(config.voice.maxDurationMs),
@@ -676,6 +686,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
           finalizeOffboardedClients: usecases.finalizeOffboardedClients,
           sweepPurgeNotices: usecases.sweepPurgeNotices,
           purgeExpiredRsvps: usecases.purgeExpiredRsvps,
+          sweepSignups: usecases.sweepSignups,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,
@@ -965,6 +976,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     secureCookie: config.session.secureCookie,
     e2eHooks: config.e2eHooks,
     siteAdmin: config.siteAdmin,
+    signup: { mode: config.signup.mode, rateLimitPerHour: config.signup.rateLimitPerHour },
     newClientCeilings: config.newClientCeilings,
     secondFactor: {
       available: config.mfa.encryptionKey !== null,

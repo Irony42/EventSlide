@@ -91,6 +91,7 @@ type Kind =
   | 'shareLink'
   | 'client'
   | 'accountToken'
+  | 'signupRequest'
   | 'challenge'
   | 'announcement'
   | 'channelBinding'
@@ -116,6 +117,7 @@ const PREFIX: Record<Kind, string> = {
   channelMediaJob: 'd0000000',
   guestRsvp: 'd1000000',
   guestHousehold: 'd2000000',
+  signupRequest: 'd3000000',
 }
 
 export const createSequentialIdGenerator = (): IdGenerator => {
@@ -146,6 +148,7 @@ export const createSequentialIdGenerator = (): IdGenerator => {
     shareLinkId: (): ShareLinkId => asShareLinkId(next('shareLink')),
     clientId: (): ClientId => asClientId(next('client')),
     accountTokenId: (): AccountTokenId => asAccountTokenId(next('accountToken')),
+    signupRequestId: (): string => next('signupRequest'),
     challengeId: (): ChallengeId => asChallengeId(next('challenge')),
     announcementId: (): AnnouncementId => asAnnouncementId(next('announcement')),
     channelBindingId: (): ChannelBindingId => asChannelBindingId(next('channelBinding')),

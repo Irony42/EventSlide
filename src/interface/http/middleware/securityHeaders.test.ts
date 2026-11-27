@@ -33,6 +33,10 @@ describe('microphoneOpenOn', () => {
     '/invite/some-token',
     '/password/forgot',
     '/password/reset/some-token',
+    // Self-service signup (spec 31): the form, its confirmation page and the page of a mailed link.
+    '/signup',
+    '/signup/sent',
+    '/signup/confirm/some-token',
     '/e/x/display',
     '/e/x/display/anything',
     '/api/health',

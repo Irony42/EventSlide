@@ -30,7 +30,9 @@ const ordinaryHost = () =>
 
 const operatorOnBoxWithoutConsole = () =>
   consoleApi({
-    about: vi.fn(async () => anAbout({ features: { siteAdmin: false, forgotPassword: false } })),
+    about: vi.fn(async () =>
+      anAbout({ features: { siteAdmin: false, forgotPassword: false, signup: 'off' } }),
+    ),
   })
 
 const menuButton = () => screen.findByRole('button', { name: fr.auth.accountMenu })
@@ -123,7 +125,7 @@ describe('the console’s address', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(fr.app.loading)
     expect(screen.queryByRole('heading', { name: fr.shell.notFoundTitle })).toBeNull()
 
-    answer(anAbout({ features: { siteAdmin: true, forgotPassword: false } }))
+    answer(anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }))
 
     expect(await screen.findByRole('heading', { name: fr.site.clientsTitle })).toBeVisible()
     expect(screen.queryByRole('heading', { name: fr.shell.notFoundTitle })).toBeNull()

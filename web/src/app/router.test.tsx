@@ -173,7 +173,9 @@ describe('the client space address', () => {
           authenticated: true,
           user: aSessionUser(),
         })),
-        about: vi.fn(async () => anAbout({ features: { siteAdmin, forgotPassword: false } })),
+        about: vi.fn(async () =>
+          anAbout({ features: { siteAdmin, forgotPassword: false, signup: 'off' } }),
+        ),
         myLimits: vi.fn(async () => ({ clients: [aClientLimits()] })),
       }),
     })

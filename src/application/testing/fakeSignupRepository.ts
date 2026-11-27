@@ -132,6 +132,15 @@ export class FakeSignupRepository implements SignupRepository {
     return { outcome: decision === 'create' ? 'created' : 'resent', issuedToday: issuedToday + 1 }
   }
 
+  async issuedSince(since: Date): Promise<number> {
+    return this.tokens.all.filter(
+      (held) =>
+        held.purpose === 'emailVerification' &&
+        held.userId === null &&
+        held.createdAt.getTime() > since.getTime(),
+    ).length
+  }
+
   async findById(id: string): Promise<SignupRequest | null> {
     return this.rows.get(id) ?? null
   }

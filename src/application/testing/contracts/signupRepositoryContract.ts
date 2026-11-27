@@ -218,6 +218,15 @@ export const signupRepositoryContract = (
         expect(await repo.findById(fresh.made.id)).toBeNull()
       })
 
+      it('counts what the whole box issued since an instant, signup tokens only', async () => {
+        await admit('a@example.test', T0)
+        await admit('b@example.test', at(2 * HOUR))
+
+        expect(await repo.issuedSince(at(-HOUR))).toBe(2)
+        expect(await repo.issuedSince(at(HOUR))).toBe(1)
+        expect(await repo.issuedSince(at(3 * HOUR))).toBe(0)
+      })
+
       it('counts the ceiling over the last 24 hours only', async () => {
         await admit('a@example.test', T0, 1)
 

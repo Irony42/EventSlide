@@ -155,7 +155,16 @@ export interface AboutFeatures {
    * that must not offer a link to a page that cannot work.
    */
   readonly forgotPassword: boolean
+  /**
+   * `SIGNUP` (spec 31): whether a visitor can ask for an account themselves. `off` hides every
+   * signup surface; `review` and `open` offer the form (the operator validates each account in
+   * the first, the account opens by itself in the second). Read as `off` for a server that does
+   * not say, which is the one that must not offer a link to a page that cannot work.
+   */
+  readonly signup: SignupMode
 }
+/** The three values of `SIGNUP`, as `GET /api/about` words them. */
+export type SignupMode = 'off' | 'review' | 'open'
 /**
  * The operator's optional links, each present only when the operator set it (roadmap
  * G4-02). Mirrors `AboutLinksDto` on the server. A donation buys no counterpart, so
