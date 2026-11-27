@@ -853,10 +853,7 @@ describe('the warning before the replies are erased rides the follow-up (spec 32
 
     await sweeper.runOnce()
 
-    const line = lines.find(
-      (entry) =>
-        entry.message === 'retention sweep warned the owners about guest replies to be erased',
-    )
+    const line = lines.find((entry) => entry.message === 'retention sweep sent replies notices')
     expect(line?.context).toMatchObject({ events: 1, levels: 'evt-1:7', sent: 2, unsent: 1 })
   })
 
@@ -864,7 +861,7 @@ describe('the warning before the replies are erased rides the follow-up (spec 32
     const { sweeper, lines } = build()
     await sweeper.runOnce()
     expect(lines.map((entry) => entry.message)).not.toContain(
-      'retention sweep warned the owners about guest replies to be erased',
+      'retention sweep sent replies notices',
     )
   })
 

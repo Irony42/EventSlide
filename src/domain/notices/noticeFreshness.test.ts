@@ -10,9 +10,9 @@ describe('isFresh', () => {
   it.each([
     ['rsvpErasure', 0],
     ['rsvpDeadline', 0],
-    ['rsvpFull', 0],
     ['windowEnding', 0],
     ['rsvpStopped', 24 * HOUR],
+    ['rsvpFull', 24 * HOUR],
     ['jobDone', 24 * HOUR],
     ['eventClosed', 48 * HOUR],
   ] as const)('%s is fresh until %i ms after its trigger, and not at that instant', (kind, ms) => {

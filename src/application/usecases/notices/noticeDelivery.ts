@@ -77,14 +77,14 @@ export const deliverNotice = async (
   }
 
   const day = budgetDayOf(now)
-  if (family === null) {
-    await budget.count(day, recipients.length)
-  } else if (!(await budget.take(day, recipients.length))) {
-    return none('budget')
-  }
+  // A family notice takes its places before the note, and a sweep that then loses the race has counted them for nothing: an
+  // over-count of at most one notice's recipients, accepted (it only ever holds follow-up mails back a little sooner).
+  if (family !== null && !(await budget.take(day, recipients.length))) return none('budget')
 
   // Noted first, whatever follows (and whoever else is sweeping).
   if (!(await notices.note(eventId, kind, key, now))) return none('lost')
+  // A notice with no family is counted only once it is really this sweep's to send.
+  if (family === null) await budget.count(day, recipients.length)
 
   let sent = 0
   let unsent = 0

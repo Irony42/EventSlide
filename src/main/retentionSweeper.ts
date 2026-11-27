@@ -125,7 +125,7 @@ export const makeRetentionFollowUp = ({
     try {
       const report = await sweepRsvpNotices()
       if (report.noticed.length > 0) {
-        logger.info('retention sweep warned the owners about guest replies to be erased', {
+        logger.info('retention sweep sent replies notices', {
           events: report.noticed.length,
           levels: report.noticed
             .map(({ eventId, kind, level }) => `${eventId}:${level ?? kind}`)

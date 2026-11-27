@@ -40,6 +40,9 @@ import { makeHostAddRsvp } from '../../../application/usecases/guestRsvps/hostAd
 import { makeHostDeleteRsvp } from '../../../application/usecases/guestRsvps/hostDeleteRsvp'
 import { makeHostUpdateRsvp } from '../../../application/usecases/guestRsvps/hostUpdateRsvp'
 import { makeListRsvps } from '../../../application/usecases/guestRsvps/listRsvps'
+import { CSRF_HEADER } from '../middleware/csrf'
+import { buildServerHarness } from '../testing/serverHarness'
+import { signedInAs, signInByAddress } from '../testing/signIn'
 import { makeSetRsvpDigest } from '../../../application/usecases/guestRsvps/setRsvpDigest'
 import { FakeMailPreferenceRepository } from '../../../application/testing/fakeMailPreferenceRepository'
 import { makeMarkRsvpsSeen } from '../../../application/usecases/guestRsvps/markRsvpsSeen'
@@ -1199,5 +1202,56 @@ describe('the moments of the party: the form and the households (lot 4)', () => 
         maybe: { responses: 1, people: 1 },
       },
     ])
+  })
+})
+
+describe('PUT /api/events/:eventSlug/rsvp-digest through the assembled server (CSRF)', () => {
+  const subject = () => {
+    const calls: boolean[] = []
+    const server = buildServerHarness({
+      usecases: {
+        authenticateUser: signInByAddress({ 'hote@example.test': OWNER }),
+        setRsvpDigest: async ({ on }) => {
+          calls.push(on)
+          return { ok: true, value: undefined }
+        },
+      },
+    })
+    server.users.seed(aUser({ id: OWNER, email: 'hote@example.test' }))
+    server.events.seed(anEvent({ id: WEDDING, ownerId: OWNER, slug: SLUG, joinCode: 'H7K2QM' }))
+    server.memberships.seed({
+      eventId: WEDDING,
+      userId: asUserId(OWNER),
+      role: 'owner',
+      grantedAt: AT,
+    })
+    return { server, calls }
+  }
+
+  it('is refused 403 without the CSRF token, and with a wrong one, and reaches no use case', async () => {
+    const { server, calls } = subject()
+    const caller = await signedInAs(server.app, 'hote@example.test')
+
+    const without = await caller.agent.put(`${BASE}/rsvp-digest`).send({ on: true })
+    const wrong = await caller.agent
+      .put(`${BASE}/rsvp-digest`)
+      .set(CSRF_HEADER, 'not-the-token')
+      .send({ on: true })
+
+    expect([without.status, wrong.status]).toEqual([403, 403])
+    expect(calls).toEqual([])
+  })
+
+  it('is accepted with the token the sign-in issued', async () => {
+    const { server, calls } = subject()
+    const caller = await signedInAs(server.app, 'hote@example.test')
+
+    const response = await caller.agent
+      .put(`${BASE}/rsvp-digest`)
+      .set(CSRF_HEADER, caller.csrf)
+      .send({ on: true })
+
+    expect(response.status).toBe(204)
+    expect(calls).toEqual([true])
   })
 })

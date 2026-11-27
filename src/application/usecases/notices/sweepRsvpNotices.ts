@@ -28,6 +28,7 @@ import {
 import { localDayOf } from '../../../domain/shared/localDay'
 import type { EventId } from '../../../domain/shared/ids'
 import { addDays } from '../../../domain/shared/time'
+import type { GuestRsvp } from '../../../domain/guestRsvps/rsvp'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventMailNoticeLedger } from '../../ports/eventMailNoticeLedger'
@@ -134,6 +135,16 @@ const NOTHING: SweepRsvpNoticesReport = {
   failed: [],
 }
 
+/** The instant the house filled: the latest change among the replies of those who come. */
+const filledAt = (replies: readonly GuestRsvp[]): Date =>
+  new Date(
+    Math.max(
+      ...replies
+        .filter((reply) => reply.answer === 'yes')
+        .map((reply) => reply.updatedAt.getTime()),
+    ),
+  )
+
 export const makeSweepRsvpNotices = (deps: SweepRsvpNoticesDeps): SweepRsvpNotices => {
   const { events, clients, invites, rsvps, households, memberships, notices } = deps
   const { mailer, clock, logger, capNoticeDays, publicUrl, hostMailNotices } = deps
@@ -185,7 +196,7 @@ export const makeSweepRsvpNotices = (deps: SweepRsvpNoticesDeps): SweepRsvpNotic
       const byDeadline = hostMailNotices
         ? await invites.eventsWithRsvpDeadlineBetween(fromDay, toDay)
         : []
-      const byCapacity = hostMailNotices ? await invites.eventsWithRsvpCapacity() : []
+      const byCapacity = hostMailNotices ? await invites.eventsWithRsvpCapacity(now) : []
       candidates = [...new Set([...byRetention, ...byPurge, ...byDeadline, ...byCapacity])]
     } catch (error) {
       logger.error('replies notices could not list the events', {
@@ -251,8 +262,11 @@ export const makeSweepRsvpNotices = (deps: SweepRsvpNoticesDeps): SweepRsvpNotic
         const settings = await invites.findRsvpSettings(eventId)
         const schedule = invite === null ? null : scheduleOf(invite)
         if (invite === null || settings === null || schedule === null) continue
+        // Replies not asked, an invitation not served or a party over: nothing of the calendar applies, and no figure is computed.
+        if (rsvpStateOf(settings, invite, event, now, { yesPeople: 0 }) === 'off') continue
+        const replyList = await rsvps.listByEvent(eventId)
         const stats = statsOf(
-          await rsvps.listByEvent(eventId),
+          replyList,
           await households.listByEvent(eventId),
           settings.form.moments,
         )
@@ -319,7 +333,9 @@ export const makeSweepRsvpNotices = (deps: SweepRsvpNoticesDeps): SweepRsvpNotic
             key: fullKey,
             family: 'rsvp',
             owners: await owners(),
-            fresh: isFresh('rsvpFull', rsvpClosesAt(settings, schedule), now),
+            // The moment it filled is the latest reply of those who come: a house that has been full for weeks is not news (the first pass
+            // after an update would otherwise mail every one of them), and a capacity raised then filled again is.
+            fresh: isFresh('rsvpFull', filledAt(replyList), now),
             quiet,
             now,
             build: (to) =>

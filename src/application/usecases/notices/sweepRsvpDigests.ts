@@ -121,6 +121,8 @@ export const makeSweepRsvpDigests =
       try {
         const event = await events.findById(eventId)
         if (event === null || event.isTakenDown() || event.isClientSuspended()) continue
+        // An archived event has nothing left to do in the console: no follow-up mail (spec 32, section 3).
+        if (event.status === 'archived') continue
         const client = event.clientId === null ? null : await clients.findById(event.clientId)
         if (client?.isOffboarding() === true) continue
 

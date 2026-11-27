@@ -710,6 +710,34 @@ describe('the guest list, coming from the reminder e-mail (spec 32, R3)', () => 
     expect(pending).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('writes the tab back to the address and reads it again: the tabs and the link are one thing', async () => {
+    const api = listing([martin, elodie, durand])
+    renderWithProviders(<HouseholdsPage />, {
+      api,
+      route: '/admin/events/camille-et-sacha/rsvps/guests',
+      path: '/admin/events/:slug/rsvps/guests',
+    })
+    const user = userEvent.setup()
+
+    await user.click(
+      await screen.findByRole('button', { name: new RegExp(`^${text.filterAnswered}`) }),
+    )
+    expect(
+      screen.getByRole('button', { name: new RegExp(`^${text.filterAnswered}`) }),
+    ).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(screen.getByRole('button', { name: new RegExp(`^${text.filterPending}`) }))
+    expect(
+      screen.getByRole('button', { name: new RegExp(`^${text.filterPending}`) }),
+    ).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(screen.getByRole('button', { name: new RegExp(`^${text.filterAll}`) }))
+    expect(screen.getByRole('button', { name: new RegExp(`^${text.filterAll}`) })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  })
+
   it('ignores a filter it does not know', async () => {
     const api = listing([martin, elodie, durand])
     renderWithProviders(<HouseholdsPage />, {

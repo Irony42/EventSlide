@@ -122,6 +122,7 @@ const build = async (
         details: { meals: ['Poisson', 'Texte libre de Léa'], companions: ['Hugo'] },
         adults: options.people ?? 2,
         kids: 0,
+        updatedAt: new Date((options.now ?? NOON_3RD).getTime() - 3_600_000),
       }),
     )
   }
@@ -338,6 +339,28 @@ describe('R5, the full house', () => {
     expect(world.mailer.sent).toHaveLength(2)
   })
 
+  it('does not mail a house that has been full for weeks: the first pass after an update notes it without a mail', async () => {
+    const world = await build({ settings: full(10), households: 3, answered: 3, people: 4 })
+    for (let i = 0; i < 3; i += 1) {
+      world.rsvps.seed(
+        aRsvp({
+          id: `r-${i}`,
+          eventId: WEDDING,
+          householdId: `h-${i}`,
+          adults: 4,
+          kids: 0,
+          updatedAt: new Date('2026-11-10T10:00:00.000Z'),
+        }),
+      )
+    }
+
+    const report = await world.sweep()
+
+    expect(report).toMatchObject({ noticed: [], sent: 0, stale: 1 })
+    expect(world.ledger.noted).toEqual([{ eventId: WEDDING, kind: 'rsvpFull', key: 'full@10' }])
+    expect((await world.sweep()).stale).toBe(0)
+  })
+
   it('owes nothing below the capacity', async () => {
     const world = await build({ settings: full(10), households: 3, answered: 2, people: 4 })
 
@@ -360,6 +383,7 @@ describe('R5, the full house', () => {
         adults: 4,
         kids: 0,
         name: 'Autre',
+        updatedAt: world.clock.now(),
       }),
     )
     const again = await world.sweep()
@@ -367,5 +391,92 @@ describe('R5, the full house', () => {
     expect(again.noticed).toEqual([{ eventId: WEDDING, kind: 'rsvpFull' }])
     expect(world.mailer.sent.length).toBeGreaterThan(first)
     expect(world.mailer.sent.at(-1)?.text).toContain('Les 15 places sont prises')
+  })
+})
+
+describe('the calendar notices, in the cases that go wrong', () => {
+  const full = (capacity: number) =>
+    settings({ deadline: null, form: { ...DEFAULT_RSVP_FORM, capacity } })
+
+  it('sends nothing for R3, R4 and R5 when another sweep noted the notice first: the lost note', async () => {
+    const lost = { note: async () => false, has: async () => false }
+    const r3 = await build({ households: 3, answered: 1 })
+    expect(await makeSweepRsvpNotices({ ...r3.deps, notices: lost })()).toMatchObject({
+      noticed: [],
+      sent: 0,
+    })
+    const r4 = await build({
+      now: new Date('2026-12-06T09:00:00.000Z'),
+      households: 3,
+      answered: 2,
+    })
+    expect(await makeSweepRsvpNotices({ ...r4.deps, notices: lost })()).toMatchObject({
+      noticed: [],
+      sent: 0,
+    })
+    const r5 = await build({ settings: full(10), households: 3, answered: 3, people: 4 })
+    expect(await makeSweepRsvpNotices({ ...r5.deps, notices: lost })()).toMatchObject({
+      noticed: [],
+      sent: 0,
+    })
+    expect([r3, r4, r5].flatMap((world) => world.mailer.sent)).toEqual([])
+  })
+
+  it.each([
+    ['R4', { now: '06:00', day: '2026-12-06' }],
+    ['R5', { now: '06:00', day: '2026-12-03' }],
+  ])(
+    'keeps %s at night in the zone of the invitation and sends it from 08:00 local, not at 21:00',
+    async (name, at) => {
+      const options = (hour: string) => ({
+        now: new Date(`${at.day}T${hour}:00.000Z`),
+        households: 3,
+        answered: 3,
+        people: 4,
+        ...(name === 'R5' ? { settings: full(10) } : {}),
+      })
+      // Paris is UTC+1: 06:59Z is 07:59 local (night), 07:00Z is 08:00 local, 19:59Z is 20:59 local, 20:00Z is 21:00 local (night).
+      expect((await (await build(options('06:59'))).sweep()).noticed).toEqual([])
+      expect((await (await build(options('07:00'))).sweep()).noticed).toHaveLength(1)
+      expect((await (await build(options('19:59'))).sweep()).noticed).toHaveLength(1)
+      expect((await (await build(options('20:00'))).sweep()).noticed).toEqual([])
+    },
+  )
+
+  it('writes R4 and R5 only to the owners who kept the replies family on', async () => {
+    const stopped = await build({
+      now: new Date('2026-12-06T09:00:00.000Z'),
+      households: 3,
+      answered: 2,
+    })
+    await stopped.preferences.save(CO_HOST, { rsvp: false })
+    await stopped.sweep()
+    expect(stopped.mailer.sent.map((mail) => mail.to)).toEqual(['hote@example.test'])
+
+    const filled = await build({ settings: full(10), households: 3, answered: 3, people: 4 })
+    await filled.preferences.save(HOST, { rsvp: false })
+    await filled.sweep()
+    expect(filled.mailer.sent.map((mail) => mail.to)).toEqual(['cohote@example.test'])
+  })
+
+  it('computes no figure for an event whose replies are off: nothing of the calendar applies', async () => {
+    const world = await build({
+      settings: settings({ enabled: false }),
+      households: 3,
+      answered: 1,
+    })
+    let listed = 0
+    const counted = Object.assign(Object.create(world.rsvps) as FakeGuestRsvpRepository, {
+      // Listed for the erasure warning, so the sweep does reach the event.
+      eventsWithRepliesExpiringBefore: async () => [WEDDING],
+      listByEvent: async () => {
+        listed += 1
+        return []
+      },
+    })
+
+    await makeSweepRsvpNotices({ ...world.deps, rsvps: counted })()
+
+    expect(listed).toBe(0)
   })
 })

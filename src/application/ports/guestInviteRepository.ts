@@ -66,9 +66,10 @@ export interface GuestInviteRepository {
 
   /**
    * The events whose replies are asked and not closed by hand, and whose form limits the places: the candidates of the
-   * "full" notice (R5), which compares the people who come with the capacity. One bounded read.
+   * "full" notice (R5), which compares the people who come with the capacity, **and whose party has not started** (`startingAfter`: an
+   * invitation with no start is left out, a party gone by has nothing to fill). One bounded read.
    */
-  eventsWithRsvpCapacity(): Promise<readonly EventId[]>
+  eventsWithRsvpCapacity(startingAfter: Date): Promise<readonly EventId[]>
 
   /** Closes the replies at `closedAt`, or reopens them with `null`. Nothing else is touched. No row is a no-op. */
   setRsvpClosedAt(eventId: EventId, closedAt: Date | null): Promise<void>

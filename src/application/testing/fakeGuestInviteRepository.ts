@@ -91,12 +91,20 @@ export class FakeGuestInviteRepository implements GuestInviteRepository {
       .sort() as EventId[]
   }
 
-  async eventsWithRsvpCapacity(): Promise<readonly EventId[]> {
-    return [...this.rows.keys()]
-      .filter((id) => {
+  async eventsWithRsvpCapacity(startingAfter: Date): Promise<readonly EventId[]> {
+    return [...this.rows.entries()]
+      .filter(([id, invite]) => {
         const settings = this.rsvp.get(id) ?? DEFAULT_RSVP_SETTINGS
-        return settings.enabled && settings.closedAt === null && settings.form.capacity !== null
+        const startsAt = invite.content.startsAt
+        return (
+          settings.enabled &&
+          settings.closedAt === null &&
+          settings.form.capacity !== null &&
+          startsAt !== null &&
+          startsAt.getTime() > startingAfter.getTime()
+        )
       })
+      .map(([id]) => id)
       .sort() as EventId[]
   }
 

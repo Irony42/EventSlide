@@ -198,6 +198,44 @@ describe('sweepRsvpDigests', () => {
     expect(`${mail?.subject}\n${mail?.text}`).not.toMatch(/Léa|Martin|gluten|Merci/)
   })
 
+  it('says nothing of a guest, whatever the reply holds: companions, a menu of their own, an answer, a word', async () => {
+    const world = await build()
+    world.rsvps.seed(
+      aRsvp({
+        id: 'r-rich',
+        eventId: WEDDING,
+        name: 'Zoé Dupont',
+        updatedAt: EVENING,
+        details: {
+          companions: ['Hugo Dupont'],
+          meals: ['Mon menu à moi'],
+          answers: [{ questionId: 'q1', label: 'Allergie', value: 'cacahuètes' }],
+        },
+        message: 'Ne dites rien à Léa',
+      }),
+    )
+
+    await world.sweep()
+
+    const text = world.mailer.sent.map((mail) => mail.subject + ' ' + mail.text).join(' ')
+    expect(text).not.toMatch(/Zoé|Dupont|Hugo|Mon menu|cacahuètes|Léa|Désolés|Allergie/)
+  })
+
+  it('writes nothing about an archived event: no follow-up mail', async () => {
+    const world = await build()
+    world.events.seed(
+      anEvent({
+        id: WEDDING,
+        slug: 'camille-et-sacha',
+        joinCode: 'H7K2QM',
+        name: 'Camille et Sacha',
+        status: 'archived',
+      }),
+    )
+
+    expect(await world.sweep()).toMatchObject({ claimed: 0, sent: 0 })
+  })
+
   it('writes to nobody who did not tick it, nor when the host already looked after the change', async () => {
     const none = await build({ ticked: [] })
     expect(await none.sweep()).toMatchObject({ claimed: 0 })

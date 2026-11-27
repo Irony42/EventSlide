@@ -46,6 +46,12 @@ import styles from './HouseholdsPage.module.css'
  *
  * Surface: the host, **the owner only**. Keyed by the event, so a move between two events starts afresh.
  */
+const filterOfParam = (param: string | null): HouseholdFilter =>
+  param === 'unanswered' ? 'pending' : param === 'answered' ? 'answered' : 'all'
+
+const paramOfFilter = (name: HouseholdFilter): string | null =>
+  name === 'pending' ? 'unanswered' : name === 'answered' ? 'answered' : null
+
 export function HouseholdsPage() {
   const { slug = '' } = useParams<{ slug: string }>()
   return <EventHouseholds key={slug} slug={slug} />
@@ -119,11 +125,21 @@ function OwnerHouseholds({
   const loadSettings = useCallback((signal: AbortSignal) => api.rsvpForm(slug, signal), [api, slug])
   const settings = useLoader(loadSettings).data?.rsvpForm ?? null
 
-  // "Voir les foyers sans réponse" of the reminder e-mail (spec 32, R3) leads here with `?filter=unanswered`: that tab opens.
-  const [search] = useSearchParams()
-  const [filter, setFilter] = useState<HouseholdFilter>(
-    search.get('filter') === 'unanswered' ? 'pending' : 'all',
-  )
+  // The tab lives in the address (spec 32, R3): the reminder e-mail leads here with `?filter=unanswered`, the tabs write it back, and
+  // the back button and a shared link read it.
+  const [search, setSearch] = useSearchParams()
+  const filter = filterOfParam(search.get('filter'))
+  const setFilter = (name: HouseholdFilter) =>
+    setSearch(
+      (current) => {
+        const next = new URLSearchParams(current)
+        const param = paramOfFilter(name)
+        if (param === null) next.delete('filter')
+        else next.set('filter', param)
+        return next
+      },
+      { replace: true },
+    )
   const [query, setQuery] = useState('')
   const [dialog, setDialog] = useState<Dialogs>({ kind: 'none' })
   const [problem, setProblem] = useState<string | null>(null)

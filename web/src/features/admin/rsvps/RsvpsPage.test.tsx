@@ -1136,6 +1136,7 @@ describe('the daily summary by e-mail (spec 32, R2)', () => {
     const user = userEvent.setup()
 
     const box = await screen.findByRole('checkbox', { name: boxName })
+    await waitFor(() => expect(box).toBeEnabled())
     expect(box).not.toBeChecked()
     await user.click(box)
 
@@ -1149,6 +1150,7 @@ describe('the daily summary by e-mail (spec 32, R2)', () => {
     const user = userEvent.setup()
 
     const box = await screen.findByRole('checkbox', { name: boxName })
+    await waitFor(() => expect(box).toBeEnabled())
     expect(box).toBeChecked()
     await user.click(box)
 
@@ -1173,9 +1175,49 @@ describe('the daily summary by e-mail (spec 32, R2)', () => {
     const user = userEvent.setup()
 
     const box = await screen.findByRole('checkbox', { name: boxName })
+    await waitFor(() => expect(box).toBeEnabled())
     await user.click(box)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(digest.failed)
     expect(box).not.toBeChecked()
+  })
+
+  it('is not switchable until the account answered, then is', async () => {
+    let answer: (value: { rsvp: boolean; event: boolean; available: boolean }) => void = () => {}
+    const waiting = new Promise<{ rsvp: boolean; event: boolean; available: boolean }>(
+      (resolve) => {
+        answer = resolve
+      },
+    )
+    renderWith({ mailPreferences: vi.fn(() => waiting) })
+
+    const box = await screen.findByRole('checkbox', { name: boxName })
+    expect(box).toBeDisabled()
+
+    answer({ rsvp: true, event: true, available: true })
+    await waitFor(() => expect(box).toBeEnabled())
+  })
+
+  it('ignores a second press while it saves, and stays enabled so the focus is kept', async () => {
+    let finish: () => void = () => {}
+    const setRsvpDigest = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        }),
+    )
+    renderWith({ setRsvpDigest })
+    const user = userEvent.setup()
+    const box = await screen.findByRole('checkbox', { name: boxName })
+    await waitFor(() => expect(box).toBeEnabled())
+
+    await user.click(box)
+    await user.click(box)
+
+    expect(setRsvpDigest).toHaveBeenCalledTimes(1)
+    expect(box).toBeEnabled()
+    expect(box.closest('[aria-busy="true"]')).not.toBeNull()
+    finish()
+    await waitFor(() => expect(box.closest('[aria-busy="true"]')).toBeNull())
   })
 })

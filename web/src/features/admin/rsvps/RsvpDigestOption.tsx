@@ -13,8 +13,11 @@ import styles from './RsvpsPage.module.css'
  * - **Only on a box that writes to its hosts** (`features.hostMail`, which the page reads before it renders this): a box with no
  *   relay, or with `HOST_MAIL_NOTICES=off`, shows nothing.
  * - **The account's own switch beats the box**: with the replies e-mails turned off in "Sécurité et e-mails" the checkbox is
- *   greyed and says so, because the summary would not leave whatever is ticked here.
- * - It saves at once, for this event and this account only, and tells when it could not.
+ *   greyed and says so, because the summary would not leave whatever is ticked here. **Until the account's answer is known the
+ *   box is not switchable**: a box that turns live is better than one that turns grey under the finger.
+ * - It saves at once, for this event and this account only, and tells when it could not. While it saves the box stays enabled (a
+ *   disabled box would drop the keyboard focus) and says it is busy; a second press meanwhile is ignored.
+ * - It follows the page: what the page reads again (another tab, the same owner elsewhere) replaces what is shown.
  */
 export function RsvpDigestOption({
   slug,
@@ -29,13 +32,20 @@ export function RsvpDigestOption({
   const [on, setOn] = useState(initial)
   const [working, setWorking] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  // What the page reads again replaces what is shown (set during render, which is how a prop is followed without an effect).
+  const [seen, setSeen] = useState(initial)
+  if (seen !== initial) {
+    setSeen(initial)
+    setOn(initial)
+  }
 
   const loadPreferences = useCallback((signal: AbortSignal) => api.mailPreferences(signal), [api])
-  // Until the account's answer is known the box is not offered as switchable: a greyed box that turns live is better than
-  // a live one that turns grey.
-  const accountOff = useLoader(loadPreferences).data?.rsvp === false
+  const preferences = useLoader(loadPreferences).data
+  const known = preferences !== null
+  const accountOff = preferences?.rsvp === false
 
   const change = async (next: boolean) => {
+    if (working) return
     setWorking(true)
     setProblem(null)
     try {
@@ -49,12 +59,12 @@ export function RsvpDigestOption({
   }
 
   return (
-    <div className={styles['push']}>
+    <div className={styles['push']} aria-busy={working}>
       <CheckboxField
         label={t.label}
         hint={accountOff ? t.offByAccount : t.hint}
         checked={on}
-        disabled={accountOff || working}
+        disabled={!known || accountOff}
         onChange={(next) => void change(next)}
       />
       {problem === null ? null : (
