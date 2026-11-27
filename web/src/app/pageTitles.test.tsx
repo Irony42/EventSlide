@@ -76,6 +76,9 @@ const HOST_WITHOUT_SESSION: readonly (readonly [string, Key])[] = [
   [`/invite/${TOKEN}`, 'invitation'],
   ['/password/forgot', 'forgotPassword'],
   [`/password/reset/${TOKEN}`, 'resetPassword'],
+  ['/signup', 'signup'],
+  ['/signup/sent', 'signupSent'],
+  [`/signup/confirm/${TOKEN}`, 'signupConfirm'],
   ['/admin/evenements', 'notFound'],
 ]
 

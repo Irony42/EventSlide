@@ -2233,6 +2233,50 @@ export const it: UiText = {
     insecure: 'Questo indirizzo non è sicuro: i suoi ospiti non potranno registrare',
   },
 
+  /* ---- Added by spec 31: signing up for an account by oneself. ---- */
+  signup: {
+    title: 'Creare un account',
+    intro: 'Un indirizzo, il nome del suo spazio, e un link di conferma la aspetta nella posta.',
+    clientName: 'Nome del suo spazio',
+    clientNameHint:
+      'Per esempio «Matrimonio di Léa e Hugo» o «Associazione Piedi Agili». Al massimo 80 caratteri.',
+    clientNameMissing: 'Dia un nome al suo spazio.',
+    note: 'Per quale occasione?',
+    noteHint:
+      'Due parole sul suo evento. Al massimo 300 caratteri. Non indichi nulla di sensibile (salute, religione…): questo testo serve solo ad aprire il suo account.',
+    eventDate: 'Data dell’evento',
+    eventDateOutOfRange: 'Indichi una data tra ieri e tra due anni.',
+    submit: 'Creare il mio account',
+    notice:
+      'Il suo indirizzo serve solo a scriverle per questo account. La richiesta viene cancellata appena conclusa, e al più tardi 60 giorni dopo l’invio.',
+    unavailable: 'La registrazione non è aperta su questo server.',
+    haveAccount: 'Ha già un account?',
+    loginPrompt: 'Non ha ancora un account?',
+    loginLink: 'Creare un account',
+    sentTitle: 'Controlli la posta',
+    sent: 'Un link per confermare il suo indirizzo la aspetta (valido 24 ore). Non è arrivato niente? Controlli la posta indesiderata.',
+    busyTitle: 'Molte richieste oggi',
+    busy: 'Molte richieste oggi, torni domani.',
+    confirmTitle: 'Confermare il suo indirizzo',
+    confirmIntro: (email: string) =>
+      `Si registra con ${email}. Prema il pulsante per confermare questo indirizzo.`,
+    confirmSubmit: 'Confermare il mio indirizzo',
+    reviewTitle: 'Indirizzo confermato',
+    reviewDone:
+      'Grazie, il suo indirizzo è confermato. Convalido ogni account a mano, di solito entro la giornata. Riceverà un’e-mail con il link per scegliere la password.',
+    mailTitle: 'Il suo account è aperto',
+    mailDone:
+      'Il suo account è aperto: il link per scegliere la password sta arrivando nella sua posta.',
+    pendingTitle: 'Indirizzo confermato',
+    pendingDone:
+      'Il suo indirizzo è confermato. Apro il suo account appena possibile e riceverà un’e-mail.',
+    spentTitle: 'Questo link è già stato usato',
+    spent:
+      'Il suo indirizzo è quindi già confermato: riceverà un’e-mail appena il suo account sarà pronto.',
+    expiredTitle: 'Questo link è scaduto',
+    expired: 'Un link di conferma vale 24 ore. Ricominci la registrazione per riceverne uno nuovo.',
+    restart: 'Ricominciare la registrazione',
+  },
   auth: {
     title: 'Accesso',
     email: 'Indirizzo e-mail',
@@ -3843,7 +3887,7 @@ export const it: UiText = {
       notifyAppHint: 'Il numero di nuove risposte, sulla voce «Risposte» del menu dell’evento.',
       notifyLive: 'Tabella in diretta',
       notifyLiveHint: 'Finché è aperta, si aggiorna da sola a ogni risposta.',
-      notifyNoEmail: 'Niente e-mail: l’istanza ospitata non invia e-mail.',
+      notifyNoEmail: 'L’istanza non invia e-mail agli invitati.',
       catererTitle: 'Catering',
       catererHint: 'Cosa dirgli: chi viene, senza i «forse».',
       catererAdults: 'Adulti',
@@ -4122,6 +4166,9 @@ export const it: UiText = {
     login: 'Accesso',
     forgotPassword: 'Password dimenticata',
     resetPassword: 'Nuova password',
+    signup: 'Creare un account',
+    signupSent: 'Registrazione inviata',
+    signupConfirm: 'Confermare il suo indirizzo',
     invitation: 'Invito',
     changePassword: 'Cambio della password',
     security: 'Sicurezza dell’account',
