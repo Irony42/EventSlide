@@ -294,6 +294,47 @@ export const membershipRepositoryContract = (
       expect(await repo.countByRole(WEDDING, 'owner')).toBe(0)
     })
 
+    // ---------------------------------------------------------- ownersToNotify --
+
+    it('lists the owners of the event a notice may be written to, and no moderator', async () => {
+      await repo.grant(membership(WEDDING, HOST, 'owner'))
+      await repo.grant(membership(WEDDING, MOD, 'moderator'))
+
+      expect((await repo.ownersToNotify(WEDDING)).map((owner) => owner.userId)).toEqual([HOST])
+    })
+
+    it('leaves out an owner whose account is disabled, which listForEvent does not, and brings it back on enabling', async () => {
+      await repo.grant(membership(WEDDING, HOST, 'owner', AT))
+      await repo.grant(membership(WEDDING, MOD, 'owner', atPlus(1000)))
+
+      await setDisabled(HOST, AT)
+
+      expect((await repo.ownersToNotify(WEDDING)).map((owner) => owner.userId)).toEqual([MOD])
+      expect((await repo.listForEvent(WEDDING)).map((member) => member.userId)).toContain(HOST)
+
+      await setDisabled(HOST, null)
+      expect((await repo.ownersToNotify(WEDDING)).map((owner) => owner.userId)).toEqual([HOST, MOD])
+    })
+
+    it('lists the owners of the event in the URL only', async () => {
+      await repo.grant(membership(GALA, HOST, 'owner'))
+
+      expect(await repo.ownersToNotify(WEDDING)).toEqual([])
+    })
+
+    it('has both switches on and no digest for an owner who never touched them', async () => {
+      await repo.grant(membership(WEDDING, HOST, 'owner'))
+
+      expect(await repo.ownersToNotify(WEDDING)).toEqual([
+        expect.objectContaining({
+          userId: HOST,
+          mail: { rsvp: true, event: true },
+          rsvpDigest: false,
+          rsvpDigestAt: null,
+        }),
+      ])
+    })
+
     // ---------------------------------------------------------------- revoke --
 
     it('revokes a membership', async () => {

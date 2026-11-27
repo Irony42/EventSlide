@@ -290,6 +290,7 @@ describe('the real schema', () => {
       'event_challenges',
       'event_export_requests',
       'event_exports',
+      'event_mail_notices',
       'event_memberships',
       'event_missions',
       'event_purge_notices',
@@ -302,6 +303,7 @@ describe('the real schema', () => {
       'guestbook_voices',
       'guests',
       'highlight_reels',
+      'mail_daily_counts',
       'photos',
       'push_subscriptions',
       'reactions',
@@ -4793,6 +4795,109 @@ describe('migration 040: a household-named reply is never shown (spec 30, lot 3)
       { id: 'r-martin', shown: 0, companion: 'Zoé', updated_at: LATER },
       { id: 'r-open', shown: 1, companion: 'Zoé', updated_at: LATER },
     ])
+    closeDatabase(db)
+  })
+})
+
+describe('migration 042: mail to the host (spec 32)', () => {
+  const AT = '2026-11-27T10:00:00.000Z'
+  const migrated = (): Db => {
+    const db = freshDb()
+    migrate(db, migrations)
+    return db
+  }
+  const seed = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ('u-one', 'a@example.test', 'x', ?)`,
+    ).run(AT)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+       VALUES ('e-one', 'u-one', 'e-one', 'e-one', 'e-one', 'live', '{}', 1, ?)`,
+    ).run(AT)
+  }
+  const note = (db: Db, kind: string, key: string): void => {
+    db.prepare(
+      `INSERT INTO event_mail_notices (event_id, kind, key, sent_at) VALUES ('e-one', ?, ?, ?)`,
+    ).run(kind, key, AT)
+  }
+
+  it('gives an account both switches on, and a membership no digest, as an account before it had', () => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 42),
+    )
+    seed(db)
+    db.prepare(
+      `INSERT INTO event_memberships (event_id, user_id, role, granted_at) VALUES ('e-one', 'u-one', 'owner', ?)`,
+    ).run(AT)
+
+    migrate(db, migrations)
+
+    expect(db.prepare(`SELECT mail_rsvp, mail_event FROM users`).get()).toEqual({
+      mail_rsvp: 1,
+      mail_event: 1,
+    })
+    expect(db.prepare(`SELECT rsvp_digest, rsvp_digest_at FROM event_memberships`).get()).toEqual({
+      rsvp_digest: 0,
+      rsvp_digest_at: null,
+    })
+    closeDatabase(db)
+  })
+
+  it('refuses a switch that is not 0 or 1', () => {
+    const db = migrated()
+    seed(db)
+    db.prepare(
+      `INSERT INTO event_memberships (event_id, user_id, role, granted_at) VALUES ('e-one', 'u-one', 'owner', ?)`,
+    ).run(AT)
+
+    expect(() => db.prepare(`UPDATE users SET mail_rsvp = 2`).run()).toThrow(/CHECK/)
+    expect(() => db.prepare(`UPDATE users SET mail_event = -1`).run()).toThrow(/CHECK/)
+    expect(() => db.prepare(`UPDATE event_memberships SET rsvp_digest = 3`).run()).toThrow(/CHECK/)
+    closeDatabase(db)
+  })
+
+  it('holds one row per event, kind and key, and refuses the same notice twice', () => {
+    const db = migrated()
+    seed(db)
+    note(db, 'rsvpErasure', '7@2027-01-12T00:00:00.000Z')
+
+    note(db, 'rsvpErasure', '1@2027-01-12T00:00:00.000Z')
+    note(db, 'rsvpFull', 'full@120')
+    expect(() => note(db, 'rsvpFull', 'full@120')).toThrow(/UNIQUE|PRIMARY/)
+    closeDatabase(db)
+  })
+
+  it('has no CHECK on the kind: the list grows and the domain judges it', () => {
+    const db = migrated()
+    seed(db)
+
+    expect(() => note(db, 'aKindOfALaterBuild', 'x')).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it('goes with its event, which is how the purge and an offboarding reach it', () => {
+    const db = migrated()
+    seed(db)
+    note(db, 'eventClosed', 'first')
+
+    db.prepare(`DELETE FROM events WHERE id = 'e-one'`).run()
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM event_mail_notices`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
+  it('counts a day once, and never a negative number', () => {
+    const db = migrated()
+    db.prepare(`INSERT INTO mail_daily_counts (day, count) VALUES ('2026-11-27', 3)`).run()
+
+    expect(() =>
+      db.prepare(`INSERT INTO mail_daily_counts (day, count) VALUES ('2026-11-27', 1)`).run(),
+    ).toThrow(/UNIQUE|PRIMARY/)
+    expect(() =>
+      db.prepare(`INSERT INTO mail_daily_counts (day, count) VALUES ('2026-11-28', -1)`).run(),
+    ).toThrow(/CHECK/)
     closeDatabase(db)
   })
 })

@@ -3,6 +3,7 @@ import type {
   Membership,
   MembershipRepository,
   MembershipWithUser,
+  NoticeOwner,
 } from '../../application/ports/userRepository'
 import { isEventRole, type EventRole } from '../../domain/events/eventRole'
 import { asEventId, asUserId, type EventId, type UserId } from '../../domain/shared/ids'
@@ -28,6 +29,15 @@ interface MembershipRow {
 interface MembershipWithUserRow extends MembershipRow {
   readonly email: string
   readonly display_name: string | null
+}
+
+interface NoticeOwnerRow {
+  readonly user_id: string
+  readonly email: string
+  readonly mail_rsvp: number
+  readonly mail_event: number
+  readonly rsvp_digest: number
+  readonly rsvp_digest_at: string | null
 }
 
 interface RoleRow {
@@ -76,6 +86,7 @@ export class SqliteMembershipRepository implements MembershipRepository {
   private readonly selectRole: Database.Statement<[string, string], RoleRow>
   private readonly selectMembership: Database.Statement<[string, string], MembershipRow>
   private readonly selectForEvent: Database.Statement<[string], MembershipWithUserRow>
+  private readonly selectOwnersToNotify: Database.Statement<[string], NoticeOwnerRow>
   private readonly selectForUser: Database.Statement<[string], MembershipRow>
   private readonly upsert: Database.Statement<[string, string, string, string]>
   private readonly deleteOne: Database.Statement<[string, string]>
@@ -112,6 +123,17 @@ export class SqliteMembershipRepository implements MembershipRepository {
          JOIN users u ON u.id = m.user_id
         WHERE m.event_id = ?
         ORDER BY m.granted_at DESC, m.user_id`,
+    )
+
+    // The owners **with an active account**, which `selectForEvent` deliberately is not: this is who a
+    // mail may be written to (spec 32), read at the moment of sending. `users.email` is unique, so the
+    // join gives one row per address.
+    this.selectOwnersToNotify = db.prepare<[string], NoticeOwnerRow>(
+      `SELECT m.user_id, u.email, u.mail_rsvp, u.mail_event, m.rsvp_digest, m.rsvp_digest_at
+         FROM event_memberships m
+         JOIN users u ON u.id = m.user_id
+        WHERE m.event_id = ? AND m.role = 'owner' AND u.disabled_at IS NULL
+        ORDER BY m.granted_at, m.user_id`,
     )
 
     this.selectForUser = db.prepare<[string], MembershipRow>(
@@ -157,6 +179,16 @@ export class SqliteMembershipRepository implements MembershipRepository {
 
   async listForEvent(eventId: EventId): Promise<readonly MembershipWithUser[]> {
     return this.selectForEvent.all(eventId).map(toMembershipWithUser)
+  }
+
+  async ownersToNotify(eventId: EventId): Promise<readonly NoticeOwner[]> {
+    return this.selectOwnersToNotify.all(eventId).map((row) => ({
+      userId: asUserId(row.user_id),
+      email: row.email,
+      mail: { rsvp: row.mail_rsvp === 1, event: row.mail_event === 1 },
+      rsvpDigest: row.rsvp_digest === 1,
+      rsvpDigestAt: row.rsvp_digest_at === null ? null : fromIsoText(row.rsvp_digest_at),
+    }))
   }
 
   async listForUser(userId: UserId): Promise<readonly Membership[]> {

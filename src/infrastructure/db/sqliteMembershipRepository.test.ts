@@ -136,6 +136,26 @@ describe('SqliteMembershipRepository', () => {
     expect(members.map((member) => member.displayName)).toEqual(['Léa'])
   })
 
+  // ------------------------------------------------------------ ownersToNotify --
+
+  it('carries the address, both switches and the digest state of each owner it lists', async () => {
+    await repo.grant({ eventId: WEDDING, userId: HOST, role: 'owner', grantedAt: AT })
+    db.prepare(`UPDATE users SET mail_rsvp = 0 WHERE id = ?`).run(HOST)
+    db.prepare(
+      `UPDATE event_memberships SET rsvp_digest = 1, rsvp_digest_at = ? WHERE event_id = ? AND user_id = ?`,
+    ).run(AT.toISOString(), WEDDING, HOST)
+
+    expect(await repo.ownersToNotify(WEDDING)).toEqual([
+      {
+        userId: HOST,
+        email: 'user-host@example.test',
+        mail: { rsvp: false, event: true },
+        rsvpDigest: true,
+        rsvpDigestAt: AT,
+      },
+    ])
+  })
+
   // ----------------------------------------------------------- foreign keys --
 
   it.each([
