@@ -14,6 +14,7 @@ import {
   finalizeSignupRequest,
   isSignupStatus,
   signupConfirmationNext,
+  signupListedAt,
   refuseSignupRequest,
   releaseSignupRequest,
   signupPendingExpiresAt,
@@ -318,5 +319,12 @@ describe('signupConfirmationNext', () => {
   it('agrees with confirmationOutcome: a guard that fails is held, one that passes is mail', () => {
     expect(signupConfirmationNext('open', confirmationOutcome('open', false))).toBe('held')
     expect(signupConfirmationNext('open', confirmationOutcome('open', true))).toBe('mail')
+  })
+})
+
+describe('signupListedAt', () => {
+  it('is the confirmation, or the creation while there is none', () => {
+    expect(signupListedAt(fresh())).toEqual(NOW)
+    expect(signupListedAt({ ...fresh(), confirmedAt: LATER })).toEqual(LATER)
   })
 })
