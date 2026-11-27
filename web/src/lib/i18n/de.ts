@@ -436,7 +436,6 @@ export const de: UiText = {
     'auth.stepUpRequired': 'Bestätigen Sie Ihre Identität, um fortzufahren.',
     'signup.notPending': 'Diese Anfrage wurde bereits bearbeitet.',
     'signup.notFound': 'Diese Anfrage existiert nicht mehr.',
-    'signup.held': 'Der Speicherplatz reicht weiterhin nicht, um dieses Konto zu eröffnen.',
     'auth.secondFactorAlreadyEnrolled':
       'Die Bestätigung in zwei Schritten ist für dieses Konto bereits aktiv.',
     'auth.noEnrolmentInProgress': 'Es läuft keine Einrichtung. Beginnen Sie neu.',

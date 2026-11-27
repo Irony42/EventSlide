@@ -2580,7 +2580,6 @@ export const fr = {
     'auth.stepUpRequired': 'Confirmez votre identité pour continuer.',
     'signup.notPending': 'Cette demande a déjà été traitée.',
     'signup.notFound': 'Cette demande n’existe plus.',
-    'signup.held': 'La place disque ne permet toujours pas d’ouvrir ce compte.',
     'auth.secondFactorAlreadyEnrolled':
       'La vérification en deux étapes est déjà active sur ce compte.',
     'auth.noEnrolmentInProgress': 'Aucune activation n’est en cours. Recommencez.',

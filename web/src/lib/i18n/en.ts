@@ -409,7 +409,6 @@ export const en: UiText = {
     'auth.stepUpRequired': 'Confirm who you are to continue.',
     'signup.notPending': 'This request has already been handled.',
     'signup.notFound': 'This request no longer exists.',
-    'signup.held': 'There is still not enough disk space to open this account.',
     'auth.secondFactorAlreadyEnrolled': 'Two-step verification is already on for this account.',
     'auth.noEnrolmentInProgress': 'No set-up is in progress. Start again.',
     'auth.secondFactorUnavailable':

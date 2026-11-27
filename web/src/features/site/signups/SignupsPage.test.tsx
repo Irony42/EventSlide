@@ -588,7 +588,6 @@ describe('the signups page: after a decision', () => {
   it.each([
     ['signup.notPending', 409],
     ['signup.notFound', 404],
-    ['signup.held', 409],
   ] as const)(
     'says %s in words and reads the list again, since it is out of date',
     async (code, status) => {

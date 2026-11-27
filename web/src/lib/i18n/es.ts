@@ -428,7 +428,6 @@ export const es: UiText = {
     'auth.stepUpRequired': 'Confirme su identidad para continuar.',
     'signup.notPending': 'Esta solicitud ya se ha tramitado.',
     'signup.notFound': 'Esta solicitud ya no existe.',
-    'signup.held': 'Sigue sin haber espacio en disco para abrir esta cuenta.',
     'auth.secondFactorAlreadyEnrolled':
       'La verificación en dos pasos ya está activa en esta cuenta.',
     'auth.noEnrolmentInProgress': 'No hay ninguna activación en curso. Empiece de nuevo.',
