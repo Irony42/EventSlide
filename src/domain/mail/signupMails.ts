@@ -96,11 +96,19 @@ export const signupConfirmationMail = ({
   locale,
   link,
   lifetimeHours,
-}: SignupConfirmationMailInput): OutgoingMail => {
+}: SignupConfirmationMailInput): Result<OutgoingMail, DomainError> => {
+  // "within the next 1.5 hours" or "NaN hours" is a bug in the caller, not a mail to send.
+  if (!Number.isInteger(lifetimeHours) || lifetimeHours < 1) {
+    return err(DomainError.invalid('signup.confirmation.lifetimeInvalid'))
+  }
   const template = CONFIRMATION[locale]
   const before = [HELLO[locale], '', template.intro, '', template.open(lifetimeHours)].join('\n')
   const after = [template.ignore, '', 'EventSlide'].join('\n')
-  return { to, subject: template.subject, text: `${before}\n\n${link}\n\n${after}\n` }
+  return ok({
+    to,
+    subject: template.subject,
+    text: `${before}\n\n${link}\n\n${after}\n`,
+  })
 }
 
 /**

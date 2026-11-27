@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { AT } from '../../application/testing/builders'
+import { AT, anAccountToken } from '../../application/testing/builders'
 import {
   CONTRACT_ACCOUNTS,
   CONTRACT_CLIENTS,
 } from '../../application/testing/contracts/accountTokenRepositoryContract'
 import { signupRepositoryContract } from '../../application/testing/contracts/signupRepositoryContract'
+import { createSignupRequest } from '../../domain/signups/signupRequest'
+import { EmailAddress } from '../../domain/users/emailAddress'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrations } from './migrations'
 import { migrate } from './migrator'
@@ -108,6 +110,73 @@ describe('migration 041, signup_requests', () => {
         )
         .run('a'.repeat(64), AT.toISOString(), new Date(AT.getTime() + 1000).toISOString()),
     ).not.toThrow()
+    closeDatabase(db)
+  })
+})
+
+describe('migration 041, the invitation key', () => {
+  it('sets invitation_token_id to NULL when the invitation token is deleted, and keeps the request', async () => {
+    const db = seededDatabase()
+    await new SqliteAccountTokenRepository(db).save(
+      anAccountToken({
+        id: 'inv-1',
+        purpose: 'invitation',
+        email: 'a@example.test',
+        userId: null,
+        clientId: 'client-1',
+        clientRole: 'owner',
+      }),
+    )
+    insertRow(db, 'r1', 'approved')
+    db.prepare(`UPDATE signup_requests SET invitation_token_id = 'inv-1' WHERE id = 'r1'`).run()
+
+    db.prepare(`DELETE FROM account_tokens WHERE id = 'inv-1'`).run()
+
+    expect(
+      db.prepare(`SELECT status, invitation_token_id FROM signup_requests WHERE id = 'r1'`).get(),
+    ).toEqual({ status: 'approved', invitation_token_id: null })
+    closeDatabase(db)
+  })
+})
+
+describe('transactions of the SQLite adapter', () => {
+  const failTokenUpdates = (db: Db): void => {
+    db.exec(
+      `CREATE TRIGGER refuse_token_update BEFORE UPDATE ON account_tokens
+         BEGIN SELECT RAISE(ABORT, 'token write refused'); END`,
+    )
+  }
+
+  it('confirm leaves the request unconfirmed when the token cannot be spent', async () => {
+    const db = seededDatabase()
+    const repo = new SqliteSignupRepository(db)
+    const email = EmailAddress.create('camille@example.test')
+    if (!email.ok) throw new Error('fixture')
+    const made = createSignupRequest(
+      {
+        id: 'req-1',
+        email: email.value,
+        clientName: 'Mariage',
+        locale: 'fr',
+      },
+      AT,
+    )
+    if (!made.ok) throw new Error('fixture')
+    const token = anAccountToken({
+      id: 'tok-1',
+      purpose: 'emailVerification',
+      email: 'camille@example.test',
+      userId: null,
+      createdAt: AT,
+    })
+    await repo.admit({ request: made.value, token, now: AT, maxPerDay: 10 })
+    failTokenUpdates(db)
+
+    await expect(
+      repo.confirm({ tokenDigest: token.tokenDigest, now: AT, outcome: 'pending' }),
+    ).rejects.toThrow(/token write refused/)
+
+    expect(await repo.findById('req-1')).toMatchObject({ status: 'unconfirmed', confirmedAt: null })
     closeDatabase(db)
   })
 })

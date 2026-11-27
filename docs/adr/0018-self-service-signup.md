@@ -39,7 +39,7 @@ addresses that never asked for it, and to learn which addresses already use the 
    `emailVerification` purpose of `account_tokens`, 24 h, spent once, which migration 010 already provided for and nothing
    spends yet; `account_tokens` itself is not altered). The confirmation page acts only on a button press, never on
    opening, because mail scanners open links. A request that is not confirmed is invisible to the operator and erased
-   48 h after it was made. The box therefore never shows an operator, and never invites, an address whose holder did
+   24 h after its last confirmation link expired (48 h after the last submission of the form). The box therefore never shows an operator, and never invites, an address whose holder did
    not ask.
 3. **An operator still decides, unless the operator chose otherwise.** `SIGNUP` takes three values: `off` (default,
    every box that does not set it, so nothing changes for self-hosters), `review` (a confirmed request waits in the
@@ -67,8 +67,10 @@ addresses that never asked for it, and to learn which addresses already use the 
    daily ceiling bounds what a flood can cost. When the ceiling is reached, the form answers "too many requests today,
    come back tomorrow" (decision 4: the one different answer, which says nothing of an address), and the operator gets
    one audit line and one notice, at 100 %.
-7. **The data are kept only as long as the request lives, 60 days at most.** An unconfirmed request is erased 48 h after
-   it was made; a pending one with no decision 30 days after the request was made; a refused one 30 days after the refusal (that row is what
+7. **The data are kept only as long as the request lives, 60 days at most after the last submission of the form** (a
+   resend counts as a new submission). An unconfirmed request is erased 24 h after its last confirmation link expired;
+   a pending one with no decision expires 30 days after the request was made, and from that instant can no longer be
+   claimed or refused, whether or not the sweep has run; a refused one 30 days after the refusal (that row is what
    keeps the same address quiet for 30 days); an approved one when its invitation is accepted, or at the invitation's expiry (7 days) plus 24 h (from
    then on the client and its audit entries are the record); a claim (`approving`) older than an hour is given back to
    `pending`, so a provisioning that never finished waits for the operator instead of for ever. The operator's decisions (`signup.approved`, `signup.refused`,

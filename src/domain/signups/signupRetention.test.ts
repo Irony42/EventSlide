@@ -7,7 +7,7 @@ import {
   signupSweepAction,
   type SweepView,
 } from './signupRetention'
-import { SIGNUP_STATUSES } from './signupRequest'
+import { SIGNUP_STATUSES, type SignupStatus } from './signupRequest'
 
 const T0 = new Date('2026-12-01T10:00:00.000Z')
 const HOUR = 60 * 60 * 1000
@@ -17,12 +17,20 @@ const view = (over: Partial<SweepView>): SweepView => ({
   createdAt: T0,
   claimedAt: null,
   decidedAt: null,
+  lastConfirmationExpiresAt: null,
   invitationAccepted: false,
   ...over,
 })
 
 describe('signupDueAt', () => {
-  it('erases an unconfirmed request 48 hours after it was made', () => {
+  it('erases an unconfirmed request 24 hours after its LAST confirmation link expired', () => {
+    const lastExpiry = new Date(T0.getTime() + 30 * HOUR)
+    expect(signupDueAt(view({ lastConfirmationExpiresAt: lastExpiry }))).toEqual(
+      new Date(lastExpiry.getTime() + 24 * HOUR),
+    )
+  })
+
+  it('counts an unconfirmed request with no link held from its creation, as if one had been issued then', () => {
     expect(signupDueAt(view({}))).toEqual(new Date(T0.getTime() + 48 * HOUR))
   })
 
@@ -70,43 +78,46 @@ describe('signupDueAt', () => {
 
 describe('the 60-day bound', () => {
   const DAY = 24 * HOUR
-  /** The last instant a request made at T0 can be confirmed: its token's life (24 h). */
-  const lastConfirmation = new Date(T0.getTime() + 24 * HOUR)
-  /** The last instant a pending request can still be decided: just before it expires. */
+  /**
+   * The person last submitted the form at T0 (a resend counts as making the request again). Each
+   * status gets its own worst case, so a number that one status needs cannot be borrowed by another.
+   */
   const lastDecision = new Date(addDays(T0, 30).getTime() - 1)
 
-  const dueOffset = (over: Partial<SweepView>): number => {
-    const due = signupDueAt(view(over))
-    expect(due, `a clock runs on ${over.status}`).not.toBeNull()
-    return (due as Date).getTime() - T0.getTime()
+  const worstCases: Record<SignupStatus, { view: Partial<SweepView>; offset: number }> = {
+    // The link lives 24 h from the last submission, and the row is kept 24 h more.
+    unconfirmed: {
+      view: { lastConfirmationExpiresAt: new Date(T0.getTime() + 24 * HOUR) },
+      offset: 48 * HOUR,
+    },
+    // Decidable until day 30, so it expires there.
+    pending: { view: {}, offset: 30 * DAY },
+    // Refused at the last instant it could be, kept 30 days.
+    refused: { view: { decidedAt: lastDecision }, offset: 60 * DAY - 1 },
+    // Approved at the last instant: the invitation's 7 days, then 24 hours.
+    approved: { view: { decidedAt: lastDecision }, offset: 30 * DAY - 1 + 7 * DAY + 24 * HOUR },
+    // The sweep that expires it erases it.
+    expired: { view: { decidedAt: addDays(T0, 30) }, offset: 30 * DAY },
+    // Claimed at the last instant: given back an hour later, then expired for good.
+    approving: { view: { claimedAt: lastDecision }, offset: 30 * DAY - 1 + HOUR },
   }
 
   it('is 60', () => {
     expect(SIGNUP_MAX_KEPT_DAYS).toBe(60)
   })
 
-  it.each(SIGNUP_STATUSES.filter((status) => status !== 'approving'))(
-    'holds for %s in its worst case: confirmed at the token lifetime, decided at the last instant',
-    (status) => {
-      const worst: Partial<SweepView> = {
-        status,
-        decidedAt: lastDecision,
-      }
-      expect(lastConfirmation.getTime()).toBeLessThan(lastDecision.getTime())
-      expect(dueOffset(worst)).toBeLessThanOrEqual(SIGNUP_MAX_KEPT_DAYS * DAY)
-    },
-  )
+  it.each(SIGNUP_STATUSES)('holds for %s in its own worst case, at the exact instant', (status) => {
+    const { view: over, offset } = worstCases[status]
+    const due = signupDueAt(view({ status, ...over }))
 
-  it('reaches 60 days exactly for a refusal at the last instant, which is why pending counts from creation', () => {
-    expect(dueOffset({ status: 'refused', decidedAt: lastDecision })).toBeLessThanOrEqual(
-      60 * DAY - 1,
-    )
+    expect(due).toEqual(new Date(T0.getTime() + offset))
+    expect(offset).toBeLessThanOrEqual(SIGNUP_MAX_KEPT_DAYS * DAY)
   })
 
-  it('holds for an approval after a long pending: invitation expiry (7 days) plus 24 hours later', () => {
-    const approved = dueOffset({ status: 'approved', decidedAt: lastDecision })
-    expect(approved).toBe(30 * DAY - 1 + 7 * DAY + 24 * HOUR)
-    expect(approved).toBeLessThanOrEqual(60 * DAY)
+  it('reaches 60 days less one millisecond for a refusal at the last instant, and not a millisecond more', () => {
+    expect(signupDueAt(view({ status: 'refused', decidedAt: lastDecision }))).toEqual(
+      new Date(addDays(T0, 60).getTime() - 1),
+    )
   })
 })
 
@@ -115,6 +126,12 @@ describe('signupSweepAction', () => {
     const due = new Date(T0.getTime() + 48 * HOUR)
     expect(signupSweepAction(view({}), new Date(due.getTime() - 1))).toBe('keep')
     expect(signupSweepAction(view({}), due)).toBe('erase')
+  })
+
+  it('keeps an unconfirmed request whose link was renewed past the first 48 hours', () => {
+    const renewed = view({ lastConfirmationExpiresAt: new Date(T0.getTime() + 40 * HOUR) })
+    expect(signupSweepAction(renewed, new Date(T0.getTime() + 48 * HOUR))).toBe('keep')
+    expect(signupSweepAction(renewed, new Date(T0.getTime() + 64 * HOUR))).toBe('erase')
   })
 
   it('expires a pending request rather than erasing it', () => {

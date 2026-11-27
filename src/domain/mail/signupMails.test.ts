@@ -21,6 +21,13 @@ const TO = addr('camille@example.test')
 const CONTACT = addr('contact@eventslide.test')
 const LINK = 'https://app.example.test/signup/confirm/AbC-123_xyz'
 
+/** The confirmation, unwrapped: these cases all pass a whole number of hours. */
+const confirmation = (input: Parameters<typeof signupConfirmationMail>[0]): OutgoingMail => {
+  const made = signupConfirmationMail(input)
+  if (!made.ok) throw new Error('invalid fixture')
+  return made.value
+}
+
 /** The notice, unwrapped: these cases all pass a count of at least one. */
 const notice = (input: Parameters<typeof signupOperatorNoticeMail>[0]): OutgoingMail => {
   const made = signupOperatorNoticeMail(input)
@@ -32,10 +39,11 @@ const NBSP = String.fromCodePoint(0xa0)
 const ADDRESS_SHAPED = /[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+\.?/g
 const TRAILING_STOP = /\.$/
 
-const urlsIn = (text: string): string[] => text.match(/https?:\/\/\S+/g) ?? []
+const urlPattern = /https?:\/\/\S+/g
+const urlsIn = (text: string): string[] => text.match(urlPattern) ?? []
 
 const everyMail = (locale: (typeof CLIENT_LOCALES)[number]): readonly OutgoingMail[] => [
-  signupConfirmationMail({ to: TO, locale, link: LINK, lifetimeHours: 24 }),
+  confirmation({ to: TO, locale, link: LINK, lifetimeHours: 24 }),
   signupRefusedMail({ to: TO, locale, selfHostLink: LINK, replyTo: CONTACT }),
   notice({ to: TO, locale, kind: 'opened', count: 2, link: LINK }),
   notice({ to: TO, locale, kind: 'waiting', count: 1, link: LINK }),
@@ -64,25 +72,33 @@ describe('signup mails', () => {
 
   describe('signupConfirmationMail', () => {
     it('states how long the link works', () => {
-      const mail = signupConfirmationMail({ to: TO, locale: 'en', link: LINK, lifetimeHours: 24 })
+      const mail = confirmation({ to: TO, locale: 'en', link: LINK, lifetimeHours: 24 })
       expect(mail.text).toContain('24 hours')
     })
 
+    it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+      'refuses %s hours: no mail says "within the next 1.5 hours"',
+      (lifetimeHours) => {
+        const made = signupConfirmationMail({ to: TO, locale: 'fr', link: LINK, lifetimeHours })
+        expect(!made.ok && made.error.code).toBe('signup.confirmation.lifetimeInvalid')
+      },
+    )
+
     it('says nothing is created if the reader asked for nothing', () => {
-      const mail = signupConfirmationMail({ to: TO, locale: 'fr', link: LINK, lifetimeHours: 24 })
+      const mail = confirmation({ to: TO, locale: 'fr', link: LINK, lifetimeHours: 24 })
       expect(mail.text).toContain('rien ne sera créé')
     })
 
     it('does not say whether the address has an account, nor names anyone', () => {
       for (const locale of CLIENT_LOCALES) {
-        const { text } = signupConfirmationMail({ to: TO, locale, link: LINK, lifetimeHours: 24 })
+        const { text } = confirmation({ to: TO, locale, link: LINK, lifetimeHours: 24 })
         expect(text).not.toContain(TO.value)
       }
     })
 
     it('has no reply address', () => {
       expect(
-        signupConfirmationMail({ to: TO, locale: 'fr', link: LINK, lifetimeHours: 24 }).replyTo,
+        confirmation({ to: TO, locale: 'fr', link: LINK, lifetimeHours: 24 }).replyTo,
       ).toBeUndefined()
     })
   })
@@ -184,7 +200,11 @@ describe('signup mails', () => {
   })
 
   describe('French typography', () => {
-    const french = everyMail('fr').flatMap((mail) => [mail.subject, mail.text])
+    // The one-hour confirmation is a different sentence from the 24-hour one.
+    const french = [
+      ...everyMail('fr'),
+      confirmation({ to: TO, locale: 'fr', link: LINK, lifetimeHours: 1 }),
+    ].flatMap((mail) => [mail.subject, mail.text])
 
     it('puts a no-break space before : ; ! ? and » and inside « », in every French string', () => {
       for (const text of french) {
@@ -197,11 +217,26 @@ describe('signup mails', () => {
       expect(text).toContain(`${NBSP}:`)
       expect(text).toContain(`${NBSP}?`)
     })
+
+    it('has U+00A0, by code point, before every : ; ! ? outside the links', () => {
+      let checked = 0
+      for (const text of french) {
+        const prose = text.replace(urlPattern, '')
+        for (let index = 0; index < prose.length; index += 1) {
+          if (!':;!?'.includes(prose.charAt(index))) continue
+          checked += 1
+          expect(prose.charCodeAt(index - 1), `before "${prose.charAt(index)}" in: ${prose}`).toBe(
+            0xa0,
+          )
+        }
+      }
+      expect(checked).toBeGreaterThan(5)
+    })
   })
 
   describe('the hours in a confirmation', () => {
     const open = (locale: (typeof CLIENT_LOCALES)[number], lifetimeHours: number): string =>
-      signupConfirmationMail({ to: TO, locale, link: LINK, lifetimeHours }).text
+      confirmation({ to: TO, locale, link: LINK, lifetimeHours }).text
 
     it.each([
       ['fr', 'l’heure qui vient', 'les 2 heures'],

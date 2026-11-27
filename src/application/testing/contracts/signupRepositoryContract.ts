@@ -175,6 +175,14 @@ export const signupRepositoryContract = (
         expect(kept?.status).toBe('unconfirmed')
       })
 
+      it('counts a resent request from the resend: it is a new submission of the form', async () => {
+        const first = await admit()
+
+        await admit('camille@example.test', at(2 * HOUR))
+
+        expect((await repo.findById(first.made.id))?.createdAt).toEqual(at(2 * HOUR))
+      })
+
       it('lets a resend replace what was typed', async () => {
         const first = await admit()
         const n = nextId()
@@ -237,6 +245,7 @@ export const signupRepositoryContract = (
           clientId: asClientId('client-1'),
           invitationTokenId: null,
           now: at(HOUR),
+          claimedAt: at(HOUR),
         })
 
         expect((await admit('camille@example.test', at(2 * HOUR))).result.outcome).toBe('created')
@@ -249,6 +258,165 @@ export const signupRepositoryContract = (
 
         // Three rows would be three erasures: the sweep counts what is really held.
         expect((await repo.sweep(at(60 * HOUR))).erased).toBe(1)
+      })
+    })
+
+    describe('signup tokens only (a token that belongs to an account is not a signup link)', () => {
+      /** An emailVerification token of an ACCOUNT, for the same address as the signup. */
+      const accountToken = (id: string, now: Date = T0, email = 'camille@example.test') =>
+        anAccountToken({
+          id,
+          purpose: 'emailVerification',
+          email,
+          userId: 'user-1',
+          createdAt: now,
+        })
+
+      it('does not count them toward the three mails per address in 24 hours', async () => {
+        for (const n of [1, 2, 3]) await tokens.save(accountToken(`acc-${n}`))
+
+        expect((await admit()).result.outcome).toBe('created')
+      })
+
+      it('does not count them toward the box ceiling', async () => {
+        await tokens.save(accountToken('acc-1', T0, 'autre@example.test'))
+
+        const first = await admit('camille@example.test', T0, 1)
+
+        expect(first.result).toEqual({ outcome: 'created', issuedToday: 1 })
+      })
+
+      it('does not revoke them when a link is resent, and does not read their issue time', async () => {
+        const mine = accountToken('acc-1', at(90 * 60 * 1000))
+        await tokens.save(mine)
+        await admit('camille@example.test', T0)
+
+        // Resend after 2 hours: the account token issued 30 minutes ago would have blocked it.
+        const second = await admit('camille@example.test', at(2 * HOUR))
+
+        expect(second.result.outcome).toBe('resent')
+        expect(
+          await tokens.findUsable(mine.tokenDigest, 'emailVerification', at(2 * HOUR)),
+        ).not.toBeNull()
+      })
+
+      it('are never a confirmation link: not peeked, not spent, the request stays unconfirmed', async () => {
+        const { made } = await admit()
+        const mine = accountToken('acc-1', at(HOUR))
+        await tokens.save(mine)
+
+        expect(await repo.peekConfirmation(mine.tokenDigest, at(2 * HOUR))).toBeNull()
+        const result = await repo.confirm({
+          tokenDigest: mine.tokenDigest,
+          now: at(2 * HOUR),
+          outcome: 'pending',
+        })
+
+        expect(result.kind).toBe('invalid')
+        expect(await status(made.id)).toBe('unconfirmed')
+        expect(
+          await tokens.findUsable(mine.tokenDigest, 'emailVerification', at(2 * HOUR)),
+        ).not.toBeNull()
+      })
+
+      it('do not stretch the life of an unconfirmed request', async () => {
+        const { made } = await admit()
+        await tokens.save(accountToken('acc-1', at(40 * HOUR)))
+
+        expect((await repo.sweep(at(48 * HOUR))).erased).toBe(1)
+        expect(await repo.findById(made.id)).toBeNull()
+      })
+    })
+
+    describe('the old links', () => {
+      it('stop working when a new request is made for the address, so an old link cannot confirm it', async () => {
+        const old = confirmationToken('tok-old')
+        await tokens.save(old)
+
+        const second = await admit('camille@example.test', at(HOUR))
+
+        expect(second.result.outcome).toBe('created')
+        expect(await tokens.findUsable(old.tokenDigest, 'emailVerification', at(HOUR))).toBeNull()
+        expect(
+          (
+            await repo.confirm({
+              tokenDigest: old.tokenDigest,
+              now: at(2 * HOUR),
+              outcome: 'pending',
+            })
+          ).kind,
+        ).toBe('invalid')
+        expect(await status(second.made.id)).toBe('unconfirmed')
+      })
+
+      it('are left alone for other addresses', async () => {
+        const other = confirmationToken('tok-other', 'autre@example.test')
+        await tokens.save(other)
+
+        await admit('camille@example.test', at(HOUR))
+
+        expect(
+          await tokens.findUsable(other.tokenDigest, 'emailVerification', at(HOUR)),
+        ).not.toBeNull()
+      })
+    })
+
+    describe('a token that cannot be written leaves nothing behind', () => {
+      /** A token whose digest is already held: the table refuses it. */
+      const clashingWith = (held: { tokenDigest: string }, id: string, email: string, now: Date) =>
+        anAccountToken({
+          id,
+          purpose: 'emailVerification',
+          email,
+          userId: null,
+          createdAt: now,
+          tokenDigest: held.tokenDigest,
+        })
+
+      it('admit, for a new request: no request, no revoked link', async () => {
+        const other = confirmationToken('tok-other', 'autre@example.test')
+        await tokens.save(other)
+        const earlier = confirmationToken('tok-earlier', 'camille@example.test')
+        await tokens.save(earlier)
+        const made = request('req-clash')
+
+        await expect(
+          repo.admit({
+            request: made,
+            token: clashingWith(other, 'tok-clash', 'camille@example.test', at(HOUR)),
+            now: at(HOUR),
+            maxPerDay: BIG,
+          }),
+        ).rejects.toThrow()
+
+        expect(await repo.findById('req-clash')).toBeNull()
+        expect(
+          await tokens.findUsable(earlier.tokenDigest, 'emailVerification', at(HOUR)),
+        ).not.toBeNull()
+      })
+
+      it('admit, for a resend: the request keeps its content and date, the old link still works', async () => {
+        const first = await admit()
+        const other = confirmationToken('tok-other', 'autre@example.test')
+        await tokens.save(other)
+        const corrected = request('req-x', 'camille@example.test', at(2 * HOUR), 'Noces de Léa')
+
+        await expect(
+          repo.admit({
+            request: corrected,
+            token: clashingWith(other, 'tok-clash', 'camille@example.test', at(2 * HOUR)),
+            now: at(2 * HOUR),
+            maxPerDay: BIG,
+          }),
+        ).rejects.toThrow()
+
+        expect(await repo.findById(first.made.id)).toMatchObject({
+          clientName: first.made.clientName,
+          createdAt: T0,
+        })
+        expect(
+          await tokens.findUsable(first.token.tokenDigest, 'emailVerification', at(2 * HOUR)),
+        ).not.toBeNull()
       })
     })
 
@@ -401,6 +569,7 @@ export const signupRepositoryContract = (
         clientId: asClientId('client-1'),
         invitationTokenId,
         now: at(2 * HOUR),
+        claimedAt: at(HOUR),
       })
 
       it('lets exactly one claim win', async () => {
@@ -418,12 +587,51 @@ export const signupRepositoryContract = (
         expect(await repo.claim('nope', T0)).toBe(false)
       })
 
+      it('claims and refuses a pending request until its 30th day, and not from that instant on', async () => {
+        const claimable = await toPending('a@example.test', at(0))
+        const refusable = await toPending('b@example.test', at(0))
+        const lastMoment = at(30 * DAY - 1)
+
+        expect(await repo.claim(claimable, at(30 * DAY))).toBe(false)
+        expect(await repo.refuse(refusable, asUserId('user-1'), at(30 * DAY))).toBe(false)
+        expect(await status(claimable)).toBe('pending')
+        expect(await status(refusable)).toBe('pending')
+        expect(await repo.claim(claimable, lastMoment)).toBe(true)
+        expect(await repo.refuse(refusable, asUserId('user-1'), lastMoment)).toBe(true)
+      })
+
+      it('counts the 30 days from the creation, not from the confirmation', async () => {
+        const { made, token } = await admit('a@example.test', at(0))
+        await repo.confirm({
+          tokenDigest: token.tokenDigest,
+          now: at(20 * HOUR),
+          outcome: 'pending',
+        })
+
+        expect(await repo.claim(made.id, at(30 * DAY + HOUR))).toBe(false)
+      })
+
+      it('lets a late finalize or release fail once the sweep gave the claim back and it was taken again', async () => {
+        const id = await toPending()
+        await repo.claim(id, at(HOUR))
+        expect((await repo.sweep(at(2 * HOUR))).releasedIds).toEqual([id])
+        expect(await repo.claim(id, at(3 * HOUR))).toBe(true)
+
+        expect(await repo.release(id, at(HOUR))).toBe(false)
+        expect(await repo.finalize(id, { ...finalization(), claimedAt: at(HOUR) })).toBe(false)
+        expect(await repo.findById(id)).toMatchObject({
+          status: 'approving',
+          claimedAt: at(3 * HOUR),
+        })
+        expect(await repo.finalize(id, { ...finalization(), claimedAt: at(3 * HOUR) })).toBe(true)
+      })
+
       it('gives a claim back to pending, once, clearing its stamp', async () => {
         const id = await toPending()
         await repo.claim(id, at(HOUR))
 
-        expect(await repo.release(id)).toBe(true)
-        expect(await repo.release(id)).toBe(false)
+        expect(await repo.release(id, at(HOUR))).toBe(true)
+        expect(await repo.release(id, at(HOUR))).toBe(false)
         expect(await repo.findById(id)).toMatchObject({ status: 'pending', claimedAt: null })
         expect(await repo.claim(id, at(2 * HOUR))).toBe(true)
       })
@@ -602,6 +810,39 @@ export const signupRepositoryContract = (
         expect(listed.map((row) => row.id)).not.toContain(old)
       })
 
+      it('lists refused requests with since and before together', async () => {
+        const a = await toPending('a@example.test', at(0))
+        const b = await toPending('b@example.test', at(DAY))
+        const c = await toPending('c@example.test', at(2 * DAY))
+        await repo.refuse(a, asUserId('user-1'), at(HOUR))
+        await repo.refuse(b, asUserId('user-1'), at(DAY + HOUR))
+        await repo.refuse(c, asUserId('user-1'), at(2 * DAY + HOUR))
+        const rowC = await repo.findById(c)
+        if (rowC === null) throw new Error('fixture')
+        const cursor = { at: signupListedAt(rowC), id: c }
+
+        const both = await repo.listForOperator({
+          status: 'refused',
+          since: at(DAY),
+          before: cursor,
+          limit: 10,
+        })
+        const sinceOnly = await repo.listForOperator({
+          status: 'refused',
+          since: at(DAY),
+          limit: 10,
+        })
+        const beforeOnly = await repo.listForOperator({
+          status: 'refused',
+          before: cursor,
+          limit: 10,
+        })
+
+        expect(both.map((row) => row.id)).toEqual([b])
+        expect(sinceOnly.map((row) => row.id)).toEqual([c, b])
+        expect(beforeOnly.map((row) => row.id)).toEqual([b, a])
+      })
+
       it('refuses a limit that is not a positive integer', async () => {
         await expect(repo.listForOperator({ status: 'pending', limit: 0 })).rejects.toThrow(
           RangeError,
@@ -621,6 +862,33 @@ export const signupRepositoryContract = (
           erased: 1,
         })
         expect(await repo.findById(made.id)).toBeNull()
+      })
+
+      it('keeps an unconfirmed request 24 hours after its LAST link expired, not after it was first made', async () => {
+        const { made } = await admit()
+        await admit('camille@example.test', at(20 * HOUR))
+
+        // The second link expires at 44 h: due at 68 h.
+        expect((await repo.sweep(at(68 * HOUR - 1))).erased).toBe(0)
+        expect(await repo.findById(made.id)).not.toBeNull()
+        expect((await repo.sweep(at(68 * HOUR))).erased).toBe(1)
+      })
+
+      it('reads the real expiry of the last link, whatever its lifetime was', async () => {
+        const n = nextId()
+        const made = request(`req-${n}`)
+        const token = anAccountToken({
+          id: `tok-${n}`,
+          purpose: 'emailVerification',
+          email: 'camille@example.test',
+          userId: null,
+          createdAt: T0,
+          expiresAt: at(40 * HOUR),
+        })
+        await repo.admit({ request: made, token, now: T0, maxPerDay: BIG })
+
+        expect((await repo.sweep(at(64 * HOUR - 1))).erased).toBe(0)
+        expect((await repo.sweep(at(64 * HOUR))).erased).toBe(1)
       })
 
       it('expires a pending request 30 days after it was made, reports it, and erases it', async () => {
@@ -678,6 +946,7 @@ export const signupRepositoryContract = (
           clientId: asClientId('client-1'),
           invitationTokenId: invitation.id,
           now: at(HOUR),
+          claimedAt: at(HOUR),
         })
 
         expect((await repo.sweep(at(2 * HOUR))).erased).toBe(0)
@@ -694,6 +963,7 @@ export const signupRepositoryContract = (
           clientId: asClientId('client-1'),
           invitationTokenId: null,
           now: at(HOUR),
+          claimedAt: at(HOUR),
         })
 
         expect((await repo.sweep(at(HOUR + 8 * DAY - 1))).erased).toBe(0)
