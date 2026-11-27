@@ -676,6 +676,13 @@ const probe = (keys: Iterable<string>): Record<string, unknown> =>
  * file would otherwise report it as covered by saying nothing about it.
  */
 const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
+  // The operator's signup routes (spec 31, PR 4). Their client methods are the operator page's (PR 6,
+  // `siteSignupsApi`): remove these three entries when it merges.
+  siteSignupsQuery: 'GET /api/site/signups: its client is the operator page of spec 31 PR 6',
+  approveSignupBody:
+    'POST /api/site/signups/:id/approve: its client is the operator page of spec 31 PR 6',
+  refuseSignupBody:
+    'POST /api/site/signups/:id/refuse: its client is the operator page of spec 31 PR 6',
   // `POST /api/events/:slug/book` (spec 26) takes the 3.14 body or the 3.15 one: a union of two strict
   // bodies, which the object-schema pairing cannot read. Both are pinned in bookRoutes.test.ts, and
   // the panel's own body in client.test.ts.

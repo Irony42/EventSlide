@@ -71,11 +71,11 @@ export const makeApproveSignup =
         createdBy: operator,
       })
     } catch (error) {
-      await signups.release(id)
+      await signups.release(id, claimedAt)
       throw error
     }
     if (!provisioned.ok) {
-      await signups.release(id)
+      await signups.release(id, claimedAt)
       return provisioned
     }
 
@@ -84,6 +84,7 @@ export const makeApproveSignup =
       decidedBy: operator,
       clientId: provisioned.value.clientId,
       invitationTokenId: provisioned.value.invitation.invitationId,
+      claimedAt,
       now: at,
     })
 

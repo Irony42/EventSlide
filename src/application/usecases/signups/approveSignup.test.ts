@@ -138,4 +138,27 @@ describe('approveSignup', () => {
     expect(retried.ok).toBe(true)
     expect((await scene.signups.findById(id))?.status).toBe('approved')
   })
+
+  it('refuses to report success when its line cannot be named (an id the log would not take), after the act', async () => {
+    const { scene, approve } = setup()
+    const id = await scene.seed({ id: 'an id with spaces' })
+
+    const result = await approve({ id, operator: OPERATOR })
+
+    if (result.ok) throw new Error('expected the log refusal')
+    expect(result.error.code).toBe('audit.subjectIdInvalid')
+    expect((await scene.signups.findById(id))?.status).toBe('approved')
+  })
+
+  it('answers 409 signup.notPending once the request is 30 days old: the retention window is closed', async () => {
+    const { scene, approve } = setup()
+    const id = await scene.seed()
+    scene.clock.advance(31 * 86_400_000)
+
+    const result = await approve({ id, operator: OPERATOR })
+
+    if (result.ok) throw new Error('expected a conflict')
+    expect(result.error.code).toBe('signup.notPending')
+    expect((await scene.signups.findById(id))?.status).toBe('pending')
+  })
 })

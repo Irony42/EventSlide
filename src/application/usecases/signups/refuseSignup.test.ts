@@ -128,4 +128,27 @@ describe('refuseSignup', () => {
     expect(scene.mailer.sent).toHaveLength(1)
     expect(scene.audit.all()).toHaveLength(1)
   })
+
+  it('answers the log’s refusal when its line cannot be named, and sends no mail', async () => {
+    const { scene, refuse } = setup()
+    const id = await scene.seed({ id: 'an id with spaces' })
+
+    const result = await refuse({ id, operator: OPERATOR, notify: true })
+
+    if (result.ok) throw new Error('expected the log refusal')
+    expect(result.error.code).toBe('audit.subjectIdInvalid')
+    expect(scene.mailer.sent).toEqual([])
+  })
+
+  it('answers 409 signup.notPending once the request is 30 days old: the retention window is closed', async () => {
+    const { scene, refuse } = setup()
+    const id = await scene.seed()
+    scene.clock.advance(31 * 86_400_000)
+
+    const result = await refuse({ id, operator: OPERATOR, notify: true })
+
+    if (result.ok) throw new Error('expected a conflict')
+    expect(result.error.code).toBe('signup.notPending')
+    expect((await scene.signups.findById(id))?.status).toBe('pending')
+  })
 })
