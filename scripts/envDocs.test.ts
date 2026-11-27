@@ -116,3 +116,22 @@ describe('.env.example, signup (spec 31)', () => {
     expect(example).toContain('SITE_ADMIN=on')
   })
 })
+
+describe('.env.example, mail to the host (spec 32)', () => {
+  const example = readFileSync(ENV_EXAMPLE_PATH, 'utf8')
+
+  it.each(['HOST_MAIL_NOTICES', 'MAIL_FOLLOWUP_MAX_PER_DAY'])(
+    'shows %s as a commented line, never active: a copied file must not decide for the box',
+    (name) => {
+      expect(example).toMatch(new RegExp(`^# ${name}=`, 'm'))
+      expect(example).not.toMatch(new RegExp(`^${name}=`, 'm'))
+    },
+  )
+
+  it('says the two words HOST_MAIL_NOTICES takes and what no switch turns off', () => {
+    for (const word of ['on', 'off']) {
+      expect(example).toMatch(new RegExp(`^# {3}${word} {2,}`, 'm'))
+    }
+    expect(example).toContain('replies are erased')
+  })
+})

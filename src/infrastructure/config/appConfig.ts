@@ -355,6 +355,17 @@ export interface AppConfig {
   }
 
   /**
+   * Mail to the host (spec 32, ADR 0019), apart from `mail` on purpose: that object carries the relay's
+   * password and gets no new field. `notices` is `HOST_MAIL_NOTICES`: `off` stops the two families of
+   * follow-up mails and the digest, never the security mails, the warning before the replies are erased
+   * or an operator's notice. `followUpMaxPerDay` is `MAIL_FOLLOWUP_MAX_PER_DAY`, `null` for no ceiling.
+   */
+  readonly hostMail: {
+    readonly notices: 'on' | 'off'
+    readonly followUpMaxPerDay: number | null
+  }
+
+  /**
    * Self-service signup (spec 31, ADR 0018): parsed and checked at boot, read by the signup use cases, the
    * public routes (`404 feature.unavailable` while `off`) and `/api/about`. `mode` is `off` on every box that
    * never set `SIGNUP`.

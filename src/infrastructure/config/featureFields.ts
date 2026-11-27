@@ -299,6 +299,47 @@ export const signupNotifyEmail = z.preprocess(
     .optional(),
 )
 
+/** The most mails a day `MAIL_FOLLOWUP_MAX_PER_DAY` accepts: far above any relay's free quota. */
+export const MAIL_FOLLOWUP_MAX_PER_DAY_LIMIT = 100_000
+
+/**
+ * `HOST_MAIL_NOTICES` (spec 32, ADR 0019): `on` (the default) or `off`. `off` turns off the host mails of
+ * the two families (the replies' calendar and digest, the life of the event); **it does not turn off the
+ * security mails of an account, the warning before the replies are erased or an operator's notice**.
+ *
+ * Same convention as {@link siteAdmin}: exact lower-case words, blank or absent is the default. Here the
+ * default is `on`: a box with a relay writes the follow-up mails once updated (written in UPGRADING), and
+ * this is the switch that takes them away. A box with no relay sends none either way.
+ */
+export const hostMailNotices = z.preprocess(blankAsAbsent, choice(['on', 'off']).default('on'))
+
+/**
+ * `MAIL_FOLLOWUP_MAX_PER_DAY` (spec 32, decision 10): `off` (the default, no ceiling) or a whole number of
+ * mails per UTC day, 1 to 100000. Every mail the box sends counts against it, but only the
+ * follow-up mails and an operator's announcements can be held back by it. Held as `null` for `off`.
+ *
+ * Blank is absent, which is `off`: a dangling `MAIL_FOLLOWUP_MAX_PER_DAY=` must not read as a ceiling of
+ * zero. A value that is neither `off` nor such a number is refused without being repeated.
+ */
+export const mailFollowUpMaxPerDay = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .transform((value, ctx) => {
+      const text = value.trim()
+      if (text === 'off') return null
+      const count = /^[0-9]+$/.test(text) ? Number(text) : Number.NaN
+      if (!Number.isSafeInteger(count) || count < 1 || count > MAIL_FOLLOWUP_MAX_PER_DAY_LIMIT) {
+        return refuse(
+          ctx,
+          `MAIL_FOLLOWUP_MAX_PER_DAY must be 'off' or a whole number from 1 to ${MAIL_FOLLOWUP_MAX_PER_DAY_LIMIT}`,
+        )
+      }
+      return count
+    })
+    .default(null),
+)
+
 const MFA_KEY_MIN_BYTES = 32
 
 const decodeMfaKey = (value: string): Uint8Array | null => {
