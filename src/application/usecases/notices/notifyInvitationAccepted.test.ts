@@ -35,6 +35,7 @@ const accepted = (patch: Partial<InvitationAccepted> = {}): InvitationAccepted =
   acceptedBy: NEWCOMER,
   role: 'moderator',
   who: 'Marie Dupont',
+  address: 'marie@example.test',
   ...patch,
 })
 
@@ -229,6 +230,25 @@ describe('notifyInvitationAccepted (A6)', () => {
     expect(
       [off, none, gone, down, suspended, closing].flatMap((world) => world.mailer.sent),
     ).toEqual([])
+  })
+
+  it('names the invited address, not the name, when the name typed holds anything that reads as a link', async () => {
+    for (const who of [
+      'voir https://evil.example/x',
+      'www.evil.example',
+      'evil.example/promo',
+      'a@b.co',
+    ]) {
+      const world = await build()
+
+      world.hook.notify(accepted({ who }))
+      await world.hook.idle()
+
+      const text = world.mailer.sent[0]?.text ?? ''
+      expect(text, who).toContain('marie@example.test a accepté de modérer')
+      expect(text, who).not.toContain('evil')
+      expect(text.match(/https?:\/\/\S+/g), who).toHaveLength(1)
+    }
   })
 
   it('sends nothing to an inviter whose stored address cannot be written to', async () => {

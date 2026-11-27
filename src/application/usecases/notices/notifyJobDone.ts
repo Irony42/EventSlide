@@ -15,6 +15,7 @@ import type { Logger } from '../../ports/logger'
 import type { MailBudget } from '../../ports/mailBudget'
 import type { Mailer } from '../../ports/mailer'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { clientToWriteAbout } from './noticeAudience'
 import { deliverNotice } from './noticeDelivery'
 
 /**
@@ -86,9 +87,9 @@ export const makeNotifyJobDone = (deps: NotifyJobDoneDeps): NotifyJobDone => {
     if (!hostMailNotices || !mailer.canDeliver) return
     if (!jobWorthAMail(finished.requestedAt, finished.finishedAt)) return
     const event = await events.findById(finished.eventId)
-    if (event === null || event.isTakenDown() || event.isClientSuspended()) return
-    const client = event.clientId === null ? null : await clients.findById(event.clientId)
-    if (client?.isOffboarding() === true) return
+    if (event === null) return
+    const client = await clientToWriteAbout(clients, event)
+    if (client === undefined) return
 
     const owners = await memberships.ownersToNotify(finished.eventId)
     const asker = owners.filter((owner) => owner.userId === finished.requestedBy)
@@ -98,7 +99,7 @@ export const makeNotifyJobDone = (deps: NotifyJobDoneDeps): NotifyJobDone => {
     const eventName = event.name.value
     const pageUrl = eventPageUrl(publicUrl, event.slug.value, PAGE_OF[finished.job])
 
-    await deliverNotice(deps, {
+    const result = await deliverNotice(deps, {
       eventId: finished.eventId,
       kind: 'jobDone',
       key: `${finished.job}@${finished.requestedAt.toISOString()}`,
@@ -117,6 +118,10 @@ export const makeNotifyJobDone = (deps: NotifyJobDoneDeps): NotifyJobDone => {
           outcome: finished.outcome,
         }),
     })
+    // A job's mail has no pass to come back on: a day that is full or a race that was lost drops it, and says so.
+    if (result.outcome === 'budget' || result.outcome === 'lost') {
+      logger.warn('a job notice was not sent', { job: finished.job, outcome: result.outcome })
+    }
   }
 
   return {

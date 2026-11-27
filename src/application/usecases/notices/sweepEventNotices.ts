@@ -14,7 +14,11 @@ import {
 } from '../../../domain/notices/eventNotices'
 import { isFresh } from '../../../domain/notices/noticeFreshness'
 import type { NoticeKind } from '../../../domain/notices/noticeKind'
-import { DEFAULT_NOTICE_TIME_ZONE, inQuietHours } from '../../../domain/notices/quietHours'
+import {
+  DEFAULT_NOTICE_TIME_ZONE,
+  inQuietHours,
+  usableTimeZone,
+} from '../../../domain/notices/quietHours'
 import type { EventId } from '../../../domain/shared/ids'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
@@ -28,14 +32,15 @@ import type { Mailer } from '../../ports/mailer'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { ceilingsOf } from '../clients/clientContextOf'
+import { clientToWriteAbout } from './noticeAudience'
 import { deliverNotice, type DeliveryResult } from './noticeDelivery'
 
 /**
  * The notices of the life of an event that the retention sweep sends (spec 32, section 3.3, family `event`):
  *
- * - **A3**, "after the party": **12 hours after** the event first closed (host, schedule or window), until 48 hours after, and
- *   not once the album's deletion date has passed. **Once per event** (the key is `first`: closing, reopening and closing
- *   again sends no second one). The figures are what is **published** (photographs, videos, messages of the book), never what
+ * - **A3**, "after the party": **12 hours after** the event's closing (host, schedule or window; a reopening clears it, so an
+ *   event reopened before then counts from its new closing), until 48 hours after, and not once the album's deletion date
+ *   has passed. **Once per event** (the key is `first`: closing, reopening and closing again after a notice sends no second one). The figures are what is **published** (photographs, videos, messages of the book), never what
  *   is pending, hidden or taken down; an event with nothing published is noted without a mail (content that comes later gets no
  *   A3: accepted).
  * A3 and A5 are due exactly while they are worth sending (their window is their validity, `isFresh`), so unlike the sweep of
@@ -130,14 +135,6 @@ export const makeSweepEventNotices = (deps: SweepEventNoticesDeps): SweepEventNo
       })
     }
 
-    /** `undefined` when the event may not be written about at all, else its client (`null` for none). */
-    const readClient = async (event: Event) => {
-      if (event.isTakenDown()) return undefined
-      const client = event.clientId === null ? null : await clients.findById(event.clientId)
-      // A listing does not carry the client's suspension (only a lookup of one event does): it is read from the client.
-      return client?.isSuspended() === true || client?.isOffboarding() === true ? undefined : client
-    }
-
     /** The language of the mail: the client's, else the event's wall. */
     const localeOf = (event: Event, client: Client | null) =>
       client?.locale ?? event.settings.wallLanguage
@@ -160,21 +157,24 @@ export const makeSweepEventNotices = (deps: SweepEventNoticesDeps): SweepEventNo
     // ---- A3: after the party ---------------------------------------------------------------------------------
     for (const event of closed) {
       try {
-        const client = await readClient(event)
+        const client = await clientToWriteAbout(clients, event)
         if (client === undefined) continue
         const deleteAt = purgeDeadline(event, client, capNoticeDays)
         if (!eventClosedNoticeDue(event.closedAt, now, deleteAt)) continue
         if (await notices.has(event.id, 'eventClosed', EVENT_CLOSED_KEY)) continue
         const invite = await invites.findByEvent(event.id)
-        if (inQuietHours(now, invite?.content.timeZone ?? DEFAULT_NOTICE_TIME_ZONE)) continue
+        if (inQuietHours(now, usableTimeZone(invite?.content.timeZone, DEFAULT_NOTICE_TIME_ZONE))) {
+          continue
+        }
 
         const published = (await photos.countsByStatus(event.id)).published
         const photoCount = await photos.countPublishedPhotos(event.id)
         const messages = await guestbook.countPublished(event.id)
         if (published + messages === 0) {
           // Nothing to say about an empty evening: noted, so it is not looked at again.
-          await notices.note(event.id, 'eventClosed', EVENT_CLOSED_KEY, now)
-          noticed.push({ eventId: event.id, kind: 'eventClosed' })
+          if (await notices.note(event.id, 'eventClosed', EVENT_CLOSED_KEY, now)) {
+            noticed.push({ eventId: event.id, kind: 'eventClosed' })
+          }
           continue
         }
         const locale = localeOf(event, client)
@@ -209,14 +209,15 @@ export const makeSweepEventNotices = (deps: SweepEventNoticesDeps): SweepEventNo
     // ---- A5: the wall closes within a day ----------------------------------------------------------------------
     for (const event of live) {
       try {
+        // Who may be written about comes first: nothing else is read for an event that is down, suspended or closing.
+        const client = await clientToWriteAbout(clients, event)
+        if (client === undefined) continue
         const windowEnd = event.liveWindowEnd(await ceilingsOf(clients, event))
         if (windowEnd === null || !windowEndingDue(windowEnd, event.scheduledCloseAt, now)) continue
-        const client = await readClient(event)
-        if (client === undefined) continue
         const key = windowEnd.toISOString()
         if (await notices.has(event.id, 'windowEnding', key)) continue
         const invite = await invites.findByEvent(event.id)
-        const zone = invite?.content.timeZone ?? null
+        const zone = invite?.content.timeZone
         const locale = localeOf(event, client)
         const result = await deliverNotice(deps, {
           eventId: event.id,
@@ -225,7 +226,7 @@ export const makeSweepEventNotices = (deps: SweepEventNoticesDeps): SweepEventNo
           family: 'event',
           owners: await memberships.ownersToNotify(event.id),
           fresh: isFresh('windowEnding', windowEnd, now),
-          quiet: inQuietHours(now, zone ?? DEFAULT_NOTICE_TIME_ZONE),
+          quiet: inQuietHours(now, usableTimeZone(zone, DEFAULT_NOTICE_TIME_ZONE)),
           now,
           build: (to) =>
             windowEndingMail({
@@ -234,7 +235,7 @@ export const makeSweepEventNotices = (deps: SweepEventNoticesDeps): SweepEventNo
               eventName: event.name.value,
               pageUrl: eventPageUrl(publicUrl, event.slug.value),
               endsAt: windowEnd,
-              timeZone: zone ?? 'UTC',
+              timeZone: usableTimeZone(zone, 'UTC'),
             }),
         })
         tally(event.id, 'windowEnding', result)

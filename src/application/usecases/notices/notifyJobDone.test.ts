@@ -249,7 +249,7 @@ describe('notifyJobDone (A2)', () => {
     expect(world.mailer.sent).toHaveLength(2)
   })
 
-  it('takes its places in the day budget, and is neither noted nor sent when the day is full', async () => {
+  it('takes its places in the day budget, and is neither noted nor sent when the day is full: the drop is logged', async () => {
     const world = await build({ budgetMax: 3 })
     await world.budget.count('2026-11-28', 2)
 
@@ -259,6 +259,25 @@ describe('notifyJobDone (A2)', () => {
     expect(world.mailer.sent).toEqual([])
     expect(world.ledger.noted).toEqual([])
     expect(await world.budget.used('2026-11-28')).toBe(2)
+    expect(
+      world.logger.lines.find((entry) => entry.message === 'a job notice was not sent')?.context,
+    ).toEqual({ job: 'book', outcome: 'budget' })
+  })
+
+  it('logs it too when another process noted the notice first: the lost note', async () => {
+    const world = await build()
+    const lost = makeNotifyJobDone({
+      ...world.deps,
+      notices: { note: async () => false, has: async () => false },
+    })
+
+    lost.notify(finished())
+    await lost.idle()
+
+    expect(world.mailer.sent).toEqual([])
+    expect(
+      world.logger.lines.find((entry) => entry.message === 'a job notice was not sent')?.context,
+    ).toEqual({ job: 'book', outcome: 'lost' })
   })
 
   it('is noted without a mail when it is more than a day old by the time it is looked at', async () => {

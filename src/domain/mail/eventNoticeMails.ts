@@ -349,6 +349,13 @@ export const invitationAcceptedMail = ({
   )
 }
 
+/**
+ * Whether a name typed by a stranger holds anything that reads as a link (a scheme, `www.`, or a domain name): the mail names
+ * the invited address instead, so it never carries a second link the sender chose.
+ */
+export const isUrlLike = (name: string): boolean =>
+  /:\/\/|\bwww\.|\b[a-z0-9-]+\.[a-z]{2,}(?:\/|\b)/iu.test(name)
+
 /** The event's page in the console, from the configured public origin. */
 export const eventPageUrl = (publicUrl: string, slug: string, page = ''): string =>
   `${publicUrl}/admin/events/${encodeURIComponent(slug)}${page === '' ? '' : `/${page}`}`
