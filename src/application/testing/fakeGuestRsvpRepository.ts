@@ -224,6 +224,15 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
     return [...events].sort()
   }
 
+  async eventsWithRepliesExpiringBefore(horizon: Date): Promise<readonly EventId[]> {
+    const events = new Set<EventId>()
+    for (const row of this.rows.values()) {
+      const dates = this.dates.get(row.eventId) ?? { closedAt: null, startsAt: null }
+      if (isRsvpExpired(dates, horizon)) events.add(row.eventId)
+    }
+    return [...events].sort()
+  }
+
   async deleteExpired(now: Date): Promise<number> {
     let deleted = 0
     for (const [rowKey, row] of this.rows) {

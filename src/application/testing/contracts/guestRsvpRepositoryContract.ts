@@ -890,6 +890,27 @@ export const guestRsvpRepositoryContract = (
         expect(await repo.deleteExpired(day(CLOSED, 30))).toBe(1)
       })
 
+      it('names the events with a reply whose retention ends at or before the horizon, and no other (R1 candidates)', async () => {
+        await add({ id: 'rsvp-1' })
+        await add({ id: 'rsvp-gala', eventId: 'evt-gala' })
+        await subject.setEventDates(WEDDING, { closedAt: CLOSED, startsAt: null })
+        await subject.setEventDates(GALA, { closedAt: day(CLOSED, 10), startsAt: null })
+
+        expect(await repo.eventsWithRepliesExpiringBefore(day(CLOSED, 30, -1))).toEqual([])
+        expect(await repo.eventsWithRepliesExpiringBefore(day(CLOSED, 30))).toEqual([WEDDING])
+        expect(await repo.eventsWithRepliesExpiringBefore(day(CLOSED, 40))).toEqual([GALA, WEDDING])
+      })
+
+      it('finds an event with no replies in no case, and one that never closed by its invitation start', async () => {
+        const starts = new Date('2026-12-13T18:00:00.000Z')
+        await subject.setEventDates(GALA, { closedAt: CLOSED, startsAt: null })
+        await add({ id: 'rsvp-1' })
+        await subject.setEventDates(WEDDING, { closedAt: null, startsAt: starts })
+
+        expect(await repo.eventsWithRepliesExpiringBefore(day(starts, 60, -1))).toEqual([])
+        expect(await repo.eventsWithRepliesExpiringBefore(day(starts, 60))).toEqual([WEDDING])
+      })
+
       it('keeps what no date reaches, and touches only the events that expired', async () => {
         await add({ id: 'rsvp-1' })
         await repo.admit(aRsvp({ id: 'rsvp-2', eventId: 'evt-gala' }), NONE)
