@@ -14,7 +14,7 @@ export interface MailBudget {
   /**
    * Takes `n` mails of the day **all or nothing, atomically**: `true` and the count moved by `n` when
    * they fit under the ceiling, `false` and nothing moved when they do not. With no ceiling it is always
-   * `true` (and still counts). Two callers racing for the last places cannot both get them.
+   * `true` (and still counts). **`n < 1` is refused** (`false`, nothing written): there is nothing to take. Two callers racing for the last places cannot both get them.
    */
   take(day: string, n: number): Promise<boolean>
 

@@ -58,6 +58,22 @@ describe('rsvpDeadlineNotice', () => {
     ).toBe('2027-01-02')
   })
 
+  it('changes day at midnight where the party is, not in UTC (Paris, winter)', () => {
+    // The third day before 5 December is 2 December: it begins at 23:00 UTC on the 1st in Paris.
+    expect(notice('2026-12-01T22:59:59.000Z')).toBeNull()
+    expect(notice('2026-12-01T23:00:00.000Z')).toBe('2026-12-05')
+    // 23:59 local on the 1st is still the 1st, though UTC says 22:59 and a UTC reading would also say the 1st.
+    expect(notice('2026-12-02T00:00:00.000Z')).toBe('2026-12-05')
+  })
+
+  it('reads the zone of the invitation, not UTC (Auckland, ahead of UTC)', () => {
+    const auckland: InviteSchedule = { ...SCHEDULE, timeZone: 'Pacific/Auckland' }
+    const at_ = (iso: string) => rsvpDeadlineNotice(settings(), auckland, 'open', true, at(iso))
+    // Auckland is UTC+13 on 1 December: local 00:00 on the 2nd is 11:00 UTC on the 1st.
+    expect(at_('2026-12-01T10:59:59.000Z')).toBeNull()
+    expect(at_('2026-12-01T11:00:00.000Z')).toBe('2026-12-05')
+  })
+
   it('owes nothing without a deadline', () => {
     expect(
       notice('2026-12-04T12:00:00.000Z', { settings: settings({ deadline: null }) }),
@@ -77,8 +93,12 @@ describe('rsvpDeadlineNotice', () => {
 
 describe('rsvpStoppedByDeadline', () => {
   it('is the deadline and the instant the replies stopped, once the day after the deadline began', () => {
-    expect(rsvpStoppedByDeadline(settings(), SCHEDULE, at('2026-12-05T22:59:59.000Z'))).toBeNull()
-    expect(rsvpStoppedByDeadline(settings(), SCHEDULE, at('2026-12-05T23:00:00.000Z'))).toEqual({
+    expect(
+      rsvpStoppedByDeadline(settings(), SCHEDULE, 'closed', at('2026-12-05T22:59:59.000Z')),
+    ).toBeNull()
+    expect(
+      rsvpStoppedByDeadline(settings(), SCHEDULE, 'closed', at('2026-12-05T23:00:00.000Z')),
+    ).toEqual({
       key: '2026-12-05',
       stoppedAt: at('2026-12-05T23:00:00.000Z'),
     })
@@ -86,7 +106,12 @@ describe('rsvpStoppedByDeadline', () => {
 
   it('is not a stop by the deadline when there is none', () => {
     expect(
-      rsvpStoppedByDeadline(settings({ deadline: null }), SCHEDULE, at('2026-12-20T12:00:00.000Z')),
+      rsvpStoppedByDeadline(
+        settings({ deadline: null }),
+        SCHEDULE,
+        'closed',
+        at('2026-12-20T12:00:00.000Z'),
+      ),
     ).toBeNull()
   })
 
@@ -95,6 +120,7 @@ describe('rsvpStoppedByDeadline', () => {
       rsvpStoppedByDeadline(
         settings({ closedAt: at('2026-12-04T10:00:00.000Z') }),
         SCHEDULE,
+        'closed',
         at('2026-12-06T12:00:00.000Z'),
       ),
     ).toBeNull()
@@ -106,14 +132,26 @@ describe('rsvpStoppedByDeadline', () => {
       rsvpStoppedByDeadline(
         settings({ deadline: '2026-12-13' }),
         SCHEDULE,
+        'closed',
         at('2026-12-14T12:00:00.000Z'),
       ),
     ).toBeNull()
   })
 
+  it.each(['off', 'open', 'full'] as const)(
+    'is not a stop when the replies are %s (replies switched off, an invitation not published, a party over)',
+    (state) => {
+      expect(
+        rsvpStoppedByDeadline(settings(), SCHEDULE, state, at('2026-12-06T12:00:00.000Z')),
+      ).toBeNull()
+    },
+  )
+
   it('is not a stop by the deadline when both bounds are the same instant', () => {
     const midnight: InviteSchedule = { ...SCHEDULE, startsAt: at('2026-12-05T23:00:00.000Z') }
-    expect(rsvpStoppedByDeadline(settings(), midnight, at('2026-12-06T12:00:00.000Z'))).toBeNull()
+    expect(
+      rsvpStoppedByDeadline(settings(), midnight, 'closed', at('2026-12-06T12:00:00.000Z')),
+    ).toBeNull()
   })
 })
 

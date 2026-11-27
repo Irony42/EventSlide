@@ -5,6 +5,7 @@ import type {
 import {
   DEFAULT_MAIL_PREFERENCES,
   type MailPreferences,
+  type MailPreferencesPatch,
 } from '../../domain/notices/mailPreferences'
 import type { EventId, UserId } from '../../domain/shared/ids'
 import type { Db } from './connection'
@@ -30,10 +31,17 @@ export class SqliteMailPreferenceRepository implements MailPreferenceRepository 
     return { rsvp: row.mail_rsvp === 1, event: row.mail_event === 1 }
   }
 
-  async save(userId: UserId, preferences: MailPreferences): Promise<void> {
+  async save(userId: UserId, patch: MailPreferencesPatch): Promise<void> {
+    // One statement, each switch kept when the patch leaves it out: concurrent changes of the two never undo each other.
     this.db
-      .prepare(`UPDATE users SET mail_rsvp = ?, mail_event = ? WHERE id = ?`)
-      .run(preferences.rsvp ? 1 : 0, preferences.event ? 1 : 0, userId)
+      .prepare(
+        `UPDATE users SET mail_rsvp = COALESCE(?, mail_rsvp), mail_event = COALESCE(?, mail_event) WHERE id = ?`,
+      )
+      .run(
+        patch.rsvp === undefined ? null : patch.rsvp ? 1 : 0,
+        patch.event === undefined ? null : patch.event ? 1 : 0,
+        userId,
+      )
   }
 
   async digestFor(eventId: EventId, userId: UserId): Promise<DigestSubscription> {
@@ -64,7 +72,8 @@ export class SqliteMailPreferenceRepository implements MailPreferenceRepository 
     const result = this.db
       .prepare(
         `UPDATE event_memberships SET rsvp_digest_at = ?
-          WHERE event_id = ? AND user_id = ? AND rsvp_digest_at IS ?`,
+          WHERE event_id = ? AND user_id = ? AND rsvp_digest_at IS ?
+            AND rsvp_digest = 1 AND role = 'owner'`,
       )
       .run(toIsoText(at), eventId, userId, expected === null ? null : toIsoText(expected))
     return result.changes === 1

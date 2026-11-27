@@ -44,7 +44,8 @@ export const WINDOW_ENDING_WITHIN_MS = MS_PER_DAY
  * A5, "the wall closes within 24 hours": `windowEnd` is the instant `Event.liveWindowEnd(ceilings)` gives (the
  * rule the box acts on, never recomputed here), or `null` for an event with no window. Due when that
  * instant is still ahead and at most a day away, **unless a scheduled closing falls before it**: the host
- * who planned the end does not need to be told the box would have ended it later.
+ * who planned the end does not need to be told the box would have ended it later. A scheduled closing already
+ * **in the past** that did not close the event (the schedule was discarded, or never applied) suppresses nothing.
  */
 export const windowEndingDue = (
   windowEnd: Date | null,
@@ -54,5 +55,6 @@ export const windowEndingDue = (
   if (windowEnd === null) return false
   const left = windowEnd.getTime() - now.getTime()
   if (left <= 0 || left > WINDOW_ENDING_WITHIN_MS) return false
-  return scheduledCloseAt === null || scheduledCloseAt.getTime() >= windowEnd.getTime()
+  if (scheduledCloseAt === null || scheduledCloseAt.getTime() <= now.getTime()) return true
+  return scheduledCloseAt.getTime() >= windowEnd.getTime()
 }

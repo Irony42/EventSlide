@@ -80,6 +80,25 @@ export const mailPreferenceRepositoryContract = (
       expect(await repo.digestFor(EVENT, A)).toEqual({ on: false, lastAt: null })
     })
 
+    it('refuses a claim once the owner unticked the digest after the candidate was read: they are not mailed', async () => {
+      await repo.setDigest(EVENT, A, true)
+      await repo.setDigest(EVENT, A, false)
+
+      expect(await repo.claimDigest(EVENT, A, null, AT)).toBe(false)
+      expect((await repo.digestFor(EVENT, A)).lastAt).toBeNull()
+    })
+
+    it('stores only the switch the patch names, so two changes made at once cannot undo each other', async () => {
+      await Promise.all([repo.save(A, { rsvp: false }), repo.save(A, { event: false })])
+
+      expect(await repo.forUser(A)).toEqual({ rsvp: false, event: false })
+
+      await repo.save(A, { rsvp: true })
+      expect(await repo.forUser(A)).toEqual({ rsvp: true, event: false })
+      await repo.save(A, {})
+      expect(await repo.forUser(A)).toEqual({ rsvp: true, event: false })
+    })
+
     it('has no digest and records none for a membership that does not exist', async () => {
       await repo.setDigest(EVENT, GHOST, true)
 
@@ -88,6 +107,7 @@ export const mailPreferenceRepositoryContract = (
     })
 
     it('claims the digest when the last one is still what the caller read, and says when', async () => {
+      await repo.setDigest(EVENT, A, true)
       expect(await repo.claimDigest(EVENT, A, null, AT)).toBe(true)
       expect((await repo.digestFor(EVENT, A)).lastAt).toEqual(AT)
 
@@ -96,6 +116,7 @@ export const mailPreferenceRepositoryContract = (
     })
 
     it('lets one of two callers claim the same digest: the winner sends', async () => {
+      await repo.setDigest(EVENT, A, true)
       const results = await Promise.all([
         repo.claimDigest(EVENT, A, null, AT),
         repo.claimDigest(EVENT, A, null, atPlus(1000)),
@@ -105,6 +126,7 @@ export const mailPreferenceRepositoryContract = (
     })
 
     it('refuses a claim made against a stale reading, either way', async () => {
+      await repo.setDigest(EVENT, A, true)
       await repo.claimDigest(EVENT, A, null, AT)
 
       expect(await repo.claimDigest(EVENT, A, null, atPlus(1000))).toBe(false)
@@ -113,6 +135,7 @@ export const mailPreferenceRepositoryContract = (
     })
 
     it('keeps the claim when the owner unticks and ticks the digest again', async () => {
+      await repo.setDigest(EVENT, A, true)
       await repo.claimDigest(EVENT, A, null, AT)
 
       await repo.setDigest(EVENT, A, true)

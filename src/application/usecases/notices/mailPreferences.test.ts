@@ -84,6 +84,17 @@ describe('setMailPreferences', () => {
     expect(await world.preferences.forUser(HOST)).toEqual({ rsvp: false, event: false })
   })
 
+  it('does not undo a concurrent change of the other switch (the page saves each switch on its own)', async () => {
+    const world = aWorld()
+
+    await Promise.all([
+      world.set({ userId: HOST, rsvp: false }),
+      world.set({ userId: HOST, event: false }),
+    ])
+
+    expect(await world.preferences.forUser(HOST)).toEqual({ rsvp: false, event: false })
+  })
+
   it('changes the account it is given and no other', async () => {
     const world = aWorld()
 

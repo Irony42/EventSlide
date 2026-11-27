@@ -1,6 +1,8 @@
 import {
+  applyMailPreferencesPatch,
   DEFAULT_MAIL_PREFERENCES,
   type MailPreferences,
+  type MailPreferencesPatch,
 } from '../../domain/notices/mailPreferences'
 import type { EventId, UserId } from '../../domain/shared/ids'
 import type {
@@ -41,9 +43,10 @@ export class FakeMailPreferenceRepository implements MailPreferenceRepository {
     return this.users.get(userId) ?? DEFAULT_MAIL_PREFERENCES
   }
 
-  async save(userId: UserId, preferences: MailPreferences): Promise<void> {
-    if (!this.users.has(userId)) return
-    this.users.set(userId, { rsvp: preferences.rsvp, event: preferences.event })
+  async save(userId: UserId, patch: MailPreferencesPatch): Promise<void> {
+    const held = this.users.get(userId)
+    if (held === undefined) return
+    this.users.set(userId, applyMailPreferencesPatch(held, patch))
   }
 
   async digestFor(eventId: EventId, userId: UserId): Promise<DigestSubscription> {
@@ -63,7 +66,7 @@ export class FakeMailPreferenceRepository implements MailPreferenceRepository {
     at: Date,
   ): Promise<boolean> {
     const row = this.members.get(memberKey(eventId, userId))
-    if (row === undefined) return false
+    if (row === undefined || !row.on) return false
     const held = row.lastAt
     const same =
       held === null || expected === null ? held === expected : held.getTime() === expected.getTime()

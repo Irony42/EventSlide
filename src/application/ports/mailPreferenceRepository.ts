@@ -1,4 +1,4 @@
-import type { MailPreferences } from '../../domain/notices/mailPreferences'
+import type { MailPreferences, MailPreferencesPatch } from '../../domain/notices/mailPreferences'
 import type { EventId, UserId } from '../../domain/shared/ids'
 
 /** An owner's daily-summary state for one event (spec 32, R2). */
@@ -21,8 +21,12 @@ export interface MailPreferenceRepository {
   /** The account's switches; both **on** for an account that never touched them (or an unknown one). */
   forUser(userId: UserId): Promise<MailPreferences>
 
-  /** Stores both switches. Storing for an account that does not exist records nothing. */
-  save(userId: UserId, preferences: MailPreferences): Promise<void>
+  /**
+   * Stores **the switches the patch names** and leaves the other as the row holds it, in one statement: two
+   * changes made at once (the page saves each switch on its own) cannot undo each other. Storing for an account
+   * that does not exist records nothing.
+   */
+  save(userId: UserId, patch: MailPreferencesPatch): Promise<void>
 
   /** This owner's digest state for the event; off and never sent when the membership does not exist. */
   digestFor(eventId: EventId, userId: UserId): Promise<DigestSubscription>
@@ -32,7 +36,8 @@ export interface MailPreferenceRepository {
 
   /**
    * **Compare-and-set** on `rsvp_digest_at`: writes `at` only if the column still holds `expected`
-   * (`null` for "never"), and answers `true` to the write that did. The winner sends the digest, so the
+   * (`null` for "never"), **the owner still has the digest ticked and is still an owner**, and answers `true` to
+   * the write that did. The winner sends the digest, so the
    * retention timer and `npm run purge` running together send one, not two. `false` for a lost race or a
    * membership that does not exist.
    */

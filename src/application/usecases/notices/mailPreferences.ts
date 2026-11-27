@@ -97,6 +97,7 @@ export const makeSetMailPreferences =
     if (!entry.ok) return entry
 
     await audit.record(entry.value)
-    await preferences.save(userId, next)
+    // Only what the request named: the other switch is not rewritten from the reading above.
+    await preferences.save(userId, { rsvp, event })
     return ok(undefined)
   }
