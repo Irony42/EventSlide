@@ -24,7 +24,8 @@ use the free hosted instance: see [Try it](#try-it).
 
 **Hosted.** The maintainer runs one free instance of the same software at
 [app.eventslide.fr](https://app.eventslide.fr). [Create an account](https://app.eventslide.fr/signup)
-with your e-mail address: it opens once you confirm the address (one event at a time, 5 GB).
+with your e-mail address; once you confirm it, an invitation mail lets you choose a password (one
+event at a time, 5 GB).
 [eventslide.fr](https://eventslide.fr/en/) explains how it works and has some guides.
 
 **Self-hosted, with Docker.** You need Docker and an https address your guests' phones can
