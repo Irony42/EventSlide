@@ -76,6 +76,30 @@ export class FakeGuestInviteRepository implements GuestInviteRepository {
     this.rsvp.set(eventId, { ...settings, closedAt: held.closedAt })
   }
 
+  async eventsWithRsvpDeadlineBetween(fromDay: string, toDay: string): Promise<readonly EventId[]> {
+    return [...this.rows.keys()]
+      .filter((id) => {
+        const settings = this.rsvp.get(id) ?? DEFAULT_RSVP_SETTINGS
+        return (
+          settings.enabled &&
+          settings.closedAt === null &&
+          settings.deadline !== null &&
+          settings.deadline >= fromDay &&
+          settings.deadline <= toDay
+        )
+      })
+      .sort() as EventId[]
+  }
+
+  async eventsWithRsvpCapacity(): Promise<readonly EventId[]> {
+    return [...this.rows.keys()]
+      .filter((id) => {
+        const settings = this.rsvp.get(id) ?? DEFAULT_RSVP_SETTINGS
+        return settings.enabled && settings.closedAt === null && settings.form.capacity !== null
+      })
+      .sort() as EventId[]
+  }
+
   async setRsvpClosedAt(eventId: EventId, closedAt: Date | null): Promise<void> {
     if (!this.rows.has(eventId)) return
     this.rsvp.set(eventId, { ...(this.rsvp.get(eventId) ?? DEFAULT_RSVP_SETTINGS), closedAt })

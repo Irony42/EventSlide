@@ -68,6 +68,11 @@ guestRsvpRepositoryContract('sqlite', async () => {
       ).run(eventId, userId, ISO_AT)
     },
     setEventDates: setDates(db),
+    setDigest: async (eventId, userId, state) => {
+      db.prepare(
+        `UPDATE event_memberships SET rsvp_digest = ?, rsvp_digest_at = ? WHERE event_id = ? AND user_id = ?`,
+      ).run(state.on ? 1 : 0, state.at === null ? null : state.at.toISOString(), eventId, userId)
+    },
     dispose: async () => closeDatabase(db),
   }
 })

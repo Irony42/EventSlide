@@ -2,12 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { aRsvp } from '../../domain/guestRsvps/testing/rsvpFixtures'
 import { asEventId } from '../../domain/shared/ids'
 import { guestRsvpRepositoryContract } from './contracts/guestRsvpRepositoryContract'
+import { FakeMailPreferenceRepository } from './fakeMailPreferenceRepository'
 import { FakeGuestRsvpRepository } from './fakeGuestRsvpRepository'
 
 guestRsvpRepositoryContract('fake', async () => {
-  const repo = new FakeGuestRsvpRepository()
+  const preferences = new FakeMailPreferenceRepository()
+  const repo = new FakeGuestRsvpRepository({ mailPreferences: preferences })
   return {
     repo,
+    setDigest: async (eventId, userId, state) => {
+      preferences.withMembers({ eventId, userId })
+      await preferences.setDigest(eventId, userId, state.on)
+      if (state.at !== null) await preferences.claimDigest(eventId, userId, null, state.at)
+    },
     addMember: async (eventId, userId) => void repo.addMember(eventId, userId),
     setEventDates: async (eventId, dates) => void repo.setEventDates(eventId, dates),
   }

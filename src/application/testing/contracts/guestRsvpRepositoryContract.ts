@@ -31,6 +31,12 @@ export interface GuestRsvpRepositorySubject {
     eventId: EventId,
     dates: { readonly closedAt: Date | null; readonly startsAt: Date | null },
   ) => Promise<void>
+  /** Ticks the digest of a member and sets when the last summary was claimed (`event_memberships.rsvp_digest*`). */
+  readonly setDigest: (
+    eventId: EventId,
+    userId: UserId,
+    state: { readonly on: boolean; readonly at: Date | null },
+  ) => Promise<void>
   readonly dispose?: () => Promise<void>
 }
 
@@ -838,6 +844,57 @@ export const guestRsvpRepositoryContract = (
 
         expect(changed.kind).toBe('updated')
         expect((await repo.findById(WEDDING, stored.id))?.absentNoteGuestId).toBe('guest-note')
+      })
+    })
+
+    describe('digestCandidates (R2)', () => {
+      const HOST = asUserId('user-host')
+      const OTHER = asUserId('user-other')
+
+      it('names an owner who ticked the digest when a reply is newer than the visit and the last summary', async () => {
+        await subject.addMember(WEDDING, HOST)
+        await add({ id: 'rsvp-1', updatedAt: T1 })
+        await subject.setDigest(WEDDING, HOST, { on: true, at: null })
+
+        expect(await repo.digestCandidates()).toEqual([
+          { eventId: WEDDING, userId: HOST, seenAt: null, digestAt: null, lastChangeAt: T1 },
+        ])
+      })
+
+      it('names nobody who did not tick it, and nobody for an event with no reply', async () => {
+        await subject.addMember(WEDDING, HOST)
+        await subject.addMember(GALA, HOST)
+        await add({ id: 'rsvp-1', updatedAt: T1 })
+        await subject.setDigest(GALA, HOST, { on: true, at: null })
+
+        expect(await repo.digestCandidates()).toEqual([])
+      })
+
+      it('counts from the later of the visit and the last summary: a change they already saw or were told is not news', async () => {
+        await subject.addMember(WEDDING, HOST)
+        await add({ id: 'rsvp-1', updatedAt: T1 })
+        await subject.setDigest(WEDDING, HOST, { on: true, at: T0 })
+        expect(await repo.digestCandidates()).toHaveLength(1)
+
+        await repo.markSeen(WEDDING, HOST, T1)
+        expect(await repo.digestCandidates()).toEqual([])
+
+        await subject.setDigest(WEDDING, HOST, { on: true, at: T2 })
+        await add({ id: 'rsvp-2', updatedAt: T1 })
+        expect(await repo.digestCandidates()).toEqual([])
+
+        await add({ id: 'rsvp-3', updatedAt: new Date(T2.getTime() + 1) })
+        expect(await repo.digestCandidates()).toHaveLength(1)
+      })
+
+      it('is one row per owner and event, each with its own state', async () => {
+        await subject.addMember(WEDDING, HOST)
+        await subject.addMember(WEDDING, OTHER)
+        await add({ id: 'rsvp-1', updatedAt: T1 })
+        await subject.setDigest(WEDDING, HOST, { on: true, at: null })
+        await subject.setDigest(WEDDING, OTHER, { on: true, at: T2 })
+
+        expect((await repo.digestCandidates()).map((c) => c.userId)).toEqual([HOST])
       })
     })
 

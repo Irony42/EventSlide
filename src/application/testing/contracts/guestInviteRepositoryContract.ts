@@ -207,6 +207,42 @@ export const guestInviteRepositoryContract = (
         expect(await repo.findRsvpSettings(WEDDING)).toEqual(SETTINGS)
       })
 
+      it('names the events with a deadline in a range of days, asked and not closed by hand (R3, R4 candidates)', async () => {
+        await repo.create(aGuestInvite({ eventId: 'evt-wedding' }))
+        await repo.create(aGuestInvite({ eventId: 'evt-gala', tokenByte: 2 }))
+        await repo.saveRsvpSettings(WEDDING, SETTINGS)
+
+        expect(await repo.eventsWithRsvpDeadlineBetween('2026-12-05', '2026-12-05')).toEqual([
+          WEDDING,
+        ])
+        expect(await repo.eventsWithRsvpDeadlineBetween('2026-12-01', '2026-12-04')).toEqual([])
+        expect(await repo.eventsWithRsvpDeadlineBetween('2026-12-06', '2026-12-09')).toEqual([])
+
+        // Replies switched off, or closed by hand: not a candidate.
+        await repo.setRsvpClosedAt(WEDDING, LATER)
+        expect(await repo.eventsWithRsvpDeadlineBetween('2026-12-01', '2026-12-09')).toEqual([])
+        await repo.setRsvpClosedAt(WEDDING, null)
+        await repo.saveRsvpSettings(WEDDING, { ...SETTINGS, enabled: false })
+        expect(await repo.eventsWithRsvpDeadlineBetween('2026-12-01', '2026-12-09')).toEqual([])
+      })
+
+      it('names the events whose form limits the places, asked and not closed by hand (R5 candidates)', async () => {
+        await repo.create(aGuestInvite({ eventId: 'evt-wedding' }))
+        await repo.create(aGuestInvite({ eventId: 'evt-gala', tokenByte: 2 }))
+
+        expect(await repo.eventsWithRsvpCapacity()).toEqual([])
+
+        await repo.saveRsvpSettings(WEDDING, {
+          ...SETTINGS,
+          form: { ...SETTINGS.form, capacity: 120 },
+        })
+        await repo.saveRsvpSettings(GALA, SETTINGS)
+        expect(await repo.eventsWithRsvpCapacity()).toEqual([WEDDING])
+
+        await repo.setRsvpClosedAt(WEDDING, LATER)
+        expect(await repo.eventsWithRsvpCapacity()).toEqual([])
+      })
+
       it('closes and reopens without touching the rest, and a save does not lift the closing', async () => {
         await repo.create(aGuestInvite({ eventId: 'evt-wedding' }))
         await repo.saveRsvpSettings(WEDDING, SETTINGS)
