@@ -92,6 +92,7 @@ type Kind =
   | 'client'
   | 'accountToken'
   | 'signupRequest'
+  | 'hostAnnouncement'
   | 'challenge'
   | 'announcement'
   | 'channelBinding'
@@ -118,6 +119,7 @@ const PREFIX: Record<Kind, string> = {
   guestRsvp: 'd1000000',
   guestHousehold: 'd2000000',
   signupRequest: 'd3000000',
+  hostAnnouncement: 'd4000000',
 }
 
 export const createSequentialIdGenerator = (): IdGenerator => {
@@ -149,6 +151,7 @@ export const createSequentialIdGenerator = (): IdGenerator => {
     clientId: (): ClientId => asClientId(next('client')),
     accountTokenId: (): AccountTokenId => asAccountTokenId(next('accountToken')),
     signupRequestId: (): string => next('signupRequest'),
+    hostAnnouncementId: (): string => next('hostAnnouncement'),
     challengeId: (): ChallengeId => asChallengeId(next('challenge')),
     announcementId: (): AnnouncementId => asAnnouncementId(next('announcement')),
     channelBindingId: (): ChannelBindingId => asChannelBindingId(next('channelBinding')),

@@ -312,6 +312,12 @@ export const AUDIT_ACTIONS = {
    * names it as the alarm for signups used to exhaust the ceiling.
    */
   'signup.dailyCeilingReached': { subject: 'access_request', details: {} },
+  /**
+   * An operator wrote an announcement to the hosts (`sendHostAnnouncement`, spec 32, A8). The subject is the operator's own
+   * account (the subject types are a `CHECK` on `audit_log`: no new one for a line with no target of its own), and the one
+   * detail is **how many accounts it was owed to**, a number: never the text, never an address.
+   */
+  'account.hostAnnouncementSent': { subject: 'account', details: { recipients: detail.integer } },
 } as const satisfies Record<string, AuditActionSpec>
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS

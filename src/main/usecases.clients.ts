@@ -19,6 +19,8 @@ import { makeGetSiteGuestbookState } from '../application/usecases/site/getSiteG
 import { makeGetSitePhotoState } from '../application/usecases/site/getSitePhotoState'
 import { makeLookupSiteEvents } from '../application/usecases/site/lookupSiteEvents'
 import { makeSetEventPurgeHold } from '../application/usecases/site/setEventPurgeHold'
+import { makeListHostAnnouncements } from '../application/usecases/site/listHostAnnouncements'
+import { makeSendHostAnnouncement } from '../application/usecases/site/sendHostAnnouncement'
 import { makeSetEventTakedown } from '../application/usecases/site/setEventTakedown'
 import { makeSetGuestbookTakedown } from '../application/usecases/site/setGuestbookTakedown'
 import { makeSetPhotoTakedown } from '../application/usecases/site/setPhotoTakedown'
@@ -43,6 +45,7 @@ export const clientsUseCases = (
     invalidateExport,
     issueInvitation,
     takedownNotice,
+    sweepHostAnnouncements,
   }: SharedHooks,
 ) => {
   const provisionClientOwner = makeProvisionClientOwner({
@@ -167,6 +170,21 @@ export const clientsUseCases = (
      * Freezing a client and lifting it (G2-14): `POST /api/site/clients/:clientId/suspend` and
      * `/resume`, behind the operator's gate and a step-up.
      */
+    /**
+     * The operator's announcements to the hosts (spec 32, lot 2, A8): `POST` and `GET /api/site/announcements`. Writing one
+     * starts its first batch at once (the same sweep the retention timer runs, one pass at a time).
+     */
+    sendHostAnnouncement: makeSendHostAnnouncement({
+      announcements: adapters.hostAnnouncements,
+      audit: adapters.audit,
+      ids: adapters.ids,
+      clock: adapters.clock,
+      mailer: adapters.mailer,
+      kick: () => {
+        void sweepHostAnnouncements().catch(() => {})
+      },
+    }),
+    listHostAnnouncements: makeListHostAnnouncements({ announcements: adapters.hostAnnouncements }),
     suspendClient: makeSuspendClient({
       clients: adapters.clients,
       audit: adapters.audit,

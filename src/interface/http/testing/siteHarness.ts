@@ -22,6 +22,9 @@ import { makeListPendingInvitations } from '../../../application/usecases/client
 import { makeInviteToClientAsOperator } from '../../../application/usecases/clients/inviteToClientAsOperator'
 import { makeProvisionClientOwner } from '../../../application/usecases/clients/provisionClientOwner'
 import { makeApproveSignup } from '../../../application/usecases/signups/approveSignup'
+import { SqliteHostAnnouncementRepository } from '../../../infrastructure/db/sqliteHostAnnouncementRepository'
+import { makeListHostAnnouncements } from '../../../application/usecases/site/listHostAnnouncements'
+import { makeSendHostAnnouncement } from '../../../application/usecases/site/sendHostAnnouncement'
 import { makeListSignupsForOperator } from '../../../application/usecases/signups/listSignupsForOperator'
 import { makeRefuseSignup } from '../../../application/usecases/signups/refuseSignup'
 import { makeRenameClient } from '../../../application/usecases/clients/renameClient'
@@ -210,6 +213,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
   const tokens = new SqliteAccountTokenRepository(db)
   const audit = new SqliteAuditLog(db)
   const signups = new SqliteSignupRepository(db)
+  const hostAnnouncements = new SqliteHostAnnouncementRepository(db)
   const overview = new SqliteSiteOverview(db)
   const secondFactors = new SqliteSecondFactorRepository(db)
   const acceptance = new SqliteInvitationAcceptance(db)
@@ -273,6 +277,14 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       provisionClientOwner,
       listSignupsForOperator: makeListSignupsForOperator({ signups, users, clock }),
       approveSignup: makeApproveSignup({ signups, provisionClientOwner, audit, clock, logger }),
+      sendHostAnnouncement: makeSendHostAnnouncement({
+        announcements: hostAnnouncements,
+        audit,
+        ids,
+        clock,
+        mailer,
+      }),
+      listHostAnnouncements: makeListHostAnnouncements({ announcements: hostAnnouncements }),
       refuseSignup: makeRefuseSignup({
         signups,
         mailer,

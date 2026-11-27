@@ -362,6 +362,12 @@ const OPERATOR_ROUTES: Readonly<Record<string, string>> = {
   'post /api/site/clients/:clientId/offboard':
     "ends an engagement (`offboardClient`): it moves the client's events by status and dates the purge of its\n" +
     'albums; it reads no content, and what it destroys is destroyed later by the retention sweep, not here',
+  'get /api/site/announcements':
+    'the announcements the operator wrote to the hosts (`listHostAnnouncements`, spec 32, A8): the operator’s own words, ' +
+    'a number of accounts reached and the size of the audience; no address, no event, no host’s text',
+  'post /api/site/announcements':
+    'writes an announcement to the hosts (`sendHostAnnouncement`, spec 32, A8): one row of host_announcements and one audit ' +
+    'line with a number; the mails go out later from the sweep, to accounts read from the client_members table, and no event is read',
   'post /api/site/accounts/:userId/disable':
     'switches an account off (`disableAccount`): one column of the users table and its audit lines; it reads no\n' +
     'event, and refuses an operator',

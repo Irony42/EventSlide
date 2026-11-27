@@ -251,6 +251,8 @@ const buildWorld = ({
         listSignupsForOperator: absent('listSignupsForOperator'),
         approveSignup: absent('approveSignup'),
         refuseSignup: absent('refuseSignup'),
+        sendHostAnnouncement: absent('sendHostAnnouncement'),
+        listHostAnnouncements: absent('listHostAnnouncements'),
         renameClient: absent('renameClient'),
         setClientCeilings: absent('setClientCeilings'),
         suspendClient: absent('suspendClient'),

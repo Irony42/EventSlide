@@ -84,6 +84,15 @@ const nobodyToldAboutReplies = {
 
 const noEventNotices = nobodyToldAboutReplies
 
+const noAnnouncements = {
+  sent: 0,
+  unsent: 0,
+  heldByBudget: false,
+  finished: 0,
+  failed: [] as string[],
+}
+const nothingPruned2 = { deliveries: 0, announcements: 0 }
+
 const noDigests = { claimed: 0, sent: 0, unsent: 0, skippedBudget: 0, failed: [] }
 
 const nothingSignups = { expired: 0, released: 0, erased: 0 }
@@ -103,6 +112,8 @@ const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
     sweepRsvpNotices: async () => nobodyToldAboutReplies,
     sweepRsvpDigests: async () => noDigests,
     sweepEventNotices: async () => noEventNotices,
+    sweepHostAnnouncements: async () => noAnnouncements,
+    pruneHostAnnouncements: async () => nothingPruned2,
     logger,
     clock,
     intervalMs: INTERVAL_MS,
@@ -769,6 +780,14 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
         order.push('eventNotices')
         return noEventNotices
       },
+      sweepHostAnnouncements: async () => {
+        order.push('announcements')
+        return noAnnouncements
+      },
+      pruneHostAnnouncements: async () => {
+        order.push('announcementsPruned')
+        return nothingPruned2
+      },
       finalizeOffboardedClients: async () => {
         order.push('finalize')
         return nothingFinalized
@@ -794,6 +813,8 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
       'warn',
       'digests',
       'eventNotices',
+      'announcements',
+      'announcementsPruned',
       'finalize',
       'prune',
     ])
@@ -809,6 +830,8 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
       sweepRsvpNotices: async () => nobodyToldAboutReplies,
       sweepRsvpDigests: async () => noDigests,
       sweepEventNotices: async () => noEventNotices,
+      sweepHostAnnouncements: async () => noAnnouncements,
+      pruneHostAnnouncements: async () => nothingPruned2,
       finalizeOffboardedClients: async () => {
         throw new Error('database is locked')
       },
@@ -1061,6 +1084,90 @@ describe('the notices of the life of an event ride the follow-up (spec 32, A3, A
       expect(lines.find((e) => e.message === 'event notices failed')?.context).toEqual({
         error: thrown instanceof Error ? 'Error' : 'unknown',
       })
+    }
+  })
+})
+
+describe('the announcements to the hosts ride the follow-up (spec 32, A8)', () => {
+  it('says how many mails left and how many announcements finished, with the budget that held it back', async () => {
+    const { sweeper, lines } = build({
+      sweepHostAnnouncements: async () => ({
+        sent: 40,
+        unsent: 1,
+        heldByBudget: true,
+        finished: 0,
+        failed: [],
+      }),
+    })
+
+    await sweeper.runOnce()
+
+    const line = lines.find((entry) => entry.message === 'retention sweep sent host announcements')
+    expect(line?.context).toEqual({ sent: 40, unsent: 1, finished: 0, heldByBudget: true })
+  })
+
+  it('stays silent when nothing was due, and lists what it could not examine', async () => {
+    const quiet = build()
+    await quiet.sweeper.runOnce()
+    expect(quiet.lines.map((entry) => entry.message)).not.toContain(
+      'retention sweep sent host announcements',
+    )
+
+    const failing = build({
+      sweepHostAnnouncements: async () => ({ ...noAnnouncements, failed: ['a-1', 'a-2'] }),
+    })
+    await failing.sweeper.runOnce()
+    expect(
+      failing.lines.find(
+        (entry) => entry.message === 'host announcements could not all be examined',
+      )?.context,
+    ).toEqual({ failed: 2, failedIds: 'a-1 a-2' })
+  })
+
+  it('says what the retention erased, and nothing when nothing was old enough', async () => {
+    const { sweeper, lines } = build({
+      pruneHostAnnouncements: async () => ({ deliveries: 12, announcements: 1 }),
+    })
+
+    await sweeper.runOnce()
+
+    expect(
+      lines.find((entry) => entry.message === 'retention sweep erased old host announcements')
+        ?.context,
+    ).toEqual({ deliveries: 12, announcements: 1 })
+    const quiet = build()
+    await quiet.sweeper.runOnce()
+    expect(quiet.lines.map((entry) => entry.message)).not.toContain(
+      'retention sweep erased old host announcements',
+    )
+  })
+
+  it('never stops the rest when either throws, and names the error, not its message', async () => {
+    for (const thrown of [new Error('secret'), 'plain']) {
+      let pruned = false
+      const { sweeper, lines } = build({
+        sweepHostAnnouncements: async () => {
+          throw thrown
+        },
+        pruneHostAnnouncements: async () => {
+          throw thrown
+        },
+        pruneAuditLog: async () => {
+          pruned = true
+          return nothingPruned
+        },
+      })
+
+      await sweeper.runOnce()
+
+      expect(pruned).toBe(true)
+      const expected = { error: thrown instanceof Error ? 'Error' : 'unknown' }
+      expect(lines.find((e) => e.message === 'host announcements failed')?.context).toEqual(
+        expected,
+      )
+      expect(
+        lines.find((e) => e.message === 'host announcements could not be pruned')?.context,
+      ).toEqual(expected)
     }
   })
 })

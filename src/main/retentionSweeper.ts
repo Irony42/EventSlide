@@ -8,6 +8,8 @@ import type { PruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import type { FinalizeOffboardedClients } from '../application/usecases/clients/finalizeOffboardedClients'
 import type { PurgeExpiredRsvps } from '../application/usecases/guestRsvps/purgeExpiredRsvps'
 import type { SweepRsvpDigests } from '../application/usecases/notices/sweepRsvpDigests'
+import type { PruneHostAnnouncements } from '../application/usecases/notices/pruneHostAnnouncements'
+import type { SweepHostAnnouncements } from '../application/usecases/notices/sweepHostAnnouncements'
 import type { SweepEventNotices } from '../application/usecases/notices/sweepEventNotices'
 import type { SweepRsvpNotices } from '../application/usecases/notices/sweepRsvpNotices'
 import type { PruneMailBudget } from '../application/usecases/notices/pruneMailBudget'
@@ -70,6 +72,10 @@ export interface RetentionSweeperDeps {
   readonly sweepRsvpDigests: SweepRsvpDigests
   /** The notices of the life of an event (spec 32, A3, A5). Required, like the others. */
   readonly sweepEventNotices: SweepEventNotices
+  /** The announcements to the hosts, by batches (spec 32, A8). Required, like the others. */
+  readonly sweepHostAnnouncements: SweepHostAnnouncements
+  /** The retention of the announcements: deliveries 30 days after the end, texts 365 days (spec 32, A8). */
+  readonly pruneHostAnnouncements: PruneHostAnnouncements
   readonly logger: Logger
   /** For the duration in the log line. Injected so that duration is assertable. */
   readonly clock: Clock
@@ -94,6 +100,8 @@ export interface RetentionFollowUpDeps {
   readonly sweepRsvpNotices: SweepRsvpNotices
   readonly sweepRsvpDigests: SweepRsvpDigests
   readonly sweepEventNotices: SweepEventNotices
+  readonly sweepHostAnnouncements: SweepHostAnnouncements
+  readonly pruneHostAnnouncements: PruneHostAnnouncements
   readonly finalizeOffboardedClients: FinalizeOffboardedClients
   readonly sweepPurgeNotices: SweepPurgeNotices
   readonly pruneAuditLog: PruneAuditLog
@@ -116,6 +124,8 @@ export const makeRetentionFollowUp = ({
   sweepRsvpNotices,
   sweepRsvpDigests,
   sweepEventNotices,
+  sweepHostAnnouncements,
+  pruneHostAnnouncements,
   finalizeOffboardedClients,
   sweepPurgeNotices,
   pruneAuditLog,
@@ -267,6 +277,45 @@ export const makeRetentionFollowUp = ({
   }
 
   /**
+   * The announcements to the hosts (spec 32, A8): the next batch, within the day's budget, then the retention of the old ones (the
+   * record of who was reached 30 days after the end, the text after 365). Never throws, for the reason `pruneAudit` gives;
+   * the logs say counts, never an address.
+   */
+  const sendAnnouncements = async (): Promise<void> => {
+    try {
+      const report = await sweepHostAnnouncements()
+      if (report.sent > 0 || report.unsent > 0 || report.finished > 0) {
+        logger.info('retention sweep sent host announcements', {
+          sent: report.sent,
+          unsent: report.unsent,
+          finished: report.finished,
+          heldByBudget: report.heldByBudget,
+        })
+      }
+      if (report.failed.length > 0) {
+        logger.error('host announcements could not all be examined', {
+          failed: report.failed.length,
+          failedIds: report.failed.join(' '),
+        })
+      }
+    } catch (error) {
+      logger.error('host announcements failed', {
+        error: error instanceof Error ? error.name : 'unknown',
+      })
+    }
+    try {
+      const erased = await pruneHostAnnouncements()
+      if (erased.deliveries > 0 || erased.announcements > 0) {
+        logger.info('retention sweep erased old host announcements', { ...erased })
+      }
+    } catch (error) {
+      logger.error('host announcements could not be pruned', {
+        error: error instanceof Error ? error.name : 'unknown',
+      })
+    }
+  }
+
+  /**
    * The daily summary of the replies (spec 32, R2): after the purge and its warnings, to the owners who ticked it. Never throws,
    * for the reason `pruneAudit` gives; a message the relay refused is not an error.
    */
@@ -355,6 +404,7 @@ export const makeRetentionFollowUp = ({
     await warnOwners()
     await sendDigests()
     await sendEventNotices()
+    await sendAnnouncements()
     // The offboarded clients first, whose audit lines the prune should then see.
     await finalizeClients()
     await pruneAudit()
@@ -372,6 +422,8 @@ export const createRetentionSweeper = ({
   sweepRsvpNotices,
   sweepRsvpDigests,
   sweepEventNotices,
+  sweepHostAnnouncements,
+  pruneHostAnnouncements,
   logger,
   clock,
   intervalMs,
@@ -386,6 +438,8 @@ export const createRetentionSweeper = ({
     sweepRsvpNotices,
     sweepRsvpDigests,
     sweepEventNotices,
+    sweepHostAnnouncements,
+    pruneHostAnnouncements,
     logger,
   })
 

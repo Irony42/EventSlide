@@ -252,6 +252,13 @@ const CALLS: readonly Call[] = [
     path: `/api/site/clients/${ID.clientL}/offboard`,
     body: { graceDays: 30 },
   },
+  { name: 'get /api/site/announcements', method: 'get', path: '/api/site/announcements' },
+  {
+    name: 'post /api/site/announcements',
+    method: 'post',
+    path: '/api/site/announcements',
+    body: { subject: 'Nouvelles conditions', text: 'Elles changent.' },
+  },
   {
     name: 'post /api/site/accounts/:userId/disable',
     method: 'post',
@@ -543,6 +550,8 @@ const KEYS = new Set([
   'existingAccount',
   'pendingCount',
   'notified',
+  // The size of the audience of an announcement (spec 32, A8): a number.
+  'recipients',
 ])
 
 const walk = (value: unknown, visit: (kind: 'key' | 'string', text: string) => void): void => {
@@ -647,7 +656,9 @@ describe.each(['delivers', 'none'] as const)(
 
       for (const { call, status } of answers.slice(0, CALLS.length)) {
         // A box with no relay refuses an operator's reset by default (R2), which is an answer too.
-        const refusedForWantOfARelay = mail === 'none' && call.name.endsWith('/password-reset')
+        const refusedForWantOfARelay =
+          mail === 'none' &&
+          (call.name.endsWith('/password-reset') || call.name === 'post /api/site/announcements')
         expect(
           refusedForWantOfARelay ? [409] : [200, 201, 204],
           `${call.name} ${call.path}`,

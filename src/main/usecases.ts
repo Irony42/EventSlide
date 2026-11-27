@@ -45,6 +45,7 @@ import type { SecondFactorRepository } from '../application/ports/secondFactorRe
 import type { StreamHasher } from '../application/ports/streamHasher'
 import type { PurgeNoticeLedger } from '../application/ports/purgeNoticeLedger'
 import type { EventMailNoticeLedger } from '../application/ports/eventMailNoticeLedger'
+import type { HostAnnouncementRepository } from '../application/ports/hostAnnouncementRepository'
 import type { MailBudget } from '../application/ports/mailBudget'
 import type { MailPreferenceRepository } from '../application/ports/mailPreferenceRepository'
 import type { TourLedger } from '../application/ports/tourLedger'
@@ -173,6 +174,8 @@ export interface Adapters {
   readonly eventMailNotices: EventMailNoticeLedger
   /** How many mails the box sent today, against `MAIL_FOLLOWUP_MAX_PER_DAY` (spec 32). */
   readonly mailBudget: MailBudget
+  /** The operator's announcements to the hosts and who they reached (spec 32, lot 2, A8). */
+  readonly hostAnnouncements: HostAnnouncementRepository
   /** What each account chose to receive by mail, and an owner's digest state (spec 32). */
   readonly mailPreferences: MailPreferenceRepository
   /** RFC 6238's one primitive. */
@@ -340,7 +343,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     ...galleryUseCases(adapters, hooks),
     ...clientsUseCases(adapters, policy, hooks),
     ...signupUseCases(adapters, policy, hooks),
-    ...noticeUseCases(adapters, policy),
+    ...noticeUseCases(adapters, policy, hooks),
     /** The account notices (spec 32, A1), for the composition's own tests to wait on: no route reaches it. */
     accountNotice: hooks.accountNotice,
     /** The job and invitation notices (spec 32, A2, A6): the workers are given `jobNotice.notify`; tests wait on `idle`. */

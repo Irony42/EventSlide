@@ -129,6 +129,8 @@ const usecasesFor = (
     listSignupsForOperator: notWired,
     approveSignup: notWired,
     refuseSignup: notWired,
+    sendHostAnnouncement: notWired,
+    listHostAnnouncements: async () => ({ recipients: 0, items: [] }),
     renameClient: notWired,
     setClientCeilings: notWired,
     suspendClient: notWired,
