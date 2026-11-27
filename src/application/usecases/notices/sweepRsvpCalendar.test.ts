@@ -126,7 +126,7 @@ const build = async (
     )
   }
 
-  const sweep = makeSweepRsvpNotices({
+  const deps = {
     events,
     clients,
     invites,
@@ -141,8 +141,9 @@ const build = async (
     capNoticeDays: 30,
     publicUrl: 'https://photos.example.test',
     hostMailNotices: options.hostMailNotices ?? true,
-  })
-  return { sweep, mailer, ledger, budget, clock, preferences, invites, rsvps, logger }
+  }
+  const sweep = makeSweepRsvpNotices(deps)
+  return { sweep, mailer, ledger, budget, clock, preferences, invites, rsvps, logger, deps }
 }
 
 const subjects = (world: Awaited<ReturnType<typeof build>>): string[] =>
@@ -228,6 +229,17 @@ describe('R3, the deadline reminder', () => {
     const world = await build({ households: 3, answered: 1, hostMailNotices: false })
 
     expect(await world.sweep()).toMatchObject({ noticed: [], sent: 0 })
+  })
+
+  it('is stopped even for an event that is a candidate for another reason (the erasure warning lists it)', async () => {
+    const world = await build({ households: 3, answered: 1, hostMailNotices: false })
+    const listed = Object.assign(Object.create(world.rsvps) as FakeGuestRsvpRepository, {
+      eventsWithRepliesExpiringBefore: async () => [WEDDING],
+    })
+
+    const report = await makeSweepRsvpNotices({ ...world.deps, rsvps: listed })()
+
+    expect(report).toMatchObject({ noticed: [], sent: 0 })
   })
 
   it('is held back by the day budget, neither noted nor sent, and goes the next day while it is fresh', async () => {
