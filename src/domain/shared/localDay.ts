@@ -95,3 +95,11 @@ export const startOfLocalDay = (day: string, timeZone: string): Date => {
 /** The first instant of the local day that follows `day`. */
 export const startOfNextLocalDay = (day: string, timeZone: string): Date =>
   startOfLocalDay(utcDayTextOf(naiveMidnightOf(day) + MS_PER_DAY), timeZone)
+
+/** The hour of the wall clock (0 to 23) an instant shows in `timeZone`. */
+export const localHourOf = (at: Date, timeZone: string): number =>
+  (wallClockOf(at.getTime(), timeZone)['hour'] as number) % 24
+
+/** The local day `count` days after `day` (before it, for a negative count), `YYYY-MM-DD`. */
+export const addLocalDays = (day: string, count: number): string =>
+  utcDayTextOf(naiveMidnightOf(day) + count * MS_PER_DAY)
