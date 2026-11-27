@@ -2230,6 +2230,8 @@ export interface RsvpListResponseDto {
   readonly stats: RsvpStatsDto
   /** How many replies were written or changed since the caller last looked. */
   readonly unseen: number
+  /** The caller ticked the daily summary of the replies for this event (spec 32, R2). */
+  readonly rsvpDigest: boolean
 }
 
 /** What the invitation page says about answering (spec 30), as the guest reads it. */

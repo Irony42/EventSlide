@@ -249,6 +249,10 @@ export const guestInviteApi = (transport: Transport) => ({
   deleteRsvp: (slug: string, id: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/rsvps/${encode(id)}`),
 
+  /** The owner ticks or unticks the daily summary of the replies for this event, `204` (spec 32, R2). */
+  setRsvpDigest: (slug: string, on: boolean): Promise<void> =>
+    transport.put(`/api/events/${encode(slug)}/rsvp-digest`, { on }),
+
   /** The host looked: the badge counts from now on. */
   markRsvpsSeen: (slug: string): Promise<void> =>
     transport.post(`/api/events/${encode(slug)}/rsvps/seen`, {}),

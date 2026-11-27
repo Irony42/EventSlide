@@ -504,6 +504,46 @@ describe('the replies of an event, on the host’s side (spec 30)', () => {
     })
   })
 
+  describe('setRsvpDigest, the owner daily summary (spec 32, R2)', () => {
+    const digestOf = async () => {
+      const listed = await scene.list({ eventId: WEDDING, actorId: OWNER })
+      return listed.ok && listed.value.rsvpDigest
+    }
+
+    it('is off until the owner ticks it, then on, then off again, for this event and this owner only', async () => {
+      expect(await digestOf()).toBe(false)
+
+      expect((await scene.setDigest({ eventId: WEDDING, actorId: OWNER, on: true })).ok).toBe(true)
+      expect(await digestOf()).toBe(true)
+      expect((await scene.preferences.digestFor(GALA, OWNER)).on).toBe(false)
+
+      expect((await scene.setDigest({ eventId: WEDDING, actorId: OWNER, on: false })).ok).toBe(true)
+      expect(await digestOf()).toBe(false)
+    })
+
+    it('keeps no trace: nothing is audited and nothing is announced', async () => {
+      const before = (await scene.audit.list({ limit: 50 })).items.length
+
+      await scene.setDigest({ eventId: WEDDING, actorId: OWNER, on: true })
+
+      expect((await scene.audit.list({ limit: 50 })).items).toHaveLength(before)
+      expect(scene.bus.published.filter((event) => event.type === 'rsvp.changed')).toEqual([])
+    })
+
+    it('is for the owner only: a moderator is refused and changes nothing, an unknown event is not found', async () => {
+      const refused = await scene.setDigest({ eventId: WEDDING, actorId: MODERATOR, on: true })
+      expect(!refused.ok && refused.error.kind).toBe('forbidden')
+      expect((await scene.preferences.digestFor(WEDDING, MODERATOR)).on).toBe(false)
+
+      const unknown = await scene.setDigest({
+        eventId: asEventId('evt-nowhere'),
+        actorId: OWNER,
+        on: true,
+      })
+      expect(!unknown.ok && unknown.error.kind).toBe('notFound')
+    })
+  })
+
   describe('markRsvpsSeen and countUnseenRsvps', () => {
     it('makes the badge count from now on, for this member only', async () => {
       scene.rsvps.seed(

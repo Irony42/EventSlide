@@ -36,6 +36,8 @@ import { useLoader } from '../../../lib/useLoader'
 import { useEvent } from '../hooks/useEventData'
 import type { EventPageContext } from '../eventLayout/useEventPage'
 import { BrowserNotifications } from './BrowserNotifications'
+import { RsvpDigestOption } from './RsvpDigestOption'
+import { useAbout } from '../../../lib/useAbout'
 import { RsvpCaterer } from './RsvpCaterer'
 import { RsvpDetail } from './RsvpDetail'
 import { RsvpPrintList } from './RsvpPrintList'
@@ -164,6 +166,7 @@ function Replies({
 }) {
   const t = useTranslations()
   const text = t.rsvp.list
+  const about = useAbout()
   const host = t.rsvp.host
   const api = useApi()
   const { locale } = useLocale()
@@ -609,6 +612,9 @@ function Replies({
                   <span>{text.notifyLiveHint}</span>
                 </li>
               </ul>
+              {about.features.hostMail ? (
+                <RsvpDigestOption slug={slug} initial={data.rsvpDigest} />
+              ) : null}
               <p className={styles['note']}>{text.notifyNoEmail}</p>
             </section>
           </aside>

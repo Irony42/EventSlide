@@ -7,6 +7,7 @@ import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventMailNoticeLedger } from '../../testing/fakeEventMailNoticeLedger'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeGuestHouseholdRepository } from '../../testing/fakeGuestHouseholdRepository'
 import { FakeGuestInviteRepository } from '../../testing/fakeGuestInviteRepository'
 import { FakeGuestRsvpRepository } from '../../testing/fakeGuestRsvpRepository'
 import { FakeMailBudget } from '../../testing/fakeMailBudget'
@@ -45,7 +46,14 @@ const closedGoingIn = (inDays: number, extra: Parameters<typeof anEvent>[0] = {}
   })
 
 const build = (
-  options: { mailer?: Mailer; now?: Date; ledger?: EventMailNoticeLedger; replies?: number } = {},
+  options: {
+    mailer?: Mailer
+    now?: Date
+    ledger?: EventMailNoticeLedger
+    replies?: number
+    hostMailNotices?: boolean
+    budgetMax?: number | null
+  } = {},
 ) => {
   const clients = new FakeClientRepository()
   const events = new FakeEventRepository({ clients })
@@ -63,8 +71,9 @@ const build = (
   )
   const invites = new FakeGuestInviteRepository()
   const rsvps = new FakeGuestRsvpRepository()
+  const households = new FakeGuestHouseholdRepository()
   const ledger = new FakeEventMailNoticeLedger().withEvents(WEDDING)
-  const budget = new FakeMailBudget()
+  const budget = new FakeMailBudget(options.budgetMax ?? null)
   const mailer = new FakeMailer()
   const logger = new CapturingLogger()
   const clock = new FakeClock(options.now ?? NOW)
@@ -74,6 +83,7 @@ const build = (
     clients,
     invites,
     rsvps,
+    households,
     memberships,
     notices: options.ledger ?? ledger,
     budget,
@@ -82,6 +92,7 @@ const build = (
     logger,
     capNoticeDays: 30,
     publicUrl: 'https://photos.example.test',
+    hostMailNotices: options.hostMailNotices ?? true,
   })
 
   /** Makes the event exist with its replies, and tells the replies repository its dates as the tables would. */
@@ -109,7 +120,17 @@ const build = (
     clock,
     users,
     memberships,
+    households,
   }
+}
+
+const NO_REPORT = {
+  noticed: [],
+  sent: 0,
+  unsent: 0,
+  skippedBudget: 0,
+  stale: 0,
+  failed: [],
 }
 
 describe('sweepRsvpNotices', () => {
@@ -120,7 +141,7 @@ describe('sweepRsvpNotices', () => {
     const report = await world.sweep()
 
     expect(report).toMatchObject({ sent: 2, unsent: 0, failed: [] })
-    expect(report.noticed).toEqual([{ eventId: WEDDING, level: 7 }])
+    expect(report.noticed).toEqual([{ eventId: WEDDING, kind: 'rsvpErasure', level: 7 }])
     expect(world.mailer.sent.map((mail) => mail.to).sort()).toEqual([
       'cohote@example.test',
       'hote@example.test',
@@ -171,7 +192,7 @@ describe('sweepRsvpNotices', () => {
     world.clock.advance(6 * DAY)
     const report = await world.sweep()
 
-    expect(report.noticed).toEqual([{ eventId: WEDDING, level: 1 }])
+    expect(report.noticed).toEqual([{ eventId: WEDDING, kind: 'rsvpErasure', level: 1 }])
     expect(world.mailer.sent).toHaveLength(afterFirst * 2)
 
     await world.sweep()
@@ -205,7 +226,7 @@ describe('sweepRsvpNotices', () => {
 
     const report = await world.sweep()
 
-    expect(report.noticed).toEqual([{ eventId: WEDDING, level: 7 }])
+    expect(report.noticed).toEqual([{ eventId: WEDDING, kind: 'rsvpErasure', level: 7 }])
     expect(world.mailer.sent[0]?.subject).toContain('8 décembre 2026')
   })
 
@@ -252,7 +273,7 @@ describe('sweepRsvpNotices', () => {
 
     const report = await world.sweep()
 
-    expect(report).toEqual({ noticed: [], sent: 0, unsent: 0, failed: [] })
+    expect(report).toEqual(NO_REPORT)
     expect(hydrated).toBe(0)
   })
 
@@ -269,7 +290,7 @@ describe('sweepRsvpNotices', () => {
 
     const report = await world.sweep()
 
-    expect(report.noticed).toEqual([{ eventId: WEDDING, level: 7 }])
+    expect(report.noticed).toEqual([{ eventId: WEDDING, kind: 'rsvpErasure', level: 7 }])
     expect(world.mailer.sent[0]?.subject).toContain('December 3, 2026')
   })
 
@@ -280,7 +301,12 @@ describe('sweepRsvpNotices', () => {
       events: { listDueForPurge: async () => [live], findById: async () => live },
       clients: world.clients,
       invites: world.invites,
-      rsvps: { count: async () => 1, eventsWithRepliesExpiringBefore: async () => [] },
+      households: world.households,
+      rsvps: {
+        count: async () => 1,
+        listByEvent: async () => [],
+        eventsWithRepliesExpiringBefore: async () => [],
+      },
       memberships: world.memberships,
       notices: world.ledger,
       budget: world.budget,
@@ -289,9 +315,10 @@ describe('sweepRsvpNotices', () => {
       logger: world.logger,
       capNoticeDays: 30,
       publicUrl: 'https://photos.example.test',
+      hostMailNotices: true,
     })
 
-    expect(await sweep()).toEqual({ noticed: [], sent: 0, unsent: 0, failed: [] })
+    expect(await sweep()).toEqual(NO_REPORT)
   })
 
   it('warns for an event that never closed, whose replies go 60 days after the invitation starts', async () => {
@@ -313,7 +340,7 @@ describe('sweepRsvpNotices', () => {
 
     const report = await world.sweep()
 
-    expect(report.noticed).toEqual([{ eventId: WEDDING, level: 7 }])
+    expect(report.noticed).toEqual([{ eventId: WEDDING, kind: 'rsvpErasure', level: 7 }])
   })
 
   it('writes the 1-day notice to an owner who joined between the two levels', async () => {
@@ -346,8 +373,20 @@ describe('sweepRsvpNotices', () => {
 
     // 08:00 the day before at the very latest... here the afternoon of the 7th (13:00 local).
     world.clock.set(new Date('2026-12-07T12:00:00.000Z'))
-    expect((await world.sweep()).noticed).toEqual([{ eventId: WEDDING, level: 1 }])
+    expect((await world.sweep()).noticed).toEqual([
+      { eventId: WEDDING, kind: 'rsvpErasure', level: 1 },
+    ])
     expect(world.mailer.sent.length).toBeGreaterThan(afterSeven)
+  })
+
+  it('still warns about the erasure when HOST_MAIL_NOTICES is off: it is no family notice', async () => {
+    const world = build({ hostMailNotices: false })
+    await world.arrange(closedGoingIn(7))
+
+    const report = await world.sweep()
+
+    expect(report.noticed).toEqual([{ eventId: WEDDING, kind: 'rsvpErasure', level: 7 }])
+    expect(world.mailer.sent).toHaveLength(2)
   })
 
   it('owes nothing with more than 7 days left', async () => {
@@ -376,7 +415,12 @@ describe('sweepRsvpNotices', () => {
         events: world.events,
         clients: world.clients,
         invites: world.invites,
-        rsvps: { count: async () => count, eventsWithRepliesExpiringBefore: async () => [WEDDING] },
+        households: world.households,
+        rsvps: {
+          count: async () => count,
+          listByEvent: async () => [],
+          eventsWithRepliesExpiringBefore: async () => [WEDDING],
+        },
         memberships: { ownersToNotify: async () => [] },
         notices: world.ledger,
         budget: world.budget,
@@ -385,6 +429,7 @@ describe('sweepRsvpNotices', () => {
         logger: world.logger,
         capNoticeDays: 30,
         publicUrl: 'https://photos.example.test',
+        hostMailNotices: true,
       })
 
     expect(await sweepOver(5)()).toMatchObject({ noticed: [], sent: 0 })
@@ -412,7 +457,7 @@ describe('sweepRsvpNotices', () => {
 
     const report = await world.sweep()
 
-    expect(report.noticed).toEqual([{ eventId: WEDDING, level: 7 }])
+    expect(report.noticed).toEqual([{ eventId: WEDDING, kind: 'rsvpErasure', level: 7 }])
     expect(world.mailer.sent[0]?.subject).toContain('3 décembre 2026')
   })
 
@@ -450,7 +495,7 @@ describe('sweepRsvpNotices', () => {
 
     const report = await world.sweep()
 
-    expect(report).toEqual({ noticed: [], sent: 0, unsent: 0, failed: [] })
+    expect(report).toEqual(NO_REPORT)
     expect(world.ledger.noted).toEqual([])
   })
 
@@ -508,7 +553,9 @@ describe('sweepRsvpNotices', () => {
     const world = build()
     await world.arrange(closedGoingIn(7, { status: 'archived' }))
 
-    expect((await world.sweep()).noticed).toEqual([{ eventId: WEDDING, level: 7 }])
+    expect((await world.sweep()).noticed).toEqual([
+      { eventId: WEDDING, kind: 'rsvpErasure', level: 7 },
+    ])
   })
 
   it('notes the notice before it sends: a note another sweep placed first means no mail from this one', async () => {
@@ -559,7 +606,10 @@ describe('sweepRsvpNotices', () => {
 
     const report = await world.sweep()
 
-    expect(report).toMatchObject({ noticed: [{ eventId: WEDDING, level: 7 }], sent: 0 })
+    expect(report).toMatchObject({
+      noticed: [{ eventId: WEDDING, kind: 'rsvpErasure', level: 7 }],
+      sent: 0,
+    })
   })
 
   it('counts a refused message as unsent, logs the code and never the address, and does not retry', async () => {
@@ -571,7 +621,7 @@ describe('sweepRsvpNotices', () => {
 
     expect(report).toMatchObject({ sent: 1, unsent: 1 })
     const logged = JSON.stringify(world.logger.lines)
-    expect(logged).toContain('a replies erasure notice was not sent')
+    expect(logged).toContain('a host notice was not sent')
     expect(logged).not.toContain('example.test')
     await world.sweep()
     expect(world.mailer.sent).toHaveLength(1)
@@ -584,6 +634,7 @@ describe('sweepRsvpNotices', () => {
       events: world.events,
       clients: world.clients,
       invites: world.invites,
+      households: world.households,
       rsvps: world.rsvps,
       memberships: {
         ownersToNotify: async () => [
@@ -603,6 +654,7 @@ describe('sweepRsvpNotices', () => {
       logger: world.logger,
       capNoticeDays: 30,
       publicUrl: 'https://photos.example.test',
+      hostMailNotices: true,
     })
 
     expect(await broken()).toMatchObject({ sent: 0, unsent: 1 })
@@ -620,6 +672,7 @@ describe('sweepRsvpNotices', () => {
       },
       clients: world.clients,
       invites: world.invites,
+      households: world.households,
       rsvps: world.rsvps,
       memberships: { ownersToNotify: async () => [] },
       notices: world.ledger,
@@ -629,6 +682,7 @@ describe('sweepRsvpNotices', () => {
       logger: world.logger,
       capNoticeDays: 30,
       publicUrl: 'https://photos.example.test',
+      hostMailNotices: true,
     })
 
     expect((await failing()).failed).toEqual([WEDDING])
@@ -645,6 +699,7 @@ describe('sweepRsvpNotices', () => {
       },
       clients: world.clients,
       invites: world.invites,
+      households: world.households,
       rsvps: world.rsvps,
       memberships: { ownersToNotify: async () => [] },
       notices: world.ledger,
@@ -654,9 +709,10 @@ describe('sweepRsvpNotices', () => {
       logger: world.logger,
       capNoticeDays: 30,
       publicUrl: 'https://photos.example.test',
+      hostMailNotices: true,
     })
 
-    expect(await failing()).toEqual({ noticed: [], sent: 0, unsent: 0, failed: [] })
+    expect(await failing()).toEqual(NO_REPORT)
     expect(JSON.stringify(world.logger.lines)).toContain('could not list')
   })
 
@@ -671,7 +727,12 @@ describe('sweepRsvpNotices', () => {
       },
       clients: world.clients,
       invites: world.invites,
-      rsvps: { count: async () => 0, eventsWithRepliesExpiringBefore: async () => [WEDDING] },
+      households: world.households,
+      rsvps: {
+        count: async () => 0,
+        listByEvent: async () => [],
+        eventsWithRepliesExpiringBefore: async () => [WEDDING],
+      },
       memberships: { ownersToNotify: async () => [] },
       notices: world.ledger,
       budget: world.budget,
@@ -680,6 +741,7 @@ describe('sweepRsvpNotices', () => {
       logger: world.logger,
       capNoticeDays: 30,
       publicUrl: 'https://photos.example.test',
+      hostMailNotices: true,
     })
     await sweep()
 
@@ -687,7 +749,12 @@ describe('sweepRsvpNotices', () => {
       events: { listDueForPurge: async () => [], findById: async () => null },
       clients: world.clients,
       invites: world.invites,
-      rsvps: { count: async () => 1, eventsWithRepliesExpiringBefore: async () => [WEDDING] },
+      households: world.households,
+      rsvps: {
+        count: async () => 1,
+        listByEvent: async () => [],
+        eventsWithRepliesExpiringBefore: async () => [WEDDING],
+      },
       memberships: { ownersToNotify: async () => [] },
       notices: world.ledger,
       budget: world.budget,
@@ -696,8 +763,9 @@ describe('sweepRsvpNotices', () => {
       logger: world.logger,
       capNoticeDays: 30,
       publicUrl: 'https://photos.example.test',
+      hostMailNotices: true,
     })
-    expect(await gone()).toEqual({ noticed: [], sent: 0, unsent: 0, failed: [] })
+    expect(await gone()).toEqual(NO_REPORT)
   })
 
   it('gives an unknown mail failure to the report as unsent too', async () => {

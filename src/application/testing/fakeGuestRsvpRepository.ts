@@ -3,7 +3,9 @@ import { isRsvpExpired } from '../../domain/guestRsvps/rsvpExpiry'
 import { rsvpAdmissionFor } from '../../domain/guestRsvps/rsvpLimits'
 import { namesToShow } from '../../domain/guestRsvps/rsvpStats'
 import type { EventId, GuestRsvpId, UserId } from '../../domain/shared/ids'
+import type { MailPreferenceRepository } from '../ports/mailPreferenceRepository'
 import type {
+  DigestCandidate,
   GuestRsvpAdmission,
   GuestRsvpAdmitLimits,
   GuestRsvpRepository,
@@ -37,6 +39,14 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
   private readonly members = new Map<string, Date | null>()
   /** The `guests` rows the adapter deletes with a reply's note, for a use-case test to read. */
   readonly deletedNoteGuests: string[] = []
+
+  /**
+   * `mailPreferences` is where the digest state of a member lives (`event_memberships.rsvp_digest*` in SQLite), linked so
+   * that {@link FakeGuestRsvpRepository.digestCandidates} reads what the adapter joins.
+   */
+  constructor(
+    private readonly links: { readonly mailPreferences?: MailPreferenceRepository } = {},
+  ) {}
 
   /** Puts rows in without any check, for a test that needs a state the rules would refuse. */
   seed(...rsvps: readonly GuestRsvp[]): this {
@@ -231,6 +241,26 @@ export class FakeGuestRsvpRepository implements GuestRsvpRepository {
       if (isRsvpExpired(dates, horizon)) events.add(row.eventId)
     }
     return [...events].sort()
+  }
+
+  async digestCandidates(): Promise<readonly DigestCandidate[]> {
+    const found: DigestCandidate[] = []
+    for (const [memberKey, seenAt] of this.members) {
+      const [eventId, userId] = memberKey.split(':') as [EventId, UserId]
+      const digest = await this.links.mailPreferences?.digestFor(eventId, userId)
+      if (digest === undefined || !digest.on) continue
+      const latest = this.inEvent(eventId).reduce<Date | null>(
+        (best, row) => (best === null || row.updatedAt > best ? row.updatedAt : best),
+        null,
+      )
+      if (latest === null) continue
+      const since = [seenAt, digest.lastAt]
+        .filter((at): at is Date => at !== null)
+        .reduce<Date | null>((best, at) => (best === null || at > best ? at : best), null)
+      if (since !== null && latest.getTime() <= since.getTime()) continue
+      found.push({ eventId, userId, seenAt, digestAt: digest.lastAt, lastChangeAt: latest })
+    }
+    return found.sort((a, b) => (a.eventId + a.userId < b.eventId + b.userId ? -1 : 1))
   }
 
   async deleteExpired(now: Date): Promise<number> {

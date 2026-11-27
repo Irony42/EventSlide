@@ -52,6 +52,7 @@ import { makeGetRsvpForm } from '../application/usecases/guestRsvps/getRsvpForm'
 import { makeSaveRsvpForm } from '../application/usecases/guestRsvps/saveRsvpForm'
 import { makeCloseRsvps } from '../application/usecases/guestRsvps/closeRsvps'
 import { makeReopenRsvps } from '../application/usecases/guestRsvps/closeRsvps'
+import { makeSetRsvpDigest } from '../application/usecases/guestRsvps/setRsvpDigest'
 import { makeListRsvps } from '../application/usecases/guestRsvps/listRsvps'
 import { makeHostAddRsvp } from '../application/usecases/guestRsvps/hostAddRsvp'
 import { makeHostUpdateRsvp } from '../application/usecases/guestRsvps/hostUpdateRsvp'
@@ -275,7 +276,14 @@ export const eventsUseCases = (
     invites: adapters.guestInvites,
     rsvps: adapters.guestRsvps,
     households: adapters.guestHouseholds,
+    preferences: adapters.mailPreferences,
     clock: adapters.clock,
+  }),
+  setRsvpDigest: makeSetRsvpDigest({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    invites: adapters.guestInvites,
+    preferences: adapters.mailPreferences,
   }),
   hostAddRsvp: makeHostAddRsvp({
     events: adapters.events,

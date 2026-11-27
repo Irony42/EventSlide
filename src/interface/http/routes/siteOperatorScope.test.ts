@@ -493,6 +493,7 @@ const BODIES: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   'post /api/events': { name: 'Soirée' },
   'delete /api/push-subscriptions': { endpoint: 'https://fcm.googleapis.com/fcm/send/x' },
   'put /api/me/mail-preferences': { rsvp: false },
+  'put /api/events/:eventSlug/rsvp-digest': { on: true },
   'post /api/join': { joinCode: 'H7K2QM' },
   'post /api/gallery/:token/unlock': { password: 'x' },
   'post /api/i/:token/rsvp': { name: 'Léa', answer: 'yes' },

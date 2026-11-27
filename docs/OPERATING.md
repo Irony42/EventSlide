@@ -269,8 +269,13 @@ signal with no content); the badge on the **Réponses** entry counts the replies
 looked, and is cleared by opening the page. The page also re-reads when the tab comes back into view and
 when the stream reconnects, so a dropped connection costs a few seconds, not a reply.
 
-**No e-mail.** Replies send none (the hosted instance's mail is for signup and invitations), so nobody is told by message that a reply arrived: the badge and the open
-page are the notice.
+**No e-mail to guests, ever.** A reply sends none, and the box never writes to a guest (ADR 0017): no address of a guest enters EventSlide. What a host may be told by e-mail, **on a box with a working relay** (`SMTP_URL` and `MAIL_FROM`) and unless `HOST_MAIL_NOTICES=off`, is figures only, to the **active owners** of the event (ADR 0019, spec 32):
+
+- **before the replies are erased**, 7 days and 1 day before (the list is to be downloaded by the day before at the latest): always sent, no switch, like the warning before a purge;
+- **a daily summary**, if an owner ticked it for this event on the Réponses page: at most one a day, from 09:00 in the invitation's zone, only when there is something new since their last visit or summary;
+- **three days before the deadline** while households of the guest list have not answered, **once the deadline stopped the replies** (the summary, with the menus and the number of diets), and **when every place is taken** (once per capacity value).
+
+None of these mails carries the name of a guest, a diet, a word or a photograph: the number of replies, the host's own menu labels, the event's name and one link. The reminder, the summary after the deadline and the "full" notice follow the **account's** "replies" switch (and the daily summary needs both its tick and that switch); outside 08:00 to 21:00 in the invitation's zone (Europe/Paris without one) a notice waits for the next pass. `MAIL_FOLLOWUP_MAX_PER_DAY` bounds how many follow-up mails the box sends a day. The badge and the open page remain the notice for everything else.
 
 ## Self-service signup
 

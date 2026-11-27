@@ -88,3 +88,15 @@ export interface RecoveryCodesDto {
 export type SessionResponse =
   | { readonly authenticated: true; readonly user: CurrentUserDto }
   | { readonly authenticated: false }
+
+/**
+ * `GET /api/me/mail-preferences` (spec 32): the account's two e-mail switches and whether they mean anything on this box
+ * (`available`: the box can mail and the operator did not switch the follow-up mails off).
+ */
+export interface MailPreferencesDto {
+  /** The guests' replies. */
+  readonly rsvp: boolean
+  /** The life of the account's events. */
+  readonly event: boolean
+  readonly available: boolean
+}

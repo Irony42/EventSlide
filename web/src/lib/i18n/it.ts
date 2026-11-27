@@ -3828,6 +3828,12 @@ export const it: UiText = {
       unavailable: 'Il libro degli ospiti non accetta messaggi al momento.',
       already: 'Ha già lasciato un messaggio.',
     },
+    digest: {
+      label: 'Ricevere un riepilogo via e-mail (al massimo uno al giorno)',
+      hint: 'Solo cifre, mai il nome di un ospite.',
+      offByAccount: 'Ha disattivato le e-mail delle risposte in Sicurezza ed e-mail.',
+      failed: 'Non è stato possibile salvare la scelta. Riprovi tra un momento.',
+    },
     push: {
       // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
       // same words, and a test holds the two together).

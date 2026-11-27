@@ -190,6 +190,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
   unsubscribePush: notWired('unsubscribePush'),
   unsubscribePushEverywhere: notWired('unsubscribePushEverywhere'),
   getMailPreferences: notWired('getMailPreferences'),
+  setRsvpDigest: notWired('setRsvpDigest'),
   setMailPreferences: notWired('setMailPreferences'),
   markRsvpsSeen: notWired('markRsvpsSeen'),
   listHouseholds: notWired('listHouseholds'),

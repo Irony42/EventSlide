@@ -169,6 +169,31 @@ export class SqliteGuestInviteRepository implements GuestInviteRepository {
       )
   }
 
+  async eventsWithRsvpDeadlineBetween(fromDay: string, toDay: string): Promise<readonly EventId[]> {
+    return this.db
+      .prepare<[string, string], { readonly event_id: string }>(
+        `SELECT event_id FROM guest_invites
+          WHERE rsvp_enabled = 1 AND rsvp_closed_at IS NULL
+            AND rsvp_deadline IS NOT NULL AND rsvp_deadline BETWEEN ? AND ?
+          ORDER BY event_id`,
+      )
+      .all(fromDay, toDay)
+      .map((row) => asEventId(row.event_id))
+  }
+
+  async eventsWithRsvpCapacity(startingAfter: Date): Promise<readonly EventId[]> {
+    return this.db
+      .prepare<[string], { readonly event_id: string }>(
+        `SELECT event_id FROM guest_invites
+          WHERE rsvp_enabled = 1 AND rsvp_closed_at IS NULL
+            AND starts_at IS NOT NULL AND starts_at > ?
+            AND rsvp_form IS NOT NULL AND json_extract(rsvp_form, '$.capacity') IS NOT NULL
+          ORDER BY event_id`,
+      )
+      .all(startingAfter.toISOString())
+      .map((row) => asEventId(row.event_id))
+  }
+
   async setRsvpClosedAt(eventId: EventId, closedAt: Date | null): Promise<void> {
     this.db
       .prepare<[string | null, string]>(

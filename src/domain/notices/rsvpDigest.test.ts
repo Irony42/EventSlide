@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rsvpDigestDue, type RsvpDigestInput } from './rsvpDigest'
+import { latestOf, rsvpDigestDue, type RsvpDigestInput } from './rsvpDigest'
 
 const at = (iso: string): Date => new Date(iso)
 
@@ -112,5 +112,18 @@ describe('rsvpDigestDue', () => {
     expect(due({ now: at('2026-03-28T08:00:00.000Z'), lastChangeAt: change })).toBe(true)
     expect(due({ now: at('2026-03-30T06:59:00.000Z'), lastChangeAt: change })).toBe(false)
     expect(due({ now: at('2026-03-30T07:00:00.000Z'), lastChangeAt: change })).toBe(true)
+  })
+})
+
+describe('latestOf', () => {
+  it('is the later of two instants, and whichever exists when one is absent', () => {
+    const early = at('2026-12-08T10:00:00.000Z')
+    const late = at('2026-12-09T10:00:00.000Z')
+
+    expect(latestOf(early, late)).toBe(late)
+    expect(latestOf(late, early)).toBe(late)
+    expect(latestOf(null, early)).toBe(early)
+    expect(latestOf(late, null)).toBe(late)
+    expect(latestOf(null, null)).toBeNull()
   })
 })

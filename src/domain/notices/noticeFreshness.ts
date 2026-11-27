@@ -14,7 +14,7 @@ import type { NoticeKind } from './noticeKind'
  * | `rsvpErasure`  | the erasure instant                           | that instant                |
  * | `rsvpDeadline` | the instant replies stop                      | that instant                |
  * | `rsvpStopped`  | the instant replies stopped (the deadline)    | 24 hours after it           |
- * | `rsvpFull`     | the instant replies stop (or were closed)     | that instant                |
+ * | `rsvpFull`     | the instant the house filled (latest `yes`)   | 24 hours after it           |
  * | `eventClosed`  | the instant the event closed                  | 48 hours after it           |
  * | `windowEnding` | the end of the live window                    | that instant                |
  * | `jobDone`      | the instant the job finished                  | 24 hours after it           |
@@ -23,7 +23,7 @@ const VALID_FOR_MS: Readonly<Record<NoticeKind, number>> = {
   rsvpErasure: 0,
   rsvpDeadline: 0,
   rsvpStopped: MS_PER_DAY,
-  rsvpFull: 0,
+  rsvpFull: MS_PER_DAY,
   eventClosed: 2 * MS_PER_DAY,
   windowEnding: 0,
   jobDone: MS_PER_DAY,

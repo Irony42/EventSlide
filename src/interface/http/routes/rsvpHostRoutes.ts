@@ -20,6 +20,7 @@ import {
   householdParams,
   rsvpHouseholdBody,
   rsvpActBody,
+  rsvpDigestBody,
   rsvpExportQuery,
   rsvpFormBody,
   rsvpParams,
@@ -63,6 +64,7 @@ export interface RsvpHostRouteDeps extends Omit<RouteDeps, 'usecases'> {
     | 'hostDeleteRsvp'
     | 'exportRsvps'
     | 'markRsvpsSeen'
+    | 'setRsvpDigest'
     | 'listHouseholds'
     | 'saveHousehold'
     | 'importHouseholds'
@@ -117,6 +119,29 @@ export const rsvpHostRoutes = ({
       })
 
       sendResult(res, result, (response, view) => sendJson(response, toRsvpFormResponseDto(view)))
+    }),
+  )
+
+  /**
+   * `PUT /events/:eventSlug/rsvp-digest` (spec 32, R2): **the owner's own** daily summary of the replies, ticked or not for
+   * this event. The row is the session's account's, the body one boolean, `204`.
+   */
+  router.put(
+    '/events/:eventSlug/rsvp-digest',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+      eventSlugParams.parse(req.params)
+      const body = rsvpDigestBody.parse(req.body)
+
+      const result = await usecases.setRsvpDigest({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+        on: body.on,
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResultNoContent(res, result)
     }),
   )
 

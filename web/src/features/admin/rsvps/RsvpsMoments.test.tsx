@@ -66,6 +66,7 @@ const list = (): RsvpListResponseDto => ({
   rsvps: [lea, hugo],
   stats,
   unseen: 0,
+  rsvpDigest: false,
 })
 
 const render = (api: Partial<Api> = {}) =>

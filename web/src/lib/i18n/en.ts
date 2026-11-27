@@ -3770,6 +3770,12 @@ export const en: UiText = {
       unavailable: 'The guestbook is not taking notes at the moment.',
       already: 'You have already left a note.',
     },
+    digest: {
+      label: 'Get a summary by e-mail (at most one a day)',
+      hint: 'Figures only, never the name of a guest.',
+      offByAccount: 'You turned off the replies e-mails in Security and e-mails.',
+      failed: 'The choice could not be saved. Try again in a moment.',
+    },
     push: {
       // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
       // same words, and a test holds the two together).

@@ -56,6 +56,7 @@ const list = (form: RsvpSettingsDto = asking): RsvpListResponseDto => ({
   rsvps: [lea],
   stats: anRsvpStats(),
   unseen: 0,
+  rsvpDigest: false,
 })
 
 const render = (api = fakeApi({ rsvps: vi.fn(async () => list()) })) =>

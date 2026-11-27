@@ -25,6 +25,18 @@ export type GuestRsvpAdmission =
   | { readonly kind: 'gone' }
 
 /** What `admit` judges against, besides the thousand-reply ceiling it always applies. */
+/** An owner who ticked the daily summary and has something new to be told (spec 32, R2). */
+export interface DigestCandidate {
+  readonly eventId: EventId
+  readonly userId: UserId
+  /** When this owner last opened the replies page (`rsvp_seen_at`), or `null`. */
+  readonly seenAt: Date | null
+  /** When the last summary was claimed for this owner and event, or `null`. */
+  readonly digestAt: Date | null
+  /** The latest reply created or changed in the event. */
+  readonly lastChangeAt: Date
+}
+
 export interface GuestRsvpAdmitLimits {
   /** Places in people, or `null` for none (lot 4). */
   readonly capacity: number | null
@@ -137,6 +149,15 @@ export interface GuestRsvpRepository {
    * photo book and the archive that print the guestbook are retired first.
    */
   eventsWithExpiredNotes(now: Date): Promise<readonly EventId[]>
+
+  /**
+   * The owners with the daily summary ticked for an event that has a reply **created or changed after the later of
+   * their last visit and their last summary** (spec 32, R2): one row per owner and event, the figures not computed.
+   * A new query on purpose: `unseenCount` knows nothing of the last summary, a deletion leaves no change to find (the
+   * next summary's totals are right), and a reply a co-owner added counts as it does for the badge. One bounded read,
+   * never every reply of every event.
+   */
+  digestCandidates(): Promise<readonly DigestCandidate[]>
 
   /**
    * The events that hold at least one reply and whose replies' own retention (`rsvpExpiryOf`) ends at or

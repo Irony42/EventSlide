@@ -111,6 +111,13 @@ export interface GuestbookRepository {
    */
   countOpenByEvent(eventId: EventId): Promise<number>
 
+  /**
+   * How many messages wait for the host's approval (`pending`) that **a guest wrote with their reply** (the "mot d'absent": the
+   * author is a `via_rsvp` guest), not taken down: the one figure the daily summary of the replies says of them (spec 32, R2).
+   * A single count, scoped by the event.
+   */
+  countPendingRsvpNotes(eventId: EventId): Promise<number>
+
   /** Idempotent. */
   delete(eventId: EventId, entryId: GuestbookEntryId): Promise<void>
 

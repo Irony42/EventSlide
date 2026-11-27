@@ -126,6 +126,7 @@ export const toRsvpListResponseDto = (view: RsvpList): RsvpListResponseDto => ({
   rsvps: view.rsvps.map(toRsvpDto),
   stats: toStatsDto(view.stats),
   unseen: view.unseen,
+  rsvpDigest: view.rsvpDigest,
 })
 
 /** What a guest reads of their own reply: nothing they could not already have typed. */

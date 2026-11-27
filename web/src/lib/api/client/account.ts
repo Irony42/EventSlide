@@ -4,6 +4,7 @@ import type {
   GuidedTour,
   InvitationAcceptedDto,
   InvitationPreviewDto,
+  MailPreferencesDto,
   RecoveryCodesDto,
   SecondFactorProof,
   SecondFactorRequiredDto,
@@ -42,6 +43,10 @@ export type InvitationAcceptance =
     }
   | { readonly kind: 'signedInAccount'; readonly acceptTerms?: boolean }
 export const accountApi = (transport: Transport) => ({
+  /** What the account chose to receive by mail (spec 32). */
+  mailPreferences: (signal?: AbortSignal): Promise<MailPreferencesDto> =>
+    transport.get('/api/me/mail-preferences', undefined, signal),
+
   /** A session, or — for an account with an authenticator — the request for its second step. */
   login: (email: string, password: string): Promise<SessionUserDto | SecondFactorRequiredDto> =>
     transport.post('/api/auth/login', { email, password }),

@@ -64,6 +64,9 @@ guestbookRepositoryContract('sqlite', async () => {
   const db = migratedDatabase()
   return {
     repo: stored(db),
+    markViaRsvp: (guestId) => {
+      db.prepare<[string]>(`UPDATE guests SET via_rsvp = 1 WHERE id = ?`).run(guestId)
+    },
     takeDown: (eventId, entryId, at) => {
       db.prepare<[string, string, string]>(
         `UPDATE guestbook_entries SET taken_down_at = ? WHERE event_id = ? AND id = ?`,

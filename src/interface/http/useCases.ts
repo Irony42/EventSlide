@@ -161,6 +161,7 @@ import type {
   GetMailPreferences,
   SetMailPreferences,
 } from '../../application/usecases/notices/mailPreferences'
+import type { SetRsvpDigest } from '../../application/usecases/guestRsvps/setRsvpDigest'
 import type { MarkRsvpsSeen } from '../../application/usecases/guestRsvps/markRsvpsSeen'
 import type { ListHouseholds } from '../../application/usecases/guestRsvps/listHouseholds'
 import type { SaveHousehold } from '../../application/usecases/guestRsvps/saveHousehold'
@@ -409,6 +410,7 @@ export interface HttpUseCases {
   readonly unsubscribePush: UnsubscribePush
   readonly unsubscribePushEverywhere: UnsubscribePushEverywhere
   readonly getMailPreferences: GetMailPreferences
+  readonly setRsvpDigest: SetRsvpDigest
   readonly setMailPreferences: SetMailPreferences
   readonly markRsvpsSeen: MarkRsvpsSeen
   readonly countUnseenRsvps: CountUnseenRsvps

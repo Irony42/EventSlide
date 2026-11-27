@@ -231,6 +231,19 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
     )
   }
 
+  async countPendingRsvpNotes(eventId: EventId): Promise<number> {
+    return (
+      this.db
+        .prepare<[string], { readonly n: number }>(
+          `SELECT COUNT(*) AS n FROM guestbook_entries e
+             JOIN guests g ON g.id = e.guest_id
+            WHERE e.event_id = ? AND e.status = 'pending' AND e.taken_down_at IS NULL
+              AND g.via_rsvp = 1`,
+        )
+        .get(eventId)?.n ?? 0
+    )
+  }
+
   async countOpenByEvent(eventId: EventId): Promise<number> {
     return (
       this.db

@@ -69,9 +69,12 @@ import { isTooDangerousToSweep, MEDIA_SWEEP_MIN_AGE_MS } from '../src/main/media
 import { makePurgeExpiredRsvps } from '../src/application/usecases/guestRsvps/purgeExpiredRsvps'
 import { SqliteGuestHouseholdRepository } from '../src/infrastructure/db/sqliteGuestHouseholdRepository'
 import { SqliteGuestRsvpRepository } from '../src/infrastructure/db/sqliteGuestRsvpRepository'
+import { SqliteGuestbookRepository } from '../src/infrastructure/db/sqliteGuestbookRepository'
 import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
 import { makeNotifySignupOperator } from '../src/application/usecases/signups/notifySignupOperator'
 import { makeSweepSignups } from '../src/application/usecases/signups/sweepSignups'
+import { makeSweepRsvpDigests } from '../src/application/usecases/notices/sweepRsvpDigests'
+import { SqliteMailPreferenceRepository } from '../src/infrastructure/db/sqliteMailPreferenceRepository'
 import { makeSweepRsvpNotices } from '../src/application/usecases/notices/sweepRsvpNotices'
 import { SqliteEventMailNoticeLedger } from '../src/infrastructure/db/sqliteEventMailNoticeLedger'
 import { SqliteGuestInviteRepository } from '../src/infrastructure/db/sqliteGuestInviteRepository'
@@ -236,6 +239,7 @@ const execute = async (
           clients: new SqliteClientRepository(db),
           invites: new SqliteGuestInviteRepository(db),
           rsvps: new SqliteGuestRsvpRepository(db),
+          households: new SqliteGuestHouseholdRepository(db),
           memberships: new SqliteMembershipRepository(db),
           notices: new SqliteEventMailNoticeLedger(db),
           budget: new SqliteMailBudget(db, config.hostMail.followUpMaxPerDay),
@@ -244,6 +248,24 @@ const execute = async (
           logger: followUpLogger,
           capNoticeDays,
           publicUrl: config.publicUrl,
+          hostMailNotices: config.hostMail.notices === 'on',
+        }),
+        // The daily summary of the replies (spec 32, R2): the timer's own use case, after the purge's warnings.
+        sweepRsvpDigests: makeSweepRsvpDigests({
+          rsvps: new SqliteGuestRsvpRepository(db),
+          households: new SqliteGuestHouseholdRepository(db),
+          guestbook: new SqliteGuestbookRepository(db),
+          events,
+          clients: new SqliteClientRepository(db),
+          invites: new SqliteGuestInviteRepository(db),
+          memberships: new SqliteMembershipRepository(db),
+          preferences: new SqliteMailPreferenceRepository(db),
+          budget: new SqliteMailBudget(db, config.hostMail.followUpMaxPerDay),
+          mailer: mailerForFollowUp,
+          clock: systemClock,
+          logger: followUpLogger,
+          publicUrl: config.publicUrl,
+          hostMailNotices: config.hostMail.notices === 'on',
         }),
         // The daily mail counts older than a week (spec 32): the same use case as the timer's.
         pruneMailBudget: makePruneMailBudget({

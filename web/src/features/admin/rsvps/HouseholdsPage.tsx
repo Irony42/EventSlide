@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../../app/HostEventsLink'
 import { Badge } from '../../../design-system/components/Badge'
@@ -46,6 +46,12 @@ import styles from './HouseholdsPage.module.css'
  *
  * Surface: the host, **the owner only**. Keyed by the event, so a move between two events starts afresh.
  */
+const filterOfParam = (param: string | null): HouseholdFilter =>
+  param === 'unanswered' ? 'pending' : param === 'answered' ? 'answered' : 'all'
+
+const paramOfFilter = (name: HouseholdFilter): string | null =>
+  name === 'pending' ? 'unanswered' : name === 'answered' ? 'answered' : null
+
 export function HouseholdsPage() {
   const { slug = '' } = useParams<{ slug: string }>()
   return <EventHouseholds key={slug} slug={slug} />
@@ -119,7 +125,21 @@ function OwnerHouseholds({
   const loadSettings = useCallback((signal: AbortSignal) => api.rsvpForm(slug, signal), [api, slug])
   const settings = useLoader(loadSettings).data?.rsvpForm ?? null
 
-  const [filter, setFilter] = useState<HouseholdFilter>('all')
+  // The tab lives in the address (spec 32, R3): the reminder e-mail leads here with `?filter=unanswered`, the tabs write it back, and
+  // the back button and a shared link read it.
+  const [search, setSearch] = useSearchParams()
+  const filter = filterOfParam(search.get('filter'))
+  const setFilter = (name: HouseholdFilter) =>
+    setSearch(
+      (current) => {
+        const next = new URLSearchParams(current)
+        const param = paramOfFilter(name)
+        if (param === null) next.delete('filter')
+        else next.set('filter', param)
+        return next
+      },
+      { replace: true },
+    )
   const [query, setQuery] = useState('')
   const [dialog, setDialog] = useState<Dialogs>({ kind: 'none' })
   const [problem, setProblem] = useState<string | null>(null)

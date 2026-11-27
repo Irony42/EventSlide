@@ -9,17 +9,19 @@ import { rsvpAdmissionFor } from '../../domain/guestRsvps/rsvpLimits'
 import {
   asEventId,
   asGuestRsvpId,
+  asUserId,
   type EventId,
   type GuestRsvpId,
   type UserId,
 } from '../../domain/shared/ids'
 import type {
+  DigestCandidate,
   GuestRsvpAdmission,
   GuestRsvpAdmitLimits,
   GuestRsvpRepository,
 } from '../../application/ports/guestRsvpRepository'
 import type { Db } from './connection'
-import { fromIsoText, toIsoText } from './rowMapping'
+import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
 
 /**
  * `guest_rsvps` (spec 30): one row per reply, every statement scoped by `event_id`.
@@ -383,6 +385,36 @@ export class SqliteGuestRsvpRepository implements GuestRsvpRepository {
       )
       .all(toIsoText(closedBy), toIsoText(startedBy))
       .map((row) => asEventId(row.event_id))
+  }
+
+  async digestCandidates(): Promise<readonly DigestCandidate[]> {
+    return this.db
+      .prepare<
+        [],
+        {
+          readonly event_id: string
+          readonly user_id: string
+          readonly rsvp_seen_at: string | null
+          readonly rsvp_digest_at: string | null
+          readonly last_change: string
+        }
+      >(
+        `SELECT m.event_id, m.user_id, m.rsvp_seen_at, m.rsvp_digest_at, MAX(r.updated_at) AS last_change
+           FROM event_memberships m
+           JOIN guest_rsvps r ON r.event_id = m.event_id
+          WHERE m.rsvp_digest = 1 AND m.role = 'owner'
+          GROUP BY m.event_id, m.user_id
+         HAVING MAX(r.updated_at) > MAX(COALESCE(m.rsvp_seen_at, ''), COALESCE(m.rsvp_digest_at, ''))
+          ORDER BY m.event_id, m.user_id`,
+      )
+      .all()
+      .map((row) => ({
+        eventId: asEventId(row.event_id),
+        userId: asUserId(row.user_id),
+        seenAt: fromNullableIsoText(row.rsvp_seen_at),
+        digestAt: fromNullableIsoText(row.rsvp_digest_at),
+        lastChangeAt: fromIsoText(row.last_change),
+      }))
   }
 
   async deleteExpired(now: Date): Promise<number> {

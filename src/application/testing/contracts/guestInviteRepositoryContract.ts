@@ -207,6 +207,69 @@ export const guestInviteRepositoryContract = (
         expect(await repo.findRsvpSettings(WEDDING)).toEqual(SETTINGS)
       })
 
+      it('names the events with a deadline in a range of days, asked and not closed by hand (R3, R4 candidates)', async () => {
+        await repo.create(aGuestInvite({ eventId: 'evt-wedding' }))
+        await repo.create(aGuestInvite({ eventId: 'evt-gala', tokenByte: 2 }))
+        await repo.saveRsvpSettings(WEDDING, SETTINGS)
+
+        expect(await repo.eventsWithRsvpDeadlineBetween('2026-12-05', '2026-12-05')).toEqual([
+          WEDDING,
+        ])
+        expect(await repo.eventsWithRsvpDeadlineBetween('2026-12-01', '2026-12-04')).toEqual([])
+        expect(await repo.eventsWithRsvpDeadlineBetween('2026-12-06', '2026-12-09')).toEqual([])
+
+        // Replies switched off, or closed by hand: not a candidate.
+        await repo.setRsvpClosedAt(WEDDING, LATER)
+        expect(await repo.eventsWithRsvpDeadlineBetween('2026-12-01', '2026-12-09')).toEqual([])
+        await repo.setRsvpClosedAt(WEDDING, null)
+        await repo.saveRsvpSettings(WEDDING, { ...SETTINGS, enabled: false })
+        expect(await repo.eventsWithRsvpDeadlineBetween('2026-12-01', '2026-12-09')).toEqual([])
+      })
+
+      it('names the events whose form limits the places and whose party has not started, asked and not closed by hand (R5 candidates)', async () => {
+        const before = new Date('2026-12-01T00:00:00.000Z')
+        await repo.create(
+          aGuestInvite({
+            eventId: 'evt-wedding',
+            startsAt: '2026-12-13T18:00:00.000Z',
+            timeZone: 'Europe/Paris',
+          }),
+        )
+        await repo.create(
+          aGuestInvite({
+            eventId: 'evt-gala',
+            tokenByte: 2,
+            startsAt: '2026-12-13T18:00:00.000Z',
+            timeZone: 'Europe/Paris',
+          }),
+        )
+
+        expect(await repo.eventsWithRsvpCapacity(before)).toEqual([])
+
+        await repo.saveRsvpSettings(WEDDING, {
+          ...SETTINGS,
+          form: { ...SETTINGS.form, capacity: 120 },
+        })
+        await repo.saveRsvpSettings(GALA, SETTINGS)
+        expect(await repo.eventsWithRsvpCapacity(before)).toEqual([WEDDING])
+
+        // The party has started: nothing left to fill.
+        expect(await repo.eventsWithRsvpCapacity(new Date('2026-12-13T18:00:00.000Z'))).toEqual([])
+
+        await repo.setRsvpClosedAt(WEDDING, LATER)
+        expect(await repo.eventsWithRsvpCapacity(before)).toEqual([])
+      })
+
+      it('leaves out an invitation with no start from the capacity candidates', async () => {
+        await repo.create(aGuestInvite({ eventId: 'evt-wedding' }))
+        await repo.saveRsvpSettings(WEDDING, {
+          ...SETTINGS,
+          form: { ...SETTINGS.form, capacity: 120 },
+        })
+
+        expect(await repo.eventsWithRsvpCapacity(new Date('2020-01-01T00:00:00.000Z'))).toEqual([])
+      })
+
       it('closes and reopens without touching the rest, and a save does not lift the closing', async () => {
         await repo.create(aGuestInvite({ eventId: 'evt-wedding' }))
         await repo.saveRsvpSettings(WEDDING, SETTINGS)

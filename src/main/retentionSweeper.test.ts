@@ -73,7 +73,16 @@ const controllableSweep = (): {
 const nothingFinalized = { finalized: [], accountsDeleted: 0, failed: [], reasons: [] }
 const nobodyWarned: SweepPurgeNoticesReport = { noticed: [], sent: 0, unsent: 0, failed: [] }
 
-const nobodyToldAboutReplies = { noticed: [], sent: 0, unsent: 0, failed: [] }
+const nobodyToldAboutReplies = {
+  noticed: [],
+  sent: 0,
+  unsent: 0,
+  skippedBudget: 0,
+  stale: 0,
+  failed: [],
+}
+
+const noDigests = { claimed: 0, sent: 0, unsent: 0, skippedBudget: 0, failed: [] }
 
 const nothingSignups = { expired: 0, released: 0, erased: 0 }
 
@@ -90,6 +99,7 @@ const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
     sweepSignups: async () => nothingSignups,
     pruneMailBudget: async () => ({ erased: 0 }),
     sweepRsvpNotices: async () => nobodyToldAboutReplies,
+    sweepRsvpDigests: async () => noDigests,
     logger,
     clock,
     intervalMs: INTERVAL_MS,
@@ -748,6 +758,10 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
         order.push('rsvpNotices')
         return nobodyToldAboutReplies
       },
+      sweepRsvpDigests: async () => {
+        order.push('digests')
+        return noDigests
+      },
       finalizeOffboardedClients: async () => {
         order.push('finalize')
         return nothingFinalized
@@ -771,6 +785,7 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
       'signups',
       'mailCounts',
       'warn',
+      'digests',
       'finalize',
       'prune',
     ])
@@ -784,6 +799,7 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
       sweepSignups: async () => nothingSignups,
       pruneMailBudget: async () => ({ erased: 0 }),
       sweepRsvpNotices: async () => nobodyToldAboutReplies,
+      sweepRsvpDigests: async () => noDigests,
       finalizeOffboardedClients: async () => {
         throw new Error('database is locked')
       },
@@ -826,19 +842,18 @@ describe('the warning before the replies are erased rides the follow-up (spec 32
   it('says which events were warned and how many mails went', async () => {
     const { sweeper, lines } = build({
       sweepRsvpNotices: async () => ({
-        noticed: [{ eventId: asEventId('evt-1'), level: 7 }],
+        noticed: [{ eventId: asEventId('evt-1'), kind: 'rsvpErasure' as const, level: 7 as const }],
         sent: 2,
         unsent: 1,
+        skippedBudget: 0,
+        stale: 0,
         failed: [],
       }),
     })
 
     await sweeper.runOnce()
 
-    const line = lines.find(
-      (entry) =>
-        entry.message === 'retention sweep warned the owners about guest replies to be erased',
-    )
+    const line = lines.find((entry) => entry.message === 'retention sweep sent replies notices')
     expect(line?.context).toMatchObject({ events: 1, levels: 'evt-1:7', sent: 2, unsent: 1 })
   })
 
@@ -846,7 +861,7 @@ describe('the warning before the replies are erased rides the follow-up (spec 32
     const { sweeper, lines } = build()
     await sweeper.runOnce()
     expect(lines.map((entry) => entry.message)).not.toContain(
-      'retention sweep warned the owners about guest replies to be erased',
+      'retention sweep sent replies notices',
     )
   })
 
@@ -856,6 +871,8 @@ describe('the warning before the replies are erased rides the follow-up (spec 32
         noticed: [],
         sent: 0,
         unsent: 0,
+        skippedBudget: 0,
+        stale: 0,
         failed: [asEventId('evt-1'), asEventId('evt-2')],
       }),
     })
@@ -886,6 +903,84 @@ describe('the warning before the replies are erased rides the follow-up (spec 32
       expect(erased).toBe(true)
       expect(lines.find((entry) => entry.message === 'replies notices failed')?.context).toEqual({
         error: thrown instanceof Error ? thrown.message : thrown,
+      })
+    }
+  })
+})
+
+describe('the daily summaries ride the follow-up (spec 32, R2)', () => {
+  it('says how many were claimed and sent', async () => {
+    const { sweeper, lines } = build({
+      sweepRsvpDigests: async () => ({
+        claimed: 2,
+        sent: 1,
+        unsent: 1,
+        skippedBudget: 0,
+        failed: [],
+      }),
+    })
+
+    await sweeper.runOnce()
+
+    const line = lines.find(
+      (entry) => entry.message === 'retention sweep wrote the daily summaries of the replies',
+    )
+    expect(line?.context).toMatchObject({ claimed: 2, sent: 1, unsent: 1 })
+  })
+
+  it('says something when only the budget held them back, and stays silent when nothing was due', async () => {
+    const held = build({
+      sweepRsvpDigests: async () => ({
+        claimed: 0,
+        sent: 0,
+        unsent: 0,
+        skippedBudget: 3,
+        failed: [],
+      }),
+    })
+    await held.sweeper.runOnce()
+    expect(held.lines.map((entry) => entry.message)).toContain(
+      'retention sweep wrote the daily summaries of the replies',
+    )
+
+    const quiet = build()
+    await quiet.sweeper.runOnce()
+    expect(quiet.lines.map((entry) => entry.message)).not.toContain(
+      'retention sweep wrote the daily summaries of the replies',
+    )
+  })
+
+  it('lists the candidates it could not examine, and never stops the rest when it throws', async () => {
+    const failing = build({
+      sweepRsvpDigests: async () => ({
+        claimed: 0,
+        sent: 0,
+        unsent: 0,
+        skippedBudget: 0,
+        failed: ['evt-1:user-1'],
+      }),
+    })
+    await failing.sweeper.runOnce()
+    expect(
+      failing.lines.find((e) => e.message === 'replies digests could not examine every candidate')
+        ?.context,
+    ).toMatchObject({ failed: 1, failedIds: 'evt-1:user-1' })
+
+    for (const thrown of [new Error('x'), 'plain']) {
+      let pruned = false
+      const { sweeper, lines } = build({
+        sweepRsvpDigests: async () => {
+          throw thrown
+        },
+        pruneAuditLog: async () => {
+          pruned = true
+          return nothingPruned
+        },
+      })
+      await sweeper.runOnce()
+      expect(pruned).toBe(true)
+      expect(lines.find((e) => e.message === 'replies digests failed')?.context).toEqual({
+        error: thrown instanceof Error ? 'Error' : 'unknown',
       })
     }
   })

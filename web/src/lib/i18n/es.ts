@@ -3854,6 +3854,12 @@ export const es: UiText = {
       unavailable: 'El libro de visitas no acepta mensajes por el momento.',
       already: 'Ya ha dejado un mensaje.',
     },
+    digest: {
+      label: 'Recibir un resumen por correo (como máximo uno al día)',
+      hint: 'Solo cifras, nunca el nombre de un invitado.',
+      offByAccount: 'Ha desactivado los correos de las respuestas en Seguridad y correos.',
+      failed: 'No se pudo guardar la elección. Inténtelo de nuevo en un momento.',
+    },
     push: {
       // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
       // same words, and a test holds the two together).

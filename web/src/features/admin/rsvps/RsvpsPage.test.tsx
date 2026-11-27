@@ -9,6 +9,7 @@ import type { RsvpDto, RsvpListResponseDto } from '../../../lib/api/dto'
 import { FakeEventSource } from '../../../testing/fakeEventSource'
 import {
   aGuestInviteHost,
+  anAbout,
   aHousehold,
   anEventDto,
   anRsvp,
@@ -61,6 +62,7 @@ const list = (overrides: Partial<RsvpListResponseDto> = {}): RsvpListResponseDto
   rsvps: [lea, tom, ana],
   stats: STATS,
   unseen: 0,
+  rsvpDigest: false,
   ...overrides,
 })
 
@@ -1106,5 +1108,116 @@ describe('the replies page: coming from the guest list', () => {
 
     await screen.findByRole('table')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
+describe('the daily summary by e-mail (spec 32, R2)', () => {
+  const digest = fr.rsvp.digest
+  const boxName = new RegExp(digest.label.replace(/[()]/g, String.raw`\$&`), 'i')
+  const mailing = (hostMail: boolean) =>
+    vi.fn(async () =>
+      anAbout({
+        features: { siteAdmin: false, forgotPassword: hostMail, hostMail, signup: 'off' },
+      }),
+    )
+  const renderWith = (extra: Partial<Api> = {}, response = list(), hostMail = true) =>
+    render(answering(response, { about: mailing(hostMail), ...extra }))
+
+  it('is not offered on a box that writes no mail to its hosts', async () => {
+    renderWith({}, list(), false)
+
+    await screen.findByRole('table')
+    expect(screen.queryByRole('checkbox', { name: boxName })).toBeNull()
+  })
+
+  it('is offered, unticked, and ticking it saves at once for this event', async () => {
+    const setRsvpDigest = vi.fn(async () => undefined)
+    renderWith({ setRsvpDigest })
+    const user = userEvent.setup()
+
+    const box = await screen.findByRole('checkbox', { name: boxName })
+    await waitFor(() => expect(box).toBeEnabled())
+    expect(box).not.toBeChecked()
+    await user.click(box)
+
+    await waitFor(() => expect(setRsvpDigest).toHaveBeenCalledWith('camille-et-sacha', true))
+    await waitFor(() => expect(box).toBeChecked())
+  })
+
+  it('shows it ticked when the owner ticked it, and unticking saves too', async () => {
+    const setRsvpDigest = vi.fn(async () => undefined)
+    renderWith({ setRsvpDigest }, list({ rsvpDigest: true }))
+    const user = userEvent.setup()
+
+    const box = await screen.findByRole('checkbox', { name: boxName })
+    await waitFor(() => expect(box).toBeEnabled())
+    expect(box).toBeChecked()
+    await user.click(box)
+
+    await waitFor(() => expect(setRsvpDigest).toHaveBeenCalledWith('camille-et-sacha', false))
+  })
+
+  it('is greyed, with the reason, when the account turned the replies e-mails off', async () => {
+    renderWith({
+      mailPreferences: vi.fn(async () => ({ rsvp: false, event: true, available: true })),
+    })
+
+    const box = await screen.findByRole('checkbox', { name: boxName })
+    await waitFor(() => expect(box).toBeDisabled())
+    expect(screen.getByText(digest.offByAccount)).toBeInTheDocument()
+  })
+
+  it('says so when the choice could not be saved, and leaves the box as it was', async () => {
+    const setRsvpDigest = vi.fn(async () => {
+      throw new ApiError(500, 'server.error')
+    })
+    renderWith({ setRsvpDigest })
+    const user = userEvent.setup()
+
+    const box = await screen.findByRole('checkbox', { name: boxName })
+    await waitFor(() => expect(box).toBeEnabled())
+    await user.click(box)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(digest.failed)
+    expect(box).not.toBeChecked()
+  })
+
+  it('is not switchable until the account answered, then is', async () => {
+    let answer: (value: { rsvp: boolean; event: boolean; available: boolean }) => void = () => {}
+    const waiting = new Promise<{ rsvp: boolean; event: boolean; available: boolean }>(
+      (resolve) => {
+        answer = resolve
+      },
+    )
+    renderWith({ mailPreferences: vi.fn(() => waiting) })
+
+    const box = await screen.findByRole('checkbox', { name: boxName })
+    expect(box).toBeDisabled()
+
+    answer({ rsvp: true, event: true, available: true })
+    await waitFor(() => expect(box).toBeEnabled())
+  })
+
+  it('ignores a second press while it saves, and stays enabled so the focus is kept', async () => {
+    let finish: () => void = () => {}
+    const setRsvpDigest = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        }),
+    )
+    renderWith({ setRsvpDigest })
+    const user = userEvent.setup()
+    const box = await screen.findByRole('checkbox', { name: boxName })
+    await waitFor(() => expect(box).toBeEnabled())
+
+    await user.click(box)
+    await user.click(box)
+
+    expect(setRsvpDigest).toHaveBeenCalledTimes(1)
+    expect(box).toBeEnabled()
+    expect(box.closest('[aria-busy="true"]')).not.toBeNull()
+    finish()
+    await waitFor(() => expect(box.closest('[aria-busy="true"]')).toBeNull())
   })
 })

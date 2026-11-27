@@ -3899,6 +3899,13 @@ export const de: UiText = {
       unavailable: 'Das Gästebuch nimmt im Moment keine Nachrichten an.',
       already: 'Sie haben bereits eine Nachricht hinterlassen.',
     },
+    digest: {
+      label: 'Zusammenfassung per E-Mail erhalten (höchstens eine pro Tag)',
+      hint: 'Nur Zahlen, nie der Name eines Gastes.',
+      offByAccount:
+        'Sie haben die E-Mails zu den Antworten unter „Sicherheit und E-Mails“ ausgeschaltet.',
+      failed: 'Die Auswahl konnte nicht gespeichert werden. Versuchen Sie es gleich noch einmal.',
+    },
     push: {
       // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
       // same words, and a test holds the two together).

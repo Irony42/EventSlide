@@ -4546,6 +4546,12 @@ export const fr = {
       unavailable: 'Le livre d’or n’accepte plus de mot pour le moment.',
       already: 'Vous avez déjà laissé un mot.',
     },
+    digest: {
+      label: 'Recevoir un résumé par e-mail (au plus un par jour)',
+      hint: 'Les chiffres seulement, jamais le nom d’un invité.',
+      offByAccount: 'Vous avez coupé les e-mails des réponses dans Sécurité et e-mails.',
+      failed: 'Le choix n’a pas pu être enregistré. Réessayez dans un instant.',
+    },
     push: {
       // What the service worker shows (it has no locale table of its own: `lib/push/pushNotice.ts` holds the
       // same words, and a test holds the two together).

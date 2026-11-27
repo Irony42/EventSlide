@@ -40,6 +40,14 @@ const newestFirst = (left: GuestbookEntry, right: GuestbookEntry): number =>
 
 export class FakeGuestbookRepository implements GuestbookRepository {
   private readonly rows = new Map<string, GuestbookEntry>()
+  /** The guests made for a reply's note (`guests.via_rsvp`), which a test names: the fake has no guests table. */
+  private readonly viaRsvp = new Set<GuestId>()
+
+  /** Marks a guest as one made for a reply's note. */
+  markViaRsvp(guestId: GuestId): this {
+    this.viaRsvp.add(guestId)
+    return this
+  }
 
   /** Seed fixtures, with no ceiling applied. */
   seed(...entries: readonly GuestbookEntry[]): this {
@@ -179,6 +187,12 @@ export class FakeGuestbookRepository implements GuestbookRepository {
 
   async countOpenByEvent(eventId: EventId): Promise<number> {
     return this.liveOf(eventId).filter((row) => row.status !== 'rejected').length
+  }
+
+  async countPendingRsvpNotes(eventId: EventId): Promise<number> {
+    return this.visibleOf(eventId).filter(
+      (row) => row.status === 'pending' && this.viaRsvp.has(row.guestId),
+    ).length
   }
 
   async delete(eventId: EventId, entryId: GuestbookEntryId): Promise<void> {

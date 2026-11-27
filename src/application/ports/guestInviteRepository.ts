@@ -57,6 +57,20 @@ export interface GuestInviteRepository {
    */
   saveRsvpSettings(eventId: EventId, settings: RsvpSettings): Promise<void>
 
+  /**
+   * The events whose replies are asked and **not closed by hand**, with a deadline day between `fromDay` and `toDay`
+   * (both included, `YYYY-MM-DD`): the candidates of the deadline reminder (R3) and of the summary after the stop (R4),
+   * which judge the exact instant themselves (a day is read in the invitation's zone). One bounded read.
+   */
+  eventsWithRsvpDeadlineBetween(fromDay: string, toDay: string): Promise<readonly EventId[]>
+
+  /**
+   * The events whose replies are asked and not closed by hand, and whose form limits the places: the candidates of the
+   * "full" notice (R5), which compares the people who come with the capacity, **and whose party has not started** (`startingAfter`: an
+   * invitation with no start is left out, a party gone by has nothing to fill). One bounded read.
+   */
+  eventsWithRsvpCapacity(startingAfter: Date): Promise<readonly EventId[]>
+
   /** Closes the replies at `closedAt`, or reopens them with `null`. Nothing else is touched. No row is a no-op. */
   setRsvpClosedAt(eventId: EventId, closedAt: Date | null): Promise<void>
 }
