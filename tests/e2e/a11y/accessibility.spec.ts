@@ -479,6 +479,26 @@ test.describe('self-service signup (spec 31)', () => {
       })
       await expect(refusal.getByLabel(fr.siteSignups.notify)).toBeVisible()
       await audit()
+      await page.keyboard.press('Escape')
+      await expect(refusal).toHaveCount(0)
+
+      // The announcements page (spec 32, A8): the form, the preview, the confirmation and the past ones.
+      await page.goto(app.url('/admin/site/announcements'))
+      await expect(
+        page.getByRole('heading', { level: 1, name: fr.siteAnnouncements.title }),
+      ).toBeVisible()
+      await audit()
+      await page.getByLabel(fr.siteAnnouncements.subject).fill('Nouvelles conditions')
+      await page.getByLabel(fr.siteAnnouncements.text).fill('Elles changent le 1er janvier.')
+      await expect(page.getByRole('region', { name: fr.siteAnnouncements.preview })).toContainText(
+        'Nouvelles conditions',
+      )
+      await audit()
+      await page.getByRole('button', { name: fr.siteAnnouncements.send }).click()
+      await expect(
+        page.getByRole('dialog', { name: fr.siteAnnouncements.confirmTitle }),
+      ).toBeVisible()
+      await audit()
     } finally {
       await context.close()
       await box.close()
