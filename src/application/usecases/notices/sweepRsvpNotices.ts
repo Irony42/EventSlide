@@ -32,7 +32,8 @@ import type { MembershipRepository } from '../../ports/userRepository'
  *   preferences and `HOST_MAIL_NOTICES` say, like the warning before a purge. Without a relay nothing is sent
  *   **and nothing is noted**, so the day one is configured no notice has been skipped.
  * - **The date is the earlier of the replies' retention and the event's own purge** (`rsvpErasureDate`): the
- *   purge takes the replies sooner and its hold does not keep them. The ledger key carries the level **and the
+ *   purge takes the replies sooner and its hold does not keep them. **But a held event is never purged**, so its
+ *   replies go at their own retention date alone: a purge date that will never come is not a date to warn about. The ledger key carries the level **and the
  *   date** (`7@<instant>`), so a date that moves (reopening, an invitation moved) owes its levels again.
  * - **Noted before sent** (`EventMailNoticeLedger.note` is the decision: it answers `true` to one call only,
  *   so the timer and `npm run purge` running together send one mail). A notice for a date that has already
@@ -52,6 +53,9 @@ import type { MembershipRepository } from '../../ports/userRepository'
 
 /** How far ahead replies are looked for: the furthest level. */
 const HORIZON_DAYS = 7
+
+/** A purge date further in the past than this is a backlog (an outage): not looked at, not hydrated. */
+const PURGE_BACKLOG_DAYS = 7
 
 export interface SweepRsvpNoticesReport {
   /** The notices noted this run. */
@@ -116,8 +120,19 @@ export const makeSweepRsvpNotices =
     let candidates: readonly EventId[]
     try {
       const byRetention = await rsvps.eventsWithRepliesExpiringBefore(horizon)
-      const byPurge = await events.listDueForPurge(horizon, { capNoticeDays })
-      candidates = [...new Set([...byRetention, ...byPurge.map((event) => event.id)])]
+      const duePurge = await events.listDueForPurge(horizon, { capNoticeDays })
+      const byPurge: EventId[] = []
+      const backlogCutoff = addDays(now, -PURGE_BACKLOG_DAYS).getTime()
+      for (const event of duePurge) {
+        const client = event.clientId === null ? null : await clients.findById(event.clientId)
+        const deadline = purgeDeadline(event, client, capNoticeDays)
+        // A backlog after an outage is the purge's business, not a warning's: skipped before any other read.
+        const recent = deadline !== null && deadline.getTime() >= backlogCutoff
+        if (recent) {
+          byPurge.push(event.id)
+        }
+      }
+      candidates = [...new Set([...byRetention, ...byPurge])]
     } catch (error) {
       logger.error('replies notices could not list the events', {
         error: error instanceof Error ? error.message : String(error),
@@ -135,7 +150,7 @@ export const makeSweepRsvpNotices =
         const invite = await invites.findByEvent(eventId)
         const erasure = rsvpErasureDate(
           rsvpExpiryOf({ closedAt: event.closedAt, startsAt: invite?.content.startsAt ?? null }),
-          purgeDeadline(event, client, capNoticeDays),
+          event.purgeHeldAt === null ? purgeDeadline(event, client, capNoticeDays) : null,
         )
         if (erasure === null) continue
 

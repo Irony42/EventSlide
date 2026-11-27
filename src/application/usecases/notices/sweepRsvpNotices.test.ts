@@ -108,6 +108,7 @@ const build = (
     logger,
     clock,
     users,
+    memberships,
   }
 }
 
@@ -175,6 +176,178 @@ describe('sweepRsvpNotices', () => {
 
     await world.sweep()
     expect(world.mailer.sent).toHaveLength(afterFirst * 2)
+  })
+
+  it('says the replies go ON the day and to download the list the day before at the latest, in every language', async () => {
+    for (const [locale, words] of [
+      ['fr', 'la veille'],
+      ['en', 'the day before'],
+      ['de', 'Vortag'],
+      ['es', 'día anterior'],
+      ['it', 'giorno prima'],
+    ] as const) {
+      const world = build()
+      world.clients.seed(aClient({ id: 'client-1', locale }))
+      await world.arrange(closedGoingIn(7, { clientId: 'client-1' }))
+
+      await world.sweep()
+
+      expect(world.mailer.sent[0]?.text, locale).toContain(words)
+      expect(world.mailer.sent[0]?.text, locale).not.toMatch(/avant cette date|before then/)
+    }
+  })
+
+  it('dates a held event by its replies retention alone: its purge never runs, so it is not the date', async () => {
+    const world = build()
+    // Closed 30 days ago with a 20-day retention: the purge would be 10 days in the past, were it not held.
+    await world.arrange(closedGoingIn(7, { settings: { retentionDays: 20 } }))
+    await world.events.setPurgeHeld(WEDDING, new Date(NOW.getTime() - DAY))
+
+    const report = await world.sweep()
+
+    expect(report.noticed).toEqual([{ eventId: WEDDING, level: 7 }])
+    expect(world.mailer.sent[0]?.subject).toContain('8 décembre 2026')
+  })
+
+  it('finds an event only by its replies retention, and another only by its purge', async () => {
+    const world = build()
+    const other = asEventId('evt-gala')
+    world.ledger.withEvents(other)
+    // WEDDING: replies go in 7 days, purge far away (found by retention only).
+    await world.arrange(closedGoingIn(7))
+    // GALA: closed 28 days ago, purge in 2 days, replies' retention in 2 days too, but listed on the purge side only.
+    const gala = anEvent({
+      id: other,
+      slug: 'gala',
+      joinCode: '2AB3CD',
+      name: 'Gala',
+      status: 'closed',
+      closedAt: new Date(NOW.getTime() - 1 * DAY),
+      settings: { retentionDays: 3 },
+    })
+    world.events.seed(gala)
+    world.rsvps.seed(aRsvp({ eventId: other, id: 'gala-1' }))
+    world.memberships.seed({ eventId: other, userId: HOST, role: 'owner', grantedAt: AT })
+
+    const report = await world.sweep()
+
+    expect(report.noticed.map((n) => n.eventId).sort()).toEqual([other, WEDDING].sort())
+  })
+
+  it('ignores a purge date more than 7 days in the past without reading the event any further', async () => {
+    const world = build()
+    const old = anEvent({
+      id: WEDDING,
+      status: 'closed',
+      closedAt: new Date(NOW.getTime() - 40 * DAY),
+      settings: { retentionDays: 3 },
+    })
+    world.events.seed(old)
+    let hydrated = 0
+    const findById = world.events.findById.bind(world.events)
+    world.events.findById = async (id) => {
+      hydrated += 1
+      return findById(id)
+    }
+
+    const report = await world.sweep()
+
+    expect(report).toEqual({ noticed: [], sent: 0, unsent: 0, failed: [] })
+    expect(hydrated).toBe(0)
+  })
+
+  it('dates a client event by its client ceilings when it is found by its purge', async () => {
+    const world = build()
+    world.clients.seed(aClient({ id: 'client-1', locale: 'en' }))
+    await world.arrange(
+      closedGoingIn(25, {
+        clientId: 'client-1',
+        settings: { retentionDays: 3 },
+        closedAt: new Date(NOW.getTime() - DAY),
+      }),
+    )
+
+    const report = await world.sweep()
+
+    expect(report.noticed).toEqual([{ eventId: WEDDING, level: 7 }])
+    expect(world.mailer.sent[0]?.subject).toContain('December 3, 2026')
+  })
+
+  it('skips a listed event that has no purge date at all', async () => {
+    const world = build()
+    const live = anEvent({ id: WEDDING, status: 'live' })
+    const sweep = makeSweepRsvpNotices({
+      events: { listDueForPurge: async () => [live], findById: async () => live },
+      clients: world.clients,
+      invites: world.invites,
+      rsvps: { count: async () => 1, eventsWithRepliesExpiringBefore: async () => [] },
+      memberships: world.memberships,
+      notices: world.ledger,
+      budget: world.budget,
+      mailer: world.mailer,
+      clock: world.clock,
+      logger: world.logger,
+      capNoticeDays: 30,
+      publicUrl: 'https://photos.example.test',
+    })
+
+    expect(await sweep()).toEqual({ noticed: [], sent: 0, unsent: 0, failed: [] })
+  })
+
+  it('warns for an event that never closed, whose replies go 60 days after the invitation starts', async () => {
+    const world = build()
+    const starts = new Date(NOW.getTime() - 53 * DAY)
+    const live = anEvent({
+      id: WEDDING,
+      slug: 'camille-et-sacha',
+      joinCode: 'H7K2QM',
+      name: 'Camille et Sacha',
+      status: 'live',
+    })
+    world.events.seed(live)
+    world.rsvps.setEventDates(WEDDING, { closedAt: null, startsAt: starts })
+    world.rsvps.seed(aRsvp({ eventId: WEDDING, id: 'r-1' }))
+    world.invites.seed(
+      aGuestInvite({ eventId: WEDDING, startsAt: starts.toISOString(), timeZone: 'Europe/Paris' }),
+    )
+
+    const report = await world.sweep()
+
+    expect(report.noticed).toEqual([{ eventId: WEDDING, level: 7 }])
+  })
+
+  it('writes the 1-day notice to an owner who joined between the two levels', async () => {
+    const world = build()
+    await world.arrange(closedGoingIn(7))
+    await world.sweep()
+    const joiner = asUserId('user-new')
+    world.users.seed(aUser({ id: joiner, email: 'nouveau@example.test' }))
+    world.memberships.seed({ eventId: WEDDING, userId: joiner, role: 'owner', grantedAt: AT })
+
+    world.clock.advance(6 * DAY)
+    await world.sweep()
+
+    const toNewcomer = world.mailer.sent.filter((mail) => mail.to === 'nouveau@example.test')
+    expect(toNewcomer).toHaveLength(1)
+  })
+
+  it('sends the 1-day notice the evening before when the erasure is at 06:00 local', async () => {
+    // Replies go on 8 December at 06:00 in Paris (05:00 UTC). Any 24 hours hold a 13-hour sending window
+    // (08:00 to 21:00), so the 1-day level cannot be skipped unless the sweep itself is stopped.
+    const erasure = new Date('2026-12-08T05:00:00.000Z')
+    const world = build({ now: new Date('2026-12-01T12:00:00.000Z') })
+    await world.arrange(closedGoingIn(7, { closedAt: new Date(erasure.getTime() - 30 * DAY) }))
+    await world.sweep()
+    const afterSeven = world.mailer.sent.length
+
+    // 21:30 the evening before: night, nothing leaves.
+    world.clock.advance(6 * DAY + 9.5 * 3_600_000)
+    expect((await world.sweep()).noticed).toEqual([])
+
+    // 08:00 the day before at the very latest... here the afternoon of the 7th (13:00 local).
+    world.clock.set(new Date('2026-12-07T12:00:00.000Z'))
+    expect((await world.sweep()).noticed).toEqual([{ eventId: WEDDING, level: 1 }])
+    expect(world.mailer.sent.length).toBeGreaterThan(afterSeven)
   })
 
   it('owes nothing with more than 7 days left', async () => {
