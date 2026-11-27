@@ -21,6 +21,15 @@ import type {
 } from '../dto'
 import { encode } from './shared'
 
+/**
+ * What an operator act that may write to the host sends of the operator's choice (spec 32, A4): `notifyHost` only when the host is
+ * **not** to be told (absent means yes), `hostReason` the reason the host is given, distinct from the audit reason.
+ */
+export interface HostNoticeArgs {
+  readonly notifyHost?: boolean
+  readonly hostReason?: string
+}
+
 // The client space and the operator's console (`SITE_ADMIN=on` only).
 /**
  * `POST /api/site/clients`. `ceilings` is the operator's own: a ceiling it names is kept, `null`
@@ -158,20 +167,35 @@ export const siteApi = (transport: Transport) => ({
 
   // The remove-without-viewing levers (launch review S5): by id, with a **mandatory** reason of at
   // most 200 characters on one line. Every one is a write, behind a fresh step-up.
-  siteTakeDownPhoto: (photoId: string, reason: string): Promise<void> =>
-    transport.post(`/api/site/photos/${encode(photoId)}/take-down`, { reason }),
+  siteTakeDownPhoto: (
+    photoId: string,
+    reason: string,
+    notice: HostNoticeArgs = {},
+  ): Promise<void> =>
+    transport.post(`/api/site/photos/${encode(photoId)}/take-down`, { reason, ...notice }),
 
   siteRestorePhoto: (photoId: string, reason: string): Promise<void> =>
     transport.post(`/api/site/photos/${encode(photoId)}/restore`, { reason }),
 
-  siteTakeDownGuestbookEntry: (entryId: string, reason: string): Promise<void> =>
-    transport.post(`/api/site/guestbook-entries/${encode(entryId)}/take-down`, { reason }),
+  siteTakeDownGuestbookEntry: (
+    entryId: string,
+    reason: string,
+    notice: HostNoticeArgs = {},
+  ): Promise<void> =>
+    transport.post(`/api/site/guestbook-entries/${encode(entryId)}/take-down`, {
+      reason,
+      ...notice,
+    }),
 
   siteRestoreGuestbookEntry: (entryId: string, reason: string): Promise<void> =>
     transport.post(`/api/site/guestbook-entries/${encode(entryId)}/restore`, { reason }),
 
-  siteTakeDownEvent: (eventId: string, reason: string): Promise<void> =>
-    transport.post(`/api/site/events/${encode(eventId)}/take-down`, { reason }),
+  siteTakeDownEvent: (
+    eventId: string,
+    reason: string,
+    notice: HostNoticeArgs = {},
+  ): Promise<void> =>
+    transport.post(`/api/site/events/${encode(eventId)}/take-down`, { reason, ...notice }),
 
   siteRestoreEvent: (eventId: string, reason: string): Promise<void> =>
     transport.post(`/api/site/events/${encode(eventId)}/restore`, { reason }),
@@ -182,18 +206,23 @@ export const siteApi = (transport: Transport) => ({
   siteReleaseEventPurge: (eventId: string, reason: string): Promise<void> =>
     transport.post(`/api/site/events/${encode(eventId)}/purge-release`, { reason }),
 
-  siteSuspendClient: (clientId: string): Promise<void> =>
-    transport.post(`/api/site/clients/${encode(clientId)}/suspend`),
+  /** `notice`: whether to tell the client's owners, and the reason they are given (spec 32, A4). */
+  siteSuspendClient: (clientId: string, notice: HostNoticeArgs = {}): Promise<void> =>
+    transport.post(`/api/site/clients/${encode(clientId)}/suspend`, notice),
 
-  siteResumeClient: (clientId: string): Promise<void> =>
-    transport.post(`/api/site/clients/${encode(clientId)}/resume`),
+  siteResumeClient: (clientId: string, notice: HostNoticeArgs = {}): Promise<void> =>
+    transport.post(`/api/site/clients/${encode(clientId)}/resume`, notice),
 
   /**
    * Ends an engagement: live events are closed, drafts archived, the client suspended, and its
    * albums purged `graceDays` from now (whole days; the range is the server's). Idempotent.
    */
-  siteOffboardClient: (clientId: string, graceDays: number): Promise<void> =>
-    transport.post(`/api/site/clients/${encode(clientId)}/offboard`, { graceDays }),
+  siteOffboardClient: (
+    clientId: string,
+    graceDays: number,
+    notice: HostNoticeArgs = {},
+  ): Promise<void> =>
+    transport.post(`/api/site/clients/${encode(clientId)}/offboard`, { graceDays, ...notice }),
 
   /** Into the client's account, never into an event. `pendingApproval` says an owner must agree. */
   siteInviteToClient: (

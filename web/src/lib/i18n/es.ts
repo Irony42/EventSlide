@@ -389,6 +389,8 @@ export const es: UiText = {
     'clientCeilings.liveAllowedInvalid': 'Este ajuste de apertura no se acepta.',
     'siteLookup.queryInvalid':
       'Introduzca un identificador, un código, una dirección o el nombre de un evento (300 caracteres como máximo).',
+    'takedown.hostReasonInvalid':
+      'El motivo para el anfitrión debe tener 500 caracteres como máximo.',
     'audit.reasonInvalid':
       'El motivo debe caber en una línea de 200 caracteres como máximo, sin dirección de correo.',
     'reset.mailerRequired':
@@ -2944,6 +2946,14 @@ export const es: UiText = {
     takedownGuestbookOf: (id: string) => `En el evento ${id}`,
     takedownGuestbookDown: 'Retirar el mensaje',
     takedownGuestbookUp: 'Restablecer el mensaje',
+    hostNotice: {
+      notify: 'Avisar al anfitrión',
+      notifyHint:
+        'Se envía un correo a los propietarios, con el motivo de abajo. Desmarque solo si no se debe avisar al anfitrión (vea el procedimiento de la instancia).',
+      reason: 'Motivo para el anfitrión',
+      reasonHint:
+        'Lo que leerá el anfitrión, 500 caracteres como máximo. Distinto del motivo del registro, que el anfitrión nunca lee.',
+    },
     takedownReason: 'Motivo',
     takedownReasonHint:
       'Una frase en una sola línea, de 200 caracteres como máximo, sin dirección de correo. Se escribe en el registro de la instancia.',

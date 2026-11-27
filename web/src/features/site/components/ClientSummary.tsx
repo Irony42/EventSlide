@@ -12,6 +12,9 @@ import type { SiteClientDto } from '../../../lib/api/dto'
 import { formatBytes, formatDateTime } from '../../../lib/format'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import { useOperatorAction } from '../hooks/useOperatorAction'
+import type { HostNoticeArgs } from '../../../lib/api/client/site'
+import { HostNoticeFields } from './HostNoticeFields'
+import { DEFAULT_HOST_NOTICE, hostNoticeArgs, type HostNoticeValue } from './hostNotice'
 import { standingLabel, standingOf, standingTone } from '../siteLabels'
 import styles from './ClientSummary.module.css'
 
@@ -44,14 +47,20 @@ export function ClientSummary({ client, onChanged }: ClientSummaryProps) {
   const [renaming, setRenaming] = useState(false)
   const [confirming, setConfirming] = useState(false)
 
-  const suspend = useOperatorAction(useCallback((id: string) => api.siteSuspendClient(id), [api]))
-  const resume = useOperatorAction(useCallback((id: string) => api.siteResumeClient(id), [api]))
+  const [hostNotice, setHostNotice] = useState<HostNoticeValue>(DEFAULT_HOST_NOTICE)
+  const suspend = useOperatorAction(
+    useCallback((id: string, notice: HostNoticeArgs) => api.siteSuspendClient(id, notice), [api]),
+  )
+  const resume = useOperatorAction(
+    useCallback((id: string, notice: HostNoticeArgs) => api.siteResumeClient(id, notice), [api]),
+  )
   const freezing = standing === 'active'
   const act = freezing ? suspend : resume
 
   const confirm = () => {
-    void act.run('standing', client.id).then((result) => {
+    void act.run('standing', client.id, hostNoticeArgs(hostNotice)).then((result) => {
       setConfirming(false)
+      setHostNotice(DEFAULT_HOST_NOTICE)
       if (!result.ok) {
         if (result.message !== null) toast.show(result.message, { tone: 'danger' })
         return
@@ -139,8 +148,13 @@ export function ClientSummary({ client, onChanged }: ClientSummaryProps) {
         confirmLabel={freezing ? t.site.suspend : t.site.resume}
         busy={act.busy}
         onConfirm={confirm}
-        onCancel={() => setConfirming(false)}
-      />
+        onCancel={() => {
+          setConfirming(false)
+          setHostNotice(DEFAULT_HOST_NOTICE)
+        }}
+      >
+        <HostNoticeFields value={hostNotice} onChange={setHostNotice} />
+      </ConfirmDialog>
     </Card>
   )
 }

@@ -4,6 +4,9 @@ import { Dialog } from '../../../design-system/components/Dialog'
 import { Field } from '../../../design-system/components/Field'
 import { TextInput } from '../../../design-system/components/TextInput'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { HostNoticeFields } from './HostNoticeFields'
+import { DEFAULT_HOST_NOTICE, hostNoticeArgs, type HostNoticeValue } from './hostNotice'
+import type { HostNoticeArgs } from '../../../lib/api/client/site'
 
 export interface ReasonDialogProps {
   readonly open: boolean
@@ -14,7 +17,9 @@ export interface ReasonDialogProps {
   readonly busy: boolean
   /** The server's own sentence when it refused the act, shown where the operator is looking. */
   readonly failure: string | null
-  readonly onConfirm: (reason: string) => void
+  /** Whether this act can write to the host: the dialog then carries "Prévenir l'hôte" and the host's own reason (spec 32, A4). */
+  readonly tellsHost?: boolean
+  readonly onConfirm: (reason: string, notice: HostNoticeArgs) => void
   readonly onCancel: () => void
 }
 
@@ -35,17 +40,21 @@ export function ReasonDialog({
   confirmLabel,
   busy,
   failure,
+  tellsHost = false,
   onConfirm,
   onCancel,
 }: ReasonDialogProps) {
   const t = useTranslations()
   const [reason, setReason] = useState('')
+  const [hostNotice, setHostNotice] = useState<HostNoticeValue>(DEFAULT_HOST_NOTICE)
   const cancelRef = useRef<HTMLButtonElement>(null)
   const written = reason.trim()
+  // Nothing is sent of the notice by an act that cannot write to the host.
+  const noticeArgs = tellsHost ? hostNoticeArgs(hostNotice) : {}
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (written !== '' && !busy) onConfirm(written)
+    if (written !== '' && !busy) onConfirm(written, noticeArgs)
   }
 
   return (
@@ -64,7 +73,7 @@ export function ReasonDialog({
             variant="danger"
             loading={busy}
             disabled={written === ''}
-            onClick={() => onConfirm(written)}
+            onClick={() => onConfirm(written, noticeArgs)}
           >
             {confirmLabel}
           </Button>
@@ -85,6 +94,7 @@ export function ReasonDialog({
             />
           )}
         </Field>
+        {tellsHost ? <HostNoticeFields value={hostNotice} onChange={setHostNotice} /> : null}
         {failure === null ? null : <p role="alert">{failure}</p>}
       </form>
     </Dialog>

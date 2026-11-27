@@ -374,6 +374,7 @@ export const en: UiText = {
     'clientCeilings.liveAllowedInvalid': 'This opening setting is not accepted.',
     'siteLookup.queryInvalid':
       'Enter an id, a code, an address or an event name (300 characters at most).',
+    'takedown.hostReasonInvalid': 'The reason for the host must fit in 500 characters at most.',
     'audit.reasonInvalid':
       'The reason must fit on one line of 200 characters at most, with no e-mail address.',
     'reset.mailerRequired': 'This instance does not send mail: no reset link can be issued.',
@@ -2866,6 +2867,14 @@ export const en: UiText = {
     takedownGuestbookOf: (id: string) => `In event ${id}`,
     takedownGuestbookDown: 'Take the message down',
     takedownGuestbookUp: 'Put the message back',
+    hostNotice: {
+      notify: 'Tell the host',
+      notifyHint:
+        'An e-mail goes to the owners, with the reason below. Untick only when the host must not be told (see the instance’s procedure).',
+      reason: 'Reason for the host',
+      reasonHint:
+        'What the host will read, 500 characters at most. Separate from the log reason, which the host never reads.',
+    },
     takedownReason: 'Reason',
     takedownReasonHint:
       'One sentence on a single line, 200 characters at most, with no e-mail address. It is written to the instance log.',

@@ -266,10 +266,45 @@ describe('a client’s page: freezing it', () => {
     const confirm = await press(fr.site.suspend)
     await userEvent.click(within(confirm).getByRole('button', { name: fr.site.suspend }))
 
-    await waitFor(() => expect(api.siteSuspendClient).toHaveBeenCalledWith(CLIENT_ID))
+    await waitFor(() => expect(api.siteSuspendClient).toHaveBeenCalledWith(CLIENT_ID, {}))
     expect(await screen.findByText(fr.site.suspended)).toBeVisible()
     expect(await screen.findByRole('button', { name: fr.site.resume })).toBeVisible()
     expect(screen.queryByRole('button', { name: fr.site.suspend })).toBeNull()
+  })
+
+  it('asks whether to tell the client, ticked, and sends the choice and the reason with the suspension', async () => {
+    const api = withClient()
+    open(api)
+    await heading()
+
+    const confirm = await press(fr.site.suspend)
+    expect(within(confirm).getByRole('checkbox', { name: fr.site.hostNotice.notify })).toBeChecked()
+    await userEvent.type(within(confirm).getByLabelText(fr.site.hostNotice.reason), 'Impayé.')
+    await userEvent.click(within(confirm).getByRole('button', { name: fr.site.suspend }))
+
+    await waitFor(() =>
+      expect(api.siteSuspendClient).toHaveBeenCalledWith(CLIENT_ID, { hostReason: 'Impayé.' }),
+    )
+  })
+
+  it('sends "do not tell" when unticked, and starts the next confirmation ticked and empty again', async () => {
+    const api = withClient()
+    open(api)
+    await heading()
+
+    const confirm = await press(fr.site.suspend)
+    await userEvent.click(
+      within(confirm).getByRole('checkbox', { name: fr.site.hostNotice.notify }),
+    )
+    await userEvent.click(within(confirm).getByRole('button', { name: fr.app.cancel }))
+    const again = await press(fr.site.suspend)
+
+    expect(within(again).getByRole('checkbox', { name: fr.site.hostNotice.notify })).toBeChecked()
+    await userEvent.click(within(again).getByRole('checkbox', { name: fr.site.hostNotice.notify }))
+    await userEvent.click(within(again).getByRole('button', { name: fr.site.suspend }))
+    await waitFor(() =>
+      expect(api.siteSuspendClient).toHaveBeenCalledWith(CLIENT_ID, { notifyHost: false }),
+    )
   })
 
   it('sends nothing when the confirmation is declined', async () => {
@@ -345,7 +380,7 @@ describe('a client’s page: freezing it', () => {
     expect(confirm).toHaveAccessibleDescription(fr.site.resumeBody)
     await userEvent.click(within(confirm).getByRole('button', { name: fr.site.resume }))
 
-    await waitFor(() => expect(api.siteResumeClient).toHaveBeenCalledWith(CLIENT_ID))
+    await waitFor(() => expect(api.siteResumeClient).toHaveBeenCalledWith(CLIENT_ID, {}))
     expect(await screen.findByText(fr.site.resumed)).toBeVisible()
     expect(await screen.findByRole('button', { name: fr.site.suspend })).toBeVisible()
   })
@@ -799,6 +834,30 @@ describe('a client’s page: ending its engagement', () => {
     expect(api.siteOffboardClient).not.toHaveBeenCalled()
   })
 
+  it('asks whether to tell the client, ticked, and sends the days with the choice and the reason', async () => {
+    const api = withClient()
+    await openOffboard(api)
+
+    await press()
+    const confirmation = await dialog(fr.site.offboardConfirmTitle)
+    expect(
+      within(confirmation).getByRole('checkbox', { name: fr.site.hostNotice.notify }),
+    ).toBeChecked()
+    await userEvent.type(
+      within(confirmation).getByLabelText(fr.site.hostNotice.reason),
+      'Fin du contrat.',
+    )
+    await userEvent.click(
+      within(confirmation).getByRole('button', { name: fr.site.offboardAction }),
+    )
+
+    await waitFor(() =>
+      expect(api.siteOffboardClient).toHaveBeenCalledWith(CLIENT_ID, 30, {
+        hostReason: 'Fin du contrat.',
+      }),
+    )
+  })
+
   it('says "1 day" in the singular and sends the days typed', async () => {
     const api = withClient()
     const days = await openOffboard(api)
@@ -811,7 +870,7 @@ describe('a client’s page: ending its engagement', () => {
     )
     await confirm()
 
-    await waitFor(() => expect(api.siteOffboardClient).toHaveBeenCalledWith(CLIENT_ID, 1))
+    await waitFor(() => expect(api.siteOffboardClient).toHaveBeenCalledWith(CLIENT_ID, 1, {}))
   })
 
   it('ends the engagement on a confirmation, says so, and reads the client again as being wound down', async () => {
@@ -833,7 +892,7 @@ describe('a client’s page: ending its engagement', () => {
     await press()
     await confirm()
 
-    await waitFor(() => expect(api.siteOffboardClient).toHaveBeenCalledWith(CLIENT_ID, 30))
+    await waitFor(() => expect(api.siteOffboardClient).toHaveBeenCalledWith(CLIENT_ID, 30, {}))
     expect(await screen.findByText(fr.site.offboardedDone)).toBeVisible()
     expect(await screen.findByText(fr.site.offboardingRunning)).toBeVisible()
     expect(screen.queryByRole('button', { name: fr.site.offboardAction })).toBeNull()
@@ -869,7 +928,7 @@ describe('a client’s page: ending its engagement', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['client.graceInvalid'])
     expect(days).toHaveValue('0')
-    expect(siteOffboardClient).toHaveBeenCalledWith(CLIENT_ID, 0)
+    expect(siteOffboardClient).toHaveBeenCalledWith(CLIENT_ID, 0, {})
     // A refusal changed nothing, so the client is not read again.
     expect(api.siteClients).toHaveBeenCalledTimes(1)
   })

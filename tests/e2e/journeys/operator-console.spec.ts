@@ -255,7 +255,7 @@ test.describe('the operator’s console', () => {
     await expect(
       photoDialog.getByRole('button', { name: fr.site.takedownOps.photoDown.confirm }),
     ).toBeDisabled()
-    await photoDialog.getByLabel(fr.site.takedownReason).fill('Signalement reçu')
+    await photoDialog.getByLabel(fr.site.takedownReason, { exact: true }).fill('Signalement reçu')
     await photoDialog.getByRole('button', { name: fr.site.takedownOps.photoDown.confirm }).click()
     await expect(page.getByRole('button', { name: fr.site.takedownPhotoUp })).toBeVisible()
     expect(await hostSees()).toBe(false)
@@ -272,7 +272,7 @@ test.describe('the operator’s console', () => {
     await noContentOnScreen(page)
     await page.getByRole('button', { name: fr.site.takedownEventDown }).click()
     const eventDialog = page.getByRole('dialog', { name: fr.site.takedownOps.eventDown.title })
-    await eventDialog.getByLabel(fr.site.takedownReason).fill('Signalement reçu')
+    await eventDialog.getByLabel(fr.site.takedownReason, { exact: true }).fill('Signalement reçu')
     await eventDialog.getByRole('button', { name: fr.site.takedownOps.eventDown.confirm }).click()
     await expect(eventRow.getByText(fr.site.takedownStateDown, { exact: true })).toBeVisible()
 

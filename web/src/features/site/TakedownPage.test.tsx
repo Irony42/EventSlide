@@ -171,10 +171,78 @@ describe('acting on an event', () => {
     )
 
     expect(await screen.findByText(fr.site.takedownStateDown)).toBeVisible()
-    expect(siteTakeDownEvent).toHaveBeenCalledWith(EVENT_ID, REASON)
+    expect(siteTakeDownEvent).toHaveBeenCalledWith(EVENT_ID, REASON, {})
     expect(siteEventState).toHaveBeenCalledWith(EVENT_ID)
     expect(screen.getByRole('button', { name: fr.site.takedownEventUp })).toBeVisible()
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('asks whether to tell the host, ticked, with a reason of its own, and sends both', async () => {
+    const siteTakeDownEvent = vi.fn<Api['siteTakeDownEvent']>(async () => undefined)
+    open(
+      withEvent({
+        siteTakeDownEvent,
+        siteEventState: vi.fn(async () => anEvent({ takenDownAt: AT })),
+      }),
+    )
+    await findEvent()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.site.takedownEventDown }))
+    const confirmation = await dialog(fr.site.takedownOps.eventDown.title)
+    expect(
+      within(confirmation).getByRole('checkbox', { name: fr.site.hostNotice.notify }),
+    ).toBeChecked()
+    await userEvent.type(within(confirmation).getByLabelText(fr.site.takedownReason), REASON)
+    await userEvent.type(
+      within(confirmation).getByLabelText(fr.site.hostNotice.reason),
+      'Contenu contraire aux conditions.',
+    )
+    await userEvent.click(
+      within(confirmation).getByRole('button', { name: fr.site.takedownOps.eventDown.confirm }),
+    )
+
+    await waitFor(() =>
+      expect(siteTakeDownEvent).toHaveBeenCalledWith(EVENT_ID, REASON, {
+        hostReason: 'Contenu contraire aux conditions.',
+      }),
+    )
+  })
+
+  it('sends only "do not tell" when the box is unticked, hides the host reason and never sends what was typed in it', async () => {
+    const siteTakeDownEvent = vi.fn<Api['siteTakeDownEvent']>(async () => undefined)
+    open(
+      withEvent({
+        siteTakeDownEvent,
+        siteEventState: vi.fn(async () => anEvent({ takenDownAt: AT })),
+      }),
+    )
+    await findEvent()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.site.takedownEventDown }))
+    const confirmation = await dialog(fr.site.takedownOps.eventDown.title)
+    await userEvent.type(within(confirmation).getByLabelText(fr.site.takedownReason), REASON)
+    await userEvent.type(within(confirmation).getByLabelText(fr.site.hostNotice.reason), 'Un mot.')
+    await userEvent.click(
+      within(confirmation).getByRole('checkbox', { name: fr.site.hostNotice.notify }),
+    )
+    expect(within(confirmation).queryByLabelText(fr.site.hostNotice.reason)).toBeNull()
+    await userEvent.click(
+      within(confirmation).getByRole('button', { name: fr.site.takedownOps.eventDown.confirm }),
+    )
+
+    await waitFor(() =>
+      expect(siteTakeDownEvent).toHaveBeenCalledWith(EVENT_ID, REASON, { notifyHost: false }),
+    )
+  })
+
+  it('offers no notice for an act that writes to nobody: putting back, holding a purge', async () => {
+    open(withEvent({}, anEvent({ takenDownAt: AT })))
+    await findEvent()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.site.takedownEventUp }))
+    const confirmation = await dialog(fr.site.takedownOps.eventUp.title)
+
+    expect(within(confirmation).queryByRole('checkbox')).toBeNull()
   })
 
   it.each([
@@ -354,7 +422,7 @@ describe('acting on a photograph, by its id', () => {
 
     expect(await screen.findByRole('button', { name: fr.site.takedownPhotoUp })).toBeVisible()
     expect(sitePhotoState).toHaveBeenCalledWith(PHOTO_ID)
-    expect(siteTakeDownPhoto).toHaveBeenCalledWith(PHOTO_ID, REASON)
+    expect(siteTakeDownPhoto).toHaveBeenCalledWith(PHOTO_ID, REASON, {})
     expect(document.querySelector('img, video, picture, canvas, audio')).toBeNull()
   })
 
@@ -445,7 +513,7 @@ describe('acting on a guestbook message, by its id (spec 01)', () => {
 
     expect(await screen.findByRole('button', { name: fr.site.takedownGuestbookUp })).toBeVisible()
     expect(siteGuestbookState).toHaveBeenCalledWith(PHOTO_ID)
-    expect(siteTakeDownGuestbookEntry).toHaveBeenCalledWith(PHOTO_ID, REASON)
+    expect(siteTakeDownGuestbookEntry).toHaveBeenCalledWith(PHOTO_ID, REASON, {})
   })
 
   it('puts a taken-down message back, with its own request', async () => {

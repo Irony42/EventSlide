@@ -391,6 +391,8 @@ export const de: UiText = {
     'clientCeilings.liveAllowedInvalid': 'Diese Öffnungseinstellung wird nicht akzeptiert.',
     'siteLookup.queryInvalid':
       'Geben Sie eine ID, einen Code, eine Adresse oder einen Veranstaltungsnamen ein (höchstens 300 Zeichen).',
+    'takedown.hostReasonInvalid':
+      'Der Grund für den Gastgeber darf höchstens 500 Zeichen lang sein.',
     'audit.reasonInvalid':
       'Der Grund muss in eine Zeile mit höchstens 200 Zeichen passen, ohne E-Mail-Adresse.',
     'reset.mailerRequired':
@@ -2975,6 +2977,14 @@ export const de: UiText = {
     takedownGuestbookOf: (id: string) => `In der Veranstaltung ${id}`,
     takedownGuestbookDown: 'Nachricht entfernen',
     takedownGuestbookUp: 'Nachricht wiederherstellen',
+    hostNotice: {
+      notify: 'Gastgeber benachrichtigen',
+      notifyHint:
+        'Eine E-Mail geht an die Eigentümer, mit dem Grund unten. Nur abwählen, wenn der Gastgeber nicht informiert werden darf (siehe Verfahren der Instanz).',
+      reason: 'Grund für den Gastgeber',
+      reasonHint:
+        'Was der Gastgeber liest, höchstens 500 Zeichen. Getrennt vom Grund im Protokoll, den der Gastgeber nie liest.',
+    },
     takedownReason: 'Grund',
     takedownReasonHint:
       'Ein Satz in einer Zeile, höchstens 200 Zeichen, ohne E-Mail-Adresse. Er wird im Protokoll der Instanz festgehalten.',

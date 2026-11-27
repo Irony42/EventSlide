@@ -5,7 +5,8 @@ import { Button } from '../../../design-system/components/Button'
 import { useToast } from '../../../design-system/components/useToast'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { useOperatorAction } from '../hooks/useOperatorAction'
-import { runTakedownOp, type TakedownOp } from '../takedownOps'
+import { runTakedownOp, TELLS_THE_HOST, type TakedownOp } from '../takedownOps'
+import type { HostNoticeArgs } from '../../../lib/api/client/site'
 import { ReasonDialog } from './ReasonDialog'
 import styles from './TakedownRow.module.css'
 
@@ -56,7 +57,8 @@ export function TakedownRow({
   const [failure, setFailure] = useState<string | null>(null)
   const act = useOperatorAction(
     useCallback(
-      (op: TakedownOp, target: string, reason: string) => runTakedownOp(api, op, target, reason),
+      (op: TakedownOp, target: string, reason: string, notice: HostNoticeArgs) =>
+        runTakedownOp(api, op, target, reason, notice),
       [api],
     ),
   )
@@ -66,10 +68,10 @@ export function TakedownRow({
     setFailure(null)
   }
 
-  const confirm = (reason: string) => {
+  const confirm = (reason: string, notice: HostNoticeArgs) => {
     if (asked === null) return
     setFailure(null)
-    void act.run(asked, asked, id, reason).then((result) => {
+    void act.run(asked, asked, id, reason, notice).then((result) => {
       if (!result.ok) {
         // `null` is a person who walked away from the step-up prompt: nothing to say.
         setFailure(result.message)
@@ -123,6 +125,7 @@ export function TakedownRow({
         confirmLabel={copy?.confirm ?? ''}
         busy={act.busy}
         failure={failure}
+        tellsHost={asked !== null && TELLS_THE_HOST.includes(asked)}
         onConfirm={confirm}
         onCancel={close}
       />

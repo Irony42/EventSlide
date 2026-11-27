@@ -9,6 +9,9 @@ import { useToast } from '../../../design-system/components/useToast'
 import type { SiteClientDto } from '../../../lib/api/dto'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { useOperatorAction } from '../hooks/useOperatorAction'
+import type { HostNoticeArgs } from '../../../lib/api/client/site'
+import { HostNoticeFields } from './HostNoticeFields'
+import { DEFAULT_HOST_NOTICE, hostNoticeArgs, type HostNoticeValue } from './hostNotice'
 import { standingOf } from '../siteLabels'
 import styles from './OffboardCard.module.css'
 
@@ -50,8 +53,13 @@ export function OffboardCard({ client, onChanged }: OffboardCardProps) {
   const [invalid, setInvalid] = useState(false)
   const [days, setDays] = useState<number | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
+  const [hostNotice, setHostNotice] = useState<HostNoticeValue>(DEFAULT_HOST_NOTICE)
   const offboard = useOperatorAction(
-    useCallback((id: string, window: number) => api.siteOffboardClient(id, window), [api]),
+    useCallback(
+      (id: string, window: number, notice: HostNoticeArgs) =>
+        api.siteOffboardClient(id, window, notice),
+      [api],
+    ),
   )
 
   if (standingOf(client) === 'offboarding') {
@@ -72,8 +80,9 @@ export function OffboardCard({ client, onChanged }: OffboardCardProps) {
 
   const confirm = () => {
     if (days === null) return
-    void offboard.run('offboard', client.id, days).then((result) => {
+    void offboard.run('offboard', client.id, days, hostNoticeArgs(hostNotice)).then((result) => {
       setDays(null)
+      setHostNotice(DEFAULT_HOST_NOTICE)
       if (!result.ok) {
         setFailure(result.message)
         return
@@ -120,7 +129,9 @@ export function OffboardCard({ client, onChanged }: OffboardCardProps) {
         busy={offboard.busy}
         onConfirm={confirm}
         onCancel={() => setDays(null)}
-      />
+      >
+        <HostNoticeFields value={hostNotice} onChange={setHostNotice} />
+      </ConfirmDialog>
     </Card>
   )
 }
