@@ -36,8 +36,10 @@ describe('AUDIT_ACTIONS', () => {
   })
 
   it('names every action <subject>.<something>, so a reader can tell what it is about', () => {
+    // The reserved `access_request` subject is what signups are about, and they are named for the feature.
+    const prefixOf = (subject: string): string => (subject === 'access_request' ? 'signup' : subject)
     for (const action of ACTIONS) {
-      expect(action.startsWith(`${AUDIT_ACTIONS[action].subject}.`), action).toBe(true)
+      expect(action.startsWith(`${prefixOf(AUDIT_ACTIONS[action].subject)}.`), action).toBe(true)
     }
   })
 

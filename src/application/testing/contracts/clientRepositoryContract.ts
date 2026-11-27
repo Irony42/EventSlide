@@ -22,13 +22,14 @@ import { AT, aClient, aClientCeilings, atPlus } from '../builders'
 
 export const CLIENT_CONTRACT_FIXTURES = {
   userIds: ['user-owner', 'user-member'],
-  eventIds: ['evt-wedding', 'evt-gala'],
+  eventIds: ['evt-wedding', 'evt-gala', 'evt-party'],
 } as const
 
 const OWNER = asUserId('user-owner')
 const MEMBER = asUserId('user-member')
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
+const PARTY = asEventId('evt-party')
 
 const aMembership = (
   clientId: ClientId,
@@ -483,6 +484,25 @@ export const clientRepositoryContract = (
 
       expect(await repo.countEvents(asClientId('client-1'))).toBe(0)
       expect(await repo.countEvents(asClientId('ghost'))).toBe(0)
+    })
+
+    // -------------------------------------------------- countClientsWithEvents --
+
+    it('counts each client with an event once, however many events it has', async () => {
+      await repo.save(aClient({ id: 'client-1' }))
+      await repo.save(aClient({ id: 'client-2' }))
+      await repo.save(aClient({ id: 'client-3' }))
+      await linkEvent(WEDDING, asClientId('client-1'))
+      await linkEvent(GALA, asClientId('client-1'))
+      await linkEvent(PARTY, asClientId('client-2'))
+
+      expect(await repo.countClientsWithEvents()).toBe(2)
+    })
+
+    it('counts none on a box without clients and ignores an event that has no client', async () => {
+      expect(await repo.countClientsWithEvents()).toBe(0)
+      await repo.save(aClient({ id: 'client-1' }))
+      expect(await repo.countClientsWithEvents()).toBe(0)
     })
 
     // ------------------------------------------------------------ countMembers --

@@ -282,6 +282,18 @@ export const AUDIT_ACTIONS = {
    * log as well as by the screen: a number, never a code.
    */
   'account.recoveryCodeUsed': { subject: 'account', details: { remaining: detail.integer } },
+  /**
+   * Signups (spec 31, ADR 0018) are about the reserved subject `access_request`, and their actions are
+   * named `signup.<pastTense>`. A request nobody decided on in time was erased by the sweep
+   * (`sweepSignups`); the subject is the request's own id and never its address.
+   */
+  'signup.expired': { subject: 'access_request', details: {} },
+  /**
+   * The box's daily ceiling of confirmations (`SIGNUP_MAX_PER_DAY`) was reached, once a day. The subject is
+   * the day itself (`YYYY-MM-DD`), because no request is the cause; the actor is the system. SECURITY
+   * names it as the alarm for signups used to exhaust the ceiling.
+   */
+  'signup.dailyCeilingReached': { subject: 'access_request', details: {} },
 } as const satisfies Record<string, AuditActionSpec>
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS

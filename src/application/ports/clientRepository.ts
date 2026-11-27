@@ -110,6 +110,13 @@ export interface ClientRepository {
   countEvents(clientId: ClientId): Promise<number>
 
   /**
+   * How many distinct clients have at least one event on the box (an event is deleted when it is purged, so this
+   * is "with an event not yet purged"). The signup disk guard of mode `open` multiplies it by 5 GB
+   * (spec 31, `docs/costs.md` 4.4). A count, never a list.
+   */
+  countClientsWithEvents(): Promise<number>
+
+  /**
    * How many accounts belong to this client, in any role and **whether or not they can sign in
    * today** (a row is a membership, and a switched-off account keeps its row). `0` for a client
    * with none and for one that does not exist.

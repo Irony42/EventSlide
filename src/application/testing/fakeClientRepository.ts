@@ -220,6 +220,10 @@ export class FakeClientRepository implements ClientRepository, ClientEventSource
     return this.eventsOf(clientId).length
   }
 
+  async countClientsWithEvents(): Promise<number> {
+    return new Set(this.eventClientLinks.values()).size
+  }
+
   async countMembers(clientId: ClientId): Promise<number> {
     return [...this.memberships.values()].filter((membership) => membership.clientId === clientId)
       .length
