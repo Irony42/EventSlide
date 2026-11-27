@@ -1,3 +1,4 @@
+import { asUserId } from '../../domain/shared/ids'
 import { makeCloseRsvps, makeReopenRsvps } from '../usecases/guestRsvps/closeRsvps'
 import { makeCountUnseenRsvps } from '../usecases/guestRsvps/countUnseenRsvps'
 import { makeExportRsvps } from '../usecases/guestRsvps/exportRsvps'
@@ -6,6 +7,8 @@ import { makeHostAddRsvp } from '../usecases/guestRsvps/hostAddRsvp'
 import { makeHostDeleteRsvp } from '../usecases/guestRsvps/hostDeleteRsvp'
 import { makeHostUpdateRsvp } from '../usecases/guestRsvps/hostUpdateRsvp'
 import { makeListRsvps } from '../usecases/guestRsvps/listRsvps'
+import { makeSetRsvpDigest } from '../usecases/guestRsvps/setRsvpDigest'
+import { FakeMailPreferenceRepository } from './fakeMailPreferenceRepository'
 import { makeMarkRsvpsSeen } from '../usecases/guestRsvps/markRsvpsSeen'
 import { makePurgeExpiredRsvps } from '../usecases/guestRsvps/purgeExpiredRsvps'
 import { makeAttachRsvpToHousehold } from '../usecases/guestRsvps/attachRsvpToHousehold'
@@ -103,6 +106,8 @@ export interface RsvpScene extends GuestInviteScene {
   readonly attachRsvp: ReturnType<typeof makeAttachRsvpToHousehold>
   readonly viewHousehold: ReturnType<typeof makeViewHousehold>
   readonly secrets: FakeSecretTokens
+  readonly preferences: FakeMailPreferenceRepository
+  readonly setDigest: ReturnType<typeof makeSetRsvpDigest>
   readonly submit: ReturnType<typeof makeSubmitRsvp>
   readonly getOwn: ReturnType<typeof makeGetOwnRsvp>
   readonly updateOwn: ReturnType<typeof makeUpdateOwnRsvp>
@@ -118,6 +123,10 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
   const rsvps = new FakeGuestRsvpRepository()
   const households = new FakeGuestHouseholdRepository(rsvps)
   const guests = new FakeGuestRepository()
+  const preferences = new FakeMailPreferenceRepository().withMembers(
+    { eventId: WEDDING, userId: OWNER },
+    { eventId: WEDDING, userId: asUserId('user-mod') },
+  )
   const guestbook = new FakeGuestbookRepository()
   const bus = new RecordingEventBus()
   const ids = new SceneIds()
@@ -152,7 +161,9 @@ export const rsvpScene = async (options: { invited?: boolean } = {}): Promise<Rs
     saveForm: makeSaveRsvpForm({ ...access, rsvps, audit, bus, clock, ids }),
     close: makeCloseRsvps({ ...access, rsvps, audit, bus, clock }),
     reopen: makeReopenRsvps({ ...access, rsvps, audit, bus, clock }),
-    list: makeListRsvps({ ...access, rsvps, households, clock }),
+    list: makeListRsvps({ ...access, rsvps, households, preferences, clock }),
+    preferences,
+    setDigest: makeSetRsvpDigest({ ...access, preferences }),
     hostAdd: makeHostAddRsvp({ ...access, rsvps, audit, bus, ids, clock }),
     hostUpdate: makeHostUpdateRsvp({ ...access, rsvps, households, audit, bus, clock }),
     hostDelete: makeHostDeleteRsvp({ ...access, rsvps, audit, bus, clock, ...hooks }),

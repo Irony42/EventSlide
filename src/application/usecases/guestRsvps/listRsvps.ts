@@ -10,6 +10,7 @@ import { ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
 import type { GuestHouseholdRepository } from '../../ports/guestHouseholdRepository'
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
+import type { MailPreferenceRepository } from '../../ports/mailPreferenceRepository'
 import { openRsvps, statsAndSituation, type RsvpAccessDeps, type RsvpSituation } from './rsvpAccess'
 
 /**
@@ -30,11 +31,14 @@ export interface RsvpList extends RsvpSituation {
   readonly rsvps: readonly GuestRsvp[]
   readonly stats: RsvpStats
   readonly unseen: number
+  /** The caller ticked the daily summary of the replies for this event (spec 32, R2). */
+  readonly rsvpDigest: boolean
 }
 
 export interface ListRsvpsDeps extends RsvpAccessDeps {
   readonly rsvps: Pick<GuestRsvpRepository, 'listByEvent' | 'unseenCount'>
   readonly households: Pick<GuestHouseholdRepository, 'listByEvent'>
+  readonly preferences: Pick<MailPreferenceRepository, 'digestFor'>
   readonly clock: Clock
 }
 
@@ -62,5 +66,6 @@ export const makeListRsvps =
       rsvps: shown,
       stats,
       unseen: await deps.rsvps.unseenCount(eventId, actorId),
+      rsvpDigest: (await deps.preferences.digestFor(eventId, actorId)).on,
     })
   }

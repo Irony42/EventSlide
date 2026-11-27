@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../../app/HostEventsLink'
 import { Badge } from '../../../design-system/components/Badge'
@@ -119,7 +119,11 @@ function OwnerHouseholds({
   const loadSettings = useCallback((signal: AbortSignal) => api.rsvpForm(slug, signal), [api, slug])
   const settings = useLoader(loadSettings).data?.rsvpForm ?? null
 
-  const [filter, setFilter] = useState<HouseholdFilter>('all')
+  // "Voir les foyers sans réponse" of the reminder e-mail (spec 32, R3) leads here with `?filter=unanswered`: that tab opens.
+  const [search] = useSearchParams()
+  const [filter, setFilter] = useState<HouseholdFilter>(
+    search.get('filter') === 'unanswered' ? 'pending' : 'all',
+  )
   const [query, setQuery] = useState('')
   const [dialog, setDialog] = useState<Dialogs>({ kind: 'none' })
   const [problem, setProblem] = useState<string | null>(null)

@@ -107,6 +107,7 @@ describe('removing a moment', () => {
       rsvpForm: withMoments([BRUNCH, DINNER]),
       rsvps: [],
       unseen: 0,
+      rsvpDigest: false,
       stats: anRsvpStats({
         moments: [
           {

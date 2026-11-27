@@ -46,6 +46,7 @@ const list = (rsvps = [coming, waiting]): RsvpListResponseDto => ({
     },
   }),
   unseen: 0,
+  rsvpDigest: false,
 })
 
 const render = (api: Partial<Api> = {}) =>

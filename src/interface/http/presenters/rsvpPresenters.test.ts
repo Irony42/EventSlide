@@ -120,11 +120,18 @@ describe('toRsvpListResponseDto', () => {
       aRsvp({ id: 'r-1', name: 'Léa', diet: 'sans gluten', details: { meals: ['Viande'] } }),
       aRsvp({ id: 'r-2', name: 'Tom', answer: 'maybe', diet: 'végétarien' }),
     ]
-    const list: RsvpList = { ...view(true), rsvps, stats: statsOf(rsvps), unseen: 2 }
+    const list: RsvpList = {
+      ...view(true),
+      rsvps,
+      stats: statsOf(rsvps),
+      unseen: 2,
+      rsvpDigest: true,
+    }
 
     const dto = toRsvpListResponseDto(list)
 
     expect(dto.unseen).toBe(2)
+    expect(dto.rsvpDigest).toBe(true)
     expect(dto.rsvps.map((rsvp) => rsvp.name)).toEqual(['Léa', 'Tom'])
     expect(dto.stats).toEqual(statsOf(rsvps))
     // A maybe's diet is not told to the caterer: the panel, the file and the list agree.

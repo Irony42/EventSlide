@@ -420,6 +420,7 @@ const buildWorld = ({
         unsubscribePush: absent('unsubscribePush'),
         unsubscribePushEverywhere: absent('unsubscribePushEverywhere'),
         getMailPreferences: absent('getMailPreferences'),
+        setRsvpDigest: absent('setRsvpDigest'),
         setMailPreferences: absent('setMailPreferences'),
         markRsvpsSeen: absent('markRsvpsSeen'),
         listHouseholds: absent('listHouseholds'),

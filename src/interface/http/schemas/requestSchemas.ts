@@ -1170,3 +1170,6 @@ export const mailPreferencesBody = z.strictObject({
   rsvp: z.boolean().optional(),
   event: z.boolean().optional(),
 })
+
+/** `PUT /events/:slug/rsvp-digest` (spec 32): the owner ticks or unticks the daily summary. A real boolean, no other key. */
+export const rsvpDigestBody = z.strictObject({ on: z.boolean() })

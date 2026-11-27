@@ -40,6 +40,8 @@ import { makeHostAddRsvp } from '../../../application/usecases/guestRsvps/hostAd
 import { makeHostDeleteRsvp } from '../../../application/usecases/guestRsvps/hostDeleteRsvp'
 import { makeHostUpdateRsvp } from '../../../application/usecases/guestRsvps/hostUpdateRsvp'
 import { makeListRsvps } from '../../../application/usecases/guestRsvps/listRsvps'
+import { makeSetRsvpDigest } from '../../../application/usecases/guestRsvps/setRsvpDigest'
+import { FakeMailPreferenceRepository } from '../../../application/testing/fakeMailPreferenceRepository'
 import { makeMarkRsvpsSeen } from '../../../application/usecases/guestRsvps/markRsvpsSeen'
 import { makeSaveRsvpForm } from '../../../application/usecases/guestRsvps/saveRsvpForm'
 import { aHousehold } from '../../../domain/guestRsvps/testing/householdFixtures'
@@ -89,6 +91,10 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
   const invites = new FakeGuestInviteRepository()
   const rsvps = new FakeGuestRsvpRepository()
   const households = new FakeGuestHouseholdRepository(rsvps)
+  const preferences = new FakeMailPreferenceRepository().withMembers(
+    { eventId: WEDDING, userId: asUserId(OWNER) },
+    { eventId: WEDDING, userId: asUserId(MODERATOR) },
+  )
   const bus = new RecordingEventBus()
   const audit = new FakeAuditLog().withAccounts(
     asUserId(OWNER),
@@ -154,7 +160,8 @@ const buildWorld = async (exportSlots: { readonly perAccount?: number } = {}): P
             saveRsvpForm: makeSaveRsvpForm({ ...access, rsvps, audit, bus, clock, ids }),
             closeRsvps: makeCloseRsvps({ ...access, rsvps, audit, bus, clock }),
             reopenRsvps: makeReopenRsvps({ ...access, rsvps, audit, bus, clock }),
-            listRsvps: makeListRsvps({ ...access, rsvps, households, clock }),
+            listRsvps: makeListRsvps({ ...access, rsvps, households, preferences, clock }),
+            setRsvpDigest: makeSetRsvpDigest({ ...access, preferences }),
             hostAddRsvp: makeHostAddRsvp({ ...access, rsvps, audit, bus, ids, clock }),
             hostUpdateRsvp: makeHostUpdateRsvp({ ...access, rsvps, households, audit, bus, clock }),
             hostDeleteRsvp: makeHostDeleteRsvp({ ...access, rsvps, audit, bus, clock }),
@@ -501,6 +508,52 @@ describe('POST /api/events/:eventSlug/rsvp-form/close and /reopen', () => {
 
     expect(response.status).toBe(409)
     expect(response.body.error.code).toBe('rsvp.inviteRequired')
+  })
+})
+
+describe('PUT /api/events/:eventSlug/rsvp-digest (spec 32, R2)', () => {
+  const DIGEST = `/api/events/${SLUG}/rsvp-digest`
+  let world: World
+
+  beforeEach(async () => {
+    world = await buildWorld()
+  })
+
+  it('ticks the summary of the owner, answers 204 no-store, and the list says so', async () => {
+    const agent = await signedIn(world, 'owner')
+
+    const response = await agent.put(DIGEST).send({ on: true })
+
+    expect(response.status).toBe(204)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect((await agent.get(RSVPS)).body.rsvpDigest).toBe(true)
+
+    await agent.put(DIGEST).send({ on: false }).expect(204)
+    expect((await agent.get(RSVPS)).body.rsvpDigest).toBe(false)
+  })
+
+  it('is for the owner only: a moderator is 403, a stranger 404, no session 401, and nothing is stored', async () => {
+    expect((await (await signedIn(world, 'moderator')).put(DIGEST).send({ on: true })).status).toBe(
+      403,
+    )
+    expect(
+      (await (await signedIn(world, 'gala-owner')).put(DIGEST).send({ on: true })).status,
+    ).toBe(404)
+    expect((await request(world.app).put(DIGEST).send({ on: true })).status).toBe(401)
+  })
+
+  it('refuses a stray key and a value that is not a boolean as a malformed request', async () => {
+    const agent = await signedIn(world, 'owner')
+
+    const stray = await agent.put(DIGEST).send({ on: true, userId: 'x' })
+    const text = await agent.put(DIGEST).send({ on: 'yes' })
+    const missing = await agent.put(DIGEST).send({})
+
+    expect([stray, text, missing].map((r) => r.body.error.code)).toEqual([
+      'request.invalid',
+      'request.invalid',
+      'request.invalid',
+    ])
   })
 })
 

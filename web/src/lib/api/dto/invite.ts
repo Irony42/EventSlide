@@ -273,6 +273,8 @@ export interface RsvpListResponseDto {
   readonly stats: RsvpStatsDto
   /** How many replies were written or changed since the caller last looked. */
   readonly unseen: number
+  /** The caller ticked the daily summary of the replies for this event (spec 32, R2). */
+  readonly rsvpDigest: boolean
 }
 
 /** `GET /push/key`: the box's public VAPID key (spec 30, lot 4), what a browser subscribes with. */

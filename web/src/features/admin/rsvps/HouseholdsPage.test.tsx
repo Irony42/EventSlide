@@ -694,3 +694,31 @@ describe('the guest list: what review of #547 asked', () => {
     )
   })
 })
+
+describe('the guest list, coming from the reminder e-mail (spec 32, R3)', () => {
+  it('opens on the households with no reply when the link says filter=unanswered, and on all of them otherwise', async () => {
+    const api = listing([martin, elodie, durand])
+    renderWithProviders(<HouseholdsPage />, {
+      api,
+      route: '/admin/events/camille-et-sacha/rsvps/guests?filter=unanswered',
+      path: '/admin/events/:slug/rsvps/guests',
+    })
+
+    const pending = await screen.findByRole('button', {
+      name: new RegExp(`^${text.filterPending}`),
+    })
+    expect(pending).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('ignores a filter it does not know', async () => {
+    const api = listing([martin, elodie, durand])
+    renderWithProviders(<HouseholdsPage />, {
+      api,
+      route: '/admin/events/camille-et-sacha/rsvps/guests?filter=whatever',
+      path: '/admin/events/:slug/rsvps/guests',
+    })
+
+    const all = await screen.findByRole('button', { name: new RegExp(`^${text.filterAll}`) })
+    expect(all).toHaveAttribute('aria-pressed', 'true')
+  })
+})

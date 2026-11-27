@@ -1003,6 +1003,18 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.unsubscribePushEverywhere('https://fcm.googleapis.com/x'),
   },
   {
+    name: 'setRsvpDigest',
+    verb: 'put',
+    path: `/api/events/${SLUG}/rsvp-digest`,
+    invoke: (client) => client.setRsvpDigest(SLUG, true),
+  },
+  {
+    name: 'mailPreferences',
+    verb: 'get',
+    path: '/api/me/mail-preferences',
+    invoke: (client) => client.mailPreferences(),
+  },
+  {
     name: 'markRsvpsSeen',
     verb: 'post',
     path: `/api/events/${SLUG}/rsvps/seen`,

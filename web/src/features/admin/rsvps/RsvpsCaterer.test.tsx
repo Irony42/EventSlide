@@ -68,6 +68,7 @@ const list = (over: Partial<RsvpListResponseDto> = {}): RsvpListResponseDto => (
   rsvps: [lea, tom],
   stats: STATS,
   unseen: 0,
+  rsvpDigest: false,
   ...over,
 })
 
