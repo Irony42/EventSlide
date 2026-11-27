@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import type { SignupInput } from '../../../../lib/api/client'
-import type { SignupPreviewDto } from '../../../../lib/api/dto'
+import type { SignupConfirmedDto, SignupPreviewDto } from '../../../../lib/api/dto'
 import { ApiError } from '../../../../lib/http'
 import { messageForError } from '../../../../lib/i18n/translations'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
@@ -58,40 +58,63 @@ export interface SignupConfirmationState {
   /** What the link is, read without spending it; `null` until it has been read. */
   readonly preview: SignupPreviewDto | null
   readonly loading: boolean
-  /** A sentence, when the link could not be read at all (a dropped connection, signup off). */
+  /** A sentence, when the link could not be read at all (a dropped connection). */
   readonly loadError: string | null
+  /** The box answered `404 feature.unavailable`: signup is off, whatever the link. */
+  readonly unavailable: boolean
   readonly reload: () => void
   /** Spends the link. Resolves what comes next, or `null` when it failed and `error` says why. */
-  readonly confirm: () => Promise<'review' | 'mail' | null>
+  readonly confirm: () => Promise<SignupConfirmedDto['next'] | null>
   readonly confirming: boolean
   readonly error: string | null
 }
+
+/** What the preview read comes to when the box has signup switched off. */
+const UNAVAILABLE = { state: 'unavailable' } as const
+
+const isUnavailable = (cause: unknown): boolean =>
+  cause instanceof ApiError && cause.code === 'feature.unavailable'
 
 /**
  * The confirmation link in front of the reader. **Reading it spends nothing**: a mail client's
  * antivirus opens links before the person does, so only {@link SignupConfirmationState.confirm},
  * which the page calls from a button, writes anything.
+ *
+ * A press that fails re-reads the link: if it died between the preview and the press (spent by
+ * another tab, expired), the page then shows that screen instead of a generic alert.
  */
 export const useSignupConfirmation = (token: string): SignupConfirmationState => {
   const api = useApi()
   const t = useTranslations()
-  const read = useCallback((signal: AbortSignal) => api.signupPreview(token, signal), [api, token])
+  const read = useCallback(
+    (signal: AbortSignal): Promise<SignupPreviewDto | typeof UNAVAILABLE> =>
+      api.signupPreview(token, signal).catch((cause: unknown) => {
+        if (isUnavailable(cause)) return UNAVAILABLE
+        throw cause
+      }),
+    [api, token],
+  )
   const { data, loading, error: loadError, reload } = useLoader(read)
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const confirm = useCallback(async (): Promise<'review' | 'mail' | null> => {
+  const confirm = useCallback(async (): Promise<SignupConfirmedDto['next'] | null> => {
     setConfirming(true)
     setError(null)
     try {
       return (await api.confirmSignup(token)).next
     } catch (cause) {
-      setError(messageForError(cause, t))
+      setError(isUnavailable(cause) ? t.signup.unavailable : messageForError(cause, t))
+      // The link may have died since it was read: ask again, and let its state speak.
+      if (!isUnavailable(cause)) reload()
       return null
     } finally {
       setConfirming(false)
     }
-  }, [api, t, token])
+  }, [api, reload, t, token])
 
-  return { preview: data, loading, loadError, reload, confirm, confirming, error }
+  const unavailable = data !== null && 'state' in data && data.state === 'unavailable'
+  const preview = data === null || unavailable ? null : (data as SignupPreviewDto)
+
+  return { preview, loading, loadError, unavailable, reload, confirm, confirming, error }
 }

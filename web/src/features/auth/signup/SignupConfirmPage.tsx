@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import type { SignupConfirmedDto } from '../../../lib/api/dto'
 import { Button } from '../../../design-system/components/Button'
 import { Notice } from '../../../design-system/components/Notice'
 import { Spinner } from '../../../design-system/components/Spinner'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { useAbout } from '../../../lib/useAbout'
 import { AuthActions, AuthPage } from '../components/AuthPage'
+import { useLangParam } from './hooks/useLangParam'
 import { useSignupConfirmation } from './hooks/useSignup'
 
 /**
@@ -15,32 +16,39 @@ import { useSignupConfirmation } from './hooks/useSignup'
  * links of a mail before the person reads it, so this page reads what the link is (spending
  * nothing), shows the masked address, and writes only when "Confirm" is pressed.
  *
- * What the press leads to depends on the box's mode, which the server does not repeat in its
- * answer (`{ next }` only, and never a link: the invitation that lets the person choose a
- * password exists only in the mail):
+ * What the press leads to is the server's word, `{ next }` and never a link (the invitation that
+ * lets the person choose a password exists only in the mail): `mail` (the account is open),
+ * `review` (the operator validates each account) or `held` (the box is open but its disk guard
+ * held the request back; the account opens as soon as there is room).
  *
- * - `mail`: the account is open, the mail with the link follows.
- * - `review` while the box is in `review` mode: the operator validates each account.
- * - `review` while the box is in `open` mode: the disk guard held the request back, and the
- *   account opens as soon as there is room.
+ * `?lang=` is honoured like on `/signup`: the mail's link carries the language of the request.
  */
 export function SignupConfirmPage() {
   const { token = '' } = useParams()
   const t = useTranslations()
-  const { features } = useAbout()
-  const { preview, loading, loadError, reload, confirm, confirming, error } =
+  useLangParam()
+  const { preview, loading, loadError, unavailable, reload, confirm, confirming, error } =
     useSignupConfirmation(token)
-  const [next, setNext] = useState<'review' | 'mail' | null>(null)
+  const [next, setNext] = useState<SignupConfirmedDto['next'] | null>(null)
 
   if (next !== null) {
-    const done =
-      next === 'mail'
-        ? { title: t.signup.mailTitle, body: t.signup.mailDone }
-        : features.signup === 'open'
-          ? { title: t.signup.pendingTitle, body: t.signup.pendingDone }
-          : { title: t.signup.reviewTitle, body: t.signup.reviewDone }
+    const done = {
+      mail: { title: t.signup.mailTitle, body: t.signup.mailDone },
+      review: { title: t.signup.reviewTitle, body: t.signup.reviewDone },
+      held: { title: t.signup.pendingTitle, body: t.signup.pendingDone },
+    }[next]
     return (
       <AuthPage title={done.title} intro={done.body} focusTitle>
+        <AuthActions>
+          <Link to="/login">{t.auth.backToLogin}</Link>
+        </AuthActions>
+      </AuthPage>
+    )
+  }
+
+  if (unavailable) {
+    return (
+      <AuthPage title={t.signup.confirmTitle} intro={t.signup.unavailable} focusTitle>
         <AuthActions>
           <Link to="/login">{t.auth.backToLogin}</Link>
         </AuthActions>

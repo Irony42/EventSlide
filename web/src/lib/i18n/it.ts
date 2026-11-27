@@ -2245,6 +2245,7 @@ export const it: UiText = {
     noteHint:
       'Due parole sul suo evento. Al massimo 300 caratteri. Non indichi nulla di sensibile (salute, religione…): questo testo serve solo ad aprire il suo account.',
     eventDate: 'Data dell’evento',
+    eventDateOutOfRange: 'Indichi una data tra ieri e tra due anni.',
     submit: 'Creare il mio account',
     notice:
       'Il suo indirizzo serve solo a scriverle per questo account. La richiesta viene cancellata appena conclusa, e al più tardi 60 giorni dopo l’invio.',

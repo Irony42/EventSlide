@@ -151,11 +151,11 @@ function SignInForm() {
       footer={
         <>
           {forgotNote}
-          {features.signup === 'off' ? null : (
+          {features.signup === 'review' || features.signup === 'open' ? (
             <span>
               {t.signup.loginPrompt} <Link to="/signup">{t.signup.loginLink}</Link>
             </span>
-          )}
+          ) : null}
         </>
       }
     >

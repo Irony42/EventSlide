@@ -24,9 +24,10 @@ export interface SignupPreviewDto {
  * invitation that lets the person choose a password exists only in the mail.
  *
  * - `mail`: the account is open and the invitation is on its way (mode `open`).
- * - `review`: the request waits for a decision: the operator's (mode `review`), or, in mode
- *   `open`, the disk guard's.
+ * - `review`: the request waits for the operator's decision (mode `review`).
+ * - `held`: mode `open`, but the disk guard held the request back; the account opens as soon as
+ *   there is room.
  */
 export interface SignupConfirmedDto {
-  readonly next: 'review' | 'mail'
+  readonly next: 'review' | 'mail' | 'held'
 }

@@ -8,6 +8,7 @@ import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
 import { de } from '../../../lib/i18n/de'
 import { anAbout, fakeApi, renderWithProviders } from '../../../testing/renderWithProviders'
+import type { Locale } from '../../../lib/i18n/locale'
 import type { Api } from '../../../lib/api/client'
 import type { AboutLinks, SignupMode } from '../../../lib/api/dto'
 
@@ -23,6 +24,7 @@ const renderSignup = (
   route = '/signup',
   mode: SignupMode = 'open',
   links: AboutLinks = {},
+  locale?: Locale,
 ) =>
   renderWithProviders(
     <Routes>
@@ -30,7 +32,7 @@ const renderSignup = (
       <Route path="/signup/sent" element={<SignupSentPage />} />
       <Route path="/login" element={<p>Connexion</p>} />
     </Routes>,
-    { api: withMode(api, mode, links), route },
+    { api: withMode(api, mode, links), route, ...(locale === undefined ? {} : { locale }) },
   )
 
 const fill = async () => {
@@ -102,6 +104,12 @@ describe('SignupPage', () => {
     expect(trap).not.toBeNull()
     expect(trap?.closest('[aria-hidden="true"]')).not.toBeNull()
     expect(trap?.tabIndex).toBe(-1)
+    // Out of sight by the stylesheet's class, out of reach by `inert`, and never filled by a browser.
+    const wrapper = trap?.closest('[aria-hidden="true"]')
+    expect(wrapper?.className).toMatch(/trap/)
+    expect(wrapper).toHaveAttribute('inert')
+    expect(trap).toHaveAttribute('autocomplete', 'one-time-code')
+    expect(trap).toHaveAttribute('name', 'website')
     expect(screen.queryByRole('textbox', { name: /website/i })).toBeNull()
 
     await fill()
@@ -150,10 +158,85 @@ describe('SignupPage', () => {
     )
   })
 
-  it('ignores an unknown ?lang=', () => {
-    renderSignup(fakeApi(), '/signup?lang=xx')
+  it('replaces a stored language with the one in the address', async () => {
+    renderSignup(fakeApi(), '/signup?lang=en', 'open', {}, 'de')
 
-    expect(screen.getByLabelText(new RegExp(fr.signup.clientName))).toBeVisible()
+    expect(await screen.findByRole('button', { name: 'Create my account' })).toBeVisible()
+  })
+
+  it('keeps the stored language when ?lang= is unknown', async () => {
+    renderSignup(fakeApi(), '/signup?lang=xx', 'open', {}, 'de')
+
+    expect(await screen.findByRole('button', { name: de.signup.submit })).toBeVisible()
+  })
+
+  it('refuses a date outside yesterday..two years, with an error and the keyboard on it', async () => {
+    const api = fakeApi()
+    renderSignup(api)
+    await fill()
+    const box = screen.getByLabelText(new RegExp(fr.signup.eventDate))
+    expect(box).toHaveAttribute('min')
+    expect(box).toHaveAttribute('max')
+    await userEvent.type(box, '2001-01-01')
+    await submit()
+
+    expect(await screen.findByText(fr.signup.eventDateOutOfRange)).toBeVisible()
+    expect(box).toHaveFocus()
+    expect(api.requestSignup).not.toHaveBeenCalled()
+  })
+
+  it('refuses a date more than two years away', async () => {
+    const api = fakeApi()
+    renderSignup(api)
+    await fill()
+    await userEvent.type(screen.getByLabelText(new RegExp(fr.signup.eventDate)), '2099-01-01')
+    await submit()
+
+    expect(await screen.findByText(fr.signup.eventDateOutOfRange)).toBeVisible()
+    expect(api.requestSignup).not.toHaveBeenCalled()
+  })
+
+  it('bounds the date box from yesterday to two years ahead, in the local calendar', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 10, 27, 23, 30))
+    try {
+      renderSignup(fakeApi())
+      const box = screen.getByLabelText(new RegExp(fr.signup.eventDate))
+
+      expect(box).toHaveAttribute('min', '2026-11-26')
+      expect(box).toHaveAttribute('max', '2028-11-27')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('puts the keyboard on the first invalid field', async () => {
+    renderSignup(fakeApi())
+    await submit()
+    expect(screen.getByLabelText(fr.auth.email)).toHaveFocus()
+
+    await userEvent.type(screen.getByLabelText(fr.auth.email), 'lea@example.org')
+    await submit()
+    expect(screen.getByLabelText(new RegExp(fr.signup.clientName))).toHaveFocus()
+  })
+
+  it.each([
+    ['too many requests', new ApiError(429, 'rate.limited'), fr.errors['rate.limited']],
+    ['a dropped connection', ApiError.network(), undefined],
+  ])('keeps the form and what was typed on %s', async (_name, failure, sentence) => {
+    const api = fakeApi({
+      requestSignup: vi.fn(async () => {
+        throw failure
+      }),
+    })
+    renderSignup(api)
+    await fill()
+    await submit()
+
+    const alert = await screen.findByRole('alert')
+    if (sentence !== undefined) expect(alert).toHaveTextContent(sentence)
+    expect(screen.getByLabelText(new RegExp(fr.signup.clientName))).toHaveValue('Mariage de Léa')
+    expect(screen.getByRole('button', { name: fr.signup.submit })).toBeEnabled()
   })
 
   it('says signup is not open on a box that has said it is off, with no form', async () => {

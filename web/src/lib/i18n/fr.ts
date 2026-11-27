@@ -2331,15 +2331,16 @@ export const fr = {
     noteHint:
       'Quelques mots sur votre évènement. 300 caractères au plus. N’indiquez rien de sensible (santé, religion…)\u00a0: ce texte sert seulement à ouvrir votre compte.',
     eventDate: 'Date de l’évènement',
+    eventDateOutOfRange: 'Indiquez une date comprise entre hier et dans deux ans.',
     submit: 'Créer mon compte',
     notice:
-      'Votre adresse sert seulement à vous écrire pour ce compte. La demande est effacée dès qu’elle aboutit, et au plus tard 60 jours après l’envoi.',
+      'Votre adresse sert seulement à vous écrire pour ce compte. La demande est effacée dès qu’elle aboutit, et au plus tard 60\u00a0jours après l’envoi.',
     unavailable: 'L’inscription n’est pas ouverte sur ce serveur.',
     haveAccount: 'Vous avez déjà un compte\u00a0?',
     loginPrompt: 'Pas encore de compte\u00a0?',
     loginLink: 'Créer un compte',
     sentTitle: 'Regardez votre boîte',
-    sent: 'Un lien pour confirmer votre adresse vous attend (valable 24 h). Rien reçu\u00a0? Vérifiez les indésirables.',
+    sent: 'Un lien pour confirmer votre adresse vous attend (valable 24\u00a0h). Rien reçu\u00a0? Vérifiez les indésirables.',
     busyTitle: 'Beaucoup de demandes aujourd’hui',
     busy: 'Beaucoup de demandes aujourd’hui, revenez demain.',
     confirmTitle: 'Confirmer votre adresse',

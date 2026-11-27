@@ -5,28 +5,21 @@ import { Route, Routes } from 'react-router-dom'
 import { SignupConfirmPage } from './SignupConfirmPage'
 import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
-import { anAbout, fakeApi, renderWithProviders } from '../../../testing/renderWithProviders'
+import { fakeApi, renderWithProviders } from '../../../testing/renderWithProviders'
 import type { Api } from '../../../lib/api/client'
-import type { SignupMode } from '../../../lib/api/dto'
+import { de } from '../../../lib/i18n/de'
+import type { Locale } from '../../../lib/i18n/locale'
 
 const TOKEN = 'T'.repeat(43)
 
-const render = (api: Api, mode: SignupMode = 'open') =>
+const render = (api: Api, route = `/signup/confirm/${TOKEN}`, locale?: Locale) =>
   renderWithProviders(
     <Routes>
       <Route path="/signup/confirm/:token" element={<SignupConfirmPage />} />
       <Route path="/signup" element={<p>Formulaire</p>} />
       <Route path="/login" element={<p>Connexion</p>} />
     </Routes>,
-    {
-      api: {
-        ...api,
-        about: vi.fn(async () =>
-          anAbout({ features: { siteAdmin: false, forgotPassword: false, signup: mode } }),
-        ),
-      },
-      route: `/signup/confirm/${TOKEN}`,
-    },
+    { api, route, ...(locale === undefined ? {} : { locale }) },
   )
 
 const press = () => userEvent.click(screen.getByRole('button', { name: fr.signup.confirmSubmit }))
@@ -55,18 +48,18 @@ describe('SignupConfirmPage', () => {
     expect(screen.queryByRole('button', { name: fr.signup.confirmSubmit })).toBeNull()
   })
 
-  it('says the operator validates by hand when review is answered in review mode', async () => {
+  it('says the operator validates by hand when the server answers review', async () => {
     const api = fakeApi({ confirmSignup: vi.fn(async () => ({ next: 'review' as const })) })
-    render(api, 'review')
+    render(api)
     await screen.findByText(fr.signup.confirmIntro('l•••@example.org'))
     await press()
 
     expect(await screen.findByText(fr.signup.reviewDone)).toBeVisible()
   })
 
-  it('says the account opens as soon as possible when review is answered in open mode (disk guard)', async () => {
-    const api = fakeApi({ confirmSignup: vi.fn(async () => ({ next: 'review' as const })) })
-    render(api, 'open')
+  it('says the account opens as soon as possible when the server answers held (disk guard)', async () => {
+    const api = fakeApi({ confirmSignup: vi.fn(async () => ({ next: 'held' as const })) })
+    render(api)
     await screen.findByText(fr.signup.confirmIntro('l•••@example.org'))
     await press()
 
@@ -115,11 +108,69 @@ describe('SignupConfirmPage', () => {
   it('offers a retry when the link could not be read', async () => {
     const preview = vi
       .fn()
-      .mockRejectedValueOnce(new ApiError(404, 'feature.unavailable'))
+      .mockRejectedValueOnce(ApiError.network())
       .mockResolvedValue({ state: 'usable', maskedEmail: 'l•••@example.org' })
     render(fakeApi({ signupPreview: preview }))
     await userEvent.click(await screen.findByRole('button', { name: fr.app.retry }))
 
     expect(await screen.findByText(fr.signup.confirmIntro('l•••@example.org'))).toBeVisible()
+  })
+
+  it('answers a 404 feature.unavailable on the preview with the unavailable sentence', async () => {
+    render(
+      fakeApi({
+        signupPreview: vi.fn(async () => {
+          throw new ApiError(404, 'feature.unavailable')
+        }),
+      }),
+    )
+
+    expect(await screen.findByText(fr.signup.unavailable)).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.signup.confirmSubmit })).toBeNull()
+  })
+
+  it('answers a 404 feature.unavailable on the press with the unavailable sentence', async () => {
+    render(
+      fakeApi({
+        confirmSignup: vi.fn(async () => {
+          throw new ApiError(404, 'feature.unavailable')
+        }),
+      }),
+    )
+    await screen.findByText(fr.signup.confirmIntro('l•••@example.org'))
+    await press()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.signup.unavailable)
+  })
+
+  it('re-reads the link after a failed press and shows what it has become', async () => {
+    const preview = vi
+      .fn()
+      .mockResolvedValueOnce({ state: 'usable', maskedEmail: 'l•••@example.org' })
+      .mockResolvedValue({ state: 'spent', maskedEmail: 'l•••@example.org' })
+    const api = fakeApi({
+      signupPreview: preview,
+      confirmSignup: vi.fn(async () => {
+        throw new ApiError(404, 'signup.notFound')
+      }),
+    })
+    render(api)
+    await screen.findByText(fr.signup.confirmIntro('l•••@example.org'))
+    await press()
+
+    expect(await screen.findByText(plain(fr.signup.spent))).toBeVisible()
+    expect(preview).toHaveBeenCalledTimes(2)
+  })
+
+  it('opens in the language the mail link asks for', async () => {
+    render(fakeApi(), `/signup/confirm/${TOKEN}?lang=de`)
+
+    expect(await screen.findByRole('button', { name: de.signup.confirmSubmit })).toBeVisible()
+  })
+
+  it('replaces a stored language with the one in the address', async () => {
+    render(fakeApi(), `/signup/confirm/${TOKEN}?lang=en`, 'de')
+
+    expect(await screen.findByRole('button', { name: 'Confirm my address' })).toBeVisible()
   })
 })

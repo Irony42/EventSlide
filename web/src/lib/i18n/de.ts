@@ -2290,6 +2290,7 @@ export const de: UiText = {
     noteHint:
       'Ein paar Worte zu Ihrer Veranstaltung. Höchstens 300 Zeichen. Schreiben Sie nichts Sensibles (Gesundheit, Religion …): Dieser Text dient nur dazu, Ihr Konto zu eröffnen.',
     eventDate: 'Datum der Veranstaltung',
+    eventDateOutOfRange: 'Geben Sie ein Datum zwischen gestern und in zwei Jahren an.',
     submit: 'Mein Konto erstellen',
     notice:
       'Ihre Adresse dient nur dazu, Ihnen zu diesem Konto zu schreiben. Die Anfrage wird gelöscht, sobald sie abgeschlossen ist, spätestens 60 Tage nach dem Absenden.',

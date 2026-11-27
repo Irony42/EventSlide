@@ -2194,6 +2194,7 @@ export const en: UiText = {
     noteHint:
       'A few words about your event. 300 characters at most. Do not write anything sensitive (health, religion…): this text is only used to open your account.',
     eventDate: 'Date of the event',
+    eventDateOutOfRange: 'Enter a date between yesterday and two years from now.',
     submit: 'Create my account',
     notice:
       'Your address is only used to write to you about this account. The request is erased as soon as it is done, and 60 days after it was sent at the latest.',
