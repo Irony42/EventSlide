@@ -236,6 +236,7 @@ const execute = async (
           clients: new SqliteClientRepository(db),
           invites: new SqliteGuestInviteRepository(db),
           rsvps: new SqliteGuestRsvpRepository(db),
+          households: new SqliteGuestHouseholdRepository(db),
           memberships: new SqliteMembershipRepository(db),
           notices: new SqliteEventMailNoticeLedger(db),
           budget: new SqliteMailBudget(db, config.hostMail.followUpMaxPerDay),
@@ -244,6 +245,7 @@ const execute = async (
           logger: followUpLogger,
           capNoticeDays,
           publicUrl: config.publicUrl,
+          hostMailNotices: config.hostMail.notices === 'on',
         }),
         // The daily mail counts older than a week (spec 32): the same use case as the timer's.
         pruneMailBudget: makePruneMailBudget({

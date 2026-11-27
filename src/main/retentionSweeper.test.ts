@@ -73,7 +73,14 @@ const controllableSweep = (): {
 const nothingFinalized = { finalized: [], accountsDeleted: 0, failed: [], reasons: [] }
 const nobodyWarned: SweepPurgeNoticesReport = { noticed: [], sent: 0, unsent: 0, failed: [] }
 
-const nobodyToldAboutReplies = { noticed: [], sent: 0, unsent: 0, failed: [] }
+const nobodyToldAboutReplies = {
+  noticed: [],
+  sent: 0,
+  unsent: 0,
+  skippedBudget: 0,
+  stale: 0,
+  failed: [],
+}
 
 const nothingSignups = { expired: 0, released: 0, erased: 0 }
 
@@ -826,9 +833,11 @@ describe('the warning before the replies are erased rides the follow-up (spec 32
   it('says which events were warned and how many mails went', async () => {
     const { sweeper, lines } = build({
       sweepRsvpNotices: async () => ({
-        noticed: [{ eventId: asEventId('evt-1'), level: 7 }],
+        noticed: [{ eventId: asEventId('evt-1'), kind: 'rsvpErasure' as const, level: 7 as const }],
         sent: 2,
         unsent: 1,
+        skippedBudget: 0,
+        stale: 0,
         failed: [],
       }),
     })
@@ -856,6 +865,8 @@ describe('the warning before the replies are erased rides the follow-up (spec 32
         noticed: [],
         sent: 0,
         unsent: 0,
+        skippedBudget: 0,
+        stale: 0,
         failed: [asEventId('evt-1'), asEventId('evt-2')],
       }),
     })

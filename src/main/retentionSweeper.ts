@@ -122,9 +122,13 @@ export const makeRetentionFollowUp = ({
       if (report.noticed.length > 0) {
         logger.info('retention sweep warned the owners about guest replies to be erased', {
           events: report.noticed.length,
-          levels: report.noticed.map(({ eventId, level }) => `${eventId}:${level}`).join(' '),
+          levels: report.noticed
+            .map(({ eventId, kind, level }) => `${eventId}:${level ?? kind}`)
+            .join(' '),
           sent: report.sent,
           unsent: report.unsent,
+          skippedBudget: report.skippedBudget,
+          stale: report.stale,
         })
       }
       if (report.failed.length > 0) {

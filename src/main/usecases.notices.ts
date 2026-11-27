@@ -21,6 +21,7 @@ export const noticeUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     clients: adapters.clients,
     invites: adapters.guestInvites,
     rsvps: adapters.guestRsvps,
+    households: adapters.guestHouseholds,
     memberships: adapters.memberships,
     notices: adapters.eventMailNotices,
     budget: adapters.mailBudget,
@@ -29,6 +30,7 @@ export const noticeUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     logger: adapters.logger,
     capNoticeDays: policy.retention.capNoticeDays,
     publicUrl: policy.publicUrl,
+    hostMailNotices: policy.hostMailNotices,
   }),
   getMailPreferences: makeGetMailPreferences({
     users: adapters.users,
