@@ -152,12 +152,6 @@ const isAnswered = (
  * name that is not an error sentence cannot be on it.
  */
 const COMPOSED_CODES: Readonly<Record<string, string>> = {
-  // Spec 31: the operator's decisions on a signup request. The routes (and these codes) land with
-  // PR 4; drop these three entries when that PR is merged and spells them under src/.
-  'signup.notPending':
-    'spec 31, PR 4: `POST /api/site/signups/:id/approve|refuse` on a request already decided',
-  'signup.notFound': 'spec 31, PR 4: the same routes on an unknown id',
-  'signup.held': 'spec 31, PR 4: `approve` in open mode while the disk guard still fails',
   'client.liveNotAllowed':
     '`DomainError.forbidden(`client.${refusal}`)` in src/domain/events/event.ts, `refusal` being an `OpeningRefusal`',
   'client.liveWindowOver':
