@@ -1225,7 +1225,7 @@ applies **no migration** (the last is still 035) and adds no setting. Take the s
 
 ## Upgrading to 3.19
 
-3.19.0 is a minor release in preparation (not released yet). It adds settings that are **off unless you set them** and breaks nothing. It applies **two migrations so far**: 041 `signup_requests` and 042 `host_mail_notices` (new tables and four columns with defaults, nothing existing is rewritten); back up before upgrading, as for any release.
+3.19.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no `BREAKING` section. It adds settings that are **off unless you set them**. It applies **three migrations**: 040 `household_named_replies_unshown` (withdraws the "Show my first name to the other guests" ticks that 3.18.0 stored for replies named as their household), then 041 `signup_requests` and 042 `host_mail_notices` (new tables and four new columns, nothing existing is rewritten); back up before upgrading, as for any release. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [without](#without-docker), with `vX.Y.Z` as `v3.19.0`; the image is `ghcr.io/irony42/eventslide:3.19.0`.
 
 ### Self-service signup (spec 31)
 

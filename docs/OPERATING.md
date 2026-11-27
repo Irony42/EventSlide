@@ -295,7 +295,7 @@ below also set `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL` and `SUPPORT_URL`. Your
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `off`    | The default. Nothing is offered; the routes answer 404 and the sign-in page has no link.                                                                                    |
 | `open`   | The space opens at once and the invitation (the usual one: the person chooses a name and a password) follows by mail. Only the ceilings and the disk guard protect the box. |
-| `review` | The request waits in **Inscriptions** (Signups) in the operator console. Nothing opens before an operator approves it.                                                      |
+| `review` | The request waits in **Signups** in the operator console. Nothing opens before an operator approves it.                                                                     |
 
 **What the visitor does.** They give an address, the name of their space, and optionally the occasion and a date. They always get
 the same "check your inbox" answer, whether or not the address already has an account (the form is not a way to find out who is
@@ -309,7 +309,7 @@ a new link only once the last one is an hour old (a resend; the older link stops
 decision, or refused less than 30 days ago, gets the usual answer and no mail at all: a refusal keeps the address quiet for 30
 days. An address that already has an account is answered and mailed like any other.
 
-**What the operator sees.** The console has an **Inscriptions (N)** entry, N being the requests waiting for a decision (in `open`,
+**What the operator sees.** The console has a **Signups (N)** entry, N being the requests waiting for a decision (in `open`,
 that is only the held ones, below). In `open` the page lists the accounts opened in the last 30 days; in `review` the
 requests to approve. **Approve** opens the client with the ceilings shown in the dialog (the instance's defaults, which you may
 change) and sends the invitation; **Refuse** asks whether to tell the person, with a neutral mail and no reason. Both are writes
@@ -331,7 +331,7 @@ as soon as possible" and send you the usual signup notice:
   again from the client's page; the visitor then gets the usual invitation mail. A request that stays `approving` is given back
   to `pending` by the sweep after an hour: do not approve it again from the Signups page if the client already exists, or you will
   open a second account for the same address.
-- **the free disk space is too low** (or cannot be read): the request waits in the Signups page, under "Demandes retenues", like
+- **the free disk space is too low** (or cannot be read): the request waits in the Signups page, under "Held requests", like
   one in `review`; the guard is not checked again when you approve, so you decide when there is room. The box needs `MIN_FREE_DISK_BYTES` plus 5 GB for each client that still has an
   event or was created in the last 30 days, plus 5 GB for the newcomer.
 
