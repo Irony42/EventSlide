@@ -49,7 +49,7 @@ const TEMPLATES: Readonly<Record<ClientLocale, Template>> = {
     greeting: 'Bonjour,',
     body: (name, date, count) =>
       `Les réponses de vos invités à «${NBSP}${name}${NBSP}» (${count}) seront effacées le ${date}. ` +
-      'Téléchargez la liste avant cette date.',
+      'Téléchargez la liste au plus tard la veille.',
     count: (replies) => `${replies} réponse${replies > 1 ? 's' : ''}`,
     open: `Pour la télécharger${NBSP}:`,
     noNames: 'Ce message ne contient le nom d’aucun invité.',
@@ -59,7 +59,7 @@ const TEMPLATES: Readonly<Record<ClientLocale, Template>> = {
     greeting: 'Hello,',
     body: (name, date, count) =>
       `Your guests' replies to "${name}" (${count}) will be erased on ${date}. ` +
-      'Download the list before then.',
+      'Download the list the day before at the latest.',
     count: (replies) => `${replies} ${replies === 1 ? 'reply' : 'replies'}`,
     open: 'To download it, open:',
     noNames: 'This message contains no guest name.',
@@ -69,7 +69,7 @@ const TEMPLATES: Readonly<Record<ClientLocale, Template>> = {
     greeting: 'Guten Tag,',
     body: (name, date, count) =>
       `Die Antworten Ihrer Gäste zu „${name}“ (${count}) werden am ${date} gelöscht. ` +
-      'Laden Sie die Liste vorher herunter.',
+      'Laden Sie die Liste spätestens am Vortag herunter.',
     count: (replies) => `${replies} ${replies === 1 ? 'Antwort' : 'Antworten'}`,
     open: 'Zum Herunterladen öffnen Sie:',
     noNames: 'Diese Nachricht enthält keinen Namen eines Gastes.',
@@ -79,7 +79,7 @@ const TEMPLATES: Readonly<Record<ClientLocale, Template>> = {
     greeting: 'Hola,',
     body: (name, date, count) =>
       `Las respuestas de sus invitados a «${name}» (${count}) se eliminarán el ${date}. ` +
-      'Descargue la lista antes de esa fecha.',
+      'Descargue la lista a más tardar el día anterior.',
     count: (replies) => `${replies} ${replies === 1 ? 'respuesta' : 'respuestas'}`,
     open: 'Para descargarla, abra:',
     noNames: 'Este mensaje no contiene el nombre de ningún invitado.',
@@ -89,7 +89,7 @@ const TEMPLATES: Readonly<Record<ClientLocale, Template>> = {
     greeting: 'Buongiorno,',
     body: (name, date, count) =>
       `Le risposte dei suoi ospiti a «${name}» (${count}) verranno eliminate il ${date}. ` +
-      'Scarichi la lista prima di quella data.',
+      'Scarichi la lista al più tardi il giorno prima.',
     count: (replies) => `${replies} ${replies === 1 ? 'risposta' : 'risposte'}`,
     open: 'Per scaricarla, apra:',
     noNames: 'Questo messaggio non contiene il nome di alcun ospite.',
