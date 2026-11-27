@@ -71,6 +71,17 @@ describe('takedownMail (A4)', () => {
     ).not.toContain('supprimés')
   })
 
+  it('names the day the albums go in every language', () => {
+    for (const locale of CLIENT_LOCALES) {
+      const closed = mail('clientOffboarded', {
+        locale,
+        purgeAt: new Date('2027-01-10T08:00:00.000Z'),
+      })
+      expect(closed.text, locale).toContain('2027')
+      expect(closed.text, locale).not.toContain('undefined')
+    }
+  })
+
   it('is a valid one-line, short-subject mail in every language and for every kind, even with the longest name an event can have, folded to one line', () => {
     const long = `${'Longue '.repeat(16)}\r\nBcc: x@y.test`
     for (const locale of CLIENT_LOCALES) {
