@@ -1,15 +1,20 @@
 import { AuditEntry } from '../../../domain/audit/auditEntry'
 import type { TermsOfUse } from '../../../domain/legal/termsOfUse'
+import { welcomeMail } from '../../../domain/mail/signupMails'
+import type { SignupMode } from '../../../domain/signups/signupMode'
 import { DomainError } from '../../../domain/shared/errors'
-import type { UserId } from '../../../domain/shared/ids'
+import type { ClientId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { InvitationTarget } from '../../../domain/users/accountToken'
 import { AccountName } from '../../../domain/users/accountName'
 import { Password, passwordContextFor } from '../../../domain/users/password'
+import type { EmailAddress } from '../../../domain/users/emailAddress'
 import { User } from '../../../domain/users/user'
 import type { Clock } from '../../ports/clock'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { InvitationAcceptance } from '../../ports/invitationAcceptance'
+import type { Logger } from '../../ports/logger'
+import type { Mailer } from '../../ports/mailer'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import type { UserRepository } from '../../ports/userRepository'
 import {
@@ -74,6 +79,20 @@ export interface AcceptInvitationDeps extends ResolveInvitationDeps {
    * self-hosted box (G2-20).
    */
   readonly terms?: TermsOfUse | null
+  /**
+   * The welcome mail (spec 31). Both are optional and absent on a box that does not self-serve:
+   * with `signupMode` `off` (or unset), or no `mailer`, nothing here ever runs.
+   */
+  readonly mailer?: Pick<Mailer, 'canDeliver' | 'send'>
+  /** `SIGNUP`. */
+  readonly signupMode?: SignupMode
+  /**
+   * What the welcome mail names: `OPERATOR_CONTACT_EMAIL` (also its reply address) and the guides
+   * link (`SUPPORT_URL`, made absolute). `null` when the operator set either not: the mail is
+   * then not sent, because it would name a contact or a page that does not exist.
+   */
+  readonly welcome?: { readonly contact: EmailAddress; readonly guidesLink: string } | null
+  readonly logger?: Pick<Logger, 'warn' | 'error'>
 }
 
 export type AcceptInvitation = (
@@ -156,8 +175,35 @@ export type AcceptInvitation = (
  * spent by it is spent either way.
  */
 export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitation => {
-  const { users, hasher, acceptance, ids, clock } = deps
+  const { users, hasher, acceptance, ids, clock, clients } = deps
   const terms = deps.terms ?? null
+  const { mailer, welcome, logger } = deps
+  const signupOn = (deps.signupMode ?? 'off') !== 'off'
+
+  /**
+   * Welcomes the first owner of a fresh client, **after** the transaction and **not awaited**:
+   * a relay that is slow or down never holds the acceptance, and nothing in here can undo it.
+   */
+  const sendWelcome = (clientId: ClientId, to: EmailAddress): void => {
+    if (!signupOn || mailer === undefined || !mailer.canDeliver || !welcome) return
+    void (async () => {
+      const client = await clients.findById(clientId)
+      if (client === null) return
+      const sent = await mailer.send(
+        welcomeMail({
+          to,
+          locale: client.locale,
+          guidesLink: welcome.guidesLink,
+          contact: welcome.contact,
+        }),
+      )
+      if (!sent.ok) logger?.warn('a welcome mail was not sent', { code: sent.error.code })
+    })().catch((error: unknown) => {
+      logger?.error('a welcome mail failed', {
+        error: error instanceof Error ? error.message : 'unknown',
+      })
+    })
+  }
   const resolve = makeResolveInvitation(deps)
 
   return async (input) => {
@@ -201,13 +247,16 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
       const agreed = agreement(account.id)
       if (!agreed.ok) return agreed
 
-      const outcome = await acceptance.accept({
+      const { outcome, firstOwnerOfFreshClient } = await acceptance.accept({
         tokenId: record.id,
         now,
         account: { kind: 'existing', userId: account.id, emailVerifiedAt },
         ...agreed.value,
       })
       if (outcome !== 'accepted') return err(invitationNotFound())
+      if (firstOwnerOfFreshClient && target.kind === 'client') {
+        sendWelcome(target.clientId, account.email)
+      }
       return ok({ userId: account.id, email: account.email.value, target, place })
     }
 
@@ -256,7 +305,7 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
     const agreed = agreement(created.value.id)
     if (!agreed.ok) return agreed
 
-    const outcome = await acceptance.accept({
+    const { outcome, firstOwnerOfFreshClient } = await acceptance.accept({
       tokenId: stillGood.value.record.id,
       now,
       account: { kind: 'new', user: created.value },
@@ -264,6 +313,9 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
     })
     if (outcome === 'emailTaken') return err(DomainError.conflict('invitation.signInRequired'))
     if (outcome !== 'accepted') return err(invitationNotFound())
+    if (firstOwnerOfFreshClient && target.kind === 'client') {
+      sendWelcome(target.clientId, record.email)
+    }
     return ok({ userId: created.value.id, email: record.email.value, target, place })
   }
 }

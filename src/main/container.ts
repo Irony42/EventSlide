@@ -72,6 +72,7 @@ import type { ChannelKind } from '../domain/channels/channelKind'
 import { createChannelPoller } from './channelPoller'
 import { createTelegramBringUp, type TelegramBringUp } from './telegramBringUp'
 import { createChannelWorker } from './channelWorker'
+import { welcomeLinks } from './welcomePolicy'
 import { channelWorkerUseCases } from './usecases.channels'
 import { sha256SecretTokens } from '../infrastructure/crypto/sha256SecretTokens'
 import { createHmacGallerySigner } from '../infrastructure/crypto/hmacGallerySigner'
@@ -631,6 +632,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     },
     operatorName: config.operator.name,
     termsOfUse: config.termsOfUse,
+    signup: { mode: config.signup.mode, welcome: welcomeLinks(config) },
     mfaIssuer: config.operator.name ?? 'EventSlide',
     voice: {
       maxDurationMs: config.voice.maxDurationMs,

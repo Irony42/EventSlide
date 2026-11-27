@@ -2,7 +2,7 @@ import { invitationTargetOf, isAccountTokenUsable } from '../../domain/users/acc
 import type {
   AcceptInvitationRecord,
   InvitationAcceptance,
-  InvitationAcceptanceOutcome,
+  InvitationAcceptanceResult,
 } from '../ports/invitationAcceptance'
 import type { ClientRepository } from '../ports/clientRepository'
 import type { MembershipRepository, UserRepository } from '../ports/userRepository'
@@ -30,25 +30,30 @@ export interface FakeInvitationAcceptanceParts {
   readonly audit: FakeAuditLog
 }
 
+const REFUSED_SPENT: InvitationAcceptanceResult = {
+  outcome: 'spent',
+  firstOwnerOfFreshClient: false,
+}
+
 export class FakeInvitationAcceptance implements InvitationAcceptance {
   private queue: Promise<unknown> = Promise.resolve()
 
   constructor(private readonly parts: FakeInvitationAcceptanceParts) {}
 
-  accept(record: AcceptInvitationRecord): Promise<InvitationAcceptanceOutcome> {
+  accept(record: AcceptInvitationRecord): Promise<InvitationAcceptanceResult> {
     const run = this.queue.then(() => this.acceptNow(record))
     // A failure of one call must not poison the next: the queue only orders.
     this.queue = run.catch(() => undefined)
     return run
   }
 
-  private async acceptNow(record: AcceptInvitationRecord): Promise<InvitationAcceptanceOutcome> {
+  private async acceptNow(record: AcceptInvitationRecord): Promise<InvitationAcceptanceResult> {
     const { tokens, users, memberships, clients, audit } = this.parts
     const { account, now } = record
 
     const token = tokens.all.find((candidate) => candidate.id === record.tokenId)
-    if (token === undefined || token.purpose !== 'invitation') return 'spent'
-    if (!isAccountTokenUsable(token, now)) return 'spent'
+    if (token === undefined || token.purpose !== 'invitation') return REFUSED_SPENT
+    if (!isAccountTokenUsable(token, now)) return REFUSED_SPENT
     const grant = invitationTargetOf(token)
     if (grant === null) throw new Error('the invitation names nothing to grant')
 
@@ -63,7 +68,8 @@ export class FakeInvitationAcceptance implements InvitationAcceptance {
     }
 
     if (account.kind === 'new') {
-      if ((await users.findByEmail(address)) !== null) return 'emailTaken'
+      if ((await users.findByEmail(address)) !== null)
+        return { outcome: 'emailTaken', firstOwnerOfFreshClient: false }
       // An id that exists is an error, never an overwrite: the adapter's plain `INSERT`.
       if (existing !== null) throw new Error('UNIQUE constraint failed: users.id')
     }
@@ -84,6 +90,7 @@ export class FakeInvitationAcceptance implements InvitationAcceptance {
       await users.save(existing.verifyEmail(account.emailVerifiedAt))
     }
 
+    let firstOwnerOfFreshClient = false
     if (grant.kind === 'event') {
       // `ON CONFLICT DO NOTHING`: a role already held in this event is left as it is.
       if ((await memberships.membershipFor(grant.eventId, userId)) === null) {
@@ -97,6 +104,11 @@ export class FakeInvitationAcceptance implements InvitationAcceptance {
     } else {
       // A client: absent, it is granted; a member invited as owner is raised, and the original
       // instant is kept as the adapter keeps it; an owner is never lowered.
+      // Before the grant, like the adapter's count: no member and no event, and an owner link.
+      firstOwnerOfFreshClient =
+        grant.role === 'owner' &&
+        (await clients.countMembers(grant.clientId)) === 0 &&
+        (await clients.countEvents(grant.clientId)) === 0
       const held = (await clients.membershipsForUser(userId)).find(
         (membership) => membership.clientId === grant.clientId,
       )
@@ -123,6 +135,6 @@ export class FakeInvitationAcceptance implements InvitationAcceptance {
       if (actorId !== null) audit.withAccounts(actorId)
       await audit.record(record.audit)
     }
-    return 'accepted'
+    return { outcome: 'accepted', firstOwnerOfFreshClient }
   }
 }
