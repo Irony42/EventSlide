@@ -39,6 +39,4 @@ export interface SiteSignupPageDto {
 }
 
 /** `POST /api/site/signups/:id/approve`: the same ceilings patch as `POST /api/site/clients`. */
-export interface SiteSignupApproveInput {
-  readonly ceilings?: SiteCeilingsPatch
-}
+export type SiteSignupApproveInput = { readonly ceilings?: SiteCeilingsPatch }

@@ -725,6 +725,11 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // ring 4 by `siteRoutes*.test.ts` (a body with a key it does not declare is a 400, a body
   // without a reason is a 400), and the pairing starts the day `web/src/features/site` exists:
   // this list is then what shrinks.
+  // The operator's signup routes (spec 31): like the rest of /api/site, the client methods (`siteSignupsApi`)
+  // are not one the contract test pairs, whatever the page calls them.
+  siteSignupsQuery: 'GET /api/site/signups: same as the other /api/site routes',
+  approveSignupBody: 'POST /api/site/signups/:id/approve: same as the other /api/site routes',
+  refuseSignupBody: 'POST /api/site/signups/:id/refuse: same as the other /api/site routes',
   siteClientsQuery: 'GET /api/site/clients: the operator console (G2-15) is not built yet',
   siteClientEventsQuery:
     'GET /api/site/clients/:clientId/events: the operator console (G2-15) is not built yet',

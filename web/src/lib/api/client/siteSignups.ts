@@ -29,7 +29,7 @@ export const siteSignupsApi = (transport: Transport) => ({
     id: string,
     input: SiteSignupApproveInput = {},
   ): Promise<ProvisionedClientDto> =>
-    transport.post(`/api/site/signups/${encode(id)}/approve`, input),
+    transport.post(`/api/site/signups/${encode(id)}/approve`, { ceilings: input.ceilings }),
 
   /** `notify`: whether the person is told, without a reason. */
   siteRefuseSignup: (id: string, notify: boolean): Promise<void> =>
