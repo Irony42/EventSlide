@@ -423,6 +423,8 @@ describe('a suspended client, through the real composition root', () => {
     // The guests' replies (spec 30): a frozen event's owner reads them and cannot change them.
     { method: 'put', path: '/api/events/:eventSlug/rsvp-form', body: { enabled: true } },
     { method: 'post', path: '/api/events/:eventSlug/rsvp-form/close', body: {} },
+    // The owner's own tick of the daily summary (spec 32): a frozen client's event is not written about, nor asked.
+    { method: 'put', path: '/api/events/:eventSlug/rsvp-digest', body: { on: true } },
     { method: 'post', path: '/api/events/:eventSlug/rsvp-form/reopen', body: {} },
     { method: 'post', path: '/api/events/:eventSlug/rsvps', body: { name: 'Léa', answer: 'yes' } },
     {
