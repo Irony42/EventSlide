@@ -642,7 +642,6 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     operatorName: config.operator.name,
     operatorContactEmail: config.operator.contactEmail,
     termsOfUse: config.termsOfUse,
-    signup: { mode: config.signup.mode, welcome: welcomeLinks(config) },
     mfaIssuer: config.operator.name ?? 'EventSlide',
     signup: {
       mode: config.signup.mode,
@@ -650,6 +649,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       notifyEmail: config.signup.notifyEmail,
       minFreeDiskBytes: config.storage.minFreeDiskBytes,
       diskPaths: diskSpacePaths,
+      welcome: welcomeLinks(config),
     },
     voice: {
       maxDurationMs: config.voice.maxDurationMs,

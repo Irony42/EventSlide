@@ -74,7 +74,6 @@ import { wallUseCases } from './usecases.wall'
 import { galleryUseCases } from './usecases.gallery'
 import { clientsUseCases } from './usecases.clients'
 import type { DiskSpaceChecker } from '../application/ports/diskSpace'
-import type { SignupMode } from '../domain/signups/signupMode'
 import { signupUseCases } from './usecases.signups'
 import { buildSharedHooks } from './usecases.shared'
 /**
@@ -217,6 +216,8 @@ export interface UseCasePolicy {
     readonly minFreeDiskBytes: number
     /** The directories whose free space bounds the box: the database's and the media root. */
     readonly diskPaths: readonly string[]
+    /** What the welcome mail names (`null` when the operator's contact or support page is not set: no mail). */
+    readonly welcome: { readonly contact: EmailAddress; readonly guidesLink: string } | null
   }
   /** `RETENTION_CAP_NOTICE_DAYS`, read by the purge. */
   readonly retention: { readonly capNoticeDays: number }
@@ -253,14 +254,6 @@ export interface UseCasePolicy {
    * it does not fail open: the test that boots the real container holds it to the config.
    */
   readonly termsOfUse: TermsOfUse | null
-  /**
-   * Self-service signup (spec 31): `SIGNUP`, and what the welcome mail names (`null` when the
-   * operator's contact or support page is not set, which keeps the mail unsent).
-   */
-  readonly signup: {
-    readonly mode: SignupMode
-    readonly welcome: { readonly contact: EmailAddress; readonly guidesLink: string } | null
-  }
   /** `BOOK_ENABLED` and `BOOK_MAX_PER_EVENT_PER_DAY` (spec 04). */
   readonly book: {
     readonly enabled: boolean
