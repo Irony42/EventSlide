@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { Event } from '../../../domain/events/event'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import {
@@ -240,6 +241,30 @@ describe('after the party (A3)', () => {
     expect(purged.mailer.sent).toEqual([])
   })
 
+  it('does not report an empty evening it did not note: another sweep did', async () => {
+    const world = await build({ published: { photos: 0, clips: 0, messages: 0 } })
+    const lost = { note: async () => false, has: async () => false }
+
+    const report = await makeSweepEventNotices({ ...world.deps, notices: lost })()
+
+    expect(report.noticed).toEqual([])
+  })
+
+  it('counts from the new closing when the event was reopened before 12 hours and closed again: one mail, 12 hours after the last closing', async () => {
+    // First closed at 01:00 and reopened at once: nothing was due, nothing was noted. Closed again at 11:00.
+    const closedAgain = new Date('2026-11-27T11:00:00.000Z')
+    const early = await build({ closedAt: closedAgain, now: new Date('2026-11-27T21:30:00.000Z') })
+    expect((await early.sweep()).noticed).toEqual([])
+
+    const due = await build({ closedAt: closedAgain, now: new Date('2026-11-27T23:00:00.000Z') })
+    expect((await due.sweep()).noticed).toEqual([])
+    due.clock.set(new Date('2026-11-28T08:00:00.000Z'))
+    expect((await due.sweep()).noticed).toHaveLength(1)
+    due.clock.advance(3_600_000)
+    expect((await due.sweep()).noticed).toEqual([])
+    expect(due.mailer.sent).toHaveLength(2)
+  })
+
   it('is noted without a mail for an evening with nothing published', async () => {
     const world = await build({ published: { photos: 0, clips: 0, messages: 0 } })
 
@@ -365,6 +390,30 @@ describe('after the party (A3)', () => {
     for (const world of [down, suspended, closing]) {
       expect(await world.sweep()).toMatchObject({ noticed: [], sent: 0 })
       expect(world.ledger.noted).toEqual([])
+    }
+  })
+
+  it('reads the suspension from the client: a listing does not carry it', async () => {
+    const stripped = (events: SweepEventNoticesDeps['events']): SweepEventNoticesDeps['events'] => {
+      const bare = (list: readonly Event[]) =>
+        list.map((event) => Event.restore({ ...event.toProps(), clientSuspendedAt: null }))
+      return {
+        listClosedBetween: async (from, to) => bare(await events.listClosedBetween(from, to)),
+        listLiveOfClients: async () => bare(await events.listLiveOfClients()),
+      }
+    }
+    for (const patch of [{}, WINDOW]) {
+      const world = await build({
+        ...patch,
+        client: { ...WINDOW.client, suspendedAt: AT },
+      })
+
+      const report = await makeSweepEventNotices({
+        ...world.deps,
+        events: stripped(world.deps.events),
+      })()
+
+      expect(report).toMatchObject({ noticed: [], sent: 0 })
     }
   })
 
@@ -591,6 +640,77 @@ describe('the wall closes within 24 hours (A5)', () => {
     const down = await build(WINDOW)
     await down.events.setTakenDown(WEDDING, NOW)
     expect(await down.sweep()).toMatchObject({ noticed: [], sent: 0 })
+  })
+
+  it('reads who may be written about before anything else: no ceiling is read for an event that is down, suspended or closing', async () => {
+    const reads: string[] = []
+    const watched = (world: Awaited<ReturnType<typeof build>>) =>
+      makeSweepEventNotices({
+        ...world.deps,
+        clients: {
+          findById: world.deps.clients.findById.bind(world.deps.clients),
+          contextForEvent: async (eventId) => {
+            reads.push(eventId)
+            return world.deps.clients.contextForEvent(eventId)
+          },
+        },
+      })
+    const down = await build(WINDOW)
+    await down.events.setTakenDown(WEDDING, NOW)
+    const suspended = await build({ ...WINDOW, client: { ...WINDOW.client, suspendedAt: AT } })
+    const closing = await build({
+      ...WINDOW,
+      client: { ...WINDOW.client, purgeAfter: new Date('2027-06-01T00:00:00.000Z') },
+    })
+
+    for (const world of [down, suspended, closing]) {
+      expect(await watched(world)()).toMatchObject({ noticed: [], sent: 0 })
+    }
+
+    expect(reads).toEqual([])
+  })
+
+  it('sends nothing when another sweep noted the window first: the lost note', async () => {
+    const world = await build(WINDOW)
+    const lost = { note: async () => false, has: async () => false }
+
+    expect(await makeSweepEventNotices({ ...world.deps, notices: lost })()).toMatchObject({
+      noticed: [],
+      sent: 0,
+    })
+    expect(world.mailer.sent).toEqual([])
+  })
+
+  it('sends nothing on a first run over an old base: a window that ended days ago is not told', async () => {
+    const world = await build({ ...WINDOW, now: new Date('2026-12-01T12:00:00.000Z') })
+
+    expect(await world.sweep()).toMatchObject({ noticed: [], sent: 0 })
+    expect(world.mailer.sent).toEqual([])
+    expect(world.ledger.noted).toEqual([])
+  })
+
+  it('falls back to Paris for the quiet hours and to UTC for the day when the stored zone is not one', async () => {
+    const brokenZone = (world: Awaited<ReturnType<typeof build>>) =>
+      makeSweepEventNotices({
+        ...world.deps,
+        invites: {
+          findByEvent: async (eventId) => {
+            const invite = await world.deps.invites.findByEvent(eventId)
+            return invite === null
+              ? null
+              : ({ ...invite, content: { ...invite.content, timeZone: 'Not/AZone' } } as never)
+          },
+        },
+      })
+    const world = await build(WINDOW)
+
+    const report = await brokenZone(world)()
+
+    expect(report.noticed).toEqual([{ eventId: WEDDING, kind: 'windowEnding' }])
+    expect(world.mailer.sent[0]?.text).toContain('se fermera le 28 novembre 2026')
+
+    const a3 = await build()
+    expect((await brokenZone(a3)()).noticed).toHaveLength(1)
   })
 
   it('does not look at a closed event for its window', async () => {

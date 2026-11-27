@@ -5,6 +5,7 @@ import {
   eventClosedMail,
   eventPageUrl,
   invitationAcceptedMail,
+  isUrlLike,
   jobDoneMail,
   windowEndingMail,
   type JobKind,
@@ -175,6 +176,24 @@ describe('every event mail', () => {
       (locale) => jobDoneMail({ ...base(locale), job: 'book', outcome: 'done' }).subject,
     )
     expect(new Set(subjects).size).toBe(CLIENT_LOCALES.length)
+  })
+})
+
+describe('isUrlLike', () => {
+  it('sees a scheme, www and a domain name, and lets a plain name through', () => {
+    for (const name of [
+      'https://x.test',
+      'http://x',
+      'www.x.test',
+      'evil.example',
+      'evil.example/a',
+      'Marie.Dupont@x.fr',
+    ]) {
+      expect(isUrlLike(name), name).toBe(true)
+    }
+    for (const name of ['Marie Dupont', 'Jean-Pierre', 'Léa', 'M. Dupont', 'Anne-Sophie B.']) {
+      expect(isUrlLike(name), name).toBe(false)
+    }
   })
 })
 

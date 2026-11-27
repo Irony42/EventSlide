@@ -1,4 +1,8 @@
-import { eventPageUrl, invitationAcceptedMail } from '../../../domain/mail/eventNoticeMails'
+import {
+  eventPageUrl,
+  invitationAcceptedMail,
+  isUrlLike,
+} from '../../../domain/mail/eventNoticeMails'
 import type { InvitedRole } from '../../../domain/mail/eventNoticeMails'
 import { budgetDayOf } from '../../../domain/notices/mailPreferences'
 import type { EventId, UserId } from '../../../domain/shared/ids'
@@ -9,6 +13,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { Logger } from '../../ports/logger'
 import type { MailBudget } from '../../ports/mailBudget'
 import type { Mailer } from '../../ports/mailer'
+import { clientToWriteAbout } from './noticeAudience'
 import type { MembershipRepository } from '../../ports/userRepository'
 
 /**
@@ -33,8 +38,10 @@ export interface InvitationAccepted {
   /** The account that accepted. */
   readonly acceptedBy: UserId
   readonly role: InvitedRole
-  /** The name that account gave, else the address the invitation was written to. */
+  /** The name that account gave (typed by the invitee: not trusted to hold no link). */
   readonly who: string
+  /** The address the invitation was written to, named when `who` looks like a link. */
+  readonly address: string
 }
 
 /** What `acceptInvitation` is given: the acceptance, nothing else. Never awaited, never throws. */
@@ -70,9 +77,9 @@ export const makeNotifyInvitationAccepted = (
     if (!deps.hostMailNotices || !mailer.canDeliver) return
     if (accepted.createdBy === null || accepted.createdBy === accepted.acceptedBy) return
     const event = await events.findById(accepted.eventId)
-    if (event === null || event.isTakenDown() || event.isClientSuspended()) return
-    const client = event.clientId === null ? null : await clients.findById(event.clientId)
-    if (client?.isOffboarding() === true) return
+    if (event === null) return
+    const client = await clientToWriteAbout(clients, event)
+    if (client === undefined) return
 
     const inviter = (await memberships.ownersToNotify(accepted.eventId)).find(
       (owner) => owner.userId === accepted.createdBy,
@@ -88,7 +95,7 @@ export const makeNotifyInvitationAccepted = (
         locale: client?.locale ?? event.settings.wallLanguage,
         eventName: event.name.value,
         pageUrl: eventPageUrl(publicUrl, event.slug.value, 'settings'),
-        who: accepted.who,
+        who: isUrlLike(accepted.who) ? accepted.address : accepted.who,
         role: accepted.role,
       }),
     )

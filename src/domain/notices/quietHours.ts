@@ -21,3 +21,17 @@ export const inQuietHours = (now: Date, timeZone: string): boolean => {
   const hour = localHourOf(now, timeZone)
   return hour < QUIET_HOURS_END || hour >= QUIET_HOURS_START
 }
+
+/**
+ * A zone `Intl` can read, else `fallback`: a stored zone nobody validated (an old row, a hand-edited base) must not make a notice
+ * throw **after** it was noted, which would lose it for good.
+ */
+export const usableTimeZone = (zone: string | null | undefined, fallback: string): string => {
+  if (zone === null || zone === undefined) return fallback
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone })
+    return zone
+  } catch {
+    return fallback
+  }
+}

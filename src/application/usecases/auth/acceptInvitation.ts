@@ -183,7 +183,7 @@ export type AcceptInvitation = (
  * spent by it is spent either way.
  */
 export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitation => {
-  const { users, hasher, acceptance, ids, clock, clients } = deps
+  const { users, hasher, acceptance, ids, clock, clients, memberships } = deps
   const terms = deps.terms ?? null
   const { mailer, welcome, logger } = deps
   const signupOn = (deps.signupMode ?? 'off') !== 'off'
@@ -220,7 +220,12 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
   const resolve = makeResolveInvitation(deps)
 
   /** Tells the inviter of an event invitation who accepted it. */
-  const announce = (accepted: AcceptedInvitation, createdBy: UserId | null, who: string): void => {
+  const announce = (
+    accepted: AcceptedInvitation,
+    createdBy: UserId | null,
+    who: string,
+    address: string,
+  ): void => {
     if (accepted.target.kind !== 'event') return
     deps.onAccepted?.({
       eventId: accepted.target.eventId,
@@ -228,6 +233,7 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
       acceptedBy: accepted.userId,
       role: accepted.target.role,
       who,
+      address,
     })
   }
 
@@ -272,6 +278,8 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
       const agreed = agreement(account.id)
       if (!agreed.ok) return agreed
 
+      const alreadyMember =
+        target.kind === 'event' && (await memberships.roleFor(target.eventId, account.id)) !== null
       const { outcome, firstOwnerOfFreshClient } = await acceptance.accept({
         tokenId: record.id,
         now,
@@ -283,7 +291,15 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
         sendWelcome(target.clientId, account.email)
       }
       const accepted = { userId: account.id, email: account.email.value, target, place }
-      announce(accepted, record.createdBy, account.displayName ?? record.email.value)
+      // Only a place that was really added is news: an account that already held one keeps its role and tells nobody.
+      if (!alreadyMember) {
+        announce(
+          accepted,
+          record.createdBy,
+          account.displayName ?? record.email.value,
+          record.email.value,
+        )
+      }
       return ok(accepted)
     }
 
@@ -344,7 +360,7 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
       sendWelcome(target.clientId, record.email)
     }
     const accepted = { userId: created.value.id, email: record.email.value, target, place }
-    announce(accepted, record.createdBy, name.value.value)
+    announce(accepted, record.createdBy, name.value.value, record.email.value)
     return ok(accepted)
   }
 }

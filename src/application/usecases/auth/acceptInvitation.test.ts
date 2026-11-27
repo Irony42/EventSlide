@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { EmailAddress } from '../../../domain/users/emailAddress'
 import { welcomeMail } from '../../../domain/mail/signupMails'
-import { aClient, aUser, anEvent, atPlus } from '../../testing/builders'
+import { AT, aClient, aUser, anEvent, atPlus } from '../../testing/builders'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { FakeMailer } from '../../testing/fakeMailer'
 import {
@@ -1372,6 +1372,7 @@ describe('acceptInvitation: the invitation accepted hook', () => {
         acceptedBy: account?.id,
         role: 'moderator',
         who: 'Camille Dupont',
+        address: NEWCOMER,
       },
     ])
   })
@@ -1405,6 +1406,35 @@ describe('acceptInvitation: the invitation accepted hook', () => {
       onAccepted: (accepted) => sink.push(accepted),
     })({ token: second.token, signedInUserId: asUserId(EXISTING_ID) })
     expect(sink[0]?.who).toBe(EXISTING_EMAIL)
+  })
+
+  it('tells nothing when the account already held a place on the event: it keeps its role and nothing was added', async () => {
+    for (const role of ['moderator', 'owner'] as const) {
+      const fresh = makeInvitationWorld()
+      await fresh.memberships.grant({
+        eventId: asEventId(EVENT_ID),
+        userId: asUserId(EXISTING_ID),
+        role,
+        grantedAt: AT,
+      })
+      const { token } = await fresh.invite({ email: EXISTING_EMAIL })
+      const sink: typeof told = []
+      await makeAcceptInvitation({
+        tokens: fresh.tokens,
+        secrets: fresh.secrets,
+        events: fresh.events,
+        clients: fresh.clients,
+        memberships: fresh.memberships,
+        users: fresh.users,
+        hasher: fresh.hasher,
+        acceptance: fresh.acceptance,
+        ids: fresh.ids,
+        clock: fresh.clock,
+        onAccepted: (accepted) => sink.push(accepted),
+      })({ token, signedInUserId: asUserId(EXISTING_ID) })
+
+      expect(sink, role).toEqual([])
+    }
   })
 
   it('tells nothing of an invitation to a client, of a dead link or of a refusal', async () => {
