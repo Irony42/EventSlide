@@ -622,6 +622,32 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.acceptInvitation(GALLERY_TOKEN, { kind: 'signedInAccount' }),
   },
 
+  // self-service signup (spec 31)
+  {
+    name: 'requestSignup',
+    verb: 'post',
+    path: '/api/signup',
+    invoke: (client) =>
+      client.requestSignup({
+        email: 'lea@example.org',
+        clientName: 'Mariage',
+        locale: 'fr',
+        website: '',
+      }),
+  },
+  {
+    name: 'signupPreview',
+    verb: 'get',
+    path: `/api/signup/confirm/${GALLERY_TOKEN}`,
+    invoke: (client) => client.signupPreview(GALLERY_TOKEN),
+  },
+  {
+    name: 'confirmSignup',
+    verb: 'post',
+    path: `/api/signup/confirm/${GALLERY_TOKEN}`,
+    invoke: (client) => client.confirmSignup(GALLERY_TOKEN),
+  },
+
   // moderators
   {
     name: 'myLimits',
@@ -1418,6 +1444,34 @@ describe('request bodies', () => {
     await subject().inviteModerator(SLUG, { email: 'sacha@example.com', locale: 'en' })
 
     expect(only().body).toEqual({ email: 'sacha@example.com', locale: 'en' })
+  })
+})
+
+describe('the signup requests', () => {
+  it('sends the whole form, honeypot included, as the one body the server reads', async () => {
+    await subject().requestSignup({
+      email: 'lea@example.org',
+      clientName: 'Mariage de Léa',
+      note: 'Cinquante invités',
+      eventDate: '2027-06-12',
+      locale: 'de',
+      website: '',
+    })
+
+    expect(only().body).toEqual({
+      email: 'lea@example.org',
+      clientName: 'Mariage de Léa',
+      note: 'Cinquante invités',
+      eventDate: '2027-06-12',
+      locale: 'de',
+      website: '',
+    })
+  })
+
+  it('sends the confirmation press with no body, the token in the address', async () => {
+    await subject().confirmSignup(GALLERY_TOKEN)
+
+    expect(only().body).toBeUndefined()
   })
 })
 

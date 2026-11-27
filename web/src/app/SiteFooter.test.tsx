@@ -83,11 +83,11 @@ describe('SiteFooter', () => {
   it.each([
     [
       'a box with site administration on',
-      anAbout({ features: { siteAdmin: true, forgotPassword: false } }),
+      anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
     ],
     [
       'a box with site administration off',
-      anAbout({ features: { siteAdmin: false, forgotPassword: false } }),
+      anAbout({ features: { siteAdmin: false, forgotPassword: false, signup: 'off' } }),
     ],
     [
       'a box that publishes operator links',
