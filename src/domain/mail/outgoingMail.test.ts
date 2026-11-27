@@ -110,6 +110,18 @@ describe('checkOutgoingMail', () => {
     expect(codeOf(result)).toBe('mail.recipientInvalid')
   })
 
+  it('passes a message with a reply address of one mailbox', () => {
+    expect(checkOutgoingMail(aMail({ replyTo: emailOf('contact@example.org') })).ok).toBe(true)
+  })
+
+  it('refuses a reply address that is really a list', () => {
+    const result = checkOutgoingMail(
+      aMail({ replyTo: forgedRecipient('a@example.org,b@example.com') }),
+    )
+
+    expect(codeOf(result)).toBe('mail.replyToInvalid')
+  })
+
   it.each([
     ['a carriage return', `Hello${CR}Bcc: someone@else.example`],
     ['a line feed', `Hello${LF}Bcc: someone@else.example`],

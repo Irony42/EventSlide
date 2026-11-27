@@ -19,6 +19,12 @@ export interface OutgoingMail {
   readonly subject: string
   readonly text: string
   readonly html?: string
+  /**
+   * Where a reply goes when it is not the sender's own mailbox (spec 31: the welcome and the
+   * refusal are sent from `MAIL_FROM`, which nobody reads, and answered at the contact address).
+   * Optional, one mailbox, held to the same rule as the recipient.
+   */
+  readonly replyTo?: EmailAddress
 }
 
 /**
@@ -60,7 +66,8 @@ const CONTROL_CHARACTER = /\p{Cc}/u
  * runs this first and returns its failure unchanged, which is what makes "the fake accepts
  * it" and "the real one sends it" the same claim.
  *
- * - **One recipient, one mailbox** ({@link isSingleMailbox}).
+ * - **One recipient, one mailbox** ({@link isSingleMailbox}), and the same for `replyTo` when
+ *   there is one: a reply address that is really a list sends the answer to strangers.
  * - **A one-line subject.** A carriage return or a line feed in a header value is how a
  *   caller-supplied string becomes `Bcc: someone@else.example`. A well-behaved SMTP client
  *   flattens it; this refuses it, because a subject with a line break in it is a bug in the
@@ -81,6 +88,10 @@ export const checkOutgoingMail = (mail: OutgoingMail): Result<OutgoingMail, Doma
     CONTROL_CHARACTER.test(mail.subject)
   ) {
     return err(DomainError.invalid('mail.subjectInvalid'))
+  }
+
+  if (mail.replyTo !== undefined && !isSingleMailbox(mail.replyTo.value)) {
+    return err(DomainError.invalid('mail.replyToInvalid'))
   }
 
   if (mail.text.trim().length === 0) return err(DomainError.invalid('mail.bodyInvalid'))
