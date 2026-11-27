@@ -202,26 +202,35 @@ describe('transitions', () => {
     const pending = confirmSignupRequest(fresh(), LATER, 'pending')
     const approving = confirmSignupRequest(fresh(), LATER, 'approving')
     expect(pending.ok && pending.value).toMatchObject({ status: 'pending', confirmedAt: LATER })
-    expect(approving.ok && approving.value.status).toBe('approving')
+    expect(approving.ok && approving.value).toMatchObject({
+      status: 'approving',
+      claimedAt: LATER,
+    })
+    expect(pending.ok && pending.value.claimedAt).toBeNull()
   })
 
   it('claims only a pending request', () => {
-    allowed(['pending'], claimSignupRequest)
-    const claimed = claimSignupRequest(inStatus('pending'))
-    expect(claimed.ok && claimed.value.status).toBe('approving')
+    allowed(['pending'], (r) => claimSignupRequest(r, LATER))
+    const claimed = claimSignupRequest(inStatus('pending'), LATER)
+    expect(claimed.ok && claimed.value).toMatchObject({ status: 'approving', claimedAt: LATER })
   })
 
   it('releases only a claim, back to pending', () => {
     allowed(['approving'], releaseSignupRequest)
-    const released = releaseSignupRequest(inStatus('approving'))
-    expect(released.ok && released.value.status).toBe('pending')
+    const released = releaseSignupRequest({ ...inStatus('approving'), claimedAt: NOW })
+    expect(released.ok && released.value).toMatchObject({ status: 'pending', claimedAt: null })
   })
 
   it('finalises only a claim, recording the client, the invitation and who decided', () => {
     allowed(['approving'], (r) => finalizeSignupRequest(r, LATER, approval))
-    const done = finalizeSignupRequest(inStatus('approving'), LATER, approval)
+    const done = finalizeSignupRequest(
+      { ...inStatus('approving'), claimedAt: NOW },
+      LATER,
+      approval,
+    )
     expect(done.ok && done.value).toMatchObject({
       status: 'approved',
+      claimedAt: null,
       decidedAt: LATER,
       decidedBy: 'op-1',
       clientId: 'c-1',
@@ -255,7 +264,7 @@ describe('transitions', () => {
   })
 
   it('names the states of an illegal move, as a conflict', () => {
-    const result = claimSignupRequest(inStatus('approved'))
+    const result = claimSignupRequest(inStatus('approved'), LATER)
     expect(!result.ok && result.error.kind).toBe('conflict')
     expect(!result.ok && result.error.code).toBe('signup.illegalTransition')
     expect(!result.ok && result.error.details).toEqual({ from: 'approved', to: 'approving' })
@@ -263,7 +272,7 @@ describe('transitions', () => {
 
   it('does not change the request it was given', () => {
     const request = inStatus('pending')
-    claimSignupRequest(request)
+    claimSignupRequest(request, LATER)
     expect(request.status).toBe('pending')
   })
 })

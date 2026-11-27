@@ -6,12 +6,14 @@ import type { SignupStatus } from './signupRequest'
  * **60 days** (a refusal on day 29, kept 30 more), which is what the form's notice tells the person.
  *
  * - `unconfirmed`: erased 48 hours after it was made (token 24 h, then 24 h).
- * - `pending`: expires after 30 days without a decision (the sweep audits it, then erases it).
+ * - `pending`: expires **30 days after the request was made** (not after its confirmation, or the bound
+ *   below would not hold), and the sweep audits it, then erases it.
  * - `refused`: erased 30 days after the refusal; that row is what keeps the address quiet meanwhile.
  * - `approved`: erased when its invitation is accepted, or 24 hours after the invitation expired
  *   (7 days). The client and its audit line keep the trace.
  * - `expired`: erased by the sweep pass that made it, so it is due at once.
- * - `approving`: a claim in flight; no clock runs on it.
+ * - `approving`: a claim in flight. One that is more than an hour old is given back to `pending`
+ *   (a provisioning that never finished), where an operator sees it and the 30 days still run.
  */
 export const SIGNUP_UNCONFIRMED_KEPT_HOURS = 48
 export const SIGNUP_PENDING_EXPIRES_AFTER_DAYS = 30
@@ -19,6 +21,8 @@ export const SIGNUP_REFUSED_KEPT_DAYS = 30
 export const SIGNUP_APPROVED_GRACE_HOURS = 24
 /** The invitation's own life (`ACCOUNT_TOKEN_LIFETIME_MS.invitation`), as days. */
 export const SIGNUP_INVITATION_LIFETIME_DAYS = 7
+/** A claim older than this is released. */
+export const SIGNUP_CLAIM_STALE_MINUTES = 60
 
 /** The most a request can be kept, in days: the bound the form's notice states. */
 export const SIGNUP_MAX_KEPT_DAYS = 60
@@ -26,12 +30,12 @@ export const SIGNUP_MAX_KEPT_DAYS = 60
 const HOUR_MS = 60 * 60 * 1000
 
 /** What the sweep does with a request at an instant. */
-export type SignupSweepAction = 'keep' | 'expire' | 'erase'
+export type SignupSweepAction = 'keep' | 'expire' | 'erase' | 'release'
 
 export interface SweepView {
   readonly status: SignupStatus
   readonly createdAt: Date
-  readonly confirmedAt: Date | null
+  readonly claimedAt: Date | null
   readonly decidedAt: Date | null
   /** Whether the invitation of an `approved` request was accepted. */
   readonly invitationAccepted: boolean
@@ -46,7 +50,7 @@ export const signupDueAt = (view: SweepView): Date | null => {
     case 'unconfirmed':
       return new Date(view.createdAt.getTime() + SIGNUP_UNCONFIRMED_KEPT_HOURS * HOUR_MS)
     case 'pending':
-      return addDays(view.confirmedAt ?? view.createdAt, SIGNUP_PENDING_EXPIRES_AFTER_DAYS)
+      return addDays(view.createdAt, SIGNUP_PENDING_EXPIRES_AFTER_DAYS)
     case 'refused':
       return view.decidedAt === null ? null : addDays(view.decidedAt, SIGNUP_REFUSED_KEPT_DAYS)
     case 'approved':
@@ -59,14 +63,17 @@ export const signupDueAt = (view: SweepView): Date | null => {
     case 'expired':
       return view.decidedAt ?? view.createdAt
     case 'approving':
-      return null
+      return view.claimedAt === null
+        ? null
+        : new Date(view.claimedAt.getTime() + SIGNUP_CLAIM_STALE_MINUTES * 60 * 1000)
   }
 }
 
-/** `expire` for a `pending` request past its date, `erase` for anything else past its date. */
+/** `expire` a `pending` request past its date, `release` a stale claim, `erase` anything else past its date. */
 export const signupSweepAction = (view: SweepView, now: Date): SignupSweepAction => {
   if (view.status === 'approved' && view.invitationAccepted) return 'erase'
   const due = signupDueAt(view)
   if (due === null || due.getTime() > now.getTime()) return 'keep'
-  return view.status === 'pending' ? 'expire' : 'erase'
+  if (view.status === 'pending') return 'expire'
+  return view.status === 'approving' ? 'release' : 'erase'
 }

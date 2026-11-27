@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { addDays } from '../shared/time'
 import {
   SIGNUP_MAX_KEPT_DAYS,
-  SIGNUP_PENDING_EXPIRES_AFTER_DAYS,
   SIGNUP_REFUSED_KEPT_DAYS,
   signupDueAt,
   signupSweepAction,
@@ -16,7 +15,7 @@ const HOUR = 60 * 60 * 1000
 const view = (over: Partial<SweepView>): SweepView => ({
   status: 'unconfirmed',
   createdAt: T0,
-  confirmedAt: null,
+  claimedAt: null,
   decidedAt: null,
   invitationAccepted: false,
   ...over,
@@ -27,14 +26,7 @@ describe('signupDueAt', () => {
     expect(signupDueAt(view({}))).toEqual(new Date(T0.getTime() + 48 * HOUR))
   })
 
-  it('expires a pending request 30 days after its confirmation', () => {
-    const confirmedAt = addDays(T0, 1)
-    expect(signupDueAt(view({ status: 'pending', confirmedAt }))).toEqual(
-      addDays(confirmedAt, SIGNUP_PENDING_EXPIRES_AFTER_DAYS),
-    )
-  })
-
-  it('counts a pending request with no confirmation date from its creation', () => {
+  it('expires a pending request 30 days after it was MADE, whenever it was confirmed', () => {
     expect(signupDueAt(view({ status: 'pending' }))).toEqual(addDays(T0, 30))
   })
 
@@ -65,28 +57,56 @@ describe('signupDueAt', () => {
     expect(signupDueAt(view({ status: 'expired' }))).toEqual(T0)
   })
 
-  it('runs no clock on a claim in flight', () => {
+  it('gives a claim one hour', () => {
+    expect(signupDueAt(view({ status: 'approving', claimedAt: T0 }))).toEqual(
+      new Date(T0.getTime() + HOUR),
+    )
+  })
+
+  it('has no date for a claim that carries none', () => {
     expect(signupDueAt(view({ status: 'approving' }))).toBeNull()
   })
 })
 
 describe('the 60-day bound', () => {
-  it('holds for every status, whatever the dates: nothing is due later than 60 days after creation', () => {
-    // The worst chain: confirmed at once, pending 29 days, refused on day 29, kept 30 more.
-    const refusedOnDay29 = addDays(T0, 29)
-    const due = signupDueAt(view({ status: 'refused', decidedAt: refusedOnDay29 }))
-    expect(due).not.toBeNull()
-    expect((due as Date).getTime() - T0.getTime()).toBeLessThanOrEqual(
-      SIGNUP_MAX_KEPT_DAYS * 24 * HOUR,
-    )
-  })
+  const DAY = 24 * HOUR
+  /** The last instant a request made at T0 can be confirmed: its token's life (24 h). */
+  const lastConfirmation = new Date(T0.getTime() + 24 * HOUR)
+  /** The last instant a pending request can still be decided: just before it expires. */
+  const lastDecision = new Date(addDays(T0, 30).getTime() - 1)
+
+  const dueOffset = (over: Partial<SweepView>): number => {
+    const due = signupDueAt(view(over))
+    expect(due, `a clock runs on ${over.status}`).not.toBeNull()
+    return (due as Date).getTime() - T0.getTime()
+  }
 
   it('is 60', () => {
     expect(SIGNUP_MAX_KEPT_DAYS).toBe(60)
   })
 
-  it('names every status', () => {
-    expect(SIGNUP_STATUSES).toHaveLength(6)
+  it.each(SIGNUP_STATUSES.filter((status) => status !== 'approving'))(
+    'holds for %s in its worst case: confirmed at the token lifetime, decided at the last instant',
+    (status) => {
+      const worst: Partial<SweepView> = {
+        status,
+        decidedAt: lastDecision,
+      }
+      expect(lastConfirmation.getTime()).toBeLessThan(lastDecision.getTime())
+      expect(dueOffset(worst)).toBeLessThanOrEqual(SIGNUP_MAX_KEPT_DAYS * DAY)
+    },
+  )
+
+  it('reaches 60 days exactly for a refusal at the last instant, which is why pending counts from creation', () => {
+    expect(dueOffset({ status: 'refused', decidedAt: lastDecision })).toBeLessThanOrEqual(
+      60 * DAY - 1,
+    )
+  })
+
+  it('holds for an approval after a long pending: invitation expiry (7 days) plus 24 hours later', () => {
+    const approved = dueOffset({ status: 'approved', decidedAt: lastDecision })
+    expect(approved).toBe(30 * DAY - 1 + 7 * DAY + 24 * HOUR)
+    expect(approved).toBeLessThanOrEqual(60 * DAY)
   })
 })
 
@@ -121,7 +141,13 @@ describe('signupSweepAction', () => {
     expect(signupSweepAction(decided, addDays(T0, 30))).toBe('erase')
   })
 
-  it('never touches a claim in flight', () => {
+  it('keeps a claim for an hour and then gives it back', () => {
+    const claimed = view({ status: 'approving', claimedAt: T0 })
+    expect(signupSweepAction(claimed, new Date(T0.getTime() + HOUR - 1))).toBe('keep')
+    expect(signupSweepAction(claimed, new Date(T0.getTime() + HOUR))).toBe('release')
+  })
+
+  it('keeps a claim that carries no date, which is not a claim the sweep can judge', () => {
     expect(signupSweepAction(view({ status: 'approving' }), addDays(T0, 400))).toBe('keep')
   })
 

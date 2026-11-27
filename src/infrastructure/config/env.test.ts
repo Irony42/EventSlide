@@ -3892,6 +3892,23 @@ describe('self-service signup (SIGNUP and its three siblings)', () => {
     expect(config.signup.notifyEmail).toBeNull()
   })
 
+  it.each(['SIGNUP_MAX_PER_DAY', 'SIGNUP_RATE_LIMIT_PER_HOUR'])(
+    'reads a blank %s as absent and lands on its default, as compose passes it',
+    (name) => {
+      const config = loadConfig({ ...DEV, [name]: '' })
+
+      expect(config.signup.maxPerDay).toBe(50)
+      expect(config.signup.rateLimitPerHour).toBe(10)
+    },
+  )
+
+  it('refuses a malformed signup setting even with SIGNUP=off', () => {
+    const issues = refusalIssues({ ...DEV, SIGNUP: 'off', SIGNUP_MAX_PER_DAY: 'lots' })
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatch(/^SIGNUP_MAX_PER_DAY: /)
+  })
+
   it.each(['review', 'open'] as const)('accepts %s with the site role and a relay', (mode) => {
     expect(loadConfig({ ...RELAY, SIGNUP: mode }).signup.mode).toBe(mode)
   })

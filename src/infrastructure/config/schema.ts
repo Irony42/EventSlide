@@ -604,9 +604,9 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       /** See {@link signupMode}. `off` unless the box says otherwise. */
       SIGNUP: signupMode,
       /** Confirmation mails the whole box sends per day (spec 31): the ceiling a flood can reach. */
-      SIGNUP_MAX_PER_DAY: positiveInt(50, 10_000),
+      SIGNUP_MAX_PER_DAY: z.preprocess(blankAsAbsent, positiveInt(50, 10_000)),
       /** Signup requests per client address per hour. */
-      SIGNUP_RATE_LIMIT_PER_HOUR: positiveInt(10, 1_000),
+      SIGNUP_RATE_LIMIT_PER_HOUR: z.preprocess(blankAsAbsent, positiveInt(10, 1_000)),
       /** See {@link signupNotifyEmail}. */
       SIGNUP_NOTIFY_EMAIL: signupNotifyEmail,
 

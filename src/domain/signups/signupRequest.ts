@@ -62,6 +62,8 @@ export interface SignupRequest {
   readonly status: SignupStatus
   readonly createdAt: Date
   readonly confirmedAt: Date | null
+  /** When the request entered `approving`; `null` in every other state. The sweep gives a stale claim back. */
+  readonly claimedAt: Date | null
   readonly decidedAt: Date | null
   /** The operator who decided; `null` for the system (mode `open`) or before any decision. */
   readonly decidedBy: UserId | null
@@ -134,6 +136,7 @@ export const createSignupRequest = (
     status: 'unconfirmed',
     createdAt: now,
     confirmedAt: null,
+    claimedAt: null,
     decidedAt: null,
     decidedBy: null,
     clientId: null,
@@ -170,15 +173,20 @@ export const confirmSignupRequest = (
   now: Date,
   outcome: ConfirmationOutcome,
 ): Result<SignupRequest, DomainError> =>
-  move(request, ['unconfirmed'], outcome, { confirmedAt: now })
+  move(request, ['unconfirmed'], outcome, {
+    confirmedAt: now,
+    claimedAt: outcome === 'approving' ? now : null,
+  })
 
 /** An operator takes a waiting request: `pending` to `approving`. */
-export const claimSignupRequest = (request: SignupRequest): Result<SignupRequest, DomainError> =>
-  move(request, ['pending'], 'approving', {})
+export const claimSignupRequest = (
+  request: SignupRequest,
+  now: Date,
+): Result<SignupRequest, DomainError> => move(request, ['pending'], 'approving', { claimedAt: now })
 
 /** Provisioning failed: the claim is given back, `approving` to `pending`. */
 export const releaseSignupRequest = (request: SignupRequest): Result<SignupRequest, DomainError> =>
-  move(request, ['approving'], 'pending', {})
+  move(request, ['approving'], 'pending', { claimedAt: null })
 
 export interface SignupApproval {
   /** The operator, or `null` when the system opened the account (mode `open`). */
@@ -194,6 +202,7 @@ export const finalizeSignupRequest = (
   approval: SignupApproval,
 ): Result<SignupRequest, DomainError> =>
   move(request, ['approving'], 'approved', {
+    claimedAt: null,
     decidedAt: now,
     decidedBy: approval.decidedBy,
     clientId: approval.clientId,

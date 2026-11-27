@@ -64,12 +64,14 @@ addresses that never asked for it, and to learn which addresses already use the 
    address per 24 h, a box-wide ceiling of confirmation mails per day (`SIGNUP_MAX_PER_DAY`, default 50), a body of at
    most 4 KB, and a honeypot field answered like a real request with nothing written or sent. No captcha: it would put a
    third party (and its cookies and scripts) in front of every visitor, against the CSP and the privacy notice, and the
-   daily ceiling bounds what a flood can cost. If the ceiling is reached, the form keeps answering the same thing and the
-   operator is told once.
+   daily ceiling bounds what a flood can cost. When the ceiling is reached, the form answers "too many requests today,
+   come back tomorrow" (decision 4: the one different answer, which says nothing of an address), and the operator gets
+   one audit line and one notice, at 100 %.
 7. **The data are kept only as long as the request lives, 60 days at most.** An unconfirmed request is erased 48 h after
-   it was made; a pending one with no decision after 30 days; a refused one 30 days after the refusal (that row is what
-   keeps the same address quiet for 30 days); an approved one when its invitation is accepted or expires (from then on
-   the client and its audit entries are the record). The operator's decisions (`signup.approved`, `signup.refused`,
+   it was made; a pending one with no decision 30 days after the request was made; a refused one 30 days after the refusal (that row is what
+   keeps the same address quiet for 30 days); an approved one when its invitation is accepted, or at the invitation's expiry (7 days) plus 24 h (from
+   then on the client and its audit entries are the record); a claim (`approving`) older than an hour is given back to
+   `pending`, so a provisioning that never finished waits for the operator instead of for ever. The operator's decisions (`signup.approved`, `signup.refused`,
    `signup.expired`) go to the audit log under the subject type `access_request`, reserved in the CHECK list since
    migration 009 for exactly this, with the request id, never the address.
 
@@ -92,8 +94,11 @@ addresses that never asked for it, and to learn which addresses already use the 
   no tracking, and a sentence saying what to do if you did not ask. The relay's reputation is exposed anyway; the
   maintainer's instance needs SPF, DKIM and DMARC aligned before `SIGNUP` is switched on.
 - **The daily ceiling can be spent by an attacker.** Five IP addresses at ten an hour reach 50 in an hour; real
-  visitors are then told to come back tomorrow. Accepted for v1: the cost is a delay, not a breach; the operator is
-  alerted at 80 %, and a captcha is reconsidered only if it happens.
+  visitors are then told to come back tomorrow. Accepted for v1: the cost is a delay, not a breach; the operator gets
+  the audit line and the notice when the ceiling is reached, and a captcha is reconsidered only if it happens.
+- **An `approved` request does not silence its address.** A moderator may ask for a space of their own, so in `open` one
+  mailbox can open up to 3 clients a day. What bounds it: the per-address cap (3 confirmations per 24 h), the daily
+  ceiling and the `NEW_CLIENT_*` ceilings.
 - **`open` mode gives a disk to anyone with a mailbox, and the maintainer's instance uses it.** "From an operator who
   already knows who they are" is no longer true there. What bounds it: the daily ceiling, the `NEW_CLIENT_*` ceilings
   (one event, 5 GB by default), the disk guard, and the operator's existing tools (suspending a client, takedown).
