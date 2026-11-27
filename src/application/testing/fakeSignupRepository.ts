@@ -8,6 +8,7 @@ import {
   confirmSignupRequest,
   type SignupRequest,
   signupListedAt,
+  signupPendingExpiresAt,
 } from '../../domain/signups/signupRequest'
 import { signupSweepAction } from '../../domain/signups/signupRetention'
 import type {
@@ -60,7 +61,10 @@ export class FakeSignupRepository implements SignupRepository {
 
   private confirmationTokens(email: string): AccountToken[] {
     return this.tokens.all.filter(
-      (token) => token.purpose === 'emailVerification' && token.email.value === email,
+      (token) =>
+        token.purpose === 'emailVerification' &&
+        token.userId === null &&
+        token.email.value === email,
     )
   }
 
@@ -71,7 +75,9 @@ export class FakeSignupRepository implements SignupRepository {
       list.filter((held) => held.createdAt.getTime() > since)
 
     const issuedToday = issued(
-      this.tokens.all.filter((held) => held.purpose === 'emailVerification'),
+      this.tokens.all.filter(
+        (held) => held.purpose === 'emailVerification' && held.userId === null,
+      ),
     ).length
     if (issuedToday >= maxPerDay) return { outcome: 'busy', issuedToday }
 
@@ -94,15 +100,28 @@ export class FakeSignupRepository implements SignupRepository {
     })
     if (decision === 'silent') return { outcome: 'silent', issuedToday }
 
+    if (decision === 'create' && this.rows.has(request.id)) {
+      throw new Error('UNIQUE constraint failed: signup_requests.id')
+    }
+    // The token first: if it is refused (a digest already held), nothing else has changed, as the
+    // transaction of the SQLite adapter would leave it.
+    await this.tokens.save(token)
+    // The older links stop working, for a new request as for a resend.
+    await this.tokens.revokeOutstandingWithoutAccount(
+      request.email,
+      'emailVerification',
+      now,
+      token.id,
+    )
     if (decision === 'create') {
-      if (this.rows.has(request.id)) throw new Error('UNIQUE constraint failed: signup_requests.id')
       this.rows.set(request.id, request)
     } else {
-      await this.tokens.revokeOutstanding(request.email, 'emailVerification', now)
       for (const row of mine) {
         if (row.status !== 'unconfirmed') continue
+        // A resend is a new submission: what was typed last, counted from now.
         this.rows.set(row.id, {
           ...row,
+          createdAt: now,
           clientName: request.clientName,
           note: request.note,
           eventDate: request.eventDate,
@@ -110,7 +129,6 @@ export class FakeSignupRepository implements SignupRepository {
         })
       }
     }
-    await this.tokens.save(token)
     return { outcome: decision === 'create' ? 'created' : 'resent', issuedToday: issuedToday + 1 }
   }
 
@@ -120,7 +138,10 @@ export class FakeSignupRepository implements SignupRepository {
 
   async peekConfirmation(tokenDigest: string, now: Date): Promise<SignupConfirmationPeek | null> {
     const token = this.tokens.all.find(
-      (held) => held.purpose === 'emailVerification' && held.tokenDigest === tokenDigest,
+      (held) =>
+        held.purpose === 'emailVerification' &&
+        held.userId === null &&
+        held.tokenDigest === tokenDigest,
     )
     if (token === undefined) return null
     if (token.consumedAt !== null || token.revokedAt !== null) {
@@ -135,7 +156,7 @@ export class FakeSignupRepository implements SignupRepository {
 
   async confirm(input: SignupConfirmInput): Promise<SignupConfirmResult> {
     const token = await this.tokens.findUsable(input.tokenDigest, 'emailVerification', input.now)
-    if (token === null) return { kind: 'invalid' }
+    if (token === null || token.userId !== null) return { kind: 'invalid' }
     const row = [...this.rows.values()].find(
       (held) => held.email.equals(token.email) && held.status === 'unconfirmed',
     )
@@ -150,13 +171,15 @@ export class FakeSignupRepository implements SignupRepository {
   async claim(id: string, now: Date): Promise<boolean> {
     const row = this.rows.get(id)
     if (row === undefined || row.status !== 'pending') return false
+    if (now.getTime() >= signupPendingExpiresAt(row).getTime()) return false
     this.rows.set(id, { ...row, status: 'approving', claimedAt: now })
     return true
   }
 
-  async release(id: string): Promise<boolean> {
+  async release(id: string, claimedAt: Date): Promise<boolean> {
     const row = this.rows.get(id)
     if (row === undefined || row.status !== 'approving') return false
+    if (row.claimedAt?.getTime() !== claimedAt.getTime()) return false
     this.rows.set(id, { ...row, status: 'pending', claimedAt: null })
     return true
   }
@@ -164,6 +187,7 @@ export class FakeSignupRepository implements SignupRepository {
   async finalize(id: string, finalization: SignupFinalization): Promise<boolean> {
     const row = this.rows.get(id)
     if (row === undefined || row.status !== 'approving') return false
+    if (row.claimedAt?.getTime() !== finalization.claimedAt.getTime()) return false
     if (finalization.decidedBy !== null && !this.accounts.has(finalization.decidedBy)) {
       throw new Error('FOREIGN KEY constraint failed: signup_requests.decided_by')
     }
@@ -191,6 +215,7 @@ export class FakeSignupRepository implements SignupRepository {
   async refuse(id: string, by: UserId, now: Date): Promise<boolean> {
     const row = this.rows.get(id)
     if (row === undefined || row.status !== 'pending') return false
+    if (now.getTime() >= signupPendingExpiresAt(row).getTime()) return false
     if (!this.accounts.has(by)) {
       throw new Error('FOREIGN KEY constraint failed: signup_requests.decided_by')
     }
@@ -240,6 +265,10 @@ export class FakeSignupRepository implements SignupRepository {
           createdAt: row.createdAt,
           claimedAt: row.claimedAt,
           decidedAt: row.decidedAt,
+          lastConfirmationExpiresAt: this.confirmationTokens(row.email.value).reduce<Date | null>(
+            (best, held) => (best === null || held.expiresAt > best ? held.expiresAt : best),
+            null,
+          ),
           invitationAccepted: invitation?.consumedAt != null,
         },
         now,

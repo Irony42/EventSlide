@@ -22,7 +22,10 @@ import {
   type SignupRequest,
   type SignupStatus,
 } from '../../domain/signups/signupRequest'
-import { signupSweepAction } from '../../domain/signups/signupRetention'
+import {
+  SIGNUP_PENDING_EXPIRES_AFTER_DAYS,
+  signupSweepAction,
+} from '../../domain/signups/signupRetention'
 import { EmailAddress } from '../../domain/users/emailAddress'
 import type { Db } from './connection'
 import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
@@ -42,6 +45,10 @@ import { ACCOUNT_TOKEN_USABLE_SQL } from './sqliteAccountTokenRepository'
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/** A `pending` request made at or before this instant is past its 30 days: nobody may decide it. */
+const pendingCutoff = (now: Date): string =>
+  toIsoText(new Date(now.getTime() - SIGNUP_PENDING_EXPIRES_AFTER_DAYS * DAY_MS))
 
 const COLUMNS = `id, email, client_name, note, event_date, locale, status, created_at, confirmed_at,
                  claimed_at, decided_at, decided_by, client_id, invitation_token_id`
@@ -110,7 +117,7 @@ export class SqliteSignupRepository implements SignupRepository {
           this.db
             .prepare<[string], { n: number }>(
               `SELECT COUNT(*) AS n FROM account_tokens
-                WHERE purpose = 'emailVerification' AND created_at > ?`,
+                WHERE purpose = 'emailVerification' AND user_id IS NULL AND created_at > ?`,
             )
             .get(since)?.n ?? 0
         // The ceiling answers everyone alike, before anything about the address is looked at: an
@@ -123,13 +130,14 @@ export class SqliteSignupRepository implements SignupRepository {
         const tokens = this.db
           .prepare<[string, string], { created_at: string }>(
             `SELECT created_at FROM account_tokens
-              WHERE purpose = 'emailVerification' AND email = ? AND created_at > ?`,
+              WHERE purpose = 'emailVerification' AND user_id IS NULL
+                AND email = ? AND created_at > ?`,
           )
           .all(request.email.value, since)
         const latest = this.db
           .prepare<[string], { created_at: string | null }>(
             `SELECT MAX(created_at) AS created_at FROM account_tokens
-              WHERE purpose = 'emailVerification' AND email = ?`,
+              WHERE purpose = 'emailVerification' AND user_id IS NULL AND email = ?`,
           )
           .get(request.email.value)?.created_at
 
@@ -146,6 +154,16 @@ export class SqliteSignupRepository implements SignupRepository {
           confirmationsInLastDay: tokens.length,
         })
         if (decision === 'silent') return { outcome: 'silent', issuedToday }
+
+        // The older links stop working, whether this is a new request or a resend: an old link must not
+        // confirm a request made after it. Only signup tokens (no account) are touched.
+        this.db
+          .prepare(
+            `UPDATE account_tokens SET revoked_at = ?
+              WHERE purpose = 'emailVerification' AND user_id IS NULL AND email = ?
+                AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > ?`,
+          )
+          .run(at, request.email.value, at)
 
         if (decision === 'create') {
           this.db
@@ -165,22 +183,17 @@ export class SqliteSignupRepository implements SignupRepository {
               created_at: toIsoText(request.createdAt),
             })
         } else {
-          // `resend`: the older links stop working, and the request takes what was typed last.
-          this.db
-            .prepare(
-              `UPDATE account_tokens SET revoked_at = ?
-                WHERE purpose = 'emailVerification' AND email = ?
-                  AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > ?`,
-            )
-            .run(at, request.email.value, at)
+          // `resend`: the request takes what was typed last, and counts from now (a resend is a new
+          // submission of the form: its 30 days, and the 60-day bound, run from it).
           this.db
             .prepare(
               `UPDATE signup_requests
                   SET client_name = @client_name, note = @note, event_date = @event_date,
-                      locale = @locale
+                      locale = @locale, created_at = @created_at
                 WHERE email = @email AND status = 'unconfirmed'`,
             )
             .run({
+              created_at: at,
               email: request.email.value,
               client_name: request.clientName.value,
               note: request.note,
@@ -224,7 +237,7 @@ export class SqliteSignupRepository implements SignupRepository {
         { email: string; consumed_at: string | null; revoked_at: string | null; expires_at: string }
       >(
         `SELECT email, consumed_at, revoked_at, expires_at FROM account_tokens
-          WHERE token_digest = ? AND purpose = 'emailVerification'`,
+          WHERE token_digest = ? AND purpose = 'emailVerification' AND user_id IS NULL`,
       )
       .get(tokenDigest)
     if (token === undefined) return null
@@ -251,7 +264,7 @@ export class SqliteSignupRepository implements SignupRepository {
         const token = this.db
           .prepare<[string, string], { id: string; email: string }>(
             `SELECT id, email FROM account_tokens
-              WHERE token_digest = ? AND purpose = 'emailVerification'
+              WHERE token_digest = ? AND purpose = 'emailVerification' AND user_id IS NULL
                 AND ${ACCOUNT_TOKEN_USABLE_SQL}`,
           )
           .get(input.tokenDigest, at)
@@ -267,22 +280,21 @@ export class SqliteSignupRepository implements SignupRepository {
         const moved = confirmSignupRequest(toRequest(row), input.now, input.outcome)
         if (!moved.ok) return { kind: 'invalid' }
 
-        // The token is spent only here, with the request moved: the two cannot part.
-        const spent = this.db
+        // The token is spent only here, with the request moved: the two cannot part. It was read as
+        // usable a moment ago in this same immediate transaction, so both UPDATEs match their row;
+        // if either ever threw, the transaction would roll the other back.
+        this.db
           .prepare<[string, string, string]>(
             `UPDATE account_tokens SET consumed_at = ?
-              WHERE id = ? AND ${ACCOUNT_TOKEN_USABLE_SQL}`,
+              WHERE id = ? AND user_id IS NULL AND ${ACCOUNT_TOKEN_USABLE_SQL}`,
           )
           .run(at, token.id, at)
-        if (spent.changes !== 1) return { kind: 'invalid' }
-        const updated = this.db
-
+        this.db
           .prepare<[string, string, string | null, string]>(
             `UPDATE signup_requests SET status = ?, confirmed_at = ?, claimed_at = ?
               WHERE id = ? AND status = 'unconfirmed'`,
           )
           .run(input.outcome, at, input.outcome === 'approving' ? at : null, row.id)
-        if (updated.changes !== 1) throw new Error('signup request moved under its own transaction')
         return { kind: 'confirmed', request: moved.value }
       })
       .immediate()
@@ -291,22 +303,22 @@ export class SqliteSignupRepository implements SignupRepository {
   async claim(id: string, now: Date): Promise<boolean> {
     return (
       this.db
-        .prepare<[string, string]>(
+        .prepare<[string, string, string]>(
           `UPDATE signup_requests SET status = 'approving', claimed_at = ?
-            WHERE id = ? AND status = 'pending'`,
+            WHERE id = ? AND status = 'pending' AND created_at > ?`,
         )
-        .run(toIsoText(now), id).changes === 1
+        .run(toIsoText(now), id, pendingCutoff(now)).changes === 1
     )
   }
 
-  async release(id: string): Promise<boolean> {
+  async release(id: string, claimedAt: Date): Promise<boolean> {
     return (
       this.db
-        .prepare<[string]>(
+        .prepare<[string, string]>(
           `UPDATE signup_requests SET status = 'pending', claimed_at = NULL
-            WHERE id = ? AND status = 'approving'`,
+            WHERE id = ? AND status = 'approving' AND claimed_at = ?`,
         )
-        .run(id).changes === 1
+        .run(id, toIsoText(claimedAt)).changes === 1
     )
   }
 
@@ -317,10 +329,11 @@ export class SqliteSignupRepository implements SignupRepository {
           `UPDATE signup_requests
               SET status = 'approved', claimed_at = NULL, decided_at = @decided_at, decided_by = @decided_by,
                   client_id = @client_id, invitation_token_id = @invitation_token_id
-            WHERE id = @id AND status = 'approving'`,
+            WHERE id = @id AND status = 'approving' AND claimed_at = @claimed_at`,
         )
         .run({
           id,
+          claimed_at: toIsoText(finalization.claimedAt),
           decided_at: toIsoText(finalization.now),
           decided_by: finalization.decidedBy,
           client_id: finalization.clientId,
@@ -332,11 +345,11 @@ export class SqliteSignupRepository implements SignupRepository {
   async refuse(id: string, by: UserId, now: Date): Promise<boolean> {
     return (
       this.db
-        .prepare<[string, string, string]>(
+        .prepare<[string, string, string, string]>(
           `UPDATE signup_requests SET status = 'refused', decided_at = ?, decided_by = ?
-            WHERE id = ? AND status = 'pending'`,
+            WHERE id = ? AND status = 'pending' AND created_at > ?`,
         )
-        .run(toIsoText(now), by, id).changes === 1
+        .run(toIsoText(now), by, id, pendingCutoff(now)).changes === 1
     )
   }
 
@@ -376,9 +389,12 @@ export class SqliteSignupRepository implements SignupRepository {
     return this.db
       .transaction((): SignupSweepResult => {
         const rows = this.db
-          .prepare<[], SignupRow & { accepted: number }>(
+          .prepare<[], SignupRow & { accepted: number; last_link_expires_at: string | null }>(
             `SELECT ${QUALIFIED_COLUMNS},
-                    COALESCE(t.consumed_at IS NOT NULL, 0) AS accepted
+                    COALESCE(t.consumed_at IS NOT NULL, 0) AS accepted,
+                    (SELECT MAX(c.expires_at) FROM account_tokens c
+                      WHERE c.purpose = 'emailVerification' AND c.user_id IS NULL
+                        AND c.email = s.email) AS last_link_expires_at
                FROM signup_requests s
                LEFT JOIN account_tokens t ON t.id = s.invitation_token_id`,
           )
@@ -393,6 +409,7 @@ export class SqliteSignupRepository implements SignupRepository {
               createdAt: fromIsoText(row.created_at),
               claimedAt: fromNullableIsoText(row.claimed_at),
               decidedAt: fromNullableIsoText(row.decided_at),
+              lastConfirmationExpiresAt: fromNullableIsoText(row.last_link_expires_at),
               invitationAccepted: row.accepted === 1,
             },
             now,
