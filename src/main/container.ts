@@ -72,7 +72,7 @@ import type { ChannelKind } from '../domain/channels/channelKind'
 import { createChannelPoller } from './channelPoller'
 import { createTelegramBringUp, type TelegramBringUp } from './telegramBringUp'
 import { createChannelWorker } from './channelWorker'
-import { welcomeLinks } from './welcomePolicy'
+import { welcomeLinks, welcomeMissing } from './welcomePolicy'
 import { channelWorkerUseCases } from './usecases.channels'
 import { sha256SecretTokens } from '../infrastructure/crypto/sha256SecretTokens'
 import { createHmacGallerySigner } from '../infrastructure/crypto/hmacGallerySigner'
@@ -594,6 +594,12 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // HKDF-derived from the session secret under its own label — see the adapter for why
     // that parent, and why not a new variable a running installation would lack.
     gallerySigner: createHmacGallerySigner({ rootSecret: config.secrets.session }),
+  }
+
+  if (config.signup.mode !== 'off' && welcomeLinks(config) === null) {
+    logger.warn('signup is on but the welcome mail will not be sent: set the missing variables', {
+      missing: welcomeMissing(config).join(', ') || 'OPERATOR_CONTACT_EMAIL',
+    })
   }
 
   const usecases = buildUseCases(adapters, {

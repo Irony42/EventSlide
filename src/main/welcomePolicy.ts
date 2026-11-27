@@ -14,6 +14,21 @@ export const welcomeLinks = (config: {
   if (contactEmail === null || supportUrl === null) return null
   const contact = EmailAddress.create(contactEmail)
   if (!contact.ok) return null
-  const guidesLink = supportUrl.startsWith('/') ? `${config.publicUrl}${supportUrl}` : supportUrl
+  const guidesLink = supportUrl.startsWith('/')
+    ? `${config.publicUrl.replace(/\/+$/, '')}${supportUrl}`
+    : supportUrl
   return { contact: contact.value, guidesLink }
 }
+
+/**
+ * The variables a box with `SIGNUP` on is missing for the welcome mail, to name at boot. Empty when
+ * the mail will be sent. `OPERATOR_CONTACT_EMAIL` is only accepted beside `OPERATOR_NAME`.
+ */
+export const welcomeMissing = (config: {
+  readonly operator: { readonly contactEmail: string | null; readonly supportUrl: string | null }
+}): readonly string[] => [
+  ...(config.operator.contactEmail === null
+    ? ['OPERATOR_CONTACT_EMAIL (needs OPERATOR_NAME)']
+    : []),
+  ...(config.operator.supportUrl === null ? ['SUPPORT_URL'] : []),
+]

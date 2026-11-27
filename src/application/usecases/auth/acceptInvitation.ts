@@ -93,6 +93,8 @@ export interface AcceptInvitationDeps extends ResolveInvitationDeps {
    */
   readonly welcome?: { readonly contact: EmailAddress; readonly guidesLink: string } | null
   readonly logger?: Pick<Logger, 'warn' | 'error'>
+  /** Tests only: receives the promise of a welcome that was started, so they can await it. */
+  readonly onWelcome?: (settled: Promise<void>) => void
 }
 
 export type AcceptInvitation = (
@@ -186,7 +188,7 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
    */
   const sendWelcome = (clientId: ClientId, to: EmailAddress): void => {
     if (!signupOn || mailer === undefined || !mailer.canDeliver || !welcome) return
-    void (async () => {
+    const run = (async () => {
       const client = await clients.findById(clientId)
       if (client === null) return
       const sent = await mailer.send(
@@ -199,10 +201,15 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
       )
       if (!sent.ok) logger?.warn('a welcome mail was not sent', { code: sent.error.code })
     })().catch((error: unknown) => {
+      // Never the message: an SMTP error carries the address it was sending to. A stable
+      // sentence, the error's class name and its code (a short string such as `ECONNRESET`).
+      const code = (error as { readonly code?: unknown } | null)?.code
       logger?.error('a welcome mail failed', {
-        error: error instanceof Error ? error.message : 'unknown',
+        errorName: error instanceof Error ? error.name : 'unknown',
+        ...(typeof code === 'string' && /^[A-Za-z0-9_.-]{1,40}$/.test(code) ? { code } : {}),
       })
     })
+    deps.onWelcome?.(run)
   }
   const resolve = makeResolveInvitation(deps)
 

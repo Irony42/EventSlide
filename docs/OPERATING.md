@@ -272,6 +272,10 @@ when the stream reconnects, so a dropped connection costs a few seconds, not a r
 **No e-mail.** The hosted instance sends none, so nobody is told by message that a reply arrived: the badge and the open
 page are the notice.
 
+## Welcome mail
+
+With `SIGNUP=review` or `open`, the first owner of a space that has no member and no event yet receives one welcome mail after accepting their invitation, in the space's language. It names `OPERATOR_CONTACT_EMAIL` (which needs `OPERATOR_NAME`) as the contact and reply address and links `SUPPORT_URL`; if either is unset, or the box has no mail relay, nothing is sent and the boot logs a warning naming what is missing. A failed send never blocks the acceptance. With `SIGNUP=off` nothing changes.
+
 ## Backups
 
 Take one before the event and one the morning after. The server stays up while you do,
