@@ -2,6 +2,9 @@ import AxeBuilder from '@axe-core/playwright'
 import type { Locator, Page } from '@playwright/test'
 import { csrfHeaders, expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
+import { currentStep, enrolOperator, totp } from '../fixtures/operatorFactor'
+import { linkIn, startSignupBox } from '../fixtures/signupBox'
+import { SUITE_LOCALE } from '../fixtures/suiteLocale'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
@@ -341,5 +344,72 @@ test.describe('the browser tab', () => {
     await expect(surfaces.guest).toHaveTitle(`${fr.titles.join} · ${fr.app.name}`)
     await expect(surfaces.host).toHaveTitle(`${fr.titles.dashboard} · ${fr.app.name}`)
     await expect(surfaces.projector).toHaveTitle(`${fr.titles.wall} · ${fr.app.name}`)
+  })
+})
+
+test.describe('self-service signup (spec 31)', () => {
+  test('the form, the inbox page, the confirmation page and the operator’s list have no serious violation', async ({
+    browser,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== 'chromium-desktop',
+      'One project is enough: the case boots a server and a mail relay of its own',
+    )
+    const box = await startSignupBox(testInfo, { mode: 'review' })
+    const { app, sink } = box
+    const factor = await enrolOperator(app)
+    const context = await browser.newContext({ baseURL: app.baseUrl, locale: SUITE_LOCALE })
+
+    try {
+      const page = await context.newPage()
+      const audit = async (): Promise<void> => {
+        const { violations } = await scan(page)
+        expect(seriousOnly(violations)).toEqual([])
+      }
+
+      await page.goto(app.url('/signup'))
+      await expect(page.getByRole('heading', { name: fr.signup.title })).toBeVisible()
+      await audit()
+
+      // The form with its errors showing: the messages are the part most likely to be unlabelled.
+      await page.getByRole('button', { name: fr.signup.submit }).click()
+      await expect(page.getByText(fr.signup.clientNameMissing)).toBeVisible()
+      await audit()
+
+      await page.getByLabel(fr.auth.email).fill('a11y@visiteur.example')
+      await page.getByLabel(fr.signup.clientName).fill('Association Les Pieds Agiles')
+      await page.getByRole('button', { name: fr.signup.submit }).click()
+      await expect(page.getByRole('heading', { name: fr.signup.sentTitle })).toBeVisible()
+      await audit()
+
+      await expect
+        .poll(() => linkIn(sink, 'a11y@visiteur.example', '', /\/signup\/confirm\/[A-Za-z0-9_-]+/))
+        .not.toBeNull()
+      await page.goto(
+        linkIn(sink, 'a11y@visiteur.example', '', /https?:\/\/\S+\/signup\/confirm\/\S+/) ?? '',
+      )
+      await expect(page.getByRole('heading', { name: fr.signup.confirmTitle })).toBeVisible()
+      await audit()
+      await page.getByRole('button', { name: fr.signup.confirmSubmit }).click()
+      await expect(page.getByRole('heading', { name: fr.signup.reviewTitle })).toBeVisible()
+      await audit()
+
+      // The operator's list, with one request waiting.
+      await page.goto(app.url('/login'))
+      await page.getByLabel(fr.auth.email).fill(app.owner.email)
+      await page.getByLabel(fr.auth.password).fill(app.owner.password)
+      await page.getByRole('button', { name: fr.auth.submit }).click()
+      await page.getByLabel(fr.auth.secondFactorCode).fill(totp(factor.secret, currentStep() + 1))
+      await page.getByRole('button', { name: fr.auth.secondFactorSubmit }).click()
+      await page.waitForURL(/\/admin(?:\/(?!password))?/)
+      await page.goto(app.url('/admin/site/signups'))
+      await expect(
+        page.getByRole('button', { name: fr.siteSignups.approve, exact: true }),
+      ).toBeVisible()
+      await audit()
+    } finally {
+      await context.close()
+      await box.close()
+    }
   })
 })
