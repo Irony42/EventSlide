@@ -743,6 +743,10 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 > a temporary password or answers whether an account was created), and the invitee's two routes
 > are `GET /api/invitations/:token` and `POST /api/invitations/:token/accept` (docs/API.md).
 >
+> **Self-service signup ([ADR 0018](adr/0018-self-service-signup.md), spec 31, off by default)**
+> ends in this same invitation: a confirmed request is turned into a client and an invitation by
+> `provisionClientOwner`, so the rules below hold for it unchanged.
+>
 > The rules they hold: **no `users` row exists before an invitation is accepted**, so nobody can
 > make an account for an address ahead of its owner and choose a password for it — with one limit
 > that the plan states and this does not hide: on a box with **no mail relay** the inviter holds the
@@ -957,9 +961,14 @@ Rejected, and why:
 - **Billing, invoicing and payment.** The operator's accounting lives in whatever they
   already use. A self-hosted photo wall that grows a payment processor has changed
   business, and the security surface arrives with it.
-- **Public self-service signup.** An open registration form on a box at a photographer's
-  office is an abuse inbox. Clients arrive by invitation, from an operator who already
-  knows who they are.
+- **Public self-service signup without proof of address.** A registration form that
+  creates an account for whoever types an address, with no confirmation, on a box at a
+  photographer's office is an abuse inbox, and stays out of scope. What
+  [ADR 0018](adr/0018-self-service-signup.md) allows, off by default (`SIGNUP=off`), is
+  a **request** that proves its address by mail first and that becomes an account only
+  through the existing invitation, after an operator's approval (`SIGNUP=review`) or, on
+  a box whose operator chose it and while the disk has room, automatically (`SIGNUP=open`).
+  Clients still arrive by invitation.
 - **Multi-server and high availability.** One box, one operator. The day that is wrong is
   the day this is a different product, and it should be argued then rather than designed
   for now.

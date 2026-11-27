@@ -63,6 +63,9 @@ const settingsFor = (port: number, overrides: Partial<SmtpEndpoint> = {}): SmtpS
   from: FROM,
 })
 
+/** `<a@b>` or `a@b`, as the sink read the header, down to the address. */
+const bareAddress = (header: string): string => /<([^>]+)>/.exec(header)?.[1] ?? header
+
 const to = (address: string): EmailAddress => {
   const parsed = EmailAddress.create(address)
   if (!parsed.ok) throw new Error(`invalid fixture: ${parsed.error.code}`)
@@ -110,6 +113,7 @@ mailerContract('smtp, against an in-process relay', 'delivers', async () => {
           subject: parsed.subject,
           text: parsed.text ?? '',
           html: parsed.html,
+          replyTo: parsed.replyTo === null ? null : bareAddress(parsed.replyTo),
         }
       }),
     provoke: async (reason) => {

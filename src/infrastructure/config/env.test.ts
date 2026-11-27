@@ -228,6 +228,7 @@ describe('loadConfig', () => {
         },
         // No relay: the composition root wires `NullMailer` and a caller shows a link to copy.
         mail: { smtp: null },
+        signup: { mode: 'off', maxPerDay: 50, rateLimitPerHour: 10, notifyEmail: null },
         // A development boot never gets a warning: every case below is production-only.
         warnings: [],
         audit: { retentionDays: 365, retentionFromDefault: true },
@@ -3860,5 +3861,122 @@ describe('Web Push configuration (spec 30, lot 4)', () => {
     expect(issues.some((issue) => issue.startsWith('VAPID_PUBLIC_KEY: '))).toBe(true)
     expect(issues.join(' | ')).not.toContain(other.publicKey)
     expect(issues.join(' | ')).not.toContain(pair.privateKey)
+  })
+})
+
+/**
+ * Self-service signup (spec 31, ADR 0018): four settings parsed at boot, and a refusal when the form
+ * is asked for on a box that cannot prove an address. Nothing else reads them yet.
+ */
+describe('self-service signup (SIGNUP and its three siblings)', () => {
+  const RELAY: Source = {
+    ...DEV,
+    SITE_ADMIN: 'on',
+    SMTP_URL: 'smtp://mail.example.com:587',
+    MAIL_FROM: 'no-reply@example.org',
+  }
+
+  it('is off, with the documented ceilings, when nothing is set', () => {
+    expect(loadConfig(DEV).signup).toEqual({
+      mode: 'off',
+      maxPerDay: 50,
+      rateLimitPerHour: 10,
+      notifyEmail: null,
+    })
+  })
+
+  it('reads a blank value as absent, as compose passes it', () => {
+    const config = loadConfig({ ...DEV, SIGNUP: '', SIGNUP_NOTIFY_EMAIL: '' })
+
+    expect(config.signup.mode).toBe('off')
+    expect(config.signup.notifyEmail).toBeNull()
+  })
+
+  it.each(['SIGNUP_MAX_PER_DAY', 'SIGNUP_RATE_LIMIT_PER_HOUR'])(
+    'reads a blank %s as absent and lands on its default, as compose passes it',
+    (name) => {
+      const config = loadConfig({ ...DEV, [name]: '' })
+
+      expect(config.signup.maxPerDay).toBe(50)
+      expect(config.signup.rateLimitPerHour).toBe(10)
+    },
+  )
+
+  it('refuses a malformed signup setting even with SIGNUP=off', () => {
+    const issues = refusalIssues({ ...DEV, SIGNUP: 'off', SIGNUP_MAX_PER_DAY: 'lots' })
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatch(/^SIGNUP_MAX_PER_DAY: /)
+  })
+
+  it.each(['review', 'open'] as const)('accepts %s with the site role and a relay', (mode) => {
+    expect(loadConfig({ ...RELAY, SIGNUP: mode }).signup.mode).toBe(mode)
+  })
+
+  it('reads the ceilings and the notification address, normalised', () => {
+    const config = loadConfig({
+      ...RELAY,
+      SIGNUP: 'open',
+      SIGNUP_MAX_PER_DAY: '20',
+      SIGNUP_RATE_LIMIT_PER_HOUR: '4',
+      SIGNUP_NOTIFY_EMAIL: ' Pierre@Example.org ',
+    })
+
+    expect(config.signup).toEqual({
+      mode: 'open',
+      maxPerDay: 20,
+      rateLimitPerHour: 4,
+      notifyEmail: 'pierre@example.org',
+    })
+  })
+
+  it.each([
+    ['SIGNUP', 'sometimes'],
+    ['SIGNUP', 'OPEN'],
+    ['SIGNUP_MAX_PER_DAY', '0'],
+    ['SIGNUP_MAX_PER_DAY', '10001'],
+    ['SIGNUP_RATE_LIMIT_PER_HOUR', '0'],
+    ['SIGNUP_RATE_LIMIT_PER_HOUR', '1001'],
+    ['SIGNUP_NOTIFY_EMAIL', 'not an address'],
+    ['SIGNUP_NOTIFY_EMAIL', 'a@example.org,b@example.org'],
+  ])('refuses %s=%s, naming the variable', (name, value) => {
+    const issues = refusalIssues({ ...RELAY, [name]: value })
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatch(new RegExp(`^${name}: `))
+  })
+
+  it.each(['review', 'open'] as const)('refuses SIGNUP=%s without SITE_ADMIN=on', (mode) => {
+    const issues = refusalIssues({ ...RELAY, SITE_ADMIN: 'off', SIGNUP: mode })
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toContain(`SIGNUP=${mode} requires SITE_ADMIN=on`)
+  })
+
+  it.each([
+    ['no relay at all', { SMTP_URL: undefined, MAIL_FROM: undefined }],
+    ['a sender and no relay', { SMTP_URL: undefined }],
+  ])('refuses SIGNUP=open with %s: there is no proof of address', (_name, over) => {
+    const issues = refusalIssues({ ...RELAY, SIGNUP: 'open', ...over })
+
+    expect(
+      issues.some((issue) => issue.includes('SIGNUP=open requires SMTP_URL and MAIL_FROM')),
+    ).toBe(true)
+  })
+
+  it('names every missing piece at once', () => {
+    const issues = refusalIssues({ ...DEV, SIGNUP: 'review' })
+
+    expect(issues).toHaveLength(2)
+  })
+
+  it('refuses in production as well', () => {
+    const issues = refusalIssues(aProductionEnv({ SIGNUP: 'open' }))
+
+    expect(issues.some((issue) => issue.startsWith('SIGNUP: '))).toBe(true)
+  })
+
+  it('asks nothing of a box with SIGNUP=off, whatever else is missing', () => {
+    expect(loadConfig({ ...DEV, SIGNUP: 'off', SITE_ADMIN: 'off' }).signup.mode).toBe('off')
   })
 })

@@ -249,6 +249,8 @@ export interface ParsedMessage {
   readonly subject: string
   readonly text: string | null
   readonly html: string | null
+  /** The `Reply-To:` header, decoded, or `null` when there is none. */
+  readonly replyTo: string | null
 }
 
 /** `=XX` escapes to bytes, `_` to a space when `q` says so, then the bytes read as UTF-8. */
@@ -339,5 +341,6 @@ export const parseMessage = (raw: string): ParsedMessage => {
     subject,
     text: parts.find((part) => part.type === 'text/plain')?.text ?? null,
     html: parts.find((part) => part.type === 'text/html')?.text ?? null,
+    replyTo: headers.has('reply-to') ? decodeEncodedWords(headers.get('reply-to') ?? '') : null,
   }
 }

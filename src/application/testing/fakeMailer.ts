@@ -15,6 +15,8 @@ export interface SentMail {
   readonly text: string
   /** `null` when the message carried no HTML alternative. */
   readonly html: string | null
+  /** `null` when the message named no reply address. */
+  readonly replyTo: string | null
 }
 
 /**
@@ -55,6 +57,7 @@ export class FakeMailer implements Mailer {
       subject: mail.subject,
       text: mail.text,
       html: mail.html ?? null,
+      replyTo: mail.replyTo?.value ?? null,
     })
     return ok(undefined)
   }

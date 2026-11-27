@@ -55,6 +55,8 @@ import {
   operatorResetLinks,
   requireOperator2fa,
   siteAdmin,
+  signupMode,
+  signupNotifyEmail,
   smtpUrl,
 } from './featureFields'
 
@@ -599,6 +601,15 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       /** See {@link siteAdmin}. `off` unless the box says otherwise. */
       SITE_ADMIN: siteAdmin,
 
+      /** See {@link signupMode}. `off` unless the box says otherwise. */
+      SIGNUP: signupMode,
+      /** Confirmation mails the whole box sends per day (spec 31): the ceiling a flood can reach. */
+      SIGNUP_MAX_PER_DAY: z.preprocess(blankAsAbsent, positiveInt(50, 10_000)),
+      /** Signup requests per client address per hour. */
+      SIGNUP_RATE_LIMIT_PER_HOUR: z.preprocess(blankAsAbsent, positiveInt(10, 1_000)),
+      /** See {@link signupNotifyEmail}. */
+      SIGNUP_NOTIFY_EMAIL: signupNotifyEmail,
+
       /** See {@link sourceCodeUrl}. Absent means the tag of the running version upstream. */
       SOURCE_CODE_URL: sourceCodeUrl,
       /** See {@link sourceRef}. Set by the Dockerfile's build argument, never by hand. */
@@ -773,6 +784,26 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
           message:
             'MAIL_FROM is required when SMTP_URL is set: a relay will not accept a message with no sender, so every invitation would be refused',
         })
+      }
+
+      // Spec 31, ADR 0018: a signup form with no proof of address is the abuse inbox ROADMAP §10
+      // rejects, and one on a box with no operator has nobody to approve or answer. Not
+      // production-gated, and refused with every missing piece named at once.
+      if (raw.SIGNUP !== 'off') {
+        if (raw.SITE_ADMIN !== 'on') {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['SIGNUP'],
+            message: `SIGNUP=${raw.SIGNUP} requires SITE_ADMIN=on: the requests are read and answered in the operator console, which a box with SITE_ADMIN=off does not mount (docs/adr/0018-self-service-signup.md)`,
+          })
+        }
+        if (raw.SMTP_URL === undefined || raw.MAIL_FROM === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['SIGNUP'],
+            message: `SIGNUP=${raw.SIGNUP} requires SMTP_URL and MAIL_FROM: the address is proven by a mail before anyone looks at the request, and with no relay there is no proof (docs/adr/0018-self-service-signup.md)`,
+          })
+        }
       }
 
       // Not production-gated: a ceiling under the default is wrong in every environment,

@@ -10,6 +10,8 @@ import {
 } from '../../domain/clients/operatorGuard'
 import { JoinCode } from '../../domain/shared/joinCode'
 import { Password } from '../../domain/users/password'
+import { EmailAddress } from '../../domain/users/emailAddress'
+import { DEFAULT_SIGNUP_MODE, SIGNUP_MODES } from '../../domain/signups/signupMode'
 import { DEFAULT_PUSH_HOSTS, parsePushHosts } from '../../domain/push/pushEndpoint'
 import { parseMailbox, parseSmtpUrl } from '../mail/smtpEndpoint'
 import {
@@ -261,6 +263,38 @@ export const mailFrom = z.preprocess(
         return refuse(ctx, `MAIL_FROM ${parsed.error}`)
       }
       return parsed.value
+    })
+    .optional(),
+)
+
+/**
+ * `SIGNUP`: what the box does with the public signup form (spec 31, ADR 0018): `off`, `review` or
+ * `open`. **`off` is the default, here and on every box that never sets it**, so a self-hoster sees
+ * no form and no route. Same spelling convention as {@link siteAdmin}: exact words, blank or absent
+ * lands on `off` (the closed posture, so a template that rendered empty can only take the form
+ * away), anything else is a refusal that names the variable. `review` and `open` additionally
+ * require `SITE_ADMIN=on` and a relay (`SMTP_URL` + `MAIL_FROM`), in the refinement in `schema.ts`.
+ */
+export const signupMode = z.preprocess(
+  blankAsAbsent,
+  choice(SIGNUP_MODES).default(DEFAULT_SIGNUP_MODE),
+)
+
+/**
+ * `SIGNUP_NOTIFY_EMAIL`: where the operator is told that signups wait or happened (at most one mail
+ * an hour). Optional; blank is absent. Held as the normalised address; a value that is not one
+ * mailbox is refused without being repeated.
+ */
+export const signupNotifyEmail = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .transform((value, ctx) => {
+      const parsed = EmailAddress.create(value)
+      if (!parsed.ok) {
+        return refuse(ctx, 'SIGNUP_NOTIFY_EMAIL is not a single e-mail address')
+      }
+      return parsed.value.value
     })
     .optional(),
 )

@@ -77,9 +77,9 @@ into what is actually true (the row's wording, minus its link to this ADR):
 The row still says no to a billed, commercial product. **"Public self-service signup"**,
 the non-goal under §10's "Deliberately out of scope for this category", is untouched and
 keeps its meaning: clients of the instance arrive by invitation, never through an open
-registration form. An access-request page for the instance is a separate, **(planned)**
-decision, and when it is designed it has to be argued against that bullet, because a
-public write surface is exactly what the bullet rejects.
+registration form. An access-request page for the instance was a separate decision, and it
+is argued against that bullet in [ADR 0018](0018-self-service-signup.md): a request that
+proves its address and becomes an account only through the invitation, off by default.
 
 **ARCHITECTURE §1.** "One deployment, one box, one venue" is the default shape, not the
 only one roadmap §10.9 permits: with `SITE_ADMIN=on` one box serves several clients, each

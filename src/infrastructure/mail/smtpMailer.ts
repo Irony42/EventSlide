@@ -299,6 +299,9 @@ export const createSmtpMailer = ({
           subject: mail.subject,
           text: mail.text,
           ...(mail.html === undefined ? {} : { html: mail.html }),
+          ...(mail.replyTo === undefined
+            ? {}
+            : { replyTo: { name: '', address: mail.replyTo.value } }),
         }),
         timeouts.totalMs,
       )

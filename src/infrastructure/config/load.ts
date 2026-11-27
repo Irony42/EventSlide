@@ -378,6 +378,13 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       creation: raw.EVENT_CREATION,
     },
 
+    signup: {
+      mode: raw.SIGNUP,
+      maxPerDay: raw.SIGNUP_MAX_PER_DAY,
+      rateLimitPerHour: raw.SIGNUP_RATE_LIMIT_PER_HOUR,
+      notifyEmail: raw.SIGNUP_NOTIFY_EMAIL ?? null,
+    },
+
     mail: {
       // Both halves or none: the refinement above refuses a relay with no sender, and a
       // sender with no relay has nothing to send through, so it is dropped — and warned about.

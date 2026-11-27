@@ -1222,3 +1222,13 @@ applies **no migration** (the last is still 035) and adds no setting. Take the s
 ### The edge image
 
 - **Nothing to do for production.** Every push to `main` now also builds `ghcr.io/irony42/eventslide-edge` (tags `main` and `main-<commit>`, signed), a separate package for a test box. The product image is still published only by a release; keep `ghcr.io/irony42/eventslide:3.18.0` in `compose.yaml`.
+
+## Upgrading to 3.19
+
+3.19.0 is a minor release in preparation (not released yet). It adds a setting that is **off unless you set it** and breaks nothing.
+
+### Self-service signup (spec 31)
+
+- **Four optional settings**, read and checked at boot: `SIGNUP` (`off` by default, `review` or `open`), `SIGNUP_MAX_PER_DAY` (50), `SIGNUP_RATE_LIMIT_PER_HOUR` (10) and `SIGNUP_NOTIFY_EMAIL`. **Preview until the routes ship (later pull requests of 3.19)**: nothing uses them yet, and with none set nothing changes. But **a malformed value of any of the four refuses the boot, even with `SIGNUP=off`** (a typo in `SIGNUP`, a ceiling out of range, an address that is not a single mailbox); a blank value counts as absent.
+- **`SIGNUP=review` or `open` is refused at boot (exit 78)** without `SITE_ADMIN=on` and without both `SMTP_URL` and `MAIL_FROM`: with no relay there is no proof of address. `docs/adr/0018-self-service-signup.md` gives the reasoning.
+- No compose or reverse-proxy change.

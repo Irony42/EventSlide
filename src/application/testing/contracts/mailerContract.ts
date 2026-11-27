@@ -124,8 +124,18 @@ export const mailerContract = (
             subject: 'Your invitation',
             text: 'Open the link to choose a password.',
             html: null,
+            replyTo: null,
           },
         ])
+      })
+
+      it('carries the reply address when one is given, and none otherwise', async () => {
+        const result = await subject.mailer.send(
+          aMail({ replyTo: recipient('contact@example.org') }),
+        )
+
+        expect(result.ok).toBe(true)
+        expect((await subject.delivered())[0]?.replyTo).toBe('contact@example.org')
       })
 
       it('carries the HTML alternative beside the text when one is given', async () => {
@@ -190,6 +200,15 @@ export const mailerContract = (
         const result = await subject.mailer.send(aMail({ subject: injected }))
 
         expect(!result.ok && result.error.code).toBe('mail.subjectInvalid')
+        expect(await subject.delivered()).toEqual([])
+      })
+
+      it('refuses a reply address that is really a list', async () => {
+        const result = await subject.mailer.send(
+          aMail({ replyTo: forgedRecipient('a@example.org,b@example.com') }),
+        )
+
+        expect(!result.ok && result.error.code).toBe('mail.replyToInvalid')
         expect(await subject.delivered()).toEqual([])
       })
 
