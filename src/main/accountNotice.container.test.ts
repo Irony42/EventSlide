@@ -8,6 +8,9 @@ import { loadConfig } from '../infrastructure/config/env'
 import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
 import { SqliteUserRepository } from '../infrastructure/db/sqliteUserRepository'
 import { parseMessage, startSmtpSink, type SmtpSink } from '../infrastructure/mail/testing/smtpSink'
+import { decodeBase32 } from '../domain/users/base32'
+import { totpStepAt } from '../domain/users/totp'
+import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
 import { createContainer, type Container } from './container'
 
 /**
@@ -49,6 +52,7 @@ const boot = async (): Promise<Container> => {
       FFMPEG_PATH: join(workDir, 'no-ffmpeg-here'),
       FFPROBE_PATH: join(workDir, 'no-ffprobe-here'),
       SITE_ADMIN: 'on',
+      MFA_ENCRYPTION_KEY: Buffer.alloc(32, 11).toString('base64'),
       SMTP_URL: `smtp://127.0.0.1:${relay.port}`,
       MAIL_FROM: 'no-reply@photos.example.org',
       PUBLIC_URL: 'https://photos.example.org',
@@ -59,14 +63,9 @@ const boot = async (): Promise<Container> => {
   return container
 }
 
-/** The relay received `count` messages, or the test fails after a few seconds. */
-const received = async (count: number) => {
-  const deadline = Date.now() + 5000
-  while ((relay?.messages.length ?? 0) < count && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 25))
-  }
-  // A moment more: a mail that should not exist would arrive in it.
-  await new Promise((resolve) => setTimeout(resolve, 150))
+/** What the relay received once every account notice started so far is over. */
+const received = async (booted: Container) => {
+  await booted.usecases.accountNotice.idle()
   return (relay?.messages ?? []).map((message) => ({
     to: message.envelopeTo,
     subject: parseMessage(message.raw).subject ?? '',
@@ -98,7 +97,7 @@ describe('createContainer: the account notices (spec 32, A1)', () => {
     })
     expect(second.ok).toBe(true)
 
-    const mails = await received(1)
+    const mails = await received(booted)
 
     expect(mails).toHaveLength(1)
     expect(mails[0]?.to).toEqual([OPERATOR])
@@ -132,7 +131,8 @@ describe('createContainer: the account notices (spec 32, A1)', () => {
     })
 
     const finalised = await booted.usecases.finalizeOffboardedClients()
-    expect(finalised.accountsDeleted).toBeGreaterThanOrEqual(1)
+    expect(finalised.accountsDeleted).toBe(1)
+    expect(await received(booted)).toEqual([])
 
     const deleted = await booted.usecases.deleteAccount({
       userId: asUserId('22222222-2222-4222-8222-222222222222'),
@@ -140,11 +140,70 @@ describe('createContainer: the account notices (spec 32, A1)', () => {
     })
     expect(deleted.ok).toBe(true)
 
-    const mails = await received(1)
+    const mails = await received(booted)
 
     expect(mails).toHaveLength(1)
     expect(mails[0]?.to).toEqual(['personne@example.test'])
     expect(mails[0]?.subject).toBe('Votre compte EventSlide a été supprimé')
     expect(mails[0]?.text).not.toContain('password/forgot')
+  })
+
+  it('sends exactly one mail for each of the other acts: the composition wires every one', async () => {
+    const booted = await boot()
+    booted.db.prepare('UPDATE users SET must_change_password = 0').run()
+    const users = new SqliteUserRepository(booted.db)
+    await users.save(
+      aUser({ id: '22222222-2222-4222-8222-222222222222', email: 'membre@example.test' }),
+    )
+    const operator = asUserId(idOf(booted, OPERATOR))
+    const member = asUserId('22222222-2222-4222-8222-222222222222')
+    const subjectsSince = async (before: number) =>
+      (await received(booted)).slice(before).map((mail) => mail.subject)
+    let seen = 0
+    const next = async (): Promise<string[]> => {
+      const all = await subjectsSince(seen)
+      seen += all.length
+      return all
+    }
+
+    // disableAccount and enableAccount (the operator acts on a member).
+    await booted.usecases.disableAccount({
+      userId: member,
+      actor: { kind: 'operator', userId: operator },
+    })
+    expect(await next()).toEqual(['Votre compte EventSlide a été désactivé'])
+    await booted.usecases.enableAccount({
+      userId: member,
+      actor: { kind: 'operator', userId: operator },
+    })
+    expect(await next()).toEqual(['Votre compte EventSlide a été réactivé'])
+
+    // confirmTotpEnrollment, regenerateRecoveryCodes, disableSecondFactor (the operator's own factor).
+    const started = await booted.usecases.enrollTotp({ userId: operator, password: PASSWORD })
+    if (!started.ok) throw new Error('enrolment refused')
+    const secret = decodeBase32(started.value.secret)
+    if (secret === null) throw new Error('secret')
+    const confirmed = await booted.usecases.confirmTotpEnrollment({
+      userId: operator,
+      code: nodeTotpEngine.codeAt(secret, totpStepAt(new Date())),
+    })
+    expect(confirmed.ok).toBe(true)
+    expect(await next()).toEqual(['La vérification en deux étapes est activée'])
+    expect((await booted.usecases.regenerateRecoveryCodes({ userId: operator })).ok).toBe(true)
+    expect(await next()).toEqual(['Vos codes de secours ont été renouvelés'])
+    expect((await booted.usecases.disableSecondFactor({ userId: operator })).ok).toBe(true)
+    expect(await next()).toEqual(['La vérification en deux étapes est désactivée'])
+
+    // resetPassword: the request mails the link (not an account notice), the reset itself mails the holder once.
+    const asked = await booted.usecases.requestPasswordReset({ email: OPERATOR, locale: 'fr' })
+    if (!asked.ok) throw new Error('reset not asked')
+    await asked.value.completion
+    const link = (await received(booted)).slice(seen)
+    seen += link.length
+    const token = /\/password\/reset\/([A-Za-z0-9_-]+)/.exec(link.at(-1)?.text ?? '')?.[1]
+    if (token === undefined) throw new Error('no reset link was mailed')
+    const reset = await booted.usecases.resetPassword({ token, newPassword: SECOND })
+    expect(reset.ok).toBe(true)
+    expect(await next()).toEqual(['Votre mot de passe EventSlide a été réinitialisé'])
   })
 })

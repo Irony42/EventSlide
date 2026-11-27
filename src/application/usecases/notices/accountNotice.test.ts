@@ -100,7 +100,7 @@ describe('accountNotice', () => {
     expect(world.mailer.sent[0]?.subject).toBe('La vérification en deux étapes est activée')
   })
 
-  it('answers at the operator contact only for a disabling', async () => {
+  it('answers at the operator contact for a disabling and an enabling, and for no other act', async () => {
     const world = build({ contact: CONTACT })
 
     world.notice.notify(HOST, 'accountDisabled')
@@ -109,7 +109,7 @@ describe('accountNotice', () => {
 
     const byKind = new Map(world.mailer.sent.map((mail) => [mail.subject, mail.replyTo]))
     expect(byKind.get('Votre compte EventSlide a été désactivé')).toBe('contact@example.test')
-    expect(byKind.get('Votre compte EventSlide a été réactivé')).toBeNull()
+    expect(byKind.get('Votre compte EventSlide a été réactivé')).toBe('contact@example.test')
   })
 
   it('reads and sends nothing without a relay', async () => {
@@ -205,6 +205,31 @@ describe('accountNotice', () => {
     expect(logged).not.toContain('example.test')
   })
 
+  it('sends the mail even when the budget cannot be written, and logs the failure by name only', async () => {
+    const world = build()
+    const notice = makeAccountNotice({
+      users: world.users,
+      clients: world.clients,
+      mailer: world.mailer,
+      budget: {
+        count: async () => {
+          throw new Error('cannot write hote@example.test')
+        },
+      },
+      clock: new FakeClock(AT),
+      logger: world.logger,
+      publicUrl: 'https://photos.example.test',
+      operatorContact: null,
+    })
+
+    notice.notify(HOST, 'passwordChanged')
+    await notice.idle()
+
+    expect(world.mailer.sent).toHaveLength(1)
+    expect(JSON.stringify(world.logger.lines)).toContain('an account notice failed')
+    expect(JSON.stringify(world.logger.lines)).not.toContain('example.test')
+  })
+
   it('catches a failure while reading the account and while sending, as an Error or as text', async () => {
     const reading = build({
       users: {
@@ -215,7 +240,8 @@ describe('accountNotice', () => {
     })
     reading.notice.notify(HOST, 'passwordChanged')
     await reading.notice.idle()
-    expect(JSON.stringify(reading.logger.lines)).toContain('database is locked')
+    expect(JSON.stringify(reading.logger.lines)).toContain('Error')
+    expect(JSON.stringify(reading.logger.lines)).not.toContain('database is locked')
 
     const sending = build({
       mailer: {
@@ -227,7 +253,7 @@ describe('accountNotice', () => {
     })
     sending.notice.notify(HOST, 'passwordChanged')
     await sending.notice.idle()
-    expect(JSON.stringify(sending.logger.lines)).toContain('plain')
+    expect(JSON.stringify(sending.logger.lines)).toContain('unknown')
   })
 
   it('does not make the caller wait: notify returns at once, the mail is a completion', async () => {
