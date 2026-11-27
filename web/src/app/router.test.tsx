@@ -174,7 +174,9 @@ describe('the client space address', () => {
           user: aSessionUser(),
         })),
         about: vi.fn(async () =>
-          anAbout({ features: { siteAdmin, forgotPassword: false, signup: 'off' } }),
+          anAbout({
+            features: { siteAdmin, forgotPassword: false, hostMail: false, signup: 'off' },
+          }),
         ),
         myLimits: vi.fn(async () => ({ clients: [aClientLimits()] })),
       }),
@@ -302,7 +304,9 @@ describe('the signup addresses', () => {
       route,
       api: fakeApi({
         about: vi.fn(async () =>
-          anAbout({ features: { siteAdmin: false, forgotPassword: false, signup: 'open' } }),
+          anAbout({
+            features: { siteAdmin: false, forgotPassword: false, hostMail: false, signup: 'open' },
+          }),
         ),
       }),
     })

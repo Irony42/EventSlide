@@ -395,7 +395,7 @@ describe('AccountMenu: erasing one’s own account', () => {
         user: aSessionUser({ canOperateSite }),
       })),
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin, forgotPassword: false, signup: 'off' } }),
+        anAbout({ features: { siteAdmin, forgotPassword: false, hostMail: false, signup: 'off' } }),
       ),
     })
 
@@ -433,7 +433,7 @@ describe('AccountMenu: the client space', () => {
   const onBox = (clients: ReturnType<typeof aClientLimits>[], siteAdmin = true) =>
     signedIn({
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin, forgotPassword: false, signup: 'off' } }),
+        anAbout({ features: { siteAdmin, forgotPassword: false, hostMail: false, signup: 'off' } }),
       ),
       myLimits: vi.fn(async () => ({ clients })),
     })
@@ -469,7 +469,9 @@ describe('AccountMenu: the client space', () => {
   it('asks nothing of somebody who is not signed in', async () => {
     const api = fakeApi({
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+        anAbout({
+          features: { siteAdmin: true, forgotPassword: false, hostMail: false, signup: 'off' },
+        }),
       ),
       myLimits: vi.fn(async () => ({ clients: [aClientLimits()] })),
     })
@@ -558,7 +560,9 @@ describe('AccountMenu: security, the current page and a forced password change',
         { canOperateSite: true },
         {
           about: vi.fn(async () =>
-            anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+            anAbout({
+              features: { siteAdmin: true, forgotPassword: false, hostMail: false, signup: 'off' },
+            }),
           ),
         },
       ),
@@ -608,7 +612,9 @@ describe('AccountMenu: security, the current page and a forced password change',
         { mustChangePassword: true },
         {
           about: vi.fn(async () =>
-            anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+            anAbout({
+              features: { siteAdmin: true, forgotPassword: false, hostMail: false, signup: 'off' },
+            }),
           ),
         },
       )

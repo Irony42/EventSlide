@@ -594,6 +594,7 @@ describe('createContainer: the source offer reaches /api/about', () => {
     expect(response.body.features).toEqual({
       siteAdmin: flag,
       forgotPassword: false,
+      hostMail: false,
       signup: 'off',
     })
   })
@@ -1469,7 +1470,9 @@ describe('createContainer: a forgotten password', () => {
     await Promise.all(relays.splice(0).map((relay) => relay.close()))
   })
 
-  const bootWithRelay = async (): Promise<{
+  const bootWithRelay = async (
+    extra: Record<string, string> = {},
+  ): Promise<{
     app: Container['app']
     relay: SmtpSink
     db: Container['db']
@@ -1482,6 +1485,7 @@ describe('createContainer: a forgotten password', () => {
       PUBLIC_URL: 'https://photos.example.org',
       BOOTSTRAP_OWNER_EMAIL: OWNER,
       BOOTSTRAP_OWNER_PASSWORD: OLD_PASSWORD,
+      ...extra,
     })
     return { app: booted.app, relay, db: booted.db }
   }
@@ -1517,6 +1521,14 @@ describe('createContainer: a forgotten password', () => {
     const withRelay = await bootWithRelay()
     const answered = await request(withRelay.app).get('/api/about')
     expect(answered.body.features.forgotPassword).toBe(true)
+  })
+
+  it('states hostMail=true when the box has a relay, and false once HOST_MAIL_NOTICES is off (spec 32)', async () => {
+    const withRelay = await bootWithRelay()
+    expect((await request(withRelay.app).get('/api/about')).body.features.hostMail).toBe(true)
+
+    const switchedOff = await bootWithRelay({ HOST_MAIL_NOTICES: 'off' })
+    expect((await request(switchedOff.app).get('/api/about')).body.features.hostMail).toBe(false)
   })
 
   it('answers 404 feature.unavailable, and issues nothing, on a box with no relay', async () => {

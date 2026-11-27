@@ -1460,6 +1460,12 @@ export interface AboutFeaturesDto {
    * sign-in page offers "Create an account" unless it is `off`. Always present.
    */
   readonly signup: SignupMode
+  /**
+   * The box writes the follow-up mails to its hosts (spec 32, ADR 0019): it can deliver mail
+   * (`SMTP_URL` and `MAIL_FROM`) **and** `HOST_MAIL_NOTICES` is not `off`. The account page offers its two
+   * "E-mails" switches, and an event's page the daily summary, only when this is `true`. Always present.
+   */
+  readonly hostMail: boolean
 }
 
 /**

@@ -131,7 +131,7 @@ describe('GET /api/about', () => {
       license: 'AGPL-3.0-only',
       sourceUrl: SOURCE_URL,
       links: {},
-      features: { siteAdmin: false, forgotPassword: false, signup: 'off' },
+      features: { siteAdmin: false, forgotPassword: false, hostMail: false, signup: 'off' },
     })
   })
 
@@ -408,6 +408,32 @@ describe('GET /api/about', () => {
   })
 
   /**
+   * Whether the box writes the follow-up mails to its hosts (spec 32): a relay that delivers and
+   * `HOST_MAIL_NOTICES` not off. The account's "E-mails" switches are offered only then, so the flag
+   * cannot say more than the box can do.
+   */
+  describe('features.hostMail', () => {
+    const aboutWith = async (canDeliver: boolean, hostMailNotices: boolean) =>
+      (
+        await request(
+          buildServerHarness({ about, mailer: { canDeliver }, config: { hostMailNotices } }).app,
+        ).get('/api/about')
+      ).body.features.hostMail
+
+    it.each([
+      [true, true, true],
+      [true, false, false],
+      [false, true, false],
+      [false, false, false],
+    ])(
+      'with a relay that delivers=%s and HOST_MAIL_NOTICES on=%s says %s',
+      async (canDeliver, notices, expected) => {
+        expect(await aboutWith(canDeliver, notices)).toBe(expected)
+      },
+    )
+  })
+
+  /**
    * Whether a visitor may ask for an account (spec 31). The sign-in page offers "Create an account" unless
    * this is `off`, so it must say exactly what `SIGNUP` says and agree with the route it stands for.
    */
@@ -428,6 +454,7 @@ describe('GET /api/about', () => {
       expect(response.body.features).toEqual({
         siteAdmin: false,
         forgotPassword: false,
+        hostMail: false,
         signup: 'off',
       })
     })
@@ -440,6 +467,7 @@ describe('GET /api/about', () => {
       expect(response.body.features).toEqual({
         siteAdmin: true,
         forgotPassword: false,
+        hostMail: false,
         signup: 'off',
       })
     })

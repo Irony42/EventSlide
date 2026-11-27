@@ -151,6 +151,12 @@ export interface HttpConfig {
    */
   readonly signup: { readonly mode: SignupMode; readonly rateLimitPerHour: number }
   /**
+   * `HOST_MAIL_NOTICES` is not `off` (spec 32, ADR 0019). With a mailer that delivers it is
+   * `features.hostMail` in `/api/about` and `available` in `GET /api/me/mail-preferences`: whether the
+   * account's "E-mails" switches mean anything on this box.
+   */
+  readonly hostMailNotices: boolean
+  /**
    * What `provisionClientOwner` gives a client whose operator named no ceiling (`NEW_CLIENT_*`,
    * G2-18). Read by one route, `GET /api/site/client-defaults`, which shows it to the operator's
    * console as the form's starting values; the use case holds its own copy from the same

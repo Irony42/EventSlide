@@ -986,6 +986,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     e2eHooks: config.e2eHooks,
     siteAdmin: config.siteAdmin,
     signup: { mode: config.signup.mode, rateLimitPerHour: config.signup.rateLimitPerHour },
+    hostMailNotices: config.hostMail.notices === 'on',
     newClientCeilings: config.newClientCeilings,
     secondFactor: {
       available: config.mfa.encryptionKey !== null,

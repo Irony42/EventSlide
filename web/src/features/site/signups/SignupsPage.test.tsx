@@ -46,7 +46,9 @@ const withSignups = (
   const pendingCount = byStatus.pending?.length ?? 0
   return consoleApi({
     about: vi.fn(async () =>
-      anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: mode } }),
+      anAbout({
+        features: { siteAdmin: true, forgotPassword: false, hostMail: false, signup: mode },
+      }),
     ),
     siteSignups: vi.fn(async (status: SiteSignupStatus): Promise<SiteSignupPageDto> => ({
       items: byStatus[status] ?? [],

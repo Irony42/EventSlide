@@ -60,6 +60,8 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
   siteAdmin: false,
   // Off, as on a box that never set `SIGNUP`.
   signup: { mode: 'off', rateLimitPerHour: 10 },
+  // On, as on a box that never set `HOST_MAIL_NOTICES`: with the default harness mailer (none) nothing is offered.
+  hostMailNotices: true,
   // No ceiling for a new client, as on a box that set no `NEW_CLIENT_*`.
   newClientCeilings: {
     maxEvents: null,

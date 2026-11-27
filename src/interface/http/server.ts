@@ -155,6 +155,8 @@ export const buildServer = ({
       siteAdmin: config.siteAdmin,
       forgotPassword: deps.mailer.canDeliver,
       signup: config.signup.mode,
+      // Spec 32: the mails to the host exist on this box only with a relay and the switch left on.
+      hostMail: deps.mailer.canDeliver && config.hostMailNotices,
     }),
   )
 

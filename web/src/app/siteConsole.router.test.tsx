@@ -31,7 +31,9 @@ const ordinaryHost = () =>
 const operatorOnBoxWithoutConsole = () =>
   consoleApi({
     about: vi.fn(async () =>
-      anAbout({ features: { siteAdmin: false, forgotPassword: false, signup: 'off' } }),
+      anAbout({
+        features: { siteAdmin: false, forgotPassword: false, hostMail: false, signup: 'off' },
+      }),
     ),
   })
 
@@ -125,7 +127,11 @@ describe('the console’s address', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(fr.app.loading)
     expect(screen.queryByRole('heading', { name: fr.shell.notFoundTitle })).toBeNull()
 
-    answer(anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }))
+    answer(
+      anAbout({
+        features: { siteAdmin: true, forgotPassword: false, hostMail: false, signup: 'off' },
+      }),
+    )
 
     expect(await screen.findByRole('heading', { name: fr.site.clientsTitle })).toBeVisible()
     expect(screen.queryByRole('heading', { name: fr.shell.notFoundTitle })).toBeNull()

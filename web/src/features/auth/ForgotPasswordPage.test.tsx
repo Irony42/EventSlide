@@ -14,7 +14,9 @@ import type { Locale } from '../../lib/i18n/locale'
 const withMail = (api: Api): Api => ({
   ...api,
   about: vi.fn(async () =>
-    anAbout({ features: { siteAdmin: false, forgotPassword: true, signup: 'off' } }),
+    anAbout({
+      features: { siteAdmin: false, forgotPassword: true, hostMail: false, signup: 'off' },
+    }),
   ),
 })
 
@@ -36,7 +38,9 @@ describe('ForgotPasswordPage on a box with no mail relay', () => {
   const renderWithoutMail = () => {
     const api = fakeApi({
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin: false, forgotPassword: false, signup: 'off' } }),
+        anAbout({
+          features: { siteAdmin: false, forgotPassword: false, hostMail: false, signup: 'off' },
+        }),
       ),
     })
     renderWithProviders(
