@@ -72,9 +72,9 @@ export function AccountMenu() {
   // the account is in one.
   const mustChange = session?.authenticated === true && session.user.mustChangePassword
   const { clients } = useClientLimits(session?.authenticated === true && !mustChange)
-  const consoleExists = useAbout().features.siteAdmin
-  // The page also holds the account's e-mail switches, which mean something only where the box writes to its hosts (spec 32).
-  const hostMail = useAbout().features.hostMail
+  // `hostMail`: the security page also holds the account's e-mail switches, which mean something
+  // only where the box writes to its hosts (spec 32).
+  const { siteAdmin: consoleExists, hostMail } = useAbout().features
 
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)

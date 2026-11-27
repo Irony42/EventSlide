@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../lib/http'
@@ -56,40 +56,92 @@ describe('MailPreferencesSection', () => {
     expect(screen.getByRole('checkbox', { name: t.rsvpLabel })).toBeChecked()
   })
 
-  it('says it could not, keeps the box where it was, and lets the person try again', async () => {
+  it('groups the two switches under a legend', async () => {
+    render()
+
+    const group = await screen.findByRole('group', { name: t.legend })
+
+    expect(within(group).getAllByRole('checkbox')).toHaveLength(2)
+  })
+
+  it('shows the choice at once and says it is saving, then says nothing and is not busy', async () => {
+    const pending = deferred<void>()
+    render({ setMailPreferences: vi.fn(() => pending.promise) })
+    const region = await screen.findByRole('region', { name: t.title })
+    expect(region).toHaveAttribute('aria-busy', 'false')
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+
+    await userEvent.click(screen.getByRole('checkbox', { name: t.rsvpLabel }))
+
+    expect(screen.getByRole('checkbox', { name: t.rsvpLabel })).not.toBeChecked()
+    expect(screen.getByRole('status')).toHaveTextContent(t.saving)
+    expect(region).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('checkbox', { name: t.rsvpLabel })).toBeEnabled()
+
+    pending.resolve()
+    await waitFor(() => expect(region).toHaveAttribute('aria-busy', 'false'))
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    expect(screen.getByRole('checkbox', { name: t.rsvpLabel })).not.toBeChecked()
+  })
+
+  it('does not lose the other switch pressed while the first one saves, and waits on a second press of the same one', async () => {
+    const pending = deferred<void>()
+    const setMailPreferences = vi.fn(() => pending.promise)
+    render({ setMailPreferences })
+    await screen.findByRole('checkbox', { name: t.rsvpLabel })
+
+    await userEvent.click(screen.getByRole('checkbox', { name: t.rsvpLabel }))
+    await userEvent.click(screen.getByRole('checkbox', { name: t.eventLabel }))
+    await userEvent.click(screen.getByRole('checkbox', { name: t.rsvpLabel }))
+
+    expect(setMailPreferences.mock.calls).toEqual([[{ rsvp: false }], [{ event: false }]])
+    expect(screen.getByRole('checkbox', { name: t.rsvpLabel })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: t.eventLabel })).not.toBeChecked()
+    pending.resolve()
+  })
+
+  it('puts the box back and says so next to it when a write fails, keeps the notice while the other switch succeeds, and clears it when that switch is tried again', async () => {
     const setMailPreferences = vi
-      .fn<() => Promise<void>>()
+      .fn<(patch: { rsvp?: boolean; event?: boolean }) => Promise<void>>()
       .mockRejectedValueOnce(new ApiError(500, 'server.error'))
       .mockResolvedValue(undefined)
     render({ setMailPreferences })
-    const box = await screen.findByRole('checkbox', { name: t.rsvpLabel })
+    await screen.findByRole('checkbox', { name: t.rsvpLabel })
 
-    await userEvent.click(box)
+    await userEvent.click(screen.getByRole('checkbox', { name: t.rsvpLabel }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(t.failed)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(t.failed)
     expect(screen.getByRole('checkbox', { name: t.rsvpLabel })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: t.rsvpLabel })).toHaveAccessibleDescription(
+      new RegExp(t.failed),
+    )
+    expect(screen.getByRole('checkbox', { name: t.eventLabel })).not.toHaveAccessibleDescription(
+      new RegExp(t.failed),
+    )
+
+    await userEvent.click(screen.getByRole('checkbox', { name: t.eventLabel }))
+    await waitFor(() => expect(setMailPreferences).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('alert')).toHaveTextContent(t.failed)
 
     await userEvent.click(screen.getByRole('checkbox', { name: t.rsvpLabel }))
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
     expect(screen.getByRole('checkbox', { name: t.rsvpLabel })).not.toBeChecked()
   })
 
-  it('is busy while it saves, keeps its boxes enabled, and ignores a second press meanwhile', async () => {
-    const pending = deferred<void>()
-    const setMailPreferences = vi.fn(() => pending.promise)
-    render({ setMailPreferences })
-    const box = await screen.findByRole('checkbox', { name: t.rsvpLabel })
+  it('says the choices could not be read, instead of hiding the section, and reads again on request', async () => {
+    const mailPreferences = vi
+      .fn<() => Promise<{ rsvp: boolean; event: boolean; available: boolean }>>()
+      .mockRejectedValueOnce(new ApiError(500, 'server.error'))
+      .mockResolvedValue({ rsvp: true, event: true, available: true })
+    render({ mailPreferences })
 
-    await userEvent.click(box)
-    await userEvent.click(screen.getByRole('checkbox', { name: t.eventLabel }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.loadFailed)
+    expect(screen.queryByRole('checkbox')).toBeNull()
 
-    expect(setMailPreferences).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('region', { name: t.title })).toHaveAttribute('aria-busy', 'true')
-    expect(screen.getByRole('checkbox', { name: t.rsvpLabel })).toBeEnabled()
+    await userEvent.click(screen.getByRole('button', { name: t.retry }))
 
-    pending.resolve()
-    await waitFor(() =>
-      expect(screen.getByRole('region', { name: t.title })).toHaveAttribute('aria-busy', 'false'),
-    )
+    expect(await screen.findByRole('checkbox', { name: t.rsvpLabel })).toBeVisible()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

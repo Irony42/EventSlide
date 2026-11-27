@@ -2327,17 +2327,21 @@ export const it: UiText = {
     securityMenu: 'Sicurezza ed e-mail',
     mailPreferences: {
       title: 'E-mail',
+      legend: 'Avvisarmi via e-mail di',
       intro:
         'Le e-mail che questo server le scrive sui suoi eventi. Contengono solo cifre e le sue parole, mai il nome, la dieta o il messaggio di un ospite.',
       rsvpLabel: 'Risposte degli ospiti',
       rsvpHint:
-        'Il promemoria prima della scadenza, il riepilogo dopo la scadenza e «tutti i posti sono occupati». Il riepilogo giornaliero si spunta evento per evento, nella pagina delle risposte.',
-      eventLabel: 'La vita dei suoi eventi',
+        'Il promemoria prima della scadenza, il riepilogo quando le risposte sono chiuse e l’avviso «completo» quando tutti i posti sono occupati. Il riepilogo giornaliero si spunta evento per evento, nella pagina delle risposte.',
+      eventLabel: 'Vita dei suoi eventi',
       eventHint:
-        'Un archivio, un libro fotografico o un film pronto, la fine di un evento con le sue cifre, la chiusura del muro entro un giorno, un invito accettato.',
+        'Un archivio, un libro fotografico o un film pronto, la fine di un evento con le sue cifre, il muro che sta per chiudersi entro un giorno, un invito accettato.',
       always:
         'Qualunque cosa spunti qui, riceve sempre le e-mail di sicurezza del suo account (password, verifica in due passaggi, account disattivato o eliminato) e l’avviso prima della cancellazione delle risposte.',
+      saving: 'Salvataggio…',
       failed: 'Non è stato possibile salvare la scelta. Riprovi tra un momento.',
+      loadFailed: 'Non è stato possibile leggere le sue scelte e-mail.',
+      retry: 'Riprova',
     },
     securityUnavailable:
       'Questo server non ha una chiave di cifratura per la verifica in due passaggi. Chieda al suo amministratore di configurarla.',

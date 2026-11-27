@@ -7,6 +7,8 @@ export interface CheckboxFieldProps {
   readonly onChange: (checked: boolean) => void
   readonly hint?: string
   readonly disabled?: boolean
+  /** The id of another element that describes this box too (a failure beside it), after its hint. */
+  readonly describedBy?: string
 }
 
 /**
@@ -23,8 +25,15 @@ export function CheckboxField({
   onChange,
   hint,
   disabled = false,
+  describedBy,
 }: CheckboxFieldProps) {
   const hintId = `${useId()}-hint`
+  const described =
+    hint !== undefined && describedBy !== undefined
+      ? `${hintId} ${describedBy}`
+      : hint !== undefined
+        ? hintId
+        : describedBy
 
   return (
     <div className={styles['field']}>
@@ -36,7 +45,7 @@ export function CheckboxField({
           disabled={disabled}
           // The hint is described, not named: folding it into the label would make a
           // screen reader read the whole sentence every time focus lands on the box.
-          {...(hint === undefined ? {} : { 'aria-describedby': hintId })}
+          {...(described === undefined ? {} : { 'aria-describedby': described })}
           onChange={(event) => onChange(event.target.checked)}
         />
         <span className={styles['label']}>{label}</span>

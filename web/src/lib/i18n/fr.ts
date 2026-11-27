@@ -2419,17 +2419,21 @@ export const fr = {
     securityMenu: 'Sécurité et e-mails',
     mailPreferences: {
       title: 'E-mails',
+      legend: 'Me prévenir par e-mail de',
       intro:
         'Les e-mails que ce serveur vous écrit au sujet de vos évènements. Ils ne portent que des chiffres et vos propres mots, jamais le nom, le régime ou le mot d’un invité.',
-      rsvpLabel: 'Les réponses des invités',
+      rsvpLabel: 'Réponses des invités',
       rsvpHint:
-        'Le rappel avant la date limite, le récapitulatif après la date limite et « tout est complet ». Le résumé quotidien se coche évènement par évènement, sur la page des réponses.',
-      eventLabel: 'La vie de vos évènements',
+        'Le rappel avant la date limite, le résumé une fois les réponses closes et l’avis « complet » quand toutes les places sont prises. Le résumé quotidien se coche évènement par évènement, sur la page des réponses.',
+      eventLabel: 'Vie de vos évènements',
       eventHint:
         'Une archive, un livre photo ou un film prêt, la fin d’un évènement avec ses chiffres, le mur qui va se fermer dans la journée, une invitation acceptée.',
       always:
         'Quoi que vous cochiez ici, vous recevez toujours les e-mails de sécurité de votre compte (mot de passe, vérification en deux étapes, compte désactivé ou supprimé) et l’avertissement avant l’effacement des réponses.',
+      saving: 'Enregistrement…',
       failed: 'Le choix n’a pas pu être enregistré. Réessayez dans un instant.',
+      loadFailed: 'Les choix d’e-mails n’ont pas pu être lus.',
+      retry: 'Réessayer',
     },
     securityUnavailable:
       'Ce serveur n’a pas de clé de chiffrement pour la vérification en deux étapes. Demandez à son administrateur de la configurer.',
