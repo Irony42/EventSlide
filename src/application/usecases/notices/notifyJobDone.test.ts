@@ -173,6 +173,17 @@ describe('notifyJobDone (A2)', () => {
     expect(unknown.mailer.sent).toHaveLength(2)
   })
 
+  it('honours the event switch of the owner who asked for the archive: nobody is written to instead', async () => {
+    const world = await build()
+    await world.preferences.save(CO_HOST, { event: false })
+
+    world.hook.notify(finished({ job: 'archive', requestedBy: CO_HOST }))
+    await world.hook.idle()
+
+    expect(world.mailer.sent).toEqual([])
+    expect(world.ledger.noted).toHaveLength(1)
+  })
+
   it('does not narrow a book or a film to anybody: nobody asked for it by name', async () => {
     for (const job of ['book', 'reel'] as const) {
       const world = await build()
