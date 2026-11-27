@@ -70,6 +70,11 @@ const UNCALLED: Readonly<Record<string, string>> = {
     'the highlights tallies (`GET /api/events/:slug/top-photos`, roadmap 2.5, a future highlights ' +
     "reel): whether the screen is built or the method deleted is Pierre's decision, recorded in " +
     'the pull request that wrote this guard',
+  // Spec 31: the signup pages that call these arrive with the web pull request of the same spec (PR 5), which
+  // removes these three entries.
+  requestSignup: 'called by the signup form (spec 31, PR 5)',
+  signupPreview: 'called by the confirmation page (spec 31, PR 5)',
+  confirmSignup: 'called by the confirmation page (spec 31, PR 5)',
 }
 
 const METHODS = Object.keys(api)
