@@ -98,6 +98,15 @@ function SignInForm() {
   // The sign-in went through and the landing is being read: the form stays, busy.
   const [arriving, setArriving] = useState(false)
 
+  // The way back in for somebody who has lost the password, when the box can say who resets it.
+  const forgotNote = features.forgotPassword ? (
+    <Link to="/password/forgot">{t.auth.forgotLink}</Link>
+  ) : heard ? (
+    // A box with no mail relay has no reset link to send: say who resets it instead of
+    // leaving a host who has forgotten the password with nowhere to look.
+    <span>{t.auth.forgotNoMail}</span>
+  ) : null
+
   const goHome = () => {
     setArriving(true)
     void resolveLanding({ state: location.state }).then((path) => navigate(path, { replace: true }))
@@ -140,13 +149,14 @@ function SignInForm() {
       submitLabel={t.auth.submit}
       onSubmit={handleSubmit}
       footer={
-        features.forgotPassword ? (
-          <Link to="/password/forgot">{t.auth.forgotLink}</Link>
-        ) : heard ? (
-          // A box with no mail relay has no reset link to send: say who resets it instead of
-          // leaving a host who has forgotten the password with nowhere to look.
-          <span>{t.auth.forgotNoMail}</span>
-        ) : null
+        <>
+          {forgotNote}
+          {features.signup === 'off' ? null : (
+            <span>
+              {t.signup.loginPrompt} <Link to="/signup">{t.signup.loginLink}</Link>
+            </span>
+          )}
+        </>
       }
     >
       <Field label={t.auth.email}>

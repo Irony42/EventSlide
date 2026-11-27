@@ -251,7 +251,7 @@ describe("LoginPage: 'Mot de passe oublié ?'", () => {
   const canMail = (canMail: boolean) =>
     fakeApi({
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin: false, forgotPassword: canMail } }),
+        anAbout({ features: { siteAdmin: false, forgotPassword: canMail, signup: 'off' } }),
       ),
     })
 
@@ -357,7 +357,9 @@ describe('LoginPage: where the host lands', () => {
     })
 
   const aboutWithConsole = () =>
-    vi.fn(async () => anAbout({ features: { siteAdmin: true, forgotPassword: false } }))
+    vi.fn(async () =>
+      anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+    )
 
   const original = window.matchMedia
   afterEach(() => {
@@ -536,7 +538,9 @@ describe('LoginPage: a session that is still good (H13)', () => {
 describe('LoginPage: the small ways out (H16)', () => {
   const mailAbout = (forgotPassword: boolean) =>
     fakeApi({
-      about: vi.fn(async () => anAbout({ features: { siteAdmin: false, forgotPassword } })),
+      about: vi.fn(async () =>
+        anAbout({ features: { siteAdmin: false, forgotPassword, signup: 'off' } }),
+      ),
     })
 
   it('says how a forgotten password is handled on a box that cannot send mail', async () => {
@@ -653,7 +657,9 @@ describe('LoginPage: the landing of a session that is still good (H13), on the d
     render(
       fakeApi({
         session: operator(),
-        about: vi.fn(async () => anAbout({ features: { siteAdmin: true, forgotPassword: false } })),
+        about: vi.fn(async () =>
+          anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+        ),
       }),
     )
 
@@ -708,5 +714,35 @@ describe('LoginPage: the landing of a session that is still good (H13), on the d
     await signIn()
 
     expect(await screen.findByText('Arrivé /admin')).toBeVisible()
+  })
+})
+
+describe('LoginPage: « Pas encore de compte ? Créer un compte »', () => {
+  const withSignup = (signup: 'off' | 'review' | 'open') =>
+    fakeApi({
+      about: vi.fn(async () =>
+        anAbout({ features: { siteAdmin: false, forgotPassword: false, signup } }),
+      ),
+    })
+
+  it.each(['review', 'open'] as const)(
+    'offers the way to /signup when the box is in %s mode',
+    async (mode) => {
+      renderLogin(withSignup(mode))
+
+      expect(await screen.findByRole('link', { name: fr.signup.loginLink })).toHaveAttribute(
+        'href',
+        '/signup',
+      )
+    },
+  )
+
+  it('offers nothing when signup is off', async () => {
+    const api = withSignup('off')
+    renderLogin(api)
+
+    await screen.findByLabelText(fr.auth.email)
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+    expect(screen.queryByRole('link', { name: fr.signup.loginLink })).toBeNull()
   })
 })

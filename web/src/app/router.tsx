@@ -217,6 +217,15 @@ const AcceptInvitationPage = lazy(async () => ({
 const ForgotPasswordPage = lazy(async () => ({
   default: (await import('../features/auth/ForgotPasswordPage')).ForgotPasswordPage,
 }))
+const SignupPage = lazy(async () => ({
+  default: (await import('../features/auth/signup/SignupPage')).SignupPage,
+}))
+const SignupSentPage = lazy(async () => ({
+  default: (await import('../features/auth/signup/SignupSentPage')).SignupSentPage,
+}))
+const SignupConfirmPage = lazy(async () => ({
+  default: (await import('../features/auth/signup/SignupConfirmPage')).SignupConfirmPage,
+}))
 const ResetPasswordPage = lazy(async () => ({
   default: (await import('../features/auth/ResetPasswordPage')).ResetPasswordPage,
 }))
@@ -526,6 +535,15 @@ export function AppRoutes() {
           <Route
             path="/password/reset/:token"
             element={titled('resetPassword', <ResetPasswordPage />)}
+          />
+
+          {/* Signing up (spec 31): no session behind them either. The token is the last segment of
+              the confirmation address; `/signup/confirm` alone is the catch-all's. */}
+          <Route path="/signup" element={titled('signup', <SignupPage />)} />
+          <Route path="/signup/sent" element={titled('signupSent', <SignupSentPage />)} />
+          <Route
+            path="/signup/confirm/:token"
+            element={titled('signupConfirm', <SignupConfirmPage />)}
           />
 
           <Route element={<RequireAuth />}>

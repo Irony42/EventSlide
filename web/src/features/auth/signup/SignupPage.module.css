@@ -1,0 +1,25 @@
+/*
+ * The honeypot: out of sight for people (off-screen, not `display: none`, which a bot that reads
+ * styles skips) and out of the accessibility tree (`aria-hidden` on the wrapper, `tabindex=-1`
+ * on the box), so nobody who can see or hear this page ever fills it.
+ */
+.trap {
+  position: absolute;
+  inset-inline-start: -10000px;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+}
+
+/* Under the button, on a line of its own inside the actions row. */
+.footer {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  gap: var(--space-3);
+}
+
+.notice {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}

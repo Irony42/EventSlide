@@ -2182,6 +2182,48 @@ export const en: UiText = {
     insecure: 'This address is not secure: your guests will not be able to record',
   },
 
+  /* ---- Added by spec 31: signing up for an account by oneself. ---- */
+  signup: {
+    title: 'Create an account',
+    intro: 'An address, the name of your space, and a confirmation link waits in your inbox.',
+    clientName: 'Name of your space',
+    clientNameHint:
+      'For example “Léa and Hugo’s wedding” or “The Nimble Feet Club”. 80 characters at most.',
+    clientNameMissing: 'Give your space a name.',
+    note: 'What is the occasion?',
+    noteHint:
+      'A few words about your event. 300 characters at most. Do not write anything sensitive (health, religion…): this text is only used to open your account.',
+    eventDate: 'Date of the event',
+    submit: 'Create my account',
+    notice:
+      'Your address is only used to write to you about this account. The request is erased as soon as it is done, and 60 days after it was sent at the latest.',
+    unavailable: 'Sign-up is not open on this server.',
+    haveAccount: 'Already have an account?',
+    loginPrompt: 'No account yet?',
+    loginLink: 'Create an account',
+    sentTitle: 'Check your inbox',
+    sent: 'A link to confirm your address is waiting for you (valid for 24 h). Nothing there? Check your spam.',
+    busyTitle: 'A lot of requests today',
+    busy: 'A lot of requests today, please come back tomorrow.',
+    confirmTitle: 'Confirm your address',
+    confirmIntro: (email: string) =>
+      `You are signing up with ${email}. Press the button to confirm this address.`,
+    confirmSubmit: 'Confirm my address',
+    reviewTitle: 'Address confirmed',
+    reviewDone:
+      'Thank you, your address is confirmed. I check every account by hand, usually within the day. You will get an e-mail with the link to choose your password.',
+    mailTitle: 'Your account is open',
+    mailDone: 'Your account is open: the link to choose your password is on its way to your inbox.',
+    pendingTitle: 'Address confirmed',
+    pendingDone:
+      'Your address is confirmed. I will open your account as soon as I can, and you will get an e-mail.',
+    spentTitle: 'This link has already been used',
+    spent:
+      'So your address is already confirmed: you will get an e-mail as soon as your account is ready.',
+    expiredTitle: 'This link has expired',
+    expired: 'A confirmation link is valid for 24 h. Start the sign-up again to get a new one.',
+    restart: 'Start the sign-up again',
+  },
   auth: {
     title: 'Sign in',
     email: 'Email address',
@@ -3786,7 +3828,7 @@ export const en: UiText = {
       notifyAppHint: 'The number of new replies, on the “Replies” entry of the event’s menu.',
       notifyLive: 'Live table',
       notifyLiveHint: 'While it is open, it updates by itself at every reply.',
-      notifyNoEmail: 'No e-mail: the hosted instance does not send e-mails.',
+      notifyNoEmail: 'The instance sends no e-mail to guests.',
       catererTitle: 'Caterer',
       catererHint: 'What to tell them: those who are coming, without the “maybes”.',
       catererAdults: 'Adults',
@@ -4065,6 +4107,9 @@ export const en: UiText = {
     login: 'Sign in',
     forgotPassword: 'Forgot your password',
     resetPassword: 'New password',
+    signup: 'Create an account',
+    signupSent: 'Sign-up sent',
+    signupConfirm: 'Confirm your address',
     invitation: 'Invitation',
     changePassword: 'Change your password',
     security: 'Account security',

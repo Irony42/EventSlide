@@ -2251,6 +2251,48 @@ export const es: UiText = {
     insecure: 'Esta dirección no es segura: sus invitados no podrán grabar',
   },
 
+  /* ---- Added by spec 31: signing up for an account by oneself. ---- */
+  signup: {
+    title: 'Crear una cuenta',
+    intro:
+      'Una dirección, el nombre de su espacio, y un enlace de confirmación le espera en su correo.',
+    clientName: 'Nombre de su espacio',
+    clientNameHint:
+      'Por ejemplo «Boda de Léa y Hugo» o «Asociación Pies Ágiles». 80 caracteres como máximo.',
+    clientNameMissing: 'Dé un nombre a su espacio.',
+    note: '¿Para qué ocasión?',
+    noteHint:
+      'Unas palabras sobre su evento. 300 caracteres como máximo. No indique nada sensible (salud, religión…): este texto solo sirve para abrir su cuenta.',
+    eventDate: 'Fecha del evento',
+    submit: 'Crear mi cuenta',
+    notice:
+      'Su dirección solo sirve para escribirle sobre esta cuenta. La solicitud se borra en cuanto se completa, y 60 días después del envío como máximo.',
+    unavailable: 'El registro no está abierto en este servidor.',
+    haveAccount: '¿Ya tiene una cuenta?',
+    loginPrompt: '¿Aún no tiene cuenta?',
+    loginLink: 'Crear una cuenta',
+    sentTitle: 'Revise su correo',
+    sent: 'Le espera un enlace para confirmar su dirección (válido 24 h). ¿No ha recibido nada? Mire en el correo no deseado.',
+    busyTitle: 'Muchas solicitudes hoy',
+    busy: 'Muchas solicitudes hoy, vuelva mañana.',
+    confirmTitle: 'Confirmar su dirección',
+    confirmIntro: (email: string) =>
+      `Se registra con ${email}. Pulse el botón para confirmar esta dirección.`,
+    confirmSubmit: 'Confirmar mi dirección',
+    reviewTitle: 'Dirección confirmada',
+    reviewDone:
+      'Gracias, su dirección está confirmada. Reviso cada cuenta a mano, normalmente en el día. Recibirá un correo con el enlace para elegir su contraseña.',
+    mailTitle: 'Su cuenta está abierta',
+    mailDone: 'Su cuenta está abierta: el enlace para elegir su contraseña llega a su correo.',
+    pendingTitle: 'Dirección confirmada',
+    pendingDone:
+      'Su dirección está confirmada. Abriré su cuenta lo antes posible y recibirá un correo.',
+    spentTitle: 'Este enlace ya se ha usado',
+    spent: 'Su dirección ya está confirmada: recibirá un correo en cuanto su cuenta esté lista.',
+    expiredTitle: 'Este enlace ha caducado',
+    expired: 'Un enlace de confirmación vale 24 h. Empiece de nuevo el registro para recibir otro.',
+    restart: 'Empezar de nuevo el registro',
+  },
   auth: {
     title: 'Inicio de sesión',
     email: 'Dirección de correo',
@@ -3871,7 +3913,7 @@ export const es: UiText = {
         'El número de respuestas nuevas, en la entrada «Respuestas» del menú del evento.',
       notifyLive: 'Tabla en directo',
       notifyLiveHint: 'Mientras está abierta, se actualiza sola con cada respuesta.',
-      notifyNoEmail: 'Sin correo: la instancia alojada no envía correos.',
+      notifyNoEmail: 'La instancia no envía correos a los invitados.',
       catererTitle: 'Catering',
       catererHint: 'Lo que hay que decirle: quienes vienen, sin los «quizás».',
       catererAdults: 'Adultos',
@@ -4150,6 +4192,9 @@ export const es: UiText = {
     login: 'Inicio de sesión',
     forgotPassword: 'Contraseña olvidada',
     resetPassword: 'Nueva contraseña',
+    signup: 'Crear una cuenta',
+    signupSent: 'Registro enviado',
+    signupConfirm: 'Confirmar su dirección',
     invitation: 'Invitación',
     changePassword: 'Cambiar la contraseña',
     security: 'Seguridad de la cuenta',
