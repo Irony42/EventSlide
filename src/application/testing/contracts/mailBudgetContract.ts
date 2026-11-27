@@ -72,6 +72,20 @@ export const mailBudgetContract = (
         expect(await budget.used(NEXT)).toBe(2)
       }))
 
+    it.each([0, -1])('refuses to take %i mails and writes nothing', (n) =>
+      withBudget(10, async (budget) => {
+        expect(await budget.take(DAY, n)).toBe(false)
+        expect(await budget.used(DAY)).toBe(0)
+      }),
+    )
+
+    it.each([0, -1])('refuses to take %i mails with no ceiling either', (n) =>
+      withBudget(null, async (budget) => {
+        expect(await budget.take(DAY, n)).toBe(false)
+        expect(await budget.used(DAY)).toBe(0)
+      }),
+    )
+
     it('takes anything when there is no ceiling, and still counts', () =>
       withBudget(null, async (budget) => {
         expect(await budget.take(DAY, 100_000)).toBe(true)

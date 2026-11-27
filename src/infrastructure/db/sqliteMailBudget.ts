@@ -17,6 +17,8 @@ export class SqliteMailBudget implements MailBudget {
   ) {}
 
   async take(day: string, n: number): Promise<boolean> {
+    // Nothing to take is not a success: no row is written for it.
+    if (!(n >= 1)) return false
     if (this.maxPerDay === null) {
       await this.count(day, n)
       return true

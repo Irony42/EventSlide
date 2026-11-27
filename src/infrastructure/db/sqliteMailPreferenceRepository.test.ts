@@ -66,10 +66,24 @@ describe('SqliteMailPreferenceRepository', () => {
     closeDatabase(db)
   })
 
+  it('refuses a claim for a member who is no longer an owner', async () => {
+    const db = seededDatabase()
+    const repo = new SqliteMailPreferenceRepository(db)
+    const event = asEventId(MAIL_PREFERENCE_CONTRACT_FIXTURES.eventId)
+    await repo.setDigest(event, A, true)
+    db.prepare(
+      `UPDATE event_memberships SET role = 'moderator' WHERE event_id = ? AND user_id = ?`,
+    ).run(event, A)
+
+    expect(await repo.claimDigest(event, A, null, AT)).toBe(false)
+    closeDatabase(db)
+  })
+
   it('stores the claim as ISO text, the form every date of the schema has', async () => {
     const db = seededDatabase()
     const repo = new SqliteMailPreferenceRepository(db)
 
+    await repo.setDigest(asEventId(MAIL_PREFERENCE_CONTRACT_FIXTURES.eventId), A, true)
     await repo.claimDigest(asEventId(MAIL_PREFERENCE_CONTRACT_FIXTURES.eventId), A, null, AT)
 
     expect(

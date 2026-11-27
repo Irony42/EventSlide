@@ -10,6 +10,7 @@ export class FakeMailBudget implements MailBudget {
   constructor(private readonly maxPerDay: number | null = null) {}
 
   async take(day: string, n: number): Promise<boolean> {
+    if (!(n >= 1)) return false
     const used = this.days.get(day) ?? 0
     if (this.maxPerDay !== null && used + n > this.maxPerDay) return false
     this.days.set(day, used + n)

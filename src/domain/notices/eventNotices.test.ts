@@ -75,6 +75,11 @@ describe('windowEndingDue', () => {
     expect(windowEndingDue(endIn(10 * HOUR), endIn(5 * HOUR), NOW)).toBe(false)
   })
 
+  it('is not suppressed by a scheduled closing already in the past that closed nothing', () => {
+    expect(windowEndingDue(endIn(10 * HOUR), endIn(-HOUR), NOW)).toBe(true)
+    expect(windowEndingDue(endIn(10 * HOUR), endIn(0), NOW)).toBe(true)
+  })
+
   it('is due when the scheduled closing is at the same instant or after the window ends', () => {
     expect(windowEndingDue(endIn(10 * HOUR), endIn(10 * HOUR), NOW)).toBe(true)
     expect(windowEndingDue(endIn(10 * HOUR), endIn(30 * HOUR), NOW)).toBe(true)

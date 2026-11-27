@@ -44,15 +44,18 @@ export interface RsvpStopped {
  * Exactly: a deadline is set, the host did not close the replies by hand (`closedAt` is null), the
  * moment `rsvpClosesAt` has passed, and **the bound that won is the day after the deadline**, not the
  * start of the party (when the deadline day is the party's day, or later, the party's start wins and
- * the replies did not stop "because of the deadline"). Validity (24 hours after the stop) is `isFresh`.
+ * the replies did not stop "because of the deadline"), **and the replies' state is `closed`** (`rsvpStateOf`): replies
+ * switched off, an invitation not published and a party already over are `off` and owe no bilan. Validity (24 hours
+ * after the stop) is `isFresh`.
  */
 export const rsvpStoppedByDeadline = (
   settings: RsvpSettings,
   schedule: InviteSchedule,
+  state: RsvpState,
   now: Date,
 ): RsvpStopped | null => {
   const deadline = settings.deadline
-  if (deadline === null || settings.closedAt !== null) return null
+  if (deadline === null || settings.closedAt !== null || state !== 'closed') return null
   const closesAt = rsvpClosesAt(settings, schedule)
   if (closesAt.getTime() > now.getTime()) return null
   const afterDeadline = startOfNextLocalDay(deadline, schedule.timeZone)

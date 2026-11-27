@@ -1,7 +1,8 @@
 import type { Express } from 'express'
 import type { Agent } from 'supertest'
 import { describe, expect, it } from 'vitest'
-import { aUser } from '../../../application/testing/builders'
+import { AT, aUser } from '../../../application/testing/builders'
+import { FakeClock } from '../../../application/testing/fakeClock'
 import { FakeAuditLog } from '../../../application/testing/fakeAuditLog'
 import { FakeMailPreferenceRepository } from '../../../application/testing/fakeMailPreferenceRepository'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
@@ -10,7 +11,10 @@ import {
   makeSetMailPreferences,
 } from '../../../application/usecases/notices/mailPreferences'
 import { asUserId } from '../../../domain/shared/ids'
+import { CSRF_HEADER } from '../middleware/csrf'
 import { buildHarness, signInAs } from '../testing/middlewareHarness'
+import { buildServerHarness, type ServerHarness } from '../testing/serverHarness'
+import { signedInAs, signInByAddress } from '../testing/signIn'
 import request from '../testing/request'
 import type { HttpDeps } from '../types'
 import { mailPreferenceRoutes } from './mailPreferenceRoutes'
@@ -176,5 +180,49 @@ describe('PUT /api/me/mail-preferences', () => {
 
     expect(response.status).toBe(401)
     expect(await world.preferences.forUser(asUserId(HOST))).toEqual({ rsvp: true, event: true })
+  })
+})
+
+describe('PUT /api/me/mail-preferences through the assembled server (CSRF)', () => {
+  const subject = () => {
+    const preferences = new FakeMailPreferenceRepository().withUsers(asUserId(HOST))
+    const server: ServerHarness = buildServerHarness({
+      usecases: {
+        authenticateUser: signInByAddress({ 'hote@example.test': HOST }),
+        setMailPreferences: makeSetMailPreferences({
+          // The harness owns the account store; read it when the request comes.
+          users: { findById: (id) => server.users.findById(id) },
+          preferences,
+          audit: new FakeAuditLog().withAccounts(asUserId(HOST)),
+          clock: new FakeClock(AT),
+        }),
+      },
+    })
+    server.users.seed(aUser({ id: HOST, email: 'hote@example.test' }))
+    return { server, preferences }
+  }
+
+  it('is refused 403 without the CSRF token, and with a wrong one, and changes nothing', async () => {
+    const { server, preferences } = subject()
+    const caller = await signedInAs(server.app, 'hote@example.test')
+
+    const without = await caller.agent.put(URL).send({ rsvp: false })
+    const wrong = await caller.agent
+      .put(URL)
+      .set(CSRF_HEADER, 'not-the-token')
+      .send({ rsvp: false })
+
+    expect([without.status, wrong.status]).toEqual([403, 403])
+    expect(await preferences.forUser(asUserId(HOST))).toEqual({ rsvp: true, event: true })
+  })
+
+  it('is accepted with the token the sign-in issued', async () => {
+    const { server, preferences } = subject()
+    const caller = await signedInAs(server.app, 'hote@example.test')
+
+    const response = await caller.agent.put(URL).set(CSRF_HEADER, caller.csrf).send({ rsvp: false })
+
+    expect(response.status).toBe(204)
+    expect(await preferences.forUser(asUserId(HOST))).toEqual({ rsvp: false, event: true })
   })
 })

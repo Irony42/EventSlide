@@ -86,4 +86,31 @@ describe('rsvpDigestDue', () => {
     expect(due({ now: at('2026-12-09T19:59:00.000Z') })).toBe(true)
     expect(due({ now: at('2026-12-09T20:00:00.000Z') })).toBe(false)
   })
+
+  it('leaves at 09:00 local and not at 08:59, and stops at 21:00 and not at 20:59 (Paris, winter)', () => {
+    expect(due({ now: at('2026-12-09T07:59:00.000Z') })).toBe(false)
+    expect(due({ now: at('2026-12-09T08:00:00.000Z') })).toBe(true)
+    expect(due({ now: at('2026-12-09T19:59:00.000Z') })).toBe(true)
+    expect(due({ now: at('2026-12-09T20:00:00.000Z') })).toBe(false)
+  })
+
+  it('waits 20 hours since the last digest: 19:59 no, 20:00 yes', () => {
+    const now = at('2026-12-09T10:00:00.000Z')
+    const change = at('2026-12-09T09:00:00.000Z')
+    expect(due({ now, lastChangeAt: change, lastDigestAt: at('2026-12-08T14:01:00.000Z') })).toBe(
+      false,
+    )
+    expect(due({ now, lastChangeAt: change, lastDigestAt: at('2026-12-08T14:00:00.000Z') })).toBe(
+      true,
+    )
+  })
+
+  it('follows the clocks: the same civil 09:00 is 08:00 UTC in winter and 07:00 UTC after the change', () => {
+    // Paris goes to summer time on 29 March 2026 (01:00 UTC).
+    const change = at('2026-03-27T18:00:00.000Z')
+    expect(due({ now: at('2026-03-28T07:59:00.000Z'), lastChangeAt: change })).toBe(false)
+    expect(due({ now: at('2026-03-28T08:00:00.000Z'), lastChangeAt: change })).toBe(true)
+    expect(due({ now: at('2026-03-30T06:59:00.000Z'), lastChangeAt: change })).toBe(false)
+    expect(due({ now: at('2026-03-30T07:00:00.000Z'), lastChangeAt: change })).toBe(true)
+  })
 })
