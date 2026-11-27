@@ -14,8 +14,8 @@ their phone with no account. A host moderates them. Approved photos appear on a
 projector in real time. Node + Express + SQLite API, React + Vite web app, TypeScript
 everywhere, hexagonal architecture, tests at every ring.
 
-Licensed AGPL-3.0-only (see the relicensing PR). The maintainer also runs one free,
-invitation-only hosted instance of the published image, unmodified and `SITE_ADMIN=on` — see
+Licensed AGPL-3.0-only (see the relicensing PR). The maintainer also runs one free
+hosted instance of the published image (sign-up open since spec 31), unmodified and `SITE_ADMIN=on` — see
 [docs/adr/0007-agpl-and-hosted-instance.md](docs/adr/0007-agpl-and-hosted-instance.md);
 it is not a second product, and self-hosting stays the recommended path.
 

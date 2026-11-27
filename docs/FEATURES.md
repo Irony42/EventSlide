@@ -21,6 +21,7 @@ The long version of the [README](../README.md#what-it-does): every feature, by w
 - **The wall is meant to be looked at.** One photo at a time, whole and with a slow
   zoom, or one of six other layouts; captions and the sender's name, a join code in the
   corner for whoever arrives late.
+- **Anyone can create an account, if the operator allows it.** With `SIGNUP` set, `/signup` takes an address and the name of a space, mails a link that confirms only when its button is pressed, and then either opens the account at once (`open`, the hosted instance) or waits for the operator's approval in the console (`review`). The answer is the same whether or not the address already has an account, a daily ceiling keeps a flood from costing disk, and the first owner of a new space gets one welcome mail. Off by default: a self-hosted box stays by invitation. See [OPERATING.md](OPERATING.md#self-service-signup).
 - **A Telegram group can send its photos.** An operator who sets a bot token lets a host connect a group to an event: what members post goes through the same moderation as a phone, with a badge "via Telegram" in the console, and `/oublier` erases a sender's contributions. Off unless a token is set; see [TELEGRAM.md](TELEGRAM.md).
 - **It survives the venue.** Uploads retry, the wall keeps playing when the network
   drops, and it runs unattended for an eight-hour evening — true for a box running on
