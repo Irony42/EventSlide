@@ -6,6 +6,7 @@ import { hostApi } from './client/host'
 import { guestInviteApi } from './client/invite'
 import { signupApi } from './client/signup'
 import { siteApi } from './client/site'
+import { siteAnnouncementsApi } from './client/siteAnnouncements'
 import { siteSignupsApi } from './client/siteSignups'
 
 /**
@@ -43,6 +44,7 @@ export const createApi = (transport: Transport) => ({
   ...accountApi(transport),
   ...siteApi(transport),
   ...siteSignupsApi(transport),
+  ...siteAnnouncementsApi(transport),
   ...hostApi(transport),
   ...galleryApi(transport),
   ...guestInviteApi(transport),

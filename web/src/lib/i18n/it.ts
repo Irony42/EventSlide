@@ -400,6 +400,14 @@ export const it: UiText = {
       'Inserisca un identificativo, un codice, un indirizzo o il nome di un evento (300 caratteri al massimo).',
     'takedown.hostReasonInvalid':
       'Il motivo per l’ospitante deve stare in al massimo 500 caratteri.',
+    'hostAnnouncement.subjectInvalid':
+      'L’oggetto deve stare su una riga di al massimo 150 caratteri.',
+    'hostAnnouncement.textInvalid': 'Il messaggio deve avere da 1 a 5000 caratteri.',
+    'hostAnnouncement.linkInvalid':
+      'Il link deve essere un indirizzo https:// di al massimo 500 caratteri, senza spazi.',
+    'hostAnnouncement.mailerRequired':
+      'Questa istanza non invia posta: nessun annuncio può partire.',
+    'hostAnnouncement.noRecipients': 'Non c’è nessun proprietario attivo a cui scrivere.',
     'audit.reasonInvalid':
       'Il motivo deve stare su una riga di al massimo 200 caratteri, senza indirizzo e-mail.',
     'reset.mailerRequired':
@@ -2570,6 +2578,56 @@ export const it: UiText = {
     liveWindowEnd: (date: string) => `L’evento termina il ${date}.`,
   },
 
+  /* ---- Spec 32, A8: the operator’s page of announcements to the hosts (`/admin/site/announcements`). ---- */
+  siteAnnouncements: {
+    nav: 'Annunci',
+    title: 'Annunci agli ospitanti',
+    hint: 'Un cambio di condizioni, di subfornitore, la fine del servizio: lo scriva qui e parte verso ogni proprietario di uno spazio, una volta per indirizzo. Scrive nella lingua che sceglie: nulla viene tradotto.',
+    subject: 'Oggetto',
+    subjectHint: 'Una riga, al massimo 150 caratteri.',
+    text: 'Messaggio',
+    textHint: 'Al massimo 5000 caratteri. Gli a capo vengono mantenuti.',
+    link: 'Link (facoltativo)',
+    linkHint: 'Un indirizzo https://, l’unico link del messaggio.',
+    preview: 'Anteprima',
+    previewEmpty: 'Scriva un oggetto e un messaggio per vedere la e-mail.',
+    audience: (n: number) =>
+      t.count(n, {
+        one: `Questo annuncio partirà verso ${t.number(n)} account (proprietari attivi di almeno uno spazio).`,
+        other: `Questo annuncio partirà verso ${t.number(n)} account (proprietari attivi di almeno uno spazio).`,
+      }),
+    send: 'Invia l’annuncio',
+    confirmTitle: 'Inviare questo annuncio?',
+    confirmBody: (n: number) =>
+      t.count(n, {
+        one: `Parte verso ${t.number(n)} account, a gruppi e nel limite di e-mail del giorno, e non può essere richiamato.`,
+        other: `Parte verso ${t.number(n)} account, a gruppi e nel limite di e-mail del giorno, e non può essere richiamato.`,
+      }),
+    sent: (n: number) =>
+      t.count(n, {
+        one: `Annuncio salvato: parte verso ${t.number(n)} account.`,
+        other: `Annuncio salvato: parte verso ${t.number(n)} account.`,
+      }),
+    past: 'Annunci inviati',
+    pastCaption: 'Annunci agli ospitanti e loro avanzamento',
+    refresh: 'Aggiorna',
+    loading: 'Caricamento degli annunci',
+    none: 'Nessun annuncio per ora.',
+    colSubject: 'Oggetto',
+    colWritten: 'Scritto il',
+    colProgress: 'Avanzamento',
+    going: (n: number) =>
+      t.count(n, {
+        one: `In corso: ${t.number(n)} inviato`,
+        other: `In corso: ${t.number(n)} inviati`,
+      }),
+    done: (n: number, date: string) =>
+      t.count(n, {
+        one: `Terminato il ${date}: ${t.number(n)} inviato`,
+        other: `Terminato il ${date}: ${t.number(n)} inviati`,
+      }),
+  },
+
   siteSignups: {
     nav: 'Iscrizioni',
     navPending: (count: number) => `Iscrizioni (${count})`,
@@ -2831,6 +2889,7 @@ export const it: UiText = {
       'client.periodReset': 'Periodo rinnovato.',
       'client.suspended': 'Cliente sospeso.',
       'client.resumed': 'Sospensione revocata.',
+      'account.hostAnnouncementSent': 'Annuncio inviato agli ospitanti.',
       'invitation.issued': 'Invito emesso.',
       'invitation.approved': 'Invito approvato da un proprietario.',
       'account.resetRequested': 'Reimpostazione della password richiesta.',
@@ -4296,5 +4355,6 @@ export const it: UiText = {
     siteAudit: 'Registro dell’istanza',
     siteTakedown: 'Rimozione di contenuti',
     siteSignups: 'Iscrizioni',
+    siteAnnouncements: 'Annunci agli ospitanti',
   },
 }

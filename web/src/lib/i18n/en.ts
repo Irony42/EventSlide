@@ -375,6 +375,14 @@ export const en: UiText = {
     'siteLookup.queryInvalid':
       'Enter an id, a code, an address or an event name (300 characters at most).',
     'takedown.hostReasonInvalid': 'The reason for the host must fit in 500 characters at most.',
+    'hostAnnouncement.subjectInvalid':
+      'The subject must fit on one line of 150 characters at most.',
+    'hostAnnouncement.textInvalid': 'The message must be 1 to 5000 characters long.',
+    'hostAnnouncement.linkInvalid':
+      'The link must be an https:// address of at most 500 characters, with no space.',
+    'hostAnnouncement.mailerRequired':
+      'This instance does not send mail: no announcement can go out.',
+    'hostAnnouncement.noRecipients': 'There is no active owner to write to.',
     'audit.reasonInvalid':
       'The reason must fit on one line of 200 characters at most, with no e-mail address.',
     'reset.mailerRequired': 'This instance does not send mail: no reset link can be issued.',
@@ -2518,6 +2526,56 @@ export const en: UiText = {
     liveWindowEnd: (date: string) => `The event ends on ${date}.`,
   },
 
+  /* ---- Spec 32, A8: the operator’s page of announcements to the hosts (`/admin/site/announcements`). ---- */
+  siteAnnouncements: {
+    nav: 'Announcements',
+    title: 'Announcements to hosts',
+    hint: 'A change of terms, of a sub-processor, the end of the service: write it here and it goes to every owner of a space, once per address. You write in the language of your choice: nothing is translated.',
+    subject: 'Subject',
+    subjectHint: 'One line, 150 characters at most.',
+    text: 'Message',
+    textHint: '5000 characters at most. Line breaks are kept.',
+    link: 'Link (optional)',
+    linkHint: 'An https:// address, the only link in the message.',
+    preview: 'Preview',
+    previewEmpty: 'Write a subject and a message to see the mail.',
+    audience: (n: number) =>
+      t.count(n, {
+        one: `This announcement will go to ${t.number(n)} account (the active owners of at least one space).`,
+        other: `This announcement will go to ${t.number(n)} accounts (the active owners of at least one space).`,
+      }),
+    send: 'Send the announcement',
+    confirmTitle: 'Send this announcement?',
+    confirmBody: (n: number) =>
+      t.count(n, {
+        one: `It goes to ${t.number(n)} account, in batches and within the day’s mail limit, and cannot be recalled.`,
+        other: `It goes to ${t.number(n)} accounts, in batches and within the day’s mail limit, and cannot be recalled.`,
+      }),
+    sent: (n: number) =>
+      t.count(n, {
+        one: `Announcement saved: it goes to ${t.number(n)} account.`,
+        other: `Announcement saved: it goes to ${t.number(n)} accounts.`,
+      }),
+    past: 'Announcements sent',
+    pastCaption: 'Announcements to hosts and how far they have gone',
+    refresh: 'Refresh',
+    loading: 'Loading announcements',
+    none: 'No announcement yet.',
+    colSubject: 'Subject',
+    colWritten: 'Written on',
+    colProgress: 'Progress',
+    going: (n: number) =>
+      t.count(n, {
+        one: `In progress: ${t.number(n)} sent`,
+        other: `In progress: ${t.number(n)} sent`,
+      }),
+    done: (n: number, date: string) =>
+      t.count(n, {
+        one: `Finished on ${date}: ${t.number(n)} sent`,
+        other: `Finished on ${date}: ${t.number(n)} sent`,
+      }),
+  },
+
   siteSignups: {
     nav: 'Signups',
     navPending: (count: number) => `Signups (${count})`,
@@ -2778,6 +2836,7 @@ export const en: UiText = {
       'client.periodReset': 'Period renewed.',
       'client.suspended': 'Client suspended.',
       'client.resumed': 'Suspension lifted.',
+      'account.hostAnnouncementSent': 'Announcement sent to the hosts.',
       'invitation.issued': 'Invitation issued.',
       'invitation.approved': 'Invitation approved by an owner.',
       'account.resetRequested': 'Password reset requested.',
@@ -4237,5 +4296,6 @@ export const en: UiText = {
     siteAudit: 'Instance log',
     siteTakedown: 'Content takedown',
     siteSignups: 'Signups',
+    siteAnnouncements: 'Announcements to hosts',
   },
 }

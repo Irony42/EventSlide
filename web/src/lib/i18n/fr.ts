@@ -2563,6 +2563,14 @@ export const fr = {
     'siteLookup.queryInvalid':
       'Saisissez un identifiant, un code, une adresse ou un nom d’évènement (300 caractères au plus).',
     'takedown.hostReasonInvalid': 'Le motif pour l’hôte doit tenir en 500 caractères au plus.',
+    'hostAnnouncement.subjectInvalid':
+      'L’objet doit tenir sur une ligne de 150 caractères au plus.',
+    'hostAnnouncement.textInvalid': 'Le message doit faire de 1 à 5000 caractères.',
+    'hostAnnouncement.linkInvalid':
+      'Le lien doit être une adresse en https:// de 500 caractères au plus, sans espace.',
+    'hostAnnouncement.mailerRequired':
+      'Cette instance n’envoie pas de courrier : aucune annonce ne peut partir.',
+    'hostAnnouncement.noRecipients': 'Aucun propriétaire actif à qui écrire.',
     'audit.reasonInvalid':
       'Le motif doit tenir sur une ligne de 200 caractères au plus, sans adresse e-mail.',
     'reset.mailerRequired':
@@ -3261,6 +3269,56 @@ export const fr = {
   },
 
   /* ---- Spec 31: the operator’s page of signup requests (`/admin/site/signups`). ---- */
+  /* ---- Spec 32, A8: the operator’s page of announcements to the hosts (`/admin/site/announcements`). ---- */
+  siteAnnouncements: {
+    nav: 'Annonces',
+    title: 'Annonces aux hôtes',
+    hint: 'Un changement de conditions, de sous-traitant, l’arrêt du service\u00a0: écrivez-le ici et il part à chaque propriétaire d’un espace, une fois par adresse. Vous écrivez dans la langue de votre choix\u00a0: rien n’est traduit.',
+    subject: 'Objet',
+    subjectHint: 'Une ligne, 150 caractères au plus.',
+    text: 'Message',
+    textHint: '5000 caractères au plus. Les retours à la ligne sont gardés.',
+    link: 'Lien (facultatif)',
+    linkHint: 'Une adresse en https://, le seul lien du message.',
+    preview: 'Aperçu',
+    previewEmpty: 'Écrivez un objet et un message pour voir le mail.',
+    audience: (n: number) =>
+      t.count(n, {
+        one: `Cette annonce partira à ${t.number(n)} compte (propriétaires actifs d’au moins un espace).`,
+        other: `Cette annonce partira à ${t.number(n)} comptes (propriétaires actifs d’au moins un espace).`,
+      }),
+    send: 'Envoyer l’annonce',
+    confirmTitle: 'Envoyer cette annonce\u00a0?',
+    confirmBody: (n: number) =>
+      t.count(n, {
+        one: `Elle part à ${t.number(n)} compte, par paquets et dans la limite d’e-mails du jour, et ne peut pas être rappelée.`,
+        other: `Elle part à ${t.number(n)} comptes, par paquets et dans la limite d’e-mails du jour, et ne peut pas être rappelée.`,
+      }),
+    sent: (n: number) =>
+      t.count(n, {
+        one: `Annonce enregistrée\u00a0: elle part à ${t.number(n)} compte.`,
+        other: `Annonce enregistrée\u00a0: elle part à ${t.number(n)} comptes.`,
+      }),
+    past: 'Annonces envoyées',
+    pastCaption: 'Annonces aux hôtes et leur avancement',
+    refresh: 'Actualiser',
+    loading: 'Chargement des annonces',
+    none: 'Aucune annonce pour le moment.',
+    colSubject: 'Objet',
+    colWritten: 'Écrite le',
+    colProgress: 'Avancement',
+    going: (n: number) =>
+      t.count(n, {
+        one: `En cours\u00a0: ${t.number(n)} envoyé`,
+        other: `En cours\u00a0: ${t.number(n)} envoyés`,
+      }),
+    done: (n: number, date: string) =>
+      t.count(n, {
+        one: `Terminée le ${date}\u00a0: ${t.number(n)} envoyé`,
+        other: `Terminée le ${date}\u00a0: ${t.number(n)} envoyés`,
+      }),
+  },
+
   siteSignups: {
     nav: 'Inscriptions',
     navPending: (count: number) => `Inscriptions (${count})`,
@@ -3523,6 +3581,7 @@ export const fr = {
       'client.periodReset': 'Période renouvelée.',
       'client.suspended': 'Client suspendu.',
       'client.resumed': 'Suspension levée.',
+      'account.hostAnnouncementSent': 'Annonce envoyée aux hôtes.',
       'invitation.issued': 'Invitation émise.',
       'invitation.approved': 'Invitation approuvée par un propriétaire.',
       'account.resetRequested': 'Réinitialisation de mot de passe demandée.',
@@ -5021,6 +5080,7 @@ export const fr = {
     siteAudit: 'Journal de l’instance',
     siteTakedown: 'Retrait de contenu',
     siteSignups: 'Inscriptions',
+    siteAnnouncements: 'Annonces aux hôtes',
   },
 } as const
 

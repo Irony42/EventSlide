@@ -393,6 +393,15 @@ export const de: UiText = {
       'Geben Sie eine ID, einen Code, eine Adresse oder einen Veranstaltungsnamen ein (höchstens 300 Zeichen).',
     'takedown.hostReasonInvalid':
       'Der Grund für den Gastgeber darf höchstens 500 Zeichen lang sein.',
+    'hostAnnouncement.subjectInvalid':
+      'Der Betreff muss in eine Zeile mit höchstens 150 Zeichen passen.',
+    'hostAnnouncement.textInvalid': 'Die Nachricht muss 1 bis 5000 Zeichen lang sein.',
+    'hostAnnouncement.linkInvalid':
+      'Der Link muss eine https://-Adresse mit höchstens 500 Zeichen ohne Leerzeichen sein.',
+    'hostAnnouncement.mailerRequired':
+      'Diese Instanz versendet keine E-Mails: Keine Ankündigung kann gesendet werden.',
+    'hostAnnouncement.noRecipients':
+      'Es gibt keinen aktiven Eigentümer, an den geschrieben werden kann.',
     'audit.reasonInvalid':
       'Der Grund muss in eine Zeile mit höchstens 200 Zeichen passen, ohne E-Mail-Adresse.',
     'reset.mailerRequired':
@@ -2624,6 +2633,56 @@ export const de: UiText = {
     liveWindowEnd: (date: string) => `Die Veranstaltung endet am ${date}.`,
   },
 
+  /* ---- Spec 32, A8: the operator’s page of announcements to the hosts (`/admin/site/announcements`). ---- */
+  siteAnnouncements: {
+    nav: 'Ankündigungen',
+    title: 'Ankündigungen an Gastgeber',
+    hint: 'Eine Änderung der Bedingungen, eines Unterauftragsverarbeiters, das Ende des Dienstes: Schreiben Sie es hier, und es geht an jeden Eigentümer eines Bereichs, einmal pro Adresse. Sie schreiben in der Sprache Ihrer Wahl: Nichts wird übersetzt.',
+    subject: 'Betreff',
+    subjectHint: 'Eine Zeile, höchstens 150 Zeichen.',
+    text: 'Nachricht',
+    textHint: 'Höchstens 5000 Zeichen. Zeilenumbrüche bleiben erhalten.',
+    link: 'Link (optional)',
+    linkHint: 'Eine https://-Adresse, der einzige Link der Nachricht.',
+    preview: 'Vorschau',
+    previewEmpty: 'Schreiben Sie Betreff und Nachricht, um die E-Mail zu sehen.',
+    audience: (n: number) =>
+      t.count(n, {
+        one: `Diese Ankündigung geht an ${t.number(n)} Konto (aktive Eigentümer mindestens eines Bereichs).`,
+        other: `Diese Ankündigung geht an ${t.number(n)} Konton (aktive Eigentümer mindestens eines Bereichs).`,
+      }),
+    send: 'Ankündigung senden',
+    confirmTitle: 'Diese Ankündigung senden?',
+    confirmBody: (n: number) =>
+      t.count(n, {
+        one: `Sie geht an ${t.number(n)} Konto, in Paketen und im Rahmen des Tageslimits für E-Mails, und kann nicht zurückgerufen werden.`,
+        other: `Sie geht an ${t.number(n)} Konton, in Paketen und im Rahmen des Tageslimits für E-Mails, und kann nicht zurückgerufen werden.`,
+      }),
+    sent: (n: number) =>
+      t.count(n, {
+        one: `Ankündigung gespeichert: Sie geht an ${t.number(n)} Konto.`,
+        other: `Ankündigung gespeichert: Sie geht an ${t.number(n)} Konton.`,
+      }),
+    past: 'Gesendete Ankündigungen',
+    pastCaption: 'Ankündigungen an Gastgeber und ihr Fortschritt',
+    refresh: 'Aktualisieren',
+    loading: 'Ankündigungen werden geladen',
+    none: 'Noch keine Ankündigung.',
+    colSubject: 'Betreff',
+    colWritten: 'Geschrieben am',
+    colProgress: 'Fortschritt',
+    going: (n: number) =>
+      t.count(n, {
+        one: `Läuft: ${t.number(n)} gesendet`,
+        other: `Läuft: ${t.number(n)} gesendet`,
+      }),
+    done: (n: number, date: string) =>
+      t.count(n, {
+        one: `Abgeschlossen am ${date}: ${t.number(n)} gesendet`,
+        other: `Abgeschlossen am ${date}: ${t.number(n)} gesendet`,
+      }),
+  },
+
   siteSignups: {
     nav: 'Anmeldungen',
     navPending: (count: number) => `Anmeldungen (${count})`,
@@ -2886,6 +2945,7 @@ export const de: UiText = {
       'client.periodReset': 'Zeitraum erneuert.',
       'client.suspended': 'Kunde gesperrt.',
       'client.resumed': 'Sperre aufgehoben.',
+      'account.hostAnnouncementSent': 'Ankündigung an die Gastgeber gesendet.',
       'invitation.issued': 'Einladung ausgestellt.',
       'invitation.approved': 'Einladung von einem Inhaber genehmigt.',
       'account.resetRequested': 'Zurücksetzen des Passworts angefordert.',
@@ -4377,5 +4437,6 @@ export const de: UiText = {
     siteAudit: 'Protokoll der Instanz',
     siteTakedown: 'Inhalt entfernen',
     siteSignups: 'Anmeldungen',
+    siteAnnouncements: 'Ankündigungen an Gastgeber',
   },
 }

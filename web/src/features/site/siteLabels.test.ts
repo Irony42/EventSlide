@@ -45,6 +45,13 @@ describe('a line of the log, in words', () => {
     ])
   })
 
+  it('says an announcement to the hosts was sent, in the main list of the console\u2019s actions', () => {
+    const sentence = auditSentence(aSiteAuditEntry({ action: 'account.hostAnnouncementSent' }), fr)
+
+    expect(sentence).toBe(fr.site.actions['account.hostAnnouncementSent'])
+    expect(sentence).not.toBe(fr.site.actionOther)
+  })
+
   it('says an invitation is waiting for an owner when its details say so', () => {
     const entry = aSiteAuditEntry({
       action: 'invitation.issued',

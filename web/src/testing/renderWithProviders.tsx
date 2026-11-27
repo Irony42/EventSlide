@@ -1076,6 +1076,8 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
     expiresAt: '2026-06-20T22:00:00.000Z',
   })),
   siteSignups: vi.fn(async () => ({ items: [], pendingCount: 0, next: null })),
+  siteAnnouncements: vi.fn(async () => ({ recipients: 3, items: [] })),
+  siteSendAnnouncement: vi.fn(async () => ({ id: 'a-1', recipients: 3 })),
   siteApproveSignup: vi.fn(async () => ({
     clientId: CLIENT_ID,
     invitation: aSiteInvitation(),
