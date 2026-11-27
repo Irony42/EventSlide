@@ -1245,3 +1245,11 @@ applies **no migration** (the last is still 035) and adds no setting. Take the s
 - **`MAIL_FOLLOWUP_MAX_PER_DAY`** is the box's daily count of mails against your relay's free quota. Every mail counts, but only the follow-up mails (and, later, an operator's announcements) wait for the next pass when the ceiling is reached. The daily counts are kept 7 days and erased by the retention sweep (the timer, or `npm run purge`).
 - Migration 042: the table `event_mail_notices` (which notice was already served for an event, no personal data, it goes with its event), `mail_daily_counts`, two switches on `users` (both on) and two columns on `event_memberships` (the daily summary of replies, off).
 - No compose or reverse-proxy change.
+
+## Upgrading to 3.20 (not released yet)
+
+### Mail to the host (spec 32, ADR 0019)
+
+3.19.0 only laid the groundwork (the settings, the tables and the account's two switches). The mails themselves arrive with 3.20; each line below is what a box with **a working mail relay** (`SMTP_URL` and `MAIL_FROM`) starts doing when it is updated, and a box with no relay changes nothing (no mail is sent and nothing is noted).
+
+- **The warning before the guests' replies are erased**: 7 days and 1 day before, to the active owners of an event that holds at least one reply, only between 08:00 and 21:00 in the invitation's zone (`Europe/Paris` without one). It has no switch and ignores `HOST_MAIL_NOTICES`, like the warning before a purge. It carries the date and the number of replies, never a guest's text.
