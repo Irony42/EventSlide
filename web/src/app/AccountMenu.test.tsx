@@ -394,7 +394,9 @@ describe('AccountMenu: erasing one’s own account', () => {
         authenticated: true,
         user: aSessionUser({ canOperateSite }),
       })),
-      about: vi.fn(async () => anAbout({ features: { siteAdmin, forgotPassword: false } })),
+      about: vi.fn(async () =>
+        anAbout({ features: { siteAdmin, forgotPassword: false, signup: 'off' } }),
+      ),
     })
 
   it('offers it to an ordinary account on a box that has accounts for others', async () => {
@@ -430,7 +432,9 @@ describe('AccountMenu: erasing one’s own account', () => {
 describe('AccountMenu: the client space', () => {
   const onBox = (clients: ReturnType<typeof aClientLimits>[], siteAdmin = true) =>
     signedIn({
-      about: vi.fn(async () => anAbout({ features: { siteAdmin, forgotPassword: false } })),
+      about: vi.fn(async () =>
+        anAbout({ features: { siteAdmin, forgotPassword: false, signup: 'off' } }),
+      ),
       myLimits: vi.fn(async () => ({ clients })),
     })
 
@@ -464,7 +468,9 @@ describe('AccountMenu: the client space', () => {
 
   it('asks nothing of somebody who is not signed in', async () => {
     const api = fakeApi({
-      about: vi.fn(async () => anAbout({ features: { siteAdmin: true, forgotPassword: false } })),
+      about: vi.fn(async () =>
+        anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+      ),
       myLimits: vi.fn(async () => ({ clients: [aClientLimits()] })),
     })
     renderMenu(api)
@@ -552,7 +558,7 @@ describe('AccountMenu: security, the current page and a forced password change',
         { canOperateSite: true },
         {
           about: vi.fn(async () =>
-            anAbout({ features: { siteAdmin: true, forgotPassword: false } }),
+            anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
           ),
         },
       ),
@@ -602,7 +608,7 @@ describe('AccountMenu: security, the current page and a forced password change',
         { mustChangePassword: true },
         {
           about: vi.fn(async () =>
-            anAbout({ features: { siteAdmin: true, forgotPassword: false } }),
+            anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
           ),
         },
       )

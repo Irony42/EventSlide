@@ -71,6 +71,10 @@ import { clipsUseCases } from './usecases.clips'
 import { wallUseCases } from './usecases.wall'
 import { galleryUseCases } from './usecases.gallery'
 import { clientsUseCases } from './usecases.clients'
+import type { SignupRepository } from '../application/ports/signupRepository'
+import type { DiskSpaceChecker } from '../application/ports/diskSpace'
+import type { SignupMode } from '../domain/signups/signupMode'
+import { signupUseCases } from './usecases.signups'
 import { buildSharedHooks } from './usecases.shared'
 /**
  * Every adapter the use cases need, as ports.
@@ -169,8 +173,10 @@ export interface Adapters {
   readonly signInAttempts: SignInAttempts
   /** Spending an invitation: the link, the account and the grant in one transaction. */
   readonly invitationAcceptance: InvitationAcceptance
-  /** The signup requests (spec 31, ADR 0018). */
+  /** The signup requests and their confirmation tokens (spec 31). */
   readonly signups: SignupRepository
+  /** The free-space probe the signup disk guard of mode `open` reads. */
+  readonly diskSpace: DiskSpaceChecker
 }
 
 /** The policy values a use case needs, drawn from validated configuration. */
@@ -201,6 +207,16 @@ export interface UseCasePolicy {
   }
   /** What an authenticator app shows above the digits: the box's operator, or the product. */
   readonly mfaIssuer: string
+  /** Self-service signup (spec 31): `SIGNUP*` and what the disk guard of mode `open` reads. */
+  readonly signup: {
+    readonly mode: SignupMode
+    readonly maxPerDay: number
+    /** `SIGNUP_NOTIFY_EMAIL`, or `null`. */
+    readonly notifyEmail: string | null
+    readonly minFreeDiskBytes: number
+    /** The directories whose free space bounds the box: the database's and the media root. */
+    readonly diskPaths: readonly string[]
+  }
   /** `RETENTION_CAP_NOTICE_DAYS`, read by the purge. */
   readonly retention: { readonly capNoticeDays: number }
   readonly reactionBudget: {
@@ -309,6 +325,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     ...wallUseCases(adapters, policy, hooks),
     ...galleryUseCases(adapters, hooks),
     ...clientsUseCases(adapters, policy, hooks),
+    ...signupUseCases(adapters, policy, hooks),
     //
     // **The only way a row ever leaves the audit log**, and so deliberately not reachable
     // from any route: `src/main/retentionSweeper.ts` is its one caller. No actor, because

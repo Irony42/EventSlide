@@ -1,110 +1,199 @@
-import { asAccountTokenId, asClientId, asUserId } from '../../domain/shared/ids'
-import { DomainError } from '../../domain/shared/errors'
-import { createSignupRequest } from '../../domain/signups/signupRequest'
+import { asClientId, asAccountTokenId, type ClientId } from '../../domain/shared/ids'
+import { issueAccountToken, type AccountToken } from '../../domain/users/accountToken'
+import { ok } from '../../domain/shared/result'
+import type { ClientLocale } from '../../domain/clients/clientLocale'
 import { EmailAddress } from '../../domain/users/emailAddress'
-import { err, ok } from '../../domain/shared/result'
-import { AT, anAccountToken, aUser } from './builders'
+import { AT } from './builders'
+import { CapturingLogger } from './capturingLogger'
 import { FakeAccountTokenRepository } from './fakeAccountTokenRepository'
 import { FakeAuditLog } from './fakeAuditLog'
+import { FakeClientRepository } from './fakeClientRepository'
 import { FakeClock } from './fakeClock'
+import { FakeDiskSpaceChecker } from './fakeDiskSpaceChecker'
 import { FakeMailer } from './fakeMailer'
+import { FakeSecretTokens } from './fakeSecretTokens'
 import { FakeSignupRepository } from './fakeSignupRepository'
-import { FakeUserRepository } from './fakeUserRepository'
-import type {
-  ProvisionClientOwner,
-  ProvisionClientOwnerInput,
-} from '../usecases/clients/provisionClientOwner'
+import { SequentialIdGenerator } from './sequentialIdGenerator'
+import type { ProvisionClientOwner } from '../usecases/clients/provisionClientOwner'
+import { makeConfirmSignup } from '../usecases/signups/confirmSignup'
+import { makeNotifySignupOperator } from '../usecases/signups/notifySignupOperator'
+import { makePreviewSignupConfirmation } from '../usecases/signups/previewSignupConfirmation'
+import { makeRequestSignup, type RequestSignupInput } from '../usecases/signups/requestSignup'
+import type { SignupMode } from '../../domain/signups/signupMode'
 
-/**
- * The scene the three operator-side signup use cases are tested in: the in-memory signup store with its
- * token store, an operator account, a recording audit log and mailer, and a `provisionClientOwner` that
- * records its calls and can be told to fail or throw (the real one has its own tests).
- */
+export const PUBLIC_URL = 'https://photos.example.test'
+export const ADDRESS = 'lea@example.test'
+export const OPERATOR_ADDRESS = 'pierre@example.test'
+export const DISK_PATH = '/data'
 
-export const OPERATOR = asUserId('user-operator')
-export const CLIENT = asClientId('client-new')
+/** A form as a person fills it. */
+export const aForm = (overrides: Partial<RequestSignupInput> = {}): RequestSignupInput => ({
+  email: ADDRESS,
+  clientName: 'Mariage de Lea et Hugo',
+  locale: 'fr' as ClientLocale,
+  website: '',
+  ...overrides,
+})
 
-export const aSignupScene = () => {
+/** The whole signup world over the fakes, built once per test. */
+export const buildSignupScene = (
+  options: { readonly mode?: SignupMode; readonly maxPerDay?: number } = {},
+) => {
+  const mode = options.mode ?? 'open'
   const clock = new FakeClock(AT)
-  const tokens = new FakeAccountTokenRepository().withAccounts(OPERATOR).withClients(CLIENT)
-  const signups = new FakeSignupRepository(tokens).withAccounts(OPERATOR).withClients(CLIENT)
-  const audit = new FakeAuditLog().withAccounts(OPERATOR)
+  const tokens = new FakeAccountTokenRepository()
+  const signups = new FakeSignupRepository(tokens)
+  const secrets = new FakeSecretTokens()
   const mailer = new FakeMailer()
-  const users = new FakeUserRepository()
-  const provisioned: ProvisionClientOwnerInput[] = []
-  let behaviour: 'ok' | 'fail' | 'throw' = 'ok'
+  const ids = new SequentialIdGenerator()
+  const logger = new CapturingLogger()
+  const audit = new FakeAuditLog()
+  const clients = new FakeClientRepository()
+  const disk = new FakeDiskSpaceChecker()
+  const operator = EmailAddress.create(OPERATOR_ADDRESS)
+  if (!operator.ok) throw new Error('fixture')
 
+  const notify = makeNotifySignupOperator({
+    mailer,
+    to: operator.value,
+    publicUrl: PUBLIC_URL,
+    clock,
+    logger,
+  })
+
+  /** The calls `provisionClientOwner` received, and what it answers next (default: a client). */
+  const provisioned: Parameters<ProvisionClientOwner>[0][] = []
+  const provisioning: {
+    next: Awaited<ReturnType<ProvisionClientOwner>> | 'throw' | 'throw-text' | 'link' | null
+  } = {
+    next: null,
+  }
+  let clientCount = 0
   const provisionClientOwner: ProvisionClientOwner = async (input) => {
     provisioned.push(input)
-    if (behaviour === 'throw') throw new Error('storage failed')
-    if (behaviour === 'fail') return err(DomainError.conflict('invitation.tooManyForAddress'))
-    // The invitation token must exist for the signup's foreign key to hold it.
-    await tokens.save(
-      anAccountToken({
-        id: 'invitation-1',
-        purpose: 'invitation',
-        email: input.ownerEmail,
-        userId: null,
-        clientId: CLIENT,
-        clientRole: 'owner',
-      }),
-    )
+    const planned = provisioning.next
+    provisioning.next = null
+    if (planned === 'throw') throw new Error('storage failed')
+    if (planned === 'throw-text') throw 'plain text'
+    if (planned !== null && planned !== 'link') return planned
+    clientCount += 1
+    const clientId = asClientId(`client-${clientCount}`)
+    signups.withClients(clientId)
+    tokens.withClients(clientId)
+    const invitationId = asAccountTokenId(`invitation-${clientCount}`)
+    await tokens.save({
+      ...(await invitationRow(ids, secrets, input.ownerEmail, clientId, clock.now())),
+      id: invitationId,
+    })
     return ok({
-      clientId: CLIENT,
+      clientId,
       invitation: {
-        invitationId: asAccountTokenId('invitation-1'),
-        expiresAt: new Date(AT.getTime() + 7 * 86_400_000),
-        delivery: 'mail',
+        invitationId,
+        expiresAt: new Date(clock.now().getTime() + 7 * 86_400_000),
+        ...(planned === 'link'
+          ? { delivery: 'link' as const, link: 'https://secret.example.test/invite' }
+          : { delivery: 'mail' as const }),
       },
     })
   }
 
-  /** A request confirmed into the operator's queue (`pending`), or left `unconfirmed`. */
-  const seed = async (
-    input: {
-      id?: string
-      email?: string
-      locale?: 'fr' | 'en'
-      confirmed?: boolean
-      at?: Date
-    } = {},
-  ): Promise<string> => {
-    const id = input.id ?? 'signup-1'
-    const address = EmailAddress.create(input.email ?? 'camille@example.test')
-    if (!address.ok) throw new Error('fixture rejected')
-    const sent = input.at ?? AT
-    const request = createSignupRequest(
-      { id, email: address.value, clientName: 'Mariage de Léa', locale: input.locale ?? 'fr' },
-      sent,
-    )
-    if (!request.ok) throw new Error('fixture rejected')
-    const token = anAccountToken({
-      id: `confirm-${id}`,
-      purpose: 'emailVerification',
-      email: address.value.value,
-      userId: null,
-      createdAt: sent,
-    })
-    await signups.admit({ request: request.value, token, now: sent, maxPerDay: 100 })
-    if (input.confirmed !== false) {
-      await signups.confirm({ tokenDigest: token.tokenDigest, now: sent, outcome: 'pending' })
-    }
-    return id
+  const requestSignup = makeRequestSignup({
+    mode,
+    signups,
+    secrets,
+    mailer,
+    ids,
+    clock,
+    logger,
+    audit,
+    publicUrl: PUBLIC_URL,
+    maxPerDay: options.maxPerDay ?? 50,
+  })
+  const preview = makePreviewSignupConfirmation({ mode, signups, secrets, clock })
+  const confirmNow = makeConfirmSignup({
+    mode,
+    signups,
+    secrets,
+    provisionClientOwner,
+    clients,
+    disk,
+    diskPaths: [DISK_PATH],
+    minFreeDiskBytes: 1_000_000_000,
+    notify,
+    clock,
+    logger,
+  })
+
+  /** Presses the button and waits for the notices behind it, as a test may and the route does not. */
+  const confirm: typeof confirmNow = async (input) => {
+    const result = await confirmNow(input)
+    if (result.ok) await result.value.completion
+    return result
+  }
+
+  /** Submits the form and waits for its completion, as a test may and the route does not. */
+  const submit = async (input: RequestSignupInput = aForm()) => {
+    const result = await requestSignup(input)
+    if (result.ok) await result.value.completion
+    return result
+  }
+
+  /** The token in the last confirmation mail's link. */
+  const lastToken = (): string => {
+    const mail = mailer.sent[mailer.sent.length - 1]
+    const match = mail?.text.match(/\/signup\/confirm\/([^?\s]+)/)
+    if (match?.[1] === undefined) throw new Error('no confirmation link in the last mail')
+    return decodeURIComponent(match[1])
   }
 
   return {
     clock,
-    signups,
     tokens,
-    audit,
+    ids,
+    signups,
+    secrets,
     mailer,
-    users,
-    aUser,
+    logger,
+    audit,
+    clients,
+    disk,
+    notify,
     provisioned,
+    provisioning,
     provisionClientOwner,
-    seed,
-    failProvisioning: () => (behaviour = 'fail'),
-    provisioningWorksAgain: () => (behaviour = 'ok'),
-    throwInProvisioning: () => (behaviour = 'throw'),
+    requestSignup,
+    preview,
+    confirm,
+    confirmNow,
+    submit,
+    lastToken,
   }
+}
+
+/** An invitation row to satisfy `finalize`'s foreign key. */
+const invitationRow = async (
+  ids: SequentialIdGenerator,
+  secrets: FakeSecretTokens,
+  email: string,
+  clientId: ClientId,
+  now: Date,
+): Promise<AccountToken> => {
+  const address = EmailAddress.create(email)
+  if (!address.ok) throw new Error('fixture')
+  const issued = issueAccountToken(
+    {
+      purpose: 'invitation',
+      tokenDigest: secrets.mint().digest,
+      email: address.value,
+      userId: null,
+      clientId,
+      clientRole: 'owner',
+      delivery: 'mail',
+      createdBy: null,
+    },
+    ids.accountTokenId(),
+    now,
+  )
+  if (!issued.ok) throw new Error('fixture')
+  return issued.value
 }

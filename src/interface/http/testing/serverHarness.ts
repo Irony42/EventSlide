@@ -231,6 +231,9 @@ export const notWiredUseCases = (): HttpUseCases => ({
   withdrawReaction: notWired('withdrawReaction'),
   getPhotoReactions: notWired('getPhotoReactions'),
   getTopPhotos: notWired('getTopPhotos'),
+  requestSignup: notWired('requestSignup'),
+  previewSignupConfirmation: notWired('previewSignupConfirmation'),
+  confirmSignup: notWired('confirmSignup'),
   getEventStats: notWired('getEventStats'),
 })
 

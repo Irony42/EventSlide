@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CapturingLogger } from '../../testing/capturingLogger'
-import { aSignupScene, CLIENT, OPERATOR } from '../../testing/signupScene'
+import { aSignupScene, CLIENT, OPERATOR } from '../../testing/operatorSignupScene'
 import { makeApproveSignup } from './approveSignup'
 
 const setup = () => {

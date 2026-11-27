@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { aUser } from '../../testing/builders'
-import { aSignupScene, OPERATOR } from '../../testing/signupScene'
+import { aSignupScene, OPERATOR } from '../../testing/operatorSignupScene'
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { makeApproveSignup } from './approveSignup'
 import { makeListSignupsForOperator } from './listSignupsForOperator'

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { EmailAddress } from '../../../domain/users/emailAddress'
 import { CapturingLogger } from '../../testing/capturingLogger'
-import { aSignupScene, OPERATOR } from '../../testing/signupScene'
+import { aSignupScene, OPERATOR } from '../../testing/operatorSignupScene'
 import { makeRefuseSignup } from './refuseSignup'
 
 const CONTACT = (() => {

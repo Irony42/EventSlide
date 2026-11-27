@@ -131,7 +131,7 @@ describe('GET /api/about', () => {
       license: 'AGPL-3.0-only',
       sourceUrl: SOURCE_URL,
       links: {},
-      features: { siteAdmin: false, forgotPassword: false },
+      features: { siteAdmin: false, forgotPassword: false, signup: 'off' },
     })
   })
 
@@ -407,11 +407,29 @@ describe('GET /api/about', () => {
     )
   })
 
+  /**
+   * Whether a visitor may ask for an account (spec 31). The sign-in page offers "Create an account" unless
+   * this is `off`, so it must say exactly what `SIGNUP` says and agree with the route it stands for.
+   */
+  describe('features.signup', () => {
+    it.each(['off', 'review', 'open'] as const)('says %s when SIGNUP is %s', async (mode) => {
+      const response = await request(
+        buildServerHarness({ about, config: { signup: { mode, rateLimitPerHour: 10 } } }).app,
+      ).get('/api/about')
+
+      expect(response.body.features.signup).toBe(mode)
+    })
+  })
+
   describe('features.siteAdmin', () => {
     it('is false on a box that never set SITE_ADMIN', async () => {
       const response = await request(buildServerHarness({ about }).app).get('/api/about')
 
-      expect(response.body.features).toEqual({ siteAdmin: false, forgotPassword: false })
+      expect(response.body.features).toEqual({
+        siteAdmin: false,
+        forgotPassword: false,
+        signup: 'off',
+      })
     })
 
     it('is true when SITE_ADMIN is on', async () => {
@@ -419,7 +437,11 @@ describe('GET /api/about', () => {
         buildServerHarness({ about, config: { siteAdmin: true } }).app,
       ).get('/api/about')
 
-      expect(response.body.features).toEqual({ siteAdmin: true, forgotPassword: false })
+      expect(response.body.features).toEqual({
+        siteAdmin: true,
+        forgotPassword: false,
+        signup: 'off',
+      })
     })
 
     it.each([

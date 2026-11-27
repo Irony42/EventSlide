@@ -106,6 +106,17 @@ const toRequest = (row: SignupRow): SignupRequest => {
 export class SqliteSignupRepository implements SignupRepository {
   constructor(private readonly db: Db) {}
 
+  async issuedSince(since: Date): Promise<number> {
+    return (
+      this.db
+        .prepare<[string], { n: number }>(
+          `SELECT COUNT(*) AS n FROM account_tokens
+            WHERE purpose = 'emailVerification' AND user_id IS NULL AND created_at > ?`,
+        )
+        .get(toIsoText(since))?.n ?? 0
+    )
+  }
+
   async admit(input: SignupAdmitInput): Promise<SignupAdmitResult> {
     const { request, token, now, maxPerDay } = input
     const since = toIsoText(new Date(now.getTime() - DAY_MS))

@@ -301,10 +301,11 @@ export const AUDIT_ACTIONS = {
    */
   'signup.expired': { subject: 'access_request', details: {} },
   /**
-   * The box's daily ceiling of confirmation mails was reached (`requestSignup`, system actor): written at
-   * most once a day, so the operator can tell a wave from a quiet box. `limit` is the ceiling in force.
+   * The box's daily ceiling of confirmations (`SIGNUP_MAX_PER_DAY`) was reached, once a day. The subject is
+   * the day itself (`YYYY-MM-DD`), because no request is the cause; the actor is the system. SECURITY
+   * names it as the alarm for signups used to exhaust the ceiling.
    */
-  'signup.dailyCeilingReached': { subject: 'access_request', details: { limit: detail.integer } },
+  'signup.dailyCeilingReached': { subject: 'access_request', details: {} },
 } as const satisfies Record<string, AuditActionSpec>
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS

@@ -7,6 +7,7 @@ import type {
 import type { PruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import type { FinalizeOffboardedClients } from '../application/usecases/clients/finalizeOffboardedClients'
 import type { PurgeExpiredRsvps } from '../application/usecases/guestRsvps/purgeExpiredRsvps'
+import type { SweepSignups } from '../application/usecases/signups/sweepSignups'
 import type { SweepPurgeNotices } from '../application/usecases/events/sweepPurgeNotices'
 import { leftWithArchive } from '../domain/clients/archiveState'
 import { createGuardedJob, type JobOutcome } from './guardedJob'
@@ -55,6 +56,8 @@ export interface RetentionSweeperDeps {
   readonly sweepPurgeNotices: SweepPurgeNotices
   /** The guests' replies whose time has come (spec 30). Required, like the others. */
   readonly purgeExpiredRsvps: PurgeExpiredRsvps
+  /** The signup requests whose time has come (spec 31). Required, like the others. */
+  readonly sweepSignups: SweepSignups
   readonly logger: Logger
   /** For the duration in the log line. Injected so that duration is assertable. */
   readonly clock: Clock
@@ -74,6 +77,7 @@ export interface RetentionSweeper {
 
 export interface RetentionFollowUpDeps {
   readonly purgeExpiredRsvps: PurgeExpiredRsvps
+  readonly sweepSignups: SweepSignups
   readonly finalizeOffboardedClients: FinalizeOffboardedClients
   readonly sweepPurgeNotices: SweepPurgeNotices
   readonly pruneAuditLog: PruneAuditLog
@@ -91,6 +95,7 @@ export interface RetentionFollowUpDeps {
  */
 export const makeRetentionFollowUp = ({
   purgeExpiredRsvps,
+  sweepSignups,
   finalizeOffboardedClients,
   sweepPurgeNotices,
   pruneAuditLog,
@@ -107,6 +112,25 @@ export const makeRetentionFollowUp = ({
       if (deleted > 0) logger.info('retention sweep erased expired guest replies', { deleted })
     } catch (error) {
       logger.error('expired guest replies could not be erased', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  /**
+   * The signup requests whose time has come (spec 31, section 4.3): unconfirmed ones after 48 hours, pending
+   * ones after 30 days (with their `signup.expired` line), refused ones after 30 days, and approved ones once
+   * their invitation is spent or dead. They hold an address, so they are erased on time and the box keeps
+   * no stranger's address past 60 days. Never throws, for the reason `pruneAudit` gives.
+   */
+  const sweepSignupRequests = async (): Promise<void> => {
+    try {
+      const { expired, released, erased } = await sweepSignups()
+      if (erased > 0 || released > 0) {
+        logger.info('retention sweep erased signup requests', { erased, expired, released })
+      }
+    } catch (error) {
+      logger.error('signup requests could not be swept', {
         error: error instanceof Error ? error.message : String(error),
       })
     }
@@ -198,6 +222,7 @@ export const makeRetentionFollowUp = ({
 
   return async () => {
     await purgeRsvps()
+    await sweepSignupRequests()
     await warnOwners()
     // The offboarded clients first, whose audit lines the prune should then see.
     await finalizeClients()
@@ -211,6 +236,7 @@ export const createRetentionSweeper = ({
   finalizeOffboardedClients,
   sweepPurgeNotices,
   purgeExpiredRsvps,
+  sweepSignups,
   logger,
   clock,
   intervalMs,
@@ -220,6 +246,7 @@ export const createRetentionSweeper = ({
     sweepPurgeNotices,
     pruneAuditLog,
     purgeExpiredRsvps,
+    sweepSignups,
     logger,
   })
 

@@ -197,6 +197,8 @@ export interface SignupOperatorNoticeMailInput {
   readonly kind: SignupNoticeKind
   /** How many, at least one. */
   readonly count: number
+  /** A second count to tell in the same mail: what the throttle held back, of the other kind. */
+  readonly also?: { readonly kind: SignupNoticeKind; readonly count: number }
   /** The console page that lists them. */
   readonly link: string
 }
@@ -250,15 +252,21 @@ export const signupOperatorNoticeMail = ({
   locale,
   kind,
   count,
+  also,
   link,
 }: SignupOperatorNoticeMailInput): Result<OutgoingMail, DomainError> => {
   // A notice about nothing is a bug in the caller, not a mail to send.
   if (!Number.isInteger(count) || count < 1) {
     return err(DomainError.invalid('signup.notice.countInvalid'))
   }
+  if (also !== undefined && (!Number.isInteger(also.count) || also.count < 1)) {
+    return err(DomainError.invalid('signup.notice.countInvalid'))
+  }
   const template = NOTICE[locale]
-  const subject = template.subjects[kind](count)
-  return ok({ to, subject, text: `${subject}\n\n${template.open}\n\n${link}\n` })
+  const lines = [template.subjects[kind](count)]
+  if (also !== undefined) lines.push(template.subjects[also.kind](also.count))
+  const subject = lines.join(' · ')
+  return ok({ to, subject, text: `${lines.join('\n')}\n\n${template.open}\n\n${link}\n` })
 }
 
 /** The operator's page of signups. */

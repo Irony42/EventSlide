@@ -431,7 +431,7 @@ why each change was made and what there was no warning for.
      when they open it. Sending a name and a password for an address that already has an account is
      `409 invitation.signInRequired`: that account signs in and accepts with an empty body; a dead one is `404 invitation.notFound`. An address is written
      to at most five times an hour: the sixth gets `429 invitation.tooManyForAddress`. Your own
-     reverse proxy must not log `/invite/*`, `/api/invitations/*` or `/password/reset/*`, which carry a
+     reverse proxy must not log `/invite/*`, `/api/invitations/*` or `/password/reset/*` (and, from 3.19, `/signup/confirm/*` and `/api/signup/confirm/*`), which carry a
      token.
    - **The server runs on Express 5.** A path with a doubled slash no longer reaches a route:
      a request for `/api//health` answers 404, so a base URL that ends in `/api/` joined to a path that starts with
@@ -1229,6 +1229,9 @@ applies **no migration** (the last is still 035) and adds no setting. Take the s
 
 ### Self-service signup (spec 31)
 
-- **Four optional settings**, read and checked at boot: `SIGNUP` (`off` by default, `review` or `open`), `SIGNUP_MAX_PER_DAY` (50), `SIGNUP_RATE_LIMIT_PER_HOUR` (10) and `SIGNUP_NOTIFY_EMAIL`. **Preview until the routes ship (later pull requests of 3.19)**: nothing uses them yet, and with none set nothing changes. But **a malformed value of any of the four refuses the boot, even with `SIGNUP=off`** (a typo in `SIGNUP`, a ceiling out of range, an address that is not a single mailbox); a blank value counts as absent.
+- **Four optional settings**, read and checked at boot: `SIGNUP` (`off` by default, `review` or `open`), `SIGNUP_MAX_PER_DAY` (50), `SIGNUP_RATE_LIMIT_PER_HOUR` (10) and `SIGNUP_NOTIFY_EMAIL`. With `SIGNUP` unset (`off`) the three public routes (`POST /api/signup`, `GET` and `POST /api/signup/confirm/:token`) answer `404 feature.unavailable`, `/api/about` says `features.signup: "off"` and nothing else changes. But **a malformed value of any of the four refuses the boot, even with `SIGNUP=off`** (a typo in `SIGNUP`, a ceiling out of range, an address that is not a single mailbox); a blank value counts as absent.
 - **`SIGNUP=review` or `open` is refused at boot (exit 78)** without `SITE_ADMIN=on` and without both `SMTP_URL` and `MAIL_FROM`: with no relay there is no proof of address. `docs/adr/0018-self-service-signup.md` gives the reasoning.
-- No compose or reverse-proxy change.
+- **A request is erased within 60 days** by the retention sweep (the timer, or `npm run purge` with `RETENTION_SWEEP_INTERVAL_MINUTES=off`): an unconfirmed one after 48 hours, a pending one after 30 days (one `signup.expired` line in the audit log), a refused one 30 days after the decision.
+- **With `SIGNUP=open` the box checks its free disk space before opening an account**: it needs `MIN_FREE_DISK_BYTES` plus 5 GB for each client that still has an event or was created in the last 30 days, plus 5 GB for the newcomer. Below that, or when the space cannot be read, the request waits for the operator as in `review`.
+- **Your reverse proxy must not log `/signup/confirm/*` or `/api/signup/confirm/*`**, which carry a one-time token (as for `/invite/*` and `/password/reset/*`), and must pass `/signup/confirm/*` and `/api/signup` through; the confirmation page and its API carry `Cache-Control: no-store`, `Referrer-Policy: no-referrer` and `noindex`, like an invitation's.
+- No compose change.
