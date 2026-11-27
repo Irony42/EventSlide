@@ -138,6 +138,14 @@ const ROUTES: readonly SiteRoute[] = [
     success: 204,
     write: true,
   })),
+  { method: 'get', path: '/api/site/announcements', success: 200, write: false },
+  {
+    method: 'post',
+    path: '/api/site/announcements',
+    body: { subject: 'Nouvelles conditions', text: 'Elles changent.' },
+    success: 202,
+    write: true,
+  },
   {
     method: 'post',
     path: `/api/site/clients/${ID.clientEmpty}/offboard`,

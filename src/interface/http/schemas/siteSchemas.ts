@@ -70,6 +70,18 @@ export const operatorTakedownBody = z.strictObject({
   ...hostNoticeFields,
 })
 
+/**
+ * `POST /api/site/announcements` (spec 32, A8): the operator's own words. What a request may carry is bounded here, the
+ * rules (a subject of 150 characters on one line, a text of 5000, one https link) are the domain's
+ * (`parseHostAnnouncement`: `400 hostAnnouncement.subjectInvalid`, `textInvalid`, `linkInvalid`), so there is one rule and one
+ * answer for each.
+ */
+export const hostAnnouncementBody = z.strictObject({
+  subject: z.string().max(1000),
+  text: z.string().max(20_000),
+  link: z.string().max(2000).optional(),
+})
+
 /** `POST /api/site/clients/:clientId/suspend` and `/resume`: nothing but the optional notice to the host. */
 export const hostNoticeBody = z.strictObject(hostNoticeFields)
 

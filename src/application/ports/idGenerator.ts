@@ -82,6 +82,9 @@ export interface IdGenerator {
   /** One signup request (spec 31). A plain string: the request is not a branded entity of its own. */
   signupRequestId(): string
 
+  /** One announcement to the hosts (spec 32, A8). A plain string, like a signup request's. */
+  hostAnnouncementId(): string
+
   /** Cryptographically strong bytes. Used for join codes and guest device tokens. */
   bytes(count: number): Uint8Array
 }

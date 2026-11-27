@@ -2407,6 +2407,33 @@ export interface SiteSignupDto {
   readonly existingAccount: boolean
 }
 
+/** An announcement the operator wrote to the hosts, and how far it has gone (spec 32, A8). */
+export interface SiteAnnouncementDto {
+  readonly id: string
+  readonly subject: string
+  readonly text: string
+  readonly link: string | null
+  readonly createdAt: string
+  /** When the last recipient was reached, `null` while it is going out. */
+  readonly finishedAt: string | null
+  /** How many accounts it reached so far. */
+  readonly delivered: number
+  /** How many accounts it is owed to in all: `delivered` plus those still owed while it goes out, `delivered` once finished. */
+  readonly owed: number
+}
+
+/** What the announcements page reads: the size of the audience now, and the past announcements. */
+export interface SiteAnnouncementListDto {
+  readonly recipients: number
+  readonly items: readonly SiteAnnouncementDto[]
+}
+
+/** What writing an announcement answers: its id and how many accounts it is owed to. */
+export interface SiteAnnouncementSentDto {
+  readonly id: string
+  readonly recipients: number
+}
+
 export interface SiteSignupPageDto {
   readonly items: readonly SiteSignupDto[]
   /** Requests waiting for a decision, whatever the page: the badge. */

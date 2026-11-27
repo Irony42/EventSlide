@@ -125,6 +125,11 @@ function SiteConsole() {
       label: t.site.takedownNav,
       current: pathname === '/admin/site/takedown',
     },
+    {
+      to: '/admin/site/announcements',
+      label: t.siteAnnouncements.nav,
+      current: pathname === '/admin/site/announcements',
+    },
     { to: '/admin/site/audit', label: t.site.navAudit, current: pathname === '/admin/site/audit' },
   ]
 

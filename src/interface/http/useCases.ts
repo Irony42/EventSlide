@@ -27,6 +27,8 @@ import type { ApprovePasswordReset } from '../../application/usecases/clients/ap
 import type { InviteToClientAsOperator } from '../../application/usecases/clients/inviteToClientAsOperator'
 import type { ProvisionClientOwner } from '../../application/usecases/clients/provisionClientOwner'
 import type { ApproveSignup } from '../../application/usecases/signups/approveSignup'
+import type { ListHostAnnouncements } from '../../application/usecases/site/listHostAnnouncements'
+import type { SendHostAnnouncement } from '../../application/usecases/site/sendHostAnnouncement'
 import type { ListSignupsForOperator } from '../../application/usecases/signups/listSignupsForOperator'
 import type { RefuseSignup } from '../../application/usecases/signups/refuseSignup'
 import type { RenameClient } from '../../application/usecases/clients/renameClient'
@@ -264,6 +266,9 @@ export interface HttpUseCases {
   readonly listSignupsForOperator: ListSignupsForOperator
   readonly approveSignup: ApproveSignup
   readonly refuseSignup: RefuseSignup
+  // ... and the operator's announcements to the hosts (spec 32, lot 2, A8)
+  readonly sendHostAnnouncement: SendHostAnnouncement
+  readonly listHostAnnouncements: ListHostAnnouncements
   readonly renameClient: RenameClient
   readonly setClientCeilings: SetClientCeilings
   readonly suspendClient: SuspendClient

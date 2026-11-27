@@ -179,6 +179,9 @@ const SiteClientPage = lazy(async () => ({
 const SiteAccountsPage = lazy(async () => ({
   default: (await import('../features/site/AccountsPage')).AccountsPage,
 }))
+const SiteAnnouncementsPage = lazy(async () => ({
+  default: (await import('../features/site/announcements/AnnouncementsPage')).AnnouncementsPage,
+}))
 const SiteSignupsPage = lazy(async () => ({
   default: (await import('../features/site/signups/SignupsPage')).SignupsPage,
 }))
@@ -701,6 +704,10 @@ export function AppRoutes() {
                         element={titled('siteSignups', <SiteSignupsPage />)}
                       />
                     ) : null}
+                    <Route
+                      path="/admin/site/announcements"
+                      element={titled('siteAnnouncements', <SiteAnnouncementsPage />)}
+                    />
                     <Route
                       path="/admin/site/audit"
                       element={titled('siteAudit', <SiteAuditPage />)}

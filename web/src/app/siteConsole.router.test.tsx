@@ -177,12 +177,16 @@ describe('the console’s address', () => {
 })
 
 describe('the console’s sections', () => {
-  it('links the four sections, and marks the one that is open', async () => {
+  it('links the five sections, and marks the one that is open', async () => {
     openConsole('/admin/site/accounts', consoleApi())
 
     const nav = await screen.findByRole('navigation', { name: fr.site.navLabel })
 
-    expect(nav.querySelectorAll('a')).toHaveLength(4)
+    expect(nav.querySelectorAll('a')).toHaveLength(5)
+    expect(screen.getByRole('link', { name: fr.siteAnnouncements.nav })).toHaveAttribute(
+      'href',
+      '/admin/site/announcements',
+    )
     expect(screen.getByRole('link', { name: fr.site.navAccounts })).toHaveAttribute(
       'aria-current',
       'page',
@@ -394,12 +398,12 @@ describe('the console leads out to the other homes (H9)', () => {
     expect(within(nav).queryByRole('link', { name: fr.clientSpace.spaceLink })).toBeNull()
   })
 
-  it('keeps the exits out of the list of sections, which stays four', async () => {
+  it('keeps the exits out of the list of sections, which stays five', async () => {
     openConsole('/admin/site', consoleApi())
 
     const sections = await screen.findByRole('navigation', { name: fr.site.navLabel })
 
-    expect(sections.querySelectorAll('a')).toHaveLength(4)
+    expect(sections.querySelectorAll('a')).toHaveLength(5)
   })
 })
 

@@ -84,6 +84,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   listSignupsForOperator: notWired('listSignupsForOperator'),
   approveSignup: notWired('approveSignup'),
   refuseSignup: notWired('refuseSignup'),
+  sendHostAnnouncement: notWired('sendHostAnnouncement'),
+  listHostAnnouncements: notWired('listHostAnnouncements'),
   renameClient: notWired('renameClient'),
   setClientCeilings: notWired('setClientCeilings'),
   suspendClient: notWired('suspendClient'),

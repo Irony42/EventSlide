@@ -12,6 +12,10 @@ import {
   type NotifyInvitationAccepted,
 } from '../application/usecases/notices/notifyInvitationAccepted'
 import {
+  makeSweepHostAnnouncements,
+  type SweepHostAnnouncements,
+} from '../application/usecases/notices/sweepHostAnnouncements'
+import {
   makeNotifyTakedown,
   type NotifyTakedown,
 } from '../application/usecases/notices/notifyTakedown'
@@ -106,6 +110,8 @@ export interface SharedHooks {
   readonly jobNotice: NotifyJobDone
   /** The mail that tells a host an invitation was accepted (spec 32, A6). */
   readonly invitationNotice: NotifyInvitationAccepted
+  /** The announcements to the hosts, by batches (spec 32, A8): one sweep for the box, so the operator's first batch and the timer's pass never overlap. */
+  readonly sweepHostAnnouncements: SweepHostAnnouncements
   /** The mail that tells a host what the operator did (spec 32, A4): the operator's use cases are given its `notify`. */
   readonly takedownNotice: NotifyTakedown
 }
@@ -166,6 +172,14 @@ export const buildSharedHooks = (adapters: Adapters, policy: UseCasePolicy): Sha
     logger: adapters.logger,
     publicUrl: policy.publicUrl,
     hostMailNotices: policy.hostMailNotices,
+  }),
+  sweepHostAnnouncements: makeSweepHostAnnouncements({
+    announcements: adapters.hostAnnouncements,
+    budget: adapters.mailBudget,
+    mailer: adapters.mailer,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    operatorContact: contactAddress(policy.operatorContactEmail),
   }),
   takedownNotice: makeNotifyTakedown({
     events: adapters.events,

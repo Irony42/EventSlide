@@ -128,6 +128,7 @@ const OPERATOR: readonly (readonly [string, Key])[] = [
   ['/admin/site/accounts', 'siteAccounts'],
   ['/admin/site/audit', 'siteAudit'],
   ['/admin/site/signups', 'siteSignups'],
+  ['/admin/site/announcements', 'siteAnnouncements'],
   ['/admin/site/takedown', 'siteTakedown'],
 ]
 

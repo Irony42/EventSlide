@@ -391,6 +391,16 @@ export const es: UiText = {
       'Introduzca un identificador, un código, una dirección o el nombre de un evento (300 caracteres como máximo).',
     'takedown.hostReasonInvalid':
       'El motivo para el organizador debe tener 500 caracteres como máximo.',
+    'hostAnnouncement.subjectInvalid':
+      'El asunto debe caber en una línea de 150 caracteres como máximo.',
+    'hostAnnouncement.textInvalid': 'El mensaje debe tener de 1 a 5000 caracteres.',
+    'hostAnnouncement.linkInvalid':
+      'El enlace debe ser una dirección https:// de 500 caracteres como máximo, sin espacios.',
+    'hostAnnouncement.mailerRequired':
+      'Esta instancia no envía correo: ningún anuncio puede salir.',
+    'hostAnnouncement.noRecipients': 'No hay ningún propietario activo al que escribir.',
+    'hostAnnouncement.duplicate':
+      'Este anuncio acaba de guardarse: las mismas palabras siguen saliendo o salieron hace menos de diez minutos.',
     'audit.reasonInvalid':
       'El motivo debe caber en una línea de 200 caracteres como máximo, sin dirección de correo.',
     'reset.mailerRequired':
@@ -2595,6 +2605,56 @@ export const es: UiText = {
     liveWindowEnd: (date: string) => `El evento termina el ${date}.`,
   },
 
+  /* ---- Spec 32, A8: the operator’s page of announcements to the hosts (`/admin/site/announcements`). ---- */
+  siteAnnouncements: {
+    nav: 'Anuncios',
+    title: 'Anuncios a los anfitriones',
+    hint: 'Un cambio de condiciones, de subencargado, el fin del servicio: escríbalo aquí y llegará a cada propietario de un espacio, una vez por dirección. Escribe en el idioma que elija: nada se traduce.',
+    subject: 'Asunto',
+    subjectHint: 'Una línea, 150 caracteres como máximo.',
+    text: 'Mensaje',
+    textHint: '5000 caracteres como máximo. Se conservan los saltos de línea.',
+    link: 'Enlace (opcional)',
+    linkHint: 'Una dirección https://, el único enlace del mensaje.',
+    preview: 'Vista previa',
+    previewEmpty: 'Escriba un asunto y un mensaje para ver el correo.',
+    audience: (n: number) =>
+      t.count(n, {
+        one: `Este anuncio llegará a ${t.number(n)} cuenta (propietarios activos de al menos un espacio).`,
+        other: `Este anuncio llegará a ${t.number(n)} cuentas (propietarios activos de al menos un espacio).`,
+      }),
+    send: 'Enviar el anuncio',
+    confirmTitle: '¿Enviar este anuncio?',
+    confirmBody: (n: number) =>
+      t.count(n, {
+        one: `Llega a ${t.number(n)} cuenta, por tandas y dentro del límite de correos del día, y no se puede retirar.`,
+        other: `Llega a ${t.number(n)} cuentas, por tandas y dentro del límite de correos del día, y no se puede retirar.`,
+      }),
+    sent: (n: number) =>
+      t.count(n, {
+        one: `Anuncio guardado: llegará a ${t.number(n)} cuenta.`,
+        other: `Anuncio guardado: llegará a ${t.number(n)} cuentas.`,
+      }),
+    past: 'Anuncios enviados',
+    pastCaption: 'Anuncios a los anfitriones y su avance',
+    refresh: 'Actualizar',
+    loading: 'Cargando los anuncios',
+    none: 'Aún no hay ningún anuncio.',
+    colSubject: 'Asunto',
+    colWritten: 'Escrito el',
+    colProgress: 'Avance',
+    going: (sent: number, owed: number) =>
+      t.count(owed, {
+        one: `En curso: ${t.number(sent)} de ${t.number(owed)} enviado`,
+        other: `En curso: ${t.number(sent)} de ${t.number(owed)} enviados`,
+      }),
+    done: (n: number, date: string) =>
+      t.count(n, {
+        one: `Terminado el ${date}: ${t.number(n)} enviado`,
+        other: `Terminado el ${date}: ${t.number(n)} enviados`,
+      }),
+  },
+
   siteSignups: {
     nav: 'Inscripciones',
     navPending: (count: number) => `Inscripciones (${count})`,
@@ -2856,6 +2916,7 @@ export const es: UiText = {
       'client.periodReset': 'Periodo renovado.',
       'client.suspended': 'Cliente suspendido.',
       'client.resumed': 'Suspensión levantada.',
+      'account.hostAnnouncementSent': 'Anuncio enviado a los anfitriones.',
       'invitation.issued': 'Invitación emitida.',
       'invitation.approved': 'Invitación aprobada por un propietario.',
       'account.resetRequested': 'Restablecimiento de contraseña solicitado.',
@@ -4325,5 +4386,6 @@ export const es: UiText = {
     siteAudit: 'Registro de la instancia',
     siteTakedown: 'Retirada de contenido',
     siteSignups: 'Inscripciones',
+    siteAnnouncements: 'Anuncios a los anfitriones',
   },
 }

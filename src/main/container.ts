@@ -34,6 +34,7 @@ import { SqliteSecondFactorRepository } from '../infrastructure/db/sqliteSecondF
 import { sha256StreamHasher } from '../infrastructure/crypto/sha256StreamHasher'
 import { SqlitePurgeNoticeLedger } from '../infrastructure/db/sqlitePurgeNoticeLedger'
 import { SqliteEventMailNoticeLedger } from '../infrastructure/db/sqliteEventMailNoticeLedger'
+import { SqliteHostAnnouncementRepository } from '../infrastructure/db/sqliteHostAnnouncementRepository'
 import { SqliteMailBudget } from '../infrastructure/db/sqliteMailBudget'
 import { SqliteMailPreferenceRepository } from '../infrastructure/db/sqliteMailPreferenceRepository'
 import { SqliteTourLedger } from '../infrastructure/db/sqliteTourLedger'
@@ -599,6 +600,7 @@ export const createContainer = async (
     purgeNotices: new SqlitePurgeNoticeLedger(db),
     eventMailNotices: new SqliteEventMailNoticeLedger(db),
     mailBudget: new SqliteMailBudget(db, config.hostMail.followUpMaxPerDay),
+    hostAnnouncements: new SqliteHostAnnouncementRepository(db),
     mailPreferences: new SqliteMailPreferenceRepository(db),
     streamHasher: sha256StreamHasher,
     totpEngine: nodeTotpEngine,
@@ -721,6 +723,8 @@ export const createContainer = async (
           sweepRsvpNotices: usecases.sweepRsvpNotices,
           sweepRsvpDigests: usecases.sweepRsvpDigests,
           sweepEventNotices: usecases.sweepEventNotices,
+          sweepHostAnnouncements: usecases.sweepHostAnnouncements,
+          pruneHostAnnouncements: usecases.pruneHostAnnouncements,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,

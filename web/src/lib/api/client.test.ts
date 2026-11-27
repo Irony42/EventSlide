@@ -1281,6 +1281,18 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.siteSignups('pending'),
   },
   {
+    name: 'siteAnnouncements',
+    verb: 'get',
+    path: '/api/site/announcements',
+    invoke: (client) => client.siteAnnouncements(),
+  },
+  {
+    name: 'siteSendAnnouncement',
+    verb: 'post',
+    path: '/api/site/announcements',
+    invoke: (client) => client.siteSendAnnouncement({ subject: 'Sujet', text: 'Texte' }),
+  },
+  {
     name: 'siteApproveSignup',
     verb: 'post',
     path: `/api/site/signups/${CLIENT}/approve`,

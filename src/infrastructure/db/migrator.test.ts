@@ -303,6 +303,8 @@ describe('the real schema', () => {
       'guestbook_voices',
       'guests',
       'highlight_reels',
+      'host_announcement_deliveries',
+      'host_announcements',
       'mail_daily_counts',
       'photos',
       'push_subscriptions',
@@ -4898,6 +4900,82 @@ describe('migration 042: mail to the host (spec 32)', () => {
     expect(() =>
       db.prepare(`INSERT INTO mail_daily_counts (day, count) VALUES ('2026-11-28', -1)`).run(),
     ).toThrow(/CHECK/)
+    closeDatabase(db)
+  })
+})
+
+describe('migration 043: announcements to the hosts (spec 32, lot 2)', () => {
+  const AT = '2026-11-27T10:00:00.000Z'
+  const migrated = (): Db => {
+    const db = freshDb()
+    migrate(db, migrations)
+    return db
+  }
+  const user = (db: Db, id: string): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, 'x', ?)`,
+    ).run(id, `${id}@example.test`, AT)
+  }
+  const announce = (db: Db, id: string, by: string | null): void => {
+    db.prepare(
+      `INSERT INTO host_announcements (id, subject, text, link, created_by, created_at) VALUES (?, 's', 't', NULL, ?, ?)`,
+    ).run(id, by, AT)
+  }
+  const deliver = (db: Db, announcement: string, to: string): void => {
+    db.prepare(
+      `INSERT INTO host_announcement_deliveries (announcement_id, user_id, sent_at) VALUES (?, ?, ?)`,
+    ).run(announcement, to, AT)
+  }
+  const count = (db: Db, table: string): number =>
+    (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n
+
+  it('writes to an account once per announcement: the primary key is the pair', () => {
+    const db = migrated()
+    user(db, 'u-one')
+    announce(db, 'a-one', 'u-one')
+    deliver(db, 'a-one', 'u-one')
+
+    expect(() => deliver(db, 'a-one', 'u-one')).toThrow(/UNIQUE|PRIMARY/)
+    announce(db, 'a-two', 'u-one')
+    deliver(db, 'a-two', 'u-one')
+    closeDatabase(db)
+  })
+
+  it('keeps the text when its author is deleted, and loses only the author', () => {
+    const db = migrated()
+    user(db, 'u-one')
+    announce(db, 'a-one', 'u-one')
+
+    db.prepare(`DELETE FROM users WHERE id = 'u-one'`).run()
+
+    expect(
+      db.prepare(`SELECT created_by FROM host_announcements WHERE id = 'a-one'`).get(),
+    ).toEqual({
+      created_by: null,
+    })
+    closeDatabase(db)
+  })
+
+  it('forgets who was reached when the announcement or the account goes', () => {
+    const db = migrated()
+    user(db, 'u-one')
+    user(db, 'u-two')
+    announce(db, 'a-one', null)
+    deliver(db, 'a-one', 'u-one')
+    deliver(db, 'a-one', 'u-two')
+
+    db.prepare(`DELETE FROM users WHERE id = 'u-two'`).run()
+    expect(count(db, 'host_announcement_deliveries')).toBe(1)
+    db.prepare(`DELETE FROM host_announcements WHERE id = 'a-one'`).run()
+    expect(count(db, 'host_announcement_deliveries')).toBe(0)
+    closeDatabase(db)
+  })
+
+  it('refuses a delivery for an announcement or an account that does not exist', () => {
+    const db = migrated()
+    user(db, 'u-one')
+
+    expect(() => deliver(db, 'nobody', 'u-one')).toThrow(/FOREIGN KEY/)
     closeDatabase(db)
   })
 })

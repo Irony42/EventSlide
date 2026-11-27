@@ -73,6 +73,8 @@ import { SqliteGuestbookRepository } from '../src/infrastructure/db/sqliteGuestb
 import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
 import { makeNotifySignupOperator } from '../src/application/usecases/signups/notifySignupOperator'
 import { makeSweepSignups } from '../src/application/usecases/signups/sweepSignups'
+import { makePruneHostAnnouncements } from '../src/application/usecases/notices/pruneHostAnnouncements'
+import { makeSweepHostAnnouncements } from '../src/application/usecases/notices/sweepHostAnnouncements'
 import { makeSweepEventNotices } from '../src/application/usecases/notices/sweepEventNotices'
 import { makeSweepRsvpDigests } from '../src/application/usecases/notices/sweepRsvpDigests'
 import { SqliteMailPreferenceRepository } from '../src/infrastructure/db/sqliteMailPreferenceRepository'
@@ -80,9 +82,11 @@ import { makeSweepRsvpNotices } from '../src/application/usecases/notices/sweepR
 import { SqliteEventMailNoticeLedger } from '../src/infrastructure/db/sqliteEventMailNoticeLedger'
 import { SqliteGuestInviteRepository } from '../src/infrastructure/db/sqliteGuestInviteRepository'
 import { makePruneMailBudget } from '../src/application/usecases/notices/pruneMailBudget'
+import { SqliteHostAnnouncementRepository } from '../src/infrastructure/db/sqliteHostAnnouncementRepository'
 import { SqliteMailBudget } from '../src/infrastructure/db/sqliteMailBudget'
 import { SqliteSignupRepository } from '../src/infrastructure/db/sqliteSignupRepository'
 import { EmailAddress } from '../src/domain/users/emailAddress'
+import { contactAddress } from '../src/main/usecases.shared'
 
 /** The sweep wants a `Logger`; on a terminal that is the console. */
 export const consoleLogger: Logger = {
@@ -174,6 +178,7 @@ const execute = async (
     const notifyAddress =
       config.signup.notifyEmail === null ? null : EmailAddress.create(config.signup.notifyEmail)
     const notifyTo = notifyAddress !== null && notifyAddress.ok ? notifyAddress.value : null
+    const operatorContact = contactAddress(config.operator.contactEmail)
     const followUp = async (): Promise<boolean> => {
       await makeRetentionFollowUp({
         finalizeOffboardedClients: makeFinalizeOffboardedClients({
@@ -284,6 +289,19 @@ const execute = async (
           capNoticeDays,
           publicUrl: config.publicUrl,
           hostMailNotices: config.hostMail.notices === 'on',
+        }),
+        // The announcements to the hosts (spec 32, A8): the timer's own use cases, a batch and the retention of the old ones.
+        sweepHostAnnouncements: makeSweepHostAnnouncements({
+          announcements: new SqliteHostAnnouncementRepository(db),
+          budget: new SqliteMailBudget(db, config.hostMail.followUpMaxPerDay),
+          mailer: mailerForFollowUp,
+          clock: systemClock,
+          logger: followUpLogger,
+          operatorContact,
+        }),
+        pruneHostAnnouncements: makePruneHostAnnouncements({
+          announcements: new SqliteHostAnnouncementRepository(db),
+          clock: systemClock,
         }),
         // The daily mail counts older than a week (spec 32): the same use case as the timer's.
         pruneMailBudget: makePruneMailBudget({

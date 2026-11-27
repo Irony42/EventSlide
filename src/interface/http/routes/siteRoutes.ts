@@ -30,6 +30,10 @@ import {
   toSiteEventPageDto,
 } from '../presenters/siteOverviewPresenter'
 import { toSiteSignupPageDto } from '../presenters/signupOperatorPresenter'
+import {
+  toSiteAnnouncementListDto,
+  toSiteAnnouncementSentDto,
+} from '../presenters/hostAnnouncementPresenter'
 import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   toSiteEventLookupDto,
@@ -43,6 +47,7 @@ import {
   type CeilingsBody,
   clientIdParams,
   eventIdParams,
+  hostAnnouncementBody,
   hostNoticeBody,
   offboardClientBody,
   operatorTakedownBody,
@@ -143,6 +148,8 @@ export interface SiteRouteDeps extends Pick<RouteDeps, 'deps'> {
     | 'inviteToClientAsOperator'
     | 'issuePasswordResetForAccount'
     | 'listSignupsForOperator'
+    | 'sendHostAnnouncement'
+    | 'listHostAnnouncements'
     | 'approveSignup'
     | 'refuseSignup'
   >
@@ -282,6 +289,21 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
 
       res.setHeader('Cache-Control', 'no-store')
       sendResult(res, result, (response, page) => sendJson(response, toSiteSignupPageDto(page)))
+    }),
+  )
+
+  /**
+   * The announcements the operator wrote to the hosts, newest first, each with how many accounts it reached, and how many
+   * accounts one written now would be owed to (spec 32, A8). No text of a host and no address: the operator's own words and
+   * numbers.
+   */
+  router.get(
+    '/announcements',
+    asyncHandler(async (_req, res) => {
+      const list = await usecases.listHostAnnouncements()
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendJson(res, toSiteAnnouncementListDto(list))
     }),
   )
 
@@ -854,6 +876,31 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
       })
 
       sendResultNoContent(res, result)
+    }),
+  )
+
+  /**
+   * Writes an announcement to the hosts (spec 32, A8): subject, text and an optional https link, **the operator's own words,
+   * untranslated**. It answers `201` with the announcement's id and how many accounts it is owed to; the mails go out by
+   * batches within the day's budget, from the retention sweep, and a restart resumes them. `409 hostAnnouncement.mailerRequired`
+   * on a box that cannot mail, `409 hostAnnouncement.noRecipients` when nobody would receive it.
+   */
+  router.post(
+    '/announcements',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const body = hostAnnouncementBody.parse(req.body)
+
+      const result = await usecases.sendHostAnnouncement({
+        subject: body.subject,
+        text: body.text,
+        ...(body.link === undefined ? {} : { link: body.link }),
+        operatorId: userOf(req).userId,
+      })
+
+      sendResult(res, result, (response, sent) =>
+        sendJson(response, toSiteAnnouncementSentDto(sent), 202),
+      )
     }),
   )
 

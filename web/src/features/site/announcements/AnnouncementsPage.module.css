@@ -1,0 +1,81 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.heading {
+  font-size: var(--text-lg);
+}
+
+.hint {
+  color: var(--text-secondary);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-inline-size: 48rem;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.previewSubject {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* The operator's own line breaks are the mail's: shown as typed. */
+.previewText {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.previewLink {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.audience {
+  min-block-size: 1lh;
+  color: var(--text-secondary);
+}
+
+.past {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pastHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.caption {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.rowSubject {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}

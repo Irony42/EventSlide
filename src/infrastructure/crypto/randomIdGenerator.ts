@@ -63,6 +63,7 @@ export const randomIdGenerator: IdGenerator = {
   clientId: (): ClientId => asClientId(randomUUID()),
   accountTokenId: (): AccountTokenId => asAccountTokenId(randomUUID()),
   signupRequestId: (): string => randomUUID(),
+  hostAnnouncementId: (): string => randomUUID(),
   challengeId: (): ChallengeId => asChallengeId(randomUUID()),
   announcementId: (): AnnouncementId => asAnnouncementId(randomUUID()),
   channelBindingId: (): ChannelBindingId => asChannelBindingId(randomUUID()),
