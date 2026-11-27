@@ -18,6 +18,7 @@ import type { MailBudget } from '../../ports/mailBudget'
 import type { MailPreferenceRepository } from '../../ports/mailPreferenceRepository'
 import type { Mailer } from '../../ports/mailer'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { clientToWriteAbout } from './noticeAudience'
 
 /**
  * R2, the daily summary of the replies (spec 32, section 3.1): to **an owner who ticked it for this event**, **at most
@@ -120,11 +121,11 @@ export const makeSweepRsvpDigests =
       const { eventId, userId } = candidate
       try {
         const event = await events.findById(eventId)
-        if (event === null || event.isTakenDown() || event.isClientSuspended()) continue
+        if (event === null) continue
         // An archived event has nothing left to do in the console: no follow-up mail (spec 32, section 3).
         if (event.status === 'archived') continue
-        const client = event.clientId === null ? null : await clients.findById(event.clientId)
-        if (client?.isOffboarding() === true) continue
+        const client = await clientToWriteAbout(clients, event)
+        if (client === undefined) continue
 
         const owner = (await memberships.ownersToNotify(eventId)).find(
           (candidateOwner) => candidateOwner.userId === userId,

@@ -87,7 +87,11 @@ export const makeNotifyInvitationAccepted = (
     if (inviter === undefined || !inviter.mail.event) return
     const to = EmailAddress.fromStored(inviter.email)
     if (!to.ok) return
-    if (!(await budget.take(budgetDayOf(clock.now()), 1))) return
+    if (!(await budget.take(budgetDayOf(clock.now()), 1))) {
+      // There is no pass to come back on: a full day drops it, and says so.
+      logger.warn('an invitation notice was not sent', { outcome: 'budget' })
+      return
+    }
 
     const result = await mailer.send(
       invitationAcceptedMail({

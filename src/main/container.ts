@@ -89,6 +89,7 @@ import { createInMemorySignInAttempts } from '../infrastructure/security/inMemor
 import { createPinoLogger } from '../infrastructure/logging/pinoLogger'
 import { nullMailer } from '../infrastructure/mail/nullMailer'
 import { createSmtpMailer } from '../infrastructure/mail/smtpMailer'
+import type { Clock } from '../application/ports/clock'
 import { systemClock } from '../infrastructure/time/systemClock'
 import { fsStagedUploadStore } from '../infrastructure/system/fsStagedUploadStore'
 import { statfsDiskSpaceChecker } from '../infrastructure/system/statfsDiskSpaceChecker'
@@ -304,7 +305,20 @@ const recreateDirectory = async (path: string): Promise<void> => {
   await mkdir(path, { recursive: true })
 }
 
-export const createContainer = async (config: AppConfig): Promise<Container> => {
+/** What a test may choose about the composition. Nothing in the product passes one. */
+export interface ContainerOptions {
+  /**
+   * The clock the **use cases** read (sweeps, notices, expiries of their own making), so a test can stand where a sweep's rule
+   * applies (08:00 to 21:00 in a zone, weeks before a deletion). The session store and the sign-in counter keep the system clock:
+   * a session that expires in the test's imagined year would never be one.
+   */
+  readonly clock?: Clock
+}
+
+export const createContainer = async (
+  config: AppConfig,
+  options: ContainerOptions = {},
+): Promise<Container> => {
   // Minted once per process, never read from the environment: it exists so a log
   // shipper aggregating several boxes can tell one instance's lines from another's, not
   // to be chosen or repeated by an operator.
@@ -521,7 +535,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
         })
 
   const adapters: Adapters = {
-    clock: systemClock,
+    clock: options.clock ?? systemClock,
     /**
      * Random in production, counted under `E2E_HOOKS` — the same gate the wall's
      * timing hooks use, and one the config module refuses to accept in production.

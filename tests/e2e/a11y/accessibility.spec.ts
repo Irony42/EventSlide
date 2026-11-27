@@ -4,6 +4,8 @@ import { csrfHeaders, expect, signInAsHost, test, wallUrl } from '../fixtures/ap
 import { joinAndUpload } from '../fixtures/guest'
 import { currentStep, enrolOperator, totp } from '../fixtures/operatorFactor'
 import { linkIn, startSignupBox } from '../fixtures/signupBox'
+import { startTestApp } from '../fixtures/startTestApp'
+import { startSmtpSink } from '../../../src/infrastructure/mail/testing/smtpSink'
 import { SUITE_LOCALE } from '../fixtures/suiteLocale'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
@@ -250,6 +252,47 @@ test.describe('the host surface', () => {
     const { violations } = await scan(surfaces.host)
 
     expect(seriousOnly(violations)).toEqual([])
+  })
+
+  test('the security page, with its e-mail section, has no serious violation and its switches are reached from the keyboard', async ({
+    browser,
+  }, testInfo) => {
+    // Its own server with a relay: the section is offered only where the box writes to its hosts (spec 32).
+    const sink = await startSmtpSink()
+    const mailing = await startTestApp({
+      worker: testInfo.workerIndex,
+      env: { SMTP_URL: `smtp://127.0.0.1:${sink.port}`, MAIL_FROM: 'no-reply@eventslide.test' },
+    }).catch(async (error: unknown) => {
+      await sink.close()
+      throw error
+    })
+    const context = await browser.newContext({ baseURL: mailing.baseUrl, locale: SUITE_LOCALE })
+    try {
+      const page = await context.newPage()
+      await signInAsHost(page, mailing)
+      await page.goto(mailing.url('/admin/security'))
+      const switchOne = page.getByRole('checkbox', { name: fr.auth.mailPreferences.rsvpLabel })
+      await expect(switchOne).toBeVisible()
+
+      const { violations } = await scan(page)
+      expect(seriousOnly(violations)).toEqual([])
+
+      await tabTo(page, switchOne)
+      await page.keyboard.press('Space')
+      await expect(switchOne).not.toBeChecked()
+      await expect
+        .poll(
+          async () =>
+            (await (await page.request.get(mailing.url('/api/me/mail-preferences'))).json()).rsvp,
+        )
+        .toBe(false)
+      const after = await scan(page)
+      expect(seriousOnly(after.violations)).toEqual([])
+    } finally {
+      await context.close()
+      await mailing.dispose()
+      await sink.close()
+    }
   })
 
   test('the moderation console has no serious violation', async ({ app, surfaces }) => {
