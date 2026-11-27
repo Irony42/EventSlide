@@ -47,6 +47,7 @@ import type { PurgeNoticeLedger } from '../application/ports/purgeNoticeLedger'
 import type { TourLedger } from '../application/ports/tourLedger'
 import type { TotpEngine } from '../application/ports/totpEngine'
 import type { InvitationAcceptance } from '../application/ports/invitationAcceptance'
+import type { SignupRepository } from '../application/ports/signupRepository'
 import type { Mailer } from '../application/ports/mailer'
 import type { SecretTokens } from '../application/ports/secretTokens'
 import type { GallerySigner } from '../application/ports/gallerySigner'
@@ -70,7 +71,6 @@ import { clipsUseCases } from './usecases.clips'
 import { wallUseCases } from './usecases.wall'
 import { galleryUseCases } from './usecases.gallery'
 import { clientsUseCases } from './usecases.clients'
-import type { SignupRepository } from '../application/ports/signupRepository'
 import type { DiskSpaceChecker } from '../application/ports/diskSpace'
 import type { SignupMode } from '../domain/signups/signupMode'
 import { signupUseCases } from './usecases.signups'
@@ -239,6 +239,11 @@ export interface UseCasePolicy {
    * derive the notice, so a guest's acknowledgement is always compared with the text they saw.
    */
   readonly operatorName: string | null
+  /**
+   * `operator.contactEmail`: the `Reply-To` of the mail that tells a refused signup it was refused (spec 31),
+   * or `null` on a box that names no contact.
+   */
+  readonly operatorContactEmail: string | null
   /**
    * `termsOfUse`: the terms an invitation's acceptance asks the person to agree to, or `null`
    * on a box that asks for none, which is every self-hosted box (`LEGAL_TERMS_URL` with

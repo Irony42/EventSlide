@@ -283,9 +283,21 @@ export const AUDIT_ACTIONS = {
    */
   'account.recoveryCodeUsed': { subject: 'account', details: { remaining: detail.integer } },
   /**
-   * Signups (spec 31, ADR 0018) are about the reserved subject `access_request`, and their actions are
-   * named `signup.<pastTense>`. A request nobody decided on in time was erased by the sweep
-   * (`sweepSignups`); the subject is the request's own id and never its address.
+   * An operator approved a signup request (`approveSignup`, spec 31, ADR 0018): the client was opened and its
+   * owner's invitation is out. The subject is the request's opaque id (the reserved subject type
+   * `access_request`, so no table is rebuilt), the actor the operator; the client it produced is in
+   * `client.created`. **Never the address or the space's name**: they are what a stranger typed.
+   */
+  'signup.approved': { subject: 'access_request', details: {} },
+  /**
+   * An operator refused a signup request (`refuseSignup`). `notified` says whether the person was told
+   * by mail, because "did they hear from us?" is what a complaint asks. No reason is kept, and nothing
+   * of what the person typed.
+   */
+  'signup.refused': { subject: 'access_request', details: { notified: detail.boolean } },
+  /**
+   * A signup request waited the whole retention window with nobody deciding and was erased
+   * (`sweepSignups`, system actor). The subject is the request's id, which is all that is left of it.
    */
   'signup.expired': { subject: 'access_request', details: {} },
   /**

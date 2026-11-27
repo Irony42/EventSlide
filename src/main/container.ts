@@ -37,6 +37,7 @@ import { SqliteTourLedger } from '../infrastructure/db/sqliteTourLedger'
 import { createAesGcmMfaVault } from '../infrastructure/crypto/aesGcmMfaVault'
 import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
 import { SqliteInvitationAcceptance } from '../infrastructure/db/sqliteInvitationAcceptance'
+import { SqliteSignupRepository } from '../infrastructure/db/sqliteSignupRepository'
 import { SqliteAuditLog } from '../infrastructure/db/sqliteAuditLog'
 import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
@@ -86,7 +87,6 @@ import { nullMailer } from '../infrastructure/mail/nullMailer'
 import { createSmtpMailer } from '../infrastructure/mail/smtpMailer'
 import { systemClock } from '../infrastructure/time/systemClock'
 import { fsStagedUploadStore } from '../infrastructure/system/fsStagedUploadStore'
-import { SqliteSignupRepository } from '../infrastructure/db/sqliteSignupRepository'
 import { statfsDiskSpaceChecker } from '../infrastructure/system/statfsDiskSpaceChecker'
 import { voiceOutputCeilingBytes } from '../domain/guestbook/guestbookVoiceLimits'
 import { evaluateDiskSpace, type DiskSpaceStatus } from '../domain/shared/diskSpaceGuard'
@@ -633,6 +633,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       freeDiskBytes,
     },
     operatorName: config.operator.name,
+    operatorContactEmail: config.operator.contactEmail,
     termsOfUse: config.termsOfUse,
     mfaIssuer: config.operator.name ?? 'EventSlide',
     signup: {

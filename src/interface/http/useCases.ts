@@ -26,6 +26,9 @@ import type { ApproveInvitation } from '../../application/usecases/clients/appro
 import type { ApprovePasswordReset } from '../../application/usecases/clients/approvePasswordReset'
 import type { InviteToClientAsOperator } from '../../application/usecases/clients/inviteToClientAsOperator'
 import type { ProvisionClientOwner } from '../../application/usecases/clients/provisionClientOwner'
+import type { ApproveSignup } from '../../application/usecases/signups/approveSignup'
+import type { ListSignupsForOperator } from '../../application/usecases/signups/listSignupsForOperator'
+import type { RefuseSignup } from '../../application/usecases/signups/refuseSignup'
 import type { RenameClient } from '../../application/usecases/clients/renameClient'
 import type { ResumeClient } from '../../application/usecases/clients/resumeClient'
 import type { DisableAccount } from '../../application/usecases/auth/disableAccount'
@@ -252,6 +255,10 @@ export interface HttpUseCases {
   // ... and what it does to a client and its owner, each audited and each reading the caller's site
   // role again for itself where the operator guard (R1, R2) is concerned
   readonly provisionClientOwner: ProvisionClientOwner
+  // ... and the operator side of the self-service signup (spec 31, ADR 0018)
+  readonly listSignupsForOperator: ListSignupsForOperator
+  readonly approveSignup: ApproveSignup
+  readonly refuseSignup: RefuseSignup
   readonly renameClient: RenameClient
   readonly setClientCeilings: SetClientCeilings
   readonly suspendClient: SuspendClient

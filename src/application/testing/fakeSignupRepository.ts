@@ -26,6 +26,10 @@ import type { FakeAccountTokenRepository } from './fakeAccountTokenRepository'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/** Under its 30 days: the same rule as `claim` and `refuse`. */
+const decidable = (row: SignupRequest, now: Date): boolean =>
+  now.getTime() < signupPendingExpiresAt(row).getTime()
+
 /**
  * In-memory `SignupRepository`, behaving as the SQLite adapter does: every transition changes a request
  * **only if it is still in the state the transition leaves** (the second of two callers gets `false`),
@@ -244,6 +248,7 @@ export class FakeSignupRepository implements SignupRepository {
       (left.id < right.id ? 1 : left.id > right.id ? -1 : 0)
     return [...this.rows.values()]
       .filter((row) => row.status === filter.status)
+      .filter((row) => row.status !== 'pending' || decidable(row, filter.now))
       .filter(
         (row) =>
           since === null || (row.decidedAt ?? row.confirmedAt ?? row.createdAt).getTime() >= since,
@@ -257,8 +262,9 @@ export class FakeSignupRepository implements SignupRepository {
       .slice(0, filter.limit)
   }
 
-  async countPending(): Promise<number> {
-    return [...this.rows.values()].filter((row) => row.status === 'pending').length
+  async countPending(now: Date): Promise<number> {
+    return [...this.rows.values()].filter((row) => row.status === 'pending' && decidable(row, now))
+      .length
   }
 
   async sweep(now: Date): Promise<SignupSweepResult> {

@@ -258,36 +258,39 @@ where they have an authenticator, within the last five minutes, or the answer is
 send it. That is stricter than the plan's table, which names the irreversible acts only; a console prompts
 once before a session of writes. The reads ask for none. A state-changing request meets CSRF first.
 
-| Route                                                 | What it is                                                 | Step-up | Audit line(s)                                       |
-| ----------------------------------------------------- | ---------------------------------------------------------- | :-----: | --------------------------------------------------- |
-| `GET /api/site/clients`                               | every client with its ceilings and what it uses            |    —    | —                                                   |
-| `GET /api/site/clients/:clientId/events`              | one client's events as shapes and sizes                    |    —    | —                                                   |
-| `GET /api/site/accounts`                              | every account, by address                                  |    —    | —                                                   |
-| `GET /api/site/audit`                                 | the audit log                                              |    —    | —                                                   |
-| `GET /api/site/client-defaults`                       | the ceilings a new client starts with                      |    —    | —                                                   |
-| `POST /api/site/clients`                              | open a client and invite its owner                         |   yes   | `client.created`, `invitation.issued`               |
-| `PATCH /api/site/clients/:clientId`                   | rename a client                                            |   yes   | `client.renamed`                                    |
-| `PUT /api/site/clients/:clientId/ceilings`            | change a client's ceilings, **with a reason**              |   yes   | `client.ceilingsChanged` (and `client.periodReset`) |
-| `POST /api/site/clients/:clientId/suspend`            | freeze a client                                            |   yes   | `client.suspended`                                  |
-| `POST /api/site/clients/:clientId/resume`             | lift a suspension                                          |   yes   | `client.resumed`                                    |
-| `GET /api/site/events/lookup?q=`                      | which event a slug, code, address or exact name names      |    —    | —                                                   |
-| `GET /api/site/events/:eventId`                       | one event's takedown state                                 |    —    | —                                                   |
-| `GET /api/site/photos/:photoId`                       | where a photograph is, and whether it is down              |    —    | —                                                   |
-| `POST /api/site/photos/:photoId/take-down`            | take a photograph down by its id, **with a reason**        |   yes   | `photo.takenDown`                                   |
-| `POST /api/site/photos/:photoId/restore`              | put it back                                                |   yes   | `photo.restored`                                    |
-| `GET /api/site/guestbook-entries/:entryId`            | where a guestbook message is, and whether it is down       |    —    | —                                                   |
-| `POST /api/site/guestbook-entries/:entryId/take-down` | take a guestbook message down by its id, **with a reason** |   yes   | `guestbook.takenDown`                               |
-| `POST /api/site/guestbook-entries/:entryId/restore`   | put it back                                                |   yes   | `guestbook.restored`                                |
-| `POST /api/site/events/:eventId/take-down`            | take a whole event down, **with a reason**                 |   yes   | `event.takenDown`                                   |
-| `POST /api/site/events/:eventId/restore`              | put it back                                                |   yes   | `event.restored`                                    |
-| `POST /api/site/events/:eventId/purge-hold`           | hold an event's purge (evidence), **with a reason**        |   yes   | `event.purgeHeld`                                   |
-| `POST /api/site/events/:eventId/purge-release`        | release the hold                                           |   yes   | `event.purgeReleased`                               |
-| `POST /api/site/clients/:clientId/invitations`        | invite somebody into a client's account                    |   yes   | `invitation.issued`                                 |
-| `POST /api/site/accounts/:userId/password-reset`      | reset an account's password                                |   yes   | `account.resetRequested`, `account.resetIssued`     |
-| `POST /api/site/clients/:clientId/offboard`           | end an engagement                                          |   yes   | `client.offboarded`                                 |
-| `POST /api/site/accounts/:userId/disable`             | switch an account off                                      |   yes   | `account.disabled` (one line per client)            |
-| `POST /api/site/accounts/:userId/enable`              | switch an account back on                                  |   yes   | `account.enabled` (one line per client)             |
-| `DELETE /api/site/accounts/:userId`                   | delete an account (erasure request)                        |   yes   | `account.deleted` (one line per client)             |
+| Route                                                 | What it is                                                 | Step-up | Audit line(s)                                            |
+| ----------------------------------------------------- | ---------------------------------------------------------- | :-----: | -------------------------------------------------------- |
+| `GET /api/site/clients`                               | every client with its ceilings and what it uses            |    —    | —                                                        |
+| `GET /api/site/clients/:clientId/events`              | one client's events as shapes and sizes                    |    —    | —                                                        |
+| `GET /api/site/accounts`                              | every account, by address                                  |    —    | —                                                        |
+| `GET /api/site/audit`                                 | the audit log                                              |    —    | —                                                        |
+| `GET /api/site/client-defaults`                       | the ceilings a new client starts with                      |    —    | —                                                        |
+| `POST /api/site/clients`                              | open a client and invite its owner                         |   yes   | `client.created`, `invitation.issued`                    |
+| `PATCH /api/site/clients/:clientId`                   | rename a client                                            |   yes   | `client.renamed`                                         |
+| `PUT /api/site/clients/:clientId/ceilings`            | change a client's ceilings, **with a reason**              |   yes   | `client.ceilingsChanged` (and `client.periodReset`)      |
+| `POST /api/site/clients/:clientId/suspend`            | freeze a client                                            |   yes   | `client.suspended`                                       |
+| `POST /api/site/clients/:clientId/resume`             | lift a suspension                                          |   yes   | `client.resumed`                                         |
+| `GET /api/site/events/lookup?q=`                      | which event a slug, code, address or exact name names      |    —    | —                                                        |
+| `GET /api/site/events/:eventId`                       | one event's takedown state                                 |    —    | —                                                        |
+| `GET /api/site/photos/:photoId`                       | where a photograph is, and whether it is down              |    —    | —                                                        |
+| `POST /api/site/photos/:photoId/take-down`            | take a photograph down by its id, **with a reason**        |   yes   | `photo.takenDown`                                        |
+| `POST /api/site/photos/:photoId/restore`              | put it back                                                |   yes   | `photo.restored`                                         |
+| `GET /api/site/guestbook-entries/:entryId`            | where a guestbook message is, and whether it is down       |    —    | —                                                        |
+| `POST /api/site/guestbook-entries/:entryId/take-down` | take a guestbook message down by its id, **with a reason** |   yes   | `guestbook.takenDown`                                    |
+| `POST /api/site/guestbook-entries/:entryId/restore`   | put it back                                                |   yes   | `guestbook.restored`                                     |
+| `POST /api/site/events/:eventId/take-down`            | take a whole event down, **with a reason**                 |   yes   | `event.takenDown`                                        |
+| `POST /api/site/events/:eventId/restore`              | put it back                                                |   yes   | `event.restored`                                         |
+| `POST /api/site/events/:eventId/purge-hold`           | hold an event's purge (evidence), **with a reason**        |   yes   | `event.purgeHeld`                                        |
+| `POST /api/site/events/:eventId/purge-release`        | release the hold                                           |   yes   | `event.purgeReleased`                                    |
+| `POST /api/site/clients/:clientId/invitations`        | invite somebody into a client's account                    |   yes   | `invitation.issued`                                      |
+| `POST /api/site/accounts/:userId/password-reset`      | reset an account's password                                |   yes   | `account.resetRequested`, `account.resetIssued`          |
+| `POST /api/site/clients/:clientId/offboard`           | end an engagement                                          |   yes   | `client.offboarded`                                      |
+| `POST /api/site/accounts/:userId/disable`             | switch an account off                                      |   yes   | `account.disabled` (one line per client)                 |
+| `POST /api/site/accounts/:userId/enable`              | switch an account back on                                  |   yes   | `account.enabled` (one line per client)                  |
+| `DELETE /api/site/accounts/:userId`                   | delete an account (erasure request)                        |   yes   | `account.deleted` (one line per client)                  |
+| `GET /api/site/signups`                               | the confirmed signup requests of one state (spec 31)       |    —    | —                                                        |
+| `POST /api/site/signups/:signupId/approve`            | approve a request: open the client, invite its owner       |   yes   | `signup.approved`, `client.created`, `invitation.issued` |
+| `POST /api/site/signups/:signupId/refuse`             | refuse a request, with no reason                           |   yes   | `signup.refused`                                         |
 
 **The reads show shapes and sizes, never what a client or a guest made.** A client row is an id, a name,
 its ceilings, the instants it was created, suspended and set to be purged, and four counts and a byte sum;
@@ -425,6 +428,68 @@ nowhere else. `pendingApproval` is `false` by construction.
 **400** `request.invalid` (a missing or unknown key, a locale outside the catalogue); `email.malformed`;
 `email.tooLong` (an address over 254 characters); `clientName.empty` and the other name refusals; `clientCeilings.*Invalid`. Nothing is created and no line is
 written for any of them.
+
+#### `GET /api/site/signups`, `POST /api/site/signups/:signupId/approve` and `/refuse` (spec 31)
+
+The operator's side of the self-service signup (docs/adr/0018-self-service-signup.md). The routes are mounted
+with the rest of `/api/site` (`SITE_ADMIN=on`); a box with `SIGNUP=off` has no requests, so the list is empty.
+
+**`GET /api/site/signups?status=pending|approved|refused&limit=50&before=<cursor>`**: the **confirmed**
+requests of one state, newest first (`status` defaults to `pending`; an address nobody proved is never listed
+and `unconfirmed` is not a status). `limit` is 1 to 100 (default 50). Approved and refused requests are the
+last 30 days; pending ones are not windowed by date, but one older than 30 days can no longer be decided and is neither listed nor counted. Limited like the other lookups of the namespace
+(`siteLookupAccountLimiter`, ten a minute per account). **200**, `Cache-Control: no-store`
+
+```json
+{
+  "items": [
+    {
+      "id": "…",
+      "email": "camille@example.org",
+      "clientName": "Mariage de Léa et Hugo",
+      "note": "un mariage",
+      "eventDate": "2027-06-12",
+      "locale": "fr",
+      "status": "pending",
+      "createdAt": "2026-12-01T10:00:00.000Z",
+      "confirmedAt": "2026-12-01T10:01:00.000Z",
+      "decidedAt": null,
+      "clientId": null,
+      "existingAccount": false
+    }
+  ],
+  "pendingCount": 1,
+  "next": null
+}
+```
+
+`note` and `eventDate` are `null` when left empty; `decidedAt` and `clientId` are set once the request is
+approved or refused (`clientId` only when approved). `existingAccount` is read at the moment of listing: an
+account already answers to the address, so the person will have to sign in to accept the invitation.
+`pendingCount` is the badge: all pending requests, whatever the page. `next` is **an opaque cursor** for `before`
+(or `null` at the end): a value this server did not write is **400** `request.invalid`, as is a `status` or a
+`limit` outside the lists, and a query key the contract does not have.
+
+**`POST /api/site/signups/:signupId/approve`**: `{}` or `{ "ceilings": { … } }`, the same patch, parsed the
+same way, as `POST /api/site/clients` (a ceiling it names is kept, `null` included; one it leaves out takes
+the box's `NEW_CLIENT_*` default). Opens the client named in the request, with no member and no event, and
+sends its owner the invitation, exactly as `POST /api/site/clients` does: **201**, the same body
+(`{ clientId, invitation }`, and the invitation's link only where no mail went out). The request is **claimed
+first** (`pending` to `approving`), so two approvals provision one client; if the provisioning fails (the
+address is over its hourly invitation cap, a ceiling is refused) the claim is given back, the request is
+`pending` again and the failure is the answer. Limited like an invitation (`INVITATION_RATE_LIMIT_PER_HOUR` per
+account): **stricter than `POST /api/site/clients`**, which has no limiter, so an operator may approve at most 30 requests an hour (the default of that variable); a request refused for the cap stays pending. If the request was lost between the provisioning and the decision (the stale-claim sweep gave it back), the answer is **409** `signup.notPending` and a warning names the orphan client in the log. The line `signup.approved` (subject `access_request`, the request's id; never the address) is written
+beside `client.created` and `invitation.issued`.
+
+**`POST /api/site/signups/:signupId/refuse`**: `{ "notify": boolean }`, required. `pending` to `refused`, with no
+reason asked or kept. `notify: true` sends the person a neutral mail, with no reason, pointing to the
+self-hosting guide, in the language they chose; a mail that fails is logged without the address and does not undo
+the refusal. **204**, and it stays 204 if the audit line cannot be written or the mail throws (both are logged, without the address): once committed, a refusal is not undone. The line `signup.refused { notified }` is written.
+
+**Errors of both writes.** **409** `signup.notPending` (decided, or being approved by another call, or past its
+retention window), **404** `signup.notFound` (an id nobody holds, or a request nobody confirmed: an operator is
+never shown an unproven address, so it cannot name one), **400** `request.invalid` (a missing or unknown key, a
+`notify` that is not a boolean, an id that is not one), **403** `auth.stepUpRequired` (before the body is read).
 
 #### `PATCH /api/site/clients/:clientId`
 

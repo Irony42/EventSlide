@@ -7,6 +7,7 @@ import { CSRF_HEADER } from '../middleware/csrf'
 import { anonymousCaller, type Caller } from '../testing/signIn'
 import { mountedRoutes } from '../testing/routeTable'
 import { ADDRESS, ID, NEWCOMER, aBox } from '../testing/siteBox'
+import { A_SIGNUP, seedSignup } from '../testing/siteSignups'
 import type { SiteHarnessOptions } from '../testing/siteHarness'
 
 /**
@@ -48,6 +49,8 @@ const box = async (options: SiteHarnessOptions = {}) => {
   await made.site.repos.guestbook.admit(
     aGuestbookEntry({ id: A_PHOTO, eventId: ID.eventK, guestId: 'guest-1' }),
   )
+  // The signup routes name a confirmed request that waits for a decision.
+  await seedSignup(made.site)
   return made
 }
 
@@ -65,6 +68,21 @@ const ROUTES: readonly SiteRoute[] = [
     path: `/api/site/guestbook-entries/${A_PHOTO}`,
     success: 200,
     write: false,
+  },
+  { method: 'get', path: '/api/site/signups', success: 200, write: false },
+  {
+    method: 'post',
+    path: `/api/site/signups/${A_SIGNUP}/approve`,
+    body: {},
+    success: 201,
+    write: true,
+  },
+  {
+    method: 'post',
+    path: `/api/site/signups/${A_SIGNUP}/refuse`,
+    body: { notify: false },
+    success: 204,
+    write: true,
   },
   {
     method: 'post',
@@ -197,6 +215,7 @@ describe('the table below is the route table', () => {
       const pattern = route.path
         .replace(/\/clients\/[0-9a-f-]{36}/, '/clients/:clientId')
         .replace(/\/accounts\/[0-9a-f-]{36}/, '/accounts/:userId')
+        .replace(/\/signups\/[0-9a-f-]{36}/, '/signups/:signupId')
         .replace(/\/photos\/[0-9a-f-]{36}/, '/photos/:photoId')
         .replace(/\/guestbook-entries\/[0-9a-f-]{36}/, '/guestbook-entries/:entryId')
         .replace(/\/events\/[0-9a-f-]{36}/, '/events/:eventId')

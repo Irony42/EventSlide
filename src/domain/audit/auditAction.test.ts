@@ -36,12 +36,25 @@ describe('AUDIT_ACTIONS', () => {
   })
 
   it('names every action <subject>.<something>, so a reader can tell what it is about', () => {
-    // The reserved `access_request` subject is what signups are about, and they are named for the feature.
+    // One exception, on purpose: the reserved subject type `access_request` carries the `signup.*`
+    // actions (spec 31), because widening the CHECK would rebuild an append-only table.
     const prefixOf = (subject: string): string =>
       subject === 'access_request' ? 'signup' : subject
     for (const action of ACTIONS) {
       expect(action.startsWith(`${prefixOf(AUDIT_ACTIONS[action].subject)}.`), action).toBe(true)
     }
+  })
+
+  it('gives the four signup actions the reserved access_request subject and no free text', () => {
+    for (const action of ACTIONS.filter((name) => name.startsWith('signup.'))) {
+      expect(AUDIT_ACTIONS[action].subject, action).toBe('access_request')
+    }
+    expect(ACTIONS.filter((name) => name.startsWith('signup.')).sort()).toEqual([
+      'signup.approved',
+      'signup.dailyCeilingReached',
+      'signup.expired',
+      'signup.refused',
+    ])
   })
 
   // ---------------------------------------------------- the content-free rule --

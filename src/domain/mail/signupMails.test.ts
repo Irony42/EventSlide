@@ -104,6 +104,19 @@ describe('signup mails', () => {
   })
 
   describe('signupRefusedMail', () => {
+    it('carries no Reply-To when none is given, and the given one when there is', () => {
+      const without = signupRefusedMail({ to: TO, locale: 'fr', selfHostLink: LINK })
+      const withContact = signupRefusedMail({
+        to: TO,
+        locale: 'fr',
+        selfHostLink: LINK,
+        replyTo: CONTACT,
+      })
+
+      expect('replyTo' in without).toBe(false)
+      expect(withContact.replyTo).toBe(CONTACT)
+    })
+
     it('is answered at the contact address and gives no reason', () => {
       const mail = signupRefusedMail({ to: TO, locale: 'en', selfHostLink: LINK, replyTo: CONTACT })
       expect(mail.replyTo).toBe(CONTACT)

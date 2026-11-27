@@ -132,4 +132,4 @@ addresses that never asked for it, and to learn which addresses already use the 
 
 ROADMAP §10 (bullet rewritten), ADR 0007 (hosted instance), ADR 0009 (approval goes through `provisionClientOwner`
 exactly as `POST /api/site/clients` does; rule 1 already lets an operator invite itself into a fresh empty client, so
-this adds no power), SECURITY §§ auth, mail, rate limits and the new "Signup" section, spec 31.
+this adds no power: approving a request made with the operator's own address behaves as `POST /api/site/clients` does, and `siteRoutes.signups.test.ts` pins it), SECURITY §§ auth, mail, rate limits and the new "Signup" section, spec 31.

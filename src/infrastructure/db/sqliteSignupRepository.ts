@@ -376,23 +376,34 @@ export class SqliteSignupRepository implements SignupRepository {
       .prepare<(string | number | null)[], SignupRow>(
         `SELECT ${COLUMNS} FROM signup_requests
           WHERE status = ?
+            AND (status <> 'pending' OR created_at > ?)
             AND (? IS NULL OR COALESCE(decided_at, confirmed_at, created_at) >= ?)
             AND (? IS NULL OR COALESCE(confirmed_at, created_at) < ?
                  OR (COALESCE(confirmed_at, created_at) = ? AND id < ?))
           ORDER BY COALESCE(confirmed_at, created_at) DESC, id DESC
           LIMIT ?`,
       )
-      .all(filter.status, since, since, beforeAt, beforeAt, beforeAt, beforeId, filter.limit)
+      .all(
+        filter.status,
+        pendingCutoff(filter.now),
+        since,
+        since,
+        beforeAt,
+        beforeAt,
+        beforeAt,
+        beforeId,
+        filter.limit,
+      )
       .map(toRequest)
   }
 
-  async countPending(): Promise<number> {
+  async countPending(now: Date): Promise<number> {
     return (
       this.db
-        .prepare<[], { n: number }>(
-          `SELECT COUNT(*) AS n FROM signup_requests WHERE status = 'pending'`,
+        .prepare<[string], { n: number }>(
+          `SELECT COUNT(*) AS n FROM signup_requests WHERE status = 'pending' AND created_at > ?`,
         )
-        .get()?.n ?? 0
+        .get(pendingCutoff(now))?.n ?? 0
     )
   }
 

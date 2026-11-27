@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { AUDIT_ACTIONS } from '../../../domain/audit/auditAction'
 import { AUDIT_ACTOR_KINDS } from '../../../domain/audit/auditActor'
 import { AUDIT_SUBJECT_TYPES } from '../../../domain/audit/auditSubjectType'
+import { SIGNUP_STATUSES } from '../../../domain/signups/signupRequest'
 import { CLIENT_ROLES } from '../../../domain/clients/clientRole'
 import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
 import { SITE_ROLES } from '../../../domain/users/siteRole'
@@ -21,6 +22,7 @@ import { mountedRoutes } from '../testing/routeTable'
 import { anonymousCaller, type Caller } from '../testing/signIn'
 import { ADDRESS, CONTENT, ID, NEWCOMER, aBox } from '../testing/siteBox'
 import { PUBLIC_URL, type SiteHarness } from '../testing/siteHarness'
+import { seedSignup } from '../testing/siteSignups'
 
 /**
  * Ring 4. **No response of any `/api/site` route carries a photograph, a caption, a guest's name,
@@ -110,7 +112,23 @@ const plant = async (site: SiteHarness): Promise<void> => {
       createdAt: atPlus(10),
     }),
   )
+  // Two confirmed signup requests: what a stranger typed is a fourth label an operator reads (spec 31).
+  await seedSignup(site, {
+    id: SIGNUP_ONE,
+    email: 'inscrit-un@example.test',
+    clientName: 'Espace Un',
+    note: 'un mariage',
+    eventDate: '2027-06-12',
+  })
+  await seedSignup(site, {
+    id: SIGNUP_TWO,
+    email: 'inscrit-deux@example.test',
+    clientName: 'Espace Deux',
+  })
 }
+
+const SIGNUP_ONE = '55555555-5555-4555-8555-555555555551'
+const SIGNUP_TWO = '55555555-5555-4555-8555-555555555552'
 
 interface Call {
   readonly name: string
@@ -249,6 +267,21 @@ const CALLS: readonly Call[] = [
     method: 'delete',
     path: `/api/site/accounts/${ID.member}`,
   },
+  { name: 'get /api/site/signups', method: 'get', path: '/api/site/signups?limit=1' },
+  { name: 'get /api/site/signups', method: 'get', path: '/api/site/signups' },
+  {
+    name: 'post /api/site/signups/:signupId/approve',
+    method: 'post',
+    path: `/api/site/signups/${SIGNUP_ONE}/approve`,
+  },
+  {
+    name: 'post /api/site/signups/:signupId/refuse',
+    method: 'post',
+    path: `/api/site/signups/${SIGNUP_TWO}/refuse`,
+    body: { notify: true },
+  },
+  { name: 'get /api/site/signups', method: 'get', path: '/api/site/signups?status=approved' },
+  { name: 'get /api/site/signups', method: 'get', path: '/api/site/signups?status=refused' },
   // The log last, so it holds what every call above wrote.
   { name: 'get /api/site/audit', method: 'get', path: '/api/site/audit?limit=200' },
   {
@@ -260,6 +293,19 @@ const CALLS: readonly Call[] = [
 
 /** The refusals each route can answer, because an error body is a response too. */
 const REFUSED: readonly Call[] = [
+  { name: 'get /api/site/signups', method: 'get', path: '/api/site/signups?status=expired' },
+  { name: 'get /api/site/signups', method: 'get', path: '/api/site/signups?before=pas-un-curseur' },
+  {
+    name: 'post /api/site/signups/:signupId/approve',
+    method: 'post',
+    path: '/api/site/signups/99999999-9999-4999-8999-999999999999/approve',
+  },
+  {
+    name: 'post /api/site/signups/:signupId/refuse',
+    method: 'post',
+    path: `/api/site/signups/${SIGNUP_ONE}/refuse`,
+    body: { notify: 'oui' },
+  },
   { name: 'get /api/site/clients', method: 'get', path: '/api/site/clients?limit=0' },
   {
     name: 'get /api/site/clients/:clientId/events',
@@ -366,6 +412,8 @@ const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 const CODE = /^[A-Za-z]+(?:\.[A-Za-z]+)+$/
 /** `notFound: client.notFound`: the developer's message, which is the kind and the code. */
 const MESSAGE = /^[A-Za-z]+: [A-Za-z]+(?:\.[A-Za-z]+)+$/
+/** An opaque list cursor (`encodeSignupCursor`): base64url, never a word a person typed. */
+const CURSOR = /^[A-Za-z0-9_-]{40,}$/
 const LINK = new RegExp(`^${PUBLIC_URL}/(?:invite|password/reset)/[A-Za-z0-9_-]{20,}$`)
 
 /**
@@ -386,6 +434,14 @@ const LABELS = new Set([
   'photographe@example.test',
   'collegue@example.test',
   'premier@example.test',
+  // What a stranger typed into the signup form and an operator reads to decide (spec 31).
+  'inscrit-un@example.test',
+  'inscrit-deux@example.test',
+  'Espace Un',
+  'Espace Deux',
+  'un mariage',
+  '2027-06-12',
+  'fr',
 ])
 
 const CLOSED_SET = new Set<string>([
@@ -394,6 +450,7 @@ const CLOSED_SET = new Set<string>([
   ...SITE_ROLES,
   ...AUDIT_ACTOR_KINDS,
   ...AUDIT_SUBJECT_TYPES,
+  ...SIGNUP_STATUSES,
   ...Object.keys(AUDIT_ACTIONS),
   'mail',
   'link',
@@ -477,6 +534,15 @@ const KEYS = new Set([
   'fields',
   'required',
   'max',
+  'clientName',
+  'note',
+  'eventDate',
+  'locale',
+  'confirmedAt',
+  'decidedAt',
+  'existingAccount',
+  'pendingCount',
+  'notified',
 ])
 
 const walk = (value: unknown, visit: (kind: 'key' | 'string', text: string) => void): void => {
@@ -525,6 +591,7 @@ const sweepByShape = (body: unknown, typed: readonly string[]): string[] => {
       CODE.test(text) ||
       MESSAGE.test(text) ||
       LINK.test(text) ||
+      CURSOR.test(text) ||
       LABELS.has(text) ||
       CLOSED_SET.has(text) ||
       typed.includes(text)
@@ -697,8 +764,8 @@ describe.each(['delivers', 'none'] as const)(
             (match) => match[1] ?? '',
           ),
         )
-        // Three invitations and one reset went out, so there is something to look for.
-        expect(tokens).toHaveLength(4)
+        // Four invitations (one of them from a signup approval) and one reset went out, so there is something to look for.
+        expect(tokens).toHaveLength(5)
         for (const { call, text } of answers) {
           for (const token of tokens) expect(text, `${call.name} ${call.path}`).not.toContain(token)
           expect(text, `${call.name} ${call.path}`).not.toMatch(/\/invite\/|\/password\/reset\//)
@@ -714,6 +781,7 @@ describe.each(['delivers', 'none'] as const)(
           'post /api/site/clients',
           'post /api/site/clients/:clientId/invitations',
           'post /api/site/clients/:clientId/invitations',
+          'post /api/site/signups/:signupId/approve',
         ])
       })
     }
