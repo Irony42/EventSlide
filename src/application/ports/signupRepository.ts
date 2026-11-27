@@ -114,6 +114,13 @@ export interface SignupRepository {
    */
   admit(input: SignupAdmitInput): Promise<SignupAdmitResult>
 
+  /**
+   * How many confirmation tokens the whole box issued since `since` (signup tokens only: purpose
+   * `emailVerification`, no account). A cheap read that depends on no address: the request path uses it to
+   * answer `busy` before the admission, which then keeps the authoritative ceiling inside its transaction.
+   */
+  issuedSince(since: Date): Promise<number>
+
   findById(id: string): Promise<SignupRequest | null>
 
   /** What the link would do, without doing it. `null` for a digest no confirmation token has. */

@@ -16,7 +16,7 @@ describe('confirmSignup, mode review', () => {
 
     const result = await confirmed(scene)
 
-    expect(result).toEqual({ ok: true, value: { next: 'review' } })
+    expect(result).toMatchObject({ ok: true, value: { next: 'review' } })
     expect(scene.signups.all[0]).toMatchObject({ status: 'pending' })
     expect(scene.provisioned).toHaveLength(0)
     expect(scene.mailer.sent.map((mail) => mail.to)).toEqual([
@@ -29,7 +29,7 @@ describe('confirmSignup, mode review', () => {
   it('does not look at the disk', async () => {
     const scene = buildSignupScene({ mode: 'review' })
     scene.disk.set(DISK_PATH, 0)
-    expect(await confirmed(scene)).toEqual({ ok: true, value: { next: 'review' } })
+    expect(await confirmed(scene)).toMatchObject({ ok: true, value: { next: 'review' } })
   })
 })
 
@@ -39,7 +39,7 @@ describe('confirmSignup, mode open', () => {
 
     const result = await confirmed(scene)
 
-    expect(result).toEqual({ ok: true, value: { next: 'mail' } })
+    expect(result).toMatchObject({ ok: true, value: { next: 'mail' } })
     expect(scene.provisioned).toEqual([
       {
         clientName: 'Mariage de Lea et Hugo',
@@ -69,7 +69,7 @@ describe('confirmSignup, mode open', () => {
 
     const result = await confirmed(scene)
 
-    expect(result).toEqual({ ok: true, value: { next: 'held' } })
+    expect(result).toMatchObject({ ok: true, value: { next: 'held' } })
     expect(scene.signups.all[0]?.status).toBe('pending')
     expect(scene.provisioned).toHaveLength(0)
     expect(scene.mailer.sent.at(-1)?.subject).toContain('à valider')
@@ -78,7 +78,7 @@ describe('confirmSignup, mode open', () => {
   it('opens the account at exactly the threshold', async () => {
     const scene = buildSignupScene({ mode: 'open' })
     scene.disk.set(DISK_PATH, 6_000_000_000)
-    expect(await confirmed(scene)).toEqual({ ok: true, value: { next: 'mail' } })
+    expect(await confirmed(scene)).toMatchObject({ ok: true, value: { next: 'mail' } })
   })
 
   it('adds 5 GB for each client that has an event not yet purged', async () => {
@@ -89,14 +89,14 @@ describe('confirmSignup, mode open', () => {
     // 1 GB + 5 GB x (2 clients + the newcomer) = 16 GB
     scene.disk.set(DISK_PATH, 15_999_999_999)
 
-    expect(await confirmed(scene)).toEqual({ ok: true, value: { next: 'held' } })
+    expect(await confirmed(scene)).toMatchObject({ ok: true, value: { next: 'held' } })
   })
 
   it('holds the request when the free space cannot be read', async () => {
     const scene = buildSignupScene({ mode: 'open' })
     scene.disk.set(DISK_PATH, null)
 
-    expect(await confirmed(scene)).toEqual({ ok: true, value: { next: 'held' } })
+    expect(await confirmed(scene)).toMatchObject({ ok: true, value: { next: 'held' } })
     expect(scene.signups.all[0]?.status).toBe('pending')
   })
 
@@ -106,7 +106,7 @@ describe('confirmSignup, mode open', () => {
 
     const result = await confirmed(scene)
 
-    expect(result).toEqual({ ok: true, value: { next: 'held' } })
+    expect(result).toMatchObject({ ok: true, value: { next: 'held' } })
     expect(scene.signups.all[0]).toMatchObject({ status: 'pending', claimedAt: null })
     expect(scene.logger.find('a signup could not be opened')?.context).toEqual({
       code: 'invitation.rateLimited',
@@ -118,7 +118,7 @@ describe('confirmSignup, mode open', () => {
     const scene = buildSignupScene({ mode: 'open' })
     scene.provisioning.next = 'throw'
 
-    expect(await confirmed(scene)).toEqual({ ok: true, value: { next: 'held' } })
+    expect(await confirmed(scene)).toMatchObject({ ok: true, value: { next: 'held' } })
     expect(scene.signups.all[0]?.status).toBe('pending')
     expect(scene.logger.find('a signup could not be opened')?.context).toEqual({
       error: 'storage failed',
@@ -129,7 +129,7 @@ describe('confirmSignup, mode open', () => {
     const scene = buildSignupScene({ mode: 'open' })
     scene.provisioning.next = 'throw-text'
 
-    expect(await confirmed(scene)).toEqual({ ok: true, value: { next: 'held' } })
+    expect(await confirmed(scene)).toMatchObject({ ok: true, value: { next: 'held' } })
     expect(scene.logger.find('a signup could not be opened')?.context).toEqual({
       error: 'plain text',
     })
@@ -141,7 +141,7 @@ describe('confirmSignup, mode open', () => {
 
     const result = await confirmed(scene)
 
-    expect(result).toEqual({ ok: true, value: { next: 'held' } })
+    expect(result).toMatchObject({ ok: true, value: { next: 'held' } })
     expect(JSON.stringify(result)).not.toContain('http')
     expect(scene.signups.all[0]?.status).toBe('approved')
     expect(

@@ -31,7 +31,7 @@ export interface RequestSignupInput {
 
 export interface RequestSignupDeps {
   readonly mode: SignupMode
-  readonly signups: Pick<SignupRepository, 'admit'>
+  readonly signups: Pick<SignupRepository, 'admit' | 'issuedSince'>
   readonly secrets: SecretTokens
   readonly mailer: Mailer
   readonly ids: Pick<IdGenerator, 'accountTokenId' | 'signupRequestId'>
@@ -61,19 +61,25 @@ export type RequestSignup = (
 
 const done = Promise.resolve()
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
 /**
  * The public signup form (spec 31, ADR 0018). **A request, not an account**: nothing here writes a user, a
  * client or a password.
  *
  * - `404 feature.unavailable` while `SIGNUP=off`. Configuration, never the address.
+ * - `busy` when the box has already issued `SIGNUP_MAX_PER_DAY` confirmation tokens in 24 hours: one cheap
+ *   read (`issuedSince`) that depends on no address, taken **first, before the honeypot**, so every request
+ *   pays the same read. `admit` keeps the authoritative ceiling inside its transaction: a request that slips
+ *   past the pre-check in a race is told `sent` and finds the box busy in the completion, where it sends nothing.
+ * - The **honeypot** answers `sent` and writes nothing.
  * - A field that is wrong is `400` with the domain's code: that depends on what the caller typed, not on
  *   what the box knows.
- * - The **honeypot** answers `sent` and writes nothing.
- * - Everything else is `sent` whatever the address is (new, known, waiting, refused lately, over its caps): the
- *   admission (`SignupRepository.admit`, one write transaction) decides, and the answer never depends on it,
- *   **except** `busy` at the day's ceiling, which is the same for everybody.
- *   The admission is a database write and is awaited, because the ceiling is part of the answer; the part that
- *   is slow and visible, the mail, runs in `completion`.
+ * - Everything else is `sent` whatever the address is (new, known, waiting, refused lately, over its caps), and
+ *   **everything that depends on the address happens in `completion`**: the admission (`SignupRepository.admit`, a
+ *   write transaction whose cost differs by branch), the token and the mail. The response does not wait for it, so
+ *   its time cannot tell an address that is mailed from one that is not. (What a caller can still measure is
+ *   the same few reads for everybody: the switch, the day's count, the parsing.)
  * - Nothing the person typed, no token and no link is ever logged.
  */
 export const makeRequestSignup = ({
@@ -95,7 +101,6 @@ export const makeRequestSignup = ({
   const recordCeiling = async (now: Date): Promise<void> => {
     const day = now.toISOString().slice(0, 10)
     if (ceilingAuditedOn === day) return
-    ceilingAuditedOn = day
     const entry = AuditEntry.create({
       at: now,
       actor: { kind: 'system', label: 'signup' },
@@ -109,6 +114,8 @@ export const makeRequestSignup = ({
       return
     }
     await audit.record(entry.value)
+    // Only once the line is written: a refused write is tried again by the next request over the ceiling.
+    ceilingAuditedOn = day
     logger.warn('the daily ceiling of signup confirmations is reached')
   }
 
@@ -122,12 +129,19 @@ export const makeRequestSignup = ({
   return async (input) => {
     if (!signupEnabled(mode)) return err(DomainError.notFound('feature.unavailable'))
 
+    const now = clock.now()
+    // The box-wide count, before anything about the caller: the same read for a honeypot, a stranger and a
+    // known address.
+    const issued = await signups.issuedSince(new Date(now.getTime() - DAY_MS))
+    if (issued >= maxPerDay) {
+      return ok({ status: 'busy', completion: guarded(() => recordCeiling(now)) })
+    }
+
     if (input.website.trim() !== '') return ok({ status: 'sent', completion: done })
 
     const address = EmailAddress.create(input.email)
     if (!address.ok) return address
 
-    const now = clock.now()
     const request = createSignupRequest(
       {
         id: ids.signupRequestId(),
@@ -156,19 +170,20 @@ export const makeRequestSignup = ({
     )
     if (!token.ok) return token
 
-    const admitted = await signups.admit({
-      request: request.value,
-      token: token.value,
-      now,
-      maxPerDay,
-    })
-
-    if (admitted.outcome === 'busy') {
-      return ok({ status: 'busy', completion: guarded(() => recordCeiling(now)) })
-    }
-    if (admitted.outcome === 'silent') return ok({ status: 'sent', completion: done })
-
     const completion = guarded(async () => {
+      const admitted = await signups.admit({
+        request: request.value,
+        token: token.value,
+        now,
+        maxPerDay,
+      })
+      if (admitted.outcome === 'busy') {
+        // The ceiling was reached between the pre-check and the transaction: nothing was written, nothing is sent.
+        await recordCeiling(now)
+        return
+      }
+      if (admitted.outcome === 'silent') return
+
       const mail = signupConfirmationMail({
         to: address.value,
         locale: request.value.locale,

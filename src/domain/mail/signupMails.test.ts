@@ -126,6 +126,31 @@ describe('signup mails', () => {
       },
     )
 
+    it('tells a second count of the other kind in the same mail', () => {
+      const made = signupOperatorNoticeMail({
+        to: TO,
+        locale: 'en',
+        kind: 'opened',
+        count: 2,
+        also: { kind: 'waiting', count: 1 },
+        link: LINK,
+      })
+      expect(made.ok && made.value.subject).toBe('2 new EventSlide accounts · 1 signup to review')
+      expect(made.ok && made.value.text).toContain('2 new EventSlide accounts\n1 signup to review')
+    })
+
+    it.each([0, 1.5])('refuses a second count of %s', (count) => {
+      const made = signupOperatorNoticeMail({
+        to: TO,
+        locale: 'en',
+        kind: 'opened',
+        count: 1,
+        also: { kind: 'waiting', count },
+        link: LINK,
+      })
+      expect(!made.ok && made.error.code).toBe('signup.notice.countInvalid')
+    })
+
     it('counts, singular and plural, and carries no address', () => {
       const one = notice({
         to: CONTACT,

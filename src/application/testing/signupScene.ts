@@ -110,7 +110,7 @@ export const buildSignupScene = (
     maxPerDay: options.maxPerDay ?? 50,
   })
   const preview = makePreviewSignupConfirmation({ mode, signups, secrets, clock })
-  const confirm = makeConfirmSignup({
+  const confirmNow = makeConfirmSignup({
     mode,
     signups,
     secrets,
@@ -123,6 +123,13 @@ export const buildSignupScene = (
     clock,
     logger,
   })
+
+  /** Presses the button and waits for the notices behind it, as a test may and the route does not. */
+  const confirm: typeof confirmNow = async (input) => {
+    const result = await confirmNow(input)
+    if (result.ok) await result.value.completion
+    return result
+  }
 
   /** Submits the form and waits for its completion, as a test may and the route does not. */
   const submit = async (input: RequestSignupInput = aForm()) => {
@@ -153,9 +160,11 @@ export const buildSignupScene = (
     notify,
     provisioned,
     provisioning,
+    provisionClientOwner,
     requestSignup,
     preview,
     confirm,
+    confirmNow,
     submit,
     lastToken,
   }

@@ -120,9 +120,67 @@ describe('notifySignupOperator', () => {
     expect(logger.find('a signup notice failed')?.context).toEqual({ error: 'plain' })
   })
 
-  it('logs when the notice cannot be written (a count of zero)', async () => {
-    const { logger, notify } = build()
+  it('logs, and sends nothing, for a count that is not a whole number (a bug in the caller)', async () => {
+    const { mailer, logger, notify } = build()
+    await notify('waiting', 1.5)
+    expect(mailer.sent).toHaveLength(0)
+    expect(logger.find('a signup notice could not be written')?.context).toEqual({
+      code: 'signup.notice.countInvalid',
+    })
+  })
+
+  it('sends nothing for a count of zero', async () => {
+    const { mailer, notify } = build()
     await notify('waiting', 0)
-    expect(logger.find('a signup notice could not be written')).toBeDefined()
+    expect(mailer.sent).toHaveLength(0)
+  })
+
+  it('tells both kinds in one mail when the hour allows it', async () => {
+    const { clock, mailer, notify } = build()
+    await notify('waiting')
+    clock.advance(HOUR - 1)
+    await notify('opened', 2)
+    await notify('waiting')
+    expect(mailer.sent).toHaveLength(1)
+
+    clock.advance(1)
+    await notify('opened')
+
+    expect(mailer.sent).toHaveLength(2)
+    expect(mailer.sent[1]?.text).toContain('3')
+    expect(mailer.sent[1]?.text).toContain('1 inscription')
+    expect(mailer.sent[1]?.subject).toContain(' · ')
+  })
+
+  it('flushes a count the throttle held back, without waiting for the next signup', async () => {
+    const { clock, mailer, notify } = build()
+    await notify('opened')
+    clock.advance(HOUR - 1)
+    await notify('waiting')
+    expect(mailer.sent).toHaveLength(1)
+
+    await notify.flush()
+    expect(mailer.sent).toHaveLength(1)
+
+    clock.advance(1)
+    await notify.flush()
+    expect(mailer.sent).toHaveLength(2)
+    expect(mailer.sent[1]?.subject).toContain('1 inscription')
+  })
+
+  it('flushes nothing when nothing is held, and sends it only once', async () => {
+    const { clock, mailer, notify } = build()
+    await notify.flush()
+    await notify('waiting')
+    clock.advance(HOUR)
+    await notify.flush()
+    expect(mailer.sent).toHaveLength(1)
+  })
+
+  it('does not hold counts for a box with nobody to write to', async () => {
+    const { mailer, notify } = build({ to: null })
+    await notify('waiting')
+    await notify.flush()
+    expect(mailer.sent).toHaveLength(0)
   })
 })

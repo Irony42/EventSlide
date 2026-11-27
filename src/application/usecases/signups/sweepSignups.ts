@@ -27,7 +27,8 @@ export type SweepSignups = () => Promise<SweepSignupsReport>
  *
  * - each request that **expired** (nobody decided in 30 days) leaves one line, `signup.expired`, under the
  *   subject `access_request` with the request's id and never its address;
- * - a **released** claim is a request that is waiting again, so the operator is told once for all of them.
+ * - a **released** claim is a request that is waiting again, so the operator is told once for all of them, and
+ *   whatever the notifier held back is flushed.
  *
  * A line the log refuses is logged and does not stop the others: the request is already erased.
  */
@@ -59,6 +60,9 @@ export const makeSweepSignups =
       }
     }
     if (swept.releasedIds.length > 0) await notify('waiting', swept.releasedIds.length)
+    // What the throttle held back since the last hour (a count of either kind) goes out now if the hour allows,
+    // so it does not wait for the next signup.
+    await notify.flush()
 
     return {
       expired: swept.expiredIds.length,

@@ -486,23 +486,33 @@ export const clientRepositoryContract = (
       expect(await repo.countEvents(asClientId('ghost'))).toBe(0)
     })
 
-    // -------------------------------------------------- countClientsWithEvents --
+    // ------------------------------------------------ countClientsReservingRoom --
 
     it('counts each client with an event once, however many events it has', async () => {
-      await repo.save(aClient({ id: 'client-1' }))
-      await repo.save(aClient({ id: 'client-2' }))
-      await repo.save(aClient({ id: 'client-3' }))
+      await repo.save(aClient({ id: 'client-1', createdAt: AT }))
+      await repo.save(aClient({ id: 'client-2', createdAt: AT }))
+      await repo.save(aClient({ id: 'client-3', createdAt: AT }))
       await linkEvent(WEDDING, asClientId('client-1'))
       await linkEvent(GALA, asClientId('client-1'))
       await linkEvent(PARTY, asClientId('client-2'))
 
-      expect(await repo.countClientsWithEvents()).toBe(2)
+      expect(await repo.countClientsReservingRoom(atPlus(1_000))).toBe(2)
     })
 
-    it('counts none on a box without clients and ignores an event that has no client', async () => {
-      expect(await repo.countClientsWithEvents()).toBe(0)
-      await repo.save(aClient({ id: 'client-1' }))
-      expect(await repo.countClientsWithEvents()).toBe(0)
+    it('adds the clients created since the instant that have no event yet: a fresh account reserves its room', async () => {
+      await repo.save(aClient({ id: 'client-old', createdAt: AT }))
+      await repo.save(aClient({ id: 'client-fresh', createdAt: atPlus(5_000) }))
+      await repo.save(aClient({ id: 'client-fresh-with-event', createdAt: atPlus(5_000) }))
+      await linkEvent(WEDDING, asClientId('client-fresh-with-event'))
+
+      // Old without an event: nothing. Fresh without one: counted. Fresh with one: counted once.
+      expect(await repo.countClientsReservingRoom(atPlus(1_000))).toBe(2)
+      expect(await repo.countClientsReservingRoom(atPlus(5_000))).toBe(2)
+      expect(await repo.countClientsReservingRoom(atPlus(5_001))).toBe(1)
+    })
+
+    it('counts none on a box without clients', async () => {
+      expect(await repo.countClientsReservingRoom(AT)).toBe(0)
     })
 
     // ------------------------------------------------------------ countMembers --

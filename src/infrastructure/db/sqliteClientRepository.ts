@@ -248,8 +248,8 @@ export class SqliteClientRepository implements ClientRepository {
   private readonly selectContextForEvent: Database.Statement<[string], ContextRow>
   private readonly deleteIfEmptyStatement: Database.Statement<[string]>
   private readonly countEventsStatement: Database.Statement<[string], { readonly events: number }>
-  private readonly countClientsWithEventsStatement: Database.Statement<
-    [],
+  private readonly countClientsReservingStatement: Database.Statement<
+    [string],
     { readonly clients: number }
   >
   private readonly countMembersStatement: Database.Statement<[string], { readonly members: number }>
@@ -376,8 +376,10 @@ export class SqliteClientRepository implements ClientRepository {
       `SELECT COUNT(*) AS events FROM events WHERE client_id = ?`,
     )
 
-    this.countClientsWithEventsStatement = db.prepare<[], { readonly clients: number }>(
-      `SELECT COUNT(DISTINCT client_id) AS clients FROM events WHERE client_id IS NOT NULL`,
+    this.countClientsReservingStatement = db.prepare<[string], { readonly clients: number }>(
+      `SELECT COUNT(*) AS clients FROM clients c
+        WHERE c.created_at >= ?
+           OR EXISTS (SELECT 1 FROM events e WHERE e.client_id = c.id)`,
     )
 
     this.countMembersStatement = db.prepare<[string], { readonly members: number }>(
@@ -466,8 +468,8 @@ export class SqliteClientRepository implements ClientRepository {
     return this.countEventsStatement.get(clientId)?.events ?? 0
   }
 
-  async countClientsWithEvents(): Promise<number> {
-    return this.countClientsWithEventsStatement.get()?.clients ?? 0
+  async countClientsReservingRoom(freshSince: Date): Promise<number> {
+    return this.countClientsReservingStatement.get(toIsoText(freshSince))?.clients ?? 0
   }
 
   async countMembers(clientId: ClientId): Promise<number> {
