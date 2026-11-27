@@ -7,6 +7,7 @@ import type {
 import type { PruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import type { FinalizeOffboardedClients } from '../application/usecases/clients/finalizeOffboardedClients'
 import type { PurgeExpiredRsvps } from '../application/usecases/guestRsvps/purgeExpiredRsvps'
+import type { SweepRsvpNotices } from '../application/usecases/notices/sweepRsvpNotices'
 import type { PruneMailBudget } from '../application/usecases/notices/pruneMailBudget'
 import type { SweepSignups } from '../application/usecases/signups/sweepSignups'
 import type { SweepPurgeNotices } from '../application/usecases/events/sweepPurgeNotices'
@@ -61,6 +62,8 @@ export interface RetentionSweeperDeps {
   readonly sweepSignups: SweepSignups
   /** The daily mail counts older than a week (spec 32). Required, like the others. */
   readonly pruneMailBudget: PruneMailBudget
+  /** The warning before the guests' replies are erased (spec 32, R1). Required, like the others. */
+  readonly sweepRsvpNotices: SweepRsvpNotices
   readonly logger: Logger
   /** For the duration in the log line. Injected so that duration is assertable. */
   readonly clock: Clock
@@ -82,6 +85,7 @@ export interface RetentionFollowUpDeps {
   readonly purgeExpiredRsvps: PurgeExpiredRsvps
   readonly sweepSignups: SweepSignups
   readonly pruneMailBudget: PruneMailBudget
+  readonly sweepRsvpNotices: SweepRsvpNotices
   readonly finalizeOffboardedClients: FinalizeOffboardedClients
   readonly sweepPurgeNotices: SweepPurgeNotices
   readonly pruneAuditLog: PruneAuditLog
@@ -101,11 +105,41 @@ export const makeRetentionFollowUp = ({
   purgeExpiredRsvps,
   sweepSignups,
   pruneMailBudget,
+  sweepRsvpNotices,
   finalizeOffboardedClients,
   sweepPurgeNotices,
   pruneAuditLog,
   logger,
 }: RetentionFollowUpDeps): (() => Promise<void>) => {
+  /**
+   * The warning before the guests' replies are erased (spec 32, R1): 7 days and 1 day before, to the owners.
+   * Run **first, before `purgeRsvps`**: after the erasure the replies are gone and there is nothing to warn
+   * about. Never throws, for the reason `pruneAudit` gives; a refused message is not an error (the page shows the date).
+   */
+  const warnAboutReplies = async (): Promise<void> => {
+    try {
+      const report = await sweepRsvpNotices()
+      if (report.noticed.length > 0) {
+        logger.info('retention sweep warned the owners about guest replies to be erased', {
+          events: report.noticed.length,
+          levels: report.noticed.map(({ eventId, level }) => `${eventId}:${level}`).join(' '),
+          sent: report.sent,
+          unsent: report.unsent,
+        })
+      }
+      if (report.failed.length > 0) {
+        logger.error('replies notices could not examine every event', {
+          failed: report.failed.length,
+          failedIds: report.failed.join(' '),
+        })
+      }
+    } catch (error) {
+      logger.error('replies notices failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
   /**
    * The guests' replies whose time has come (spec 30): names and diets, erased 30 days after the
    * event closed or 60 after the invitation's start. Run **first**, before anything else of the
@@ -243,6 +277,7 @@ export const makeRetentionFollowUp = ({
   }
 
   return async () => {
+    await warnAboutReplies()
     await purgeRsvps()
     await sweepSignupRequests()
     await pruneMailCounts()
@@ -261,6 +296,7 @@ export const createRetentionSweeper = ({
   purgeExpiredRsvps,
   sweepSignups,
   pruneMailBudget,
+  sweepRsvpNotices,
   logger,
   clock,
   intervalMs,
@@ -272,6 +308,7 @@ export const createRetentionSweeper = ({
     purgeExpiredRsvps,
     sweepSignups,
     pruneMailBudget,
+    sweepRsvpNotices,
     logger,
   })
 

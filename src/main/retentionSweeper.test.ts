@@ -73,6 +73,8 @@ const controllableSweep = (): {
 const nothingFinalized = { finalized: [], accountsDeleted: 0, failed: [], reasons: [] }
 const nobodyWarned: SweepPurgeNoticesReport = { noticed: [], sent: 0, unsent: 0, failed: [] }
 
+const nobodyToldAboutReplies = { noticed: [], sent: 0, unsent: 0, failed: [] }
+
 const nothingSignups = { expired: 0, released: 0, erased: 0 }
 
 const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
@@ -87,6 +89,7 @@ const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
     purgeExpiredRsvps: async () => ({ deleted: 0 }),
     sweepSignups: async () => nothingSignups,
     pruneMailBudget: async () => ({ erased: 0 }),
+    sweepRsvpNotices: async () => nobodyToldAboutReplies,
     logger,
     clock,
     intervalMs: INTERVAL_MS,
@@ -741,6 +744,10 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
         order.push('mailCounts')
         return { erased: 0 }
       },
+      sweepRsvpNotices: async () => {
+        order.push('rsvpNotices')
+        return nobodyToldAboutReplies
+      },
       finalizeOffboardedClients: async () => {
         order.push('finalize')
         return nothingFinalized
@@ -758,7 +765,15 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
 
     await followUp()
 
-    expect(order).toEqual(['rsvps', 'signups', 'mailCounts', 'warn', 'finalize', 'prune'])
+    expect(order).toEqual([
+      'rsvpNotices',
+      'rsvps',
+      'signups',
+      'mailCounts',
+      'warn',
+      'finalize',
+      'prune',
+    ])
   })
 
   it('still prunes when finalising throws, and never rejects', async () => {
@@ -768,6 +783,7 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
       purgeExpiredRsvps: async () => ({ deleted: 0 }),
       sweepSignups: async () => nothingSignups,
       pruneMailBudget: async () => ({ erased: 0 }),
+      sweepRsvpNotices: async () => nobodyToldAboutReplies,
       finalizeOffboardedClients: async () => {
         throw new Error('database is locked')
       },
@@ -785,6 +801,93 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
     expect(at(logger.lines, 'error').map((line) => line.message)).toEqual([
       'offboarded clients could not be finalised',
     ])
+  })
+})
+
+describe('the warning before the replies are erased rides the follow-up (spec 32, R1)', () => {
+  it('runs before the replies are erased, so the count is still there', async () => {
+    const order: string[] = []
+    const { sweeper } = build({
+      sweepRsvpNotices: async () => {
+        order.push('notice')
+        return nobodyToldAboutReplies
+      },
+      purgeExpiredRsvps: async () => {
+        order.push('erase')
+        return { deleted: 0 }
+      },
+    })
+
+    await sweeper.runOnce()
+
+    expect(order).toEqual(['notice', 'erase'])
+  })
+
+  it('says which events were warned and how many mails went', async () => {
+    const { sweeper, lines } = build({
+      sweepRsvpNotices: async () => ({
+        noticed: [{ eventId: asEventId('evt-1'), level: 7 }],
+        sent: 2,
+        unsent: 1,
+        failed: [],
+      }),
+    })
+
+    await sweeper.runOnce()
+
+    const line = lines.find(
+      (entry) =>
+        entry.message === 'retention sweep warned the owners about guest replies to be erased',
+    )
+    expect(line?.context).toMatchObject({ events: 1, levels: 'evt-1:7', sent: 2, unsent: 1 })
+  })
+
+  it('stays silent when nobody was due', async () => {
+    const { sweeper, lines } = build()
+    await sweeper.runOnce()
+    expect(lines.map((entry) => entry.message)).not.toContain(
+      'retention sweep warned the owners about guest replies to be erased',
+    )
+  })
+
+  it('logs the events it could not examine as an error, ids included', async () => {
+    const { sweeper, lines } = build({
+      sweepRsvpNotices: async () => ({
+        noticed: [],
+        sent: 0,
+        unsent: 0,
+        failed: [asEventId('evt-1'), asEventId('evt-2')],
+      }),
+    })
+
+    await sweeper.runOnce()
+
+    expect(
+      lines.find((entry) => entry.message === 'replies notices could not examine every event')
+        ?.context,
+    ).toMatchObject({ failed: 2, failedIds: 'evt-1 evt-2' })
+  })
+
+  it('never stops the erasure when it throws, and logs an Error or plain text', async () => {
+    for (const thrown of [new Error('database is locked'), 'plain']) {
+      let erased = false
+      const { sweeper, lines } = build({
+        sweepRsvpNotices: async () => {
+          throw thrown
+        },
+        purgeExpiredRsvps: async () => {
+          erased = true
+          return { deleted: 0 }
+        },
+      })
+
+      await sweeper.runOnce()
+
+      expect(erased).toBe(true)
+      expect(lines.find((entry) => entry.message === 'replies notices failed')?.context).toEqual({
+        error: thrown instanceof Error ? thrown.message : thrown,
+      })
+    }
   })
 })
 

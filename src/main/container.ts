@@ -704,6 +704,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
           purgeExpiredRsvps: usecases.purgeExpiredRsvps,
           sweepSignups: usecases.sweepSignups,
           pruneMailBudget: usecases.pruneMailBudget,
+          sweepRsvpNotices: usecases.sweepRsvpNotices,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,
