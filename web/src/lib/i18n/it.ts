@@ -437,6 +437,9 @@ export const it: UiText = {
     'auth.tooManySecondFactorAttempts': 'Troppi codici errati. Riprovi tra un quarto d’ora.',
     'auth.secondFactorRequired': 'Questo account deve prima superare la verifica in due passaggi.',
     'auth.stepUpRequired': 'Confermi la sua identità per continuare.',
+    'signup.notPending': 'Questa richiesta è già stata gestita.',
+    'signup.notFound': 'Questa richiesta non esiste più.',
+    'signup.held': 'Lo spazio su disco non basta ancora per aprire questo account.',
     'auth.secondFactorAlreadyEnrolled':
       'La verifica in due passaggi è già attiva su questo account.',
     'auth.noEnrolmentInProgress': 'Nessuna attivazione in corso. Ricominci.',

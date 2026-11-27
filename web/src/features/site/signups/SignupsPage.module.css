@@ -58,3 +58,19 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* Empty until a decision lands. It stays in the accessibility tree (a live region that is there is
+   announced when its text changes), so it takes no room by cancelling the gap that follows it. */
+.banner:empty {
+  margin-block-end: calc(-1 * var(--space-4));
+}
+
+.banner:focus {
+  outline: none;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}

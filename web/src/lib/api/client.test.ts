@@ -1592,6 +1592,12 @@ describe('the operator’s signup requests (spec 31)', () => {
     })
   })
 
+  it('sends the page size and the opaque cursor of the page it continues', async () => {
+    await subject().siteSignups('pending', { limit: 50, before: 'c3VpdGU' })
+
+    expect(only().query).toEqual({ status: 'pending', limit: 50, before: 'c3VpdGU' })
+  })
+
   it('sends the ceilings the operator changed and nothing else on approval, a null lifting one', async () => {
     await subject().siteApproveSignup(CLIENT, { ceilings: { maxEvents: 2, maxLiveDays: null } })
 

@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from 'react'
+import { useCallback, useMemo, useState, type FormEvent } from 'react'
 import { useApi } from '../../../lib/useApi'
 import { Button } from '../../../design-system/components/Button'
 import { Dialog } from '../../../design-system/components/Dialog'
@@ -22,6 +22,8 @@ export interface ApproveSignupDialogProps {
   readonly signup: SiteSignupDto
   readonly onApproved: (signup: SiteSignupDto, result: ProvisionedClientDto) => void
   readonly onCancel: () => void
+  /** The write was refused: the list behind the dialog may be out of date. */
+  readonly onFailed: () => void
 }
 
 /**
@@ -33,7 +35,12 @@ export interface ApproveSignupDialogProps {
  * client form: one it left alone takes the default on the server, one it emptied lifts it. When
  * the address already has an account, the dialog says the person will have to sign in to accept.
  */
-export function ApproveSignupDialog({ signup, onApproved, onCancel }: ApproveSignupDialogProps) {
+export function ApproveSignupDialog({
+  signup,
+  onApproved,
+  onCancel,
+  onFailed,
+}: ApproveSignupDialogProps) {
   const t = useTranslations()
   const api = useApi()
   const load = useCallback((signal: AbortSignal) => api.siteClientDefaults(signal), [api])
@@ -51,7 +58,13 @@ export function ApproveSignupDialog({ signup, onApproved, onCancel }: ApproveSig
         <LoadFailure message={error} onRetry={reload} as="h3" />
       ) : null}
       {data === null ? null : (
-        <Form signup={signup} defaults={data} onApproved={onApproved} onCancel={onCancel} />
+        <Form
+          signup={signup}
+          defaults={data}
+          onApproved={onApproved}
+          onCancel={onCancel}
+          onFailed={onFailed}
+        />
       )}
     </Dialog>
   )
@@ -62,15 +75,18 @@ function Form({
   defaults,
   onApproved,
   onCancel,
+  onFailed,
 }: {
   readonly signup: SiteSignupDto
   readonly defaults: ClientDefaultsDto
   readonly onApproved: (signup: SiteSignupDto, result: ProvisionedClientDto) => void
   readonly onCancel: () => void
+  readonly onFailed: () => void
 }) {
   const t = useTranslations()
   const api = useApi()
-  const base = fieldsFromCeilings(defaults.ceilings)
+  // Stable: the form's changes are measured against it, and it must not move under them.
+  const base = useMemo(() => fieldsFromCeilings(defaults.ceilings), [defaults])
   const [fields, setFields] = useState<CeilingFields>(base)
   const [invalid, setInvalid] = useState<readonly CeilingField[]>([])
   const [failure, setFailure] = useState<string | null>(null)
@@ -100,6 +116,7 @@ function Form({
       .then((result) => {
         if (!result.ok) {
           setFailure(result.message)
+          if (result.message !== null) onFailed()
           return
         }
         onApproved(signup, result.value)

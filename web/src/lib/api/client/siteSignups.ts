@@ -12,8 +12,17 @@ import { encode } from './shared'
  * `off`. Every write is behind a fresh step-up, like the rest of `/api/site`.
  */
 export const siteSignupsApi = (transport: Transport) => ({
-  siteSignups: (status: SiteSignupStatus, signal?: AbortSignal): Promise<SiteSignupPageDto> =>
-    transport.get('/api/site/signups', { status }, signal),
+  /** `limit` (the server caps it at 100) and `before`, the opaque `next` of the previous page. */
+  siteSignups: (
+    status: SiteSignupStatus,
+    query: { readonly limit?: number; readonly before?: string } = {},
+    signal?: AbortSignal,
+  ): Promise<SiteSignupPageDto> =>
+    transport.get(
+      '/api/site/signups',
+      { status, limit: query.limit, before: query.before },
+      signal,
+    ),
 
   /** Opens the client and sends the owner's invitation: answers like `POST /api/site/clients`. */
   siteApproveSignup: (

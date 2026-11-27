@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { browserEnv, forgetPushOnSignOut } from '../../lib/push/browserPush'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useApi } from '../../lib/useApi'
@@ -10,7 +10,7 @@ import { messageForError } from '../../lib/i18n/translations'
 import { hereAsFrom } from '../../lib/landing'
 import { useClientLimits } from '../../lib/useClientLimits'
 import { useAbout } from '../../lib/useAbout'
-import { PendingSignupsContext } from './signups/pendingSignupsContext'
+import { PendingSignupsProvider } from './signups/PendingSignupsProvider'
 import { SignupsNavLink } from './signups/SignupsNavLink'
 import { StepUpProvider } from './StepUpProvider'
 import styles from './SiteLayout.module.css'
@@ -91,20 +91,21 @@ function SecondFactorGate({ children }: { readonly children: ReactNode }) {
  * back button and a copied link behave, and a client's page belongs to "Clients" without needing a
  * fourth entry.
  */
-export function SiteLayout() {
+function SiteConsole() {
   const t = useTranslations()
   const { pathname } = useLocation()
   // The operator may also belong to a client (their own events, a client space): the console is
   // one of three homes and says so. Asked of the account's own limits, as the menu does.
   const { clients: memberships } = useClientLimits()
 
-  // Only where signing up is on (spec 31): with `SIGNUP=off` the entry, its count and its page do not exist.
+  // The entry exists only where signing up is on (spec 31), and counts only once the session has
+  // passed the second factor: until then every `/api/site` route refuses.
   const signupOn = useAbout().features.signup !== 'off'
-  const [stamp, setStamp] = useState(0)
-  const pendingSignups = useMemo(
-    () => ({ stamp, refresh: () => setStamp((current) => current + 1) }),
-    [stamp],
-  )
+  const { session } = useSession()
+  const passed =
+    session !== null &&
+    session.authenticated &&
+    (!session.user.secondFactor.required || session.user.secondFactor.verified)
 
   const clients = pathname === '/admin/site' || pathname.startsWith('/admin/site/clients/')
   const sections: readonly {
@@ -128,46 +129,54 @@ export function SiteLayout() {
 
   return (
     <StepUpProvider>
-      <PendingSignupsContext.Provider value={pendingSignups}>
-        <div className={styles['console']}>
-          <header className={styles['header']}>
-            <p className={styles['brand']}>{t.site.consoleTitle}</p>
-            <p className={styles['intro']}>{t.site.consoleIntro}</p>
-            {/* The way out of the console, to the other two homes (H9). Plain links, like the sections. */}
-            <nav aria-label={t.site.exitsLabel} className={styles['exits']}>
-              <Link className={styles['exit']} to="/admin">
-                {t.admin.events}
+      <div className={styles['console']}>
+        <header className={styles['header']}>
+          <p className={styles['brand']}>{t.site.consoleTitle}</p>
+          <p className={styles['intro']}>{t.site.consoleIntro}</p>
+          {/* The way out of the console, to the other two homes (H9). Plain links, like the sections. */}
+          <nav aria-label={t.site.exitsLabel} className={styles['exits']}>
+            <Link className={styles['exit']} to="/admin">
+              {t.admin.events}
+            </Link>
+            {memberships.length > 0 ? (
+              <Link className={styles['exit']} to="/admin/client">
+                {t.clientSpace.spaceLink}
               </Link>
-              {memberships.length > 0 ? (
-                <Link className={styles['exit']} to="/admin/client">
-                  {t.clientSpace.spaceLink}
-                </Link>
-              ) : null}
-            </nav>
-            <nav aria-label={t.site.navLabel} className={styles['nav']}>
-              {sections.map((section) => (
-                <Link
-                  key={section.to}
-                  to={section.to}
-                  className={styles['navLink']}
-                  {...(section.current ? { 'aria-current': 'page' as const } : {})}
-                >
-                  {section.label}
-                </Link>
-              ))}
-              {signupOn ? (
-                <SignupsNavLink
-                  className={styles['navLink'] ?? ''}
-                  current={pathname === '/admin/site/signups'}
-                />
-              ) : null}
-            </nav>
-          </header>
-          <SecondFactorGate>
-            <Outlet />
-          </SecondFactorGate>
-        </div>
-      </PendingSignupsContext.Provider>
+            ) : null}
+          </nav>
+          <nav aria-label={t.site.navLabel} className={styles['nav']}>
+            {sections.map((section) => (
+              <Link
+                key={section.to}
+                to={section.to}
+                className={styles['navLink']}
+                {...(section.current ? { 'aria-current': 'page' as const } : {})}
+              >
+                {section.label}
+              </Link>
+            ))}
+            {signupOn ? (
+              <SignupsNavLink
+                className={styles['navLink'] ?? ''}
+                current={pathname === '/admin/site/signups'}
+                counted={passed}
+              />
+            ) : null}
+          </nav>
+        </header>
+        <SecondFactorGate>
+          <Outlet />
+        </SecondFactorGate>
+      </div>
     </StepUpProvider>
+  )
+}
+
+/** The console, with the counter its signups badge and page share. */
+export function SiteLayout() {
+  return (
+    <PendingSignupsProvider>
+      <SiteConsole />
+    </PendingSignupsProvider>
   )
 }

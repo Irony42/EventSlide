@@ -11,6 +11,7 @@ import {
   consoleApi,
   callsOutsideTheConsole,
   openConsole,
+  operatorSession,
   stepUpRequired,
 } from '../../../testing/siteConsole'
 
@@ -50,6 +51,7 @@ const withSignups = (
     siteSignups: vi.fn(async (status: SiteSignupStatus): Promise<SiteSignupPageDto> => ({
       items: byStatus[status] ?? [],
       pendingCount,
+      next: null,
     })),
     ...extra,
   })
@@ -153,7 +155,7 @@ describe('the signups page: review mode', () => {
 
     expect(await screen.findByRole('row', { name: /non@example\.org/ })).toBeInTheDocument()
     expect(screen.queryByRole('row', { name: /lea@example\.org/ })).not.toBeInTheDocument()
-    expect(api.siteSignups).toHaveBeenCalledWith('refused', expect.anything())
+    expect(api.siteSignups).toHaveBeenCalledWith('refused', { limit: 50 }, expect.anything())
   })
 })
 
@@ -242,6 +244,36 @@ describe('the signups page: approving', () => {
     await vi.waitFor(() =>
       expect(api.siteApproveSignup).toHaveBeenCalledWith('5e5e5e5e-5e5e-45e5-85e5-5e5e5e5e5e5e', {
         ceilings: { maxEvents: 3 },
+      }),
+    )
+  })
+
+  it('sends null for a ceiling the operator emptied, which lifts the default for this client', async () => {
+    const api = ready()
+    open(api)
+    await startApproval()
+    await userEvent.clear(screen.getByLabelText(fr.site.maxEvents))
+
+    await userEvent.click(screen.getByRole('button', { name: fr.siteSignups.approveConfirm }))
+
+    await vi.waitFor(() =>
+      expect(api.siteApproveSignup).toHaveBeenCalledWith('5e5e5e5e-5e5e-45e5-85e5-5e5e5e5e5e5e', {
+        ceilings: { maxEvents: null },
+      }),
+    )
+  })
+
+  it('sends only the switch that was flipped', async () => {
+    const api = ready()
+    open(api)
+    await startApproval()
+    await userEvent.click(screen.getByLabelText(fr.site.clipsAllowed))
+
+    await userEvent.click(screen.getByRole('button', { name: fr.siteSignups.approveConfirm }))
+
+    await vi.waitFor(() =>
+      expect(api.siteApproveSignup).toHaveBeenCalledWith('5e5e5e5e-5e5e-45e5-85e5-5e5e5e5e5e5e', {
+        ceilings: { clipsAllowed: false },
       }),
     )
   })
@@ -394,6 +426,193 @@ describe('the signups page: refusing', () => {
     expect(await screen.findByText(fr.siteSignups.refusedDone)).toBeInTheDocument()
     expect(siteRefuseSignup).toHaveBeenCalledTimes(2)
   })
+})
+
+describe('the signups page: paging', () => {
+  it('asks for the next page with the cursor it was given and appends it', async () => {
+    // The entry's own read (one row, for the count) and the two pages of the list.
+    const siteSignups = vi.fn<Api['siteSignups']>(async (_status, query) => {
+      if (query?.before === 'curseur-1') {
+        return {
+          items: [aSignup({ id: 'p2', email: 'hugo@example.org' })],
+          pendingCount: 2,
+          next: null,
+        }
+      }
+      return { items: [aSignup()], pendingCount: 2, next: query?.limit === 1 ? null : 'curseur-1' }
+    })
+    open(withSignups('review', {}, { siteSignups }))
+    await screen.findByRole('row', { name: /lea@example\.org/ })
+
+    await userEvent.click(screen.getByRole('button', { name: fr.site.more }))
+
+    expect(await screen.findByRole('row', { name: /hugo@example\.org/ })).toBeInTheDocument()
+    expect(screen.getByRole('row', { name: /lea@example\.org/ })).toBeInTheDocument()
+    expect(siteSignups).toHaveBeenCalledWith(
+      'pending',
+      { limit: 50, before: 'curseur-1' },
+      undefined,
+    )
+    expect(screen.queryByRole('button', { name: fr.site.more })).not.toBeInTheDocument()
+  })
+
+  it('offers no further page when the answer has none', async () => {
+    open(withSignups('review', { pending: [aSignup()] }))
+    await screen.findByRole('row', { name: /lea@example\.org/ })
+
+    expect(screen.queryByRole('button', { name: fr.site.more })).not.toBeInTheDocument()
+  })
+})
+
+describe('the signups entry: its count', () => {
+  /** A box whose waiting requests shrink as they are decided. */
+  const shrinking = () => {
+    let waiting = [aSignup(), aSignup({ id: 'b', email: 'hugo@example.org' })]
+    return withSignups(
+      'review',
+      {},
+      {
+        siteClientDefaults: vi.fn(async () => aSiteClientDefaults()),
+        siteSignups: vi.fn(async () => ({
+          items: waiting,
+          pendingCount: waiting.length,
+          next: null,
+        })),
+        siteApproveSignup: vi.fn(async () => {
+          waiting = waiting.slice(1)
+          return { clientId: CLIENT_ID, invitation: aSiteInvitation() }
+        }),
+        siteRefuseSignup: vi.fn(async () => {
+          waiting = waiting.slice(1)
+        }),
+      },
+    )
+  }
+
+  it('goes from two to one after an approval', async () => {
+    open(shrinking())
+    await screen.findByRole('link', { name: fr.siteSignups.navPending(2) })
+    const approve = await screen.findAllByRole('button', { name: fr.siteSignups.approve })
+    await userEvent.click(approve[0]!)
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.siteSignups.approveConfirm }),
+    )
+
+    expect(
+      await screen.findByRole('link', { name: fr.siteSignups.navPending(1) }),
+    ).toBeInTheDocument()
+  })
+
+  it('goes from two to one after a refusal', async () => {
+    open(shrinking())
+    await screen.findByRole('link', { name: fr.siteSignups.navPending(2) })
+    const refuse = await screen.findAllByRole('button', { name: fr.siteSignups.refuse })
+    await userEvent.click(refuse[0]!)
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: fr.siteSignups.refuseConfirm }),
+    )
+
+    expect(
+      await screen.findByRole('link', { name: fr.siteSignups.navPending(1) }),
+    ).toBeInTheDocument()
+  })
+
+  it('counts the held requests only, not the accounts opened, in open mode', async () => {
+    open(
+      withSignups('open', {
+        approved: [
+          aSignup({ id: 'a1', status: 'approved', clientId: CLIENT_ID }),
+          aSignup({ id: 'a2', status: 'approved', clientId: CLIENT_ID }),
+          aSignup({ id: 'a3', status: 'approved', clientId: CLIENT_ID }),
+        ],
+        pending: [aSignup({ id: 'p1' })],
+      }),
+    )
+
+    expect(
+      await screen.findByRole('link', { name: fr.siteSignups.navPending(1) }),
+    ).toBeInTheDocument()
+  })
+
+  it('asks for nothing, and shows no number, while the second factor is still to be passed', async () => {
+    const api = withSignups(
+      'review',
+      { pending: [aSignup()] },
+      {
+        session: vi.fn(async () =>
+          operatorSession({
+            secondFactor: { available: true, enrolled: true, verified: false, required: true },
+          }),
+        ),
+      },
+    )
+
+    open(api)
+
+    expect(await screen.findByRole('heading', { name: fr.site.factorTitle })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: fr.siteSignups.nav })).toBeInTheDocument()
+    expect(api.siteSignups).not.toHaveBeenCalled()
+  })
+
+  it('asks once for the count when the console opens on another page, and not again on each page', async () => {
+    const api = withSignups('review', { pending: [aSignup()] })
+    openConsole('/admin/site', api)
+    await screen.findByRole('link', { name: fr.siteSignups.navPending(1) })
+
+    await userEvent.click(screen.getByRole('link', { name: fr.site.navAccounts }))
+    await screen.findByRole('heading', { name: fr.site.accountsTitle })
+
+    expect(api.siteSignups).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the signups page: after a decision', () => {
+  it('moves the keyboard to the banner that says what happened, which was empty until then', async () => {
+    const api = withSignups('review', { pending: [aSignup()] })
+    open(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.siteSignups.refuse }))
+    const dialog = await screen.findByRole('dialog')
+    const statuses = screen.getAllByRole('status')
+    expect(statuses.every((status) => status.textContent === '')).toBe(true)
+
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: fr.siteSignups.refuseConfirm }),
+    )
+
+    const banner = await screen.findByText(fr.siteSignups.refusedDone)
+    await vi.waitFor(() => expect(banner).toHaveFocus())
+    expect(banner).toHaveAttribute('role', 'status')
+  })
+
+  it.each([
+    ['signup.notPending', 409],
+    ['signup.notFound', 404],
+    ['signup.held', 409],
+  ] as const)(
+    'says %s in words and reads the list again, since it is out of date',
+    async (code, status) => {
+      const siteApproveSignup = vi
+        .fn<Api['siteApproveSignup']>()
+        .mockRejectedValue(new ApiError(status, code))
+      const api = withSignups(
+        'review',
+        { pending: [aSignup()] },
+        { siteApproveSignup, siteClientDefaults: vi.fn(async () => aSiteClientDefaults()) },
+      )
+      open(api)
+      await userEvent.click(await screen.findByRole('button', { name: fr.siteSignups.approve }))
+      await screen.findByLabelText(fr.site.maxEvents)
+      const reads = vi.mocked(api.siteSignups).mock.calls.length
+
+      await userEvent.click(screen.getByRole('button', { name: fr.siteSignups.approveConfirm }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors[code])
+      await vi.waitFor(() =>
+        expect(vi.mocked(api.siteSignups).mock.calls.length).toBeGreaterThan(reads),
+      )
+    },
+  )
 })
 
 describe('the signups page: what it may ask', () => {

@@ -8,31 +8,50 @@ import { usePendingSignups } from './pendingSignupsContext'
 export interface SignupsNavLinkProps {
   readonly className: string
   readonly current: boolean
+  /**
+   * Whether the count may be asked for: the console's second-factor gate is satisfied. Before that
+   * every `/api/site` route answers 403, so the entry is shown without a number and asks nothing;
+   * it counts as soon as the gate opens.
+   */
+  readonly counted: boolean
 }
 
 /**
  * The console's "Signups" entry, with the number of requests waiting for an operator: « Inscriptions
  * (2) ».
  *
- * Mounted only on a box where signing up is on, because it is the one entry that asks the server
- * something (`GET /api/site/signups?status=pending`, for the count). A failed read shows the entry
- * without a number rather than a refusal in the middle of the navigation: the page behind it says
- * what went wrong. Read again whenever the page behind it settles a request (`refresh`).
+ * Mounted only on a box where signing up is on. The layout stays mounted from one console page to
+ * the next, so the count is read once, and again only when a page settles a request (`refresh`).
+ * A failed read shows the entry without a number: the page behind it says what went wrong.
  */
-export function SignupsNavLink({ className, current }: SignupsNavLinkProps) {
-  const t = useTranslations()
+export function SignupsNavLink({ className, current, counted }: SignupsNavLinkProps) {
+  return counted ? (
+    <Counted className={className} current={current} />
+  ) : (
+    <Entry className={className} current={current} waiting={0} />
+  )
+}
+
+function Counted({ className, current }: Omit<SignupsNavLinkProps, 'counted'>) {
   const api = useApi()
   const { stamp } = usePendingSignups()
   const load = useCallback(
     (signal: AbortSignal) => {
       void stamp
-      return api.siteSignups('pending', signal)
+      return api.siteSignups('pending', { limit: 1 }, signal)
     },
     [api, stamp],
   )
   const { data } = useLoader(load)
-  const waiting = data?.pendingCount ?? 0
+  return <Entry className={className} current={current} waiting={data?.pendingCount ?? 0} />
+}
 
+function Entry({
+  className,
+  current,
+  waiting,
+}: Omit<SignupsNavLinkProps, 'counted'> & { readonly waiting: number }) {
+  const t = useTranslations()
   return (
     <Link
       to="/admin/site/signups"

@@ -34,6 +34,8 @@ export interface SiteSignupPageDto {
   readonly items: readonly SiteSignupDto[]
   /** Requests waiting for an operator, whatever `status` was asked: the badge reads it. */
   readonly pendingCount: number
+  /** Opaque cursor of the next page (`before`), or `null` at the end. */
+  readonly next: string | null
 }
 
 /** `POST /api/site/signups/:id/approve`: the same ceilings patch as `POST /api/site/clients`. */

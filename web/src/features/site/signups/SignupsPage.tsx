@@ -1,8 +1,8 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApi } from '../../../lib/useApi'
 import { useAbout } from '../../../lib/useAbout'
-import { useLoader } from '../../../lib/useLoader'
+import { usePagedList } from '../../../lib/usePagedList'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { EmptyState } from '../../../design-system/components/EmptyState'
@@ -27,6 +27,9 @@ interface Opened {
 
 type Tab = 'current' | 'processed'
 
+/** The page size asked for; the server caps it. */
+const PAGE_SIZE = 50
+
 /**
  * The operator's page of signup requests (`/admin/site/signups`, spec 31).
  *
@@ -46,11 +49,27 @@ export function SignupsPage() {
   const [refusing, setRefusing] = useState<SiteSignupDto | null>(null)
   const [opened, setOpened] = useState<Opened | null>(null)
   const [refused, setRefused] = useState(false)
+  const panelId = useId()
+  // The banner is in the page from the start and filled when a decision lands: a region that is
+  // already there is announced when its text changes, and it is where the keyboard goes once the
+  // dialog that had it has closed.
+  const bannerRef = useRef<HTMLDivElement>(null)
+  const [decisions, setDecisions] = useState(0)
+  useEffect(() => {
+    if (decisions > 0) bannerRef.current?.focus()
+  }, [decisions])
 
+  /** Read every list again, and the badge with them. */
   const settled = () => {
     setVersion((current) => current + 1)
     refresh()
   }
+  const decided = () => {
+    settled()
+    setDecisions((current) => current + 1)
+  }
+
+  const currentLabel = mode === 'open' ? t.siteSignups.tabOpened : t.siteSignups.tabPending
 
   const section = (status: SiteSignupStatus, extra: SectionExtra) => (
     <Section
@@ -73,22 +92,27 @@ export function SignupsPage() {
         <Button
           variant={tab === 'current' ? 'primary' : 'secondary'}
           aria-pressed={tab === 'current'}
+          aria-controls={panelId}
           onClick={() => setTab('current')}
         >
-          {mode === 'open' ? t.siteSignups.tabOpened : t.siteSignups.tabPending}
+          {currentLabel}
         </Button>
         <Button
           variant={tab === 'processed' ? 'primary' : 'secondary'}
           aria-pressed={tab === 'processed'}
+          aria-controls={panelId}
           onClick={() => setTab('processed')}
         >
           {t.siteSignups.tabProcessed}
         </Button>
       </div>
 
+      <div ref={bannerRef} role="status" tabIndex={-1} className={styles['banner']}>
+        {opened === null ? null : t.siteSignups.approvedDone(opened.name)}
+        {refused ? t.siteSignups.refusedDone : null}
+      </div>
       {opened === null ? null : (
-        <section className={styles['opened']} aria-label={t.siteSignups.approvedDone(opened.name)}>
-          <p role="status">{t.siteSignups.approvedDone(opened.name)}</p>
+        <div className={styles['opened']}>
           <InvitationOutcome
             invitation={opened.result.invitation}
             email={opened.email}
@@ -97,30 +121,36 @@ export function SignupsPage() {
           <Link className={styles['link']} to={`/admin/site/clients/${opened.clientId}`}>
             {t.siteSignups.clientLink}
           </Link>
-        </section>
+        </div>
       )}
-      {refused ? <p role="status">{t.siteSignups.refusedDone}</p> : null}
 
-      {tab === 'processed' ? (
-        section('refused', {
-          hint: t.siteSignups.processedHint,
-          empty: t.siteSignups.emptyProcessed,
-        })
-      ) : mode === 'open' ? (
-        <>
-          {section('approved', {
-            heading: t.siteSignups.openedHeading,
-            empty: t.siteSignups.emptyOpened,
-          })}
-          {section('pending', {
-            heading: t.siteSignups.heldHeading,
-            hint: t.siteSignups.heldHint,
-            hideWhenEmpty: true,
-          })}
-        </>
-      ) : (
-        section('pending', { empty: t.siteSignups.emptyPending })
-      )}
+      <div
+        id={panelId}
+        role="region"
+        aria-label={tab === 'processed' ? t.siteSignups.tabProcessed : currentLabel}
+        className={styles['panel']}
+      >
+        {tab === 'processed' ? (
+          section('refused', {
+            hint: t.siteSignups.processedHint,
+            empty: t.siteSignups.emptyProcessed,
+          })
+        ) : mode === 'open' ? (
+          <>
+            {section('approved', {
+              heading: t.siteSignups.openedHeading,
+              empty: t.siteSignups.emptyOpened,
+            })}
+            {section('pending', {
+              heading: t.siteSignups.heldHeading,
+              hint: t.siteSignups.heldHint,
+              hideWhenEmpty: true,
+            })}
+          </>
+        ) : (
+          section('pending', { empty: t.siteSignups.emptyPending })
+        )}
+      </div>
 
       {approving === null ? null : (
         <ApproveSignupDialog
@@ -135,8 +165,10 @@ export function SignupsPage() {
               clientId: result.clientId,
               result,
             })
-            settled()
+            decided()
           }}
+          // A refusal such as « already handled » means the list on screen is out of date.
+          onFailed={settled}
         />
       )}
       {refusing === null ? null : (
@@ -147,8 +179,9 @@ export function SignupsPage() {
             setRefusing(null)
             setOpened(null)
             setRefused(true)
-            settled()
+            decided()
           }}
+          onFailed={settled}
         />
       )}
     </div>
@@ -182,30 +215,59 @@ function Section({
 }: SectionProps) {
   const t = useTranslations()
   const api = useApi()
-  const load = useCallback(
-    (signal: AbortSignal) => {
+  const headingId = useId()
+  // `version` is part of the request's identity: a decision changes it, and the list starts over.
+  const fetchPage = useCallback(
+    (before: string | undefined, signal?: AbortSignal) => {
       void version
-      return api.siteSignups(status, signal)
+      return api.siteSignups(
+        status,
+        { limit: PAGE_SIZE, ...(before === undefined ? {} : { before }) },
+        signal,
+      )
     },
     [api, status, version],
   )
-  const { data, loading, error, reload } = useLoader(load)
-  const rows = data?.items ?? []
+  const list = usePagedList(fetchPage)
 
-  if (hideWhenEmpty && !loading && error === null && rows.length === 0) return null
+  if (hideWhenEmpty && !list.loading && list.error === null && list.items.length === 0) {
+    return null
+  }
 
-  return (
-    <section className={styles['section']} aria-label={heading ?? t.siteSignups.tableLabel}>
-      {heading === undefined ? null : <h2 className={styles['heading']}>{heading}</h2>}
+  const body = (
+    <>
+      {heading === undefined ? null : (
+        <h2 id={headingId} className={styles['heading']}>
+          {heading}
+        </h2>
+      )}
       {hint === undefined ? null : <p className={styles['hint']}>{hint}</p>}
-      {loading && data === null ? <Pending label={t.app.loading} /> : null}
-      {error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
-      {!loading && error === null && rows.length === 0 && empty !== undefined ? (
+      {list.loading && list.items.length === 0 ? <Pending label={t.app.loading} /> : null}
+      {!list.loading && list.error !== null ? (
+        <LoadFailure message={list.error} onRetry={list.reload} as="h3" />
+      ) : null}
+      {!list.loading && list.error === null && list.items.length === 0 && empty !== undefined ? (
         <EmptyState as="h3" title={empty} />
       ) : null}
-      {rows.length > 0 ? (
-        <SignupsTable status={status} rows={rows} onApprove={onApprove} onRefuse={onRefuse} />
+      {list.items.length > 0 ? (
+        <SignupsTable status={status} rows={list.items} onApprove={onApprove} onRefuse={onRefuse} />
       ) : null}
+      {list.moreError === null ? null : <p role="alert">{list.moreError}</p>}
+      {list.hasMore ? (
+        <Button variant="secondary" loading={list.loadingMore} onClick={list.more}>
+          {t.site.more}
+        </Button>
+      ) : null}
+    </>
+  )
+
+  // A section is a landmark only when it has a name of its own (its heading); the table's caption
+  // names the table, so a second label on the wrapper would only say it twice.
+  return heading === undefined ? (
+    <div className={styles['section']}>{body}</div>
+  ) : (
+    <section className={styles['section']} aria-labelledby={headingId}>
+      {body}
     </section>
   )
 }

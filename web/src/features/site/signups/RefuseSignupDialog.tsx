@@ -11,6 +11,8 @@ export interface RefuseSignupDialogProps {
   readonly signup: SiteSignupDto
   readonly onRefused: () => void
   readonly onCancel: () => void
+  /** The write was refused: the list behind the dialog may be out of date. */
+  readonly onFailed: () => void
 }
 
 /**
@@ -18,7 +20,12 @@ export interface RefuseSignupDialogProps {
  * No reason is asked and none is kept; « Prévenir la personne » is checked by default and sends
  * a neutral mail when it stays checked.
  */
-export function RefuseSignupDialog({ signup, onRefused, onCancel }: RefuseSignupDialogProps) {
+export function RefuseSignupDialog({
+  signup,
+  onRefused,
+  onCancel,
+  onFailed,
+}: RefuseSignupDialogProps) {
   const t = useTranslations()
   const api = useApi()
   const [notify, setNotify] = useState(true)
@@ -32,6 +39,7 @@ export function RefuseSignupDialog({ signup, onRefused, onCancel }: RefuseSignup
     void refuse.run(signup.id, signup.id, notify).then((result) => {
       if (!result.ok) {
         setFailure(result.message)
+        if (result.message !== null) onFailed()
         return
       }
       onRefused()

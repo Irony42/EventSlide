@@ -2532,6 +2532,9 @@ export const fr = {
     'auth.tooManySecondFactorAttempts': 'Trop de codes erronés. Réessayez dans un quart d’heure.',
     'auth.secondFactorRequired': 'Ce compte doit d’abord passer la vérification en deux étapes.',
     'auth.stepUpRequired': 'Confirmez votre identité pour continuer.',
+    'signup.notPending': 'Cette demande a déjà été traitée.',
+    'signup.notFound': 'Cette demande n’existe plus.',
+    'signup.held': 'La place disque ne permet toujours pas d’ouvrir ce compte.',
     'auth.secondFactorAlreadyEnrolled':
       'La vérification en deux étapes est déjà active sur ce compte.',
     'auth.noEnrolmentInProgress': 'Aucune activation n’est en cours. Recommencez.',
