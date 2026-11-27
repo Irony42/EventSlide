@@ -224,9 +224,9 @@ describe('signup mails', () => {
   })
 
   describe('links', () => {
-    it('puts the confirmation token in the path, escaped', () => {
-      expect(signupConfirmLink('https://app.example.test', 'a b/c')).toBe(
-        'https://app.example.test/signup/confirm/a%20b%2Fc',
+    it('puts the confirmation token in the path, escaped, and the language in the query', () => {
+      expect(signupConfirmLink('https://app.example.test', 'a b/c', 'de')).toBe(
+        'https://app.example.test/signup/confirm/a%20b%2Fc?lang=de',
       )
     })
 
