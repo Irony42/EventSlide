@@ -2346,17 +2346,21 @@ export const es: UiText = {
     securityMenu: 'Seguridad y correos',
     mailPreferences: {
       title: 'Correos',
+      legend: 'Avisarme por correo de',
       intro:
         'Los correos que este servidor le escribe sobre sus eventos. Solo llevan cifras y sus propias palabras, nunca el nombre, la dieta ni el mensaje de un invitado.',
       rsvpLabel: 'Respuestas de los invitados',
       rsvpHint:
-        'El recordatorio antes de la fecha límite, el resumen cuando termina y «todas las plazas están ocupadas». El resumen diario se marca evento por evento, en la página de respuestas.',
-      eventLabel: 'La vida de sus eventos',
+        'El recordatorio antes de la fecha límite, el resumen cuando se cierran las respuestas y el aviso «al completo» cuando se ocupan todas las plazas. El resumen diario se marca evento por evento, en la página de respuestas.',
+      eventLabel: 'Vida de sus eventos',
       eventHint:
-        'Un archivo, un libro de fotos o una película listos, el final de un evento con sus cifras, el cierre del muro en menos de un día, una invitación aceptada.',
+        'Un archivo, un libro de fotos o una película listos, el final de un evento con sus cifras, el muro que se cierra en menos de un día, una invitación aceptada.',
       always:
         'Marque lo que marque aquí, siempre recibirá los correos de seguridad de su cuenta (contraseña, verificación en dos pasos, cuenta desactivada o eliminada) y el aviso antes de borrar las respuestas.',
+      saving: 'Guardando…',
       failed: 'No se pudo guardar la elección. Inténtelo de nuevo en un momento.',
+      loadFailed: 'No se pudieron leer sus opciones de correo.',
+      retry: 'Reintentar',
     },
     securityUnavailable:
       'Este servidor no tiene una clave de cifrado para la verificación en dos pasos. Pida a su administrador que la configure.',

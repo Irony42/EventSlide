@@ -27,10 +27,12 @@ const render = (api: Api) => renderWithProviders(<SecurityPage />, { api })
 const CODE = 'K7QM-2XTR-9PHD-4VNB'
 
 describe('SecurityPage', () => {
-  it('says so, and offers nothing, on a box with no key', async () => {
+  it('says so, and offers nothing, on a box with no key, under a heading of its own below the page title', async () => {
     render(fakeApi({ session: vi.fn(async () => signedIn(status({ available: false }))) }))
 
     expect(await screen.findByText(fr.auth.securityUnavailable)).toBeVisible()
+    expect(screen.getByRole('heading', { level: 1, name: fr.auth.securityMenu })).toBeVisible()
+    expect(screen.getByRole('heading', { level: 2, name: fr.auth.securityTitle })).toBeVisible()
     expect(screen.queryByRole('button', { name: fr.auth.setupStart })).toBeNull()
   })
 
@@ -135,6 +137,9 @@ describe('SecurityPage', () => {
       expect(screen.getByText(fr.auth.recoveryCodesIntro)).toBeVisible()
       // The section is named by its own heading, so a screen reader announces where it is.
       expect(screen.getByRole('region', { name: fr.auth.recoveryCodesTitle })).toBeVisible()
+      // The codes screen is the person's one task: the e-mail switches are not offered on it.
+      expect(screen.queryByRole('heading', { name: fr.auth.mailPreferences.title })).toBeNull()
+      expect(screen.queryByRole('checkbox')).toBeNull()
     })
 
     it('keeps the codes on screen across a refresh of the session, and clears them only when saved', async () => {
@@ -250,7 +255,7 @@ describe('SecurityPage', () => {
         await screen.findByRole('button', { name: fr.auth.recoveryCodesRegenerate }),
       ).toBeVisible()
       expect(screen.getByRole('button', { name: fr.auth.secondFactorDisable })).toBeVisible()
-      expect(screen.getByRole('region', { name: fr.auth.securityTitle })).toBeVisible()
+      expect(screen.getByRole('region', { name: fr.auth.securityMenu })).toBeVisible()
     })
 
     it('confirms with a recovery code instead when the phone is gone', async () => {
