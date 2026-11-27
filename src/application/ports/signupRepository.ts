@@ -16,7 +16,8 @@ import type {
  * finds the row already moved. A boolean answer says whether this caller was the one that moved it.
  *
  * The confirmation token is an `account_tokens` row of purpose `emailVerification` with no account
- * (`userId` null). `admit` and `confirm` write it with the request in **one transaction**, which is why
+ * (`userId` null). **Every query on those tokens is scoped to `user_id IS NULL`**: an
+ * `emailVerification` token that belongs to an account is not a signup link, whatever its address. `admit` and `confirm` write it with the request in **one transaction**, which is why
  * they live here and not on `AccountTokenRepository`.
  */
 
@@ -74,6 +75,8 @@ export interface SignupFinalization {
   readonly clientId: ClientId
   readonly invitationTokenId: AccountTokenId | null
   readonly now: Date
+  /** The stamp of the claim being finalised (`SignupRequest.claimedAt`): a claim given back and retaken is another claim. */
+  readonly claimedAt: Date
 }
 
 /** A position in the list, as `signupListedAt` and the id give it: the next page starts strictly after it. */
@@ -119,16 +122,22 @@ export interface SignupRepository {
   /** Spends the token and moves the request out of `unconfirmed`, in one transaction. */
   confirm(input: SignupConfirmInput): Promise<SignupConfirmResult>
 
-  /** `pending` to `approving`, stamped `now`. `false` when another caller took it, or it is not pending. */
+  /**
+   * `pending` to `approving`, stamped `now`. `false` when another caller took it, it is not pending, or
+   * it was made 30 days ago or more (a pending request past day 30 is expired even before the sweep).
+   */
   claim(id: string, now: Date): Promise<boolean>
 
-  /** `approving` to `pending`: provisioning failed. */
-  release(id: string): Promise<boolean>
+  /**
+   * `approving` to `pending`: provisioning failed. Only the claim stamped `claimedAt` is given back, so a
+   * late release after the sweep gave the claim back (and another caller took it) changes nothing.
+   */
+  release(id: string, claimedAt: Date): Promise<boolean>
 
-  /** `approving` to `approved`, with the client and invitation it produced. */
+  /** `approving` to `approved`, with the client and invitation it produced, for the claim stamped `finalization.claimedAt` only. */
   finalize(id: string, finalization: SignupFinalization): Promise<boolean>
 
-  /** `pending` to `refused`. */
+  /** `pending` to `refused`; `false` too for a request made 30 days ago or more. */
   refuse(id: string, by: UserId, now: Date): Promise<boolean>
 
   /** Confirmed requests of one state for the operator, newest first, a page at a time. Never an `unconfirmed` one. */

@@ -182,6 +182,34 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
     return revoked
   }
 
+  /**
+   * Revokes the outstanding tokens of one purpose and address that belong to no account, but the one
+   * named `except`. For the signup repository, whose confirmation links have no `user_id`.
+   */
+  async revokeOutstandingWithoutAccount(
+    email: EmailAddress,
+    purpose: AccountTokenPurpose,
+    now: Date,
+    except: AccountTokenId,
+  ): Promise<number> {
+    let revoked = 0
+    for (const [id, row] of this.rows) {
+      const outstanding =
+        id !== except &&
+        row.userId === null &&
+        row.email.equals(email) &&
+        row.purpose === purpose &&
+        row.consumedAt === null &&
+        row.revokedAt === null &&
+        row.expiresAt.getTime() > now.getTime()
+      if (outstanding) {
+        this.rows.set(id, { ...row, revokedAt: now })
+        revoked += 1
+      }
+    }
+    return revoked
+  }
+
   async countLiveClientInvitations(
     clientId: ClientId,
     now: Date,
