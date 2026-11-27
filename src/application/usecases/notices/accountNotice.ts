@@ -26,6 +26,8 @@ import type { UserRepository } from '../../ports/userRepository'
  *
  * - **Without a relay nothing is read and nothing is sent.** There is nothing to note: no ledger row exists for an
  *   account act (the act itself is the guard, and it happens once).
+ * - **`deleteAccount` waits for `prepare`** (one read of the account and its clients before the erasure): the price of
+ *   having the address at all, accepted; `send` never waits.
  * - **Always sent when there is a relay**: no family, no switch, `HOST_MAIL_NOTICES=off` does not stop it. It is
  *   counted in the day's mail budget and never refused by it.
  * - **The address is read before an erasure** ({@link AccountNotice.prepare}): once the account is gone there is
@@ -92,7 +94,8 @@ export const makeAccountNotice = ({
   const failed = (kind: AccountChangeKind, error: unknown): void => {
     logger.error('an account notice failed', {
       kind,
-      error: error instanceof Error ? error.message : String(error),
+      // The name of the failure, never its message: a message may carry the address.
+      error: error instanceof Error ? error.name : 'unknown',
     })
   }
 
@@ -119,7 +122,6 @@ export const makeAccountNotice = ({
             (async () => {
               try {
                 const at = clock.now()
-                await budget.count(budgetDayOf(at), 1)
                 const result = await mailer.send(
                   accountChangeMail({
                     to,
@@ -132,6 +134,12 @@ export const makeAccountNotice = ({
                 )
                 if (!result.ok)
                   logger.warn('an account notice was not sent', { kind, code: result.error.code })
+              } catch (error) {
+                failed(kind, error)
+              }
+              // Counted after the send, on its own: a budget that cannot be written never costs the holder the mail.
+              try {
+                await budget.count(budgetDayOf(clock.now()), 1)
               } catch (error) {
                 failed(kind, error)
               }

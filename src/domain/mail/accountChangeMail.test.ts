@@ -83,12 +83,16 @@ describe('accountChangeMail', () => {
     }
   })
 
-  it('answers at the operator contact for a disabling, and says so, only when there is one', () => {
+  it('answers at the operator contact for a disabling and an enabling, and says so, only when there is one', () => {
     const contact = address('contact@example.test')
 
     const asked = mail('accountDisabled', 'fr', contact)
     expect(asked.replyTo).toBe(contact)
     expect(asked.text).toContain(`Une question${NBSP}: répondez à ce message.`)
+
+    const enabled = mail('accountEnabled', 'fr', contact)
+    expect(enabled.replyTo).toBe(contact)
+    expect(enabled.text).toContain(`Une question${NBSP}: répondez à ce message.`)
 
     const silent = mail('accountDisabled', 'fr', null)
     expect(silent.replyTo).toBeUndefined()
@@ -98,8 +102,25 @@ describe('accountChangeMail', () => {
   it('does not put a reply address on the mails of the other acts, whatever the contact', () => {
     const contact = address('contact@example.test')
 
-    for (const kind of ACCOUNT_CHANGE_KINDS.filter((k) => k !== 'accountDisabled')) {
+    for (const kind of ACCOUNT_CHANGE_KINDS.filter(
+      (k) => k !== 'accountDisabled' && k !== 'accountEnabled',
+    )) {
       expect(mail(kind, 'fr', contact).replyTo, kind).toBeUndefined()
+    }
+  })
+
+  it('spells the hour so it reads right at any hour: no article in Spanish and Italian', () => {
+    for (const locale of ['es', 'it'] as const) {
+      const text = accountChangeMail({
+        to: address('hote@example.test'),
+        locale,
+        kind: 'passwordChanged',
+        at: new Date('2026-11-27T01:05:00.000Z'),
+        forgotUrl: FORGOT,
+        replyTo: null,
+      }).text
+      expect(text, locale).toContain(', 01:05 (UTC)')
+      expect(text, locale).not.toContain(locale === 'es' ? 'a las 01' : 'alle 01')
     }
   })
 

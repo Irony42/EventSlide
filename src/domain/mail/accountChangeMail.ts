@@ -11,7 +11,7 @@ import type { OutgoingMail } from './outgoingMail'
  * - **Short, no token, no IP, no device, no place** (none of it is kept). The instant is spelt in UTC, with `(UTC)`.
  * - **One link at most**, and only for the five security acts: `/password/forgot`, where the holder resets the password
  *   at once if it was not them. The operator's acts (disabled, enabled) and the deletion carry no link.
- * - When the operator's contact address is configured, the mail of a disabling carries it as `replyTo` and says to answer
+ * - When the operator's contact address is configured, the mail of a disabling **or an enabling** carries it as `replyTo` and says to answer
  *   it; without one that sentence is not written.
  *
  * Pure: a function of its arguments.
@@ -60,7 +60,7 @@ interface Template {
   readonly subjects: Readonly<Record<AccountChangeKind, string>>
   readonly notYou: string
   readonly question: string
-  /** The word between the day and the hour: « à », "at". */
+  /** What stands between the day and the hour, spaces included: « à », "at", or a comma where the article would not read right at every hour. */
   readonly at: string
 }
 
@@ -95,7 +95,7 @@ const TEMPLATES: Readonly<Record<ClientLocale, Template>> = {
     },
     notYou: `Si ce n’est pas vous, réinitialisez votre mot de passe tout de suite${NBSP}:`,
     question: `Une question${NBSP}: répondez à ce message.`,
-    at: 'à',
+    at: ' à ',
   },
   en: {
     greeting: 'Hello,',
@@ -122,7 +122,7 @@ const TEMPLATES: Readonly<Record<ClientLocale, Template>> = {
     },
     notYou: 'If this was not you, reset your password right away:',
     question: 'A question? Reply to this message.',
-    at: 'at',
+    at: ' at ',
   },
   de: {
     greeting: 'Guten Tag,',
@@ -151,7 +151,7 @@ const TEMPLATES: Readonly<Record<ClientLocale, Template>> = {
     },
     notYou: 'Wenn Sie das nicht waren, setzen Sie Ihr Passwort sofort zurück:',
     question: 'Eine Frage? Antworten Sie auf diese Nachricht.',
-    at: 'um',
+    at: ' um ',
   },
   es: {
     greeting: 'Hola,',
@@ -179,7 +179,7 @@ const TEMPLATES: Readonly<Record<ClientLocale, Template>> = {
     },
     notYou: 'Si no fue usted, restablezca su contraseña de inmediato:',
     question: '¿Una pregunta? Responda a este mensaje.',
-    at: 'a las',
+    at: ', ',
   },
   it: {
     greeting: 'Buongiorno,',
@@ -208,7 +208,7 @@ const TEMPLATES: Readonly<Record<ClientLocale, Template>> = {
     },
     notYou: 'Se non è stato lei, reimposti subito la password:',
     question: 'Una domanda? Risponda a questo messaggio.',
-    at: 'alle',
+    at: ', ',
   },
 }
 
@@ -226,7 +226,7 @@ const whenIn = (locale: ClientLocale, at: Date, joiner: string): string => {
     minute: '2-digit',
     hourCycle: 'h23',
   }).format(at)
-  return `${day} ${joiner} ${time} (UTC)`
+  return `${day}${joiner}${time} (UTC)`
 }
 
 export const accountChangeMail = ({
@@ -246,7 +246,7 @@ export const accountChangeMail = ({
   if (carriesResetLink(kind)) {
     body.push('', template.notYou, forgotUrl)
   }
-  const reply = kind === 'accountDisabled' ? replyTo : null
+  const reply = kind === 'accountDisabled' || kind === 'accountEnabled' ? replyTo : null
   if (reply !== null) body.push('', template.question)
   body.push('', 'EventSlide', '')
 
