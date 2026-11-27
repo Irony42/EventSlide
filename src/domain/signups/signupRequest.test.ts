@@ -12,6 +12,7 @@ import {
   expireSignupRequest,
   finalizeSignupRequest,
   isSignupStatus,
+  signupConfirmationNext,
   refuseSignupRequest,
   releaseSignupRequest,
   type SignupFormInput,
@@ -274,5 +275,26 @@ describe('transitions', () => {
     const request = inStatus('pending')
     claimSignupRequest(request, LATER)
     expect(request.status).toBe('pending')
+  })
+})
+
+describe('signupConfirmationNext', () => {
+  it('says review in review mode, whatever happened', () => {
+    expect(signupConfirmationNext('review', 'pending')).toBe('review')
+    expect(signupConfirmationNext('review', 'approving')).toBe('review')
+  })
+
+  it('says mail in open mode when the account is opening or opened', () => {
+    expect(signupConfirmationNext('open', 'approving')).toBe('mail')
+    expect(signupConfirmationNext('open', 'approved')).toBe('mail')
+  })
+
+  it('says held in open mode when the request is back in the queue', () => {
+    expect(signupConfirmationNext('open', 'pending')).toBe('held')
+  })
+
+  it('agrees with confirmationOutcome: a guard that fails is held, one that passes is mail', () => {
+    expect(signupConfirmationNext('open', confirmationOutcome('open', false))).toBe('held')
+    expect(signupConfirmationNext('open', confirmationOutcome('open', true))).toBe('mail')
   })
 })

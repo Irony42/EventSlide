@@ -167,6 +167,26 @@ export const confirmationOutcome = (
   diskGuardPassed: boolean,
 ): ConfirmationOutcome => (mode === 'open' && diskGuardPassed ? 'approving' : 'pending')
 
+/**
+ * What the confirmation answer tells the visitor, never a link (spec 31 section 3, step 4):
+ * `review` (an operator will look), `mail` (the account opens and the invitation arrives by mail) or
+ * `held` (`open`, but the request is back in the operator's queue: the disk guard said no, the free
+ * space could not be read, or provisioning failed).
+ */
+export type SignupConfirmationNext = 'review' | 'mail' | 'held'
+
+/**
+ * The answer for a confirmation, from the mode and where the request ended up: `pending` after a
+ * confirmation in `open` is the held case, and `approving` or `approved` is the mail one.
+ */
+export const signupConfirmationNext = (
+  mode: 'review' | 'open',
+  endedAs: 'pending' | 'approving' | 'approved',
+): SignupConfirmationNext => {
+  if (mode === 'review') return 'review'
+  return endedAs === 'pending' ? 'held' : 'mail'
+}
+
 /** The address is proven: `unconfirmed` to `pending` or, for the automatic path, straight to `approving`. */
 export const confirmSignupRequest = (
   request: SignupRequest,

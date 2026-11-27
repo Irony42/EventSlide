@@ -103,9 +103,13 @@ export const signupConfirmationMail = ({
   return { to, subject: template.subject, text: `${before}\n\n${link}\n\n${after}\n` }
 }
 
-/** Where a confirmation link points: a path under the public origin, token in the path (see `invitationLink`). */
-export const signupConfirmLink = (publicUrl: string, token: string): string =>
-  `${publicUrl}/signup/confirm/${encodeURIComponent(token)}`
+/**
+ * Where a confirmation link points: a path under the public origin, token in the path (see
+ * `invitationLink`), and the person's language in the query so the page opens in the language of the mail.
+ * The query holds a locale code only, never anything about the person.
+ */
+export const signupConfirmLink = (publicUrl: string, token: string, locale: ClientLocale): string =>
+  `${publicUrl}/signup/confirm/${encodeURIComponent(token)}?lang=${locale}`
 
 /* ------------------------------------------------------------------------------------------------ */
 
