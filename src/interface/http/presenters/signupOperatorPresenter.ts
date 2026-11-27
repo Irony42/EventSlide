@@ -1,54 +1,49 @@
-import type { OperatorSignupPage } from '../../../application/usecases/signups/listSignupsForOperator'
+import type {
+  OperatorSignup,
+  OperatorSignupPage,
+} from '../../../application/usecases/signups/listSignupsForOperator'
+import type { SiteSignupDto, SiteSignupPageDto, SiteSignupStatus } from './dto'
 import type { SignupStatus } from '../../../domain/signups/signupRequest'
 import { encodeSignupCursor } from '../signupCursor'
 
-/**
- * What the operator reads of a signup request (`GET /api/site/signups`, spec 31), written field by
- * field. The address, the space's name and the note are what a stranger typed: they are shown to an
- * operator, who needs them to decide, and to nobody else (`requireOperator` is the router's first line).
- */
-export interface SiteSignupDto {
-  readonly id: string
-  readonly email: string
-  readonly clientName: string
-  readonly note: string | null
-  /** `YYYY-MM-DD`. */
-  readonly eventDate: string | null
-  readonly locale: string
-  readonly status: SignupStatus
-  readonly createdAt: string
-  readonly confirmedAt: string | null
-  readonly decidedAt: string | null
-  readonly clientId: string | null
-  /** An account already answers to this address: the person will have to sign in to accept. */
-  readonly existingAccount: boolean
-}
-
-export interface SiteSignupPageDto {
-  readonly items: readonly SiteSignupDto[]
-  /** Requests waiting for a decision, whatever the page: the badge. */
-  readonly pendingCount: number
-  /** An opaque cursor for `before`, or `null` at the end. */
-  readonly next: string | null
-}
-
 const isoOrNull = (date: Date | null): string | null => (date === null ? null : date.toISOString())
 
+/**
+ * What the console calls a request's state. `approving` is a claim still in flight: it shows with
+ * `pending`. The list only asks for those three, so `unconfirmed` and `expired` never arrive here: one
+ * that does is a bug in the query, not something to put a name on.
+ */
+export const listedStatus = (status: SignupStatus): SiteSignupStatus => {
+  switch (status) {
+    case 'pending':
+    case 'approving':
+      return 'pending'
+    case 'approved':
+    case 'refused':
+      return status
+    case 'unconfirmed':
+    case 'expired':
+      throw new Error(`a ${status} signup request cannot be listed for the operator`)
+  }
+}
+
+const toSiteSignupDto = ({ request, existingAccount }: OperatorSignup): SiteSignupDto => ({
+  id: request.id,
+  email: request.email.value,
+  clientName: request.clientName.value,
+  note: request.note,
+  eventDate: request.eventDate,
+  locale: request.locale,
+  status: listedStatus(request.status),
+  createdAt: request.createdAt.toISOString(),
+  confirmedAt: isoOrNull(request.confirmedAt),
+  decidedAt: isoOrNull(request.decidedAt),
+  clientId: request.clientId,
+  existingAccount,
+})
+
 export const toSiteSignupPageDto = (page: OperatorSignupPage): SiteSignupPageDto => ({
-  items: page.items.map(({ request, existingAccount }) => ({
-    id: request.id,
-    email: request.email.value,
-    clientName: request.clientName.value,
-    note: request.note,
-    eventDate: request.eventDate,
-    locale: request.locale,
-    status: request.status,
-    createdAt: request.createdAt.toISOString(),
-    confirmedAt: isoOrNull(request.confirmedAt),
-    decidedAt: isoOrNull(request.decidedAt),
-    clientId: request.clientId,
-    existingAccount,
-  })),
+  items: page.items.map(toSiteSignupDto),
   pendingCount: page.pendingCount,
   next: page.next === null ? null : encodeSignupCursor(page.next),
 })

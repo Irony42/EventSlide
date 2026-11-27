@@ -36,7 +36,13 @@ const world = () => {
 
 invitationAcceptanceContract('fake', async () => {
   const parts = world()
-  return { ...parts, acceptance: new FakeInvitationAcceptance(parts) }
+  return {
+    ...parts,
+    acceptance: new FakeInvitationAcceptance(parts),
+    giveClientAnEvent: async () => {
+      parts.clients.linkEvent(asEventId(ACCEPTANCE_EVENT), asClientId(ACCEPTANCE_CLIENT))
+    },
+  }
 })
 
 describe('FakeInvitationAcceptance', () => {
@@ -69,6 +75,6 @@ describe('FakeInvitationAcceptance', () => {
     })
 
     await expect(failed).rejects.toThrow(/does not exist/)
-    await expect(next).resolves.toBe('accepted')
+    await expect(next).resolves.toMatchObject({ outcome: 'accepted' })
   })
 })

@@ -156,6 +156,10 @@ export const authUseCases = (
     ids: adapters.ids,
     clock: adapters.clock,
     terms: policy.termsOfUse,
+    mailer: adapters.mailer,
+    signupMode: policy.signup.mode,
+    welcome: policy.signup.welcome,
+    logger: adapters.logger,
   }),
   registerModerator: makeRegisterModerator({
     events: adapters.events,

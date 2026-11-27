@@ -269,20 +269,73 @@ signal with no content); the badge on the **Réponses** entry counts the replies
 looked, and is cleared by opening the page. The page also re-reads when the tab comes back into view and
 when the stream reconnects, so a dropped connection costs a few seconds, not a reply.
 
-**No e-mail.** The hosted instance sends none, so nobody is told by message that a reply arrived: the badge and the open
+**No e-mail.** Replies send none (the hosted instance's mail is for signup and invitations), so nobody is told by message that a reply arrived: the badge and the open
 page are the notice.
 
-## Signups: when an account opens and the invitation does not arrive
+## Self-service signup
 
-With `SIGNUP=open` a confirmed address opens an account by itself and the invitation follows by mail. Two cases leave a visitor without a usable account,
-and both tell the visitor "your address is confirmed, the account opens as soon as possible" (`held`) and send you the usual signup notice
-(`SIGNUP_NOTIFY_EMAIL`, at most one mail an hour, no name or address in it):
+By default nobody can create an account: an operator invites each one from the console. With `SIGNUP` set, a visitor asks for
+one at `/signup` (the sign-in page links to it) and the box does the rest. The hosted instance chose mode `open` and switches it on after the 3.19 upgrade.
+The decision and its reasoning are in [ADR 0018](adr/0018-self-service-signup.md); the settings are in `.env.example` and
+[UPGRADING.md](UPGRADING.md#upgrading-to-319).
 
-- **the relay refused the invitation mail**, or **the request could not be marked as done** after the account was opened. The box logs the **client id** (never the
-  address). Open the client from the operator console (Clients) and issue the owner's invitation again from the client's page; the visitor then gets the usual
-  invitation mail. A request that stays `approving` is given back to `pending` by the sweep after an hour: do not approve it again from the Signups page
-  if the client already exists, or you will open a second account for the same address.
-- **the free disk space is too low** (or cannot be read): the request waits in the Signups page like one in `review`; approve it when there is room.
+**What it needs.** `SITE_ADMIN=on` (the operator console) and a working mail relay (`SMTP_URL` and `MAIL_FROM`): the address is
+proved by a link sent to it, so with no relay the boot is refused (exit 78), every missing piece named. For the welcome mail
+below also set `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL` and `SUPPORT_URL`. Your reverse proxy must pass `/signup` and
+`/api/signup` through and not log `/signup/confirm/*`.
+
+**The three modes** (`SIGNUP`):
+
+| Mode     | What happens once the visitor has confirmed their address                                                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `off`    | The default. Nothing is offered; the routes answer 404 and the sign-in page has no link.                                                                                    |
+| `open`   | The space opens at once and the invitation (the usual one: the person chooses a name and a password) follows by mail. Only the ceilings and the disk guard protect the box. |
+| `review` | The request waits in **Inscriptions** (Signups) in the operator console. Nothing opens before an operator approves it.                                                      |
+
+**What the visitor does.** They give an address, the name of their space, and optionally the occasion and a date. They always get
+the same "check your inbox" answer, whether or not the address already has an account (the form is not a way to find out who is
+registered), and the mail is the same too. The link is valid 24 hours and **confirms only when its button is pressed**, so a mail
+scanner that opens it confirms nothing. Past `SIGNUP_MAX_PER_DAY` confirmation mails for the whole box (50 by default) the form
+says to come back tomorrow. That daily ceiling is the box's own and has nothing to do with the per-client ceilings (events,
+photos, storage) the approval dialog sets. `SIGNUP_RATE_LIMIT_PER_HOUR` (10) bounds one IP, and an address gets three mails a day at most.
+
+**Asking twice.** The answer is always the same, but not every ask sends a mail. A person who asks again before confirming gets
+a new link only once the last one is an hour old (a resend; the older link stops working). An address already waiting for a
+decision, or refused less than 30 days ago, gets the usual answer and no mail at all: a refusal keeps the address quiet for 30
+days. An address that already has an account is answered and mailed like any other.
+
+**What the operator sees.** The console has an **Inscriptions (N)** entry, N being the requests waiting for a decision (in `open`,
+that is only the held ones, below). In `open` the page lists the accounts opened in the last 30 days; in `review` the
+requests to approve. **Approve** opens the client with the ceilings shown in the dialog (the instance's defaults, which you may
+change) and sends the invitation; **Refuse** asks whether to tell the person, with a neutral mail and no reason. Both are writes
+behind the usual step-up. Each decision is one line in the audit log (`signup.approved`, `signup.refused`). The page never
+shows what a client made. With `SIGNUP_NOTIFY_EMAIL` set you also get at most one mail an hour saying that requests wait (counts
+only: no name, no address).
+
+**Switching modes.** Change `SIGNUP` and restart. `open` to `review` and back needs nothing else: requests already waiting stay
+in the page. `off` hides the form and the console page, keeps the requests until they expire, and the sweep still erases them.
+A request that nobody decides is erased after 30 days, an unconfirmed one after 48 hours, and none is kept beyond 60 days.
+
+### When an account opens and the invitation does not arrive
+
+In `open` two cases leave a visitor without a usable account. Both tell the visitor "your address is confirmed, the account opens
+as soon as possible" and send you the usual signup notice:
+
+- **the relay refused the invitation mail**, or **the request could not be marked as done** after the account was opened. The box
+  logs the **client id** (never the address). Open the client from the operator console (Clients) and issue the owner's invitation
+  again from the client's page; the visitor then gets the usual invitation mail. A request that stays `approving` is given back
+  to `pending` by the sweep after an hour: do not approve it again from the Signups page if the client already exists, or you will
+  open a second account for the same address.
+- **the free disk space is too low** (or cannot be read): the request waits in the Signups page, under "Demandes retenues", like
+  one in `review`; the guard is not checked again when you approve, so you decide when there is room. The box needs `MIN_FREE_DISK_BYTES` plus 5 GB for each client that still has an
+  event or was created in the last 30 days, plus 5 GB for the newcomer.
+
+### Welcome mail
+
+With `SIGNUP=review` or `open`, the first owner of a space that has no member and no event yet receives one welcome mail after
+accepting their invitation, in the space's language. It names `OPERATOR_CONTACT_EMAIL` as the contact and reply address and links
+`SUPPORT_URL`; if either is unset, or the box has no mail relay, nothing is sent and the boot logs a warning naming what is missing.
+A failed send never blocks the acceptance. With `SIGNUP=off` nothing changes.
 
 ## Backups
 

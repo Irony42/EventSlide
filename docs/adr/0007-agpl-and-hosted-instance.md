@@ -12,6 +12,7 @@ on the guest and host screens, and `SOURCE_CODE_URL`; roadmap G1-04), and so is 
 FAQ for self-hosters (`docs/LICENSING-FAQ.md`). Several other things it relies on are
 **(planned)**, not built: a contributor licence agreement, the instance's terms of use
 (CGU), an access-request page, and a donation channel. Each is marked where it is named.
+_(Note, spec 31: the access-request page is superseded by the self-service signup of [ADR 0018](0018-self-service-signup.md), off unless `SIGNUP` is set.)_
 
 ## Date
 
@@ -59,7 +60,7 @@ what any self-hosting operator could run — with `SITE_ADMIN=on` (roadmap §10.
 `SITE_ADMIN` setting in `src/infrastructure/config/env.ts`) so that it can serve more than
 one client. It admits clients by invitation. It is free, funded by donations that buy
 nothing (**(planned)**), and offers no contract and no availability guarantee (terms of use,
-**(planned)**).
+**(planned)**). _(Note, spec 31: "by invitation" is superseded where `SIGNUP` is set, see [ADR 0018](0018-self-service-signup.md).)_
 
 Running the unmodified image obligates the operator to nothing beyond what the GPL already
 asked. Only a _modified_ version served to others triggers §13, and that is what the
@@ -121,7 +122,7 @@ so that an agent does not have to infer the distribution model from `package.jso
   image; there is no private branch that can drift out of the licence's own terms.
 - **An honest answer to "can I use yours?"** — free, by invitation, no contract — written
   down next to the decision that makes it defensible, without building or pretending to run
-  a commercial product.
+  a commercial product. _(Note, spec 31: "by invitation" is superseded by [ADR 0018](0018-self-service-signup.md) once the hosted box sets `SIGNUP`.)_
 
 ### Negative
 

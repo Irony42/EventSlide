@@ -179,6 +179,9 @@ const SiteClientPage = lazy(async () => ({
 const SiteAccountsPage = lazy(async () => ({
   default: (await import('../features/site/AccountsPage')).AccountsPage,
 }))
+const SiteSignupsPage = lazy(async () => ({
+  default: (await import('../features/site/signups/SignupsPage')).SignupsPage,
+}))
 const SiteAuditPage = lazy(async () => ({
   default: (await import('../features/site/AuditPage')).AuditPage,
 }))
@@ -216,6 +219,15 @@ const AcceptInvitationPage = lazy(async () => ({
 }))
 const ForgotPasswordPage = lazy(async () => ({
   default: (await import('../features/auth/ForgotPasswordPage')).ForgotPasswordPage,
+}))
+const SignupPage = lazy(async () => ({
+  default: (await import('../features/auth/signup/SignupPage')).SignupPage,
+}))
+const SignupSentPage = lazy(async () => ({
+  default: (await import('../features/auth/signup/SignupSentPage')).SignupSentPage,
+}))
+const SignupConfirmPage = lazy(async () => ({
+  default: (await import('../features/auth/signup/SignupConfirmPage')).SignupConfirmPage,
 }))
 const ResetPasswordPage = lazy(async () => ({
   default: (await import('../features/auth/ResetPasswordPage')).ResetPasswordPage,
@@ -459,6 +471,8 @@ export function AppRoutes() {
   // registered and a direct visit to its address is the not-found screen, as for any address
   // nobody wrote (G2-00 / P3-21).
   const siteAdmin = useAbout().features.siteAdmin
+  // The operator's page of signup requests exists only where signing up is on (spec 31).
+  const signupOn = useAbout().features.signup !== 'off'
   const aboutAnswered = useAboutAnswered()
   const { pathname } = useLocation()
   // The console's addresses exist only on a box that says so, and a box has not said so yet: a
@@ -526,6 +540,15 @@ export function AppRoutes() {
           <Route
             path="/password/reset/:token"
             element={titled('resetPassword', <ResetPasswordPage />)}
+          />
+
+          {/* Signing up (spec 31): no session behind them either. The token is the last segment of
+              the confirmation address; `/signup/confirm` alone is the catch-all's. */}
+          <Route path="/signup" element={titled('signup', <SignupPage />)} />
+          <Route path="/signup/sent" element={titled('signupSent', <SignupSentPage />)} />
+          <Route
+            path="/signup/confirm/:token"
+            element={titled('signupConfirm', <SignupConfirmPage />)}
           />
 
           <Route element={<RequireAuth />}>
@@ -672,6 +695,12 @@ export function AppRoutes() {
                       path="/admin/site/takedown"
                       element={titled('siteTakedown', <SiteTakedownPage />)}
                     />
+                    {signupOn ? (
+                      <Route
+                        path="/admin/site/signups"
+                        element={titled('siteSignups', <SiteSignupsPage />)}
+                      />
+                    ) : null}
                     <Route
                       path="/admin/site/audit"
                       element={titled('siteAudit', <SiteAuditPage />)}

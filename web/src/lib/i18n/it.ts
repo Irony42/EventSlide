@@ -437,6 +437,8 @@ export const it: UiText = {
     'auth.tooManySecondFactorAttempts': 'Troppi codici errati. Riprovi tra un quarto d’ora.',
     'auth.secondFactorRequired': 'Questo account deve prima superare la verifica in due passaggi.',
     'auth.stepUpRequired': 'Confermi la sua identità per continuare.',
+    'signup.notPending': 'Questa richiesta è già stata gestita.',
+    'signup.notFound': 'Questa richiesta non esiste più.',
     'auth.secondFactorAlreadyEnrolled':
       'La verifica in due passaggi è già attiva su questo account.',
     'auth.noEnrolmentInProgress': 'Nessuna attivazione in corso. Ricominci.',
@@ -2233,6 +2235,50 @@ export const it: UiText = {
     insecure: 'Questo indirizzo non è sicuro: i suoi ospiti non potranno registrare',
   },
 
+  /* ---- Added by spec 31: signing up for an account by oneself. ---- */
+  signup: {
+    title: 'Creare un account',
+    intro: 'Un indirizzo, il nome del suo spazio, e un link di conferma la aspetta nella posta.',
+    clientName: 'Nome del suo spazio',
+    clientNameHint:
+      'Per esempio «Matrimonio di Léa e Hugo» o «Associazione Piedi Agili». Al massimo 80 caratteri.',
+    clientNameMissing: 'Dia un nome al suo spazio.',
+    note: 'Per quale occasione?',
+    noteHint:
+      'Due parole sul suo evento. Al massimo 300 caratteri. Non indichi nulla di sensibile (salute, religione…): questo testo serve solo ad aprire il suo account.',
+    eventDate: 'Data dell’evento',
+    eventDateOutOfRange: 'Indichi una data tra ieri e tra due anni.',
+    submit: 'Creare il mio account',
+    notice:
+      'Il suo indirizzo serve solo a scriverle per questo account. La richiesta viene cancellata appena conclusa, e al più tardi 60 giorni dopo l’invio.',
+    unavailable: 'La registrazione non è aperta su questo server.',
+    haveAccount: 'Ha già un account?',
+    loginPrompt: 'Non ha ancora un account?',
+    loginLink: 'Creare un account',
+    sentTitle: 'Controlli la posta',
+    sent: 'Un link per confermare il suo indirizzo la aspetta (valido 24 ore). Non è arrivato niente? Controlli la posta indesiderata.',
+    busyTitle: 'Molte richieste oggi',
+    busy: 'Molte richieste oggi, torni domani.',
+    confirmTitle: 'Confermare il suo indirizzo',
+    confirmIntro: (email: string) =>
+      `Si registra con ${email}. Prema il pulsante per confermare questo indirizzo.`,
+    confirmSubmit: 'Confermare il mio indirizzo',
+    reviewTitle: 'Indirizzo confermato',
+    reviewDone:
+      'Grazie, il suo indirizzo è confermato. Convalido ogni account a mano, di solito entro la giornata. Riceverà un’e-mail con il link per scegliere la password.',
+    mailTitle: 'Il suo account è aperto',
+    mailDone:
+      'Il suo account è aperto: il link per scegliere la password sta arrivando nella sua posta.',
+    pendingTitle: 'Indirizzo confermato',
+    pendingDone:
+      'Il suo indirizzo è confermato. Apro il suo account appena possibile e riceverà un’e-mail.',
+    spentTitle: 'Questo link è già stato usato',
+    spent:
+      'Il suo indirizzo è quindi già confermato: riceverà un’e-mail appena il suo account sarà pronto.',
+    expiredTitle: 'Questo link è scaduto',
+    expired: 'Un link di conferma vale 24 ore. Ricominci la registrazione per riceverne uno nuovo.',
+    restart: 'Ricominciare la registrazione',
+  },
   auth: {
     title: 'Accesso',
     email: 'Indirizzo e-mail',
@@ -2500,6 +2546,61 @@ export const it: UiText = {
     actionTermsAccepted: 'Una persona ha accettato le condizioni d’uso accettando un invito.',
     actionOther: 'È stata registrata un’azione.',
     liveWindowEnd: (date: string) => `L’evento termina il ${date}.`,
+  },
+
+  siteSignups: {
+    nav: 'Iscrizioni',
+    navPending: (count: number) => `Iscrizioni (${count})`,
+    title: 'Iscrizioni',
+    hintOpen:
+      'Gli account si aprono da soli appena la persona conferma il proprio indirizzo. Questi sono quelli degli ultimi 30 giorni.',
+    hintReview:
+      'Ogni persona ha confermato il proprio indirizzo. Nulla si apre prima della tua approvazione, e una richiesta senza risposta sparisce dopo 30 giorni.',
+    tabsLabel: 'Richieste di iscrizione',
+    tabOpened: 'Account aperti',
+    tabPending: 'Da approvare',
+    tabProcessed: 'Gestite',
+    openedHeading: 'Account aperti negli ultimi 30 giorni',
+    heldHeading: 'Richieste trattenute',
+    heldHint:
+      'Lo spazio su disco non bastava per aprire questi account da soli: spetta a te approvarli o rifiutarli.',
+    processedHint: 'Richieste rifiutate, conservate per 30 giorni.',
+    emptyOpened: 'Nessun account aperto negli ultimi 30 giorni.',
+    emptyPending: 'Nessuna richiesta da approvare.',
+    emptyProcessed: 'Nessuna richiesta rifiutata.',
+    tableLabel: 'Richieste di iscrizione',
+    emailColumn: 'Indirizzo',
+    spaceColumn: 'Spazio',
+    occasionColumn: 'Occasione',
+    eventDateColumn: 'Data dell’evento',
+    languageColumn: 'Lingua',
+    confirmedColumn: 'Confermata il',
+    openedColumn: 'Aperto il',
+    decidedColumn: 'Rifiutata il',
+    actionsColumn: 'Azioni',
+    none: '—',
+    existingAccount: 'Account esistente',
+    clientLink: 'Scheda del cliente',
+    approve: 'Approva',
+    refuse: 'Rifiuta',
+    approveTitle: (name: string) => `Approvare l’iscrizione di «${name}»`,
+    approveIntro:
+      'Il cliente si apre con i limiti qui sotto, precompilati con quelli dell’istanza, e l’invito parte verso l’indirizzo della persona.',
+    existingAccountNotice: 'Account esistente: la persona dovrà accedere per accettare',
+    approveConfirm: 'Approva e invia l’invito',
+    approvedDone: (name: string) => `Account «${name}» aperto, invito inviato.`,
+    refuseTitle: (name: string) => `Rifiutare l’iscrizione di «${name}»`,
+    refuseBody: 'La richiesta viene rifiutata. Nessun motivo viene conservato.',
+    notify: 'Avvisa la persona',
+    notifyHint: 'Una mail neutra, senza motivo.',
+    refuseConfirm: 'Rifiuta la richiesta',
+    refusedDone: 'Richiesta rifiutata.',
+    actions: {
+      'signup.approved': 'Iscrizione approvata, account aperto.',
+      'signup.refused': 'Iscrizione rifiutata.',
+      'signup.expired': 'Richiesta di iscrizione scaduta senza decisione.',
+      'signup.dailyCeilingReached': 'Limite giornaliero di iscrizioni raggiunto.',
+    },
   },
 
   site: {
@@ -3843,7 +3944,7 @@ export const it: UiText = {
       notifyAppHint: 'Il numero di nuove risposte, sulla voce «Risposte» del menu dell’evento.',
       notifyLive: 'Tabella in diretta',
       notifyLiveHint: 'Finché è aperta, si aggiorna da sola a ogni risposta.',
-      notifyNoEmail: 'Niente e-mail: l’istanza ospitata non invia e-mail.',
+      notifyNoEmail: 'L’istanza non invia e-mail agli invitati.',
       catererTitle: 'Catering',
       catererHint: 'Cosa dirgli: chi viene, senza i «forse».',
       catererAdults: 'Adulti',
@@ -4122,6 +4223,9 @@ export const it: UiText = {
     login: 'Accesso',
     forgotPassword: 'Password dimenticata',
     resetPassword: 'Nuova password',
+    signup: 'Creare un account',
+    signupSent: 'Registrazione inviata',
+    signupConfirm: 'Confermare il suo indirizzo',
     invitation: 'Invito',
     changePassword: 'Cambio della password',
     security: 'Sicurezza dell’account',
@@ -4154,5 +4258,6 @@ export const it: UiText = {
     siteAccounts: 'Account dell’istanza',
     siteAudit: 'Registro dell’istanza',
     siteTakedown: 'Rimozione di contenuti',
+    siteSignups: 'Iscrizioni',
   },
 }

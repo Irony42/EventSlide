@@ -2318,6 +2318,52 @@ export const fr = {
     insecure: 'Cette adresse n’est pas sécurisée : vos invités ne pourront pas enregistrer',
   },
 
+  /* ---- Added by spec 31: signing up for an account by oneself. ---- */
+  signup: {
+    title: 'Créer un compte',
+    intro:
+      'Une adresse, le nom de votre espace, et un lien de confirmation vous attend dans votre boîte.',
+    clientName: 'Nom de votre espace',
+    clientNameHint:
+      'Par exemple «\u00a0Mariage de Léa et Hugo\u00a0» ou «\u00a0Association Les Pieds Agiles\u00a0». 80 caractères au plus.',
+    clientNameMissing: 'Donnez un nom à votre espace.',
+    note: 'Pour quelle occasion\u00a0?',
+    noteHint:
+      'Quelques mots sur votre évènement. 300 caractères au plus. N’indiquez rien de sensible (santé, religion…)\u00a0: ce texte sert seulement à ouvrir votre compte.',
+    eventDate: 'Date de l’évènement',
+    eventDateOutOfRange: 'Indiquez une date comprise entre hier et dans deux ans.',
+    submit: 'Créer mon compte',
+    notice:
+      'Votre adresse sert seulement à vous écrire pour ce compte. La demande est effacée dès qu’elle aboutit, et au plus tard 60\u00a0jours après l’envoi.',
+    unavailable: 'L’inscription n’est pas ouverte sur ce serveur.',
+    haveAccount: 'Vous avez déjà un compte\u00a0?',
+    loginPrompt: 'Pas encore de compte\u00a0?',
+    loginLink: 'Créer un compte',
+    sentTitle: 'Regardez votre boîte',
+    sent: 'Un lien pour confirmer votre adresse vous attend (valable 24\u00a0h). Rien reçu\u00a0? Vérifiez les indésirables.',
+    busyTitle: 'Beaucoup de demandes aujourd’hui',
+    busy: 'Beaucoup de demandes aujourd’hui, revenez demain.',
+    confirmTitle: 'Confirmer votre adresse',
+    confirmIntro: (email: string) =>
+      `Vous vous inscrivez avec ${email}. Appuyez sur le bouton pour confirmer cette adresse.`,
+    confirmSubmit: 'Confirmer mon adresse',
+    reviewTitle: 'Adresse confirmée',
+    reviewDone:
+      'Merci, votre adresse est confirmée. Je valide chaque compte à la main, en général dans la journée. Vous recevrez un mail avec le lien pour choisir votre mot de passe.',
+    mailTitle: 'Votre compte est ouvert',
+    mailDone:
+      'Votre compte est ouvert\u00a0: le lien pour choisir votre mot de passe arrive dans votre boîte.',
+    pendingTitle: 'Adresse confirmée',
+    pendingDone:
+      'Votre adresse est confirmée. J’ouvre votre compte dès que possible, vous recevrez un mail.',
+    spentTitle: 'Ce lien a déjà servi',
+    spent:
+      'Votre adresse est donc déjà confirmée\u00a0: vous recevrez un mail dès que votre compte est prêt.',
+    expiredTitle: 'Ce lien a expiré',
+    expired:
+      'Un lien de confirmation vaut 24 h. Recommencez l’inscription pour en recevoir un nouveau.',
+    restart: 'Recommencer l’inscription',
+  },
   auth: {
     title: 'Connexion',
     email: 'Adresse e-mail',
@@ -2532,6 +2578,8 @@ export const fr = {
     'auth.tooManySecondFactorAttempts': 'Trop de codes erronés. Réessayez dans un quart d’heure.',
     'auth.secondFactorRequired': 'Ce compte doit d’abord passer la vérification en deux étapes.',
     'auth.stepUpRequired': 'Confirmez votre identité pour continuer.',
+    'signup.notPending': 'Cette demande a déjà été traitée.',
+    'signup.notFound': 'Cette demande n’existe plus.',
     'auth.secondFactorAlreadyEnrolled':
       'La vérification en deux étapes est déjà active sur ce compte.',
     'auth.noEnrolmentInProgress': 'Aucune activation n’est en cours. Recommencez.',
@@ -3189,6 +3237,62 @@ export const fr = {
       'Une personne a accepté les conditions d’utilisation en acceptant une invitation.',
     actionOther: 'Une action a été enregistrée.',
     liveWindowEnd: (date: string) => `L’évènement se termine le ${date}.`,
+  },
+
+  /* ---- Spec 31: the operator’s page of signup requests (`/admin/site/signups`). ---- */
+  siteSignups: {
+    nav: 'Inscriptions',
+    navPending: (count: number) => `Inscriptions (${count})`,
+    title: 'Inscriptions',
+    hintOpen:
+      'Les comptes s’ouvrent d’eux-mêmes dès que la personne a confirmé son adresse. Voici ceux des 30 derniers jours.',
+    hintReview:
+      'Chaque personne a confirmé son adresse. Rien ne s’ouvre avant votre validation, et une demande sans réponse disparaît au bout de 30 jours.',
+    tabsLabel: 'Demandes d’inscription',
+    tabOpened: 'Comptes ouverts',
+    tabPending: 'À valider',
+    tabProcessed: 'Traitées',
+    openedHeading: 'Comptes ouverts ces 30 derniers jours',
+    heldHeading: 'Demandes retenues',
+    heldHint:
+      'La place disque ne permettait pas d’ouvrir ces comptes tout seuls\u00a0: à vous de valider ou de refuser.',
+    processedHint: 'Les demandes refusées, gardées 30 jours.',
+    emptyOpened: 'Aucun compte ouvert ces 30 derniers jours.',
+    emptyPending: 'Aucune demande à valider.',
+    emptyProcessed: 'Aucune demande refusée.',
+    tableLabel: 'Demandes d’inscription',
+    emailColumn: 'Adresse',
+    spaceColumn: 'Espace',
+    occasionColumn: 'Occasion',
+    eventDateColumn: 'Date de l’évènement',
+    languageColumn: 'Langue',
+    confirmedColumn: 'Confirmée le',
+    openedColumn: 'Ouvert le',
+    decidedColumn: 'Refusée le',
+    actionsColumn: 'Actions',
+    none: '—',
+    existingAccount: 'Compte existant',
+    clientLink: 'Fiche du client',
+    approve: 'Valider',
+    refuse: 'Refuser',
+    approveTitle: (name: string) => `Valider l’inscription de «\u00a0${name}\u00a0»`,
+    approveIntro:
+      'Le client s’ouvre avec les plafonds ci-dessous, préremplis avec ceux de l’instance, et l’invitation part à l’adresse de la personne.',
+    existingAccountNotice: 'Compte existant\u00a0: la personne devra se connecter pour accepter',
+    approveConfirm: 'Valider et envoyer l’invitation',
+    approvedDone: (name: string) => `Compte «\u00a0${name}\u00a0» ouvert, invitation envoyée.`,
+    refuseTitle: (name: string) => `Refuser l’inscription de «\u00a0${name}\u00a0»`,
+    refuseBody: 'La demande est refusée. Aucun motif n’est conservé.',
+    notify: 'Prévenir la personne',
+    notifyHint: 'Un mail neutre, sans motif.',
+    refuseConfirm: 'Refuser la demande',
+    refusedDone: 'Demande refusée.',
+    actions: {
+      'signup.approved': 'Inscription validée, compte ouvert.',
+      'signup.refused': 'Inscription refusée.',
+      'signup.expired': 'Demande d’inscription expirée sans décision.',
+      'signup.dailyCeilingReached': 'Plafond d’inscriptions du jour atteint.',
+    },
   },
 
   /* ---- Added by features/site: the operator’s console (G2-15 / P3-16). ---- */
@@ -4561,7 +4665,7 @@ export const fr = {
         'Le nombre de nouvelles réponses, sur l’entrée «\u00a0Réponses\u00a0» du menu de l’évènement.',
       notifyLive: 'Tableau en direct',
       notifyLiveHint: 'Ouvert, il se met à jour seul à chaque réponse.',
-      notifyNoEmail: 'Pas d’e-mail\u00a0: l’instance hébergée n’envoie pas d’e-mails.',
+      notifyNoEmail: 'L’instance n’envoie aucun e-mail aux invités.',
       catererTitle: 'Traiteur',
       catererHint:
         'Ce qu’il faut lui dire\u00a0: ceux qui viennent, sans les «\u00a0peut-être\u00a0».',
@@ -4845,6 +4949,9 @@ export const fr = {
     login: 'Connexion',
     forgotPassword: 'Mot de passe oublié',
     resetPassword: 'Nouveau mot de passe',
+    signup: 'Créer un compte',
+    signupSent: 'Inscription envoyée',
+    signupConfirm: 'Confirmer votre adresse',
     invitation: 'Invitation',
     changePassword: 'Changer de mot de passe',
     security: 'Sécurité du compte',
@@ -4877,6 +4984,7 @@ export const fr = {
     siteAccounts: 'Comptes de l’instance',
     siteAudit: 'Journal de l’instance',
     siteTakedown: 'Retrait de contenu',
+    siteSignups: 'Inscriptions',
   },
 } as const
 

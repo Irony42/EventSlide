@@ -294,3 +294,32 @@ describe('the account menu', () => {
     expect(screen.queryByRole('button', { name: fr.auth.accountMenu })).toBeNull()
   })
 })
+
+/** The pages of signing up (spec 31) sit behind no session, and `/signup/confirm` alone is not one. */
+describe('the signup addresses', () => {
+  const at = (route: string) =>
+    renderWithProviders(<AppRoutes />, {
+      route,
+      api: fakeApi({
+        about: vi.fn(async () =>
+          anAbout({ features: { siteAdmin: false, forgotPassword: false, signup: 'open' } }),
+        ),
+      }),
+    })
+
+  it.each([
+    ['/signup', fr.signup.title],
+    ['/signup/sent', fr.signup.sentTitle],
+    [`/signup/confirm/${'T'.repeat(43)}`, fr.signup.confirmTitle],
+  ])('serves %s with no session', async (route, heading) => {
+    at(route)
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeVisible()
+  })
+
+  it('answers a confirmation address with no token as not found', async () => {
+    at('/signup/confirm')
+
+    expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
+  })
+})

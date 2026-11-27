@@ -61,6 +61,8 @@ import type { ReelRenderer } from '../application/ports/reelRenderer'
 import type { ReelRepository } from '../application/ports/reelRepository'
 import type { NewClientDefaults } from '../domain/clients/newClientCeilings'
 import type { TermsOfUse } from '../domain/legal/termsOfUse'
+import type { SignupMode } from '../domain/signups/signupMode'
+import type { EmailAddress } from '../domain/users/emailAddress'
 import { makePruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import { authUseCases } from './usecases.auth'
 import { eventsUseCases } from './usecases.events'
@@ -72,7 +74,6 @@ import { wallUseCases } from './usecases.wall'
 import { galleryUseCases } from './usecases.gallery'
 import { clientsUseCases } from './usecases.clients'
 import type { DiskSpaceChecker } from '../application/ports/diskSpace'
-import type { SignupMode } from '../domain/signups/signupMode'
 import { signupUseCases } from './usecases.signups'
 import { buildSharedHooks } from './usecases.shared'
 /**
@@ -215,6 +216,8 @@ export interface UseCasePolicy {
     readonly minFreeDiskBytes: number
     /** The directories whose free space bounds the box: the database's and the media root. */
     readonly diskPaths: readonly string[]
+    /** What the welcome mail names (`null` when the operator's contact or support page is not set: no mail). */
+    readonly welcome: { readonly contact: EmailAddress; readonly guidesLink: string } | null
   }
   /** `RETENTION_CAP_NOTICE_DAYS`, read by the purge. */
   readonly retention: { readonly capNoticeDays: number }

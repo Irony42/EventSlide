@@ -716,3 +716,33 @@ describe('LoginPage: the landing of a session that is still good (H13), on the d
     expect(await screen.findByText('Arrivé /admin')).toBeVisible()
   })
 })
+
+describe('LoginPage: « Pas encore de compte ? Créer un compte »', () => {
+  const withSignup = (signup: 'off' | 'review' | 'open') =>
+    fakeApi({
+      about: vi.fn(async () =>
+        anAbout({ features: { siteAdmin: false, forgotPassword: false, signup } }),
+      ),
+    })
+
+  it.each(['review', 'open'] as const)(
+    'offers the way to /signup when the box is in %s mode',
+    async (mode) => {
+      renderLogin(withSignup(mode))
+
+      expect(await screen.findByRole('link', { name: fr.signup.loginLink })).toHaveAttribute(
+        'href',
+        '/signup',
+      )
+    },
+  )
+
+  it('offers nothing when signup is off', async () => {
+    const api = withSignup('off')
+    renderLogin(api)
+
+    await screen.findByLabelText(fr.auth.email)
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+    expect(screen.queryByRole('link', { name: fr.signup.loginLink })).toBeNull()
+  })
+})

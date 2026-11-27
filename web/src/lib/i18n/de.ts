@@ -434,6 +434,8 @@ export const de: UiText = {
     'auth.secondFactorRequired':
       'Dieses Konto muss zuerst die Bestätigung in zwei Schritten bestehen.',
     'auth.stepUpRequired': 'Bestätigen Sie Ihre Identität, um fortzufahren.',
+    'signup.notPending': 'Diese Anfrage wurde bereits bearbeitet.',
+    'signup.notFound': 'Diese Anfrage existiert nicht mehr.',
     'auth.secondFactorAlreadyEnrolled':
       'Die Bestätigung in zwei Schritten ist für dieses Konto bereits aktiv.',
     'auth.noEnrolmentInProgress': 'Es läuft keine Einrichtung. Beginnen Sie neu.',
@@ -2277,6 +2279,51 @@ export const de: UiText = {
     insecure: 'Diese Adresse ist nicht sicher: Ihre Gäste können nichts aufnehmen',
   },
 
+  /* ---- Added by spec 31: signing up for an account by oneself. ---- */
+  signup: {
+    title: 'Konto erstellen',
+    intro:
+      'Eine Adresse, der Name Ihres Bereichs, und ein Bestätigungslink erwartet Sie in Ihrem Postfach.',
+    clientName: 'Name Ihres Bereichs',
+    clientNameHint:
+      'Zum Beispiel „Hochzeit von Lea und Hugo“ oder „Verein Flinke Füße“. Höchstens 80 Zeichen.',
+    clientNameMissing: 'Geben Sie Ihrem Bereich einen Namen.',
+    note: 'Für welchen Anlass?',
+    noteHint:
+      'Ein paar Worte zu Ihrer Veranstaltung. Höchstens 300 Zeichen. Schreiben Sie nichts Sensibles (Gesundheit, Religion …): Dieser Text dient nur dazu, Ihr Konto zu eröffnen.',
+    eventDate: 'Datum der Veranstaltung',
+    eventDateOutOfRange: 'Geben Sie ein Datum zwischen gestern und in zwei Jahren an.',
+    submit: 'Mein Konto erstellen',
+    notice:
+      'Ihre Adresse dient nur dazu, Ihnen zu diesem Konto zu schreiben. Die Anfrage wird gelöscht, sobald sie abgeschlossen ist, spätestens 60 Tage nach dem Absenden.',
+    unavailable: 'Die Registrierung ist auf diesem Server nicht geöffnet.',
+    haveAccount: 'Sie haben schon ein Konto?',
+    loginPrompt: 'Noch kein Konto?',
+    loginLink: 'Konto erstellen',
+    sentTitle: 'Prüfen Sie Ihr Postfach',
+    sent: 'Ein Link zur Bestätigung Ihrer Adresse wartet auf Sie (24 Std. gültig). Nichts angekommen? Prüfen Sie den Spam-Ordner.',
+    busyTitle: 'Heute viele Anfragen',
+    busy: 'Heute viele Anfragen, kommen Sie morgen wieder.',
+    confirmTitle: 'Adresse bestätigen',
+    confirmIntro: (email: string) =>
+      `Sie registrieren sich mit ${email}. Drücken Sie den Knopf, um diese Adresse zu bestätigen.`,
+    confirmSubmit: 'Meine Adresse bestätigen',
+    reviewTitle: 'Adresse bestätigt',
+    reviewDone:
+      'Danke, Ihre Adresse ist bestätigt. Ich prüfe jedes Konto von Hand, in der Regel am selben Tag. Sie erhalten eine E-Mail mit dem Link, um Ihr Passwort zu wählen.',
+    mailTitle: 'Ihr Konto ist eröffnet',
+    mailDone: 'Ihr Konto ist eröffnet: Der Link, um Ihr Passwort zu wählen, kommt in Ihr Postfach.',
+    pendingTitle: 'Adresse bestätigt',
+    pendingDone:
+      'Ihre Adresse ist bestätigt. Ich eröffne Ihr Konto so bald wie möglich, Sie erhalten eine E-Mail.',
+    spentTitle: 'Dieser Link wurde schon benutzt',
+    spent:
+      'Ihre Adresse ist also bereits bestätigt: Sie erhalten eine E-Mail, sobald Ihr Konto bereit ist.',
+    expiredTitle: 'Dieser Link ist abgelaufen',
+    expired:
+      'Ein Bestätigungslink gilt 24 Stunden. Beginnen Sie die Registrierung neu, um einen neuen zu erhalten.',
+    restart: 'Registrierung neu beginnen',
+  },
   auth: {
     title: 'Anmeldung',
     email: 'E-Mail-Adresse',
@@ -2553,6 +2600,61 @@ export const de: UiText = {
       'Eine Person hat die Nutzungsbedingungen akzeptiert, indem sie eine Einladung angenommen hat.',
     actionOther: 'Eine Aktion wurde aufgezeichnet.',
     liveWindowEnd: (date: string) => `Die Veranstaltung endet am ${date}.`,
+  },
+
+  siteSignups: {
+    nav: 'Anmeldungen',
+    navPending: (count: number) => `Anmeldungen (${count})`,
+    title: 'Anmeldungen',
+    hintOpen:
+      'Konten werden von selbst eröffnet, sobald die Person ihre Adresse bestätigt hat. Hier stehen die der letzten 30 Tage.',
+    hintReview:
+      'Jede Person hat ihre Adresse bestätigt. Nichts wird vor Ihrer Freigabe eröffnet, und eine unbeantwortete Anfrage verschwindet nach 30 Tagen.',
+    tabsLabel: 'Anmeldeanfragen',
+    tabOpened: 'Eröffnete Konten',
+    tabPending: 'Freizugeben',
+    tabProcessed: 'Bearbeitet',
+    openedHeading: 'In den letzten 30 Tagen eröffnete Konten',
+    heldHeading: 'Zurückgehaltene Anfragen',
+    heldHint:
+      'Der Speicherplatz reichte nicht, um diese Konten selbstständig zu eröffnen: Sie geben sie frei oder lehnen sie ab.',
+    processedHint: 'Abgelehnte Anfragen, 30 Tage lang aufbewahrt.',
+    emptyOpened: 'In den letzten 30 Tagen wurde kein Konto eröffnet.',
+    emptyPending: 'Keine Anfrage freizugeben.',
+    emptyProcessed: 'Keine abgelehnte Anfrage.',
+    tableLabel: 'Anmeldeanfragen',
+    emailColumn: 'Adresse',
+    spaceColumn: 'Bereich',
+    occasionColumn: 'Anlass',
+    eventDateColumn: 'Datum der Veranstaltung',
+    languageColumn: 'Sprache',
+    confirmedColumn: 'Bestätigt am',
+    openedColumn: 'Eröffnet am',
+    decidedColumn: 'Abgelehnt am',
+    actionsColumn: 'Aktionen',
+    none: '—',
+    existingAccount: 'Bestehendes Konto',
+    clientLink: 'Kundenseite',
+    approve: 'Freigeben',
+    refuse: 'Ablehnen',
+    approveTitle: (name: string) => `Anmeldung von „${name}“ freigeben`,
+    approveIntro:
+      'Der Kunde wird mit den folgenden Grenzen eröffnet, vorausgefüllt mit denen der Instanz, und die Einladung geht an die Adresse der Person.',
+    existingAccountNotice: 'Bestehendes Konto: Die Person muss sich zum Annehmen anmelden',
+    approveConfirm: 'Freigeben und Einladung senden',
+    approvedDone: (name: string) => `Konto „${name}“ eröffnet, Einladung gesendet.`,
+    refuseTitle: (name: string) => `Anmeldung von „${name}“ ablehnen`,
+    refuseBody: 'Die Anfrage wird abgelehnt. Es wird kein Grund gespeichert.',
+    notify: 'Die Person benachrichtigen',
+    notifyHint: 'Eine neutrale E-Mail ohne Begründung.',
+    refuseConfirm: 'Anfrage ablehnen',
+    refusedDone: 'Anfrage abgelehnt.',
+    actions: {
+      'signup.approved': 'Anmeldung freigegeben, Konto eröffnet.',
+      'signup.refused': 'Anmeldung abgelehnt.',
+      'signup.expired': 'Anmeldeanfrage ohne Entscheidung abgelaufen.',
+      'signup.dailyCeilingReached': 'Tageslimit für Anmeldungen erreicht.',
+    },
   },
 
   site: {
@@ -3918,7 +4020,7 @@ export const de: UiText = {
         'Die Zahl der neuen Antworten am Eintrag „Antworten“ im Menü der Veranstaltung.',
       notifyLive: 'Tabelle live',
       notifyLiveHint: 'Solange sie offen ist, aktualisiert sie sich bei jeder Antwort selbst.',
-      notifyNoEmail: 'Keine E-Mails: die gehostete Instanz versendet keine E-Mails.',
+      notifyNoEmail: 'Die Instanz sendet Gästen keine E-Mails.',
       catererTitle: 'Catering',
       catererHint: 'Was dem Caterer zu sagen ist: wer kommt, ohne die „Vielleicht“.',
       catererAdults: 'Erwachsene',
@@ -4201,6 +4303,9 @@ export const de: UiText = {
     login: 'Anmeldung',
     forgotPassword: 'Passwort vergessen',
     resetPassword: 'Neues Passwort',
+    signup: 'Konto erstellen',
+    signupSent: 'Registrierung gesendet',
+    signupConfirm: 'Adresse bestätigen',
     invitation: 'Einladung',
     changePassword: 'Passwort ändern',
     security: 'Kontosicherheit',
@@ -4233,5 +4338,6 @@ export const de: UiText = {
     siteAccounts: 'Konten der Instanz',
     siteAudit: 'Protokoll der Instanz',
     siteTakedown: 'Inhalt entfernen',
+    siteSignups: 'Anmeldungen',
   },
 }

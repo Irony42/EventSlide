@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import * as clientSchemas from '../schemas/clientSchemas'
 import * as requestSchemas from '../schemas/requestSchemas'
+import * as siteSchemas from '../schemas/siteSchemas'
 import { buildServerHarness } from '../testing/serverHarness'
 import { webApiFiles } from '../testing/webApiSources'
 
@@ -607,7 +608,11 @@ const routeFor = (call: ClientCall): ServerRoute | null => {
 
 // ------------------------------------------------------------------ pairing --
 
-const SCHEMAS: Readonly<Record<string, unknown>> = { ...requestSchemas, ...clientSchemas }
+const SCHEMAS: Readonly<Record<string, unknown>> = {
+  ...requestSchemas,
+  ...clientSchemas,
+  ...siteSchemas,
+}
 
 const asObjectSchema = (name: string): z.ZodObject | null => {
   const schema = SCHEMAS[name]
@@ -676,13 +681,6 @@ const probe = (keys: Iterable<string>): Record<string, unknown> =>
  * file would otherwise report it as covered by saying nothing about it.
  */
 const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
-  // The operator's signup routes (spec 31, PR 4). Their client methods are the operator page's (PR 6,
-  // `siteSignupsApi`): remove these three entries when it merges.
-  siteSignupsQuery: 'GET /api/site/signups: its client is the operator page of spec 31 PR 6',
-  approveSignupBody:
-    'POST /api/site/signups/:id/approve: its client is the operator page of spec 31 PR 6',
-  refuseSignupBody:
-    'POST /api/site/signups/:id/refuse: its client is the operator page of spec 31 PR 6',
   // `POST /api/events/:slug/book` (spec 26) takes the 3.14 body or the 3.15 one: a union of two strict
   // bodies, which the object-schema pairing cannot read. Both are pinned in bookRoutes.test.ts, and
   // the panel's own body in client.test.ts.
@@ -727,31 +725,6 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // or names an account (`invitationRoutes.test.ts`).
   acceptInvitationBody:
     'a union of two strict bodies, which the object-schema pairing cannot read; both shapes are pinned in client.test.ts and invitationRoutes.test.ts',
-  // The operator's namespace (`/api/site`, G2-14): its routes are written, and the console that
-  // calls them (G2-15) is not, so nothing in `web/src` sends any of these yet. Each is held at
-  // ring 4 by `siteRoutes*.test.ts` (a body with a key it does not declare is a 400, a body
-  // without a reason is a 400), and the pairing starts the day `web/src/features/site` exists:
-  // this list is then what shrinks.
-  siteClientsQuery: 'GET /api/site/clients: the operator console (G2-15) is not built yet',
-  siteClientEventsQuery:
-    'GET /api/site/clients/:clientId/events: the operator console (G2-15) is not built yet',
-  siteAccountsQuery: 'GET /api/site/accounts: the operator console (G2-15) is not built yet',
-  siteAuditQuery: 'GET /api/site/audit: the operator console (G2-15) is not built yet',
-  provisionClientBody: 'POST /api/site/clients: the operator console (G2-15) is not built yet',
-  renameClientBody:
-    'PATCH /api/site/clients/:clientId: the operator console (G2-15) is not built yet',
-  setCeilingsBody:
-    'PUT /api/site/clients/:clientId/ceilings: the operator console (G2-15) is not built yet',
-  operatorInvitationBody:
-    'POST /api/site/clients/:clientId/invitations: the operator console (G2-15) is not built yet',
-  siteEventLookupQuery:
-    'GET /api/site/events/lookup: the console (web/src/features/site/TakedownPage) sends one string, `q`, which this pairing does not read for the operator namespace, like the other site queries above',
-  operatorActBody:
-    'POST /api/site/photos/:photoId/take-down and its five siblings (launch review S5): the console screen (`TakedownPage`) sends them, which this pairing does not read for the operator namespace',
-  offboardClientBody:
-    'POST /api/site/clients/:clientId/offboard: the operator console (G2-15) is not built yet',
-  operatorPasswordResetBody:
-    'POST /api/site/accounts/:userId/password-reset: the operator console (G2-15) is not built yet',
 }
 
 // --------------------------------------------------------------------- tests --
