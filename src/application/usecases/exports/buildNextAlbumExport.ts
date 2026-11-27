@@ -1,6 +1,6 @@
 import { purgeDeadline } from '../../../domain/clients/purgeDeadline'
 import type { Event } from '../../../domain/events/event'
-import type { ExportSeal } from '../../../domain/exports/albumExport'
+import type { AlbumExport, ExportSeal } from '../../../domain/exports/albumExport'
 import type { ExportFailureCode } from '../../../domain/exports/albumExportStatus'
 import {
   checkExportBytes,
@@ -11,6 +11,7 @@ import { retentionApplies } from '../../../domain/events/eventStatus'
 import { exportExpiresAt } from '../../../domain/exports/exportExpiry'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId } from '../../../domain/shared/ids'
+import type { JobFinishedHook } from '../notices/notifyJobDone'
 import type { AlbumExportRepository } from '../../ports/albumExportRepository'
 import type { ArchiveEntry, ArchiveWriter } from '../../ports/archiveWriter'
 import type { ClientRepository } from '../../ports/clientRepository'
@@ -103,6 +104,11 @@ export interface BuildNextAlbumExportDeps {
   readonly policy: BuildAlbumExportPolicy
   /** Free bytes where the archive is written, or `null` when the disk cannot be read. */
   readonly freeDiskBytes: () => Promise<number | null>
+  /**
+   * Told **after the final transition** that a build ended sealed or failed (spec 32, A2): the host who left may be mailed. Never
+   * awaited, never throws. Optional: absent in a composition that sends none.
+   */
+  readonly onFinished?: JobFinishedHook
 }
 
 export type BuildNextAlbumExportOutcome =
@@ -154,6 +160,7 @@ export const makeBuildNextAlbumExport = ({
   logger,
   policy,
   freeDiskBytes,
+  onFinished,
 }: BuildNextAlbumExportDeps): BuildNextAlbumExport => {
   /** The event and its purge date, or `null` when nobody may be given an archive of it now. */
   const readable = async (
@@ -190,24 +197,32 @@ export const makeBuildNextAlbumExport = ({
   }
 
   const giveUp = async (
-    claimed: { readonly eventId: EventId },
+    claimed: AlbumExport,
     code: ExportFailureCode,
   ): Promise<BuildNextAlbumExportOutcome> => {
     const { eventId } = claimed
     // Atomic in the repository: a row the host replaced or the purge removed during the write has
     // no failure to record, and nothing is written.
-    const finished = await exports.finish(eventId, { kind: 'failed', code }, clock.now())
+    const finishedAt = clock.now()
+    const finished = await exports.finish(eventId, { kind: 'failed', code }, finishedAt)
     await discardFile(eventId)
     logger.warn('album archive failed', { eventId, code })
     announce(eventId)
-    return finished === 'superseded'
-      ? { kind: 'superseded', eventId }
-      : { kind: 'failed', eventId, code }
+    if (finished === 'superseded') return { kind: 'superseded', eventId }
+    onFinished?.({
+      job: 'archive',
+      eventId,
+      requestedAt: claimed.requestedAt,
+      requestedBy: claimed.requestedBy,
+      outcome: 'failed',
+      finishedAt,
+    })
+    return { kind: 'failed', eventId, code }
   }
 
   /** Everything after the claim. */
   const buildClaimed = async (
-    claimed: { readonly eventId: EventId },
+    claimed: AlbumExport,
     signal: AbortSignal | undefined,
   ): Promise<BuildNextAlbumExportOutcome> => {
     const { eventId } = claimed
@@ -315,6 +330,14 @@ export const makeBuildNextAlbumExport = ({
       logger.info('album archive voided while it was written', { eventId })
       return { kind: 'stale', eventId }
     }
+    onFinished?.({
+      job: 'archive',
+      eventId,
+      requestedAt: claimed.requestedAt,
+      requestedBy: claimed.requestedBy,
+      outcome: 'done',
+      finishedAt: sealedAt,
+    })
     logger.info('album archive sealed', {
       eventId,
       entries: seal.entries,

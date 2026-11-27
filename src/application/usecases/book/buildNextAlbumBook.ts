@@ -27,6 +27,7 @@ import type { Photo } from '../../../domain/photos/photo'
 import { totalReactions } from '../../../domain/reactions/reactionTally'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId, MissionId, PhotoId } from '../../../domain/shared/ids'
+import type { JobFinishedHook } from '../notices/notifyJobDone'
 import type { AlbumBookRepository } from '../../ports/albumBookRepository'
 import type { BookChunk, BookFileSetResult, BookFileStore } from '../../ports/bookFileStore'
 import type { BookRenderer, PageTexts } from '../../ports/bookRenderer'
@@ -111,6 +112,11 @@ export interface BuildNextAlbumBookDeps {
   readonly policy: BuildAlbumBookPolicy
   /** Whether the disk has room (the box's free-space guard); `false` fails the book `unavailable`. */
   readonly diskHasRoom: () => Promise<boolean>
+  /**
+   * Told **after the final transition** that a build ended done or failed (spec 32, A2): the owners may be mailed. Never awaited,
+   * never throws. Optional: absent in a composition that sends none.
+   */
+  readonly onFinished?: JobFinishedHook
 }
 
 export type BuildNextAlbumBookOutcome =
@@ -185,6 +191,7 @@ export const makeBuildNextAlbumBook = ({
   logger,
   policy,
   diskHasRoom,
+  onFinished,
 }: BuildNextAlbumBookDeps): BuildNextAlbumBook => {
   /** The event and its purge date, or `null` when nobody may be given a book of it now. */
   const readable = async (
@@ -234,9 +241,20 @@ export const makeBuildNextAlbumBook = ({
   ): Promise<BuildNextAlbumBookOutcome> => {
     // Atomic in the repository: a row the host deleted or replaced during the render has no
     // failure to record, and nothing is written.
-    await books.finish(book.eventId, { kind: 'failed', code }, clock.now())
+    const finishedAt = clock.now()
+    const finished = await books.finish(book.eventId, { kind: 'failed', code }, finishedAt)
     logger.warn('photo book failed', { eventId: book.eventId, code })
     announce(book.eventId)
+    if (finished !== 'superseded') {
+      onFinished?.({
+        job: 'book',
+        eventId: book.eventId,
+        requestedAt: book.requestedAt,
+        requestedBy: null,
+        outcome: 'failed',
+        finishedAt,
+      })
+    }
     return { kind: 'failed', eventId: book.eventId, code }
   }
 
@@ -543,6 +561,14 @@ export const makeBuildNextAlbumBook = ({
       logger.info('photo book voided while it rendered', { eventId })
       return { kind: 'stale', eventId }
     }
+    onFinished?.({
+      job: 'book',
+      eventId,
+      requestedAt: claimed.requestedAt,
+      requestedBy: null,
+      outcome: 'done',
+      finishedAt: doneAt,
+    })
     logger.info('photo book built', {
       eventId,
       photos: rendered,

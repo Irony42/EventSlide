@@ -1329,3 +1329,93 @@ describe('acceptInvitation: the welcome mail', () => {
     expect(JSON.stringify(logger.lines)).not.toContain('example.test')
   })
 })
+
+/**
+ * Spec 32, A6: the host who wrote an invitation to an event is told when it is accepted. The use case only hands the
+ * acceptance to a hook, after the transaction; what the hook does is `notifyInvitationAccepted`'s own tests.
+ */
+describe('acceptInvitation: the invitation accepted hook', () => {
+  let world: InvitationWorld
+  let told: Parameters<NonNullable<Parameters<typeof makeAcceptInvitation>[0]['onAccepted']>>[0][]
+
+  const build = () =>
+    makeAcceptInvitation({
+      tokens: world.tokens,
+      secrets: world.secrets,
+      events: world.events,
+      clients: world.clients,
+      memberships: world.memberships,
+      users: world.users,
+      hasher: world.hasher,
+      acceptance: world.acceptance,
+      ids: world.ids,
+      clock: world.clock,
+      onAccepted: (accepted) => told.push(accepted),
+    })
+
+  beforeEach(() => {
+    world = makeInvitationWorld()
+    told = []
+  })
+
+  it('tells who wrote the invitation, which event, the role and the name the new account gave', async () => {
+    const { token } = await world.invite()
+
+    const result = await build()({ token, credentials })
+
+    expect(result.ok).toBe(true)
+    const account = await world.users.findByEmail(emailOf(NEWCOMER))
+    expect(told).toEqual([
+      {
+        eventId: asEventId(EVENT_ID),
+        createdBy: asUserId(HOST_ID),
+        acceptedBy: account?.id,
+        role: 'moderator',
+        who: 'Camille Dupont',
+      },
+    ])
+  })
+
+  it('names an existing account by its display name, else by the address the invitation was written to', async () => {
+    const { token } = await world.invite({ email: EXISTING_EMAIL })
+
+    await build()({ token, signedInUserId: asUserId(EXISTING_ID) })
+
+    const existing = await world.users.findById(asUserId(EXISTING_ID))
+    expect(told).toHaveLength(1)
+    expect(told[0]?.who).toBe(existing?.displayName ?? EXISTING_EMAIL)
+    expect(told[0]?.acceptedBy).toBe(asUserId(EXISTING_ID))
+
+    // An account with no display name is named by the address.
+    const bare = makeInvitationWorld()
+    bare.users.seed(aUser({ id: EXISTING_ID, email: EXISTING_EMAIL, displayName: null }))
+    const second = await bare.invite({ email: EXISTING_EMAIL })
+    const sink: typeof told = []
+    await makeAcceptInvitation({
+      tokens: bare.tokens,
+      secrets: bare.secrets,
+      events: bare.events,
+      clients: bare.clients,
+      memberships: bare.memberships,
+      users: bare.users,
+      hasher: bare.hasher,
+      acceptance: bare.acceptance,
+      ids: bare.ids,
+      clock: bare.clock,
+      onAccepted: (accepted) => sink.push(accepted),
+    })({ token: second.token, signedInUserId: asUserId(EXISTING_ID) })
+    expect(sink[0]?.who).toBe(EXISTING_EMAIL)
+  })
+
+  it('tells nothing of an invitation to a client, of a dead link or of a refusal', async () => {
+    const client = await world.invite({ to: 'client-owner' })
+    await build()({ token: client.token, credentials })
+
+    await build()({ token: 'not-a-token', credentials })
+
+    const taken = await world.invite({ email: EXISTING_EMAIL })
+    await build()({ token: taken.token, credentials })
+
+    expect(told).toEqual([])
+  })
+})

@@ -1,3 +1,4 @@
+import type { JobFinishedHook } from '../notices/notifyJobDone'
 import { isReelEligible } from '../../../domain/highlights/highlightEligibility'
 import type { ReelJob } from '../../../domain/highlights/reelJob'
 import { MIN_REEL_PHOTOS } from '../../../domain/highlights/reelPlan'
@@ -46,6 +47,11 @@ export interface TranscodeReelPolicy {
 }
 
 export interface TranscodeNextReelDeps {
+  /**
+   * Told **after the final transition** that a reel ended done or failed for good (spec 32, A2). Never awaited, never throws.
+   * Optional: absent in a composition that sends none.
+   */
+  readonly onFinished?: JobFinishedHook
   readonly events: Pick<EventRepository, 'findById'>
   readonly clients: ClientRepository
   readonly photos: PhotoRepository
@@ -87,6 +93,7 @@ export const makeTranscodeNextReel = ({
   clock,
   logger,
   policy,
+  onFinished,
 }: TranscodeNextReelDeps): TranscodeNextReel => {
   const spec: ReelSpec = {
     secondsPerPhoto: policy.secondsPerPhoto,
@@ -111,7 +118,17 @@ export const makeTranscodeNextReel = ({
 
     const givingUp = failed.value.status !== 'queued'
     const stillThere = await reels.save(failed.value)
-    if (stillThere && givingUp) bus.publish({ type: 'reel.failed', eventId: job.eventId, code })
+    if (stillThere && givingUp) {
+      bus.publish({ type: 'reel.failed', eventId: job.eventId, code })
+      onFinished?.({
+        job: 'reel',
+        eventId: job.eventId,
+        requestedAt: job.createdAt,
+        requestedBy: null,
+        outcome: 'failed',
+        finishedAt: clock.now(),
+      })
+    }
 
     logger.warn('highlight reel failed', {
       eventId: job.eventId,
@@ -203,6 +220,14 @@ export const makeTranscodeNextReel = ({
 
     switch (verdict.kind) {
       case 'done':
+        onFinished?.({
+          job: 'reel',
+          eventId,
+          requestedAt: job.createdAt,
+          requestedBy: null,
+          outcome: 'done',
+          finishedAt: clock.now(),
+        })
         return ok({ kind: 'rendered', eventId })
       case 'stale':
       case 'gone':

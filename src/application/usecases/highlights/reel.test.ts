@@ -23,6 +23,7 @@ import { FakeReelRenderer } from '../../testing/fakeReelRenderer'
 import { FakeReelRepository } from '../../testing/fakeReelRepository'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
+import type { JobFinished, JobFinishedHook } from '../notices/notifyJobDone'
 import { makeGetReelMedia } from './getReelMedia'
 import { makeInvalidateReel, type InvalidateReel } from './invalidateReel'
 import { makeRecoverReels } from './recoverReels'
@@ -84,6 +85,7 @@ describe('the highlight reel use cases (spec 08)', () => {
       events?: Pick<FakeEventRepository, 'findById'>
       reels?: FakeReelRepository
       renderer?: FakeReelRenderer
+      onFinished?: JobFinishedHook
     } = {},
   ): TranscodeNextReel =>
     makeTranscodeNextReel({
@@ -98,6 +100,7 @@ describe('the highlight reel use cases (spec 08)', () => {
       clock,
       logger,
       policy: { secondsPerPhoto: policy.secondsPerPhoto, maxOutputBytes: policy.maxOutputBytes },
+      ...(overrides.onFinished === undefined ? {} : { onFinished: overrides.onFinished }),
     })
 
   const invalidate = (): InvalidateReel => makeInvalidateReel({ reels, media, clock, logger })
@@ -333,6 +336,76 @@ describe('the highlight reel use cases (spec 08)', () => {
       if (row?.output === null || row === null) throw new Error('fixture')
       expect(await media.exists(EVENT, row.output.hash, 'reel')).toBe(true)
       expect(bus.published).toEqual([])
+    })
+
+    describe('tells the hook how the job ended (spec 32, A2)', () => {
+      let told: JobFinished[]
+      const hook: JobFinishedHook = (finished) => told.push(finished)
+
+      beforeEach(() => {
+        told = []
+      })
+
+      it('tells that the film is done, with the instant it was asked for and nobody who asked', async () => {
+        await ready()
+        const row = await reels.findByEvent(EVENT)
+        clock.advance(5 * 60_000)
+
+        await makeTranscode({ onFinished: hook })()
+
+        expect(told).toEqual([
+          {
+            job: 'reel',
+            eventId: EVENT,
+            requestedAt: row?.createdAt,
+            requestedBy: null,
+            outcome: 'done',
+            finishedAt: clock.now(),
+          },
+        ])
+      })
+
+      it('tells nothing of an attempt that will be retried, and tells once it gave up for good', async () => {
+        await ready()
+        const row = await reels.findByEvent(EVENT)
+        const broken = makeTranscode({
+          renderer: new FakeReelRenderer({ failsWith: 'reel.timedOut' }),
+          onFinished: hook,
+        })
+
+        clock.advance(60_000)
+        await broken()
+        clock.advance(60_000)
+        await broken()
+        expect(told).toEqual([])
+
+        clock.advance(60_000)
+        await broken()
+        expect(told).toEqual([
+          {
+            job: 'reel',
+            eventId: EVENT,
+            requestedAt: row?.createdAt,
+            requestedBy: null,
+            outcome: 'failed',
+            finishedAt: clock.now(),
+          },
+        ])
+      })
+
+      it('tells nothing of a job whose row an invalidation spoiled', async () => {
+        await ready()
+        const during = makeTranscode({
+          renderer: new FakeReelRenderer({
+            whileRendering: () => invalidate()(EVENT, [asPhotoId('a')]),
+          }),
+          onFinished: hook,
+        })
+
+        await during()
+
+        expect(told).toEqual([])
+      })
     })
 
     it('gives up for good when the event is gone, and keeps nothing', async () => {
