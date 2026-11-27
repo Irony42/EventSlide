@@ -10,6 +10,7 @@ import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestHouseholdRepository } from '../../ports/guestHouseholdRepository'
+import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { GuestInviteRepository } from '../../ports/guestInviteRepository'
 import type { GuestRsvpRepository } from '../../ports/guestRsvpRepository'
 import type { Logger } from '../../ports/logger'
@@ -33,7 +34,7 @@ import type { MembershipRepository } from '../../ports/userRepository'
  * - **A deletion alone triggers nothing** (the row is gone and no change is left to find): accepted, the next summary's
  *   totals are right. A reply a co-owner added counts, as it does for the badge.
  * - **The mail carries figures only** (`RsvpFigures`): how many replies are new or changed, the totals, the households with no
- *   reply. Never a name, a diet, a word. (The pending words of absent guests are not counted in this version.)
+ *   reply, and **how many words of absent guests wait for the host's approval** (one count, never the words). Never a name, a diet.
  *
  * It never throws: a candidate that cannot be examined is `failed`, the others go on.
  */
@@ -52,6 +53,7 @@ export interface SweepRsvpDigestsReport {
 export interface SweepRsvpDigestsDeps {
   readonly rsvps: Pick<GuestRsvpRepository, 'digestCandidates' | 'listByEvent'>
   readonly households: Pick<GuestHouseholdRepository, 'listByEvent'>
+  readonly guestbook: Pick<GuestbookRepository, 'countPendingRsvpNotes'>
   readonly events: Pick<EventRepository, 'findById'>
   readonly clients: Pick<ClientRepository, 'findById'>
   readonly invites: Pick<GuestInviteRepository, 'findByEvent' | 'findRsvpSettings'>
@@ -81,6 +83,7 @@ export const makeSweepRsvpDigests =
   ({
     rsvps,
     households,
+    guestbook,
     events,
     clients,
     invites,
@@ -168,6 +171,7 @@ export const makeSweepRsvpDigests =
             eventName: event.name.value,
             pageUrl: rsvpErasurePageUrl(publicUrl, event.slug.value),
             changed,
+            pendingNotes: await guestbook.countPendingRsvpNotes(eventId),
             figures: rsvpFiguresOf(stats, settings.form.meals.options),
           }),
         )

@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { aRsvp } from '../../../domain/guestRsvps/testing/rsvpFixtures'
 import { DEFAULT_RSVP_FORM } from '../../../domain/guestRsvps/rsvpForm'
 import { DEFAULT_RSVP_SETTINGS } from '../../../domain/guestRsvps/rsvpSettings'
-import { asEventId, asUserId } from '../../../domain/shared/ids'
-import { AT, aClient, aGuestInvite, anEvent, aUser } from '../../testing/builders'
+import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
+import { AT, aClient, aGuestInvite, aGuestbookEntry, anEvent, aUser } from '../../testing/builders'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestHouseholdRepository } from '../../testing/fakeGuestHouseholdRepository'
+import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakeGuestInviteRepository } from '../../testing/fakeGuestInviteRepository'
 import { FakeGuestRsvpRepository } from '../../testing/fakeGuestRsvpRepository'
 import { FakeMailBudget } from '../../testing/fakeMailBudget'
@@ -82,6 +83,11 @@ const build = async (
     )
   }
   const households = new FakeGuestHouseholdRepository()
+  const guestbook = new FakeGuestbookRepository().markViaRsvp(asGuestId('guest-absent'))
+  guestbook.seed(
+    aGuestbookEntry({ id: 'n1', eventId: WEDDING, guestId: 'guest-absent', text: 'Désolés' }),
+    aGuestbookEntry({ id: 'm1', eventId: WEDDING, guestId: 'guest-other', text: 'Un message' }),
+  )
   const invites = new FakeGuestInviteRepository()
   if (options.client !== undefined) clients.seed(aClient({ id: 'client-1', ...options.client }))
   events.seed(
@@ -119,6 +125,7 @@ const build = async (
   const deps: SweepRsvpDigestsDeps = {
     rsvps,
     households,
+    guestbook,
     events,
     clients,
     invites,
@@ -154,6 +161,7 @@ describe('sweepRsvpDigests', () => {
     expect(report).toMatchObject({ claimed: 1, sent: 1, unsent: 0, skippedBudget: 0, failed: [] })
     expect(world.mailer.sent.map((mail) => mail.to)).toEqual(['hote@example.test'])
     expect(world.mailer.sent[0]?.text).toContain('2 réponses nouvelles ou modifiées')
+    expect(world.mailer.sent[0]?.text).toContain('1 mot d’absent attend votre accord.')
     expect(world.mailer.sent[0]?.text).toContain('/admin/events/camille-et-sacha/rsvps')
     expect((await world.preferences.digestFor(WEDDING, HOST)).lastAt).toEqual(NOW)
 

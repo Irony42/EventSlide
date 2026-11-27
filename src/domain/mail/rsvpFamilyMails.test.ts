@@ -42,7 +42,7 @@ const base = (locale: (typeof CLIENT_LOCALES)[number], eventName = 'Camille et S
 
 describe('rsvpDigestMail (R2)', () => {
   it('says what changed and the figures in all, in French, with the replies page', () => {
-    const mail = rsvpDigestMail({ ...base('fr'), changed: 4, figures: FIGURES })
+    const mail = rsvpDigestMail({ ...base('fr'), changed: 4, pendingNotes: 0, figures: FIGURES })
 
     expect(mail.subject).toBe(`4 réponses de plus pour «${NBSP}Camille et Sacha${NBSP}»`)
     expect(mail.text).toContain('4 réponses nouvelles ou modifiées.')
@@ -56,6 +56,7 @@ describe('rsvpDigestMail (R2)', () => {
     const mail = rsvpDigestMail({
       ...base('fr'),
       changed: 1,
+      pendingNotes: 0,
       figures: { ...FIGURES, noReplyHouseholds: 0 },
     })
 
@@ -117,7 +118,7 @@ describe('rsvpFullMail (R5)', () => {
 
 describe.each(CLIENT_LOCALES)('every mail of the family, in %s', (locale) => {
   const mails = (): readonly ReturnType<typeof rsvpFullMail>[] => [
-    rsvpDigestMail({ ...base(locale), changed: 2, figures: FIGURES }),
+    rsvpDigestMail({ ...base(locale), changed: 2, pendingNotes: 0, figures: FIGURES }),
     rsvpDeadlineMail({ ...base(locale), unanswered: 3, deadline: '2026-12-15' }),
     rsvpStoppedMail({ ...base(locale), figures: FIGURES }),
     rsvpFullMail({ ...base(locale), capacity: 50 }),
@@ -183,12 +184,12 @@ describe.each(CLIENT_LOCALES)('the singular, in %s', (locale) => {
 
   it('speaks of one adult, one child, one household, one diet and one reply, and of several differently', () => {
     const one = [
-      rsvpDigestMail({ ...base(locale), changed: 1, figures: ONE }),
+      rsvpDigestMail({ ...base(locale), changed: 1, pendingNotes: 0, figures: ONE }),
       rsvpStoppedMail({ ...base(locale), figures: ONE }),
       rsvpDeadlineMail({ ...base(locale), unanswered: 1, deadline: '2026-12-15' }),
     ]
     const many = [
-      rsvpDigestMail({ ...base(locale), changed: 2, figures: FIGURES }),
+      rsvpDigestMail({ ...base(locale), changed: 2, pendingNotes: 0, figures: FIGURES }),
       rsvpStoppedMail({ ...base(locale), figures: FIGURES }),
       rsvpDeadlineMail({ ...base(locale), unanswered: 2, deadline: '2026-12-15' }),
     ]

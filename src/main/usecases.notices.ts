@@ -37,6 +37,7 @@ export const noticeUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   sweepRsvpDigests: makeSweepRsvpDigests({
     rsvps: adapters.guestRsvps,
     households: adapters.guestHouseholds,
+    guestbook: adapters.guestbook,
     events: adapters.events,
     clients: adapters.clients,
     invites: adapters.guestInvites,

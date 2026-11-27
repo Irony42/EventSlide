@@ -37,6 +37,8 @@ export interface GuestbookRepositorySubject {
   readonly repo: GuestbookRepository
   /** What `setPhotoTakedown`-style code will do through the port later: set `taken_down_at`. */
   readonly takeDown: (eventId: string, entryId: string, at: Date) => void
+  /** Makes the guest one made for a reply's note (`guests.via_rsvp = 1`). */
+  readonly markViaRsvp: (guestId: string) => void
   readonly dispose?: () => Promise<void>
 }
 
@@ -227,6 +229,29 @@ export const guestbookRepositoryContract = (
       await reject('e1')
 
       expect(await repo.countOpenByEvent(WEDDING)).toBe(1)
+    })
+
+    it('counts the pending notes written with a reply, and no other message, not taken down (R2)', async () => {
+      subject.markViaRsvp('guest-sam')
+      await repo.admit(entry({ id: 'n1', guestId: 'guest-sam', text: 'Désolés' }))
+      await repo.admit(entry({ id: 'n2', guestId: 'guest-sam', text: 'Bises', createdAt: at(5) }))
+      await repo.admit(
+        entry({ id: 'm1', guestId: 'guest-lea', text: 'Un message du mur', createdAt: at(6) }),
+      )
+      expect(await repo.countPendingRsvpNotes(WEDDING)).toBe(2)
+
+      await reject('n1')
+      expect(await repo.countPendingRsvpNotes(WEDDING)).toBe(1)
+
+      subject.takeDown('evt-wedding', 'n2', at(50))
+      expect(await repo.countPendingRsvpNotes(WEDDING)).toBe(0)
+    })
+
+    it('counts a note for its own event only', async () => {
+      subject.markViaRsvp('guest-sam')
+      await repo.admit(entry({ id: 'n1', guestId: 'guest-sam', text: 'Désolés' }))
+
+      expect(await repo.countPendingRsvpNotes(GALA)).toBe(0)
     })
 
     it('saves a decision with its reviewer and does not resurrect a deleted message', async () => {

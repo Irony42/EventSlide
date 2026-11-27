@@ -69,6 +69,7 @@ import { isTooDangerousToSweep, MEDIA_SWEEP_MIN_AGE_MS } from '../src/main/media
 import { makePurgeExpiredRsvps } from '../src/application/usecases/guestRsvps/purgeExpiredRsvps'
 import { SqliteGuestHouseholdRepository } from '../src/infrastructure/db/sqliteGuestHouseholdRepository'
 import { SqliteGuestRsvpRepository } from '../src/infrastructure/db/sqliteGuestRsvpRepository'
+import { SqliteGuestbookRepository } from '../src/infrastructure/db/sqliteGuestbookRepository'
 import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
 import { makeNotifySignupOperator } from '../src/application/usecases/signups/notifySignupOperator'
 import { makeSweepSignups } from '../src/application/usecases/signups/sweepSignups'
@@ -253,6 +254,7 @@ const execute = async (
         sweepRsvpDigests: makeSweepRsvpDigests({
           rsvps: new SqliteGuestRsvpRepository(db),
           households: new SqliteGuestHouseholdRepository(db),
+          guestbook: new SqliteGuestbookRepository(db),
           events,
           clients: new SqliteClientRepository(db),
           invites: new SqliteGuestInviteRepository(db),

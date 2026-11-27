@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { asEventId, asGuestbookEntryId } from '../../domain/shared/ids'
+import { asEventId, asGuestId, asGuestbookEntryId } from '../../domain/shared/ids'
 import { aGuestbookEntry, aVoiceEntry } from './builders'
 import { FakeGuestbookRepository } from './fakeGuestbookRepository'
 import { guestbookRepositoryContract } from './contracts/guestbookRepositoryContract'
@@ -8,6 +8,7 @@ guestbookRepositoryContract('fake', async () => {
   const repo = new FakeGuestbookRepository()
   return {
     repo,
+    markViaRsvp: (guestId) => void repo.markViaRsvp(asGuestId(guestId)),
     takeDown: (eventId, entryId, at) =>
       repo.takeDown(asEventId(eventId), asGuestbookEntryId(entryId), at),
   }

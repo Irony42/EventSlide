@@ -33,6 +33,7 @@ interface Words {
   readonly menus: string
   readonly overall: string
   readonly changed: (n: number) => string
+  readonly pendingNotes: (n: number) => string
   readonly digestSubject: (name: string, n: number) => string
   readonly deadlineSubject: (name: string) => string
   readonly deadlineBody: (name: string, unanswered: string, date: string) => string
@@ -62,6 +63,10 @@ const WORDS: Readonly<Record<ClientLocale, Words>> = {
     overall: `En tout${NBSP}:`,
     changed: (n) =>
       `${n} ${n > 1 ? 'réponses nouvelles ou modifiées' : 'réponse nouvelle ou modifiée'}.`,
+    pendingNotes: (n) =>
+      n > 1
+        ? `${n} mots d’absents attendent votre accord.`
+        : `${n} mot d’absent attend votre accord.`,
     digestSubject: (name, n) =>
       `${n} ${n > 1 ? 'réponses' : 'réponse'} de plus pour «${NBSP}${name}${NBSP}»`,
     deadlineSubject: (name) => `Réponses à «${NBSP}${name}${NBSP}»${NBSP}: la date limite approche`,
@@ -90,6 +95,8 @@ const WORDS: Readonly<Record<ClientLocale, Words>> = {
     menus: 'Menus:',
     overall: 'In all:',
     changed: (n) => `${n} new or changed ${plural(n, 'reply', 'replies')}.`,
+    pendingNotes: (n) =>
+      `${n} ${plural(n, 'note from a guest who cannot come is', 'notes from guests who cannot come are')} waiting for your approval.`,
     digestSubject: (name, n) => `${n} more ${plural(n, 'reply', 'replies')} for "${name}"`,
     deadlineSubject: (name) => `Replies to "${name}": the deadline is close`,
     deadlineBody: (name, unanswered, date) =>
@@ -117,6 +124,8 @@ const WORDS: Readonly<Record<ClientLocale, Words>> = {
     overall: 'Insgesamt:',
     changed: (n) =>
       `${n} ${plural(n, 'neue oder geänderte Antwort', 'neue oder geänderte Antworten')}.`,
+    pendingNotes: (n) =>
+      `${n} ${plural(n, 'Nachricht', 'Nachrichten')} von Absagenden ${plural(n, 'wartet', 'warten')} auf Ihre Freigabe.`,
     digestSubject: (name, n) => `${n} ${plural(n, 'Antwort', 'Antworten')} mehr zu „${name}“`,
     deadlineSubject: (name) => `Antworten zu „${name}“: die Frist rückt näher`,
     deadlineBody: (name, unanswered, date) =>
@@ -145,6 +154,8 @@ const WORDS: Readonly<Record<ClientLocale, Words>> = {
     overall: 'En total:',
     changed: (n) =>
       `${n} ${plural(n, 'respuesta nueva o modificada', 'respuestas nuevas o modificadas')}.`,
+    pendingNotes: (n) =>
+      `${n} ${plural(n, 'mensaje de un ausente espera', 'mensajes de ausentes esperan')} su aprobación.`,
     digestSubject: (name, n) =>
       `${n} ${plural(n, 'respuesta más', 'respuestas más')} para «${name}»`,
     deadlineSubject: (name) => `Respuestas a «${name}»: se acerca la fecha límite`,
@@ -174,6 +185,8 @@ const WORDS: Readonly<Record<ClientLocale, Words>> = {
     overall: 'In totale:',
     changed: (n) =>
       `${n} ${plural(n, 'risposta nuova o modificata', 'risposte nuove o modificate')}.`,
+    pendingNotes: (n) =>
+      `${n} ${plural(n, 'messaggio di un assente attende', 'messaggi di assenti attendono')} la sua approvazione.`,
     digestSubject: (name, n) =>
       `${n} ${plural(n, 'risposta in più', 'risposte in più')} per «${name}»`,
     deadlineSubject: (name) => `Risposte a «${name}»: la scadenza si avvicina`,
@@ -236,9 +249,12 @@ export const rsvpDigestMail = ({
   pageUrl,
   changed,
   figures,
+  pendingNotes,
 }: RsvpFamilyMailBase & {
   readonly changed: number
   readonly figures: RsvpFigures
+  /** How many words of absent guests wait for the host's approval: a number, never the words. */
+  readonly pendingNotes: number
 }): OutgoingMail => {
   const words = WORDS[locale]
   const total = `${words.overall} ${figuresLine(words, figures)}`
@@ -247,6 +263,7 @@ export const rsvpDigestMail = ({
     figures.noReplyHouseholds > 0
       ? `${total}; ${words.unanswered(figures.noReplyHouseholds)}.`
       : `${total}.`,
+    ...(pendingNotes > 0 ? [words.pendingNotes(pendingNotes)] : []),
     '',
     words.open,
     pageUrl,
