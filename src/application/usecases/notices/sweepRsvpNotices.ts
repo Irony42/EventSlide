@@ -40,6 +40,7 @@ import type { Logger } from '../../ports/logger'
 import type { MailBudget } from '../../ports/mailBudget'
 import type { Mailer } from '../../ports/mailer'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { clientToWriteAbout } from './noticeAudience'
 import { deliverNotice, type DeliveryResult } from './noticeDelivery'
 
 /**
@@ -208,9 +209,9 @@ export const makeSweepRsvpNotices = (deps: SweepRsvpNoticesDeps): SweepRsvpNotic
     for (const eventId of candidates) {
       try {
         const event = await events.findById(eventId)
-        if (event === null || event.isTakenDown() || event.isClientSuspended()) continue
-        const client = event.clientId === null ? null : await clients.findById(event.clientId)
-        if (client?.isOffboarding() === true) continue
+        if (event === null) continue
+        const client = await clientToWriteAbout(clients, event)
+        if (client === undefined) continue
 
         const invite = await invites.findByEvent(eventId)
         const zone = invite?.content.timeZone ?? DEFAULT_NOTICE_TIME_ZONE
