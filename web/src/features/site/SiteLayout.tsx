@@ -10,6 +10,7 @@ import { messageForError } from '../../lib/i18n/translations'
 import { hereAsFrom } from '../../lib/landing'
 import { useClientLimits } from '../../lib/useClientLimits'
 import { useAbout } from '../../lib/useAbout'
+import { cx } from '../../design-system/classNames'
 import { PendingSignupsProvider } from './signups/PendingSignupsProvider'
 import { SignupsNavLink } from './signups/SignupsNavLink'
 import { StepUpProvider } from './StepUpProvider'
@@ -157,7 +158,7 @@ function SiteConsole() {
             ))}
             {signupOn ? (
               <SignupsNavLink
-                className={styles['navLink'] ?? ''}
+                className={cx(styles['navLink'])}
                 current={pathname === '/admin/site/signups'}
                 counted={passed}
               />
