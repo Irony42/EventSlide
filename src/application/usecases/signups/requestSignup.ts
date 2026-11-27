@@ -3,9 +3,10 @@ import { AuditEntry } from '../../../domain/audit/auditEntry'
 import { signupConfirmLink, signupConfirmationMail } from '../../../domain/mail/signupMails'
 import { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
+import { SIGNUP_CONFIRMATION_LIFETIME_HOURS } from '../../../domain/signups/signupRetention'
 import { signupEnabled, type SignupMode } from '../../../domain/signups/signupMode'
 import { createSignupRequest } from '../../../domain/signups/signupRequest'
-import { ACCOUNT_TOKEN_LIFETIME_MS, issueAccountToken } from '../../../domain/users/accountToken'
+import { issueAccountToken } from '../../../domain/users/accountToken'
 import { EmailAddress } from '../../../domain/users/emailAddress'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
@@ -40,6 +41,8 @@ export interface RequestSignupDeps {
   readonly publicUrl: string
   /** `SIGNUP_MAX_PER_DAY`. */
   readonly maxPerDay: number
+  /** How long the link in the mail is said to live; the confirmation lifetime by default. A test sets a bad one. */
+  readonly lifetimeHours?: number
 }
 
 export interface SignupRequested {
@@ -84,6 +87,7 @@ export const makeRequestSignup = ({
   audit,
   publicUrl,
   maxPerDay,
+  lifetimeHours = SIGNUP_CONFIRMATION_LIFETIME_HOURS,
 }: RequestSignupDeps): RequestSignup => {
   /** The last day (UTC) whose ceiling was written down: once a day, not once a request. */
   let ceilingAuditedOn: string | null = null
@@ -165,16 +169,20 @@ export const makeRequestSignup = ({
     if (admitted.outcome === 'silent') return ok({ status: 'sent', completion: done })
 
     const completion = guarded(async () => {
-      const sent = await mailer.send(
-        signupConfirmationMail({
-          to: address.value,
-          locale: request.value.locale,
-          link: signupConfirmLink(publicUrl, minted.token, request.value.locale),
-          lifetimeHours: ACCOUNT_TOKEN_LIFETIME_MS.emailVerification / 3_600_000,
-        }),
-      )
-      if (!sent.ok)
-        logger.warn('a signup confirmation mail was not sent', { code: sent.error.code })
+      const mail = signupConfirmationMail({
+        to: address.value,
+        locale: request.value.locale,
+        link: signupConfirmLink(publicUrl, minted.token, request.value.locale),
+        lifetimeHours,
+      })
+      if (!mail.ok) {
+        logger.error('a signup confirmation mail could not be written', { code: mail.error.code })
+      } else {
+        const sent = await mailer.send(mail.value)
+        if (!sent.ok) {
+          logger.warn('a signup confirmation mail was not sent', { code: sent.error.code })
+        }
+      }
       // The ceiling is reached by this very request: written down once, with the day's first refusal or now.
       if (admitted.issuedToday >= maxPerDay) await recordCeiling(now)
     })

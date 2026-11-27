@@ -838,7 +838,6 @@ describe('the signup requests ride the follow-up (spec 31)', () => {
   it('logs a failure that is not an Error as text', async () => {
     const { sweeper, lines } = build({
       sweepSignups: async () => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
         throw 'plain'
       },
     })

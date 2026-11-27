@@ -74,7 +74,6 @@ export const buildSignupScene = (
     const planned = provisioning.next
     provisioning.next = null
     if (planned === 'throw') throw new Error('storage failed')
-    // eslint-disable-next-line @typescript-eslint/only-throw-error
     if (planned === 'throw-text') throw 'plain text'
     if (planned !== null && planned !== 'link') return planned
     clientCount += 1

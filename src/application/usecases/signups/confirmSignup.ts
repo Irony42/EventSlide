@@ -83,9 +83,12 @@ export const makeConfirmSignup = ({
   }
 
   /** The claim is `request`'s: open its account, or give the claim back. Returns where the request ended. */
-  const open = async (request: SignupRequest): Promise<'approved' | 'pending' | 'unreachable'> => {
+  const open = async (
+    request: SignupRequest,
+    claimedAt: Date,
+  ): Promise<'approved' | 'pending' | 'unreachable'> => {
     const release = async (): Promise<'pending'> => {
-      await signups.release(request.id)
+      await signups.release(request.id, claimedAt)
       await notify('waiting')
       return 'pending'
     }
@@ -114,6 +117,7 @@ export const makeConfirmSignup = ({
       clientId: provisioned.value.clientId,
       invitationTokenId: provisioned.value.invitation.invitationId,
       now: clock.now(),
+      claimedAt,
     })
     await notify('opened')
     // The invitation was not mailed (the relay refused it): the account exists and cannot be taken back
@@ -150,7 +154,7 @@ export const makeConfirmSignup = ({
       return ok({ next: signupConfirmationNext(effective, 'pending') })
     }
 
-    const endedAs = await open(request)
+    const endedAs = await open(request, now)
     return ok({
       next: signupConfirmationNext('open', endedAs === 'unreachable' ? 'pending' : endedAs),
     })

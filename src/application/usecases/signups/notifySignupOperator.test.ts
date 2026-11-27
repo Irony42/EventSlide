@@ -112,7 +112,6 @@ describe('notifySignupOperator', () => {
     const throwing: Mailer = {
       canDeliver: true,
       send: async () => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
         throw 'plain'
       },
     }

@@ -209,7 +209,6 @@ describe('requestSignup', () => {
     const scene = buildSignupScene()
     const failing: AuditRecorder = {
       record: async () => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
         throw 'plain text'
       },
     }
@@ -255,5 +254,31 @@ describe('requestSignup', () => {
 
     expect(result).toMatchObject({ ok: false, error: { code: 'accountToken.digestInvalid' } })
     expect(scene.signups.all).toHaveLength(0)
+  })
+
+  it('logs a code, mails nothing and still answers sent when the mail cannot be written', async () => {
+    const scene = buildSignupScene()
+    const requestSignup = makeRequestSignup({
+      mode: 'open',
+      signups: scene.signups,
+      secrets: scene.secrets,
+      mailer: scene.mailer,
+      ids: scene.ids,
+      clock: scene.clock,
+      logger: scene.logger,
+      audit: scene.audit,
+      publicUrl: PUBLIC_URL,
+      maxPerDay: 50,
+      lifetimeHours: 0,
+    })
+
+    const result = await requestSignup(aForm())
+    if (result.ok) await result.value.completion
+
+    expect(result).toMatchObject({ ok: true, value: { status: 'sent' } })
+    expect(scene.mailer.sent).toHaveLength(0)
+    expect(scene.logger.find('a signup confirmation mail could not be written')?.context).toEqual({
+      code: 'signup.confirmation.lifetimeInvalid',
+    })
   })
 })

@@ -98,7 +98,6 @@ describe('sweepSignups', () => {
     const scene = await pendingScene()
     const failing: AuditRecorder = {
       record: async () => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
         throw 'plain'
       },
     }
