@@ -47,6 +47,7 @@ const build = async (
     answered?: number
     people?: number
     hostMailNotices?: boolean
+    status?: 'live' | 'archived'
     budgetMax?: number | null
   } = {},
 ) => {
@@ -78,7 +79,7 @@ const build = async (
       slug: 'camille-et-sacha',
       joinCode: 'H7K2QM',
       name: 'Camille et Sacha',
-      status: 'live',
+      status: options.status ?? 'live',
     }),
   )
   await invites.create(
@@ -215,6 +216,27 @@ describe('R3, the deadline reminder', () => {
     const report = await nobody.sweep()
     expect(report.noticed).toEqual([{ eventId: WEDDING, kind: 'rsvpDeadline' }])
     expect(nobody.mailer.sent).toEqual([])
+  })
+
+  it('writes none of R3, R4 and R5 for an archived event (R1 alone covers it)', async () => {
+    const reminder = await build({ households: 3, answered: 1, status: 'archived' })
+    expect((await reminder.sweep()).noticed).toEqual([])
+    const stopped = await build({
+      now: new Date('2026-12-06T09:00:00.000Z'),
+      households: 3,
+      answered: 2,
+      status: 'archived',
+    })
+    expect((await stopped.sweep()).noticed).toEqual([])
+    const full = await build({
+      settings: settings({ deadline: null, form: { ...DEFAULT_RSVP_FORM, capacity: 10 } }),
+      households: 3,
+      answered: 3,
+      people: 4,
+      status: 'archived',
+    })
+    expect((await full.sweep()).noticed).toEqual([])
+    expect([reminder, stopped, full].flatMap((world) => world.mailer.sent)).toEqual([])
   })
 
   it('keeps the event switch out of it: an owner with the event family off still gets the replies notices', async () => {

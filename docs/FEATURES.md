@@ -20,7 +20,8 @@ The long version of the [README](../README.md#what-it-does): every feature, by w
   erased, a reminder before the replies' deadline, the daily summary of the replies (ticked event by event), a notice when every
   place is taken, a finished archive, photo book or film, the end of an event with its figures, the wall about to close and an
   accepted invitation. Plain text, one link, figures and the host's own words only, never a guest's name, diet or message.
-  Each family can be switched off from **Sécurité et e-mails**, the whole box with `HOST_MAIL_NOTICES=off`. See
+  Each family of follow-up mails can be switched off from **Sécurité et e-mails**, the whole box with `HOST_MAIL_NOTICES=off`;
+  the security mails of the account and the warning before the replies are erased cannot be switched off. See
   [OPERATING.md](OPERATING.md#mail-to-the-hosts).
 - **Nothing reaches the screen without you.** Every photo waits in a moderation queue
   until you approve it. Two hundred people are watching that screen; that is not a

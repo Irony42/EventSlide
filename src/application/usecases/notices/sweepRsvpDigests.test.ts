@@ -19,6 +19,7 @@ import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import type { MailPreferenceRepository } from '../../ports/mailPreferenceRepository'
 import type { Mailer } from '../../ports/mailer'
+import { Event } from '../../../domain/events/event'
 import { makeSweepRsvpDigests, type SweepRsvpDigestsDeps } from './sweepRsvpDigests'
 
 /**
@@ -368,6 +369,23 @@ describe('sweepRsvpDigests', () => {
 
     const suspended = await build({ client: { suspendedAt: AT } })
     expect(await suspended.sweep()).toMatchObject({ claimed: 0 })
+  })
+
+  it('reads the suspension from the client too: an event row that does not carry it is still left out', async () => {
+    const world = await build({ client: { suspendedAt: AT } })
+    const carrying = world.deps.events
+    const forgetful: SweepRsvpDigestsDeps['events'] = {
+      findById: async (id) => {
+        const event = await carrying.findById(id)
+        return event === null
+          ? null
+          : Event.restore({ ...event.toProps(), clientSuspendedAt: null })
+      },
+    }
+
+    expect(await makeSweepRsvpDigests({ ...world.deps, events: forgetful })()).toMatchObject({
+      claimed: 0,
+    })
   })
 
   it('writes in the language of the client when the event has one', async () => {

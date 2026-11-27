@@ -24,7 +24,7 @@ import { fr } from '../../../web/src/lib/i18n/fr'
 const NEW_PASSWORD = 'e2e-fixture-changed-passphrase-for-mails'
 const text = fr.auth.mailPreferences
 
-test('a host reads and changes their e-mail switches, sees the replies page follow them, and gets one mail for a new password', async ({
+test('a host reads and changes their e-mail switches, sees the replies page follow them, and gets a mail for a new password', async ({
   browser,
 }, testInfo) => {
   const sink = await startSmtpSink()
@@ -35,6 +35,9 @@ test('a host reads and changes their e-mail switches, sees the replies page foll
       MAIL_FROM: 'no-reply@eventslide.test',
       PUBLIC_URL: 'https://photos.example.org',
     },
+  }).catch(async (error: unknown) => {
+    await sink.close()
+    throw error
   })
   const context = await browser.newContext({ baseURL: app.baseUrl, locale: SUITE_LOCALE })
 
@@ -65,8 +68,10 @@ test('a host reads and changes their e-mail switches, sees the replies page foll
 
     await replies.uncheck()
     await expect(section).toHaveAttribute('aria-busy', 'false')
-    const saved = await page.request.get(app.url('/api/me/mail-preferences'))
-    expect(await saved.json()).toEqual({ rsvp: false, event: true, available: true })
+    // Read until the server says so: the box is shown at once, the write is on its way.
+    const preferences = async () =>
+      (await page.request.get(app.url('/api/me/mail-preferences'))).json()
+    await expect.poll(preferences).toEqual({ rsvp: false, event: true, available: true })
     await page.reload()
     await expect(page.getByRole('checkbox', { name: text.rsvpLabel })).not.toBeChecked()
     await expect(page.getByRole('checkbox', { name: text.eventLabel })).toBeChecked()
@@ -75,23 +80,23 @@ test('a host reads and changes their e-mail switches, sees the replies page foll
 
     const headers = await csrfHeaders(page.request, app)
     const event = await app.seedEvent({ slug: 'fete-mails', name: 'Fête des mails' })
-    await page.request.put(app.url(`/api/events/${event.slug}/guest-invite`), {
+    // A party two months ahead of whenever this runs, so the replies are open whatever the date.
+    const startsAt = new Date(Date.now() + 60 * 24 * 3_600_000).toISOString()
+    const invited = await page.request.put(app.url(`/api/events/${event.slug}/guest-invite`), {
       headers,
-      data: {
-        title: 'Fête des mails',
-        startsAt: '2027-12-11T18:00:00Z',
-        timeZone: 'Europe/Paris',
-        language: 'fr',
-      },
+      data: { title: 'Fête des mails', startsAt, timeZone: 'Europe/Paris', language: 'fr' },
     })
-    await page.request.post(app.url(`/api/events/${event.slug}/guest-invite/enable`), {
-      headers,
-      data: {},
-    })
-    await page.request.put(app.url(`/api/events/${event.slug}/rsvp-form`), {
+    expect(invited.ok()).toBe(true)
+    const enabled = await page.request.post(
+      app.url(`/api/events/${event.slug}/guest-invite/enable`),
+      { headers, data: {} },
+    )
+    expect(enabled.ok()).toBe(true)
+    const asked = await page.request.put(app.url(`/api/events/${event.slug}/rsvp-form`), {
       headers,
       data: { enabled: true },
     })
+    expect(asked.ok()).toBe(true)
     await page.goto(app.url(`/admin/events/${event.slug}/rsvps`))
     const digest = page.getByRole('checkbox', { name: fr.rsvp.digest.label })
     await expect(digest).toBeDisabled()
@@ -101,10 +106,7 @@ test('a host reads and changes their e-mail switches, sees the replies page foll
 
     await page.goto(app.url('/admin/security'))
     await page.getByRole('checkbox', { name: text.rsvpLabel }).check()
-    await expect(page.getByRole('region', { name: text.title })).toHaveAttribute(
-      'aria-busy',
-      'false',
-    )
+    await expect.poll(preferences).toEqual({ rsvp: true, event: true, available: true })
     await page.goto(app.url(`/admin/events/${event.slug}/rsvps`))
     await expect(digest).toBeEnabled()
     await digest.click()
@@ -113,7 +115,7 @@ test('a host reads and changes their e-mail switches, sees the replies page foll
     await page.reload()
     await expect(page.getByRole('checkbox', { name: fr.rsvp.digest.label })).toBeChecked()
 
-    // ---- changing the password sends exactly one mail, with the way to recover the account --------
+    // ---- changing the password sends a mail, with the way to recover the account --------
 
     expect(sink.messages).toHaveLength(0)
     await page.goto(app.url('/admin/password'))

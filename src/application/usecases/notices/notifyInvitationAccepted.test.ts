@@ -176,7 +176,7 @@ describe('notifyInvitationAccepted (A6)', () => {
     expect(rsvpOff.mailer.sent).toHaveLength(1)
   })
 
-  it('takes one place in the day budget, and is dropped when the day is full', async () => {
+  it('takes one place in the day budget, and is dropped, with a log line, when the day is full', async () => {
     const room = await build({ budgetMax: 2 })
     room.hook.notify(accepted())
     await room.hook.idle()
@@ -189,6 +189,10 @@ describe('notifyInvitationAccepted (A6)', () => {
     await full.hook.idle()
     expect(full.mailer.sent).toEqual([])
     expect(await full.budget.used('2026-11-28')).toBe(1)
+    expect(
+      full.logger.lines.find((entry) => entry.message === 'an invitation notice was not sent')
+        ?.context,
+    ).toEqual({ outcome: 'budget' })
   })
 
   it('sends nothing with HOST_MAIL_NOTICES=off or without a relay, and for an event that is gone, down, of a suspended client or of a client being closed', async () => {
