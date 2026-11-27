@@ -5,6 +5,7 @@ import { guestApi } from './client/guest'
 import { hostApi } from './client/host'
 import { guestInviteApi } from './client/invite'
 import { siteApi } from './client/site'
+import { siteSignupsApi } from './client/siteSignups'
 
 /**
  * One typed function per endpoint in docs/API.md.
@@ -39,6 +40,7 @@ export const createApi = (transport: Transport) => ({
   ...guestApi(transport),
   ...accountApi(transport),
   ...siteApi(transport),
+  ...siteSignupsApi(transport),
   ...hostApi(transport),
   ...galleryApi(transport),
   ...guestInviteApi(transport),

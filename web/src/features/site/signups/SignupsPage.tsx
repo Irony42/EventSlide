@@ -1,0 +1,308 @@
+import { useCallback, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useApi } from '../../../lib/useApi'
+import { useAbout } from '../../../lib/useAbout'
+import { useLoader } from '../../../lib/useLoader'
+import { Badge } from '../../../design-system/components/Badge'
+import { Button } from '../../../design-system/components/Button'
+import { EmptyState } from '../../../design-system/components/EmptyState'
+import { LoadFailure, Pending } from '../../../design-system/components/Async'
+import type { ProvisionedClientDto, SiteSignupDto, SiteSignupStatus } from '../../../lib/api/dto'
+import { formatDateTime, formatDay } from '../../../lib/format'
+import { LOCALE_NAMES, parseLocale } from '../../../lib/i18n/locale'
+import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
+import { InvitationOutcome } from '../components/InvitationOutcome'
+import tables from '../components/Table.module.css'
+import { ApproveSignupDialog } from './ApproveSignupDialog'
+import { usePendingSignups } from './pendingSignupsContext'
+import { RefuseSignupDialog } from './RefuseSignupDialog'
+import styles from './SignupsPage.module.css'
+
+interface Opened {
+  readonly name: string
+  readonly email: string
+  readonly clientId: string
+  readonly result: ProvisionedClientDto
+}
+
+type Tab = 'current' | 'processed'
+
+/**
+ * The operator's page of signup requests (`/admin/site/signups`, spec 31).
+ *
+ * Surface: the operator's laptop. In `open` the accounts open by themselves, so the first tab lists
+ * those opened in the last 30 days and, only if the disk guard held any, the requests waiting; in
+ * `review` the first tab is the requests waiting. The second tab is the refused ones, kept 30 days.
+ * The address a person typed is shown here and nowhere else in the console: it is what the
+ * operator validates.
+ */
+export function SignupsPage() {
+  const t = useTranslations()
+  const mode = useAbout().features.signup
+  const { refresh } = usePendingSignups()
+  const [tab, setTab] = useState<Tab>('current')
+  const [version, setVersion] = useState(0)
+  const [approving, setApproving] = useState<SiteSignupDto | null>(null)
+  const [refusing, setRefusing] = useState<SiteSignupDto | null>(null)
+  const [opened, setOpened] = useState<Opened | null>(null)
+  const [refused, setRefused] = useState(false)
+
+  const settled = () => {
+    setVersion((current) => current + 1)
+    refresh()
+  }
+
+  const section = (status: SiteSignupStatus, extra: SectionExtra) => (
+    <Section
+      status={status}
+      version={version}
+      onApprove={setApproving}
+      onRefuse={setRefusing}
+      {...extra}
+    />
+  )
+
+  return (
+    <div className={styles['page']}>
+      <h1 className={styles['title']}>{t.siteSignups.title}</h1>
+      <p className={styles['hint']}>
+        {mode === 'open' ? t.siteSignups.hintOpen : t.siteSignups.hintReview}
+      </p>
+
+      <div className={styles['tabs']} role="group" aria-label={t.siteSignups.tabsLabel}>
+        <Button
+          variant={tab === 'current' ? 'primary' : 'secondary'}
+          aria-pressed={tab === 'current'}
+          onClick={() => setTab('current')}
+        >
+          {mode === 'open' ? t.siteSignups.tabOpened : t.siteSignups.tabPending}
+        </Button>
+        <Button
+          variant={tab === 'processed' ? 'primary' : 'secondary'}
+          aria-pressed={tab === 'processed'}
+          onClick={() => setTab('processed')}
+        >
+          {t.siteSignups.tabProcessed}
+        </Button>
+      </div>
+
+      {opened === null ? null : (
+        <section className={styles['opened']} aria-label={t.siteSignups.approvedDone(opened.name)}>
+          <p role="status">{t.siteSignups.approvedDone(opened.name)}</p>
+          <InvitationOutcome
+            invitation={opened.result.invitation}
+            email={opened.email}
+            onDismiss={() => setOpened(null)}
+          />
+          <Link className={styles['link']} to={`/admin/site/clients/${opened.clientId}`}>
+            {t.siteSignups.clientLink}
+          </Link>
+        </section>
+      )}
+      {refused ? <p role="status">{t.siteSignups.refusedDone}</p> : null}
+
+      {tab === 'processed' ? (
+        section('refused', {
+          hint: t.siteSignups.processedHint,
+          empty: t.siteSignups.emptyProcessed,
+        })
+      ) : mode === 'open' ? (
+        <>
+          {section('approved', {
+            heading: t.siteSignups.openedHeading,
+            empty: t.siteSignups.emptyOpened,
+          })}
+          {section('pending', {
+            heading: t.siteSignups.heldHeading,
+            hint: t.siteSignups.heldHint,
+            hideWhenEmpty: true,
+          })}
+        </>
+      ) : (
+        section('pending', { empty: t.siteSignups.emptyPending })
+      )}
+
+      {approving === null ? null : (
+        <ApproveSignupDialog
+          signup={approving}
+          onCancel={() => setApproving(null)}
+          onApproved={(signup, result) => {
+            setApproving(null)
+            setRefused(false)
+            setOpened({
+              name: signup.clientName,
+              email: signup.email,
+              clientId: result.clientId,
+              result,
+            })
+            settled()
+          }}
+        />
+      )}
+      {refusing === null ? null : (
+        <RefuseSignupDialog
+          signup={refusing}
+          onCancel={() => setRefusing(null)}
+          onRefused={() => {
+            setRefusing(null)
+            setOpened(null)
+            setRefused(true)
+            settled()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+interface SectionExtra {
+  readonly heading?: string
+  readonly hint?: string
+  readonly empty?: string
+  readonly hideWhenEmpty?: boolean
+}
+
+interface SectionProps extends SectionExtra {
+  readonly status: SiteSignupStatus
+  readonly version: number
+  readonly onApprove: (signup: SiteSignupDto) => void
+  readonly onRefuse: (signup: SiteSignupDto) => void
+}
+
+/** One list of requests, with the four states every read owes (a wait, a refusal, nothing, rows). */
+function Section({
+  status,
+  version,
+  onApprove,
+  onRefuse,
+  heading,
+  hint,
+  empty,
+  hideWhenEmpty = false,
+}: SectionProps) {
+  const t = useTranslations()
+  const api = useApi()
+  const load = useCallback(
+    (signal: AbortSignal) => {
+      void version
+      return api.siteSignups(status, signal)
+    },
+    [api, status, version],
+  )
+  const { data, loading, error, reload } = useLoader(load)
+  const rows = data?.items ?? []
+
+  if (hideWhenEmpty && !loading && error === null && rows.length === 0) return null
+
+  return (
+    <section className={styles['section']} aria-label={heading ?? t.siteSignups.tableLabel}>
+      {heading === undefined ? null : <h2 className={styles['heading']}>{heading}</h2>}
+      {hint === undefined ? null : <p className={styles['hint']}>{hint}</p>}
+      {loading && data === null ? <Pending label={t.app.loading} /> : null}
+      {error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
+      {!loading && error === null && rows.length === 0 && empty !== undefined ? (
+        <EmptyState as="h3" title={empty} />
+      ) : null}
+      {rows.length > 0 ? (
+        <SignupsTable status={status} rows={rows} onApprove={onApprove} onRefuse={onRefuse} />
+      ) : null}
+    </section>
+  )
+}
+
+function SignupsTable({
+  status,
+  rows,
+  onApprove,
+  onRefuse,
+}: {
+  readonly status: SiteSignupStatus
+  readonly rows: readonly SiteSignupDto[]
+  readonly onApprove: (signup: SiteSignupDto) => void
+  readonly onRefuse: (signup: SiteSignupDto) => void
+}) {
+  const t = useTranslations()
+  const { locale } = useLocale()
+  const text = t.siteSignups
+  const when = (iso: string | null) =>
+    iso === null ? text.none : (formatDateTime(iso, locale) ?? iso)
+  const dateColumn =
+    status === 'approved'
+      ? text.openedColumn
+      : status === 'refused'
+        ? text.decidedColumn
+        : text.confirmedColumn
+
+  return (
+    <div className={tables['wrap']}>
+      <table className={tables['table']}>
+        <caption className="visually-hidden">{text.tableLabel}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{text.emailColumn}</th>
+            <th scope="col">{text.spaceColumn}</th>
+            <th scope="col">{text.occasionColumn}</th>
+            <th scope="col">{text.eventDateColumn}</th>
+            <th scope="col">{text.languageColumn}</th>
+            <th scope="col">{dateColumn}</th>
+            {status === 'refused' ? null : <th scope="col">{text.actionsColumn}</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const language = parseLocale(row.locale)
+            const day =
+              row.eventDate === null ? null : formatDay(`${row.eventDate}T12:00:00.000Z`, locale)
+            const decided =
+              status === 'pending'
+                ? row.confirmedAt
+                : status === 'approved'
+                  ? (row.decidedAt ?? row.confirmedAt)
+                  : row.decidedAt
+            return (
+              <tr key={row.id}>
+                <th scope="row" className={tables['name']}>
+                  {row.email}
+                </th>
+                <td>
+                  {row.clientName}
+                  {status === 'pending' && row.existingAccount ? (
+                    <Badge tone="accent" className={styles['badge']}>
+                      {text.existingAccount}
+                    </Badge>
+                  ) : null}
+                </td>
+                <td className={styles['note']}>{row.note ?? text.none}</td>
+                <td>{day ?? row.eventDate ?? text.none}</td>
+                <td>{language === null ? row.locale : LOCALE_NAMES[language]}</td>
+                <td className={tables['muted']}>{when(decided)}</td>
+                {status === 'refused' ? null : (
+                  <td>
+                    {status === 'approved' ? (
+                      row.clientId === null ? (
+                        text.none
+                      ) : (
+                        <Link className={styles['link']} to={`/admin/site/clients/${row.clientId}`}>
+                          {text.clientLink}
+                        </Link>
+                      )
+                    ) : (
+                      <div className={styles['actions']}>
+                        <Button variant="primary" onClick={() => onApprove(row)}>
+                          {text.approve}
+                        </Button>
+                        <Button variant="secondary" onClick={() => onRefuse(row)}>
+                          {text.refuse}
+                        </Button>
+                      </div>
+                    )}
+                  </td>
+                )}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}

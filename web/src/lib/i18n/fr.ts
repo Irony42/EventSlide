@@ -3191,6 +3191,62 @@ export const fr = {
     liveWindowEnd: (date: string) => `L’évènement se termine le ${date}.`,
   },
 
+  /* ---- Spec 31: the operator’s page of signup requests (`/admin/site/signups`). ---- */
+  siteSignups: {
+    nav: 'Inscriptions',
+    navPending: (count: number) => `Inscriptions (${count})`,
+    title: 'Inscriptions',
+    hintOpen:
+      'Les comptes s’ouvrent d’eux-mêmes dès que la personne a confirmé son adresse. Voici ceux des 30 derniers jours.',
+    hintReview:
+      'Chaque personne a confirmé son adresse. Rien ne s’ouvre avant votre validation, et une demande sans réponse disparaît au bout de 30 jours.',
+    tabsLabel: 'Demandes d’inscription',
+    tabOpened: 'Comptes ouverts',
+    tabPending: 'À valider',
+    tabProcessed: 'Traitées',
+    openedHeading: 'Comptes ouverts ces 30 derniers jours',
+    heldHeading: 'Demandes retenues',
+    heldHint:
+      'La place disque ne permettait pas d’ouvrir ces comptes tout seuls\u00a0: à vous de valider ou de refuser.',
+    processedHint: 'Les demandes refusées, gardées 30 jours.',
+    emptyOpened: 'Aucun compte ouvert ces 30 derniers jours.',
+    emptyPending: 'Aucune demande à valider.',
+    emptyProcessed: 'Aucune demande refusée.',
+    tableLabel: 'Demandes d’inscription',
+    emailColumn: 'Adresse',
+    spaceColumn: 'Espace',
+    occasionColumn: 'Occasion',
+    eventDateColumn: 'Date de l’évènement',
+    languageColumn: 'Langue',
+    confirmedColumn: 'Confirmée le',
+    openedColumn: 'Ouvert le',
+    decidedColumn: 'Refusée le',
+    actionsColumn: 'Actions',
+    none: '—',
+    existingAccount: 'Compte existant',
+    clientLink: 'Fiche du client',
+    approve: 'Valider',
+    refuse: 'Refuser',
+    approveTitle: (name: string) => `Valider l’inscription de «\u00a0${name}\u00a0»`,
+    approveIntro:
+      'Le client s’ouvre avec les plafonds ci-dessous, préremplis avec ceux de l’instance, et l’invitation part à l’adresse de la personne.',
+    existingAccountNotice: 'Compte existant\u00a0: la personne devra se connecter pour accepter',
+    approveConfirm: 'Valider et envoyer l’invitation',
+    approvedDone: (name: string) => `Compte «\u00a0${name}\u00a0» ouvert, invitation envoyée.`,
+    refuseTitle: (name: string) => `Refuser l’inscription de «\u00a0${name}\u00a0»`,
+    refuseBody: 'La demande est refusée. Aucun motif n’est conservé.',
+    notify: 'Prévenir la personne',
+    notifyHint: 'Un mail neutre, sans motif.',
+    refuseConfirm: 'Refuser la demande',
+    refusedDone: 'Demande refusée.',
+    actions: {
+      'signup.approved': 'Inscription validée, compte ouvert.',
+      'signup.refused': 'Inscription refusée.',
+      'signup.expired': 'Demande d’inscription expirée sans décision.',
+      'signup.dailyCeilingReached': 'Plafond d’inscriptions du jour atteint.',
+    },
+  },
+
   /* ---- Added by features/site: the operator’s console (G2-15 / P3-16). ---- */
   site: {
     menuLink: 'Console de l’opérateur',
@@ -4877,6 +4933,7 @@ export const fr = {
     siteAccounts: 'Comptes de l’instance',
     siteAudit: 'Journal de l’instance',
     siteTakedown: 'Retrait de contenu',
+    siteSignups: 'Inscriptions',
   },
 } as const
 

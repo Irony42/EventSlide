@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { browserEnv, forgetPushOnSignOut } from '../../lib/push/browserPush'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useApi } from '../../lib/useApi'
@@ -9,6 +9,9 @@ import { useTranslations } from '../../lib/i18n/useTranslations'
 import { messageForError } from '../../lib/i18n/translations'
 import { hereAsFrom } from '../../lib/landing'
 import { useClientLimits } from '../../lib/useClientLimits'
+import { useAbout } from '../../lib/useAbout'
+import { PendingSignupsContext } from './signups/pendingSignupsContext'
+import { SignupsNavLink } from './signups/SignupsNavLink'
 import { StepUpProvider } from './StepUpProvider'
 import styles from './SiteLayout.module.css'
 
@@ -95,6 +98,14 @@ export function SiteLayout() {
   // one of three homes and says so. Asked of the account's own limits, as the menu does.
   const { clients: memberships } = useClientLimits()
 
+  // Only where signing up is on (spec 31): with `SIGNUP=off` the entry, its count and its page do not exist.
+  const signupOn = useAbout().features.signup !== 'off'
+  const [stamp, setStamp] = useState(0)
+  const pendingSignups = useMemo(
+    () => ({ stamp, refresh: () => setStamp((current) => current + 1) }),
+    [stamp],
+  )
+
   const clients = pathname === '/admin/site' || pathname.startsWith('/admin/site/clients/')
   const sections: readonly {
     readonly to: string
@@ -117,38 +128,46 @@ export function SiteLayout() {
 
   return (
     <StepUpProvider>
-      <div className={styles['console']}>
-        <header className={styles['header']}>
-          <p className={styles['brand']}>{t.site.consoleTitle}</p>
-          <p className={styles['intro']}>{t.site.consoleIntro}</p>
-          {/* The way out of the console, to the other two homes (H9). Plain links, like the sections. */}
-          <nav aria-label={t.site.exitsLabel} className={styles['exits']}>
-            <Link className={styles['exit']} to="/admin">
-              {t.admin.events}
-            </Link>
-            {memberships.length > 0 ? (
-              <Link className={styles['exit']} to="/admin/client">
-                {t.clientSpace.spaceLink}
+      <PendingSignupsContext.Provider value={pendingSignups}>
+        <div className={styles['console']}>
+          <header className={styles['header']}>
+            <p className={styles['brand']}>{t.site.consoleTitle}</p>
+            <p className={styles['intro']}>{t.site.consoleIntro}</p>
+            {/* The way out of the console, to the other two homes (H9). Plain links, like the sections. */}
+            <nav aria-label={t.site.exitsLabel} className={styles['exits']}>
+              <Link className={styles['exit']} to="/admin">
+                {t.admin.events}
               </Link>
-            ) : null}
-          </nav>
-          <nav aria-label={t.site.navLabel} className={styles['nav']}>
-            {sections.map((section) => (
-              <Link
-                key={section.to}
-                to={section.to}
-                className={styles['navLink']}
-                {...(section.current ? { 'aria-current': 'page' as const } : {})}
-              >
-                {section.label}
-              </Link>
-            ))}
-          </nav>
-        </header>
-        <SecondFactorGate>
-          <Outlet />
-        </SecondFactorGate>
-      </div>
+              {memberships.length > 0 ? (
+                <Link className={styles['exit']} to="/admin/client">
+                  {t.clientSpace.spaceLink}
+                </Link>
+              ) : null}
+            </nav>
+            <nav aria-label={t.site.navLabel} className={styles['nav']}>
+              {sections.map((section) => (
+                <Link
+                  key={section.to}
+                  to={section.to}
+                  className={styles['navLink']}
+                  {...(section.current ? { 'aria-current': 'page' as const } : {})}
+                >
+                  {section.label}
+                </Link>
+              ))}
+              {signupOn ? (
+                <SignupsNavLink
+                  className={styles['navLink'] ?? ''}
+                  current={pathname === '/admin/site/signups'}
+                />
+              ) : null}
+            </nav>
+          </header>
+          <SecondFactorGate>
+            <Outlet />
+          </SecondFactorGate>
+        </div>
+      </PendingSignupsContext.Provider>
     </StepUpProvider>
   )
 }

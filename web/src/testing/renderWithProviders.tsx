@@ -1071,6 +1071,12 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
     delivery: 'mail' as const,
     expiresAt: '2026-06-20T22:00:00.000Z',
   })),
+  siteSignups: vi.fn(async () => ({ items: [], pendingCount: 0 })),
+  siteApproveSignup: vi.fn(async () => ({
+    clientId: CLIENT_ID,
+    invitation: aSiteInvitation(),
+  })),
+  siteRefuseSignup: vi.fn(async () => undefined),
 
   listEvents: vi.fn(async () => ({ items: [] })),
   createEvent: vi.fn(async () => anEventDto()),

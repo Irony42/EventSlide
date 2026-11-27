@@ -81,7 +81,12 @@ export const auditSentence = (entry: SiteAuditEntryDto, t: UiText): string => {
   // `constructor` must not resolve to `Object`.
   const sentences: Readonly<Record<string, string | undefined>> = t.site.actions
   const known = Object.hasOwn(t.site.actions, entry.action) ? sentences[entry.action] : undefined
-  return known ?? t.site.actionOther
+  // The signup requests' own actions (spec 31) live with the page that reads them.
+  const signups: Readonly<Record<string, string | undefined>> = t.siteSignups.actions
+  const signup = Object.hasOwn(t.siteSignups.actions, entry.action)
+    ? signups[entry.action]
+    : undefined
+  return known ?? signup ?? t.site.actionOther
 }
 
 /** The operator's own words for a change of ceilings, or `null` when the line carries none. */
