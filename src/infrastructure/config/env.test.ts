@@ -228,6 +228,7 @@ describe('loadConfig', () => {
         },
         // No relay: the composition root wires `NullMailer` and a caller shows a link to copy.
         mail: { smtp: null },
+        hostMail: { notices: 'on', followUpMaxPerDay: null },
         signup: { mode: 'off', maxPerDay: 50, rateLimitPerHour: 10, notifyEmail: null },
         // A development boot never gets a warning: every case below is production-only.
         warnings: [],
@@ -3978,5 +3979,51 @@ describe('self-service signup (SIGNUP and its three siblings)', () => {
 
   it('asks nothing of a box with SIGNUP=off, whatever else is missing', () => {
     expect(loadConfig({ ...DEV, SIGNUP: 'off', SITE_ADMIN: 'off' }).signup.mode).toBe('off')
+  })
+})
+
+describe('mail to the host (HOST_MAIL_NOTICES and MAIL_FOLLOWUP_MAX_PER_DAY, spec 32)', () => {
+  it('is on, with no ceiling, when nothing is set: a box with a relay writes once updated', () => {
+    expect(loadConfig(DEV).hostMail).toEqual({ notices: 'on', followUpMaxPerDay: null })
+  })
+
+  it('reads a blank value as absent, as compose passes it', () => {
+    const config = loadConfig({ ...DEV, HOST_MAIL_NOTICES: '', MAIL_FOLLOWUP_MAX_PER_DAY: '' })
+
+    expect(config.hostMail).toEqual({ notices: 'on', followUpMaxPerDay: null })
+  })
+
+  it('reads off and a number', () => {
+    expect(
+      loadConfig({ ...DEV, HOST_MAIL_NOTICES: 'off', MAIL_FOLLOWUP_MAX_PER_DAY: ' 150 ' }).hostMail,
+    ).toEqual({ notices: 'off', followUpMaxPerDay: 150 })
+    expect(
+      loadConfig({ ...DEV, MAIL_FOLLOWUP_MAX_PER_DAY: 'off' }).hostMail.followUpMaxPerDay,
+    ).toBeNull()
+    expect(
+      loadConfig({ ...DEV, MAIL_FOLLOWUP_MAX_PER_DAY: '100000' }).hostMail.followUpMaxPerDay,
+    ).toBe(100000)
+  })
+
+  it.each([
+    ['HOST_MAIL_NOTICES', 'true'],
+    ['HOST_MAIL_NOTICES', 'OFF'],
+    ['MAIL_FOLLOWUP_MAX_PER_DAY', '0'],
+    ['MAIL_FOLLOWUP_MAX_PER_DAY', '-5'],
+    ['MAIL_FOLLOWUP_MAX_PER_DAY', '100001'],
+    ['MAIL_FOLLOWUP_MAX_PER_DAY', '12.5'],
+    ['MAIL_FOLLOWUP_MAX_PER_DAY', '1e3'],
+    ['MAIL_FOLLOWUP_MAX_PER_DAY', 'lots'],
+    ['MAIL_FOLLOWUP_MAX_PER_DAY', 'OFF'],
+  ])('refuses %s=%s, naming the variable and not repeating the value', (name, value) => {
+    const issues = refusalIssues({ ...DEV, [name]: value })
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatch(new RegExp(`^${name}: `))
+    expect(issues[0]).not.toContain(`'${value}'`)
+  })
+
+  it('needs no relay to be set: it only matters once there is one', () => {
+    expect(loadConfig({ ...DEV, HOST_MAIL_NOTICES: 'off' }).mail.smtp).toBeNull()
   })
 })

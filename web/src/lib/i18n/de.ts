@@ -2879,6 +2879,7 @@ export const de: UiText = {
       'account.secondFactorDisabled': 'Bestätigung in zwei Schritten ausgeschaltet.',
       'account.recoveryCodesRegenerated': 'Wiederherstellungscodes erneuert.',
       'account.recoveryCodeUsed': 'Ein Wiederherstellungscode wurde verwendet.',
+      'account.mailPreferencesChanged': 'E-Mail-Auswahl geändert.',
     },
     actionInvitationIssuedPending:
       'Einladung ausgestellt; sie wartet auf die Zustimmung eines Inhabers.',

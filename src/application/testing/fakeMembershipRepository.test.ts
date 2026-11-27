@@ -5,6 +5,7 @@ import {
   membershipRepositoryContract,
 } from './contracts/membershipRepositoryContract'
 import { AT, aUser } from './builders'
+import { FakeMailPreferenceRepository } from './fakeMailPreferenceRepository'
 import { FakeMembershipRepository } from './fakeMembershipRepository'
 import { FakeUserRepository } from './fakeUserRepository'
 
@@ -90,5 +91,52 @@ describe('FakeMembershipRepository user identity', () => {
     const members = await repo.listForEvent(WEDDING)
 
     expect(members.map((member) => member.displayName)).toEqual([null])
+  })
+})
+
+describe('FakeMembershipRepository.ownersToNotify', () => {
+  it('reads the linked preferences and digest state of each owner, and the account address', async () => {
+    const users = new FakeUserRepository().seed(aUser({ id: HOST, email: 'hote@example.test' }))
+    const preferences = new FakeMailPreferenceRepository()
+      .withUsers(HOST)
+      .withMembers({ eventId: WEDDING, userId: HOST })
+    await preferences.save(HOST, { rsvp: false, event: true })
+    await preferences.setDigest(WEDDING, HOST, true)
+    await preferences.claimDigest(WEDDING, HOST, null, AT)
+    const repo = new FakeMembershipRepository({ users, mailPreferences: preferences }).seed({
+      eventId: WEDDING,
+      userId: HOST,
+      role: 'owner',
+      grantedAt: AT,
+    })
+
+    expect(await repo.ownersToNotify(WEDDING)).toEqual([
+      {
+        userId: HOST,
+        email: 'hote@example.test',
+        mail: { rsvp: false, event: true },
+        rsvpDigest: true,
+        rsvpDigestAt: AT,
+      },
+    ])
+  })
+
+  it('has the defaults and a placeholder address when nothing is linked', async () => {
+    const repo = new FakeMembershipRepository().seed({
+      eventId: WEDDING,
+      userId: HOST,
+      role: 'owner',
+      grantedAt: AT,
+    })
+
+    expect(await repo.ownersToNotify(WEDDING)).toEqual([
+      {
+        userId: HOST,
+        email: 'user-host@unlinked.invalid',
+        mail: { rsvp: true, event: true },
+        rsvpDigest: false,
+        rsvpDigestAt: null,
+      },
+    ])
   })
 })

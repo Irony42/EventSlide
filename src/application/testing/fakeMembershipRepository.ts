@@ -4,8 +4,11 @@ import type {
   Membership,
   MembershipRepository,
   MembershipWithUser,
+  NoticeOwner,
   UserRepository,
 } from '../ports/userRepository'
+import type { MailPreferenceRepository } from '../ports/mailPreferenceRepository'
+import { DEFAULT_MAIL_PREFERENCES } from '../../domain/notices/mailPreferences'
 import { compareIds } from './ordering'
 
 /**
@@ -33,6 +36,8 @@ const key = (eventId: EventId, userId: UserId): string => `${eventId}:${userId}`
  */
 export interface FakeMembershipRepositoryLinks {
   readonly users?: UserRepository
+  /** The switches and digest state `ownersToNotify` reads; without it every owner has the defaults. */
+  readonly mailPreferences?: MailPreferenceRepository
 }
 
 /**
@@ -90,6 +95,34 @@ export class FakeMembershipRepository implements MembershipRepository {
       )
 
     return Promise.all(members.map((membership) => this.withUser(membership)))
+  }
+
+  /**
+   * The owners whose account is active (a disabled one is not written to), with the linked preferences.
+   * An owner with no linked account reports the placeholder address, as `listForEvent` does.
+   */
+  async ownersToNotify(eventId: EventId): Promise<readonly NoticeOwner[]> {
+    const owners = [...this.rows.values()]
+      .filter((membership) => membership.eventId === eventId && membership.role === 'owner')
+      .sort(
+        (left, right) =>
+          left.grantedAt.getTime() - right.grantedAt.getTime() ||
+          compareIds(left.userId, right.userId),
+      )
+    const notice: NoticeOwner[] = []
+    for (const owner of owners) {
+      const user = (await this.links.users?.findById(owner.userId)) ?? null
+      if (user?.isDisabled() === true) continue
+      const digest = await this.links.mailPreferences?.digestFor(eventId, owner.userId)
+      notice.push({
+        userId: owner.userId,
+        email: user === null ? placeholderEmail(owner.userId) : user.email.value,
+        mail: (await this.links.mailPreferences?.forUser(owner.userId)) ?? DEFAULT_MAIL_PREFERENCES,
+        rsvpDigest: digest?.on ?? false,
+        rsvpDigestAt: digest?.lastAt ?? null,
+      })
+    }
+    return notice
   }
 
   private async withUser(membership: Membership): Promise<MembershipWithUser> {

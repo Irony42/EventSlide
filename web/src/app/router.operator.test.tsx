@@ -223,7 +223,9 @@ describe('the pages a link opens', () => {
   it('serves the forgotten-password form with no session, on a box that can send mail', async () => {
     const api = fakeApi({
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin: false, forgotPassword: true, signup: 'off' } }),
+        anAbout({
+          features: { siteAdmin: false, forgotPassword: true, hostMail: false, signup: 'off' },
+        }),
       ),
     })
     renderWithProviders(<AppRoutes />, { api, route: '/password/forgot' })
@@ -235,7 +237,9 @@ describe('the pages a link opens', () => {
   it('says a box with no mail relay cannot reset a password, on the same address', async () => {
     const api = fakeApi({
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin: false, forgotPassword: false, signup: 'off' } }),
+        anAbout({
+          features: { siteAdmin: false, forgotPassword: false, hostMail: false, signup: 'off' },
+        }),
       ),
     })
     renderWithProviders(<AppRoutes />, { api, route: '/password/forgot' })

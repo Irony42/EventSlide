@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { isCalendarDay, localDayOf, startOfLocalDay, startOfNextLocalDay } from './localDay'
+import {
+  addLocalDays,
+  isCalendarDay,
+  localDayOf,
+  localHourOf,
+  startOfLocalDay,
+  startOfNextLocalDay,
+} from './localDay'
 
 describe('isCalendarDay', () => {
   it('accepts a real day and refuses what is not one', () => {
@@ -109,5 +116,21 @@ describe('startOfNextLocalDay', () => {
     expect(startOfNextLocalDay('2026-10-25', 'Europe/Paris').toISOString()).toBe(
       '2026-10-25T23:00:00.000Z',
     )
+  })
+})
+
+describe('localHourOf', () => {
+  it('reads the wall clock of the zone, daylight saving included', () => {
+    expect(localHourOf(new Date('2026-12-13T07:59:00.000Z'), 'Europe/Paris')).toBe(8)
+    expect(localHourOf(new Date('2026-07-13T07:59:00.000Z'), 'Europe/Paris')).toBe(9)
+    expect(localHourOf(new Date('2026-12-13T23:30:00.000Z'), 'Europe/Paris')).toBe(0)
+  })
+})
+
+describe('addLocalDays', () => {
+  it('moves a day forward and back across a month and a year', () => {
+    expect(addLocalDays('2026-12-30', 3)).toBe('2027-01-02')
+    expect(addLocalDays('2027-03-01', -3)).toBe('2027-02-26')
+    expect(addLocalDays('2028-03-01', -1)).toBe('2028-02-29')
   })
 })

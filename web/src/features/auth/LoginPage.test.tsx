@@ -251,7 +251,9 @@ describe("LoginPage: 'Mot de passe oublié ?'", () => {
   const canMail = (canMail: boolean) =>
     fakeApi({
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin: false, forgotPassword: canMail, signup: 'off' } }),
+        anAbout({
+          features: { siteAdmin: false, forgotPassword: canMail, hostMail: false, signup: 'off' },
+        }),
       ),
     })
 
@@ -358,7 +360,9 @@ describe('LoginPage: where the host lands', () => {
 
   const aboutWithConsole = () =>
     vi.fn(async () =>
-      anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+      anAbout({
+        features: { siteAdmin: true, forgotPassword: false, hostMail: false, signup: 'off' },
+      }),
     )
 
   const original = window.matchMedia
@@ -539,7 +543,7 @@ describe('LoginPage: the small ways out (H16)', () => {
   const mailAbout = (forgotPassword: boolean) =>
     fakeApi({
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin: false, forgotPassword, signup: 'off' } }),
+        anAbout({ features: { siteAdmin: false, forgotPassword, hostMail: false, signup: 'off' } }),
       ),
     })
 
@@ -658,7 +662,9 @@ describe('LoginPage: the landing of a session that is still good (H13), on the d
       fakeApi({
         session: operator(),
         about: vi.fn(async () =>
-          anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+          anAbout({
+            features: { siteAdmin: true, forgotPassword: false, hostMail: false, signup: 'off' },
+          }),
         ),
       }),
     )
@@ -721,7 +727,7 @@ describe('LoginPage: « Pas encore de compte ? Créer un compte »', () => {
   const withSignup = (signup: 'off' | 'review' | 'open') =>
     fakeApi({
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin: false, forgotPassword: false, signup } }),
+        anAbout({ features: { siteAdmin: false, forgotPassword: false, hostMail: false, signup } }),
       ),
     })
 

@@ -55,6 +55,8 @@ import {
   operatorResetLinks,
   requireOperator2fa,
   siteAdmin,
+  hostMailNotices,
+  mailFollowUpMaxPerDay,
   signupMode,
   signupNotifyEmail,
   smtpUrl,
@@ -609,6 +611,11 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       SIGNUP_RATE_LIMIT_PER_HOUR: z.preprocess(blankAsAbsent, positiveInt(10, 1_000)),
       /** See {@link signupNotifyEmail}. */
       SIGNUP_NOTIFY_EMAIL: signupNotifyEmail,
+
+      /** See {@link hostMailNotices}. `on` unless the box says otherwise (spec 32). */
+      HOST_MAIL_NOTICES: hostMailNotices,
+      /** See {@link mailFollowUpMaxPerDay}. `off` (no ceiling) unless the box says otherwise. */
+      MAIL_FOLLOWUP_MAX_PER_DAY: mailFollowUpMaxPerDay,
 
       /** See {@link sourceCodeUrl}. Absent means the tag of the running version upstream. */
       SOURCE_CODE_URL: sourceCodeUrl,

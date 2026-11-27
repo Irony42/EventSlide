@@ -86,6 +86,7 @@ const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
     sweepPurgeNotices: async () => nobodyWarned,
     purgeExpiredRsvps: async () => ({ deleted: 0 }),
     sweepSignups: async () => nothingSignups,
+    pruneMailBudget: async () => ({ erased: 0 }),
     logger,
     clock,
     intervalMs: INTERVAL_MS,
@@ -736,6 +737,10 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
         order.push('signups')
         return nothingSignups
       },
+      pruneMailBudget: async () => {
+        order.push('mailCounts')
+        return { erased: 0 }
+      },
       finalizeOffboardedClients: async () => {
         order.push('finalize')
         return nothingFinalized
@@ -753,7 +758,7 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
 
     await followUp()
 
-    expect(order).toEqual(['rsvps', 'signups', 'warn', 'finalize', 'prune'])
+    expect(order).toEqual(['rsvps', 'signups', 'mailCounts', 'warn', 'finalize', 'prune'])
   })
 
   it('still prunes when finalising throws, and never rejects', async () => {
@@ -762,6 +767,7 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
     const followUp = makeRetentionFollowUp({
       purgeExpiredRsvps: async () => ({ deleted: 0 }),
       sweepSignups: async () => nothingSignups,
+      pruneMailBudget: async () => ({ erased: 0 }),
       finalizeOffboardedClients: async () => {
         throw new Error('database is locked')
       },
@@ -779,6 +785,66 @@ describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run p
     expect(at(logger.lines, 'error').map((line) => line.message)).toEqual([
       'offboarded clients could not be finalised',
     ])
+  })
+})
+
+describe('the mail counts ride the follow-up (spec 32)', () => {
+  it('says how many days of counts were erased', async () => {
+    const { sweeper, lines } = build({ pruneMailBudget: async () => ({ erased: 3 }) })
+
+    await sweeper.runOnce()
+
+    const line = lines.find((entry) => entry.message === 'retention sweep erased old mail counts')
+    expect(line?.level).toBe('info')
+    expect(line?.context).toMatchObject({ days: 3 })
+  })
+
+  it('stays silent when nothing was old enough', async () => {
+    const { sweeper, lines } = build()
+
+    await sweeper.runOnce()
+
+    expect(lines.map((entry) => entry.message)).not.toContain(
+      'retention sweep erased old mail counts',
+    )
+  })
+
+  it('logs an error, and still warns, finalises and prunes, when the step throws', async () => {
+    const order: string[] = []
+    const { sweeper, lines } = build({
+      pruneMailBudget: async () => {
+        throw new Error('database is locked')
+      },
+      sweepPurgeNotices: async () => {
+        order.push('warn')
+        return nobodyWarned
+      },
+      pruneAuditLog: async () => {
+        order.push('prune')
+        return nothingPruned
+      },
+    })
+
+    await sweeper.runOnce()
+
+    expect(order).toEqual(['warn', 'prune'])
+    expect(at(lines, 'error').map((entry) => entry.message)).toContain(
+      'mail counts could not be pruned',
+    )
+  })
+
+  it('logs a failure that is not an Error as text', async () => {
+    const { sweeper, lines } = build({
+      pruneMailBudget: async () => {
+        throw 'plain'
+      },
+    })
+
+    await sweeper.runOnce()
+
+    expect(
+      lines.find((entry) => entry.message === 'mail counts could not be pruned')?.context,
+    ).toEqual({ error: 'plain' })
   })
 })
 

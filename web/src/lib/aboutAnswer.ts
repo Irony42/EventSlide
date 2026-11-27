@@ -18,7 +18,7 @@ export const BUILD_ABOUT: About = {
   links: {},
   // Off until the server says otherwise: the strict reading, and the one that offers no
   // operator surface to a box that never asked for one.
-  features: { siteAdmin: false, forgotPassword: false, signup: 'off' },
+  features: { siteAdmin: false, forgotPassword: false, signup: 'off', hostMail: false },
 }
 
 /**
@@ -195,6 +195,8 @@ export const laidOver = (answer: unknown): About => {
       forgotPassword: flag('forgotPassword') === true,
       // Absent from a server that predates spec 31: that is `off`, like any unknown word.
       signup: signupMode(flag('signup')),
+      // Absent from a server that predates spec 32: no mail to offer a switch for.
+      hostMail: flag('hostMail') === true,
     },
   }
 }

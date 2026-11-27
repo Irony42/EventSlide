@@ -15,7 +15,10 @@ import type { AboutLinks, SignupMode } from '../../../lib/api/dto'
 const withMode = (api: Api, signup: SignupMode, links: AboutLinks): Api => ({
   ...api,
   about: vi.fn(async () =>
-    anAbout({ features: { siteAdmin: false, forgotPassword: false, signup }, links }),
+    anAbout({
+      features: { siteAdmin: false, forgotPassword: false, hostMail: false, signup },
+      links,
+    }),
   ),
 })
 

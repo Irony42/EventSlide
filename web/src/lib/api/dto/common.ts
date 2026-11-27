@@ -162,6 +162,12 @@ export interface AboutFeatures {
    * not say, which is the one that must not offer a link to a page that cannot work.
    */
   readonly signup: SignupMode
+  /**
+   * The box writes the follow-up mails to its hosts (spec 32): it can deliver mail and the operator did
+   * not switch them off. The account's "E-mails" switches and an event's daily summary are offered only
+   * when this is `true`. Read as `false` for a server that does not say.
+   */
+  readonly hostMail: boolean
 }
 /** The three values of `SIGNUP`, as `GET /api/about` words them. */
 export type SignupMode = 'off' | 'review' | 'open'

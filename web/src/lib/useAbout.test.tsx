@@ -32,7 +32,9 @@ describe('useAbout: features.forgotPassword', () => {
 
   it('is on when the server says it can send mail', async () => {
     const { result } = aboutAnswering(
-      anAbout({ features: { siteAdmin: false, forgotPassword: true, signup: 'off' } }),
+      anAbout({
+        features: { siteAdmin: false, forgotPassword: true, hostMail: false, signup: 'off' },
+      }),
     )
 
     await waitFor(() => expect(result.current.features.forgotPassword).toBe(true))
@@ -43,7 +45,7 @@ describe('useAbout: features.forgotPassword', () => {
     ['no features at all', {}],
     ['a string', { features: { forgotPassword: 'true' } }],
     ['a number', { features: { forgotPassword: 1 } }],
-    ['null', { features: { forgotPassword: null, signup: 'off' } }],
+    ['null', { features: { forgotPassword: null, hostMail: false, signup: 'off' } }],
     ['features that are not an object', { features: 'on' }],
   ])('stays off for %s', async (_name, answer) => {
     const { result } = aboutAnswering({ ...anAbout(), ...answer })
@@ -55,7 +57,9 @@ describe('useAbout: features.forgotPassword', () => {
 
   it('does not let one flag carry the other', async () => {
     const { result } = aboutAnswering(
-      anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+      anAbout({
+        features: { siteAdmin: true, forgotPassword: false, hostMail: false, signup: 'off' },
+      }),
     )
 
     await waitFor(() => expect(result.current.features.siteAdmin).toBe(true))
@@ -122,6 +126,7 @@ describe('AboutProvider', () => {
       siteAdmin: false,
       forgotPassword: false,
       signup: 'off',
+      hostMail: false,
     })
     expect(result.current.links).toEqual({})
   })
@@ -132,7 +137,9 @@ describe('the signup flag', () => {
     'is read as %s when the server says exactly that',
     async (mode) => {
       const { result } = aboutAnswering(
-        anAbout({ features: { siteAdmin: false, forgotPassword: false, signup: mode } }),
+        anAbout({
+          features: { siteAdmin: false, forgotPassword: false, hostMail: false, signup: mode },
+        }),
       )
 
       await waitFor(() => expect(result.current.features.signup).toBe(mode))
@@ -141,12 +148,38 @@ describe('the signup flag', () => {
 
   it.each([
     ['absent (a server older than spec 31)', { siteAdmin: false, forgotPassword: true }],
-    ['an unknown word', { siteAdmin: false, forgotPassword: true, signup: 'maybe' }],
-    ['a boolean', { siteAdmin: false, forgotPassword: true, signup: true }],
+    [
+      'an unknown word',
+      { siteAdmin: false, forgotPassword: true, hostMail: false, signup: 'maybe' },
+    ],
+    ['a boolean', { siteAdmin: false, forgotPassword: true, hostMail: false, signup: true }],
   ])('is off when it is %s', async (_name, features) => {
     const { result } = aboutAnswering({ ...anAbout(), features } as unknown as About)
 
     await waitFor(() => expect(result.current.features.forgotPassword).toBe(true))
     expect(result.current.features.signup).toBe('off')
+  })
+})
+
+describe('the hostMail flag (spec 32)', () => {
+  it('is on when the server says exactly true', async () => {
+    const { result } = aboutAnswering(
+      anAbout({
+        features: { siteAdmin: false, forgotPassword: true, hostMail: true, signup: 'off' },
+      }),
+    )
+
+    await waitFor(() => expect(result.current.features.hostMail).toBe(true))
+  })
+
+  it.each([
+    ['absent (a server older than spec 32)', { siteAdmin: false, forgotPassword: true }],
+    ['a string', { siteAdmin: false, forgotPassword: true, hostMail: 'true' }],
+    ['a number', { siteAdmin: false, forgotPassword: true, hostMail: 1 }],
+  ])('is off when it is %s', async (_name, features) => {
+    const { result } = aboutAnswering({ ...anAbout(), features } as unknown as About)
+
+    await waitFor(() => expect(result.current.features.forgotPassword).toBe(true))
+    expect(result.current.features.hostMail).toBe(false)
   })
 })

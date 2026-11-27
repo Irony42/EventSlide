@@ -157,6 +157,10 @@ import type {
   UnsubscribePushEverywhere,
 } from '../../application/usecases/push/pushSubscriptions'
 import type { PostAbsentNote } from '../../application/usecases/guestRsvps/postAbsentNote'
+import type {
+  GetMailPreferences,
+  SetMailPreferences,
+} from '../../application/usecases/notices/mailPreferences'
 import type { MarkRsvpsSeen } from '../../application/usecases/guestRsvps/markRsvpsSeen'
 import type { ListHouseholds } from '../../application/usecases/guestRsvps/listHouseholds'
 import type { SaveHousehold } from '../../application/usecases/guestRsvps/saveHousehold'
@@ -404,6 +408,8 @@ export interface HttpUseCases {
   readonly subscribePush: SubscribePush
   readonly unsubscribePush: UnsubscribePush
   readonly unsubscribePushEverywhere: UnsubscribePushEverywhere
+  readonly getMailPreferences: GetMailPreferences
+  readonly setMailPreferences: SetMailPreferences
   readonly markRsvpsSeen: MarkRsvpsSeen
   readonly countUnseenRsvps: CountUnseenRsvps
   readonly listHouseholds: ListHouseholds

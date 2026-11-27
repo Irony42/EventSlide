@@ -2824,6 +2824,7 @@ export const it: UiText = {
       'account.secondFactorDisabled': 'Verifica in due passaggi disattivata.',
       'account.recoveryCodesRegenerated': 'Codici di recupero rinnovati.',
       'account.recoveryCodeUsed': 'È stato usato un codice di recupero.',
+      'account.mailPreferencesChanged': 'Scelta delle e-mail modificata.',
     },
     actionInvitationIssuedPending: 'Invito emesso; attende il consenso di un proprietario.',
     actionOther: 'È stata registrata un’azione.',

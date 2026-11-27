@@ -385,6 +385,11 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       notifyEmail: raw.SIGNUP_NOTIFY_EMAIL ?? null,
     },
 
+    hostMail: {
+      notices: raw.HOST_MAIL_NOTICES,
+      followUpMaxPerDay: raw.MAIL_FOLLOWUP_MAX_PER_DAY,
+    },
+
     mail: {
       // Both halves or none: the refinement above refuses a relay with no sender, and a
       // sender with no relay has nothing to send through, so it is dropped — and warned about.

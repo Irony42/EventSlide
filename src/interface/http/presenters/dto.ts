@@ -1433,6 +1433,18 @@ export interface GalleryPageDto {
 }
 
 /**
+ * `GET /api/me/mail-preferences` (spec 32): the account's two switches and whether they mean anything on
+ * this box (`available`: the mailer delivers and `HOST_MAIL_NOTICES` is not `off`).
+ */
+export interface MailPreferencesDto {
+  /** The guests' replies (the calendar notices and the daily summary the owner ticks per event). */
+  readonly rsvp: boolean
+  /** The life of the account's events (an archive, a book or a film ready, the party over, the wall closing). */
+  readonly event: boolean
+  readonly available: boolean
+}
+
+/**
  * What a box can and cannot do, as the SPA reads it without probing for it.
  *
  * Additive on purpose: the instance-information endpoint grows one flag per capability
@@ -1460,6 +1472,12 @@ export interface AboutFeaturesDto {
    * sign-in page offers "Create an account" unless it is `off`. Always present.
    */
   readonly signup: SignupMode
+  /**
+   * The box writes the follow-up mails to its hosts (spec 32, ADR 0019): it can deliver mail
+   * (`SMTP_URL` and `MAIL_FROM`) **and** `HOST_MAIL_NOTICES` is not `off`. The account page offers its two
+   * "E-mails" switches, and an event's page the daily summary, only when this is `true`. Always present.
+   */
+  readonly hostMail: boolean
 }
 
 /**

@@ -37,7 +37,9 @@ const asHost = (route: string, locale: 'fr' | 'de' = 'fr', operator = false) => 
       user: aSessionUser({ canOperateSite: operator }),
     })),
     about: vi.fn(async () =>
-      anAbout({ features: { siteAdmin: true, forgotPassword: true, signup: 'review' } }),
+      anAbout({
+        features: { siteAdmin: true, forgotPassword: true, hostMail: false, signup: 'review' },
+      }),
     ),
   })
   return renderWithProviders(<AppRoutes />, { api, route, locale })

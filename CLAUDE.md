@@ -133,6 +133,7 @@ src/
     site/          What the operator may see of the box: the closed field vocabulary and the rows of the content-free overview (roadmap §10.4; served by `/api/site`, G2-14)
     channels/      Messaging channels (spec 27, ADR 0015): the generic core a Telegram group (and later WhatsApp) feeds: the normalised inbound message and `parseCommand`, the conversation-to-event binding and its decision, a sender as a guest, the admission of a media, and the bot's replies in five languages
     signups/       Self-service signup (spec 31, ADR 0018): a request's states and transitions (`approving` is the claim), what the form does with an address (`create` / `resend` / `silent`, never depending on whether an account exists), how long a request is kept (60 days at most), and the mode `off` / `review` / `open`
+    notices/       Host e-mail notices (spec 32, ADR 0019): the kinds and families a notice belongs to, how long each stays worth sending (`isFresh`: past it a notice is noted without being sent), quiet hours, the rules of the replies' calendar (the warning before the erasure, the daily digest, the deadline, the stop, the full house), of a long job and of the event's life, and `RsvpFigures`, the projection of the replies that carries no guest's text
   application/
     ports/         Interfaces. One file per port. No implementations.
     usecases/      One file, one exported factory, one responsibility.

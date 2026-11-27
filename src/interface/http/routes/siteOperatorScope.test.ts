@@ -218,6 +218,11 @@ const NOT_EVENT_SCOPED: Readonly<Record<string, string>> = {
   'delete /api/push-subscriptions':
     'the caller’s own browser, forgotten for every event at a sign-out (spec 30, lot 4): it reads the session’s ' +
     'account and names no event, so the site role changes nothing about it',
+  'get /api/me/mail-preferences':
+    'the caller’s own e-mail switches (spec 32): it reads the session’s account and takes no id, so there is nothing to ' +
+    'name another account with, and the site role changes nothing about it',
+  'put /api/me/mail-preferences':
+    'the caller’s own e-mail switches (spec 32), written for the session’s account only; it names no event',
   'get /api/events':
     'the caller’s **own** dashboard: the membership table answers it, so an ' +
     'operator with no membership is shown nothing, which `tenant-isolation.spec.ts` asserts',
@@ -487,6 +492,7 @@ const send = (
 const BODIES: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   'post /api/events': { name: 'Soirée' },
   'delete /api/push-subscriptions': { endpoint: 'https://fcm.googleapis.com/fcm/send/x' },
+  'put /api/me/mail-preferences': { rsvp: false },
   'post /api/join': { joinCode: 'H7K2QM' },
   'post /api/gallery/:token/unlock': { password: 'x' },
   'post /api/i/:token/rsvp': { name: 'Léa', answer: 'yes' },

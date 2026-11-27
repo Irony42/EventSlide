@@ -33,6 +33,9 @@ import { SqliteAccountTokenRepository } from '../infrastructure/db/sqliteAccount
 import { SqliteSecondFactorRepository } from '../infrastructure/db/sqliteSecondFactorRepository'
 import { sha256StreamHasher } from '../infrastructure/crypto/sha256StreamHasher'
 import { SqlitePurgeNoticeLedger } from '../infrastructure/db/sqlitePurgeNoticeLedger'
+import { SqliteEventMailNoticeLedger } from '../infrastructure/db/sqliteEventMailNoticeLedger'
+import { SqliteMailBudget } from '../infrastructure/db/sqliteMailBudget'
+import { SqliteMailPreferenceRepository } from '../infrastructure/db/sqliteMailPreferenceRepository'
 import { SqliteTourLedger } from '../infrastructure/db/sqliteTourLedger'
 import { createAesGcmMfaVault } from '../infrastructure/crypto/aesGcmMfaVault'
 import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
@@ -580,6 +583,9 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     secondFactors: new SqliteSecondFactorRepository(db),
     tours: new SqliteTourLedger(db),
     purgeNotices: new SqlitePurgeNoticeLedger(db),
+    eventMailNotices: new SqliteEventMailNoticeLedger(db),
+    mailBudget: new SqliteMailBudget(db, config.hostMail.followUpMaxPerDay),
+    mailPreferences: new SqliteMailPreferenceRepository(db),
     streamHasher: sha256StreamHasher,
     totpEngine: nodeTotpEngine,
     // Chosen once, from configuration: no key, no vault, and the enrolment routes answer
@@ -612,6 +618,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
         ? null
         : { publicKey: config.push.publicKey, allowedHosts: config.push.allowedHosts },
     operatorResetLinks: config.operatorResetLinks,
+    hostMailNotices: config.hostMail.notices === 'on',
     defaultEventQuotaBytes: config.uploads.defaultEventQuotaBytes,
     maxEventQuotaBytes: config.uploads.maxEventQuotaBytes,
     maxImagePixels: config.uploads.maxPixels,
@@ -696,6 +703,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
           sweepPurgeNotices: usecases.sweepPurgeNotices,
           purgeExpiredRsvps: usecases.purgeExpiredRsvps,
           sweepSignups: usecases.sweepSignups,
+          pruneMailBudget: usecases.pruneMailBudget,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,
@@ -986,6 +994,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     e2eHooks: config.e2eHooks,
     siteAdmin: config.siteAdmin,
     signup: { mode: config.signup.mode, rateLimitPerHour: config.signup.rateLimitPerHour },
+    hostMailNotices: config.hostMail.notices === 'on',
     newClientCeilings: config.newClientCeilings,
     secondFactor: {
       available: config.mfa.encryptionKey !== null,

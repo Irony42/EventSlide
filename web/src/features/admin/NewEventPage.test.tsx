@@ -228,7 +228,9 @@ describe('NewEventPage: a client’s limits', () => {
   const onBox = (clients: ReturnType<typeof aClientLimits>[]) =>
     fakeApi({
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+        anAbout({
+          features: { siteAdmin: true, forgotPassword: false, hostMail: false, signup: 'off' },
+        }),
       ),
       myLimits: vi.fn(async () => ({ clients })),
     })

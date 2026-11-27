@@ -72,6 +72,8 @@ import { SqliteGuestRsvpRepository } from '../src/infrastructure/db/sqliteGuestR
 import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
 import { makeNotifySignupOperator } from '../src/application/usecases/signups/notifySignupOperator'
 import { makeSweepSignups } from '../src/application/usecases/signups/sweepSignups'
+import { makePruneMailBudget } from '../src/application/usecases/notices/pruneMailBudget'
+import { SqliteMailBudget } from '../src/infrastructure/db/sqliteMailBudget'
 import { SqliteSignupRepository } from '../src/infrastructure/db/sqliteSignupRepository'
 import { EmailAddress } from '../src/domain/users/emailAddress'
 
@@ -223,6 +225,11 @@ const execute = async (
           }),
           clock: systemClock,
           logger: followUpLogger,
+        }),
+        // The daily mail counts older than a week (spec 32): the same use case as the timer's.
+        pruneMailBudget: makePruneMailBudget({
+          budget: new SqliteMailBudget(db, config.hostMail.followUpMaxPerDay),
+          clock: systemClock,
         }),
         pruneAuditLog: makePruneAuditLog({
           audit: new SqliteAuditLog(db),

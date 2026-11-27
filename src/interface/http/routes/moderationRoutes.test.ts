@@ -234,6 +234,8 @@ const usecasesFor = (
     subscribePush: notWired,
     unsubscribePush: notWired,
     unsubscribePushEverywhere: notWired,
+    getMailPreferences: notWired,
+    setMailPreferences: notWired,
     markRsvpsSeen: notWired,
     listHouseholds: notWired,
     saveHousehold: notWired,

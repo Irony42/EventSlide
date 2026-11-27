@@ -82,7 +82,9 @@ describe('what is asked once', () => {
     const api = fakeApi({
       session: vi.fn(async () => host()),
       about: vi.fn(async () =>
-        anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+        anAbout({
+          features: { siteAdmin: true, forgotPassword: false, hostMail: false, signup: 'off' },
+        }),
       ),
     })
 

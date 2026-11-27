@@ -986,7 +986,12 @@ when the session store is unusable.
   "license": "AGPL-3.0-only",
   "sourceUrl": "https://github.com/Irony42/EventSlide/tree/v3.18.0",
   "links": {},
-  "features": { "siteAdmin": false, "forgotPassword": false, "signup": "off" }
+  "features": {
+    "siteAdmin": false,
+    "forgotPassword": false,
+    "signup": "off",
+    "hostMail": false
+  }
 }
 ```
 
@@ -1031,6 +1036,7 @@ for example (the other fields are as above):
 | `features.siteAdmin` | `true` when `SITE_ADMIN=on`, that is, when the operator's namespace `/api/site` is mounted (see above). Derived from the same setting as the mount, so it cannot disagree with it.                                                                                                                                                                                                                                                                                                                             |
 
 | `features.signup` | `SIGNUP` (spec 31): `off` (the default), `review` or `open`. The sign-in page offers "Create an account" unless it is `off`; while it is `off` the three signup routes answer `404 feature.unavailable`. Always present; a client that cannot read it treats it as `off`. |
+| `features.hostMail` | `true` when the box writes the follow-up mails to its hosts (spec 32): its mailer can deliver (`SMTP_URL` and `MAIL_FROM`) **and** `HOST_MAIL_NOTICES` is not `off`. The account's "E-mails" switches are offered only then. Always present; a client that cannot read it treats it as `false`. |
 | `features.forgotPassword` | `true` when the box can mail (`SMTP_URL` is set), that is, when `POST /api/auth/password-reset/request` is not `404 feature.unavailable`. Derived from the mailer's own `canDeliver`, so it cannot disagree with the route. A client that cannot read it treats it as `false`. |
 
 `features` is **additive**: a client ignores a flag it does not know, and later items add
@@ -5307,6 +5313,33 @@ exactly this and compute nothing.
 ```
 GET /api/me/limits?clientId=… → 400 request.invalid   (no parameter exists to name another client with)
 ```
+
+### `GET /api/me/mail-preferences`
+
+What the signed-in account chose to receive by mail about its events (spec 32, ADR 0019). **On every box**, with or
+without `SITE_ADMIN` (a self-hoster's account has the same two switches).
+
+- **Auth:** a signed-in, enabled account (`401 auth.required` otherwise). **The account is the session's**: the route
+  takes no parameter that could name another one.
+- **Response:** `200`, `Cache-Control: no-store`.
+
+```json
+{ "rsvp": true, "event": true, "available": true }
+```
+
+`rsvp` is the family of the guests' replies (the calendar notices, and the daily summary an owner ticks event by
+event), `event` the family of the life of the account's events. **Both are `true` for an account that never touched
+them.** `available` is `true` when the box can deliver mail **and** `HOST_MAIL_NOTICES` is not `off` (the same fact
+as `features.hostMail` of `GET /api/about`): the page offers the switches only then, and they can still be set
+when it is `false`. The security mails of the account and the warning before the guests' replies are erased have no
+switch and are not here.
+
+### `PUT /api/me/mail-preferences`
+
+`{ "rsvp"?: boolean, "event"?: boolean }` → `204`, `Cache-Control: no-store`. A switch left out stays as it was; a key
+other than these two, or a value that is not a boolean, is `400 request.invalid`. A change that changes nothing writes
+nothing; one that does is audited as `account.mailPreferencesChanged` (the account only: not which switch). CSRF-gated like
+every write; `401 auth.required` without a session.
 
 ### `GET /api/client/audit`
 

@@ -44,6 +44,9 @@ import type { SignInAttempts } from '../application/ports/signInAttempts'
 import type { SecondFactorRepository } from '../application/ports/secondFactorRepository'
 import type { StreamHasher } from '../application/ports/streamHasher'
 import type { PurgeNoticeLedger } from '../application/ports/purgeNoticeLedger'
+import type { EventMailNoticeLedger } from '../application/ports/eventMailNoticeLedger'
+import type { MailBudget } from '../application/ports/mailBudget'
+import type { MailPreferenceRepository } from '../application/ports/mailPreferenceRepository'
 import type { TourLedger } from '../application/ports/tourLedger'
 import type { TotpEngine } from '../application/ports/totpEngine'
 import type { InvitationAcceptance } from '../application/ports/invitationAcceptance'
@@ -74,6 +77,7 @@ import { wallUseCases } from './usecases.wall'
 import { galleryUseCases } from './usecases.gallery'
 import { clientsUseCases } from './usecases.clients'
 import type { DiskSpaceChecker } from '../application/ports/diskSpace'
+import { noticeUseCases } from './usecases.notices'
 import { signupUseCases } from './usecases.signups'
 import { buildSharedHooks } from './usecases.shared'
 /**
@@ -165,6 +169,12 @@ export interface Adapters {
   readonly streamHasher: StreamHasher
   /** Which deletion warning an event's owners were last sent (spec 22). */
   readonly purgeNotices: PurgeNoticeLedger
+  /** Which notices were already served for an event (spec 32). */
+  readonly eventMailNotices: EventMailNoticeLedger
+  /** How many mails the box sent today, against `MAIL_FOLLOWUP_MAX_PER_DAY` (spec 32). */
+  readonly mailBudget: MailBudget
+  /** What each account chose to receive by mail, and an owner's digest state (spec 32). */
+  readonly mailPreferences: MailPreferenceRepository
   /** RFC 6238's one primitive. */
   readonly totpEngine: TotpEngine
   /** Encryption of a secret at rest; `null` on a box with no `MFA_ENCRYPTION_KEY`. */
@@ -207,6 +217,8 @@ export interface UseCasePolicy {
   }
   /** What an authenticator app shows above the digits: the box's operator, or the product. */
   readonly mfaIssuer: string
+  /** `HOST_MAIL_NOTICES` is not `off` (spec 32): half of what `available` in an account's mail page says. */
+  readonly hostMailNotices: boolean
   /** Self-service signup (spec 31): `SIGNUP*` and what the disk guard of mode `open` reads. */
   readonly signup: {
     readonly mode: SignupMode
@@ -328,6 +340,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     ...galleryUseCases(adapters, hooks),
     ...clientsUseCases(adapters, policy, hooks),
     ...signupUseCases(adapters, policy, hooks),
+    ...noticeUseCases(adapters, policy),
     //
     // **The only way a row ever leaves the audit log**, and so deliberately not reachable
     // from any route: `src/main/retentionSweeper.ts` is its one caller. No actor, because

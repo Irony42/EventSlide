@@ -3,6 +3,7 @@ import type { EmailAddress } from '../../domain/users/emailAddress'
 import type { SiteRole } from '../../domain/users/siteRole'
 import type { EventRole } from '../../domain/events/eventRole'
 import type { EventId, UserId } from '../../domain/shared/ids'
+import type { MailPreferences } from '../../domain/notices/mailPreferences'
 
 /**
  * What `UserRepository.authStateFor` answers — see its doc comment for why it is one
@@ -161,6 +162,21 @@ export interface MembershipWithUser extends Membership {
 }
 
 /**
+ * An owner the box may write to about an event (spec 32): the address, what the account chose to
+ * receive, and this owner's digest state for the event.
+ */
+export interface NoticeOwner {
+  readonly userId: UserId
+  /** The account's address, as stored (normalised). */
+  readonly email: string
+  readonly mail: MailPreferences
+  /** The owner ticked "send me a daily summary of the replies" for this event. */
+  readonly rsvpDigest: boolean
+  /** When the last summary was claimed for this owner and event, or `null`. */
+  readonly rsvpDigestAt: Date | null
+}
+
+/**
  * Roles are per event, never global.
  *
  * This is the port the authorization middleware calls on every `/admin` request, and
@@ -214,6 +230,18 @@ export interface MembershipRepository {
   membershipFor(eventId: EventId, userId: UserId): Promise<Membership | null>
 
   listForEvent(eventId: EventId): Promise<readonly MembershipWithUser[]>
+
+  /**
+   * The owners of the event a notice may be written to, **read at the moment of sending** (spec 32,
+   * section 3): the members whose role is `owner` **and whose account is active**, with the address and
+   * the preferences the mail decision needs, one entry per address.
+   *
+   * It is not `listForEvent` filtered, and the difference is the point: that list shows a disabled
+   * account on purpose (the owner looking at the members needs to see it), and the purge warning, which
+   * predates this, writes to it; a follow-up mail to an account an operator switched off is a mail to
+   * somebody who may not act. A moderator is never listed. The warning before a purge is not changed.
+   */
+  ownersToNotify(eventId: EventId): Promise<readonly NoticeOwner[]>
 
   listForUser(userId: UserId): Promise<readonly Membership[]>
 
