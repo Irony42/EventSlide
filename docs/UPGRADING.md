@@ -1225,7 +1225,7 @@ applies **no migration** (the last is still 035) and adds no setting. Take the s
 
 ## Upgrading to 3.19
 
-3.19.0 is a minor release in preparation (not released yet). It adds a setting that is **off unless you set it** and breaks nothing.
+3.19.0 is a minor release in preparation (not released yet). It adds settings that are **off unless you set them** and breaks nothing. It applies **one migration so far**: 041 `signup_requests`, a new table (nothing existing is rewritten); back up before upgrading, as for any release.
 
 ### Self-service signup (spec 31)
 
