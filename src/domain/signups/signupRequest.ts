@@ -4,6 +4,7 @@ import { characterCount, toSingleLine } from '../shared/plainText'
 import { err, ok, type Result } from '../shared/result'
 import { isCalendarDay } from '../shared/localDay'
 import { addDays } from '../shared/time'
+import { SIGNUP_PENDING_EXPIRES_AFTER_DAYS } from './signupRetention'
 import { ClientName } from '../clients/clientName'
 import { isClientLocale, type ClientLocale } from '../clients/clientLocale'
 import type { EmailAddress } from '../users/emailAddress'
@@ -198,11 +199,31 @@ export const confirmSignupRequest = (
     claimedAt: outcome === 'approving' ? now : null,
   })
 
-/** An operator takes a waiting request: `pending` to `approving`. */
+/**
+ * The instant a `pending` request stops being decidable: 30 days after it was made. From then it is
+ * `expired` for every decision, whether or not the sweep has erased it yet.
+ */
+export const signupPendingExpiresAt = (request: SignupRequest): Date =>
+  addDays(request.createdAt, SIGNUP_PENDING_EXPIRES_AFTER_DAYS)
+
+/** A decision (claim, refusal) on a `pending` request: refused once its 30 days are over, as for an expired one. */
+const decide = (
+  request: SignupRequest,
+  now: Date,
+  to: SignupStatus,
+  changes: Partial<SignupRequest>,
+): Result<SignupRequest, DomainError> => {
+  if (request.status === 'pending' && now.getTime() >= signupPendingExpiresAt(request).getTime()) {
+    return err(DomainError.conflict('signup.illegalTransition', { from: 'expired', to }))
+  }
+  return move(request, ['pending'], to, changes)
+}
+
+/** An operator takes a waiting request: `pending` to `approving`, while its 30 days run. */
 export const claimSignupRequest = (
   request: SignupRequest,
   now: Date,
-): Result<SignupRequest, DomainError> => move(request, ['pending'], 'approving', { claimedAt: now })
+): Result<SignupRequest, DomainError> => decide(request, now, 'approving', { claimedAt: now })
 
 /** Provisioning failed: the claim is given back, `approving` to `pending`. */
 export const releaseSignupRequest = (request: SignupRequest): Result<SignupRequest, DomainError> =>
@@ -229,13 +250,13 @@ export const finalizeSignupRequest = (
     invitationTokenId: approval.invitationTokenId,
   })
 
-/** An operator says no: `pending` to `refused`. No reason is kept. */
+/** An operator says no: `pending` to `refused`, while its 30 days run. No reason is kept. */
 export const refuseSignupRequest = (
   request: SignupRequest,
   now: Date,
   decidedBy: UserId,
 ): Result<SignupRequest, DomainError> =>
-  move(request, ['pending'], 'refused', { decidedAt: now, decidedBy })
+  decide(request, now, 'refused', { decidedAt: now, decidedBy })
 
 /** Nobody decided in time: `pending` to `expired` (the sweep writes the audit line, then erases). */
 export const expireSignupRequest = (
