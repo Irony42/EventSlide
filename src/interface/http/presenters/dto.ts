@@ -32,6 +32,7 @@ import type {
 import type { ReactionKind } from '../../../domain/reactions/reactionKind'
 import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
 import type { WallLayout } from '../../../domain/slideshow/wallLayout'
+import type { SignupMode } from '../../../domain/signups/signupMode'
 
 /**
  * What a guest may know about an event, before and after joining.
@@ -1453,6 +1454,12 @@ export interface AboutFeaturesDto {
    * than guessing from absence.
    */
   readonly forgotPassword: boolean
+  /**
+   * Self-service signup (spec 31): `off` (the default; the routes answer `404`), `review` (the
+   * operator validates each account) or `open` (the account opens when the address is confirmed). The
+   * sign-in page offers "Create an account" unless it is `off`. Always present.
+   */
+  readonly signup: SignupMode
 }
 
 /**

@@ -94,6 +94,7 @@ const NEVER_GUEST_PAGES: ReadonlySet<string> = new Set([
   'g',
   'invite',
   'password',
+  'signup',
   'api',
 ])
 

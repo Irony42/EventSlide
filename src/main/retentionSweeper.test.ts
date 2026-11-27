@@ -843,8 +843,9 @@ describe('the signup requests ride the follow-up (spec 31)', () => {
       },
     })
     await sweeper.runOnce()
-    expect(lines.find((entry) => entry.message === 'signup requests could not be swept')?.context)
-      .toEqual({ error: 'plain' })
+    expect(
+      lines.find((entry) => entry.message === 'signup requests could not be swept')?.context,
+    ).toEqual({ error: 'plain' })
   })
 })
 

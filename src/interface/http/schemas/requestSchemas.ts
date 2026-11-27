@@ -925,6 +925,22 @@ export const moderatorInvitationBody = z.strictObject({
 })
 
 /**
+ * The public signup form (spec 31). Shape only: the lengths, the date's range and the name's rules
+ * are the domain's (`createSignupRequest`) and answer `400` with their own code. The bounds here
+ * are a ceiling a person never reaches, so a body cannot be large (the route also reads 4 KB at most).
+ * `website` is the honeypot and is required, so a script that omits it is refused like any other
+ * malformed body, and a person's browser (which sends it empty) is not.
+ */
+export const signupRequestBody = z.strictObject({
+  email: emailText,
+  clientName: z.string().max(400),
+  note: z.string().max(1000).optional(),
+  eventDate: z.string().max(32).optional(),
+  locale: z.enum(CLIENT_LOCALES).default(DEFAULT_CLIENT_LOCALE),
+  website: z.string().max(400),
+})
+
+/**
  * The token of an invitation link, from the path. Bounded far above the 43 characters a real
  * one has and far below anything that costs to hash. **Parsed with `safeParse` by the routes,
  * which answer anything else with the same `invitation.notFound` an unknown link gets**: a

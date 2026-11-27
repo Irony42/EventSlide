@@ -1,3 +1,4 @@
+import type { SignupMode } from '../../domain/signups/signupMode'
 import type { NewClientDefaults } from '../../domain/clients/newClientCeilings'
 import type { Event } from '../../domain/events/event'
 import type { EventRole } from '../../domain/events/eventRole'
@@ -143,6 +144,12 @@ export interface HttpConfig {
    * nothing to anybody who is not the operator. It decides how much surface exists.
    */
   readonly siteAdmin: boolean
+  /**
+   * Self-service signup (spec 31, ADR 0018). `mode` is `SIGNUP`: while it is `off` the three public
+   * routes answer `404 feature.unavailable`, and `/api/about` publishes it as `features.signup` so the
+   * sign-in page can offer the link. `rateLimitPerHour` is `SIGNUP_RATE_LIMIT_PER_HOUR`, per client address.
+   */
+  readonly signup: { readonly mode: SignupMode; readonly rateLimitPerHour: number }
   /**
    * What `provisionClientOwner` gives a client whose operator named no ceiling (`NEW_CLIENT_*`,
    * G2-18). Read by one route, `GET /api/site/client-defaults`, which shows it to the operator's

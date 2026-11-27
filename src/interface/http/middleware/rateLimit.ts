@@ -179,6 +179,19 @@ export const invitationLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'rate.limited')
 
 /**
+ * The public signup form (spec 31): `SIGNUP_RATE_LIMIT_PER_HOUR` requests per client address and
+ * hour, **hourly and not per minute** because the abuse it bounds is mail sent to strangers, and an
+ * hour is the unit of that. Every request counts, whatever the answer (a honeypot hit, a request
+ * for an address already waiting), so the limit cannot be used to tell addresses apart.
+ *
+ * It bounds one source and says nothing of many: five addresses at ten an hour reach the day's
+ * ceiling of fifty, which is why `SIGNUP_MAX_PER_DAY` and its audit line exist
+ * (docs/SECURITY.md, "Signup").
+ */
+export const signupLimiter = (perHour: number): RateLimitRequestHandler =>
+  windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited' })
+
+/**
  * The **first stage** of the upload limit: a flood ceiling per IP **and** event, mounted ahead
  * of `requireGuest` so that a flood is refused before it costs an HMAC verification and two
  * repository reads.

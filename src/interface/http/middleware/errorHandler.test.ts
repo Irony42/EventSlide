@@ -221,6 +221,19 @@ describe('the path a request is logged under', () => {
       '/Password/Reset/:token',
     ],
     ['the page an invitation link opens', `/invite/${TOKEN}`, '/invite/:token'],
+    // Self-service signup (spec 31): the confirmation link is a one-time credential too.
+    ['the page a signup confirmation opens', `/signup/confirm/${TOKEN}`, '/signup/confirm/:token'],
+    ['that page in capitals', `/SIGNUP/Confirm/${TOKEN}`, '/SIGNUP/Confirm/:token'],
+    [
+      'the preview of a signup confirmation',
+      `/api/signup/confirm/${TOKEN}`,
+      '/api/signup/confirm/:token',
+    ],
+    [
+      'the confirmation itself, with a doubled slash',
+      `/api//signup/confirm/${TOKEN}`,
+      '/api/signup/confirm/:token',
+    ],
     // A guest invitation (spec 29): its token is stored in the clear, so it must not also sit in the logs.
     ['the page of a guest invitation', `/i/${TOKEN}`, '/i/:token'],
     ['that page in capitals, which Express routes the same', `/I/${TOKEN}`, '/I/:token'],

@@ -24,6 +24,7 @@ import { aboutRoutes } from './routes/aboutRoutes'
 import { SESSION_COOKIE, authRoutes } from './routes/authRoutes'
 import { clientRoutes } from './routes/clientRoutes'
 import { invitationRoutes } from './routes/invitationRoutes'
+import { signupRoutes } from './routes/signupRoutes'
 import { bookRoutes } from './routes/bookRoutes'
 import { exportRoutes } from './routes/exportRoutes'
 import { clipRoutes } from './routes/clipRoutes'
@@ -150,7 +151,11 @@ export const buildServer = ({
   // below, so the flag the SPA reads cannot disagree with the mount it stands for.
   app.use(
     '/api',
-    aboutRoutes(about, { siteAdmin: config.siteAdmin, forgotPassword: deps.mailer.canDeliver }),
+    aboutRoutes(about, {
+      siteAdmin: config.siteAdmin,
+      forgotPassword: deps.mailer.canDeliver,
+      signup: config.signup.mode,
+    }),
   )
 
   // The shared gallery's headers, ahead of everything that can refuse a request before
@@ -163,6 +168,9 @@ export const buildServer = ({
   // The guest invitation's public page: the token is in the path, so the same headers on every
   // answer, a refusal by the body parser or the CSRF gate included.
   app.use('/api/i', galleryHeaders)
+  // Signup (spec 31): the confirmation link's token is in the path of `/api/signup/confirm/<token>`, so the
+  // same headers on every answer under `/api/signup`, a refusal by the body parser or the CSRF gate included.
+  app.use('/api/signup', galleryHeaders)
   // The guests' replies (spec 30) are the one public write here nobody is signed in for: **8 KB**, not
   // the global 64 KB. Mounted ahead of the global parser, which does not read a body already read, so
   // this limit is the one that applies (`413` beyond it).
@@ -172,6 +180,9 @@ export const buildServer = ({
   // and a parse, never a write, a lookup or a hash; the connection-level limits of the reverse proxy are
   // what bound a flood of them, and an attacker who can only send refusals stores nothing.
   app.use('/api/i', express.json({ limit: '8kb' }))
+  // The signup form is the other public write nobody is signed in for: **4 KB** (an address, a name, a
+  // sentence and a date fit in a fraction of it), read ahead of the global parser for the reason above.
+  app.use('/api/signup', express.json({ limit: '4kb' }))
 
   // Bounded well below any legitimate payload: the only JSON bodies here are a login,
   // a caption and a list of at most 200 photo ids. Uploads go through multer.
@@ -293,6 +304,10 @@ export const buildServer = ({
   // after the auth routes because accepting with a password starts a session the same way a
   // sign-in does.
   app.use('/api', invitationRoutes(routeDeps))
+  // Self-service signup (spec 31): the form and the confirmation of an address. Public, answering `404
+  // feature.unavailable` while `SIGNUP=off`; nothing here starts a session (the account is made later, by the
+  // invitation).
+  app.use('/api', signupRoutes(routeDeps))
 
   /**
    * **One upload bucket, built here and shared by both upload routes.**
@@ -477,6 +492,8 @@ const TOKEN_PAGES = [
   '/password/reset/*splat',
   '/i',
   '/i/*splat',
+  '/signup/confirm',
+  '/signup/confirm/*splat',
 ]
 
 /**

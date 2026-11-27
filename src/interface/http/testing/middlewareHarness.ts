@@ -58,6 +58,8 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
   // product a solo install runs. A test about the operator's namespace passes
   // `{ siteAdmin: true }` through `config`, the same way it would any other setting.
   siteAdmin: false,
+  // Off, as on a box that never set `SIGNUP`.
+  signup: { mode: 'off', rateLimitPerHour: 10 },
   // No ceiling for a new client, as on a box that set no `NEW_CLIENT_*`.
   newClientCeilings: {
     maxEvents: null,
