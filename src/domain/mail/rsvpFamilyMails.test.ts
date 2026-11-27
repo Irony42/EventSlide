@@ -66,6 +66,30 @@ describe('rsvpDigestMail (R2)', () => {
   })
 })
 
+describe('rsvpDigestMail (R2): the words of absent guests that wait for approval', () => {
+  const SAYS: Readonly<Record<(typeof CLIENT_LOCALES)[number], readonly [string, string]>> = {
+    fr: ['1 mot d’absent attend votre accord.', '3 mots d’absents attendent votre accord.'],
+    en: [
+      '1 note from a guest who cannot come is waiting',
+      '3 notes from guests who cannot come are waiting',
+    ],
+    de: ['1 Nachricht von Absagenden wartet', '3 Nachrichten von Absagenden warten'],
+    es: ['1 mensaje de un ausente espera', '3 mensajes de ausentes esperan'],
+    it: ['1 messaggio di un assente attende', '3 messaggi di assenti attendono'],
+  }
+
+  it('says the count in each language, in the singular and the plural, and nothing at zero', () => {
+    for (const locale of CLIENT_LOCALES) {
+      const [one, many] = SAYS[locale]
+      const text = (pendingNotes: number) =>
+        rsvpDigestMail({ ...base(locale), changed: 2, pendingNotes, figures: FIGURES }).text
+      expect(text(1)).toContain(one)
+      expect(text(3)).toContain(many)
+      expect(text(0).split('\n').length).toBeLessThan(text(1).split('\n').length)
+    }
+  })
+})
+
 describe('rsvpDeadlineMail (R3)', () => {
   it('says how many households have not answered and the deadline the host typed, linking the unanswered list', () => {
     const mail = rsvpDeadlineMail({
