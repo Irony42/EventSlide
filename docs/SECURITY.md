@@ -3178,6 +3178,25 @@ Closing it needs a unit-of-work port that no use case has yet. G2-20 did not wai
 records the acceptance of the terms rides the `InvitationAcceptance` transaction instead (see
 "Invitations"), so that entry has no such gap.
 
+**The signup lines (spec 31, ADR 0018).** Four actions belong to the reserved subject type `access_request`
+(already in the `CHECK`, so no table is rebuilt) and are named `signup.*`, the one exception to
+`<subject>.<something>` (`auditAction.test.ts` holds both the exception and the list). The subject is
+**the request's opaque id, never its address, the space's name or the note**: those are what a stranger
+typed, and they leave the database with the request (60 days at most).
+
+| Action                       | Written by                   | Actor    | Details      | Visible to |
+| ---------------------------- | ---------------------------- | -------- | ------------ | ---------- |
+| `signup.approved`            | `approveSignup`              | operator | none         | operator   |
+| `signup.refused`             | `refuseSignup`               | operator | `{notified}` | operator   |
+| `signup.expired`             | `sweepSignups`               | system   | none         | operator   |
+| `signup.dailyCeilingReached` | `requestSignup` (once a day) | system   | `{limit}`    | operator   |
+
+None carries a client id, so none is in a client's own trail (`GET /api/client/audit`): the person had no client
+when the request was made, and the one an approval opens has `client.created` and `invitation.issued`.
+`signup.approved` and `signup.refused` follow the transition they describe (the claim, or the conditional
+refusal, is what makes the act happen once); a log that refuses the line fails the operator's call, and an
+approved request stays approved so that a retry cannot open a second client.
+
 ## 18. The operator's overview
 
 Roadmap §10.4 and §10.6; paid plan P3-12 and D-06. **An operator sees shapes and sizes of a

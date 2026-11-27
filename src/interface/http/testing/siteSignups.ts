@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { anAccountToken } from '../../../application/testing/builders'
 import { createSignupRequest } from '../../../domain/signups/signupRequest'
 import { EmailAddress } from '../../../domain/users/emailAddress'
@@ -43,7 +44,8 @@ export const seedSignup = async (site: SiteHarness, input: SeededSignup = {}): P
   )
   if (!made.ok) throw new Error('fixture rejected: request')
   const token = anAccountToken({
-    id: `${id.slice(0, 24)}000000000000`,
+    id: `c${id.slice(1)}`,
+    tokenDigest: createHash('sha256').update(id).digest('hex'),
     purpose: 'emailVerification',
     email: email.value.value,
     userId: null,
