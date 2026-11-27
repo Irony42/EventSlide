@@ -189,6 +189,11 @@ export class FakeGuestbookRepository implements GuestbookRepository {
     return this.liveOf(eventId).filter((row) => row.status !== 'rejected').length
   }
 
+  async countPublished(eventId: EventId): Promise<number> {
+    return this.visibleOf(eventId).filter((row) => row.status === 'published' && holdsAPlace(row))
+      .length
+  }
+
   async countPendingRsvpNotes(eventId: EventId): Promise<number> {
     return this.visibleOf(eventId).filter(
       (row) => row.status === 'pending' && this.viaRsvp.has(row.guestId),

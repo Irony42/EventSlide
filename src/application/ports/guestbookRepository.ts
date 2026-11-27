@@ -118,6 +118,12 @@ export interface GuestbookRepository {
    */
   countPendingRsvpNotes(eventId: EventId): Promise<number>
 
+  /**
+   * How many messages of the book are **published** and not taken down (spec 32, A3: the one figure the "after the party" notice
+   * says of the book). A voice message counts, a failed recording does not. One count, scoped by the event.
+   */
+  countPublished(eventId: EventId): Promise<number>
+
   /** Idempotent. */
   delete(eventId: EventId, entryId: GuestbookEntryId): Promise<void>
 

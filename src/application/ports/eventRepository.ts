@@ -186,6 +186,13 @@ export interface EventRepository {
   listLiveOfClients(): Promise<readonly Event[]>
 
   /**
+   * The events that are **closed** (not archived) and whose `closedAt` falls between `from` and `to`, both included: the
+   * candidates of the "after the party" notice (spec 32, A3), which then judges its own window. A narrowing on the
+   * `(status, closed_at)` index, never a walk through the archive. Newest first.
+   */
+  listClosedBetween(from: Date, to: Date): Promise<readonly Event[]>
+
+  /**
    * Events carrying a scheduled opening or closing whose instant has passed.
    *
    * `<=`, never `=`: the sweep that should have run at 18:00 may not have run at all,

@@ -215,6 +215,13 @@ export const guestbookRepositoryContract = (
       await repo.save(rejected.value)
     }
 
+    const approve = async (id: string): Promise<void> => {
+      const stored = await repo.findById(WEDDING, entryId(id))
+      const approved = stored?.publish({ kind: 'automatic' }, at(1))
+      if (approved === undefined || !approved.ok) throw new Error('setup: approve failed')
+      await repo.save(approved.value)
+    }
+
     it('counts a rejected message toward the guest, so being refused does not free a place', async () => {
       await repo.admit(entry({ id: 'e1' }))
       await reject('e1')
@@ -245,6 +252,20 @@ export const guestbookRepositoryContract = (
 
       subject.takeDown('evt-wedding', 'n2', at(50))
       expect(await repo.countPendingRsvpNotes(WEDDING)).toBe(0)
+    })
+
+    it('counts the published messages of the event, not the pending nor the taken down (A3)', async () => {
+      await repo.admit(entry({ id: 'p1', text: 'a' }))
+      await repo.admit(entry({ id: 'p2', text: 'b', createdAt: at(5) }))
+      await repo.admit(entry({ id: 'p3', text: 'c', createdAt: at(6) }))
+      await repo.admit(entry({ id: 'p4', text: 'd', createdAt: at(7) }))
+      await approve('p1')
+      await approve('p2')
+      await approve('p3')
+      subject.takeDown('evt-wedding', 'p3', at(50))
+
+      expect(await repo.countPublished(WEDDING)).toBe(2)
+      expect(await repo.countPublished(GALA)).toBe(0)
     })
 
     it('counts a note for its own event only', async () => {
