@@ -81,7 +81,9 @@ describe('what is asked once', () => {
     // The router (is there a client space?), the footer, the event page's links: three readers.
     const api = fakeApi({
       session: vi.fn(async () => host()),
-      about: vi.fn(async () => anAbout({ features: { siteAdmin: true, forgotPassword: false } })),
+      about: vi.fn(async () =>
+        anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
+      ),
     })
 
     openAdmin(api, '/admin/events/mariage')

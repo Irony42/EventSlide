@@ -145,7 +145,7 @@ export const anAbout = (overrides: Partial<About> = {}): About => ({
   license: 'AGPL-3.0-only',
   sourceUrl: 'https://git.example.org/me/eventslide/tree/v9.9.9-server',
   links: {},
-  features: { siteAdmin: false, forgotPassword: false },
+  features: { siteAdmin: false, forgotPassword: false, signup: 'off' },
   ...overrides,
 })
 

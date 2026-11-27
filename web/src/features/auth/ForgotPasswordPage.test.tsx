@@ -13,7 +13,9 @@ import type { Locale } from '../../lib/i18n/locale'
 /** A box that can send mail, which is where this form means anything. */
 const withMail = (api: Api): Api => ({
   ...api,
-  about: vi.fn(async () => anAbout({ features: { siteAdmin: false, forgotPassword: true } })),
+  about: vi.fn(async () =>
+    anAbout({ features: { siteAdmin: false, forgotPassword: true, signup: 'off' } }),
+  ),
 })
 
 const renderForgot = (api: Api, locale?: Locale) =>
@@ -33,7 +35,9 @@ const ask = async (address: string) => {
 describe('ForgotPasswordPage on a box with no mail relay', () => {
   const renderWithoutMail = () => {
     const api = fakeApi({
-      about: vi.fn(async () => anAbout({ features: { siteAdmin: false, forgotPassword: false } })),
+      about: vi.fn(async () =>
+        anAbout({ features: { siteAdmin: false, forgotPassword: false, signup: 'off' } }),
+      ),
     })
     renderWithProviders(
       <Routes>

@@ -32,7 +32,7 @@ describe('useAbout: features.forgotPassword', () => {
 
   it('is on when the server says it can send mail', async () => {
     const { result } = aboutAnswering(
-      anAbout({ features: { siteAdmin: false, forgotPassword: true } }),
+      anAbout({ features: { siteAdmin: false, forgotPassword: true, signup: 'off' } }),
     )
 
     await waitFor(() => expect(result.current.features.forgotPassword).toBe(true))
@@ -43,7 +43,7 @@ describe('useAbout: features.forgotPassword', () => {
     ['no features at all', {}],
     ['a string', { features: { forgotPassword: 'true' } }],
     ['a number', { features: { forgotPassword: 1 } }],
-    ['null', { features: { forgotPassword: null } }],
+    ['null', { features: { forgotPassword: null, signup: 'off' } }],
     ['features that are not an object', { features: 'on' }],
   ])('stays off for %s', async (_name, answer) => {
     const { result } = aboutAnswering({ ...anAbout(), ...answer })
@@ -55,7 +55,7 @@ describe('useAbout: features.forgotPassword', () => {
 
   it('does not let one flag carry the other', async () => {
     const { result } = aboutAnswering(
-      anAbout({ features: { siteAdmin: true, forgotPassword: false } }),
+      anAbout({ features: { siteAdmin: true, forgotPassword: false, signup: 'off' } }),
     )
 
     await waitFor(() => expect(result.current.features.siteAdmin).toBe(true))
@@ -118,7 +118,11 @@ describe('AboutProvider', () => {
     // the server has spoken: complete, never `undefined`.
     const { result } = renderHook(() => useAbout())
 
-    expect(result.current.features).toEqual({ siteAdmin: false, forgotPassword: false })
+    expect(result.current.features).toEqual({
+      siteAdmin: false,
+      forgotPassword: false,
+      signup: 'off',
+    })
     expect(result.current.links).toEqual({})
   })
 })
