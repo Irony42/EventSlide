@@ -2362,14 +2362,14 @@ export interface SignupConfirmedDto {
   readonly next: 'review' | 'mail' | 'held'
 }
 
+/** The three states the console lists (`approving` shows with `pending`: it is still waiting). */
+export type SiteSignupStatus = 'pending' | 'approved' | 'refused'
+
 /**
  * What the operator reads of a signup request (`GET /api/site/signups`, spec 31), written field by
  * field. The address, the space's name and the note are what a stranger typed: they are shown to an
  * operator, who needs them to decide, and to nobody else (`requireOperator` is the router's first line).
  */
-/** The three states the console lists (`approving` shows with `pending`: it is still waiting). */
-export type SiteSignupStatus = 'pending' | 'approved' | 'refused'
-
 export interface SiteSignupDto {
   readonly id: string
   readonly email: string
