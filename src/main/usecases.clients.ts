@@ -37,7 +37,13 @@ import { clientCreator, contactAddress, type SharedHooks } from './usecases.shar
 export const clientsUseCases = (
   adapters: Adapters,
   policy: UseCasePolicy,
-  { invalidateReel, invalidateBook, invalidateExport, issueInvitation }: SharedHooks,
+  {
+    invalidateReel,
+    invalidateBook,
+    invalidateExport,
+    issueInvitation,
+    takedownNotice,
+  }: SharedHooks,
 ) => {
   const provisionClientOwner = makeProvisionClientOwner({
     createClient: clientCreator(adapters),
@@ -165,6 +171,7 @@ export const clientsUseCases = (
       clients: adapters.clients,
       audit: adapters.audit,
       clock: adapters.clock,
+      notice: takedownNotice.notify,
     }),
     /**
      * The operator's "remove without viewing" levers (launch review S5, G8-03): by id, with a
@@ -183,6 +190,7 @@ export const clientsUseCases = (
       audit: adapters.audit,
       bus: adapters.bus,
       clock: adapters.clock,
+      notice: takedownNotice.notify,
     }),
     setPhotoTakedown: makeSetPhotoTakedown({
       invalidateReel,
@@ -192,6 +200,7 @@ export const clientsUseCases = (
       audit: adapters.audit,
       bus: adapters.bus,
       clock: adapters.clock,
+      notice: takedownNotice.notify,
     }),
     setEventTakedown: makeSetEventTakedown({
       invalidateExport,
@@ -199,6 +208,7 @@ export const clientsUseCases = (
       audit: adapters.audit,
       bus: adapters.bus,
       clock: adapters.clock,
+      notice: takedownNotice.notify,
     }),
     setEventPurgeHold: makeSetEventPurgeHold({
       events: adapters.events,
@@ -209,12 +219,14 @@ export const clientsUseCases = (
       clients: adapters.clients,
       audit: adapters.audit,
       clock: adapters.clock,
+      notice: takedownNotice.notify,
     }),
     offboardClient: makeOffboardClient({
       clients: adapters.clients,
       events: adapters.events,
       audit: adapters.audit,
       clock: adapters.clock,
+      notice: takedownNotice.notify,
     }),
     /**
      * The end of an offboarding (G2-14 part 3). Like `pruneAuditLog`, **not reachable from any

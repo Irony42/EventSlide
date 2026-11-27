@@ -7,7 +7,13 @@ import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { InvalidateExport } from '../exports/invalidateAlbumExport'
-import { recordOperatorAct, type OperatorActInput } from './operatorAct'
+import type { TakedownHook } from '../notices/notifyTakedown'
+import {
+  parseHostNotice,
+  recordOperatorAct,
+  type HostNotice,
+  type OperatorActInput,
+} from './operatorAct'
 
 /**
  * Takes a whole event down, or puts it back, by its id (`POST /api/site/events/:eventId/take-down`
@@ -21,7 +27,7 @@ import { recordOperatorAct, type OperatorActInput } from './operatorAct'
  * call and loses nothing.
  */
 
-export interface SetEventTakedownInput extends OperatorActInput {
+export interface SetEventTakedownInput extends OperatorActInput, HostNotice {
   readonly eventId: EventId
   /** `true` takes it down, `false` puts it back. */
   readonly down: boolean
@@ -37,15 +43,26 @@ export interface SetEventTakedownDeps {
    * goes: an archive must never still hold what was removed.
    */
   readonly invalidateExport?: InvalidateExport
+  /** Tells the event's owners, when the operator asked to and the event was really taken down (spec 32, A4). */
+  readonly notice?: TakedownHook
 }
 
 export type SetEventTakedown = (input: SetEventTakedownInput) => Promise<Result<void, DomainError>>
 
 export const makeSetEventTakedown =
-  ({ events, audit, bus, clock, invalidateExport }: SetEventTakedownDeps): SetEventTakedown =>
-  async ({ eventId, down, reason, actor }) => {
+  ({
+    events,
+    audit,
+    bus,
+    clock,
+    invalidateExport,
+    notice,
+  }: SetEventTakedownDeps): SetEventTakedown =>
+  async ({ eventId, down, reason, actor, notifyHost, hostReason }) => {
     const why = parseAuditReason(reason)
     if (!why.ok) return why
+    const told = parseHostNotice({ notifyHost, hostReason })
+    if (!told.ok) return told
 
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -66,5 +83,8 @@ export const makeSetEventTakedown =
     await events.setTakenDown(event.id, down ? at : null)
     // Neutral, like the photograph's: the stream forwards the type to everyone who listens.
     bus.publish({ type: 'event.settingsChanged', eventId: event.id })
+    if (down && told.value.tell) {
+      notice?.({ kind: 'event', eventId: event.id, reason: told.value.reason, at })
+    }
     return ok(undefined)
   }

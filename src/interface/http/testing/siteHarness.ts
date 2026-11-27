@@ -48,6 +48,7 @@ import { makeListSiteAudit } from '../../../application/usecases/site/listSiteAu
 import { makeListSiteClientEvents } from '../../../application/usecases/site/listSiteClientEvents'
 import { makeListSiteClients } from '../../../application/usecases/site/listSiteClients'
 import type { Logger } from '../../../application/ports/logger'
+import type { TakedownHook } from '../../../application/usecases/notices/notifyTakedown'
 import type { Mailer } from '../../../application/ports/mailer'
 import { AT } from '../../../application/testing/builders'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
@@ -127,6 +128,8 @@ export interface SiteHarnessOptions {
   readonly config?: Partial<HttpConfig>
   /** What the server and the use cases log to. Silent unless a case is about what a box writes. */
   readonly logger?: Logger
+  /** Told of each operator act that may write to the host (spec 32, A4): a case about what the routes hand the use cases. */
+  readonly notice?: TakedownHook
 }
 
 /** What a session may be stamped with: the two facts `requireSecondFactor` and `requireStepUp` read. */
@@ -194,6 +197,8 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
   const db = migratedDb()
   const world = sqliteWorld(db)
   const clock = new FakeClock(AT)
+  /** The notice to the host, only when a case asks for it (spec 32, A4): `{}` spreads nothing in. */
+  const noticeOf = options.notice === undefined ? {} : { notice: options.notice }
   const bus = new RecordingEventBus()
 
   const users = new SqliteUserRepository(db)
@@ -279,17 +284,17 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       }),
       renameClient: makeRenameClient({ clients, audit, clock }),
       setClientCeilings: makeSetClientCeilings({ clients, audit, clock }),
-      suspendClient: makeSuspendClient({ clients, audit, clock }),
-      resumeClient: makeResumeClient({ clients, audit, clock }),
-      setPhotoTakedown: makeSetPhotoTakedown({ photos, audit, bus, clock }),
+      suspendClient: makeSuspendClient({ clients, audit, clock, ...noticeOf }),
+      resumeClient: makeResumeClient({ clients, audit, clock, ...noticeOf }),
+      setPhotoTakedown: makeSetPhotoTakedown({ photos, audit, bus, clock, ...noticeOf }),
       lookupSiteEvents: makeLookupSiteEvents({ events }),
       getSiteEventState: makeGetSiteEventState({ events }),
       getSitePhotoState: makeGetSitePhotoState({ photos }),
       getSiteGuestbookState: makeGetSiteGuestbookState({ guestbook }),
-      setGuestbookTakedown: makeSetGuestbookTakedown({ guestbook, audit, bus, clock }),
-      setEventTakedown: makeSetEventTakedown({ events, audit, bus, clock }),
+      setGuestbookTakedown: makeSetGuestbookTakedown({ guestbook, audit, bus, clock, ...noticeOf }),
+      setEventTakedown: makeSetEventTakedown({ events, audit, bus, clock, ...noticeOf }),
       setEventPurgeHold: makeSetEventPurgeHold({ events, audit, clock }),
-      offboardClient: makeOffboardClient({ clients, events, audit, clock }),
+      offboardClient: makeOffboardClient({ clients, events, audit, clock, ...noticeOf }),
       disableAccount: makeDisableAccount({ users, clients, audit, clock }),
       enableAccount: makeEnableAccount({ users, clients, audit, clock }),
       deleteOwnAccount: makeDeleteOwnAccount({

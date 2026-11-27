@@ -43,7 +43,9 @@ import {
   type CeilingsBody,
   clientIdParams,
   eventIdParams,
+  hostNoticeBody,
   offboardClientBody,
+  operatorTakedownBody,
   operatorActBody,
   operatorInvitationBody,
   operatorPasswordResetBody,
@@ -374,10 +376,13 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     asyncHandler(async (req, res) => {
       const operator = userOf(req).userId
       const params = clientIdParams.parse(req.params)
+      const body = hostNoticeBody.parse(req.body ?? {})
 
       const result = await usecases.suspendClient({
         clientId: asClientId(params.clientId),
         actor: { kind: 'operator', userId: operator },
+        notifyHost: body.notifyHost,
+        hostReason: body.hostReason,
       })
 
       sendResultNoContent(res, result)
@@ -391,10 +396,13 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     asyncHandler(async (req, res) => {
       const operator = userOf(req).userId
       const params = clientIdParams.parse(req.params)
+      const body = hostNoticeBody.parse(req.body ?? {})
 
       const result = await usecases.resumeClient({
         clientId: asClientId(params.clientId),
         actor: { kind: 'operator', userId: operator },
+        notifyHost: body.notifyHost,
+        hostReason: body.hostReason,
       })
 
       sendResultNoContent(res, result)
@@ -478,12 +486,14 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
       const params = photoIdParams.parse(req.params)
-      const body = operatorActBody.parse(req.body)
+      const body = operatorTakedownBody.parse(req.body)
 
       const result = await usecases.setPhotoTakedown({
         photoId: asPhotoId(params.photoId),
         down: true,
         reason: body.reason,
+        notifyHost: body.notifyHost,
+        hostReason: body.hostReason,
         actor: { kind: 'operator', userId: userOf(req).userId },
       })
 
@@ -537,12 +547,14 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
       const params = guestbookEntryIdParams.parse(req.params)
-      const body = operatorActBody.parse(req.body)
+      const body = operatorTakedownBody.parse(req.body)
 
       const result = await usecases.setGuestbookTakedown({
         entryId: asGuestbookEntryId(params.entryId),
         down: true,
         reason: body.reason,
+        notifyHost: body.notifyHost,
+        hostReason: body.hostReason,
         actor: { kind: 'operator', userId: userOf(req).userId },
       })
 
@@ -579,12 +591,14 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
       const params = eventIdParams.parse(req.params)
-      const body = operatorActBody.parse(req.body)
+      const body = operatorTakedownBody.parse(req.body)
 
       const result = await usecases.setEventTakedown({
         eventId: asEventId(params.eventId),
         down: true,
         reason: body.reason,
+        notifyHost: body.notifyHost,
+        hostReason: body.hostReason,
         actor: { kind: 'operator', userId: userOf(req).userId },
       })
 
@@ -670,6 +684,8 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
         clientId: asClientId(params.clientId),
         actor: { kind: 'operator', userId: operator },
         graceDays: body.graceDays,
+        notifyHost: body.notifyHost,
+        hostReason: body.hostReason,
       })
 
       sendResultNoContent(res, result)

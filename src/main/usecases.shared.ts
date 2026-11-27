@@ -11,6 +11,10 @@ import {
   makeNotifyInvitationAccepted,
   type NotifyInvitationAccepted,
 } from '../application/usecases/notices/notifyInvitationAccepted'
+import {
+  makeNotifyTakedown,
+  type NotifyTakedown,
+} from '../application/usecases/notices/notifyTakedown'
 import { EmailAddress } from '../domain/users/emailAddress'
 import { makeIssueInvitation } from '../application/usecases/auth/issueInvitation'
 import { makeVerifySecondFactor } from '../application/usecases/auth/verifySecondFactor'
@@ -102,6 +106,8 @@ export interface SharedHooks {
   readonly jobNotice: NotifyJobDone
   /** The mail that tells a host an invitation was accepted (spec 32, A6). */
   readonly invitationNotice: NotifyInvitationAccepted
+  /** The mail that tells a host what the operator did (spec 32, A4): the operator's use cases are given its `notify`. */
+  readonly takedownNotice: NotifyTakedown
 }
 
 /**
@@ -160,6 +166,17 @@ export const buildSharedHooks = (adapters: Adapters, policy: UseCasePolicy): Sha
     logger: adapters.logger,
     publicUrl: policy.publicUrl,
     hostMailNotices: policy.hostMailNotices,
+  }),
+  takedownNotice: makeNotifyTakedown({
+    events: adapters.events,
+    clients: adapters.clients,
+    users: adapters.users,
+    memberships: adapters.memberships,
+    budget: adapters.mailBudget,
+    mailer: adapters.mailer,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    operatorContact: contactAddress(policy.operatorContactEmail),
   }),
   invalidateReel: makeInvalidateReel({
     reels: adapters.reels,

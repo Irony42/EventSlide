@@ -8,7 +8,13 @@ import type { EventBus } from '../../ports/eventBus'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { InvalidateBook } from '../book/invalidateAlbumBook'
 import type { InvalidateExport } from '../exports/invalidateAlbumExport'
-import { recordOperatorAct, type OperatorActInput } from './operatorAct'
+import type { TakedownHook } from '../notices/notifyTakedown'
+import {
+  parseHostNotice,
+  recordOperatorAct,
+  type HostNotice,
+  type OperatorActInput,
+} from './operatorAct'
 
 /**
  * Takes one guestbook message down, or puts it back, **by its id alone**
@@ -28,7 +34,7 @@ import { recordOperatorAct, type OperatorActInput } from './operatorAct'
  * out: the listening route, the archive and the count of what is open.
  */
 
-export interface SetGuestbookTakedownInput extends OperatorActInput {
+export interface SetGuestbookTakedownInput extends OperatorActInput, HostNotice {
   readonly entryId: GuestbookEntryId
   /** `true` takes it down, `false` puts it back. */
   readonly down: boolean
@@ -50,6 +56,8 @@ export interface SetGuestbookTakedownDeps {
    * published is in no book, so it does not call.
    */
   readonly invalidateBook?: InvalidateBook
+  /** Tells the event's owners, when the operator asked to and the message was really taken down (spec 32, A4). */
+  readonly notice?: TakedownHook
 }
 
 export type SetGuestbookTakedown = (
@@ -64,10 +72,13 @@ export const makeSetGuestbookTakedown =
     clock,
     invalidateExport,
     invalidateBook,
+    notice,
   }: SetGuestbookTakedownDeps): SetGuestbookTakedown =>
-  async ({ entryId, down, reason, actor }) => {
+  async ({ entryId, down, reason, actor, notifyHost, hostReason }) => {
     const why = parseAuditReason(reason)
     if (!why.ok) return why
+    const told = parseHostNotice({ notifyHost, hostReason })
+    if (!told.ok) return told
 
     const located = await guestbook.locate(entryId)
     if (located === null) return err(DomainError.notFound('guestbook.notFound'))
@@ -98,5 +109,8 @@ export const makeSetGuestbookTakedown =
       type: located.voice ? 'guestbook.voice' : 'guestbook.changed',
       eventId: located.eventId,
     })
+    if (down && told.value.tell) {
+      notice?.({ kind: 'guestbook', eventId: located.eventId, reason: told.value.reason, at })
+    }
     return ok(undefined)
   }

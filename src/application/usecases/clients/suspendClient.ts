@@ -6,6 +6,8 @@ import { err, ok, type Result } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
+import type { TakedownHook } from '../notices/notifyTakedown'
+import { parseHostNotice, type HostNotice } from '../site/operatorAct'
 
 /**
  * Freezes a client (roadmap §10.7; free plan G2-14, paid plan P3-13): an operator's act on the
@@ -30,7 +32,7 @@ import type { Clock } from '../../ports/clock'
  * will not accept refuses the act.
  */
 
-export interface SuspendClientInput {
+export interface SuspendClientInput extends HostNotice {
   readonly clientId: ClientId
   /** Who is freezing it: the operator, normally, or an integration acting for one. */
   readonly actor: AuditActorInput
@@ -41,13 +43,17 @@ export interface SuspendClientDeps {
   /** Only the writing half of the log: this use case cannot prune it. */
   readonly audit: AuditRecorder
   readonly clock: Clock
+  /** Tells the client's owners and contact address, when the operator asked to (spec 32, A4). */
+  readonly notice?: TakedownHook
 }
 
 export type SuspendClient = (input: SuspendClientInput) => Promise<Result<void, DomainError>>
 
 export const makeSuspendClient =
-  ({ clients, audit, clock }: SuspendClientDeps): SuspendClient =>
-  async ({ clientId, actor }) => {
+  ({ clients, audit, clock, notice }: SuspendClientDeps): SuspendClient =>
+  async ({ clientId, actor, notifyHost, hostReason }) => {
+    const told = parseHostNotice({ notifyHost, hostReason })
+    if (!told.ok) return told
     const client = await clients.findById(clientId)
     if (client === null) return err(DomainError.notFound('client.notFound'))
     if (client.isSuspended()) return ok(undefined)
@@ -65,5 +71,8 @@ export const makeSuspendClient =
 
     await audit.record(entry.value)
     await clients.save(client.suspend(at))
+    if (told.value.tell) {
+      notice?.({ kind: 'clientSuspended', clientId: client.id, reason: told.value.reason, at })
+    }
     return ok(undefined)
   }

@@ -346,6 +346,8 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     /** The job and invitation notices (spec 32, A2, A6): the workers are given `jobNotice.notify`; tests wait on `idle`. */
     jobNotice: hooks.jobNotice,
     invitationNotice: hooks.invitationNotice,
+    /** The mail about an operator's act (spec 32, A4): no route reaches it; tests wait on `idle`. */
+    takedownNotice: hooks.takedownNotice,
     //
     // **The only way a row ever leaves the audit log**, and so deliberately not reachable
     // from any route: `src/main/retentionSweeper.ts` is its one caller. No actor, because

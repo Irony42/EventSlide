@@ -54,6 +54,25 @@ export const siteEventLookupQuery = z.strictObject({ q: z.string().max(1_000) })
  */
 export const operatorActBody = z.strictObject({ reason: z.string().max(NAME_MAX) })
 
+/**
+ * The two optional fields of an operator act that may tell the host (spec 32, A4): `notifyHost` (absent means yes) and `hostReason`,
+ * the reason the **host** is given, distinct from the audit `reason`. The schema only bounds what a request may carry; the
+ * 500-character rule is judged after the text is folded to lines (`parseHostReason`, `400 takedown.hostReasonInvalid`).
+ */
+const hostNoticeFields = {
+  notifyHost: z.boolean().optional(),
+  hostReason: z.string().max(4000).optional(),
+}
+
+/** A take-down: the audit reason and the optional notice to the host. A restore keeps `operatorActBody`: it tells nobody. */
+export const operatorTakedownBody = z.strictObject({
+  reason: z.string().max(NAME_MAX),
+  ...hostNoticeFields,
+})
+
+/** `POST /api/site/clients/:clientId/suspend` and `/resume`: nothing but the optional notice to the host. */
+export const hostNoticeBody = z.strictObject(hostNoticeFields)
+
 /** How many rows one page of the operator's lists, or of its audit log, may ask for. */
 const pageLimit = z.coerce.number().int().min(1).max(MAX_SITE_PAGE_SIZE).optional()
 
@@ -150,7 +169,7 @@ export const operatorInvitationBody = z.strictObject({
  * `POST /api/site/clients/:clientId/offboard`. The window is judged by the use case (`400
  * client.graceInvalid` outside 1 to 365 whole days), so there is one rule and one answer for it.
  */
-export const offboardClientBody = z.strictObject({ graceDays: z.number() })
+export const offboardClientBody = z.strictObject({ graceDays: z.number(), ...hostNoticeFields })
 
 /**
  * `POST /api/site/accounts/:userId/password-reset`. `approvalId` is the id an owner of the
